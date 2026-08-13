@@ -98,6 +98,8 @@ Download pre-built native binaries (`actx-windows-x86_64.exe` or `actx-linux-x86
 ## 💬 During the Chat (Slash Commands)
 
 - **`/switch`**: Change the active workspace interactively with instant vector database resynchronization.
+- **`/update`**: Automatically download and install the latest AnyContext release.
+- **`/check-update`**: Check if a newer version of AnyContext is available.
 - **`/reset-memory`**: Reset long-term vector memory entries for the active workspace.
 - **`/config`**: Open the interactive configuration menu to manage Workspaces, AI models, base URLs, and memory limits.
 - **`/help`**: Display detailed in-app command instructions and tips.

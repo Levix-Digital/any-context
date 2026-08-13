@@ -5,6 +5,7 @@ from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
 from any_context.cli.config_menu import show_config_menu
 from any_context.cli.banner import print_banner
+from any_context.cli.updater import print_startup_update_notice, check_for_updates, run_self_update
 from any_context.memory import MemoryManager
 
 def run_chat_loop(active_workspace: str = None):
@@ -44,6 +45,10 @@ def run_chat_loop(active_workspace: str = None):
   \033[96m/switch\033[0m       Change the active workspace. Opens an interactive menu to select
                 a workspace and resynchronizes the vector database instantly.
 
+  \033[96m/update\033[0m       Check for and install the latest AnyContext release automatically.
+
+  \033[96m/check-update\033[0m Check if a newer version of AnyContext is available.
+
   \033[96m/reset-memory\033[0m Reset all long-term memories saved for the current workspace.
                 (Alias: \033[96m/reset\033[0m)
 
@@ -55,7 +60,7 @@ def run_chat_loop(active_workspace: str = None):
 \033[1mTIPS:\033[0m
   • \033[90mSyncing:\033[0m If you add new files to the workspace folder, type `/switch`
     and select the current workspace again to force a fast resync!
-  • \033[90mConfiguration:\033[0m Run `actx --config` from your terminal anytime to open settings.
+  • \033[90mUpdates:\033[0m Run `actx --update` from your terminal to update anytime.
   • \033[90mExiting:\033[0m Press \033[91mCtrl+C\033[0m to exit and trigger long-term memory summary.
 """
                 print(help_text)
@@ -67,6 +72,12 @@ def run_chat_loop(active_workspace: str = None):
                     config["configurable"]["active_workspace"] = active_workspace
                     print("\n🔄 Re-synchronizing file database for new workspace...")
                     index_folder.invoke({"workspace_name": active_workspace})
+                continue
+            elif cmd == "/update":
+                run_self_update()
+                continue
+            elif cmd == "/check-update":
+                check_for_updates(quiet_if_latest=False)
                 continue
             elif cmd in ["/reset-memory", "/reset"]:
                 confirm = questionary.confirm(
@@ -106,6 +117,7 @@ def run_chat_loop(active_workspace: str = None):
 
 def main():
     print_banner()
+    print_startup_update_notice()
     workspace = get_active_workspace()
     run_chat_loop(active_workspace=workspace)
 

@@ -4,6 +4,7 @@ import questionary
 from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
 from any_context.cli.config_menu import run_first_time_wizard, show_config_menu
+from any_context.cli.updater import check_for_updates, run_self_update
 
 def show_workspace_menu() -> str:
     """
@@ -34,7 +35,7 @@ def show_workspace_menu() -> str:
 
 def get_active_workspace() -> str:
     """
-    Parses CLI arguments. Handles --config flag or runs first-time setup if empty.
+    Parses CLI arguments. Handles --config, --update, --check-update flags or runs first-time setup if empty.
     """
     parser = argparse.ArgumentParser(description="Start the AnyContext AI Agent.")
     parser.add_argument(
@@ -48,9 +49,27 @@ def get_active_workspace() -> str:
         action="store_true", 
         help="Open the interactive configuration management menu."
     )
+    parser.add_argument(
+        "--update", 
+        action="store_true", 
+        help="Update AnyContext to the latest released version."
+    )
+    parser.add_argument(
+        "--check-update", 
+        action="store_true", 
+        help="Check if a newer version of AnyContext is available."
+    )
     
     args, unknown = parser.parse_known_args()
     
+    if args.update:
+        run_self_update()
+        sys.exit(0)
+
+    if args.check_update:
+        check_for_updates(quiet_if_latest=False)
+        sys.exit(0)
+
     if args.config:
         show_config_menu()
         sys.exit(0)
