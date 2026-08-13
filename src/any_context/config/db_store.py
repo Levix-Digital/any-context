@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import sqlite3
-from typing import Optional, List
+from typing import Optional, List, Dict
 from any_context.config.app_settings import (
     AppSettings,
     WorkspaceSettings,
@@ -21,7 +21,7 @@ def safe_print(msg: str):
 class ConfigDBStore:
     """
     SQLite-backed Configuration Storage Manager
-    Handles persistent CRUD operations for Workspaces, Models, Database paths, and Memory settings.
+    Handles persistent CRUD operations for Workspaces, Models, Database paths, Memory settings, and API Keys.
     """
 
     def __init__(self, db_path: Optional[str] = None):
@@ -103,6 +103,13 @@ class ConfigDBStore:
                     rolling_window_messages INTEGER NOT NULL,
                     meta_summary_threshold INTEGER NOT NULL,
                     meta_summary_batch_size INTEGER NOT NULL
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS api_keys (
+                    provider TEXT PRIMARY KEY,
+                    api_key TEXT NOT NULL
                 )
             """)
             conn.commit()
@@ -262,3 +269,29 @@ class ConfigDBStore:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM workspaces WHERE name = ?", (name,))
             conn.commit()
+
+    def set_api_key(self, provider: str, api_key: str):
+        """Saves or updates an API key for a specific provider in SQLite"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO api_keys (provider, api_key)
+                VALUES (?, ?)
+            """, (provider.lower().strip(), api_key.strip()))
+            conn.commit()
+
+    def get_api_key(self, provider: str = "openai") -> Optional[str]:
+        """Retrieves stored API key for provider"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT api_key FROM api_keys WHERE provider = ?", (provider.lower().strip(),))
+            row = cursor.fetchone()
+            return row["api_key"] if row else None
+
+    def get_all_api_keys(self) -> Dict[str, str]:
+        """Retrieves all stored API keys"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT provider, api_key FROM api_keys")
+            rows = cursor.fetchall()
+            return {row["provider"]: row["api_key"] for row in rows}

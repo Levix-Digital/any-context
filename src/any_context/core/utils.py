@@ -17,12 +17,27 @@ def load_env():
             return
     dotenv.load_dotenv()
 
-def get_api_key() -> str:
+def get_api_key(provider: str = "openai") -> str:
+    """
+    Resolves API Key in order:
+    1. Environment variables (OPENAI_API_KEY / LOCAL_API_KEY)
+    2. SQLite ConfigDBStore table (api_keys)
+    3. Fallback dummy 'lm-studio' (for local offline models)
+    """
     load_env()
     key = os.getenv("OPENAI_API_KEY") or os.getenv("LOCAL_API_KEY")
-    if not key or not key.strip():
-        return "lm-studio"
-    return key.strip()
+    if key and key.strip():
+        return key.strip()
+
+    try:
+        from any_context.config.db_store import ConfigDBStore
+        store_key = ConfigDBStore().get_api_key(provider)
+        if store_key and store_key.strip():
+            return store_key.strip()
+    except Exception:
+        pass
+
+    return "lm-studio"
 
 def find_agent_prompt_file(filename: str = "AGENT.md") -> str:
     candidates = [

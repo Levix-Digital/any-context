@@ -4,6 +4,11 @@ import questionary
 from any_context.config.db_store import ConfigDBStore
 from any_context.memory import MemoryManager
 
+def mask_key(key: str) -> str:
+    if not key or len(key) < 8:
+        return "*****"
+    return f"{key[:5]}...{key[-4:]}"
+
 def run_first_time_wizard():
     """
     Interactive first-time onboarding wizard if no settings/workspaces exist.
@@ -14,7 +19,7 @@ def run_first_time_wizard():
     print("=======================================================\n")
 
     ws_name = questionary.text(
-        "Enter a name for your first workspace (e.g. MyProject):",
+        "1. Enter a name for your first workspace (e.g. MyProject):",
         default="MyWorkspace"
     ).ask()
 
@@ -22,7 +27,7 @@ def run_first_time_wizard():
         ws_name = "MyWorkspace"
 
     folder_path = questionary.text(
-        "Enter the absolute folder path containing your documents:",
+        "2. Enter the absolute folder path containing your documents:",
         default=os.getcwd()
     ).ask()
 
@@ -31,7 +36,45 @@ def run_first_time_wizard():
 
     store = ConfigDBStore()
     store.add_workspace(name=ws_name, paths=[folder_path])
-    print(f"\n✅ Workspace '{ws_name}' created successfully with path: {folder_path}\n")
+    print(f"✅ Workspace '{ws_name}' created successfully with path: {folder_path}\n")
+
+    # Offer Quick AI Provider Setup
+    setup_ai = questionary.confirm("3. Do you want to configure your AI Provider & API Key now?").ask()
+    if setup_ai:
+        provider_choice = questionary.select(
+            "Select your preferred AI Provider:",
+            choices=[
+                "⚡ OpenAI Cloud (Automatic Quick-Setup)",
+                "🏠 Local LLM Server (LM Studio / Ollama - 100% Free & Offline)",
+                "🛠️ Custom / Other Provider"
+            ]
+        ).ask()
+
+        if provider_choice and provider_choice.startswith("⚡"):
+            api_key = questionary.password("Enter your OpenAI API Key (sk-...):").ask()
+            if api_key:
+                store.set_api_key("openai", api_key)
+                settings = store.get_app_settings()
+                if settings and settings.models:
+                    settings.models.model_provider = "openai"
+                    settings.models.inference_model = "gpt-4o-mini"
+                    settings.models.summary_model = "gpt-4o-mini"
+                    settings.models.local_embedding_model = "text-embedding-3-small"
+                    settings.models.local_openai_embedding_model = "text-embedding-3-small"
+                    settings.models.local_base_url = "https://api.openai.com/v1"
+                    store.save_app_settings(settings)
+                print("✅ OpenAI Provider & API Key configured successfully!")
+        elif provider_choice and provider_choice.startswith("🏠"):
+            base_url = questionary.text("Enter Local Server Base URL:", default="http://localhost:1234/v1").ask()
+            if base_url:
+                store.set_api_key("openai", "lm-studio")
+                settings = store.get_app_settings()
+                if settings and settings.models:
+                    settings.models.local_base_url = base_url
+                    store.save_app_settings(settings)
+                print("✅ Local Server configured successfully!")
+
+    print("\n🎉 Setup complete! You are ready to start chatting.\n")
 
 def show_config_menu():
     """
@@ -44,8 +87,10 @@ def show_config_menu():
             "⚙️ AnyContext Configuration Menu:",
             choices=[
                 "📂 Workspaces Management (List / Add / Remove)",
-                "🤖 AI Models & Provider Settings",
+                "🤖 AI Models, Base URL & API Keys",
+                "🔑 Manage Saved API Keys",
                 "🧠 Memory Compression & Reset Settings",
+                "❓ How to Get API Keys (Guide & Links)",
                 "🔙 Return / Exit Menu"
             ]
         ).ask()
@@ -57,8 +102,12 @@ def show_config_menu():
             _manage_workspaces(store)
         elif choice.startswith("🤖"):
             _manage_models(store)
+        elif choice.startswith("🔑"):
+            _manage_api_keys(store)
         elif choice.startswith("🧠"):
             _manage_memory(store)
+        elif choice.startswith("❓"):
+            _show_api_keys_guide()
 
 def _manage_workspaces(store: ConfigDBStore):
     settings = store.get_app_settings()
@@ -110,12 +159,49 @@ def _manage_models(store: ConfigDBStore):
     print(f"• Local Base URL : {m.local_base_url if m else 'http://localhost:1234/v1'}")
     print("------------------------------\n")
 
-    update = questionary.confirm("Do you want to update model settings?").ask()
-    if update:
+    setup_mode = questionary.select(
+        "🤖 Select Model Setup Mode:",
+        choices=[
+            "⚡ Quick-Setup: OpenAI Cloud (gpt-4o-mini + OpenAI Embeddings)",
+            "🏠 Quick-Setup: Local Server (LM Studio / Ollama)",
+            "🛠️ Custom Model & Base URL Setup",
+            "🔙 Back"
+        ]
+    ).ask()
+
+    if not setup_mode or setup_mode.startswith("🔙"):
+        return
+
+    if setup_mode.startswith("⚡"):
+        api_key = questionary.password("Enter your OpenAI API Key (sk-...):").ask()
+        if api_key:
+            store.set_api_key("openai", api_key)
+            if m:
+                m.model_provider = "openai"
+                m.inference_model = "gpt-4o-mini"
+                m.summary_model = "gpt-4o-mini"
+                m.local_embedding_model = "text-embedding-3-small"
+                m.local_openai_embedding_model = "text-embedding-3-small"
+                m.local_base_url = "https://api.openai.com/v1"
+                settings.models = m
+                store.save_app_settings(settings)
+            print("✅ OpenAI Cloud Provider configured successfully!")
+
+    elif setup_mode.startswith("🏠"):
+        url = questionary.text("Local Server Base URL:", default="http://localhost:1234/v1").ask()
+        if url:
+            store.set_api_key("openai", "lm-studio")
+            if m:
+                m.local_base_url = url
+                settings.models = m
+                store.save_app_settings(settings)
+            print("✅ Local Server Provider configured successfully!")
+
+    elif setup_mode.startswith("🛠️"):
         inf = questionary.text("Inference Model:", default=m.inference_model if m else "gpt-4o-mini").ask()
         sum_m = questionary.text("Summary Model:", default=m.summary_model if m else "google/gemma-4-e2b").ask()
         prov = questionary.text("Provider (openai/local):", default=m.model_provider if m else "openai").ask()
-        url = questionary.text("Local Base URL:", default=m.local_base_url if m else "http://localhost:1234/v1").ask()
+        url = questionary.text("Base URL:", default=m.local_base_url if m else "http://localhost:1234/v1").ask()
 
         if m:
             m.inference_model = inf
@@ -124,7 +210,69 @@ def _manage_models(store: ConfigDBStore):
             m.local_base_url = url
             settings.models = m
             store.save_app_settings(settings)
-            print("✅ Model settings updated successfully!")
+            print("✅ Custom Model settings updated successfully!")
+
+def _manage_api_keys(store: ConfigDBStore):
+    all_keys = store.get_all_api_keys()
+    print("\n--- Saved API Keys ---")
+    if not all_keys:
+        print("No API keys saved in database yet.")
+    else:
+        for provider, key in all_keys.items():
+            print(f"• \033[93m{provider.upper()}\033[0m: {mask_key(key)}")
+    print("----------------------\n")
+
+    action = questionary.select(
+        "🔑 API Key Action:",
+        choices=[
+            "➕ Save / Update API Key",
+            "🔙 Back"
+        ]
+    ).ask()
+
+    if action and action.startswith("➕"):
+        provider = questionary.select(
+            "Select Provider:",
+            choices=["OpenAI", "OpenRouter", "Anthropic", "Gemini", "Groq", "DeepSeek", "Other"]
+        ).ask()
+        if provider:
+            if provider == "Other":
+                provider = questionary.text("Enter Provider Name:").ask()
+            if provider:
+                key = questionary.password(f"Enter API Key for {provider}:").ask()
+                if key:
+                    store.set_api_key(provider, key)
+                    print(f"✅ Saved API Key for provider '{provider}'.")
+
+def _show_api_keys_guide():
+    print("""
+======================================================
+🔑 GUIDE: HOW TO OBTAIN API KEYS FOR AI PROVIDERS
+======================================================
+
+1. ⚡ OpenAI (Official Cloud Models & Embeddings):
+   • Create an account or sign in at: https://platform.openai.com
+   • Navigate to API Keys: https://platform.openai.com/api-keys
+   • Click 'Create new secret key' and copy your 'sk-...' key.
+
+2. 🌐 OpenRouter (Unified API for Gemini, Claude, DeepSeek, Llama):
+   • Visit: https://openrouter.ai
+   • Go to Keys section: https://openrouter.ai/keys
+   • Create a key and use Base URL: https://openrouter.ai/api/v1
+
+3. 🏠 LM Studio (100% Free & Local Offline LLMs):
+   • Download LM Studio from: https://lmstudio.ai
+   • Load any model (Gemma, Llama, Qwen, Mistral).
+   • Go to Developer / Server tab and click 'Start Server' (Port 1234).
+   • Base URL: http://localhost:1234/v1 (No API key needed!)
+
+4. 🦙 Ollama (Command Line Local Server):
+   • Download from: https://ollama.com
+   • Run 'ollama run llama3' or 'ollama serve' in your terminal.
+   • Base URL: http://localhost:11434/v1
+
+======================================================
+""")
 
 def _manage_memory(store: ConfigDBStore):
     settings = store.get_app_settings()

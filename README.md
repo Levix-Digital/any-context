@@ -107,9 +107,15 @@ Download pre-built native binaries (`actx-windows-x86_64.exe` or `actx-linux-x86
 
 ---
 
-## ⚙️ Configuration Management
+## ⚙️ Configuration & API Key Management
 
-AnyContext stores configuration in `config/settings.db` (SQLite). You can inspect or modify settings via `actx --config` or edit `config/settings.json` (auto-migrated on first launch):
+AnyContext stores configurations and API keys securely in `config/settings.db` (SQLite). Manage settings interactively using `actx --config` or `/config` during chat:
+
+- **🔑 Secure API Key Storage**: Input keys with password masking (`sk-...****`). Supported providers: OpenAI, OpenRouter, Anthropic, Gemini, DeepSeek, Groq.
+- **⚡ 1-Click Provider Quick-Setup**:
+  - *OpenAI Cloud Preset*: Enter key once; automatically sets `gpt-4o-mini` + `text-embedding-3-small`.
+  - *Local Offline Preset*: Auto-configures LM Studio or Ollama (`http://localhost:1234/v1`).
+- **❓ API Keys Guide**: Integrated in-app guide explaining where and how to obtain API keys for main providers.
 
 ```json
 {
