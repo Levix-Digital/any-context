@@ -28,15 +28,30 @@ Currently, the project consists of:
 
 ---
 
-## ⚙️ Getting Started
+## ⚡ Quick Start & Installation
 
-### Option 1: Install as a Python CLI Tool (Recommended for Devs)
+### Option 1: 1-Line Automatic Terminal Installer (No Python Needed!)
 
-1. Clone this repository and install in editable mode or via `pipx`:
+#### Windows (PowerShell):
+```powershell
+iwr -useb https://raw.githubusercontent.com/Levix-Digital/any-context/main/scripts/install.ps1 | iex
+```
+
+#### Linux (Terminal):
+```bash
+curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/scripts/install.sh | sh
+```
+*This downloads `actx`, configures path permissions, and enables the `actx` command globally.*
+
+---
+
+### Option 2: Install as a Python Package CLI
+
+1. Clone this repository and install:
    ```bash
    pip install -e .
    ```
-2. Now run using the quick **`actx`** command from anywhere in your terminal:
+2. Run from anywhere:
    ```bash
    actx
    # or bypass workspace menu:
@@ -44,21 +59,11 @@ Currently, the project consists of:
    ```
    *(Aliases available: `actx`, `anycontext`, `any-context`, `ac`)*
 
-### Option 2: Run directly with Python
+---
 
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. Configure your Workspaces in `config/settings.json`.
-3. Run the agent:
-   ```bash
-   python main.py
-   ```
+### Option 3: Manual Executable Download
 
-### Option 3: Download Standalone Executables (`actx.exe` / `actx-linux`)
-
-No Python required! Download the pre-built native binaries for Windows or Linux directly from the **[GitHub Releases](https://github.com/Levix-Digital/any-context/releases)** page.
+Download pre-built native binaries for Windows or Linux directly from the **[GitHub Releases](https://github.com/Levix-Digital/any-context/releases)** page.
 
 ---
 
