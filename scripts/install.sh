@@ -37,8 +37,8 @@ DOWNLOAD_SUCCESS=0
 
 if command -v gh >/dev/null 2>&1; then
     printf "\033[90m⚡ Using GitHub CLI (gh) for authenticated download...\033[0m\n"
-    if gh release download --repo "$REPO" --pattern "$ASSET_NAME" --dir "$INSTALL_DIR" --clobber >/dev/null 2>&1; then
-        if [ "$ASSET_NAME" != "$EXE_NAME" ]; then
+    if gh release download --repo "$REPO" --pattern "$ASSET_NAME" --dir "$INSTALL_DIR" --clobber 2>/dev/null; then
+        if [ "$ASSET_NAME" != "$EXE_NAME" ] && [ -f "$INSTALL_DIR/$ASSET_NAME" ]; then
             mv -f "$INSTALL_DIR/$ASSET_NAME" "$EXE_PATH" 2>/dev/null || true
         fi
         DOWNLOAD_SUCCESS=1
@@ -58,8 +58,9 @@ if [ $DOWNLOAD_SUCCESS -eq 0 ]; then
 fi
 
 if [ $DOWNLOAD_SUCCESS -eq 0 ]; then
-    printf "\033[31m❌ Error: Failed to download release asset '%s'.\033[0m\n" "$ASSET_NAME"
-    printf "\033[33m💡 For private repositories, please ensure you are logged in via 'gh auth login' or download the binary directly from GitHub Releases.\033[0m\n\n"
+    printf "\033[31m❌ Error: Release asset '%s' is not available yet.\033[0m\n" "$ASSET_NAME"
+    printf "\033[33m⏳ GitHub Actions might still be compiling the latest release binary (~2-3 mins).\033[0m\n"
+    printf "\033[33m💡 Please wait 1-2 minutes and re-run './install.sh' or log in via 'gh auth login'.\033[0m\n\n"
     exit 1
 fi
 

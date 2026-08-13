@@ -46,8 +46,9 @@ if (-not $Downloaded) {
         Invoke-WebRequest -Uri $DownloadUrl -OutFile $ExePath -UseBasicParsing
         $Downloaded = $true
     } catch {
-        Write-Host "❌ Failed to download release asset '$AssetName'." -ForegroundColor Red
-        Write-Host "💡 For private repositories, please ensure you are logged in via 'gh auth login' or download the binary directly from GitHub Releases." -ForegroundColor Yellow
+        Write-Host "❌ Error: Release asset '$AssetName' is not available yet." -ForegroundColor Red
+        Write-Host "⏳ GitHub Actions might still be compiling the latest release binary (~2-3 mins)." -ForegroundColor Yellow
+        Write-Host "💡 Please wait 1-2 minutes and re-run '.\install.ps1' or log in via 'gh auth login'." -ForegroundColor Yellow
         exit 1
     }
 }
