@@ -4,7 +4,7 @@
 
 **AnyContext** is the ultimate bridge between your local data and Artificial Intelligence. Developed with an absolute focus on **privacy, modularity, and efficiency**, AnyContext is a smart, autonomous Local AI Engine equipped with **3-Level Hierarchical Long-Term Memory**, a **High-Performance REST API Server**, and a **Model Context Protocol (MCP) Server**.
 
-Whether you are a developer seeking deep codebase insights, a business analyzing confidential reports, or an external app needing a plug-and-play RAG memory layer, AnyContext operates **100% on your machine**, ensuring your data never feeds third-party models without explicit permission.
+Whether you are a developer seeking deep codebase insights, a business analyzing confidential reports, or an enterprise deploying a private RAG context layer in your VPC, AnyContext operates **100% on your infrastructure**, ensuring your data never feeds third-party models without explicit permission.
 
 ---
 
@@ -13,6 +13,7 @@ Whether you are a developer seeking deep codebase insights, a business analyzing
 - **🔒 Absolute Privacy (Offline-First):** Natively integrated with [LM Studio](https://lmstudio.ai/) and local LLMs (Gemma, Llama, Qwen, etc.) or OpenAI-compatible endpoints. Your files, business strategies, and code stay exclusively on your hardware.
 - **🌐 REST API Server (`actx --serve`):** Exposes high-performance HTTP endpoints for external web dashboards, VS Code extensions, mobile backends, and automation workflows. Features interactive Swagger UI at `http://127.0.0.1:8000/docs`.
 - **🔌 Model Context Protocol (MCP) Server (`actx --mcp`):** Native JSON-RPC stdio implementation of Anthropic's MCP specification, allowing **Claude Desktop**, **Cursor IDE**, and **Antigravity** to query your local knowledge base seamlessly.
+- **🏢 Enterprise VPC Ready (`--host 0.0.0.0`):** Simple 1-command deployment for private cloud (AWS, GCP, Azure, On-Premise) serving entire corporate networks via internal VPN/VPC.
 - **📂 Multi-Workspace & Granular Folder Management:** Group multiple directories into isolated "Workspaces". Add, view, or remove individual folder paths per workspace dynamically.
 - **⚡ Ultra-Fast Incremental Synchronization:** Automatically tracks document SHA-256 hashes and modification timestamps: only indexes new or altered files, and purges deleted disk files from ChromaDB.
 - **🧠 3-Level Hierarchical Memory Compression:**
@@ -128,6 +129,61 @@ actx --mcp
   }
 }
 ```
+
+---
+
+## 🏢 Enterprise & VPC Deployment Guide (Private Cloud / On-Premise)
+
+AnyContext is designed for effortless deployment inside an enterprise **Virtual Private Cloud (VPC)**, **AWS EC2**, **Google Cloud Compute Engine**, **Azure VM**, or **On-Premise Private Server**.
+
+### 1. Launching in In-VPC Listener Mode
+To allow internal company applications (ERPs, CRMs, Intranets, Slack/Teams Bots, VS Code Extensions) to query AnyContext across your private network/VPN:
+```bash
+actx --serve --host 0.0.0.0 --port 8000
+```
+> **Note:** Binding to `--host 0.0.0.0` enables listening on all internal network interfaces within your VPC.
+
+### 2. Linux Background Service (`systemd`)
+To ensure AnyContext runs continuously as a background service on your VPC Linux instance and restarts automatically on server reboots:
+
+Create `/etc/systemd/system/anycontext.service`:
+```ini
+[Unit]
+Description=AnyContext Universal AI Server
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu
+ExecStart=/home/ubuntu/.local/bin/actx --serve --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable anycontext
+sudo systemctl start anycontext
+```
+
+### 3. Enterprise Department Routing (Multi-Workspace)
+External enterprise applications specify the target department using the `"workspace"` JSON field in REST requests:
+```json
+{
+  "message": "What is the policy for business travel expense reimbursement?",
+  "workspace": "HumanResources"
+}
+```
+Supported department workspaces example: `"HumanResources"`, `"Finance"`, `"Legal"`, `"Engineering"`.
+
+### 4. 100% Private In-VPC Data & LLM Pipeline
+For strict SOC2 / LGPD compliance where zero data may leave the enterprise network:
+- Pair AnyContext with an in-VPC local LLM server (e.g. **Ollama**, **vLLM**, or **Azure OpenAI Private Endpoint**).
+- Configure the Base URL via `actx --config` to point to `http://internal-llm-server:11434/v1`.
+- Documents, vector embeddings (ChromaDB), and memory persist strictly on your VPC storage.
 
 ---
 

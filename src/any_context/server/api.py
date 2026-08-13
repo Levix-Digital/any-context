@@ -69,9 +69,21 @@ class MemoryResetResponse(BaseModel):
 # --- FastAPI App Factory ---
 
 def create_app() -> FastAPI:
+    description_md = """
+### 🏢 AnyContext Universal AI Context Server
+
+Welcome to the **AnyContext REST API**. This server exposes RAG vector search, isolated workspaces, and 3-level long-term memory for external applications.
+
+#### 🔒 VPC & Enterprise Private Cloud Deployment
+To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS EC2**, **Google Cloud VM**, **Azure**, or **On-Premise Server** for all internal systems:
+- Bind to all network interfaces: `actx --serve --host 0.0.0.0 --port 8000`
+- Any internal service (ERP, CRM, Slack/Teams Bot, VS Code Extensions) on your VPN/VPC can send HTTP REST queries to `http://<internal-vpc-ip>:8000/v1/chat`.
+- All documents, vector embeddings, and memory remain 100% private inside your company infrastructure.
+"""
+
     app = FastAPI(
         title="AnyContext Universal AI Server",
-        description="REST API Server exposing RAG vector search, isolated workspaces, and 3-level long-term memory for external applications.",
+        description=description_md,
         version=__version__,
         docs_url="/docs",
         redoc_url="/redoc"
@@ -188,5 +200,7 @@ def start_api_server(host: str = "127.0.0.1", port: int = 8000):
     print(f"🚀 AnyContext REST API Server v{__version__} - Levix Digital")
     print(f"🌐 Server running at: http://{host}:{port}")
     print(f"📚 Interactive Swagger Docs: http://{host}:{port}/docs")
+    if host == "0.0.0.0":
+        print(f"🔒 VPC Enterprise Mode Enabled: Listening on all internal network interfaces.")
     print("=======================================================\n")
     uvicorn.run(create_app(), host=host, port=port, log_level="info")

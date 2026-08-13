@@ -60,11 +60,13 @@ def run_chat_loop(active_workspace: str = None):
 
   \033[96m/help\033[0m         Show this detailed help message.
 
-\033[1mSERVER MODES (Terminal Commands):\033[0m
-  • \033[96mactx --serve\033[0m Start the REST API Server (default port: 8000). Includes
-                 interactive Swagger docs at http://127.0.0.1:8000/docs.
-  • \033[96mactx --mcp\033[0m   Start the Model Context Protocol (MCP) Server for native
-                 integration with Claude Desktop, Cursor, and AI sidecars.
+\033[1mSERVER MODES & ENTERPRISE VPC DEPLOYMENT:\033[0m
+  • \033[96mactx --serve\033[0m           Start REST API Server on localhost (default port: 8000).
+  • \033[96mactx --serve --host 0.0.0.0\033[0m Launch in VPC Enterprise Mode listening on all
+                           internal network interfaces for company-wide APIs.
+                           Interactive Swagger docs: http://127.0.0.1:8000/docs.
+  • \033[96mactx --mcp\033[0m             Start Model Context Protocol (MCP) Server for native
+                           integration with Claude Desktop, Cursor, and AI sidecars.
 
 \033[1mTIPS:\033[0m
   • \033[90mSyncing:\033[0m If you add new files to the workspace folder, type `/switch`
