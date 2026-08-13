@@ -12,6 +12,12 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 
 from langchain.tools import tool
 
+def safe_print(msg: str):
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode("ascii", errors="ignore").decode("ascii"))
+
 LOCAL_API_KEY = get_api_key()
 
 settings = AppSettings.load()
@@ -29,6 +35,29 @@ Settings.embed_model = OpenAIEmbedding(
     api_key=LOCAL_API_KEY
 )
 
+def clear_context_vector_db():
+    """
+    Purges ChromaDB vector collection and docstore file to prevent dimension mismatch errors
+    when embedding models are changed.
+    """
+    try:
+        current_settings = AppSettings.load() or settings
+        db_path = current_settings.context.db_path if current_settings else "./context_db"
+        coll_name = current_settings.context.collection_name if current_settings else "context_docs"
+
+        db = chromadb.PersistentClient(path=db_path)
+        try:
+            db.delete_collection(coll_name)
+        except Exception:
+            pass
+
+        docstore_path = os.path.join(db_path, "docstore.json")
+        if os.path.exists(docstore_path):
+            os.remove(docstore_path)
+        safe_print("🧹 Context vector collection and docstore successfully cleared for re-indexing!")
+    except Exception as e:
+        safe_print(f"⚠️ Warning during vector db clear: {e}")
+
 @tool()
 def index_folder(workspace_name: str = None):
     """
@@ -37,10 +66,10 @@ def index_folder(workspace_name: str = None):
     """
     current_settings = AppSettings.load() or settings
     if not current_settings or not current_settings.workspaces:
-        print("❌ Error: No workspaces configured in settings.")
+        safe_print("❌ Error: No workspaces configured in settings.")
         return
 
-    print("⚡ 1. Connecting to ChromaDB...")
+    safe_print("⚡ 1. Connecting to ChromaDB...")
     db = chromadb.PersistentClient(path=db_save_path)
     collection = db.get_or_create_collection(collection_name)
     vector_store = ChromaVectorStore(chroma_collection=collection)
@@ -68,13 +97,13 @@ def index_folder(workspace_name: str = None):
         if workspace_name and ws.name != workspace_name:
             continue
         workspaces_to_process.append(ws)
-        print(f"\n📂 Workspace: {ws.name}")
+        safe_print(f"\n📂 Workspace: {ws.name}")
         for folder_path in ws.paths:
             if not os.path.exists(folder_path):
-                print(f"⚠️ Warning: Directory '{folder_path}' does not exist. (Its documents will be purged from DB)")
+                safe_print(f"⚠️ Warning: Directory '{folder_path}' does not exist. (Its documents will be purged from DB)")
                 continue
                 
-            print(f"  🔍 Scanning: {folder_path}")
+            safe_print(f"  🔍 Scanning: {folder_path}")
             try:
                 reader = SimpleDirectoryReader(
                     input_dir=folder_path, 
@@ -89,16 +118,16 @@ def index_folder(workspace_name: str = None):
                         d.id_ = d.metadata["file_path"]
                     
                 all_documents.extend(docs)
-                print(f"  ✅ Found {len(docs)} files.")
+                safe_print(f"  ✅ Found {len(docs)} files.")
             except ValueError:
-                print(f"  ⚠️ Warning: No valid files found in {folder_path}. Skipping...")
+                safe_print(f"  ⚠️ Warning: No valid files found in {folder_path}. Skipping...")
                 continue
                 
     if not all_documents:
-        print("❌ No valid documents found across any workspace.")
+        safe_print("❌ No valid documents found across any workspace.")
         
-    print("\n⚡ 2. Executing incremental check on vector database...")
-    print("⏳ Processing files and generating embeddings...")
+    safe_print("\n⚡ 2. Executing incremental check on vector database...")
+    safe_print("⏳ Processing files and generating embeddings...")
     nodes = pipeline.run(documents = all_documents, show_progress=True)
 
     current_doc_ids = {doc.doc_id for doc in all_documents}
@@ -115,11 +144,11 @@ def index_folder(workspace_name: str = None):
                 deleted_count += 1
 
     if deleted_count > 0:
-        print(f"🗑️ Purged {deleted_count} old file chunks from the database.")
+        safe_print(f"🗑️ Purged {deleted_count} old file chunks from the database.")
 
     docstore.persist(persist_path=docstore_path)
 
-    print("🎉 Success! Incremental vectorial database updated!")
+    safe_print("🎉 Success! Incremental vectorial database updated!")
 
 if __name__ == "__main__":
     index_folder()

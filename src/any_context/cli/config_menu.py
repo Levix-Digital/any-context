@@ -3,6 +3,7 @@ import os
 import questionary
 from any_context.config.db_store import ConfigDBStore
 from any_context.memory import MemoryManager
+from any_context.ingestion.local_folder_ingestor import clear_context_vector_db
 
 def mask_key(key: str) -> str:
     if not key or len(key) < 8:
@@ -71,6 +72,7 @@ def run_first_time_wizard():
                 settings = store.get_app_settings()
                 if settings and settings.models:
                     settings.models.local_base_url = base_url
+                    settings.models.summary_model = "google/gemma-4-e2b"
                     store.save_app_settings(settings)
                 print("✅ Local Server configured successfully!")
 
@@ -152,18 +154,21 @@ def _manage_models(store: ConfigDBStore):
     settings = store.get_app_settings()
     m = settings.models if settings else None
 
+    old_emb_model = m.local_openai_embedding_model if (m and m.model_provider == "openai") else (m.local_embedding_model if m else "")
+
     print(f"\n--- Current Model Settings ---")
-    print(f"• Inference Model: {m.inference_model if m else 'gpt-4o-mini'}")
-    print(f"• Summary Model  : {m.summary_model if m else 'google/gemma-4-e2b'}")
-    print(f"• Provider       : {m.model_provider if m else 'openai'}")
-    print(f"• Local Base URL : {m.local_base_url if m else 'http://localhost:1234/v1'}")
+    print(f"• Inference Model : {m.inference_model if m else 'gpt-4o-mini'} (High Reasoning)")
+    print(f"• Summary Model   : {m.summary_model if m else 'gpt-4o-mini'} (Fast & Efficient)")
+    print(f"• Embedding Model : {m.local_openai_embedding_model if m else 'text-embedding-3-small'}")
+    print(f"• Provider        : {m.model_provider if m else 'openai'}")
+    print(f"• Local Base URL  : {m.local_base_url if m else 'http://localhost:1234/v1'}")
     print("------------------------------\n")
 
     setup_mode = questionary.select(
         "🤖 Select Model Setup Mode:",
         choices=[
             "⚡ Quick-Setup: OpenAI Cloud (gpt-4o-mini + OpenAI Embeddings)",
-            "🏠 Quick-Setup: Local Server (LM Studio / Ollama)",
+            "🏠 Quick-Setup: Local Server (LM Studio / Ollama + Gemma Summary)",
             "🛠️ Custom Model & Base URL Setup",
             "🔙 Back"
         ]
@@ -171,6 +176,8 @@ def _manage_models(store: ConfigDBStore):
 
     if not setup_mode or setup_mode.startswith("🔙"):
         return
+
+    new_emb_model = ""
 
     if setup_mode.startswith("⚡"):
         api_key = questionary.password("Enter your OpenAI API Key (sk-...):").ask()
@@ -183,6 +190,7 @@ def _manage_models(store: ConfigDBStore):
                 m.local_embedding_model = "text-embedding-3-small"
                 m.local_openai_embedding_model = "text-embedding-3-small"
                 m.local_base_url = "https://api.openai.com/v1"
+                new_emb_model = "text-embedding-3-small"
                 settings.models = m
                 store.save_app_settings(settings)
             print("✅ OpenAI Cloud Provider configured successfully!")
@@ -193,24 +201,37 @@ def _manage_models(store: ConfigDBStore):
             store.set_api_key("openai", "lm-studio")
             if m:
                 m.local_base_url = url
+                m.summary_model = "google/gemma-4-e2b"
+                m.local_embedding_model = "text-embedding-multilingual-e5-small"
+                new_emb_model = "text-embedding-multilingual-e5-small"
                 settings.models = m
                 store.save_app_settings(settings)
             print("✅ Local Server Provider configured successfully!")
 
     elif setup_mode.startswith("🛠️"):
-        inf = questionary.text("Inference Model:", default=m.inference_model if m else "gpt-4o-mini").ask()
-        sum_m = questionary.text("Summary Model:", default=m.summary_model if m else "google/gemma-4-e2b").ask()
+        inf = questionary.text("Inference Model (High reasoning):", default=m.inference_model if m else "gpt-4o-mini").ask()
+        sum_m = questionary.text("Summary Model (Fast & efficient):", default=m.summary_model if m else "gpt-4o-mini").ask()
+        emb_m = questionary.text("Embedding Model:", default=m.local_openai_embedding_model if m else "text-embedding-3-small").ask()
         prov = questionary.text("Provider (openai/local):", default=m.model_provider if m else "openai").ask()
         url = questionary.text("Base URL:", default=m.local_base_url if m else "http://localhost:1234/v1").ask()
 
         if m:
             m.inference_model = inf
             m.summary_model = sum_m
+            m.local_embedding_model = emb_m
+            m.local_openai_embedding_model = emb_m
             m.model_provider = prov
             m.local_base_url = url
+            new_emb_model = emb_m
             settings.models = m
             store.save_app_settings(settings)
             print("✅ Custom Model settings updated successfully!")
+
+    # Check if embedding model changed to purge vector DB & prevent dimension mismatch
+    if new_emb_model and old_emb_model and new_emb_model != old_emb_model:
+        print(f"\n⚠️ Notice: Embedding model changed from '{old_emb_model}' to '{new_emb_model}'.")
+        print("🧹 Clearing vector database (ChromaDB) to force clean re-indexing and prevent dimension mismatch errors...")
+        clear_context_vector_db()
 
 def _manage_api_keys(store: ConfigDBStore):
     all_keys = store.get_all_api_keys()
