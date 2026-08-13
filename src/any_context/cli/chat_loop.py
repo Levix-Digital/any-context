@@ -7,6 +7,7 @@ from any_context.cli.config_menu import show_config_menu
 from any_context.cli.banner import print_banner
 from any_context.cli.updater import print_startup_update_notice, check_for_updates, run_self_update
 from any_context.memory import MemoryManager
+from any_context import __version__
 
 def run_chat_loop(active_workspace: str = None):
     thread_id = f"chat_{uuid.uuid4()}"
@@ -33,7 +34,7 @@ def run_chat_loop(active_workspace: str = None):
                 continue
 
             if cmd == "/help":
-                help_text = """
+                help_text = f"""
 \033[93m🤖 AnyContext Agent Help\033[0m
 
 \033[1mUSAGE:\033[0m
@@ -44,6 +45,8 @@ def run_chat_loop(active_workspace: str = None):
 \033[1mCOMMANDS:\033[0m
   \033[96m/switch\033[0m       Change the active workspace. Opens an interactive menu to select
                 a workspace and resynchronizes the vector database instantly.
+
+  \033[96m/version\033[0m      Display AnyContext version information. (Alias: \033[96m/v\033[0m)
 
   \033[96m/update\033[0m       Check for and install the latest AnyContext release automatically.
 
@@ -64,6 +67,9 @@ def run_chat_loop(active_workspace: str = None):
   • \033[90mExiting:\033[0m Press \033[91mCtrl+C\033[0m to exit and trigger long-term memory summary.
 """
                 print(help_text)
+                continue
+            elif cmd in ["/version", "/v"]:
+                print(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital")
                 continue
             elif cmd == "/switch":
                 new_workspace = show_workspace_menu()

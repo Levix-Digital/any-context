@@ -5,6 +5,7 @@ from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
 from any_context.cli.config_menu import run_first_time_wizard, show_config_menu
 from any_context.cli.updater import check_for_updates, run_self_update
+from any_context import __version__
 
 def show_workspace_menu() -> str:
     """
@@ -35,7 +36,7 @@ def show_workspace_menu() -> str:
 
 def get_active_workspace() -> str:
     """
-    Parses CLI arguments. Handles --config, --update, --check-update flags or runs first-time setup if empty.
+    Parses CLI arguments. Handles -v/--version, --config, --update, --check-update flags or runs first-time setup if empty.
     """
     parser = argparse.ArgumentParser(description="Start the AnyContext AI Agent.")
     parser.add_argument(
@@ -50,6 +51,11 @@ def get_active_workspace() -> str:
         help="Open the interactive configuration management menu."
     )
     parser.add_argument(
+        "-v", "--version", 
+        action="store_true", 
+        help="Show AnyContext version information."
+    )
+    parser.add_argument(
         "--update", 
         action="store_true", 
         help="Update AnyContext to the latest released version."
@@ -61,6 +67,10 @@ def get_active_workspace() -> str:
     )
     
     args, unknown = parser.parse_known_args()
+
+    if args.version:
+        print(f"AnyContext (actx) v{__version__} - Levix Digital")
+        sys.exit(0)
     
     if args.update:
         run_self_update()
