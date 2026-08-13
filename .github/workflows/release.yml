@@ -84,6 +84,6 @@ jobs:
           files: dist/*
           tag_name: ${{ github.ref_name }}
           name: AnyContext ${{ github.ref_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
+
 
