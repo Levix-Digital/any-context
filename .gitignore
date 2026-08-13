@@ -1,0 +1,26 @@
+# Ambientes Virtuais
+.venv/
+venv/
+env/
+.env
+
+# Bancos de Dados ChromaDB / SQLite
+context_db/
+memory/
+*.sqlite3
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Arquivos de IDE e SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# LangGraph
+.langgraph_api/

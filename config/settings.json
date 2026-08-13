@@ -1,0 +1,32 @@
+{
+    "workspaces": [
+        {
+            "name": "AnyContext",
+            "paths": [
+                "G:\\My Drive\\Documentos\\Levix Digital\\AnyContext"
+            ]
+        },
+        {
+            "name": "Intellexis",
+            "paths": [
+                "G:\\My Drive\\Documentos\\Levix Digital\\AI Educational Platform\\Agnostic Version"
+            ]
+        }
+    ],
+    "context": {
+        "db_path": "./context_db",
+        "collection_name": "context_docs"
+    },
+    "session": {
+        "db_path": "./memory",
+        "collection_name": "session_docs"
+    },
+    "models": {
+        "local_embedding_model": "text-embedding-multilingual-e5-small",
+        "local_openai_embedding_model": "text-embedding-3-small",
+        "inference_model": "gpt-4o-mini",
+        "summary_model": "google/gemma-4-e2b",
+        "model_provider": "openai",
+        "local_base_url": "http://localhost:1234/v1"
+    }
+}
