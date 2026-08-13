@@ -11,6 +11,13 @@
             "paths": [
                 "G:\\My Drive\\Documentos\\Levix Digital\\AI Educational Platform\\Agnostic Version"
             ]
+        },
+        {
+            "name": "Integration",
+            "paths": [
+                "G:\\My Drive\\Documentos\\Levix Digital\\AI Educational Platform\\Agnostic Version",
+                "G:\\My Drive\\Documentos\\Levix Digital\\AnyContext"
+            ]
         }
     ],
     "context": {
@@ -28,5 +35,11 @@
         "summary_model": "google/gemma-4-e2b",
         "model_provider": "openai",
         "local_base_url": "http://localhost:1234/v1"
+    },
+    "memory": {
+        "short_term_buffer_size": 20,
+        "rolling_window_messages": 10,
+        "meta_summary_threshold": 30,
+        "meta_summary_batch_size": 10
     }
 }
