@@ -7,7 +7,9 @@ from any_context.cli.config_menu import show_config_menu
 from any_context.cli.banner import print_banner
 from any_context.cli.updater import print_startup_update_notice, check_for_updates, run_self_update
 from any_context.memory import MemoryManager
+from any_context.help import handle_command_help_interception
 from any_context import __version__
+
 
 def run_chat_loop(active_workspace: str = None):
     thread_id = f"chat_{uuid.uuid4()}"
@@ -33,50 +35,10 @@ def run_chat_loop(active_workspace: str = None):
             if not cmd:
                 continue
 
-            if cmd == "/help":
-                help_text = f"""
-\033[93m🤖 AnyContext Agent Help (v{__version__})\033[0m
-
-\033[1mUSAGE:\033[0m
-  Just type your question to chat with the AI. The agent will automatically
-  search the vector database for documents in your current active workspace
-  and will also remember previous messages from this session.
-
-\033[1mCOMMANDS:\033[0m
-  \033[96m/switch\033[0m       Change the active workspace. Opens an interactive menu to select
-                a workspace and resynchronizes the vector database instantly.
-
-  \033[96m/version\033[0m      Display AnyContext version information. (Alias: \033[96m/v\033[0m)
-
-  \033[96m/update\033[0m       Check for and install the latest AnyContext release automatically.
-
-  \033[96m/check-update\033[0m Check if a newer version of AnyContext is available.
-
-  \033[96m/reset-memory\033[0m Reset all long-term memories saved for the current workspace.
-                (Alias: \033[96m/reset\033[0m)
-
-  \033[96m/factory-reset\033[0m Wipe all settings, workspaces, users, API keys, and databases.
-
-  \033[96m/config\033[0m       Open the interactive configuration menu (Workspaces, AI models,
-                API Keys, and User Accounts/Security RBAC).
-
-  \033[96m/help\033[0m         Show this detailed help message.
-
-\033[1mSECURITY & USER ACCESS CONTROL (RBAC):\033[0m
-  • \033[90mOpen Local Mode (Default):\033[0m Zero friction for single-user personal use.
-  • \033[90mEnterprise / Multi-User Mode:\033[0m Configure Admin via `/config` -> `🛡️ User Accounts`.
-    Supports Roles (Admin, Analyst, Viewer) & Workspace-level Access Scopes.
-
-\033[1mSERVER MODES & ENTERPRISE VPC DEPLOYMENT:\033[0m
-  • \033[96mactx --serve\033[0m           Start REST API Server on localhost (default port: 8000).
-  • \033[96mactx --serve --host 0.0.0.0\033[0m Launch in VPC Enterprise Mode listening on all
-                           internal network interfaces for company-wide APIs.
-                           Interactive Swagger docs: http://127.0.0.1:8000/docs.
-  • \033[96mactx --mcp\033[0m             Start Model Context Protocol (MCP) Server for native
-                           integration with Claude Desktop, Cursor, and AI sidecars.
-"""
-                print(help_text)
+            # Intercept command help flags and /help commands
+            if handle_command_help_interception(user_input):
                 continue
+
 
             elif cmd in ["/version", "/v"]:
                 print(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital")
