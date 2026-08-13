@@ -66,6 +66,14 @@ def start_mcp_server():
                 "type": "object",
                 "properties": {}
             }
+        },
+        {
+            "name": "get_anycontext_system_documentation",
+            "description": "Retrieves the complete official AnyContext system documentation (README.md) including REST API endpoints, MCP setup, VPC deployment guide, slash commands, and architecture.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
         }
     ]
 
@@ -155,6 +163,25 @@ def start_mcp_server():
                         store = ConfigDBStore()
                         store.factory_reset()
                         result_text = "Factory reset complete! All settings, workspaces, API keys, and vector databases have been wiped."
+
+                    elif tool_name == "get_anycontext_system_documentation":
+                        import os
+                        readme_candidates = [
+                            os.path.join(os.getcwd(), "README.md"),
+                            os.path.join(os.path.dirname(__file__), "..", "config", "README.md"),
+                            os.path.join(os.path.dirname(__file__), "..", "..", "..", "README.md")
+                        ]
+                        content = None
+                        for cand in readme_candidates:
+                            if os.path.exists(cand):
+                                try:
+                                    with open(cand, "r", encoding="utf-8") as f:
+                                        content = f.read()
+                                    break
+                                except Exception:
+                                    pass
+                        result_text = content or "Error: Application documentation (README.md) not found."
+
 
                     else:
                         result_text = f"Error: Tool '{tool_name}' not found."

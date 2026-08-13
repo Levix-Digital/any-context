@@ -195,7 +195,9 @@ For strict SOC2 / LGPD compliance where zero data may leave the enterprise netwo
 | :--- | :--- | :--- |
 | `GET` | `/v1/health` | Health check, version, and server info. |
 | `GET` | `/v1/workspaces` | List all configured workspaces and their associated folder paths. |
+| `GET` | `/v1/docs/readme` | Retrieve raw application documentation (README.md) as JSON markdown. |
 | `POST` | `/v1/chat` | Send a message to the AI agent with RAG search & session memory. |
+
 | `POST` | `/v1/search` | Perform raw vector search across workspace knowledge bases. |
 | `POST` | `/v1/index` | Trigger background re-indexing for a specific or all workspaces. |
 | `POST` | `/v1/reset-memory` | Purge long-term vector memory for a workspace or globally. |

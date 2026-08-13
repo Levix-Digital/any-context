@@ -198,7 +198,25 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Factory reset error: {str(e)}")
 
+    @app.get("/v1/docs/readme", tags=["System"])
+    def get_system_readme():
+        """Returns the full official AnyContext application documentation (README.md) as raw Markdown."""
+        readme_candidates = [
+            os.path.join(os.getcwd(), "README.md"),
+            os.path.join(os.path.dirname(__file__), "..", "config", "README.md"),
+            os.path.join(os.path.dirname(__file__), "..", "..", "..", "README.md")
+        ]
+        for cand in readme_candidates:
+            if os.path.exists(cand):
+                try:
+                    with open(cand, "r", encoding="utf-8") as f:
+                        return {"version": __version__, "content": f.read()}
+                except Exception:
+                    pass
+        raise HTTPException(status_code=404, detail="System documentation file (README.md) not found.")
+
     return app
+
 
 
 def start_api_server(host: str = "127.0.0.1", port: int = 8000):

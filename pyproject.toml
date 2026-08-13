@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.6.0"
+version = "0.6.1"
 description = "Agnostic AI Agent with isolated workspaces, long-term memory, self-help RAG context, and REST/MCP server capabilities"
 readme = "README.md"
 requires-python = ">=3.10"
