@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.4.4"
-description = "Agnostic AI Agent with isolated workspaces and long-term memory"
+version = "0.5.0"
+description = "Agnostic AI Agent with isolated workspaces, long-term memory, and REST/MCP server capabilities"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -26,7 +26,9 @@ dependencies = [
     "pydantic",
     "questionary",
     "tqdm",
-    "python-dotenv"
+    "python-dotenv",
+    "fastapi",
+    "uvicorn"
 ]
 
 [project.scripts]

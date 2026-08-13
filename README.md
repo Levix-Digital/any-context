@@ -2,24 +2,25 @@
 
 > **Transform any file, drive, or folder into a living, real-time AI context.**
 
-**AnyContext** is the ultimate bridge between your local data and Artificial Intelligence. Developed with an absolute focus on **privacy, modularity, and efficiency**, AnyContext is not just another RAG script; it is a smart, autonomous Local Agent equipped with **3-Level Hierarchical Long-Term Memory**, capable of instantly scanning your directories, learning from your documents, and providing accurate, well-founded answers.
+**AnyContext** is the ultimate bridge between your local data and Artificial Intelligence. Developed with an absolute focus on **privacy, modularity, and efficiency**, AnyContext is a smart, autonomous Local AI Engine equipped with **3-Level Hierarchical Long-Term Memory**, a **High-Performance REST API Server**, and a **Model Context Protocol (MCP) Server**.
 
-Whether you are a developer seeking to understand a complex repository or a business dealing with thousands of confidential reports, AnyContext runs **100% on your machine**, ensuring your data never feeds third-party models without your permission.
+Whether you are a developer seeking deep codebase insights, a business analyzing confidential reports, or an external app needing a plug-and-play RAG memory layer, AnyContext operates **100% on your machine**, ensuring your data never feeds third-party models without explicit permission.
 
 ---
 
 ## 🚀 Key Features
 
 - **🔒 Absolute Privacy (Offline-First):** Natively integrated with [LM Studio](https://lmstudio.ai/) and local LLMs (Gemma, Llama, Qwen, etc.) or OpenAI-compatible endpoints. Your files, business strategies, and code stay exclusively on your hardware.
-- **📂 Multi-Workspace Ingestion:** Group multiple directories into isolated "Workspaces". The AI filters vectors in real-time, keeping the context strictly focused on the requested topic.
-- **⚡ Ultra-Fast Incremental Synchronization:** Automatically tracks document SHA-256 hashes and file modification timestamps: only indexes new or altered files, and purges deleted disk files from ChromaDB.
+- **🌐 REST API Server (`actx --serve`):** Exposes high-performance HTTP endpoints for external web dashboards, VS Code extensions, mobile backends, and automation workflows. Features interactive Swagger UI at `http://127.0.0.1:8000/docs`.
+- **🔌 Model Context Protocol (MCP) Server (`actx --mcp`):** Native JSON-RPC stdio implementation of Anthropic's MCP specification, allowing **Claude Desktop**, **Cursor IDE**, and **Antigravity** to query your local knowledge base seamlessly.
+- **📂 Multi-Workspace & Granular Folder Management:** Group multiple directories into isolated "Workspaces". Add, view, or remove individual folder paths per workspace dynamically.
+- **⚡ Ultra-Fast Incremental Synchronization:** Automatically tracks document SHA-256 hashes and modification timestamps: only indexes new or altered files, and purges deleted disk files from ChromaDB.
 - **🧠 3-Level Hierarchical Memory Compression:**
   - **Level 1 (Session Block Summary):** Asynchronously summarizes chat interaction blocks (every 10 interactions / 20 messages) and persists them to long-term vector storage.
   - **Level 2 (Active Rolling Window):** Retains recent active messages in SQLite graph state for fast, lightweight LLM context windows.
-  - **Level 3 (Consolidated Meta-Summarization):** Automatically merges older session summaries into high-level Meta-Summaries when ChromaDB reaches user thresholds, keeping vector indices lean, sharp, and non-redundant.
-- **⚙️ SQLite Configuration Store (`settings.db`):** Replaces flat JSON files with a thread-safe, ACID-compliant SQLite configuration store (`ConfigDBStore`) featuring automatic background migration from legacy `settings.json`.
-- **🧙 Interactive Onboarding Wizard & Configuration Menu:** First-run onboarding wizard for new installations and full CLI management via `actx --config` or `/config` during chat.
-- **🛠️ LangGraph & Clean Modular Architecture:** Decoupled engine built with **LangGraph**, **LlamaIndex**, and **ChromaDB**, fully compatible with *LangGraph Studio*.
+  - **Level 3 (Consolidated Meta-Summarization):** Automatically merges older session summaries into high-level Meta-Summaries when ChromaDB reaches user thresholds, keeping vector indices lean and sharp.
+- **⚙️ SQLite Configuration Store (`settings.db`):** Thread-safe, ACID-compliant SQLite configuration store (`ConfigDBStore`) featuring automatic background migration from legacy `settings.json` and secure API Key storage with password masking (`sk-...****`).
+- **🔄 Auto-Updater (`actx --update` / `/update`):** Non-blocking startup release notification, manual check (`actx --check-update`), and 1-click self-updater supporting locked Windows executables and private GitHub repositories.
 
 ---
 
@@ -27,25 +28,30 @@ Whether you are a developer seeking to understand a complex repository or a busi
 
 ```text
 src/any_context/
-├── cli/                 # Presentation layer & user interaction
-│   ├── chat_loop.py     # Main interactive chat loop & slash command intercepter
-│   ├── config_menu.py   # Interactive configuration menu & onboarding wizard
+├── cli/                      # Terminal User Interface & Command Handling
+│   ├── banner.py             # Signature ASCII Art splash screen & branding
+│   ├── chat_loop.py          # Interactive chat loop & slash command intercepter
+│   ├── config_menu.py        # Interactive configuration menu & onboarding wizard
+│   ├── updater.py            # Self-update manager & release checker
 │   └── workspace_selector.py # Workspace selection & CLI argument parser
-├── config/              # Persistent configuration system
-│   ├── app_settings.py  # Pydantic schemas & settings loader
-│   └── db_store.py      # SQLite ConfigDBStore manager
-├── core/                # LangGraph orchestration brain
-│   ├── agent.py         # Agent graph definition & tool binding
-│   └── utils.py         # API key resolvers & prompt finders
-├── ingestion/           # Incremental RAG ingestion engine
+├── config/                   # Persistent SQLite Configuration System
+│   ├── app_settings.py       # Pydantic schemas & settings loader
+│   └── db_store.py           # SQLite ConfigDBStore manager
+├── core/                     # LangGraph Orchestration Engine
+│   ├── agent.py              # Agent graph definition & tool binding
+│   └── utils.py              # API key resolvers & prompt finders
+├── ingestion/                # Incremental RAG Ingestion Pipeline
 │   └── local_folder_ingestor.py # Recursive folder scanner & ChromaDB updater
-├── memory/              # Standalone 3-Level Hierarchical Memory Engine
-│   ├── models.py        # Memory schemas (SHORT_TERM, SESSION_SUMMARY, META_SUMMARY)
-│   ├── store.py         # ChromaDB memory vector store wrapper
-│   ├── compressor.py    # LLM-powered Level-1 & Level-3 summarization engine
-│   └── manager.py       # Asynchronous memory background thread orchestrator
-└── tools/               # Agent dynamic search tools
-    └── search_tools.py  # ChromaDB vector retriever tool (search_db)
+├── memory/                   # Standalone 3-Level Hierarchical Memory Engine
+│   ├── models.py             # Memory schemas (SHORT_TERM, SESSION_SUMMARY, META_SUMMARY)
+│   ├── store.py              # ChromaDB memory vector store wrapper
+│   ├── compressor.py         # LLM-powered Level-1 & Level-3 summarization engine
+│   └── manager.py            # Asynchronous memory background thread orchestrator
+├── server/                   # External Integration Layer (REST & MCP)
+│   ├── api.py                # FastAPI REST API Server & Swagger endpoints
+│   └── mcp.py                # Model Context Protocol (MCP) stdio JSON-RPC server
+└── tools/                    # Agent Dynamic Tools
+    └── search_tools.py       # ChromaDB vector retriever tool (search_db)
 ```
 
 ---
@@ -54,7 +60,7 @@ src/any_context/
 
 ### Option 1: Automatic Terminal Installer Script (No Python Needed!)
 
-1. Go to the **[Latest GitHub Release](https://github.com/Levix-Digital/any-context/releases/latest)** and download the installer script for your OS:
+1. Download the installer script from the **[Latest Release](https://github.com/Levix-Digital/any-context/releases/latest)**:
    - **Windows**: `install.ps1`
    - **Linux / Git Bash**: `install.sh`
 2. Run the script in your terminal:
@@ -67,44 +73,116 @@ src/any_context/
      chmod +x install.sh
      ./install.sh
      ```
-*This script automatically downloads the latest `actx` binary, configures your User PATH environment variable, and enables the `actx` command globally.*
+*The installer configures your User PATH environment variable, enabling `actx` globally.*
 
 ---
 
-### Option 2: Install as a Python Package CLI
+### Option 2: Install as a Python Package
 
-1. Clone this repository and install:
-   ```bash
-   pip install -e .
-   ```
-2. Run from anywhere in your terminal:
-   ```bash
-   actx
-   # or specify a workspace directly:
-   actx --workspace "AnyContext"
-   # or open the configuration menu:
-   actx --config
-   ```
-   *(Available command aliases: `actx`, `anycontext`, `any-context`, `ac`)*
+```bash
+git clone https://github.com/Levix-Digital/any-context.git
+cd any-context
+pip install -e .
+```
+*(Available command aliases: `actx`, `anycontext`, `any-context`, `ac`)*
 
 ---
 
-### Option 3: Standalone Executable Download
+## 💻 Operating Modes
 
-Download pre-built native binaries (`actx-windows-x86_64.exe` or `actx-linux-x86_64`) directly from the **[GitHub Releases](https://github.com/Levix-Digital/any-context/releases)** page.
+AnyContext supports three distinct operating modes:
+
+### Mode 1: Interactive Terminal Chat (`actx`)
+Launch the interactive agent directly in your console:
+```bash
+actx
+# Specify a workspace directly:
+actx -w "MyProject"
+# View version:
+actx -v
+```
+
+### Mode 2: REST API Server (`actx --serve`)
+Start the FastAPI REST Server to allow external web apps, VS Code extensions, or backend services to connect:
+```bash
+actx --serve --port 8000 --host 127.0.0.1
+# or simply:
+actx server
+```
+Access interactive OpenAPI / Swagger documentation at **`http://127.0.0.1:8000/docs`**.
+
+### Mode 3: Model Context Protocol (MCP) Server (`actx --mcp`)
+Start AnyContext as a standard MCP server communicating over stdio JSON-RPC 2.0:
+```bash
+actx --mcp
+```
+
+#### Configuring Claude Desktop (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "any-context": {
+      "command": "actx",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
 
 ---
 
-## 💬 During the Chat (Slash Commands)
+## 🌐 REST API Endpoints Specification
 
-- **`/switch`**: Change the active workspace interactively with instant vector database resynchronization.
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/v1/health` | Health check, version, and server info. |
+| `GET` | `/v1/workspaces` | List all configured workspaces and their associated folder paths. |
+| `POST` | `/v1/chat` | Send a message to the AI agent with RAG search & session memory. |
+| `POST` | `/v1/search` | Perform raw vector search across workspace knowledge bases. |
+| `POST` | `/v1/index` | Trigger background re-indexing for a specific or all workspaces. |
+| `POST` | `/v1/reset-memory` | Purge long-term vector memory for a workspace or globally. |
+
+### API Usage Examples (`curl`)
+
+#### 1. Chat with Agent (`POST /v1/chat`)
+```bash
+curl -X POST "http://127.0.0.1:8000/v1/chat" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "message": "What were the security requirements discussed in the project specs?",
+           "workspace": "MyProject"
+         }'
+```
+
+#### 2. Search Knowledge Base (`POST /v1/search`)
+```bash
+curl -X POST "http://127.0.0.1:8000/v1/search" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "query": "authentication bearer tokens",
+           "workspace": "MyProject"
+         }'
+```
+
+#### 3. Trigger Workspace Re-indexing (`POST /v1/index`)
+```bash
+curl -X POST "http://127.0.0.1:8000/v1/index" \
+     -H "Content-Type: application/json" \
+     -d '{ "workspace": "MyProject" }'
+```
+
+---
+
+## 💬 In-App Slash Commands (During Chat)
+
+- **`/switch`**: Interactively switch active workspace with instant vector DB resync.
 - **`/version`** (or **`/v`**): Display AnyContext version information.
-- **`/update`**: Automatically download and install the latest AnyContext release.
-- **`/check-update`**: Check if a newer version of AnyContext is available.
-- **`/reset-memory`**: Reset long-term vector memory entries for the active workspace.
-- **`/config`**: Open the interactive configuration menu to manage Workspaces, AI models, base URLs, and memory limits.
+- **`/update`**: Check for and install the latest release automatically.
+- **`/check-update`**: Check if a newer version is available.
+- **`/reset-memory`** (or **`/reset`**): Purge long-term vector memories for the active workspace.
+- **`/config`**: Open the interactive configuration menu (Workspaces, AI Models, API Keys).
 - **`/help`**: Display detailed in-app command instructions and tips.
-- **`Ctrl+C`**: Gracefully exit the application while triggering an asynchronous long-term memory summary in the background.
+- **`Ctrl+C`**: Gracefully exit while triggering a background memory summary.
 
 ---
 
@@ -115,45 +193,18 @@ AnyContext stores configurations and API keys securely in `config/settings.db` (
 - **🔑 Secure API Key Storage**: Input keys with password masking (`sk-...****`). Supported providers: OpenAI, OpenRouter, Anthropic, Gemini, DeepSeek, Groq.
 - **📂 Workspace & Folder Management**: Add, view, or remove individual document folders within any existing workspace.
 - **⚡ 1-Click Provider Quick-Setup**:
-  - *OpenAI Cloud Preset*: Enter key once; automatically sets `gpt-4o-mini` + `text-embedding-3-small`.
+  - *OpenAI Cloud Preset*: Enter key once; sets `gpt-4o-mini` + `text-embedding-3-small`.
   - *Local Offline Preset*: Auto-configures LM Studio or Ollama (`http://localhost:1234/v1`).
-- **❓ API Keys Guide**: Integrated in-app guide explaining where and how to obtain API keys for main providers.
-
-```json
-{
-    "workspaces": [
-        {
-            "name": "MyProject",
-            "paths": [
-                "C:\\Users\\User\\Documents\\Project"
-            ]
-        }
-    ],
-    "models": {
-        "local_embedding_model": "text-embedding-multilingual-e5-small",
-        "local_openai_embedding_model": "text-embedding-3-small",
-        "inference_model": "gpt-4o-mini",
-        "summary_model": "google/gemma-4-e2b",
-        "model_provider": "openai",
-        "local_base_url": "http://localhost:1234/v1"
-    },
-    "memory": {
-        "short_term_buffer_size": 20,
-        "rolling_window_messages": 10,
-        "meta_summary_threshold": 30,
-        "meta_summary_batch_size": 10
-    }
-}
-```
+- **🧹 Automatic Embedding Vector Purge**: Changing embedding models automatically clears stale ChromaDB collections to prevent dimension mismatch errors.
 
 ---
 
 ## 🧹 Uninstallation
 
-To completely uninstall AnyContext (`actx`) and automatically remove PATH environment variables:
+To completely uninstall AnyContext (`actx`) and clean PATH variables:
 
-1. Download `uninstall.ps1` (Windows) or `uninstall.sh` (Linux / Git Bash) from the **[Latest Release Assets](https://github.com/Levix-Digital/any-context/releases/latest)**.
-2. Run in your terminal:
+1. Download `uninstall.ps1` (Windows) or `uninstall.sh` (Linux / Git Bash) from **[Latest Release Assets](https://github.com/Levix-Digital/any-context/releases/latest)**.
+2. Run in terminal:
    - **Windows (PowerShell)**:
      ```powershell
      .\uninstall.ps1
@@ -169,10 +220,10 @@ To completely uninstall AnyContext (`actx`) and automatically remove PATH enviro
 ## 🔮 Roadmap
 
 1. **Cloud Drive Ingestors (Google Drive, OneDrive, Dropbox)**
-2. **Multi-Agent Orchestration (Orchestrator & Sub-Agent Execution)**
-3. **FastAPI REST Service & Web UI Interface**
+2. **Multi-Agent Orchestration (Sub-Agent Execution & Routing)**
+3. **Web Dashboard & GUI Desktop Interface**
 4. **Source Code AST & Deep Codebase Analysis Pipeline**
 
 ---
 
-> **Built with ☕ and ❤️ to transform file chaos into your personal AI assistant.**
+> **Built with ☕ and ❤️ by Levix Digital to transform document chaos into your personal AI assistant.**

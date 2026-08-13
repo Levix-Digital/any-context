@@ -36,7 +36,7 @@ def show_workspace_menu() -> str:
 
 def get_active_workspace() -> str:
     """
-    Parses CLI arguments. Handles -v/--version, --config, --update, --check-update flags or runs first-time setup if empty.
+    Parses CLI arguments. Handles -v/--version, --config, --serve, --mcp, --update, --check-update flags or runs first-time setup if empty.
     """
     parser = argparse.ArgumentParser(description="Start the AnyContext AI Agent.")
     parser.add_argument(
@@ -56,6 +56,29 @@ def get_active_workspace() -> str:
         help="Show AnyContext version information."
     )
     parser.add_argument(
+        "--serve", "--server",
+        dest="serve",
+        action="store_true", 
+        help="Start the AnyContext REST API Server for external app connections."
+    )
+    parser.add_argument(
+        "--port", 
+        type=int, 
+        default=8000, 
+        help="Port to listen on for REST API server (default: 8000)."
+    )
+    parser.add_argument(
+        "--host", 
+        type=str, 
+        default="127.0.0.1", 
+        help="Host address to bind REST API server (default: 127.0.0.1)."
+    )
+    parser.add_argument(
+        "--mcp", 
+        action="store_true", 
+        help="Start the AnyContext Model Context Protocol (MCP) Server on stdio."
+    )
+    parser.add_argument(
         "--update", 
         action="store_true", 
         help="Update AnyContext to the latest released version."
@@ -70,6 +93,16 @@ def get_active_workspace() -> str:
 
     if args.version:
         print(f"AnyContext (actx) v{__version__} - Levix Digital")
+        sys.exit(0)
+
+    if args.serve or "server" in unknown or "serve" in unknown:
+        from any_context.server.api import start_api_server
+        start_api_server(host=args.host, port=args.port)
+        sys.exit(0)
+
+    if args.mcp:
+        from any_context.server.mcp import start_mcp_server
+        start_mcp_server()
         sys.exit(0)
     
     if args.update:
