@@ -2,7 +2,7 @@ import os
 import dotenv
 import chromadb
 
-from config.app_settings import AppSettings
+from any_context.config.app_settings import AppSettings
 from llama_index.core import Settings, Document
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
@@ -15,30 +15,18 @@ LOCAL_API_KEY = os.getenv("LOCAL_API_KEY")
 
 settings = AppSettings.load()
 
-local_embedding_model = settings.models.local_embedding_model
-local_openai_embedding_model = settings.models.local_openai_embedding_model
-local_base_url = settings.models.local_base_url
-db_path = settings.session.db_path
-collection_name = settings.session.collection_name
+local_embedding_model = settings.models.local_embedding_model if settings else "text-embedding-multilingual-e5-small"
+local_openai_embedding_model = settings.models.local_openai_embedding_model if settings else "text-embedding-3-small"
+local_base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
+db_path = settings.session.db_path if settings else "./memory"
+collection_name = settings.session.collection_name if settings else "session_docs"
 
-# --------------------------------------------------------------------------
-# 🎯 DEFININING THE EMBEDDING MODEL
-# --------------------------------------------------------------------------
-# OPTION A: Local Model via OpenAI Compatible API (e.g., LM Studio)
 Settings.embed_model = OpenAIEmbedding(
     model_name=local_embedding_model,
-    model=local_openai_embedding_model, # OBRIGATÓRIO SER UM NOME DA OPENAI PARA O LLAMAINDEX NÃO TRAVAR. O LM STUDIO IGNORA.
+    model=local_openai_embedding_model,
     api_base=local_base_url,
     api_key=LOCAL_API_KEY
 )
-
-# OPTION B: If you prefer OpenAI (Requires OPENAI_API_KEY in .env):
-# Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small")
-# --------------------------------------------------------------------------
-
-# --------------------------------------------------------------------------
-# 🎯 VECTOR DATABASE PIPELINE
-# --------------------------------------------------------------------------
 
 @tool()
 def index_session(session_summary: str):
@@ -61,7 +49,6 @@ def index_session(session_summary: str):
     )
 
     print("⚡ Executing vector database session pipeline...")
-    # LlamaIndex expects Document objects, not raw strings!
     doc = Document(text=session_summary)
     nodes = pipeline.run(documents=[doc])
 

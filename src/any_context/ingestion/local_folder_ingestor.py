@@ -2,7 +2,7 @@ import os
 import dotenv
 import sys
 import chromadb
-from config.app_settings import AppSettings
+from any_context.config.app_settings import AppSettings
 from llama_index.core import Settings, SimpleDirectoryReader
 from llama_index.core.ingestion import IngestionPipeline, DocstoreStrategy
 from llama_index.core.storage.docstore import SimpleDocumentStore
@@ -17,27 +17,18 @@ LOCAL_API_KEY = os.getenv("LOCAL_API_KEY")
 
 settings = AppSettings.load()
 
+db_save_path = settings.context.db_path if settings else "./context_db"
+collection_name = settings.context.collection_name if settings else "context_docs"
+local_embedding_model = settings.models.local_embedding_model if settings else "text-embedding-multilingual-e5-small"
+local_openai_embedding_model = settings.models.local_openai_embedding_model if settings else "text-embedding-3-small"
+local_base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
 
-db_save_path = settings.context.db_path
-collection_name = settings.context.collection_name
-local_embedding_model = settings.models.local_embedding_model
-local_openai_embedding_model = settings.models.local_openai_embedding_model
-local_base_url = settings.models.local_base_url
-
-# --------------------------------------------------------------------------
-# 🎯 DEFININING THE EMBEDDING MODEL
-# --------------------------------------------------------------------------
-# OPTION A: Local Model via OpenAI Compatible API (e.g., LM Studio)
 Settings.embed_model = OpenAIEmbedding(
     model_name=local_embedding_model,
-    model=local_openai_embedding_model, # MUST BE AN OPENAI NAME TO PREVENT LLAMAINDEX FROM CRASHING. LM STUDIO IGNORES THIS.
+    model=local_openai_embedding_model,
     api_base=local_base_url,
     api_key=LOCAL_API_KEY
 )
-
-# OPTION B: If you prefer OpenAI (Requires OPENAI_API_KEY in .env):
-# Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small")
-# --------------------------------------------------------------------------
 
 @tool()
 def index_folder(workspace_name: str = None):
@@ -45,19 +36,22 @@ def index_folder(workspace_name: str = None):
     Index documents in the vector database incrementally across all configured workspaces,
     or a specific workspace if provided.
     """
+    current_settings = AppSettings.load() or settings
+    if not current_settings or not current_settings.workspaces:
+        print("❌ Error: No workspaces configured in settings.")
+        return
+
     print("⚡ 1. Connecting to ChromaDB...")
     db = chromadb.PersistentClient(path=db_save_path)
     collection = db.get_or_create_collection(collection_name)
     vector_store = ChromaVectorStore(chroma_collection=collection)
 
-    # Load local docstore (if exists)
     docstore_path = os.path.join(db_save_path, "docstore.json")
     if os.path.exists(docstore_path):
         docstore = SimpleDocumentStore.from_persist_path(docstore_path)
     else:
         docstore = SimpleDocumentStore()
 
-    # Set the incremental Pipeline with UPSERT strategy
     pipeline = IngestionPipeline(
         transformations = [
             SentenceSplitter(chunk_size=500, chunk_overlap=100),
@@ -65,14 +59,13 @@ def index_folder(workspace_name: str = None):
         ],
         vector_store = vector_store,
         docstore = docstore,
-        docstore_strategy = DocstoreStrategy.UPSERTS # Enable incremental mode by hash
+        docstore_strategy = DocstoreStrategy.UPSERTS
     )
 
     all_documents = []
     
-    # Iterate through workspaces
     workspaces_to_process = []
-    for ws in settings.workspaces:
+    for ws in current_settings.workspaces:
         if workspace_name and ws.name != workspace_name:
             continue
         workspaces_to_process.append(ws)
@@ -91,10 +84,8 @@ def index_folder(workspace_name: str = None):
                 )
                 docs = reader.load_data()
                 
-                # Inject workspace metadata and fix doc_id
                 for d in docs:
                     d.metadata["workspace"] = ws.name
-                    # Make doc_id deterministic to prevent the DB from thinking they are new files every run!
                     if "file_path" in d.metadata:
                         d.id_ = d.metadata["file_path"]
                     
@@ -108,27 +99,16 @@ def index_folder(workspace_name: str = None):
         print("❌ No valid documents found across any workspace.")
         
     print("\n⚡ 2. Executing incremental check on vector database...")
-    from tqdm import tqdm
-    
-    # Identificar quais documentos já existiam no docstore antes da execução
-    existing_doc_ids = set(docstore.docs.keys())
-
-    # We can pass all documents at once or in batches. LlamaIndex handles it.
     print("⏳ Processing files and generating embeddings...")
-    # Using tqdm for visual progress (LlamaIndex doesn't natively support it in pipeline.run, so we just show a spinner or use batching if needed, but pipeline.run is fast if incremental)
-    # Since pipeline.run is a single blocking call, we just inform the user.
     nodes = pipeline.run(documents = all_documents, show_progress=True)
 
-    # Collect IDs of current documents
     current_doc_ids = {doc.doc_id for doc in all_documents}
     processed_workspace_names = {ws.name for ws in workspaces_to_process}
     
     deleted_count = 0
     for node_id, node in list(docstore.docs.items()):
-        # Ensure we only purge documents that belong to the workspaces we are indexing right now
         node_workspace = node.metadata.get("workspace") if node.metadata else None
         
-        # If the document has no workspace metadata, or it belongs to the workspaces being processed:
         if not node_workspace or node_workspace in processed_workspace_names:
             if getattr(node, "ref_doc_id", None) not in current_doc_ids and node.id_ not in current_doc_ids:
                 docstore.delete_document(node_id)
@@ -138,7 +118,6 @@ def index_folder(workspace_name: str = None):
     if deleted_count > 0:
         print(f"🗑️ Purged {deleted_count} old file chunks from the database.")
 
-    # Saving docstore
     docstore.persist(persist_path=docstore_path)
 
     print("🎉 Success! Incremental vectorial database updated!")

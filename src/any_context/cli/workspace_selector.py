@@ -1,7 +1,7 @@
 import argparse
 import sys
 import questionary
-from config.app_settings import AppSettings
+from any_context.config.app_settings import AppSettings
 
 def show_workspace_menu() -> str:
     """
@@ -38,7 +38,7 @@ def get_active_workspace() -> str:
         default=None
     )
     
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
     
     if args.workspace:
         return args.workspace

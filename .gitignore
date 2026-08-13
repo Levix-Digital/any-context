@@ -10,11 +10,15 @@ memory/
 *.sqlite3
 *.db
 
-# Python
+# Python & Build Artifacts
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
+dist/
+build/
+*.spec
 
 # Arquivos de IDE e SO
 .vscode/
