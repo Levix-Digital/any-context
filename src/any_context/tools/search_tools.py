@@ -8,6 +8,12 @@ from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
 from llama_index.embeddings.openai import OpenAIEmbedding
 from langchain.tools import tool
 
+def safe_print(msg: str):
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode("ascii", errors="ignore").decode("ascii"))
+
 def configure_embedding_model():
     settings = AppSettings.load()
     local_embedding_model = settings.models.local_embedding_model if settings else "text-embedding-multilingual-e5-small"
@@ -29,13 +35,14 @@ configure_embedding_model()
 @tool()
 def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 8, workspace: str = None):
     """
-    Search for relevant information in the vector databases based on the provided prompt text.
+    Search for relevant information in the vector database based on the provided prompt text.
+    Enforces strict workspace isolation to ensure total privacy between projects.
 
     Args:
         prompt_text (str): The text to search for.
         search_session_memory (bool): Set to True to search the user's past conversations/sessions memory. Set to False to search general workspace documents.
         top_k (int): The number of relevant document chunks to return (default: 8).
-        workspace (str, optional): The specific workspace to filter searches by.
+        workspace (str, optional): The specific workspace to filter searches by (enforces strict workspace privacy).
 
     Returns:
         str: Relevant document content snippets or memory entries.
@@ -73,22 +80,17 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         filters = None
 
         if workspace and not search_session_memory:
-            print(f"\n🔍 [Search] Filtering context by Workspace: '{workspace}' (retrieving top {search_k} chunks)...")
+            safe_print(f"\n🔍 [Search] Searching strictly within Workspace: '{workspace}' (retrieving top {search_k} chunks)...")
             filters = MetadataFilters(
                 filters=[ExactMatchFilter(key="workspace", value=workspace)]
             )
             retriever = index.as_retriever(similarity_top_k=search_k, filters=filters)
             nodes = retriever.retrieve(prompt_text)
-
-        # Fallback to global search if workspace filter returned 0 nodes or no workspace was provided
-        if not nodes and not search_session_memory:
-            if workspace:
-                print(f"\n🔍 [Search] Workspace filter '{workspace}' returned 0 chunks. Performing global fallback search...")
-            else:
-                print(f"\n🔍 [Search] Searching globally across all workspaces (retrieving top {search_k} chunks)...")
+        elif not search_session_memory:
+            safe_print(f"\n🔍 [Search] Searching globally across all workspaces (retrieving top {search_k} chunks)...")
             retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
             nodes = retriever.retrieve(prompt_text)
-        elif search_session_memory:
+        else:
             retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
             nodes = retriever.retrieve(prompt_text)
 
@@ -100,7 +102,7 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
             results_list.append(f"--- [Document Chunk {i+1} | Source: {file_name} | Workspace: {ws_tag}] ---\nPath: {file_path}\nContent:\n{node.text}")
 
         if not results_list:
-            return "No documents found."
+            return f"No documents found for search in workspace '{workspace}'." if workspace else "No documents found."
             
         return "\n\n".join(results_list)
 
