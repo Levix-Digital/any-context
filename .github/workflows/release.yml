@@ -29,10 +29,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Free Disk Space (Linux)
+      - name: Free Aggressive Disk Space (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /var/lib/docker
           sudo apt-get clean
 
       - name: Set up Python
@@ -43,18 +49,18 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller -r requirements.txt
-          pip install -e .
+          pip install --no-cache-dir pyinstaller -r requirements.txt
+          pip install --no-cache-dir -e .
 
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
         run: |
-          pyinstaller --onefile --name actx-windows-x86_64 --add-data "config;config" main.py
+          pyinstaller --clean --onefile --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "config;config" main.py
 
       - name: Build with PyInstaller (Linux)
         if: runner.os == 'Linux'
         run: |
-          pyinstaller --onefile --name actx-linux-x86_64 --add-data "config:config" main.py
+          pyinstaller --clean --onefile --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "config:config" main.py
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
@@ -64,7 +70,7 @@ jobs:
 
       - name: Create Release and Upload Assets
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/*
         env:

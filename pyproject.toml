@@ -18,7 +18,6 @@ dependencies = [
     "llama-index-vector-stores-chroma",
     "llama-index-readers-file",
     "llama-index-embeddings-openai",
-    "llama-index-embeddings-huggingface",
     "docx2txt",
     "langchain",
     "langchain-openai",
