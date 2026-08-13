@@ -38,7 +38,7 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         workspace (str, optional): The specific workspace to filter searches by (only applies when search_session_memory is False).
 
     Returns:
-        list: A list of relevant information.
+        str: Relevant document or memory content, or a friendly notice if no results are found.
     """
 
     if search_session_memory:
@@ -48,32 +48,44 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         db_path = folder_db_path
         collection_name = folder_collection_name
 
-    db = chromadb.PersistentClient(path=db_path)
-    chroma_collection = db.get_collection(collection_name)
-    vector_store = ChromaVectorStore(chroma_collection = chroma_collection)
+    try:
+        os.makedirs(db_path, exist_ok=True)
+        db = chromadb.PersistentClient(path=db_path)
+        chroma_collection = db.get_or_create_collection(collection_name)
 
-    index = VectorStoreIndex.from_vector_store(vector_store)
+        if chroma_collection.count() == 0:
+            if search_session_memory:
+                return "No long-term session memory summaries found in database yet."
+            return "No documents found in vector database."
 
-    safe_top_k = min(top_k, 2)
+        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+        index = VectorStoreIndex.from_vector_store(vector_store)
 
-    filters = None
-    if workspace and not search_session_memory:
-        print(f"\n🔍 [Search] Filtering context by Workspace: '{workspace}'")
-        filters = MetadataFilters(
-            filters=[ExactMatchFilter(key="workspace", value=workspace)]
-        )
-    elif not search_session_memory:
-        print(f"\n🔍 [Search] Searching globally across all workspaces...")
+        safe_top_k = min(top_k, 2)
 
-    retriever = index.as_retriever(similarity_top_k=safe_top_k, filters=filters)
-    nodes = retriever.retrieve(prompt_text)
+        filters = None
+        if workspace and not search_session_memory:
+            print(f"\n🔍 [Search] Filtering context by Workspace: '{workspace}'")
+            filters = MetadataFilters(
+                filters=[ExactMatchFilter(key="workspace", value=workspace)]
+            )
+        elif not search_session_memory:
+            print(f"\n🔍 [Search] Searching globally across all workspaces...")
 
-    results_list = []
-    for i, node in enumerate(nodes):
-        file_name = node.metadata.get('file_name', 'Unknown')
-        results_list.append(f"Source: {file_name}\nContent:\n{node.text}")
+        retriever = index.as_retriever(similarity_top_k=safe_top_k, filters=filters)
+        nodes = retriever.retrieve(prompt_text)
 
-    if not results_list:
-        return "No documents found."
-        
-    return "\n\n".join(results_list)
+        results_list = []
+        for i, node in enumerate(nodes):
+            file_name = node.metadata.get('file_name', 'Unknown')
+            results_list.append(f"Source: {file_name}\nContent:\n{node.text}")
+
+        if not results_list:
+            return "No documents found."
+            
+        return "\n\n".join(results_list)
+
+    except Exception as e:
+        if search_session_memory:
+            return "No long-term session memory entries found yet."
+        return f"Error during database search: {str(e)}"
