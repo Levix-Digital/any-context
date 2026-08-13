@@ -1,7 +1,7 @@
 # ==============================================================================
 # AnyContext (actx) - Windows PowerShell Installer
 # Usage:
-#   iwr -useb https://raw.githubusercontent.com/Levix-Digital/any-context/dev/scripts/install.ps1 | iex
+#   .\scripts\install.ps1
 # ==============================================================================
 
 $ErrorActionPreference = 'Stop'
@@ -9,7 +9,8 @@ $ErrorActionPreference = 'Stop'
 $Repo = "Levix-Digital/any-context"
 $InstallDir = Join-Path $env:LOCALAPPDATA "actx\bin"
 $ExePath = Join-Path $InstallDir "actx.exe"
-$DownloadUrl = "https://github.com/$Repo/releases/latest/download/actx-windows-x86_64.exe"
+$AssetName = "actx-windows-x86_64.exe"
+$DownloadUrl = "https://github.com/$Repo/releases/latest/download/$AssetName"
 
 Write-Host "`n🚀 Installing AnyContext (actx)..." -ForegroundColor Cyan
 
@@ -18,16 +19,40 @@ if (-not (Test-Path -Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
-# 2. Download executable
-Write-Host "⬇️ Downloading latest actx executable from GitHub..." -ForegroundColor Yellow
-try {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $ExePath -UseBasicParsing
-    Write-Host "✅ Download complete: $ExePath" -ForegroundColor Green
-} catch {
-    Write-Host "❌ Failed to download from Release ($DownloadUrl). Please ensure a Release with actx-windows-x86_64.exe exists on GitHub." -ForegroundColor Red
-    exit 1
+# 2. Download executable (Try gh CLI first for private repos, fallback to Invoke-WebRequest)
+Write-Host "⬇️ Downloading latest $AssetName from GitHub..." -ForegroundColor Yellow
+
+$Downloaded = $false
+
+if (Get-Command gh -ErrorAction SilentlyContinue) {
+    try {
+        Write-Host "⚡ Using GitHub CLI (gh) for authenticated download..." -ForegroundColor Gray
+        gh release download --repo $Repo --pattern $AssetName --dir $InstallDir --clobber
+        $TempPath = Join-Path $InstallDir $AssetName
+        if (Test-Path $TempPath) {
+            if ($TempPath -ne $ExePath) {
+                Move-Item -Path $TempPath -Destination $ExePath -Force
+            }
+            $Downloaded = $true
+        }
+    } catch {
+        # Fallback to direct web request
+    }
 }
+
+if (-not $Downloaded) {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $ExePath -UseBasicParsing
+        $Downloaded = $true
+    } catch {
+        Write-Host "❌ Failed to download release asset '$AssetName'." -ForegroundColor Red
+        Write-Host "💡 For private repositories, please ensure you are logged in via 'gh auth login' or download the binary directly from GitHub Releases." -ForegroundColor Yellow
+        exit 1
+    }
+}
+
+Write-Host "✅ Download complete: $ExePath" -ForegroundColor Green
 
 # 3. Add to User PATH if not present
 $UserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
