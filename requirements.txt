@@ -13,3 +13,4 @@ langgraph-cli
 langgraph-cli[inmem]
 langsmith[claude-agent-sdk]
 pydantic
+questionary

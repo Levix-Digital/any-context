@@ -7,6 +7,7 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
 from llama_index.embeddings.openai import OpenAIEmbedding
 from langchain.tools import tool
+from langchain_core.runnables import RunnableConfig
 
 dotenv.load_dotenv()
 LOCAL_API_KEY = os.getenv("LOCAL_API_KEY")
@@ -37,7 +38,7 @@ Settings.embed_model = OpenAIEmbedding(
 # --------------------------------------------------------------------------
 
 @tool()
-def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 3, workspace: str = None):
+def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 3, workspace: str = None, config: RunnableConfig = None):
     """
     Search for relevant information in the vector databases based on the provided prompt text.
 
@@ -46,10 +47,7 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         search_session_memory (bool): Set to True to search the user's past conversations/sessions memory. Set to False to search the general documents/knowledge base.
         top_k (int): The number of results to return.
         workspace (str, optional): The specific workspace to filter searches by (only applies when search_session_memory is False).
-
-
-    Returns:
-        list: A list of relevant information.
+        config (RunnableConfig, optional): The LangChain configuration injected at runtime.
     """
 
     if search_session_memory:
@@ -69,6 +67,12 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
 
     # Force a maximum limit of results to avoid blowing up local LLM memory (context window)
     safe_top_k = min(top_k, 2)
+
+    # If config provides an active workspace, it overrides any LLM guessed workspace
+    if config:
+        active_workspace = config.get("configurable", {}).get("active_workspace")
+        if active_workspace:
+            workspace = active_workspace
 
     # Create retrieving mechanism
     filters = None

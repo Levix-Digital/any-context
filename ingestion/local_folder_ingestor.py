@@ -40,9 +40,10 @@ Settings.embed_model = OpenAIEmbedding(
 # --------------------------------------------------------------------------
 
 @tool()
-def index_folder():
+def index_folder(workspace_name: str = None):
     """
-    Index documents in the vector database incrementally across all configured workspaces.
+    Index documents in the vector database incrementally across all configured workspaces,
+    or a specific workspace if provided.
     """
     print("⚡ 1. Connecting to ChromaDB...")
     db = chromadb.PersistentClient(path=db_save_path)
@@ -70,7 +71,11 @@ def index_folder():
     all_documents = []
     
     # Iterate through workspaces
+    workspaces_to_process = []
     for ws in settings.workspaces:
+        if workspace_name and ws.name != workspace_name:
+            continue
+        workspaces_to_process.append(ws)
         print(f"\n📂 Workspace: {ws.name}")
         for folder_path in ws.paths:
             if not os.path.exists(folder_path):
@@ -116,13 +121,19 @@ def index_folder():
 
     # Collect IDs of current documents
     current_doc_ids = {doc.doc_id for doc in all_documents}
+    processed_workspace_names = {ws.name for ws in workspaces_to_process}
     
     deleted_count = 0
     for node_id, node in list(docstore.docs.items()):
-        if getattr(node, "ref_doc_id", None) not in current_doc_ids and node.id_ not in current_doc_ids:
-            docstore.delete_document(node_id)
-            vector_store.delete(node_id)
-            deleted_count += 1
+        # Ensure we only purge documents that belong to the workspaces we are indexing right now
+        node_workspace = node.metadata.get("workspace") if node.metadata else None
+        
+        # If the document has no workspace metadata, or it belongs to the workspaces being processed:
+        if not node_workspace or node_workspace in processed_workspace_names:
+            if getattr(node, "ref_doc_id", None) not in current_doc_ids and node.id_ not in current_doc_ids:
+                docstore.delete_document(node_id)
+                vector_store.delete(node_id)
+                deleted_count += 1
 
     if deleted_count > 0:
         print(f"🗑️ Purged {deleted_count} old file chunks from the database.")

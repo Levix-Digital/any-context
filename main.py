@@ -14,7 +14,9 @@ import logging
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-from core.agent import start_chat
+from cli.workspace_selector import get_active_workspace
+from cli.chat_loop import run_chat_loop
 
 if __name__ == "__main__":
-    start_chat()
+    workspace = get_active_workspace()
+    run_chat_loop(active_workspace=workspace)
