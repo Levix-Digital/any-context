@@ -55,12 +55,12 @@ jobs:
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
         run: |
-          pyinstaller --clean --onefile --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "config;config" main.py
+          pyinstaller --clean --onefile --collect-all chromadb --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "config;config" main.py
 
       - name: Build with PyInstaller (Linux)
         if: runner.os == 'Linux'
         run: |
-          pyinstaller --clean --onefile --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "config:config" main.py
+          pyinstaller --clean --onefile --collect-all chromadb --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "config:config" main.py
 
       - name: Copy Installer Scripts to Dist
         shell: bash
