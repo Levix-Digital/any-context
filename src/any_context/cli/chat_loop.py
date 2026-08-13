@@ -55,10 +55,17 @@ def run_chat_loop(active_workspace: str = None):
   \033[96m/reset-memory\033[0m Reset all long-term memories saved for the current workspace.
                 (Alias: \033[96m/reset\033[0m)
 
-  \033[96m/config\033[0m       Open the interactive configuration menu to manage workspaces,
-                AI models, base URLs, and memory limits.
+  \033[96m/factory-reset\033[0m Wipe all settings, workspaces, users, API keys, and databases.
+
+  \033[96m/config\033[0m       Open the interactive configuration menu (Workspaces, AI models,
+                API Keys, and User Accounts/Security RBAC).
 
   \033[96m/help\033[0m         Show this detailed help message.
+
+\033[1mSECURITY & USER ACCESS CONTROL (RBAC):\033[0m
+  • \033[90mOpen Local Mode (Default):\033[0m Zero friction for single-user personal use.
+  • \033[90mEnterprise / Multi-User Mode:\033[0m Configure Admin via `/config` -> `🛡️ User Accounts`.
+    Supports Roles (Admin, Analyst, Viewer) & Workspace-level Access Scopes.
 
 \033[1mSERVER MODES & ENTERPRISE VPC DEPLOYMENT:\033[0m
   • \033[96mactx --serve\033[0m           Start REST API Server on localhost (default port: 8000).
@@ -67,15 +74,10 @@ def run_chat_loop(active_workspace: str = None):
                            Interactive Swagger docs: http://127.0.0.1:8000/docs.
   • \033[96mactx --mcp\033[0m             Start Model Context Protocol (MCP) Server for native
                            integration with Claude Desktop, Cursor, and AI sidecars.
-
-\033[1mTIPS:\033[0m
-  • \033[90mSyncing:\033[0m If you add new files to the workspace folder, type `/switch`
-    and select the current workspace again to force a fast resync!
-  • \033[90mUpdates:\033[0m Run `actx --update` from your terminal to update anytime.
-  • \033[90mExiting:\033[0m Press \033[91mCtrl+C\033[0m to exit and trigger long-term memory summary.
 """
                 print(help_text)
                 continue
+
             elif cmd in ["/version", "/v"]:
                 print(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital")
                 continue

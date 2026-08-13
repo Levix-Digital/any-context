@@ -4,9 +4,10 @@ import uuid
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from any_context import __version__
 from any_context.config.db_store import ConfigDBStore
@@ -22,6 +23,37 @@ class HealthResponse(BaseModel):
     version: str = __version__
     company: str = "Levix Digital"
     description: str = "AnyContext Universal AI Context Server"
+    security_auth: str = "RBAC Token & User Authentication Enabled"
+
+class AuthStatusResponse(BaseModel):
+    admin_configured: bool
+    security_enforced: bool
+    mode: str
+
+class AdminSetupRequest(BaseModel):
+    name: str = Field(..., description="Administrator full name (e.g. 'Dr. Silva')")
+    email: str = Field(..., description="Administrator email address")
+    password: str = Field(..., description="Administrator password")
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., description="User email address")
+    password: str = Field(..., description="User password")
+
+class UserDTO(BaseModel):
+    user_id: str
+    email: str
+    name: str
+    role: str
+    allowed_workspaces: List[str]
+    created_at: Optional[str] = None
+    token_id: Optional[str] = None
+
+class UserCreateRequest(BaseModel):
+    name: str = Field(..., description="User full name (e.g. 'Dra. Amanda')")
+    email: str = Field(..., description="User email address")
+    password: str = Field(..., description="User password")
+    role: str = Field("analyst", description="Role: 'admin', 'analyst', or 'viewer'")
+    allowed_workspaces: List[str] = Field(default_factory=lambda: ["Default"], description="Allowed workspace names")
 
 class WorkspaceDTO(BaseModel):
     name: str
@@ -66,19 +98,71 @@ class MemoryResetResponse(BaseModel):
     deleted_entries: int
     workspace: Optional[str]
 
+class TokenCreateRequest(BaseModel):
+    name: str = Field(..., description="Token descriptive name (e.g. 'HR Bot', 'Dev Team')")
+    role: str = Field("viewer", description="Role level: 'admin', 'analyst', or 'viewer'")
+    allowed_workspaces: List[str] = Field(default_factory=lambda: ["*"], description="List of allowed workspace names or ['*'] for all")
+
+class TokenResponse(BaseModel):
+    token_id: str
+    user_id: Optional[str] = "system"
+    name: str
+    role: str
+    allowed_workspaces: List[str]
+    created_at: str
+
+# --- Security Dependency ---
+
+security = HTTPBearer(auto_error=False)
+
+def verify_token_access(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    required_role: Optional[str] = None,
+    required_workspace: Optional[str] = None
+):
+    """
+    Verifies HTTP Bearer token against stored SQLite access tokens if security users/tokens exist.
+    If no admin or users are configured, authentication is in Open Local Mode for zero-friction solo use.
+    """
+    store = ConfigDBStore()
+
+    # Open Local Mode if no admin is configured and no access tokens exist
+    if not store.is_admin_configured() and not store.get_access_tokens():
+        return None
+
+    if not credentials or not credentials.credentials:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Provide 'Authorization: Bearer <actx_sec_...>' header."
+        )
+
+    token_str = credentials.credentials
+    valid = store.validate_token_permissions(
+        token_id=token_str,
+        required_role=required_role,
+        required_workspace=required_workspace
+    )
+
+    if not valid:
+        raise HTTPException(
+            status_code=403,
+            detail="Access Denied: Invalid security token, insufficient role level, or workspace scope restricted."
+        )
+
+    return token_str
+
 # --- FastAPI App Factory ---
 
 def create_app() -> FastAPI:
     description_md = """
 ### 🏢 AnyContext Universal AI Context Server
 
-Welcome to the **AnyContext REST API**. This server exposes RAG vector search, isolated workspaces, and 3-level long-term memory for external applications.
+Welcome to the **AnyContext REST API**. This server exposes RAG vector search, isolated workspaces, 3-level long-term memory, and **RBAC User Authentication & Access Control**.
 
-#### 🔒 VPC & Enterprise Private Cloud Deployment
-To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS EC2**, **Google Cloud VM**, **Azure**, or **On-Premise Server** for all internal systems:
-- Bind to all network interfaces: `actx --serve --host 0.0.0.0 --port 8000`
-- Any internal service (ERP, CRM, Slack/Teams Bot, VS Code Extensions) on your VPN/VPC can send HTTP REST queries to `http://<internal-vpc-ip>:8000/v1/chat`.
-- All documents, vector embeddings, and memory remain 100% private inside your company infrastructure.
+#### 🔐 Authentication & Role-Based Access Control (RBAC)
+- **Open Local Mode (Default)**: Zero friction for personal single-user mode. No password required.
+- **Enterprise / Multi-User Mode**: Setup Admin at `/v1/auth/setup-admin`. Log in at `/v1/auth/login` to obtain Bearer Tokens (`actx_sec_...`).
+- **Workspace Scopes**: Restrict users/tokens to specific workspace scopes (`"Finance"`, `"HR"`, etc.) or roles (`"admin"`, `"analyst"`, `"viewer"`).
 """
 
     app = FastAPI(
@@ -89,7 +173,6 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
         redoc_url="/redoc"
     )
 
-    # Enable CORS for external web dashboards, VS Code extensions, and local apps
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -106,8 +189,126 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
     def get_health():
         return HealthResponse()
 
+    # --- Authentication Endpoints ---
+
+    @app.get("/v1/auth/status", response_model=AuthStatusResponse, tags=["Authentication & Security"])
+    def get_auth_status():
+        store = ConfigDBStore()
+        admin_cfg = store.is_admin_configured()
+        has_tokens = len(store.get_access_tokens()) > 0
+        enforced = admin_cfg or has_tokens
+        mode = "Enterprise / Multi-User Protected Mode" if enforced else "Open Local Mode (Personal / Friction-Free)"
+        return AuthStatusResponse(
+            admin_configured=admin_cfg,
+            security_enforced=enforced,
+            mode=mode
+        )
+
+    @app.post("/v1/auth/setup-admin", response_model=UserDTO, tags=["Authentication & Security"])
+    def setup_admin_user(req: AdminSetupRequest):
+        """Initial Admin setup wizard for first-time server security deployment."""
+        store = ConfigDBStore()
+        if store.is_admin_configured():
+            raise HTTPException(status_code=400, detail="Admin user is already configured.")
+
+        try:
+            admin_info = store.setup_admin_user(name=req.name, email=req.email, password=req.password)
+            return UserDTO(
+                user_id=admin_info["user_id"],
+                email=admin_info["email"],
+                name=admin_info["name"],
+                role=admin_info["role"],
+                allowed_workspaces=admin_info["allowed_workspaces"],
+                token_id=admin_info["token"]["token_id"]
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Admin setup failed: {str(e)}")
+
+    @app.post("/v1/auth/login", response_model=UserDTO, tags=["Authentication & Security"])
+    def login_user(req: LoginRequest):
+        """Authenticates user credentials and returns active Bearer Token."""
+        store = ConfigDBStore()
+        user_info = store.authenticate_user(email=req.email, password=req.password)
+        if not user_info:
+            raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+        return UserDTO(
+            user_id=user_info["user_id"],
+            email=user_info["email"],
+            name=user_info["name"],
+            role=user_info["role"],
+            allowed_workspaces=user_info["allowed_workspaces"],
+            token_id=user_info["token_id"]
+        )
+
+    # --- User Management Endpoints ---
+
+    @app.get("/v1/users", response_model=List[UserDTO], tags=["User Management"])
+    def list_users(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        users = store.list_users()
+        return [UserDTO(**u) for u in users]
+
+    @app.post("/v1/users", response_model=UserDTO, tags=["User Management"])
+    def create_team_user(req: UserCreateRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        try:
+            new_u = store.create_user(
+                name=req.name,
+                email=req.email,
+                password=req.password,
+                role=req.role,
+                allowed_workspaces=req.allowed_workspaces
+            )
+            return UserDTO(**new_u)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"User creation failed: {str(e)}")
+
+    @app.delete("/v1/users/{user_id}", tags=["User Management"])
+    def delete_user(user_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        deleted = store.delete_user(user_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="User not found.")
+        return {"status": "success", "message": f"User '{user_id}' has been removed."}
+
+    # --- Access Token Management Endpoints ---
+
+    @app.get("/v1/tokens", response_model=List[TokenResponse], tags=["Access Tokens & Security"])
+    def list_access_tokens(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        tokens = store.get_access_tokens()
+        return [TokenResponse(**t) for t in tokens]
+
+    @app.post("/v1/tokens", response_model=TokenResponse, tags=["Access Tokens & Security"])
+    def create_access_token(req: TokenCreateRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        new_token = store.create_access_token(
+            name=req.name,
+            role=req.role,
+            allowed_workspaces=req.allowed_workspaces
+        )
+        return TokenResponse(**new_token)
+
+    @app.delete("/v1/tokens/{token_id}", tags=["Access Tokens & Security"])
+    def delete_access_token(token_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        deleted = store.delete_access_token(token_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Security token not found.")
+        return {"status": "success", "message": f"Security token '{token_id}' has been revoked."}
+
+    # --- Core Application Endpoints ---
+
     @app.get("/v1/workspaces", response_model=WorkspacesResponse, tags=["Workspaces"])
-    def list_workspaces():
+    def list_workspaces(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials)
         store = ConfigDBStore()
         settings = store.get_app_settings()
         if not settings or not settings.workspaces:
@@ -117,7 +318,9 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
         return WorkspacesResponse(total=len(dto_list), workspaces=dto_list)
 
     @app.post("/v1/chat", response_model=ChatResponse, tags=["AI Agent"])
-    def chat_with_agent(req: ChatRequest):
+    def chat_with_agent(req: ChatRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_workspace=req.workspace)
+
         if not req.message.strip():
             raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
@@ -149,7 +352,9 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
             raise HTTPException(status_code=500, detail=f"Agent execution error: {str(e)}")
 
     @app.post("/v1/search", response_model=SearchResponse, tags=["Knowledge Base"])
-    def search_knowledge_base(req: SearchRequest):
+    def search_knowledge_base(req: SearchRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_workspace=req.workspace)
+
         if not req.query.strip():
             raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
@@ -168,7 +373,8 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
             raise HTTPException(status_code=500, detail=f"Vector search error: {str(e)}")
 
     @app.post("/v1/index", response_model=IndexResponse, tags=["Knowledge Base"])
-    def trigger_indexing(req: IndexRequest, background_tasks: BackgroundTasks):
+    def trigger_indexing(req: IndexRequest, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="analyst", required_workspace=req.workspace)
         try:
             background_tasks.add_task(index_folder.invoke, {"workspace_name": req.workspace})
             msg = f"Re-indexing started in background for workspace '{req.workspace}'." if req.workspace else "Re-indexing started in background for all workspaces."
@@ -177,7 +383,8 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
             raise HTTPException(status_code=500, detail=f"Indexing trigger error: {str(e)}")
 
     @app.post("/v1/reset-memory", response_model=MemoryResetResponse, tags=["Memory"])
-    def reset_long_term_memory(req: MemoryResetRequest):
+    def reset_long_term_memory(req: MemoryResetRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="analyst", required_workspace=req.workspace)
         try:
             memory_mgr = MemoryManager()
             deleted = memory_mgr.reset_memory(workspace=req.workspace)
@@ -190,7 +397,8 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
             raise HTTPException(status_code=500, detail=f"Memory reset error: {str(e)}")
 
     @app.post("/v1/factory-reset", tags=["System"])
-    def perform_factory_reset():
+    def perform_factory_reset(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
         try:
             store = ConfigDBStore()
             store.factory_reset()
@@ -216,7 +424,6 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
         raise HTTPException(status_code=404, detail="System documentation file (README.md) not found.")
 
     return app
-
 
 
 def start_api_server(host: str = "127.0.0.1", port: int = 8000):

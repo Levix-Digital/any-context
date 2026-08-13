@@ -21,7 +21,9 @@ Whether you are a developer seeking deep codebase insights, a business analyzing
   - **Level 2 (Active Rolling Window):** Retains recent active messages in SQLite graph state for fast, lightweight LLM context windows.
   - **Level 3 (Consolidated Meta-Summarization):** Automatically merges older session summaries into high-level Meta-Summaries when ChromaDB reaches user thresholds, keeping vector indices lean and sharp.
 - **📘 Permanent System Self-Help Context:** Automatically embeds AnyContext's own complete documentation (`README.md`) into the vector database for all workspaces. Ask the AI agent how to deploy, configure, update, or useAnyContext directly in chat!
+- **🔐 User Access Control & RBAC Authentication:** Zero-friction open mode for personal use. Dual-mode support for Enterprise/Teams with User Accounts, Roles (`Admin`, `Analyst`, `Viewer`), Bearer Tokens (`actx_sec_...`), and Workspace-level Access Scopes.
 - **⚙️ SQLite Configuration Store (`settings.db`):** Thread-safe, ACID-compliant SQLite configuration store (`ConfigDBStore`) featuring automatic background migration from legacy `settings.json` and secure API Key storage with password masking (`sk-...****`).
+
 
 - **🔄 Auto-Updater (`actx --update` / `/update`):** Non-blocking startup release notification, manual check (`actx --check-update`), and 1-click self-updater supporting locked Windows executables and private GitHub repositories.
 
@@ -193,15 +195,24 @@ For strict SOC2 / LGPD compliance where zero data may leave the enterprise netwo
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/v1/health` | Health check, version, and server info. |
-| `GET` | `/v1/workspaces` | List all configured workspaces and their associated folder paths. |
-| `GET` | `/v1/docs/readme` | Retrieve raw application documentation (README.md) as JSON markdown. |
+| `GET` | `/v1/health` | Health check, version, and server security status. |
+| `GET` | `/v1/auth/status` | Check if Admin account is configured & security mode status. |
+| `POST` | `/v1/auth/setup-admin` | Initial Administrator setup wizard (first-time deployment). |
+| `POST` | `/v1/auth/login` | Authenticate user credentials and retrieve Bearer Access Token. |
+| `GET` | `/v1/users` | List all team user accounts (Admin only). |
+| `POST` | `/v1/users` | Create new team user with role and workspace scopes (Admin only). |
+| `DELETE` | `/v1/users/{user_id}` | Revoke/delete a team user account (Admin only). |
+| `GET` | `/v1/tokens` | List active Bearer security access tokens (Admin only). |
+| `POST` | `/v1/tokens` | Generate new Bearer security access token (Admin only). |
+| `DELETE` | `/v1/tokens/{token_id}` | Revoke a Bearer security access token (Admin only). |
+| `GET` | `/v1/workspaces` | List all configured workspaces and associated folder paths. |
+| `GET` | `/v1/docs/readme` | Retrieve raw application documentation (`README.md`) as JSON. |
 | `POST` | `/v1/chat` | Send a message to the AI agent with RAG search & session memory. |
-
 | `POST` | `/v1/search` | Perform raw vector search across workspace knowledge bases. |
 | `POST` | `/v1/index` | Trigger background re-indexing for a specific or all workspaces. |
 | `POST` | `/v1/reset-memory` | Purge long-term vector memory for a workspace or globally. |
-| `POST` | `/v1/factory-reset` | Wipe all settings, API keys, workspaces, and vector databases (Factory Reset). |
+| `POST` | `/v1/factory-reset` | Wipe all settings, API keys, users, workspaces, and databases (Factory Reset). |
+
 
 ### API Usage Examples (`curl`)
 

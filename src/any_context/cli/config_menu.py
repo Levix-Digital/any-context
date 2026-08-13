@@ -92,6 +92,7 @@ def show_config_menu():
                 "🤖 AI Models, Base URL & API Keys",
                 "🔑 Manage Saved API Keys",
                 "🧠 Memory Compression & Reset Settings",
+                "🛡️ User Accounts & Security Access Control (RBAC & Tokens)",
                 "❓ How to Get API Keys (Guide & Links)",
                 "💥 Factory Reset (Reset all settings, workspaces, API keys, and memory)",
                 "🔙 Return / Exit Menu"
@@ -109,6 +110,8 @@ def show_config_menu():
             _manage_api_keys(store)
         elif choice.startswith("🧠"):
             _manage_memory(store)
+        elif choice.startswith("🛡️"):
+            _manage_users_and_security(store)
         elif choice.startswith("❓"):
             _show_api_keys_guide()
         elif choice.startswith("💥"):
@@ -120,6 +123,7 @@ def show_config_menu():
                 print("\n🎉 AnyContext has been completely reset to factory defaults!")
                 print("Run 'actx' again anytime to launch the first-time setup wizard.\n")
                 sys.exit(0)
+
 
 
 def _manage_workspaces(store: ConfigDBStore):
@@ -444,3 +448,93 @@ def _manage_memory(store: ConfigDBStore):
         if confirm:
             deleted = memory_mgr.reset_memory(workspace=None)
             print(f"🔥 Global memory reset complete! Removed {deleted} total memory entries.")
+
+
+def _manage_users_and_security(store: ConfigDBStore):
+    admin_cfg = store.is_admin_configured()
+    users = store.list_users()
+    tokens = store.get_access_tokens()
+
+    print("\n--- 🛡️ User Accounts & Access Control (RBAC) ---")
+    print(f"• Security Status  : {'Protected (Multi-User RBAC Mode)' if admin_cfg else 'Open Local Mode (Friction-Free Personal Use)'}")
+    print(f"• Total Users      : {len(users)}")
+    print(f"• Total Bearer Tokens: {len(tokens)}")
+    print("--------------------------------------------------\n")
+
+    sec_action = questionary.select(
+        "🛡️ Security Action:",
+        choices=[
+            "👑 Setup Administrator Account (Enable Enterprise Security)",
+            "➕ Create Team User (Analyst / Viewer)",
+            "👥 List Users",
+            "🔑 Create Security Bearer Token",
+            "📜 List Active Security Tokens",
+            "🔙 Back"
+        ]
+    ).ask()
+
+    if not sec_action or sec_action.startswith("🔙"):
+        return
+
+    if sec_action.startswith("👑"):
+        if store.is_admin_configured():
+            print("⚠️ Admin user is already configured!")
+            return
+        name = questionary.text("Enter Administrator Full Name (e.g. Dr. Silva):").ask()
+        email = questionary.text("Enter Administrator Email:").ask()
+        password = questionary.password("Enter Administrator Password:").ask()
+        if name and email and password:
+            try:
+                admin_info = store.setup_admin_user(name=name, email=email, password=password)
+                print(f"✅ Admin Account created for '{admin_info['name']}' ({admin_info['email']})!")
+                print(f"🔑 Master Admin Bearer Token: {admin_info['token']['token_id']}")
+            except Exception as e:
+                print(f"❌ Error creating Admin: {e}")
+
+    elif sec_action.startswith("➕"):
+        if not store.is_admin_configured():
+            print("⚠️ Please configure an Administrator account first (Option 👑).")
+            return
+        name = questionary.text("Enter User Full Name (e.g. Dra. Amanda):").ask()
+        email = questionary.text("Enter User Email:").ask()
+        password = questionary.password("Enter User Password:").ask()
+        role = questionary.select("Select Role Level:", choices=["analyst", "viewer", "admin"]).ask()
+        
+        all_ws = [ws.name for ws in store.get_app_settings().workspaces]
+        ws_choices = questionary.checkbox("Select Allowed Workspaces:", choices=all_ws).ask()
+        if not ws_choices:
+            ws_choices = ["Default"]
+
+        if name and email and password and role:
+            try:
+                new_u = store.create_user(name=name, email=email, password=password, role=role, allowed_workspaces=ws_choices)
+                print(f"✅ User '{new_u['name']}' ({new_u['email']}) created with role '{new_u['role']}'!")
+            except Exception as e:
+                print(f"❌ Error creating user: {e}")
+
+    elif sec_action.startswith("👥"):
+        if not users:
+            print("No team users created yet.")
+        else:
+            print("\n--- Configured Users ---")
+            for u in users:
+                print(f"• \033[93m{u['name']}\033[0m ({u['email']}) - Role: {u['role'].upper()} | Workspaces: {u['allowed_workspaces']}")
+            print("------------------------\n")
+
+    elif sec_action.startswith("🔑"):
+        token_name = questionary.text("Enter Token Name (e.g. HR Bot, Dev Token):").ask()
+        role = questionary.select("Select Token Role:", choices=["viewer", "analyst", "admin"]).ask()
+        if token_name and role:
+            t_info = store.create_access_token(name=token_name, role=role)
+            print(f"✅ Generated Security Token for '{t_info['name']}':")
+            print(f"   \033[92m{t_info['token_id']}\033[0m")
+
+    elif sec_action.startswith("📜"):
+        if not tokens:
+            print("No active security tokens found.")
+        else:
+            print("\n--- Active Security Tokens ---")
+            for t in tokens:
+                print(f"• Token: \033[93m{t['token_id']}\033[0m | Name: {t['name']} | Role: {t['role'].upper()} | Workspaces: {t['allowed_workspaces']}")
+            print("------------------------------\n")
+

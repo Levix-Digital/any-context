@@ -2,28 +2,29 @@ import sys
 import json
 import uuid
 from typing import Dict, Any
+
 from any_context import __version__
 from any_context.config.db_store import ConfigDBStore
-from any_context.tools.search_tools import search_db
 from any_context.core.agent import cli_agent
+from any_context.tools.search_tools import search_db
 from any_context.memory import MemoryManager
+
+def _send_json_response(response_dict: Dict[str, Any]):
+    sys.stdout.write(json.dumps(response_dict) + "\n")
+    sys.stdout.flush()
 
 def start_mcp_server():
     """
-    Model Context Protocol (MCP) Server over Stdio JSON-RPC 2.0.
-    Enables native integration with Claude Desktop, Cursor IDE, Antigravity, and external AI sidecars.
+    Launches AnyContext Model Context Protocol (MCP) Server over stdio JSON-RPC 2.0.
     """
-    sys.stderr.write(f"🚀 AnyContext MCP Server v{__version__} starting on stdio...\n")
-    sys.stderr.flush()
-
     tools_definitions = [
         {
             "name": "search_workspace_docs",
-            "description": "Searches the vector database knowledge base for documents matching the query across configured workspaces.",
+            "description": "Searches ChromaDB vector database for documents relevant to the query in a specific workspace.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "The search query string"},
+                    "query": {"type": "string", "description": "Search query string"},
                     "workspace": {"type": "string", "description": "Target workspace name (optional)"}
                 },
                 "required": ["query"]
@@ -31,12 +32,12 @@ def start_mcp_server():
         },
         {
             "name": "query_anycontext_agent",
-            "description": "Executes a query against the full AnyContext RAG agent with isolated workspace context and 3-level long-term memory.",
+            "description": "Sends a prompt/question to AnyContext AI Agent with automatic RAG search and 3-level session memory.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "message": {"type": "string", "description": "User instruction or query for the AI agent"},
-                    "workspace": {"type": "string", "description": "Active workspace name (optional)"}
+                    "message": {"type": "string", "description": "User instruction or prompt"},
+                    "workspace": {"type": "string", "description": "Target workspace name (optional)"}
                 },
                 "required": ["message"]
             }
@@ -61,7 +62,7 @@ def start_mcp_server():
         },
         {
             "name": "factory_reset_anycontext",
-            "description": "Wipes all configured workspaces, folders, API keys, settings, and vector databases, completely resetting AnyContext to factory defaults.",
+            "description": "Wipes all configured workspaces, folders, API keys, settings, users, access tokens, and vector databases, completely resetting AnyContext to factory defaults.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -73,6 +74,94 @@ def start_mcp_server():
             "inputSchema": {
                 "type": "object",
                 "properties": {}
+            }
+        },
+        {
+            "name": "setup_admin_user",
+            "description": "Configures initial Administrator account for AnyContext server security.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Administrator full name"},
+                    "email": {"type": "string", "description": "Administrator email address"},
+                    "password": {"type": "string", "description": "Administrator password"}
+                },
+                "required": ["name", "email", "password"]
+            }
+        },
+        {
+            "name": "authenticate_user",
+            "description": "Authenticates user credentials and returns active Bearer Access Token.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string", "description": "User email address"},
+                    "password": {"type": "string", "description": "User password"}
+                },
+                "required": ["email", "password"]
+            }
+        },
+        {
+            "name": "create_user",
+            "description": "Creates a new team user account with specific role and workspace permissions (Admin operation).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "User full name"},
+                    "email": {"type": "string", "description": "User email address"},
+                    "password": {"type": "string", "description": "User password"},
+                    "role": {"type": "string", "description": "Role level: 'admin', 'analyst', or 'viewer'"},
+                    "allowed_workspaces": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Allowed workspace names"
+                    }
+                },
+                "required": ["name", "email", "password"]
+            }
+        },
+        {
+            "name": "list_users",
+            "description": "Lists all configured team users in AnyContext SQLite database.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
+        },
+        {
+            "name": "create_access_token",
+            "description": "Generates a new Bearer Security Access Token with role and workspace scope permissions.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Token descriptive name (e.g. 'Dev Team', 'HR Bot')"},
+                    "role": {"type": "string", "description": "Role level: 'admin', 'analyst', or 'viewer'"},
+                    "allowed_workspaces": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Allowed workspace names or ['*'] for all workspaces"
+                    }
+                },
+                "required": ["name"]
+            }
+        },
+        {
+            "name": "list_access_tokens",
+            "description": "Lists all active Bearer Security Access Tokens stored in AnyContext SQLite database.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
+        },
+        {
+            "name": "revoke_access_token",
+            "description": "Revokes/deletes a security access token by token ID.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "token_id": {"type": "string", "description": "Security token ID to revoke (e.g. 'actx_sec_...')"}
+                },
+                "required": ["token_id"]
             }
         }
     ]
@@ -162,7 +251,7 @@ def start_mcp_server():
                     elif tool_name == "factory_reset_anycontext":
                         store = ConfigDBStore()
                         store.factory_reset()
-                        result_text = "Factory reset complete! All settings, workspaces, API keys, and vector databases have been wiped."
+                        result_text = "Factory reset complete! All settings, workspaces, API keys, users, tokens, and vector databases have been wiped."
 
                     elif tool_name == "get_anycontext_system_documentation":
                         import os
@@ -182,6 +271,63 @@ def start_mcp_server():
                                     pass
                         result_text = content or "Error: Application documentation (README.md) not found."
 
+                    elif tool_name == "setup_admin_user":
+                        store = ConfigDBStore()
+                        admin_info = store.setup_admin_user(
+                            name=arguments.get("name", ""),
+                            email=arguments.get("email", ""),
+                            password=arguments.get("password", "")
+                        )
+                        result_text = json.dumps(admin_info, indent=2)
+
+                    elif tool_name == "authenticate_user":
+                        store = ConfigDBStore()
+                        user_info = store.authenticate_user(
+                            email=arguments.get("email", ""),
+                            password=arguments.get("password", "")
+                        )
+                        if user_info:
+                            result_text = json.dumps(user_info, indent=2)
+                        else:
+                            result_text = "Error: Invalid email or password."
+
+                    elif tool_name == "create_user":
+                        store = ConfigDBStore()
+                        new_u = store.create_user(
+                            name=arguments.get("name", ""),
+                            email=arguments.get("email", ""),
+                            password=arguments.get("password", ""),
+                            role=arguments.get("role", "analyst"),
+                            allowed_workspaces=arguments.get("allowed_workspaces", ["Default"])
+                        )
+                        result_text = json.dumps(new_u, indent=2)
+
+                    elif tool_name == "list_users":
+                        store = ConfigDBStore()
+                        users = store.list_users()
+                        result_text = json.dumps(users, indent=2)
+
+                    elif tool_name == "create_access_token":
+                        name = arguments.get("name", "Unnamed Token")
+                        role = arguments.get("role", "viewer")
+                        allowed_ws = arguments.get("allowed_workspaces", ["*"])
+                        store = ConfigDBStore()
+                        new_t = store.create_access_token(name=name, role=role, allowed_workspaces=allowed_ws)
+                        result_text = json.dumps(new_t, indent=2)
+
+                    elif tool_name == "list_access_tokens":
+                        store = ConfigDBStore()
+                        tokens = store.get_access_tokens()
+                        result_text = json.dumps(tokens, indent=2)
+
+                    elif tool_name == "revoke_access_token":
+                        t_id = arguments.get("token_id", "")
+                        store = ConfigDBStore()
+                        deleted = store.delete_access_token(t_id)
+                        if deleted:
+                            result_text = f"Successfully revoked security token '{t_id}'."
+                        else:
+                            result_text = f"Error: Security token '{t_id}' not found."
 
                     else:
                         result_text = f"Error: Tool '{tool_name}' not found."
@@ -198,20 +344,18 @@ def start_mcp_server():
                             ]
                         }
                     }
+                    _send_json_response(response)
+
                 except Exception as e:
-                    response = {
+                    error_response = {
                         "jsonrpc": "2.0",
                         "id": req_id,
                         "error": {
                             "code": -32603,
-                            "message": f"Internal tool execution error: {str(e)}"
+                            "message": str(e)
                         }
                     }
-                _send_json_response(response)
+                    _send_json_response(error_response)
 
-        except KeyboardInterrupt:
+        except Exception:
             break
-
-def _send_json_response(response: Dict[str, Any]):
-    sys.stdout.write(json.dumps(response) + "\n")
-    sys.stdout.flush()
