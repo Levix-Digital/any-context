@@ -1,0 +1,86 @@
+import uuid
+from core.agent import cli_agent
+from ingestion.local_folder_ingestor import index_folder
+from cli.workspace_selector import show_workspace_menu
+
+def run_chat_loop(active_workspace: str = None):
+    # Create the Config with Thread ID for this session
+    thread_id = f"chat_{uuid.uuid4()}"
+    config = {
+        "configurable": {
+            "thread_id": thread_id,
+            "active_workspace": active_workspace
+        }
+    }
+
+    print("\n🔄 Synchronizing file database...")
+    index_folder.invoke({"workspace_name": active_workspace})
+    
+    print("\n=======================================================")
+    print("💬 Chat started! Press Ctrl+C to exit.")
+    print("=======================================================\n")
+    
+    while True:
+        try:
+            prompt_name = f"You [\033[93m{active_workspace}\033[96m]" if active_workspace else "You"
+            user_input = input(f"\n\033[96m👤 {prompt_name}:\033[0m ")
+            cmd = user_input.strip().lower()
+            if not cmd:
+                continue
+
+            if cmd == "/help":
+                help_text = """
+\033[93m🤖 AnyContext Agent Help\033[0m
+
+\033[1mUSAGE:\033[0m
+  Just type your question to chat with the AI. The agent will automatically
+  search the vector database for documents in your current active workspace
+  and will also remember previous messages from this session.
+
+\033[1mCOMMANDS:\033[0m
+  \033[96m/switch\033[0m    Change the active workspace. This opens an interactive menu
+             where you can select a different workspace. The vector database
+             will be instantly synchronized for the new workspace.
+
+  \033[96m/help\033[0m      Show this detailed help message.
+
+\033[1mTIPS:\033[0m
+  • \033[90mSyncing:\033[0m If you add new files to the workspace folder, you can type
+    `/switch` and select the current workspace again to force a fast resync!
+  • \033[90mExiting:\033[0m Press \033[91mCtrl+C\033[0m to gracefully exit. The system will automatically
+    generate a background summary of your session for long-term memory.
+"""
+                print(help_text)
+                continue
+            elif cmd == "/switch":
+                new_workspace = show_workspace_menu()
+                if new_workspace:
+                    active_workspace = new_workspace
+                    config["configurable"]["active_workspace"] = active_workspace
+                    print("\n🔄 Re-synchronizing file database for new workspace...")
+                    index_folder.invoke({"workspace_name": active_workspace})
+                continue
+    
+            print("\033[93m🤖 AI:\033[0m ", end="", flush=True)
+    
+            for token, metadata in cli_agent.stream(
+                {
+                    "messages": [user_input]
+                },
+                stream_mode="messages",
+                config=config
+            ):
+                if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
+                    if isinstance(token.content, str) and token.content:
+                        print(token.content, end="", flush=True)
+                elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
+                    print("\n📚 Reading retrieved documents... Please wait for AI analysis.")
+                    print("\033[93m🤖 AI:\033[0m ", end="", flush=True)
+            print()
+            
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            from core.memory_manager import run_session_summarizer_async
+            # Trigger background summary passing the current session ID
+            run_session_summarizer_async(thread_id)
+            break
