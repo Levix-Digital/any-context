@@ -83,6 +83,11 @@ def run_chat_loop(active_workspace: str = None):
             elif cmd == "/config":
                 show_config_menu()
                 continue
+            elif cmd in ["/billing", "/plans"]:
+                from any_context.cli.config_menu import _manage_subscription
+                _manage_subscription()
+                continue
+
     
             active_agent = create_anycontext_agent(active_workspace=active_workspace, checkpointer=saver)
             print("\033[93m🤖 AI:\033[0m ", end="", flush=True)

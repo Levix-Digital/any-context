@@ -96,6 +96,12 @@ def get_active_workspace() -> str:
         help="Check if a newer version of AnyContext is available."
     )
     parser.add_argument(
+        "--billing", "--plans",
+        dest="billing",
+        action="store_true",
+        help="View and manage AnyContext subscription plan tiers, pricing, and capabilities."
+    )
+    parser.add_argument(
         "--factory-reset", 
         action="store_true", 
         help="Wipe all settings, API keys, workspaces, and vector databases, resetting to factory defaults."
@@ -107,7 +113,13 @@ def get_active_workspace() -> str:
         print(f"AnyContext (actx) v{__version__} - Levix Digital")
         sys.exit(0)
 
+    if args.billing:
+        from any_context.cli.config_menu import _manage_subscription
+        _manage_subscription()
+        sys.exit(0)
+
     if args.factory_reset:
+
         confirm = questionary.confirm(
             "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
         ).ask()

@@ -93,6 +93,7 @@ def show_config_menu():
                 "🤖 AI Models, Base URL & API Keys",
                 "🔑 Manage Saved API Keys",
                 "🧠 Memory Compression & Reset Settings",
+                "💳 Subscription & Payment Plans (Tiers, Pricing & Licensing)",
                 "🛡️ User Accounts & Security Access Control (RBAC & Tokens)",
                 "❓ How to Get API Keys (Guide & Links)",
                 "💥 Factory Reset (Reset all settings, workspaces, API keys, and memory)",
@@ -113,10 +114,13 @@ def show_config_menu():
             _manage_api_keys(store)
         elif choice.startswith("🧠"):
             _manage_memory(store)
+        elif choice.startswith("💳"):
+            _manage_subscription()
         elif choice.startswith("🛡️"):
             _manage_users_and_security(store)
         elif choice.startswith("❓"):
             _show_api_keys_guide()
+
         elif choice.startswith("💥"):
             confirm = questionary.confirm(
                 "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
@@ -637,5 +641,44 @@ def _manage_workspace_sharing(store: ConfigDBStore):
                     print(f"• Path: {tf['folder_path']}")
                     print(f"  Status: {status_color}{tf['tag']}\033[0m")
             print("--------------------------------------------------\n")
+
+
+def _manage_subscription():
+    from any_context.billing import BillingManager, get_all_plans
+    mgr = BillingManager()
+    status = mgr.get_status()
+
+    print("\n=======================================================")
+    print("💳 AnyContext Subscription & Payment Plans")
+    print(f"Active Tier : \033[93m{status.active_tier_name}\033[0m (ID: {status.active_tier_id})")
+    print(f"License Key : {status.license_key or 'None'}")
+    print("=======================================================\n")
+
+    action = questionary.select(
+        "Subscription Action:",
+        choices=[
+            "📊 View Complete Pricing & Capability Matrix Table",
+            "🔑 Activate / Change Subscription Plan Tier",
+            "🔙 Back"
+        ]
+    ).ask()
+
+    if not action or action.startswith("🔙"):
+        return
+
+    if action.startswith("📊"):
+        print("\n" + mgr.format_pricing_table_markdown() + "\n")
+
+    elif action.startswith("🔑"):
+        plans = get_all_plans()
+        choices = [f"{p.name} (${p.monthly_price_usd:.0f}/mo) - {p.tier_id}" for p in plans]
+        sel = questionary.select("Select Plan Tier to Activate:", choices=choices).ask()
+        if sel:
+            selected_tier = sel.split("-")[-1].strip()
+            l_key = questionary.text("Enter License Key (Leave empty to auto-generate):").ask()
+            new_status = mgr.store.set_active_tier(tier_id=selected_tier, license_key=l_key if l_key else None)
+            print(f"\n🎉 Successfully activated tier '\033[92m{new_status.active_tier_name}\033[0m'!")
+            print(f"License Key: {new_status.license_key}\n")
+
 
 

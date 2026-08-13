@@ -281,8 +281,41 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         tips=[
             "Use Factory Reset if you want to start fresh or transfer your AnyContext installation to a new environment."
         ]
+    ),
+
+    "billing": HelpPage(
+        command="/billing",
+        aliases=["billing", "--billing", "plans", "--plans", "tiers", "pricing"],
+        title="💳 Subscription Plans, Tiers & Capability Matrix",
+        description=(
+            "AnyContext offers structured subscription tiers tailored from individual local researchers "
+            "to multi-user law firms, engineering teams, and enterprise VPC deployments. "
+            "Manage and inspect your active plan tier, pricing, capabilities, and license key."
+        ),
+        syntax=(
+            "CLI Launch : actx --billing   OR   actx --plans\n"
+            "  REST API   : GET /v1/billing/plans   OR   GET /v1/billing/status\n"
+            "  In Chat    : type '/billing' or '/plans' during active chat\n"
+            "  View Help  : actx --billing --help   OR   /billing --help   OR   /billing -h   OR   /billing /h"
+        ),
+        parameters=[
+            "/billing, /plans       : Display active subscription tier, pricing table, and feature capabilities.",
+            "--billing, --plans     : Launch subscription plan inspector from CLI.",
+            "--help, -h, /help, /h  : Display this detailed help page for subscription plans and pricing."
+        ],
+        examples=[
+            "actx --billing",
+            "actx --plans --help",
+            "In Chat: /billing",
+            "In Chat: /plans -h   (opens this help manual page)"
+        ],
+        tips=[
+            "Plan Tiers include: Local ($19/mo), Drive ($39/mo), Web ($49/mo), Pro ($89/mo), Team ($199/mo), and Enterprise ($15,000+/yr).",
+            "Community / Open mode is enabled by default for personal local folder use."
+        ]
     )
 }
+
 
 def get_help_page(command_or_alias: str) -> Optional[HelpPage]:
     """Resolves a command or alias string to its registered HelpPage instance."""

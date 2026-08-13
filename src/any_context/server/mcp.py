@@ -188,8 +188,25 @@ def start_mcp_server():
                 },
                 "required": ["invite_code", "user_email"]
             }
+        },
+        {
+            "name": "get_subscription_status",
+            "description": "Returns active subscription plan tier, pricing, capabilities, and license status.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
+        },
+        {
+            "name": "list_subscription_plans",
+            "description": "Lists all available AnyContext subscription plan tiers, pricing, and capability matrix.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
         }
     ]
+
 
 
     while True:
@@ -372,8 +389,20 @@ def start_mcp_server():
                         perm = store.accept_share_invite(invite_code=inv_code, user_email=u_email)
                         result_text = json.dumps(perm.dict(), indent=2)
 
+                    elif tool_name == "get_subscription_status":
+                        from any_context.billing import BillingManager
+                        mgr = BillingManager()
+                        result_text = json.dumps(mgr.get_status().dict(), indent=2)
+
+                    elif tool_name == "list_subscription_plans":
+                        from any_context.billing import BillingManager, get_all_plans
+                        mgr = BillingManager()
+                        plans = [p.dict() for p in get_all_plans()]
+                        result_text = json.dumps({"plans": plans, "pricing_table": mgr.format_pricing_table_markdown()}, indent=2)
+
                     else:
                         result_text = f"Error: Tool '{tool_name}' not found."
+
 
 
                     response = {

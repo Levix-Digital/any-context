@@ -17,6 +17,9 @@ from any_context.tools.search_tools import search_db
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.memory import MemoryManager
 from any_context.workspace_sharing import WorkspaceSharingStore, WorkspaceSharingManager
+from any_context.billing import BillingManager, get_all_plans, get_plan_by_id
+
+
 
 # --- Pydantic Schemas ---
 
@@ -540,7 +543,34 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error deleting folder: {str(e)}")
 
+    # --- Billing & Subscription Endpoints ---
+
+    @app.get("/v1/billing/plans", tags=["Billing & Subscriptions"])
+    def get_subscription_plans():
+        """Returns the complete list of AnyContext subscription tiers, pricing, and capability matrix."""
+        mgr = BillingManager()
+        plans = get_all_plans()
+        return {
+            "plans": [p.dict() for p in plans],
+            "pricing_table_markdown": mgr.format_pricing_table_markdown()
+        }
+
+    @app.get("/v1/billing/status", tags=["Billing & Subscriptions"])
+    def get_subscription_status():
+        """Returns the active subscription tier status and feature capabilities."""
+        mgr = BillingManager()
+        return mgr.get_status().dict()
+
+    @app.post("/v1/billing/license", tags=["Billing & Subscriptions"])
+    def set_subscription_license(tier_id: str, license_key: Optional[str] = None, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Activates or updates the active subscription plan tier (Admin only)."""
+        verify_token_access(credentials=credentials)
+        mgr = BillingManager()
+        status = mgr.store.set_active_tier(tier_id=tier_id, license_key=license_key)
+        return {"status": "success", "subscription": status.dict()}
+
     return app
+
 
 
 

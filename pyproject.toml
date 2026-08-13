@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.9.7"
-description = "Agnostic AI Agent with zero-friction public releases (any-context-releases), isolated workspaces, and REST/MCP capabilities"
+version = "0.9.8"
+description = "Agnostic AI Agent with Subscription & Payment Plan Tiers, 3-Level Memory, REST API, and MCP Server"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
