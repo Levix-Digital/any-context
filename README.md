@@ -138,6 +138,24 @@ AnyContext stores configuration in `config/settings.db` (SQLite). You can inspec
 
 ---
 
+## 🧹 Uninstallation
+
+To completely uninstall AnyContext (`actx`) and automatically remove PATH environment variables:
+
+1. Download `uninstall.ps1` (Windows) or `uninstall.sh` (Linux / Git Bash) from the **[Latest Release Assets](https://github.com/Levix-Digital/any-context/releases/latest)**.
+2. Run in your terminal:
+   - **Windows (PowerShell)**:
+     ```powershell
+     .\uninstall.ps1
+     ```
+   - **Linux / Git Bash**:
+     ```bash
+     chmod +x uninstall.sh
+     ./uninstall.sh
+     ```
+
+---
+
 ## 🔮 Roadmap
 
 1. **Cloud Drive Ingestors (Google Drive, OneDrive, Dropbox)**
