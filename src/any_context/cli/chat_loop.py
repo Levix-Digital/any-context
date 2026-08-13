@@ -4,6 +4,7 @@ from any_context.core.agent import cli_agent
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
 from any_context.cli.config_menu import show_config_menu
+from any_context.cli.banner import print_banner
 from any_context.memory import MemoryManager
 
 def run_chat_loop(active_workspace: str = None):
@@ -104,6 +105,7 @@ def run_chat_loop(active_workspace: str = None):
             break
 
 def main():
+    print_banner()
     workspace = get_active_workspace()
     run_chat_loop(active_workspace=workspace)
 
