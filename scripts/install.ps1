@@ -6,7 +6,8 @@
 
 $ErrorActionPreference = 'Stop'
 
-$Repo = "Levix-Digital/any-context"
+$Repo = "Levix-Digital/any-context-releases"
+
 $InstallDir = Join-Path $env:LOCALAPPDATA "actx\bin"
 $ExePath = Join-Path $InstallDir "actx.exe"
 $AssetName = "actx-windows-x86_64.exe"

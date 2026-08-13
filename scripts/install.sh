@@ -7,7 +7,8 @@
 
 set -e
 
-REPO="Levix-Digital/any-context"
+REPO="Levix-Digital/any-context-releases"
+
 OS_TYPE="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
 if echo "$OS_TYPE" | grep -qE "mingw|msys|cygwin|windows"; then
