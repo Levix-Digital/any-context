@@ -343,8 +343,37 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Web Scraping is supported on 'Pro', 'Team', and 'Enterprise' plan tiers.",
             "Only updated web pages with modified SHA-256 content hashes trigger vector re-indexing."
         ]
+    ),
+
+    "ocr": HelpPage(
+        command="/ocr",
+        aliases=["ocr", "--ocr", "image", "images", "scan"],
+        title="📷 Image & Scanned PDF OCR Text Extraction Daemon",
+        description=(
+            "The Image OCR engine extracts clean text content from image files (.png, .jpg, .jpeg, .webp, .tiff, .bmp) "
+            "and scanned PDF documents, indexing extracted text into ChromaDB vector storage for instant AI search."
+        ),
+        syntax=(
+            "REST API   : POST /v1/ingest/ocr?workspace_name={name}&image_path={path}\n"
+            "  View Help  : actx --ocr --help   OR   /ocr --help   OR   /ocr -h   OR   /ocr /help   OR   /ocr /h"
+        ),
+        parameters=[
+            "/ocr, --ocr            : Display Image OCR engine status and parameters.",
+            "image_path             : Absolute disk path to image file.",
+            "--help, -h, /help, /h  : Display this detailed help page for OCR ingestion."
+        ],
+        examples=[
+            "actx --ocr --help",
+            "In Chat: /ocr -h   (opens this help manual page)",
+            "curl -X POST 'http://127.0.0.1:8000/v1/ingest/ocr?workspace_name=MyProject&image_path=/path/to/scan.png'"
+        ],
+        tips=[
+            "Image & Scanned PDF OCR is supported on 'Starter', 'Pro', 'Team', and 'Enterprise' plan tiers.",
+            "Uses pytesseract / PIL OCR engine with automatic SHA-256 hash deduplication."
+        ]
     )
 }
+
 
 
 

@@ -595,7 +595,27 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         background_tasks.add_task(index_web_url_to_chromadb, workspace_name, url, entry["id"])
         return {"status": "success", "message": f"Web URL '{url}' registered. Background scraping initiated.", "entry": entry}
 
+    # --- OCR Image Ingestion Endpoints ---
+
+    @app.post("/v1/ingest/ocr", tags=["OCR Image Ingestion"])
+    def parse_image_ocr(workspace_name: str, image_path: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Parses an image or scanned document file using OCR and indexes extracted text to ChromaDB."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        from any_context.billing import BillingManager
+        b_mgr = BillingManager()
+        if not b_mgr.can_use_ocr():
+            raise HTTPException(status_code=403, detail="Access Denied: Image & Scanned PDF OCR requires 'Starter', 'Pro', 'Team', or 'Enterprise' plan tier.")
+
+        from any_context.ingestion.image_ocr_ingestor import extract_text_from_image, index_image_file_to_chromadb
+        try:
+            indexed = index_image_file_to_chromadb(workspace_name=workspace_name, image_path=image_path)
+            data = extract_text_from_image(image_path)
+            return {"status": "success", "indexed": indexed, "ocr_data": data}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error parsing image OCR: {str(e)}")
+
     return app
+
 
 
 
