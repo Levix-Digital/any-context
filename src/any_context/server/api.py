@@ -121,14 +121,20 @@ def verify_token_access(
     required_workspace: Optional[str] = None
 ):
     """
-    Verifies HTTP Bearer token against stored SQLite access tokens if security users/tokens exist.
-    If no admin or users are configured, authentication is in Open Local Mode for zero-friction solo use.
+    Verifies HTTP Bearer token against stored SQLite access tokens.
+    In REST API Server Mode, if no Admin account is configured yet, access to server endpoints is BLOCKED
+    until the initial Administrator is created via POST /v1/auth/setup-admin.
     """
     store = ConfigDBStore()
+    admin_cfg = store.is_admin_configured()
+    active_tokens = store.get_access_tokens()
 
-    # Open Local Mode if no admin is configured and no access tokens exist
-    if not store.is_admin_configured() and not store.get_access_tokens():
-        return None
+    # Block server endpoints if no Admin is configured yet
+    if not admin_cfg and not active_tokens:
+        raise HTTPException(
+            status_code=401,
+            detail="Server Security Setup Required: An Administrator account must be initialized via 'POST /v1/auth/setup-admin' or CLI '/config' before accessing server endpoints."
+        )
 
     if not credentials or not credentials.credentials:
         raise HTTPException(
@@ -150,6 +156,7 @@ def verify_token_access(
         )
 
     return token_str
+
 
 # --- FastAPI App Factory ---
 
