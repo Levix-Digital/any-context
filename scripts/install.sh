@@ -11,10 +11,12 @@ REPO="Levix-Digital/any-context"
 OS_TYPE="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
 if echo "$OS_TYPE" | grep -qE "mingw|msys|cygwin|windows"; then
+    IS_WINDOWS=1
     ASSET_NAME="actx-windows-x86_64.exe"
     EXE_NAME="actx.exe"
     INSTALL_DIR="$HOME/AppData/Local/actx/bin"
 else
+    IS_WINDOWS=0
     ASSET_NAME="actx-linux-x86_64"
     EXE_NAME="actx"
     INSTALL_DIR="$HOME/.local/bin"
@@ -65,13 +67,36 @@ fi
 chmod +x "$EXE_PATH" 2>/dev/null || true
 printf "\033[32m✅ Download complete: %s\033[0m\n" "$EXE_PATH"
 
-# 4. PATH Check & Advice
-if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
-    printf "\033[33m⚠️ Notice: %s is not currently in your PATH.\033[0m\n" "$INSTALL_DIR"
-    printf "To add it to your PATH, add this directory to your environment variables.\n\n"
+# 4. PATH Configuration
+if [ "$IS_WINDOWS" -eq 1 ]; then
+    WIN_INSTALL_DIR="$(cygpath -w "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")"
+    powershell.exe -NoProfile -Command "
+        \$UserPath = [Environment]::GetEnvironmentVariable('Path', 'User');
+        if (\$UserPath -notlike '*$WIN_INSTALL_DIR*') {
+            \$NewPath = if ([string]::IsNullOrEmpty(\$UserPath)) { '$WIN_INSTALL_DIR' } else { \"\$UserPath;$WIN_INSTALL_DIR\" };
+            [Environment]::SetEnvironmentVariable('Path', \$NewPath, 'User');
+            Write-Host '⚙️ Added $WIN_INSTALL_DIR to Windows User PATH environment variable!';
+        }
+    " 2>/dev/null || true
+else
+    if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
+        SHELL_PROFILE=""
+        if [ -f "$HOME/.bashrc" ]; then
+            SHELL_PROFILE="$HOME/.bashrc"
+        elif [ -f "$HOME/.zshrc" ]; then
+            SHELL_PROFILE="$HOME/.zshrc"
+        fi
+
+        if [ -n "$SHELL_PROFILE" ]; then
+            if ! grep -q "$INSTALL_DIR" "$SHELL_PROFILE"; then
+                echo "export PATH=\"$INSTALL_DIR:\$PATH\"" >> "$SHELL_PROFILE"
+                printf "\033[32m⚙️ Added %s to %s automatically!\033[0m\n" "$INSTALL_DIR" "$SHELL_PROFILE"
+            fi
+        fi
+    fi
 fi
 
 printf "\n\033[36m=======================================================\033[0m\n"
 printf "\033[32m🎉 AnyContext (actx) installed successfully!\033[0m\n"
-printf "👉 Type \033[1mactx\033[0m to launch the assistant.\n"
+printf "👉 Open a new terminal window and type \033[1mactx\033[0m to launch the assistant.\n"
 printf "\033[36m=======================================================\033[0m\n\n"
