@@ -65,31 +65,15 @@ class AppSettings(BaseModel):
     @classmethod
     def load(cls, path: str = None):
         """
-        Loads Settings. First attempts to load from SQLite ConfigDBStore.
-        Fallback to reading JSON file if path is explicitly specified or JSON exists.
+        Loads Settings exclusively from SQLite ConfigDBStore.
         """
-        if not path:
-            try:
-                from any_context.config.db_store import ConfigDBStore
-                store = ConfigDBStore()
-                settings = store.get_app_settings()
-                if settings and settings.workspaces:
-                    return settings
-            except Exception as e:
-                pass  # Fallback to JSON reading below
-
-        target_path = path if (path and os.path.exists(path)) else cls.find_config_file("settings.json")
-        if not target_path or not os.path.exists(target_path):
-            print("❌ Error: Config file 'settings.json' or SQLite DB was not found.")
-            return None
-
         try:
-            with open(target_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return cls(**data)
-        except json.JSONDecodeError:
-            print(f"❌ Error: The file {target_path} is not a valid JSON file.")
-            return None
+            from any_context.config.db_store import ConfigDBStore
+            store = ConfigDBStore(db_path=path)
+            settings = store.get_app_settings()
+            if settings:
+                return settings
         except Exception as e:
-            print(f"❌ Error loading settings from {target_path}: {e}")
-            return None
+            print(f"❌ Error loading settings from SQLite DB: {e}")
+        return None
+

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.9.1"
-description = "Agnostic AI Agent with isolated workspaces, RBAC user authentication, command help flags (--help, -h, /help, /h), and REST/MCP capabilities"
+version = "0.9.2"
+description = "Agnostic AI Agent with isolated workspaces, SQLite single source of truth, RBAC user authentication, and REST/MCP capabilities"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [

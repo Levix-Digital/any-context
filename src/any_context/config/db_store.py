@@ -45,8 +45,8 @@ class ConfigDBStore:
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = db_path or self.find_db_file("settings.db")
         self._init_db()
-        self._auto_migrate_if_needed()
         self.ensure_default_workspace()
+
 
     @classmethod
     def find_db_file(cls, filename: str = "settings.db") -> str:
@@ -190,18 +190,7 @@ class ConfigDBStore:
             count = cursor.fetchone()[0]
             return count == 0
 
-    def _auto_migrate_if_needed(self):
-        """Auto-migrates existing settings.json into SQLite if DB is empty"""
-        json_path = AppSettings.find_config_file("settings.json")
-        if json_path and os.path.exists(json_path):
-            try:
-                settings = AppSettings.load(json_path)
-                if settings and len(settings.workspaces) > 0:
-                    safe_print(f"🔄 Auto-migrating settings from {json_path} into SQLite database ({self.db_path})...")
-                    self.save_app_settings(settings)
-                    safe_print("✅ Auto-migration complete!")
-            except Exception as e:
-                safe_print(f"⚠️ Warning: Auto-migration from JSON failed: {e}")
+
 
     def get_app_settings(self) -> AppSettings:
         """Reads and constructs AppSettings Pydantic instance from SQLite"""

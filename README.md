@@ -23,7 +23,8 @@ Whether you are a developer seeking deep codebase insights, a business analyzing
 - **📘 Permanent System Self-Help Context:** Automatically embeds AnyContext's own complete documentation (`README.md`) into the vector database for all workspaces. Ask the AI agent how to deploy, configure, update, or useAnyContext directly in chat!
 - **🔐 User Access Control & RBAC Authentication:** Zero-friction open mode for personal use. Dual-mode support for Enterprise/Teams with User Accounts, Roles (`Admin`, `Analyst`, `Viewer`), Bearer Tokens (`actx_sec_...`), and Workspace-level Access Scopes.
 - **🤝 Google Drive-Style Workspace Collaboration:** Share existing workspaces with team members (`Viewer` or `Editor` roles). Transparent folder visibility across all collaborators with strict folder ownership locking (`[👑 Your Folder]` vs `[🔒 Read-Only]`).
-- **⚙️ SQLite Configuration Store (`settings.db`):** Thread-safe, ACID-compliant SQLite configuration store (`ConfigDBStore`) featuring automatic background migration from legacy `settings.json` and secure API Key storage with password masking (`sk-...****`).
+- **⚙️ SQLite Configuration Store (`settings.db`):** Thread-safe, ACID-compliant SQLite configuration store (`ConfigDBStore`) serving as the single source of truth for all settings, workspaces, RBAC users, tokens, and encrypted API Key storage with password masking (`sk-...****`).
+
 
 
 
