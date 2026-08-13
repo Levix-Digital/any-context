@@ -38,7 +38,8 @@ class AppSettings(BaseModel):
     memory: MemorySettings = Field(default_factory=MemorySettings)
 
     @classmethod
-    def find_config_file(cls, filename: str = "settings.json") -> Optional[str]:
+    def find_config_file(cls, filename: str = "settings.db") -> Optional[str]:
+
         """Finds the config file in candidate locations"""
         candidates = [
             os.path.join(os.getcwd(), "config", filename),
