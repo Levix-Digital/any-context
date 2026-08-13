@@ -2,12 +2,19 @@ import argparse
 import sys
 import questionary
 from any_context.config.app_settings import AppSettings
+from any_context.config.db_store import ConfigDBStore
+from any_context.cli.config_menu import run_first_time_wizard, show_config_menu
 
 def show_workspace_menu() -> str:
     """
     Displays an interactive menu for the user to select a workspace.
+    Runs first-time wizard if database is empty.
     """
-    settings = AppSettings.load()
+    store = ConfigDBStore()
+    if store.is_empty():
+        run_first_time_wizard()
+
+    settings = store.get_app_settings()
     if not settings or not settings.workspaces:
         print("❌ Error: No workspaces found in configuration.")
         sys.exit(1)
@@ -27,8 +34,7 @@ def show_workspace_menu() -> str:
 
 def get_active_workspace() -> str:
     """
-    Parses CLI arguments. If a workspace is provided, it uses it.
-    Otherwise, it prompts the user to select one.
+    Parses CLI arguments. Handles --config flag or runs first-time setup if empty.
     """
     parser = argparse.ArgumentParser(description="Start the AnyContext AI Agent.")
     parser.add_argument(
@@ -37,8 +43,21 @@ def get_active_workspace() -> str:
         help="Specify the active workspace to use for this session.", 
         default=None
     )
+    parser.add_argument(
+        "-c", "--config", 
+        action="store_true", 
+        help="Open the interactive configuration management menu."
+    )
     
     args, unknown = parser.parse_known_args()
+    
+    if args.config:
+        show_config_menu()
+        sys.exit(0)
+
+    store = ConfigDBStore()
+    if store.is_empty():
+        run_first_time_wizard()
     
     if args.workspace:
         return args.workspace

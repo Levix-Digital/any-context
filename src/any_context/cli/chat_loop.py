@@ -2,6 +2,7 @@ import uuid
 from any_context.core.agent import cli_agent
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
+from any_context.cli.config_menu import show_config_menu
 
 def run_chat_loop(active_workspace: str = None):
     thread_id = f"chat_{uuid.uuid4()}"
@@ -37,17 +38,18 @@ def run_chat_loop(active_workspace: str = None):
   and will also remember previous messages from this session.
 
 \033[1mCOMMANDS:\033[0m
-  \033[96m/switch\033[0m    Change the active workspace. This opens an interactive menu
-             where you can select a different workspace. The vector database
-             will be instantly synchronized for the new workspace.
+  \033[96m/switch\033[0m    Change the active workspace. Opens an interactive menu to select
+             a workspace and resynchronizes the vector database instantly.
+
+  \033[96m/config\033[0m    Open the configuration menu to manage workspaces, AI models,
+             and memory settings.
 
   \033[96m/help\033[0m      Show this detailed help message.
 
 \033[1mTIPS:\033[0m
-  • \033[90mSyncing:\033[0m If you add new files to the workspace folder, you can type
-    `/switch` and select the current workspace again to force a fast resync!
-  • \033[90mExiting:\033[0m Press \033[91mCtrl+C\033[0m to gracefully exit. The system will automatically
-    generate a background summary of your session for long-term memory.
+  • \033[90mSyncing:\033[0m If you add new files to the workspace folder, type `/switch`
+    and select the current workspace again to force a fast resync!
+  • \033[90mExiting:\033[0m Press \033[91mCtrl+C\033[0m to exit and trigger long-term memory summary.
 """
                 print(help_text)
                 continue
@@ -58,6 +60,9 @@ def run_chat_loop(active_workspace: str = None):
                     config["configurable"]["active_workspace"] = active_workspace
                     print("\n🔄 Re-synchronizing file database for new workspace...")
                     index_folder.invoke({"workspace_name": active_workspace})
+                continue
+            elif cmd == "/config":
+                show_config_menu()
                 continue
     
             print("\033[93m🤖 AI:\033[0m ", end="", flush=True)

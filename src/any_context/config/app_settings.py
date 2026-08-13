@@ -41,23 +41,18 @@ class AppSettings(BaseModel):
     def find_config_file(cls, filename: str = "settings.json") -> Optional[str]:
         """Finds the config file in candidate locations"""
         candidates = [
-            # 1. Working directory ./config/
             os.path.join(os.getcwd(), "config", filename),
-            # 2. Working directory root ./
             os.path.join(os.getcwd(), filename),
-            # 3. User home config (~/.config/any-context/ or AppData)
             os.path.expanduser(os.path.join("~", ".config", "any-context", filename)),
         ]
 
         if sys.platform == "win32" and "APPDATA" in os.environ:
             candidates.append(os.path.join(os.environ["APPDATA"], "any-context", filename))
 
-        # 4. PyInstaller bundle location (if frozen binary)
         if hasattr(sys, "_MEIPASS"):
             candidates.append(os.path.join(sys._MEIPASS, "config", filename))
             candidates.append(os.path.join(sys._MEIPASS, filename))
 
-        # 5. Package source location fallback
         package_dir = os.path.dirname(os.path.abspath(__file__))
         candidates.append(os.path.join(package_dir, filename))
         candidates.append(os.path.join(package_dir, "..", "..", "..", "config", filename))
@@ -69,10 +64,23 @@ class AppSettings(BaseModel):
 
     @classmethod
     def load(cls, path: str = None):
-        """Reads the JSON file and returns the validated Settings instance"""
+        """
+        Loads Settings. First attempts to load from SQLite ConfigDBStore.
+        Fallback to reading JSON file if path is explicitly specified or JSON exists.
+        """
+        if not path:
+            try:
+                from any_context.config.db_store import ConfigDBStore
+                store = ConfigDBStore()
+                settings = store.get_app_settings()
+                if settings and settings.workspaces:
+                    return settings
+            except Exception as e:
+                pass  # Fallback to JSON reading below
+
         target_path = path if (path and os.path.exists(path)) else cls.find_config_file("settings.json")
         if not target_path or not os.path.exists(target_path):
-            print("❌ Error: Config file 'settings.json' was not found.")
+            print("❌ Error: Config file 'settings.json' or SQLite DB was not found.")
             return None
 
         try:
