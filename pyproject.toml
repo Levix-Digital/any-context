@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.9.8"
-description = "Agnostic AI Agent with Subscription & Payment Plan Tiers, 3-Level Memory, REST API, and MCP Server"
+version = "0.9.9"
+description = "Agnostic AI Agent with Aligned Subscription Pricing Matrix ($0, $12, $29, $79 base + $15/seat, $499), REST API, and MCP Server"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [

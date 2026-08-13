@@ -7,7 +7,7 @@ from any_context.billing.registry import get_plan_by_id
 
 class BillingStore:
     """
-    SQLite-backed storage manager for AnyContext Subscription License Keys & Active Plan Tiers.
+    SQLite-backed storage manager for AnyContext Subscription License Keys, Active Plan Tiers, and Extra Seats.
     """
 
     def __init__(self, db_path: Optional[str] = None):
@@ -28,51 +28,65 @@ class BillingStore:
                     tier_id TEXT NOT NULL DEFAULT 'community',
                     license_key TEXT,
                     activated_at TEXT,
-                    expires_at TEXT
+                    expires_at TEXT,
+                    extra_seats_purchased INTEGER DEFAULT 0
                 );
             """)
-            # Ensure row 1 exists
+            # Check column existence for migration
+            cursor.execute("PRAGMA table_info(subscription_license)")
+            cols = [row["name"] for row in cursor.fetchall()]
+            if "extra_seats_purchased" not in cols:
+                cursor.execute("ALTER TABLE subscription_license ADD COLUMN extra_seats_purchased INTEGER DEFAULT 0")
+
             cursor.execute("SELECT COUNT(*) FROM subscription_license")
             if cursor.fetchone()[0] == 0:
                 now_str = datetime.utcnow().isoformat()
                 cursor.execute("""
-                    INSERT INTO subscription_license (id, tier_id, license_key, activated_at)
-                    VALUES (1, 'community', 'COMMUNITY-OPEN-LICENSE', ?)
+                    INSERT INTO subscription_license (id, tier_id, license_key, activated_at, extra_seats_purchased)
+                    VALUES (1, 'community', 'COMMUNITY-OPEN-LICENSE', ?, 0)
                 """, (now_str,))
             conn.commit()
 
     def get_subscription_status(self) -> SubscriptionStatus:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT tier_id, license_key, activated_at, expires_at FROM subscription_license WHERE id = 1")
+            cursor.execute("SELECT tier_id, license_key, activated_at, expires_at, extra_seats_purchased FROM subscription_license WHERE id = 1")
             r = cursor.fetchone()
             if r:
                 tier_id = r["tier_id"]
                 plan = get_plan_by_id(tier_id)
+                extra_seats = r["extra_seats_purchased"] or 0
+                total_seats = plan.base_seats + extra_seats
                 return SubscriptionStatus(
                     active_tier_id=plan.tier_id,
                     active_tier_name=plan.name,
                     license_key=r["license_key"],
                     activated_at=str(r["activated_at"]) if r["activated_at"] else None,
                     expires_at=str(r["expires_at"]) if r["expires_at"] else None,
+                    base_seats=plan.base_seats,
+                    extra_seats_purchased=extra_seats,
+                    total_seats=total_seats,
+                    extra_seat_price_usd=plan.extra_seat_price_usd,
                     capabilities=plan.capabilities
                 )
             plan = get_plan_by_id("community")
             return SubscriptionStatus(
                 active_tier_id="community",
                 active_tier_name=plan.name,
+                base_seats=plan.base_seats,
+                total_seats=plan.base_seats,
                 capabilities=plan.capabilities
             )
 
-    def set_active_tier(self, tier_id: str, license_key: Optional[str] = None, expires_at: Optional[str] = None) -> SubscriptionStatus:
+    def set_active_tier(self, tier_id: str, license_key: Optional[str] = None, expires_at: Optional[str] = None, extra_seats: int = 0) -> SubscriptionStatus:
         plan = get_plan_by_id(tier_id)
         now_str = datetime.utcnow().isoformat()
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE subscription_license
-                SET tier_id = ?, license_key = ?, activated_at = ?, expires_at = ?
+                SET tier_id = ?, license_key = ?, activated_at = ?, expires_at = ?, extra_seats_purchased = ?
                 WHERE id = 1
-            """, (plan.tier_id, license_key or f"ACTX-{plan.tier_id.upper()}-LICENSE", now_str, expires_at))
+            """, (plan.tier_id, license_key or f"ACTX-{plan.tier_id.upper()}-LICENSE", now_str, expires_at, extra_seats))
             conn.commit()
         return self.get_subscription_status()

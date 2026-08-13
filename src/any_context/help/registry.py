@@ -310,11 +310,12 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "In Chat: /plans -h   (opens this help manual page)"
         ],
         tips=[
-            "Plan Tiers include: Local ($19/mo), Drive ($39/mo), Web ($49/mo), Pro ($89/mo), Team ($199/mo), and Enterprise ($15,000+/yr).",
+            "Plan Tiers include: Community ($0), Starter ($12/mo), Pro Multi-Context ($29/mo), Team ($79/mo base + $15/extra seat), and Enterprise ($499/mo).",
             "Community / Open mode is enabled by default for personal local folder use."
         ]
     )
 }
+
 
 
 def get_help_page(command_or_alias: str) -> Optional[HelpPage]:
