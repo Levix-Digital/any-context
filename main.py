@@ -2,6 +2,10 @@ import sys
 import os
 import io
 
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["PYTHONWARNINGS"] = "ignore"
+
 # Force Windows terminal to accept Emojis (UTF-8)
 if sys.stdout.encoding != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -14,6 +18,8 @@ if src_dir not in sys.path:
 import logging
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("transformers").setLevel(logging.ERROR)
+
 
 from any_context.cli.chat_loop import main
 
