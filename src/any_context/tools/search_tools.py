@@ -27,18 +27,18 @@ Settings.embed_model = OpenAIEmbedding(
 )
 
 @tool()
-def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 3, workspace: str = None):
+def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 6, workspace: str = None):
     """
     Search for relevant information in the vector databases based on the provided prompt text.
 
     Args:
         prompt_text (str): The text to search for.
-        search_session_memory (bool): Set to True to search the user's past conversations/sessions memory. Set to False to search the general documents/knowledge base.
-        top_k (int): The number of results to return.
-        workspace (str, optional): The specific workspace to filter searches by (only applies when search_session_memory is False).
+        search_session_memory (bool): Set to True to search the user's past conversations/sessions memory. Set to False to search general workspace documents.
+        top_k (int): The number of relevant document chunks to return (default: 6).
+        workspace (str, optional): The specific workspace to filter searches by.
 
     Returns:
-        str: Relevant document or memory content, or a friendly notice if no results are found.
+        str: Relevant document content snippets or memory entries.
     """
 
     if search_session_memory:
@@ -61,24 +61,25 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
         index = VectorStoreIndex.from_vector_store(vector_store)
 
-        safe_top_k = min(top_k, 2)
+        search_k = max(top_k, 5)
 
         filters = None
         if workspace and not search_session_memory:
-            print(f"\n🔍 [Search] Filtering context by Workspace: '{workspace}'")
+            print(f"\n🔍 [Search] Filtering context by Workspace: '{workspace}' (retrieving top {search_k} chunks)")
             filters = MetadataFilters(
                 filters=[ExactMatchFilter(key="workspace", value=workspace)]
             )
         elif not search_session_memory:
-            print(f"\n🔍 [Search] Searching globally across all workspaces...")
+            print(f"\n🔍 [Search] Searching globally across all workspaces (retrieving top {search_k} chunks)...")
 
-        retriever = index.as_retriever(similarity_top_k=safe_top_k, filters=filters)
+        retriever = index.as_retriever(similarity_top_k=search_k, filters=filters)
         nodes = retriever.retrieve(prompt_text)
 
         results_list = []
         for i, node in enumerate(nodes):
             file_name = node.metadata.get('file_name', 'Unknown')
-            results_list.append(f"Source: {file_name}\nContent:\n{node.text}")
+            file_path = node.metadata.get('file_path', file_name)
+            results_list.append(f"--- [Document Chunk {i+1} | Source: {file_name}] ---\nPath: {file_path}\nContent:\n{node.text}")
 
         if not results_list:
             return "No documents found."

@@ -1,6 +1,7 @@
 import os
 import sys
 import chromadb
+from typing import List
 from any_context.config.app_settings import AppSettings
 from any_context.core.utils import get_api_key
 from llama_index.core import Settings, SimpleDirectoryReader
@@ -35,6 +36,46 @@ Settings.embed_model = OpenAIEmbedding(
     api_key=LOCAL_API_KEY
 )
 
+SUPPORTED_EXTENSIONS = {
+    # Documents & Text
+    ".pdf", ".docx", ".doc", ".txt", ".md", ".rtf", ".odt", ".pages", ".epub", ".eml", ".msg",
+    # Data & Spreadsheets
+    ".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".ods",
+    # Presentations
+    ".pptx", ".ppt", ".key",
+    # Code & Tech
+    ".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".htm", ".css", ".xml", ".yaml", ".yml", ".toml", ".sql",
+    ".c", ".cpp", ".cs", ".java", ".go", ".rs", ".sh", ".ps1", ".bat", ".cmd",
+    # Images
+    ".png", ".jpg", ".jpeg", ".webp"
+}
+
+IGNORED_DIRS = {
+    ".git", ".svn", "node_modules", "__pycache__", ".venv", "venv", "env",
+    ".vs", ".idea", ".vscode", "$recycle.bin", ".tmp"
+}
+
+def discover_workspace_files(root_folder: str) -> List[str]:
+    """
+    Recursively crawls all subfolders starting from root_folder using os.walk.
+    Finds ALL supported files, handling case-insensitive extensions and ignoring lock/temp files.
+    """
+    valid_file_paths = []
+    for root, dirs, files in os.walk(root_folder):
+        # Prune hidden or system directories in-place
+        dirs[:] = [d for d in dirs if d.lower() not in IGNORED_DIRS and not d.startswith(".")]
+        
+        for file_name in files:
+            if file_name.startswith("~$") or file_name.startswith("._"):
+                continue  # Skip Microsoft Office temporary lock files & macOS metadata files
+            
+            ext = os.path.splitext(file_name)[1].lower()
+            if ext in SUPPORTED_EXTENSIONS:
+                full_path = os.path.abspath(os.path.join(root, file_name))
+                valid_file_paths.append(full_path)
+                
+    return valid_file_paths
+
 def clear_context_vector_db():
     """
     Purges ChromaDB vector collection and docstore file to prevent dimension mismatch errors
@@ -62,7 +103,7 @@ def clear_context_vector_db():
 def index_folder(workspace_name: str = None):
     """
     Index documents in the vector database incrementally across all configured workspaces,
-    or a specific workspace if provided. Automatically embeds application README documentation as permanent system context.
+    or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
     """
     current_settings = AppSettings.load() or settings
     if not current_settings or not current_settings.workspaces:
@@ -111,32 +152,46 @@ def index_folder(workspace_name: str = None):
         workspaces_to_process.append(ws)
         safe_print(f"\n📂 Workspace: {ws.name}")
         
-        ws_docs_count = 0
+        ws_file_paths = []
         for folder_path in ws.paths:
             if not os.path.exists(folder_path):
                 safe_print(f"⚠️ Warning: Directory '{folder_path}' does not exist. (Its documents will be purged from DB)")
                 continue
                 
-            safe_print(f"  🔍 Scanning: {folder_path}")
+            safe_print(f"  🔍 Deep scanning subfolders in: {folder_path}")
+            discovered_files = discover_workspace_files(folder_path)
+            ws_file_paths.extend(discovered_files)
+            safe_print(f"  ✅ Discovered {len(discovered_files)} files across all subdirectories.")
+
+        # Load discovered files safely
+        if ws_file_paths:
+            safe_print(f"  ⏳ Parsing and reading {len(ws_file_paths)} files for workspace '{ws.name}'...")
             try:
-                reader = SimpleDirectoryReader(
-                    input_dir=folder_path, 
-                    recursive=True,
-                    required_exts=[".pdf", ".docx", ".txt", ".md", ".csv", ".json", ".png", ".jpg", ".jpeg"]
-                )
+                reader = SimpleDirectoryReader(input_files=ws_file_paths)
                 docs = reader.load_data()
-                
                 for d in docs:
                     d.metadata["workspace"] = ws.name
                     if "file_path" in d.metadata:
                         d.id_ = d.metadata["file_path"]
-                    
                 all_documents.extend(docs)
-                ws_docs_count += len(docs)
-                safe_print(f"  ✅ Found {len(docs)} files.")
-            except ValueError:
-                safe_print(f"  ⚠️ Warning: No valid files found in {folder_path}. Skipping...")
-                continue
+                safe_print(f"  📖 Successfully loaded {len(docs)} document chunks for workspace '{ws.name}'.")
+            except Exception as e:
+                # Fallback: file-by-file loading if a batch contains a corrupted or locked file
+                safe_print("  ⚠️ Batch load encountered an unreadable file. Fallback: processing files individually...")
+                loaded_fallback = 0
+                for single_file in ws_file_paths:
+                    try:
+                        single_reader = SimpleDirectoryReader(input_files=[single_file])
+                        s_docs = single_reader.load_data()
+                        for d in s_docs:
+                            d.metadata["workspace"] = ws.name
+                            if "file_path" in d.metadata:
+                                d.id_ = d.metadata["file_path"]
+                        all_documents.extend(s_docs)
+                        loaded_fallback += len(s_docs)
+                    except Exception:
+                        safe_print(f"  ⚠️ Skipping unreadable or locked file: {os.path.basename(single_file)}")
+                safe_print(f"  📖 Loaded {loaded_fallback} document chunks via resilient fallback mode.")
 
         # Auto-inject application README.md as permanent system context for this workspace
         if readme_path:
@@ -150,11 +205,12 @@ def index_folder(workspace_name: str = None):
                     rd.id_ = f"system_readme_{ws.name}"
                 all_documents.extend(readme_docs)
                 safe_print(f"  📘 Injected AnyContext System Documentation (README.md) as permanent help context.")
-            except Exception as e:
+            except Exception:
                 pass
                 
     if not all_documents:
         safe_print("❌ No valid documents found across any workspace.")
+        return
         
     safe_print("\n⚡ 2. Executing incremental check on vector database...")
     safe_print("⏳ Processing files and generating embeddings...")
