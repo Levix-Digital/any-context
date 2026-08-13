@@ -190,6 +190,65 @@ class ConfigDBStore:
             count = cursor.fetchone()[0]
             return count == 0
 
+    def add_workspace(self, name: str, paths: List[str]):
+        """Adds or updates a workspace entry with folder paths."""
+        clean_name = name.strip()
+        clean_paths = [os.path.abspath(p.strip()) for p in paths if p.strip()]
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (clean_name,))
+            row = cursor.fetchone()
+            if row:
+                existing_paths = json.loads(row["paths_json"])
+                combined = list(dict.fromkeys(existing_paths + clean_paths))
+                cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(combined), clean_name))
+            else:
+                cursor.execute("INSERT INTO workspaces (name, paths_json) VALUES (?, ?)", (clean_name, json.dumps(clean_paths)))
+            conn.commit()
+
+    def add_folder_to_workspace(self, workspace_name: str, folder_path: str) -> bool:
+        """Adds a new folder path to an existing workspace."""
+        clean_ws = workspace_name.strip()
+        clean_path = os.path.abspath(folder_path.strip())
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (clean_ws,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            existing_paths = json.loads(row["paths_json"])
+            if clean_path not in existing_paths:
+                existing_paths.append(clean_path)
+                cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(existing_paths), clean_ws))
+                conn.commit()
+            return True
+
+    def remove_folder_from_workspace(self, workspace_name: str, folder_path: str) -> bool:
+        """Removes a folder path from an existing workspace."""
+        clean_ws = workspace_name.strip()
+        clean_path = os.path.abspath(folder_path.strip())
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (clean_ws,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            existing_paths = json.loads(row["paths_json"])
+            updated_paths = [p for p in existing_paths if os.path.abspath(p) != clean_path]
+            cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(updated_paths), clean_ws))
+            conn.commit()
+            return True
+
+    def remove_workspace(self, workspace_name: str) -> bool:
+        """Deletes a workspace entry completely from SQLite."""
+        clean_ws = workspace_name.strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM workspaces WHERE name = ?", (clean_ws,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+
 
 
     def get_app_settings(self) -> AppSettings:
