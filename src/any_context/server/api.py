@@ -15,8 +15,10 @@ from any_context.core.agent import cli_agent
 from any_context.tools.search_tools import search_db
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.memory import MemoryManager
+from any_context.workspace_sharing import WorkspaceSharingStore, WorkspaceSharingManager
 
 # --- Pydantic Schemas ---
+
 
 class HealthResponse(BaseModel):
     status: str = "ok"
@@ -111,7 +113,21 @@ class TokenResponse(BaseModel):
     allowed_workspaces: List[str]
     created_at: str
 
+class ShareInviteCreateRequest(BaseModel):
+    workspace_name: str = Field(..., description="Workspace name to share")
+    access_level: str = Field("viewer", description="Access level: 'viewer' (chat/search) or 'editor' (chat/search + add folders)")
+    max_uses: int = Field(1, description="Max usage count (1 for single use, 0 for unlimited)")
+
+class ShareInviteAcceptRequest(BaseModel):
+    invite_code: str = Field(..., description="Workspace invite code (e.g. 'SHARE-WKS-1234')")
+    user_email: str = Field(..., description="User email accepting the invite")
+
+class AddFolderRequest(BaseModel):
+    folder_path: str = Field(..., description="Absolute path of the local folder to add")
+    user_email: str = Field(..., description="Email of the user adding the folder")
+
 # --- Security Dependency ---
+
 
 security = HTTPBearer(auto_error=False)
 
@@ -428,9 +444,101 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                         return {"version": __version__, "content": f.read()}
                 except Exception:
                     pass
-        raise HTTPException(status_code=404, detail="System documentation file (README.md) not found.")
+    # --- Workspace Collaboration & Sharing Endpoints ---
+
+    @app.post("/v1/workspaces/share/invite", tags=["Workspace Sharing"])
+    def create_workspace_share_invite(req: ShareInviteCreateRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        token = verify_token_access(credentials=credentials, required_workspace=req.workspace_name)
+        try:
+            store = WorkspaceSharingStore()
+            invite = store.create_share_invite(
+                workspace_name=req.workspace_name,
+                access_level=req.access_level,
+                created_by_email=token or "admin@local",
+                max_uses=req.max_uses
+            )
+            return {
+                "status": "success",
+                "invite_code": invite.invite_code,
+                "workspace_name": invite.workspace_name,
+                "access_level": invite.access_level,
+                "max_uses": invite.max_uses
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error creating workspace invite: {str(e)}")
+
+    @app.post("/v1/workspaces/share/accept", tags=["Workspace Sharing"])
+    def accept_workspace_share_invite(req: ShareInviteAcceptRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials)
+        try:
+            store = WorkspaceSharingStore()
+            perm = store.accept_share_invite(invite_code=req.invite_code, user_email=req.user_email)
+            return {
+                "status": "success",
+                "message": f"Successfully joined workspace '{perm.workspace_name}' as '{perm.access_level.upper()}'!",
+                "workspace_name": perm.workspace_name,
+                "access_level": perm.access_level
+            }
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error accepting workspace invite: {str(e)}")
+
+    @app.get("/v1/workspaces/{workspace_name}/collaborators", tags=["Workspace Sharing"])
+    def list_workspace_collaborators(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        try:
+            store = WorkspaceSharingStore()
+            collaborators = store.list_workspace_collaborators(workspace_name)
+            return {"workspace_name": workspace_name, "collaborators": [c.dict() for c in collaborators]}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error listing collaborators: {str(e)}")
+
+    @app.get("/v1/workspaces/{workspace_name}/folders", tags=["Workspace Sharing"])
+    def list_workspace_folders_transparent(workspace_name: str, user_email: Optional[str] = "admin@local", credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        try:
+            mgr = WorkspaceSharingManager()
+            transparent_folders = mgr.get_transparent_folders_view(workspace_name=workspace_name, current_user_email=user_email or "admin@local")
+            return {"workspace_name": workspace_name, "folders": transparent_folders}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error retrieving workspace folders: {str(e)}")
+
+    @app.post("/v1/workspaces/{workspace_name}/folders", tags=["Workspace Sharing"])
+    def add_folder_to_workspace(workspace_name: str, req: AddFolderRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        try:
+            mgr = WorkspaceSharingManager()
+            if not mgr.can_add_folder(user_email=req.user_email, workspace_name=workspace_name):
+                raise HTTPException(status_code=403, detail="Access Denied: Read-only 'Viewer' role cannot add folders to this workspace.")
+
+            entry = mgr.store.add_workspace_folder(
+                workspace_name=workspace_name,
+                folder_path=req.folder_path,
+                added_by_email=req.user_email
+            )
+            return {"status": "success", "folder": entry.dict()}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error adding folder: {str(e)}")
+
+    @app.delete("/v1/workspaces/{workspace_name}/folders/{folder_id}", tags=["Workspace Sharing"])
+    def delete_workspace_folder(workspace_name: str, folder_id: str, user_email: Optional[str] = "admin@local", credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        try:
+            store = WorkspaceSharingStore()
+            deleted = store.delete_workspace_folder(folder_id=folder_id, user_email=user_email or "admin@local")
+            if not deleted:
+                raise HTTPException(status_code=403, detail="Access Denied: You can only remove folders that you added to this workspace.")
+            return {"status": "success", "message": f"Folder {folder_id} removed from workspace {workspace_name}."}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error deleting folder: {str(e)}")
 
     return app
+
 
 
 def start_api_server(host: str = "127.0.0.1", port: int = 8000):

@@ -89,6 +89,7 @@ def show_config_menu():
             "⚙️ AnyContext Configuration Menu:",
             choices=[
                 "📂 Workspaces & Folders Management (List / Add / Delete Folders)",
+                "🤝 Workspace Sharing & Collaboration (Google Drive Style)",
                 "🤖 AI Models, Base URL & API Keys",
                 "🔑 Manage Saved API Keys",
                 "🧠 Memory Compression & Reset Settings",
@@ -104,6 +105,8 @@ def show_config_menu():
 
         if choice.startswith("📂"):
             _manage_workspaces(store)
+        elif choice.startswith("🤝"):
+            _manage_workspace_sharing(store)
         elif choice.startswith("🤖"):
             _manage_models(store)
         elif choice.startswith("🔑"):
@@ -123,6 +126,7 @@ def show_config_menu():
                 print("\n🎉 AnyContext has been completely reset to factory defaults!")
                 print("Run 'actx' again anytime to launch the first-time setup wizard.\n")
                 sys.exit(0)
+
 
 
 
@@ -537,4 +541,101 @@ def _manage_users_and_security(store: ConfigDBStore):
             for t in tokens:
                 print(f"• Token: \033[93m{t['token_id']}\033[0m | Name: {t['name']} | Role: {t['role'].upper()} | Workspaces: {t['allowed_workspaces']}")
             print("------------------------------\n")
+
+
+def _manage_workspace_sharing(store: ConfigDBStore):
+    from any_context.workspace_sharing import WorkspaceSharingStore, WorkspaceSharingManager
+
+    s_store = WorkspaceSharingStore()
+    mgr = WorkspaceSharingManager(store=s_store)
+    all_ws = [ws.name for ws in store.get_app_settings().workspaces]
+
+    print("\n--- 🤝 Workspace Sharing & Collaboration (Google Drive Style) ---")
+    print("Share workspace context and AI RAG intelligence with team collaborators.")
+    print("-------------------------------------------------------------------\n")
+
+    action = questionary.select(
+        "🤝 Sharing Action:",
+        choices=[
+            "🔗 Generate Workspace Share Invite Code (Share Workspace)",
+            "📩 Accept Workspace Share Invite Code (Join Workspace)",
+            "👥 List Workspace Collaborators",
+            "📁 View Workspace Transparent Folders & Ownership",
+            "🔙 Back"
+        ]
+    ).ask()
+
+    if not action or action.startswith("🔙"):
+        return
+
+    if action.startswith("🔗"):
+        if not all_ws:
+            print("No workspaces available to share.")
+            return
+        target_ws = questionary.select("Select Workspace to Share:", choices=all_ws).ask()
+        role = questionary.select("Select Access Level for Invitees:", choices=[
+            "👁️ Viewer (Chat & Search only - Read-Only)",
+            "✏️ Editor (Chat & Search + Can add own local folders)"
+        ]).ask()
+        role_code = "editor" if role and role.startswith("✏️") else "viewer"
+        max_uses_str = questionary.text("Enter max uses limit (1 for single use, 0 for unlimited):", default="1").ask()
+        try:
+            max_u = int(max_uses_str)
+        except ValueError:
+            max_u = 1
+
+        if target_ws:
+            invite = s_store.create_share_invite(
+                workspace_name=target_ws,
+                access_level=role_code,
+                created_by_email="owner@local",
+                max_uses=max_u
+            )
+            print(f"\n✅ Workspace Share Invite Code generated for '\033[93m{target_ws}\033[0m'!")
+            print(f"🔑 Share Code: \033[92m{invite.invite_code}\033[0m")
+            print(f"📋 Access Level: {invite.access_level.upper()} | Max Uses: {invite.max_uses}\n")
+
+    elif action.startswith("📩"):
+        inv_code = questionary.text("Enter Workspace Share Invite Code (e.g. SHARE-WKS-1234):").ask()
+        user_email = questionary.text("Enter Your Email Address:").ask()
+        if inv_code and user_email:
+            try:
+                perm = s_store.accept_share_invite(invite_code=inv_code, user_email=user_email)
+                print(f"\n🎉 Successfully joined workspace '\033[93m{perm.workspace_name}\033[0m' as '\033[92m{perm.access_level.upper()}\033[0m'!")
+            except Exception as e:
+                print(f"❌ Error accepting invite: {e}")
+
+    elif action.startswith("👥"):
+        if not all_ws:
+            print("No workspaces available.")
+            return
+        target_ws = questionary.select("Select Workspace to View Collaborators:", choices=all_ws).ask()
+        if target_ws:
+            collabs = s_store.list_workspace_collaborators(target_ws)
+            if not collabs:
+                print(f"No external collaborators joined workspace '{target_ws}' yet.")
+            else:
+                print(f"\n--- Collaborators for '{target_ws}' ---")
+                for c in collabs:
+                    print(f"• \033[93m{c.user_email}\033[0m - Access: {c.access_level.upper()} | Invited by: {c.granted_by_email}")
+                print("---------------------------------------\n")
+
+    elif action.startswith("📁"):
+        if not all_ws:
+            print("No workspaces available.")
+            return
+        target_ws = questionary.select("Select Workspace to View Folder Ownership:", choices=all_ws).ask()
+        user_email = questionary.text("Enter Your Email (to check your folder permissions):", default="owner@local").ask()
+        if target_ws:
+            t_folders = mgr.get_transparent_folders_view(workspace_name=target_ws, current_user_email=user_email)
+            print(f"\n--- Transparent Folder View for '{target_ws}' ---")
+            if not t_folders:
+                print("No registered folders in SQLite workspace_folders table.")
+            else:
+                for tf in t_folders:
+                    status_color = "\033[92m" if tf["is_owner"] else "\033[90m"
+                    print(f"• Path: {tf['folder_path']}")
+                    print(f"  Status: {status_color}{tf['tag']}\033[0m")
+            print("--------------------------------------------------\n")
+
 

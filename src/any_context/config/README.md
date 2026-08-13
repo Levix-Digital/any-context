@@ -22,6 +22,7 @@ Whether you are a developer seeking deep codebase insights, a business analyzing
   - **Level 3 (Consolidated Meta-Summarization):** Automatically merges older session summaries into high-level Meta-Summaries when ChromaDB reaches user thresholds, keeping vector indices lean and sharp.
 - **📘 Permanent System Self-Help Context:** Automatically embeds AnyContext's own complete documentation (`README.md`) into the vector database for all workspaces. Ask the AI agent how to deploy, configure, update, or use AnyContext directly in chat!
 - **🔐 User Access Control & RBAC Authentication:** Zero-friction open mode for personal use. Dual-mode support for Enterprise/Teams with User Accounts, Roles (`Admin`, `Analyst`, `Viewer`), Bearer Tokens (`actx_sec_...`), and Workspace-level Access Scopes.
+- **🤝 Google Drive-Style Workspace Collaboration:** Share existing workspaces with team members (`Viewer` or `Editor` roles). Transparent folder visibility across all collaborators with strict folder ownership locking (`[👑 Your Folder]` vs `[🔒 Read-Only]`).
 - **⚙️ SQLite Configuration Store (`settings.db`):** Thread-safe, ACID-compliant SQLite configuration store (`ConfigDBStore`) featuring automatic background migration from legacy `settings.json` and secure API Key storage with password masking (`sk-...****`).
 - **🔄 Auto-Updater (`actx --update` / `/update`):** Non-blocking startup release notification, manual check (`actx --check-update`), and 1-click self-updater supporting locked Windows executables and private GitHub repositories.
 
@@ -39,10 +40,14 @@ src/any_context/
 │   └── workspace_selector.py # Workspace selection & CLI argument parser
 ├── config/                   # Persistent SQLite Configuration System
 │   ├── app_settings.py       # Pydantic schemas & settings loader
-│   └── db_store.py           # SQLite ConfigDBStore manager (RBAC Users & Tokens)
+│   └── db_store.py           # SQLite ConfigDBStore manager
 ├── core/                     # LangGraph Orchestration Engine
 │   ├── agent.py              # Agent graph definition & tool binding
 │   └── utils.py              # API key resolvers & prompt finders
+├── help/                     # Architectural Help & Documentation Module
+│   ├── manager.py            # Flags (--help, -h), /help, & interactive manual
+│   ├── models.py             # HelpPage schema
+│   └── registry.py           # Comprehensive command manuals
 ├── ingestion/                # Incremental RAG Ingestion Pipeline
 │   └── local_folder_ingestor.py # Recursive folder scanner & ChromaDB updater
 ├── memory/                   # Standalone 3-Level Hierarchical Memory Engine
@@ -51,8 +56,12 @@ src/any_context/
 │   ├── compressor.py         # LLM-powered Level-1 & Level-3 summarization engine
 │   └── manager.py            # Asynchronous memory background thread orchestrator
 ├── server/                   # External Integration Layer (REST & MCP)
-│   ├── api.py                # FastAPI REST API Server & Swagger endpoints (Auth & Scopes)
+│   ├── api.py                # FastAPI REST API Server & Swagger endpoints
 │   └── mcp.py                # Model Context Protocol (MCP) stdio JSON-RPC server
+├── workspace_sharing/        # Workspace Collaboration & Sharing Module
+│   ├── manager.py            # Workspace permissions & transparent folder view
+│   ├── models.py             # WorkspaceFolderEntry, WorkspacePermission, WorkspaceShareInvite
+│   └── store.py              # SQLite tables (workspace_folders, workspace_permissions, workspace_share_invites)
 └── tools/                    # Agent Dynamic Tools
     └── search_tools.py       # ChromaDB vector retriever tool (search_db)
 ```
@@ -134,58 +143,13 @@ actx --mcp
 
 ---
 
-## 🏢 Enterprise & VPC Deployment Guide (Private Cloud / On-Premise)
+## 🤝 Workspace Collaboration & Sharing (Google Drive Style)
 
-AnyContext is designed for effortless deployment inside an enterprise **Virtual Private Cloud (VPC)**, **AWS EC2**, **Google Cloud Compute Engine**, **Azure VM**, or **On-Premise Private Server**.
+AnyContext allows workspace owners to share an existing workspace with team members:
 
-### 1. Launching in In-VPC Listener Mode
-To allow internal company applications (ERPs, CRMs, Intranets, Slack/Teams Bots, VS Code Extensions) to query AnyContext across your private network/VPN:
-```bash
-actx --serve --host 0.0.0.0 --port 8000
-```
-> **Note:** Binding to `--host 0.0.0.0` enables listening on all internal network interfaces within your VPC.
-
-### 2. Linux Background Service (`systemd`)
-To ensure AnyContext runs continuously as a background service on your VPC Linux instance and restarts automatically on server reboots:
-
-Create `/etc/systemd/system/anycontext.service`:
-```ini
-[Unit]
-Description=AnyContext Universal AI Server
-After=network.target
-
-[Service]
-User=ubuntu
-WorkingDirectory=/home/ubuntu
-ExecStart=/home/ubuntu/.local/bin/actx --serve --host 0.0.0.0 --port 8000
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start the service:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable anycontext
-sudo systemctl start anycontext
-```
-
-### 3. Enterprise Department Routing (Multi-Workspace)
-External enterprise applications specify the target department using the `"workspace"` JSON field in REST requests:
-```json
-{
-  "message": "What is the policy for business travel expense reimbursement?",
-  "workspace": "HumanResources"
-}
-```
-Supported department workspaces example: `"HumanResources"`, `"Finance"`, `"Legal"`, `"Engineering"`.
-
-### 4. 100% Private In-VPC Data & LLM Pipeline
-For strict SOC2 / LGPD compliance where zero data may leave the enterprise network:
-- Pair AnyContext with an in-VPC local LLM server (e.g. **Ollama**, **vLLM**, or **Azure OpenAI Private Endpoint**).
-- Configure the Base URL via `actx --config` to point to `http://internal-llm-server:11434/v1`.
-- Documents, vector embeddings (ChromaDB), and memory persist strictly on your VPC storage.
+- **👁️ Viewer Role**: Can query AI chat & search vector DB. Cannot add or delete folders.
+- **✏️ Editor Role**: Can query AI chat & search vector DB + add their own local folders to the workspace.
+- **📁 Transparent Folder Visibility & Ownership**: All collaborators see the complete list of folders feeding the AI context (`[👑 Your Folder]` vs `[🔒 Read-Only (Added by Amanda)]`). Edit and delete actions remain strictly locked to the folder's physical owner!
 
 ---
 
@@ -203,6 +167,12 @@ For strict SOC2 / LGPD compliance where zero data may leave the enterprise netwo
 | `GET` | `/v1/tokens` | List active Bearer security access tokens (Admin only). |
 | `POST` | `/v1/tokens` | Generate new Bearer security access token (Admin only). |
 | `DELETE` | `/v1/tokens/{token_id}` | Revoke a Bearer security access token (Admin only). |
+| `POST` | `/v1/workspaces/share/invite` | Generate a workspace share invite code (`SHARE-WKS-XXXX`). |
+| `POST` | `/v1/workspaces/share/accept` | Accept a workspace share invite code to join a workspace. |
+| `GET` | `/v1/workspaces/{name}/collaborators` | List collaborators of a workspace. |
+| `GET` | `/v1/workspaces/{name}/folders` | List transparent workspace folders with ownership tags. |
+| `POST` | `/v1/workspaces/{name}/folders` | Add a new folder to a workspace (Editor permission required). |
+| `DELETE` | `/v1/workspaces/{name}/folders/{id}` | Delete a workspace folder (Folder Owner permission required). |
 | `GET` | `/v1/workspaces` | List all configured workspaces and associated folder paths. |
 | `GET` | `/v1/docs/readme` | Retrieve raw application documentation (`README.md`) as JSON. |
 | `POST` | `/v1/chat` | Send a message to the AI agent with RAG search & session memory. |
@@ -210,80 +180,6 @@ For strict SOC2 / LGPD compliance where zero data may leave the enterprise netwo
 | `POST` | `/v1/index` | Trigger background re-indexing for a specific or all workspaces. |
 | `POST` | `/v1/reset-memory` | Purge long-term vector memory for a workspace or globally. |
 | `POST` | `/v1/factory-reset` | Wipe all settings, API keys, users, workspaces, and databases (Factory Reset). |
-
-### API Usage Examples (`curl`)
-
-#### 1. Chat with Agent (`POST /v1/chat`)
-```bash
-curl -X POST "http://127.0.0.1:8000/v1/chat" \
-     -H "Content-Type: application/json" \
-     -d '{
-           "message": "What were the security requirements discussed in the project specs?",
-           "workspace": "MyProject"
-         }'
-```
-
-#### 2. Search Knowledge Base (`POST /v1/search`)
-```bash
-curl -X POST "http://127.0.0.1:8000/v1/search" \
-     -H "Content-Type: application/json" \
-     -d '{
-           "query": "authentication bearer tokens",
-           "workspace": "MyProject"
-         }'
-```
-
-#### 3. Trigger Workspace Re-indexing (`POST /v1/index`)
-```bash
-curl -X POST "http://127.0.0.1:8000/v1/index" \
-     -H "Content-Type: application/json" \
-     -d '{ "workspace": "MyProject" }'
-```
-
----
-
-## 💬 In-App Slash Commands (During Chat)
-
-- **`/switch`**: Interactively switch active workspace with instant vector DB resync.
-- **`/version`** (or **`/v`**): Display AnyContext version information.
-- **`/update`**: Check for and install the latest release automatically.
-- **`/check-update`**: Check if a newer version is available.
-- **`/reset-memory`** (or **`/reset`**): Purge long-term vector memories for the active workspace.
-- **`/factory-reset`**: Wipe all workspaces, API keys, settings, and vector databases (Factory Reset).
-- **`/config`**: Open the interactive configuration menu (Workspaces, AI Models, API Keys).
-- **`/help`**: Display detailed in-app command instructions and tips.
-- **`Ctrl+C`**: Gracefully exit while triggering a background memory summary.
-
----
-
-## ⚙️ Configuration & API Key Management
-
-AnyContext stores configurations and API keys securely in `config/settings.db` (SQLite). Manage settings interactively using `actx --config` or `/config` during chat:
-
-- **🔑 Secure API Key Storage**: Input keys with password masking (`sk-...****`). Supported providers: OpenAI, OpenRouter, Anthropic, Gemini, DeepSeek, Groq.
-- **📂 Workspace & Folder Management**: Add, view, or remove individual document folders within any existing workspace.
-- **⚡ 1-Click Provider Quick-Setup**:
-  - *OpenAI Cloud Preset*: Enter key once; sets `gpt-4o-mini` + `text-embedding-3-small`.
-  - *Local Offline Preset*: Auto-configures LM Studio or Ollama (`http://localhost:1234/v1`).
-- **🧹 Automatic Embedding Vector Purge**: Changing embedding models automatically clears stale ChromaDB collections to prevent dimension mismatch errors.
-
----
-
-## 🧹 Uninstallation
-
-To completely uninstall AnyContext (`actx`) and clean PATH variables:
-
-1. Download `uninstall.ps1` (Windows) or `uninstall.sh` (Linux / Git Bash) from **[Latest Release Assets](https://github.com/Levix-Digital/any-context/releases/latest)**.
-2. Run in terminal:
-   - **Windows (PowerShell)**:
-     ```powershell
-     .\uninstall.ps1
-     ```
-   - **Linux / Git Bash**:
-     ```bash
-     chmod +x uninstall.sh
-     ./uninstall.sh
-     ```
 
 ---
 

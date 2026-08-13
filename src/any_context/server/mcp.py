@@ -163,8 +163,34 @@ def start_mcp_server():
                 },
                 "required": ["token_id"]
             }
+        },
+        {
+            "name": "create_workspace_share_invite",
+            "description": "Generates a workspace collaboration invite code (SHARE-WKS-XXXX) for Google Drive-style workspace sharing.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "workspace_name": {"type": "string", "description": "Workspace name to share"},
+                    "access_level": {"type": "string", "description": "'viewer' (chat/search) or 'editor' (chat/search + add folders)"},
+                    "max_uses": {"type": "integer", "description": "Maximum invite uses (default 1)"}
+                },
+                "required": ["workspace_name"]
+            }
+        },
+        {
+            "name": "accept_workspace_share_invite",
+            "description": "Accepts a workspace share invite code (SHARE-WKS-XXXX) to join a collaborative workspace.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "invite_code": {"type": "string", "description": "Workspace share invite code"},
+                    "user_email": {"type": "string", "description": "Email of user joining the workspace"}
+                },
+                "required": ["invite_code", "user_email"]
+            }
         }
     ]
+
 
     while True:
         try:
@@ -329,8 +355,26 @@ def start_mcp_server():
                         else:
                             result_text = f"Error: Security token '{t_id}' not found."
 
+                    elif tool_name == "create_workspace_share_invite":
+                        from any_context.workspace_sharing import WorkspaceSharingStore
+                        ws_name = arguments.get("workspace_name", "")
+                        acc_lvl = arguments.get("access_level", "viewer")
+                        max_u = arguments.get("max_uses", 1)
+                        store = WorkspaceSharingStore()
+                        invite = store.create_share_invite(workspace_name=ws_name, access_level=acc_lvl, created_by_email="mcp@system", max_uses=max_u)
+                        result_text = json.dumps(invite.dict(), indent=2)
+
+                    elif tool_name == "accept_workspace_share_invite":
+                        from any_context.workspace_sharing import WorkspaceSharingStore
+                        inv_code = arguments.get("invite_code", "")
+                        u_email = arguments.get("user_email", "")
+                        store = WorkspaceSharingStore()
+                        perm = store.accept_share_invite(invite_code=inv_code, user_email=u_email)
+                        result_text = json.dumps(perm.dict(), indent=2)
+
                     else:
                         result_text = f"Error: Tool '{tool_name}' not found."
+
 
                     response = {
                         "jsonrpc": "2.0",
