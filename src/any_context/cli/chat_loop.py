@@ -35,7 +35,7 @@ def run_chat_loop(active_workspace: str = None):
 
             if cmd == "/help":
                 help_text = f"""
-\033[93m🤖 AnyContext Agent Help\033[0m
+\033[93m🤖 AnyContext Agent Help (v{__version__})\033[0m
 
 \033[1mUSAGE:\033[0m
   Just type your question to chat with the AI. The agent will automatically
@@ -59,6 +59,12 @@ def run_chat_loop(active_workspace: str = None):
                 AI models, base URLs, and memory limits.
 
   \033[96m/help\033[0m         Show this detailed help message.
+
+\033[1mSERVER MODES (Terminal Commands):\033[0m
+  • \033[96mactx --serve\033[0m Start the REST API Server (default port: 8000). Includes
+                 interactive Swagger docs at http://127.0.0.1:8000/docs.
+  • \033[96mactx --mcp\033[0m   Start the Model Context Protocol (MCP) Server for native
+                 integration with Claude Desktop, Cursor, and AI sidecars.
 
 \033[1mTIPS:\033[0m
   • \033[90mSyncing:\033[0m If you add new files to the workspace folder, type `/switch`
