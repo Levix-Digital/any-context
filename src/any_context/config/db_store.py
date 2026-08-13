@@ -270,6 +270,38 @@ class ConfigDBStore:
             cursor.execute("DELETE FROM workspaces WHERE name = ?", (name,))
             conn.commit()
 
+    def add_folder_to_workspace(self, workspace_name: str, folder_path: str) -> bool:
+        """Adds a folder path to an existing workspace in SQLite"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (workspace_name,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            paths = json.loads(row["paths_json"])
+            clean_path = folder_path.strip()
+            if clean_path not in paths:
+                paths.append(clean_path)
+                cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(paths), workspace_name))
+                conn.commit()
+            return True
+
+    def remove_folder_from_workspace(self, workspace_name: str, folder_path: str) -> bool:
+        """Removes a folder path from an existing workspace in SQLite"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (workspace_name,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            paths = json.loads(row["paths_json"])
+            clean_path = folder_path.strip()
+            if clean_path in paths:
+                paths.remove(clean_path)
+                cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(paths), workspace_name))
+                conn.commit()
+            return True
+
     def set_api_key(self, provider: str, api_key: str):
         """Saves or updates an API key for a specific provider in SQLite"""
         with self._get_connection() as conn:

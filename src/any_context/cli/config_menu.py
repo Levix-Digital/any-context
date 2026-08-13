@@ -88,7 +88,7 @@ def show_config_menu():
         choice = questionary.select(
             "⚙️ AnyContext Configuration Menu:",
             choices=[
-                "📂 Workspaces Management (List / Add / Remove)",
+                "📂 Workspaces & Folders Management (List / Add / Delete Folders)",
                 "🤖 AI Models, Base URL & API Keys",
                 "🔑 Manage Saved API Keys",
                 "🧠 Memory Compression & Reset Settings",
@@ -118,9 +118,10 @@ def _manage_workspaces(store: ConfigDBStore):
     ws_action = questionary.select(
         "📂 Workspaces Action:",
         choices=[
-            "📋 List Workspaces",
-            "➕ Add New Workspace",
-            "🗑️ Remove Workspace",
+            "📋 List Workspaces & Folders",
+            "➕ Create New Workspace",
+            "📁 Manage Folders in Existing Workspace",
+            "🗑️ Delete Workspace Entirely",
             "🔙 Back"
         ]
     ).ask()
@@ -131,24 +132,75 @@ def _manage_workspaces(store: ConfigDBStore):
     if ws_action.startswith("📋"):
         print("\n--- Configured Workspaces ---")
         for ws in workspaces:
-            print(f"• \033[93m{ws.name}\033[0m: {', '.join(ws.paths)}")
+            print(f"• \033[93m{ws.name}\033[0m:")
+            for p in ws.paths:
+                print(f"    - {p}")
         print("-----------------------------\n")
+
     elif ws_action.startswith("➕"):
-        name = questionary.text("Workspace Name:").ask()
+        name = questionary.text("New Workspace Name:").ask()
         if name:
-            path = questionary.text("Folder Path:").ask()
+            path = questionary.text("First Folder Path:").ask()
             if path:
                 store.add_workspace(name.strip(), [path.strip()])
-                print(f"✅ Added workspace '{name}'.")
+                print(f"✅ Created workspace '{name}' with folder '{path}'.")
+
+    elif ws_action.startswith("📁"):
+        ws_names = [ws.name for ws in workspaces]
+        if not ws_names:
+            print("No workspaces configured.")
+            return
+        selected_ws = questionary.select("Select Workspace to manage folders:", choices=ws_names).ask()
+        if not selected_ws:
+            return
+
+        curr_ws = next((w for w in workspaces if w.name == selected_ws), None)
+        curr_paths = curr_ws.paths if curr_ws else []
+
+        print(f"\n📂 Workspace \033[93m{selected_ws}\033[0m current folders:")
+        for p in curr_paths:
+            print(f"  - {p}")
+        print()
+
+        folder_action = questionary.select(
+            f"Folder Action for '{selected_ws}':",
+            choices=[
+                "➕ Add Folder Path to Workspace",
+                "🗑️ Remove Folder Path from Workspace",
+                "🔙 Back"
+            ]
+        ).ask()
+
+        if folder_action and folder_action.startswith("➕"):
+            new_path = questionary.text("Enter absolute folder path to add:").ask()
+            if new_path:
+                if store.add_folder_to_workspace(selected_ws, new_path):
+                    print(f"✅ Added folder '{new_path}' to workspace '{selected_ws}'.")
+                else:
+                    print("❌ Error adding folder.")
+
+        elif folder_action and folder_action.startswith("🗑️"):
+            if not curr_paths:
+                print("No folders in this workspace.")
+                return
+            path_to_remove = questionary.select("Select folder path to remove:", choices=curr_paths).ask()
+            if path_to_remove:
+                if store.remove_folder_from_workspace(selected_ws, path_to_remove):
+                    print(f"🗑️ Removed folder '{path_to_remove}' from workspace '{selected_ws}'.")
+                else:
+                    print("❌ Error removing folder.")
+
     elif ws_action.startswith("🗑️"):
         names = [ws.name for ws in workspaces]
         if not names:
-            print("No workspaces to remove.")
+            print("No workspaces to delete.")
             return
-        to_remove = questionary.select("Select workspace to remove:", choices=names).ask()
+        to_remove = questionary.select("Select workspace to delete entirely:", choices=names).ask()
         if to_remove:
-            store.remove_workspace(to_remove)
-            print(f"🗑️ Removed workspace '{to_remove}'.")
+            confirm = questionary.confirm(f"⚠️ Are you sure you want to delete workspace '{to_remove}' and all its folder links?").ask()
+            if confirm:
+                store.remove_workspace(to_remove)
+                print(f"🗑️ Deleted workspace '{to_remove}'.")
 
 def _manage_models(store: ConfigDBStore):
     settings = store.get_app_settings()
