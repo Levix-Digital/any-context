@@ -118,8 +118,7 @@ def clear_context_vector_db():
     except Exception as e:
         safe_print(f"⚠️ Warning during vector db clear: {e}")
 
-@tool()
-def index_folder(workspace_name: str = None):
+def run_index_folder(workspace_name: str = None):
     """
     Index documents in the vector database incrementally across all configured workspaces,
     or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
@@ -129,6 +128,7 @@ def index_folder(workspace_name: str = None):
     if not current_settings or not current_settings.workspaces:
         safe_print("❌ Error: No workspaces configured in settings.")
         return
+
 
     safe_print("⚡ 1. Connecting to ChromaDB...")
     db = chromadb.PersistentClient(path=db_save_path)
@@ -298,5 +298,16 @@ def index_folder(workspace_name: str = None):
     safe_print("🎉 Success! Incremental vectorial database updated!")
 
 
+@tool()
+def index_folder(workspace_name: str = None):
+    """
+    Index documents in the vector database incrementally across all configured workspaces,
+    or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
+    Automatically embeds application README and Help Module Registry as permanent system self-help context.
+    """
+    return run_index_folder(workspace_name=workspace_name)
+
+
 if __name__ == "__main__":
-    index_folder()
+    run_index_folder()
+

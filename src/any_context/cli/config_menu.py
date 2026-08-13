@@ -307,6 +307,14 @@ def _manage_models(store: ConfigDBStore):
         print(f"\n⚠️ Notice: Embedding model changed from '{old_emb_model}' to '{new_emb_model}'.")
         print("🧹 Clearing vector database (ChromaDB) to force clean re-indexing and prevent dimension mismatch errors...")
         clear_context_vector_db()
+        from any_context.ingestion.local_folder_ingestor import run_index_folder
+        print("⚡ Re-indexing workspace documents with new embedding model...")
+        run_index_folder()
+    elif new_emb_model:
+        from any_context.ingestion.local_folder_ingestor import run_index_folder
+        run_index_folder()
+
+
 
 def _manage_api_keys(store: ConfigDBStore):
     all_keys = store.get_all_api_keys()
