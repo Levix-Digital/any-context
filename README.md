@@ -30,18 +30,22 @@ Currently, the project consists of:
 
 ## ⚡ Quick Start & Installation
 
-### Option 1: 1-Line Automatic Terminal Installer (No Python Needed!)
+### Option 1: Automatic Installer Script (No Python Needed!)
 
-#### Windows (PowerShell):
-```powershell
-iwr -useb https://raw.githubusercontent.com/Levix-Digital/any-context/main/scripts/install.ps1 | iex
-```
-
-#### Linux (Terminal):
-```bash
-curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/scripts/install.sh | sh
-```
-*This downloads `actx`, configures path permissions, and enables the `actx` command globally.*
+1. Go to the **[Latest GitHub Release](https://github.com/Levix-Digital/any-context/releases/latest)** and download the installer script for your OS:
+   - **Windows**: `install.ps1`
+   - **Linux**: `install.sh`
+2. Run the script in your terminal:
+   - **Windows (PowerShell)**:
+     ```powershell
+     .\install.ps1
+     ```
+   - **Linux (Terminal)**:
+     ```bash
+     chmod +x install.sh
+     ./install.sh
+     ```
+*This downloads the `actx` binary, configures your user PATH, and enables the `actx` command globally.*
 
 ---
 
@@ -51,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/scri
    ```bash
    pip install -e .
    ```
-2. Run from anywhere:
+2. Run from anywhere in your terminal:
    ```bash
    actx
    # or bypass workspace menu:
@@ -61,9 +65,9 @@ curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/scri
 
 ---
 
-### Option 3: Manual Executable Download
+### Option 3: Manual Standalone Executable Download
 
-Download pre-built native binaries for Windows or Linux directly from the **[GitHub Releases](https://github.com/Levix-Digital/any-context/releases)** page.
+Download pre-built native binaries (`actx-windows-x86_64.exe` or `actx-linux-x86_64`) directly from the **[GitHub Releases](https://github.com/Levix-Digital/any-context/releases)** page.
 
 ---
 
