@@ -6,7 +6,8 @@ import urllib.request
 from typing import Optional, Tuple
 from any_context import __version__ as CURRENT_VERSION
 
-REPO = "Levix-Digital/any-context"
+REPO = "Levix-Digital/any-context-releases"
+
 
 def safe_print(msg: str):
     try:

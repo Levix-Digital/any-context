@@ -72,7 +72,7 @@ src/any_context/
 
 ### Option 1: Automatic Terminal Installer Script (No Python Needed!)
 
-1. Download the installer script from the **[Latest Release](https://github.com/Levix-Digital/any-context/releases/latest)**:
+1. Download the installer script from the **[Latest Release](https://github.com/Levix-Digital/any-context-releases/releases/latest)**:
    - **Windows**: `install.ps1`
    - **Linux / Git Bash**: `install.sh`
 2. Run the script in your terminal:

@@ -68,7 +68,7 @@ src/any_context/
 
 ### Option 1: Automatic Terminal Installer Script (No Python Needed!)
 
-1. Download the installer script from the **[Latest Release](https://github.com/Levix-Digital/any-context/releases/latest)**:
+1. Download the installer script from the **[Latest Release](https://github.com/Levix-Digital/any-context-releases/releases/latest)**:
    - **Windows**: `install.ps1`
    - **Linux / Git Bash**: `install.sh`
 2. Run the script in your terminal:
@@ -280,7 +280,7 @@ AnyContext stores configurations and API keys securely in `config/settings.db` (
 
 To completely uninstall AnyContext (`actx`) and clean PATH variables:
 
-1. Download `uninstall.ps1` (Windows) or `uninstall.sh` (Linux / Git Bash) from **[Latest Release Assets](https://github.com/Levix-Digital/any-context/releases/latest)**.
+1. Download `uninstall.ps1` (Windows) or `uninstall.sh` (Linux / Git Bash) from **[Latest Release Assets](https://github.com/Levix-Digital/any-context-releases/releases/latest)**.
 2. Run in terminal:
    - **Windows (PowerShell)**:
      ```powershell
