@@ -11,7 +11,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from any_context import __version__
 from any_context.config.db_store import ConfigDBStore
-from any_context.core.agent import cli_agent
+from any_context.core.agent import create_anycontext_agent, saver
+
 from any_context.tools.search_tools import search_db
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.memory import MemoryManager
@@ -357,11 +358,13 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
 
         try:
             full_response = ""
-            for token, metadata in cli_agent.stream(
+            agent_instance = create_anycontext_agent(active_workspace=req.workspace, checkpointer=saver)
+            for token, metadata in agent_instance.stream(
                 {"messages": [req.message]},
                 stream_mode="messages",
                 config=config
             ):
+
                 if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
                     if isinstance(token.content, str) and token.content:
                         full_response += token.content

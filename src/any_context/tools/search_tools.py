@@ -8,38 +8,44 @@ from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
 from llama_index.embeddings.openai import OpenAIEmbedding
 from langchain.tools import tool
 
-LOCAL_API_KEY = get_api_key()
+def configure_embedding_model():
+    settings = AppSettings.load()
+    local_embedding_model = settings.models.local_embedding_model if settings else "text-embedding-multilingual-e5-small"
+    local_openai_embedding_model = settings.models.local_openai_embedding_model if settings else "text-embedding-3-small"
+    local_base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
+    model_provider = settings.models.model_provider if settings else "openai"
+    api_key = get_api_key(provider=model_provider)
 
-settings = AppSettings.load()
-local_embedding_model = settings.models.local_embedding_model if settings else "text-embedding-multilingual-e5-small"
-local_openai_embedding_model = settings.models.local_openai_embedding_model if settings else "text-embedding-3-small"
-local_base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
-session_db_path = settings.session.db_path if settings else "./memory"
-session_collection_name = settings.session.collection_name if settings else "session_docs"
-folder_db_path = settings.context.db_path if settings else "./context_db"
-folder_collection_name = settings.context.collection_name if settings else "context_docs"
+    Settings.embed_model = OpenAIEmbedding(
+        model_name=local_embedding_model, 
+        model=local_openai_embedding_model,
+        api_base=local_base_url,
+        api_key=api_key
+    )
 
-Settings.embed_model = OpenAIEmbedding(
-    model_name=local_embedding_model, 
-    model=local_openai_embedding_model,
-    api_base=local_base_url,
-    api_key=LOCAL_API_KEY
-)
+# Initial setup
+configure_embedding_model()
 
 @tool()
-def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 6, workspace: str = None):
+def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 8, workspace: str = None):
     """
     Search for relevant information in the vector databases based on the provided prompt text.
 
     Args:
         prompt_text (str): The text to search for.
         search_session_memory (bool): Set to True to search the user's past conversations/sessions memory. Set to False to search general workspace documents.
-        top_k (int): The number of relevant document chunks to return (default: 6).
+        top_k (int): The number of relevant document chunks to return (default: 8).
         workspace (str, optional): The specific workspace to filter searches by.
 
     Returns:
         str: Relevant document content snippets or memory entries.
     """
+    configure_embedding_model()
+    settings = AppSettings.load()
+    session_db_path = settings.session.db_path if settings else "./memory"
+    session_collection_name = settings.session.collection_name if settings else "session_docs"
+    folder_db_path = settings.context.db_path if settings else "./context_db"
+    folder_collection_name = settings.context.collection_name if settings else "context_docs"
 
     if search_session_memory:
         db_path = session_db_path
@@ -61,25 +67,37 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
         index = VectorStoreIndex.from_vector_store(vector_store)
 
-        search_k = max(top_k, 5)
+        search_k = max(top_k, 8)
 
+        nodes = []
         filters = None
+
         if workspace and not search_session_memory:
-            print(f"\n🔍 [Search] Filtering context by Workspace: '{workspace}' (retrieving top {search_k} chunks)")
+            print(f"\n🔍 [Search] Filtering context by Workspace: '{workspace}' (retrieving top {search_k} chunks)...")
             filters = MetadataFilters(
                 filters=[ExactMatchFilter(key="workspace", value=workspace)]
             )
-        elif not search_session_memory:
-            print(f"\n🔍 [Search] Searching globally across all workspaces (retrieving top {search_k} chunks)...")
+            retriever = index.as_retriever(similarity_top_k=search_k, filters=filters)
+            nodes = retriever.retrieve(prompt_text)
 
-        retriever = index.as_retriever(similarity_top_k=search_k, filters=filters)
-        nodes = retriever.retrieve(prompt_text)
+        # Fallback to global search if workspace filter returned 0 nodes or no workspace was provided
+        if not nodes and not search_session_memory:
+            if workspace:
+                print(f"\n🔍 [Search] Workspace filter '{workspace}' returned 0 chunks. Performing global fallback search...")
+            else:
+                print(f"\n🔍 [Search] Searching globally across all workspaces (retrieving top {search_k} chunks)...")
+            retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
+            nodes = retriever.retrieve(prompt_text)
+        elif search_session_memory:
+            retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
+            nodes = retriever.retrieve(prompt_text)
 
         results_list = []
         for i, node in enumerate(nodes):
             file_name = node.metadata.get('file_name', 'Unknown')
             file_path = node.metadata.get('file_path', file_name)
-            results_list.append(f"--- [Document Chunk {i+1} | Source: {file_name}] ---\nPath: {file_path}\nContent:\n{node.text}")
+            ws_tag = node.metadata.get('workspace', 'Global')
+            results_list.append(f"--- [Document Chunk {i+1} | Source: {file_name} | Workspace: {ws_tag}] ---\nPath: {file_path}\nContent:\n{node.text}")
 
         if not results_list:
             return "No documents found."

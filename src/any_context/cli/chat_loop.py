@@ -1,6 +1,7 @@
 import uuid
 import questionary
-from any_context.core.agent import cli_agent
+from any_context.core.agent import create_anycontext_agent, saver
+
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
 from any_context.cli.config_menu import show_config_menu
@@ -83,9 +84,10 @@ def run_chat_loop(active_workspace: str = None):
                 show_config_menu()
                 continue
     
+            active_agent = create_anycontext_agent(active_workspace=active_workspace, checkpointer=saver)
             print("\033[93m🤖 AI:\033[0m ", end="", flush=True)
     
-            for token, metadata in cli_agent.stream(
+            for token, metadata in active_agent.stream(
                 {
                     "messages": [user_input]
                 },
@@ -98,6 +100,7 @@ def run_chat_loop(active_workspace: str = None):
                 elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
                     print("\n📚 Reading retrieved documents... Please wait for AI analysis.")
                     print("\033[93m🤖 AI:\033[0m ", end="", flush=True)
+
             print()
             
         except KeyboardInterrupt:

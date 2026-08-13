@@ -62,7 +62,7 @@ def find_agent_prompt_file(filename: str = "AGENT.md") -> str:
             return os.path.abspath(candidate)
     return None
 
-def get_system_prompt(path: str = None):
+def get_system_prompt(path: str = None, active_workspace: str = None):
     target_path = path if (path and os.path.exists(path)) else find_agent_prompt_file("AGENT.md")
     prompt = ""
     if target_path and os.path.exists(target_path):
@@ -80,9 +80,16 @@ def get_system_prompt(path: str = None):
         if settings and settings.workspaces:
             workspaces_str = ", ".join([f"'{ws.name}'" for ws in settings.workspaces])
             prompt += f"\n\n### 6. Workspaces\n- **Available Workspaces:** {workspaces_str}\n"
-            prompt += "- When searching the knowledge base (search_session_memory=False), you should specify the `workspace` argument in the `search_db` tool if the user indicates a specific topic or workspace.\n"
-            prompt += "- If the user's request is ambiguous, you may ask them which workspace they want to search, or leave the `workspace` argument empty to search globally."
+
+        if active_workspace:
+            prompt += f"\n\n### 🎯 ACTIVE WORKSPACE & TOOL CALLING CONTEXT\n"
+            prompt += f"- You are currently chatting inside active workspace: **'{active_workspace}'**.\n"
+            prompt += f"- **WORKSPACE FILTER RULE:** When calling `search_db` to search documents, you MUST pass `workspace='{active_workspace}'` unless the user explicitly requests searching globally.\n"
+            prompt += f"- **SINGLE SEARCH EXECUTION:** Call `search_db` AT MOST ONCE per question. Do NOT repeat or loop calls to `search_db`. Analyze the retrieved document snippets immediately and write a complete, beautifully structured answer.\n"
+        else:
+            prompt += "- When searching the knowledge base (search_session_memory=False), specify the `workspace` argument in `search_db` if a specific workspace topic is mentioned.\n"
     except Exception as e:
         print(f"⚠️ Warning: Could not load workspaces into system prompt: {e}")
 
     return prompt
+
