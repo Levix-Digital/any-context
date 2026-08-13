@@ -3,7 +3,7 @@
         "."
     ],
     "graphs": {
-        "any-context": "./core/agent.py:agent"
+        "any-context": "./src/any_context/core/agent.py:agent"
     },
     "env": ".env"
 }

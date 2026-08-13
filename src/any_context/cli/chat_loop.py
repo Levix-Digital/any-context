@@ -1,10 +1,9 @@
 import uuid
-from core.agent import cli_agent
-from ingestion.local_folder_ingestor import index_folder
-from cli.workspace_selector import show_workspace_menu
+from any_context.core.agent import cli_agent
+from any_context.ingestion.local_folder_ingestor import index_folder
+from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
 
 def run_chat_loop(active_workspace: str = None):
-    # Create the Config with Thread ID for this session
     thread_id = f"chat_{uuid.uuid4()}"
     config = {
         "configurable": {
@@ -80,7 +79,13 @@ def run_chat_loop(active_workspace: str = None):
             
         except KeyboardInterrupt:
             print("\nExiting...")
-            from core.memory_manager import run_session_summarizer_async
-            # Trigger background summary passing the current session ID
+            from any_context.core.memory_manager import run_session_summarizer_async
             run_session_summarizer_async(thread_id)
             break
+
+def main():
+    workspace = get_active_workspace()
+    run_chat_loop(active_workspace=workspace)
+
+if __name__ == "__main__":
+    main()

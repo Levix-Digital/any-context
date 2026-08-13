@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "any-context"
+version = "1.0.0"
+description = "Agnostic AI Agent with isolated workspaces and long-term memory"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Levi Silveira" }
+]
+dependencies = [
+    "chromadb",
+    "python-docx",
+    "llama-index",
+    "llama-index-vector-stores-chroma",
+    "llama-index-readers-file",
+    "llama-index-embeddings-openai",
+    "llama-index-embeddings-huggingface",
+    "docx2txt",
+    "langchain",
+    "langchain-openai",
+    "langgraph-checkpoint-sqlite",
+    "langgraph-cli",
+    "pydantic",
+    "questionary",
+    "tqdm",
+    "python-dotenv"
+]
+
+[project.scripts]
+actx = "any_context.cli.chat_loop:main"
+anycontext = "any_context.cli.chat_loop:main"
+any-context = "any_context.cli.chat_loop:main"
+ac = "any_context.cli.chat_loop:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"any_context" = ["config/*.json", "config/*.md"]
