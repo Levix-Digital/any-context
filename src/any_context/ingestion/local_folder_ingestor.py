@@ -62,7 +62,7 @@ def clear_context_vector_db():
 def index_folder(workspace_name: str = None):
     """
     Index documents in the vector database incrementally across all configured workspaces,
-    or a specific workspace if provided.
+    or a specific workspace if provided. Automatically embeds application README documentation as permanent system context.
     """
     current_settings = AppSettings.load() or settings
     if not current_settings or not current_settings.workspaces:
@@ -92,12 +92,26 @@ def index_folder(workspace_name: str = None):
 
     all_documents = []
     
+    # Locate application README.md for permanent system help context
+    readme_path = None
+    readme_candidates = [
+        os.path.join(os.getcwd(), "README.md"),
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "README.md"),
+        os.path.join(os.path.dirname(__file__), "..", "config", "README.md")
+    ]
+    for cand in readme_candidates:
+        if os.path.exists(cand):
+            readme_path = os.path.abspath(cand)
+            break
+
     workspaces_to_process = []
     for ws in current_settings.workspaces:
         if workspace_name and ws.name != workspace_name:
             continue
         workspaces_to_process.append(ws)
         safe_print(f"\n📂 Workspace: {ws.name}")
+        
+        ws_docs_count = 0
         for folder_path in ws.paths:
             if not os.path.exists(folder_path):
                 safe_print(f"⚠️ Warning: Directory '{folder_path}' does not exist. (Its documents will be purged from DB)")
@@ -118,10 +132,26 @@ def index_folder(workspace_name: str = None):
                         d.id_ = d.metadata["file_path"]
                     
                 all_documents.extend(docs)
+                ws_docs_count += len(docs)
                 safe_print(f"  ✅ Found {len(docs)} files.")
             except ValueError:
                 safe_print(f"  ⚠️ Warning: No valid files found in {folder_path}. Skipping...")
                 continue
+
+        # Auto-inject application README.md as permanent system context for this workspace
+        if readme_path:
+            try:
+                readme_reader = SimpleDirectoryReader(input_files=[readme_path])
+                readme_docs = readme_reader.load_data()
+                for rd in readme_docs:
+                    rd.metadata["workspace"] = ws.name
+                    rd.metadata["is_system_help"] = True
+                    rd.metadata["file_name"] = "AnyContext System Documentation (README.md)"
+                    rd.id_ = f"system_readme_{ws.name}"
+                all_documents.extend(readme_docs)
+                safe_print(f"  📘 Injected AnyContext System Documentation (README.md) as permanent help context.")
+            except Exception as e:
+                pass
                 
     if not all_documents:
         safe_print("❌ No valid documents found across any workspace.")

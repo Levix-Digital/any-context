@@ -20,9 +20,8 @@ Whether you are a developer seeking deep codebase insights, a business analyzing
   - **Level 1 (Session Block Summary):** Asynchronously summarizes chat interaction blocks (every 10 interactions / 20 messages) and persists them to long-term vector storage.
   - **Level 2 (Active Rolling Window):** Retains recent active messages in SQLite graph state for fast, lightweight LLM context windows.
   - **Level 3 (Consolidated Meta-Summarization):** Automatically merges older session summaries into high-level Meta-Summaries when ChromaDB reaches user thresholds, keeping vector indices lean and sharp.
-- **📘 Permanent System Self-Help Context:** Automatically embeds AnyContext's own complete documentation (`README.md`) into the vector database for all workspaces. Ask the AI agent how to deploy, configure, update, or useAnyContext directly in chat!
+- **📘 Permanent System Self-Help Context:** Automatically embeds AnyContext's own complete documentation (`README.md`) into the vector database for all workspaces. Ask the AI agent how to deploy, configure, update, or use AnyContext directly in chat!
 - **⚙️ SQLite Configuration Store (`settings.db`):** Thread-safe, ACID-compliant SQLite configuration store (`ConfigDBStore`) featuring automatic background migration from legacy `settings.json` and secure API Key storage with password masking (`sk-...****`).
-
 - **🔄 Auto-Updater (`actx --update` / `/update`):** Non-blocking startup release notification, manual check (`actx --check-update`), and 1-click self-updater supporting locked Windows executables and private GitHub repositories.
 
 ---
@@ -243,7 +242,6 @@ curl -X POST "http://127.0.0.1:8000/v1/index" \
 - **`/config`**: Open the interactive configuration menu (Workspaces, AI Models, API Keys).
 - **`/help`**: Display detailed in-app command instructions and tips.
 - **`Ctrl+C`**: Gracefully exit while triggering a background memory summary.
-
 
 ---
 
