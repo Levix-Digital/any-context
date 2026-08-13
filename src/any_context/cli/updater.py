@@ -25,9 +25,20 @@ def parse_version_tuple(version_str: str) -> Tuple[int, ...]:
 def fetch_latest_release_tag() -> Optional[str]:
     """
     Fetches the latest release tag from GitHub.
-    Uses gh CLI if available (supports private repos), or falls back to public API.
+    Uses public GitHub REST API first (fast & zero dependencies), and falls back to gh CLI for private repos.
     """
-    # 1. Try gh CLI
+    # 1. Try public GitHub API first (Fast, lightweight, no sub-process overhead)
+    try:
+        url = f"https://api.github.com/repos/{REPO}/releases/latest"
+        req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-CLI"})
+        with urllib.request.urlopen(req, timeout=3) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode("utf-8"))
+                return data.get("tag_name")
+    except Exception:
+        pass
+
+    # 2. Fallback to gh CLI (supports private repos with authenticated gh CLI)
     try:
         res = subprocess.run(
             ["gh", "release", "view", "--repo", REPO, "--json", "tagName"],
@@ -42,18 +53,8 @@ def fetch_latest_release_tag() -> Optional[str]:
     except Exception:
         pass
 
-    # 2. Fallback to public GitHub API
-    try:
-        url = f"https://api.github.com/repos/{REPO}/releases/latest"
-        req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-CLI"})
-        with urllib.request.urlopen(req, timeout=5) as response:
-            if response.status == 200:
-                data = json.loads(response.read().decode("utf-8"))
-                return data.get("tag_name")
-    except Exception:
-        pass
-
     return None
+
 
 def check_for_updates(quiet_if_latest: bool = True) -> Tuple[bool, Optional[str]]:
     """
@@ -119,36 +120,37 @@ def run_self_update():
 
     downloaded = False
 
-    # 1. Try gh CLI release download
+    # 1. Try direct HTTP release download first (Fast, zero dependencies)
+    safe_print(f"⬇️ Downloading '{target_asset}' from GitHub Release {clean_tag}...")
     try:
-        safe_print(f"⬇️ Downloading '{target_asset}' from GitHub Release {clean_tag}...")
-        res = subprocess.run(
-            ["gh", "release", "download", latest_tag, "--repo", REPO, "--pattern", target_asset, "--dir", target_dir, "--clobber"],
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
-        downloaded_file = os.path.join(target_dir, target_asset)
-        if res.returncode == 0 and os.path.exists(downloaded_file):
-            if os.path.exists(temp_download):
-                os.remove(temp_download)
-            os.rename(downloaded_file, temp_download)
-            downloaded = True
-    except Exception as e:
-        safe_print(f"⚠️ Warning: gh CLI download attempt failed: {e}")
+        url = f"https://github.com/{REPO}/releases/download/{latest_tag}/{target_asset}"
+        req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-CLI"})
+        with urllib.request.urlopen(req, timeout=60) as response:
+            if response.status == 200:
+                with open(temp_download, "wb") as f:
+                    f.write(response.read())
+                downloaded = True
+    except Exception:
+        pass
 
-    # 2. Fallback to direct URL download if public
+    # 2. Fallback to gh CLI download (for private repositories)
     if not downloaded:
         try:
-            url = f"https://github.com/{REPO}/releases/download/{latest_tag}/{target_asset}"
-            req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-CLI"})
-            with urllib.request.urlopen(req, timeout=60) as response:
-                if response.status == 200:
-                    with open(temp_download, "wb") as f:
-                        f.write(response.read())
-                    downloaded = True
-        except Exception as e:
+            res = subprocess.run(
+                ["gh", "release", "download", latest_tag, "--repo", REPO, "--pattern", target_asset, "--dir", target_dir, "--clobber"],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            downloaded_file = os.path.join(target_dir, target_asset)
+            if res.returncode == 0 and os.path.exists(downloaded_file):
+                if os.path.exists(temp_download):
+                    os.remove(temp_download)
+                os.rename(downloaded_file, temp_download)
+                downloaded = True
+        except Exception:
             pass
+
 
     if not downloaded:
         safe_print(f"❌ Failed to download update asset '{target_asset}' for release {clean_tag}.")
