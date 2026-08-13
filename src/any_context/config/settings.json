@@ -1,22 +1,9 @@
 {
     "workspaces": [
         {
-            "name": "AnyContext",
+            "name": "DefaultWorkspace",
             "paths": [
-                "G:\\My Drive\\Documentos\\Levix Digital\\AnyContext"
-            ]
-        },
-        {
-            "name": "Intellexis",
-            "paths": [
-                "G:\\My Drive\\Documentos\\Levix Digital\\AI Educational Platform\\Agnostic Version"
-            ]
-        },
-        {
-            "name": "Integration",
-            "paths": [
-                "G:\\My Drive\\Documentos\\Levix Digital\\AI Educational Platform\\Agnostic Version",
-                "G:\\My Drive\\Documentos\\Levix Digital\\AnyContext"
+                "./documents"
             ]
         }
     ],
