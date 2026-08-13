@@ -12,15 +12,21 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "configured folders for that workspace, updates document embeddings in ChromaDB, and switches "
             "the active context scope for the AI agent."
         ),
-        syntax="actx -w <workspace_name>   OR   type '/switch' during chat",
+        syntax=(
+            "CLI Launch : actx -w <workspace_name>\n"
+            "  In Chat    : type '/switch' during active chat\n"
+            "  View Help  : actx --switch --help   OR   /switch --help   OR   /switch -h   OR   /switch /help   OR   /switch /h"
+        ),
         parameters=[
             "-w, --workspace <name> : Directly specify target workspace on CLI launch.",
-            "/switch               : Opens interactive menu to choose active workspace."
+            "/switch               : Opens interactive menu to choose active workspace.",
+            "--help, -h, /help, /h : Display this detailed help page for /switch."
         ],
         examples=[
             "actx -w MyProject",
             "actx -w HumanResources",
-            "In Chat: /switch  ->  Select 'Integration'"
+            "actx --switch --help",
+            "In Chat: /switch -h   (opens this help manual page)"
         ],
         tips=[
             "If you add or edit files in your workspace folder, type '/switch' and re-select your current workspace to trigger a fast incremental resync!",
@@ -36,20 +42,27 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "The /config command launches the full interactive configuration menu. "
             "From this menu, you can add or remove document folders per workspace, configure AI models "
             "(OpenAI, LM Studio, Ollama, Claude, Gemini, DeepSeek, Groq), manage API Keys, tweak memory settings, "
-            "and manage RBAC User Accounts & Security Tokens."
+            "manage Workspace Sharing, and configure RBAC User Accounts & Security Tokens."
         ),
-        syntax="actx --config   OR   type '/config' during chat",
+        syntax=(
+            "CLI Launch : actx --config\n"
+            "  In Chat    : type '/config' during active chat\n"
+            "  View Help  : actx --config --help   OR   /config --help   OR   /config -h   OR   /config /help   OR   /config /h"
+        ),
         parameters=[
             "📂 Workspaces & Folders Management : Add/remove document folder paths.",
+            "🤝 Workspace Sharing & Collab      : Share workspaces & generate invite codes (Google Drive style).",
             "🤖 AI Models & Base URL            : Select LLM inference and embedding models.",
             "🔑 Manage Saved API Keys           : Store API keys securely in SQLite.",
             "🧠 Memory Compression Settings     : Adjust short-term and meta-summary limits.",
             "🛡️ User Accounts & Security RBAC   : Manage Admin, Team Users, and Bearer Tokens.",
-            "💥 Factory Reset                   : Wipe all settings and reset to defaults."
+            "💥 Factory Reset                   : Wipe all settings and reset to defaults.",
+            "--help, -h, /help, /h             : Display this detailed help page for /config."
         ],
         examples=[
             "actx --config",
-            "In Chat: /config"
+            "actx --config --help",
+            "In Chat: /config /help   (opens this help manual page)"
         ],
         tips=[
             "Changing embedding models automatically clears stale ChromaDB collections to prevent vector dimension mismatch errors.",
@@ -67,17 +80,23 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "2. Enterprise / Multi-User Mode: Protected mode for team servers (VPC / On-Premise). "
             "Enforces user login (Admin, Analyst, Viewer) and Bearer Access Tokens (actx_sec_...)."
         ),
-        syntax="actx login --server <url>   OR   POST /v1/auth/login   OR   /config -> '🛡️ User Accounts'",
+        syntax=(
+            "REST API   : POST /v1/auth/login   OR   POST /v1/auth/setup-admin\n"
+            "  In Chat    : /config -> '🛡️ User Accounts & Security Access Control'\n"
+            "  View Help  : actx --auth --help   OR   /auth --help   OR   /auth -h   OR   /login /help   OR   /login /h"
+        ),
         parameters=[
             "👑 Admin Role   : Full system control (creates users, manages workspaces, API keys, factory reset).",
             "🔬 Analyst Role : Can query AI chat, search vector DB, and trigger folder re-indexing.",
             "👁️ Viewer Role  : Read-only access to query AI chat and search vector DB.",
-            "🔑 Bearer Token : Token string format 'actx_sec_...' sent in HTTP Authorization headers."
+            "🔑 Bearer Token : Token string format 'actx_sec_...' sent in HTTP Authorization headers.",
+            "--help, -h, /help, /h : Display this detailed help page for security and RBAC."
         ],
         examples=[
             "actx login --server http://192.168.1.50:8000",
             "curl -H 'Authorization: Bearer actx_sec_...' http://localhost:8000/v1/chat",
-            "In Chat: /config  ->  Select '🛡️ User Accounts & Security Access Control'"
+            "actx --auth --help",
+            "In Chat: /login -h   (opens this help manual page)"
         ],
         tips=[
             "When running in REST API Server mode (actx --serve), if no Admin is configured yet, access to data endpoints is blocked until an Administrator is initialized!",
@@ -95,23 +114,29 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Folder visibility is transparent (all indexed folder paths are visible with ownership tags), but edit/delete "
             "permissions remain strictly locked to the user who physically added each folder!"
         ),
-        syntax="POST /v1/workspaces/share/invite   OR   /config -> '🤝 Workspace Sharing'",
+        syntax=(
+            "REST API   : POST /v1/workspaces/share/invite   OR   POST /v1/workspaces/share/accept\n"
+            "  In Chat    : /config -> '🤝 Workspace Sharing & Collaboration'\n"
+            "  View Help  : actx --share --help   OR   /share --help   OR   /share -h   OR   /share /help   OR   /share /h"
+        ),
         parameters=[
             "👁️ Viewer Role : Can query AI chat & search vector DB. Cannot add or delete folders.",
             "✏️ Editor Role : Can query AI chat & search vector DB + add their own local folders to the workspace.",
-            "👑 Owner Role  : Full control over workspace folders and collaborator permissions."
+            "👑 Owner Role  : Full control over workspace folders and collaborator permissions.",
+            "--help, -h, /help, /h : Display this detailed help page for workspace sharing."
         ],
         examples=[
             "In Chat: /config  ->  Select '🤝 Workspace Sharing & Collaboration'",
             "POST /v1/workspaces/share/invite  ->  {'workspace_name': 'Migration', 'access_level': 'editor'}",
-            "POST /v1/workspaces/share/accept  ->  {'invite_code': 'SHARE-MIGR-1234', 'user_email': 'amanda@advocacia.com'}"
+            "POST /v1/workspaces/share/accept  ->  {'invite_code': 'SHARE-MIGR-1234', 'user_email': 'amanda@advocacia.com'}",
+            "actx --share --help",
+            "In Chat: /share -h   (opens this help manual page)"
         ],
         tips=[
             "All collaborators can see the full list of workspace folders, tagged as '[👑 Your Folder]' or '[🔒 Read-Only (Added by Amanda)]'.",
             "No user can modify or open local disk files belonging to another user!"
         ]
     ),
-
 
     "serve": HelpPage(
         command="--serve",
@@ -122,15 +147,21 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "3-level session memory, and RBAC authentication endpoints for external web apps, VS Code extensions, "
             "and enterprise intranet services. Features interactive Swagger UI documentation at http://127.0.0.1:8000/docs."
         ),
-        syntax="actx --serve [--port PORT] [--host HOST]",
+        syntax=(
+            "CLI Launch : actx --serve [--port PORT] [--host HOST]\n"
+            "  View Help  : actx --serve --help   OR   actx serve -h   OR   /serve --help   OR   /serve /h"
+        ),
         parameters=[
             "--port <int>  : Specify port number (default: 8000).",
-            "--host <str>  : Specify host interface. Use '--host 0.0.0.0' for Enterprise VPC mode listening on all internal network interfaces."
+            "--host <str>  : Specify host interface. Use '--host 0.0.0.0' for Enterprise VPC mode listening on all internal network interfaces.",
+            "--help, -h, /help, /h : Display this detailed help page for REST server deployment."
         ],
         examples=[
             "actx --serve",
             "actx --serve --port 8000 --host 127.0.0.1",
-            "actx --serve --host 0.0.0.0 --port 8000   (Enterprise VPC Mode)"
+            "actx --serve --host 0.0.0.0 --port 8000   (Enterprise VPC Mode)",
+            "actx --serve --help",
+            "In Chat: /serve -h   (opens this help manual page)"
         ],
         tips=[
             "Binding to '--host 0.0.0.0' allows any authorized service on your company VPN/VPC to query AnyContext.",
@@ -146,12 +177,18 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Launches AnyContext as a standard Model Context Protocol (MCP) server communicating over stdio JSON-RPC 2.0. "
             "Allows Anthropic Claude Desktop, Cursor IDE, and Antigravity AI agents to query your local knowledge base seamlessly."
         ),
-        syntax="actx --mcp",
+        syntax=(
+            "CLI Launch : actx --mcp\n"
+            "  View Help  : actx --mcp --help   OR   actx mcp -h   OR   /mcp --help   OR   /mcp /h"
+        ),
         parameters=[
-            "--mcp : Runs stdio JSON-RPC 2.0 listener for Claude Desktop and Cursor IDE."
+            "--mcp                 : Runs stdio JSON-RPC 2.0 listener for Claude Desktop and Cursor IDE.",
+            "--help, -h, /help, /h : Display this detailed help page for MCP server configuration."
         ],
         examples=[
             "actx --mcp",
+            "actx --mcp --help",
+            "In Chat: /mcp -h   (opens this help manual page)",
             "Claude Desktop Config (claude_desktop_config.json):\n{\n  'mcpServers': {\n    'any-context': {\n      'command': 'actx',\n      'args': ['--mcp']\n    }\n  }\n}"
         ],
         tips=[
@@ -167,15 +204,21 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Checks GitHub Releases for newer AnyContext versions and automatically downloads and installs "
             "the latest release executable. Handles locked Windows executable files seamlessly."
         ),
-        syntax="actx --update   OR   type '/update' during chat",
+        syntax=(
+            "CLI Launch : actx --update   OR   actx --check-update\n"
+            "  In Chat    : type '/update' or '/check-update' during chat\n"
+            "  View Help  : actx --update --help   OR   /update --help   OR   /update -h   OR   /update /h"
+        ),
         parameters=[
             "/update, --update       : Check and install latest release immediately.",
-            "/check-update, --check  : Check if a new version is available without installing."
+            "/check-update, --check  : Check if a new version is available without installing.",
+            "--help, -h, /help, /h   : Display this detailed help page for the updater."
         ],
         examples=[
             "actx --update",
             "actx --check-update",
-            "In Chat: /update"
+            "actx --update --help",
+            "In Chat: /update -h   (opens this help manual page)"
         ],
         tips=[
             "Startup update checks are completely non-blocking and will never slow down your CLI launch time."
@@ -190,14 +233,20 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Purges long-term session memory summaries from ChromaDB for the active workspace or globally across all workspaces. "
             "Resets Level-1 session block summaries and Level-3 consolidated meta-summaries."
         ),
-        syntax="POST /v1/reset-memory   OR   type '/reset-memory' during chat",
+        syntax=(
+            "REST API   : POST /v1/reset-memory\n"
+            "  In Chat    : type '/reset-memory' or '/reset' during chat\n"
+            "  View Help  : actx --reset-memory --help   OR   /reset-memory --help   OR   /reset-memory -h   OR   /reset /h"
+        ),
         parameters=[
-            "/reset-memory : Reset memory for active workspace (interactive confirmation).",
-            "/config        : Open memory settings menu to perform global or specific memory reset."
+            "/reset-memory         : Reset memory for active workspace (interactive confirmation).",
+            "/config                : Open memory settings menu to perform global or specific memory reset.",
+            "--help, -h, /help, /h : Display this detailed help page for memory resets."
         ],
         examples=[
             "In Chat: /reset-memory",
-            "In Chat: /reset"
+            "In Chat: /reset -h   (opens this help manual page)",
+            "actx --reset-memory --help"
         ],
         tips=[
             "Resetting memory only clears session conversation summaries; your indexed document files remain intact!"
@@ -213,14 +262,21 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "and deletes all local vector database directories ('./context_db' and './memory'). "
             "Resets AnyContext completely back to clean factory defaults."
         ),
-        syntax="actx --factory-reset   OR   POST /v1/factory-reset   OR   type '/factory-reset' during chat",
+        syntax=(
+            "CLI Launch : actx --factory-reset\n"
+            "  REST API   : POST /v1/factory-reset\n"
+            "  In Chat    : type '/factory-reset' during chat\n"
+            "  View Help  : actx --factory-reset --help   OR   /factory-reset --help   OR   /factory-reset -h   OR   /factory-reset /h"
+        ),
         parameters=[
-            "--factory-reset : Run factory reset from CLI launch.",
-            "/factory-reset  : Run factory reset from inside chat loop."
+            "--factory-reset       : Run factory reset from CLI launch.",
+            "/factory-reset        : Run factory reset from inside chat loop.",
+            "--help, -h, /help, /h : Display this detailed help page for factory reset."
         ],
         examples=[
             "actx --factory-reset",
-            "In Chat: /factory-reset"
+            "actx --factory-reset --help",
+            "In Chat: /factory-reset -h   (opens this help manual page)"
         ],
         tips=[
             "Use Factory Reset if you want to start fresh or transfer your AnyContext installation to a new environment."
