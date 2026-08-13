@@ -1,51 +1,73 @@
-# 🧠 AnyContext
+# 🧠 AnyContext (`actx`)
 
 > **Transform any file, drive, or folder into a living, real-time AI context.**
 
-**AnyContext** is the ultimate bridge between your local data and Artificial Intelligence. Developed with an absolute focus on **privacy, modularity, and efficiency**, AnyContext is not just another RAG script; it's a smart Local Agent equipped with long-term memory, capable of instantly scanning your directories, learning from your documents, and providing accurate, well-founded answers.
+**AnyContext** is the ultimate bridge between your local data and Artificial Intelligence. Developed with an absolute focus on **privacy, modularity, and efficiency**, AnyContext is not just another RAG script; it is a smart, autonomous Local Agent equipped with **3-Level Hierarchical Long-Term Memory**, capable of instantly scanning your directories, learning from your documents, and providing accurate, well-founded answers.
 
-Whether you are a developer trying to understand a complex repository or a business dealing with thousands of confidential reports, AnyContext runs **100% on your machine**, ensuring your data never feeds third-party models without your permission.
-
----
-
-## 🚀 Why choose AnyContext?
-
-- **🔒 Absolute Privacy (Offline-First):** Natively integrated with [LM Studio](https://lmstudio.ai/) and local models. Your local files, business strategies, and secrets remain exclusively on your hardware.
-- **📂 Multi-Workspace Ingestion:** Tired of AI mixing marketing scripts with Python code? AnyContext groups multiple directories into isolated "Workspaces". The AI filters vectors in real-time, keeping the context strictly focused on the topic you requested.
-- **⚡ Ultra-Fast Incremental Synchronization:** No more waiting hours to vectorize large folders. Our ingestor tracks modifications and document hashes: it only indexes new or altered files and automatically purges files that were deleted from your disk out of the database.
-- **🧠 Long-Term Memory:** AnyContext remembers you. With a robust SQLite-based system, it creates background summaries of your past conversations, ensuring the agent evolves with you over time.
-- **🛠️ LangGraph & Clean Architecture:** Incredibly organized and modular code. Built with **LangGraph**, **LlamaIndex**, and **ChromaDB**, the system already fully supports *LangGraph Studio* for visual debugging and scalability.
+Whether you are a developer seeking to understand a complex repository or a business dealing with thousands of confidential reports, AnyContext runs **100% on your machine**, ensuring your data never feeds third-party models without your permission.
 
 ---
 
-## 🏗️ Current Architecture
+## 🚀 Key Features
 
-Currently, the project consists of:
-- **`src/any_context/ingestion/`**: The incremental synchronization engine. Recursively reads directories, filters valid extensions, generates deterministic UUIDs, and atomically updates ChromaDB.
-- **`src/any_context/core/`**: The orchestrating brain (LangGraph). Features dynamic tools to query the database (`search_db`). **UI-Ready**: Completely decoupled from terminal logic.
-- **`src/any_context/cli/`**: The presentation layer. Manages interactive workspace selection (via `questionary`), argument parsing, ANSI text formatting, and intercepting slash commands (`/help`, `/switch`).
-- **`config/settings.json`**: The central hub. Defines your AI models, database paths, and your unlimited Workspaces.
+- **🔒 Absolute Privacy (Offline-First):** Natively integrated with [LM Studio](https://lmstudio.ai/) and local LLMs (Gemma, Llama, Qwen, etc.) or OpenAI-compatible endpoints. Your files, business strategies, and code stay exclusively on your hardware.
+- **📂 Multi-Workspace Ingestion:** Group multiple directories into isolated "Workspaces". The AI filters vectors in real-time, keeping the context strictly focused on the requested topic.
+- **⚡ Ultra-Fast Incremental Synchronization:** Automatically tracks document SHA-256 hashes and file modification timestamps: only indexes new or altered files, and purges deleted disk files from ChromaDB.
+- **🧠 3-Level Hierarchical Memory Compression:**
+  - **Level 1 (Session Block Summary):** Asynchronously summarizes chat interaction blocks (every 10 interactions / 20 messages) and persists them to long-term vector storage.
+  - **Level 2 (Active Rolling Window):** Retains recent active messages in SQLite graph state for fast, lightweight LLM context windows.
+  - **Level 3 (Consolidated Meta-Summarization):** Automatically merges older session summaries into high-level Meta-Summaries when ChromaDB reaches user thresholds, keeping vector indices lean, sharp, and non-redundant.
+- **⚙️ SQLite Configuration Store (`settings.db`):** Replaces flat JSON files with a thread-safe, ACID-compliant SQLite configuration store (`ConfigDBStore`) featuring automatic background migration from legacy `settings.json`.
+- **🧙 Interactive Onboarding Wizard & Configuration Menu:** First-run onboarding wizard for new installations and full CLI management via `actx --config` or `/config` during chat.
+- **🛠️ LangGraph & Clean Modular Architecture:** Decoupled engine built with **LangGraph**, **LlamaIndex**, and **ChromaDB**, fully compatible with *LangGraph Studio*.
+
+---
+
+## 🏗️ Project Architecture
+
+```text
+src/any_context/
+├── cli/                 # Presentation layer & user interaction
+│   ├── chat_loop.py     # Main interactive chat loop & slash command intercepter
+│   ├── config_menu.py   # Interactive configuration menu & onboarding wizard
+│   └── workspace_selector.py # Workspace selection & CLI argument parser
+├── config/              # Persistent configuration system
+│   ├── app_settings.py  # Pydantic schemas & settings loader
+│   └── db_store.py      # SQLite ConfigDBStore manager
+├── core/                # LangGraph orchestration brain
+│   ├── agent.py         # Agent graph definition & tool binding
+│   └── utils.py         # API key resolvers & prompt finders
+├── ingestion/           # Incremental RAG ingestion engine
+│   └── local_folder_ingestor.py # Recursive folder scanner & ChromaDB updater
+├── memory/              # Standalone 3-Level Hierarchical Memory Engine
+│   ├── models.py        # Memory schemas (SHORT_TERM, SESSION_SUMMARY, META_SUMMARY)
+│   ├── store.py         # ChromaDB memory vector store wrapper
+│   ├── compressor.py    # LLM-powered Level-1 & Level-3 summarization engine
+│   └── manager.py       # Asynchronous memory background thread orchestrator
+└── tools/               # Agent dynamic search tools
+    └── search_tools.py  # ChromaDB vector retriever tool (search_db)
+```
 
 ---
 
 ## ⚡ Quick Start & Installation
 
-### Option 1: Automatic Installer Script (No Python Needed!)
+### Option 1: Automatic Terminal Installer Script (No Python Needed!)
 
 1. Go to the **[Latest GitHub Release](https://github.com/Levix-Digital/any-context/releases/latest)** and download the installer script for your OS:
    - **Windows**: `install.ps1`
-   - **Linux**: `install.sh`
+   - **Linux / Git Bash**: `install.sh`
 2. Run the script in your terminal:
    - **Windows (PowerShell)**:
      ```powershell
      .\install.ps1
      ```
-   - **Linux (Terminal)**:
+   - **Linux / Git Bash (Terminal)**:
      ```bash
      chmod +x install.sh
      ./install.sh
      ```
-*This downloads the `actx` binary, configures your user PATH, and enables the `actx` command globally.*
+*This script automatically downloads the latest `actx` binary, configures your User PATH environment variable, and enables the `actx` command globally.*
 
 ---
 
@@ -58,32 +80,69 @@ Currently, the project consists of:
 2. Run from anywhere in your terminal:
    ```bash
    actx
-   # or bypass workspace menu:
+   # or specify a workspace directly:
    actx --workspace "AnyContext"
+   # or open the configuration menu:
+   actx --config
    ```
-   *(Aliases available: `actx`, `anycontext`, `any-context`, `ac`)*
+   *(Available command aliases: `actx`, `anycontext`, `any-context`, `ac`)*
 
 ---
 
-### Option 3: Manual Standalone Executable Download
+### Option 3: Standalone Executable Download
 
 Download pre-built native binaries (`actx-windows-x86_64.exe` or `actx-linux-x86_64`) directly from the **[GitHub Releases](https://github.com/Levix-Digital/any-context/releases)** page.
 
 ---
 
-## 🔮 The Future of AnyContext (Roadmap)
+## 💬 During the Chat (Slash Commands)
 
-1. **Cloud Drive Ingestors (Google Drive, OneDrive, Dropbox)**
-2. **Multi-Agent Orchestration (Orchestrator Agent)**
-3. **Source Code Pipeline & Codebase Analysis**
-4. **FastAPI REST Service & Web UI Interface**
+- **`/switch`**: Change the active workspace interactively with instant vector database resynchronization.
+- **`/config`**: Open the interactive configuration menu to manage Workspaces, AI models, base URLs, and memory limits.
+- **`/help`**: Display detailed in-app command instructions and tips.
+- **`Ctrl+C`**: Gracefully exit the application while triggering an asynchronous long-term memory summary in the background.
 
 ---
 
-### 💻 During the Chat:
-- Type `/help` to see the available commands.
-- Type `/switch` to hot-swap your active workspace without restarting the application!
-- Press `Ctrl+C` to cleanly exit and generate a background summary of your session.
+## ⚙️ Configuration Management
+
+AnyContext stores configuration in `config/settings.db` (SQLite). You can inspect or modify settings via `actx --config` or edit `config/settings.json` (auto-migrated on first launch):
+
+```json
+{
+    "workspaces": [
+        {
+            "name": "MyProject",
+            "paths": [
+                "C:\\Users\\User\\Documents\\Project"
+            ]
+        }
+    ],
+    "models": {
+        "local_embedding_model": "text-embedding-multilingual-e5-small",
+        "local_openai_embedding_model": "text-embedding-3-small",
+        "inference_model": "gpt-4o-mini",
+        "summary_model": "google/gemma-4-e2b",
+        "model_provider": "openai",
+        "local_base_url": "http://localhost:1234/v1"
+    },
+    "memory": {
+        "short_term_buffer_size": 20,
+        "rolling_window_messages": 10,
+        "meta_summary_threshold": 30,
+        "meta_summary_batch_size": 10
+    }
+}
+```
+
+---
+
+## 🔮 Roadmap
+
+1. **Cloud Drive Ingestors (Google Drive, OneDrive, Dropbox)**
+2. **Multi-Agent Orchestration (Orchestrator & Sub-Agent Execution)**
+3. **FastAPI REST Service & Web UI Interface**
+4. **Source Code AST & Deep Codebase Analysis Pipeline**
 
 ---
 
