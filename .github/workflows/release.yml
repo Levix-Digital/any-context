@@ -76,10 +76,14 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: dist/*
 
-      - name: Create Release and Upload Assets
+      - name: Create Release and Upload Assets to Public Repo
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          repository: Levix-Digital/any-context-releases
           files: dist/*
+          tag_name: ${{ github.ref_name }}
+          name: AnyContext ${{ github.ref_name }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
+
