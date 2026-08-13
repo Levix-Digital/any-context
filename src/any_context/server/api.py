@@ -189,7 +189,17 @@ To run AnyContext inside your company's **Virtual Private Cloud (VPC)**, **AWS E
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Memory reset error: {str(e)}")
 
+    @app.post("/v1/factory-reset", tags=["System"])
+    def perform_factory_reset():
+        try:
+            store = ConfigDBStore()
+            store.factory_reset()
+            return {"status": "success", "message": "AnyContext has been reset to factory defaults."}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Factory reset error: {str(e)}")
+
     return app
+
 
 def start_api_server(host: str = "127.0.0.1", port: int = 8000):
     """

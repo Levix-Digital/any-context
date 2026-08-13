@@ -102,6 +102,19 @@ def run_chat_loop(active_workspace: str = None):
                     deleted = memory_mgr.reset_memory(workspace=active_workspace)
                     print(f"🧹 Reset complete! Deleted {deleted} long-term memory entries for workspace '{active_workspace}'.")
                 continue
+            elif cmd in ["/factory-reset", "/reset-factory"]:
+                confirm = questionary.confirm(
+                    "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
+                ).ask()
+                if confirm:
+                    from any_context.config.db_store import ConfigDBStore
+                    import sys
+                    store = ConfigDBStore()
+                    store.factory_reset()
+                    print("\n🎉 AnyContext has been completely reset to factory defaults!")
+                    print("Run 'actx' again anytime to launch the first-time setup wizard.\n")
+                    sys.exit(0)
+                continue
             elif cmd == "/config":
                 show_config_menu()
                 continue

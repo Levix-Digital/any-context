@@ -197,6 +197,7 @@ For strict SOC2 / LGPD compliance where zero data may leave the enterprise netwo
 | `POST` | `/v1/search` | Perform raw vector search across workspace knowledge bases. |
 | `POST` | `/v1/index` | Trigger background re-indexing for a specific or all workspaces. |
 | `POST` | `/v1/reset-memory` | Purge long-term vector memory for a workspace or globally. |
+| `POST` | `/v1/factory-reset` | Wipe all settings, API keys, workspaces, and vector databases (Factory Reset). |
 
 ### API Usage Examples (`curl`)
 
@@ -236,9 +237,11 @@ curl -X POST "http://127.0.0.1:8000/v1/index" \
 - **`/update`**: Check for and install the latest release automatically.
 - **`/check-update`**: Check if a newer version is available.
 - **`/reset-memory`** (or **`/reset`**): Purge long-term vector memories for the active workspace.
+- **`/factory-reset`**: Wipe all workspaces, API keys, settings, and vector databases (Factory Reset).
 - **`/config`**: Open the interactive configuration menu (Workspaces, AI Models, API Keys).
 - **`/help`**: Display detailed in-app command instructions and tips.
 - **`Ctrl+C`**: Gracefully exit while triggering a background memory summary.
+
 
 ---
 

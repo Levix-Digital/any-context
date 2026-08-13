@@ -327,3 +327,29 @@ class ConfigDBStore:
             cursor.execute("SELECT provider, api_key FROM api_keys")
             rows = cursor.fetchall()
             return {row["provider"]: row["api_key"] for row in rows}
+
+    def factory_reset(self) -> bool:
+        """
+        Wipes all configuration tables, API keys, workspaces, and deletes local vector database directories.
+        Resets AnyContext completely back to factory defaults.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM workspaces")
+            cursor.execute("DELETE FROM models")
+            cursor.execute("DELETE FROM context_settings")
+            cursor.execute("DELETE FROM session_settings")
+            cursor.execute("DELETE FROM memory_settings")
+            cursor.execute("DELETE FROM api_keys")
+            conn.commit()
+
+        import shutil
+        for dir_path in ["./context_db", "./memory", "context_db", "memory"]:
+            if os.path.exists(dir_path):
+                try:
+                    shutil.rmtree(dir_path, ignore_errors=True)
+                except Exception:
+                    pass
+
+        return True
+

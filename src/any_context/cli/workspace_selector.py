@@ -88,12 +88,29 @@ def get_active_workspace() -> str:
         action="store_true", 
         help="Check if a newer version of AnyContext is available."
     )
+    parser.add_argument(
+        "--factory-reset", 
+        action="store_true", 
+        help="Wipe all settings, API keys, workspaces, and vector databases, resetting to factory defaults."
+    )
     
     args, unknown = parser.parse_known_args()
 
     if args.version:
         print(f"AnyContext (actx) v{__version__} - Levix Digital")
         sys.exit(0)
+
+    if args.factory_reset:
+        confirm = questionary.confirm(
+            "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
+        ).ask()
+        if confirm:
+            store = ConfigDBStore()
+            store.factory_reset()
+            print("\n🎉 AnyContext has been completely reset to factory defaults!")
+            print("Run 'actx' again anytime to launch the first-time setup wizard.\n")
+        sys.exit(0)
+
 
     if args.serve or "server" in unknown or "serve" in unknown:
         from any_context.server.api import start_api_server

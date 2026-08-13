@@ -93,6 +93,7 @@ def show_config_menu():
                 "🔑 Manage Saved API Keys",
                 "🧠 Memory Compression & Reset Settings",
                 "❓ How to Get API Keys (Guide & Links)",
+                "💥 Factory Reset (Reset all settings, workspaces, API keys, and memory)",
                 "🔙 Return / Exit Menu"
             ]
         ).ask()
@@ -110,6 +111,16 @@ def show_config_menu():
             _manage_memory(store)
         elif choice.startswith("❓"):
             _show_api_keys_guide()
+        elif choice.startswith("💥"):
+            confirm = questionary.confirm(
+                "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
+            ).ask()
+            if confirm:
+                store.factory_reset()
+                print("\n🎉 AnyContext has been completely reset to factory defaults!")
+                print("Run 'actx' again anytime to launch the first-time setup wizard.\n")
+                sys.exit(0)
+
 
 def _manage_workspaces(store: ConfigDBStore):
     settings = store.get_app_settings()
