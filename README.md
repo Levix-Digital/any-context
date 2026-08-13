@@ -21,8 +21,9 @@ Whether you are a developer trying to understand a complex repository or a busin
 ## 🏗️ Current Architecture
 
 Currently, the project consists of:
-- **`ingestion/local_folder_ingestor.py`**: The incremental synchronization engine. Recursively reads directories, filters valid extensions (including images via OCR), generates deterministic UUIDs, and atomically updates ChromaDB.
-- **`core/agent.py`**: The orchestrating brain (LangGraph). Features dynamic tools to query the database (`search_db`) and real-time session memory.
+- **`ingestion/local_folder_ingestor.py`**: The incremental synchronization engine. Recursively reads directories, filters valid extensions, generates deterministic UUIDs, and atomically updates ChromaDB.
+- **`core/agent.py`**: The orchestrating brain (LangGraph). Features dynamic tools to query the database (`search_db`). **UI-Ready**: Completely decoupled from terminal logic.
+- **`cli/`**: The presentation layer. Manages interactive workspace selection (via `questionary`), argument parsing, ANSI text formatting, and intercepting slash commands (`/help`, `/switch`).
 - **`config/settings.json`**: The central hub. Defines your AI models, database paths, and your unlimited Workspaces.
 
 ---
@@ -61,14 +62,21 @@ One of the major goals for the final stage of the project. A specialized module 
    ```
 4. Copy your credentials to the `.env` file (if using closed APIs like OpenAI).
 5. Configure your Workspaces and folder paths by editing `config/settings.json`.
-6. Run the agent:
+6. Run the agent interactively:
    ```bash
    python main.py
    ```
-7. *(Optional)* Develop visually using LangGraph Studio:
+   *You will be prompted to select an active workspace using your arrow keys.*
+
+   **Or bypass the menu via CLI:**
    ```bash
-   langgraph dev
+   python main.py --workspace "Intellexis"
    ```
+
+### 💻 During the Chat:
+- Type `/help` to see the available commands.
+- Type `/switch` to hot-swap your active workspace without restarting the application!
+- Press `Ctrl+C` to cleanly exit and generate a background summary of your session.
 
 ---
 
