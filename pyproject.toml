@@ -31,7 +31,10 @@ dependencies = [
 ]
 
 [project.scripts]
+actx = "any_context.cli.chat_loop:main"
+anycontext = "any_context.cli.chat_loop:main"
 any-context = "any_context.cli.chat_loop:main"
+ac = "any_context.cli.chat_loop:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

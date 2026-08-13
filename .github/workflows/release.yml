@@ -19,11 +19,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: any-context-linux
-            asset_name: any-context-linux-x86_64
+            artifact_name: actx-linux
+            asset_name: actx-linux-x86_64
           - os: windows-latest
-            artifact_name: any-context-windows
-            asset_name: any-context-windows-x86_64.exe
+            artifact_name: actx-windows
+            asset_name: actx-windows-x86_64.exe
 
     steps:
       - name: Checkout code
@@ -43,12 +43,12 @@ jobs:
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
         run: |
-          pyinstaller --onefile --name any-context-windows-x86_64 --add-data "config;config" main.py
+          pyinstaller --onefile --name actx-windows-x86_64 --add-data "config;config" main.py
 
       - name: Build with PyInstaller (Linux)
         if: runner.os == 'Linux'
         run: |
-          pyinstaller --onefile --name any-context-linux-x86_64 --add-data "config:config" main.py
+          pyinstaller --onefile --name actx-linux-x86_64 --add-data "config:config" main.py
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4

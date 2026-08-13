@@ -21,57 +21,55 @@ Whether you are a developer trying to understand a complex repository or a busin
 ## 🏗️ Current Architecture
 
 Currently, the project consists of:
-- **`ingestion/local_folder_ingestor.py`**: The incremental synchronization engine. Recursively reads directories, filters valid extensions, generates deterministic UUIDs, and atomically updates ChromaDB.
-- **`core/agent.py`**: The orchestrating brain (LangGraph). Features dynamic tools to query the database (`search_db`). **UI-Ready**: Completely decoupled from terminal logic.
-- **`cli/`**: The presentation layer. Manages interactive workspace selection (via `questionary`), argument parsing, ANSI text formatting, and intercepting slash commands (`/help`, `/switch`).
+- **`src/any_context/ingestion/`**: The incremental synchronization engine. Recursively reads directories, filters valid extensions, generates deterministic UUIDs, and atomically updates ChromaDB.
+- **`src/any_context/core/`**: The orchestrating brain (LangGraph). Features dynamic tools to query the database (`search_db`). **UI-Ready**: Completely decoupled from terminal logic.
+- **`src/any_context/cli/`**: The presentation layer. Manages interactive workspace selection (via `questionary`), argument parsing, ANSI text formatting, and intercepting slash commands (`/help`, `/switch`).
 - **`config/settings.json`**: The central hub. Defines your AI models, database paths, and your unlimited Workspaces.
-
----
-
-## 🔮 The Future of AnyContext (Roadmap)
-
-The current version (Local Folder Agent) is just the foundation. The project is architected to scale and become the "Central Nervous System" of your data ecosystem.
-
-Here are the next stages of our development:
-
-### 1. Cloud Drive Ingestors
-Expansion of the `ingestion/` folder to natively support:
-- **Google Drive Ingestor**
-- **OneDrive Ingestor**
-- **Dropbox Ingestor**
-Each service will be processed in isolation, seamlessly bringing the online world into your local context.
-
-### 2. Multi-Agent Orchestration (Orchestrator Agent)
-As data sources increase, we will create a multi-agent architecture:
-- `folder-agent` (Current)
-- `drive-agent`
-- `orchestrator-agent` (A central "Router" agent that receives user messages, understands the intent, and delegates the search to the most appropriate specialist agent, allowing granular access control and feature toggling).
-
-### 3. Source Code Ingestion (Source Code Pipeline)
-One of the major goals for the final stage of the project. A specialized module to understand file trees, dependencies, and legacy code logic, allowing the AI to act as a Senior Software Engineer with full knowledge of your repository.
 
 ---
 
 ## ⚙️ Getting Started
 
-1. Clone this repository.
-2. Create and activate your virtual environment (e.g., `.venv`).
-3. Install the dependencies:
+### Option 1: Install as a Python CLI Tool (Recommended for Devs)
+
+1. Clone this repository and install in editable mode or via `pipx`:
+   ```bash
+   pip install -e .
+   ```
+2. Now run using the quick **`actx`** command from anywhere in your terminal:
+   ```bash
+   actx
+   # or bypass workspace menu:
+   actx --workspace "AnyContext"
+   ```
+   *(Aliases available: `actx`, `anycontext`, `any-context`, `ac`)*
+
+### Option 2: Run directly with Python
+
+1. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-4. Copy your credentials to the `.env` file (if using closed APIs like OpenAI).
-5. Configure your Workspaces and folder paths by editing `config/settings.json`.
-6. Run the agent interactively:
+2. Configure your Workspaces in `config/settings.json`.
+3. Run the agent:
    ```bash
    python main.py
    ```
-   *You will be prompted to select an active workspace using your arrow keys.*
 
-   **Or bypass the menu via CLI:**
-   ```bash
-   python main.py --workspace "Intellexis"
-   ```
+### Option 3: Download Standalone Executables (`actx.exe` / `actx-linux`)
+
+No Python required! Download the pre-built native binaries for Windows or Linux directly from the **[GitHub Releases](https://github.com/Levix-Digital/any-context/releases)** page.
+
+---
+
+## 🔮 The Future of AnyContext (Roadmap)
+
+1. **Cloud Drive Ingestors (Google Drive, OneDrive, Dropbox)**
+2. **Multi-Agent Orchestration (Orchestrator Agent)**
+3. **Source Code Pipeline & Codebase Analysis**
+4. **FastAPI REST Service & Web UI Interface**
+
+---
 
 ### 💻 During the Chat:
 - Type `/help` to see the available commands.
