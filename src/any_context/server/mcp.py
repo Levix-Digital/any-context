@@ -48,6 +48,24 @@ def start_mcp_server():
                 "type": "object",
                 "properties": {}
             }
+        },
+        {
+            "name": "reset_workspace_memory",
+            "description": "Resets long-term vector session memories for a specific workspace or globally.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "workspace": {"type": "string", "description": "Target workspace name to reset memory for (optional)"}
+                }
+            }
+        },
+        {
+            "name": "factory_reset_anycontext",
+            "description": "Wipes all configured workspaces, folders, API keys, settings, and vector databases, completely resetting AnyContext to factory defaults.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
         }
     ]
 
@@ -126,6 +144,17 @@ def start_mcp_server():
                         settings = store.get_app_settings()
                         workspaces = [{"name": w.name, "paths": w.paths} for w in settings.workspaces] if settings else []
                         result_text = json.dumps(workspaces, indent=2)
+
+                    elif tool_name == "reset_workspace_memory":
+                        ws = arguments.get("workspace")
+                        memory_mgr = MemoryManager()
+                        deleted = memory_mgr.reset_memory(workspace=ws)
+                        result_text = f"Reset complete! Deleted {deleted} long-term memory entries."
+
+                    elif tool_name == "factory_reset_anycontext":
+                        store = ConfigDBStore()
+                        store.factory_reset()
+                        result_text = "Factory reset complete! All settings, workspaces, API keys, and vector databases have been wiped."
 
                     else:
                         result_text = f"Error: Tool '{tool_name}' not found."
