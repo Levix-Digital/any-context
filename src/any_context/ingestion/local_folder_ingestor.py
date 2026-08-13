@@ -4,13 +4,14 @@ import chromadb
 from typing import List
 from any_context.config.app_settings import AppSettings
 from any_context.core.utils import get_api_key
-from llama_index.core import Settings, SimpleDirectoryReader
+from llama_index.core import Settings, SimpleDirectoryReader, Document
 from llama_index.core.ingestion import IngestionPipeline, DocstoreStrategy
 from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.openai import OpenAIEmbedding
 
+from any_context.help.registry import HELP_REGISTRY
 from langchain.tools import tool
 
 def safe_print(msg: str):
@@ -62,7 +63,6 @@ def discover_workspace_files(root_folder: str) -> List[str]:
     """
     valid_file_paths = []
     for root, dirs, files in os.walk(root_folder):
-        # Prune hidden or system directories in-place
         dirs[:] = [d for d in dirs if d.lower() not in IGNORED_DIRS and not d.startswith(".")]
         
         for file_name in files:
@@ -75,6 +75,25 @@ def discover_workspace_files(root_folder: str) -> List[str]:
                 valid_file_paths.append(full_path)
                 
     return valid_file_paths
+
+def build_help_registry_document() -> Document:
+    """Constructs a comprehensive synthetic Markdown Document from the Help Module Registry."""
+    text_blocks = ["# 📖 AnyContext Complete Commands & Architectural Manual\n"]
+    for key, page in HELP_REGISTRY.items():
+        text_blocks.append(f"## Command: {page.command} ({page.title})\n")
+        text_blocks.append(f"**Aliases**: {', '.join(page.aliases)}\n")
+        text_blocks.append(f"**Description**: {page.description}\n")
+        text_blocks.append(f"**Syntax**: {page.syntax}\n")
+        if page.parameters:
+            text_blocks.append("**Parameters & Options**:\n" + "\n".join([f"- {p}" for p in page.parameters]) + "\n")
+        if page.examples:
+            text_blocks.append("**Usage Examples**:\n" + "\n".join([f"- {e}" for e in page.examples]) + "\n")
+        if page.tips:
+            text_blocks.append("**Best Practice Tips**:\n" + "\n".join([f"- {t}" for t in page.tips]) + "\n")
+        text_blocks.append("\n---\n")
+
+    full_text = "\n".join(text_blocks)
+    return Document(text=full_text, metadata={"file_name": "AnyContext Command Manual & Help Registry (HELP_REGISTRY)"})
 
 def clear_context_vector_db():
     """
@@ -104,6 +123,7 @@ def index_folder(workspace_name: str = None):
     """
     Index documents in the vector database incrementally across all configured workspaces,
     or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
+    Automatically embeds application README and Help Module Registry as permanent system self-help context.
     """
     current_settings = AppSettings.load() or settings
     if not current_settings or not current_settings.workspaces:
@@ -207,6 +227,17 @@ def index_folder(workspace_name: str = None):
                 safe_print(f"  📘 Injected AnyContext System Documentation (README.md) as permanent help context.")
             except Exception:
                 pass
+
+        # Auto-inject Help Module Registry as permanent system self-help context
+        try:
+            help_doc = build_help_registry_document()
+            help_doc.metadata["workspace"] = ws.name
+            help_doc.metadata["is_system_help"] = True
+            help_doc.id_ = f"system_help_registry_{ws.name}"
+            all_documents.append(help_doc)
+            safe_print(f"  📖 Injected Help Module Command Registry (HELP_REGISTRY) as permanent self-help context.")
+        except Exception as e:
+            pass
                 
     if not all_documents:
         safe_print("❌ No valid documents found across any workspace.")
