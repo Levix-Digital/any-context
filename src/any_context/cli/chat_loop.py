@@ -1,8 +1,10 @@
 import uuid
+import questionary
 from any_context.core.agent import cli_agent
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
 from any_context.cli.config_menu import show_config_menu
+from any_context.memory import MemoryManager
 
 def run_chat_loop(active_workspace: str = None):
     thread_id = f"chat_{uuid.uuid4()}"
@@ -38,13 +40,15 @@ def run_chat_loop(active_workspace: str = None):
   and will also remember previous messages from this session.
 
 \033[1mCOMMANDS:\033[0m
-  \033[96m/switch\033[0m    Change the active workspace. Opens an interactive menu to select
-             a workspace and resynchronizes the vector database instantly.
+  \033[96m/switch\033[0m       Change the active workspace. Opens an interactive menu to select
+                a workspace and resynchronizes the vector database instantly.
 
-  \033[96m/config\033[0m    Open the configuration menu to manage workspaces, AI models,
-             and memory settings.
+  \033[96m/reset-memory\033[0m Reset all long-term memories saved for the current workspace.
 
-  \033[96m/help\033[0m      Show this detailed help message.
+  \033[96m/config\033[0m       Open the configuration menu to manage workspaces, AI models,
+                and memory settings.
+
+  \033[96m/help\033[0m         Show this detailed help message.
 
 \033[1mTIPS:\033[0m
   • \033[90mSyncing:\033[0m If you add new files to the workspace folder, type `/switch`
@@ -60,6 +64,15 @@ def run_chat_loop(active_workspace: str = None):
                     config["configurable"]["active_workspace"] = active_workspace
                     print("\n🔄 Re-synchronizing file database for new workspace...")
                     index_folder.invoke({"workspace_name": active_workspace})
+                continue
+            elif cmd in ["/reset-memory", "/reset"]:
+                confirm = questionary.confirm(
+                    f"⚠️ Are you sure you want to reset long-term memory for workspace '{active_workspace}'?"
+                ).ask()
+                if confirm:
+                    memory_mgr = MemoryManager()
+                    deleted = memory_mgr.reset_memory(workspace=active_workspace)
+                    print(f"🧹 Reset complete! Deleted {deleted} long-term memory entries for workspace '{active_workspace}'.")
                 continue
             elif cmd == "/config":
                 show_config_menu()

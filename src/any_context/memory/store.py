@@ -1,6 +1,6 @@
 import os
 import chromadb
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from any_context.config.app_settings import AppSettings
 from any_context.memory.models import MemoryEntry, MemoryLevel
 from llama_index.core import Settings, Document
@@ -92,3 +92,22 @@ class MemoryStore:
             return
         collection = self.get_collection()
         collection.delete(ids=doc_ids)
+
+    def reset_memory(self, workspace: Optional[str] = None) -> int:
+        """
+        Deletes memory entries from ChromaDB for a specific workspace or all workspaces.
+        Returns the count of deleted items.
+        """
+        collection = self.get_collection()
+        where_clause = {"workspace": workspace} if (workspace and workspace != "all") else None
+
+        if where_clause:
+            results = collection.get(where=where_clause)
+        else:
+            results = collection.get()
+
+        if results and "ids" in results and results["ids"]:
+            doc_ids = results["ids"]
+            collection.delete(ids=doc_ids)
+            return len(doc_ids)
+        return 0

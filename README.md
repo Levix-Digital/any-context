@@ -98,6 +98,7 @@ Download pre-built native binaries (`actx-windows-x86_64.exe` or `actx-linux-x86
 ## 💬 During the Chat (Slash Commands)
 
 - **`/switch`**: Change the active workspace interactively with instant vector database resynchronization.
+- **`/reset-memory`**: Reset long-term vector memory entries for the active workspace.
 - **`/config`**: Open the interactive configuration menu to manage Workspaces, AI models, base URLs, and memory limits.
 - **`/help`**: Display detailed in-app command instructions and tips.
 - **`Ctrl+C`**: Gracefully exit the application while triggering an asynchronous long-term memory summary in the background.

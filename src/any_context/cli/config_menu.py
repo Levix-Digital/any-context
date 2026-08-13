@@ -2,6 +2,7 @@ import sys
 import os
 import questionary
 from any_context.config.db_store import ConfigDBStore
+from any_context.memory import MemoryManager
 
 def run_first_time_wizard():
     """
@@ -44,7 +45,7 @@ def show_config_menu():
             choices=[
                 "📂 Workspaces Management (List / Add / Remove)",
                 "🤖 AI Models & Provider Settings",
-                "🧠 Memory Compression Settings",
+                "🧠 Memory Compression & Reset Settings",
                 "🔙 Return / Exit Menu"
             ]
         ).ask()
@@ -128,9 +129,42 @@ def _manage_models(store: ConfigDBStore):
 def _manage_memory(store: ConfigDBStore):
     settings = store.get_app_settings()
     mem = settings.memory if settings else None
+    workspaces = [ws.name for ws in settings.workspaces] if settings else []
 
     print(f"\n--- Memory Compression Settings ---")
     print(f"• Short-Term Buffer Size : {mem.short_term_buffer_size if mem else 20} messages")
     print(f"• Active Rolling Window   : {mem.rolling_window_messages if mem else 10} messages")
     print(f"• Meta-Summary Threshold : {mem.meta_summary_threshold if mem else 30} summaries")
     print("------------------------------------\n")
+
+    action = questionary.select(
+        "🧠 Memory Action:",
+        choices=[
+            "⚙️ View / Info",
+            "🧹 Reset Long-Term Memory (Specific Workspace)",
+            "🔥 Reset ALL Long-Term Memory (Global)",
+            "🔙 Back"
+        ]
+    ).ask()
+
+    if not action or action.startswith("🔙") or action.startswith("⚙️"):
+        return
+
+    memory_mgr = MemoryManager(settings=settings)
+
+    if action.startswith("🧹"):
+        if not workspaces:
+            print("No workspaces found.")
+            return
+        ws_choice = questionary.select("Select workspace memory to reset:", choices=workspaces).ask()
+        if ws_choice:
+            confirm = questionary.confirm(f"⚠️ Are you sure you want to delete all long-term memories for workspace '{ws_choice}'?").ask()
+            if confirm:
+                deleted = memory_mgr.reset_memory(workspace=ws_choice)
+                print(f"🧹 Reset complete! Removed {deleted} memory entries for workspace '{ws_choice}'.")
+
+    elif action.startswith("🔥"):
+        confirm = questionary.confirm("⚠️ DANGER: Are you sure you want to reset ALL long-term memories across all workspaces?").ask()
+        if confirm:
+            deleted = memory_mgr.reset_memory(workspace=None)
+            print(f"🔥 Global memory reset complete! Removed {deleted} total memory entries.")

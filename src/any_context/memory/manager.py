@@ -101,6 +101,12 @@ class MemoryManager:
             self.store.delete_entries_by_ids(batch_ids)
             print(f"🎉 [Hierarchical Memory - Level 3] Compressed {len(batch_ids)} session summaries into 1 Meta-Summary!")
 
+    def reset_memory(self, workspace: Optional[str] = None) -> int:
+        """
+        Resets long-term memory entries for a specific workspace or all workspaces.
+        """
+        return self.store.reset_memory(workspace=workspace)
+
 def run_session_summarizer_async(thread_id: str, workspace: Optional[str] = None):
     """
     Asynchronous Entry Point: Launches background thread for non-blocking memory processing
