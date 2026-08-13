@@ -245,7 +245,34 @@ def index_folder(workspace_name: str = None):
         
     safe_print("\n⚡ 2. Executing incremental check on vector database...")
     safe_print("⏳ Processing files and generating embeddings...")
-    nodes = pipeline.run(documents = all_documents, show_progress=True)
+    
+    try:
+        nodes = pipeline.run(documents = all_documents, show_progress=True)
+    except Exception as e:
+        err_str = str(e).lower()
+        if "dimension" in err_str or "invalidargumenterror" in err_str or "expecting embedding" in err_str:
+            safe_print("\n⚠️ Embedding Model Dimension Mismatch Detected!")
+            safe_print("🧹 Auto-clearing incompatible vector database (ChromaDB) and performing fresh re-indexing...")
+            clear_context_vector_db()
+
+            # Re-initialize collection and pipeline after clearing
+            db = chromadb.PersistentClient(path=db_save_path)
+            collection = db.get_or_create_collection(collection_name)
+            vector_store = ChromaVectorStore(chroma_collection=collection)
+            docstore = SimpleDocumentStore()
+
+            pipeline = IngestionPipeline(
+                transformations = [
+                    SentenceSplitter(chunk_size=500, chunk_overlap=100),
+                    Settings.embed_model
+                ],
+                vector_store = vector_store,
+                docstore = docstore,
+                docstore_strategy = DocstoreStrategy.UPSERTS
+            )
+            nodes = pipeline.run(documents = all_documents, show_progress=True)
+        else:
+            raise e
 
     current_doc_ids = {doc.doc_id for doc in all_documents}
     processed_workspace_names = {ws.name for ws in workspaces_to_process}
@@ -256,9 +283,12 @@ def index_folder(workspace_name: str = None):
         
         if not node_workspace or node_workspace in processed_workspace_names:
             if getattr(node, "ref_doc_id", None) not in current_doc_ids and node.id_ not in current_doc_ids:
-                docstore.delete_document(node_id)
-                vector_store.delete(node_id)
-                deleted_count += 1
+                try:
+                    docstore.delete_document(node_id)
+                    vector_store.delete(node_id)
+                    deleted_count += 1
+                except Exception:
+                    pass
 
     if deleted_count > 0:
         safe_print(f"🗑️ Purged {deleted_count} old file chunks from the database.")
@@ -266,6 +296,7 @@ def index_folder(workspace_name: str = None):
     docstore.persist(persist_path=docstore_path)
 
     safe_print("🎉 Success! Incremental vectorial database updated!")
+
 
 if __name__ == "__main__":
     index_folder()
