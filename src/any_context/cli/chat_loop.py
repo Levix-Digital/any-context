@@ -44,15 +44,17 @@ def run_chat_loop(active_workspace: str = None):
                 a workspace and resynchronizes the vector database instantly.
 
   \033[96m/reset-memory\033[0m Reset all long-term memories saved for the current workspace.
+                (Alias: \033[96m/reset\033[0m)
 
-  \033[96m/config\033[0m       Open the configuration menu to manage workspaces, AI models,
-                and memory settings.
+  \033[96m/config\033[0m       Open the interactive configuration menu to manage workspaces,
+                AI models, base URLs, and memory limits.
 
   \033[96m/help\033[0m         Show this detailed help message.
 
 \033[1mTIPS:\033[0m
   • \033[90mSyncing:\033[0m If you add new files to the workspace folder, type `/switch`
     and select the current workspace again to force a fast resync!
+  • \033[90mConfiguration:\033[0m Run `actx --config` from your terminal anytime to open settings.
   • \033[90mExiting:\033[0m Press \033[91mCtrl+C\033[0m to exit and trigger long-term memory summary.
 """
                 print(help_text)
