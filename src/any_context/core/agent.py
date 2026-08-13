@@ -1,5 +1,4 @@
 import os
-import dotenv
 import uuid
 import sqlite3
 
@@ -10,11 +9,10 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from any_context.tools.search_tools import search_db
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.ingestion.session_ingestor import index_session
-from any_context.core.utils import get_system_prompt
+from any_context.core.utils import get_system_prompt, get_api_key
 from any_context.config.app_settings import AppSettings
 
-dotenv.load_dotenv()
-API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("LOCAL_API_KEY")
+API_KEY = get_api_key()
 
 settings = AppSettings.load()
 base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"

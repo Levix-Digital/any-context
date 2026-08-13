@@ -1,6 +1,28 @@
 import os
 import sys
+import dotenv
 from any_context.config.app_settings import AppSettings
+
+def load_env():
+    candidates = [
+        os.path.join(os.getcwd(), ".env"),
+        os.path.expanduser(os.path.join("~", ".config", "any-context", ".env")),
+    ]
+    if sys.platform == "win32" and "APPDATA" in os.environ:
+        candidates.append(os.path.join(os.environ["APPDATA"], "any-context", ".env"))
+
+    for c in candidates:
+        if os.path.exists(c):
+            dotenv.load_dotenv(c)
+            return
+    dotenv.load_dotenv()
+
+def get_api_key() -> str:
+    load_env()
+    key = os.getenv("OPENAI_API_KEY") or os.getenv("LOCAL_API_KEY")
+    if not key or not key.strip():
+        return "lm-studio"
+    return key.strip()
 
 def find_agent_prompt_file(filename: str = "AGENT.md") -> str:
     candidates = [

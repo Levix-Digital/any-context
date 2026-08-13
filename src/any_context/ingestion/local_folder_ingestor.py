@@ -1,8 +1,8 @@
 import os
-import dotenv
 import sys
 import chromadb
 from any_context.config.app_settings import AppSettings
+from any_context.core.utils import get_api_key
 from llama_index.core import Settings, SimpleDirectoryReader
 from llama_index.core.ingestion import IngestionPipeline, DocstoreStrategy
 from llama_index.core.storage.docstore import SimpleDocumentStore
@@ -12,8 +12,7 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 
 from langchain.tools import tool
 
-dotenv.load_dotenv()
-LOCAL_API_KEY = os.getenv("LOCAL_API_KEY")
+LOCAL_API_KEY = get_api_key()
 
 settings = AppSettings.load()
 

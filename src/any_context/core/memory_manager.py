@@ -1,5 +1,4 @@
 import os
-import dotenv
 import threading
 import sqlite3
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -8,9 +7,9 @@ from langchain_core.messages import SystemMessage
 
 from any_context.ingestion.session_ingestor import index_session
 from any_context.config.app_settings import AppSettings
+from any_context.core.utils import get_api_key
 
-dotenv.load_dotenv()
-API_KEY = os.getenv("LOCAL_API_KEY") or os.getenv("OPENAI_API_KEY")
+API_KEY = get_api_key()
 
 settings = AppSettings.load()
 local_base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
