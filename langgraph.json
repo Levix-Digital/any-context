@@ -1,0 +1,9 @@
+{
+    "dependencies": [
+        "."
+    ],
+    "graphs": {
+        "any-context": "./core/agent.py:agent"
+    },
+    "env": ".env"
+}
