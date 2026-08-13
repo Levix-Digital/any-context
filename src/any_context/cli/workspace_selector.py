@@ -36,9 +36,16 @@ def show_workspace_menu() -> str:
 
 def get_active_workspace() -> str:
     """
-    Parses CLI arguments. Handles -v/--version, --config, --serve, --mcp, --update, --check-update flags or runs first-time setup if empty.
+    Parses CLI arguments. Handles -v/--version, --config, --serve, --mcp, --update, --check-update, --help/-h flags.
     """
-    parser = argparse.ArgumentParser(description="Start the AnyContext AI Agent.")
+    if len(sys.argv) > 1:
+        cli_str = " ".join(sys.argv[1:])
+        from any_context.help import handle_command_help_interception
+        if handle_command_help_interception(cli_str):
+            sys.exit(0)
+
+    parser = argparse.ArgumentParser(description="Start the AnyContext AI Agent.", add_help=False)
+
     parser.add_argument(
         "-w", "--workspace", 
         type=str, 
