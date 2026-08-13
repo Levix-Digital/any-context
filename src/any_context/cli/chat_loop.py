@@ -79,8 +79,8 @@ def run_chat_loop(active_workspace: str = None):
             
         except KeyboardInterrupt:
             print("\nExiting...")
-            from any_context.core.memory_manager import run_session_summarizer_async
-            run_session_summarizer_async(thread_id)
+            from any_context.memory import run_session_summarizer_async
+            run_session_summarizer_async(thread_id, active_workspace)
             break
 
 def main():
