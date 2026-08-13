@@ -569,7 +569,34 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         status = mgr.store.set_active_tier(tier_id=tier_id, license_key=license_key)
         return {"status": "success", "subscription": status.dict()}
 
+    # --- Web Scraping & Polling Endpoints ---
+
+    @app.get("/v1/workspaces/{workspace_name}/web-urls", tags=["Web Scraping & Ingestion"])
+    def list_workspace_web_urls(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Lists all web URLs registered for background scraping & polling in a workspace."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        from any_context.ingestion.web_scheduler import WebSchedulerStore
+        store = WebSchedulerStore()
+        urls = store.get_workspace_web_urls(workspace_name)
+        return {"workspace_name": workspace_name, "web_urls": urls}
+
+    @app.post("/v1/workspaces/{workspace_name}/web-urls", tags=["Web Scraping & Ingestion"])
+    def add_workspace_web_url(workspace_name: str, url: str, background_tasks: BackgroundTasks, polling_interval_hours: int = 24, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Adds a web URL to a workspace and triggers background web scraping & ChromaDB indexing."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        from any_context.billing import BillingManager
+        b_mgr = BillingManager()
+        if not b_mgr.can_ingest_source("web"):
+            raise HTTPException(status_code=403, detail="Access Denied: Web Scraping requires 'Pro', 'Team', or 'Enterprise' plan tier.")
+
+        from any_context.ingestion.web_scheduler import WebSchedulerStore, index_web_url_to_chromadb
+        store = WebSchedulerStore()
+        entry = store.add_web_url(workspace_name=workspace_name, url=url, polling_interval_hours=polling_interval_hours)
+        background_tasks.add_task(index_web_url_to_chromadb, workspace_name, url, entry["id"])
+        return {"status": "success", "message": f"Web URL '{url}' registered. Background scraping initiated.", "entry": entry}
+
     return app
+
 
 
 

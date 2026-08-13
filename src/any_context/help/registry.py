@@ -313,8 +313,39 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Plan Tiers include: Community ($0), Starter ($12/mo), Pro Multi-Context ($29/mo), Team ($79/mo base + $15/extra seat), and Enterprise ($499/mo).",
             "Community / Open mode is enabled by default for personal local folder use."
         ]
+    ),
+
+    "web": HelpPage(
+        command="/web",
+        aliases=["web", "--web", "scrape", "sitemap"],
+        title="🌐 Web Scraping & Recurring Polling Engine",
+        description=(
+            "The Web Scraping engine allows AnyContext to ingest web pages, documentation sites, "
+            "and sitemaps into your workspace vector context. Includes background SHA-256 hash tracking "
+            "and recurring polling to automatically re-index updated web pages."
+        ),
+        syntax=(
+            "REST API   : POST /v1/workspaces/{name}/web-urls\n"
+            "  REST List  : GET /v1/workspaces/{name}/web-urls\n"
+            "  View Help  : actx --web --help   OR   /web --help   OR   /web -h   OR   /web /help   OR   /web /h"
+        ),
+        parameters=[
+            "/web, --web            : Display web scraping engine status and parameters.",
+            "url                    : Target web page URL to scrape (e.g. 'https://docs.python.org/3/').",
+            "--help, -h, /help, /h  : Display this detailed help page for web scraping."
+        ],
+        examples=[
+            "actx --web --help",
+            "In Chat: /web -h   (opens this help manual page)",
+            "curl -X POST http://127.0.0.1:8000/v1/workspaces/MyProject/web-urls?url=https://docs.python.org/3/"
+        ],
+        tips=[
+            "Web Scraping is supported on 'Pro', 'Team', and 'Enterprise' plan tiers.",
+            "Only updated web pages with modified SHA-256 content hashes trigger vector re-indexing."
+        ]
     )
 }
+
 
 
 
