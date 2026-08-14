@@ -17,12 +17,13 @@ class SessionSettings(BaseModel):
     collection_name: str = Field(default="session_memory")
 
 class ModelSettings(BaseModel):
-    local_embedding_model: str = Field(default="BAAI/bge-small-en-v1.5")
+    local_embedding_model: str = Field(default="text-embedding-3-small")
     local_openai_embedding_model: str = Field(default="text-embedding-3-small")
     inference_model: str = Field(default="gpt-4o-mini")
     summary_model: str = Field(default="gpt-4o-mini")
     model_provider: str = Field(default="openai")
-    local_base_url: str = Field(default="http://localhost:1234/v1")
+    local_base_url: str = Field(default="https://api.openai.com/v1")
+
 
 class MemorySettings(BaseModel):
     short_term_buffer_size: int = Field(default=20, description="Number of messages before Level-1 summary trigger")

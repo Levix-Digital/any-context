@@ -22,6 +22,23 @@ if (Test-Path -Path $InstallDir) {
     Write-Host "ℹ️ Installation directory not found at $InstallDir. Skipping." -ForegroundColor Gray
 }
 
+# 1b. Remove Configuration Databases & Settings (APPDATA & .config)
+$ConfigPaths = @(
+    (Join-Path $env:APPDATA "any-context"),
+    (Join-Path $env:USERPROFILE ".config\any-context")
+)
+foreach ($CfgPath in $ConfigPaths) {
+    if (Test-Path -Path $CfgPath) {
+        try {
+            Remove-Item -Path $CfgPath -Recurse -Force
+            Write-Host "🧹 Cleaned configuration database: $CfgPath" -ForegroundColor Green
+        } catch {
+            Write-Host "⚠️ Could not remove configuration path $CfgPath." -ForegroundColor Yellow
+        }
+    }
+}
+
+
 # 2. Remove from User PATH
 $BinDir = Join-Path $InstallDir "bin"
 $UserPath = [Environment]::GetEnvironmentVariable('Path', 'User')

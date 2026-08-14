@@ -29,13 +29,16 @@ else
     printf "\033[90mℹ️ Executable not found at %s. Skipping.\033[0m\n" "$EXE_PATH"
 fi
 
-# 2. Clean parent actx directory if empty or Windows appdata
+# 2. Clean parent actx directory and config DBs if Windows appdata or unix .config
 if [ "$IS_WINDOWS" -eq 1 ]; then
     PARENT_DIR="$HOME/AppData/Local/actx"
     if [ -d "$PARENT_DIR" ]; then
         rm -rf "$PARENT_DIR"
         printf "\033[32m✅ Removed directory: %s\033[0m\n" "$PARENT_DIR"
     fi
+    rm -rf "$HOME/AppData/Roaming/any-context" 2>/dev/null || true
+    rm -rf "$HOME/.config/any-context" 2>/dev/null || true
+    printf "\033[32m🧹 Cleaned Windows configuration database\033[0m\n"
 
     # Clean Windows User PATH via PowerShell
     WIN_INSTALL_DIR="$(cygpath -w "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")"
@@ -47,7 +50,11 @@ if [ "$IS_WINDOWS" -eq 1 ]; then
             Write-Host '⚙️ Removed $WIN_INSTALL_DIR from Windows User PATH environment variable!';
         }
     " 2>/dev/null || true
+else
+    rm -rf "$HOME/.config/any-context" 2>/dev/null || true
+    printf "\033[32m🧹 Cleaned configuration database: %s/.config/any-context\033[0m\n" "$HOME"
 fi
+
 
 printf "\n\033[36m=======================================================\033[0m\n"
 printf "\033[32m🎉 AnyContext (actx) has been uninstalled successfully.\033[0m\n"
