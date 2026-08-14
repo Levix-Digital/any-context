@@ -51,11 +51,11 @@ def ensure_api_key_configured():
             store.save_app_settings(settings)
 
         api_key = store.get_api_key("openai")
-        if not api_key:
+        if not api_key or api_key == "lm-studio":
             from any_context.core.utils import get_api_key
             api_key = get_api_key(provider="openai")
 
-        if not api_key:
+        if not api_key or api_key == "lm-studio":
             print("\n=======================================================")
             print("🔑 OpenAI API Key required for cloud inference & embeddings.")
             print("=======================================================\n")
@@ -64,7 +64,8 @@ def ensure_api_key_configured():
                 store.set_api_key("openai", entered_key.strip())
                 print("✅ OpenAI API Key saved successfully!\n")
             else:
-                print("⚠️ Warning: No OpenAI API Key provided.")
+                print("⚠️ Warning: No valid OpenAI API Key provided.")
+
 
 
 def get_active_workspace() -> str:

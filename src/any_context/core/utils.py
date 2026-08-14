@@ -35,9 +35,13 @@ def get_api_key(provider: str = "openai") -> Optional[str]:
         from any_context.config.db_store import ConfigDBStore
         store_key = ConfigDBStore().get_api_key(provider)
         if store_key and store_key.strip():
-            return store_key.strip()
+            cleaned_key = store_key.strip()
+            if provider == "openai" and cleaned_key == "lm-studio":
+                return None
+            return cleaned_key
     except Exception:
         pass
+
 
     if provider in ["local", "lm-studio", "ollama"]:
         return "lm-studio"
