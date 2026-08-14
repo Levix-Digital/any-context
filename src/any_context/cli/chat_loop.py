@@ -87,6 +87,40 @@ def run_chat_loop(active_workspace: str = None):
                 from any_context.cli.config_menu import _manage_subscription
                 _manage_subscription()
                 continue
+            elif cmd == "/web":
+                from any_context.cli.config_menu import _manage_workspace_web_urls
+                _manage_workspace_web_urls(workspace_name=active_workspace)
+                continue
+            elif cmd.startswith("/web add "):
+                from any_context.ingestion.web_scheduler import index_web_url_to_chromadb
+                url_to_add = user_input.strip()[9:].strip()
+                if url_to_add:
+                    print(f"\n⏳ Scraping and indexing '{url_to_add}' into workspace '{active_workspace}'...")
+                    res = index_web_url_to_chromadb(workspace_name=active_workspace, url=url_to_add, force=True)
+                    if res.get("status") == "success":
+                        print(f"✅ {res.get('message')}\n")
+                    elif res.get("status") == "unchanged":
+                        print(f"ℹ️ {res.get('message')}\n")
+                    else:
+                        print(f"❌ {res.get('message')}\n")
+                continue
+            elif cmd in ["/web list", "/web urls"]:
+                from any_context.ingestion.web_scheduler import WebSchedulerStore
+                web_store = WebSchedulerStore()
+                urls = web_store.get_workspace_web_urls(active_workspace)
+                print(f"\n🌐 Web Sources for Workspace '{active_workspace}':")
+                if not urls:
+                    print("  (No web URLs configured yet. Type '/web' to add one)")
+                for u in urls:
+                    print(f"  • \033[96m{u.get('title') or u['url']}\033[0m ({u['url']}) - Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
+                print()
+                continue
+            elif cmd in ["/web sync", "/web resync"]:
+                from any_context.ingestion.web_scheduler import sync_workspace_web_urls
+                print(f"\n⏳ Re-scraping and synchronizing all web URLs for workspace '{active_workspace}'...")
+                sync_res = sync_workspace_web_urls(active_workspace)
+                print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
+                continue
 
     
             active_agent = create_anycontext_agent(active_workspace=active_workspace, checkpointer=saver)

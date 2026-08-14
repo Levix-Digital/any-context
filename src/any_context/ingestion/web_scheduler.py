@@ -1,11 +1,22 @@
+import os
 import sqlite3
 import threading
 import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+
+import chromadb
+from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
 from any_context.ingestion.web_ingestor import scrape_url
 from any_context.billing import BillingManager
+from any_context.tools.search_tools import configure_embedding_model
+
+from llama_index.core import Settings, Document
+from llama_index.core.ingestion import IngestionPipeline, DocstoreStrategy
+from llama_index.core.storage.docstore import SimpleDocumentStore
+from llama_index.core.node_parser import SentenceSplitter
+from llama_index.vector_stores.chroma import ChromaVectorStore
 
 class WebSchedulerStore:
     """
@@ -39,6 +50,12 @@ class WebSchedulerStore:
 
     def add_web_url(self, workspace_name: str, url: str, polling_interval_hours: int = 24) -> Dict[str, Any]:
         import uuid
+        # Check if already exists in this workspace
+        existing = self.get_workspace_web_urls(workspace_name)
+        for e in existing:
+            if e["url"] == url:
+                return e
+
         url_id = f"web_{uuid.uuid4().hex[:8]}"
         now_str = datetime.utcnow().isoformat()
         with self._get_connection() as conn:
@@ -48,13 +65,43 @@ class WebSchedulerStore:
                 VALUES (?, ?, ?, ?, ?)
             """, (url_id, workspace_name, url, polling_interval_hours, now_str))
             conn.commit()
-        return {"id": url_id, "workspace_name": workspace_name, "url": url, "polling_interval_hours": polling_interval_hours}
+        return {"id": url_id, "workspace_name": workspace_name, "url": url, "polling_interval_hours": polling_interval_hours, "created_at": now_str}
 
     def get_workspace_web_urls(self, workspace_name: str) -> List[Dict[str, Any]]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM workspace_web_urls WHERE workspace_name = ?", (workspace_name,))
             return [dict(r) for r in cursor.fetchall()]
+
+    def get_all_web_urls(self) -> List[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM workspace_web_urls")
+            return [dict(r) for r in cursor.fetchall()]
+
+    def get_web_url_by_id(self, url_id: str) -> Optional[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM workspace_web_urls WHERE id = ?", (url_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def delete_web_url(self, url_id: str, workspace_name: Optional[str] = None) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if workspace_name:
+                cursor.execute("DELETE FROM workspace_web_urls WHERE id = ? AND workspace_name = ?", (url_id, workspace_name))
+            else:
+                cursor.execute("DELETE FROM workspace_web_urls WHERE id = ?", (url_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def delete_web_url_by_url(self, workspace_name: str, url: str) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM workspace_web_urls WHERE workspace_name = ? AND url = ?", (workspace_name, url))
+            conn.commit()
+            return cursor.rowcount > 0
 
     def update_url_hash(self, url_id: str, title: str, content_hash: str):
         now_str = datetime.utcnow().isoformat()
@@ -68,37 +115,117 @@ class WebSchedulerStore:
             conn.commit()
 
 
-def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: str) -> bool:
+def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
     """
     Scrapes a web URL, computes SHA-256 hash, and indexes content into ChromaDB if updated.
-    Enforces feature gates via BillingManager.
+    Enforces feature gates via BillingManager and stores into the active workspace context_docs collection.
     """
     b_mgr = BillingManager()
     if not b_mgr.can_ingest_source("web"):
-        print(f"⚠️ Billing Gate: Web Scraping requires 'Web', 'Pro', 'Team', or 'Enterprise' tier.")
-        return False
+        msg = "⚠️ Feature Gate: Web Scraping requires 'Pro', 'Team', or 'Enterprise' plan tier."
+        print(msg)
+        return {"status": "error", "message": msg, "gate_blocked": True}
+
+    store = WebSchedulerStore()
+    if not url_id:
+        entry = store.add_web_url(workspace_name=workspace_name, url=url)
+        url_id = entry["id"]
 
     try:
         data = scrape_url(url)
-        store = WebSchedulerStore()
         urls = store.get_workspace_web_urls(workspace_name)
         curr_entry = next((u for u in urls if u["id"] == url_id or u["url"] == url), None)
 
-        if curr_entry and curr_entry.get("last_hash") == data["hash"]:
-            return False  # Unchanged
+        if not force and curr_entry and curr_entry.get("last_hash") == data["hash"]:
+            return {"status": "unchanged", "message": f"Content for '{url}' has not changed.", "title": data["title"]}
 
-        # Index to ChromaDB
-        from any_context.memory.store import MemoryVectorStore
-        from llama_index.core import Document
-        
-        m_store = MemoryVectorStore(workspace_name=workspace_name)
+        # Index to main context_db ChromaDB collection
+        configure_embedding_model()
+        settings = AppSettings.load()
+        db_save_path = settings.context.db_path if settings else "./context_db"
+        collection_name = settings.context.collection_name if settings else "context_docs"
+        os.makedirs(db_save_path, exist_ok=True)
+
+        db = chromadb.PersistentClient(path=db_save_path)
+        chroma_collection = db.get_or_create_collection(collection_name)
+        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+
+        docstore_path = os.path.join(db_save_path, "docstore.json")
+        if os.path.exists(docstore_path):
+            docstore = SimpleDocumentStore.from_persist_path(persist_path=docstore_path)
+        else:
+            docstore = SimpleDocumentStore()
+
+        pipeline = IngestionPipeline(
+            transformations=[
+                SentenceSplitter(chunk_size=1024, chunk_overlap=100),
+                Settings.embed_model
+            ],
+            vector_store=vector_store,
+            docstore=docstore,
+            docstore_strategy=DocstoreStrategy.UPSERTS
+        )
+
         doc = Document(
             text=f"Web Document Title: {data['title']}\nSource URL: {data['url']}\n\n{data['content']}",
-            metadata={"source": data["url"], "type": "web", "title": data["title"]}
+            metadata={
+                "workspace": workspace_name,
+                "file_name": data["title"],
+                "file_path": data["url"],
+                "source": data["url"],
+                "type": "web",
+                "char_count": data["char_count"]
+            },
+            id_=f"web_{data['url']}"
         )
-        m_store.add_documents([doc])
+
+        pipeline.run(documents=[doc], show_progress=False)
+        docstore.persist(persist_path=docstore_path)
+
         store.update_url_hash(url_id, data["title"], data["hash"])
+        return {
+            "status": "success",
+            "message": f"Successfully scraped and indexed '{data['title']}' ({data['char_count']} chars).",
+            "title": data["title"],
+            "url": url,
+            "char_count": data["char_count"]
+        }
+    except Exception as e:
+        err_msg = f"Error scraping and indexing web URL '{url}': {str(e)}"
+        print(f"❌ {err_msg}")
+        return {"status": "error", "message": err_msg}
+
+
+def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
+    """
+    Deletes vectors associated with a specific web URL in a workspace.
+    """
+    try:
+        settings = AppSettings.load()
+        db_save_path = settings.context.db_path if settings else "./context_db"
+        collection_name = settings.context.collection_name if settings else "context_docs"
+        if not os.path.exists(db_save_path):
+            return True
+
+        db = chromadb.PersistentClient(path=db_save_path)
+        chroma_collection = db.get_or_create_collection(collection_name)
+        
+        # Delete by metadata filter
+        chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"file_path": url}]})
         return True
     except Exception as e:
-        print(f"❌ Error scraping web URL '{url}': {e}")
+        print(f"⚠️ Warning removing web vectors for '{url}': {e}")
         return False
+
+
+def sync_workspace_web_urls(workspace_name: str) -> Dict[str, Any]:
+    """
+    Synchronizes / re-indexes all web URLs configured for a workspace.
+    """
+    store = WebSchedulerStore()
+    urls = store.get_workspace_web_urls(workspace_name)
+    results = []
+    for u in urls:
+        res = index_web_url_to_chromadb(workspace_name=workspace_name, url=u["url"], url_id=u["id"])
+        results.append({"url": u["url"], "result": res})
+    return {"workspace_name": workspace_name, "total_urls": len(urls), "synced": results}

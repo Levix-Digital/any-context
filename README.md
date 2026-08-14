@@ -220,6 +220,10 @@ For strict SOC2 / LGPD compliance where zero data may leave the enterprise netwo
 | `POST` | `/v1/tokens` | Generate new Bearer security access token (Admin only). |
 | `DELETE` | `/v1/tokens/{token_id}` | Revoke a Bearer security access token (Admin only). |
 | `GET` | `/v1/workspaces` | List all configured workspaces and associated folder paths. |
+| `GET` | `/v1/workspaces/{name}/web-urls` | List all web URLs registered for background scraping & polling in a workspace. |
+| `POST` | `/v1/workspaces/{name}/web-urls` | Add web URL to workspace and trigger background scraping & indexing. |
+| `DELETE` | `/v1/workspaces/{name}/web-urls/{id}` | Remove a web URL and purge its vectors from ChromaDB. |
+| `POST` | `/v1/workspaces/{name}/web-urls/sync` | Trigger synchronization / re-scraping for all registered web URLs in workspace. |
 | `GET` | `/v1/docs/readme` | Retrieve raw application documentation (`README.md`) as JSON. |
 | `POST` | `/v1/chat` | Send a message to the AI agent with RAG search & session memory. |
 | `POST` | `/v1/search` | Perform raw vector search across workspace knowledge bases. |
@@ -250,7 +254,12 @@ curl -X POST "http://127.0.0.1:8000/v1/search" \
          }'
 ```
 
-#### 3. Trigger Workspace Re-indexing (`POST /v1/index`)
+#### 3. Register & Scrape Web URL (`POST /v1/workspaces/MyProject/web-urls`)
+```bash
+curl -X POST "http://127.0.0.1:8000/v1/workspaces/MyProject/web-urls?url=https://docs.python.org/3/&polling_interval_hours=24"
+```
+
+#### 4. Trigger Workspace Re-indexing (`POST /v1/index`)
 ```bash
 curl -X POST "http://127.0.0.1:8000/v1/index" \
      -H "Content-Type: application/json" \
@@ -261,14 +270,19 @@ curl -X POST "http://127.0.0.1:8000/v1/index" \
 
 ## 💬 In-App Slash Commands (During Chat)
 
+- **`/web`**: Open interactive web scraping & live documentation manager.
+- **`/web add <url>`**: Scrape and index a website URL immediately into the active workspace.
+- **`/web list`**: List all configured web URLs and last scrape timestamps for active workspace.
+- **`/web sync`**: Force re-scrape and synchronize all web URLs in active workspace.
 - **`/switch`**: Interactively switch active workspace with instant vector DB resync.
+- **`/billing`** (or **`/plans`**): View subscription tiers, pricing, and active capabilities.
 - **`/version`** (or **`/v`**): Display AnyContext version information.
 - **`/update`**: Check for and install the latest release automatically.
 - **`/check-update`**: Check if a newer version is available.
 - **`/reset-memory`** (or **`/reset`**): Purge long-term vector memories for the active workspace.
 - **`/factory-reset`**: Wipe all workspaces, API keys, settings, and vector databases (Factory Reset).
 - **`/config`**: Open the interactive configuration menu (Workspaces, AI Models, API Keys).
-- **`/help`**: Display detailed in-app command instructions and tips.
+- **`/help`**: Display detailed in-app command instructions, interactive manual index, and tips.
 - **`Ctrl+C`**: Gracefully exit while triggering a background memory summary.
 
 

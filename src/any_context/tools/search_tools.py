@@ -121,3 +121,80 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         if search_session_memory:
             return "No long-term session memory entries found yet."
         return f"Error during database search: {str(e)}"
+
+
+@tool()
+def add_web_source(url: str, workspace: str = None, polling_interval_hours: int = 24) -> str:
+    """
+    Scrapes and indexes a website URL into the vector database for a workspace, setting up recurring polling.
+    Allows the AI agent and user to query live web documentation, websites, and articles.
+
+    Args:
+        url (str): The web page URL to scrape and index (e.g. 'https://docs.python.org/3/').
+        workspace (str, optional): The target workspace name. If omitted, uses active workspace.
+        polling_interval_hours (int): Polling frequency in hours (default: 24).
+
+    Returns:
+        str: Success confirmation or error message.
+    """
+    from any_context.ingestion.web_scheduler import index_web_url_to_chromadb
+    target_ws = workspace or "Default"
+    safe_print(f"\n🌐 [Web Ingestion] Scraping and indexing '{url}' into workspace '{target_ws}'...")
+    res = index_web_url_to_chromadb(workspace_name=target_ws, url=url)
+    if res.get("status") == "success":
+        return f"✅ Successfully scraped and indexed web source '{res.get('title')}' ({url}) into workspace '{target_ws}'. Total {res.get('char_count')} characters indexed."
+    elif res.get("status") == "unchanged":
+        return f"ℹ️ Web source '{url}' is already up-to-date in workspace '{target_ws}'."
+    else:
+        return f"❌ Failed to index web source: {res.get('message', 'Unknown error')}"
+
+
+@tool()
+def list_web_sources(workspace: str = None) -> str:
+    """
+    Lists all web URLs and documentation sites configured for scraping and polling in a workspace.
+
+    Args:
+        workspace (str, optional): Target workspace name.
+
+    Returns:
+        str: Markdown list of configured web sources.
+    """
+    from any_context.ingestion.web_scheduler import WebSchedulerStore
+    store = WebSchedulerStore()
+    target_ws = workspace or "Default"
+    urls = store.get_workspace_web_urls(target_ws)
+    if not urls:
+        return f"No web sources configured yet for workspace '{target_ws}'."
+    
+    lines = [f"### 🌐 Web Sources for Workspace '{target_ws}':"]
+    for u in urls:
+        lines.append(f"- **{u.get('title') or u['url']}** (`{u['url']}`) - Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
+    return "\n".join(lines)
+
+
+@tool()
+def remove_web_source(url_or_id: str, workspace: str = None) -> str:
+    """
+    Removes a web URL from a workspace's scraping schedule and purges its indexed vectors from ChromaDB.
+
+    Args:
+        url_or_id (str): The URL or ID of the web source to remove.
+        workspace (str, optional): Target workspace name.
+
+    Returns:
+        str: Confirmation message.
+    """
+    from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_chromadb
+    store = WebSchedulerStore()
+    target_ws = workspace or "Default"
+    
+    # Check if id or url
+    urls = store.get_workspace_web_urls(target_ws)
+    matched = next((u for u in urls if u["id"] == url_or_id or u["url"] == url_or_id), None)
+    if not matched:
+        return f"Web source '{url_or_id}' not found in workspace '{target_ws}'."
+    
+    store.delete_web_url(matched["id"], workspace_name=target_ws)
+    remove_web_url_from_chromadb(workspace_name=target_ws, url=matched["url"])
+    return f"🗑️ Successfully removed web source '{matched['url']}' and purged its indexed vectors from workspace '{target_ws}'."

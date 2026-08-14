@@ -144,6 +144,7 @@ def _manage_workspaces(store: ConfigDBStore):
             "📋 List Workspaces & Folders",
             "➕ Create New Workspace",
             "📁 Manage Folders in Existing Workspace",
+            "🌐 Manage Web URLs & Scraping Sources",
             "🗑️ Delete Workspace Entirely",
             "🔙 Back"
         ]
@@ -157,7 +158,11 @@ def _manage_workspaces(store: ConfigDBStore):
         for ws in workspaces:
             print(f"• \033[93m{ws.name}\033[0m:")
             for p in ws.paths:
-                print(f"    - {p}")
+                print(f"    - [Folder] {p}")
+            from any_context.ingestion.web_scheduler import WebSchedulerStore
+            web_urls = WebSchedulerStore().get_workspace_web_urls(ws.name)
+            for w in web_urls:
+                print(f"    - [Web URL] {w['url']} ({w.get('title') or 'Scraped Page'})")
         print("-----------------------------\n")
 
     elif ws_action.startswith("➕"):
@@ -213,6 +218,9 @@ def _manage_workspaces(store: ConfigDBStore):
                 else:
                     print("❌ Error removing folder.")
 
+    elif ws_action.startswith("🌐"):
+        _manage_workspace_web_urls(store)
+
     elif ws_action.startswith("🗑️"):
         names = [ws.name for ws in workspaces]
         if not names:
@@ -224,6 +232,98 @@ def _manage_workspaces(store: ConfigDBStore):
             if confirm:
                 store.remove_workspace(to_remove)
                 print(f"🗑️ Deleted workspace '{to_remove}'.")
+
+def _manage_workspace_web_urls(store: ConfigDBStore = None, workspace_name: str = None):
+    from any_context.ingestion.web_scheduler import (
+        WebSchedulerStore,
+        index_web_url_to_chromadb,
+        remove_web_url_from_chromadb,
+        sync_workspace_web_urls
+    )
+    from any_context.billing import BillingManager
+    
+    b_mgr = BillingManager()
+    if not b_mgr.can_ingest_source("web"):
+        print("\n⚠️ Web Scraping & Polling requires a 'Pro', 'Team', or 'Enterprise' plan tier.")
+        print("Run '/billing' or 'actx --billing' to view plans and upgrade.\n")
+        return
+
+    store = store or ConfigDBStore()
+    settings = store.get_app_settings()
+    workspaces = settings.workspaces if settings else []
+    
+    target_ws = workspace_name
+    if not target_ws:
+        ws_names = [ws.name for ws in workspaces]
+        if not ws_names:
+            print("No workspaces configured.")
+            return
+        target_ws = questionary.select("Select Workspace to manage Web URLs:", choices=ws_names).ask()
+        if not target_ws:
+            return
+
+    web_store = WebSchedulerStore()
+
+    while True:
+        urls = web_store.get_workspace_web_urls(target_ws)
+        print(f"\n🌐 Workspace \033[93m{target_ws}\033[0m Configured Web URLs ({len(urls)} registered):")
+        if not urls:
+            print("  (No web URLs configured yet)")
+        for u in urls:
+            print(f"  • \033[96m{u.get('title') or u['url']}\033[0m")
+            print(f"    URL: {u['url']} | Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
+        print()
+
+        action = questionary.select(
+            f"Web Sources Action for '{target_ws}':",
+            choices=[
+                "➕ Add Web URL & Index Now",
+                "🔄 Force Re-sync / Scrape All Web URLs",
+                "🗑️ Remove Web URL & Purge Vectors",
+                "🔙 Back"
+            ]
+        ).ask()
+
+        if not action or action.startswith("🔙"):
+            break
+
+        if action.startswith("➕"):
+            new_url = questionary.text("Enter website or documentation URL to scrape (e.g. https://docs.python.org/3/):").ask()
+            if new_url and new_url.strip():
+                interval = questionary.text("Enter recurring polling interval in hours (default: 24):", default="24").ask()
+                try:
+                    interval_int = int(interval)
+                except ValueError:
+                    interval_int = 24
+                
+                print(f"\n⏳ Scraping and indexing '{new_url}' into workspace '{target_ws}'...")
+                res = index_web_url_to_chromadb(workspace_name=target_ws, url=new_url.strip(), force=True)
+                if res.get("status") == "success":
+                    print(f"✅ {res.get('message')}\n")
+                elif res.get("status") == "unchanged":
+                    print(f"ℹ️ {res.get('message')}\n")
+                else:
+                    print(f"❌ {res.get('message')}\n")
+
+        elif action.startswith("🔄"):
+            if not urls:
+                print("No web URLs registered to re-sync.")
+                continue
+            print(f"\n⏳ Synchronizing {len(urls)} web URLs for workspace '{target_ws}'...")
+            sync_res = sync_workspace_web_urls(target_ws)
+            print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
+
+        elif action.startswith("🗑️"):
+            if not urls:
+                print("No web URLs in this workspace.")
+                continue
+            url_choices = [f"{u['url']} ({u.get('title') or 'No Title'})" for u in urls]
+            selected_choice = questionary.select("Select Web URL to remove:", choices=url_choices).ask()
+            if selected_choice:
+                target_url = selected_choice.split(" ")[0]
+                web_store.delete_web_url_by_url(target_ws, target_url)
+                remove_web_url_from_chromadb(target_ws, target_url)
+                print(f"🗑️ Removed '{target_url}' and purged its indexed vectors from workspace '{target_ws}'.\n")
 
 def _manage_models(store: ConfigDBStore):
     settings = store.get_app_settings()

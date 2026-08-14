@@ -6,7 +6,7 @@ from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from any_context.tools.search_tools import search_db
+from any_context.tools.search_tools import search_db, add_web_source, list_web_sources, remove_web_source
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.ingestion.session_ingestor import index_session
 from any_context.core.utils import get_system_prompt, get_api_key
@@ -49,7 +49,7 @@ def create_anycontext_agent(active_workspace: str = None, checkpointer=None):
     return create_agent(
         model=model,
         system_prompt=system_prompt,
-        tools=[search_db, index_folder, index_session],
+        tools=[search_db, add_web_source, list_web_sources, remove_web_source, index_folder, index_session],
         checkpointer=checkpointer if checkpointer is not None else saver
     )
 
@@ -70,4 +70,3 @@ class LazyAgentProxy:
 # Lazy global exports (instantiated at runtime when called)
 agent = LazyAgentProxy(checkpointer=None)
 cli_agent = LazyAgentProxy(checkpointer=saver)
-

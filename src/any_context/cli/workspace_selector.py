@@ -156,6 +156,11 @@ def get_active_workspace() -> str:
         help="View and manage AnyContext subscription plan tiers, pricing, and capabilities."
     )
     parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Manage web sources and URL scraping for workspaces."
+    )
+    parser.add_argument(
         "--factory-reset", 
         action="store_true", 
         help="Wipe all settings, API keys, workspaces, and vector databases, resetting to factory defaults."
@@ -175,6 +180,11 @@ def get_active_workspace() -> str:
     if args.billing:
         from any_context.cli.config_menu import _manage_subscription
         _manage_subscription()
+        sys.exit(0)
+
+    if args.web:
+        from any_context.cli.config_menu import _manage_workspace_web_urls
+        _manage_workspace_web_urls(workspace_name=args.workspace)
         sys.exit(0)
 
     if args.reset_models:

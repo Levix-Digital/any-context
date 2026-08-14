@@ -595,6 +595,33 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         background_tasks.add_task(index_web_url_to_chromadb, workspace_name, url, entry["id"])
         return {"status": "success", "message": f"Web URL '{url}' registered. Background scraping initiated.", "entry": entry}
 
+    @app.delete("/v1/workspaces/{workspace_name}/web-urls/{url_id}", tags=["Web Scraping & Ingestion"])
+    def delete_workspace_web_url(workspace_name: str, url_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Deletes a web URL from a workspace and purges its indexed vectors from ChromaDB."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_chromadb
+        store = WebSchedulerStore()
+        entry = store.get_web_url_by_id(url_id)
+        if not entry or entry.get("workspace_name") != workspace_name:
+            raise HTTPException(status_code=404, detail="Web URL not found in workspace.")
+        
+        store.delete_web_url(url_id, workspace_name=workspace_name)
+        remove_web_url_from_chromadb(workspace_name=workspace_name, url=entry["url"])
+        return {"status": "success", "message": f"Web URL '{entry['url']}' removed and vectors purged."}
+
+    @app.post("/v1/workspaces/{workspace_name}/web-urls/sync", tags=["Web Scraping & Ingestion"])
+    def sync_workspace_web_urls_endpoint(workspace_name: str, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Triggers synchronization / re-scraping for all registered web URLs in a workspace."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        from any_context.billing import BillingManager
+        b_mgr = BillingManager()
+        if not b_mgr.can_ingest_source("web"):
+            raise HTTPException(status_code=403, detail="Access Denied: Web Scraping requires 'Pro', 'Team', or 'Enterprise' plan tier.")
+
+        from any_context.ingestion.web_scheduler import sync_workspace_web_urls
+        background_tasks.add_task(sync_workspace_web_urls, workspace_name)
+        return {"status": "success", "message": f"Web URLs synchronization initiated for workspace '{workspace_name}'."}
+
     # --- OCR Image Ingestion Endpoints ---
 
     @app.post("/v1/ingest/ocr", tags=["OCR Image Ingestion"])

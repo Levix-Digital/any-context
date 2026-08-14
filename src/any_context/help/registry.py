@@ -319,31 +319,43 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
 
     "web": HelpPage(
         command="/web",
-        aliases=["web", "--web", "scrape", "sitemap"],
+        aliases=["web", "--web", "scrape", "sitemap", "website", "websites", "urls"],
         title="🌐 Web Scraping & Recurring Polling Engine",
         description=(
             "The Web Scraping engine allows AnyContext to ingest web pages, documentation sites, "
-            "and sitemaps into your workspace vector context. Includes background SHA-256 hash tracking "
-            "and recurring polling to automatically re-index updated web pages."
+            "and sitemaps into your workspace vector knowledge base. Includes background SHA-256 hash tracking "
+            "and recurring polling to automatically re-index updated web pages. Web sources are seamlessly available "
+            "to the AI Agent, REST API, CLI, and MCP clients (Cursor/Claude Desktop)."
         ),
         syntax=(
-            "REST API   : POST /v1/workspaces/{name}/web-urls\n"
-            "  REST List  : GET /v1/workspaces/{name}/web-urls\n"
-            "  View Help  : actx --web --help   OR   /web --help   OR   /web -h   OR   /web /help   OR   /web /h"
+            "In Chat    : /web   OR   /web add <url>   OR   /web list   OR   /web sync\n"
+            "  AI Agent   : Tell the AI: 'adicione o site https://... ao workspace'\n"
+            "  Config Menu: /config -> 📂 Workspaces -> 🌐 Manage Web URLs\n"
+            "  REST API   : POST /v1/workspaces/{name}/web-urls?url=...\n"
+            "  MCP Tool   : add_workspace_web_url(workspace=..., url=...)\n"
+            "  View Help  : actx --web --help   OR   /web --help   OR   /web -h"
         ),
         parameters=[
-            "/web, --web            : Display web scraping engine status and parameters.",
+            "/web                   : Open interactive web sources management menu for active workspace.",
+            "/web add <url>         : Scrape and index a website immediately into the active workspace.",
+            "/web list              : List all configured web URLs and polling status for active workspace.",
+            "/web sync              : Re-scrape and synchronize all web URLs in active workspace.",
             "url                    : Target web page URL to scrape (e.g. 'https://docs.python.org/3/').",
             "--help, -h, /help, /h  : Display this detailed help page for web scraping."
         ],
         examples=[
-            "actx --web --help",
-            "In Chat: /web -h   (opens this help manual page)",
-            "curl -X POST http://127.0.0.1:8000/v1/workspaces/MyProject/web-urls?url=https://docs.python.org/3/"
+            "In Chat: /web",
+            "In Chat: /web add https://docs.python.org/3/",
+            "In Chat: /web list",
+            "In Chat: /web sync",
+            "Natural prompt: 'Adicione a documentação da OpenAI https://platform.openai.com/docs ao meu workspace'",
+            "curl -X POST http://127.0.0.1:8000/v1/workspaces/MyProject/web-urls?url=https://docs.python.org/3/",
+            "actx --web --help"
         ],
         tips=[
             "Web Scraping is supported on 'Pro', 'Team', and 'Enterprise' plan tiers.",
-            "Only updated web pages with modified SHA-256 content hashes trigger vector re-indexing."
+            "Only updated web pages with modified SHA-256 content hashes trigger vector re-indexing, saving API tokens and compute.",
+            "Once indexed, scraped web content is instantly searchable alongside local files when using search_db or asking the AI."
         ]
     ),
 

@@ -48,8 +48,12 @@ def show_interactive_help_menu():
         choices = [
             "📂 /switch (Workspace Switching & DB Synchronization)",
             "⚙️ /config (Configuration Menu, AI Models & RBAC)",
+            "🌐 /web (Web Scraping & Recurring Polling Engine)",
+            "📷 /ocr (Image & Scanned PDF OCR Ingestion)",
+            "💳 /billing (Subscription Plans, Tiers & Capabilities)",
+            "🤝 /share (Workspace Sharing & Collaboration)",
             "🔐 /auth & /login (User Accounts, Access Control & Bearer Tokens)",
-            "🌐 --serve (REST API Server & Enterprise VPC Deploy)",
+            "🚀 --serve (REST API Server & Enterprise VPC Deploy)",
             "🔌 --mcp (Model Context Protocol for Claude & Cursor)",
             "🔄 /update (Auto-Updater Engine)",
             "🧹 /reset-memory (Purge Long-Term Vector Memory)",
@@ -70,9 +74,17 @@ def show_interactive_help_menu():
             page = get_help_page("switch")
         elif choice.startswith("⚙️"):
             page = get_help_page("config")
+        elif choice.startswith("🌐"):
+            page = get_help_page("web")
+        elif choice.startswith("📷"):
+            page = get_help_page("ocr")
+        elif choice.startswith("💳"):
+            page = get_help_page("billing")
+        elif choice.startswith("🤝"):
+            page = get_help_page("share")
         elif choice.startswith("🔐"):
             page = get_help_page("auth")
-        elif choice.startswith("🌐"):
+        elif choice.startswith("🚀"):
             page = get_help_page("serve")
         elif choice.startswith("🔌"):
             page = get_help_page("mcp")

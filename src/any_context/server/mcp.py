@@ -204,6 +204,53 @@ def start_mcp_server():
                 "type": "object",
                 "properties": {}
             }
+        },
+        {
+            "name": "add_workspace_web_url",
+            "description": "Scrapes and indexes a website or documentation URL into a workspace with background polling.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "workspace": {"type": "string", "description": "Target workspace name"},
+                    "url": {"type": "string", "description": "Website or documentation URL to scrape"},
+                    "polling_interval_hours": {"type": "integer", "description": "Polling frequency in hours (default: 24)"}
+                },
+                "required": ["workspace", "url"]
+            }
+        },
+        {
+            "name": "list_workspace_web_urls",
+            "description": "Lists all web URLs configured for scraping and polling in a workspace.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "workspace": {"type": "string", "description": "Target workspace name"}
+                },
+                "required": ["workspace"]
+            }
+        },
+        {
+            "name": "remove_workspace_web_url",
+            "description": "Removes a web URL from a workspace and purges its indexed vectors from ChromaDB.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "workspace": {"type": "string", "description": "Target workspace name"},
+                    "url_or_id": {"type": "string", "description": "URL string or entry ID to remove"}
+                },
+                "required": ["workspace", "url_or_id"]
+            }
+        },
+        {
+            "name": "sync_workspace_web_urls",
+            "description": "Forces re-scraping and synchronization for all registered web URLs in a workspace.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "workspace": {"type": "string", "description": "Target workspace name"}
+                },
+                "required": ["workspace"]
+            }
         }
     ]
 
@@ -399,6 +446,41 @@ def start_mcp_server():
                         mgr = BillingManager()
                         plans = [p.dict() for p in get_all_plans()]
                         result_text = json.dumps({"plans": plans, "pricing_table": mgr.format_pricing_table_markdown()}, indent=2)
+
+                    elif tool_name == "add_workspace_web_url":
+                        from any_context.ingestion.web_scheduler import index_web_url_to_chromadb
+                        ws_target = arguments.get("workspace", "Default")
+                        url_target = arguments.get("url", "")
+                        poll_int = arguments.get("polling_interval_hours", 24)
+                        res = index_web_url_to_chromadb(workspace_name=ws_target, url=url_target, force=True)
+                        result_text = json.dumps(res, indent=2)
+
+                    elif tool_name == "list_workspace_web_urls":
+                        from any_context.ingestion.web_scheduler import WebSchedulerStore
+                        ws_target = arguments.get("workspace", "Default")
+                        store = WebSchedulerStore()
+                        urls = store.get_workspace_web_urls(ws_target)
+                        result_text = json.dumps({"workspace": ws_target, "web_urls": urls}, indent=2)
+
+                    elif tool_name == "remove_workspace_web_url":
+                        from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_chromadb
+                        ws_target = arguments.get("workspace", "Default")
+                        url_or_id = arguments.get("url_or_id", "")
+                        store = WebSchedulerStore()
+                        urls = store.get_workspace_web_urls(ws_target)
+                        matched = next((u for u in urls if u["id"] == url_or_id or u["url"] == url_or_id), None)
+                        if matched:
+                            store.delete_web_url(matched["id"], workspace_name=ws_target)
+                            remove_web_url_from_chromadb(workspace_name=ws_target, url=matched["url"])
+                            result_text = json.dumps({"status": "success", "message": f"Web URL '{matched['url']}' removed."}, indent=2)
+                        else:
+                            result_text = json.dumps({"status": "error", "message": "Web URL not found in workspace."}, indent=2)
+
+                    elif tool_name == "sync_workspace_web_urls":
+                        from any_context.ingestion.web_scheduler import sync_workspace_web_urls
+                        ws_target = arguments.get("workspace", "Default")
+                        sync_res = sync_workspace_web_urls(workspace_name=ws_target)
+                        result_text = json.dumps(sync_res, indent=2)
 
                     else:
                         result_text = f"Error: Tool '{tool_name}' not found."
