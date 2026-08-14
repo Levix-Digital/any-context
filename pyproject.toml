@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.9.11"
-description = "Agnostic AI Agent with Image & Scanned Document OCR Ingestion, Web Scraping, Subscription Tiers, REST API, and MCP Server"
+version = "0.9.12"
+description = "Transform any file, drive, or folder into a living, real-time AI context."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
