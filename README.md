@@ -94,9 +94,20 @@ pip install -e .
 ```
 *(Available command aliases: `actx`, `anycontext`, `any-context`, `ac`)*
 
+## ⚙️ AI Provider Setup Modes
+
+AnyContext provides a zero-friction setup wizard supporting both cloud and 100% local offline AI engines:
+
+| Setup Mode | Models & Embeddings | Requirements | Privacy Level |
+|---|---|---|---|
+| **⚡ OpenAI Cloud** *(Default)* | `gpt-4o-mini` + `text-embedding-3-small` | OpenAI API Key (`sk-...`) | Cloud Endpoint |
+| **🏠 Local Offline Server** | Any Local LLM + Embeddings (LM Studio / Ollama) | `http://localhost:1234/v1` or `http://localhost:11434` | 🔒 100% Local & Offline |
+| **🛠️ Custom Setup** | Custom LLMs, Base URLs & Embedding Models | Custom API Key & Base URL | Configurable |
+
 ---
 
 ## 💻 Operating Modes
+
 
 AnyContext supports three distinct operating modes:
 

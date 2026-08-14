@@ -31,7 +31,7 @@ local_openai_embedding_model = settings.models.local_openai_embedding_model if s
 local_base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
 
 from any_context.tools.search_tools import configure_embedding_model
-configure_embedding_model()
+
 
 
 SUPPORTED_EXTENSIONS = {
@@ -126,8 +126,10 @@ def run_index_folder(workspace_name: str = None):
         safe_print("❌ Error: No workspaces configured in settings.")
         return
 
+    configure_embedding_model()
 
     safe_print("⚡ 1. Connecting to ChromaDB...")
+
     db = chromadb.PersistentClient(path=db_save_path)
     collection = db.get_or_create_collection(collection_name)
     vector_store = ChromaVectorStore(chroma_collection=collection)

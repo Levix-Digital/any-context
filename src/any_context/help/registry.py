@@ -65,9 +65,11 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "In Chat: /config /help   (opens this help manual page)"
         ],
         tips=[
+            "Supports 3 AI Setup Modes: ⚡ OpenAI Cloud (Default), 🏠 Local Offline Server (LM Studio / Ollama), and 🛠️ Custom Provider Setup.",
             "Changing embedding models automatically clears stale ChromaDB collections to prevent vector dimension mismatch errors.",
             "Passwords and API keys are stored securely with SHA-256 PBKDF2 hashing and masking."
         ]
+
     ),
 
     "auth": HelpPage(

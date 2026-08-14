@@ -36,8 +36,9 @@ def show_workspace_menu() -> str:
 
 def ensure_api_key_configured():
     """
-    Checks if an OpenAI API key is required and missing, prompting the user immediately.
-    Auto-corrects local_base_url to OpenAI Cloud if provider is 'openai' and local_base_url is localhost.
+    Checks if an OpenAI API key is required and missing.
+    Presents an interactive explanation allowing the user to provide an OpenAI key
+    OR switch seamlessly to a Local Offline Server (LM Studio / Ollama) or Custom Setup.
     """
     store = ConfigDBStore()
     settings = store.get_app_settings()
@@ -56,15 +57,34 @@ def ensure_api_key_configured():
             api_key = get_api_key(provider="openai")
 
         if not api_key or api_key == "lm-studio":
-            print("\n=======================================================")
-            print("🔑 OpenAI API Key required for cloud inference & embeddings.")
-            print("=======================================================\n")
-            entered_key = questionary.password("Enter your OpenAI API Key (sk-...):").ask()
-            if entered_key and entered_key.strip():
-                store.set_api_key("openai", entered_key.strip())
-                print("✅ OpenAI API Key saved successfully!\n")
-            else:
-                print("⚠️ Warning: No valid OpenAI API Key provided.")
+            print("\n======================================================================")
+            print("🤖 Welcome to AnyContext AI Setup!")
+            print("By default, AnyContext uses OpenAI Cloud models (gpt-4o-mini &")
+            print("text-embedding-3-small) for fast reasoning and semantic search.")
+            print("======================================================================\n")
+
+            choice = questionary.select(
+                "How would you like to configure your AI Provider?",
+                choices=[
+                    "⚡ OpenAI Cloud (Enter OpenAI API Key - Recommended)",
+                    "🏠 Local Offline Server (LM Studio / Ollama - 100% Free & Offline)",
+                    "🛠️ Custom Setup (Configure custom models, base URL & keys)"
+                ]
+            ).ask()
+
+            if choice and choice.startswith("⚡"):
+                entered_key = questionary.password("Enter your OpenAI API Key (sk-...):").ask()
+                if entered_key and entered_key.strip():
+                    store.set_api_key("openai", entered_key.strip())
+                    print("✅ OpenAI API Key saved successfully!\n")
+                else:
+                    print("⚠️ Notice: No OpenAI API Key entered. Opening Custom Setup Menu...")
+                    from any_context.cli.config_menu import _manage_models
+                    _manage_models(store)
+            elif choice and (choice.startswith("🏠") or choice.startswith("🛠️")):
+                from any_context.cli.config_menu import _manage_models
+                _manage_models(store)
+
 
 
 
