@@ -166,9 +166,17 @@ class ConfigDBStore:
                     allowed_users_json TEXT NOT NULL
                 )
             """)
+    def reset_model_settings_to_default(self):
+        """Resets model settings and API keys to factory defaults while preserving workspaces and user data."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM models")
+            cursor.execute("DELETE FROM api_keys")
             conn.commit()
+        self._init_db()
 
     def ensure_default_workspace(self):
+
         """Ensures that at least a 'Default' workspace exists for instant friction-free onboarding."""
         with self._get_connection() as conn:
             cursor = conn.cursor()

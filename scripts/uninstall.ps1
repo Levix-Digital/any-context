@@ -22,21 +22,35 @@ if (Test-Path -Path $InstallDir) {
     Write-Host "ℹ️ Installation directory not found at $InstallDir. Skipping." -ForegroundColor Gray
 }
 
-# 1b. Remove Configuration Databases & Settings (APPDATA & .config)
-$ConfigPaths = @(
-    (Join-Path $env:APPDATA "any-context"),
-    (Join-Path $env:USERPROFILE ".config\any-context")
-)
-foreach ($CfgPath in $ConfigPaths) {
-    if (Test-Path -Path $CfgPath) {
+# 1b. Ask user if they want to preserve Workspaces & History
+$ExePath = Join-Path $InstallDir "bin\actx.exe"
+Write-Host "`n❓ Do you want to PRESERVE your configured Workspaces and Vector History for future installations? [Y/n]: " -NoNewline -ForegroundColor Yellow
+$KeepAns = Read-Host
+
+if ($KeepAns -match "^[Yy]$" -or [string]::IsNullOrEmpty($KeepAns)) {
+    Write-Host "📂 Preserving Workspaces, Vector Database & History for future installations..." -ForegroundColor Green
+    Write-Host "🧹 Resetting Model Settings & API Keys to OpenAI factory defaults..." -ForegroundColor Yellow
+    if (Test-Path $ExePath) {
         try {
-            Remove-Item -Path $CfgPath -Recurse -Force
-            Write-Host "🧹 Cleaned configuration database: $CfgPath" -ForegroundColor Green
-        } catch {
-            Write-Host "⚠️ Could not remove configuration path $CfgPath." -ForegroundColor Yellow
+            & $ExePath --reset-models | Out-Null
+        } catch {}
+    }
+} else {
+    Write-Host "🧹 Performing 100% Clean Uninstall (Wiping all Workspaces, Databases & Configs)..." -ForegroundColor Red
+    $ConfigPaths = @(
+        (Join-Path $env:APPDATA "any-context"),
+        (Join-Path $env:USERPROFILE ".config\any-context")
+    )
+    foreach ($CfgPath in $ConfigPaths) {
+        if (Test-Path -Path $CfgPath) {
+            try {
+                Remove-Item -Path $CfgPath -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Host "🧹 Wiped configuration directory: $CfgPath" -ForegroundColor Green
+            } catch {}
         }
     }
 }
+
 
 
 # 2. Remove from User PATH

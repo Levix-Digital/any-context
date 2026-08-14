@@ -140,6 +140,11 @@ def get_active_workspace() -> str:
         action="store_true", 
         help="Wipe all settings, API keys, workspaces, and vector databases, resetting to factory defaults."
     )
+    parser.add_argument(
+        "--reset-models", 
+        action="store_true", 
+        help="Reset AI model settings and API keys to OpenAI factory defaults while preserving workspaces and vector history."
+    )
     
     args, unknown = parser.parse_known_args()
 
@@ -152,7 +157,15 @@ def get_active_workspace() -> str:
         _manage_subscription()
         sys.exit(0)
 
+    if args.reset_models:
+        store = ConfigDBStore()
+        store.reset_model_settings_to_default()
+        print("\n🧹 Model settings and API keys reset to OpenAI factory defaults!")
+        print("📂 Workspaces and vector history preserved.")
+        sys.exit(0)
+
     if args.factory_reset:
+
 
         confirm = questionary.confirm(
             "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
