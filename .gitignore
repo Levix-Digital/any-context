@@ -28,3 +28,7 @@ Thumbs.db
 
 # LangGraph
 .langgraph_api/
+
+# Temporary planning files
+implementation_plan_subscription_tiers.md
+
