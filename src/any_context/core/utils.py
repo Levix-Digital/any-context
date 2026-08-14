@@ -1,7 +1,9 @@
 import os
 import sys
 import dotenv
+from typing import Optional
 from any_context.config.app_settings import AppSettings
+
 
 def load_env():
     candidates = [
@@ -17,15 +19,15 @@ def load_env():
             return
     dotenv.load_dotenv()
 
-def get_api_key(provider: str = "openai") -> str:
+def get_api_key(provider: str = "openai") -> Optional[str]:
     """
     Resolves API Key in order:
     1. Environment variables (OPENAI_API_KEY / LOCAL_API_KEY)
     2. SQLite ConfigDBStore table (api_keys)
-    3. Fallback dummy 'lm-studio' (for local offline models)
+    3. Fallback None for OpenAI or 'lm-studio' for local offline models
     """
     load_env()
-    key = os.getenv("OPENAI_API_KEY") or os.getenv("LOCAL_API_KEY")
+    key = os.getenv("OPENAI_API_KEY") if provider == "openai" else (os.getenv("LOCAL_API_KEY") or os.getenv("OPENAI_API_KEY"))
     if key and key.strip():
         return key.strip()
 
@@ -37,7 +39,11 @@ def get_api_key(provider: str = "openai") -> str:
     except Exception:
         pass
 
-    return "lm-studio"
+    if provider in ["local", "lm-studio", "ollama"]:
+        return "lm-studio"
+
+    return None
+
 
 def find_agent_prompt_file(filename: str = "AGENT.md") -> str:
     candidates = [

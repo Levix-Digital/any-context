@@ -34,6 +34,39 @@ def show_workspace_menu() -> str:
         
     return selected
 
+def ensure_api_key_configured():
+    """
+    Checks if an OpenAI API key is required and missing, prompting the user immediately.
+    Auto-corrects local_base_url to OpenAI Cloud if provider is 'openai' and local_base_url is localhost.
+    """
+    store = ConfigDBStore()
+    settings = store.get_app_settings()
+    if not settings or not settings.models:
+        return
+
+    provider = settings.models.model_provider
+    if provider == "openai":
+        if "localhost" in settings.models.local_base_url or "127.0.0.1" in settings.models.local_base_url:
+            settings.models.local_base_url = "https://api.openai.com/v1"
+            store.save_app_settings(settings)
+
+        api_key = store.get_api_key("openai")
+        if not api_key:
+            from any_context.core.utils import get_api_key
+            api_key = get_api_key(provider="openai")
+
+        if not api_key:
+            print("\n=======================================================")
+            print("🔑 OpenAI API Key required for cloud inference & embeddings.")
+            print("=======================================================\n")
+            entered_key = questionary.password("Enter your OpenAI API Key (sk-...):").ask()
+            if entered_key and entered_key.strip():
+                store.set_api_key("openai", entered_key.strip())
+                print("✅ OpenAI API Key saved successfully!\n")
+            else:
+                print("⚠️ Warning: No OpenAI API Key provided.")
+
+
 def get_active_workspace() -> str:
     """
     Parses CLI arguments. Handles -v/--version, --config, --serve, --mcp, --update, --check-update, --help/-h flags.
@@ -156,8 +189,11 @@ def get_active_workspace() -> str:
     store = ConfigDBStore()
     if store.is_empty():
         run_first_time_wizard()
+
+    ensure_api_key_configured()
     
     if args.workspace:
         return args.workspace
         
     return show_workspace_menu()
+
