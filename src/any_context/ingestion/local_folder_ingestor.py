@@ -30,12 +30,9 @@ local_embedding_model = settings.models.local_embedding_model if settings else "
 local_openai_embedding_model = settings.models.local_openai_embedding_model if settings else "text-embedding-3-small"
 local_base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
 
-Settings.embed_model = OpenAIEmbedding(
-    model_name=local_embedding_model,
-    model=local_openai_embedding_model,
-    api_base=local_base_url,
-    api_key=LOCAL_API_KEY
-)
+from any_context.tools.search_tools import configure_embedding_model
+configure_embedding_model()
+
 
 SUPPORTED_EXTENSIONS = {
     # Documents & Text

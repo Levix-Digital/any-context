@@ -16,18 +16,40 @@ def safe_print(msg: str):
 
 def configure_embedding_model():
     settings = AppSettings.load()
-    local_embedding_model = settings.models.local_embedding_model if settings else "text-embedding-multilingual-e5-small"
+    local_embedding_model = settings.models.local_embedding_model if settings else "text-embedding-3-small"
     local_openai_embedding_model = settings.models.local_openai_embedding_model if settings else "text-embedding-3-small"
     local_base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
     model_provider = settings.models.model_provider if settings else "openai"
     api_key = get_api_key(provider=model_provider)
 
-    Settings.embed_model = OpenAIEmbedding(
-        model_name=local_embedding_model, 
-        model=local_openai_embedding_model,
-        api_base=local_base_url,
-        api_key=api_key
-    )
+    try:
+        embed_m = OpenAIEmbedding(
+            model_name=local_openai_embedding_model,
+            api_base=local_base_url,
+            api_key=api_key
+        )
+        Settings.embed_model = embed_m
+        return embed_m
+    except Exception:
+        try:
+            embed_m = OpenAIEmbedding(
+                model_name="text-embedding-3-small",
+                api_base=local_base_url,
+                api_key=api_key
+            )
+            Settings.embed_model = embed_m
+            return embed_m
+        except Exception:
+            try:
+                from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+                embed_m = HuggingFaceEmbedding(model_name=local_embedding_model)
+                Settings.embed_model = embed_m
+                return embed_m
+            except Exception:
+                embed_m = OpenAIEmbedding(model_name="text-embedding-3-small", api_key=api_key)
+                Settings.embed_model = embed_m
+                return embed_m
+
 
 # Initial setup
 configure_embedding_model()
