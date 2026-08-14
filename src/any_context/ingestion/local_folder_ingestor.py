@@ -252,7 +252,34 @@ def run_index_folder(workspace_name: str = None):
             safe_print("🧹 Auto-clearing incompatible vector database (ChromaDB) and performing fresh re-indexing...")
             clear_context_vector_db()
 
-            # Re-initialize collection and pipeline after clearing
+            db = chromadb.PersistentClient(path=db_save_path)
+            collection = db.get_or_create_collection(collection_name)
+            vector_store = ChromaVectorStore(chroma_collection=collection)
+            docstore = SimpleDocumentStore()
+
+            pipeline = IngestionPipeline(
+                transformations = [
+                    SentenceSplitter(chunk_size=500, chunk_overlap=100),
+                    Settings.embed_model
+                ],
+                vector_store = vector_store,
+                docstore = docstore,
+                docstore_strategy = DocstoreStrategy.UPSERTS
+            )
+            nodes = pipeline.run(documents = all_documents, show_progress=True)
+        elif "no embedding data" in err_str or "connection" in err_str or "embedding" in err_str:
+            safe_print("\n⚠️ Local Server Embedding Endpoint Error ('No embedding data received').")
+            safe_print("💡 Local server (LM Studio / Ollama) does not host an active embedding model.")
+            safe_print("⚡ Auto-switching to local offline HuggingFace embedding engine ('BAAI/bge-small-en-v1.5')...")
+            
+            try:
+                from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+                Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
+            except Exception:
+                pass
+
+            clear_context_vector_db()
+
             db = chromadb.PersistentClient(path=db_save_path)
             collection = db.get_or_create_collection(collection_name)
             vector_store = ChromaVectorStore(chroma_collection=collection)
@@ -270,6 +297,7 @@ def run_index_folder(workspace_name: str = None):
             nodes = pipeline.run(documents = all_documents, show_progress=True)
         else:
             raise e
+
 
     current_doc_ids = {doc.doc_id for doc in all_documents}
     processed_workspace_names = {ws.name for ws in workspaces_to_process}
