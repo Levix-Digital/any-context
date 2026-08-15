@@ -18,4 +18,9 @@ if src_dir not in sys.path:
 from any_context.cli.entrypoint import entrypoint
 
 if __name__ == "__main__":
-    entrypoint()
+    try:
+        entrypoint()
+    except (KeyboardInterrupt, EOFError, SystemExit):
+        sys.exit(0)
+    except Exception as e:
+        sys.exit(1)
