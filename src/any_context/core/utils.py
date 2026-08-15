@@ -22,28 +22,59 @@ def load_env():
 def get_api_key(provider: str = "openai") -> Optional[str]:
     """
     Resolves API Key in order:
-    1. Environment variables (OPENAI_API_KEY / LOCAL_API_KEY)
+    1. Environment variables for specified provider
     2. SQLite ConfigDBStore table (api_keys)
-    3. Fallback None for OpenAI or 'lm-studio' for local offline models
+    3. Fallback for local offline models ('lm-studio')
     """
     load_env()
-    key = os.getenv("OPENAI_API_KEY") if provider == "openai" else (os.getenv("LOCAL_API_KEY") or os.getenv("OPENAI_API_KEY"))
-    if key and key.strip():
-        return key.strip()
+    p = (provider or "openai").lower().strip()
 
+    env_map = {
+        "openai": ["OPENAI_API_KEY"],
+        "anthropic": ["ANTHROPIC_API_KEY"],
+        "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"],
+        "google": ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"],
+        "google_genai": ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"],
+        "deepseek": ["DEEPSEEK_API_KEY"],
+        "groq": ["GROQ_API_KEY"],
+        "xai": ["XAI_API_KEY"],
+        "openrouter": ["OPENROUTER_API_KEY"],
+        "azure": ["AZURE_OPENAI_API_KEY"],
+        "azure_openai": ["AZURE_OPENAI_API_KEY"],
+    }
+
+    # 1. Check environment variables
+    if p in env_map:
+        for var_name in env_map[p]:
+            val = os.getenv(var_name)
+            if val and val.strip():
+                return val.strip()
+    else:
+        val = os.getenv(f"{p.upper()}_API_KEY")
+        if val and val.strip():
+            return val.strip()
+
+    # 2. Check SQLite Store
     try:
         from any_context.config.db_store import ConfigDBStore
-        store_key = ConfigDBStore().get_api_key(provider)
+        store = ConfigDBStore()
+        store_key = store.get_api_key(p)
         if store_key and store_key.strip():
             cleaned_key = store_key.strip()
-            if provider == "openai" and cleaned_key == "lm-studio":
+            if p == "openai" and cleaned_key == "lm-studio":
                 return None
             return cleaned_key
+        # Check alias if google/gemini
+        if p in ["gemini", "google_genai", "google"]:
+            for alt in ["gemini", "google", "google_genai"]:
+                alt_key = store.get_api_key(alt)
+                if alt_key and alt_key.strip():
+                    return alt_key.strip()
     except Exception:
         pass
 
-
-    if provider in ["local", "lm-studio", "ollama"]:
+    # 3. Local offline fallback
+    if p in ["local", "lm-studio", "ollama"]:
         return "lm-studio"
 
     return None
