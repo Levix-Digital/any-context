@@ -35,6 +35,11 @@ class BillingManager:
         status = self.get_status()
         return status.capabilities.supports_collaboration
 
+    def can_use_server_mode(self) -> bool:
+        """Returns True if active tier supports REST API Server daemon mode (Pro, Team, Enterprise)."""
+        status = self.get_status()
+        return status.capabilities.supports_server_mode
+
     def can_add_workspace(self, current_workspace_count: int) -> bool:
         """Returns True if user has not exceeded active tier's max workspace limit."""
         status = self.get_status()

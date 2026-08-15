@@ -2,11 +2,12 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 
 class PlanCapabilities(BaseModel):
-    allowed_sources: List[str] = Field(default_factory=lambda: ["local"])
+    allowed_sources: List[str] = Field(default_factory=lambda: ["local", "drive", "web"])
     max_workspaces: int = 999
-    supports_ocr: bool = False
-    supports_multi_context: bool = False
+    supports_ocr: bool = True
+    supports_multi_context: bool = True
     supports_collaboration: bool = False
+    supports_server_mode: bool = False
     supports_custom_vpc: bool = False
 
 class PlanTier(BaseModel):

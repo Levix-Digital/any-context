@@ -702,9 +702,26 @@ def start_api_server(host: str = "127.0.0.1", port: int = 8000):
     """
     Launches the Uvicorn ASGI Web Server for AnyContext REST API
     """
+    from any_context.billing import BillingManager
+    b_mgr = BillingManager()
+    status = b_mgr.get_status()
+
+    if not status.capabilities.supports_server_mode:
+        print("\n=======================================================")
+        print("🔒 AnyContext REST API Server Mode (REST / Multi-Tenant)")
+        print("=======================================================")
+        print("⚠️ Server Mode requires a 'Pro', 'Team', or 'Enterprise' License Key.")
+        print(f"   Current Active Plan: \033[93m{status.active_tier_name}\033[0m")
+        print("\n👉 To activate Server Mode, add your license key to your .env file:")
+        print("   \033[96mANYCONTEXT_LICENSE_KEY=actx_ent_your_license_here\033[0m")
+        print("\n👉 Or run '\033[93m/billing\033[0m' inside the chat to view plans & upgrade.")
+        print("=======================================================\n")
+        return
+
     import uvicorn
     print("\n=======================================================")
     print(f"🚀 AnyContext REST API Server v{__version__} - Levix Digital")
+    print(f"🔑 Active License Tier: \033[92m{status.active_tier_name}\033[0m")
     print(f"🌐 Server running at: http://{host}:{port}")
     print(f"📚 Interactive Swagger Docs: http://{host}:{port}/docs")
     if host == "0.0.0.0":
