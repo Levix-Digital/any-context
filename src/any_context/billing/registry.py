@@ -9,14 +9,15 @@ PLANS_REGISTRY: Dict[str, PlanTier] = {
         annual_price_usd=0.0,
         base_seats=1,
         extra_seat_price_usd=0.0,
-        ingestion_scope="1 Workspace Local (até 3 pastas locais).",
-        target_audience="Desenvolvedores, estudantes e entusiastas de IA local",
+        ingestion_scope="CLI Local Completo (Pastas Ilimitadas + Web Scraping + OCR + Multi-Workspaces)",
+        target_audience="Desenvolvedores, estudantes e usuários individuais",
         capabilities=PlanCapabilities(
-            allowed_sources=["local"],
-            max_workspaces=1,
-            supports_ocr=False,
-            supports_multi_context=False,
+            allowed_sources=["local", "drive", "web"],
+            max_workspaces=999,
+            supports_ocr=True,
+            supports_multi_context=True,
             supports_collaboration=False,
+            supports_server_mode=False,
             supports_custom_vpc=False
         )
     ),
@@ -27,43 +28,45 @@ PLANS_REGISTRY: Dict[str, PlanTier] = {
         annual_price_usd=108.0, # $9/mo billed annually
         base_seats=1,
         extra_seat_price_usd=0.0,
-        ingestion_scope="Workspaces Locais Ilimitados + OCR de Imagens e PDFs Escaneados",
+        ingestion_scope="CLI Local Completo + Suporte Prioritário",
         target_audience="Pesquisadores individuais, advogados solo, consultores",
-        capabilities=PlanCapabilities(
-            allowed_sources=["local"],
-            max_workspaces=999,
-            supports_ocr=True,
-            supports_multi_context=False,
-            supports_collaboration=False,
-            supports_custom_vpc=False
-        )
-    ),
-    "pro": PlanTier(
-        tier_id="pro",
-        name="AnyContext Pro (Multi-Context)",
-        monthly_price_usd=29.0,
-        annual_price_usd=288.0, # $24/mo billed annually
-        base_seats=1,
-        extra_seat_price_usd=0.0,
-        ingestion_scope="Multi-Context: Pastas Locais + Google Drive + OneDrive + Web Scraping + OCR",
-        target_audience="Power users, analistas seniores, freelancers",
         capabilities=PlanCapabilities(
             allowed_sources=["local", "drive", "web"],
             max_workspaces=999,
             supports_ocr=True,
             supports_multi_context=True,
             supports_collaboration=False,
+            supports_server_mode=False,
+            supports_custom_vpc=False
+        )
+    ),
+    "pro": PlanTier(
+        tier_id="pro",
+        name="AnyContext Pro (Server & Multi-Context)",
+        monthly_price_usd=29.0,
+        annual_price_usd=288.0, # $24/mo billed annually
+        base_seats=1,
+        extra_seat_price_usd=0.0,
+        ingestion_scope="CLI Completo + REST API Server Monoposto (actx --serve)",
+        target_audience="Power users, analistas seniores, freelancers, desenvolvedores de integrações",
+        capabilities=PlanCapabilities(
+            allowed_sources=["local", "drive", "web"],
+            max_workspaces=999,
+            supports_ocr=True,
+            supports_multi_context=True,
+            supports_collaboration=False,
+            supports_server_mode=True,
             supports_custom_vpc=False
         )
     ),
     "team": PlanTier(
         tier_id="team",
-        name="AnyContext Team",
+        name="AnyContext Team (Server & Collaboration)",
         monthly_price_usd=79.0,
         annual_price_usd=780.0, # $65/mo base billed annually
         base_seats=5,
         extra_seat_price_usd=15.0, # +$15/seat/month
-        ingestion_scope="Multi-Context + Multi-Usuário (RBAC, Convites SHARE-WKS, Workspaces Compartilhados)",
+        ingestion_scope="REST API Server Multi-Tenant + RBAC + Workspaces Compartilhados",
         target_audience="Escritórios de advocacia, consultorias imigratórias, equipes de engenharia",
         capabilities=PlanCapabilities(
             allowed_sources=["local", "drive", "web"],
@@ -71,17 +74,18 @@ PLANS_REGISTRY: Dict[str, PlanTier] = {
             supports_ocr=True,
             supports_multi_context=True,
             supports_collaboration=True,
+            supports_server_mode=True,
             supports_custom_vpc=False
         )
     ),
     "enterprise": PlanTier(
         tier_id="enterprise",
-        name="AnyContext Enterprise",
+        name="AnyContext Enterprise (Dedicated VPC & SLA)",
         monthly_price_usd=499.0,
         annual_price_usd=4900.0,
         base_seats=999,
         extra_seat_price_usd=0.0,
-        ingestion_scope="Containers Docker em VPC Privada + SSO/SAML + Licença Offline + Suporte SLA Dedicado",
+        ingestion_scope="REST API Server em VPC Privada + SSO/SAML + Licença Offline no .env + Suporte SLA",
         target_audience="Instituições financeiras, governamentais, B2B empresarial",
         capabilities=PlanCapabilities(
             allowed_sources=["local", "drive", "web", "vpc_custom"],
@@ -89,6 +93,7 @@ PLANS_REGISTRY: Dict[str, PlanTier] = {
             supports_ocr=True,
             supports_multi_context=True,
             supports_collaboration=True,
+            supports_server_mode=True,
             supports_custom_vpc=True
         )
     )
