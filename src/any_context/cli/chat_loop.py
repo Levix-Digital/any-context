@@ -138,8 +138,18 @@ def run_chat_loop(active_workspace: str = None):
             elif cmd == "/update":
                 run_self_update()
                 continue
-            elif cmd == "/check-update":
-                check_for_updates(quiet_if_latest=False)
+            elif cmd in ["/check-update", "/checkupdate", "/check"]:
+                has_up, new_tag = check_for_updates(quiet_if_latest=False)
+                if has_up:
+                    try:
+                        do_upgrade = questionary.confirm(
+                            f"Would you like to download and install {new_tag} now?",
+                            default=True
+                        ).ask()
+                        if do_upgrade:
+                            run_self_update()
+                    except Exception:
+                        pass
                 continue
             elif cmd in ["/reset-memory", "/reset"]:
                 confirm = questionary.confirm(
