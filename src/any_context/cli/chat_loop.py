@@ -47,8 +47,15 @@ def run_chat_loop(active_workspace: str = None):
         run_index_folder(workspace_name=active_workspace, verbose=False)
 
     from any_context.config.app_settings import AppSettings
+    from any_context.cli.prompt_session import create_anycontext_prompt_session
+
     settings = AppSettings.load()
     current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
+
+    prompt_session = create_anycontext_prompt_session(
+        get_workspace_name=lambda: active_workspace,
+        get_model_name=lambda: current_model
+    )
 
     print("\n=======================================================")
     print("💬 Chat started! Type '/exit' or press Ctrl+C to quit.")
@@ -62,7 +69,23 @@ def run_chat_loop(active_workspace: str = None):
         try:
             prompt_ws = f"\033[93m{active_workspace}\033[96m" if active_workspace else "Global"
             prompt_str = f"You [{prompt_ws} | \033[95m{current_model}\033[96m]"
-            raw_input = safe_prompt_input(f"\n\033[96m👤 {prompt_str}:\033[0m ")
+
+            try:
+                raw_input = prompt_session.prompt(f"\n👤 {prompt_str}: ")
+            except (KeyboardInterrupt, EOFError):
+                print()
+                try:
+                    confirm_ans = input("\033[93m❓ Are you sure you want to exit AnyContext? [y/N]:\033[0m ").strip().lower()
+                    if confirm_ans in ["y", "yes", "s", "sim"]:
+                        raw_input = "/exit"
+                    else:
+                        print("↩️ Resuming session...\n")
+                        continue
+                except (KeyboardInterrupt, EOFError):
+                    raw_input = "/exit"
+            except Exception:
+                raw_input = safe_prompt_input(f"\n\033[96m👤 {prompt_str}:\033[0m ")
+
             if raw_input is None:
                 continue
 
