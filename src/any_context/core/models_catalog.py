@@ -10,66 +10,80 @@ PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
         "models": [
             {"id": "gpt-4o-mini", "name": "GPT-4o Mini (Universal - Fast & Efficient)", "provider": "openai"},
             {"id": "gpt-4o", "name": "GPT-4o (High-Capability Multimodal)", "provider": "openai"},
-            {"id": "o3-mini", "name": "o3 Mini (High-Speed Reasoning - Requires Tier 1+)", "provider": "openai"},
-            {"id": "o1-mini", "name": "o1 Mini (Reasoning - Requires Tier 1+)", "provider": "openai"},
-            {"id": "gpt-4-turbo", "name": "GPT-4 Turbo (High Context)", "provider": "openai"}
+            {"id": "gpt-4-turbo", "name": "GPT-4 Turbo (High Context 128k)", "provider": "openai"},
+            {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo (Legacy Low Cost)", "provider": "openai"}
         ]
     },
     "anthropic": {
         "display_name": "Anthropic Claude",
         "env_var": "ANTHROPIC_API_KEY",
         "models": [
-            {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet (State-of-the-Art Coding & Analysis)", "provider": "anthropic"},
-            {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku (Ultra-Fast & Smart)", "provider": "anthropic"},
-            {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus (Deep Analysis)", "provider": "anthropic"}
+            {"id": "claude-haiku-4-5-20251001", "name": "Claude 4.5 Haiku (Ultra-Fast & Smart)", "provider": "anthropic"},
+            {"id": "claude-sonnet-4-5-20250929", "name": "Claude 4.5 Sonnet (State-of-the-Art Analysis & Code)", "provider": "anthropic"},
+            {"id": "claude-sonnet-4-6", "name": "Claude 4.6 Sonnet (Next-Gen High Reasoning)", "provider": "anthropic"},
+            {"id": "claude-opus-4-5-20251101", "name": "Claude 4.5 Opus (Deep Analysis)", "provider": "anthropic"}
         ]
     },
     "google_genai": {
         "display_name": "Google Gemini",
         "env_var": "GEMINI_API_KEY",
         "models": [
-            {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash (Ultra-Fast 1M Context)", "provider": "google_genai"},
-            {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro (Deep Reasoning 2M Context)", "provider": "google_genai"},
-            {"id": "gemini-2.0-flash-exp", "name": "Gemini 2.0 Flash (Next-Gen Experimental)", "provider": "google_genai"}
+            {"id": "gemini-flash-latest", "name": "Gemini Flash Latest (100% Free Tier - Ultra Fast)", "provider": "google_genai"},
+            {"id": "gemini-3.5-flash", "name": "Gemini 3.5 Flash (Next-Gen Fast Multi-Tool)", "provider": "google_genai"},
+            {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite (Sub-Second Latency)", "provider": "google_genai"},
+            {"id": "gemini-pro-latest", "name": "Gemini Pro Latest (Deep Reasoning & 2M Context)", "provider": "google_genai"}
         ]
     },
     "deepseek": {
         "display_name": "DeepSeek Platform",
         "env_var": "DEEPSEEK_API_KEY",
         "models": [
-            {"id": "deepseek-chat", "name": "DeepSeek V3 (DeepSeek Chat)", "provider": "deepseek"},
-            {"id": "deepseek-reasoner", "name": "DeepSeek R1 (DeepSeek Reasoner)", "provider": "deepseek"}
+            {"id": "deepseek-chat", "name": "DeepSeek V3 (DeepSeek Chat - $0.14/M)", "provider": "deepseek"}
         ]
     },
     "groq": {
         "display_name": "Groq Cloud",
         "env_var": "GROQ_API_KEY",
         "models": [
-            {"id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B Versatile (Groq Ultra-Fast)", "provider": "groq"},
-            {"id": "mixtral-8x7b-32768", "name": "Mixtral 8x7B (Groq Ultra-Fast)", "provider": "groq"},
-            {"id": "gemma2-9b-it", "name": "Gemma 2 9B (Groq Ultra-Fast)", "provider": "groq"}
-        ]
-    },
-    "xai": {
-        "display_name": "xAI Grok",
-        "env_var": "XAI_API_KEY",
-        "models": [
-            {"id": "grok-2", "name": "Grok 2 (xAI)", "provider": "xai"},
-            {"id": "grok-beta", "name": "Grok Beta (xAI)", "provider": "xai"}
+            {"id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B (Groq Free Tier - Ultra Fast)", "provider": "groq"},
+            {"id": "llama-3.1-8b-instant", "name": "Llama 3.1 8B (Groq Instant Speed)", "provider": "groq"},
+            {"id": "mixtral-8x7b-32768", "name": "Mixtral 8x7B (Groq 32k Context)", "provider": "groq"},
+            {"id": "gemma2-9b-it", "name": "Gemma 2 9B (Groq Fast Inference)", "provider": "groq"}
         ]
     },
     "openrouter": {
         "display_name": "OpenRouter",
         "env_var": "OPENROUTER_API_KEY",
         "models": [
-            {"id": "openrouter/auto", "name": "OpenRouter Auto Router (Best Model)", "provider": "openrouter"}
+            {"id": "openrouter/auto", "name": "OpenRouter Auto (Best Available Model)", "provider": "openrouter"},
+            {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (OpenRouter Free Tier)", "provider": "openrouter"},
+            {"id": "google/gemini-flash-1.5-8b", "name": "Gemini Flash 8B (Ultra Low Cost)", "provider": "openrouter"},
+            {"id": "deepseek/deepseek-chat", "name": "DeepSeek V3 via OpenRouter", "provider": "openrouter"}
+        ]
+    },
+    "xai": {
+        "display_name": "xAI Grok",
+        "env_var": "XAI_API_KEY",
+        "models": [
+            {"id": "grok-2-1212", "name": "Grok 2 (xAI Function Calling)", "provider": "xai"},
+            {"id": "grok-2", "name": "Grok 2 (xAI Standard)", "provider": "xai"},
+            {"id": "grok-beta", "name": "Grok Beta (xAI High Speed)", "provider": "xai"}
+        ]
+    },
+    "mistral": {
+        "display_name": "Mistral AI",
+        "env_var": "MISTRAL_API_KEY",
+        "models": [
+            {"id": "mistral-small-latest", "name": "Mistral Small (Fast & Cost-Effective)", "provider": "mistral"},
+            {"id": "open-mistral-nemo", "name": "Mistral NeMo 12B (Free Tier Credits)", "provider": "mistral"},
+            {"id": "mistral-large-latest", "name": "Mistral Large (High-Tier Reasoning)", "provider": "mistral"}
         ]
     },
     "local": {
         "display_name": "Local Server (LM Studio / Ollama)",
         "env_var": "LOCAL_BASE_URL",
         "models": [
-            {"id": "local-model", "name": "Local Server Loaded Model", "provider": "local"}
+            {"id": "local-model", "name": "Local Loaded Model (100% Free & Offline)", "provider": "local"}
         ]
     }
 }
@@ -96,6 +110,8 @@ def infer_provider_for_model(model_name: str, fallback_provider: str = "openai")
         return "xai"
     elif m.startswith("openrouter/"):
         return "openrouter"
+    elif m.startswith("mistral-") or m.startswith("open-mistral-"):
+        return "mistral"
     elif m.startswith("llama-") or m.startswith("mixtral-") or m.startswith("gemma"):
         if get_api_key("groq"):
             return "groq"

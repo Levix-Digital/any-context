@@ -297,6 +297,12 @@ def run_chat_loop(active_workspace: str = None):
                     if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
                         if isinstance(token.content, str) and token.content:
                             print(token.content, end="", flush=True)
+                        elif isinstance(token.content, list):
+                            for part in token.content:
+                                if isinstance(part, str):
+                                    print(part, end="", flush=True)
+                                elif isinstance(part, dict) and "text" in part:
+                                    print(part["text"], end="", flush=True)
                     elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
                         print("\n📚 Reading retrieved documents... Please wait for AI analysis.")
                         print(f"\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ", end="", flush=True)
