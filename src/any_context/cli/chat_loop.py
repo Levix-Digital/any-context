@@ -1,13 +1,11 @@
+import sys
 import uuid
 import questionary
-from any_context.core.agent import create_anycontext_agent, saver
-
-from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
 from any_context.cli.config_menu import show_config_menu
 from any_context.cli.banner import print_banner
 from any_context.cli.updater import print_startup_update_notice, check_for_updates, run_self_update
-from any_context.memory import MemoryManager
+from any_context.cli.spinner import Spinner
 from any_context.help import handle_command_help_interception
 from any_context import __version__
 
@@ -21,13 +19,17 @@ def run_chat_loop(active_workspace: str = None):
         }
     }
 
-    print("\n🔄 Synchronizing file database...")
-    index_folder.invoke({"workspace_name": active_workspace})
-    
+    with Spinner(f"Synchronizing workspace file database for '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' synchronized"):
+        from any_context.ingestion.local_folder_ingestor import index_folder
+        index_folder.invoke({"workspace_name": active_workspace})
+
     print("\n=======================================================")
     print("💬 Chat started! Press Ctrl+C to exit.")
     print("=======================================================\n")
-    
+
+    agent_instance = None
+    active_workspace_for_agent = None
+
     while True:
         try:
             prompt_name = f"You [\033[93m{active_workspace}\033[96m]" if active_workspace else "You"
@@ -40,7 +42,6 @@ def run_chat_loop(active_workspace: str = None):
             if handle_command_help_interception(user_input):
                 continue
 
-
             elif cmd in ["/version", "/v"]:
                 print(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital")
                 continue
@@ -49,8 +50,10 @@ def run_chat_loop(active_workspace: str = None):
                 if new_workspace:
                     active_workspace = new_workspace
                     config["configurable"]["active_workspace"] = active_workspace
-                    print("\n🔄 Re-synchronizing file database for new workspace...")
-                    index_folder.invoke({"workspace_name": active_workspace})
+                    with Spinner(f"Re-synchronizing file database for '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' synchronized"):
+                        from any_context.ingestion.local_folder_ingestor import index_folder
+                        index_folder.invoke({"workspace_name": active_workspace})
+                    agent_instance = None
                 continue
             elif cmd == "/update":
                 run_self_update()
@@ -63,6 +66,7 @@ def run_chat_loop(active_workspace: str = None):
                     f"⚠️ Are you sure you want to reset long-term memory for workspace '{active_workspace}'?"
                 ).ask()
                 if confirm:
+                    from any_context.memory import MemoryManager
                     memory_mgr = MemoryManager()
                     deleted = memory_mgr.reset_memory(workspace=active_workspace)
                     print(f"🧹 Reset complete! Deleted {deleted} long-term memory entries for workspace '{active_workspace}'.")
@@ -73,7 +77,6 @@ def run_chat_loop(active_workspace: str = None):
                 ).ask()
                 if confirm:
                     from any_context.config.db_store import ConfigDBStore
-                    import sys
                     store = ConfigDBStore()
                     store.factory_reset()
                     print("\n🎉 AnyContext has been completely reset to factory defaults!")
@@ -102,8 +105,8 @@ def run_chat_loop(active_workspace: str = None):
                 from any_context.ingestion.web_scheduler import index_web_url_to_chromadb
                 url_to_add = user_input.strip()[9:].strip()
                 if url_to_add:
-                    print(f"\n⏳ Scraping and indexing '{url_to_add}' into workspace '{active_workspace}'...")
-                    res = index_web_url_to_chromadb(workspace_name=active_workspace, url=url_to_add, force=True)
+                    with Spinner(f"Scraping and indexing '{url_to_add}' into '{active_workspace}'..."):
+                        res = index_web_url_to_chromadb(workspace_name=active_workspace, url=url_to_add, force=True)
                     if res.get("status") == "success":
                         print(f"✅ {res.get('message')}\n")
                     elif res.get("status") == "unchanged":
@@ -124,16 +127,20 @@ def run_chat_loop(active_workspace: str = None):
                 continue
             elif cmd in ["/web sync", "/web resync"]:
                 from any_context.ingestion.web_scheduler import sync_workspace_web_urls
-                print(f"\n⏳ Re-scraping and synchronizing all web URLs for workspace '{active_workspace}'...")
-                sync_res = sync_workspace_web_urls(active_workspace)
+                with Spinner(f"Re-scraping and synchronizing all web URLs for workspace '{active_workspace}'..."):
+                    sync_res = sync_workspace_web_urls(active_workspace)
                 print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
                 continue
 
-    
-            active_agent = create_anycontext_agent(active_workspace=active_workspace, checkpointer=saver)
+            if agent_instance is None or active_workspace_for_agent != active_workspace:
+                with Spinner("Initializing AI Agent & Tools..."):
+                    from any_context.core.agent import create_anycontext_agent, saver
+                    agent_instance = create_anycontext_agent(active_workspace=active_workspace, checkpointer=saver)
+                    active_workspace_for_agent = active_workspace
+
             print("\033[93m🤖 AI:\033[0m ", end="", flush=True)
-    
-            for token, metadata in active_agent.stream(
+
+            for token, metadata in agent_instance.stream(
                 {
                     "messages": [user_input]
                 },
@@ -148,18 +155,22 @@ def run_chat_loop(active_workspace: str = None):
                     print("\033[93m🤖 AI:\033[0m ", end="", flush=True)
 
             print()
-            
+
         except KeyboardInterrupt:
             print("\nExiting...")
             from any_context.memory import run_session_summarizer_async
             run_session_summarizer_async(thread_id, active_workspace)
             break
 
+
 def main():
-    print_banner()
-    print_startup_update_notice()
+    if "--mcp" not in sys.argv:
+        print_banner()
+        print_startup_update_notice()
     workspace = get_active_workspace()
     run_chat_loop(active_workspace=workspace)
 
+
 if __name__ == "__main__":
     main()
+
