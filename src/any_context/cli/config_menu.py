@@ -215,7 +215,7 @@ def _manage_workspaces(store: ConfigDBStore):
                     print("❌ Error removing folder.")
 
     elif ws_action.startswith("🌐"):
-        _manage_workspace_web_urls(store)
+        _manage_workspace_web_urls(store=store)
 
     elif ws_action.startswith("🗑️"):
         names = [ws.name for ws in workspaces]
@@ -229,19 +229,15 @@ def _manage_workspaces(store: ConfigDBStore):
                 store.remove_workspace(to_remove)
                 print(f"🗑️ Deleted workspace '{to_remove}'.")
 
-def _manage_workspace_web_urls(store: ConfigDBStore = None, workspace_name: str = None):
-    from any_context.ingestion.web_scheduler import (
-        WebSchedulerStore,
-        index_web_url_to_chromadb,
-        remove_web_url_from_chromadb,
-        sync_workspace_web_urls
-    )
-    from any_context.billing import BillingManager
-    
 def _manage_workspace_web_urls(workspace_name: Optional[str] = None, store: Optional[ConfigDBStore] = None):
     """Interactive management of Web URLs and Documentation Site Ingestors for a Workspace."""
     from any_context.ingestion.web_scheduler import WebSchedulerStore, sync_workspace_web_urls
     from any_context.ingestion.web_crawler import run_interactive_web_crawler
+
+    # Handle polymorphic call if first argument was passed as store
+    if isinstance(workspace_name, ConfigDBStore):
+        store = workspace_name
+        workspace_name = None
 
     store = store or ConfigDBStore()
     settings = store.get_app_settings()
