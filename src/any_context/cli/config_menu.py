@@ -95,7 +95,6 @@ def show_config_menu():
                 "🧠 Memory Compression & Reset Settings",
                 "💳 Subscription & Payment Plans (Tiers, Pricing & Licensing)",
                 "🛡️ User Accounts & Security Access Control (RBAC & Tokens)",
-                "❓ How to Get API Keys (Guide & Links)",
                 "💥 Factory Reset (Reset all settings, workspaces, API keys, and memory)",
                 "🔙 Return / Exit Menu"
             ]
@@ -118,8 +117,6 @@ def show_config_menu():
             _manage_subscription()
         elif choice.startswith("🛡️"):
             _manage_users_and_security(store)
-        elif choice.startswith("❓"):
-            _show_api_keys_guide()
 
         elif choice.startswith("💥"):
             confirm = questionary.confirm(
@@ -415,7 +412,6 @@ def _manage_models(store: ConfigDBStore):
         run_index_folder()
 
 
-
 def _manage_api_keys(store: ConfigDBStore):
     all_keys = store.get_all_api_keys()
     print("\n--- Saved API Keys ---")
@@ -430,11 +426,23 @@ def _manage_api_keys(store: ConfigDBStore):
         "🔑 API Key Action:",
         choices=[
             "➕ Save / Update API Key",
+            "📖 How to Get API Keys (Guide & Links)",
             "🔙 Back"
         ]
     ).ask()
 
-    if action and action.startswith("➕"):
+    if not action or action.startswith("🔙"):
+        return
+
+    if action.startswith("📖"):
+        from any_context.help.manager import display_help_page
+        from any_context.help.registry import get_help_page
+        page = get_help_page("api-keys")
+        if page:
+            display_help_page(page)
+        return
+
+    if action.startswith("➕"):
         provider = questionary.select(
             "Select Provider:",
             choices=[
@@ -457,69 +465,6 @@ def _manage_api_keys(store: ConfigDBStore):
                 if key:
                     store.set_api_key(provider, key)
                     print(f"✅ Saved API Key for provider '{provider}'.")
-
-def _show_api_keys_guide():
-    guide_text = """
-================================================================================
-🔑 COMPREHENSIVE GUIDE: HOW TO OBTAIN API KEYS FOR ALL AI PROVIDERS
-================================================================================
-
-1. ⚡ OpenAI (ChatGPT, GPT-4o, o1 & Official Embeddings):
-   • Sign up or log in at: https://platform.openai.com
-   • Navigate to API Keys: https://platform.openai.com/api-keys
-   • Click 'Create new secret key' (Key format: sk-proj-... or sk-...)
-   • Base URL: https://api.openai.com/v1
-
-2. 🧠 Anthropic (Claude 3.5 Sonnet, Claude 3 Opus & Haiku):
-   • Sign up or log in at: https://console.anthropic.com
-   • Navigate to API Keys: https://console.anthropic.com/settings/keys
-   • Create a key (Key format: sk-ant-...)
-   • Base URL: https://api.anthropic.com/v1
-
-3. ♊ Google Gemini (Gemini 1.5 Pro, Flash & Text Embedding 004):
-   • Visit Google AI Studio: https://aistudio.google.com
-   • Navigate to Get API Key: https://aistudio.google.com/app/apikey
-   • Click 'Create API key' (Key format: AIzaSy...)
-   • Base URL: https://generativelanguage.googleapis.com/v1beta/openai/
-
-4. 🪟 Microsoft Azure OpenAI Service (Enterprise Cloud):
-   • Access Azure Portal: https://portal.azure.com or https://oai.azure.com
-   • Go to your Azure OpenAI Resource -> Keys and Endpoint
-   • Copy Key 1 or Key 2
-   • Base URL: https://<your-resource-name>.openai.azure.com/openai/deployments/<your-deployment-name>
-
-5. 🚀 xAI Grok (Grok-2 & Grok-beta):
-   • Visit xAI Console: https://console.x.ai
-   • Navigate to API Keys tab and create a new key (Key format: xai-...)
-   • Base URL: https://api.x.ai/v1
-
-6. 🐉 DeepSeek (DeepSeek V3 & R1 Reasoning):
-   • Visit DeepSeek Platform: https://platform.deepseek.com
-   • Go to API Keys: https://platform.deepseek.com/api_keys
-   • Create a secret key (Key format: sk-...)
-   • Base URL: https://api.deepseek.com/v1
-
-7. ⚡ Groq Cloud (Ultra-Fast Inference for Llama 3.3, Mixtral & Gemma):
-   • Visit Groq Console: https://console.groq.com
-   • Navigate to API Keys: https://console.groq.com/keys
-   • Create an API key (Key format: gsk_...)
-   • Base URL: https://api.groq.com/openai/v1
-
-8. 🌐 OpenRouter (Unified API Aggregator for 200+ AI Models):
-   • Visit OpenRouter: https://openrouter.ai
-   • Go to Keys: https://openrouter.ai/keys
-   • Create a key (Key format: sk-or-v1-...)
-   • Base URL: https://openrouter.ai/api/v1
-
-9. 🏠 LM Studio & Ollama (100% Free & Local Private Offline LLMs):
-   • LM Studio: Download from https://lmstudio.ai -> Base URL: http://localhost:1234/v1
-   • Ollama: Download from https://ollama.com -> Base URL: http://localhost:11434/v1
-   • No API Key required for local offline servers!
-
-================================================================================
-"""
-    safe_print(guide_text)
-
 
 
 def _manage_memory(store: ConfigDBStore):

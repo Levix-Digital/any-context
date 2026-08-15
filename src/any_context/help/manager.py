@@ -48,6 +48,7 @@ def show_interactive_help_menu():
         choices = [
             "📂 /switch (Workspace Switching & DB Synchronization)",
             "⚙️ /config (Configuration Menu, AI Models & RBAC)",
+            "🔑 /api-keys (How to Get API Keys - Guide & Links)",
             "🌐 /web (Web Scraping & Recurring Polling Engine)",
             "📷 /ocr (Image & Scanned PDF OCR Ingestion)",
             "💳 /billing (Subscription Plans, Tiers & Capabilities)",
@@ -74,6 +75,8 @@ def show_interactive_help_menu():
             page = get_help_page("switch")
         elif choice.startswith("⚙️"):
             page = get_help_page("config")
+        elif choice.startswith("🔑"):
+            page = get_help_page("api-keys")
         elif choice.startswith("🌐"):
             page = get_help_page("web")
         elif choice.startswith("📷"):
@@ -102,7 +105,7 @@ def show_interactive_help_menu():
 
 def handle_command_help_interception(user_input: str) -> bool:
     """
-    Intercepts user inputs ending with --help, -h, /help, or /h, or exact /help commands.
+    Intercepts user inputs ending with --help, -h, /help, or /h, or exact /help / /keys commands.
     Displays dedicated help page or opens interactive help index. Returns True if intercepted.
     """
     raw_input = user_input.strip()
@@ -116,7 +119,14 @@ def handle_command_help_interception(user_input: str) -> bool:
         show_interactive_help_menu()
         return True
 
-    # Case 2: Subcommand help requested (e.g. '/switch --help', '/config -h', 'actx serve --help', '/login /h')
+    # Case 2: Exact /api-keys or /keys command
+    if clean_input in ["/keys", "/api-keys", "/apikeys", "actx --keys", "actx --api-keys", "--keys", "--api-keys"]:
+        page = get_help_page("api-keys")
+        if page:
+            display_help_page(page)
+            return True
+
+    # Case 3: Subcommand help requested (e.g. '/switch --help', '/config -h', 'actx serve --help', '/login /h')
     parts = clean_input.split()
     if len(parts) >= 2:
         last_arg = parts[-1]

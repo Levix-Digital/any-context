@@ -83,6 +83,13 @@ def run_chat_loop(active_workspace: str = None):
             elif cmd == "/config":
                 show_config_menu()
                 continue
+            elif cmd in ["/keys", "/api-keys", "/apikeys"]:
+                from any_context.help.manager import display_help_page
+                from any_context.help.registry import get_help_page
+                page = get_help_page("api-keys")
+                if page:
+                    display_help_page(page)
+                continue
             elif cmd in ["/billing", "/plans"]:
                 from any_context.cli.config_menu import _manage_subscription
                 _manage_subscription()
