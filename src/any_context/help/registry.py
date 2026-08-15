@@ -451,6 +451,44 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "API keys are stored securely in local SQLite with PBKDF2 masking and never leave your machine.",
             "For 100% private and free usage without API keys or credit cards, run LM Studio or Ollama locally."
         ]
+    ),
+
+    "model": HelpPage(
+        command="/model",
+        aliases=["model", "/m", "-m", "models", "switch-model", "llm"],
+        title="🤖 On-The-Fly Inference Model Switching",
+        description=(
+            "AnyContext allows you to switch your AI inference model dynamically without re-indexing your document vectors. "
+            "The model switcher strictly inspects available API keys and only presents models that have valid credentials "
+            "configured (OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Groq, xAI Grok, OpenRouter, or Local LM Studio/Ollama)."
+        ),
+        syntax=(
+            "In Chat (Menu)   : /model   OR   /m\n"
+            "  In Chat (Direct) : /model <model_name>   (e.g. /model gpt-4o)\n"
+            "  In Chat (One-Shot): @<model_name> <message>   (e.g. @claude-3-5-sonnet-20241022 summarize this)\n"
+            "  REST API         : POST /v1/chat  with payload {'model': 'gpt-4o', 'message': '...'}\n"
+            "  MCP Tool         : query_anycontext_agent(message=..., model='gpt-4o')\n"
+            "  View Help        : actx --model --help   OR   /model --help   OR   /model -h"
+        ),
+        parameters=[
+            "/model, /m            : Opens interactive model selector showing only models with active API keys.",
+            "/model <name>         : Instantly switches the active inference model for the current chat session.",
+            "@<model> <prompt>     : Runs a single prompt with the specified model, then reverts to session default.",
+            "--help, -h, /help, /h : Display this help manual page."
+        ],
+        examples=[
+            "In Chat: /model",
+            "In Chat: /model gpt-4o",
+            "In Chat: /model claude-3-5-sonnet-20241022",
+            "In Chat: /model deepseek-chat",
+            "In Chat: @gpt-4o Explique os principais pontos dos contratos",
+            "curl -X POST http://127.0.0.1:8000/v1/chat -d '{\"message\":\"hello\",\"model\":\"gpt-4o\"}'"
+        ],
+        tips=[
+            "Switching inference models does NOT affect document embeddings or trigger vector database re-indexing.",
+            "The active inference model is always clearly visible in the prompt: 'You [Workspace | Model]' and 'AI [Model]'.",
+            "To unlock additional models, add their API keys via /config -> '🔑 Manage Saved API Keys'."
+        ]
     )
 }
 

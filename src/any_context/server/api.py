@@ -73,11 +73,22 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="User query or instruction for the AI agent")
     workspace: Optional[str] = Field(None, description="Target workspace name (optional)")
     thread_id: Optional[str] = Field(None, description="Session thread ID for conversation context continuity")
+    model: Optional[str] = Field(None, description="Optional inference model override on-the-fly (e.g. 'gpt-4o', 'claude-3-5-sonnet-20241022', 'deepseek-chat')")
 
 class ChatResponse(BaseModel):
     thread_id: str
     workspace: Optional[str]
+    model_used: str
     reply: str
+
+class ModelDTO(BaseModel):
+    id: str
+    name: str
+    provider: str
+
+class AvailableModelsResponse(BaseModel):
+    active_default: str
+    available_models: List[ModelDTO]
 
 class SearchRequest(BaseModel):
     query: str = Field(..., description="Search query string")
@@ -344,12 +355,36 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         dto_list = [WorkspaceDTO(name=ws.name, paths=ws.paths) for ws in settings.workspaces]
         return WorkspacesResponse(total=len(dto_list), workspaces=dto_list)
 
+    @app.get("/v1/models", response_model=AvailableModelsResponse, tags=["AI Models"])
+    def list_available_models_endpoint():
+        """Lists available inference models based on configured and validated API keys."""
+        from any_context.core.models_catalog import get_available_models
+        store = ConfigDBStore()
+        settings = store.get_app_settings()
+        active_default = settings.models.inference_model if (settings and settings.models) else "gpt-4o-mini"
+        models = get_available_models()
+        return AvailableModelsResponse(
+            active_default=active_default,
+            available_models=[ModelDTO(**m) for m in models]
+        )
+
     @app.post("/v1/chat", response_model=ChatResponse, tags=["AI Agent"])
     def chat_with_agent(req: ChatRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
         verify_token_access(credentials=credentials, required_workspace=req.workspace)
 
         if not req.message.strip():
             raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+        effective_model = req.model
+        if req.model:
+            from any_context.core.models_catalog import validate_model_key_availability
+            is_valid, prov, err_msg = validate_model_key_availability(req.model)
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=err_msg)
+        else:
+            store = ConfigDBStore()
+            settings = store.get_app_settings()
+            effective_model = settings.models.inference_model if (settings and settings.models) else "gpt-4o-mini"
 
         thread_id = req.thread_id or f"api_chat_{uuid.uuid4()}"
         config = {
@@ -361,7 +396,11 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
 
         try:
             full_response = ""
-            agent_instance = create_anycontext_agent(active_workspace=req.workspace, checkpointer=saver)
+            agent_instance = create_anycontext_agent(
+                active_workspace=req.workspace, 
+                checkpointer=saver,
+                model_override=effective_model
+            )
             for token, metadata in agent_instance.stream(
                 {"messages": [req.message]},
                 stream_mode="messages",
@@ -375,6 +414,7 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
             return ChatResponse(
                 thread_id=thread_id,
                 workspace=req.workspace,
+                model_used=effective_model,
                 reply=full_response.strip()
             )
         except Exception as e:

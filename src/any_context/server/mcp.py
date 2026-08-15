@@ -32,14 +32,23 @@ def start_mcp_server():
         },
         {
             "name": "query_anycontext_agent",
-            "description": "Sends a prompt/question to AnyContext AI Agent with automatic RAG search and 3-level session memory.",
+            "description": "Sends a prompt/question to AnyContext AI Agent with automatic RAG search, 3-level session memory, and optional on-the-fly model switching.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "message": {"type": "string", "description": "User instruction or prompt"},
-                    "workspace": {"type": "string", "description": "Target workspace name (optional)"}
+                    "workspace": {"type": "string", "description": "Target workspace name (optional)"},
+                    "model": {"type": "string", "description": "Optional inference model override on-the-fly (e.g. 'gpt-4o', 'claude-3-5-sonnet-20241022', 'deepseek-chat')"}
                 },
                 "required": ["message"]
+            }
+        },
+        {
+            "name": "list_available_models",
+            "description": "Lists all available AI inference models verified against configured API keys, plus the current active default.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
             }
         },
         {
@@ -316,8 +325,16 @@ def start_mcp_server():
                     elif tool_name == "query_anycontext_agent":
                         msg = arguments.get("message", "")
                         ws = arguments.get("workspace")
+                        model_req = arguments.get("model")
                         thread_id = f"mcp_chat_{uuid.uuid4()}"
-                        config = {"configurable": {"thread_id": thread_id, "active_workspace": ws}}
+                        config = {
+                            "configurable": {
+                                "thread_id": thread_id, 
+                                "active_workspace": ws,
+                                "model": model_req,
+                                "model_override": model_req
+                            }
+                        }
                         
                         full_response = ""
                         for token, metadata in cli_agent.stream({"messages": [msg]}, stream_mode="messages", config=config):
@@ -325,6 +342,17 @@ def start_mcp_server():
                                 if isinstance(token.content, str) and token.content:
                                     full_response += token.content
                         result_text = full_response.strip()
+
+                    elif tool_name == "list_available_models":
+                        from any_context.core.models_catalog import get_available_models
+                        store = ConfigDBStore()
+                        settings = store.get_app_settings()
+                        active_default = settings.models.inference_model if (settings and settings.models) else "gpt-4o-mini"
+                        models = get_available_models()
+                        result_text = json.dumps({
+                            "active_default": active_default,
+                            "available_models": models
+                        }, indent=2)
 
                     elif tool_name == "list_workspaces":
                         store = ConfigDBStore()

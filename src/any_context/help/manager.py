@@ -47,6 +47,7 @@ def show_interactive_help_menu():
     while True:
         choices = [
             "📂 /switch (Workspace Switching & DB Synchronization)",
+            "🤖 /model (On-The-Fly Inference Model Switching)",
             "⚙️ /config (Configuration Menu, AI Models & RBAC)",
             "🔑 /api-keys (How to Get API Keys - Guide & Links)",
             "🌐 /web (Web Scraping & Recurring Polling Engine)",
@@ -73,6 +74,8 @@ def show_interactive_help_menu():
 
         if choice.startswith("📂"):
             page = get_help_page("switch")
+        elif choice.startswith("🤖"):
+            page = get_help_page("model")
         elif choice.startswith("⚙️"):
             page = get_help_page("config")
         elif choice.startswith("🔑"):

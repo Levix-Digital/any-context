@@ -23,17 +23,23 @@ def run_chat_loop(active_workspace: str = None):
         from any_context.ingestion.local_folder_ingestor import index_folder
         index_folder.invoke({"workspace_name": active_workspace})
 
+    from any_context.config.app_settings import AppSettings
+    settings = AppSettings.load()
+    current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
+
     print("\n=======================================================")
     print("💬 Chat started! Press Ctrl+C to exit.")
     print("=======================================================\n")
 
     agent_instance = None
     active_workspace_for_agent = None
+    active_model_for_agent = None
 
     while True:
         try:
-            prompt_name = f"You [\033[93m{active_workspace}\033[96m]" if active_workspace else "You"
-            user_input = input(f"\n\033[96m👤 {prompt_name}:\033[0m ")
+            prompt_ws = f"\033[93m{active_workspace}\033[96m" if active_workspace else "Global"
+            prompt_str = f"You [{prompt_ws} | \033[95m{current_model}\033[96m]"
+            user_input = input(f"\n\033[96m👤 {prompt_str}:\033[0m ")
             cmd = user_input.strip().lower()
             if not cmd:
                 continue
@@ -54,6 +60,62 @@ def run_chat_loop(active_workspace: str = None):
                         from any_context.ingestion.local_folder_ingestor import index_folder
                         index_folder.invoke({"workspace_name": active_workspace})
                     agent_instance = None
+                continue
+            elif cmd == "/model" or cmd == "/m" or cmd.startswith("/model ") or cmd.startswith("/m "):
+                from any_context.core.models_catalog import get_available_models, validate_model_key_availability
+
+                parts = user_input.strip().split(maxsplit=1)
+                if len(parts) > 1:
+                    new_model = parts[1].strip()
+                    is_valid, prov, err_msg = validate_model_key_availability(new_model)
+                    if not is_valid:
+                        print(f"\n{err_msg}\n")
+                        continue
+                    current_model = new_model
+                    agent_instance = None
+                    print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m ({prov.upper()}) for this session.\n")
+                    continue
+
+                # Interactive selection menu (strictly key-aware)
+                available_models = get_available_models()
+                choices = []
+                for m in available_models:
+                    prefix = "👉 " if m["id"] == current_model else "• "
+                    choices.append(f"{prefix}{m['name']} ({m['id']})")
+
+                choices.append("➕ Enter Custom Model ID")
+                choices.append("🔑 Add API Key for Another Provider (/config)")
+                choices.append("🔙 Cancel")
+
+                selected = questionary.select(
+                    f"Select Inference Model (Active: {current_model}):",
+                    choices=choices
+                ).ask()
+
+                if not selected or selected.startswith("🔙"):
+                    continue
+
+                if selected.startswith("🔑"):
+                    show_config_menu()
+                    continue
+
+                if selected.startswith("➕"):
+                    custom_id = questionary.text("Enter Model Identifier (e.g. 'claude-3-5-sonnet-20241022', 'gpt-4o', 'deepseek-chat'):").ask()
+                    if custom_id and custom_id.strip():
+                        is_valid, prov, err_msg = validate_model_key_availability(custom_id.strip())
+                        if not is_valid:
+                            print(f"\n{err_msg}\n")
+                            continue
+                        current_model = custom_id.strip()
+                        agent_instance = None
+                        print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for this session.\n")
+                    continue
+
+                if "(" in selected and selected.endswith(")"):
+                    extracted_id = selected[selected.rfind("(") + 1 : -1].strip()
+                    current_model = extracted_id
+                    agent_instance = None
+                    print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for this session.\n")
                 continue
             elif cmd == "/update":
                 run_self_update()
@@ -132,17 +194,39 @@ def run_chat_loop(active_workspace: str = None):
                 print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
                 continue
 
-            if agent_instance is None or active_workspace_for_agent != active_workspace:
-                with Spinner("Initializing AI Agent & Tools..."):
-                    from any_context.core.agent import create_anycontext_agent, saver
-                    agent_instance = create_anycontext_agent(active_workspace=active_workspace, checkpointer=saver)
-                    active_workspace_for_agent = active_workspace
+            # Check for one-shot model prefix (e.g. '@gpt-4o summarize this file')
+            effective_model = current_model
+            effective_prompt = user_input
 
-            print("\033[93m🤖 AI:\033[0m ", end="", flush=True)
+            if user_input.startswith("@") and " " in user_input:
+                target_model, actual_msg = user_input[1:].split(" ", 1)
+                target_model = target_model.strip()
+                actual_msg = actual_msg.strip()
+                if target_model and actual_msg:
+                    from any_context.core.models_catalog import validate_model_key_availability
+                    is_valid, prov, err_msg = validate_model_key_availability(target_model)
+                    if not is_valid:
+                        print(f"\n{err_msg}\n")
+                        continue
+                    effective_model = target_model
+                    effective_prompt = actual_msg
+
+            if agent_instance is None or active_workspace_for_agent != active_workspace or active_model_for_agent != effective_model:
+                with Spinner(f"Initializing AI Agent ({effective_model})..."):
+                    from any_context.core.agent import create_anycontext_agent, saver
+                    agent_instance = create_anycontext_agent(
+                        active_workspace=active_workspace, 
+                        checkpointer=saver,
+                        model_override=effective_model
+                    )
+                    active_workspace_for_agent = active_workspace
+                    active_model_for_agent = effective_model
+
+            print(f"\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ", end="", flush=True)
 
             for token, metadata in agent_instance.stream(
                 {
-                    "messages": [user_input]
+                    "messages": [effective_prompt]
                 },
                 stream_mode="messages",
                 config=config
@@ -152,7 +236,7 @@ def run_chat_loop(active_workspace: str = None):
                         print(token.content, end="", flush=True)
                 elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
                     print("\n📚 Reading retrieved documents... Please wait for AI analysis.")
-                    print("\033[93m🤖 AI:\033[0m ", end="", flush=True)
+                    print(f"\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ", end="", flush=True)
 
             print()
 
