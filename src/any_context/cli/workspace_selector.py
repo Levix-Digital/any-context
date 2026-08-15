@@ -156,6 +156,12 @@ def get_active_workspace() -> str:
         help="View and manage AnyContext subscription plan tiers, pricing, and capabilities."
     )
     parser.add_argument(
+        "--keys", "--api-keys",
+        dest="keys",
+        action="store_true",
+        help="Display the comprehensive guide on obtaining API keys for all AI providers."
+    )
+    parser.add_argument(
         "--web",
         action="store_true",
         help="Manage web sources and URL scraping for workspaces."
@@ -175,6 +181,14 @@ def get_active_workspace() -> str:
 
     if args.version:
         print(f"AnyContext (actx) v{__version__} - Levix Digital")
+        sys.exit(0)
+
+    if args.keys:
+        from any_context.help.manager import display_help_page
+        from any_context.help.registry import get_help_page
+        page = get_help_page("api-keys")
+        if page:
+            display_help_page(page)
         sys.exit(0)
 
     if args.billing:

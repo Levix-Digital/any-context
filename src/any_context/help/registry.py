@@ -385,6 +385,72 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Image & Scanned PDF OCR is supported on 'Starter', 'Pro', 'Team', and 'Enterprise' plan tiers.",
             "Uses pytesseract / PIL OCR engine with automatic SHA-256 hash deduplication."
         ]
+    ),
+
+    "api-keys": HelpPage(
+        command="/api-keys",
+        aliases=["api-keys", "api_keys", "keys", "apikey", "apikeys", "providers", "--api-keys", "--keys"],
+        title="🔑 How to Obtain API Keys & AI Provider Setup Guide",
+        description=(
+            "AnyContext supports 9+ cloud and local offline AI providers. Below is the quick guide with links and key formats:\n\n"
+            "  1. ⚡ OpenAI (ChatGPT, GPT-4o, o1 & Embeddings):\n"
+            "     • Dashboard: https://platform.openai.com/api-keys\n"
+            "     • Key Format: sk-proj-... or sk-...\n"
+            "     • Base URL: https://api.openai.com/v1\n\n"
+            "  2. 🧠 Anthropic (Claude 3.5 Sonnet, Opus & Haiku):\n"
+            "     • Dashboard: https://console.anthropic.com/settings/keys\n"
+            "     • Key Format: sk-ant-...\n"
+            "     • Base URL: https://api.anthropic.com/v1\n\n"
+            "  3. ♊ Google Gemini (Gemini 1.5 Pro, Flash & Text Embedding 004):\n"
+            "     • Dashboard: https://aistudio.google.com/app/apikey\n"
+            "     • Key Format: AIzaSy...\n"
+            "     • Base URL: https://generativelanguage.googleapis.com/v1beta/openai/\n\n"
+            "  4. 🪟 Microsoft Azure OpenAI Service (Enterprise Cloud):\n"
+            "     • Portal: https://portal.azure.com (Azure OpenAI Resource -> Keys and Endpoint)\n"
+            "     • Base URL: https://<your-resource>.openai.azure.com/openai/deployments/<deployment>\n\n"
+            "  5. 🚀 xAI Grok (Grok-2 & Grok-beta):\n"
+            "     • Dashboard: https://console.x.ai\n"
+            "     • Key Format: xai-...\n"
+            "     • Base URL: https://api.x.ai/v1\n\n"
+            "  6. 🐉 DeepSeek (DeepSeek V3 & R1 Reasoning):\n"
+            "     • Dashboard: https://platform.deepseek.com/api_keys\n"
+            "     • Key Format: sk-...\n"
+            "     • Base URL: https://api.deepseek.com/v1\n\n"
+            "  7. ⚡ Groq Cloud (Ultra-Fast Inference for Llama 3.3, Mixtral & Gemma):\n"
+            "     • Dashboard: https://console.groq.com/keys\n"
+            "     • Key Format: gsk_...\n"
+            "     • Base URL: https://api.groq.com/openai/v1\n\n"
+            "  8. 🌐 OpenRouter (Unified Aggregator for 200+ AI Models):\n"
+            "     • Dashboard: https://openrouter.ai/keys\n"
+            "     • Key Format: sk-or-v1-...\n"
+            "     • Base URL: https://openrouter.ai/api/v1\n\n"
+            "  9. 🏠 LM Studio & Ollama (100% Free & Local Private Offline LLMs):\n"
+            "     • LM Studio: Download from https://lmstudio.ai -> Base URL: http://localhost:1234/v1\n"
+            "     • Ollama: Download from https://ollama.com -> Base URL: http://localhost:11434/v1\n"
+            "     • No API Key required for local offline servers!"
+        ),
+        syntax=(
+            "In Chat    : /api-keys   OR   /keys   OR   /help -> '🔑 /api-keys'\n"
+            "  CLI Launch : actx --api-keys   OR   actx --keys\n"
+            "  Config Menu: /config -> '🔑 Manage Saved API Keys' -> '📖 How to Get API Keys'"
+        ),
+        parameters=[
+            "/api-keys, /keys      : View step-by-step guide and portal links for obtaining AI keys.",
+            "--api-keys, --keys    : Launch the API keys guide directly from CLI.",
+            "/config               : Open configuration menu to save or update your API keys securely in SQLite.",
+            "--help, -h, /help, /h : Display this help manual page."
+        ],
+        examples=[
+            "In Chat: /api-keys",
+            "In Chat: /keys",
+            "In Chat: /help",
+            "actx --api-keys",
+            "actx --keys"
+        ],
+        tips=[
+            "API keys are stored securely in local SQLite with PBKDF2 masking and never leave your machine.",
+            "For 100% private and free usage without API keys or credit cards, run LM Studio or Ollama locally."
+        ]
     )
 }
 
