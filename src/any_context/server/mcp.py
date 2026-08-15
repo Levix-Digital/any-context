@@ -336,12 +336,21 @@ def start_mcp_server():
                             }
                         }
                         
-                        full_response = ""
-                        for token, metadata in cli_agent.stream({"messages": [msg]}, stream_mode="messages", config=config):
-                            if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
-                                if isinstance(token.content, str) and token.content:
-                                    full_response += token.content
-                        result_text = full_response.strip()
+                        try:
+                            full_response = ""
+                            for token, metadata in cli_agent.stream({"messages": [msg]}, stream_mode="messages", config=config):
+                                if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
+                                    if isinstance(token.content, str) and token.content:
+                                        full_response += token.content
+                            result_text = full_response.strip()
+                        except Exception as e:
+                            from any_context.core.models_catalog import format_inference_error
+                            err_info = format_inference_error(e, model_req or "default")
+                            result_text = (
+                                f"❌ Inference Error ({err_info['title']}):\n"
+                                f"What happened: {err_info['cause']}\n"
+                                f"Action: {err_info['action']}"
+                            )
 
                     elif tool_name == "list_available_models":
                         from any_context.core.models_catalog import get_available_models

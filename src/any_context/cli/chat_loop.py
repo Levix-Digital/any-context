@@ -211,34 +211,49 @@ def run_chat_loop(active_workspace: str = None):
                     effective_model = target_model
                     effective_prompt = actual_msg
 
-            if agent_instance is None or active_workspace_for_agent != active_workspace or active_model_for_agent != effective_model:
-                with Spinner(f"Initializing AI Agent ({effective_model})..."):
-                    from any_context.core.agent import create_anycontext_agent, saver
-                    agent_instance = create_anycontext_agent(
-                        active_workspace=active_workspace, 
-                        checkpointer=saver,
-                        model_override=effective_model
-                    )
-                    active_workspace_for_agent = active_workspace
-                    active_model_for_agent = effective_model
+            try:
+                if agent_instance is None or active_workspace_for_agent != active_workspace or active_model_for_agent != effective_model:
+                    with Spinner(f"Initializing AI Agent ({effective_model})..."):
+                        from any_context.core.agent import create_anycontext_agent, saver
+                        agent_instance = create_anycontext_agent(
+                            active_workspace=active_workspace, 
+                            checkpointer=saver,
+                            model_override=effective_model
+                        )
+                        active_workspace_for_agent = active_workspace
+                        active_model_for_agent = effective_model
 
-            print(f"\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ", end="", flush=True)
+                print(f"\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ", end="", flush=True)
 
-            for token, metadata in agent_instance.stream(
-                {
-                    "messages": [effective_prompt]
-                },
-                stream_mode="messages",
-                config=config
-            ):
-                if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
-                    if isinstance(token.content, str) and token.content:
-                        print(token.content, end="", flush=True)
-                elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
-                    print("\n📚 Reading retrieved documents... Please wait for AI analysis.")
-                    print(f"\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ", end="", flush=True)
+                for token, metadata in agent_instance.stream(
+                    {
+                        "messages": [effective_prompt]
+                    },
+                    stream_mode="messages",
+                    config=config
+                ):
+                    if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
+                        if isinstance(token.content, str) and token.content:
+                            print(token.content, end="", flush=True)
+                    elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
+                        print("\n📚 Reading retrieved documents... Please wait for AI analysis.")
+                        print(f"\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ", end="", flush=True)
 
-            print()
+                print()
+
+            except Exception as e:
+                from any_context.core.models_catalog import format_inference_error
+                err_info = format_inference_error(e, effective_model)
+                print(err_info["formatted_box"])
+
+                # Invalidate agent instance so next prompt re-initializes cleanly
+                agent_instance = None
+                active_model_for_agent = None
+
+                # If the failed model was set as current_model, offer automatic fallback
+                if current_model == effective_model and current_model != "gpt-4o-mini":
+                    current_model = "gpt-4o-mini"
+                    print(f"🔄 Automatically reverted active session model to \033[95m{current_model}\033[0m.\n")
 
         except KeyboardInterrupt:
             print("\nExiting...")
