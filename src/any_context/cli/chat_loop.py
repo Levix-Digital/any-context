@@ -28,7 +28,7 @@ def run_chat_loop(active_workspace: str = None):
     current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
 
     print("\n=======================================================")
-    print("💬 Chat started! Press Ctrl+C to exit.")
+    print("💬 Chat started! Type '/exit' or press Ctrl+C to quit.")
     print("=======================================================\n")
 
     agent_instance = None
@@ -47,6 +47,24 @@ def run_chat_loop(active_workspace: str = None):
             # Intercept command help flags and /help commands
             if handle_command_help_interception(user_input):
                 continue
+
+            elif cmd in ["/exit", "/quit", "/q", "exit", "quit"]:
+                try:
+                    confirm = questionary.confirm(
+                        "❓ Are you sure you want to exit AnyContext?",
+                        default=True
+                    ).ask()
+                except Exception:
+                    confirm = True
+
+                if confirm:
+                    print("\n👋 Saving session memory and exiting AnyContext. See you soon!\n")
+                    from any_context.memory import run_session_summarizer_async
+                    run_session_summarizer_async(thread_id, active_workspace)
+                    break
+                else:
+                    print("↩️ Resuming session...\n")
+                    continue
 
             elif cmd in ["/version", "/v"]:
                 print(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital")
@@ -241,6 +259,9 @@ def run_chat_loop(active_workspace: str = None):
 
                 print()
 
+            except KeyboardInterrupt:
+                print("\n\n⏹️ Generation interrupted by user.\n")
+                continue
             except Exception as e:
                 from any_context.core.models_catalog import format_inference_error
                 err_info = format_inference_error(e, effective_model)
@@ -256,10 +277,23 @@ def run_chat_loop(active_workspace: str = None):
                     print(f"🔄 Automatically reverted active session model to \033[95m{current_model}\033[0m.\n")
 
         except KeyboardInterrupt:
-            print("\nExiting...")
-            from any_context.memory import run_session_summarizer_async
-            run_session_summarizer_async(thread_id, active_workspace)
-            break
+            print()
+            try:
+                confirm = questionary.confirm(
+                    "❓ Are you sure you want to exit AnyContext?",
+                    default=False
+                ).ask()
+            except (KeyboardInterrupt, Exception):
+                confirm = True
+
+            if confirm:
+                print("\n👋 Saving session memory and exiting AnyContext. See you soon!\n")
+                from any_context.memory import run_session_summarizer_async
+                run_session_summarizer_async(thread_id, active_workspace)
+                break
+            else:
+                print("↩️ Resuming session...\n")
+                continue
 
 
 def main_cli():
