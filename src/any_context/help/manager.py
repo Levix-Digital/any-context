@@ -46,13 +46,14 @@ def show_interactive_help_menu():
     """Displays an interactive Questionary menu listing all command documentation topics."""
     while True:
         choices = [
-            "📂 /switch (Workspace Switching & DB Synchronization)",
-            "🤖 /model (On-The-Fly Inference Model Switching)",
-            "⚙️ /config (Configuration Menu, AI Models & RBAC)",
-            "🔑 /api-keys (How to Get API Keys - Guide & Links)",
+            "📂 /switch (Workspace Switching & Scope Isolation)",
+            "⚡ /sync & /index (Workspace Document Synchronization & Deep Scan)",
+            "🤖 /model (Dynamic AI Model Switching & 9 Providers)",
+            "⚙️ /config (Configuration Menu, AI Models & Workspaces)",
+            "🔑 /api-keys (How to Get API Keys - Guide & Portal Links)",
             "🌐 /web (Web Scraping & Recurring Polling Engine)",
             "📷 /ocr (Image & Scanned PDF OCR Ingestion)",
-            "💳 /billing (Subscription Plans, Tiers & Capabilities)",
+            "💳 /billing (Subscription Plans, Licensing & Capabilities)",
             "🤝 /share (Workspace Sharing & Collaboration)",
             "🔐 /auth & /login (User Accounts, Access Control & Bearer Tokens)",
             "🚀 --serve (REST API Server & Enterprise VPC Deploy)",
@@ -74,6 +75,8 @@ def show_interactive_help_menu():
 
         if choice.startswith("📂"):
             page = get_help_page("switch")
+        elif choice.startswith("⚡"):
+            page = get_help_page("sync")
         elif choice.startswith("🤖"):
             page = get_help_page("model")
         elif choice.startswith("⚙️"):
