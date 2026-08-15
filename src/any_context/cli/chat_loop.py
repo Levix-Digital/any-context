@@ -50,17 +50,18 @@ def run_chat_loop(active_workspace: str = None):
 
             elif cmd in ["/exit", "/quit", "/q", "exit", "quit"]:
                 try:
-                    confirm = questionary.confirm(
-                        "❓ Are you sure you want to exit AnyContext?",
-                        default=True
-                    ).ask()
-                except Exception:
-                    confirm = True
+                    confirm_ans = input("\033[93m❓ Are you sure you want to exit AnyContext? [Y/n]:\033[0m ").strip().lower()
+                    should_exit = confirm_ans not in ["n", "no", "nao", "não"]
+                except (KeyboardInterrupt, EOFError):
+                    should_exit = True
 
-                if confirm:
+                if should_exit:
                     print("\n👋 Saving session memory and exiting AnyContext. See you soon!\n")
-                    from any_context.memory import run_session_summarizer_async
-                    run_session_summarizer_async(thread_id, active_workspace)
+                    try:
+                        from any_context.memory import run_session_summarizer_async
+                        run_session_summarizer_async(thread_id, active_workspace)
+                    except Exception:
+                        pass
                     break
                 else:
                     print("↩️ Resuming session...\n")
@@ -286,20 +287,21 @@ def run_chat_loop(active_workspace: str = None):
                     current_model = "gpt-4o-mini"
                     print(f"🔄 Automatically reverted active session model to \033[95m{current_model}\033[0m.\n")
 
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, EOFError):
             print()
             try:
-                confirm = questionary.confirm(
-                    "❓ Are you sure you want to exit AnyContext?",
-                    default=False
-                ).ask()
-            except (KeyboardInterrupt, Exception):
-                confirm = True
+                confirm_ans = input("\033[93m❓ Are you sure you want to exit AnyContext? [y/N]:\033[0m ").strip().lower()
+                should_exit = confirm_ans in ["y", "yes", "s", "sim"]
+            except (KeyboardInterrupt, EOFError):
+                should_exit = True
 
-            if confirm:
+            if should_exit:
                 print("\n👋 Saving session memory and exiting AnyContext. See you soon!\n")
-                from any_context.memory import run_session_summarizer_async
-                run_session_summarizer_async(thread_id, active_workspace)
+                try:
+                    from any_context.memory import run_session_summarizer_async
+                    run_session_summarizer_async(thread_id, active_workspace)
+                except Exception:
+                    pass
                 break
             else:
                 print("↩️ Resuming session...\n")
@@ -307,9 +309,13 @@ def run_chat_loop(active_workspace: str = None):
 
 
 def main_cli():
-    print_startup_update_notice()
-    workspace = get_active_workspace()
-    run_chat_loop(active_workspace=workspace)
+    try:
+        print_startup_update_notice()
+        workspace = get_active_workspace()
+        run_chat_loop(active_workspace=workspace)
+    except (KeyboardInterrupt, EOFError):
+        print("\n\n👋 AnyContext closed.\n")
+        sys.exit(0)
 
 
 def main():

@@ -26,8 +26,12 @@ def entrypoint():
     logging.getLogger("transformers").setLevel(logging.ERROR)
 
     # 4. Now load chat loop and execute
-    from any_context.cli.chat_loop import main_cli
-    main_cli()
+    try:
+        from any_context.cli.chat_loop import main_cli
+        main_cli()
+    except (KeyboardInterrupt, EOFError):
+        print("\n\n👋 AnyContext closed.\n")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
