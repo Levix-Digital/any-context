@@ -418,7 +418,17 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                 reply=full_response.strip()
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Agent execution error: {str(e)}")
+            from any_context.core.models_catalog import format_inference_error
+            err_info = format_inference_error(e, effective_model)
+            raise HTTPException(
+                status_code=400 if "not_found" in str(e).lower() or "404" in str(e) else 500,
+                detail={
+                    "error": err_info["title"],
+                    "model": effective_model,
+                    "cause": err_info["cause"],
+                    "suggested_action": err_info["action"]
+                }
+            )
 
     @app.post("/v1/search", response_model=SearchResponse, tags=["Knowledge Base"])
     def search_knowledge_base(req: SearchRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):

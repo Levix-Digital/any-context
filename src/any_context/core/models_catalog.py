@@ -8,10 +8,10 @@ PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
         "display_name": "OpenAI Cloud",
         "env_var": "OPENAI_API_KEY",
         "models": [
-            {"id": "gpt-4o-mini", "name": "GPT-4o Mini (Fast & Cost-Efficient)", "provider": "openai"},
+            {"id": "gpt-4o-mini", "name": "GPT-4o Mini (Universal - Fast & Efficient)", "provider": "openai"},
             {"id": "gpt-4o", "name": "GPT-4o (High-Capability Multimodal)", "provider": "openai"},
-            {"id": "o1-mini", "name": "o1 Mini (Reasoning & STEM)", "provider": "openai"},
-            {"id": "o3-mini", "name": "o3 Mini (High-Speed Reasoning)", "provider": "openai"},
+            {"id": "o3-mini", "name": "o3 Mini (High-Speed Reasoning - Requires Tier 1+)", "provider": "openai"},
+            {"id": "o1-mini", "name": "o1 Mini (Reasoning - Requires Tier 1+)", "provider": "openai"},
             {"id": "gpt-4-turbo", "name": "GPT-4 Turbo (High Context)", "provider": "openai"}
         ]
     },
@@ -176,3 +176,79 @@ def validate_model_key_availability(model_name: str) -> Tuple[bool, str, Optiona
         return False, provider, err
 
     return True, provider, None
+
+
+def format_inference_error(error: Exception, model_name: str, provider: str = None) -> Dict[str, str]:
+    """
+    Translates raw provider exceptions into user-friendly explanations and actionable next steps.
+    """
+    prov = provider or infer_provider_for_model(model_name)
+    err_str = str(error)
+    err_lower = err_str.lower()
+
+    title = f"⚠️ Inference Error with Model '{model_name}' ({prov.upper()})"
+    cause = ""
+    action = ""
+
+    if "model_not_found" in err_lower or "does not exist or you do not have access" in err_lower or "404" in err_str:
+        if prov == "openai" and ("o1" in model_name or "o3" in model_name):
+            cause = (
+                f"Your OpenAI API key does not have permission to access reasoning model '{model_name}'.\n"
+                "  OpenAI restricts 'o1' and 'o3' reasoning models to accounts with 'Usage Tier 1+'\n"
+                "  (accounts with at least $5 in prepaid credits deposited on OpenAI platform)."
+            )
+            action = (
+                "1. Switch back to a universal model: type '/model gpt-4o-mini' or '/model gpt-4o'\n"
+                "  2. Or unlock reasoning models by adding credits at: https://platform.openai.com/settings/organization/billing"
+            )
+        else:
+            cause = f"The model '{model_name}' was not found or is not enabled for your API key by {prov.capitalize()}."
+            action = (
+                f"1. Switch to a standard model for {prov.capitalize()} (type '/model' to view available list)\n"
+                "  2. Check your project/key permissions in the provider developer dashboard."
+            )
+
+    elif "invalid_api_key" in err_lower or "authentication" in err_lower or "401" in err_str or "unauthorized" in err_lower:
+        cause = f"The API key configured for provider '{prov.capitalize()}' is invalid, expired, or revoked."
+        action = "Update your API key via '/config' -> '🔑 Manage Saved API Keys'."
+
+    elif "insufficient_quota" in err_lower or "quota" in err_lower or "credit" in err_lower or "billing" in err_lower:
+        cause = f"Your {prov.capitalize()} account has run out of credits or has an unpaid balance (Quota Exceeded)."
+        action = (
+            f"1. Add credits in your {prov.capitalize()} billing dashboard.\n"
+            "  2. Or switch to another configured provider or local offline model with '/model'."
+        )
+
+    elif "rate_limit" in err_lower or "429" in err_str or "too many requests" in err_lower:
+        cause = f"You exceeded the requests-per-minute (RPM) or tokens-per-minute (TPM) limit on {prov.capitalize()}."
+        action = "Wait a few moments before retrying, or upgrade your account Tier on the provider dashboard."
+
+    elif "connection" in err_lower or "timeout" in err_lower or "refused" in err_lower:
+        if prov == "local":
+            cause = "Could not connect to local offline model server (LM Studio / Ollama)."
+            action = "Ensure LM Studio or Ollama is running and the local server is started on http://localhost:1234/v1 (or your configured URL)."
+        else:
+            cause = f"Network connection error or timeout while reaching {prov.capitalize()} API."
+            action = "Check your internet connection and proxy settings."
+
+    else:
+        cause = f"Provider {prov.capitalize()} returned an unexpected error:\n  {err_str[:250]}"
+        action = "Try switching to another model with '/model' or verify your configuration in '/config'."
+
+    formatted_box = (
+        f"\n\033[91m{'='*75}\033[0m\n"
+        f"\033[93m{title}\033[0m\n"
+        f"\033[91m{'='*75}\033[0m\n"
+        f"\033[96m🔍 What happened:\033[0m\n  {cause}\n\n"
+        f"\033[92m👉 What you can do:\033[0m\n  {action}\n"
+        f"\033[91m{'='*75}\033[0m\n"
+    )
+
+    return {
+        "title": title,
+        "model": model_name,
+        "provider": prov,
+        "cause": cause,
+        "action": action,
+        "formatted_box": formatted_box
+    }
