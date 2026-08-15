@@ -38,7 +38,8 @@ def run_chat_loop(active_workspace: str = None):
         "configurable": {
             "thread_id": thread_id,
             "active_workspace": active_workspace
-        }
+        },
+        "recursion_limit": 10
     }
 
     with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
@@ -218,18 +219,10 @@ def run_chat_loop(active_workspace: str = None):
                 from any_context.cli.config_menu import _manage_workspace_web_urls
                 _manage_workspace_web_urls(workspace_name=active_workspace)
                 continue
-            elif cmd.startswith("/web add "):
-                from any_context.ingestion.web_scheduler import index_web_url_to_chromadb
-                url_to_add = user_input.strip()[9:].strip()
-                if url_to_add:
-                    with Spinner(f"Scraping and indexing '{url_to_add}' into '{active_workspace}'..."):
-                        res = index_web_url_to_chromadb(workspace_name=active_workspace, url=url_to_add, force=True)
-                    if res.get("status") == "success":
-                        print(f"✅ {res.get('message')}\n")
-                    elif res.get("status") == "unchanged":
-                        print(f"ℹ️ {res.get('message')}\n")
-                    else:
-                        print(f"❌ {res.get('message')}\n")
+            elif cmd.startswith("/web add ") or cmd == "/web add":
+                from any_context.ingestion.web_crawler import run_interactive_web_crawler
+                url_to_add = user_input.strip()[9:].strip() if len(user_input.strip()) > 9 else None
+                run_interactive_web_crawler(workspace_name=active_workspace, start_url=url_to_add)
                 continue
             elif cmd in ["/web list", "/web urls"]:
                 from any_context.ingestion.web_scheduler import WebSchedulerStore
@@ -295,7 +288,7 @@ def run_chat_loop(active_workspace: str = None):
                         active_workspace_for_agent = active_workspace
                         active_model_for_agent = effective_model
 
-                print(f"\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ", end="", flush=True)
+                has_printed_ai_header = False
 
                 for token, metadata in agent_instance.stream(
                     {
@@ -305,18 +298,33 @@ def run_chat_loop(active_workspace: str = None):
                     config=config
                 ):
                     if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
+                        content_str = ""
                         if isinstance(token.content, str) and token.content:
-                            print(token.content, end="", flush=True)
+                            content_str = token.content
                         elif isinstance(token.content, list):
+                            parts = []
                             for part in token.content:
                                 if isinstance(part, str):
-                                    print(part, end="", flush=True)
+                                    parts.append(part)
                                 elif isinstance(part, dict) and "text" in part:
-                                    print(part["text"], end="", flush=True)
-                    elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
-                        print("\n📚 Reading retrieved documents... Please wait for AI analysis.")
-                        print(f"\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ", end="", flush=True)
+                                    parts.append(part["text"])
+                            content_str = "".join(parts)
 
+                        if content_str:
+                            if not has_printed_ai_header:
+                                sys.stdout.write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
+                                sys.stdout.flush()
+                                has_printed_ai_header = True
+                            sys.stdout.write(content_str)
+                            sys.stdout.flush()
+
+                    elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
+                        if not has_printed_ai_header:
+                            sys.stdout.write(f"\r\033[K📚 [RAG] Reading retrieved context documents for AI analysis...")
+                            sys.stdout.flush()
+
+                if not has_printed_ai_header:
+                    sys.stdout.write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
                 print()
 
             except KeyboardInterrupt:

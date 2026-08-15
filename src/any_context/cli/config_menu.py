@@ -237,11 +237,10 @@ def _manage_workspace_web_urls(store: ConfigDBStore = None, workspace_name: str 
     )
     from any_context.billing import BillingManager
     
-    b_mgr = BillingManager()
-    if not b_mgr.can_ingest_source("web"):
-        print("\n⚠️ Web Scraping & Polling requires a 'Pro', 'Team', or 'Enterprise' plan tier.")
-        print("Run '/billing' or 'actx --billing' to view plans and upgrade.\n")
-        return
+def _manage_workspace_web_urls(workspace_name: Optional[str] = None, store: Optional[ConfigDBStore] = None):
+    """Interactive management of Web URLs and Documentation Site Ingestors for a Workspace."""
+    from any_context.ingestion.web_scheduler import WebSchedulerStore, sync_workspace_web_urls
+    from any_context.ingestion.web_crawler import run_interactive_web_crawler
 
     store = store or ConfigDBStore()
     settings = store.get_app_settings()
@@ -272,7 +271,7 @@ def _manage_workspace_web_urls(store: ConfigDBStore = None, workspace_name: str 
         action = questionary.select(
             f"Web Sources Action for '{target_ws}':",
             choices=[
-                "➕ Add Web URL & Index Now",
+                "➕ Add Website / Documentation Portal (Interactive Discovery & Deep Crawl)",
                 "🔄 Force Re-sync / Scrape All Web URLs",
                 "🗑️ Remove Web URL & Purge Vectors",
                 "🔙 Back"
@@ -283,22 +282,7 @@ def _manage_workspace_web_urls(store: ConfigDBStore = None, workspace_name: str 
             break
 
         if action.startswith("➕"):
-            new_url = questionary.text("Enter website or documentation URL to scrape (e.g. https://docs.python.org/3/):").ask()
-            if new_url and new_url.strip():
-                interval = questionary.text("Enter recurring polling interval in hours (default: 24):", default="24").ask()
-                try:
-                    interval_int = int(interval)
-                except ValueError:
-                    interval_int = 24
-                
-                print(f"\n⏳ Scraping and indexing '{new_url}' into workspace '{target_ws}'...")
-                res = index_web_url_to_chromadb(workspace_name=target_ws, url=new_url.strip(), force=True)
-                if res.get("status") == "success":
-                    print(f"✅ {res.get('message')}\n")
-                elif res.get("status") == "unchanged":
-                    print(f"ℹ️ {res.get('message')}\n")
-                else:
-                    print(f"❌ {res.get('message')}\n")
+            run_interactive_web_crawler(workspace_name=target_ws)
 
         elif action.startswith("🔄"):
             if not urls:

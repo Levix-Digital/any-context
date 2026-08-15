@@ -166,41 +166,45 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
 
     "web": HelpPage(
         command="/web",
-        aliases=["web", "--web", "scrape", "sitemap", "website", "websites", "urls"],
-        title="🌐 Real-Time Web Scraping & Recurring Polling",
+        aliases=["web", "--web", "scrape", "sitemap", "website", "websites", "urls", "crawler"],
+        title="🌐 Interactive Web Discovery & Deep Recursive Crawler",
         description=(
-            "The Web Scraping engine allows AnyContext to ingest live websites, documentation portals, "
-            "and articles directly into your active workspace knowledge base. It includes SHA-256 hash tracking "
-            "to only re-index web pages when content actually changes, saving API tokens and compute."
+            "The Web Crawler engine allows AnyContext to ingest entire documentation portals, websites, "
+            "and government/legal databases into your active workspace knowledge base. "
+            "It runs in 2 phases: (1) Fast Discovery (maps internal links and XML sitemaps) and (2) Interactive Scope Selection "
+            "(choose between Section Only, Top 50/250/500 pages, or Entire Domain). "
+            "Uses multi-threaded concurrent downloading and batch ChromaDB vector indexing."
         ),
         syntax=(
-            "In Chat (Menu)   : /web\n"
-            "  In Chat (Add)    : /web add <url>\n"
-            "  In Chat (List)   : /web list\n"
-            "  In Chat (Sync)   : /web sync\n"
-            "  Conversational   : Tell the AI: 'adicione o site https://... ao workspace'\n"
-            "  REST API         : POST /v1/workspaces/{name}/web-urls?url=...\n"
-            "  View Help        : /web --help   OR   /web -h"
+            "In Chat (Interactive Crawler) : /web add <url>   OR   /web add\n"
+            "  In Chat (Management Menu)      : /web\n"
+            "  In Chat (List Sources)         : /web list\n"
+            "  In Chat (Force Sync All)       : /web sync\n"
+            "  Conversational Ingestion       : Tell the AI: 'adicione o site https://... ao workspace'\n"
+            "  REST API                       : POST /v1/workspaces/{name}/web-urls?url=...\n"
+            "  View Help                      : /web --help   OR   /web -h"
         ),
         parameters=[
             "/web                   : Open interactive web sources management menu.",
-            "/web add <url>         : Scrape and index a website URL immediately into the active workspace.",
+            "/web add <url>         : Launch interactive site discovery, scope menu, and concurrent deep crawler.",
             "/web list              : List all configured web URLs and last scrape timestamps.",
             "/web sync              : Force re-scrape and synchronize all web URLs in active workspace.",
-            "url                    : Target web page URL (e.g. 'https://docs.python.org/3/').",
-            "--help, -h            : Display this detailed help page for web scraping."
+            "url                    : Target website URL or documentation portal (e.g. 'https://docs.python.org/3/').",
+            "--help, -h            : Display this detailed help page for web crawler."
         ],
         examples=[
-            "In Chat: /web",
+            "In Chat: /web add https://canada.ca/en/immigration-refugees-citizenship.html",
             "In Chat: /web add https://docs.python.org/3/",
+            "In Chat: /web",
             "In Chat: /web list",
             "In Chat: /web sync",
             "Conversational: 'Adicione a documentação https://platform.openai.com/docs ao workspace'",
             "curl -X POST 'http://127.0.0.1:8000/v1/workspaces/MyProject/web-urls?url=https://docs.python.org/3/'"
         ],
         tips=[
-            "100% unlocked for Community CLI users! You can add unlimited web documentation pages to any workspace.",
-            "Once indexed, web content is instantly searchable by the AI agent alongside your local documents."
+            "100% unlocked for Community CLI users! You can crawl and index entire documentation sites.",
+            "Fast discovery automatically checks XML sitemaps and presents estimated page counts and times before crawling.",
+            "Multi-threaded concurrent crawler downloads 20 to 50 pages per second with smooth progress bar feedback."
         ]
     ),
 
