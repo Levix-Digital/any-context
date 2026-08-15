@@ -48,6 +48,7 @@ def run_chat_loop(active_workspace: str = None):
 
     from any_context.config.app_settings import AppSettings
     from any_context.cli.prompt_session import create_anycontext_prompt_session
+    from prompt_toolkit.formatted_text import ANSI
 
     settings = AppSettings.load()
     current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
@@ -67,11 +68,11 @@ def run_chat_loop(active_workspace: str = None):
 
     while True:
         try:
-            prompt_ws = f"\033[93m{active_workspace}\033[96m" if active_workspace else "Global"
-            prompt_str = f"You [{prompt_ws} | \033[95m{current_model}\033[96m]"
+            ws_display = active_workspace or "Global"
+            prompt_ansi = ANSI(f"\n\033[96m👤 You [\033[93m{ws_display}\033[96m | \033[95m{current_model}\033[96m]:\033[0m ")
 
             try:
-                raw_input = prompt_session.prompt(f"\n👤 {prompt_str}: ")
+                raw_input = prompt_session.prompt(prompt_ansi)
             except (KeyboardInterrupt, EOFError):
                 print()
                 try:
@@ -84,7 +85,7 @@ def run_chat_loop(active_workspace: str = None):
                 except (KeyboardInterrupt, EOFError):
                     raw_input = "/exit"
             except Exception:
-                raw_input = safe_prompt_input(f"\n\033[96m👤 {prompt_str}:\033[0m ")
+                raw_input = safe_prompt_input(f"\n\033[96m👤 You [\033[93m{ws_display}\033[96m | \033[95m{current_model}\033[96m]:\033[0m ")
 
             if raw_input is None:
                 continue
