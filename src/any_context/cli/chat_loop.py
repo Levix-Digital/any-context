@@ -247,14 +247,19 @@ def run_chat_loop(active_workspace: str = None):
             break
 
 
-def main():
-    if "--mcp" not in sys.argv:
-        print_banner()
-        print_startup_update_notice()
+def main_cli():
+    print_startup_update_notice()
     workspace = get_active_workspace()
     run_chat_loop(active_workspace=workspace)
 
 
+def main():
+    if "--mcp" not in sys.argv:
+        print_banner()
+    main_cli()
+
+
 if __name__ == "__main__":
     main()
+
 

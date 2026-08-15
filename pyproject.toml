@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.9.16"
+version = "0.9.17"
 description = "Transform any file, drive, or folder into a living, real-time AI context."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,10 +32,10 @@ dependencies = [
 ]
 
 [project.scripts]
-actx = "any_context.cli.chat_loop:main"
-anycontext = "any_context.cli.chat_loop:main"
-any-context = "any_context.cli.chat_loop:main"
-ac = "any_context.cli.chat_loop:main"
+actx = "any_context.cli.entrypoint:entrypoint"
+anycontext = "any_context.cli.entrypoint:entrypoint"
+any-context = "any_context.cli.entrypoint:entrypoint"
+ac = "any_context.cli.entrypoint:entrypoint"
 
 [tool.setuptools.packages.find]
 where = ["src"]
