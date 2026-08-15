@@ -1,4 +1,4 @@
-from any_context.cli.chat_loop import main
+from any_context.cli.entrypoint import entrypoint
 
 if __name__ == "__main__":
-    main()
+    entrypoint()
