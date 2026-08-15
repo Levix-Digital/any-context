@@ -50,30 +50,26 @@ class BillingStore:
     def get_subscription_status(self) -> SubscriptionStatus:
         import os
         from dotenv import load_dotenv
+        from any_context.billing.crypto import verify_license_key
         load_dotenv()
 
         env_key = os.getenv("ANYCONTEXT_LICENSE_KEY") or os.getenv("LEVIX_LICENSE_KEY")
         if env_key and env_key.strip():
-            k_lower = env_key.strip().lower()
-            if any(p in k_lower for p in ["enterprise", "ent", "vpc"]):
-                plan = get_plan_by_id("enterprise")
-            elif any(p in k_lower for p in ["team", "collab"]):
-                plan = get_plan_by_id("team")
-            elif any(p in k_lower for p in ["pro", "server"]):
-                plan = get_plan_by_id("pro")
-            else:
-                plan = get_plan_by_id("enterprise")
-
-            return SubscriptionStatus(
-                active_tier_id=plan.tier_id,
-                active_tier_name=plan.name,
-                license_key=env_key.strip(),
-                activated_at="Activated via .env",
-                base_seats=plan.base_seats,
-                total_seats=plan.base_seats,
-                extra_seat_price_usd=plan.extra_seat_price_usd,
-                capabilities=plan.capabilities
-            )
+            is_valid, claims, err = verify_license_key(env_key.strip())
+            if is_valid and claims:
+                tier = claims.get("tier", "enterprise")
+                plan = get_plan_by_id(tier)
+                return SubscriptionStatus(
+                    active_tier_id=plan.tier_id,
+                    active_tier_name=plan.name,
+                    license_key=env_key.strip(),
+                    activated_at=claims.get("issued_at", "Activated via .env"),
+                    expires_at=claims.get("expires_at"),
+                    base_seats=claims.get("seats", plan.base_seats),
+                    total_seats=claims.get("seats", plan.base_seats),
+                    extra_seat_price_usd=plan.extra_seat_price_usd,
+                    capabilities=plan.capabilities
+                )
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
