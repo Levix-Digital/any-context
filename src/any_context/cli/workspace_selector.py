@@ -22,15 +22,31 @@ def show_workspace_menu() -> str:
         sys.exit(1)
 
     workspace_names = [ws.name for ws in settings.workspaces]
+    if len(workspace_names) == 1:
+        return workspace_names[0]
     
-    selected = questionary.select(
-        "Select the active workspace:",
-        choices=workspace_names
-    ).ask()
+    selected = None
+    try:
+        selected = questionary.select(
+            "Select the active workspace:",
+            choices=workspace_names
+        ).ask()
+    except Exception:
+        selected = None
     
     if not selected:
-        print("❌ No workspace selected. Exiting...")
-        sys.exit(0)
+        # Fallback to standard input if curses/PTY selection is interrupted or unsupported
+        print("\nSelect the active workspace:")
+        for idx, ws in enumerate(workspace_names, start=1):
+            print(f"  {idx}. {ws}")
+        try:
+            choice_idx = input(f"\nEnter workspace number [1-{len(workspace_names)}] (default: 1): ").strip()
+            if choice_idx.isdigit() and 1 <= int(choice_idx) <= len(workspace_names):
+                selected = workspace_names[int(choice_idx) - 1]
+            else:
+                selected = workspace_names[0]
+        except (KeyboardInterrupt, EOFError):
+            selected = workspace_names[0]
         
     return selected
 
