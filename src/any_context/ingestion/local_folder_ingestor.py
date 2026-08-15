@@ -92,7 +92,7 @@ def build_help_registry_document() -> Document:
     full_text = "\n".join(text_blocks)
     return Document(text=full_text, metadata={"file_name": "AnyContext Command Manual & Help Registry (HELP_REGISTRY)"})
 
-def clear_context_vector_db():
+def clear_context_vector_db(verbose: bool = False):
     """
     Purges ChromaDB vector collection and docstore file to prevent dimension mismatch errors
     when embedding models are changed.
@@ -111,11 +111,13 @@ def clear_context_vector_db():
         docstore_path = os.path.join(db_path, "docstore.json")
         if os.path.exists(docstore_path):
             os.remove(docstore_path)
-        safe_print("🧹 Context vector collection and docstore successfully cleared for re-indexing!")
+        if verbose:
+            safe_print("│ ├─ 🧹 Context vector collection and docstore cleared for re-indexing")
     except Exception as e:
-        safe_print(f"⚠️ Warning during vector db clear: {e}")
+        if verbose:
+            safe_print(f"│ ├─ ⚠️ Warning during vector db clear: {e}")
 
-def run_index_folder(workspace_name: str = None):
+def run_index_folder(workspace_name: str = None, verbose: bool = False):
     """
     Index documents in the vector database incrementally across all configured workspaces,
     or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
@@ -123,12 +125,17 @@ def run_index_folder(workspace_name: str = None):
     """
     current_settings = AppSettings.load() or settings
     if not current_settings or not current_settings.workspaces:
-        safe_print("❌ Error: No workspaces configured in settings.")
+        if verbose:
+            safe_print("❌ Error: No workspaces configured in settings.")
         return
 
     configure_embedding_model()
 
-    safe_print("⚡ 1. Connecting to ChromaDB...")
+    target_ws_name = workspace_name or (current_settings.workspaces[0].name if current_settings.workspaces else "Global")
+
+    if verbose:
+        safe_print(f"\n┌ 📦 \033[1mIngestion Pipeline: {target_ws_name}\033[0m")
+        safe_print(f"│ ├─ 📂 Storage     : ChromaDB ({db_save_path}/{collection_name})")
 
     db = chromadb.PersistentClient(path=db_save_path)
     collection = db.get_or_create_collection(collection_name)
@@ -151,7 +158,9 @@ def run_index_folder(workspace_name: str = None):
     )
 
     all_documents = []
-    
+    total_discovered_files = 0
+    scanned_file_samples = []
+
     # Locate application README.md for permanent system help context
     readme_path = None
     readme_candidates = [
@@ -169,22 +178,21 @@ def run_index_folder(workspace_name: str = None):
         if workspace_name and ws.name != workspace_name:
             continue
         workspaces_to_process.append(ws)
-        safe_print(f"\n📂 Workspace: {ws.name}")
         
         ws_file_paths = []
         for folder_path in ws.paths:
             if not os.path.exists(folder_path):
-                safe_print(f"⚠️ Warning: Directory '{folder_path}' does not exist. (Its documents will be purged from DB)")
+                if verbose:
+                    safe_print(f"│ ├─ ⚠️ Directory missing: {folder_path}")
                 continue
                 
-            safe_print(f"  🔍 Deep scanning subfolders in: {folder_path}")
             discovered_files = discover_workspace_files(folder_path)
             ws_file_paths.extend(discovered_files)
-            safe_print(f"  ✅ Discovered {len(discovered_files)} files across all subdirectories.")
+            total_discovered_files += len(discovered_files)
+            scanned_file_samples.extend(discovered_files[:4])
 
         # Load discovered files safely
         if ws_file_paths:
-            safe_print(f"  ⏳ Parsing and reading {len(ws_file_paths)} files for workspace '{ws.name}'...")
             try:
                 reader = SimpleDirectoryReader(input_files=ws_file_paths)
                 docs = reader.load_data()
@@ -193,11 +201,8 @@ def run_index_folder(workspace_name: str = None):
                     if "file_path" in d.metadata:
                         d.id_ = d.metadata["file_path"]
                 all_documents.extend(docs)
-                safe_print(f"  📖 Successfully loaded {len(docs)} document chunks for workspace '{ws.name}'.")
-            except Exception as e:
+            except Exception:
                 # Fallback: file-by-file loading if a batch contains a corrupted or locked file
-                safe_print("  ⚠️ Batch load encountered an unreadable file. Fallback: processing files individually...")
-                loaded_fallback = 0
                 for single_file in ws_file_paths:
                     try:
                         single_reader = SimpleDirectoryReader(input_files=[single_file])
@@ -207,10 +212,8 @@ def run_index_folder(workspace_name: str = None):
                             if "file_path" in d.metadata:
                                 d.id_ = d.metadata["file_path"]
                         all_documents.extend(s_docs)
-                        loaded_fallback += len(s_docs)
                     except Exception:
-                        safe_print(f"  ⚠️ Skipping unreadable or locked file: {os.path.basename(single_file)}")
-                safe_print(f"  📖 Loaded {loaded_fallback} document chunks via resilient fallback mode.")
+                        pass
 
         # Auto-inject application README.md as permanent system context for this workspace
         if readme_path:
@@ -223,7 +226,6 @@ def run_index_folder(workspace_name: str = None):
                     rd.metadata["file_name"] = "AnyContext System Documentation (README.md)"
                     rd.id_ = f"system_readme_{ws.name}"
                 all_documents.extend(readme_docs)
-                safe_print(f"  📘 Injected AnyContext System Documentation (README.md) as permanent help context.")
             except Exception:
                 pass
 
@@ -234,25 +236,33 @@ def run_index_folder(workspace_name: str = None):
             help_doc.metadata["is_system_help"] = True
             help_doc.id_ = f"system_help_registry_{ws.name}"
             all_documents.append(help_doc)
-            safe_print(f"  📖 Injected Help Module Command Registry (HELP_REGISTRY) as permanent self-help context.")
-        except Exception as e:
+        except Exception:
             pass
-                
+
+    if verbose:
+        safe_print(f"│ ├─ 🔍 Discovery   : {total_discovered_files} files scanned across configured paths")
+        for sample in scanned_file_samples[:3]:
+            safe_print(f"│ │    • 📄 {os.path.basename(sample)}")
+        if total_discovered_files > 3:
+            safe_print(f"│ │    • ... (+ {total_discovered_files - 3} more files)")
+        safe_print(f"│ ├─ 📚 Chunks      : {len(all_documents)} document nodes parsed")
+        safe_print(f"│ ├─ 📖 System Help : Auto-injected README.md & Command Manual (HELP_REGISTRY)")
+        embed_label = local_openai_embedding_model if (LOCAL_API_KEY and LOCAL_API_KEY.startswith("sk-")) else local_embedding_model
+        safe_print(f"│ ├─ ⚡ Embeddings  : {embed_label} (incremental check)")
+
     if not all_documents:
-        safe_print("❌ No valid documents found across any workspace.")
+        if verbose:
+            safe_print("└ ❌ No valid documents found across any workspace.\n")
         return
         
-    safe_print("\n⚡ 2. Executing incremental check on vector database...")
-    safe_print("⏳ Processing files and generating embeddings...")
-    
     try:
-        nodes = pipeline.run(documents = all_documents, show_progress=True)
+        nodes = pipeline.run(documents=all_documents, show_progress=False)
     except Exception as e:
         err_str = str(e).lower()
         if "dimension" in err_str or "invalidargumenterror" in err_str or "expecting embedding" in err_str:
-            safe_print("\n⚠️ Embedding Model Dimension Mismatch Detected!")
-            safe_print("🧹 Auto-clearing incompatible vector database (ChromaDB) and performing fresh re-indexing...")
-            clear_context_vector_db()
+            if verbose:
+                safe_print("│ ├─ 🧹 Auto-clearing incompatible vector database (ChromaDB) for fresh re-indexing...")
+            clear_context_vector_db(verbose=verbose)
 
             db = chromadb.PersistentClient(path=db_save_path)
             collection = db.get_or_create_collection(collection_name)
@@ -268,15 +278,13 @@ def run_index_folder(workspace_name: str = None):
                 docstore = docstore,
                 docstore_strategy = DocstoreStrategy.UPSERTS
             )
-            nodes = pipeline.run(documents = all_documents, show_progress=True)
+            nodes = pipeline.run(documents=all_documents, show_progress=False)
         elif "no embedding data" in err_str or "connection" in err_str:
-            safe_print("\n❌ Error generating embeddings: The configured model endpoint did not return embedding data.")
-            safe_print("💡 If you are using a local server (LM Studio / Ollama), make sure an embedding model is active, or configure your OpenAI API Key via '/config'.")
+            if verbose:
+                safe_print("└ ❌ Error generating embeddings: endpoint did not return embedding data.\n")
             return
         else:
             raise e
-
-
 
     current_doc_ids = {doc.doc_id for doc in all_documents}
     processed_workspace_names = {ws.name for ws in workspaces_to_process}
@@ -294,24 +302,23 @@ def run_index_folder(workspace_name: str = None):
                 except Exception:
                     pass
 
-    if deleted_count > 0:
-        safe_print(f"🗑️ Purged {deleted_count} old file chunks from the database.")
+    if verbose:
+        safe_print(f"│ └─ 🧹 Maintenance : {deleted_count} outdated chunks purged")
+        safe_print(f"└ \033[92m✔ Ingestion completed successfully!\033[0m\n")
 
     docstore.persist(persist_path=docstore_path)
 
-    safe_print("🎉 Success! Incremental vectorial database updated!")
-
 
 @tool()
-def index_folder(workspace_name: str = None):
+def index_folder(workspace_name: str = None, verbose: bool = False):
     """
     Index documents in the vector database incrementally across all configured workspaces,
     or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
     Automatically embeds application README and Help Module Registry as permanent system self-help context.
     """
-    return run_index_folder(workspace_name=workspace_name)
+    return run_index_folder(workspace_name=workspace_name, verbose=verbose)
 
 
 if __name__ == "__main__":
-    run_index_folder()
+    run_index_folder(verbose=True)
 
