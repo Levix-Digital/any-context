@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.9.24"
+version = "0.9.25"
 description = "Transform any file, drive, or folder into a living, real-time AI context."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,7 +28,10 @@ dependencies = [
     "tqdm",
     "python-dotenv",
     "fastapi",
-    "uvicorn"
+    "uvicorn",
+    "langchain-anthropic>=1.5.6",
+    "langchain-google-genai>=4.3.4",
+    "langchain-groq>=1.1.3",
 ]
 
 [project.scripts]

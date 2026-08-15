@@ -7,6 +7,9 @@ llama-index-embeddings-openai
 docx2txt
 langchain
 langchain-openai
+langchain-anthropic
+langchain-google-genai
+langchain-groq
 langgraph-checkpoint-sqlite
 langgraph-cli
 pydantic
