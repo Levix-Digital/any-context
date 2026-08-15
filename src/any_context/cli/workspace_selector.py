@@ -237,7 +237,18 @@ def get_active_workspace() -> str:
         sys.exit(0)
 
     if args.check_update:
-        check_for_updates(quiet_if_latest=False)
+        has_up, new_tag = check_for_updates(quiet_if_latest=False)
+        if has_up:
+            try:
+                import questionary
+                do_upgrade = questionary.confirm(
+                    f"Would you like to download and install {new_tag} now?",
+                    default=True
+                ).ask()
+                if do_upgrade:
+                    run_self_update()
+            except Exception:
+                pass
         sys.exit(0)
 
     if args.config:

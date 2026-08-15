@@ -359,8 +359,8 @@ def run_chat_loop(active_workspace: str = None):
 
 def main_cli():
     try:
-        print_startup_update_notice()
         workspace = get_active_workspace()
+        print_startup_update_notice()
         run_chat_loop(active_workspace=workspace)
     except (KeyboardInterrupt, EOFError):
         print("\n\n👋 AnyContext closed.\n")
