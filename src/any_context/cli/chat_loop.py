@@ -41,9 +41,9 @@ def run_chat_loop(active_workspace: str = None):
         }
     }
 
-    with Spinner(f"Synchronizing workspace file database for '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' synchronized"):
-        from any_context.ingestion.local_folder_ingestor import index_folder
-        index_folder.invoke({"workspace_name": active_workspace})
+    with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+        from any_context.ingestion.local_folder_ingestor import run_index_folder
+        run_index_folder(workspace_name=active_workspace, verbose=False)
 
     from any_context.config.app_settings import AppSettings
     settings = AppSettings.load()
@@ -91,10 +91,20 @@ def run_chat_loop(active_workspace: str = None):
                 if new_workspace:
                     active_workspace = new_workspace
                     config["configurable"]["active_workspace"] = active_workspace
-                    with Spinner(f"Re-synchronizing file database for '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' synchronized"):
-                        from any_context.ingestion.local_folder_ingestor import index_folder
-                        index_folder.invoke({"workspace_name": active_workspace})
+                    with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+                        from any_context.ingestion.local_folder_ingestor import run_index_folder
+                        run_index_folder(workspace_name=active_workspace, verbose=False)
                     agent_instance = None
+                continue
+            elif cmd in ["/sync", "/resync", "/index"] or cmd.startswith("/sync ") or cmd.startswith("/index "):
+                is_verbose = "--verbose" in user_input or "-v" in user_input
+                from any_context.ingestion.local_folder_ingestor import run_index_folder
+                if is_verbose:
+                    run_index_folder(workspace_name=active_workspace, verbose=True)
+                else:
+                    with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+                        run_index_folder(workspace_name=active_workspace, verbose=False)
+                agent_instance = None
                 continue
             elif cmd == "/model" or cmd == "/m" or cmd.startswith("/model ") or cmd.startswith("/m "):
                 from any_context.core.models_catalog import get_available_models, validate_model_key_availability
@@ -243,7 +253,7 @@ def run_chat_loop(active_workspace: str = None):
                 import difflib
                 known_commands = [
                     "/help", "/exit", "/quit", "/q", "/version", "/v",
-                    "/switch", "/model", "/m", "/update", "/check-update",
+                    "/switch", "/model", "/m", "/sync", "/index", "/update", "/check-update",
                     "/reset-memory", "/reset", "/factory-reset", "/config",
                     "/keys", "/billing", "/plans", "/web"
                 ]
