@@ -2,8 +2,6 @@ import sys
 import os
 import questionary
 from any_context.config.db_store import ConfigDBStore, safe_print
-from any_context.memory import MemoryManager
-from any_context.ingestion.local_folder_ingestor import clear_context_vector_db
 
 def mask_key(key: str) -> str:
     if not key or len(key) < 8:
@@ -403,8 +401,8 @@ def _manage_models(store: ConfigDBStore):
     if new_emb_model and old_emb_model and new_emb_model != old_emb_model:
         print(f"\n⚠️ Notice: Embedding model changed from '{old_emb_model}' to '{new_emb_model}'.")
         print("🧹 Clearing vector database (ChromaDB) to force clean re-indexing and prevent dimension mismatch errors...")
+        from any_context.ingestion.local_folder_ingestor import clear_context_vector_db, run_index_folder
         clear_context_vector_db()
-        from any_context.ingestion.local_folder_ingestor import run_index_folder
         print("⚡ Re-indexing workspace documents with new embedding model...")
         run_index_folder()
     elif new_emb_model:
@@ -491,6 +489,7 @@ def _manage_memory(store: ConfigDBStore):
     if not action or action.startswith("🔙") or action.startswith("⚙️"):
         return
 
+    from any_context.memory import MemoryManager
     memory_mgr = MemoryManager(settings=settings)
 
     if action.startswith("🧹"):
