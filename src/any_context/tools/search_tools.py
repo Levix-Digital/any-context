@@ -90,15 +90,18 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         nodes = []
         filters = None
 
+        import sys
         if workspace and not search_session_memory:
-            safe_print(f"\n🔍 [Search] Searching strictly within Workspace: '{workspace}' (retrieving top {search_k} chunks)...")
+            sys.stdout.write(f"\r\033[K🔍 [Search] Searching strictly within Workspace: '{workspace}' (top {search_k} chunks)...")
+            sys.stdout.flush()
             filters = MetadataFilters(
                 filters=[ExactMatchFilter(key="workspace", value=workspace)]
             )
             retriever = index.as_retriever(similarity_top_k=search_k, filters=filters)
             nodes = retriever.retrieve(prompt_text)
         elif not search_session_memory:
-            safe_print(f"\n🔍 [Search] Searching globally across all workspaces (retrieving top {search_k} chunks)...")
+            sys.stdout.write(f"\r\033[K🔍 [Search] Searching across workspaces (top {search_k} chunks)...")
+            sys.stdout.flush()
             retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
             nodes = retriever.retrieve(prompt_text)
         else:
@@ -124,29 +127,33 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
 
 
 @tool()
-def add_web_source(url: str, workspace: str = None, polling_interval_hours: int = 24) -> str:
+def add_web_source(url: str, workspace: str = None, polling_interval_hours: int = 24, max_pages: int = 50) -> str:
     """
-    Scrapes and indexes a website URL into the vector database for a workspace, setting up recurring polling.
-    Allows the AI agent and user to query live web documentation, websites, and articles.
+    Crawls and indexes a website or documentation portal into the vector database for a workspace.
+    Automatically discovers and indexes sub-pages within the same section.
 
     Args:
-        url (str): The web page URL to scrape and index (e.g. 'https://docs.python.org/3/').
+        url (str): The website or documentation URL to scrape and index (e.g. 'https://docs.python.org/3/').
         workspace (str, optional): The target workspace name. If omitted, uses active workspace.
         polling_interval_hours (int): Polling frequency in hours (default: 24).
+        max_pages (int): Maximum number of sub-pages to crawl (default: 50).
 
     Returns:
         str: Success confirmation or error message.
     """
-    from any_context.ingestion.web_scheduler import index_web_url_to_chromadb
+    from any_context.ingestion.web_crawler import discover_site_urls, crawl_and_index_urls
     target_ws = workspace or "Default"
-    safe_print(f"\n🌐 [Web Ingestion] Scraping and indexing '{url}' into workspace '{target_ws}'...")
-    res = index_web_url_to_chromadb(workspace_name=target_ws, url=url)
+    
+    disc = discover_site_urls(url)
+    target_urls = disc.get("section_urls") or [url]
+    if len(target_urls) > max_pages:
+        target_urls = target_urls[:max_pages]
+
+    res = crawl_and_index_urls(workspace_name=target_ws, urls=target_urls, max_workers=8)
     if res.get("status") == "success":
-        return f"✅ Successfully scraped and indexed web source '{res.get('title')}' ({url}) into workspace '{target_ws}'. Total {res.get('char_count')} characters indexed."
-    elif res.get("status") == "unchanged":
-        return f"ℹ️ Web source '{url}' is already up-to-date in workspace '{target_ws}'."
+        return f"✅ Successfully crawled and indexed {res.get('indexed_count', len(target_urls))} web pages ({res.get('total_chars', 0):,} characters) for '{disc.get('title')}' ({url}) into workspace '{target_ws}'."
     else:
-        return f"❌ Failed to index web source: {res.get('message', 'Unknown error')}"
+        return f"ℹ️ Ingested {res.get('indexed_count', 0)} web pages into workspace '{target_ws}'."
 
 
 @tool()

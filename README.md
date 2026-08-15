@@ -44,7 +44,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🔓 100% Unlocked Community Edition CLI**: Full local power for individual users at zero cost:
   - Unlimited local workspaces and folders.
   - Deep recursive subfolder scanning.
-  - Real-time Web Scraping & Polling (`/web`).
+  - **Interactive 2-Phase Web Crawler & Sitemap Engine** (`/web add`): Fast discovery phase maps all internal URLs and XML sitemaps, presenting estimated page counts before concurrent multi-threaded crawling.
   - Image & Scanned PDF OCR parsing (`/ocr`).
   - ChromaDB local vector storage & SQLite long-term memory.
   - Access to all 9 supported AI model providers.
@@ -164,12 +164,34 @@ Aqui está o resumo executivo:
 3. Vigência: 24 meses com rescisão mediante aviso prévio de 30 dias.
 ```
 
-### 3. Adding a Live Website or Documentation to Context
+### 3. Interactive Web Discovery & Deep Site Crawling (`/web add`)
 ```text
-You [DevDocs | deepseek-chat]: /web add https://docs.python.org/3/tutorial/errors.html
-🌐 [Web Ingestion] Successfully scraped and indexed '8. Errors and Exceptions — Python 3 Documentation'.
+You [Immigration | gpt-4o-mini]: /web add https://www.canada.ca/en/immigration-refugees-citizenship.html
 
-You [DevDocs | deepseek-chat]: Como funciona a sintaxe do bloco 'try...except...else' no Python?
+⠋ [Discovery] Mapping site structure, internal links & sitemaps for 'canada.ca'...
+
+================================================================================
+🌐 Website Discovery Report: Immigration, Refugees and Citizenship Canada
+🔗 https://www.canada.ca/en/immigration-refugees-citizenship.html
+================================================================================
+  • 📄 Section Pages (matching path prefix) : 142 pages
+  • 🌐 Total Internal Domain URLs Found    : 1,580 pages
+  • 🗺️ XML Sitemap Detected                : Yes (Structured XML)
+================================================================================
+
+? Select indexing scope for workspace 'Immigration':
+  ❯ 1. 📄 Current Section Only (142 pages) [Recommended]
+    2. ⚡ Fast Crawl Limit (Top 50 pages) ~ 5s
+    3. 🚀 Deep Crawl Limit (Top 250 pages) ~ 20s
+    4. 📦 Extensive Crawl Limit (Top 500 pages) ~ 45s
+    5. 🌐 Entire Discovered Domain (1,580 pages)
+    6. 📄 Single Start Page Only (1 page) ~ 1s
+
+⠸ [Web Crawler] [████████████████████████] 142/142 (100%) • 142 indexed
+✔ Successfully ingested and indexed 142 web pages (845,210 chars) into workspace 'Immigration'!
+
+You [Immigration | gpt-4o-mini]: Quem é elegível para aplicar para um Open Work Permit no Canadá?
+🤖 AI [gpt-4o-mini]: De acordo com a documentação do IRCC indexada...
 ```
 
 ### 4. Viewing Workspace Tree Structure (`/sync --verbose`)
