@@ -19,7 +19,13 @@ def entrypoint():
         from any_context.cli.banner import print_banner
         print_banner()
 
-    # 3. Now load chat loop and execute
+    # 3. Configure logging silencers
+    import logging
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("transformers").setLevel(logging.ERROR)
+
+    # 4. Now load chat loop and execute
     from any_context.cli.chat_loop import main_cli
     main_cli()
 
