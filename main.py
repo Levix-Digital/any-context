@@ -15,12 +15,6 @@ src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
 if src_dir not in sys.path:
     sys.path.insert(0, src_dir)
 
-import logging
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("transformers").setLevel(logging.ERROR)
-
-
 from any_context.cli.entrypoint import entrypoint
 
 if __name__ == "__main__":
