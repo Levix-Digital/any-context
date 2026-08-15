@@ -28,11 +28,17 @@ def fetch_latest_release_tag() -> Optional[str]:
     Fetches the latest release tag from GitHub.
     Uses public GitHub REST API first (fast & zero dependencies), and falls back to gh CLI for private repos.
     """
-    # 1. Try public GitHub API first (Fast, lightweight, no sub-process overhead)
+    import time
+    # 1. Try public GitHub API first with cache-busting (Fast, lightweight, no sub-process overhead)
     try:
-        url = f"https://api.github.com/repos/{REPO}/releases/latest"
-        req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-CLI"})
-        with urllib.request.urlopen(req, timeout=3) as response:
+        url = f"https://api.github.com/repos/{REPO}/releases/latest?_t={int(time.time())}"
+        headers = {
+            "User-Agent": "AnyContext-CLI",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache"
+        }
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=4) as response:
             if response.status == 200:
                 data = json.loads(response.read().decode("utf-8"))
                 return data.get("tag_name")
@@ -65,18 +71,27 @@ def check_for_updates(quiet_if_latest: bool = True) -> Tuple[bool, Optional[str]
     latest_tag = fetch_latest_release_tag()
     if not latest_tag:
         if not quiet_if_latest:
-            safe_print("⚠️ Could not check for updates (GitHub offline or authenticated gh CLI required).")
+            safe_print("\n⚠️ Could not check for updates (GitHub offline or authenticated gh CLI required).\n")
         return False, None
 
     current_tuple = parse_version_tuple(CURRENT_VERSION)
     latest_tuple = parse_version_tuple(latest_tag)
 
+    clean_tag = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
+    yellow = "\033[93m"
+    cyan = "\033[96m"
+    bold = "\033[1m"
+    reset = "\033[0m"
+
     if latest_tuple > current_tuple:
-        return True, latest_tag
+        if not quiet_if_latest:
+            safe_print(f"\n{yellow}💡 New update available! {bold}v{CURRENT_VERSION}{reset}{yellow} → {bold}{clean_tag}{reset}")
+            safe_print(f"{cyan}👉 Run 'actx --update' or type '/update' inside the chat to update automatically.{reset}\n")
+        return True, clean_tag
     else:
         if not quiet_if_latest:
-            safe_print(f"✅ You are running the latest version of AnyContext (v{CURRENT_VERSION}).")
-        return False, latest_tag
+            safe_print(f"\n✅ You are running the latest version of AnyContext (v{CURRENT_VERSION}).\n")
+        return False, clean_tag
 
 def print_startup_update_notice():
     """
