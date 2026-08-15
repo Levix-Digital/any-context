@@ -46,9 +46,9 @@ def create_anycontext_agent(
         "api_key": api_key
     }
 
-    # Standard models use temperature=0.0 for deterministic RAG; reasoning models (o1/o3/gpt-5) reject custom temperature
-    is_reasoning = any(r in inference_model.lower() for r in ["o1-", "o1", "o3-", "o3", "reasoner", "gpt-5"])
-    if not is_reasoning and model_provider in ["openai", "anthropic", "google_genai", "groq", "local"]:
+    # Standard models use temperature=0.0 for deterministic RAG; reasoning models (o1/o3/gpt-5/sonnet-5) reject custom temperature
+    is_reasoning = any(r in inference_model.lower() for r in ["o1-", "o1", "o3-", "o3", "reasoner", "gpt-5", "claude-sonnet-5", "claude-opus-5"])
+    if not is_reasoning and model_provider in ["openai", "anthropic", "google_genai", "groq", "mistral", "local"]:
         init_kwargs["temperature"] = 0.0
 
     # Route provider base URLs when switching on the fly
@@ -65,6 +65,9 @@ def create_anycontext_agent(
         init_kwargs["model_provider"] = "openai"
     elif model_provider == "openrouter":
         init_kwargs["base_url"] = "https://openrouter.ai/api/v1"
+        init_kwargs["model_provider"] = "openai"
+    elif model_provider == "mistral":
+        init_kwargs["base_url"] = "https://api.mistral.ai/v1"
         init_kwargs["model_provider"] = "openai"
     elif model_provider in ["google_genai", "gemini"]:
         init_kwargs["model_provider"] = "google_genai"
