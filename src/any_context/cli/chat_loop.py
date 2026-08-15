@@ -1,5 +1,6 @@
 import sys
 import uuid
+from typing import Optional
 import questionary
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
 from any_context.cli.config_menu import show_config_menu
@@ -8,6 +9,27 @@ from any_context.cli.updater import print_startup_update_notice, check_for_updat
 from any_context.cli.spinner import Spinner
 from any_context.help import handle_command_help_interception
 from any_context import __version__
+
+
+def safe_prompt_input(prompt_text: str) -> Optional[str]:
+    """
+    Safely reads input from terminal with complete immunity to Windows signal corruption & EOF.
+    Returns:
+      - str: user input (or '/exit' if user confirmed exit)
+      - None: if user cancelled exit with 'No'
+    """
+    try:
+        return input(prompt_text)
+    except (KeyboardInterrupt, EOFError):
+        print()
+        try:
+            confirm_ans = input("\033[93m❓ Are you sure you want to exit AnyContext? [y/N]:\033[0m ").strip().lower()
+            if confirm_ans in ["y", "yes", "s", "sim"]:
+                return "/exit"
+            print("↩️ Resuming session...\n")
+            return None
+        except (KeyboardInterrupt, EOFError):
+            return "/exit"
 
 
 def run_chat_loop(active_workspace: str = None):
@@ -39,8 +61,12 @@ def run_chat_loop(active_workspace: str = None):
         try:
             prompt_ws = f"\033[93m{active_workspace}\033[96m" if active_workspace else "Global"
             prompt_str = f"You [{prompt_ws} | \033[95m{current_model}\033[96m]"
-            user_input = input(f"\n\033[96m👤 {prompt_str}:\033[0m ")
-            cmd = user_input.strip().lower()
+            raw_input = safe_prompt_input(f"\n\033[96m👤 {prompt_str}:\033[0m ")
+            if raw_input is None:
+                continue
+
+            user_input = raw_input.strip()
+            cmd = user_input.lower()
             if not cmd:
                 continue
 
@@ -49,23 +75,13 @@ def run_chat_loop(active_workspace: str = None):
                 continue
 
             elif cmd in ["/exit", "/quit", "/q", "exit", "quit"]:
+                print("\n👋 Saving session memory and exiting AnyContext. See you soon!\n")
                 try:
-                    confirm_ans = input("\033[93m❓ Are you sure you want to exit AnyContext? [Y/n]:\033[0m ").strip().lower()
-                    should_exit = confirm_ans not in ["n", "no", "nao", "não"]
-                except (KeyboardInterrupt, EOFError):
-                    should_exit = True
-
-                if should_exit:
-                    print("\n👋 Saving session memory and exiting AnyContext. See you soon!\n")
-                    try:
-                        from any_context.memory import run_session_summarizer_async
-                        run_session_summarizer_async(thread_id, active_workspace)
-                    except Exception:
-                        pass
-                    break
-                else:
-                    print("↩️ Resuming session...\n")
-                    continue
+                    from any_context.memory import run_session_summarizer_async
+                    run_session_summarizer_async(thread_id, active_workspace)
+                except Exception:
+                    pass
+                break
 
             elif cmd in ["/version", "/v"]:
                 print(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital")
