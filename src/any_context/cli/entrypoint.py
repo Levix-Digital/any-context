@@ -19,6 +19,13 @@ def entrypoint():
         from any_context.cli.banner import print_banner
         print_banner()
 
+    # 3. Load environment variables (.env) for LangSmith tracing, licenses, and API keys
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+
     # 3. Configure logging silencers
     import logging
     logging.getLogger("httpx").setLevel(logging.WARNING)
