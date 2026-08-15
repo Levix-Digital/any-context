@@ -239,6 +239,23 @@ def run_chat_loop(active_workspace: str = None):
                 print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
                 continue
 
+            elif cmd.startswith("/"):
+                import difflib
+                known_commands = [
+                    "/help", "/exit", "/quit", "/q", "/version", "/v",
+                    "/switch", "/model", "/m", "/update", "/check-update",
+                    "/reset-memory", "/reset", "/factory-reset", "/config",
+                    "/keys", "/billing", "/plans", "/web"
+                ]
+                typed_cmd = user_input.split()[0]
+                matches = difflib.get_close_matches(typed_cmd.lower(), known_commands, n=1, cutoff=0.45)
+                if matches:
+                    print(f"\n\033[91m⚠️ Unknown command '\033[1m{typed_cmd}\033[0m\033[91m'.\033[0m Did you mean '\033[93m{matches[0]}\033[0m'?")
+                else:
+                    print(f"\n\033[91m⚠️ Unknown command '\033[1m{typed_cmd}\033[0m\033[91m'.\033[0m")
+                print("👉 Type '\033[96m/help\033[0m' to view all available commands.\n")
+                continue
+
             # Check for one-shot model prefix (e.g. '@gpt-4o summarize this file')
             effective_model = current_model
             effective_prompt = user_input
