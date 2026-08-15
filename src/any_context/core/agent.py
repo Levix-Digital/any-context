@@ -43,9 +43,13 @@ def create_anycontext_agent(
     init_kwargs = {
         "model": inference_model,
         "model_provider": model_provider,
-        "temperature": 0.0,
         "api_key": api_key
     }
+
+    # Standard models use temperature=0.0 for deterministic RAG; reasoning models (o1/o3/gpt-5) reject custom temperature
+    is_reasoning = any(r in inference_model.lower() for r in ["o1-", "o1", "o3-", "o3", "reasoner", "gpt-5"])
+    if not is_reasoning and model_provider in ["openai", "anthropic", "google_genai", "groq", "local"]:
+        init_kwargs["temperature"] = 0.0
 
     # Route provider base URLs when switching on the fly
     if model_provider in ["local", "lm-studio", "ollama"] or (base_url and ("localhost" in base_url or "127.0.0.1" in base_url)):
