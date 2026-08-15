@@ -231,6 +231,18 @@ def format_inference_error(error: Exception, model_name: str, provider: str = No
             cause = f"Network connection error or timeout while reaching {prov.capitalize()} API."
             action = "Check your internet connection and proxy settings."
 
+    elif "reasoning_effort" in err_lower or "function tools" in err_lower or ("tool" in err_lower and "not supported" in err_lower):
+        cause = (
+            f"The model '{model_name}' does not support Function Calling / Agent Tools on this endpoint ({prov.capitalize()}).\n"
+            f"  OpenAI reason: {err_str[:250]}"
+        )
+        action = (
+            "Switch to a standard model that fully supports Agent Function Calling:\n"
+            "  • OpenAI   : /model gpt-4o   or   /model gpt-4o-mini\n"
+            "  • Claude   : /model claude-3-5-sonnet-20241022\n"
+            "  • DeepSeek : /model deepseek-chat"
+        )
+
     else:
         cause = f"Provider {prov.capitalize()} returned an unexpected error:\n  {err_str[:250]}"
         action = "Try switching to another model with '/model' or verify your configuration in '/config'."
