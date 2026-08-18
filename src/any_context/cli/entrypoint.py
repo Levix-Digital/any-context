@@ -58,7 +58,11 @@ def entrypoint():
 
     # 3. Print banner IMMEDIATELY before importing anything heavy
     if "--mcp" not in sys.argv:
-        from any_context.cli.banner import print_banner
+        from any_context.cli.banner import print_banner, clear_terminal
+        # Clear screen for interactive session unless user passed one-shot flags
+        non_interactive_flags = {"--help", "-h", "--version", "-v", "--mcp", "--server", "serve", "api"}
+        if not any(arg.lower() in non_interactive_flags for arg in sys.argv[1:]):
+            clear_terminal()
         print_banner()
 
     # 4. Load environment variables (.env) for LangSmith tracing, licenses, and API keys

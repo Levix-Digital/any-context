@@ -488,6 +488,32 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ]
     ),
 
+    "clear": HelpPage(
+        command="/clear",
+        aliases=["clear", "/cls", "cls"],
+        title="🧹 Terminal Screen Clear",
+        description=(
+            "Clears the terminal scrollback/screen and repaints the clean signature AnyContext banner and status header. "
+            "AnyContext also automatically clears the terminal upon launching the interactive chat session for a focused, distraction-free environment."
+        ),
+        syntax=(
+            "In Chat    : type '/clear' or '/cls' during chat\n"
+            "  View Help  : /clear --help   OR   /clear -h"
+        ),
+        parameters=[
+            "/clear, /cls          : Clear terminal screen and redraw the clean signature banner.",
+            "--help, -h            : Display this help page."
+        ],
+        examples=[
+            "In Chat: /clear",
+            "In Chat: /cls",
+            "In Chat: /clear -h"
+        ],
+        tips=[
+            "Use /clear anytime during long multi-turn sessions to keep your workspace view pristine without losing session context."
+        ]
+    ),
+
     "factory-reset": HelpPage(
         command="/factory-reset",
         aliases=["factory-reset", "--factory-reset", "/reset-factory"],
