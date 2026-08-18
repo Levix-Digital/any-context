@@ -387,7 +387,7 @@ def _manage_models(store: ConfigDBStore):
     # Check if embedding model changed to purge vector DB & prevent dimension mismatch
     if new_emb_model and old_emb_model and new_emb_model != old_emb_model:
         print(f"\n⚠️ Notice: Embedding model changed from '{old_emb_model}' to '{new_emb_model}'.")
-        print("🧹 Clearing vector database (ChromaDB) to force clean re-indexing and prevent dimension mismatch errors...")
+        print("🧹 Clearing vector database to force clean re-indexing and prevent dimension mismatch errors...")
         from any_context.ingestion.local_folder_ingestor import clear_context_vector_db, run_index_folder
         clear_context_vector_db()
         print("⚡ Re-indexing workspace documents with new embedding model...")
