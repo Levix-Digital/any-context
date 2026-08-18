@@ -47,9 +47,10 @@ class HTMLLinkExtractor(HTMLParser):
                         pass
 
 
-def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 5) -> List[str]:
+def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) -> List[str]:
     """
-    Attempts to locate and parse sitemaps (e.g. /sitemap.xml, /sitemap_index.xml, robots.txt) for a domain.
+    Locates and parses sitemaps, properly handling sitemap indexes by following sub-sitemaps
+    to extract actual web page URLs (excluding raw XML files).
     """
     parsed_base = urllib.parse.urlparse(base_url)
     domain_root = f"{parsed_base.scheme}://{parsed_base.netloc}"
@@ -59,29 +60,66 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 5) ->
         f"{domain_root}/sitemap/sitemap.xml"
     ]
 
-    discovered = set()
+    discovered_pages = set()
     headers = {"User-Agent": "AnyContext-WebCrawler/1.0 (+https://levix-digital.github.io/any-context-releases/)"}
+
+    def _parse_xml_locs(xml_content: bytes) -> List[str]:
+        try:
+            root = ET.fromstring(xml_content)
+            locs = []
+            for elem in root.iter():
+                if elem.tag.endswith("loc") and elem.text:
+                    l = elem.text.strip()
+                    if l.startswith("http") and parsed_base.netloc in l:
+                        locs.append(l)
+            return locs
+        except Exception:
+            return []
 
     for sitemap_url in candidate_sitemaps:
         try:
             req = urllib.request.Request(sitemap_url, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 if response.status == 200:
-                    xml_data = response.read()
-                    root = ET.fromstring(xml_data)
-                    for elem in root.iter():
-                        if elem.tag.endswith("loc") and elem.text:
-                            loc = elem.text.strip()
-                            if loc.startswith("http") and parsed_base.netloc in loc:
-                                discovered.add(loc)
-                            if len(discovered) >= max_urls:
+                    raw_xml = response.read()
+                    locs = _parse_xml_locs(raw_xml)
+                    
+                    sub_sitemaps = [l for l in locs if l.endswith(".xml") or l.endswith(".xml.gz") or "sitemap" in l]
+                    page_locs = [l for l in locs if l not in sub_sitemaps]
+
+                    for p in page_locs:
+                        discovered_pages.add(p)
+                        if len(discovered_pages) >= max_urls:
+                            break
+
+                    # If this was a sitemap index, follow relevant sub-sitemaps
+                    if sub_sitemaps and len(discovered_pages) < max_urls:
+                        path_parts = [p for p in parsed_base.path.split("/") if p and len(p) > 2]
+                        matched_subs = [s for s in sub_sitemaps if any(part in s for part in path_parts)]
+                        prioritized_subs = matched_subs + [s for s in sub_sitemaps if s not in matched_subs]
+
+                        for sub in prioritized_subs[:12]:
+                            if len(discovered_pages) >= max_urls:
                                 break
-                    if discovered:
+                            try:
+                                sub_req = urllib.request.Request(sub, headers=headers)
+                                with urllib.request.urlopen(sub_req, timeout=timeout) as sub_resp:
+                                    if sub_resp.status == 200:
+                                        sub_locs = _parse_xml_locs(sub_resp.read())
+                                        for sp in sub_locs:
+                                            if not sp.endswith(".xml") and not sp.endswith(".xml.gz"):
+                                                discovered_pages.add(sp)
+                                                if len(discovered_pages) >= max_urls:
+                                                    break
+                            except Exception:
+                                continue
+
+                    if discovered_pages:
                         break
         except Exception:
             continue
 
-    return list(discovered)
+    return list(discovered_pages)
 
 
 def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int = 6) -> Dict[str, Any]:
@@ -211,7 +249,10 @@ def crawl_and_index_urls(
     from any_context.config.app_settings import AppSettings
     from any_context.tools.search_tools import configure_embedding_model
     from any_context.ingestion.web_scheduler import WebSchedulerStore
-    from llama_index.core import Document, VectorStoreIndex
+    from llama_index.core import Document
+    from llama_index.core.node_parser import SentenceSplitter
+    from llama_index.core.ingestion import IngestionPipeline
+    from llama_index.core.settings import Settings
     from llama_index.vector_stores.chroma import ChromaVectorStore
 
     settings = AppSettings.load()
@@ -223,6 +264,14 @@ def crawl_and_index_urls(
     chroma_collection = db.get_or_create_collection(collection_name)
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     configure_embedding_model()
+
+    pipeline = IngestionPipeline(
+        transformations=[
+            SentenceSplitter(chunk_size=500, chunk_overlap=50),
+            Settings.embed_model
+        ],
+        vector_store=vector_store
+    )
 
     store = WebSchedulerStore()
     total_urls = len(urls)
@@ -277,17 +326,17 @@ def crawl_and_index_urls(
             if progress_callback:
                 progress_callback(i + 1, total_urls, indexed_count, url, (data.get("title") if data else ""))
 
-    # Batch index vectors into ChromaDB with micro-batching and Stage 2 Progress Ticker
+    # Batch index vectors into ChromaDB using IngestionPipeline with micro-batching and Stage 2 Progress Ticker
     if documents_batch:
         try:
-            chunk_size = 15
+            chunk_size = 20
             total_docs_to_embed = len(documents_batch)
             if embed_progress_callback:
                 embed_progress_callback(0, total_docs_to_embed)
 
             for k in range(0, total_docs_to_embed, chunk_size):
                 batch = documents_batch[k:k+chunk_size]
-                VectorStoreIndex.from_documents(batch, vector_store=vector_store)
+                pipeline.run(documents=batch, show_progress=False)
                 processed = min(k + len(batch), total_docs_to_embed)
                 if embed_progress_callback:
                     embed_progress_callback(processed, total_docs_to_embed)
@@ -444,6 +493,9 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
 
     # Completely clear the live ticker line and print a clean final summary
     sys.stdout.write("\r\033[K")
-    sys.stdout.write(f"✔ Successfully ingested and indexed \033[92m{res.get('indexed_count', 0)}\033[0m web pages ({res.get('total_chars', 0):,} chars) from \033[96m{start_url}\033[0m into workspace '\033[93m{workspace_name}\033[0m'!\n\n")
+    if res.get("status") == "partial_error":
+        sys.stdout.write(f"⚠️ Partial indexing completed: \033[92m{res.get('indexed_count', 0)}\033[0m pages indexed, but encountered error: \033[91m{res.get('error')}\033[0m\n\n")
+    else:
+        sys.stdout.write(f"✔ Successfully ingested and indexed \033[92m{res.get('indexed_count', 0)}\033[0m web pages ({res.get('total_chars', 0):,} chars) from \033[96m{start_url}\033[0m into workspace '\033[93m{workspace_name}\033[0m'!\n\n")
     sys.stdout.flush()
     return True
