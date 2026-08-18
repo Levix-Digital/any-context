@@ -22,14 +22,14 @@ def configure_embedding_model():
     logging.getLogger("llama_index").setLevel(logging.WARNING)
 
     settings = AppSettings.load()
-    local_openai_embedding_model = settings.models.local_openai_embedding_model if settings else "text-embedding-3-small"
+    emb_model = settings.models.embedding_model if settings else "text-embedding-3-small"
     local_base_url = settings.models.local_base_url if settings else "https://api.openai.com/v1"
     model_provider = settings.models.model_provider if settings else "openai"
     api_key = get_api_key(provider=model_provider)
 
     try:
         embed_m = OpenAIEmbedding(
-            model_name=local_openai_embedding_model,
+            model_name=emb_model,
             api_base=local_base_url,
             api_key=api_key,
             embed_batch_size=32

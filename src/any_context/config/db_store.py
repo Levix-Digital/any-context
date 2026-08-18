@@ -90,14 +90,21 @@ class ConfigDBStore:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS models (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
-                    local_embedding_model TEXT NOT NULL,
-                    local_openai_embedding_model TEXT NOT NULL,
+                    embedding_model TEXT DEFAULT 'text-embedding-3-small',
+                    local_embedding_model TEXT,
+                    local_openai_embedding_model TEXT,
                     inference_model TEXT NOT NULL,
                     summary_model TEXT NOT NULL,
                     model_provider TEXT NOT NULL,
                     local_base_url TEXT NOT NULL
                 )
             """)
+
+            # Ensure embedding_model column exists for existing tables
+            cursor.execute("PRAGMA table_info(models)")
+            cols = [r[1] for r in cursor.fetchall()]
+            if "embedding_model" not in cols:
+                cursor.execute("ALTER TABLE models ADD COLUMN embedding_model TEXT DEFAULT 'text-embedding-3-small'")
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS context_settings (
@@ -274,9 +281,17 @@ class ConfigDBStore:
             cursor.execute("SELECT * FROM models WHERE id = 1")
             m_row = cursor.fetchone()
             if m_row:
+                emb_val = None
+                if "embedding_model" in m_row.keys() and m_row["embedding_model"]:
+                    emb_val = m_row["embedding_model"]
+                elif "local_openai_embedding_model" in m_row.keys() and m_row["local_openai_embedding_model"]:
+                    emb_val = m_row["local_openai_embedding_model"]
+                elif "local_embedding_model" in m_row.keys() and m_row["local_embedding_model"]:
+                    emb_val = m_row["local_embedding_model"]
+                emb_val = emb_val or "text-embedding-3-small"
+
                 models = ModelSettings(
-                    local_embedding_model=m_row["local_embedding_model"],
-                    local_openai_embedding_model=m_row["local_openai_embedding_model"],
+                    embedding_model=emb_val,
                     inference_model=m_row["inference_model"],
                     summary_model=m_row["summary_model"],
                     model_provider=m_row["model_provider"],
@@ -327,9 +342,9 @@ class ConfigDBStore:
 
             m = settings.models
             cursor.execute("""
-                INSERT OR REPLACE INTO models (id, local_embedding_model, local_openai_embedding_model, inference_model, summary_model, model_provider, local_base_url)
-                VALUES (1, ?, ?, ?, ?, ?, ?)
-            """, (m.local_embedding_model, m.local_openai_embedding_model, m.inference_model, m.summary_model, m.model_provider, m.local_base_url))
+                INSERT OR REPLACE INTO models (id, embedding_model, local_embedding_model, local_openai_embedding_model, inference_model, summary_model, model_provider, local_base_url)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+            """, (m.embedding_model, m.embedding_model, m.embedding_model, m.inference_model, m.summary_model, m.model_provider, m.local_base_url))
 
             c = settings.context
             cursor.execute("INSERT OR REPLACE INTO context_settings (id, db_path, collection_name) VALUES (1, ?, ?)", (c.db_path, c.collection_name))
