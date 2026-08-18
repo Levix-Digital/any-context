@@ -58,6 +58,23 @@ class WebSchedulerStore:
                 cursor.execute("ALTER TABLE workspace_web_urls ADD COLUMN root_url TEXT")
             if "scope" not in cols:
                 cursor.execute("ALTER TABLE workspace_web_urls ADD COLUMN scope TEXT")
+
+            # Table for granular tracking of individual web pages indexed within websites
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_indexed_web_pages (
+                    id TEXT PRIMARY KEY,
+                    workspace_name TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    root_url TEXT NOT NULL,
+                    title TEXT,
+                    content_hash TEXT NOT NULL,
+                    char_count INTEGER DEFAULT 0,
+                    scraped_at TEXT,
+                    created_at TEXT
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wiwp_ws_root ON workspace_indexed_web_pages (workspace_name, root_url);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wiwp_ws_url ON workspace_indexed_web_pages (workspace_name, url);")
             conn.commit()
 
     def add_web_url(self, workspace_name: str, url: str, polling_interval_hours: int = 24) -> Dict[str, Any]:
@@ -161,6 +178,7 @@ class WebSchedulerStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM workspace_web_urls WHERE workspace_name = ? AND (url = ? OR root_url = ?)", (workspace_name, url, url))
+            cursor.execute("DELETE FROM workspace_indexed_web_pages WHERE workspace_name = ? AND (url = ? OR root_url = ?)", (workspace_name, url, url))
             conn.commit()
             return cursor.rowcount > 0
 
@@ -173,6 +191,119 @@ class WebSchedulerStore:
                 SET title = ?, last_hash = ?, last_scraped_at = ?
                 WHERE id = ?
             """, (title, content_hash, now_str, url_id))
+            conn.commit()
+
+    def get_indexed_pages_map(
+        self,
+        workspace_name: str,
+        root_url: Optional[str] = None,
+        domain_or_prefix: Optional[str] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Returns a dictionary mapping url -> {title, content_hash, char_count, scraped_at, root_url}
+        for all pages previously indexed in this workspace matching root_url or domain_or_prefix.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if root_url:
+                cursor.execute(
+                    "SELECT url, title, content_hash, char_count, scraped_at, root_url FROM workspace_indexed_web_pages WHERE workspace_name = ? AND root_url = ?",
+                    (workspace_name, root_url)
+                )
+            elif domain_or_prefix:
+                cursor.execute(
+                    "SELECT url, title, content_hash, char_count, scraped_at, root_url FROM workspace_indexed_web_pages WHERE workspace_name = ? AND (url LIKE ? OR root_url LIKE ?)",
+                    (workspace_name, f"%{domain_or_prefix}%", f"%{domain_or_prefix}%")
+                )
+            else:
+                cursor.execute(
+                    "SELECT url, title, content_hash, char_count, scraped_at, root_url FROM workspace_indexed_web_pages WHERE workspace_name = ?",
+                    (workspace_name,)
+                )
+            return {
+                r["url"]: {
+                    "title": r["title"],
+                    "content_hash": r["content_hash"],
+                    "char_count": r["char_count"],
+                    "scraped_at": r["scraped_at"],
+                    "root_url": r["root_url"]
+                }
+                for r in cursor.fetchall()
+            }
+
+    def get_indexed_pages_count(
+        self,
+        workspace_name: str,
+        root_url: Optional[str] = None,
+        domain_or_prefix: Optional[str] = None
+    ) -> int:
+        """
+        Returns total count of distinct web pages indexed for this workspace / root_url.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if root_url:
+                cursor.execute(
+                    "SELECT COUNT(DISTINCT url) FROM workspace_indexed_web_pages WHERE workspace_name = ? AND root_url = ?",
+                    (workspace_name, root_url)
+                )
+            elif domain_or_prefix:
+                cursor.execute(
+                    "SELECT COUNT(DISTINCT url) FROM workspace_indexed_web_pages WHERE workspace_name = ? AND (url LIKE ? OR root_url LIKE ?)",
+                    (workspace_name, f"%{domain_or_prefix}%", f"%{domain_or_prefix}%")
+                )
+            else:
+                cursor.execute(
+                    "SELECT COUNT(DISTINCT url) FROM workspace_indexed_web_pages WHERE workspace_name = ?",
+                    (workspace_name,)
+                )
+            return cursor.fetchone()[0]
+
+    def record_indexed_web_pages(
+        self,
+        workspace_name: str,
+        root_url: str,
+        pages: List[Dict[str, Any]]
+    ):
+        """
+        Upserts multiple crawled web pages into workspace_indexed_web_pages with SHA-256 content hashes.
+        """
+        import hashlib
+        now_str = datetime.utcnow().isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            for p in pages:
+                url = p["url"]
+                page_id = hashlib.sha256(f"{workspace_name}:{url}".encode()).hexdigest()[:24]
+                cursor.execute("""
+                    INSERT INTO workspace_indexed_web_pages (
+                        id, workspace_name, url, root_url, title, content_hash, char_count, scraped_at, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        title = excluded.title,
+                        content_hash = excluded.content_hash,
+                        char_count = excluded.char_count,
+                        scraped_at = excluded.scraped_at
+                """, (
+                    page_id,
+                    workspace_name,
+                    url,
+                    root_url,
+                    p.get("title", ""),
+                    p.get("content_hash", ""),
+                    p.get("char_count", 0),
+                    p.get("scraped_at", now_str),
+                    now_str
+                ))
+            conn.commit()
+
+    def delete_indexed_pages_for_root(self, workspace_name: str, root_url: str):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM workspace_indexed_web_pages WHERE workspace_name = ? AND (root_url = ? OR url = ?)",
+                (workspace_name, root_url, root_url)
+            )
             conn.commit()
 
 
