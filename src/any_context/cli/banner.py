@@ -49,5 +49,5 @@ def print_banner():
 
     safe_print(f"{cyan}{banner_art}{reset}")
     safe_print(f"{bold}{yellow}  🚀 AnyContext {gray}(actx){yellow} v{__version__}{reset}  |  {bold}{magenta}Levix Digital{reset}  |  {bold}{badge_str}")
-    safe_print(f"{gray}  ⚡ Transform any file, drive, or folder into a living, real-time AI context.{reset}")
+    safe_print(f"{gray}  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context.{reset}")
     safe_print(f"{gray}  🔒 100% Local & Offline-First Privacy{reset}\n")

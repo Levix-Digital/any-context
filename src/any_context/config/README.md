@@ -1,6 +1,6 @@
 # 🧠 AnyContext (`actx`)
 
-> **Transform any file, drive, or folder into a living, real-time AI context.**
+> **Transform any file, folder, website, or drive into a living, real-time AI context.**
 
 **AnyContext** is the ultimate bridge between your local data and Artificial Intelligence. Developed with an absolute focus on **privacy, modularity, and efficiency**, AnyContext is a smart, autonomous Local AI Engine equipped with **3-Level Hierarchical Long-Term Memory**, a **High-Performance REST API Server**, and a **Model Context Protocol (MCP) Server**.
 
