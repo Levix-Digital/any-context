@@ -1,6 +1,6 @@
 # 🧠 AnyContext (`actx`)
 
-> **Transform any file, drive, folder, or website into a living, real-time AI context.**
+> **Transform any file, folder, website, or drive into a living, real-time AI context.**
 
 ```text
   ___               ____ ___  _   _ _____ _____ _  _______ 
