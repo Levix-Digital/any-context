@@ -100,6 +100,12 @@ def run_chat_loop(active_workspace: str = None):
             elif cmd in ["/version", "/v"]:
                 print(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital")
                 continue
+            elif cmd in ["/clear", "/cls", "clear", "cls"]:
+                from any_context.cli.banner import clear_terminal
+                clear_terminal()
+                print_banner()
+                print(f"🧹 Screen cleared | Workspace: \033[93m{active_workspace or 'Global'}\033[0m | Model: \033[95m{current_model}\033[0m\n")
+                continue
             elif cmd == "/switch":
                 new_workspace = show_workspace_menu()
                 if new_workspace:
@@ -260,6 +266,7 @@ def run_chat_loop(active_workspace: str = None):
                 import difflib
                 known_commands = [
                     "/help", "/exit", "/quit", "/q", "/version", "/v",
+                    "/clear", "/cls",
                     "/switch", "/model", "/m", "/sync", "/index", "/update", "/check-update",
                     "/reset-memory", "/reset", "/factory-reset", "/config",
                     "/keys", "/billing", "/plans", "/web"

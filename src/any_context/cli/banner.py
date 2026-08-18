@@ -1,4 +1,17 @@
+import os
+import sys
 from any_context import __version__
+
+def clear_terminal():
+    """Clears the terminal screen cleanly across Windows, Linux, and macOS."""
+    try:
+        if os.name == "nt":
+            os.system("cls")
+        else:
+            os.system("clear")
+    except Exception:
+        sys.stdout.write("\033[H\033[2J\033[3J")
+        sys.stdout.flush()
 
 def safe_print(msg: str):
     try:

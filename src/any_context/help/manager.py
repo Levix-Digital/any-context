@@ -59,7 +59,8 @@ def show_interactive_help_menu():
             "🚀 --serve (REST API Server & Enterprise VPC Deploy)",
             "🔌 --mcp (Model Context Protocol for Claude & Cursor)",
             "🔄 /update (Auto-Updater Engine)",
-            "🧹 /reset-memory (Purge Long-Term Vector Memory)",
+            "🧹 /clear & /cls (Clear Screen & Redraw Signature Banner)",
+            "🗑️ /reset-memory (Purge Long-Term Vector Memory)",
             "💥 /factory-reset (Complete Factory Reset)",
             "🔙 Return to Chat"
         ]
@@ -100,6 +101,8 @@ def show_interactive_help_menu():
         elif choice.startswith("🔄"):
             page = get_help_page("update")
         elif choice.startswith("🧹"):
+            page = get_help_page("clear")
+        elif choice.startswith("🗑️"):
             page = get_help_page("reset-memory")
         elif choice.startswith("💥"):
             page = get_help_page("factory-reset")
