@@ -15,6 +15,7 @@ Whether you are a developer seeking deep codebase insights, a business analyzing
 - **🔌 Model Context Protocol (MCP) Server (`actx --mcp`):** Native JSON-RPC stdio implementation of Anthropic's MCP specification, allowing **Claude Desktop**, **Cursor IDE**, and **Antigravity** to query your local knowledge base seamlessly.
 - **🏢 Enterprise VPC Ready (`--host 0.0.0.0`):** Simple 1-command deployment for private cloud (AWS, GCP, Azure, On-Premise) serving entire corporate networks via internal VPN/VPC.
 - **📂 Multi-Workspace & Granular Folder Management:** Group multiple directories into isolated "Workspaces". Add, view, or remove individual folder paths per workspace dynamically.
+- **🌐 Intelligent Web Ingestion & Deep Recursive Crawler (`/web add`):** Semantic path prefix normalization, smart recursive sitemapindex traversal, proximity & relevance ranking (`_rank_url`), clean Markdown extraction, SentenceSplitter chunking (500/50), and atomic ChromaDB batch vectorization.
 - **⚡ Ultra-Fast Incremental Synchronization:** Automatically tracks document SHA-256 hashes and modification timestamps: only indexes new or altered files, and purges deleted disk files from ChromaDB.
 - **🧠 3-Level Hierarchical Memory Compression:**
   - **Level 1 (Session Block Summary):** Asynchronously summarizes chat interaction blocks (every 10 interactions / 20 messages) and persists them to long-term vector storage.
@@ -49,7 +50,10 @@ src/any_context/
 │   ├── models.py             # HelpPage schema
 │   └── registry.py           # Comprehensive command manuals
 ├── ingestion/                # Incremental RAG Ingestion Pipeline
-│   └── local_folder_ingestor.py # Recursive folder scanner & ChromaDB updater
+│   ├── local_folder_ingestor.py # Recursive folder scanner & ChromaDB updater
+│   ├── web_crawler.py        # Interactive site discovery, proximity ranker & crawler
+│   ├── web_ingestor.py       # HTML text extraction & Markdown AST parsing
+│   └── web_scheduler.py      # Background recurring scheduler & SQLite web sources store
 ├── memory/                   # Standalone 3-Level Hierarchical Memory Engine
 │   ├── models.py             # Memory schemas (SHORT_TERM, SESSION_SUMMARY, META_SUMMARY)
 │   ├── store.py              # ChromaDB memory vector store wrapper

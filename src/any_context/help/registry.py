@@ -167,13 +167,22 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
     "web": HelpPage(
         command="/web",
         aliases=["web", "--web", "scrape", "sitemap", "website", "websites", "urls", "crawler"],
-        title="🌐 Interactive Web Discovery & Deep Recursive Crawler",
+        title="🌐 Interactive Web Discovery & Deep Semantic Crawler Engine",
         description=(
-            "The Web Crawler engine allows AnyContext to ingest entire documentation portals, websites, "
-            "and government/legal databases into your active workspace knowledge base. "
-            "It runs in 2 phases: (1) Fast Discovery (maps internal links and XML sitemaps) and (2) Interactive Scope Selection "
-            "(choose between Section Only, Top 50/250/500 pages, or Entire Domain). "
-            "Uses multi-threaded concurrent downloading and batch ChromaDB vector indexing."
+            "The AnyContext Web Crawler is an intelligent, high-performance RAG ingestion engine designed to transform "
+            "entire documentation portals, government archives, legal bases, and websites into living AI context.\n\n"
+            "🧠 HOW THE CRAWLER WORKS UNDER THE HOOD:\n"
+            "  1. Semantic Path Normalization : Automatically strips file extensions (.html, .htm, .php, .aspx) from URLs "
+            "to identify the true semantic directory of the section and capture all child pages.\n"
+            "  2. Smart Sitemap & Index Parser : Locates sitemap.xml files and recursively resolves nested 'sitemapindex' catalogs, "
+            "tokenizing path keywords to prioritize relevant sub-sitemaps (e.g. 'immigration', 'docs', 'api') and filtering out raw XML.\n"
+            "  3. Semantic Proximity & Relevance Ranking : Rather than crawling in random or alphabetical order, URLs are ranked "
+            "by relevance to your target topic (Landing Page > Direct Section Children > In-Page Links > Keyword Matches > Generic Domain).\n"
+            "  4. Clean Semantic HTML Extraction : Strips boilerplate (navbars, footers, cookie banners, scripts, ads) while "
+            "preserving headings (#, ##), tables, lists, and core article text.\n"
+            "  5. IngestionPipeline & Chunking : Chunks content using SentenceSplitter (chunk_size=500, chunk_overlap=50), calculates embeddings "
+            "in micro-batches with OpenAI / Local embeddings, and commits vectors directly into isolated ChromaDB collections.\n"
+            "  6. Workspace Isolation : Web vectors are strictly scoped by workspace metadata, ensuring complete privacy."
         ),
         syntax=(
             "In Chat (Interactive Crawler) : /web add <url>   OR   /web add\n"
@@ -185,26 +194,28 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "  View Help                      : /web --help   OR   /web -h"
         ),
         parameters=[
-            "/web                   : Open interactive web sources management menu.",
-            "/web add <url>         : Launch interactive site discovery, scope menu, and concurrent deep crawler.",
-            "/web list              : List all configured web URLs and last scrape timestamps.",
+            "/web                   : Open interactive web sources management menu (list, re-sync, or delete sources and purge vectors).",
+            "/web add <url>         : Launch interactive site discovery, view Discovery Report, pick scope (Section, Top 50/250/500, Domain), and crawl.",
+            "/web list              : List all configured root web URLs, indexed page counts, and last scrape timestamps.",
             "/web sync              : Force re-scrape and synchronize all web URLs in active workspace.",
             "url                    : Target website URL or documentation portal (e.g. 'https://docs.python.org/3/').",
             "--help, -h            : Display this detailed help page for web crawler."
         ],
         examples=[
-            "In Chat: /web add https://canada.ca/en/immigration-refugees-citizenship.html",
+            "In Chat: /web add https://www.canada.ca/en/immigration-refugees-citizenship.html",
             "In Chat: /web add https://docs.python.org/3/",
+            "In Chat: /web add https://platform.openai.com/docs/",
             "In Chat: /web",
             "In Chat: /web list",
             "In Chat: /web sync",
-            "Conversational: 'Adicione a documentação https://platform.openai.com/docs ao workspace'",
+            "Conversational: 'Adicione a documentação https://docs.anthropic.com ao workspace'",
             "curl -X POST 'http://127.0.0.1:8000/v1/workspaces/MyProject/web-urls?url=https://docs.python.org/3/'"
         ],
         tips=[
-            "100% unlocked for Community CLI users! You can crawl and index entire documentation sites.",
+            "100% unlocked for Community CLI users! You can crawl and index entire documentation portals at zero cost.",
             "Fast discovery automatically checks XML sitemaps and presents estimated page counts and times before crawling.",
-            "Multi-threaded concurrent crawler downloads 20 to 50 pages per second with smooth progress bar feedback."
+            "Proximity ranking ensures that Top 50 / Top 250 options always capture the most relevant guides and forms first.",
+            "Multi-threaded concurrent crawler downloads 20 to 50 pages per second with smooth, cursor-safe live progress bar feedback."
         ]
     ),
 
