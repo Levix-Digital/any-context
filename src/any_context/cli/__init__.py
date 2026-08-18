@@ -11,6 +11,9 @@ def __getattr__(name: str):
         from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
         mapping = {"show_workspace_menu": show_workspace_menu, "get_active_workspace": get_active_workspace}
         return mapping[name]
+    elif name == "Spinner":
+        from any_context.cli.spinner import Spinner
+        return Spinner
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -19,5 +22,6 @@ __all__ = [
     "main",
     "main_cli",
     "show_workspace_menu",
-    "get_active_workspace"
+    "get_active_workspace",
+    "Spinner"
 ]
