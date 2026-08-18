@@ -158,7 +158,8 @@ def _manage_workspaces(store: ConfigDBStore):
             from any_context.ingestion.web_scheduler import WebSchedulerStore
             web_urls = WebSchedulerStore().get_workspace_web_urls(ws.name)
             for w in web_urls:
-                print(f"    - [Web URL] {w['url']} ({w.get('title') or 'Scraped Page'})")
+                pages_badge = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
+                print(f"    - [Web Portal] {w['url']} ({w.get('title') or 'Web Source'}{pages_badge})")
         print("-----------------------------\n")
 
     elif ws_action.startswith("➕"):
@@ -257,20 +258,21 @@ def _manage_workspace_web_urls(workspace_name: Optional[str] = None, store: Opti
 
     while True:
         urls = web_store.get_workspace_web_urls(target_ws)
-        print(f"\n🌐 Workspace \033[93m{target_ws}\033[0m Configured Web URLs ({len(urls)} registered):")
+        print(f"\n🌐 Workspace \033[93m{target_ws}\033[0m Configured Web Sources ({len(urls)} registered):")
         if not urls:
-            print("  (No web URLs configured yet)")
+            print("  (No web sources configured yet)")
         for u in urls:
+            pages_info = f" | Indexed Pages: {u.get('page_count', 1)}" if u.get('page_count', 1) > 1 else ""
             print(f"  • \033[96m{u.get('title') or u['url']}\033[0m")
-            print(f"    URL: {u['url']} | Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
+            print(f"    URL: {u['url']}{pages_info} | Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
         print()
 
         action = questionary.select(
             f"Web Sources Action for '{target_ws}':",
             choices=[
                 "➕ Add Website / Documentation Portal (Interactive Discovery & Deep Crawl)",
-                "🔄 Force Re-sync / Scrape All Web URLs",
-                "🗑️ Remove Web URL & Purge Vectors",
+                "🔄 Force Re-sync / Scrape All Web Sources",
+                "🗑️ Remove Web Source & Purge Vectors",
                 "🔙 Back"
             ]
         ).ask()
@@ -283,23 +285,27 @@ def _manage_workspace_web_urls(workspace_name: Optional[str] = None, store: Opti
 
         elif action.startswith("🔄"):
             if not urls:
-                print("No web URLs registered to re-sync.")
+                print("No web sources registered to re-sync.")
                 continue
-            print(f"\n⏳ Synchronizing {len(urls)} web URLs for workspace '{target_ws}'...")
+            print(f"\n⏳ Synchronizing {len(urls)} web sources for workspace '{target_ws}'...")
             sync_res = sync_workspace_web_urls(target_ws)
-            print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
+            print(f"✅ Synced {sync_res.get('total_urls', 0)} web sources successfully!\n")
 
         elif action.startswith("🗑️"):
             if not urls:
-                print("No web URLs in this workspace.")
+                print("No web sources in this workspace.")
                 continue
-            url_choices = [f"{u['url']} ({u.get('title') or 'No Title'})" for u in urls]
-            selected_choice = questionary.select("Select Web URL to remove:", choices=url_choices).ask()
-            if selected_choice:
+            url_choices = []
+            for u in urls:
+                pages_badge = f" ({u.get('page_count')} pages)" if u.get('page_count', 1) > 1 else ""
+                url_choices.append(f"{u['url']}{pages_badge} — {u.get('title') or 'Web Source'}")
+            url_choices.append("🔙 Back")
+            selected_choice = questionary.select("Select Web Source to remove:", choices=url_choices).ask()
+            if selected_choice and not selected_choice.startswith("🔙"):
                 target_url = selected_choice.split(" ")[0]
                 web_store.delete_web_url_by_url(target_ws, target_url)
                 remove_web_url_from_chromadb(target_ws, target_url)
-                print(f"🗑️ Removed '{target_url}' and purged its indexed vectors from workspace '{target_ws}'.\n")
+                print(f"🗑️ Removed '{target_url}' and purged all associated indexed vectors from workspace '{target_ws}'.\n")
 
 def _manage_models(store: ConfigDBStore):
     settings = store.get_app_settings()

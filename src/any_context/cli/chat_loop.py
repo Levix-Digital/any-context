@@ -232,7 +232,8 @@ def run_chat_loop(active_workspace: str = None):
                 if not urls:
                     print("  (No web URLs configured yet. Type '/web' to add one)")
                 for u in urls:
-                    print(f"  • \033[96m{u.get('title') or u['url']}\033[0m ({u['url']}) - Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
+                    pages_info = f" • {u.get('page_count')} pages" if u.get('page_count', 1) > 1 else ""
+                    print(f"  • \033[96m{u.get('title') or u['url']}\033[0m{pages_info} ({u['url']}) - Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
                 print()
                 continue
             elif cmd in ["/web sync", "/web resync"]:

@@ -43,9 +43,21 @@ class WebSchedulerStore:
                     last_hash TEXT,
                     polling_interval_hours INTEGER DEFAULT 24,
                     last_scraped_at TEXT,
-                    created_at TEXT
+                    created_at TEXT,
+                    page_count INTEGER DEFAULT 1,
+                    root_url TEXT,
+                    scope TEXT
                 );
             """)
+            # Ensure optional columns exist for existing tables
+            cursor.execute("PRAGMA table_info(workspace_web_urls)")
+            cols = [r[1] for r in cursor.fetchall()]
+            if "page_count" not in cols:
+                cursor.execute("ALTER TABLE workspace_web_urls ADD COLUMN page_count INTEGER DEFAULT 1")
+            if "root_url" not in cols:
+                cursor.execute("ALTER TABLE workspace_web_urls ADD COLUMN root_url TEXT")
+            if "scope" not in cols:
+                cursor.execute("ALTER TABLE workspace_web_urls ADD COLUMN scope TEXT")
             conn.commit()
 
     def add_web_url(self, workspace_name: str, url: str, polling_interval_hours: int = 24) -> Dict[str, Any]:
@@ -61,11 +73,60 @@ class WebSchedulerStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO workspace_web_urls (id, workspace_name, url, polling_interval_hours, created_at)
-                VALUES (?, ?, ?, ?, ?)
-            """, (url_id, workspace_name, url, polling_interval_hours, now_str))
+                INSERT INTO workspace_web_urls (id, workspace_name, url, polling_interval_hours, page_count, root_url, created_at)
+                VALUES (?, ?, ?, ?, 1, ?, ?)
+            """, (url_id, workspace_name, url, polling_interval_hours, url, now_str))
             conn.commit()
-        return {"id": url_id, "workspace_name": workspace_name, "url": url, "polling_interval_hours": polling_interval_hours, "created_at": now_str}
+        return {"id": url_id, "workspace_name": workspace_name, "url": url, "polling_interval_hours": polling_interval_hours, "page_count": 1, "created_at": now_str}
+
+    def add_or_update_root_web_source(
+        self,
+        workspace_name: str,
+        root_url: str,
+        title: str,
+        page_count: int = 1,
+        scope: str = "custom",
+        polling_interval_hours: int = 24
+    ) -> Dict[str, Any]:
+        import uuid
+        now_str = datetime.utcnow().isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id FROM workspace_web_urls WHERE workspace_name = ? AND url = ?",
+                (workspace_name, root_url)
+            )
+            row = cursor.fetchone()
+            if row:
+                url_id = row[0]
+                cursor.execute("""
+                    UPDATE workspace_web_urls
+                    SET title = ?, page_count = ?, scope = ?, last_scraped_at = ?
+                    WHERE id = ?
+                """, (title, page_count, scope, now_str, url_id))
+            else:
+                url_id = f"web_{uuid.uuid4().hex[:8]}"
+                cursor.execute("""
+                    INSERT INTO workspace_web_urls (id, workspace_name, url, title, page_count, root_url, scope, polling_interval_hours, last_scraped_at, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (url_id, workspace_name, root_url, title, page_count, root_url, scope, polling_interval_hours, now_str, now_str))
+
+            # Clean up any legacy sub-urls that might have been recorded as individual rows under this domain/prefix
+            cursor.execute("""
+                DELETE FROM workspace_web_urls
+                WHERE workspace_name = ? AND url != ? AND (root_url = ? OR url LIKE ?)
+            """, (workspace_name, root_url, root_url, f"{root_url.rstrip('/')}/%"))
+
+            conn.commit()
+        return {
+            "id": url_id,
+            "workspace_name": workspace_name,
+            "url": root_url,
+            "title": title,
+            "page_count": page_count,
+            "scope": scope,
+            "last_scraped_at": now_str
+        }
 
     def get_workspace_web_urls(self, workspace_name: str) -> List[Dict[str, Any]]:
         with self._get_connection() as conn:
@@ -99,7 +160,7 @@ class WebSchedulerStore:
     def delete_web_url_by_url(self, workspace_name: str, url: str) -> bool:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM workspace_web_urls WHERE workspace_name = ? AND url = ?", (workspace_name, url))
+            cursor.execute("DELETE FROM workspace_web_urls WHERE workspace_name = ? AND (url = ? OR root_url = ?)", (workspace_name, url, url))
             conn.commit()
             return cursor.rowcount > 0
 
@@ -198,7 +259,7 @@ def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[st
 
 def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
     """
-    Deletes vectors associated with a specific web URL in a workspace.
+    Deletes vectors associated with a specific web URL or root source URL in a workspace.
     """
     try:
         settings = AppSettings.load()
@@ -210,8 +271,23 @@ def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
         db = chromadb.PersistentClient(path=db_save_path)
         chroma_collection = db.get_or_create_collection(collection_name)
         
-        # Delete by metadata filter
-        chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"file_path": url}]})
+        # 1. Delete vectors by root_url match
+        try:
+            chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"root_url": url}]})
+        except Exception:
+            pass
+
+        # 2. Delete vectors by exact file_path match
+        try:
+            chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"file_path": url}]})
+        except Exception:
+            pass
+
+        # 3. Delete vectors by url match
+        try:
+            chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"url": url}]})
+        except Exception:
+            pass
         return True
     except Exception as e:
         print(f"⚠️ Warning removing web vectors for '{url}': {e}")

@@ -186,11 +186,15 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
 def crawl_and_index_urls(
     workspace_name: str,
     urls: List[str],
-    max_workers: int = 8,
+    root_url: Optional[str] = None,
+    root_title: Optional[str] = None,
+    scope: str = "custom",
+    max_workers: int = 12,
     progress_callback = None
 ) -> Dict[str, Any]:
     """
     Concurrent multi-threaded scraper and ChromaDB batch vector indexer.
+    Registers a single clean Root Web Source in SQLite with aggregated metadata.
     """
     import os
     import chromadb
@@ -218,6 +222,7 @@ def crawl_and_index_urls(
 
     documents_batch: List[Document] = []
     now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    effective_root = root_url or (urls[0] if urls else "https://unknown")
 
     # Worker function to scrape single url
     def _fetch_single(url: str) -> Optional[Dict[str, Any]]:
@@ -232,6 +237,7 @@ def crawl_and_index_urls(
         
         for i, future in enumerate(as_completed(future_to_url)):
             url = future_to_url[future]
+            data = None
             try:
                 data = future.result()
                 if data and data.get("content") and len(data["content"].strip()) > 30:
@@ -242,6 +248,7 @@ def crawl_and_index_urls(
                             "file_name": f"[Web] {data['title'][:60]}",
                             "file_path": url,
                             "url": url,
+                            "root_url": effective_root,
                             "workspace": workspace_name,
                             "title": data["title"],
                             "content_hash": data["hash"],
@@ -252,23 +259,15 @@ def crawl_and_index_urls(
                     documents_batch.append(doc)
                     total_chars += len(text_content)
                     indexed_count += 1
-
-                    # Register in SQLite store
-                    store.add_web_url(workspace_name=workspace_name, url=url)
-                    store.update_web_url_scrape_result(
-                        url_id=url,
-                        title=data["title"],
-                        content_hash=data["hash"]
-                    )
                 else:
                     errors += 1
             except Exception:
                 errors += 1
 
             if progress_callback:
-                progress_callback(i + 1, total_urls, indexed_count)
+                progress_callback(i + 1, total_urls, indexed_count, url, (data.get("title") if data else ""))
 
-    # Batch index vectors into ChromaDB
+    # Batch index vectors into ChromaDB & register root source in SQLite
     if documents_batch:
         try:
             # Batch in chunks of 50 to prevent memory spikes
@@ -276,6 +275,15 @@ def crawl_and_index_urls(
             for k in range(0, len(documents_batch), chunk_size):
                 batch = documents_batch[k:k+chunk_size]
                 VectorStoreIndex.from_documents(batch, vector_store=vector_store)
+
+            # Register ONE unified root source in SQLite
+            store.add_or_update_root_web_source(
+                workspace_name=workspace_name,
+                root_url=effective_root,
+                title=root_title or f"Web Portal ({indexed_count} pages)",
+                page_count=indexed_count,
+                scope=scope
+            )
         except Exception as e:
             return {
                 "status": "partial_error",
@@ -330,6 +338,7 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
     print(f"  • 🗺️ XML Sitemap Detected                : \033[95m{'Yes (Structured XML)' if has_sitemap else 'No (Fast Recursive Link Scan)'}\033[0m")
     print("================================================================================\n")
 
+    scope_name = "Single Page"
     if domain_count == 1:
         chosen_urls = [start_url]
     else:
@@ -359,35 +368,53 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
 
         if "Current Section Only" in choice:
             chosen_urls = disc["section_urls"]
+            scope_name = f"Section ({len(chosen_urls)} pages)"
         elif "Top 50 pages" in choice:
             chosen_urls = disc["domain_urls"][:50]
+            scope_name = "Top 50 pages"
         elif "Top 250 pages" in choice:
             chosen_urls = disc["domain_urls"][:250]
+            scope_name = "Top 250 pages"
         elif "Top 500 pages" in choice:
             chosen_urls = disc["domain_urls"][:500]
+            scope_name = "Top 500 pages"
         elif "Entire Discovered Domain" in choice:
             chosen_urls = disc["domain_urls"]
+            scope_name = f"Domain ({len(chosen_urls)} pages)"
         else:
             chosen_urls = [start_url]
+            scope_name = "Single Page"
 
     total_target = len(chosen_urls)
     print(f"\n🚀 Ingesting and indexing \033[92m{total_target}\033[0m web pages into workspace '\033[93m{workspace_name}\033[0m'...")
 
-    def _render_progress(current: int, total: int, indexed: int):
+    SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    def _render_progress(current: int, total: int, indexed: int, latest_url: str = "", latest_title: str = ""):
         pct = int((current / total) * 100) if total else 100
-        bar_len = 24
+        bar_len = 16
         filled = int((pct / 100) * bar_len)
         bar = "█" * filled + "░" * (bar_len - filled)
-        sys.stdout.write(f"\r\033[K⠸ [Web Crawler] [{bar}] {current}/{total} ({pct}%) • \033[92m{indexed} indexed\033[0m")
+        frame = SPINNER_FRAMES[current % len(SPINNER_FRAMES)]
+
+        display_url = latest_url
+        if len(display_url) > 42:
+            display_url = display_url[:18] + "..." + display_url[-21:]
+
+        sys.stdout.write(f"\r\033[K\033[96m{frame}\033[0m [Crawling] [{bar}] {current}/{total} ({pct}%) • \033[90m{display_url}\033[0m")
         sys.stdout.flush()
 
     res = crawl_and_index_urls(
         workspace_name=workspace_name,
         urls=chosen_urls,
+        root_url=start_url,
+        root_title=title,
+        scope=scope_name,
         max_workers=12,
         progress_callback=_render_progress
     )
 
-    sys.stdout.write(f"\r\033[K✔ Successfully ingested and indexed \033[92m{res.get('indexed_count', 0)}\033[0m web pages ({res.get('total_chars', 0):,} chars) into workspace '\033[93m{workspace_name}\033[0m'!\n\n")
+    # Completely clear the live ticker line and print a clean final summary
+    sys.stdout.write("\r\033[K")
+    sys.stdout.write(f"✔ Successfully ingested and indexed \033[92m{res.get('indexed_count', 0)}\033[0m web pages ({res.get('total_chars', 0):,} chars) from \033[96m{start_url}\033[0m into workspace '\033[93m{workspace_name}\033[0m'!\n\n")
     sys.stdout.flush()
     return True
