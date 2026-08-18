@@ -190,14 +190,24 @@ def crawl_and_index_urls(
     root_title: Optional[str] = None,
     scope: str = "custom",
     max_workers: int = 12,
-    progress_callback = None
+    progress_callback = None,
+    embed_progress_callback = None
 ) -> Dict[str, Any]:
     """
     Concurrent multi-threaded scraper and ChromaDB batch vector indexer.
     Registers a single clean Root Web Source in SQLite with aggregated metadata.
     """
     import os
+    import logging
     import chromadb
+
+    # Suppress verbose HTTP/OpenAI retry logs in terminal
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("llama_index").setLevel(logging.WARNING)
+
     from any_context.config.app_settings import AppSettings
     from any_context.tools.search_tools import configure_embedding_model
     from any_context.ingestion.web_scheduler import WebSchedulerStore
@@ -231,7 +241,7 @@ def crawl_and_index_urls(
         except Exception:
             return None
 
-    # Multi-threaded concurrent download
+    # Multi-threaded concurrent download (Stage 1)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_url = {executor.submit(_fetch_single, u): u for u in urls}
         
@@ -267,14 +277,21 @@ def crawl_and_index_urls(
             if progress_callback:
                 progress_callback(i + 1, total_urls, indexed_count, url, (data.get("title") if data else ""))
 
-    # Batch index vectors into ChromaDB & register root source in SQLite
+    # Batch index vectors into ChromaDB with micro-batching and Stage 2 Progress Ticker
     if documents_batch:
         try:
-            # Batch in chunks of 50 to prevent memory spikes
-            chunk_size = 50
-            for k in range(0, len(documents_batch), chunk_size):
+            chunk_size = 15
+            total_docs_to_embed = len(documents_batch)
+            if embed_progress_callback:
+                embed_progress_callback(0, total_docs_to_embed)
+
+            for k in range(0, total_docs_to_embed, chunk_size):
                 batch = documents_batch[k:k+chunk_size]
                 VectorStoreIndex.from_documents(batch, vector_store=vector_store)
+                processed = min(k + len(batch), total_docs_to_embed)
+                if embed_progress_callback:
+                    embed_progress_callback(processed, total_docs_to_embed)
+                time.sleep(0.04)
 
             # Register ONE unified root source in SQLite
             store.add_or_update_root_web_source(
@@ -389,18 +406,29 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
     print(f"\n🚀 Ingesting and indexing \033[92m{total_target}\033[0m web pages into workspace '\033[93m{workspace_name}\033[0m'...")
 
     SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-    def _render_progress(current: int, total: int, indexed: int, latest_url: str = "", latest_title: str = ""):
+    
+    def _render_crawl_progress(current: int, total: int, indexed: int, latest_url: str = "", latest_title: str = ""):
         pct = int((current / total) * 100) if total else 100
-        bar_len = 16
+        bar_len = 14
         filled = int((pct / 100) * bar_len)
         bar = "█" * filled + "░" * (bar_len - filled)
         frame = SPINNER_FRAMES[current % len(SPINNER_FRAMES)]
 
         display_url = latest_url
-        if len(display_url) > 42:
-            display_url = display_url[:18] + "..." + display_url[-21:]
+        if len(display_url) > 38:
+            display_url = display_url[:16] + "..." + display_url[-19:]
 
-        sys.stdout.write(f"\r\033[K\033[96m{frame}\033[0m [Crawling] [{bar}] {current}/{total} ({pct}%) • \033[90m{display_url}\033[0m")
+        sys.stdout.write(f"\r\033[K\033[96m{frame}\033[0m [1/2 Crawling] [{bar}] {current}/{total} ({pct}%) • \033[90m{display_url}\033[0m")
+        sys.stdout.flush()
+
+    def _render_embed_progress(current: int, total: int):
+        pct = int((current / total) * 100) if total else 100
+        bar_len = 14
+        filled = int((pct / 100) * bar_len)
+        bar = "█" * filled + "░" * (bar_len - filled)
+        frame = SPINNER_FRAMES[current % len(SPINNER_FRAMES)]
+
+        sys.stdout.write(f"\r\033[K\033[95m{frame}\033[0m [2/2 Embedding] [{bar}] {current}/{total} pages ({pct}%) • \033[92mChromaDB\033[0m")
         sys.stdout.flush()
 
     res = crawl_and_index_urls(
@@ -410,7 +438,8 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
         root_title=title,
         scope=scope_name,
         max_workers=12,
-        progress_callback=_render_progress
+        progress_callback=_render_crawl_progress,
+        embed_progress_callback=_render_embed_progress
     )
 
     # Completely clear the live ticker line and print a clean final summary
