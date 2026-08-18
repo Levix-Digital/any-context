@@ -135,7 +135,7 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
 
     if verbose:
         safe_print(f"\n┌ 📦 \033[1mIngestion Pipeline: {target_ws_name}\033[0m")
-        safe_print(f"│ ├─ 📂 Storage     : ChromaDB ({db_save_path}/{collection_name})")
+        safe_print(f"│ ├─ 📂 Storage     : Vector Store ({db_save_path}/{collection_name})")
 
     db = chromadb.PersistentClient(path=db_save_path)
     collection = db.get_or_create_collection(collection_name)
@@ -261,7 +261,7 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
         err_str = str(e).lower()
         if "dimension" in err_str or "invalidargumenterror" in err_str or "expecting embedding" in err_str:
             if verbose:
-                safe_print("│ ├─ 🧹 Auto-clearing incompatible vector database (ChromaDB) for fresh re-indexing...")
+                safe_print("│ ├─ 🧹 Auto-clearing incompatible vector database for fresh re-indexing...")
             clear_context_vector_db(verbose=verbose)
 
             db = chromadb.PersistentClient(path=db_save_path)

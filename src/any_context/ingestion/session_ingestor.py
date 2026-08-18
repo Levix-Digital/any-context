@@ -28,7 +28,7 @@ def index_session(session_summary: str):
     Use this tool to save a summary of the current session into the long-term memory vector database.
     Call this tool whenever the user asks you to save the context, or at the end of an important conversation.
     """
-    print("⚡ Connecting to ChromaDB for Long-Term Memory...")
+    print("⚡ Connecting to Vector Memory Database...")
     os.makedirs(db_path, exist_ok=True)
     db = chromadb.PersistentClient(path=db_path)
     collection = db.get_or_create_collection(collection_name)

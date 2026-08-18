@@ -428,7 +428,7 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
         bar = "█" * filled + "░" * (bar_len - filled)
         frame = SPINNER_FRAMES[current % len(SPINNER_FRAMES)]
 
-        sys.stdout.write(f"\r\033[K\033[95m{frame}\033[0m [2/2 Embedding] [{bar}] {current}/{total} pages ({pct}%) • \033[92mChromaDB\033[0m")
+        sys.stdout.write(f"\r\033[K\033[95m{frame}\033[0m [2/2 Embedding] [{bar}] {current}/{total} pages ({pct}%) • \033[92mVector Knowledge Base\033[0m")
         sys.stdout.flush()
 
     res = crawl_and_index_urls(
