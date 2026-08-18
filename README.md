@@ -213,6 +213,58 @@ You [AnyContextProject | gpt-4o-mini]: /sync --verbose
 
 ---
 
+## 🌐 Intelligent Web Ingestion & Deep Recursive Crawler Engine
+
+AnyContext includes a built-in, zero-dependency, concurrent web ingestion engine designed to transform documentation portals, government archives, legal bases, and technical wikis into living AI context.
+
+Unlike basic web scrapers that blindly download noisy HTML or crawl randomly, AnyContext is engineered specifically for **high-precision Retrieval-Augmented Generation (RAG)**:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        ANYCONTEXT WEB INGESTION LIFECYCLE                              │
+├─────────────────┬─────────────────┬──────────────────┬─────────────────┬───────────────┤
+│  1. Discovery   │  2. Resolution  │   3. Proximity   │  4. Concurrent  │ 5. Ingestion  │
+│  & Normalization│  & Sitemaps     │     Ranking      │    Extraction   │   Pipeline    │
+├─────────────────┼─────────────────┼──────────────────┼─────────────────┼───────────────┤
+│ • Strip .html   │ • sitemapindex  │ • Landing (10k)  │ • Multi-threaded│ • Chunk 500/50│
+│ • Infer Prefix  │ • Keyword Match │ • Section (2k)   │ • Strip Boiler  │ • OpenAI Embed│
+│ • Extract Links │ • Filter .xml   │ • Keywords (300) │ • Markdown AST  │ • ChromaDB    │
+└─────────────────┴─────────────────┴──────────────────┴─────────────────┴───────────────┘
+```
+
+### 🧠 How It Works Under the Hood:
+
+1. **Semantic Path Normalization**:
+   - When given a URL like `https://www.canada.ca/en/immigration-refugees-citizenship.html` or `https://docs.python.org/3/library/os.html`, the crawler automatically strips file extensions (`.html`, `.htm`, `.php`, `.asp`, `.aspx`) to derive the true semantic directory path (e.g. `/en/immigration-refugees-citizenship/`).
+   - All sub-pages and child forms under that section are accurately recognized and grouped under **Section Pages**.
+
+2. **Recursive Sitemap & `sitemapindex` Resolution**:
+   - Locates `sitemap.xml` and traverses nested sitemap catalogs (`<sitemapindex>`).
+   - Tokenizes path keywords (e.g. `immigration`, `refugees`, `citizenship`, `docs`, `api`) to prioritize sub-sitemaps matching your target subject, while discarding raw `.xml` URLs in favor of clean `.html` content pages.
+
+3. **Semantic Proximity & Relevance Ranking (`_rank_url`)**:
+   - Web portals often contain tens of thousands of unrelated pages. AnyContext ranks all discovered URLs by semantic distance before ingestion:
+     - 🥇 **Landing / Start URL** (Priority 10,000)
+     - 🥈 **Direct Section Children** (Priority 2,000)
+     - 🥉 **Direct In-Page Links** (Priority 500)
+     - 🏅 **Keyword & Component Matches** (Priority 300 per matching slug)
+     - ⚪ **Generic Domain URLs** (Placed at the bottom of the batch)
+   - When you pick **Top 50** or **Top 250**, you always receive the most relevant guides, articles, and documentation pages first.
+
+4. **Clean Semantic HTML Extraction**:
+   - Strips boilerplate noise: navigation bars, footers, cookie notices, JavaScript, styles, and advertising banners.
+   - Preserves semantic structure: Markdown headings (`#`, `##`), tables, bullet points, and code blocks.
+
+5. **SentenceSplitter & Batch Vector Embedding**:
+   - Splits content into 500-token semantic chunks with 50-token overlap (`SentenceSplitter`).
+   - Generates embeddings in rate-limited micro-batches (`embed_batch_size=32`) to prevent OpenAI TPM / HTTP 429 throttling.
+   - Commits vectors atomically directly into isolated ChromaDB collections.
+
+6. **Strict Workspace Privacy & Scope Isolation**:
+   - Web vectors are tagged with strict workspace metadata. Queries in workspace `Legal` cannot bleed into workspace `Marketing`.
+
+---
+
 ## ⚙️ Configuration & Environment Settings
 
 AnyContext uses an intelligent **3-tier configuration resolution hierarchy**:
