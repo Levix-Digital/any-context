@@ -490,16 +490,22 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
 
         safe_stdout_write(f"\r\033[K\033[95m{frame}\033[0m [2/2 Embedding] [{bar}] {current}/{total} pages ({pct}%) • \033[92mVector Knowledge Base\033[0m")
 
-    res = crawl_and_index_urls(
-        workspace_name=workspace_name,
-        urls=chosen_urls,
-        root_url=start_url,
-        root_title=title,
-        scope=scope_name,
-        max_workers=12,
-        progress_callback=_render_crawl_progress,
-        embed_progress_callback=_render_embed_progress
-    )
+    # Hide terminal cursor during active live progress ticks
+    safe_stdout_write("\033[?25l")
+    try:
+        res = crawl_and_index_urls(
+            workspace_name=workspace_name,
+            urls=chosen_urls,
+            root_url=start_url,
+            root_title=title,
+            scope=scope_name,
+            max_workers=12,
+            progress_callback=_render_crawl_progress,
+            embed_progress_callback=_render_embed_progress
+        )
+    finally:
+        # Restore terminal cursor visibility
+        safe_stdout_write("\033[?25h")
 
     # Completely clear the live ticker line and print a clean final summary
     safe_stdout_write("\r\033[K")
