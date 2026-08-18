@@ -456,6 +456,18 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
 
     SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     
+    def safe_stdout_write(msg: str):
+        try:
+            sys.stdout.write(msg)
+            sys.stdout.flush()
+        except (UnicodeEncodeError, Exception):
+            try:
+                clean_msg = msg.encode("ascii", errors="ignore").decode("ascii")
+                sys.stdout.write(clean_msg)
+                sys.stdout.flush()
+            except Exception:
+                pass
+
     def _render_crawl_progress(current: int, total: int, indexed: int, latest_url: str = "", latest_title: str = ""):
         pct = int((current / total) * 100) if total else 100
         bar_len = 14
@@ -467,8 +479,7 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
         if len(display_url) > 38:
             display_url = display_url[:16] + "..." + display_url[-19:]
 
-        sys.stdout.write(f"\r\033[K\033[96m{frame}\033[0m [1/2 Crawling] [{bar}] {current}/{total} ({pct}%) • \033[90m{display_url}\033[0m")
-        sys.stdout.flush()
+        safe_stdout_write(f"\r\033[K\033[96m{frame}\033[0m [1/2 Crawling] [{bar}] {current}/{total} ({pct}%) • \033[90m{display_url}\033[0m")
 
     def _render_embed_progress(current: int, total: int):
         pct = int((current / total) * 100) if total else 100
@@ -477,8 +488,7 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
         bar = "█" * filled + "░" * (bar_len - filled)
         frame = SPINNER_FRAMES[current % len(SPINNER_FRAMES)]
 
-        sys.stdout.write(f"\r\033[K\033[95m{frame}\033[0m [2/2 Embedding] [{bar}] {current}/{total} pages ({pct}%) • \033[92mVector Knowledge Base\033[0m")
-        sys.stdout.flush()
+        safe_stdout_write(f"\r\033[K\033[95m{frame}\033[0m [2/2 Embedding] [{bar}] {current}/{total} pages ({pct}%) • \033[92mVector Knowledge Base\033[0m")
 
     res = crawl_and_index_urls(
         workspace_name=workspace_name,
@@ -492,10 +502,9 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
     )
 
     # Completely clear the live ticker line and print a clean final summary
-    sys.stdout.write("\r\033[K")
+    safe_stdout_write("\r\033[K")
     if res.get("status") == "partial_error":
-        sys.stdout.write(f"⚠️ Partial indexing completed: \033[92m{res.get('indexed_count', 0)}\033[0m pages indexed, but encountered error: \033[91m{res.get('error')}\033[0m\n\n")
+        safe_stdout_write(f"⚠️ Partial indexing completed: \033[92m{res.get('indexed_count', 0)}\033[0m pages indexed, but encountered error: \033[91m{res.get('error')}\033[0m\n\n")
     else:
-        sys.stdout.write(f"✔ Successfully ingested and indexed \033[92m{res.get('indexed_count', 0)}\033[0m web pages ({res.get('total_chars', 0):,} chars) from \033[96m{start_url}\033[0m into workspace '\033[93m{workspace_name}\033[0m'!\n\n")
-    sys.stdout.flush()
+        safe_stdout_write(f"✔ Successfully ingested and indexed \033[92m{res.get('indexed_count', 0)}\033[0m web pages ({res.get('total_chars', 0):,} chars) from \033[96m{start_url}\033[0m into workspace '\033[93m{workspace_name}\033[0m'!\n\n")
     return True

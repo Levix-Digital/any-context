@@ -32,6 +32,19 @@ def safe_prompt_input(prompt_text: str) -> Optional[str]:
             return "/exit"
 
 
+def safe_stdout_write(msg: str):
+    try:
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+    except (UnicodeEncodeError, Exception):
+        try:
+            clean_msg = msg.encode("ascii", errors="ignore").decode("ascii")
+            sys.stdout.write(clean_msg)
+            sys.stdout.flush()
+        except Exception:
+            pass
+
+
 def run_chat_loop(active_workspace: str = None):
     thread_id = f"chat_{uuid.uuid4()}"
     config = {
@@ -39,7 +52,7 @@ def run_chat_loop(active_workspace: str = None):
             "thread_id": thread_id,
             "active_workspace": active_workspace
         },
-        "recursion_limit": 10
+        "recursion_limit": 50
     }
 
     with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
@@ -313,19 +326,16 @@ def run_chat_loop(active_workspace: str = None):
 
                         if content_str:
                             if not has_printed_ai_header:
-                                sys.stdout.write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
-                                sys.stdout.flush()
+                                safe_stdout_write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
                                 has_printed_ai_header = True
-                            sys.stdout.write(content_str)
-                            sys.stdout.flush()
+                            safe_stdout_write(content_str)
 
                     elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
                         if not has_printed_ai_header:
-                            sys.stdout.write(f"\r\033[K📚 [RAG] Reading retrieved context documents for AI analysis...")
-                            sys.stdout.flush()
+                            safe_stdout_write(f"\r\033[K📚 [RAG] Reading retrieved context documents for AI analysis...")
 
                 if not has_printed_ai_header:
-                    sys.stdout.write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
+                    safe_stdout_write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
                 print()
 
             except KeyboardInterrupt:

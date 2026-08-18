@@ -14,6 +14,19 @@ def safe_print(msg: str):
     except UnicodeEncodeError:
         print(msg.encode("ascii", errors="ignore").decode("ascii"))
 
+def safe_stdout_write(msg: str):
+    import sys
+    try:
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+    except (UnicodeEncodeError, Exception):
+        try:
+            clean_msg = msg.encode("ascii", errors="ignore").decode("ascii")
+            sys.stdout.write(clean_msg)
+            sys.stdout.flush()
+        except Exception:
+            pass
+
 def configure_embedding_model():
     import logging
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -100,16 +113,14 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
 
         import sys
         if workspace and not search_session_memory:
-            sys.stdout.write(f"\r\033[K🔍 [Search] Searching strictly within Workspace: '{workspace}' (top {search_k} chunks)...")
-            sys.stdout.flush()
+            safe_stdout_write(f"\r\033[K🔍 [Search] Searching strictly within Workspace: '{workspace}' (top {search_k} chunks)...")
             filters = MetadataFilters(
                 filters=[ExactMatchFilter(key="workspace", value=workspace)]
             )
             retriever = index.as_retriever(similarity_top_k=search_k, filters=filters)
             nodes = retriever.retrieve(prompt_text)
         elif not search_session_memory:
-            sys.stdout.write(f"\r\033[K🔍 [Search] Searching across workspaces (top {search_k} chunks)...")
-            sys.stdout.flush()
+            safe_stdout_write(f"\r\033[K🔍 [Search] Searching across workspaces (top {search_k} chunks)...")
             retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
             nodes = retriever.retrieve(prompt_text)
         else:
