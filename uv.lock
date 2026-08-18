@@ -216,7 +216,7 @@ wheels = [
 
 [[package]]
 name = "any-context"
-version = "0.11.15"
+version = "0.11.16"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },
