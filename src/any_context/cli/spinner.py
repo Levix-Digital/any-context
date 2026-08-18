@@ -30,6 +30,11 @@ class Spinner:
 
     def start(self):
         self._running = True
+        try:
+            sys.stdout.write("\033[?25l")
+            sys.stdout.flush()
+        except Exception:
+            pass
         self._thread = threading.Thread(target=self._spin, daemon=True)
         self._thread.start()
 
@@ -44,6 +49,7 @@ class Spinner:
                     sys.stdout.write(f"\033[92m✔\033[0m {self.done_message}\n")
             else:
                 sys.stdout.write(f"\033[91m✖\033[0m {self.message} (failed)\n")
+            sys.stdout.write("\033[?25h")
             sys.stdout.flush()
         except Exception:
             pass
