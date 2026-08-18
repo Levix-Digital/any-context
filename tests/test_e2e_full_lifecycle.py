@@ -81,6 +81,13 @@ class AnyContextE2ETestSuite(unittest.TestCase):
         cls.store.add_workspace(cls.ws_tech, [cls.tech_dir])
         cls.store.add_workspace(cls.ws_web, [])
 
+        # Clean any leftover test web pages from previous runs
+        from any_context.ingestion.web_scheduler import WebSchedulerStore
+        web_store = WebSchedulerStore()
+        for ws in [cls.ws_legal, cls.ws_tech, cls.ws_web]:
+            web_store.delete_indexed_pages_for_root(ws, "https://httpbin.org/html")
+            web_store.delete_web_url_by_url(ws, "https://httpbin.org/html")
+
         # Configure deterministic mock embeddings if no API key is present in CI runner
         from any_context.core.utils import get_api_key
         api_key = get_api_key()
@@ -97,6 +104,12 @@ class AnyContextE2ETestSuite(unittest.TestCase):
             cls.store.remove_workspace(cls.ws_legal)
             cls.store.remove_workspace(cls.ws_tech)
             cls.store.remove_workspace(cls.ws_web)
+
+            from any_context.ingestion.web_scheduler import WebSchedulerStore
+            web_store = WebSchedulerStore()
+            for ws in [cls.ws_legal, cls.ws_tech, cls.ws_web]:
+                web_store.delete_indexed_pages_for_root(ws, "https://httpbin.org/html")
+                web_store.delete_web_url_by_url(ws, "https://httpbin.org/html")
 
             # Purge ChromaDB test collections
             settings = AppSettings.load()
@@ -218,22 +231,37 @@ class AnyContextE2ETestSuite(unittest.TestCase):
         domain_urls = disc["domain_urls"]
         self.assertEqual(domain_urls[0], start_url, "Top ranked URL must always be the start URL")
         
-        # 3. Test Ingestion of Web Pages into ChromaDB
+        # 3. Test Ingestion of Web Pages into ChromaDB (First Ingestion)
         test_web_urls = [
             "https://httpbin.org/html"
         ]
-        crawl_res = crawl_and_index_urls(
+        crawl_res_1 = crawl_and_index_urls(
             workspace_name=self.ws_web,
             urls=test_web_urls,
             root_url="https://httpbin.org/html",
             root_title="HttpBin Web Test Suite",
             scope="custom"
         )
-        self.assertIn(crawl_res["status"], ["success", "partial_error"])
-        
+        self.assertEqual(crawl_res_1["status"], "success")
+        self.assertEqual(crawl_res_1["indexed_count"], 1, "First ingestion must index the page")
+        self.assertEqual(crawl_res_1["skipped_count"], 0, "First ingestion should have 0 skipped pages")
+
+        # 4. Test Incremental Re-crawl of the same page (Must Skip / Cache with 0 embeddings)
+        crawl_res_2 = crawl_and_index_urls(
+            workspace_name=self.ws_web,
+            urls=test_web_urls,
+            root_url="https://httpbin.org/html",
+            root_title="HttpBin Web Test Suite",
+            scope="custom",
+            force_refresh=False
+        )
+        self.assertEqual(crawl_res_2["status"], "success")
+        self.assertEqual(crawl_res_2["indexed_count"], 0, "Re-ingesting unchanged URL must not re-embed")
+        self.assertEqual(crawl_res_2["skipped_count"], 1, "Re-ingesting unchanged URL must be skipped as cached")
+
         web_search = search_db.invoke({"prompt_text": "Herman Melville Moby Dick Herman", "workspace": self.ws_web})
         self.assertIsInstance(web_search, str)
-        safe_stdout_write("  [OK] Web Crawler & Proximity Ranking verified: clean discovery, ranking, and vector ingestion!\n")
+        safe_stdout_write("  [OK] Web Crawler, Incremental Deduplication & Proximity Ranking verified: clean discovery, ranking, SHA-256 skip, and vector ingestion!\n")
 
     # -------------------------------------------------------------------------
     # TEST 5: AI Agent RAG Synthesis & Recursion Limit Safety
