@@ -5,6 +5,7 @@ from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
 from any_context.cli.config_menu import run_first_time_wizard, show_config_menu
 from any_context.cli.updater import check_for_updates, run_self_update
+from any_context.cli.spinner import Spinner
 from any_context import __version__
 
 def show_workspace_menu() -> str:

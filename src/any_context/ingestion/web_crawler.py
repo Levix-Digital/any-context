@@ -299,7 +299,7 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
     """
     import sys
     import questionary
-    from any_context.cli.workspace_selector import Spinner
+    from any_context.cli.spinner import Spinner
 
     if not start_url:
         start_url = questionary.text(
