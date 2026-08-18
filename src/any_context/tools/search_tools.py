@@ -15,6 +15,12 @@ def safe_print(msg: str):
         print(msg.encode("ascii", errors="ignore").decode("ascii"))
 
 def configure_embedding_model():
+    import logging
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("llama_index").setLevel(logging.WARNING)
+
     settings = AppSettings.load()
     local_openai_embedding_model = settings.models.local_openai_embedding_model if settings else "text-embedding-3-small"
     local_base_url = settings.models.local_base_url if settings else "https://api.openai.com/v1"
@@ -25,7 +31,8 @@ def configure_embedding_model():
         embed_m = OpenAIEmbedding(
             model_name=local_openai_embedding_model,
             api_base=local_base_url,
-            api_key=api_key
+            api_key=api_key,
+            embed_batch_size=32
         )
         Settings.embed_model = embed_m
         return embed_m
@@ -33,7 +40,8 @@ def configure_embedding_model():
         embed_m = OpenAIEmbedding(
             model_name="text-embedding-3-small",
             api_base=local_base_url,
-            api_key=api_key
+            api_key=api_key,
+            embed_batch_size=32
         )
         Settings.embed_model = embed_m
         return embed_m

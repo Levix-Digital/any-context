@@ -72,6 +72,9 @@ def entrypoint():
     import logging
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("llama_index").setLevel(logging.WARNING)
     logging.getLogger("transformers").setLevel(logging.ERROR)
 
     # 6. Now load chat loop and execute
