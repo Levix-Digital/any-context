@@ -17,12 +17,28 @@ class SessionSettings(BaseModel):
     collection_name: str = Field(default="session_memory")
 
 class ModelSettings(BaseModel):
-    local_embedding_model: str = Field(default="text-embedding-3-small")
-    local_openai_embedding_model: str = Field(default="text-embedding-3-small")
+    embedding_model: str = Field(default="text-embedding-3-small")
     inference_model: str = Field(default="gpt-4o-mini")
     summary_model: str = Field(default="gpt-4o-mini")
     model_provider: str = Field(default="openai")
     local_base_url: str = Field(default="https://api.openai.com/v1")
+
+    # Retrocompatibility properties for legacy code / DB rows
+    @property
+    def local_embedding_model(self) -> str:
+        return self.embedding_model
+
+    @local_embedding_model.setter
+    def local_embedding_model(self, value: str):
+        self.embedding_model = value
+
+    @property
+    def local_openai_embedding_model(self) -> str:
+        return self.embedding_model
+
+    @local_openai_embedding_model.setter
+    def local_openai_embedding_model(self, value: str):
+        self.embedding_model = value
 
 
 class MemorySettings(BaseModel):

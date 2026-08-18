@@ -26,8 +26,7 @@ settings = AppSettings.load()
 
 db_save_path = settings.context.db_path if settings else "./context_db"
 collection_name = settings.context.collection_name if settings else "context_docs"
-local_embedding_model = settings.models.local_embedding_model if settings else "text-embedding-multilingual-e5-small"
-local_openai_embedding_model = settings.models.local_openai_embedding_model if settings else "text-embedding-3-small"
+embedding_model = settings.models.embedding_model if settings else "text-embedding-3-small"
 local_base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
 
 from any_context.tools.search_tools import configure_embedding_model
@@ -247,7 +246,8 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
             safe_print(f"│ │    • ... (+ {total_discovered_files - 3} more files)")
         safe_print(f"│ ├─ 📚 Chunks      : {len(all_documents)} document nodes parsed")
         safe_print(f"│ ├─ 📖 System Help : Auto-injected README.md & Command Manual (HELP_REGISTRY)")
-        embed_label = local_openai_embedding_model if (LOCAL_API_KEY and LOCAL_API_KEY.startswith("sk-")) else local_embedding_model
+        curr_settings = AppSettings.load() or settings
+        embed_label = curr_settings.models.embedding_model if curr_settings and curr_settings.models else "text-embedding-3-small"
         safe_print(f"│ ├─ ⚡ Embeddings  : {embed_label} (incremental check)")
 
     if not all_documents:

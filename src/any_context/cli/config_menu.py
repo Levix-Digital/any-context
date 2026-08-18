@@ -59,8 +59,7 @@ def run_first_time_wizard():
                     settings.models.model_provider = "openai"
                     settings.models.inference_model = "gpt-4o-mini"
                     settings.models.summary_model = "gpt-4o-mini"
-                    settings.models.local_embedding_model = "text-embedding-3-small"
-                    settings.models.local_openai_embedding_model = "text-embedding-3-small"
+                    settings.models.embedding_model = "text-embedding-3-small"
                     settings.models.local_base_url = "https://api.openai.com/v1"
                     store.save_app_settings(settings)
                 print("✅ OpenAI Provider & API Key configured successfully!")
@@ -311,12 +310,12 @@ def _manage_models(store: ConfigDBStore):
     settings = store.get_app_settings()
     m = settings.models if settings else None
 
-    old_emb_model = m.local_openai_embedding_model if (m and m.model_provider == "openai") else (m.local_embedding_model if m else "")
+    old_emb_model = m.embedding_model if m else ""
 
     print(f"\n--- Current Model Settings ---")
     print(f"• Inference Model : {m.inference_model if m else 'gpt-4o-mini'} (High Reasoning)")
     print(f"• Summary Model   : {m.summary_model if m else 'gpt-4o-mini'} (Fast & Efficient)")
-    print(f"• Embedding Model : {m.local_openai_embedding_model if m else 'text-embedding-3-small'}")
+    print(f"• Embedding Model : {m.embedding_model if m else 'text-embedding-3-small'}")
     print(f"• Provider        : {m.model_provider if m else 'openai'}")
     print(f"• Local Base URL  : {m.local_base_url if m else 'http://localhost:1234/v1'}")
     print("------------------------------\n")
@@ -344,8 +343,7 @@ def _manage_models(store: ConfigDBStore):
                 m.model_provider = "openai"
                 m.inference_model = "gpt-4o-mini"
                 m.summary_model = "gpt-4o-mini"
-                m.local_embedding_model = "text-embedding-3-small"
-                m.local_openai_embedding_model = "text-embedding-3-small"
+                m.embedding_model = "text-embedding-3-small"
                 m.local_base_url = "https://api.openai.com/v1"
                 new_emb_model = "text-embedding-3-small"
                 settings.models = m
@@ -359,8 +357,8 @@ def _manage_models(store: ConfigDBStore):
             if m:
                 m.local_base_url = url
                 m.summary_model = "google/gemma-4-e2b"
-                m.local_embedding_model = "text-embedding-multilingual-e5-small"
-                new_emb_model = "text-embedding-multilingual-e5-small"
+                m.embedding_model = "text-embedding-3-small"
+                new_emb_model = "text-embedding-3-small"
                 settings.models = m
                 store.save_app_settings(settings)
             print("✅ Local Server Provider configured successfully!")
@@ -368,15 +366,14 @@ def _manage_models(store: ConfigDBStore):
     elif setup_mode.startswith("🛠️"):
         inf = questionary.text("Inference Model (High reasoning):", default=m.inference_model if m else "gpt-4o-mini").ask()
         sum_m = questionary.text("Summary Model (Fast & efficient):", default=m.summary_model if m else "gpt-4o-mini").ask()
-        emb_m = questionary.text("Embedding Model:", default=m.local_openai_embedding_model if m else "text-embedding-3-small").ask()
+        emb_m = questionary.text("Embedding Model:", default=m.embedding_model if m else "text-embedding-3-small").ask()
         prov = questionary.text("Provider (openai/local):", default=m.model_provider if m else "openai").ask()
         url = questionary.text("Base URL:", default=m.local_base_url if m else "http://localhost:1234/v1").ask()
 
         if m:
             m.inference_model = inf
             m.summary_model = sum_m
-            m.local_embedding_model = emb_m
-            m.local_openai_embedding_model = emb_m
+            m.embedding_model = emb_m
             m.model_provider = prov
             m.local_base_url = url
             new_emb_model = emb_m
