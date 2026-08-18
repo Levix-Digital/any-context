@@ -94,8 +94,16 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
 
                     # If this was a sitemap index, follow relevant sub-sitemaps
                     if sub_sitemaps and len(discovered_pages) < max_urls:
-                        path_parts = [p for p in parsed_base.path.split("/") if p and len(p) > 2]
-                        matched_subs = [s for s in sub_sitemaps if any(part in s for part in path_parts)]
+                        clean_base = parsed_base.path
+                        if clean_base.endswith((".html", ".htm", ".php", ".asp", ".aspx")):
+                            clean_base = clean_base.rsplit(".", 1)[0]
+                        raw_parts = [p.lower() for p in clean_base.split("/") if p and len(p) > 2]
+                        path_parts = list(raw_parts)
+                        for rp in raw_parts:
+                            path_parts.extend([sub for sub in rp.split("-") if len(sub) > 2])
+                            path_parts.extend([sub for sub in rp.split("_") if len(sub) > 2])
+
+                        matched_subs = [s for s in sub_sitemaps if any(part in s.lower() for part in path_parts)]
                         prioritized_subs = matched_subs + [s for s in sub_sitemaps if s not in matched_subs]
 
                         for sub in prioritized_subs[:12]:
@@ -133,11 +141,14 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
     parsed_start = urllib.parse.urlparse(start_url)
     domain = parsed_start.netloc.lower()
     
-    # Path prefix for section matching (e.g. '/en/immigration-refugees-citizenship')
-    path_segments = [seg for seg in parsed_start.path.split("/") if seg]
-    section_prefix = f"/{path_segments[0]}" if path_segments else "/"
-    if len(path_segments) >= 2:
-        section_prefix = f"/{path_segments[0]}/{path_segments[1]}"
+    # Path prefix and semantic keywords for section matching
+    clean_path = parsed_start.path
+    if clean_path.endswith((".html", ".htm", ".php", ".asp", ".aspx")):
+        clean_path = clean_path.rsplit(".", 1)[0]
+
+    path_segments = [seg for seg in clean_path.split("/") if seg]
+    section_prefix = "/" + "/".join(path_segments) if path_segments else "/"
+    key_terms = [seg.lower() for seg in path_segments if len(seg) > 2]
 
     headers = {"User-Agent": "AnyContext-WebCrawler/1.0 (+https://levix-digital.github.io/any-context-releases/)"}
     page_title = start_url
@@ -178,9 +189,9 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
         if parsed_link.netloc.lower() == domain:
             all_domain_urls.add(link)
 
-    # 3. Fast BFS expansion on top 10 discovered pages if sitemap not present
-    if not sitemap_urls and len(all_domain_urls) < 100:
-        sample_urls = [u for u in list(all_domain_urls) if u != start_url][:12]
+    # 3. Fast BFS expansion on top discovered pages if sitemap is small or absent
+    if len(all_domain_urls) < 300:
+        sample_urls = [u for u in list(all_domain_urls) if u != start_url][:20]
         for sub_u in sample_urls:
             try:
                 sub_req = urllib.request.Request(sub_u, headers=headers)
@@ -196,13 +207,40 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
             except Exception:
                 continue
 
+    # Rank all discovered URLs by semantic proximity and relevance to start_url
+    def _rank_url(u: str) -> tuple:
+        if u == start_url:
+            return (10000, 0)
+        p = urllib.parse.urlparse(u)
+        path = p.path.lower()
+        
+        score = 0
+        clean_section = section_prefix.lower()
+        if path.startswith(clean_section + "/") or path == clean_section or path == (clean_section + ".html"):
+            score += 2000
+        elif path.startswith(clean_section):
+            score += 1500
+
+        # Term matching from path components
+        matched_terms = sum(1 for term in key_terms if term in path or term in u.lower())
+        score += matched_terms * 300
+
+        if u in initial_links:
+            score += 500
+
+        return (score, -len(path), u)
+
+    ranked_domain_urls = sorted(list(all_domain_urls), key=_rank_url, reverse=True)
+
     # Filter into section vs domain
     section_urls = []
-    domain_urls = sorted(list(all_domain_urls))
+    clean_section_prefix = section_prefix.lower()
 
-    for u in domain_urls:
-        p = urllib.parse.urlparse(u).path
-        if p.startswith(section_prefix) or u == start_url:
+    for u in ranked_domain_urls:
+        p = urllib.parse.urlparse(u).path.lower()
+        if p.startswith(clean_section_prefix + "/") or p == clean_section_prefix or p == (clean_section_prefix + ".html") or u == start_url:
+            section_urls.append(u)
+        elif any(term in p for term in key_terms if len(term) >= 5):
             section_urls.append(u)
 
     if not section_urls:
@@ -215,8 +253,8 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
         "section_prefix": section_prefix,
         "section_urls": section_urls,
         "section_count": len(section_urls),
-        "domain_urls": domain_urls,
-        "domain_count": len(domain_urls),
+        "domain_urls": ranked_domain_urls,
+        "domain_count": len(ranked_domain_urls),
         "has_sitemap": bool(sitemap_urls)
     }
 
