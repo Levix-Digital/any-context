@@ -231,7 +231,7 @@ def _manage_workspaces(store: ConfigDBStore):
 
 def _manage_workspace_web_urls(workspace_name: Optional[str] = None, store: Optional[ConfigDBStore] = None):
     """Interactive management of Web URLs and Documentation Site Ingestors for a Workspace."""
-    from any_context.ingestion.web_scheduler import WebSchedulerStore, sync_workspace_web_urls
+    from any_context.ingestion.web_scheduler import WebSchedulerStore, sync_workspace_web_urls, remove_web_url_from_chromadb
     from any_context.ingestion.web_crawler import run_interactive_web_crawler
 
     # Handle polymorphic call if first argument was passed as store
