@@ -120,5 +120,66 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
         self.assertEqual(len(urls_after), 0)
         safe_stdout_write("  [OK] Web Scheduler Store CRUD verified!\n")
 
+    def test_05_ecommerce_schema_and_form_rating_extraction(self):
+        """TC-2.7: Verifies extraction of ratings inside form/header tags and Schema.org Product JSON-LD."""
+        safe_stdout_write(">>> [MOD 2 / TC-2.7] Testing E-Commerce Ratings, Form Tags & Schema.org JSON-LD Extraction...\n")
+        from any_context.ingestion.web_ingestor import CleanHTMLTextExtractor, extract_web_metadata
+
+        html_sample = """
+        <html>
+        <head><title>Windex Original Glass Cleaner</title></head>
+        <body>
+            <header class="product-header">
+                <h1>Windex Original Glass Cleaner Spray</h1>
+                <form action="/cart" method="post">
+                    <span class="ld_Ec">4.844 out of 5 stars. 1199 reviews</span>
+                    <span class="price">$3.98</span>
+                </form>
+            </header>
+            <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Windex Original Glass Cleaner",
+              "brand": {"@type": "Brand", "name": "Windex"},
+              "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": "4.844",
+                "reviewCount": "1199"
+              },
+              "offers": {
+                "@type": "Offer",
+                "price": "3.98",
+                "priceCurrency": "USD",
+                "availability": "https://schema.org/InStock"
+              }
+            }
+            </script>
+            <div class="description">
+                <p>Windex leaves glass surfaces sparkling clean.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        parser = CleanHTMLTextExtractor()
+        parser.feed(html_sample)
+        extracted = parser.get_text()
+
+        # 1. Assert Schema.org structured metadata is extracted
+        self.assertIn("Product: Windex Original Glass Cleaner", extracted)
+        self.assertIn("Rating: 4.844 / 5 stars (1199 reviews)", extracted)
+        self.assertIn("Price: USD 3.98", extracted)
+        self.assertIn("Status: In Stock", extracted)
+
+        # 2. Assert visible span text inside form/header is preserved
+        self.assertIn("4.844 out of 5 stars. 1199 reviews", extracted)
+        self.assertIn("$3.98", extracted)
+
+        # 3. Assert content classification recognizes E-Commerce Product Page
+        meta = extract_web_metadata("https://www.walmart.com/ip/windex-cleaner/123", html_sample)
+        self.assertEqual(meta["content_type"], "E-Commerce Product Page")
+        safe_stdout_write("  [OK] E-Commerce ratings & Schema.org Product extraction verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
