@@ -61,6 +61,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Level 2 (Active Rolling Window)**: Retains recent active messages in SQLite graph state.
   - **Level 3 (Consolidated Meta-Summarization)**: Consolidates older memory vectors into high-level indices.
   - **1024-Token Memory Chunks**: Expanded chunking (`chunk_size=1024`, `chunk_overlap=200`) preserves deep technical reasoning.
+- **📂 Decoupled Workspace Architecture & Empty Workspaces**:
+  - Workspaces are isolated logical scopes for privacy and contextual boundaries.
+  - Creating a workspace is completely separate from attaching folders: create empty workspaces anytime via `/switch <name>` or `/workspace add <name>` (ideal for web documentation portals, market research, or agent tasks).
+  - Attach local folders or web URLs whenever you want via `/config` or `/web add`.
+- **🛒 Universal Schema.org & E-Commerce Rating Extraction**:
+  - Automatic extraction of `Product` and `IndividualProduct` structured metadata (`<script type="application/ld+json">`) including star ratings, review counts, prices, and stock status across Walmart, Amazon, Mercado Livre, Shopify, VTEX, WooCommerce, etc.
+  - Retains HTML semantic tags (`<form>`, `<header>`, `<aside>`, `<dl>`) so visible review badges (e.g. `4.844 out of 5 stars. 1199 reviews`) and buy box pricing are never discarded.
 - **🔓 100% Unlocked Community Edition CLI**: Full local power for individual users at zero cost:
   - Unlimited local workspaces and folders.
   - Deep recursive subfolder scanning.
@@ -128,7 +135,7 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 
 | Command | Aliases | Description |
 | :--- | :--- | :--- |
-| **`/switch`** | `-w`, `--workspace` | Open interactive menu to switch active workspace scope. |
+| **`/switch [name]`** | `/workspace`, `-w` | Switch active workspace or create a new empty workspace on the fly. |
 | **`/sync`** | `/index`, `-s` | Synchronize workspace files incrementally (single-line clean mode). |
 | **`/sync -v`** | `/index --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
 | **`/model`** | `/m`, `models` | Open key-aware AI model selector across 9 providers. |
@@ -216,7 +223,32 @@ Conforme implementado no arquivo `src/any_context/server/routes.py` (Modificado 
 3. Se válido, gera um Bearer Token com prefixo `actx_sec_` e expiração de 30 dias, retornando o papel do usuário (`Admin`, `Analyst` ou `Viewer`).
 ```
 
-### 4. Viewing Workspace Tree Structure (`/sync --verbose`)
+### 🛒 5. E-Commerce & Product Comparison (Structured Ratings & Reviews)
+```text
+You [Mercado | gpt-4o-mini]: Desses produtos de limpeza de vidros, qual tem a melhor avaliação e o melhor custo-benefício?
+
+🤖 AI [gpt-4o-mini]:
+🔍 [Search] Searching strictly within Workspace: 'Mercado' (top 8 chunks)...
+📚 Reading retrieved documents...
+
+Com base nas páginas de produtos indexadas:
+
+1. **Windex Original Glass Cleaner Spray (23 fl oz)**:
+   - **Avaliação**: **4.844 de 5 estrelas** (baseado em **1.199 avaliações**).
+   - **Preço**: **USD $3.98** ($0.17 / fl oz).
+   - **Status**: Em estoque.
+
+2. **Great Value Glass Cleaner Spray Bottle (32 fl oz)**:
+   - **Avaliação**: **4.200 de 5 estrelas** (baseado em **450 avaliações**).
+   - **Preço**: **USD $2.48** ($0.08 / fl oz).
+   - **Status**: Em estoque.
+
+**Conclusão e Custo-Benefício:**
+- **Melhor Avaliação Absoluta**: O **Windex** possui a maior nota de satisfação (**4.844 estrelas** com alto volume de 1.199 avaliações).
+- **Melhor Custo-Benefício por Volume**: O **Great Value** custa menos da metade por fl oz ($0.08 vs $0.17), mantendo uma nota sólida de 4.2 estrelas.
+```
+
+### 6. Viewing Workspace Tree Structure (`/sync --verbose`)
 ```text
 You [AnyContextProject | gpt-4o-mini]: /sync --verbose
 
