@@ -191,6 +191,66 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_09_multiline_inline_send_dispatch(self):
+        """Validates that /send typed inline at the end of a multiline prompt terminates and dispatches cleanly."""
+        safe_stdout_write(">>> [CLI UNIT] Testing Multiline Inline /send Dispatch...\n")
+        mock_inputs = [
+            '"""',
+            "Gostei desse de alberta",
+            "Quais sao os pre requisitos? /send",
+            "/exit"
+        ]
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.core.agent.create_anycontext_agent") as mock_create_agent:
+                mock_agent = unittest.mock.MagicMock()
+                mock_agent.stream.return_value = []
+                mock_create_agent.return_value = mock_agent
+
+                run_chat_loop(active_workspace="Default")
+                self.assertTrue(mock_agent.stream.called, "Agent stream must be called when /send is typed inline")
+                called_args = mock_agent.stream.call_args[0][0]
+                prompt_sent = called_args["messages"][0]
+                self.assertIn("Gostei desse de alberta", prompt_sent)
+                self.assertIn("Quais sao os pre requisitos?", prompt_sent)
+                self.assertNotIn("/send", prompt_sent, "/send keyword must be stripped before sending to AI")
+        safe_stdout_write("  [OK] Multiline inline /send termination and dispatch verified!\n")
+
+    def test_10_slash_palette_dispatch(self):
+        """Validates that typing '/' launches the interactive Slash Commands Palette and dispatches selected command."""
+        safe_stdout_write(">>> [CLI UNIT] Testing '/' Slash Command Palette Dispatch...\n")
+        mock_inputs = ["/", "/exit"]
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.cli.chat_loop.show_slash_commands_palette", return_value="/version") as mock_palette:
+                run_chat_loop(active_workspace="Default")
+                self.assertTrue(mock_palette.called, "show_slash_commands_palette must be called when '/' is entered")
+        safe_stdout_write("  [OK] '/' Slash Command Palette dispatch verified!\n")
+
+    def test_11_trailing_space_slash_line_continuation(self):
+        """Validates that typing 'text /' continues the line seamlessly."""
+        safe_stdout_write(">>> [CLI UNIT] Testing Trailing ' /' Line Continuation...\n")
+        mock_inputs = [
+            "Interessante /",
+            "Quais sao os requisitos?",
+            "/exit"
+        ]
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.core.agent.create_anycontext_agent") as mock_create_agent:
+                mock_agent = unittest.mock.MagicMock()
+                mock_agent.stream.return_value = []
+                mock_create_agent.return_value = mock_agent
+
+                run_chat_loop(active_workspace="Default")
+                self.assertTrue(mock_agent.stream.called)
+                called_args = mock_agent.stream.call_args[0][0]
+                prompt_sent = called_args["messages"][0]
+                self.assertIn("Interessante", prompt_sent)
+                self.assertIn("Quais sao os requisitos?", prompt_sent)
+        safe_stdout_write("  [OK] Trailing ' /' line continuation verified!\n")
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
