@@ -1,4 +1,6 @@
 import os
+import shutil
+import tempfile
 import unittest
 from any_context.config.db_store import ConfigDBStore, hash_password, verify_password
 from any_context.config.app_settings import ModelSettings
@@ -12,8 +14,15 @@ class Test03ModelsAndProviders(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.store = ConfigDBStore()
+        cls.temp_dir = tempfile.mkdtemp(prefix="actx_e2e_mod3_")
+        cls.test_db = os.path.join(cls.temp_dir, "test_settings.db")
+        cls.store = ConfigDBStore(db_path=cls.test_db)
         cls.test_key = "sk-test-proj-1234567890abcdef12345678"
+
+    @classmethod
+    def tearDownClass(cls):
+        if hasattr(cls, "temp_dir") and os.path.exists(cls.temp_dir):
+            shutil.rmtree(cls.temp_dir, ignore_errors=True)
 
     def test_01_pbkdf2_key_and_password_security(self):
         """TC-3.2: Tests PBKDF2 hashing, salt generation, and constant-time verification."""

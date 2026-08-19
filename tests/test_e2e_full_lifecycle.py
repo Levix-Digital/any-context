@@ -81,17 +81,31 @@ class AnyContextE2ETestSuite(unittest.TestCase):
         cls.store.add_workspace(cls.ws_tech, [cls.tech_dir])
         cls.store.add_workspace(cls.ws_web, [])
 
-        # Clean any leftover test web pages from previous runs
+        # Clean any leftover test web pages and vector chunks from previous runs
         from any_context.ingestion.web_scheduler import WebSchedulerStore
         web_store = WebSchedulerStore()
         for ws in [cls.ws_legal, cls.ws_tech, cls.ws_web]:
             web_store.delete_indexed_pages_for_root(ws, "https://httpbin.org/html")
             web_store.delete_web_url_by_url(ws, "https://httpbin.org/html")
 
+        settings = AppSettings.load()
+        db_path = settings.context.db_path if settings else "./context_db"
+        coll_name = settings.context.collection_name if settings else "context_docs"
+        if os.path.exists(db_path):
+            try:
+                client = chromadb.PersistentClient(path=db_path)
+                coll = client.get_collection(coll_name)
+                for ws in [cls.ws_legal, cls.ws_tech, cls.ws_web]:
+                    existing = coll.get(where={"workspace": ws})
+                    if existing and existing["ids"]:
+                        coll.delete(ids=existing["ids"])
+            except Exception:
+                pass
+
         # Configure deterministic mock embeddings if no API key is present in CI runner
         from any_context.core.utils import get_api_key
         api_key = get_api_key()
-        if not api_key or api_key.startswith("mock_") or "fake" in api_key.lower() or api_key == "sk-test":
+        if not api_key or api_key.startswith("mock_") or "fake" in api_key.lower() or api_key in ["sk-test", "test", "placeholder", "sk-placeholder"]:
             from llama_index.core import Settings
             from llama_index.core.embeddings.mock_embed_model import MockEmbedding
             Settings.embed_model = MockEmbedding(embed_dim=1536)
