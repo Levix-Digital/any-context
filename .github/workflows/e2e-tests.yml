@@ -1,4 +1,4 @@
-name: End-to-End (E2E) Test Suite
+name: End-to-End (E2E) Modular Test Suite
 
 on:
   pull_request:
@@ -35,8 +35,8 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
-      - name: Execute E2E Lifecycle Test Suite
+      - name: Execute 100% Modular E2E Test Suite
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'mock_test_ci_key' }}
         run: |
-          python tests/test_e2e_full_lifecycle.py
+          python tests/run_all_e2e.py

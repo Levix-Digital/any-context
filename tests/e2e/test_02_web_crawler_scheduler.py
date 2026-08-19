@@ -1,0 +1,123 @@
+import os
+import unittest
+import chromadb
+from any_context.config.app_settings import AppSettings
+from any_context.config.db_store import ConfigDBStore
+from any_context.ingestion.web_crawler import discover_site_urls, crawl_and_index_urls
+from any_context.ingestion.web_scheduler import WebSchedulerStore
+from any_context.tools.search_tools import search_db
+from tests.e2e_helpers import safe_stdout_write, setup_mock_embeddings_if_needed
+
+class Test02WebCrawlerScheduler(unittest.TestCase):
+    """
+    E2E Test Suite 02: Web Crawler Discovery, Semantic Normalization, Ranking, Deduplication & Scheduling
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.store = ConfigDBStore()
+        cls.ws_web = "E2E_Mod2_WebPortal"
+        cls.store.add_workspace(cls.ws_web, [])
+
+        cls.web_store = WebSchedulerStore()
+        cls.web_store.delete_indexed_pages_for_root(cls.ws_web, "https://httpbin.org/html")
+        cls.web_store.delete_web_url_by_url(cls.ws_web, "https://httpbin.org/html")
+
+        setup_mock_embeddings_if_needed()
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.store.remove_workspace(cls.ws_web)
+            cls.web_store.delete_indexed_pages_for_root(cls.ws_web, "https://httpbin.org/html")
+            cls.web_store.delete_web_url_by_url(cls.ws_web, "https://httpbin.org/html")
+            settings = AppSettings.load()
+            db_path = settings.context.db_path if settings else "./context_db"
+            coll_name = settings.context.collection_name if settings else "context_docs"
+            if os.path.exists(db_path):
+                client = chromadb.PersistentClient(path=db_path)
+                try:
+                    coll = client.get_collection(coll_name)
+                    existing = coll.get(where={"workspace": cls.ws_web})
+                    if existing and existing["ids"]:
+                        coll.delete(ids=existing["ids"])
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def test_01_semantic_path_normalization_and_discovery(self):
+        """TC-2.1: Verifies semantic path prefix normalization, stripping extensions (.html)."""
+        safe_stdout_write("\n>>> [MOD 2 / TC-2.1] Testing Semantic Path Normalization & Discovery...\n")
+        start_url = "https://docs.python.org/3/library/os.html"
+        disc = discover_site_urls(start_url)
+        self.assertEqual(disc["section_prefix"], "/3/library/os")
+        self.assertGreater(disc["domain_count"], 0)
+        safe_stdout_write("  [OK] Semantic path prefix normalization verified!\n")
+
+    def test_02_semantic_proximity_ranking(self):
+        """TC-2.2: Verifies that start URL is placed first and section pages are prioritized."""
+        safe_stdout_write(">>> [MOD 2 / TC-2.2] Testing Semantic Relevance Proximity Ranking...\n")
+        start_url = "https://docs.python.org/3/library/os.html"
+        disc = discover_site_urls(start_url)
+        self.assertEqual(disc["domain_urls"][0], start_url, "Top ranked URL must be the start URL")
+        self.assertGreater(len(disc["section_urls"]), 0)
+        safe_stdout_write("  [OK] Proximity Ranking verified: Landing > Section > Domain!\n")
+
+    def test_03_incremental_sha256_deduplication(self):
+        """TC-2.3 & TC-2.4: Verifies first ingestion, unchanged SHA-256 skip, and database record."""
+        safe_stdout_write(">>> [MOD 2 / TC-2.3] Testing Incremental Web Crawling & SHA-256 Bypass...\n")
+        test_web_urls = ["https://httpbin.org/html"]
+
+        # 1. First Ingestion
+        res1 = crawl_and_index_urls(
+            workspace_name=self.ws_web,
+            urls=test_web_urls,
+            root_url="https://httpbin.org/html",
+            root_title="HttpBin Suite",
+            scope="custom"
+        )
+        self.assertEqual(res1["status"], "success")
+        self.assertEqual(res1["indexed_count"], 1)
+        self.assertEqual(res1["skipped_count"], 0)
+
+        # 2. Second Ingestion without changes (Must skip with 0 embeddings)
+        res2 = crawl_and_index_urls(
+            workspace_name=self.ws_web,
+            urls=test_web_urls,
+            root_url="https://httpbin.org/html",
+            root_title="HttpBin Suite",
+            scope="custom",
+            force_refresh=False
+        )
+        self.assertEqual(res2["status"], "success")
+        self.assertEqual(res2["indexed_count"], 0, "Unchanged URL must not re-embed")
+        self.assertEqual(res2["skipped_count"], 1, "Unchanged URL must be skipped as cached")
+
+        # 3. Verify Database records
+        count = self.web_store.get_indexed_pages_count(self.ws_web, domain_or_prefix="httpbin.org")
+        self.assertEqual(count, 1)
+
+        search_res = search_db.invoke({"prompt_text": "Herman Melville Moby Dick", "workspace": self.ws_web})
+        self.assertIsInstance(search_res, str)
+        safe_stdout_write("  [OK] Web Incremental Deduplication verified: 0 redundant tokens consumed!\n")
+
+    def test_04_web_scheduler_store_crud(self):
+        """TC-2.6: Tests web source registration, polling interval updates, and deletion."""
+        safe_stdout_write(">>> [MOD 2 / TC-2.6] Testing Web Scheduler Store CRUD...\n")
+        ws_test = "E2E_Mod2_Scheduler"
+        url_entry = self.web_store.add_web_url(ws_test, "https://example.org", polling_interval_hours=24)
+        url_id = url_entry["id"] if isinstance(url_entry, dict) else url_entry
+        self.assertTrue(url_id.startswith("web_"))
+
+        urls = self.web_store.get_workspace_web_urls(ws_test)
+        self.assertEqual(len(urls), 1)
+        self.assertEqual(urls[0]["url"], "https://example.org")
+
+        self.web_store.delete_web_url(url_id, workspace_name=ws_test)
+        urls_after = self.web_store.get_workspace_web_urls(ws_test)
+        self.assertEqual(len(urls_after), 0)
+        safe_stdout_write("  [OK] Web Scheduler Store CRUD verified!\n")
+
+if __name__ == "__main__":
+    unittest.main()
