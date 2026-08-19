@@ -85,10 +85,21 @@ def collect_multiline_paste(active_workspace: Optional[str] = None, initial_text
                 return None
 
             stripped = line.strip()
-            if stripped == "/cancel":
+            if stripped.lower() == "/cancel":
                 safe_stdout_write("\n↩️ Multi-line paste cancelled.\n\n")
                 return None
-            if stripped in ["/send", '"""', "'''"]:
+            if stripped.lower() in ["/send", '"""', "'''"]:
+                break
+            if stripped.lower().endswith("/send"):
+                content = line[:line.lower().rfind("/send")].rstrip()
+                if content:
+                    lines.append(content)
+                break
+            if stripped.endswith('"""') or stripped.endswith("'''"):
+                delim = '"""' if stripped.endswith('"""') else "'''"
+                content = line[:line.rfind(delim)].rstrip()
+                if content:
+                    lines.append(content)
                 break
 
             lines.append(line)
@@ -101,6 +112,39 @@ def collect_multiline_paste(active_workspace: Optional[str] = None, initial_text
         safe_stdout_write("⚠️ Empty text entered. Returning to normal chat.\n\n")
         return None
     return full_text
+
+
+def show_slash_commands_palette(active_workspace: Optional[str] = None) -> Optional[str]:
+    """
+    Interactive Slash Command Palette triggered by typing '/' or '/menu'.
+    Allows the user to easily pick and execute any command or view documentation.
+    """
+    choice = questionary.select(
+        "⚡ AnyContext Slash Commands Palette (Choose a command to run):",
+        choices=[
+            "📂 /switch       - Switch or create active workspace",
+            "🌐 /web          - Ingest, crawl, list, or sync web portals",
+            "🔄 /transfer     - Instant zero-cost transfer of folders/websites",
+            "📋 /paste        - Enter multi-line paste mode for long texts",
+            "🤖 /model        - Change active AI inference model on-the-fly",
+            "⚙️ /config       - Open interactive configuration & settings menu",
+            "🔍 /density      - Configure RAG retrieval density presets",
+            "🧠 /reset-memory - Reset/purge long-term session memory",
+            "💳 /billing      - View subscription tiers and pricing matrix",
+            "🔐 /auth         - Manage user accounts and security tokens",
+            "🧹 /clear        - Clear terminal screen",
+            "ℹ️ /version      - Show current AnyContext version",
+            "📖 /help         - Open complete interactive Help & Documentation",
+            "👋 /exit         - Save session memory and exit AnyContext",
+            "🔙 [Cancel]"
+        ]
+    ).ask()
+
+    if not choice or choice.startswith("🔙"):
+        return None
+
+    cmd_token = choice.split()[1]
+    return cmd_token
 
 
 def run_chat_loop(active_workspace: str = None):
@@ -122,7 +166,7 @@ def run_chat_loop(active_workspace: str = None):
     current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
 
     safe_stdout_write("\n=======================================================\n")
-    safe_stdout_write("💬 Chat started! Type '/exit' or press Ctrl+C to quit.\n")
+    safe_stdout_write("💬 Chat started! Type '/' for command palette or '/exit' to quit.\n")
     safe_stdout_write("=======================================================\n\n")
 
     agent_instance = None
@@ -141,6 +185,21 @@ def run_chat_loop(active_workspace: str = None):
             cmd = user_input.lower()
             if not cmd:
                 continue
+
+            # Slash Command Palette triggered by typing '/' or '/menu' or '/commands'
+            if cmd in ["/", "/menu", "/commands", "/slash"]:
+                selected_cmd = show_slash_commands_palette(active_workspace=active_workspace)
+                if not selected_cmd:
+                    continue
+                user_input = selected_cmd
+                cmd = user_input.lower()
+
+            # Strip trailing /send if user typed /send at end of single-line prompt
+            if user_input.lower().endswith("/send"):
+                user_input = user_input[:user_input.lower().rfind("/send")].strip()
+                cmd = user_input.lower()
+                if not user_input:
+                    continue
 
             # Multi-line / Paste command
             if cmd in ["/paste", "/multiline", "/mline"]:
@@ -169,15 +228,23 @@ def run_chat_loop(active_workspace: str = None):
                             if line is None:
                                 break
                             stripped = line.strip()
-                            if stripped == "/cancel":
+                            if stripped.lower() == "/cancel":
                                 safe_stdout_write("\n↩️ Multi-line block cancelled.\n\n")
                                 lines = []
                                 break
-                            if stripped in ["/send", delimiter]:
+                            if stripped.lower() in ["/send", delimiter]:
+                                is_closed = True
+                                break
+                            if stripped.lower().endswith("/send"):
+                                content = line[:line.lower().rfind("/send")].rstrip()
+                                if content:
+                                    lines.append(content)
                                 is_closed = True
                                 break
                             if stripped.endswith(delimiter):
-                                lines.append(line[:line.rfind(delimiter)].rstrip())
+                                content = line[:line.rfind(delimiter)].rstrip()
+                                if content:
+                                    lines.append(content)
                                 is_closed = True
                                 break
                             lines.append(line)
@@ -192,9 +259,10 @@ def run_chat_loop(active_workspace: str = None):
                     else:
                         continue
 
-            # Shell-style line continuation with trailing backslash (\)
-            elif user_input.endswith("\\"):
-                lines = [user_input[:-1].rstrip()]
+            # Line continuation with trailing backslash (\) or trailing slash ( /)
+            elif user_input.endswith("\\") or (user_input.endswith(" /") and not user_input.startswith("http")):
+                suffix_len = 2 if user_input.endswith(" /") else 1
+                lines = [user_input[:-suffix_len].rstrip()]
                 is_cancelled = False
                 while True:
                     try:
@@ -202,12 +270,21 @@ def run_chat_loop(active_workspace: str = None):
                         if line is None:
                             is_cancelled = True
                             break
-                        if line.strip() == "/cancel":
+                        stripped = line.strip()
+                        if stripped.lower() == "/cancel":
                             safe_stdout_write("\n↩️ Line continuation cancelled.\n\n")
                             is_cancelled = True
                             break
-                        if line.endswith("\\"):
-                            lines.append(line[:-1].rstrip())
+                        if stripped.lower() == "/send":
+                            break
+                        if stripped.lower().endswith("/send"):
+                            content = line[:line.lower().rfind("/send")].rstrip()
+                            if content:
+                                lines.append(content)
+                            break
+                        if line.endswith("\\") or (line.endswith(" /") and not line.startswith("http")):
+                            s_len = 2 if line.endswith(" /") else 1
+                            lines.append(line[:-s_len].rstrip())
                         else:
                             lines.append(line)
                             break
