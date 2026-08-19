@@ -7,7 +7,8 @@ from html.parser import HTMLParser
 
 class CleanHTMLTextExtractor(HTMLParser):
     """
-    Lightweight HTML parser to extract clean human-readable text from web pages, stripping scripts and styles.
+    Lightweight HTML parser to extract clean human-readable text from web pages,
+    stripping scripts, styles, navigation bars, headers, footers, and sidebars.
     """
     def __init__(self):
         super().__init__()
@@ -15,29 +16,54 @@ class CleanHTMLTextExtractor(HTMLParser):
         self.strict = False
         self.convert_charrefs = True
         self.text = []
-        self.skip_tags = {"script", "style", "noscript", "svg", "head"}
-        self.current_tag = None
+        self.skip_tags = {
+            "script", "style", "noscript", "svg", "head",
+            "nav", "header", "footer", "aside", "form"
+        }
+        self.tag_stack = []
+        self.block_tags = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "tr", "div", "section", "article"}
 
     def handle_starttag(self, tag, attrs):
-        self.current_tag = tag.lower()
+        t = tag.lower()
+        self.tag_stack.append(t)
+        if t in self.block_tags:
+            self.text.append("\n")
+
+    def handle_endtag(self, tag):
+        t = tag.lower()
+        if self.tag_stack and self.tag_stack[-1] == t:
+            self.tag_stack.pop()
+        elif t in self.tag_stack:
+            while self.tag_stack:
+                if self.tag_stack.pop() == t:
+                    break
+        if t in self.block_tags:
+            self.text.append("\n")
 
     def handle_data(self, data):
-        if self.current_tag not in self.skip_tags:
-            content = data.strip()
-            if content:
-                self.text.append(content)
+        if any(t in self.skip_tags for t in self.tag_stack):
+            return
+        content = data.strip()
+        if content:
+            self.text.append(content)
 
     def get_text(self) -> str:
-        return " ".join(self.text)
+        raw = " ".join(self.text)
+        # Normalize excessive newlines and spaces
+        cleaned = re.sub(r"\n\s*\n+", "\n\n", raw)
+        cleaned = re.sub(r"[ \t]+", " ", cleaned)
+        return cleaned.strip()
 
-def scrape_url(url: str, timeout: int = 10) -> Dict[str, Any]:
+def scrape_url(url: str, timeout: int = 15) -> Dict[str, Any]:
     """
     Fetches a web page URL, cleans HTML tags, computes SHA-256 content hash, and extracts page title and body text.
     """
     if not url.startswith("http://") and not url.startswith("https://"):
         url = f"https://{url}"
 
-    headers = {"User-Agent": "AnyContext-WebScraper/1.0 (+https://levix-digital.github.io/any-context-releases/)"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AnyContext-WebScraper/1.0"
+    }
     req = urllib.request.Request(url, headers=headers)
     
     with urllib.request.urlopen(req, timeout=timeout) as response:

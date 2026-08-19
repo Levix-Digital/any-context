@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 class ContextSettings(BaseModel):
     db_path: str = Field(default="./context_db")
     collection_name: str = Field(default="anycontext")
+    chunk_size: int = Field(default=1024, description="Target token size per document chunk")
+    chunk_overlap: int = Field(default=200, description="Token overlap between adjacent chunks")
 
 class WorkspaceSettings(BaseModel):
     name: str = Field(default="Default")

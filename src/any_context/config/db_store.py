@@ -110,9 +110,17 @@ class ConfigDBStore:
                 CREATE TABLE IF NOT EXISTS context_settings (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     db_path TEXT NOT NULL,
-                    collection_name TEXT NOT NULL
+                    collection_name TEXT NOT NULL,
+                    chunk_size INTEGER DEFAULT 1024,
+                    chunk_overlap INTEGER DEFAULT 200
                 )
             """)
+            cursor.execute("PRAGMA table_info(context_settings)")
+            ctx_cols = [r[1] for r in cursor.fetchall()]
+            if "chunk_size" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN chunk_size INTEGER DEFAULT 1024")
+            if "chunk_overlap" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN chunk_overlap INTEGER DEFAULT 200")
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS session_settings (
@@ -302,7 +310,18 @@ class ConfigDBStore:
 
             cursor.execute("SELECT * FROM context_settings WHERE id = 1")
             c_row = cursor.fetchone()
-            context = ContextSettings(db_path=c_row["db_path"], collection_name=c_row["collection_name"]) if c_row else ContextSettings()
+            if c_row:
+                c_keys = c_row.keys()
+                c_sz = c_row["chunk_size"] if ("chunk_size" in c_keys and c_row["chunk_size"]) else 1024
+                c_ov = c_row["chunk_overlap"] if ("chunk_overlap" in c_keys and c_row["chunk_overlap"] is not None) else 200
+                context = ContextSettings(
+                    db_path=c_row["db_path"],
+                    collection_name=c_row["collection_name"],
+                    chunk_size=c_sz,
+                    chunk_overlap=c_ov
+                )
+            else:
+                context = ContextSettings()
 
             cursor.execute("SELECT * FROM session_settings WHERE id = 1")
             s_row = cursor.fetchone()
@@ -347,7 +366,10 @@ class ConfigDBStore:
             """, (m.embedding_model, m.embedding_model, m.embedding_model, m.inference_model, m.summary_model, m.model_provider, m.local_base_url))
 
             c = settings.context
-            cursor.execute("INSERT OR REPLACE INTO context_settings (id, db_path, collection_name) VALUES (1, ?, ?)", (c.db_path, c.collection_name))
+            cursor.execute("""
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap)
+                VALUES (1, ?, ?, ?, ?)
+            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap))
 
             s = settings.session
             cursor.execute("INSERT OR REPLACE INTO session_settings (id, db_path, collection_name) VALUES (1, ?, ?)", (s.db_path, s.collection_name))

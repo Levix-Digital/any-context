@@ -180,7 +180,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "by relevance to your target topic (Landing Page > Direct Section Children > In-Page Links > Keyword Matches > Generic Domain).\n"
             "  4. Clean Semantic HTML Extraction : Strips boilerplate (navbars, footers, cookie banners, scripts, ads) while "
             "preserving headings (#, ##), tables, lists, and core article text.\n"
-            "  5. IngestionPipeline & Chunking : Chunks content using SentenceSplitter (chunk_size=500, chunk_overlap=50), calculates embeddings "
+            "  5. IngestionPipeline & Chunking : Chunks content using SentenceSplitter (chunk_size=1024, chunk_overlap=200), calculates embeddings "
             "in micro-batches with OpenAI / Local embeddings, and commits vectors directly into isolated ChromaDB collections.\n"
             "  6. Workspace Isolation : Web vectors are strictly scoped by workspace metadata, ensuring complete privacy."
         ),

@@ -306,9 +306,12 @@ def crawl_and_index_urls(
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     configure_embedding_model()
 
+    chunk_size = settings.context.chunk_size if (settings and settings.context) else 1024
+    chunk_overlap = settings.context.chunk_overlap if (settings and settings.context) else 200
+
     pipeline = IngestionPipeline(
         transformations=[
-            SentenceSplitter(chunk_size=500, chunk_overlap=50),
+            SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap),
             Settings.embed_model
         ],
         vector_store=vector_store

@@ -377,9 +377,12 @@ def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[st
         else:
             docstore = SimpleDocumentStore()
 
+        chunk_size = settings.context.chunk_size if (settings and settings.context) else 1024
+        chunk_overlap = settings.context.chunk_overlap if (settings and settings.context) else 200
+
         pipeline = IngestionPipeline(
             transformations=[
-                SentenceSplitter(chunk_size=1024, chunk_overlap=100),
+                SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap),
                 Settings.embed_model
             ],
             vector_store=vector_store,
