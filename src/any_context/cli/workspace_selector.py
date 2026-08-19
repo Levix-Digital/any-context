@@ -42,13 +42,8 @@ def show_workspace_menu() -> Optional[str]:
         new_name = questionary.text("Enter New Workspace Name:").ask()
         if new_name and new_name.strip():
             clean_name = new_name.strip()
-            folder_path = questionary.text("(Optional) Enter folder path for documents (press Enter to skip):").ask()
-            paths = [folder_path.strip()] if folder_path and folder_path.strip() else []
-            store.add_workspace(clean_name, paths)
-            if paths:
-                print(f"✅ Created workspace '{clean_name}' with folder '{paths[0]}'.\n")
-            else:
-                print(f"✅ Created workspace '{clean_name}' (Empty workspace ready for web sources or folders).\n")
+            store.add_workspace(clean_name, paths=[])
+            print(f"✅ Created workspace '{clean_name}'.\n")
             return clean_name
         return None
 
