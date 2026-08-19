@@ -209,6 +209,45 @@ class Test08MCPProtocolServer(unittest.TestCase):
         self.assertEqual(data_reset["top_k"], 40)
         safe_stdout_write("  [OK] MCP context retrieval settings tools verified!\n")
 
+    def test_06_mcp_rename_workspace_tool(self):
+        """TC-8.6: Tests tools/call invoking rename_workspace tool."""
+        safe_stdout_write(">>> [MOD 8 / TC-8.6] Testing MCP rename_workspace Tool Execution...\n")
+        mcp_src = "mcp_rename_src"
+        mcp_tgt = "mcp_rename_tgt"
+
+        self.store.add_workspace(mcp_src, paths=[])
+
+        try:
+            req = {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "tools/call",
+                "params": {
+                    "name": "rename_workspace",
+                    "arguments": {
+                        "old_name": mcp_src,
+                        "new_name": mcp_tgt
+                    }
+                }
+            }
+            res = dispatch_mcp_request(req)
+            self.assertIn("result", res)
+            self.assertFalse(res["result"].get("isError", False))
+            data = json.loads(res["result"]["content"][0]["text"])
+            self.assertTrue(data.get("success", False))
+            self.assertEqual(data["old_workspace"], mcp_src)
+            self.assertEqual(data["new_workspace"], mcp_tgt)
+
+            # Verify in DB
+            settings = self.store.get_app_settings()
+            ws_names = [w.name for w in settings.workspaces]
+            self.assertNotIn(mcp_src, ws_names)
+            self.assertIn(mcp_tgt, ws_names)
+            safe_stdout_write("  [OK] MCP rename_workspace tool verified!\n")
+        finally:
+            self.store.remove_workspace(mcp_src)
+            self.store.remove_workspace(mcp_tgt)
+
 
 if __name__ == "__main__":
     unittest.main()

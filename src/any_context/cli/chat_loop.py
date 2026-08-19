@@ -123,6 +123,7 @@ def show_slash_commands_palette(active_workspace: Optional[str] = None) -> Optio
         "⚡ AnyContext Slash Commands Palette (Choose a command to run):",
         choices=[
             "📂 /switch       - Switch or create active workspace",
+            "✏️ /rename       - Rename a workspace and migrate vector records",
             "🌐 /web          - Ingest, crawl, list, or sync web portals",
             "🔄 /transfer     - Instant zero-cost transfer of folders/websites",
             "📋 /paste        - Enter multi-line paste mode for long texts",
@@ -386,6 +387,41 @@ def run_chat_loop(active_workspace: str = None):
                             safe_stdout_write(f"\n✅ Transferred folder '{source_item}' ({res.get('transferred_chunks', 0)} vector chunks) to '{target_ws}' in < 50ms! (API Cost: $0.00)\n\n")
                         else:
                             safe_stdout_write(f"\n❌ Transfer error: {res.get('error')}\n\n")
+                continue
+
+            elif cmd == "/rename" or cmd.startswith("/rename ") or cmd.startswith("/workspace rename"):
+                parts = user_input.strip().split()
+                store = ConfigDBStore()
+                if len(parts) < 3 or (parts[1].lower() == "rename" and len(parts) < 4):
+                    # Interactive guided rename wizard
+                    settings = store.get_app_settings()
+                    known_workspaces = [w.name for w in settings.workspaces] if settings else []
+                    if not known_workspaces:
+                        safe_stdout_write("\n⚠️ No workspaces configured to rename.\n\n")
+                        continue
+                    old_ws = questionary.select("Select Workspace to rename:", choices=known_workspaces).ask()
+                    if not old_ws:
+                        continue
+                    new_ws = questionary.text(f"Enter new name for workspace '{old_ws}':").ask()
+                    if not new_ws or not new_ws.strip():
+                        continue
+                    clean_new_ws = new_ws.strip()
+                else:
+                    arg_offset = 2 if parts[1].lower() == "rename" else 1
+                    old_ws = parts[arg_offset]
+                    clean_new_ws = parts[arg_offset + 1]
+
+                with Spinner(f"Renaming workspace '{old_ws}' to '{clean_new_ws}'..."):
+                    res = store.rename_workspace(old_name=old_ws, new_name=clean_new_ws)
+                if res.get("success"):
+                    migrated = res.get("migrated_chunks", 0)
+                    safe_stdout_write(f"\n✅ Renamed workspace '{old_ws}' to '{clean_new_ws}' ({migrated} vector chunks updated)! (API Cost: $0.00)\n\n")
+                    if active_workspace == old_ws:
+                        active_workspace = clean_new_ws
+                        config["configurable"]["active_workspace"] = active_workspace
+                        agent_instance = None
+                else:
+                    safe_stdout_write(f"\n❌ Error renaming workspace: {res.get('error')}\n\n")
                 continue
 
             elif cmd in ["/sync", "/resync", "/index"] or cmd.startswith("/sync ") or cmd.startswith("/index "):

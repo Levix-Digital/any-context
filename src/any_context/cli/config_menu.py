@@ -134,6 +134,7 @@ def _manage_workspaces(store: ConfigDBStore):
         choices=[
             "📋 List Workspaces & Folders",
             "➕ Create New Workspace",
+            "✏️ Rename Workspace",
             "📁 Manage Folders in Existing Workspace",
             "🌐 Manage Web URLs & Scraping Sources",
             "🔄 Transfer Source (Folder/Web) to Another Workspace",
@@ -164,6 +165,27 @@ def _manage_workspaces(store: ConfigDBStore):
             clean_name = name.strip()
             store.add_workspace(clean_name, paths=[])
             print(f"✅ Created workspace '{clean_name}'.")
+
+    elif ws_action.startswith("✏️"):
+        names = [ws.name for ws in workspaces]
+        if not names:
+            print("No workspaces configured.")
+            return
+        target_ws = questionary.select("Select Workspace to rename:", choices=names).ask()
+        if not target_ws:
+            return
+        new_name = questionary.text(f"Enter new name for workspace '{target_ws}':").ask()
+        if new_name and new_name.strip():
+            clean_new_name = new_name.strip()
+            from any_context.cli.spinner import Spinner
+            with Spinner(f"Renaming workspace and migrating vector records to '{clean_new_name}'..."):
+                res = store.rename_workspace(old_name=target_ws, new_name=clean_new_name)
+            if res.get("success"):
+                migrated = res.get("migrated_chunks", 0)
+                print(f"\n✅ Successfully renamed workspace '{target_ws}' to '{clean_new_name}' ({migrated} vector chunks updated)! (API Cost: $0.00)\n")
+            else:
+                print(f"\n❌ Error renaming workspace: {res.get('error')}\n")
+
 
     elif ws_action.startswith("📁"):
         ws_names = [ws.name for ws in workspaces]

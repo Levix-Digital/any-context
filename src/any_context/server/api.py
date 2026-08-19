@@ -86,6 +86,18 @@ class TransferSourceResponse(BaseModel):
     api_embedding_cost: str = "$0.00"
     message: str
 
+class RenameWorkspaceRequest(BaseModel):
+    old_name: str = Field(..., description="Current workspace name to rename")
+    new_name: str = Field(..., description="New name for the workspace")
+
+class RenameWorkspaceResponse(BaseModel):
+    status: str = "success"
+    old_workspace: str
+    new_workspace: str
+    migrated_chunks: int = 0
+    api_cost: str = "$0.00"
+    message: str
+
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User query or instruction for the AI agent")
     workspace: Optional[str] = Field(None, description="Target workspace name (optional)")
@@ -448,6 +460,31 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                 api_embedding_cost="$0.00",
                 message=f"Local folder '{src_item}' successfully transferred from '{src_ws}' to '{tgt_ws}' in < 50ms with zero API cost ($0.00)."
             )
+
+    @app.post("/v1/workspaces/rename", response_model=RenameWorkspaceResponse, tags=["Workspaces"])
+    def rename_workspace_endpoint(req: RenameWorkspaceRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Renames a workspace atomically across SQLite records and ChromaDB vector metadata in sub-50ms ($0.00 cost)."""
+        verify_token_access(credentials=credentials, required_role="admin", required_workspace=req.old_name)
+
+        old_ws = (req.old_name or "").strip()
+        new_ws = (req.new_name or "").strip()
+
+        if not old_ws or not new_ws:
+            raise HTTPException(status_code=400, detail="Both old_name and new_name are required.")
+
+        store = ConfigDBStore()
+        res = store.rename_workspace(old_name=old_ws, new_name=new_ws)
+        if not res.get("success"):
+            raise HTTPException(status_code=400, detail=res.get("error", "Failed to rename workspace."))
+
+        return RenameWorkspaceResponse(
+            status="success",
+            old_workspace=old_ws,
+            new_workspace=new_ws,
+            migrated_chunks=res.get("migrated_chunks", 0),
+            api_cost="$0.00",
+            message=f"Workspace '{old_ws}' successfully renamed to '{new_ws}' ({res.get('migrated_chunks', 0)} vector chunks migrated) with zero API cost ($0.00)."
+        )
 
     @app.get("/v1/models", response_model=AvailableModelsResponse, tags=["AI Models"])
     def list_available_models_endpoint():
