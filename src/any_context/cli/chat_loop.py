@@ -259,10 +259,9 @@ def run_chat_loop(active_workspace: str = None):
                     else:
                         continue
 
-            # Line continuation with trailing backslash (\) or trailing slash ( /)
-            elif user_input.endswith("\\") or (user_input.endswith(" /") and not user_input.startswith("http")):
-                suffix_len = 2 if user_input.endswith(" /") else 1
-                lines = [user_input[:-suffix_len].rstrip()]
+            # Shell-style line continuation with trailing backslash (\)
+            elif user_input.endswith("\\"):
+                lines = [user_input[:-1].rstrip()]
                 is_cancelled = False
                 while True:
                     try:
@@ -282,9 +281,8 @@ def run_chat_loop(active_workspace: str = None):
                             if content:
                                 lines.append(content)
                             break
-                        if line.endswith("\\") or (line.endswith(" /") and not line.startswith("http")):
-                            s_len = 2 if line.endswith(" /") else 1
-                            lines.append(line[:-s_len].rstrip())
+                        if line.endswith("\\"):
+                            lines.append(line[:-1].rstrip())
                         else:
                             lines.append(line)
                             break
