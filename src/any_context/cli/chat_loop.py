@@ -106,7 +106,31 @@ def run_chat_loop(active_workspace: str = None):
                 print_banner()
                 print(f"🧹 Screen cleared | Workspace: \033[93m{active_workspace or 'Global'}\033[0m | Model: \033[95m{current_model}\033[0m\n")
                 continue
-            elif cmd == "/switch":
+            elif cmd == "/switch" or cmd.startswith("/switch ") or cmd == "/workspace" or cmd.startswith("/workspace "):
+                parts = user_input.strip().split(maxsplit=1)
+                if len(parts) > 1 and parts[1].strip():
+                    target_ws = parts[1].strip()
+                    if target_ws.lower().startswith("create "):
+                        target_ws = target_ws[7:].strip()
+                    elif target_ws.lower().startswith("add "):
+                        target_ws = target_ws[4:].strip()
+                    
+                    store = ConfigDBStore()
+                    settings = store.get_app_settings()
+                    known_workspaces = [w.name for w in settings.workspaces] if settings else []
+                    if target_ws not in known_workspaces:
+                        store.add_workspace(target_ws, paths=[])
+                        print(f"\n✅ Created and switched to new workspace '\033[93m{target_ws}\033[0m' (Empty workspace ready for web sources or folders).\n")
+                    else:
+                        print(f"\n🔄 Switched to workspace '\033[93m{target_ws}\033[0m'.\n")
+                    active_workspace = target_ws
+                    config["configurable"]["active_workspace"] = active_workspace
+                    with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+                        from any_context.ingestion.local_folder_ingestor import run_index_folder
+                        run_index_folder(workspace_name=active_workspace, verbose=False)
+                    agent_instance = None
+                    continue
+
                 new_workspace = show_workspace_menu()
                 if new_workspace:
                     active_workspace = new_workspace

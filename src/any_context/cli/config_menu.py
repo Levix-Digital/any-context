@@ -19,24 +19,29 @@ def run_first_time_wizard():
     print("=======================================================\n")
 
     ws_name = questionary.text(
-        "1. Enter a name for your first workspace (e.g. MyProject):",
-        default="MyWorkspace"
+        "1. Enter a name for your first workspace (e.g. Default, Mercado, MyProject):",
+        default="Default"
     ).ask()
 
-    if not ws_name:
-        ws_name = "MyWorkspace"
+    if not ws_name or not ws_name.strip():
+        ws_name = "Default"
+    ws_name = ws_name.strip()
 
     folder_path = questionary.text(
-        "2. Enter the absolute folder path containing your documents:",
-        default=os.getcwd()
+        "2. (Optional) Enter a folder path for local documents (press Enter to skip):",
+        default=""
     ).ask()
 
-    if not folder_path or not os.path.exists(folder_path):
-        print(f"⚠️ Warning: Directory '{folder_path}' does not exist right now, but saving configuration.")
+    paths = [folder_path.strip()] if folder_path and folder_path.strip() else []
+    if paths and not os.path.exists(paths[0]):
+        print(f"⚠️ Warning: Directory '{paths[0]}' does not exist right now, but saving configuration.")
 
     store = ConfigDBStore()
-    store.add_workspace(name=ws_name, paths=[folder_path])
-    print(f"✅ Workspace '{ws_name}' created successfully with path: {folder_path}\n")
+    store.add_workspace(name=ws_name, paths=paths)
+    if paths:
+        print(f"✅ Workspace '{ws_name}' created successfully with path: {paths[0]}\n")
+    else:
+        print(f"✅ Workspace '{ws_name}' created successfully (Empty workspace ready for web sources or local folders)\n")
 
     # Offer Quick AI Provider Setup
     setup_ai = questionary.confirm("3. Do you want to configure your AI Provider & API Key now?").ask()
@@ -163,11 +168,15 @@ def _manage_workspaces(store: ConfigDBStore):
 
     elif ws_action.startswith("➕"):
         name = questionary.text("New Workspace Name:").ask()
-        if name:
-            path = questionary.text("First Folder Path:").ask()
-            if path:
-                store.add_workspace(name.strip(), [path.strip()])
-                print(f"✅ Created workspace '{name}' with folder '{path}'.")
+        if name and name.strip():
+            clean_name = name.strip()
+            path = questionary.text("(Optional) First Folder Path (press Enter to skip):").ask()
+            paths = [path.strip()] if path and path.strip() else []
+            store.add_workspace(clean_name, paths)
+            if paths:
+                print(f"✅ Created workspace '{clean_name}' with folder '{paths[0]}'.")
+            else:
+                print(f"✅ Created workspace '{clean_name}' (Empty workspace ready for web sources or folders).")
 
     elif ws_action.startswith("📁"):
         ws_names = [ws.name for ws in workspaces]

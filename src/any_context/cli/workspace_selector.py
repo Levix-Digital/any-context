@@ -1,5 +1,6 @@
 import argparse
 import sys
+from typing import Optional, List
 import questionary
 from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
@@ -8,9 +9,9 @@ from any_context.cli.updater import check_for_updates, run_self_update
 from any_context.cli.spinner import Spinner
 from any_context import __version__
 
-def show_workspace_menu() -> str:
+def show_workspace_menu() -> Optional[str]:
     """
-    Displays an interactive menu for the user to select a workspace.
+    Displays an interactive menu for the user to select an existing workspace or create a new one.
     Runs first-time wizard if database is empty.
     """
     store = ConfigDBStore()
@@ -23,32 +24,34 @@ def show_workspace_menu() -> str:
         sys.exit(1)
 
     workspace_names = [ws.name for ws in settings.workspaces]
-    if len(workspace_names) == 1:
-        return workspace_names[0]
+    choices = workspace_names + ["➕ Create New Workspace", "🔙 Cancel"]
     
     selected = None
     try:
         selected = questionary.select(
             "Select the active workspace:",
-            choices=workspace_names
+            choices=choices
         ).ask()
     except Exception:
         selected = None
     
-    if not selected:
-        # Fallback to standard input if curses/PTY selection is interrupted or unsupported
-        print("\nSelect the active workspace:")
-        for idx, ws in enumerate(workspace_names, start=1):
-            print(f"  {idx}. {ws}")
-        try:
-            choice_idx = input(f"\nEnter workspace number [1-{len(workspace_names)}] (default: 1): ").strip()
-            if choice_idx.isdigit() and 1 <= int(choice_idx) <= len(workspace_names):
-                selected = workspace_names[int(choice_idx) - 1]
+    if not selected or selected.startswith("🔙"):
+        return None
+
+    if selected.startswith("➕"):
+        new_name = questionary.text("Enter New Workspace Name:").ask()
+        if new_name and new_name.strip():
+            clean_name = new_name.strip()
+            folder_path = questionary.text("(Optional) Enter folder path for documents (press Enter to skip):").ask()
+            paths = [folder_path.strip()] if folder_path and folder_path.strip() else []
+            store.add_workspace(clean_name, paths)
+            if paths:
+                print(f"✅ Created workspace '{clean_name}' with folder '{paths[0]}'.\n")
             else:
-                selected = workspace_names[0]
-        except (KeyboardInterrupt, EOFError):
-            selected = workspace_names[0]
-        
+                print(f"✅ Created workspace '{clean_name}' (Empty workspace ready for web sources or folders).\n")
+            return clean_name
+        return None
+
     return selected
 
 def ensure_api_key_configured():

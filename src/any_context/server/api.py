@@ -355,6 +355,18 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         dto_list = [WorkspaceDTO(name=ws.name, paths=ws.paths) for ws in settings.workspaces]
         return WorkspacesResponse(total=len(dto_list), workspaces=dto_list)
 
+    @app.post("/v1/workspaces", response_model=WorkspaceDTO, tags=["Workspaces"])
+    def create_workspace_endpoint(name: str, paths: Optional[List[str]] = None, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Creates a new workspace with optional local folder paths (empty by default)."""
+        verify_token_access(credentials=credentials, required_role="analyst")
+        clean_name = name.strip()
+        if not clean_name:
+            raise HTTPException(status_code=400, detail="Workspace name cannot be empty.")
+        store = ConfigDBStore()
+        clean_paths = paths or []
+        store.add_workspace(clean_name, clean_paths)
+        return WorkspaceDTO(name=clean_name, paths=clean_paths)
+
     @app.get("/v1/models", response_model=AvailableModelsResponse, tags=["AI Models"])
     def list_available_models_endpoint():
         """Lists available inference models based on configured and validated API keys."""
