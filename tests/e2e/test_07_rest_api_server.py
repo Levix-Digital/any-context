@@ -178,6 +178,38 @@ class Test07RestApiServer(unittest.TestCase):
         self.assertEqual(res_balanced.json()["top_k"], 40)
         safe_stdout_write("  [OK] /v1/context/settings GET and POST preset endpoints verified!\n")
 
+    def test_07_rename_workspace_endpoint(self):
+        """TC-7.9: Tests POST /v1/workspaces/rename endpoint for zero-cost workspace renaming."""
+        safe_stdout_write(">>> [MOD 7 / TC-7.9] Testing /v1/workspaces/rename REST Endpoint...\n")
+        orig_name = "api_rename_src"
+        new_name = "api_rename_tgt"
+
+        # Create workspace first
+        self.store.add_workspace(orig_name, paths=[])
+
+        try:
+            payload = {
+                "old_name": orig_name,
+                "new_name": new_name
+            }
+            res = self.client.post("/v1/workspaces/rename", json=payload, headers=self.headers)
+            self.assertEqual(res.status_code, 200, f"POST /v1/workspaces/rename failed: {res.text}")
+            data = res.json()
+            self.assertEqual(data["status"], "success")
+            self.assertEqual(data["old_workspace"], orig_name)
+            self.assertEqual(data["new_workspace"], new_name)
+            self.assertEqual(data["api_cost"], "$0.00")
+
+            # Verify in DB
+            settings = self.store.get_app_settings()
+            ws_names = [w.name for w in settings.workspaces]
+            self.assertNotIn(orig_name, ws_names)
+            self.assertIn(new_name, ws_names)
+            safe_stdout_write("  [OK] POST /v1/workspaces/rename REST API verified!\n")
+        finally:
+            self.store.remove_workspace(orig_name)
+            self.store.remove_workspace(new_name)
+
 
 if __name__ == "__main__":
     unittest.main()

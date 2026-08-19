@@ -247,6 +247,31 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
                 self.assertEqual(prompt_sent, "Interessante /")
         safe_stdout_write("  [OK] Trailing '/' treated as normal text prompt verified!\n")
 
+    def test_12_rename_command_dispatch(self):
+        """Validates that /rename dispatches correctly and renames workspace in CLI."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /rename Command Dispatch...\n")
+        old_ws = "cli_rename_old"
+        new_ws = "cli_rename_new"
+
+        self.store.add_workspace(old_ws, paths=[])
+
+        try:
+            mock_inputs = [
+                f"/rename {old_ws} {new_ws}",
+                "/exit"
+            ]
+            with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+                run_chat_loop(active_workspace="Default")
+
+            settings = self.store.get_app_settings()
+            ws_names = [w.name for w in settings.workspaces]
+            self.assertNotIn(old_ws, ws_names)
+            self.assertIn(new_ws, ws_names)
+            safe_stdout_write("  [OK] /rename CLI command dispatch verified!\n")
+        finally:
+            self.store.remove_workspace(old_ws)
+            self.store.remove_workspace(new_ws)
+
 
 if __name__ == "__main__":
     unittest.main()

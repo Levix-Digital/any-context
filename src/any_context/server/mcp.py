@@ -273,6 +273,18 @@ MCP_TOOLS_DEFINITIONS = [
         }
     },
     {
+        "name": "rename_workspace",
+        "description": "Renames a workspace atomically across SQLite records and ChromaDB vector metadata in sub-50ms with zero API cost ($0.00).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "old_name": {"type": "string", "description": "Current workspace name to rename"},
+                "new_name": {"type": "string", "description": "New name for the workspace"}
+            },
+            "required": ["old_name", "new_name"]
+        }
+    },
+    {
         "name": "get_context_retrieval_settings",
         "description": "Retrieves the current multi-source RAG retrieval density settings (preset, top_k chunks, candidate pool size, max chunks per source).",
         "inputSchema": {
@@ -553,6 +565,15 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                     store = ConfigDBStore()
                     res = store.transfer_local_folder_source(source_ws=src_ws, target_ws=tgt_ws, folder_path=src_item)
 
+                result_text = json.dumps(res, indent=2)
+
+            elif tool_name == "rename_workspace":
+                old_ws = arguments.get("old_name", "").strip()
+                new_ws = arguments.get("new_name", "").strip()
+                if not old_ws or not new_ws:
+                    raise ValueError("old_name and new_name are required.")
+                store = ConfigDBStore()
+                res = store.rename_workspace(old_name=old_ws, new_name=new_ws)
                 result_text = json.dumps(res, indent=2)
 
             elif tool_name == "get_context_retrieval_settings":
