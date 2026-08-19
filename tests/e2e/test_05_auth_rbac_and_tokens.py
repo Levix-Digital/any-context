@@ -1,4 +1,6 @@
 import os
+import shutil
+import tempfile
 import uuid
 import unittest
 from any_context.config.db_store import ConfigDBStore
@@ -11,12 +13,19 @@ class Test05AuthRBACAndTokens(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.store = ConfigDBStore()
+        cls.temp_dir = tempfile.mkdtemp(prefix="actx_e2e_mod5_")
+        cls.test_db = os.path.join(cls.temp_dir, "test_settings.db")
+        cls.store = ConfigDBStore(db_path=cls.test_db)
         uid = uuid.uuid4().hex[:6]
         cls.admin_email = f"admin_{uid}@enterprise.corp"
         cls.analyst_email = f"analyst_{uid}@enterprise.corp"
         cls.viewer_email = f"viewer_{uid}@enterprise.corp"
         cls.secure_pass = "EnterprisePass@2026!"
+
+    @classmethod
+    def tearDownClass(cls):
+        if hasattr(cls, "temp_dir") and os.path.exists(cls.temp_dir):
+            shutil.rmtree(cls.temp_dir, ignore_errors=True)
 
     def test_01_user_creation_and_authentication(self):
         """TC-5.1: Tests user registration, password verification, and bad password rejection."""

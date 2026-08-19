@@ -40,7 +40,16 @@ def configure_embedding_model():
     model_provider = settings.models.model_provider if settings else "openai"
     api_key = get_api_key(provider=model_provider)
 
-    if not api_key or api_key.startswith("mock_") or "fake" in api_key.lower() or api_key in ["sk-test", "test"]:
+    is_mock = (
+        not api_key
+        or api_key.startswith("mock_")
+        or api_key.startswith("sk-test")
+        or api_key in ["lm-studio", "placeholder", "sk-placeholder", "test", "fake"]
+        or "test" in api_key.lower()
+        or "fake" in api_key.lower()
+        or "mock" in api_key.lower()
+    )
+    if is_mock:
         try:
             from llama_index.core.embeddings.mock_embed_model import MockEmbedding
             embed_m = MockEmbedding(embed_dim=1536)

@@ -122,7 +122,7 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
     or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
     Automatically embeds application README and Help Module Registry as permanent system self-help context.
     """
-    current_settings = AppSettings.load() or settings
+    current_settings = AppSettings.load()
     if not current_settings or not current_settings.workspaces:
         if verbose:
             safe_print("❌ Error: No workspaces configured in settings.")
@@ -131,6 +131,8 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
     configure_embedding_model()
 
     target_ws_name = workspace_name or (current_settings.workspaces[0].name if current_settings.workspaces else "Global")
+    db_save_path = current_settings.context.db_path if (current_settings and current_settings.context) else "./context_db"
+    collection_name = current_settings.context.collection_name if (current_settings and current_settings.context) else "context_docs"
 
     if verbose:
         safe_print(f"\n┌ 📦 \033[1mIngestion Pipeline: {target_ws_name}\033[0m")
@@ -146,8 +148,8 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
     else:
         docstore = SimpleDocumentStore()
 
-    chunk_size = settings.context.chunk_size if (settings and settings.context) else 1024
-    chunk_overlap = settings.context.chunk_overlap if (settings and settings.context) else 200
+    chunk_size = current_settings.context.chunk_size if (current_settings and current_settings.context) else 1024
+    chunk_overlap = current_settings.context.chunk_overlap if (current_settings and current_settings.context) else 200
 
     pipeline = IngestionPipeline(
         transformations = [
@@ -217,8 +219,8 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
                     except Exception:
                         pass
 
-        # Auto-inject application README.md as permanent system context for this workspace
-        if readme_path:
+        # Auto-inject application README.md as permanent system context for Default/Global workspace
+        if ws.name in ["Default", "Global"] and readme_path:
             try:
                 readme_reader = SimpleDirectoryReader(input_files=[readme_path])
                 readme_docs = readme_reader.load_data()
@@ -231,15 +233,16 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
             except Exception:
                 pass
 
-        # Auto-inject Help Module Registry as permanent system self-help context
-        try:
-            help_doc = build_help_registry_document()
-            help_doc.metadata["workspace"] = ws.name
-            help_doc.metadata["is_system_help"] = True
-            help_doc.id_ = f"system_help_registry_{ws.name}"
-            all_documents.append(help_doc)
-        except Exception:
-            pass
+        # Auto-inject Help Module Registry as permanent system self-help context for Default/Global workspace
+        if ws.name in ["Default", "Global"]:
+            try:
+                help_doc = build_help_registry_document()
+                help_doc.metadata["workspace"] = ws.name
+                help_doc.metadata["is_system_help"] = True
+                help_doc.id_ = f"system_help_registry_{ws.name}"
+                all_documents.append(help_doc)
+            except Exception:
+                pass
 
     if verbose:
         safe_print(f"│ ├─ 🔍 Discovery   : {total_discovered_files} files scanned across configured paths")
