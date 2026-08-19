@@ -11,25 +11,7 @@ from any_context.help import handle_command_help_interception
 from any_context import __version__
 
 
-def safe_prompt_input(prompt_text: str) -> Optional[str]:
-    """
-    Safely reads input from terminal with complete immunity to Windows signal corruption & EOF.
-    Returns:
-      - str: user input (or '/exit' if user confirmed exit)
-      - None: if user cancelled exit with 'No'
-    """
-    try:
-        return input(prompt_text)
-    except (KeyboardInterrupt, EOFError):
-        print()
-        try:
-            confirm_ans = input("\033[93m❓ Are you sure you want to exit AnyContext? [y/N]:\033[0m ").strip().lower()
-            if confirm_ans in ["y", "yes", "s", "sim"]:
-                return "/exit"
-            print("↩️ Resuming session...\n")
-            return None
-        except (KeyboardInterrupt, EOFError):
-            return "/exit"
+from any_context.cli.history import safe_prompt_input
 
 
 def safe_stdout_write(msg: str):
@@ -75,7 +57,7 @@ def run_chat_loop(active_workspace: str = None):
         try:
             prompt_ws = f"\033[93m{active_workspace}\033[96m" if active_workspace else "Global"
             prompt_str = f"You [{prompt_ws} | \033[95m{current_model}\033[96m]"
-            raw_input = safe_prompt_input(f"\n\033[96m👤 {prompt_str}:\033[0m ")
+            raw_input = safe_prompt_input(f"\n\033[96m👤 {prompt_str}:\033[0m ", workspace_name=active_workspace)
             if raw_input is None:
                 continue
 
@@ -286,6 +268,27 @@ def run_chat_loop(active_workspace: str = None):
                 print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
                 continue
 
+            elif cmd in ["/history", "/hist"]:
+                from any_context.cli.history import get_workspace_history_entries
+                entries = get_workspace_history_entries(active_workspace, limit=20)
+                print(f"\n📜 Recent Input History for Workspace '\033[93m{active_workspace or 'Global'}\033[0m' ({len(entries)} entries):")
+                if not entries:
+                    print("  (No previous inputs recorded for this workspace. Use ↑ / ↓ arrow keys as you chat)")
+                else:
+                    for idx, h_entry in enumerate(entries, 1):
+                        print(f"  {idx:2d}. \033[96m{h_entry}\033[0m")
+                print("  \033[90mTip: Press [↑] Up Arrow / [↓] Down Arrow anytime to cycle through past inputs.\033[0m\n")
+                continue
+
+            elif cmd in ["/clear-history", "/clearhistory", "/reset-history"]:
+                from any_context.cli.history import clear_workspace_history
+                cleared = clear_workspace_history(active_workspace)
+                if cleared:
+                    print(f"\n🧹 Input history cleared for workspace '\033[93m{active_workspace or 'Global'}\033[0m'!\n")
+                else:
+                    print(f"\n⚠️ Could not clear history for workspace '{active_workspace or 'Global'}'.\n")
+                continue
+
             elif cmd.startswith("/"):
                 import difflib
                 known_commands = [
@@ -293,7 +296,7 @@ def run_chat_loop(active_workspace: str = None):
                     "/clear", "/cls",
                     "/switch", "/model", "/m", "/sync", "/index", "/update", "/check-update",
                     "/reset-memory", "/reset", "/factory-reset", "/config",
-                    "/keys", "/billing", "/plans", "/web"
+                    "/keys", "/billing", "/plans", "/web", "/history", "/clear-history"
                 ]
                 typed_cmd = user_input.split()[0]
                 matches = difflib.get_close_matches(typed_cmd.lower(), known_commands, n=1, cutoff=0.45)

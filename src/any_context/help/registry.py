@@ -579,6 +579,41 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         tips=[
             "Use Factory Reset if you want to start fresh or transfer your AnyContext installation to a new environment."
         ]
+    ),
+
+    "history": HelpPage(
+        command="/history",
+        aliases=["history", "/hist", "hist", "/clear-history", "clear-history", "--history"],
+        title="📜 Workspace Input History & Arrow Key Navigation",
+        description=(
+            "AnyContext maintains an isolated, persistent input history for each workspace stored at '~/.any_context/history/{workspace}.history'. "
+            "You can seamlessly navigate through previous prompts by pressing [↑] Up Arrow or [↓] Down Arrow during the interactive chat loop. "
+            "Switching workspaces immediately switches to that workspace's dedicated history scope."
+        ),
+        syntax=(
+            "Navigate in Chat : Press [↑] Up Arrow / [↓] Down Arrow\n"
+            "  View Recent List : /history   OR   /hist\n"
+            "  Clear History    : /clear-history   OR   /reset-history\n"
+            "  View Help        : /history --help   OR   /history -h"
+        ),
+        parameters=[
+            "/history, /hist       : Display the list of recent prompt inputs for the active workspace.",
+            "/clear-history        : Permanently purge the input history file for the active workspace.",
+            "[↑] Up / [↓] Down     : Interactive keyboard shortcuts to cycle through past prompts in terminal.",
+            "--help, -h            : Display this detailed help page for input history."
+        ],
+        examples=[
+            "In Chat: [↑] (Up Arrow)",
+            "In Chat: /history",
+            "In Chat: /hist",
+            "In Chat: /clear-history",
+            "In Chat: /history -h"
+        ],
+        tips=[
+            "History is completely isolated per workspace: prompts in 'Mercado' will never mix with 'Legal'.",
+            "History is persistent across sessions: previous prompts remain available when you reopen AnyContext tomorrow.",
+            "Passwords and sensitive inputs are masked and never written to history files."
+        ]
     )
 }
 

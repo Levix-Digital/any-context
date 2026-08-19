@@ -14,7 +14,7 @@ class Test09CLICommandsAndHelp(unittest.TestCase):
         expected_commands = [
             "switch", "sync", "model", "api-keys", "web", "ocr",
             "billing", "update", "config", "auth", "share",
-            "serve", "mcp", "reset-memory", "clear", "factory-reset"
+            "serve", "mcp", "reset-memory", "clear", "factory-reset", "history"
         ]
 
         for cmd in expected_commands:
@@ -26,7 +26,7 @@ class Test09CLICommandsAndHelp(unittest.TestCase):
             self.assertGreater(len(page.parameters), 0)
             self.assertGreater(len(page.examples), 0)
             self.assertGreater(len(page.tips), 0)
-        safe_stdout_write("  [OK] 100% of all 16 command help pages resolved and validated!\n")
+        safe_stdout_write(f"  [OK] 100% of all {len(expected_commands)} command help pages resolved and validated!\n")
 
     def test_02_help_alias_resolution(self):
         """TC-9.1: Tests resolving commands via various syntax styles (/cmd, -c, --cmd)."""
@@ -38,6 +38,8 @@ class Test09CLICommandsAndHelp(unittest.TestCase):
         self.assertEqual(get_help_page("crawler"), get_help_page("web"))
         self.assertEqual(get_help_page("cls"), get_help_page("clear"))
         self.assertEqual(get_help_page("reset"), get_help_page("reset-memory"))
+        self.assertEqual(get_help_page("/hist"), get_help_page("history"))
+        self.assertEqual(get_help_page("/clear-history"), get_help_page("history"))
         safe_stdout_write("  [OK] Help alias resolution verified across all shortcuts!\n")
 
     def test_03_windows_charmap_safe_output(self):
@@ -56,6 +58,53 @@ class Test09CLICommandsAndHelp(unittest.TestCase):
             except Exception as e:
                 self.fail(f"Terminal safe writer crashed on string: {s} with error: {e}")
         safe_stdout_write("  [OK] Windows CP1252 / Charmap terminal output verified!\n")
+
+    def test_04_workspace_history_isolation(self):
+        """TC-9.4: Verifies strict per-workspace prompt history file isolation and retrieval."""
+        safe_stdout_write(">>> [MOD 9 / TC-9.4] Testing Workspace Input History Isolation & Persistence...\n")
+        from any_context.cli.history import (
+            get_workspace_history_file,
+            get_workspace_history_entries,
+            clear_workspace_history,
+            WorkspaceHistoryManager
+        )
+        from prompt_toolkit.history import FileHistory
+
+        ws_a = "E2E_History_Legal"
+        ws_b = "E2E_History_Mercado"
+
+        # Clean any preexisting history
+        clear_workspace_history(ws_a)
+        clear_workspace_history(ws_b)
+
+        file_a = get_workspace_history_file(ws_a)
+        file_b = get_workspace_history_file(ws_b)
+        self.assertNotEqual(file_a, file_b, "Each workspace must have a separate history file")
+
+        # Append prompts to Workspace A
+        hist_a = FileHistory(file_a)
+        hist_a.append_string("Qual o prazo do contrato?")
+        hist_a.append_string("Qual a multa por rescisão?")
+
+        # Append prompts to Workspace B
+        hist_b = FileHistory(file_b)
+        hist_b.append_string("Qual o preço do detergente?")
+
+        entries_a = get_workspace_history_entries(ws_a)
+        entries_b = get_workspace_history_entries(ws_b)
+
+        self.assertEqual(len(entries_a), 2)
+        self.assertIn("Qual o prazo do contrato?", entries_a)
+        self.assertNotIn("Qual o preço do detergente?", entries_a, "Workspace A must NOT contain prompts from Workspace B")
+
+        self.assertEqual(len(entries_b), 1)
+        self.assertEqual(entries_b[0], "Qual o preço do detergente?")
+
+        # Clean up
+        clear_workspace_history(ws_a)
+        clear_workspace_history(ws_b)
+        self.assertEqual(len(get_workspace_history_entries(ws_a)), 0)
+        safe_stdout_write("  [OK] Workspace history isolation & persistence verified!\n")
 
 if __name__ == "__main__":
     unittest.main()
