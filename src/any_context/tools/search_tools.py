@@ -132,18 +132,33 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         import sys
         if workspace and not search_session_memory:
             safe_stdout_write(f"\r\033[K🔍 [Search] Searching strictly within Workspace: '{workspace}' (top {search_k} chunks)...")
-            filters = MetadataFilters(
-                filters=[ExactMatchFilter(key="workspace", value=workspace)]
-            )
-            retriever = index.as_retriever(similarity_top_k=search_k, filters=filters)
-            nodes = retriever.retrieve(prompt_text)
+            try:
+                filters = MetadataFilters(
+                    filters=[ExactMatchFilter(key="workspace", value=workspace)]
+                )
+                retriever = index.as_retriever(similarity_top_k=search_k, filters=filters)
+                nodes = retriever.retrieve(prompt_text)
+            except Exception:
+                # Resilient Fallback: broad query with in-memory Python workspace isolation filter
+                try:
+                    retriever = index.as_retriever(similarity_top_k=search_k * 4, filters=None)
+                    all_nodes = retriever.retrieve(prompt_text)
+                    nodes = [n for n in all_nodes if n.metadata.get("workspace") == workspace][:search_k]
+                except Exception:
+                    nodes = []
         elif not search_session_memory:
             safe_stdout_write(f"\r\033[K🔍 [Search] Searching across workspaces (top {search_k} chunks)...")
-            retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
-            nodes = retriever.retrieve(prompt_text)
+            try:
+                retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
+                nodes = retriever.retrieve(prompt_text)
+            except Exception:
+                nodes = []
         else:
-            retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
-            nodes = retriever.retrieve(prompt_text)
+            try:
+                retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
+                nodes = retriever.retrieve(prompt_text)
+            except Exception:
+                nodes = []
 
         results_list = []
         for i, node in enumerate(nodes):
@@ -153,14 +168,17 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
             results_list.append(f"--- [Document Chunk {i+1} | Source: {file_name} | Workspace: {ws_tag}] ---\nPath: {file_path}\nContent:\n{node.text}")
 
         if not results_list:
-            return f"No documents found for search in workspace '{workspace}'." if workspace else "No documents found."
+            if search_session_memory:
+                return f"No session memory records found for query '{prompt_text}' in workspace '{workspace}'." if workspace else "No session memory records found."
+            return f"No relevant documents found for query '{prompt_text}' in workspace '{workspace}'. (Search executed across {chroma_collection.count()} indexed chunks)." if workspace else f"No relevant documents found for query '{prompt_text}'."
             
         return "\n\n".join(results_list)
 
     except Exception as e:
+        safe_stdout_write(f"\r\033[K⚠️ [Search] Vector search failed: {e}\n")
         if search_session_memory:
             return "No long-term session memory entries found yet."
-        return f"Error during database search: {str(e)}"
+        return f"DATABASE_SEARCH_FAILED: {str(e)}. The requested information could not be retrieved from the workspace vector database."
 
 
 @tool()
