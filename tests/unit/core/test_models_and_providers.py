@@ -1,7 +1,13 @@
 import os
+import sys
 import shutil
 import tempfile
 import unittest
+
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 from any_context.config.db_store import ConfigDBStore, hash_password, verify_password
 from any_context.config.app_settings import ModelSettings
 from any_context.core.utils import get_api_key

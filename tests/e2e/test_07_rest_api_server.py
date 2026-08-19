@@ -1,5 +1,11 @@
 import os
+import sys
 import unittest
+
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 from fastapi.testclient import TestClient
 from any_context.server.api import create_app
 from any_context.config.db_store import ConfigDBStore
