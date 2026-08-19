@@ -78,9 +78,9 @@ def run_chat_loop(active_workspace: str = None):
     settings = AppSettings.load()
     current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
 
-    print("\n=======================================================")
-    print("💬 Chat started! Type '/exit' or press Ctrl+C to quit.")
-    print("=======================================================\n")
+    safe_stdout_write("\n=======================================================\n")
+    safe_stdout_write("💬 Chat started! Type '/exit' or press Ctrl+C to quit.\n")
+    safe_stdout_write("=======================================================\n\n")
 
     agent_instance = None
     active_workspace_for_agent = None
@@ -104,7 +104,7 @@ def run_chat_loop(active_workspace: str = None):
                 continue
 
             elif cmd in ["/exit", "/quit", "/q", "exit", "quit"]:
-                print("\n👋 Saving session memory and exiting AnyContext. See you soon!\n")
+                safe_stdout_write("\n👋 Saving session memory and exiting AnyContext. See you soon!\n\n")
                 try:
                     from any_context.memory import run_session_summarizer_async
                     run_session_summarizer_async(thread_id, active_workspace)
@@ -113,13 +113,13 @@ def run_chat_loop(active_workspace: str = None):
                 break
 
             elif cmd in ["/version", "/v"]:
-                print(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital")
+                safe_stdout_write(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital\n")
                 continue
             elif cmd in ["/clear", "/cls", "clear", "cls"]:
                 from any_context.cli.banner import clear_terminal
                 clear_terminal()
                 print_banner()
-                print(f"🧹 Screen cleared | Workspace: \033[93m{active_workspace or 'Global'}\033[0m | Model: \033[95m{current_model}\033[0m\n")
+                safe_stdout_write(f"🧹 Screen cleared | Workspace: \033[93m{active_workspace or 'Global'}\033[0m | Model: \033[95m{current_model}\033[0m\n\n")
                 continue
             elif cmd == "/switch" or cmd.startswith("/switch ") or cmd == "/workspace" or cmd.startswith("/workspace "):
                 parts = user_input.strip().split(maxsplit=1)
@@ -135,9 +135,9 @@ def run_chat_loop(active_workspace: str = None):
                     known_workspaces = [w.name for w in settings.workspaces] if settings else []
                     if target_ws not in known_workspaces:
                         store.add_workspace(target_ws, paths=[])
-                        print(f"\n✅ Created and switched to new workspace '\033[93m{target_ws}\033[0m' (Empty workspace ready for web sources or folders).\n")
+                        safe_stdout_write(f"\n✅ Created and switched to new workspace '\033[93m{target_ws}\033[0m'.\n\n")
                     else:
-                        print(f"\n🔄 Switched to workspace '\033[93m{target_ws}\033[0m'.\n")
+                        safe_stdout_write(f"\n🔄 Switched to workspace '\033[93m{target_ws}\033[0m'.\n\n")
                     active_workspace = target_ws
                     config["configurable"]["active_workspace"] = active_workspace
                     with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
@@ -252,7 +252,6 @@ def run_chat_loop(active_workspace: str = None):
                     "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
                 ).ask()
                 if confirm:
-                    from any_context.config.db_store import ConfigDBStore
                     store = ConfigDBStore()
                     store.factory_reset()
                     print("\n🎉 AnyContext has been completely reset to factory defaults!")
@@ -422,16 +421,17 @@ def run_chat_loop(active_workspace: str = None):
                     current_model = "gpt-4o-mini"
                     print(f"🔄 Automatically reverted active session model to \033[95m{current_model}\033[0m.\n")
 
-        except (KeyboardInterrupt, EOFError):
-            print()
+        except (KeyboardInterrupt, EOFError, StopIteration):
+            safe_stdout_write("\n")
             try:
-                confirm_ans = input("\033[93m❓ Are you sure you want to exit AnyContext? [y/N]:\033[0m ").strip().lower()
+                safe_stdout_write("\033[93m❓ Are you sure you want to exit AnyContext? [y/N]:\033[0m ")
+                confirm_ans = input().strip().lower()
                 should_exit = confirm_ans in ["y", "yes", "s", "sim"]
-            except (KeyboardInterrupt, EOFError):
+            except (KeyboardInterrupt, EOFError, StopIteration):
                 should_exit = True
 
             if should_exit:
-                print("\n👋 Saving session memory and exiting AnyContext. See you soon!\n")
+                safe_stdout_write("\n👋 Saving session memory and exiting AnyContext. See you soon!\n\n")
                 try:
                     from any_context.memory import run_session_summarizer_async
                     run_session_summarizer_async(thread_id, active_workspace)
@@ -439,7 +439,7 @@ def run_chat_loop(active_workspace: str = None):
                     pass
                 break
             else:
-                print("↩️ Resuming session...\n")
+                safe_stdout_write("↩️ Resuming session...\n\n")
                 continue
         except Exception as e:
             safe_stdout_write(format_session_error(e))

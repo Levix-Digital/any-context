@@ -119,5 +119,31 @@ class Test09CLICommandsAndHelp(unittest.TestCase):
         self.assertIn("Sua sessão", formatted)
         safe_stdout_write("  [OK] User-friendly session error formatting verified!\n")
 
+    def test_06_chat_loop_workspace_add_command(self):
+        """TC-9.6: Verifies that /workspace add <name> executes cleanly without UnboundLocalError."""
+        safe_stdout_write(">>> [MOD 9 / TC-9.6] Testing /workspace add <name> Command Execution...\n")
+        from any_context.config.db_store import ConfigDBStore
+        from unittest.mock import patch
+
+        store = ConfigDBStore()
+        test_ws_name = "test_e2e_ws_add"
+
+        # Mock inputs: user enters '/workspace add test_e2e_ws_add', then '/exit'
+        mock_inputs = [f"/workspace add {test_ws_name}", "/exit"]
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.ingestion.local_folder_ingestor.run_index_folder"):
+                from any_context.cli.chat_loop import run_chat_loop
+                run_chat_loop(active_workspace="Default")
+
+        # Verify workspace was created in ConfigDBStore
+        settings = store.get_app_settings()
+        ws_names = [w.name for w in settings.workspaces] if settings else []
+        self.assertIn(test_ws_name, ws_names, f"Workspace '{test_ws_name}' should have been created in database")
+
+        # Clean up
+        store.remove_workspace(test_ws_name)
+        safe_stdout_write("  [OK] /workspace add command executed and verified without UnboundLocalError!\n")
+
 if __name__ == "__main__":
     unittest.main()
