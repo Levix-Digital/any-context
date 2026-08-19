@@ -230,5 +230,36 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
 
         safe_stdout_write("  [OK] RFC 9309 Robots.txt compliance verified: disallowed paths strictly blocked!\n")
 
+    def test_07_client_side_rendering_spa_detection(self):
+        """TC-2.9: Verifies detection of Client-Side Rendered (CSR / SPA) shells vs rich text pages."""
+        safe_stdout_write(">>> [MOD 2 / TC-2.9] Testing Client-Side Rendering (CSR / SPA) Detection...\n")
+        from any_context.ingestion.web_ingestor import scrape_url
+        from unittest.mock import patch, MagicMock
+
+        mock_spa_html = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>SPA Portal</title></head>
+        <body>
+            <div id="__next"></div>
+            <script id="__NEXT_DATA__" type="application/json">{"props": {"pageProps": {}}}</script>
+            <script src="/_next/static/chunks/main.js"></script>
+            <p>Loading...</p>
+        </body>
+        </html>
+        """
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = mock_spa_html.encode("utf-8")
+        mock_resp.headers = {}
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = None
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            doc = scrape_url("https://spa-app.example.com/app")
+            self.assertTrue(doc.get("is_dynamic_spa"), "SPA shell page with __NEXT_DATA__ and sparse text must be flagged as dynamic SPA")
+
+        safe_stdout_write("  [OK] Client-Side Rendering (CSR / SPA) detection verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
