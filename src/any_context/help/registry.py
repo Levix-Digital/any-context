@@ -345,10 +345,12 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ),
         parameters=[
             "📂 Workspaces & Folders Management : Add, view, or remove document folder paths.",
-            "🌐 Web Sources & Polling URLs     : Manage website URLs ingested into the active workspace.",
+            "🤝 Workspace Sharing & Invites     : Manage team collaboration and folder access levels.",
+            "🔍 Context Retrieval Density       : Configure RAG presets (Balanced, Turbo, Deep Research).",
             "🤖 AI Models & Base URL            : Select LLM inference and embedding models.",
             "🔑 Manage Saved API Keys           : Store API keys securely in SQLite.",
             "🧠 Memory Compression Settings     : Adjust short-term and meta-summary limits.",
+            "💳 Subscription & Payment Plans    : Select pricing tiers and manage license keys.",
             "🛡️ User Accounts & Security RBAC   : Manage Admin, Team Users, and Bearer Tokens.",
             "💥 Factory Reset                   : Wipe all settings and reset to defaults.",
             "--help, -h                        : Display this detailed help page for /config."
@@ -696,6 +698,42 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Transfers execute in sub-50 milliseconds regardless of how many thousands of pages or files are in the source.",
             "Zero tokens are spent: vector embeddings are preserved and moved without calling OpenAI/LLMs.",
             "External AI Agents connected via MCP (Claude Desktop, Cursor IDE) can transfer sources via natural language prompts."
+        ]
+    ),
+
+    "density": HelpPage(
+        command="/density",
+        aliases=["density", "preset", "presets", "rag-preset", "top-k", "candidate-pool"],
+        title="🔍 Multi-Source RAG Retrieval Density & Presets",
+        description=(
+            "AnyContext features an enterprise High-Density Multi-Source Retrieval Engine. "
+            "When workspaces contain 20+ websites, legal codes, or medical guidelines, the engine retrieves a wide "
+            "candidate pool (up to 150 chunks) and applies Source-Fair Round-Robin allocation to guarantee all sources "
+            "are represented in the AI context window without single-document monopoly."
+        ),
+        syntax=(
+            "In CLI Config Menu : actx --config -> 🔍 Context Retrieval Density & RAG Presets\n"
+            "  REST API Endpoint  : GET /v1/context/settings   AND   POST /v1/context/settings\n"
+            "  MCP Server Tool    : get_context_retrieval_settings  AND  set_context_retrieval_preset\n"
+            "  View Help          : /density --help   OR   /help density"
+        ),
+        parameters=[
+            "⚡ Balanced (Default)   : Top-40 diversified chunks, Candidate Pool 100, Max 3 chunks per source (TTFT < 300ms, ideal for Cloud models & 20+ portals).",
+            "🚀 Turbo               : Top-20 diversified chunks, Candidate Pool 50, Max 2 chunks per source (Ultra-fast TTFT, ideal for LM Studio/Ollama offline).",
+            "🔬 Deep Research       : Top-60 diversified chunks, Candidate Pool 150, Max 4 chunks per source (Maximum coverage for massive legal dossiers & 50+ websites).",
+            "🛠️ Custom              : Fine-tune exact top_k, candidate_pool_size, and max_chunks_per_source values.",
+            "--help, -h             : Display this detailed help page for RAG retrieval presets."
+        ],
+        examples=[
+            "In Config: actx --config -> 🔍 Context Retrieval Density",
+            "In REST API: POST /v1/context/settings {\"preset\":\"deep_research\"}",
+            "In REST API: POST /v1/context/settings {\"preset\":\"turbo\"}",
+            "In MCP: set_context_retrieval_preset(preset='balanced')",
+            "In Chat: /help density"
+        ],
+        tips=[
+            "Source-Fair Round-Robin ensures that asking broad questions (e.g. 'Quais programas existem?') captures all 15+ provinces in a single prompt.",
+            "Top-40 chunks represent ~5.000 tokens, consuming less than $0.0009 on gpt-4o-mini with sub-300ms first-token latency."
         ]
     )
 }

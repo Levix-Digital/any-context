@@ -150,6 +150,67 @@ class Test08MCPProtocolServer(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_05_mcp_context_retrieval_presets_tools(self):
+        """TC-8.5: Tests tools/call invoking get_context_retrieval_settings and set_context_retrieval_preset."""
+        safe_stdout_write(">>> [MOD 8 / TC-8.5] Testing MCP Context Retrieval Settings Tools Execution...\n")
+
+        # 1. get_context_retrieval_settings
+        req_get = {
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "tools/call",
+            "params": {
+                "name": "get_context_retrieval_settings",
+                "arguments": {}
+            }
+        }
+        res_get = dispatch_mcp_request(req_get)
+        self.assertIn("result", res_get)
+        data_get = json.loads(res_get["result"]["content"][0]["text"])
+        self.assertIn("retrieval_preset", data_get)
+        self.assertIn("top_k", data_get)
+
+        # 2. set_context_retrieval_preset (Deep Research)
+        req_set = {
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "tools/call",
+            "params": {
+                "name": "set_context_retrieval_preset",
+                "arguments": {
+                    "preset": "deep_research"
+                }
+            }
+        }
+        res_set = dispatch_mcp_request(req_set)
+        self.assertIn("result", res_set)
+        data_set = json.loads(res_set["result"]["content"][0]["text"])
+        self.assertEqual(data_set["status"], "success")
+        self.assertEqual(data_set["retrieval_preset"], "deep_research")
+        self.assertEqual(data_set["top_k"], 60)
+        self.assertEqual(data_set["candidate_pool_size"], 150)
+
+        # 3. Reset back to balanced
+        req_reset = {
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "tools/call",
+            "params": {
+                "name": "set_context_retrieval_preset",
+                "arguments": {
+                    "preset": "balanced"
+                }
+            }
+        }
+        res_reset = dispatch_mcp_request(req_reset)
+        self.assertIn("result", res_reset)
+        data_reset = json.loads(res_reset["result"]["content"][0]["text"])
+        self.assertEqual(data_reset["retrieval_preset"], "balanced")
+        self.assertEqual(data_reset["top_k"], 40)
+        safe_stdout_write("  [OK] MCP context retrieval settings tools verified!\n")
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

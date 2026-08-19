@@ -112,7 +112,11 @@ class ConfigDBStore:
                     db_path TEXT NOT NULL,
                     collection_name TEXT NOT NULL,
                     chunk_size INTEGER DEFAULT 1024,
-                    chunk_overlap INTEGER DEFAULT 200
+                    chunk_overlap INTEGER DEFAULT 200,
+                    top_k INTEGER DEFAULT 40,
+                    candidate_pool_size INTEGER DEFAULT 100,
+                    max_chunks_per_source INTEGER DEFAULT 3,
+                    retrieval_preset TEXT DEFAULT 'balanced'
                 )
             """)
             cursor.execute("PRAGMA table_info(context_settings)")
@@ -121,6 +125,14 @@ class ConfigDBStore:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN chunk_size INTEGER DEFAULT 1024")
             if "chunk_overlap" not in ctx_cols:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN chunk_overlap INTEGER DEFAULT 200")
+            if "top_k" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN top_k INTEGER DEFAULT 40")
+            if "candidate_pool_size" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN candidate_pool_size INTEGER DEFAULT 100")
+            if "max_chunks_per_source" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN max_chunks_per_source INTEGER DEFAULT 3")
+            if "retrieval_preset" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN retrieval_preset TEXT DEFAULT 'balanced'")
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS session_settings (
@@ -415,11 +427,19 @@ class ConfigDBStore:
                 c_keys = c_row.keys()
                 c_sz = c_row["chunk_size"] if ("chunk_size" in c_keys and c_row["chunk_size"]) else 1024
                 c_ov = c_row["chunk_overlap"] if ("chunk_overlap" in c_keys and c_row["chunk_overlap"] is not None) else 200
+                c_top_k = c_row["top_k"] if ("top_k" in c_keys and c_row["top_k"]) else 40
+                c_pool = c_row["candidate_pool_size"] if ("candidate_pool_size" in c_keys and c_row["candidate_pool_size"]) else 100
+                c_max_src = c_row["max_chunks_per_source"] if ("max_chunks_per_source" in c_keys and c_row["max_chunks_per_source"]) else 3
+                c_preset = c_row["retrieval_preset"] if ("retrieval_preset" in c_keys and c_row["retrieval_preset"]) else "balanced"
                 context = ContextSettings(
                     db_path=c_row["db_path"],
                     collection_name=c_row["collection_name"],
                     chunk_size=c_sz,
-                    chunk_overlap=c_ov
+                    chunk_overlap=c_ov,
+                    top_k=c_top_k,
+                    candidate_pool_size=c_pool,
+                    max_chunks_per_source=c_max_src,
+                    retrieval_preset=c_preset
                 )
             else:
                 context = ContextSettings()
@@ -468,9 +488,9 @@ class ConfigDBStore:
 
             c = settings.context
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap)
-                VALUES (1, ?, ?, ?, ?)
-            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap, c.top_k, c.candidate_pool_size, c.max_chunks_per_source, c.retrieval_preset))
 
             s = settings.session
             cursor.execute("INSERT OR REPLACE INTO session_settings (id, db_path, collection_name) VALUES (1, ?, ?)", (s.db_path, s.collection_name))
@@ -484,13 +504,13 @@ class ConfigDBStore:
             conn.commit()
 
     def update_context_settings(self, context: ContextSettings):
-        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap)"""
+        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap, retrieval parameters)"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap)
-                VALUES (1, ?, ?, ?, ?)
-            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap, context.top_k, context.candidate_pool_size, context.max_chunks_per_source, context.retrieval_preset))
             conn.commit()
 
     def update_session_settings(self, session: SessionSettings):

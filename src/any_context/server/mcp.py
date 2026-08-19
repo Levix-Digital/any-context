@@ -271,6 +271,29 @@ MCP_TOOLS_DEFINITIONS = [
             },
             "required": ["source_workspace", "target_workspace", "source_type", "source_path_or_url"]
         }
+    },
+    {
+        "name": "get_context_retrieval_settings",
+        "description": "Retrieves the current multi-source RAG retrieval density settings (preset, top_k chunks, candidate pool size, max chunks per source).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "set_context_retrieval_preset",
+        "description": "Configures RAG retrieval density presets ('balanced', 'turbo', 'deep_research') or custom top_k / candidate pool parameters.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "preset": {"type": "string", "enum": ["balanced", "turbo", "deep_research", "custom"], "description": "Preset name: 'balanced', 'turbo', 'deep_research', or 'custom'"},
+                "top_k": {"type": "integer", "description": "Custom target top_k diversified chunks to AI"},
+                "candidate_pool_size": {"type": "integer", "description": "Custom candidate pool size retrieved from ChromaDB"},
+                "max_chunks_per_source": {"type": "integer", "description": "Custom maximum chunks allowed per unique document or website"}
+            },
+            "required": []
+        }
     }
 ]
 
@@ -531,6 +554,56 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                     res = store.transfer_local_folder_source(source_ws=src_ws, target_ws=tgt_ws, folder_path=src_item)
 
                 result_text = json.dumps(res, indent=2)
+
+            elif tool_name == "get_context_retrieval_settings":
+                store = ConfigDBStore()
+                settings = store.get_app_settings()
+                ctx = settings.context if settings else None
+                if not ctx:
+                    result_text = json.dumps({"error": "Could not load context settings."}, indent=2)
+                else:
+                    result_text = json.dumps({
+                        "retrieval_preset": ctx.retrieval_preset,
+                        "top_k": ctx.top_k,
+                        "candidate_pool_size": ctx.candidate_pool_size,
+                        "max_chunks_per_source": ctx.max_chunks_per_source,
+                        "chunk_size": ctx.chunk_size,
+                        "chunk_overlap": ctx.chunk_overlap
+                    }, indent=2)
+
+            elif tool_name == "set_context_retrieval_preset":
+                store = ConfigDBStore()
+                settings = store.get_app_settings()
+                ctx = settings.context if settings else None
+                if not ctx:
+                    result_text = json.dumps({"error": "Could not load context settings."}, indent=2)
+                else:
+                    preset = arguments.get("preset")
+                    top_k_val = arguments.get("top_k")
+                    pool_val = arguments.get("candidate_pool_size")
+                    max_src_val = arguments.get("max_chunks_per_source")
+
+                    if preset:
+                        ctx.apply_preset(preset)
+                    if top_k_val is not None:
+                        ctx.top_k = int(top_k_val)
+                        ctx.retrieval_preset = "custom"
+                    if pool_val is not None:
+                        ctx.candidate_pool_size = int(pool_val)
+                        ctx.retrieval_preset = "custom"
+                    if max_src_val is not None:
+                        ctx.max_chunks_per_source = int(max_src_val)
+                        ctx.retrieval_preset = "custom"
+
+                    store.update_context_settings(ctx)
+                    result_text = json.dumps({
+                        "status": "success",
+                        "message": f"Updated context retrieval settings to preset '{ctx.retrieval_preset}'.",
+                        "retrieval_preset": ctx.retrieval_preset,
+                        "top_k": ctx.top_k,
+                        "candidate_pool_size": ctx.candidate_pool_size,
+                        "max_chunks_per_source": ctx.max_chunks_per_source
+                    }, indent=2)
 
             else:
                 result_text = f"Error: Tool '{tool_name}' not found."

@@ -9,6 +9,30 @@ class ContextSettings(BaseModel):
     collection_name: str = Field(default="anycontext")
     chunk_size: int = Field(default=1024, description="Target token size per document chunk")
     chunk_overlap: int = Field(default=200, description="Token overlap between adjacent chunks")
+    top_k: int = Field(default=40, description="Target number of diversified document chunks returned to AI agent")
+    candidate_pool_size: int = Field(default=100, description="Initial candidate pool size retrieved from ChromaDB before source diversification")
+    max_chunks_per_source: int = Field(default=3, description="Maximum chunks allowed per document/URL to enforce cross-source diversity")
+    retrieval_preset: str = Field(default="balanced", description="RAG Retrieval Density Preset: 'balanced', 'turbo', 'deep_research', 'custom'")
+
+    def apply_preset(self, preset_name: str):
+        p = preset_name.lower().strip()
+        if p in ["turbo", "fast", "speed"]:
+            self.retrieval_preset = "turbo"
+            self.candidate_pool_size = 50
+            self.top_k = 20
+            self.max_chunks_per_source = 2
+        elif p in ["deep_research", "deep-research", "deep", "max"]:
+            self.retrieval_preset = "deep_research"
+            self.candidate_pool_size = 150
+            self.top_k = 60
+            self.max_chunks_per_source = 4
+        elif p == "custom":
+            self.retrieval_preset = "custom"
+        else: # balanced default
+            self.retrieval_preset = "balanced"
+            self.candidate_pool_size = 100
+            self.top_k = 40
+            self.max_chunks_per_source = 3
 
 class WorkspaceSettings(BaseModel):
     name: str = Field(default="Default")

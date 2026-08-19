@@ -147,6 +147,39 @@ class Test07RestApiServer(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_06_context_settings_and_preset_endpoints(self):
+        """TC-7.8: Tests GET and POST /v1/context/settings for retrieval density presets and parameters."""
+        safe_stdout_write(">>> [MOD 7 / TC-7.8] Testing /v1/context/settings REST Endpoints...\n")
+        
+        # 1. GET /v1/context/settings
+        res = self.client.get("/v1/context/settings", headers=self.headers)
+        self.assertEqual(res.status_code, 200, f"GET /v1/context/settings failed: {res.text}")
+        data = res.json()
+        self.assertIn("retrieval_preset", data)
+        self.assertIn("top_k", data)
+        self.assertIn("candidate_pool_size", data)
+        self.assertIn("max_chunks_per_source", data)
+
+        # 2. POST /v1/context/settings (Apply Turbo Preset)
+        payload = {"preset": "turbo"}
+        res = self.client.post("/v1/context/settings", json=payload, headers=self.headers)
+        self.assertEqual(res.status_code, 200, f"POST /v1/context/settings failed: {res.text}")
+        updated = res.json()
+        self.assertEqual(updated["retrieval_preset"], "turbo")
+        self.assertEqual(updated["top_k"], 20)
+        self.assertEqual(updated["candidate_pool_size"], 50)
+        self.assertEqual(updated["max_chunks_per_source"], 2)
+
+        # 3. POST /v1/context/settings (Restore Balanced Preset)
+        payload_balanced = {"preset": "balanced"}
+        res_balanced = self.client.post("/v1/context/settings", json=payload_balanced, headers=self.headers)
+        self.assertEqual(res_balanced.status_code, 200)
+        self.assertEqual(res_balanced.json()["retrieval_preset"], "balanced")
+        self.assertEqual(res_balanced.json()["top_k"], 40)
+        safe_stdout_write("  [OK] /v1/context/settings GET and POST preset endpoints verified!\n")
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
