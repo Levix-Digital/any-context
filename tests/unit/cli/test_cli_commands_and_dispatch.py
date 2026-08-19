@@ -125,5 +125,29 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
                 self.assertFalse(mock_agent.stream.called, "Agent stream must NOT be called when paste is cancelled")
         safe_stdout_write("  [OK] /paste cancellation verified!\n")
 
+    def test_07_trailing_backslash_continuation_dispatch(self):
+        """Validates that trailing backslash (\\) accumulates lines and dispatches to AI agent."""
+        safe_stdout_write(">>> [CLI UNIT] Testing Trailing Backslash (\\) Line Continuation...\n")
+        mock_inputs = [
+            "Quero saber sobre:\\",
+            "Startup Visa Program Canada\\",
+            "and all eligibility requirements.",
+            "/exit"
+        ]
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.core.agent.create_anycontext_agent") as mock_create_agent:
+                mock_agent = unittest.mock.MagicMock()
+                mock_agent.stream.return_value = []
+                mock_create_agent.return_value = mock_agent
+
+                run_chat_loop(active_workspace="Default")
+                self.assertTrue(mock_agent.stream.called, "Agent stream must be called with continued multiline prompt")
+                called_args = mock_agent.stream.call_args[0][0]
+                self.assertIn("Quero saber sobre:", called_args["messages"][0])
+                self.assertIn("Startup Visa Program Canada", called_args["messages"][0])
+                self.assertIn("and all eligibility requirements.", called_args["messages"][0])
+        safe_stdout_write("  [OK] Trailing backslash line continuation verified!\n")
+
 if __name__ == "__main__":
     unittest.main()

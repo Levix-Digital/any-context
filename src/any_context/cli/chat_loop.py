@@ -192,6 +192,36 @@ def run_chat_loop(active_workspace: str = None):
                     else:
                         continue
 
+            # Shell-style line continuation with trailing backslash (\)
+            elif user_input.endswith("\\"):
+                lines = [user_input[:-1].rstrip()]
+                is_cancelled = False
+                while True:
+                    try:
+                        line = safe_prompt_input("\033[90m... \033[0m", workspace_name=active_workspace)
+                        if line is None:
+                            is_cancelled = True
+                            break
+                        if line.strip() == "/cancel":
+                            safe_stdout_write("\n↩️ Line continuation cancelled.\n\n")
+                            is_cancelled = True
+                            break
+                        if line.endswith("\\"):
+                            lines.append(line[:-1].rstrip())
+                        else:
+                            lines.append(line)
+                            break
+                    except (KeyboardInterrupt, EOFError):
+                        safe_stdout_write("\n↩️ Line continuation cancelled.\n\n")
+                        is_cancelled = True
+                        break
+
+                if not is_cancelled and lines:
+                    user_input = "\n".join(lines).strip()
+                    cmd = user_input.lower()
+                else:
+                    continue
+
             # Intercept command help flags and /help commands
             if handle_command_help_interception(user_input):
                 continue
