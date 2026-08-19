@@ -209,7 +209,6 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
                 continue
 
     # RFC 9309 Compliance: Filter out any URLs disallowed by robots.txt
-    from any_context.ingestion.robots_policy import is_url_allowed_by_robots
     all_domain_urls = {u for u in all_domain_urls if is_url_allowed_by_robots(u)}
 
     # Rank all discovered URLs by semantic proximity and relevance to start_url
@@ -340,7 +339,6 @@ def crawl_and_index_urls(
 
     # Worker function to scrape single url with RFC 9309 robots.txt compliance
     def _fetch_single(url: str) -> Optional[Dict[str, Any]]:
-        from any_context.ingestion.robots_policy import is_url_allowed_by_robots
         if not is_url_allowed_by_robots(url):
             return None
         try:

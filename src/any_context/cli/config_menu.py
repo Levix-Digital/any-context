@@ -712,7 +712,8 @@ def _manage_subscription():
         return
 
     if action.startswith("📊"):
-        print("\n" + mgr.format_pricing_table_markdown() + "\n")
+        from any_context.tools.search_tools import safe_stdout_write
+        safe_stdout_write("\n" + mgr.format_pricing_cards_cli() + "\n\n")
 
     elif action.startswith("🔑"):
         plans = get_all_plans()

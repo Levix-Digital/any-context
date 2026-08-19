@@ -71,3 +71,38 @@ class BillingManager:
             
             md.append(f"| **{p.name}** | {m_price} | {a_price} | {p.ingestion_scope} | {p.target_audience} |")
         return "\n".join(md)
+
+    def format_pricing_cards_cli(self) -> str:
+        """Formats the official AnyContext pricing and plans as clean, visual terminal cards."""
+        plans = get_all_plans()
+        current_tier = self.get_status().active_tier_id
+        lines = []
+        lines.append("=" * 80)
+        lines.append("                    ANYCONTEXT PLANS & CAPABILITY MATRIX                    ")
+        lines.append("=" * 80)
+
+        for idx, p in enumerate(plans, 1):
+            is_active = (p.tier_id == current_tier)
+            active_badge = " [PLANO ATIVO]" if is_active else ""
+            
+            if p.tier_id == "community":
+                m_price = "Grátis ($0 / sempre)"
+                a_price = "Grátis ($0 / ano)"
+            elif p.tier_id == "team":
+                m_price = f"${p.monthly_price_usd:.0f}/mês (5 seats inclusos) + ${p.extra_seat_price_usd:.0f}/seat extra"
+                a_price = f"${p.annual_price_usd:.0f}/ano base (~$65/mês - 20% OFF)"
+            else:
+                m_price = f"${p.monthly_price_usd:.0f}/mês"
+                a_price = f"${p.annual_price_usd:.0f}/ano (~${p.annual_price_usd/12:.0f}/mês - 20% OFF)" if p.annual_price_usd else "-"
+
+            lines.append(f"\n  [{idx}] \033[1;97m{p.name}\033[0m\033[92m{active_badge}\033[0m")
+            lines.append("  " + "-" * 74)
+            lines.append(f"  • \033[1mPreço Mensal\033[0m   : \033[92m{m_price}\033[0m")
+            lines.append(f"  • \033[1mPreço Anual\033[0m    : \033[96m{a_price}\033[0m")
+            lines.append(f"  • \033[1mEscopo & RAG\033[0m   : {p.ingestion_scope}")
+            lines.append(f"  • \033[1mPúblico-Alvo\033[0m   : \033[90m{p.target_audience}\033[0m")
+
+        lines.append("\n" + "=" * 80)
+        return "\n".join(lines)
+
+

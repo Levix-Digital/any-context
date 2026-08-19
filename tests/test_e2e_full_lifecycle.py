@@ -229,6 +229,11 @@ class AnyContextE2ETestSuite(unittest.TestCase):
         test_web_urls = [
             "https://mock-lifecycle-portal.example.org/docs"
         ]
+        from any_context.ingestion.web_scheduler import WebSchedulerStore
+        _ws_store = WebSchedulerStore()
+        _ws_store.delete_indexed_pages_for_root(self.ws_web, "https://mock-lifecycle-portal.example.org/docs")
+        _ws_store.delete_web_url_by_url(self.ws_web, "https://mock-lifecycle-portal.example.org/docs")
+
         mock_doc = {
             "url": "https://mock-lifecycle-portal.example.org/docs",
             "title": "HttpBin Web Test Suite",
