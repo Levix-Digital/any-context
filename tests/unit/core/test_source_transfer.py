@@ -18,6 +18,11 @@ class TestSourceTransfer(unittest.TestCase):
     Tests moving local folders and crawled web portals (SQLite + ChromaDB metadata migration).
     """
 
+    @classmethod
+    def setUpClass(cls):
+        from tests.e2e_helpers import setup_mock_embeddings_if_needed
+        setup_mock_embeddings_if_needed()
+
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp(prefix="actx_test_transfer_")
         self.db_path = os.path.join(self.temp_dir, "test_settings.db")
