@@ -508,7 +508,9 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
     print(f"  • 🌐 Total Internal Domain URLs Found    : \033[92m{domain_count}\033[0m pages")
     if already_indexed_count > 0:
         print(f"  • 📦 Already Indexed in this Workspace   : \033[96m{already_indexed_count}\033[0m pages (Cached in Vector DB)")
-        print(f"  • ✨ New Unindexed Pages Available       : \033[93m{new_section_count}\033[0m section / \033[93m{new_domain_count}\033[0m domain pages")
+    else:
+        print(f"  • 📦 Already Indexed in this Workspace   : \033[90m0 pages (First time indexing)\033[0m")
+    print(f"  • ✨ New Unindexed Pages Available       : \033[93m{new_section_count}\033[0m section / \033[93m{new_domain_count}\033[0m domain pages")
     print(f"  • 🗺️ XML Sitemap Detected                : \033[95m{'Yes (Structured XML)' if has_sitemap else 'No (Fast Recursive Link Scan)'}\033[0m")
     print("================================================================================\n")
 

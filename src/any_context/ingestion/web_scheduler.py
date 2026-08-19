@@ -220,7 +220,7 @@ class WebSchedulerStore:
                     "SELECT url, title, content_hash, char_count, scraped_at, root_url FROM workspace_indexed_web_pages WHERE workspace_name = ?",
                     (workspace_name,)
                 )
-            return {
+            res_map = {
                 r["url"]: {
                     "title": r["title"],
                     "content_hash": r["content_hash"],
@@ -231,6 +231,52 @@ class WebSchedulerStore:
                 for r in cursor.fetchall()
             }
 
+        # Auto-sync backfill from ChromaDB if table was empty for legacy sessions
+        if not res_map:
+            try:
+                import chromadb
+                from any_context.config.app_settings import AppSettings
+                settings = AppSettings.load()
+                db_save_path = settings.context.db_path if settings else "./context_db"
+                coll_name = settings.context.collection_name if settings else "context_docs"
+                if os.path.exists(db_save_path):
+                    client = chromadb.PersistentClient(path=db_save_path)
+                    try:
+                        coll = client.get_collection(coll_name)
+                        records = coll.get(where={"workspace": workspace_name})
+                        if records and records.get("metadatas"):
+                            backfill_pages = []
+                            for m in records["metadatas"]:
+                                if m and m.get("source_type") == "web" and m.get("url"):
+                                    u = m.get("url")
+                                    if domain_or_prefix and domain_or_prefix not in u:
+                                        continue
+                                    if root_url and m.get("root_url") != root_url and u != root_url:
+                                        continue
+                                    if u not in res_map:
+                                        res_map[u] = {
+                                            "title": m.get("title", u),
+                                            "content_hash": m.get("content_hash", "legacy"),
+                                            "char_count": 0,
+                                            "scraped_at": m.get("scraped_at", ""),
+                                            "root_url": m.get("root_url", u)
+                                        }
+                                        backfill_pages.append({
+                                            "url": u,
+                                            "title": m.get("title", u),
+                                            "content_hash": m.get("content_hash", "legacy"),
+                                            "char_count": 0,
+                                            "scraped_at": m.get("scraped_at", "")
+                                        })
+                            if backfill_pages:
+                                self.record_indexed_web_pages(workspace_name, root_url or list(res_map.keys())[0], backfill_pages)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        return res_map
+
     def get_indexed_pages_count(
         self,
         workspace_name: str,
@@ -240,24 +286,7 @@ class WebSchedulerStore:
         """
         Returns total count of distinct web pages indexed for this workspace / root_url.
         """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            if root_url:
-                cursor.execute(
-                    "SELECT COUNT(DISTINCT url) FROM workspace_indexed_web_pages WHERE workspace_name = ? AND root_url = ?",
-                    (workspace_name, root_url)
-                )
-            elif domain_or_prefix:
-                cursor.execute(
-                    "SELECT COUNT(DISTINCT url) FROM workspace_indexed_web_pages WHERE workspace_name = ? AND (url LIKE ? OR root_url LIKE ?)",
-                    (workspace_name, f"%{domain_or_prefix}%", f"%{domain_or_prefix}%")
-                )
-            else:
-                cursor.execute(
-                    "SELECT COUNT(DISTINCT url) FROM workspace_indexed_web_pages WHERE workspace_name = ?",
-                    (workspace_name,)
-                )
-            return cursor.fetchone()[0]
+        return len(self.get_indexed_pages_map(workspace_name, root_url=root_url, domain_or_prefix=domain_or_prefix))
 
     def record_indexed_web_pages(
         self,
