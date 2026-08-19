@@ -226,12 +226,11 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
                 self.assertTrue(mock_palette.called, "show_slash_commands_palette must be called when '/' is entered")
         safe_stdout_write("  [OK] '/' Slash Command Palette dispatch verified!\n")
 
-    def test_11_trailing_space_slash_line_continuation(self):
-        """Validates that typing 'text /' continues the line seamlessly."""
-        safe_stdout_write(">>> [CLI UNIT] Testing Trailing ' /' Line Continuation...\n")
+    def test_11_trailing_slash_is_regular_prompt(self):
+        """Validates that typing 'text /' is sent directly as standard prompt (not line continuation)."""
+        safe_stdout_write(">>> [CLI UNIT] Testing Trailing '/' As Regular Prompt...\n")
         mock_inputs = [
             "Interessante /",
-            "Quais sao os requisitos?",
             "/exit"
         ]
 
@@ -245,9 +244,8 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
                 self.assertTrue(mock_agent.stream.called)
                 called_args = mock_agent.stream.call_args[0][0]
                 prompt_sent = called_args["messages"][0]
-                self.assertIn("Interessante", prompt_sent)
-                self.assertIn("Quais sao os requisitos?", prompt_sent)
-        safe_stdout_write("  [OK] Trailing ' /' line continuation verified!\n")
+                self.assertEqual(prompt_sent, "Interessante /")
+        safe_stdout_write("  [OK] Trailing '/' treated as normal text prompt verified!\n")
 
 
 if __name__ == "__main__":
