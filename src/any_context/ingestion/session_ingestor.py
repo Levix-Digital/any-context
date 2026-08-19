@@ -36,7 +36,7 @@ def index_session(session_summary: str):
 
     pipeline = IngestionPipeline(
         transformations = [
-            SentenceSplitter(chunk_size=512, chunk_overlap=50),
+            SentenceSplitter(chunk_size=1024, chunk_overlap=200),
             Settings.embed_model
         ],
         vector_store = vector_store
