@@ -70,6 +70,8 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
         safe_stdout_write(">>> [MOD 2 / TC-2.3] Testing Incremental Web Crawling & SHA-256 Bypass...\n")
         import unittest.mock
         test_web_urls = ["https://mock-portal.example.org/docs"]
+        self.web_store.delete_indexed_pages_for_root(self.ws_web, "https://mock-portal.example.org/docs")
+        self.web_store.delete_web_url_by_url(self.ws_web, "https://mock-portal.example.org/docs")
 
         mock_page = {
             "url": "https://mock-portal.example.org/docs",
