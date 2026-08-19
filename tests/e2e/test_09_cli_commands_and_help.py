@@ -106,5 +106,18 @@ class Test09CLICommandsAndHelp(unittest.TestCase):
         self.assertEqual(len(get_workspace_history_entries(ws_a)), 0)
         safe_stdout_write("  [OK] Workspace history isolation & persistence verified!\n")
 
+    def test_05_format_session_error_user_friendly(self):
+        """TC-9.5: Verifies that unexpected session exceptions render friendly, reassuring messages."""
+        safe_stdout_write(">>> [MOD 9 / TC-9.5] Testing User-Friendly Session Error Formatting...\n")
+        from any_context.cli.chat_loop import format_session_error
+
+        err = UnboundLocalError("cannot access local variable 'ConfigDBStore' where it is not associated with a value")
+        formatted = format_session_error(err)
+
+        self.assertIn("Ops!", formatted)
+        self.assertIn("Nota técnica:", formatted)
+        self.assertIn("Sua sessão", formatted)
+        safe_stdout_write("  [OK] User-friendly session error formatting verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
