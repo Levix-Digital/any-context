@@ -275,14 +275,15 @@ def _transfer_workspace_source(store: ConfigDBStore):
         return
 
     # Check RBAC permissions for shared workspaces
-    from any_context.workspace_sharing.store import WorkspaceSharingStore
-    sharing_store = WorkspaceSharingStore()
-    user_perms_src = sharing_store.get_workspace_permissions(source_ws)
-    user_perms_tgt = sharing_store.get_workspace_permissions(target_ws)
-    
-    # In Team/Enterprise shared mode, ensure access rights
-    if user_perms_src and user_perms_tgt:
-        # User is in shared collaboration mode
+    try:
+        from any_context.workspace_sharing.store import WorkspaceSharingStore
+        sharing_store = WorkspaceSharingStore()
+        user_perms_src = sharing_store.get_workspace_permissions(source_ws)
+        user_perms_tgt = sharing_store.get_workspace_permissions(target_ws)
+        if user_perms_src and user_perms_tgt:
+            # User is in shared collaboration mode
+            pass
+    except Exception:
         pass
 
     confirm = questionary.confirm(

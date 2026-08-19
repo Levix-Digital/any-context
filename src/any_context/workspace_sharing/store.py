@@ -278,6 +278,10 @@ class WorkspaceSharingStore:
                 ) for r in rows
             ]
 
+    def get_workspace_permissions(self, workspace_name: str) -> List[WorkspacePermission]:
+        """Returns all permission records for a workspace."""
+        return self.list_workspace_collaborators(workspace_name)
+
     def revoke_workspace_permission(self, workspace_name: str, user_email: str) -> bool:
         with self._get_connection() as conn:
             cursor = conn.cursor()

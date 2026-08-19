@@ -178,5 +178,25 @@ class TestSourceTransfer(unittest.TestCase):
 
         safe_stdout_write("  [OK] Transfer validation guardrails verified!\n")
 
+    def test_04_workspace_sharing_get_permissions(self):
+        """Tests that WorkspaceSharingStore.get_workspace_permissions returns collaborators list properly."""
+        safe_stdout_write(">>> [CORE UNIT] Testing WorkspaceSharingStore.get_workspace_permissions...\n")
+        from any_context.workspace_sharing.store import WorkspaceSharingStore
+        sharing_store = WorkspaceSharingStore(db_path=self.db_path)
+        
+        # Should return empty list when no collaborators
+        perms = sharing_store.get_workspace_permissions(self.source_ws)
+        self.assertIsInstance(perms, list)
+        self.assertEqual(len(perms), 0)
+
+        # Grant direct permission and verify
+        sharing_store.grant_direct_permission(self.source_ws, "user@example.com", "editor", "admin@local")
+        perms_after = sharing_store.get_workspace_permissions(self.source_ws)
+        self.assertEqual(len(perms_after), 1)
+        self.assertEqual(perms_after[0].user_email, "user@example.com")
+        self.assertEqual(perms_after[0].access_level, "editor")
+        safe_stdout_write("  [OK] WorkspaceSharingStore.get_workspace_permissions verified!\n")
+
+
 if __name__ == "__main__":
     unittest.main()
