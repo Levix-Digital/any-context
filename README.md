@@ -435,6 +435,8 @@ actx --mcp
 - `search_workspace_docs` — Vector semantic search across indexed files.
 - `query_anycontext_agent` — Direct RAG query with 3-level session memory.
 - `transfer_workspace_source` — Zero-cost instant data source transfer (folders/websites) between workspaces.
+- `get_context_retrieval_settings` — Inspect current RAG retrieval density parameters and active preset.
+- `set_context_retrieval_preset` — Configure RAG presets (`balanced`, `turbo`, `deep_research`) or custom quotas.
 - `list_workspaces` & `create_workspace` — Workspace configuration.
 - `list_available_models` — Model verification.
 

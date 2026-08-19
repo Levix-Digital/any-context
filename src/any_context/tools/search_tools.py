@@ -1,5 +1,6 @@
 import os
 import chromadb
+from typing import List, Any, Dict, Optional
 from any_context.config.app_settings import AppSettings
 from any_context.core.utils import get_api_key
 from llama_index.core import Settings, VectorStoreIndex
@@ -82,16 +83,64 @@ def configure_embedding_model():
 # Initial setup
 configure_embedding_model()
 
+def _diversify_nodes(raw_nodes: List[Any], target_top_k: int, max_per_source: int = 3) -> List[Any]:
+    """
+    Applies Source-Fair Round-Robin allocation to guarantee multi-source representation.
+    Ensures that when a workspace contains 20+ websites or documents, all matching sources
+    are fairly represented in the context window without a single document monopolizing all slots.
+    """
+    if not raw_nodes:
+        return []
+
+    from collections import defaultdict
+    source_groups = defaultdict(list)
+
+    for node in raw_nodes:
+        meta = getattr(node, "metadata", {}) or {}
+        # Clean source identifier: root_url for web pages, file_path for local documents
+        source_id = meta.get("root_url") or meta.get("file_path") or meta.get("source") or meta.get("file_name") or "unknown_source"
+        source_groups[source_id].append(node)
+
+    selected_nodes = []
+    selected_node_ids = set()
+
+    # Pass 1: Round-robin across distinct sources up to max_per_source
+    for pass_idx in range(max_per_source):
+        for source_id, nodes in source_groups.items():
+            if len(selected_nodes) >= target_top_k:
+                break
+            if pass_idx < len(nodes):
+                candidate = nodes[pass_idx]
+                cid = getattr(candidate, "node_id", None) or getattr(candidate, "id_", None) or str(getattr(candidate, "text", "")[:60])
+                if cid not in selected_node_ids:
+                    selected_nodes.append(candidate)
+                    selected_node_ids.add(cid)
+        if len(selected_nodes) >= target_top_k:
+            break
+
+    # Pass 2: If target quota remains, fill with remaining highest-scoring candidate chunks
+    if len(selected_nodes) < target_top_k:
+        for node in raw_nodes:
+            cid = getattr(node, "node_id", None) or getattr(node, "id_", None) or str(getattr(node, "text", "")[:60])
+            if cid not in selected_node_ids:
+                selected_nodes.append(node)
+                selected_node_ids.add(cid)
+                if len(selected_nodes) >= target_top_k:
+                    break
+
+    return selected_nodes
+
+
 @tool()
-def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 8, workspace: str = None):
+def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 40, workspace: str = None):
     """
     Search for relevant information in the vector database based on the provided prompt text.
-    Enforces strict workspace isolation to ensure total privacy between projects.
+    Enforces strict workspace isolation and multi-source round-robin diversity across all documents.
 
     Args:
         prompt_text (str): The text to search for.
         search_session_memory (bool): Set to True to search the user's past conversations/sessions memory. Set to False to search general workspace documents.
-        top_k (int): The number of relevant document chunks to return (default: 8).
+        top_k (int): The number of relevant diversified document chunks to return (default: 40).
         workspace (str, optional): The specific workspace to filter searches by (enforces strict workspace privacy).
 
     Returns:
@@ -104,12 +153,20 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
     folder_db_path = settings.context.db_path if settings else "./context_db"
     folder_collection_name = settings.context.collection_name if settings else "context_docs"
 
+    configured_top_k = settings.context.top_k if (settings and settings.context) else 40
+    candidate_pool_size = settings.context.candidate_pool_size if (settings and settings.context) else 100
+    max_per_source = settings.context.max_chunks_per_source if (settings and settings.context) else 3
+
     if search_session_memory:
         db_path = session_db_path
         collection_name = session_collection_name
+        effective_top_k = 8
+        candidate_k = 16
     else:
         db_path = folder_db_path
         collection_name = folder_collection_name
+        effective_top_k = max(top_k, configured_top_k) if top_k else configured_top_k
+        candidate_k = max(candidate_pool_size, effective_top_k * 2)
 
     try:
         os.makedirs(db_path, exist_ok=True)
@@ -124,41 +181,44 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
         index = VectorStoreIndex.from_vector_store(vector_store)
 
-        search_k = max(top_k, 8)
-
-        nodes = []
+        raw_nodes = []
         filters = None
 
-        import sys
         if workspace and not search_session_memory:
-            safe_stdout_write(f"\r\033[K🔍 [Search] Searching strictly within Workspace: '{workspace}' (top {search_k} chunks)...")
+            safe_stdout_write(f"\r\033[K🔍 [Search] Scanning Workspace: '{workspace}' (pool: {candidate_k} -> diversified top {effective_top_k})...")
             try:
                 filters = MetadataFilters(
                     filters=[ExactMatchFilter(key="workspace", value=workspace)]
                 )
-                retriever = index.as_retriever(similarity_top_k=search_k, filters=filters)
-                nodes = retriever.retrieve(prompt_text)
+                retriever = index.as_retriever(similarity_top_k=candidate_k, filters=filters)
+                raw_nodes = retriever.retrieve(prompt_text)
             except Exception:
                 # Resilient Fallback: broad query with in-memory Python workspace isolation filter
                 try:
-                    retriever = index.as_retriever(similarity_top_k=search_k * 4, filters=None)
+                    retriever = index.as_retriever(similarity_top_k=candidate_k * 2, filters=None)
                     all_nodes = retriever.retrieve(prompt_text)
-                    nodes = [n for n in all_nodes if n.metadata.get("workspace") == workspace][:search_k]
+                    raw_nodes = [n for n in all_nodes if n.metadata.get("workspace") == workspace]
                 except Exception:
-                    nodes = []
+                    raw_nodes = []
         elif not search_session_memory:
-            safe_stdout_write(f"\r\033[K🔍 [Search] Searching across workspaces (top {search_k} chunks)...")
+            safe_stdout_write(f"\r\033[K🔍 [Search] Searching across workspaces (pool: {candidate_k} -> diversified top {effective_top_k})...")
             try:
-                retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
-                nodes = retriever.retrieve(prompt_text)
+                retriever = index.as_retriever(similarity_top_k=candidate_k, filters=None)
+                raw_nodes = retriever.retrieve(prompt_text)
             except Exception:
-                nodes = []
+                raw_nodes = []
         else:
             try:
-                retriever = index.as_retriever(similarity_top_k=search_k, filters=None)
-                nodes = retriever.retrieve(prompt_text)
+                retriever = index.as_retriever(similarity_top_k=candidate_k, filters=None)
+                raw_nodes = retriever.retrieve(prompt_text)
             except Exception:
-                nodes = []
+                raw_nodes = []
+
+        # Apply Source-Fair Round-Robin Diversification for document search
+        if search_session_memory:
+            nodes = raw_nodes[:effective_top_k]
+        else:
+            nodes = _diversify_nodes(raw_nodes=raw_nodes, target_top_k=effective_top_k, max_per_source=max_per_source)
 
         results_list = []
         for i, node in enumerate(nodes):

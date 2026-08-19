@@ -110,11 +110,26 @@ class AvailableModelsResponse(BaseModel):
 class SearchRequest(BaseModel):
     query: str = Field(..., description="Search query string")
     workspace: Optional[str] = Field(None, description="Workspace to filter document search")
+    top_k: Optional[int] = Field(None, description="Optional custom top_k chunks override for vector search")
 
 class SearchResponse(BaseModel):
     query: str
     workspace: Optional[str]
     results: str
+
+class ContextRetrievalSettingsDTO(BaseModel):
+    retrieval_preset: str = Field("balanced", description="Active preset: 'balanced', 'turbo', 'deep_research', 'custom'")
+    top_k: int = Field(40, description="Target number of diversified document chunks returned to AI agent")
+    candidate_pool_size: int = Field(100, description="Candidate pool size retrieved from ChromaDB before source diversification")
+    max_chunks_per_source: int = Field(3, description="Maximum chunks allowed per unique document/URL to enforce cross-source diversity")
+    chunk_size: int = 1024
+    chunk_overlap: int = 200
+
+class UpdateRetrievalPresetRequest(BaseModel):
+    preset: Optional[str] = Field(None, description="Preset name: 'balanced', 'turbo', 'deep_research', or 'custom'")
+    top_k: Optional[int] = Field(None, description="Custom target top_k (if custom)")
+    candidate_pool_size: Optional[int] = Field(None, description="Custom candidate pool size (if custom)")
+    max_chunks_per_source: Optional[int] = Field(None, description="Custom max chunks per source (if custom)")
 
 class IndexRequest(BaseModel):
     workspace: Optional[str] = Field(None, description="Workspace name to re-index. If omitted, indexes all workspaces.")
@@ -509,6 +524,54 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                 }
             )
 
+    @app.get("/v1/context/settings", response_model=ContextRetrievalSettingsDTO, tags=["Knowledge Base"])
+    def get_context_settings_endpoint(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials)
+        store = ConfigDBStore()
+        settings = store.get_app_settings()
+        ctx = settings.context if settings else None
+        if not ctx:
+            raise HTTPException(status_code=500, detail="Could not load context settings.")
+        return ContextRetrievalSettingsDTO(
+            retrieval_preset=ctx.retrieval_preset,
+            top_k=ctx.top_k,
+            candidate_pool_size=ctx.candidate_pool_size,
+            max_chunks_per_source=ctx.max_chunks_per_source,
+            chunk_size=ctx.chunk_size,
+            chunk_overlap=ctx.chunk_overlap
+        )
+
+    @app.post("/v1/context/settings", response_model=ContextRetrievalSettingsDTO, tags=["Knowledge Base"])
+    def update_context_settings_endpoint(req: UpdateRetrievalPresetRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        settings = store.get_app_settings()
+        ctx = settings.context if settings else None
+        if not ctx:
+            raise HTTPException(status_code=500, detail="Could not load context settings.")
+
+        if req.preset:
+            ctx.apply_preset(req.preset)
+        if req.top_k is not None:
+            ctx.top_k = req.top_k
+            ctx.retrieval_preset = "custom"
+        if req.candidate_pool_size is not None:
+            ctx.candidate_pool_size = req.candidate_pool_size
+            ctx.retrieval_preset = "custom"
+        if req.max_chunks_per_source is not None:
+            ctx.max_chunks_per_source = req.max_chunks_per_source
+            ctx.retrieval_preset = "custom"
+
+        store.update_context_settings(ctx)
+        return ContextRetrievalSettingsDTO(
+            retrieval_preset=ctx.retrieval_preset,
+            top_k=ctx.top_k,
+            candidate_pool_size=ctx.candidate_pool_size,
+            max_chunks_per_source=ctx.max_chunks_per_source,
+            chunk_size=ctx.chunk_size,
+            chunk_overlap=ctx.chunk_overlap
+        )
+
     @app.post("/v1/search", response_model=SearchResponse, tags=["Knowledge Base"])
     def search_knowledge_base(req: SearchRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
         verify_token_access(credentials=credentials, required_workspace=req.workspace)
@@ -518,9 +581,10 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
 
         try:
             results = search_db.invoke({
-                "query": req.query,
+                "prompt_text": req.query,
                 "workspace": req.workspace,
-                "search_session_memory": False
+                "search_session_memory": False,
+                "top_k": req.top_k or 40
             })
             return SearchResponse(
                 query=req.query,

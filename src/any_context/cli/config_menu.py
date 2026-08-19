@@ -81,6 +81,7 @@ def show_config_menu():
             choices=[
                 "📂 Workspaces & Folders Management (List / Add / Delete Folders)",
                 "🤝 Workspace Sharing & Collaboration (Google Drive Style)",
+                "🔍 Context Retrieval Density & RAG Presets (Balanced / Turbo / Deep Research)",
                 "🤖 AI Models, Base URL & API Keys",
                 "🔑 Manage Saved API Keys",
                 "🧠 Memory Compression & Reset Settings",
@@ -98,6 +99,8 @@ def show_config_menu():
             _manage_workspaces(store)
         elif choice.startswith("🤝"):
             _manage_workspace_sharing(store)
+        elif choice.startswith("🔍"):
+            _manage_retrieval_density(store)
         elif choice.startswith("🤖"):
             _manage_models(store)
         elif choice.startswith("🔑"):
@@ -758,6 +761,67 @@ def _manage_workspace_sharing(store: ConfigDBStore):
                     print(f"• Path: {tf['folder_path']}")
                     print(f"  Status: {status_color}{tf['tag']}\033[0m")
             print("--------------------------------------------------\n")
+
+
+def _manage_retrieval_density(store: ConfigDBStore):
+    settings = store.get_app_settings()
+    ctx = settings.context if settings else None
+
+    if not ctx:
+        print("⚠️ Could not load context settings.")
+        return
+
+    print("\n=======================================================")
+    print("🔍 Context Retrieval Density & Multi-Source RAG Presets")
+    print("=======================================================")
+    print(f"Current Preset      : \033[93m{ctx.retrieval_preset.upper()}\033[0m")
+    print(f"Top-K Chunks to AI  : \033[92m{ctx.top_k}\033[0m chunks (~{ctx.top_k * 130} tokens)")
+    print(f"ChromaDB Candidate  : \033[96m{ctx.candidate_pool_size}\033[0m candidate chunks")
+    print(f"Max Chunks per Doc  : \033[95m{ctx.max_chunks_per_source}\033[0m chunks per unique source")
+    print("=======================================================\n")
+
+    preset_choice = questionary.select(
+        "Select Retrieval Density Preset:",
+        choices=[
+            "⚡ Balanced (Default: Top-40, Pool-100, Max-3) - Recommended for Cloud models and 20+ sources",
+            "🚀 Turbo (Top-20, Pool-50, Max-2) - Ultra-fast TTFT, ideal for LM Studio/Ollama offline",
+            "🔬 Deep Research (Top-60, Pool-150, Max-4) - Maximum density for massive dossiers & 50+ websites",
+            "🛠️ Custom (Enter exact numbers manually)",
+            "🔙 Back"
+        ]
+    ).ask()
+
+    if not preset_choice or preset_choice.startswith("🔙"):
+        return
+
+    if preset_choice.startswith("⚡"):
+        ctx.apply_preset("balanced")
+        store.update_context_settings(ctx)
+        print("\n✅ Applied \033[92mBalanced Preset\033[0m: Top-K 40 chunks, Candidate Pool 100, Max 3 per source!\n")
+
+    elif preset_choice.startswith("🚀"):
+        ctx.apply_preset("turbo")
+        store.update_context_settings(ctx)
+        print("\n✅ Applied \033[92mTurbo Preset\033[0m: Top-K 20 chunks, Candidate Pool 50, Max 2 per source!\n")
+
+    elif preset_choice.startswith("🔬"):
+        ctx.apply_preset("deep_research")
+        store.update_context_settings(ctx)
+        print("\n✅ Applied \033[92mDeep Research Preset\033[0m: Top-K 60 chunks, Candidate Pool 150, Max 4 per source!\n")
+
+    elif preset_choice.startswith("🛠️"):
+        new_top_k = questionary.text("Enter Target Top-K Chunks to deliver to AI (e.g. 40):", default=str(ctx.top_k)).ask()
+        new_pool = questionary.text("Enter Initial ChromaDB Candidate Pool (e.g. 100):", default=str(ctx.candidate_pool_size)).ask()
+        new_max_src = questionary.text("Enter Max Chunks per unique Document/URL (e.g. 3):", default=str(ctx.max_chunks_per_source)).ask()
+        try:
+            ctx.top_k = int(new_top_k)
+            ctx.candidate_pool_size = int(new_pool)
+            ctx.max_chunks_per_source = int(new_max_src)
+            ctx.retrieval_preset = "custom"
+            store.update_context_settings(ctx)
+            print("\n✅ Saved custom retrieval density parameters!\n")
+        except (ValueError, TypeError):
+            print("\n⚠️ Invalid integer values entered. Changes not saved.\n")
 
 
 def _manage_subscription():
