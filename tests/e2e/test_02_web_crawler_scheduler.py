@@ -15,7 +15,15 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        import tempfile
+        import shutil
+        cls.temp_dir = tempfile.mkdtemp(prefix="actx_e2e_mod2_")
+        cls.db_dir = os.path.join(cls.temp_dir, "context_db")
+        from any_context.config.app_settings import ContextSettings
         cls.store = ConfigDBStore()
+        cls.orig_settings = cls.store.get_app_settings()
+        cls.store.update_context_settings(ContextSettings(db_path=cls.db_dir, collection_name="mod2_docs"))
+
         cls.ws_web = "E2E_Mod2_WebPortal"
         cls.store.add_workspace(cls.ws_web, [])
 
@@ -27,22 +35,15 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        import shutil
         try:
             cls.store.remove_workspace(cls.ws_web)
             cls.web_store.delete_indexed_pages_for_root(cls.ws_web, "https://httpbin.org/html")
             cls.web_store.delete_web_url_by_url(cls.ws_web, "https://httpbin.org/html")
-            settings = AppSettings.load()
-            db_path = settings.context.db_path if settings else "./context_db"
-            coll_name = settings.context.collection_name if settings else "context_docs"
-            if os.path.exists(db_path):
-                client = chromadb.PersistentClient(path=db_path)
-                try:
-                    coll = client.get_collection(coll_name)
-                    existing = coll.get(where={"workspace": cls.ws_web})
-                    if existing and existing["ids"]:
-                        coll.delete(ids=existing["ids"])
-                except Exception:
-                    pass
+            if hasattr(cls, "orig_settings") and cls.orig_settings and cls.orig_settings.context:
+                cls.store.update_context_settings(cls.orig_settings.context)
+            if hasattr(cls, "temp_dir") and os.path.exists(cls.temp_dir):
+                shutil.rmtree(cls.temp_dir, ignore_errors=True)
         except Exception:
             pass
 

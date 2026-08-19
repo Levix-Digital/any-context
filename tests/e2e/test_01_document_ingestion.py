@@ -37,7 +37,11 @@ class Test01DocumentIngestion(unittest.TestCase):
         with open(os.path.join(cls.tech_dir, "metrics.csv"), "w", encoding="utf-8") as f:
             f.write("metric,target,latency_ms\nthroughput,500rps,12ms\nprecision,99.4%,4ms\n")
 
+        from any_context.config.app_settings import ContextSettings
+        cls.db_dir = os.path.join(cls.test_dir, "context_db")
         cls.store = ConfigDBStore()
+        cls.orig_settings = cls.store.get_app_settings()
+        cls.store.update_context_settings(ContextSettings(db_path=cls.db_dir, collection_name="mod1_docs"))
         cls.ws_legal = "E2E_Mod1_Legal"
         cls.ws_tech = "E2E_Mod1_Tech"
 
@@ -51,19 +55,8 @@ class Test01DocumentIngestion(unittest.TestCase):
         try:
             cls.store.remove_workspace(cls.ws_legal)
             cls.store.remove_workspace(cls.ws_tech)
-            settings = AppSettings.load()
-            db_path = settings.context.db_path if settings else "./context_db"
-            coll_name = settings.context.collection_name if settings else "context_docs"
-            if os.path.exists(db_path):
-                client = chromadb.PersistentClient(path=db_path)
-                try:
-                    coll = client.get_collection(coll_name)
-                    for ws in [cls.ws_legal, cls.ws_tech]:
-                        existing = coll.get(where={"workspace": ws})
-                        if existing and existing["ids"]:
-                            coll.delete(ids=existing["ids"])
-                except Exception:
-                    pass
+            if hasattr(cls, "orig_settings") and cls.orig_settings and cls.orig_settings.context:
+                cls.store.update_context_settings(cls.orig_settings.context)
             shutil.rmtree(cls.test_dir, ignore_errors=True)
         except Exception:
             pass

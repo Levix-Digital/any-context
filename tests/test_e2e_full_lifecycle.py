@@ -71,8 +71,12 @@ class AnyContextE2ETestSuite(unittest.TestCase):
         with open(cls.sub_tech_file, "w", encoding="utf-8") as f:
             f.write("service_name,port,protocol,auth\nIngestionWorker,8001,gRPC,mTLS\nAPIServer,8000,HTTP/REST,BearerToken\n")
 
-        # 3. Register Workspaces in SQLite
+        from any_context.config.app_settings import ContextSettings
+        cls.db_dir = os.path.join(cls.test_dir, "context_db")
         cls.store = ConfigDBStore()
+        cls.orig_settings = cls.store.get_app_settings()
+        cls.store.update_context_settings(ContextSettings(db_path=cls.db_dir, collection_name="lifecycle_docs"))
+
         cls.ws_legal = "E2E_Legal"
         cls.ws_tech = "E2E_Tech"
         cls.ws_web = "E2E_WebPortal"
@@ -81,26 +85,12 @@ class AnyContextE2ETestSuite(unittest.TestCase):
         cls.store.add_workspace(cls.ws_tech, [cls.tech_dir])
         cls.store.add_workspace(cls.ws_web, [])
 
-        # Clean any leftover test web pages and vector chunks from previous runs
+        # Clean any leftover test web pages
         from any_context.ingestion.web_scheduler import WebSchedulerStore
         web_store = WebSchedulerStore()
         for ws in [cls.ws_legal, cls.ws_tech, cls.ws_web]:
             web_store.delete_indexed_pages_for_root(ws, "https://httpbin.org/html")
             web_store.delete_web_url_by_url(ws, "https://httpbin.org/html")
-
-        settings = AppSettings.load()
-        db_path = settings.context.db_path if settings else "./context_db"
-        coll_name = settings.context.collection_name if settings else "context_docs"
-        if os.path.exists(db_path):
-            try:
-                client = chromadb.PersistentClient(path=db_path)
-                coll = client.get_collection(coll_name)
-                for ws in [cls.ws_legal, cls.ws_tech, cls.ws_web]:
-                    existing = coll.get(where={"workspace": ws})
-                    if existing and existing["ids"]:
-                        coll.delete(ids=existing["ids"])
-            except Exception:
-                pass
 
         # Configure deterministic mock embeddings if no API key is present in CI runner
         from any_context.core.utils import get_api_key
@@ -125,20 +115,9 @@ class AnyContextE2ETestSuite(unittest.TestCase):
                 web_store.delete_indexed_pages_for_root(ws, "https://httpbin.org/html")
                 web_store.delete_web_url_by_url(ws, "https://httpbin.org/html")
 
-            # Purge ChromaDB test collections
-            settings = AppSettings.load()
-            db_path = settings.context.db_path if settings else "./context_db"
-            coll_name = settings.context.collection_name if settings else "context_docs"
-            if os.path.exists(db_path):
-                client = chromadb.PersistentClient(path=db_path)
-                try:
-                    coll = client.get_collection(coll_name)
-                    for ws in [cls.ws_legal, cls.ws_tech, cls.ws_web]:
-                        existing = coll.get(where={"workspace": ws})
-                        if existing and existing["ids"]:
-                            coll.delete(ids=existing["ids"])
-                except Exception:
-                    pass
+            # Restore original context settings
+            if hasattr(cls, "orig_settings") and cls.orig_settings and cls.orig_settings.context:
+                cls.store.update_context_settings(cls.orig_settings.context)
 
             # Remove test directory
             shutil.rmtree(cls.test_dir, ignore_errors=True)

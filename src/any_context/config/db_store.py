@@ -382,6 +382,43 @@ class ConfigDBStore:
 
             conn.commit()
 
+    def update_context_settings(self, context: ContextSettings):
+        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap)"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap)
+                VALUES (1, ?, ?, ?, ?)
+            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap))
+            conn.commit()
+
+    def update_session_settings(self, session: SessionSettings):
+        """Updates session vector database settings"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT OR REPLACE INTO session_settings (id, db_path, collection_name) VALUES (1, ?, ?)", (session.db_path, session.collection_name))
+            conn.commit()
+
+    def update_model_settings(self, models: ModelSettings):
+        """Updates active model configuration"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO models (id, embedding_model, local_embedding_model, local_openai_embedding_model, inference_model, summary_model, model_provider, local_base_url)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+            """, (models.embedding_model, models.embedding_model, models.embedding_model, models.inference_model, models.summary_model, models.model_provider, models.local_base_url))
+            conn.commit()
+
+    def update_memory_settings(self, memory: MemorySettings):
+        """Updates hierarchical memory thresholds"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO memory_settings (id, short_term_buffer_size, rolling_window_messages, meta_summary_threshold, meta_summary_batch_size)
+                VALUES (1, ?, ?, ?, ?)
+            """, (memory.short_term_buffer_size, memory.rolling_window_messages, memory.meta_summary_threshold, memory.meta_summary_batch_size))
+            conn.commit()
+
     def set_api_key(self, provider: str, api_key: str):
         """Stores or updates an API Key for a provider"""
         with self._get_connection() as conn:
