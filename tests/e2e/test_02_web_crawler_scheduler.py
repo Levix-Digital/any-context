@@ -184,14 +184,13 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
     def test_06_robots_txt_rfc9309_compliance(self):
         """TC-2.8: Verifies RFC 9309 robots.txt compliance, parser caching, and disallowed path rejection."""
         safe_stdout_write(">>> [MOD 2 / TC-2.8] Testing RFC 9309 Robots.txt Policy Compliance...\n")
-        import urllib.robotparser
-        from any_context.ingestion.robots_policy import RobotsPolicyManager, is_url_allowed_by_robots
+        from any_context.ingestion.robots_policy import RobotsPolicyManager, RobotsFileParser, is_url_allowed_by_robots
 
         manager = RobotsPolicyManager()
         
         # Inject mock robots parser for test domain
         mock_origin = "https://mock-shop.example.com"
-        mock_rp = urllib.robotparser.RobotFileParser()
+        mock_rp = RobotsFileParser()
         mock_rp.parse([
             "User-agent: *",
             "Disallow: /admin",
