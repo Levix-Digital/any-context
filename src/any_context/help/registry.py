@@ -621,13 +621,16 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         aliases=["paste", "/multiline", "multiline", "/mline"],
         title="📋 Multi-line Text Input & Paste Mode",
         description=(
-            "AnyContext provides 3 seamless ways to input long prompts, formatted documents, code snippets, or texts with line breaks:\n\n"
-            "1. 🌟 DIRECT PASTE & ALT+ENTER: You can directly paste (Ctrl+V) multi-line text into the prompt without premature submission. Press [Alt + Enter] (or [Ctrl + J]) anytime to insert a manual line break.\n"
-            "2. 📦 TRIPLE QUOTES BLOCK: Start your prompt with '\"\"\"' (or \"'''\"), type or paste freely across multiple lines, and close with '\"\"\"' to send.\n"
-            "3. 📋 DEDICATED /PASTE MODE: Type '/paste' to open an explicit multiline capture buffer. Type '/send' or '\"\"\"' on a new line to finish, or '/cancel' to abort."
+            "AnyContext provides 4 versatile ways to input long prompts, formatted documents, code snippets, or texts with line breaks:\n\n"
+            "1. 🌟 DIRECT BRACKETED PASTE: Directly paste (Ctrl+V) multi-line text into the prompt. All lines are held in buffer without premature submission until you press [Enter].\n"
+            "2. ⌨️ MANUAL NEWLINES (Ctrl+J or Esc then Enter): Press [Ctrl + J] or [Esc] then [Enter] anytime to insert clean newlines with visual continuation (... ). Note: Alt+Enter is reserved by Windows Terminal for fullscreen toggle.\n"
+            "3. 🔤 SHELL-STYLE CONTINUATION (\\): End any line with a backslash '\\' and press [Enter] to continue writing your prompt on the next line without sending.\n"
+            "4. 📦 TRIPLE QUOTES BLOCK: Start your prompt with '\"\"\"' (or \"'''\"), type or paste freely across multiple lines, and close with '\"\"\"' to send.\n"
+            "5. 📋 DEDICATED /PASTE MODE: Type '/paste' to open an explicit multiline capture buffer. Type '/send' or '\"\"\"' on a new line to finish, or '/cancel' to abort."
         ),
         syntax=(
-            "Direct in Chat  : Paste with [Ctrl + V]  OR  press [Alt + Enter] / [Ctrl + J]\n"
+            "Direct in Chat  : Paste with [Ctrl + V]  OR  press [Ctrl + J]  OR  [Esc] then [Enter]\n"
+            "  Line Continuation: End line with '\\' and press [Enter]\n"
             "  Triple Quotes   : \"\"\" <your multi-line text> \"\"\"\n"
             "  Dedicated Mode  : /paste   OR   /multiline\n"
             "  View Help       : /paste --help   OR   /paste -h"
@@ -635,19 +638,22 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         parameters=[
             "/paste, /multiline    : Opens explicit multi-line paste capture mode in chat.",
             "\"\"\" ... \"\"\"           : Wraps a multi-line prompt block with triple quote delimiters.",
-            "[Alt + Enter]         : Inserts a newline in the current prompt without submitting.",
-            "[Ctrl + J]            : Standard terminal shortcut to insert a newline without submitting.",
+            "\\ + [Enter]           : Trailing backslash shell-style line continuation.",
+            "[Ctrl + J]            : Universal terminal newline shortcut (Linefeed).",
+            "[Esc] then [Enter]    : Alternative prompt-toolkit shortcut to insert a newline without submitting.",
             "--help, -h            : Display this detailed help page for multi-line and paste mode."
         ],
         examples=[
             "In Chat: (Press Ctrl+V to paste 50 lines of contract text, then press Enter)",
-            "In Chat: [Alt + Enter] between paragraphs",
+            "In Chat: Quero saber sobre:\\ [Enter] Startup Visa Canada [Enter]",
+            "In Chat: [Ctrl + J] between paragraphs",
             "In Chat: \"\"\"Here is my meeting transcript:\n- Item 1\n- Item 2\"\"\"",
             "In Chat: /paste",
             "In Chat: /paste -h"
         ],
         tips=[
             "Direct Paste (Ctrl+V) preserves all indentation, newlines, and bullet points perfectly.",
+            "On Windows Terminal, Alt+Enter is used by the OS for fullscreen, so use [Ctrl + J] or trailing '\\' for line breaks.",
             "You can cancel a multi-line block anytime by typing '/cancel' or pressing Ctrl+C.",
             "Multi-line prompts are preserved in your workspace history (~/.any_context/history/{workspace}.history) and can be recalled with [↑] Up Arrow."
         ]

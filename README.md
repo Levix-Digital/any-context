@@ -87,7 +87,8 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Local Offline (Free & Private)**: `local-model` via LM Studio or Ollama (`http://localhost:1234/v1`).
 - **📋 Multi-line & Long-Prompt Input Engine**:
   - **Direct Bracketed Paste (`Ctrl+V`)**: Seamlessly paste multi-line contract clauses, meeting transcripts, or large code snippets without premature command submission.
-  - **Manual Line Breaks (`[Alt + Enter]` / `[Ctrl + J]`)**: Insert clean newlines with visual continuation prompts (`... `) anytime while typing.
+  - **Universal Line Break (`Ctrl + J` / `Esc` then `Enter`)**: Insert clean newlines with visual continuation prompts (`... `) anytime while typing.
+  - **Shell-Style Line Continuation (`\` + `Enter`)**: End any line with a backslash `\` and press Enter to naturally continue your prompt on the next line.
   - **Triple Quotes (`""" ... """` or `''' ... '''`)**: Start a prompt with `"""` to enter multi-line block mode and submit by closing with `"""` or `/send`.
   - **Dedicated `/paste` Capture Mode**: Type `/paste` or `/multiline` to open an explicit capture buffer with abort (`/cancel`) protection.
 - **⚡ Sub-3ms Instant Startup & Clean Single-Line Synchronization**:
@@ -141,7 +142,8 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | Command | Aliases | Description |
 | :--- | :--- | :--- |
 | **`Ctrl+V` (Paste)** | — | Paste multi-line text with line breaks without premature submission. |
-| **`[Alt + Enter]`** | `Ctrl+J` | Insert a newline into the current prompt without submitting. |
+| **`[Ctrl + J]`** | `[Esc] + Enter` | Universal terminal newline shortcut (Linefeed). |
+| **`\` + `[Enter]`** | — | Trailing backslash shell-style line continuation. |
 | **`""" ... """`** | `''' ... '''` | Multi-line block delimiter (close with `"""` or `/send`). |
 | **`/paste`** | `/multiline`, `/mline` | Open dedicated multi-line paste capture mode. |
 | **`/switch [name]`** | `/workspace`, `-w` | Switch active workspace or create a new empty workspace on the fly. |

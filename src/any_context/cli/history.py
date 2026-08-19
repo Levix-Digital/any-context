@@ -91,8 +91,10 @@ def create_workspace_prompt_session(history_file: str):
         def _submit_buffer(event):
             event.current_buffer.validate_and_handle()
 
+        from prompt_toolkit.formatted_text import ANSI
+
         def prompt_continuation(width, line_number, is_soft_wrap):
-            return "\033[90m... \033[0m"
+            return ANSI("\033[90m... \033[0m")
 
         return PromptSession(
             history=FileHistory(history_file),
