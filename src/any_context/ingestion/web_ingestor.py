@@ -299,9 +299,14 @@ def scrape_url(url: str, timeout: int = 15) -> Dict[str, Any]:
     clean_text = parser.get_text()
 
     content_hash = hashlib.sha256(clean_text.encode("utf-8")).hexdigest()
-    
+
     # Extract temporal and content metadata
     meta = extract_web_metadata(url, html_text, resp_headers)
+
+    # Check for SPA / Client-Side Rendering indicators
+    has_spa_markers = any(k in html_text for k in ["__NEXT_DATA__", "data-reactroot", "id=\"__next\"", "id=\"root\"", "window.__INITIAL_STATE__", "_next/static"])
+    text_density = len(clean_text) / max(len(html_text), 1)
+    is_spa = bool(has_spa_markers and (text_density < 0.02 or len(clean_text) < 1500))
 
     return {
         "url": url,
@@ -311,7 +316,8 @@ def scrape_url(url: str, timeout: int = 15) -> Dict[str, Any]:
         "char_count": len(clean_text),
         "last_modified": meta["last_modified"],
         "date_confidence": meta["date_confidence"],
-        "content_type": meta["content_type"]
+        "content_type": meta["content_type"],
+        "is_dynamic_spa": is_spa
     }
 
 def scrape_sitemap(sitemap_url: str, max_urls: int = 50) -> List[str]:

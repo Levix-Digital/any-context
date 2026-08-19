@@ -325,6 +325,7 @@ def crawl_and_index_urls(
     total_urls = len(urls)
     indexed_count = 0
     skipped_count = 0
+    spa_detected_count = 0
     total_chars = 0
     errors = 0
 
@@ -355,6 +356,9 @@ def crawl_and_index_urls(
             data = None
             try:
                 data = future.result()
+                if data and data.get("is_dynamic_spa"):
+                    spa_detected_count += 1
+
                 if data and data.get("content") and len(data["content"].strip()) > 30:
                     text_content = data["content"]
                     url_hash = data["hash"]
@@ -457,6 +461,8 @@ def crawl_and_index_urls(
         scope=scope
     )
 
+    is_dynamic_site = bool(spa_detected_count > 0 and (spa_detected_count / max(indexed_count + skipped_count, 1)) >= 0.25)
+
     return {
         "status": "success",
         "total_requested": total_urls,
@@ -464,6 +470,7 @@ def crawl_and_index_urls(
         "skipped_count": skipped_count,
         "total_distinct_indexed": total_distinct_pages,
         "total_chars": total_chars,
+        "is_dynamic_spa": is_dynamic_site,
         "errors": errors
     }
 
@@ -687,4 +694,14 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
         safe_stdout_write(f"✔ Successfully ingested \033[92m{indexed_cnt}\033[0m new/updated web pages ({total_chars:,} chars) from \033[96m{start_url}\033[0m into workspace '\033[93m{workspace_name}\033[0m' (\033[90m{skipped_cnt} unchanged pages cached\033[0m). Total in knowledge base: \033[92m{total_distinct}\033[0m pages!\n\n")
     else:
         safe_stdout_write(f"✔ Successfully ingested and indexed \033[92m{indexed_cnt}\033[0m web pages ({total_chars:,} chars) from \033[96m{start_url}\033[0m into workspace '\033[93m{workspace_name}\033[0m'! Total in knowledge base: \033[92m{total_distinct}\033[0m pages.\n\n")
+
+    if res.get("is_dynamic_spa"):
+        safe_stdout_write(
+            f"⚠️ \033[1;93mImportante:\033[0m\n"
+            f"Este site carrega seu conteúdo de forma dinâmica no navegador. Apenas a estrutura\n"
+            f"estática foi capturada. Para consultar detalhes específicos, adicione o link\n"
+            f"direto da página via '\033[96m/web add <url>\033[0m'.\n"
+            f"\033[90m[Nota técnica: Client-Side Rendering (CSR / SPA) detectado no domínio {domain}]\033[0m\n\n"
+        )
+
     return True
