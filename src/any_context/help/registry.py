@@ -667,16 +667,18 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "AnyContext allows you to instantly move any local folder or crawled web portal between workspaces in < 50ms without recalculating vector embeddings ($0.00 API cost).\n\n"
             "• Zero API Cost: Reuses already calculated semantic vector embeddings by dynamically updating metadata tags in ChromaDB.\n"
             "• Full Scope Isolation: Immediately decouples the source from the original workspace and links it exclusively to the target workspace.\n"
+            "• Tripartite Availability: Fully supported across CLI (`/transfer`), REST API (`POST /v1/workspaces/transfer`), and MCP Server (`transfer_workspace_source` tool for Claude/Cursor/Antigravity).\n"
             "• Collaborative Security: In Team and Enterprise plans, only users with 'Owner' or 'Admin' permissions in both workspaces can execute transfers."
         ),
         syntax=(
-            "Interactive Wizard: /transfer   OR   /config (Workspaces -> Transfer)\n"
-            "  Direct Command    : /transfer <source_workspace> <target_workspace> <folder_path_or_url>\n"
-            "  Workspace Alias   : /workspace transfer <source_workspace> <target_workspace> <path_or_url>\n"
+            "CLI Interactive   : /transfer   OR   /config (Workspaces -> Transfer)\n"
+            "  CLI Direct        : /transfer <source_workspace> <target_workspace> <folder_path_or_url>\n"
+            "  REST API Server   : POST /v1/workspaces/transfer\n"
+            "  MCP Tool          : transfer_workspace_source\n"
             "  View Help         : /transfer --help   OR   /transfer -h"
         ),
         parameters=[
-            "/transfer            : Opens the interactive guided source transfer wizard.",
+            "/transfer            : Opens the interactive guided source transfer wizard in CLI.",
             "<source_workspace>   : The origin workspace containing the folder or web portal.",
             "<target_workspace>   : The destination workspace receiving the transferred source.",
             "<folder_path_or_url> : The absolute folder path (e.g. C:\\Docs\\Legal) or website URL (e.g. https://canada.ca).",
@@ -686,13 +688,14 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "In Chat: /transfer",
             "In Chat: /transfer Default Legal C:\\Docs\\Contracts",
             "In Chat: /transfer Default CanadaPortal https://canada.ca",
-            "In Chat: /workspace transfer TechPortal DevOps https://docs.docker.com",
+            "In REST API: POST /v1/workspaces/transfer {\"source_workspace\":\"Default\",\"target_workspace\":\"Legal\",\"source_path_or_url\":\"C:\\Docs\"}",
+            "In MCP Server: transfer_workspace_source(source_workspace='Default', target_workspace='Legal', source_type='folder', source_path_or_url='C:\\Docs')",
             "In Chat: /transfer -h"
         ],
         tips=[
             "Transfers execute in sub-50 milliseconds regardless of how many thousands of pages or files are in the source.",
             "Zero tokens are spent: vector embeddings are preserved and moved without calling OpenAI/LLMs.",
-            "After transferring, search queries in the target workspace immediately find the data, while the source workspace no longer accesses it."
+            "External AI Agents connected via MCP (Claude Desktop, Cursor IDE) can transfer sources via natural language prompts."
         ]
     )
 }

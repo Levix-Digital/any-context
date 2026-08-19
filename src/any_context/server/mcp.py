@@ -257,6 +257,20 @@ MCP_TOOLS_DEFINITIONS = [
             },
             "required": ["workspace"]
         }
+    },
+    {
+        "name": "transfer_workspace_source",
+        "description": "Transfers a local folder or crawled web portal and its existing vector chunks between workspaces in sub-50ms with zero API cost ($0.00).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_workspace": {"type": "string", "description": "Origin workspace name"},
+                "target_workspace": {"type": "string", "description": "Destination workspace name"},
+                "source_type": {"type": "string", "enum": ["folder", "web"], "description": "Type of source: 'folder' or 'web'"},
+                "source_path_or_url": {"type": "string", "description": "Absolute folder path (e.g. 'C:\\Docs\\Legal') or website URL (e.g. 'https://canada.ca')"}
+            },
+            "required": ["source_workspace", "target_workspace", "source_type", "source_path_or_url"]
+        }
     }
 ]
 
@@ -498,6 +512,25 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 ws_target = arguments.get("workspace", "Default")
                 sync_res = sync_workspace_web_urls(workspace_name=ws_target)
                 result_text = json.dumps(sync_res, indent=2)
+
+            elif tool_name == "transfer_workspace_source":
+                src_ws = arguments.get("source_workspace", "").strip()
+                tgt_ws = arguments.get("target_workspace", "").strip()
+                src_type = arguments.get("source_type", "folder").strip().lower()
+                src_item = arguments.get("source_path_or_url", "").strip()
+
+                if not src_ws or not tgt_ws or not src_item:
+                    raise ValueError("source_workspace, target_workspace, and source_path_or_url are required.")
+
+                if src_type in ["web", "url", "site", "portal"] or src_item.startswith("http://") or src_item.startswith("https://"):
+                    from any_context.ingestion.web_scheduler import WebSchedulerStore
+                    web_store = WebSchedulerStore()
+                    res = web_store.transfer_web_source(source_ws=src_ws, target_ws=tgt_ws, url_or_root=src_item)
+                else:
+                    store = ConfigDBStore()
+                    res = store.transfer_local_folder_source(source_ws=src_ws, target_ws=tgt_ws, folder_path=src_item)
+
+                result_text = json.dumps(res, indent=2)
 
             else:
                 result_text = f"Error: Tool '{tool_name}' not found."

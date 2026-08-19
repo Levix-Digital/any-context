@@ -107,5 +107,46 @@ class Test07RestApiServer(unittest.TestCase):
         self.assertGreaterEqual(len(plans), 1)
         safe_stdout_write("  [OK] Billing status and licensing plans endpoints verified!\n")
 
+    def test_05_transfer_source_endpoint(self):
+        """TC-7.7: Tests POST /v1/workspaces/transfer REST API endpoint."""
+        safe_stdout_write(">>> [MOD 7 / TC-7.7] Testing /v1/workspaces/transfer REST Endpoint...\n")
+        src_ws = "E2E_Api_Transfer_Src"
+        tgt_ws = "E2E_Api_Transfer_Tgt"
+        test_folder = os.path.abspath(os.path.join(os.getcwd(), "test_api_transfer_folder"))
+        os.makedirs(test_folder, exist_ok=True)
+
+        self.store.add_workspace(src_ws, paths=[test_folder])
+        self.store.add_workspace(tgt_ws, paths=[])
+
+        try:
+            payload = {
+                "source_workspace": src_ws,
+                "target_workspace": tgt_ws,
+                "source_type": "folder",
+                "source_path_or_url": test_folder
+            }
+            res = self.client.post("/v1/workspaces/transfer", json=payload, headers=self.headers)
+            self.assertEqual(res.status_code, 200, f"API Transfer failed: {res.text}")
+            data = res.json()
+            self.assertEqual(data["status"], "success")
+            self.assertEqual(data["source_workspace"], src_ws)
+            self.assertEqual(data["target_workspace"], tgt_ws)
+            self.assertEqual(data["api_embedding_cost"], "$0.00")
+
+            settings = self.store.get_app_settings()
+            src_obj = next((w for w in settings.workspaces if w.name == src_ws), None)
+            tgt_obj = next((w for w in settings.workspaces if w.name == tgt_ws), None)
+            self.assertNotIn(test_folder, [os.path.abspath(p) for p in src_obj.paths])
+            self.assertIn(test_folder, [os.path.abspath(p) for p in tgt_obj.paths])
+            safe_stdout_write("  [OK] POST /v1/workspaces/transfer REST API verified!\n")
+        finally:
+            self.store.remove_workspace(src_ws)
+            self.store.remove_workspace(tgt_ws)
+            try:
+                os.rmdir(test_folder)
+            except Exception:
+                pass
+
 if __name__ == "__main__":
     unittest.main()
+

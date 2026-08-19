@@ -103,5 +103,53 @@ class Test08MCPProtocolServer(unittest.TestCase):
         self.assertIn("active_tier", content_sub)
         safe_stdout_write("  [OK] MCP Tool execution verified!\n")
 
+    def test_04_mcp_transfer_workspace_source_tool(self):
+        """TC-8.4: Tests tools/call invoking transfer_workspace_source tool."""
+        safe_stdout_write(">>> [MOD 8 / TC-8.4] Testing MCP transfer_workspace_source Tool Execution...\n")
+        src_ws = "E2E_MCP_Transfer_Src"
+        tgt_ws = "E2E_MCP_Transfer_Tgt"
+        test_dir = os.path.abspath(os.path.join(os.getcwd(), "test_mcp_transfer_folder"))
+        os.makedirs(test_dir, exist_ok=True)
+
+        self.store.add_workspace(src_ws, paths=[test_dir])
+        self.store.add_workspace(tgt_ws, paths=[])
+
+        try:
+            req_transfer = {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "tools/call",
+                "params": {
+                    "name": "transfer_workspace_source",
+                    "arguments": {
+                        "source_workspace": src_ws,
+                        "target_workspace": tgt_ws,
+                        "source_type": "folder",
+                        "source_path_or_url": test_dir
+                    }
+                }
+            }
+            res = dispatch_mcp_request(req_transfer)
+            self.assertIn("result", res)
+            content = json.loads(res["result"]["content"][0]["text"])
+            self.assertTrue(content["success"])
+            self.assertEqual(content["source_workspace"], src_ws)
+            self.assertEqual(content["target_workspace"], tgt_ws)
+
+            settings = self.store.get_app_settings()
+            src_obj = next((w for w in settings.workspaces if w.name == src_ws), None)
+            tgt_obj = next((w for w in settings.workspaces if w.name == tgt_ws), None)
+            self.assertNotIn(test_dir, [os.path.abspath(p) for p in src_obj.paths])
+            self.assertIn(test_dir, [os.path.abspath(p) for p in tgt_obj.paths])
+            safe_stdout_write("  [OK] MCP transfer_workspace_source tool verified!\n")
+        finally:
+            self.store.remove_workspace(src_ws)
+            self.store.remove_workspace(tgt_ws)
+            try:
+                os.rmdir(test_dir)
+            except Exception:
+                pass
+
 if __name__ == "__main__":
     unittest.main()
+
