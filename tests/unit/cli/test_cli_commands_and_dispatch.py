@@ -17,10 +17,18 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
     """
 
     def setUp(self):
+        from tests.e2e_helpers import setup_mock_embeddings_if_needed
+        setup_mock_embeddings_if_needed()
         self.store = ConfigDBStore()
         self.test_ws = "test_cli_dispatch_ws"
+        self.index_patcher = patch("any_context.ingestion.local_folder_ingestor.run_index_folder")
+        self.mock_run_index = self.index_patcher.start()
 
     def tearDown(self):
+        try:
+            self.index_patcher.stop()
+        except Exception:
+            pass
         try:
             self.store.remove_workspace(self.test_ws)
         except Exception:
