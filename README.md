@@ -148,6 +148,9 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/ocr`** | `image`, `scan` | View Image & Scanned PDF OCR parsing status. |
 | **`/config`** | `-c`, `--config` | Open interactive settings menu (Workspaces, AI Models, API Keys). |
 | **`/billing`** | `/plans`, `pricing` | View subscription tiers, capabilities, and license status. |
+| **`[↑] / [↓]`** | — | Navigate through past prompts & commands in the active workspace. |
+| **`/history`** | `/hist` | List recent input history entries for the active workspace. |
+| **`/clear-history`** | `/reset-history` | Purge input history file for the active workspace. |
 | **`/check-update`**| `--check-update`| Check for newer releases with 1-click upgrade confirmation. |
 | **`/update`** | `--update` | Download and apply the latest AnyContext release immediately. |
 | **`/reset-memory`**| `/reset` | Purge conversation session memory for the active workspace. |
