@@ -197,6 +197,41 @@ class TestSourceTransfer(unittest.TestCase):
         self.assertEqual(perms_after[0].access_level, "editor")
         safe_stdout_write("  [OK] WorkspaceSharingStore.get_workspace_permissions verified!\n")
 
+    def test_05_transfer_folder_with_quotes_and_spaces(self):
+        """Tests that transferring a folder path wrapped in literal quotes with spaces resolves and migrates properly."""
+        safe_stdout_write(">>> [CORE UNIT] Testing Folder Transfer with Quotes & Spaces...\n")
+        space_folder = os.path.join(self.temp_dir, "My Drive", "Levix Digital", "VentureHub")
+        os.makedirs(space_folder, exist_ok=True)
+
+        self.store.add_workspace("WS_With_Spaces", paths=[space_folder])
+        self.store.add_workspace("WS_Target_Spaces", paths=[])
+
+        try:
+            # Transfer using path wrapped in quotes like '"G:\My Drive\..."'
+            quoted_input = f'"{space_folder}"'
+            res = self.store.transfer_local_folder_source(
+                source_ws="WS_With_Spaces",
+                target_ws="WS_Target_Spaces",
+                folder_path=quoted_input
+            )
+            self.assertTrue(res["success"], f"Transfer failed: {res.get('error')}")
+            
+            # Verify source has 0 paths
+            settings = self.store.get_app_settings()
+            src_ws_obj = next((w for w in settings.workspaces if w.name == "WS_With_Spaces"), None)
+            self.assertEqual(len(src_ws_obj.paths), 0)
+
+            # Verify target has the clean absolute path without quotes or prepended cwd
+            tgt_ws_obj = next((w for w in settings.workspaces if w.name == "WS_Target_Spaces"), None)
+            self.assertEqual(len(tgt_ws_obj.paths), 1)
+            self.assertEqual(os.path.abspath(tgt_ws_obj.paths[0]), os.path.abspath(space_folder))
+            self.assertFalse(tgt_ws_obj.paths[0].startswith('"'))
+            self.assertFalse('"' in tgt_ws_obj.paths[0])
+            safe_stdout_write("  [OK] Folder transfer with quotes & spaces verified!\n")
+        finally:
+            self.store.remove_workspace("WS_With_Spaces")
+            self.store.remove_workspace("WS_Target_Spaces")
+
 
 if __name__ == "__main__":
     unittest.main()

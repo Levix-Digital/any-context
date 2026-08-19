@@ -1,6 +1,6 @@
 import sys
 import uuid
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import questionary
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
 from any_context.cli.config_menu import show_config_menu
@@ -146,6 +146,16 @@ def show_slash_commands_palette(active_workspace: Optional[str] = None) -> Optio
 
     cmd_token = choice.split()[1]
     return cmd_token
+
+
+def parse_command_args(command_line: str) -> List[str]:
+    """Safely tokenizes CLI command lines while respecting quotes and Windows backslashes."""
+    import shlex
+    try:
+        raw_parts = shlex.split(command_line.strip(), posix=False)
+        return [p.strip().strip("'\"") for p in raw_parts if p.strip()]
+    except Exception:
+        return [p.strip().strip("'\"") for p in command_line.strip().split() if p.strip()]
 
 
 def run_chat_loop(active_workspace: str = None):
@@ -356,19 +366,19 @@ def run_chat_loop(active_workspace: str = None):
                 continue
 
             elif cmd == "/transfer" or cmd.startswith("/transfer ") or cmd.startswith("/workspace transfer") or cmd.startswith("/move-source"):
-                parts = user_input.strip().split()
+                parts = parse_command_args(user_input)
                 # If typed: /transfer or /workspace transfer without full args -> open interactive guided wizard
-                if len(parts) < 4:
+                if len(parts) < 4 or (len(parts) > 1 and parts[1].lower() == "transfer" and len(parts) < 5):
                     from any_context.cli.config_menu import _transfer_workspace_source
                     store = ConfigDBStore()
                     _transfer_workspace_source(store)
                     continue
 
                 # If typed with direct arguments: /transfer <source_ws> <target_ws> <path_or_url>
-                arg_offset = 2 if parts[1].lower() == "transfer" else 1
+                arg_offset = 2 if len(parts) > 1 and parts[1].lower() == "transfer" else 1
                 source_ws = parts[arg_offset]
                 target_ws = parts[arg_offset + 1]
-                source_item = " ".join(parts[arg_offset + 2:])
+                source_item = " ".join(parts[arg_offset + 2:]).strip().strip("'\"")
 
                 store = ConfigDBStore()
                 from any_context.ingestion.web_scheduler import WebSchedulerStore
@@ -390,9 +400,9 @@ def run_chat_loop(active_workspace: str = None):
                 continue
 
             elif cmd == "/rename" or cmd.startswith("/rename ") or cmd.startswith("/workspace rename"):
-                parts = user_input.strip().split()
+                parts = parse_command_args(user_input)
                 store = ConfigDBStore()
-                if len(parts) < 3 or (parts[1].lower() == "rename" and len(parts) < 4):
+                if len(parts) < 3 or (len(parts) > 1 and parts[1].lower() == "rename" and len(parts) < 4):
                     # Interactive guided rename wizard
                     settings = store.get_app_settings()
                     known_workspaces = [w.name for w in settings.workspaces] if settings else []
@@ -405,11 +415,11 @@ def run_chat_loop(active_workspace: str = None):
                     new_ws = questionary.text(f"Enter new name for workspace '{old_ws}':").ask()
                     if not new_ws or not new_ws.strip():
                         continue
-                    clean_new_ws = new_ws.strip()
+                    clean_new_ws = new_ws.strip().strip("'\"")
                 else:
-                    arg_offset = 2 if parts[1].lower() == "rename" else 1
+                    arg_offset = 2 if len(parts) > 1 and parts[1].lower() == "rename" else 1
                     old_ws = parts[arg_offset]
-                    clean_new_ws = parts[arg_offset + 1]
+                    clean_new_ws = parts[arg_offset + 1].strip().strip("'\"")
 
                 with Spinner(f"Renaming workspace '{old_ws}' to '{clean_new_ws}'..."):
                     res = store.rename_workspace(old_name=old_ws, new_name=clean_new_ws)

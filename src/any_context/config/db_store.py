@@ -228,13 +228,13 @@ class ConfigDBStore:
     def add_workspace(self, name: str, paths: List[str]):
         """Adds or updates a workspace entry with folder paths."""
         clean_name = name.strip()
-        clean_paths = [os.path.abspath(p.strip()) for p in paths if p.strip()]
+        clean_paths = [os.path.abspath(p.strip().strip("'\"")) for p in paths if p and p.strip()]
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (clean_name,))
             row = cursor.fetchone()
             if row:
-                existing_paths = json.loads(row["paths_json"])
+                existing_paths = [os.path.abspath(p.strip().strip("'\"")) for p in json.loads(row["paths_json"])]
                 combined = list(dict.fromkeys(existing_paths + clean_paths))
                 cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(combined), clean_name))
             else:
@@ -244,14 +244,14 @@ class ConfigDBStore:
     def add_folder_to_workspace(self, workspace_name: str, folder_path: str) -> bool:
         """Adds a new folder path to an existing workspace."""
         clean_ws = workspace_name.strip()
-        clean_path = os.path.abspath(folder_path.strip())
+        clean_path = os.path.abspath(folder_path.strip().strip("'\""))
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (clean_ws,))
             row = cursor.fetchone()
             if not row:
                 return False
-            existing_paths = json.loads(row["paths_json"])
+            existing_paths = [os.path.abspath(p.strip().strip("'\"")) for p in json.loads(row["paths_json"])]
             if clean_path not in existing_paths:
                 existing_paths.append(clean_path)
                 cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(existing_paths), clean_ws))
@@ -261,7 +261,7 @@ class ConfigDBStore:
     def remove_folder_from_workspace(self, workspace_name: str, folder_path: str) -> bool:
         """Removes a folder path from an existing workspace."""
         clean_ws = workspace_name.strip()
-        clean_path = os.path.abspath(folder_path.strip())
+        clean_path = os.path.abspath(folder_path.strip().strip("'\""))
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (clean_ws,))
@@ -269,7 +269,7 @@ class ConfigDBStore:
             if not row:
                 return False
             existing_paths = json.loads(row["paths_json"])
-            updated_paths = [p for p in existing_paths if os.path.abspath(p) != clean_path]
+            updated_paths = [p for p in existing_paths if os.path.abspath(p.strip().strip("'\"")) != clean_path]
             cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(updated_paths), clean_ws))
             conn.commit()
             return True
@@ -296,7 +296,8 @@ class ConfigDBStore:
         """
         source_ws = source_ws.strip()
         target_ws = target_ws.strip()
-        abs_folder = os.path.abspath(folder_path.strip())
+        cleaned_folder = folder_path.strip().strip("'\"")
+        abs_folder = os.path.abspath(cleaned_folder)
 
         if source_ws == target_ws:
             return {"success": False, "error": "Source and target workspaces cannot be the same."}
@@ -321,7 +322,8 @@ class ConfigDBStore:
             # Find matching path in source
             matching_path = None
             for p in src_paths:
-                if os.path.abspath(p) == abs_folder or abs_folder.startswith(os.path.abspath(p)):
+                clean_p = p.strip().strip("'\"")
+                if os.path.abspath(clean_p) == abs_folder or abs_folder.startswith(os.path.abspath(clean_p)) or os.path.abspath(clean_p).startswith(abs_folder):
                     matching_path = p
                     break
 
@@ -329,12 +331,14 @@ class ConfigDBStore:
                 matching_path = abs_folder
 
             # Remove from source, add to target
-            new_src_paths = [p for p in src_paths if os.path.abspath(p) != os.path.abspath(matching_path)]
-            if matching_path not in tgt_paths and abs_folder not in [os.path.abspath(tp) for tp in tgt_paths]:
-                tgt_paths.append(matching_path)
+            clean_matching = os.path.abspath(matching_path.strip().strip("'\""))
+            new_src_paths = [p for p in src_paths if os.path.abspath(p.strip().strip("'\"")) != clean_matching]
+            clean_tgt_paths = [os.path.abspath(tp.strip().strip("'\"")) for tp in tgt_paths]
+            if clean_matching not in clean_tgt_paths and abs_folder not in clean_tgt_paths:
+                clean_tgt_paths.append(abs_folder)
 
             cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(new_src_paths), source_ws))
-            cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(tgt_paths), target_ws))
+            cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(clean_tgt_paths), target_ws))
             conn.commit()
 
         # 2. Update ChromaDB vector metadata
@@ -358,12 +362,14 @@ class ConfigDBStore:
 
                     if results and results.get("ids"):
                         for cid, meta in zip(results["ids"], results["metadatas"]):
-                            fp = meta.get("file_path", "") or meta.get("source", "")
-                            if fp and (os.path.abspath(fp) == abs_folder or os.path.abspath(fp).startswith(abs_folder + os.sep) or abs_folder in os.path.abspath(fp)):
-                                ids_to_update.append(cid)
-                                new_meta = dict(meta)
-                                new_meta["workspace"] = target_ws
-                                metas_to_update.append(new_meta)
+                            fp = (meta.get("file_path", "") or meta.get("source", "")).strip().strip("'\"")
+                            if fp:
+                                abs_fp = os.path.abspath(fp)
+                                if abs_fp == abs_folder or abs_fp.startswith(abs_folder + os.sep) or abs_folder.startswith(abs_fp) or abs_folder in abs_fp:
+                                    ids_to_update.append(cid)
+                                    new_meta = dict(meta)
+                                    new_meta["workspace"] = target_ws
+                                    metas_to_update.append(new_meta)
 
                     if ids_to_update:
                         collection.update(
@@ -383,6 +389,7 @@ class ConfigDBStore:
             "folder_path": abs_folder,
             "transferred_chunks": transferred_chunks
         }
+
 
     def rename_workspace(self, old_name: str, new_name: str) -> Dict[str, Any]:
         """
