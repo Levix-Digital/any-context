@@ -391,6 +391,13 @@ actx --serve --host 0.0.0.0 --port 8000
 ```
 Access the interactive OpenAPI / Swagger UI at: **`http://127.0.0.1:8000/docs`**.
 
+Key API Endpoints include:
+- `POST /v1/chat` — Streaming & non-streaming AI Agent queries with RAG & memory.
+- `GET /v1/workspaces` & `POST /v1/workspaces` — Workspace management.
+- `POST /v1/workspaces/transfer` — Instant zero-cost transfer of local folders and web portals between workspaces with vector metadata migration in < 50ms.
+- `POST /v1/index` — Background folder re-indexing.
+- `GET /v1/models` — Active & available model inspection.
+
 ### 2. Linux Background Service (`systemd`)
 
 Create `/etc/systemd/system/anycontext.service`:
@@ -423,6 +430,13 @@ To connect AnyContext to **Claude Desktop**, **Cursor IDE**, or **Antigravity**:
 ```bash
 actx --mcp
 ```
+
+### Registered MCP Tools:
+- `search_workspace_docs` — Vector semantic search across indexed files.
+- `query_anycontext_agent` — Direct RAG query with 3-level session memory.
+- `transfer_workspace_source` — Zero-cost instant data source transfer (folders/websites) between workspaces.
+- `list_workspaces` & `create_workspace` — Workspace configuration.
+- `list_available_models` — Model verification.
 
 ### Claude Desktop Configuration (`claude_desktop_config.json`):
 ```json
