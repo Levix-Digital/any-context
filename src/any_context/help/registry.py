@@ -657,6 +657,43 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "You can cancel a multi-line block anytime by typing '/cancel' or pressing Ctrl+C.",
             "Multi-line prompts are preserved in your workspace history (~/.any_context/history/{workspace}.history) and can be recalled with [↑] Up Arrow."
         ]
+    ),
+
+    "transfer": HelpPage(
+        command="/transfer",
+        aliases=["transfer", "/move-source", "move-source", "/transfer-source", "transfer-source"],
+        title="🔄 Instant Zero-Cost Source Transfer (Folders & Web Portals)",
+        description=(
+            "AnyContext allows you to instantly move any local folder or crawled web portal between workspaces in < 50ms without recalculating vector embeddings ($0.00 API cost).\n\n"
+            "• Zero API Cost: Reuses already calculated semantic vector embeddings by dynamically updating metadata tags in ChromaDB.\n"
+            "• Full Scope Isolation: Immediately decouples the source from the original workspace and links it exclusively to the target workspace.\n"
+            "• Collaborative Security: In Team and Enterprise plans, only users with 'Owner' or 'Admin' permissions in both workspaces can execute transfers."
+        ),
+        syntax=(
+            "Interactive Wizard: /transfer   OR   /config (Workspaces -> Transfer)\n"
+            "  Direct Command    : /transfer <source_workspace> <target_workspace> <folder_path_or_url>\n"
+            "  Workspace Alias   : /workspace transfer <source_workspace> <target_workspace> <path_or_url>\n"
+            "  View Help         : /transfer --help   OR   /transfer -h"
+        ),
+        parameters=[
+            "/transfer            : Opens the interactive guided source transfer wizard.",
+            "<source_workspace>   : The origin workspace containing the folder or web portal.",
+            "<target_workspace>   : The destination workspace receiving the transferred source.",
+            "<folder_path_or_url> : The absolute folder path (e.g. C:\\Docs\\Legal) or website URL (e.g. https://canada.ca).",
+            "--help, -h           : Display this detailed help page for source transfers."
+        ],
+        examples=[
+            "In Chat: /transfer",
+            "In Chat: /transfer Default Legal C:\\Docs\\Contracts",
+            "In Chat: /transfer Default CanadaPortal https://canada.ca",
+            "In Chat: /workspace transfer TechPortal DevOps https://docs.docker.com",
+            "In Chat: /transfer -h"
+        ],
+        tips=[
+            "Transfers execute in sub-50 milliseconds regardless of how many thousands of pages or files are in the source.",
+            "Zero tokens are spent: vector embeddings are preserved and moved without calling OpenAI/LLMs.",
+            "After transferring, search queries in the target workspace immediately find the data, while the source workspace no longer accesses it."
+        ]
     )
 }
 
