@@ -85,6 +85,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **xAI Grok**: `grok-2-1212`, `grok-2`, `grok-beta`.
   - **OpenRouter**: `openrouter/auto`, `meta-llama/llama-3.3-70b-instruct:free`, `google/gemini-flash-1.5-8b`.
   - **Local Offline (Free & Private)**: `local-model` via LM Studio or Ollama (`http://localhost:1234/v1`).
+- **📋 Multi-line & Long-Prompt Input Engine**:
+  - **Direct Bracketed Paste (`Ctrl+V`)**: Seamlessly paste multi-line contract clauses, meeting transcripts, or large code snippets without premature command submission.
+  - **Manual Line Breaks (`[Alt + Enter]` / `[Ctrl + J]`)**: Insert clean newlines with visual continuation prompts (`... `) anytime while typing.
+  - **Triple Quotes (`""" ... """` or `''' ... '''`)**: Start a prompt with `"""` to enter multi-line block mode and submit by closing with `"""` or `/send`.
+  - **Dedicated `/paste` Capture Mode**: Type `/paste` or `/multiline` to open an explicit capture buffer with abort (`/cancel`) protection.
 - **⚡ Sub-3ms Instant Startup & Clean Single-Line Synchronization**:
   - Signature ASCII banner renders in under 3 milliseconds.
   - Clean single-line background sync spinner (`✔ Workspace 'AnyContext' ready`).
@@ -135,6 +140,10 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 
 | Command | Aliases | Description |
 | :--- | :--- | :--- |
+| **`Ctrl+V` (Paste)** | — | Paste multi-line text with line breaks without premature submission. |
+| **`[Alt + Enter]`** | `Ctrl+J` | Insert a newline into the current prompt without submitting. |
+| **`""" ... """`** | `''' ... '''` | Multi-line block delimiter (close with `"""` or `/send`). |
+| **`/paste`** | `/multiline`, `/mline` | Open dedicated multi-line paste capture mode. |
 | **`/switch [name]`** | `/workspace`, `-w` | Switch active workspace or create a new empty workspace on the fly. |
 | **`/sync`** | `/index`, `-s` | Synchronize workspace files incrementally (single-line clean mode). |
 | **`/sync -v`** | `/index --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
