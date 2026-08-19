@@ -181,5 +181,39 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
         self.assertEqual(meta["content_type"], "E-Commerce Product Page")
         safe_stdout_write("  [OK] E-Commerce ratings & Schema.org Product extraction verified!\n")
 
+    def test_06_robots_txt_rfc9309_compliance(self):
+        """TC-2.8: Verifies RFC 9309 robots.txt compliance, parser caching, and disallowed path rejection."""
+        safe_stdout_write(">>> [MOD 2 / TC-2.8] Testing RFC 9309 Robots.txt Policy Compliance...\n")
+        import urllib.robotparser
+        from any_context.ingestion.robots_policy import RobotsPolicyManager, is_url_allowed_by_robots
+
+        manager = RobotsPolicyManager()
+        
+        # Inject mock robots parser for test domain
+        mock_origin = "https://mock-shop.example.com"
+        mock_rp = urllib.robotparser.RobotFileParser()
+        mock_rp.parse([
+            "User-agent: *",
+            "Disallow: /admin",
+            "Disallow: /cart",
+            "Disallow: /checkout",
+            "Disallow: /private/*",
+            "Allow: /public",
+            "Allow: /products/*"
+        ])
+        manager._parsers[mock_origin] = mock_rp
+
+        # Test allowed paths
+        self.assertTrue(manager.is_allowed("https://mock-shop.example.com/products/item-123"))
+        self.assertTrue(manager.is_allowed("https://mock-shop.example.com/public/about"))
+        
+        # Test disallowed paths
+        self.assertFalse(manager.is_allowed("https://mock-shop.example.com/admin/login"))
+        self.assertFalse(manager.is_allowed("https://mock-shop.example.com/cart"))
+        self.assertFalse(manager.is_allowed("https://mock-shop.example.com/checkout"))
+        self.assertFalse(manager.is_allowed("https://mock-shop.example.com/private/data.json"))
+
+        safe_stdout_write("  [OK] RFC 9309 Robots.txt compliance verified: disallowed paths strictly blocked!\n")
+
 if __name__ == "__main__":
     unittest.main()

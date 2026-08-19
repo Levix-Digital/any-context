@@ -223,17 +223,30 @@ def extract_web_metadata(url: str, html_text: str, headers: dict = None) -> Dict
         date_confidence = "crawl_timestamp"
 
     # Content Type Classification
-    url_lower = url.lower()
-    if any(k in url_lower for k in ["/news/", "/blog/", "/press/", "/announcement", "/backgrounder"]):
-        content_type = "Historical News / Press Release"
-    elif any(k in url_lower for k in ["/services/", "/guide/", "/doc/", "/docs/", "/manual/", "/policy/"]):
-        content_type = "Canonical Service / Documentation"
-    elif any(k in url_lower for k in ["/ip/", "/dp/", "/product/", "/item/", "/p/", "/produtos/"]):
-        content_type = "E-Commerce Product Page"
-    elif '"@type": "Product"' in html_text or '"@type":"Product"' in html_text or '"@type": "IndividualProduct"' in html_text:
-        content_type = "E-Commerce Product Page"
+    bot_patterns = [
+        r"Verify Your Identity",
+        r"Bot Protection Page",
+        r"Robot or human\?",
+        r"px-captcha",
+        r"cf-browser-verification",
+        r"Click the button below to continue shopping",
+        r"Access Denied.*Cloudflare",
+        r"Attention Required! \| Cloudflare"
+    ]
+    if any(re.search(pat, html_text, re.IGNORECASE) for pat in bot_patterns):
+        content_type = "Blocked by Anti-Bot Firewall (Captcha)"
     else:
-        content_type = "Web Documentation"
+        url_lower = url.lower()
+        if any(k in url_lower for k in ["/news/", "/blog/", "/press/", "/announcement", "/backgrounder"]):
+            content_type = "Historical News / Press Release"
+        elif any(k in url_lower for k in ["/services/", "/guide/", "/doc/", "/docs/", "/manual/", "/policy/"]):
+            content_type = "Canonical Service / Documentation"
+        elif any(k in url_lower for k in ["/ip/", "/dp/", "/product/", "/item/", "/p/", "/produtos/"]):
+            content_type = "E-Commerce Product Page"
+        elif '"@type": "Product"' in html_text or '"@type":"Product"' in html_text or '"@type": "IndividualProduct"' in html_text:
+            content_type = "E-Commerce Product Page"
+        else:
+            content_type = "Web Documentation"
 
     return {
         "last_modified": last_modified,
@@ -245,9 +258,25 @@ def scrape_url(url: str, timeout: int = 15) -> Dict[str, Any]:
     """
     Fetches a web page URL, cleans HTML tags, computes SHA-256 content hash,
     and extracts page title, body text, last modified date, and content classification.
+    Strictly obeys RFC 9309 robots.txt policies.
     """
     if not url.startswith("http://") and not url.startswith("https://"):
         url = f"https://{url}"
+
+    from any_context.ingestion.robots_policy import is_url_allowed_by_robots
+    if not is_url_allowed_by_robots(url):
+        now_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        blocked_msg = f"[COMPLIANCE NOTICE] Crawling for '{url}' was skipped because this path is disallowed by the website's robots.txt policy."
+        return {
+            "url": url,
+            "title": f"[Blocked by robots.txt] {url}",
+            "content": blocked_msg,
+            "hash": hashlib.sha256(blocked_msg.encode("utf-8")).hexdigest(),
+            "char_count": len(blocked_msg),
+            "last_modified": now_date,
+            "date_confidence": "robots_compliance",
+            "content_type": "Disallowed by Robots.txt"
+        }
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AnyContext-WebScraper/1.0"
