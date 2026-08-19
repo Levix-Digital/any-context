@@ -1,14 +1,17 @@
+import json
 import re
 import hashlib
 import urllib.request
 import xml.etree.ElementTree as ET
+import email.utils
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from html.parser import HTMLParser
 
 class CleanHTMLTextExtractor(HTMLParser):
     """
-    Lightweight HTML parser to extract clean human-readable text from web pages,
-    stripping scripts, styles, navigation bars, headers, footers, and sidebars.
+    Universal HTML parser to extract clean human-readable text and Schema.org structured metadata
+    from web pages, e-commerce stores, documentation portals, and articles.
     """
     def __init__(self):
         super().__init__()
@@ -16,16 +19,22 @@ class CleanHTMLTextExtractor(HTMLParser):
         self.strict = False
         self.convert_charrefs = True
         self.text = []
-        self.skip_tags = {
-            "script", "style", "noscript", "svg", "head",
-            "nav", "header", "footer", "aside", "form"
-        }
+        # Keep nav and global footers skipped, but allow header, form, aside, etc.
+        self.skip_tags = {"script", "style", "noscript", "svg", "head", "nav", "footer"}
         self.tag_stack = []
-        self.block_tags = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "tr", "div", "section", "article"}
+        self.block_tags = {
+            "p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "tr", "div",
+            "section", "article", "header", "form", "aside", "dl", "dt", "dd"
+        }
+        self.json_ld_data = []
+        self.current_tag = None
+        self.current_attrs = {}
 
     def handle_starttag(self, tag, attrs):
         t = tag.lower()
         self.tag_stack.append(t)
+        self.current_tag = t
+        self.current_attrs = dict(attrs)
         if t in self.block_tags:
             self.text.append("\n")
 
@@ -41,21 +50,104 @@ class CleanHTMLTextExtractor(HTMLParser):
             self.text.append("\n")
 
     def handle_data(self, data):
+        # Capture Schema.org JSON-LD structured data
+        if self.tag_stack and self.tag_stack[-1] == "script":
+            attr_type = self.current_attrs.get("type", "").lower()
+            if attr_type == "application/ld+json":
+                try:
+                    raw_json = data.strip()
+                    if raw_json:
+                        parsed = json.loads(raw_json)
+                        if isinstance(parsed, list):
+                            self.json_ld_data.extend(parsed)
+                        elif isinstance(parsed, dict):
+                            if "@graph" in parsed and isinstance(parsed["@graph"], list):
+                                self.json_ld_data.extend(parsed["@graph"])
+                            else:
+                                self.json_ld_data.append(parsed)
+                except Exception:
+                    pass
+            return
+
         if any(t in self.skip_tags for t in self.tag_stack):
             return
         content = data.strip()
         if content:
             self.text.append(content)
 
-    def get_text(self) -> str:
-        raw = " ".join(self.text)
-        # Normalize excessive newlines and spaces
-        cleaned = re.sub(r"\n\s*\n+", "\n\n", raw)
-        cleaned = re.sub(r"[ \t]+", " ", cleaned)
-        return cleaned.strip()
+    def _extract_structured_metadata(self) -> List[str]:
+        """Formats discovered Schema.org entities into clear, RAG-optimized text blocks."""
+        structured_blocks = []
+        seen_products = set()
 
-import email.utils
-from datetime import datetime, timezone
+        for item in self.json_ld_data:
+            if not isinstance(item, dict):
+                continue
+            item_type = str(item.get("@type", ""))
+            
+            # Handle Product / IndividualProduct
+            if any(pt in item_type for pt in ["Product", "IndividualProduct"]):
+                name = item.get("name", "").strip()
+                if not name or name in seen_products:
+                    continue
+                seen_products.add(name)
+
+                brand = item.get("brand", {})
+                brand_name = brand.get("name", "") if isinstance(brand, dict) else str(brand)
+                
+                rating = item.get("aggregateRating", {})
+                rating_val = rating.get("ratingValue", "") if isinstance(rating, dict) else ""
+                review_count = (rating.get("reviewCount", "") or rating.get("ratingCount", "")) if isinstance(rating, dict) else ""
+                best_rating = rating.get("bestRating", "5") if isinstance(rating, dict) else "5"
+                
+                offers = item.get("offers", {})
+                if isinstance(offers, list) and offers:
+                    offers = offers[0]
+                price = offers.get("price", "") if isinstance(offers, dict) else ""
+                currency = offers.get("priceCurrency", "") if isinstance(offers, dict) else ""
+                availability = offers.get("availability", "") if isinstance(offers, dict) else ""
+                if "InStock" in availability:
+                    availability = "In Stock"
+                elif "OutOfStock" in availability:
+                    availability = "Out of Stock"
+
+                parts = [f"Product: {name}"]
+                if brand_name:
+                    parts.append(f"Brand: {brand_name}")
+                if rating_val:
+                    rating_str = f"Rating: {rating_val} / {best_rating} stars"
+                    if review_count:
+                        rating_str += f" ({review_count} reviews)"
+                    parts.append(rating_str)
+                if price:
+                    parts.append(f"Price: {currency} {price}".strip())
+                if availability:
+                    parts.append(f"Status: {availability}")
+
+                structured_blocks.append(" | ".join(parts))
+
+            # Handle FAQPage
+            elif "FAQPage" in item_type:
+                main_entity = item.get("mainEntity", [])
+                if isinstance(main_entity, list):
+                    for q in main_entity:
+                        if isinstance(q, dict) and q.get("@type") == "Question":
+                            q_name = q.get("name", "")
+                            ans = q.get("acceptedAnswer", {}).get("text", "")
+                            if q_name and ans:
+                                structured_blocks.append(f"FAQ: {q_name}\nAnswer: {ans}")
+
+        return structured_blocks
+
+    def get_text(self) -> str:
+        structured_headers = self._extract_structured_metadata()
+        raw = " ".join(self.text)
+        cleaned = re.sub(r"\n\s*\n+", "\n\n", raw)
+        cleaned = re.sub(r"[ \t]+", " ", cleaned).strip()
+
+        if structured_headers:
+            return "\n\n".join(structured_headers) + "\n\n" + cleaned
+        return cleaned
 
 def extract_web_metadata(url: str, html_text: str, headers: dict = None) -> Dict[str, str]:
     """
@@ -136,6 +228,10 @@ def extract_web_metadata(url: str, html_text: str, headers: dict = None) -> Dict
         content_type = "Historical News / Press Release"
     elif any(k in url_lower for k in ["/services/", "/guide/", "/doc/", "/docs/", "/manual/", "/policy/"]):
         content_type = "Canonical Service / Documentation"
+    elif any(k in url_lower for k in ["/ip/", "/dp/", "/product/", "/item/", "/p/", "/produtos/"]):
+        content_type = "E-Commerce Product Page"
+    elif '"@type": "Product"' in html_text or '"@type":"Product"' in html_text or '"@type": "IndividualProduct"' in html_text:
+        content_type = "E-Commerce Product Page"
     else:
         content_type = "Web Documentation"
 
