@@ -386,6 +386,9 @@ def crawl_and_index_urls(
                                 "title": data["title"],
                                 "content_hash": url_hash,
                                 "source_type": "web",
+                                "last_modified_date": data.get("last_modified", now_str[:10]),
+                                "date_confidence": data.get("date_confidence", "crawl_timestamp"),
+                                "content_type": data.get("content_type", "Web Documentation"),
                                 "scraped_at": now_str
                             }
                         )

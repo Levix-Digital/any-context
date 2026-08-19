@@ -165,7 +165,17 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
             file_name = node.metadata.get('file_name', 'Unknown')
             file_path = node.metadata.get('file_path', file_name)
             ws_tag = node.metadata.get('workspace', 'Global')
-            results_list.append(f"--- [Document Chunk {i+1} | Source: {file_name} | Workspace: {ws_tag}] ---\nPath: {file_path}\nContent:\n{node.text}")
+            last_mod = node.metadata.get('last_modified_date') or node.metadata.get('last_modified') or node.metadata.get('creation_date')
+            content_type = node.metadata.get('content_type') or ("Web Documentation" if str(file_path).startswith("http") else "Local Document")
+            
+            header_parts = [f"Source: {file_name}", f"Workspace: {ws_tag}"]
+            if last_mod:
+                header_parts.append(f"Last Modified: {last_mod}")
+            if content_type:
+                header_parts.append(f"Type: {content_type}")
+                
+            header_str = " | ".join(header_parts)
+            results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {file_path}\nContent:\n{node.text}")
 
         if not results_list:
             if search_session_memory:

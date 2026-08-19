@@ -203,7 +203,17 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
                 for d in docs:
                     d.metadata["workspace"] = ws.name
                     if "file_path" in d.metadata:
-                        d.id_ = d.metadata["file_path"]
+                        fp = d.metadata["file_path"]
+                        d.id_ = fp
+                        try:
+                            mtime = os.path.getmtime(fp)
+                            ctime = os.path.getctime(fp)
+                            d.metadata["last_modified_date"] = time.strftime("%Y-%m-%d", time.localtime(mtime))
+                            d.metadata["creation_date"] = time.strftime("%Y-%m-%d", time.localtime(ctime))
+                            d.metadata["content_type"] = "Local Document"
+                            d.metadata["date_confidence"] = "filesystem_timestamp"
+                        except Exception:
+                            pass
                 all_documents.extend(docs)
             except Exception:
                 # Fallback: file-by-file loading if a batch contains a corrupted or locked file
@@ -214,7 +224,17 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False):
                         for d in s_docs:
                             d.metadata["workspace"] = ws.name
                             if "file_path" in d.metadata:
-                                d.id_ = d.metadata["file_path"]
+                                fp = d.metadata["file_path"]
+                                d.id_ = fp
+                                try:
+                                    mtime = os.path.getmtime(fp)
+                                    ctime = os.path.getctime(fp)
+                                    d.metadata["last_modified_date"] = time.strftime("%Y-%m-%d", time.localtime(mtime))
+                                    d.metadata["creation_date"] = time.strftime("%Y-%m-%d", time.localtime(ctime))
+                                    d.metadata["content_type"] = "Local Document"
+                                    d.metadata["date_confidence"] = "filesystem_timestamp"
+                                except Exception:
+                                    pass
                         all_documents.extend(s_docs)
                     except Exception:
                         pass
