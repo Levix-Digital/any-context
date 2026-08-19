@@ -38,5 +38,6 @@ jobs:
       - name: Execute 100% Modular E2E Test Suite
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'mock_test_ci_key' }}
+          PYTHONPATH: .
         run: |
           python tests/run_all_e2e.py

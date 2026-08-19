@@ -1,8 +1,14 @@
 import os
+import sys
 import shutil
 import unittest
 import tempfile
 import chromadb
+
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 from any_context.config.app_settings import AppSettings, SessionSettings
 from any_context.config.db_store import ConfigDBStore
 from any_context.memory.models import MemoryEntry, MemoryLevel
