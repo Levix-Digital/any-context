@@ -303,10 +303,24 @@ def scrape_url(url: str, timeout: int = 15) -> Dict[str, Any]:
     # Extract temporal and content metadata
     meta = extract_web_metadata(url, html_text, resp_headers)
 
-    # Check for SPA / Client-Side Rendering indicators
-    has_spa_markers = any(k in html_text for k in ["__NEXT_DATA__", "data-reactroot", "id=\"__next\"", "id=\"root\"", "window.__INITIAL_STATE__", "_next/static"])
+    # Check for SPA / Client-Side Dynamic Rendering / Bot Challenge indicators
+    DYNAMIC_SPA_MARKERS = [
+        "__NEXT_DATA__",
+        "data-reactroot",
+        "id=\"__next\"",
+        "id=\"root\"",
+        "window.__INITIAL_STATE__",
+        "_next/static",
+        "px-captcha",
+        "Verify Your Identity",
+        "Bot Protection Page",
+        "cf-browser-verification",
+        "challenge-platform",
+        "Robot or human"
+    ]
+    has_spa_markers = any(k.lower() in html_text.lower() for k in DYNAMIC_SPA_MARKERS)
     text_density = len(clean_text) / max(len(html_text), 1)
-    is_spa = bool(has_spa_markers and (text_density < 0.02 or len(clean_text) < 1500))
+    is_spa = bool(has_spa_markers and (text_density < 0.05 or len(clean_text) < 2500))
 
     return {
         "url": url,

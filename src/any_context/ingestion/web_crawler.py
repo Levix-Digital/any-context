@@ -461,7 +461,7 @@ def crawl_and_index_urls(
         scope=scope
     )
 
-    is_dynamic_site = bool(spa_detected_count > 0 and (spa_detected_count / max(indexed_count + skipped_count, 1)) >= 0.25)
+    is_dynamic_site = bool(spa_detected_count > 0 and (spa_detected_count / max(indexed_count + skipped_count, 1)) >= 0.05)
 
     return {
         "status": "success",
