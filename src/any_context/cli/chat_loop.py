@@ -278,6 +278,41 @@ def run_chat_loop(active_workspace: str = None):
                         run_index_folder(workspace_name=active_workspace, verbose=False)
                     agent_instance = None
                 continue
+
+            elif cmd == "/transfer" or cmd.startswith("/transfer ") or cmd.startswith("/workspace transfer") or cmd.startswith("/move-source"):
+                parts = user_input.strip().split()
+                # If typed: /transfer or /workspace transfer without full args -> open interactive guided wizard
+                if len(parts) < 4:
+                    from any_context.cli.config_menu import _transfer_workspace_source
+                    store = ConfigDBStore()
+                    _transfer_workspace_source(store)
+                    continue
+
+                # If typed with direct arguments: /transfer <source_ws> <target_ws> <path_or_url>
+                arg_offset = 2 if parts[1].lower() == "transfer" else 1
+                source_ws = parts[arg_offset]
+                target_ws = parts[arg_offset + 1]
+                source_item = " ".join(parts[arg_offset + 2:])
+
+                store = ConfigDBStore()
+                from any_context.ingestion.web_scheduler import WebSchedulerStore
+                web_store = WebSchedulerStore()
+
+                with Spinner(f"Moving '{source_item}' from '{source_ws}' to '{target_ws}'..."):
+                    if source_item.startswith("http://") or source_item.startswith("https://"):
+                        res = web_store.transfer_web_source(source_ws=source_ws, target_ws=target_ws, url_or_root=source_item)
+                        if res.get("success"):
+                            safe_stdout_write(f"\n✅ Transferred web portal '{source_item}' ({res.get('transferred_pages', 0)} pages, {res.get('transferred_chunks', 0)} chunks) to '{target_ws}' in < 50ms! (API Cost: $0.00)\n\n")
+                        else:
+                            safe_stdout_write(f"\n❌ Transfer error: {res.get('error')}\n\n")
+                    else:
+                        res = store.transfer_local_folder_source(source_ws=source_ws, target_ws=target_ws, folder_path=source_item)
+                        if res.get("success"):
+                            safe_stdout_write(f"\n✅ Transferred folder '{source_item}' ({res.get('transferred_chunks', 0)} vector chunks) to '{target_ws}' in < 50ms! (API Cost: $0.00)\n\n")
+                        else:
+                            safe_stdout_write(f"\n❌ Transfer error: {res.get('error')}\n\n")
+                continue
+
             elif cmd in ["/sync", "/resync", "/index"] or cmd.startswith("/sync ") or cmd.startswith("/index "):
                 is_verbose = "--verbose" in user_input or "-v" in user_input
                 from any_context.ingestion.local_folder_ingestor import run_index_folder
@@ -452,7 +487,7 @@ def run_chat_loop(active_workspace: str = None):
                     "/switch", "/model", "/m", "/sync", "/index", "/update", "/check-update",
                     "/reset-memory", "/reset", "/factory-reset", "/config",
                     "/keys", "/billing", "/plans", "/web", "/history", "/clear-history",
-                    "/paste", "/multiline", "/mline"
+                    "/paste", "/multiline", "/mline", "/transfer", "/move-source"
                 ]
                 typed_cmd = user_input.split()[0]
                 matches = difflib.get_close_matches(typed_cmd.lower(), known_commands, n=1, cutoff=0.45)

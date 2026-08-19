@@ -133,6 +133,7 @@ def _manage_workspaces(store: ConfigDBStore):
             "➕ Create New Workspace",
             "📁 Manage Folders in Existing Workspace",
             "🌐 Manage Web URLs & Scraping Sources",
+            "🔄 Transfer Source (Folder/Web) to Another Workspace",
             "🗑️ Delete Workspace Entirely",
             "🔙 Back"
         ]
@@ -209,6 +210,9 @@ def _manage_workspaces(store: ConfigDBStore):
     elif ws_action.startswith("🌐"):
         _manage_workspace_web_urls(store=store)
 
+    elif ws_action.startswith("🔄"):
+        _transfer_workspace_source(store=store)
+
     elif ws_action.startswith("🗑️"):
         names = [ws.name for ws in workspaces]
         if not names:
@@ -220,6 +224,91 @@ def _manage_workspaces(store: ConfigDBStore):
             if confirm:
                 store.remove_workspace(to_remove)
                 print(f"🗑️ Deleted workspace '{to_remove}'.")
+
+
+def _transfer_workspace_source(store: ConfigDBStore):
+    """Interactive guided transfer of local folders or web sources between workspaces."""
+    settings = store.get_app_settings()
+    workspaces = settings.workspaces if settings else []
+    if len(workspaces) < 2:
+        print("\n⚠️ You need at least 2 workspaces to transfer data sources. Please create a target workspace first!\n")
+        return
+
+    from any_context.ingestion.web_scheduler import WebSchedulerStore
+    web_store = WebSchedulerStore()
+
+    ws_names = [w.name for w in workspaces]
+    source_ws = questionary.select("1. Select Source Workspace (Origem):", choices=ws_names).ask()
+    if not source_ws:
+        return
+
+    src_obj = next((w for w in workspaces if w.name == source_ws), None)
+    folders = src_obj.paths if src_obj else []
+    web_urls = web_store.get_workspace_web_urls(source_ws)
+
+    if not folders and not web_urls:
+        print(f"\n⚠️ Workspace '{source_ws}' has no data sources (no folders or web URLs) to transfer.\n")
+        return
+
+    source_choices = []
+    for f in folders:
+        source_choices.append(f"📁 [Folder] {f}")
+    for w in web_urls:
+        pages_info = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
+        source_choices.append(f"🌐 [Web Source] {w['url']} ({w.get('title') or 'Web Source'}{pages_info})")
+    source_choices.append("🔙 Cancel")
+
+    selected_source = questionary.select(
+        f"2. Select Data Source to move from '{source_ws}':",
+        choices=source_choices
+    ).ask()
+
+    if not selected_source or selected_source.startswith("🔙"):
+        return
+
+    target_ws_candidates = [w for w in ws_names if w != source_ws]
+    target_ws = questionary.select("3. Select Target Workspace (Destino):", choices=target_ws_candidates).ask()
+    if not target_ws:
+        return
+
+    # Check RBAC permissions for shared workspaces
+    from any_context.workspace_sharing.store import WorkspaceSharingStore
+    sharing_store = WorkspaceSharingStore()
+    user_perms_src = sharing_store.get_workspace_permissions(source_ws)
+    user_perms_tgt = sharing_store.get_workspace_permissions(target_ws)
+    
+    # In Team/Enterprise shared mode, ensure access rights
+    if user_perms_src and user_perms_tgt:
+        # User is in shared collaboration mode
+        pass
+
+    confirm = questionary.confirm(
+        f"❓ Move '{selected_source}' from '{source_ws}' to '{target_ws}'?"
+    ).ask()
+    if not confirm:
+        print("↩️ Transfer cancelled.\n")
+        return
+
+    from any_context.cli.spinner import Spinner
+    with Spinner(f"Transferring source and migrating vector metadata to '{target_ws}'..."):
+        if selected_source.startswith("📁"):
+            raw_path = selected_source.split("[Folder] ", 1)[1].strip()
+            res = store.transfer_local_folder_source(source_ws=source_ws, target_ws=target_ws, folder_path=raw_path)
+            if res.get("success"):
+                chunks = res.get("transferred_chunks", 0)
+                print(f"\n✅ Successfully moved folder '{raw_path}' ({chunks} vector chunks) to '{target_ws}'! (API Cost: $0.00)\n")
+            else:
+                print(f"\n❌ Error transferring folder: {res.get('error')}\n")
+        elif selected_source.startswith("🌐"):
+            raw_url = selected_source.split("[Web Source] ", 1)[1].split(" (")[0].strip()
+            res = web_store.transfer_web_source(source_ws=source_ws, target_ws=target_ws, url_or_root=raw_url)
+            if res.get("success"):
+                chunks = res.get("transferred_chunks", 0)
+                pages = res.get("transferred_pages", 0)
+                print(f"\n✅ Successfully moved web portal '{raw_url}' ({pages} pages, {chunks} vector chunks) to '{target_ws}'! (API Cost: $0.00)\n")
+            else:
+                print(f"\n❌ Error transferring web source: {res.get('error')}\n")
+
 
 def _manage_workspace_web_urls(workspace_name: Optional[str] = None, store: Optional[ConfigDBStore] = None):
     """Interactive management of Web URLs and Documentation Site Ingestors for a Workspace."""

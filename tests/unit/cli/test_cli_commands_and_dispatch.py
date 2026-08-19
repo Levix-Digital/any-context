@@ -149,5 +149,40 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
                 self.assertIn("and all eligibility requirements.", called_args["messages"][0])
         safe_stdout_write("  [OK] Trailing backslash line continuation verified!\n")
 
+    def test_08_transfer_command_dispatch(self):
+        """Validates that /transfer dispatches correctly and transfers folder between workspaces."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /transfer Command Dispatch...\n")
+        src_ws = "cli_transfer_src"
+        tgt_ws = "cli_transfer_tgt"
+        test_dir = os.path.abspath(os.path.join(os.getcwd(), "test_cli_transfer_folder"))
+        os.makedirs(test_dir, exist_ok=True)
+
+        self.store.add_workspace(src_ws, paths=[test_dir])
+        self.store.add_workspace(tgt_ws, paths=[])
+
+        try:
+            mock_inputs = [
+                f"/transfer {src_ws} {tgt_ws} {test_dir}",
+                "/exit"
+            ]
+            with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+                run_chat_loop(active_workspace="Default")
+
+            settings = self.store.get_app_settings()
+            src_obj = next((w for w in settings.workspaces if w.name == src_ws), None)
+            tgt_obj = next((w for w in settings.workspaces if w.name == tgt_ws), None)
+
+            self.assertNotIn(test_dir, [os.path.abspath(p) for p in src_obj.paths])
+            self.assertIn(test_dir, [os.path.abspath(p) for p in tgt_obj.paths])
+            safe_stdout_write("  [OK] /transfer CLI command dispatch verified!\n")
+        finally:
+            self.store.remove_workspace(src_ws)
+            self.store.remove_workspace(tgt_ws)
+            try:
+                os.rmdir(test_dir)
+            except Exception:
+                pass
+
 if __name__ == "__main__":
     unittest.main()
+

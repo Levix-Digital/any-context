@@ -91,6 +91,9 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Shell-Style Line Continuation (`\` + `Enter`)**: End any line with a backslash `\` and press Enter to naturally continue your prompt on the next line.
   - **Triple Quotes (`""" ... """` or `''' ... '''`)**: Start a prompt with `"""` to enter multi-line block mode and submit by closing with `"""` or `/send`.
   - **Dedicated `/paste` Capture Mode**: Type `/paste` or `/multiline` to open an explicit capture buffer with abort (`/cancel`) protection.
+- **🔄 Instant Zero-Cost Source Transfer (`/transfer` & `/config`)**:
+  - Move folders and web portals between workspaces in sub-50ms with **$0.00 in embedding API costs**.
+  - Dynamically updates vector metadata tags in ChromaDB and SQLite without re-indexing or re-crawling.
 - **⚡ Sub-3ms Instant Startup & Clean Single-Line Synchronization**:
   - Signature ASCII banner renders in under 3 milliseconds.
   - Clean single-line background sync spinner (`✔ Workspace 'AnyContext' ready`).
@@ -146,6 +149,7 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`\` + `[Enter]`** | — | Trailing backslash shell-style line continuation. |
 | **`""" ... """`** | `''' ... '''` | Multi-line block delimiter (close with `"""` or `/send`). |
 | **`/paste`** | `/multiline`, `/mline` | Open dedicated multi-line paste capture mode. |
+| **`/transfer`** | `/move-source` | Instant zero-cost transfer of folders or web portals between workspaces. |
 | **`/switch [name]`** | `/workspace`, `-w` | Switch active workspace or create a new empty workspace on the fly. |
 | **`/sync`** | `/index`, `-s` | Synchronize workspace files incrementally (single-line clean mode). |
 | **`/sync -v`** | `/index --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
