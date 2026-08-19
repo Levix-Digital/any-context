@@ -27,24 +27,12 @@ def run_first_time_wizard():
         ws_name = "Default"
     ws_name = ws_name.strip()
 
-    folder_path = questionary.text(
-        "2. (Optional) Enter a folder path for local documents (press Enter to skip):",
-        default=""
-    ).ask()
-
-    paths = [folder_path.strip()] if folder_path and folder_path.strip() else []
-    if paths and not os.path.exists(paths[0]):
-        print(f"⚠️ Warning: Directory '{paths[0]}' does not exist right now, but saving configuration.")
-
     store = ConfigDBStore()
-    store.add_workspace(name=ws_name, paths=paths)
-    if paths:
-        print(f"✅ Workspace '{ws_name}' created successfully with path: {paths[0]}\n")
-    else:
-        print(f"✅ Workspace '{ws_name}' created successfully (Empty workspace ready for web sources or local folders)\n")
+    store.add_workspace(name=ws_name, paths=[])
+    print(f"✅ Workspace '{ws_name}' created successfully.\n")
 
     # Offer Quick AI Provider Setup
-    setup_ai = questionary.confirm("3. Do you want to configure your AI Provider & API Key now?").ask()
+    setup_ai = questionary.confirm("2. Do you want to configure your AI Provider & API Key now?").ask()
     if setup_ai:
         provider_choice = questionary.select(
             "Select your preferred AI Provider:",
@@ -170,13 +158,8 @@ def _manage_workspaces(store: ConfigDBStore):
         name = questionary.text("New Workspace Name:").ask()
         if name and name.strip():
             clean_name = name.strip()
-            path = questionary.text("(Optional) First Folder Path (press Enter to skip):").ask()
-            paths = [path.strip()] if path and path.strip() else []
-            store.add_workspace(clean_name, paths)
-            if paths:
-                print(f"✅ Created workspace '{clean_name}' with folder '{paths[0]}'.")
-            else:
-                print(f"✅ Created workspace '{clean_name}' (Empty workspace ready for web sources or folders).")
+            store.add_workspace(clean_name, paths=[])
+            print(f"✅ Created workspace '{clean_name}'.")
 
     elif ws_action.startswith("📁"):
         ws_names = [ws.name for ws in workspaces]
