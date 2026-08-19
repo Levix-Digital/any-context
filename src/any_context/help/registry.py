@@ -36,11 +36,12 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
     "sync": HelpPage(
         command="/sync",
         aliases=["sync", "index", "/index", "--sync", "--index", "-s"],
-        title="⚡ Workspace Document Synchronization & Deep Scanning",
+        title="⚡ Workspace Document Synchronization & Temporal Ingestion",
         description=(
             "The /sync (or /index) command performs an incremental scan of all configured folders in the active workspace. "
             "It automatically discovers files across all nested subdirectories, calculates SHA-256 hashes to only index new or modified files, "
-            "and purges deleted disk files from the ChromaDB vector database."
+            "purges deleted disk files from the ChromaDB vector database, and captures filesystem timestamps (last modified date and creation date) "
+            "with 'Local Document' classification for Temporal RAG recency ranking."
         ),
         syntax=(
             "In Chat (Silent)  : /sync   OR   /index\n"
@@ -61,7 +62,8 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ],
         tips=[
             "Whenever you add, edit, or delete files on your computer, type '/sync' to update the AI's knowledge base immediately.",
-            "Use '/sync --verbose' whenever you want to inspect exactly which files and subdirectories are currently indexed."
+            "Use '/sync --verbose' whenever you want to inspect exactly which files, timestamps, and subdirectories are currently indexed.",
+            "Temporal RAG automatically stamps every local chunk with its filesystem modified date so the AI prioritizes the latest versions."
         ]
     ),
 
@@ -167,22 +169,26 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
     "web": HelpPage(
         command="/web",
         aliases=["web", "--web", "scrape", "sitemap", "website", "websites", "urls", "crawler"],
-        title="🌐 Interactive Web Discovery & Deep Semantic Crawler Engine",
+        title="🌐 Interactive Web Discovery, Temporal Metadata & Deep Semantic Crawler",
         description=(
             "The AnyContext Web Crawler is an intelligent, high-performance RAG ingestion engine designed to transform "
             "entire documentation portals, government archives, legal bases, and websites into living AI context.\n\n"
-            "🧠 HOW THE CRAWLER WORKS UNDER THE HOOD:\n"
+            "🧠 HOW THE CRAWLER & TEMPORAL RAG WORK UNDER THE HOOD:\n"
             "  1. Semantic Path Normalization : Automatically strips file extensions (.html, .htm, .php, .aspx) from URLs "
             "to identify the true semantic directory of the section and capture all child pages.\n"
             "  2. Smart Sitemap & Index Parser : Locates sitemap.xml files and recursively resolves nested 'sitemapindex' catalogs, "
             "tokenizing path keywords to prioritize relevant sub-sitemaps (e.g. 'immigration', 'docs', 'api') and filtering out raw XML.\n"
             "  3. Semantic Proximity & Relevance Ranking : Rather than crawling in random or alphabetical order, URLs are ranked "
             "by relevance to your target topic (Landing Page > Direct Section Children > In-Page Links > Keyword Matches > Generic Domain).\n"
-            "  4. Clean Semantic HTML Extraction : Strips boilerplate (navbars, footers, cookie banners, scripts, ads) while "
+            "  4. 5-Tier Temporal Metadata Extraction : Automatically extracts publication/update dates and classifies content type "
+            "(Canonical Service vs Historical News) via Schema.org metadata, visible footer dates, URL regex, HTTP headers, and crawl timestamps.\n"
+            "  5. Recency Primacy & Conflict Resolution : The AI agent compares timestamps across chunks, giving absolute ground truth priority "
+            "to recent canonical rules and explicit status alerts over older historical press releases.\n"
+            "  6. Clean Semantic HTML Extraction : Strips boilerplate (navbars, footers, cookie banners, scripts, ads) while "
             "preserving headings (#, ##), tables, lists, and core article text.\n"
-            "  5. IngestionPipeline & Chunking : Chunks content using SentenceSplitter (chunk_size=1024, chunk_overlap=200), calculates embeddings "
+            "  7. IngestionPipeline & Chunking : Chunks content using SentenceSplitter (chunk_size=1024, chunk_overlap=200), calculates embeddings "
             "in micro-batches with OpenAI / Local embeddings, and commits vectors directly into isolated ChromaDB collections.\n"
-            "  6. Workspace Isolation : Web vectors are strictly scoped by workspace metadata, ensuring complete privacy."
+            "  8. Workspace Isolation : Web vectors are strictly scoped by workspace metadata, ensuring complete privacy."
         ),
         syntax=(
             "In Chat (Interactive Crawler) : /web add <url>   OR   /web add\n"
@@ -215,7 +221,8 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "100% unlocked for Community CLI users! You can crawl and index entire documentation portals at zero cost.",
             "Fast discovery automatically checks XML sitemaps and presents estimated page counts and times before crawling.",
             "Proximity ranking ensures that Top 50 / Top 250 options always capture the most relevant guides and forms first.",
-            "Multi-threaded concurrent crawler downloads 20 to 50 pages per second with smooth, cursor-safe live progress bar feedback."
+            "Multi-threaded concurrent crawler downloads 20 to 50 pages per second with smooth, cursor-safe live progress bar feedback.",
+            "Temporal RAG tags chunks with 'Last Modified' dates so the agent never confuses past 2023 press releases with current 2026 rules."
         ]
     ),
 
@@ -473,11 +480,18 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
 
     "reset-memory": HelpPage(
         command="/reset-memory",
-        aliases=["reset-memory", "/reset", "reset"],
-        title="🧹 3-Level Hierarchical Long-Term Memory Reset",
+        aliases=["reset-memory", "/reset", "reset", "memory", "/memory"],
+        title="🧹 3-Level Structured Long-Term Memory & Reset Engine",
         description=(
-            "Purges long-term session memory summaries from ChromaDB for the active workspace or globally across all workspaces. "
-            "Resets Level-1 session block summaries and Level-3 consolidated meta-summaries."
+            "AnyContext features a state-of-the-art 3-Level Long-Term Memory Architecture with Structured 5-Dimension High-Fidelity Extraction.\n\n"
+            "🧠 THE 5 MEMORY DIMENSIONS SAVED UPON EXIT (/exit or /q):\n"
+            "  1. 👤 User Directives & Preferences : Rules, constraints, formatting habits, and explicit decisions.\n"
+            "  2. 🏗️ Technical Architecture & Key Decisions : Parameters, constants, algorithms, schemas, and configurations.\n"
+            "  3. 📁 Files, Code Symbols & Databases : Files touched, function names, routes, tables, and release tags.\n"
+            "  4. 📌 Critical Context & Problem Resolution : Root-cause diagnoses, bug fixes, and verified solutions.\n"
+            "  5. 🚀 Pending Tasks & Next Steps : Roadmap milestones, open tasks, and verification protocols.\n\n"
+            "The /reset-memory command purges conversation session memory from ChromaDB for the active workspace or globally, "
+            "allowing you to start fresh conversations without losing indexed document files or web sources."
         ),
         syntax=(
             "REST API   : POST /v1/reset-memory\n"
@@ -485,17 +499,19 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "  View Help  : actx --reset-memory --help   OR   /reset-memory --help   OR   /reset-memory -h"
         ),
         parameters=[
-            "/reset-memory         : Reset memory for active workspace (interactive confirmation).",
-            "/config                : Open memory settings menu to perform global or specific memory reset.",
-            "--help, -h            : Display this detailed help page for memory resets."
+            "/reset-memory, /reset : Reset conversation memory for the active workspace (interactive confirmation).",
+            "/config               : Open memory settings menu to perform global or workspace-specific memory reset.",
+            "--help, -h           : Display this detailed help page for memory management."
         ],
         examples=[
             "In Chat: /reset-memory",
+            "In Chat: /reset",
             "In Chat: /reset -h",
             "actx --reset-memory --help"
         ],
         tips=[
-            "Resetting memory only clears session conversation summaries; your indexed document files and vectors remain intact!"
+            "Memory summaries are stored in 1024-token chunks with 200-token overlap, preserving deep multi-step project context across sessions.",
+            "Resetting memory only clears session conversation summaries; your indexed document files, web pages, and vectors remain 100% intact!"
         ]
     ),
 
