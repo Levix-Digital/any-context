@@ -60,22 +60,30 @@ class Test07RestApiServer(unittest.TestCase):
         safe_stdout_write("  [OK] /v1/auth/status endpoint verified!\n")
 
     def test_03_workspaces_crud_endpoints(self):
-        """TC-7.2: Tests listing workspaces and triggering background indexing via REST API."""
+        """TC-7.2: Tests creating workspaces (with or without folders), listing, and triggering background indexing via REST API."""
         safe_stdout_write(">>> [MOD 7 / TC-7.2] Testing Workspace REST API Endpoints...\n")
-        # 1. List Workspaces
+        # 1. Create Empty Workspace
+        res_create = self.client.post("/v1/workspaces?name=E2E_Empty_Workspace", headers=self.headers)
+        self.assertEqual(res_create.status_code, 200)
+        create_data = res_create.json()
+        self.assertEqual(create_data["name"], "E2E_Empty_Workspace")
+        self.assertEqual(create_data["paths"], [])
+
+        # 2. List Workspaces
         res_list = self.client.get("/v1/workspaces", headers=self.headers)
         self.assertEqual(res_list.status_code, 200)
         data = res_list.json()
         workspaces = data.get("workspaces", [])
         ws_names = [w["name"] if isinstance(w, dict) else w for w in workspaces]
         self.assertIn(self.test_ws, ws_names)
+        self.assertIn("E2E_Empty_Workspace", ws_names)
 
-        # 2. Trigger Indexing
+        # 3. Trigger Indexing
         res_idx = self.client.post("/v1/index", json={"workspace": self.test_ws}, headers=self.headers)
         self.assertEqual(res_idx.status_code, 200)
         idx_data = res_idx.json()
         self.assertEqual(idx_data["status"], "accepted")
-        safe_stdout_write("  [OK] Workspace listing and background index REST endpoints verified!\n")
+        safe_stdout_write("  [OK] Workspace creation, listing and background index REST endpoints verified!\n")
 
     def test_04_billing_and_plans_endpoints(self):
         """TC-7.6: Tests /v1/billing/status and /v1/billing/plans licensing endpoints."""

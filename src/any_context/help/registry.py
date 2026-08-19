@@ -4,32 +4,42 @@ from any_context.help.models import HelpPage
 HELP_REGISTRY: Dict[str, HelpPage] = {
     "switch": HelpPage(
         command="/switch",
-        aliases=["switch", "-w", "--workspace"],
-        title="📂 Workspace Switching & Scope Isolation",
+        aliases=["switch", "workspace", "/workspace", "-w", "--workspace"],
+        title="📂 Workspace Management, Switching & Scope Isolation",
         description=(
-            "The /switch command allows you to change your active workspace in real-time without restarting AnyContext. "
-            "Each workspace acts as an isolated knowledge base with its own distinct document folders, web sources, "
-            "and ChromaDB vector embeddings. Switching workspaces changes the AI agent's active memory scope instantly."
+            "The /switch (or /workspace) command allows you to switch between workspaces or create new workspaces on the fly. "
+            "Each workspace acts as an isolated context scope for your documents, web sources, and long-term memory.\n\n"
+            "✨ DECOUPLED WORKSPACE ARCHITECTURE:\n"
+            "Creating a workspace and attaching data sources are completely separate actions. You can create an empty workspace "
+            "(e.g. for web scraping only, market research, or agent tasks) without being forced to attach a local folder. "
+            "You can later attach local folders via '/config' or web documentation via '/web add' at any time."
         ),
         syntax=(
-            "CLI Launch : actx -w <workspace_name>\n"
-            "  In Chat    : type '/switch' during active chat\n"
-            "  View Help  : actx --switch --help   OR   /switch --help   OR   /switch -h"
+            "CLI Launch (Direct Switch) : actx -w <workspace_name>\n"
+            "  In Chat (Interactive Menu) : /switch   OR   /workspace\n"
+            "  In Chat (Create / Switch)  : /switch <name>   OR   /workspace add <name>\n"
+            "  REST API                   : POST /v1/workspaces?name=<name>\n"
+            "  View Help                  : actx --switch --help   OR   /switch --help   OR   /switch -h"
         ),
         parameters=[
             "-w, --workspace <name> : Directly specify target workspace on CLI launch.",
-            "/switch               : Opens interactive menu to choose active workspace.",
+            "/switch, /workspace   : Opens interactive menu with workspace list and '➕ Create New Workspace' option.",
+            "/switch <name>        : Switch directly to <name> (creates empty workspace if it doesn't exist).",
+            "/workspace add <name> : Create and switch directly to a new workspace.",
             "--help, -h            : Display this detailed help page for /switch."
         ],
         examples=[
-            "actx -w AnyContextProject",
-            "actx -w LegalConsulting",
             "In Chat: /switch",
-            "In Chat: /switch -h"
+            "In Chat: /switch Mercado",
+            "In Chat: /workspace create TechDocs",
+            "actx -w LegalConsulting",
+            "In Chat: /switch -h",
+            "curl -X POST 'http://127.0.0.1:8000/v1/workspaces?name=Mercado'"
         ],
         tips=[
+            "Workspaces can be 100% web-based: create an empty workspace and use '/web add <url>' to index entire documentation portals.",
             "Workspaces keep your files and projects completely separate, preventing information from one client or project from mixing with another.",
-            "You can manage folders inside a workspace anytime using the '/config' menu."
+            "You can manage folders inside a workspace anytime using the '/config' -> '📂 Workspaces & Folders' menu."
         ]
     ),
 
