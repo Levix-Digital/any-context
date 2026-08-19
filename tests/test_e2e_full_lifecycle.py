@@ -225,32 +225,46 @@ class AnyContextE2ETestSuite(unittest.TestCase):
         self.assertEqual(domain_urls[0], start_url, "Top ranked URL must always be the start URL")
         
         # 3. Test Ingestion of Web Pages into ChromaDB (First Ingestion)
+        import unittest.mock
         test_web_urls = [
-            "https://httpbin.org/html"
+            "https://mock-lifecycle-portal.example.org/docs"
         ]
-        crawl_res_1 = crawl_and_index_urls(
-            workspace_name=self.ws_web,
-            urls=test_web_urls,
-            root_url="https://httpbin.org/html",
-            root_title="HttpBin Web Test Suite",
-            scope="custom"
-        )
-        self.assertEqual(crawl_res_1["status"], "success")
-        self.assertEqual(crawl_res_1["indexed_count"], 1, "First ingestion must index the page")
-        self.assertEqual(crawl_res_1["skipped_count"], 0, "First ingestion should have 0 skipped pages")
+        mock_doc = {
+            "url": "https://mock-lifecycle-portal.example.org/docs",
+            "title": "HttpBin Web Test Suite",
+            "content": "Herman Melville Moby Dick Herman chapter notes and reference documentation.",
+            "hash": "mock_lifecycle_hash_xyz",
+            "char_count": 85,
+            "last_modified": "2026-08-18",
+            "date_confidence": "high",
+            "content_type": "Web Documentation"
+        }
 
-        # 4. Test Incremental Re-crawl of the same page (Must Skip / Cache with 0 embeddings)
-        crawl_res_2 = crawl_and_index_urls(
-            workspace_name=self.ws_web,
-            urls=test_web_urls,
-            root_url="https://httpbin.org/html",
-            root_title="HttpBin Web Test Suite",
-            scope="custom",
-            force_refresh=False
-        )
-        self.assertEqual(crawl_res_2["status"], "success")
-        self.assertEqual(crawl_res_2["indexed_count"], 0, "Re-ingesting unchanged URL must not re-embed")
-        self.assertEqual(crawl_res_2["skipped_count"], 1, "Re-ingesting unchanged URL must be skipped as cached")
+        with unittest.mock.patch("any_context.ingestion.web_crawler.scrape_url", return_value=mock_doc), \
+             unittest.mock.patch("any_context.ingestion.web_crawler.is_url_allowed_by_robots", return_value=True):
+            crawl_res_1 = crawl_and_index_urls(
+                workspace_name=self.ws_web,
+                urls=test_web_urls,
+                root_url="https://mock-lifecycle-portal.example.org/docs",
+                root_title="HttpBin Web Test Suite",
+                scope="custom"
+            )
+            self.assertEqual(crawl_res_1["status"], "success")
+            self.assertEqual(crawl_res_1["indexed_count"], 1, "First ingestion must index the page")
+            self.assertEqual(crawl_res_1["skipped_count"], 0, "First ingestion should have 0 skipped pages")
+
+            # 4. Test Incremental Re-crawl of the same page (Must Skip / Cache with 0 embeddings)
+            crawl_res_2 = crawl_and_index_urls(
+                workspace_name=self.ws_web,
+                urls=test_web_urls,
+                root_url="https://mock-lifecycle-portal.example.org/docs",
+                root_title="HttpBin Web Test Suite",
+                scope="custom",
+                force_refresh=False
+            )
+            self.assertEqual(crawl_res_2["status"], "success")
+            self.assertEqual(crawl_res_2["indexed_count"], 0, "Re-ingesting unchanged URL must not re-embed")
+            self.assertEqual(crawl_res_2["skipped_count"], 1, "Re-ingesting unchanged URL must be skipped as cached")
 
         web_search = search_db.invoke({"prompt_text": "Herman Melville Moby Dick Herman", "workspace": self.ws_web})
         self.assertIsInstance(web_search, str)

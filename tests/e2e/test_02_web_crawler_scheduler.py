@@ -68,35 +68,49 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
     def test_03_incremental_sha256_deduplication(self):
         """TC-2.3 & TC-2.4: Verifies first ingestion, unchanged SHA-256 skip, and database record."""
         safe_stdout_write(">>> [MOD 2 / TC-2.3] Testing Incremental Web Crawling & SHA-256 Bypass...\n")
-        test_web_urls = ["https://httpbin.org/html"]
+        import unittest.mock
+        test_web_urls = ["https://mock-portal.example.org/docs"]
 
-        # 1. First Ingestion
-        res1 = crawl_and_index_urls(
-            workspace_name=self.ws_web,
-            urls=test_web_urls,
-            root_url="https://httpbin.org/html",
-            root_title="HttpBin Suite",
-            scope="custom"
-        )
-        self.assertEqual(res1["status"], "success")
-        self.assertEqual(res1["indexed_count"], 1)
-        self.assertEqual(res1["skipped_count"], 0)
+        mock_page = {
+            "url": "https://mock-portal.example.org/docs",
+            "title": "Example Documentation Portal",
+            "content": "Comprehensive reference guide and technical notes for Herman Melville Moby Dick.",
+            "hash": "mock_hash_abc123",
+            "char_count": 80,
+            "last_modified": "2026-08-18",
+            "date_confidence": "high",
+            "content_type": "Web Documentation"
+        }
 
-        # 2. Second Ingestion without changes (Must skip with 0 embeddings)
-        res2 = crawl_and_index_urls(
-            workspace_name=self.ws_web,
-            urls=test_web_urls,
-            root_url="https://httpbin.org/html",
-            root_title="HttpBin Suite",
-            scope="custom",
-            force_refresh=False
-        )
-        self.assertEqual(res2["status"], "success")
-        self.assertEqual(res2["indexed_count"], 0, "Unchanged URL must not re-embed")
-        self.assertEqual(res2["skipped_count"], 1, "Unchanged URL must be skipped as cached")
+        with unittest.mock.patch("any_context.ingestion.web_crawler.scrape_url", return_value=mock_page), \
+             unittest.mock.patch("any_context.ingestion.web_crawler.is_url_allowed_by_robots", return_value=True):
+            # 1. First Ingestion
+            res1 = crawl_and_index_urls(
+                workspace_name=self.ws_web,
+                urls=test_web_urls,
+                root_url="https://mock-portal.example.org/docs",
+                root_title="Example Suite",
+                scope="custom"
+            )
+            self.assertEqual(res1["status"], "success")
+            self.assertEqual(res1["indexed_count"], 1)
+            self.assertEqual(res1["skipped_count"], 0)
+
+            # 2. Second Ingestion without changes (Must skip with 0 embeddings)
+            res2 = crawl_and_index_urls(
+                workspace_name=self.ws_web,
+                urls=test_web_urls,
+                root_url="https://mock-portal.example.org/docs",
+                root_title="Example Suite",
+                scope="custom",
+                force_refresh=False
+            )
+            self.assertEqual(res2["status"], "success")
+            self.assertEqual(res2["indexed_count"], 0, "Unchanged URL must not re-embed")
+            self.assertEqual(res2["skipped_count"], 1, "Unchanged URL must be skipped as cached")
 
         # 3. Verify Database records
-        count = self.web_store.get_indexed_pages_count(self.ws_web, domain_or_prefix="httpbin.org")
+        count = self.web_store.get_indexed_pages_count(self.ws_web, domain_or_prefix="mock-portal.example.org")
         self.assertEqual(count, 1)
 
         search_res = search_db.invoke({"prompt_text": "Herman Melville Moby Dick", "workspace": self.ws_web})

@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Set, Optional, Tuple
 from html.parser import HTMLParser
 
 from any_context.ingestion.web_ingestor import CleanHTMLTextExtractor, scrape_url
+from any_context.ingestion.robots_policy import is_url_allowed_by_robots
 
 
 class HTMLLinkExtractor(HTMLParser):
