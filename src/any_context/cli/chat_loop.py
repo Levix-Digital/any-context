@@ -9,6 +9,7 @@ from any_context.cli.updater import print_startup_update_notice, check_for_updat
 from any_context.cli.spinner import Spinner
 from any_context.help import handle_command_help_interception
 from any_context import __version__
+from any_context.config.db_store import ConfigDBStore
 
 
 from any_context.cli.history import safe_prompt_input
@@ -408,6 +409,9 @@ def run_chat_loop(active_workspace: str = None):
             else:
                 print("↩️ Resuming session...\n")
                 continue
+        except Exception as e:
+            print(f"\n\033[91m❌ An error occurred during session execution:\033[0m {e}\n")
+            continue
 
 
 def main_cli():
