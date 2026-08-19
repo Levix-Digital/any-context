@@ -2,138 +2,379 @@
 
 > **Transform any file, folder, website, or drive into a living, real-time AI context.**
 
-**AnyContext** is the ultimate bridge between your local data and Artificial Intelligence. Developed with an absolute focus on **privacy, modularity, and efficiency**, AnyContext is a smart, autonomous Local AI Engine equipped with **3-Level Hierarchical Long-Term Memory**, a **High-Performance REST API Server**, and a **Model Context Protocol (MCP) Server**.
-
-Whether you are a developer seeking deep codebase insights, a business analyzing confidential reports, or an enterprise deploying a private RAG context layer in your VPC, AnyContext operates **100% on your infrastructure**, ensuring your data never feeds third-party models without explicit permission.
-
----
-
-## 🚀 Key Features
-
-- **🔒 Absolute Privacy (Offline-First):** Natively integrated with [LM Studio](https://lmstudio.ai/) and local LLMs (Gemma, Llama, Qwen, etc.) or OpenAI-compatible endpoints. Your files, business strategies, and code stay exclusively on your hardware.
-- **🌐 REST API Server (`actx --serve`):** Exposes high-performance HTTP endpoints for external web dashboards, VS Code extensions, mobile backends, and automation workflows. Features interactive Swagger UI at `http://127.0.0.1:8000/docs`.
-- **🔌 Model Context Protocol (MCP) Server (`actx --mcp`):** Native JSON-RPC stdio implementation of Anthropic's MCP specification, allowing **Claude Desktop**, **Cursor IDE**, and **Antigravity** to query your local knowledge base seamlessly.
-- **🏢 Enterprise VPC Ready (`--host 0.0.0.0`):** Simple 1-command deployment for private cloud (AWS, GCP, Azure, On-Premise) serving entire corporate networks via internal VPN/VPC.
-- **📂 Multi-Workspace & Granular Folder Management:** Group multiple directories into isolated "Workspaces". Add, view, or remove individual folder paths per workspace dynamically.
-- **🌐 Intelligent Web Ingestion & Deep Recursive Crawler (`/web add`):** Semantic path prefix normalization, smart recursive sitemapindex traversal, proximity & relevance ranking (`_rank_url`), clean Markdown extraction, SentenceSplitter chunking (500/50), and atomic ChromaDB batch vectorization.
-- **⚡ Ultra-Fast Incremental Synchronization:** Automatically tracks document SHA-256 hashes and modification timestamps: only indexes new or altered files, and purges deleted disk files from ChromaDB.
-- **🧠 3-Level Hierarchical Memory Compression:**
-  - **Level 1 (Session Block Summary):** Asynchronously summarizes chat interaction blocks (every 10 interactions / 20 messages) and persists them to long-term vector storage.
-  - **Level 2 (Active Rolling Window):** Retains recent active messages in SQLite graph state for fast, lightweight LLM context windows.
-  - **Level 3 (Consolidated Meta-Summarization):** Automatically merges older session summaries into high-level Meta-Summaries when ChromaDB reaches user thresholds, keeping vector indices lean and sharp.
-- **📘 Permanent System Self-Help Context:** Automatically embeds AnyContext's own complete documentation (`README.md`) into the vector database for all workspaces. Ask the AI agent how to deploy, configure, update, or use AnyContext directly in chat!
-- **🔐 User Access Control & RBAC Authentication:** Zero-friction open mode for personal use. Dual-mode support for Enterprise/Teams with User Accounts, Roles (`Admin`, `Analyst`, `Viewer`), Bearer Tokens (`actx_sec_...`), and Workspace-level Access Scopes.
-- **🤝 Google Drive-Style Workspace Collaboration:** Share existing workspaces with team members (`Viewer` or `Editor` roles). Transparent folder visibility across all collaborators with strict folder ownership locking (`[👑 Your Folder]` vs `[🔒 Read-Only]`).
-- **⚙️ SQLite Configuration Store (`settings.db`):** Thread-safe, ACID-compliant SQLite configuration store (`ConfigDBStore`) serving as the single source of truth for all settings, workspaces, RBAC users, tokens, and encrypted API Key storage with password masking (`sk-...****`).
-- **🔄 Auto-Updater (`actx --update` / `/update`):** Non-blocking startup release notification, manual check (`actx --check-update`), and 1-click self-updater supporting locked Windows executables and private GitHub repositories.
-
----
-
-## 🏗️ Project Architecture
-
 ```text
-src/any_context/
-├── cli/                      # Terminal User Interface & Command Handling
-│   ├── banner.py             # Signature ASCII Art splash screen & branding
-│   ├── chat_loop.py          # Interactive chat loop & slash command intercepter
-│   ├── config_menu.py        # Interactive configuration menu & onboarding wizard
-│   ├── updater.py            # Self-update manager & release checker
-│   └── workspace_selector.py # Workspace selection & CLI argument parser
-├── config/                   # Persistent SQLite Configuration System
-│   ├── app_settings.py       # Pydantic schemas & settings loader
-│   └── db_store.py           # SQLite ConfigDBStore manager
-├── core/                     # LangGraph Orchestration Engine
-│   ├── agent.py              # Agent graph definition & tool binding
-│   └── utils.py              # API key resolvers & prompt finders
-├── help/                     # Architectural Help & Documentation Module
-│   ├── manager.py            # Flags (--help, -h), /help, & interactive manual
-│   ├── models.py             # HelpPage schema
-│   └── registry.py           # Comprehensive command manuals
-├── ingestion/                # Incremental RAG Ingestion Pipeline
-│   ├── local_folder_ingestor.py # Recursive folder scanner & ChromaDB updater
-│   ├── web_crawler.py        # Interactive site discovery, proximity ranker & crawler
-│   ├── web_ingestor.py       # HTML text extraction & Markdown AST parsing
-│   └── web_scheduler.py      # Background recurring scheduler & SQLite web sources store
-├── memory/                   # Standalone 3-Level Hierarchical Memory Engine
-│   ├── models.py             # Memory schemas (SHORT_TERM, SESSION_SUMMARY, META_SUMMARY)
-│   ├── store.py              # ChromaDB memory vector store wrapper
-│   ├── compressor.py         # LLM-powered Level-1 & Level-3 summarization engine
-│   └── manager.py            # Asynchronous memory background thread orchestrator
-├── server/                   # External Integration Layer (REST & MCP)
-│   ├── api.py                # FastAPI REST API Server & Swagger endpoints
-│   └── mcp.py                # Model Context Protocol (MCP) stdio JSON-RPC server
-├── workspace_sharing/        # Workspace Collaboration & Sharing Module
-│   ├── manager.py            # Workspace permissions & transparent folder view
-│   ├── models.py             # WorkspaceFolderEntry, WorkspacePermission, WorkspaceShareInvite
-│   └── store.py              # SQLite tables (workspace_folders, workspace_user_permissions, workspace_share_invites)
-└── tools/                    # Agent Dynamic Tools
-    └── search_tools.py       # ChromaDB vector retriever tool (search_db)
+  ___               ____ ___  _   _ _____ _____ _  _______ 
+ / _ \ _ __  _   _ / ___/ _ \| \ | |_   _| ____\ \/ /_   _|
+| |_| | '_ \| | | | |  | | | |  \| | | | |  _|  \  /  | |  
+|  _  | | | | |_| | |__| |_| | |\  | | | | |___ /  \  | |  
+|_| |_|_| |_|\__, |\____\___/|_| \_| |_| |_____/_/\_\ |_|  
+             |___/                                         
+  🚀 AnyContext (actx)  |  Levix Digital
+  ⚡ Agnostic AI Agent with Isolated Workspaces & Long-Term Memory
+  🔒 100% Local & Offline-First Privacy
 ```
+
+[![Release](https://img.shields.io/github/v/release/Levix-Digital/any-context?color=blue&label=release)](https://github.com/Levix-Digital/any-context/releases)
+[![License](https://img.shields.io/badge/license-Community%20%2F%20Enterprise-green.svg)](https://github.com/Levix-Digital/any-context)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Privacy](https://img.shields.io/badge/privacy-100%25%20Offline%20First-success.svg)](https://lmstudio.ai/)
+
+**AnyContext** is the universal intelligence layer for your personal and professional data. Built with an uncompromising focus on **privacy, speed, and versatility**, AnyContext connects your local folders, scanned documents, and web portals directly to the world's most capable Artificial Intelligence models.
+
+Whether you are a **lawyer reviewing hundreds of contract pages**, a **consultant managing immigration dossiers**, a **researcher navigating scientific publications**, or an **enterprise deploying a secure in-VPC context server**, AnyContext operates **100% on your terms and infrastructure**.
+
+---
+
+## 🌟 Why AnyContext? (In Plain English)
+
+Traditional AI tools require you to manually copy and paste files into web chats, exposing your confidential documents to external clouds and forgetting past conversations the moment you close the tab.
+
+**AnyContext changes everything:**
+
+1. **You Point to Your Folders**: Point AnyContext to any folder on your computer (PDFs, Word docs, Excel spreadsheets, images, text files, or source code).
+2. **Instant Local Memory**: AnyContext reads and organizes your documents locally into an ultra-fast vector database (ChromaDB).
+3. **Ask Anything Naturally**: Open the terminal and ask questions in plain English or Portuguese (*"What is the renewal deadline in contract 42?"*, *"Compare the tax policies across our 2025 financial reports"*).
+4. **Cites Real Sources**: The AI answers accurately, quoting the exact file name, page, and chunk where the information was found.
+5. **Zero Cloud Lock-In**: Choose from **9 leading AI providers** (OpenAI, Claude, Gemini, DeepSeek, Groq, Mistral, xAI Grok, OpenRouter) or run **100% offline and free** using local models (LM Studio / Ollama).
+
+---
+
+## 🚀 Key Features & Superpowers
+
+- **🕒 Temporal RAG & Metadata Freshness Engine**:
+  - **5-Tier Web Date Resolution**: Automatically extracts publication and update dates via OpenGraph/Schema.org, visible in-page text/footers (`Page details YYYY-MM-DD`, `Date modified:`), URL date patterns (`/2023/06/...`), HTTP `Last-Modified` headers, and crawl timestamps.
+  - **Content Classification**: Distinguishes between `Canonical Service / Documentation` (authoritative current rules), `Historical News / Press Release` (past announcements), and `Local Document`.
+  - **Filesystem Timestamps**: Automatically tags all local files with `last_modified_date` and `creation_date`.
+  - **Time-Aware Chunk Headers**: Injects `Source: ... | Workspace: ... | Last Modified: YYYY-MM-DD | Type: ...` into every chunk.
+  - **Recency Primacy & Conflict Resolution**: The AI agent evaluates timestamps and status notices, ensuring that current rules (`Status: Paused`) always supersede older historical announcements.
+- **🛡️ Strict Context Grounding & Zero Pre-Training Hallucination**:
+  - Answers are strictly anchored to the retrieved workspace chunks.
+  - The AI is forbidden from using outdated 2023 pre-training weights to answer current factual, legal, or regulatory questions.
+  - Cross-lingual domain translation: Automatically translates Portuguese prompts into targeted English domain keywords when searching English documentation.
+- **🧠 3-Level Structured Long-Term Memory (5 Dimensions)**:
+  - **Level 1 (Structured 5-Dimension Session Summary)**: Extracted upon `/exit` or `/q` across 5 clear dimensions:
+    1. 👤 *User Directives & Preferences* (rules, workflow habits).
+    2. 🏗️ *Technical Architecture & Key Decisions* (parameters, constants, schemas).
+    3. 📁 *Files, Code Symbols & Databases* (files touched, functions, tables).
+    4. 📌 *Critical Context & Problem Resolution* (root-cause diagnoses, bug fixes).
+    5. 🚀 *Pending Tasks & Next Steps* (roadmap milestones, open tasks).
+  - **Level 2 (Active Rolling Window)**: Retains recent active messages in SQLite graph state.
+  - **Level 3 (Consolidated Meta-Summarization)**: Consolidates older memory vectors into high-level indices.
+  - **1024-Token Memory Chunks**: Expanded chunking (`chunk_size=1024`, `chunk_overlap=200`) preserves deep technical reasoning.
+- **🔓 100% Unlocked Community Edition CLI**: Full local power for individual users at zero cost:
+  - Unlimited local workspaces and folders.
+  - Deep recursive subfolder scanning.
+  - **Interactive 2-Phase Web Crawler & Sitemap Engine** (`/web add`): Fast discovery phase maps all internal URLs and XML sitemaps, presenting estimated page counts before concurrent multi-threaded crawling.
+  - Image & Scanned PDF OCR parsing (`/ocr`).
+  - ChromaDB local vector storage & SQLite long-term memory.
+  - Access to all 9 supported AI model providers.
+- **🤖 9 Leading AI Providers with Verified Low-Tier Models**:
+  - **OpenAI**: `gpt-4o-mini`, `gpt-4o`, `gpt-4-turbo`, `gpt-3.5-turbo`.
+  - **Anthropic Claude**: `claude-haiku-4-5-20251001`, `claude-sonnet-4-5-20250929`, `claude-sonnet-4-6`, `claude-opus-4-5-20251101`.
+  - **Google Gemini**: `gemini-flash-latest`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-pro-latest`.
+  - **DeepSeek**: `deepseek-chat` (DeepSeek V3 - High Intelligence at $0.14/M tokens).
+  - **Groq Cloud**: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`, `gemma2-9b-it`.
+  - **Mistral AI**: `mistral-small-latest`, `open-mistral-nemo`, `mistral-large-latest`.
+  - **xAI Grok**: `grok-2-1212`, `grok-2`, `grok-beta`.
+  - **OpenRouter**: `openrouter/auto`, `meta-llama/llama-3.3-70b-instruct:free`, `google/gemini-flash-1.5-8b`.
+  - **Local Offline (Free & Private)**: `local-model` via LM Studio or Ollama (`http://localhost:1234/v1`).
+- **⚡ Sub-3ms Instant Startup & Clean Single-Line Synchronization**:
+  - Signature ASCII banner renders in under 3 milliseconds.
+  - Clean single-line background sync spinner (`✔ Workspace 'AnyContext' ready`).
+  - Modern hierarchical tree view for verbose inspection (`/sync --verbose` or `/index -v`).
+- **🎯 Typo-Resilient Slash Command Interception**:
+  - Mistyped commands (e.g. `/check-updaete`, `/swich`, `/modeel`, `/sinc`) are caught by the intelligent fuzzy matcher and suggest the correct command without wasting AI tokens.
+- **🔄 Interactive 1-Click Self-Updater (`/update` & `/check-update`)**:
+  - Detects GitHub releases with cache-busting and prompts: `? Would you like to download and install vX.Y.Z now? [Y/n]`.
+  - Performs atomic self-replacement, even on locked Windows binaries.
+- **🌐 REST API Server Mode (`actx --serve`)**:
+  - High-performance FastAPI server with interactive Swagger UI at `http://127.0.0.1:8000/docs`.
+- **🔌 Model Context Protocol (MCP) Server (`actx --mcp`)**:
+  - Native JSON-RPC stdio implementation for **Claude Desktop**, **Cursor IDE**, and **Antigravity**.
+- **📘 Permanent Self-Help System**:
+  - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
 
 ---
 
 ## ⚡ Quick Start & Installation
 
-### Option 1: Automatic Terminal Installer Script (No Python Needed!)
+### Option 1: 1-Click Terminal Installer (No Python Required!)
 
-1. Download the installer script from the **[Latest Release](https://github.com/Levix-Digital/any-context-releases/releases/latest)**:
-   - **Windows**: `install.ps1`
-   - **Linux / Git Bash**: `install.sh`
-2. Run the script in your terminal:
-   - **Windows (PowerShell)**:
-     ```powershell
-     .\install.ps1
-     ```
-   - **Linux / Git Bash (Terminal)**:
-     ```bash
-     chmod +x install.sh
-     ./install.sh
-     ```
-*The installer configures your User PATH environment variable, enabling `actx` globally.*
+Download the installer from the **[Latest GitHub Release](https://github.com/Levix-Digital/any-context/releases/latest)**:
 
----
+- **Windows (PowerShell)**:
+  ```powershell
+  irm https://raw.githubusercontent.com/Levix-Digital/any-context/main/install.ps1 | iex
+  ```
+- **Linux / macOS (Bash)**:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/install.sh | bash
+  ```
 
-### Option 2: Install as a Python Package
+### Option 2: Install via Python / `uv` / `pip`
 
 ```bash
 git clone https://github.com/Levix-Digital/any-context.git
 cd any-context
 pip install -e .
 ```
-*(Available command aliases: `actx`, `anycontext`, `any-context`, `ac`)*
+*(Available terminal aliases: `actx`, `anycontext`, `any-context`, `ac`)*
 
 ---
 
-## 💻 Operating Modes
+## 💬 In-Chat Slash Commands Reference
 
-AnyContext supports three distinct operating modes:
+Inside the interactive chat (`actx`), use these powerful slash commands:
 
-### Mode 1: Interactive Terminal Chat (`actx`)
-Launch the interactive agent directly in your console:
-```bash
-actx
-# Specify a workspace directly:
-actx -w "MyProject"
-# View version:
-actx -v
+| Command | Aliases | Description |
+| :--- | :--- | :--- |
+| **`/switch`** | `-w`, `--workspace` | Open interactive menu to switch active workspace scope. |
+| **`/sync`** | `/index`, `-s` | Synchronize workspace files incrementally (single-line clean mode). |
+| **`/sync -v`** | `/index --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
+| **`/model`** | `/m`, `models` | Open key-aware AI model selector across 9 providers. |
+| **`@model <msg>`** | — | One-shot prompt to a specific model without changing session defaults. |
+| **`/api-keys`** | `/keys`, `providers`| Step-by-step guide with portal links to obtain API keys. |
+| **`/web`** | `scrape`, `urls` | Open interactive web sources management menu. |
+| **`/web add <url>`**| — | Ingest a website URL immediately into the active workspace. |
+| **`/web list`** | — | List all registered web URLs, page counts, and last scrape dates. |
+| **`/web sync`** | — | Force re-scrape and synchronize all web URLs in workspace. |
+| **`/ocr`** | `image`, `scan` | View Image & Scanned PDF OCR parsing status. |
+| **`/config`** | `-c`, `--config` | Open interactive settings menu (Workspaces, AI Models, API Keys). |
+| **`/billing`** | `/plans`, `pricing` | View subscription tiers, capabilities, and license status. |
+| **`/check-update`**| `--check-update`| Check for newer releases with 1-click upgrade confirmation. |
+| **`/update`** | `--update` | Download and apply the latest AnyContext release immediately. |
+| **`/reset-memory`**| `/reset` | Purge conversation session memory for the active workspace. |
+| **`/clear`** | `/cls` | Clear terminal screen and redraw the clean signature banner. |
+| **`/factory-reset`**| `--factory-reset`| Reset all settings, workspaces, API keys, and databases to defaults. |
+| **`/help [cmd]`** | `/h`, `help` | Open the interactive manual index or get help for a specific command. |
+| **`/exit`** | `/q`, `exit`, `quit`| Save structured 5-dimension long-term memory and exit gracefully. |
+| **`Ctrl+C`** | — | Interrupt AI generation immediately or prompt graceful exit. |
+
+---
+
+## 💡 Real-World Usage Examples (For Technical & Non-Technical Users)
+
+### ⚖️ 1. Legal / Contract Risk Analysis (Non-Technical)
+```text
+You [LegalDocs | gpt-4o-mini]: Qual é o prazo de vigência e as penalidades por quebra de confidencialidade no Contrato Acme?
+
+🤖 AI [gpt-4o-mini]:
+🔍 [Search] Searching strictly within Workspace: 'LegalDocs' (top 8 chunks)...
+📚 Reading retrieved documents...
+
+De acordo com o arquivo 'Contrato_Acme_2025.docx' (Modificado em: 2026-08-12):
+- **Prazo de Vigência**: 24 meses contados a partir da data de assinatura (Cláusula 8.1).
+- **Penalidade por Quebra**: Multa não compensatória de R$ 100.000,00 (cem mil reais), sem prejuízo de perdas e danos apurados judicialmente (Cláusula 12.4).
+- **Aviso Prévio**: A rescisão imotivada exige notificação prévia de 30 dias (Cláusula 8.3).
 ```
 
-### Mode 2: REST API Server (`actx --serve`)
-Start the FastAPI REST Server to allow external web apps, VS Code extensions, or backend services to connect:
+### 🛂 2. Temporal Immigration / Government Portal Verification (Non-Technical)
+```text
+You [Immigration | gpt-4o-mini]: Qual o status atual do Start-up Visa Program do Canadá?
+
+🤖 AI [gpt-4o-mini]:
+🔍 [Search] Searching strictly within Workspace: 'Immigration' (top 8 chunks)...
+📚 Reading retrieved documents...
+
+De acordo com a página oficial 'Start-up Visa Program - Canada.ca' (Última modificação: 2026-07-21 | Tipo: Canonical Service):
+- **Status Operacional**: O programa está atualmente **PAUSADO (Paused)** para novas aplicações.
+- **Regra em Vigor**: Apenas candidatos com certificado de compromisso válido emitido em 2025 podem submeter suas aplicações (prazo limite: 30 de junho de 2026).
+- **Permissão de Trabalho**: Solicitantes com visto de trabalho ativo vinculado ao programa podem solicitar extensão durante o processamento da residência permanente.
+
+*(Nota: Comunicados de imprensa anteriores de junho de 2023 sobre expansão de vagas representavam iniciativas históricas da época, sendo atualmente sobrepostos pela regra de pausa em vigor).*
+```
+
+### 🧠 3. Cross-Session Long-Term Memory Recall (Business & Management)
+```text
+# Session 1:
+You [FinTech | gpt-4o-mini]: Vamos adotar a arquitetura SQLite WAL com migrações gerenciadas via Alembic para a release v2.0.
+🤖 AI [gpt-4o-mini]: Excelente decisão! Registrado: SQLite WAL mode com Alembic para a v2.0.
+You [FinTech | gpt-4o-mini]: /exit
+🧠 [Hierarchical Memory - Level 1] Generating structured 5-dimension session summary block...
+✔ Session memory persisted!
+
+# Session 2 (Days later):
+You [FinTech | gpt-4o-mini]: O que decidimos na última conversa sobre o banco de dados da release v2.0?
+🤖 AI [gpt-4o-mini]:
+🔍 [Search] Searching session memory records for workspace 'FinTech'...
+
+Na sessão anterior, decidimos as seguintes diretrizes técnicas para a **release v2.0**:
+1. **Engine**: SQLite configurado em modo **WAL (Write-Ahead Logging)** para suporte a leitura/escrita concorrente.
+2. **Migrações**: Gerenciamento de esquema estruturado via **Alembic**.
+```
+
+### 💻 4. Developer / Software Engineering Codebase Analysis (Technical)
+```text
+You [BackendAPI | deepseek-chat]: Como funciona o fluxo de autenticação por tokens na rota /v1/auth/login?
+
+🤖 AI [deepseek-chat]:
+🔍 [Search] Searching strictly within Workspace: 'BackendAPI' (top 8 chunks)...
+
+Conforme implementado no arquivo `src/any_context/server/routes.py` (Modificado em: 2026-08-18):
+1. A rota recebe `POST /v1/auth/login` com payload `{"username": "...", "password": "..."}`.
+2. O método `ConfigDBStore.verify_user_password()` valida o hash PBKDF2 com salt de 100.000 iterações.
+3. Se válido, gera um Bearer Token com prefixo `actx_sec_` e expiração de 30 dias, retornando o papel do usuário (`Admin`, `Analyst` ou `Viewer`).
+```
+
+### 4. Viewing Workspace Tree Structure (`/sync --verbose`)
+```text
+You [AnyContextProject | gpt-4o-mini]: /sync --verbose
+
+📂 Workspace: AnyContextProject
+├── 📁 Storage Locations (1 configured)
+│   └── G:\My Drive\Documentos\AnyContext
+├── 🔍 Subfolder Deep Scan
+│   └── Discovered 12 files across 4 subdirectories
+├── 📖 Document Chunks (12 total loaded)
+│   ├── contract_template.docx (2 chunks)
+│   ├── financial_report.xlsx (3 chunks)
+│   └── architecture_notes.pdf (7 chunks)
+├── 📘 Permanent System Context: Embedded README.md
+└── ⚡ ChromaDB Collection: 'context_docs' synchronized and ready!
+```
+
+---
+
+## 🌐 Intelligent Web Ingestion & Deep Recursive Crawler Engine
+
+AnyContext includes a built-in, zero-dependency, concurrent web ingestion engine designed to transform documentation portals, government archives, legal bases, and technical wikis into living AI context.
+
+Unlike basic web scrapers that blindly download noisy HTML or crawl randomly, AnyContext is engineered specifically for **high-precision Retrieval-Augmented Generation (RAG)**:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        ANYCONTEXT WEB INGESTION LIFECYCLE                              │
+├─────────────────┬─────────────────┬──────────────────┬─────────────────┬───────────────┤
+│  1. Discovery   │  2. Resolution  │   3. Proximity   │  4. Concurrent  │ 5. Ingestion  │
+│  & Normalization│  & Sitemaps     │     Ranking      │    Extraction   │   Pipeline    │
+├─────────────────┼─────────────────┼──────────────────┼─────────────────┼───────────────┤
+│ • Strip .html   │ • sitemapindex  │ • Landing (10k)  │ • Multi-threaded│ • Chunk 500/50│
+│ • Infer Prefix  │ • Keyword Match │ • Section (2k)   │ • Strip Boiler  │ • OpenAI Embed│
+│ • Extract Links │ • Filter .xml   │ • Keywords (300) │ • Markdown AST  │ • ChromaDB    │
+└─────────────────┴─────────────────┴──────────────────┴─────────────────┴───────────────┘
+```
+
+### 🧠 How It Works Under the Hood:
+
+1. **Semantic Path Normalization**:
+   - When given a URL like `https://www.canada.ca/en/immigration-refugees-citizenship.html` or `https://docs.python.org/3/library/os.html`, the crawler automatically strips file extensions (`.html`, `.htm`, `.php`, `.asp`, `.aspx`) to derive the true semantic directory path (e.g. `/en/immigration-refugees-citizenship/`).
+   - All sub-pages and child forms under that section are accurately recognized and grouped under **Section Pages**.
+
+2. **Recursive Sitemap & `sitemapindex` Resolution**:
+   - Locates `sitemap.xml` and traverses nested sitemap catalogs (`<sitemapindex>`).
+   - Tokenizes path keywords (e.g. `immigration`, `refugees`, `citizenship`, `docs`, `api`) to prioritize sub-sitemaps matching your target subject, while discarding raw `.xml` URLs in favor of clean `.html` content pages.
+
+3. **Semantic Proximity & Relevance Ranking (`_rank_url`)**:
+   - Web portals often contain tens of thousands of unrelated pages. AnyContext ranks all discovered URLs by semantic distance before ingestion:
+     - 🥇 **Landing / Start URL** (Priority 10,000)
+     - 🥈 **Direct Section Children** (Priority 2,000)
+     - 🥉 **Direct In-Page Links** (Priority 500)
+     - 🏅 **Keyword & Component Matches** (Priority 300 per matching slug)
+     - ⚪ **Generic Domain URLs** (Placed at the bottom of the batch)
+   - When you pick **Top 50** or **Top 250**, you always receive the most relevant guides, articles, and documentation pages first.
+
+4. **Clean Semantic HTML Extraction**:
+   - Strips boilerplate noise: navigation bars, footers, cookie notices, JavaScript, styles, and advertising banners.
+   - Preserves semantic structure: Markdown headings (`#`, `##`), tables, bullet points, and code blocks.
+
+5. **SentenceSplitter & Batch Vector Embedding**:
+   - Splits content into 500-token semantic chunks with 50-token overlap (`SentenceSplitter`).
+   - Generates embeddings in rate-limited micro-batches (`embed_batch_size=32`) to prevent OpenAI TPM / HTTP 429 throttling.
+   - Commits vectors atomically directly into isolated ChromaDB collections.
+
+6. **Strict Workspace Privacy & Scope Isolation**:
+   - Web vectors are tagged with strict workspace metadata. Queries in workspace `Legal` cannot bleed into workspace `Marketing`.
+
+---
+
+## ⚙️ Configuration & Environment Settings
+
+AnyContext uses an intelligent **3-tier configuration resolution hierarchy**:
+
+```
+1. Operating System Environment Variables  (export OPENAI_API_KEY=...)
+2. Local .env File                         (Loaded automatically via .env.example)
+3. Local SQLite Secure Database            (Managed interactively via /config)
+```
+
+### Using the `.env` File (For Developers & Power Users)
+
+Copy the official [`.env.example`](file:///C:/Users/guilh/source/repos/any-context/.env.example) to `.env` in your project root:
+
 ```bash
+# AI Model Provider Keys
+OPENAI_API_KEY=sk-proj-...
+ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=AIzaSy...
+DEEPSEEK_API_KEY=sk-...
+GROQ_API_KEY=gsk_...
+MISTRAL_API_KEY=mistral_...
+XAI_API_KEY=xai-...
+OPENROUTER_API_KEY=sk-or-v1-...
+
+# Web Research & Search
+TAVILY_API_KEY=tvly-...
+
+# Observability & Agent Tracing (LangSmith)
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=lsv2_pt_...
+LANGSMITH_PROJECT="AnyContext"
+
+# Server Mode & Enterprise License Key
+ANYCONTEXT_LICENSE_KEY=ACTX.eyJjbGllbnQiOiJBY21lIn0...
+```
+
+---
+
+## 🏢 Server Mode & Enterprise VPC Deployment (`actx --serve`)
+
+AnyContext includes a production-ready **REST API Server** for corporate intranets, VPCs, and external applications.
+
+### 1. Launching the Server
+```bash
+# Local development server:
 actx --serve --port 8000 --host 127.0.0.1
-# or simply:
-actx server
-```
-Access interactive OpenAPI / Swagger documentation at **`http://127.0.0.1:8000/docs`**.
 
-### Mode 3: Model Context Protocol (MCP) Server (`actx --mcp`)
-Start AnyContext as a standard MCP server communicating over stdio JSON-RPC 2.0:
+# Enterprise In-VPC Listener (All network interfaces):
+actx --serve --host 0.0.0.0 --port 8000
+```
+Access the interactive OpenAPI / Swagger UI at: **`http://127.0.0.1:8000/docs`**.
+
+### 2. Linux Background Service (`systemd`)
+
+Create `/etc/systemd/system/anycontext.service`:
+```ini
+[Unit]
+Description=AnyContext Universal AI Server
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu
+ExecStart=/home/ubuntu/.local/bin/actx --serve --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable anycontext
+sudo systemctl start anycontext
+```
+
+---
+
+## 🔌 Model Context Protocol (MCP) Setup
+
+To connect AnyContext to **Claude Desktop**, **Cursor IDE**, or **Antigravity**:
+
 ```bash
 actx --mcp
 ```
 
-#### Configuring Claude Desktop (`claude_desktop_config.json`):
+### Claude Desktop Configuration (`claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -147,53 +388,48 @@ actx --mcp
 
 ---
 
-## 🤝 Workspace Collaboration & Sharing (Google Drive Style)
+## 💳 Subscription Plans & Licensing Matrix
 
-AnyContext allows workspace owners to share an existing workspace with team members:
+| Capability / Feature | Community (CLI) | Pro Plan | Team Plan | Enterprise Plan |
+| :--- | :---: | :---: | :---: | :---: |
+| **Local Folder Ingestion** | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited |
+| **Subfolder Recursive Scan**| ✅ Included | ✅ Included | ✅ Included | ✅ Included |
+| **Web Scraping & Polling** | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited |
+| **Image & Scanned PDF OCR**| ✅ Included | ✅ Included | ✅ Included | ✅ Included |
+| **9 AI Model Providers** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ✅ Full Access |
+| **ChromaDB + SQLite Memory**| ✅ Included | ✅ Included | ✅ Included | ✅ Included |
+| **REST API Server (`actx --serve`)** | 🔒 Server Mode License | ✅ 1 Seat | ✅ 5+ Seats | ✅ Dedicated VPC |
+| **Team Collaboration & RBAC** | 🔒 Team Feature | 🔒 Team Feature | ✅ Included | ✅ SSO / SAML |
+| **Offline Ed25519 License** | Not Required | `.env` Key | `.env` Key | `.env` Key |
+| **Price** | **$0 (Free Forever)**| **$29 / mo** | **$79 / mo** | **$499 / mo** |
 
-- **👁️ Viewer Role**: Can query AI chat & search vector DB. Cannot add or delete folders.
-- **✏️ Editor Role**: Can query AI chat & search vector DB + add their own local folders to the workspace.
-- **📁 Transparent Folder Visibility & Ownership**: All collaborators see the complete list of folders feeding the AI context (`[👑 Your Folder]` vs `[🔒 Read-Only (Added by Amanda)]`). Edit and delete actions remain strictly locked to the folder's physical owner!
-
----
-
-## 🌐 REST API Endpoints Specification
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/v1/health` | Health check, version, and server security status. |
-| `GET` | `/v1/auth/status` | Check if Admin account is configured & security mode status. |
-| `POST` | `/v1/auth/setup-admin` | Initial Administrator setup wizard (first-time deployment). |
-| `POST` | `/v1/auth/login` | Authenticate user credentials and retrieve Bearer Access Token. |
-| `GET` | `/v1/users` | List all team user accounts (Admin only). |
-| `POST` | `/v1/users` | Create new team user with role and workspace scopes (Admin only). |
-| `DELETE` | `/v1/users/{user_id}` | Revoke/delete a team user account (Admin only). |
-| `GET` | `/v1/tokens` | List active Bearer security access tokens (Admin only). |
-| `POST` | `/v1/tokens` | Generate new Bearer security access token (Admin only). |
-| `DELETE` | `/v1/tokens/{token_id}` | Revoke a Bearer security access token (Admin only). |
-| `POST` | `/v1/workspaces/share/invite` | Generate a workspace share invite code (`SHARE-WKS-XXXX`). |
-| `POST` | `/v1/workspaces/share/accept` | Accept a workspace share invite code to join a workspace. |
-| `GET` | `/v1/workspaces/{name}/collaborators` | List collaborators of a workspace. |
-| `GET` | `/v1/workspaces/{name}/folders` | List transparent workspace folders with ownership tags. |
-| `POST` | `/v1/workspaces/{name}/folders` | Add a new folder to a workspace (Editor permission required). |
-| `DELETE` | `/v1/workspaces/{name}/folders/{id}` | Delete a workspace folder (Folder Owner permission required). |
-| `GET` | `/v1/workspaces` | List all configured workspaces and associated folder paths. |
-| `GET` | `/v1/docs/readme` | Retrieve raw application documentation (`README.md`) as JSON. |
-| `POST` | `/v1/chat` | Send a message to the AI agent with RAG search & session memory. |
-| `POST` | `/v1/search` | Perform raw vector search across workspace knowledge bases. |
-| `POST` | `/v1/index` | Trigger background re-indexing for a specific or all workspaces. |
-| `POST` | `/v1/reset-memory` | Purge long-term vector memory for a workspace or globally. |
-| `POST` | `/v1/factory-reset` | Wipe all settings, API keys, users, workspaces, and databases (Factory Reset). |
+> *To activate a Server Mode license, add `ANYCONTEXT_LICENSE_KEY=...` to your `.env` or type `/billing` in chat.*
 
 ---
 
-## 🔮 Roadmap
+## 🛡️ Privacy, Security & Data Sovereignty
 
-1. **Cloud Drive Ingestors (Google Drive, OneDrive, Dropbox)**
-2. **Multi-Agent Orchestration (Sub-Agent Execution & Routing)**
-3. **Web Dashboard & GUI Desktop Interface**
-4. **Source Code AST & Deep Codebase Analysis Pipeline**
+- **Offline-First Guarantee**: When using LM Studio or Ollama, zero bytes of your documents or questions ever leave your physical device.
+- **Safe Secrets Storage**: API keys and passwords in SQLite are protected with cryptographic PBKDF2 hashing and terminal masking.
+- **Zero Third-Party Training**: Your documents are stored locally in `./context_db` and are never used to train public AI models.
 
 ---
 
-> **Built with ☕ and ❤️ by Levix Digital to transform document chaos into your personal AI assistant.**
+## 🧹 Uninstallation
+
+To cleanly remove AnyContext and remove PATH variables:
+
+- **Windows (PowerShell)**:
+  ```powershell
+  irm https://raw.githubusercontent.com/Levix-Digital/any-context/main/uninstall.ps1 | iex
+  ```
+- **Linux / macOS (Bash)**:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/uninstall.sh | bash
+  ```
+
+---
+
+<div align="center">
+  <sub>Built with ☕ and ❤️ by <b>Levix Digital</b> to transform document chaos into your personal AI assistant.</sub>
+</div>

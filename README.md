@@ -41,6 +41,26 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🕒 Temporal RAG & Metadata Freshness Engine**:
+  - **5-Tier Web Date Resolution**: Automatically extracts publication and update dates via OpenGraph/Schema.org, visible in-page text/footers (`Page details YYYY-MM-DD`, `Date modified:`), URL date patterns (`/2023/06/...`), HTTP `Last-Modified` headers, and crawl timestamps.
+  - **Content Classification**: Distinguishes between `Canonical Service / Documentation` (authoritative current rules), `Historical News / Press Release` (past announcements), and `Local Document`.
+  - **Filesystem Timestamps**: Automatically tags all local files with `last_modified_date` and `creation_date`.
+  - **Time-Aware Chunk Headers**: Injects `Source: ... | Workspace: ... | Last Modified: YYYY-MM-DD | Type: ...` into every chunk.
+  - **Recency Primacy & Conflict Resolution**: The AI agent evaluates timestamps and status notices, ensuring that current rules (`Status: Paused`) always supersede older historical announcements.
+- **🛡️ Strict Context Grounding & Zero Pre-Training Hallucination**:
+  - Answers are strictly anchored to the retrieved workspace chunks.
+  - The AI is forbidden from using outdated 2023 pre-training weights to answer current factual, legal, or regulatory questions.
+  - Cross-lingual domain translation: Automatically translates Portuguese prompts into targeted English domain keywords when searching English documentation.
+- **🧠 3-Level Structured Long-Term Memory (5 Dimensions)**:
+  - **Level 1 (Structured 5-Dimension Session Summary)**: Extracted upon `/exit` or `/q` across 5 clear dimensions:
+    1. 👤 *User Directives & Preferences* (rules, workflow habits).
+    2. 🏗️ *Technical Architecture & Key Decisions* (parameters, constants, schemas).
+    3. 📁 *Files, Code Symbols & Databases* (files touched, functions, tables).
+    4. 📌 *Critical Context & Problem Resolution* (root-cause diagnoses, bug fixes).
+    5. 🚀 *Pending Tasks & Next Steps* (roadmap milestones, open tasks).
+  - **Level 2 (Active Rolling Window)**: Retains recent active messages in SQLite graph state.
+  - **Level 3 (Consolidated Meta-Summarization)**: Consolidates older memory vectors into high-level indices.
+  - **1024-Token Memory Chunks**: Expanded chunking (`chunk_size=1024`, `chunk_overlap=200`) preserves deep technical reasoning.
 - **🔓 100% Unlocked Community Edition CLI**: Full local power for individual users at zero cost:
   - Unlimited local workspaces and folders.
   - Deep recursive subfolder scanning.
@@ -63,22 +83,14 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Clean single-line background sync spinner (`✔ Workspace 'AnyContext' ready`).
   - Modern hierarchical tree view for verbose inspection (`/sync --verbose` or `/index -v`).
 - **🎯 Typo-Resilient Slash Command Interception**:
-  - Mistyped commands (e.g. `/check-updaete`, `/swich`, `/modeel`, `/sinc`) are caught by the intelligent fuzzy matcher and suggest the correct command without wasting AI tokens or running unnecessary vector searches.
+  - Mistyped commands (e.g. `/check-updaete`, `/swich`, `/modeel`, `/sinc`) are caught by the intelligent fuzzy matcher and suggest the correct command without wasting AI tokens.
 - **🔄 Interactive 1-Click Self-Updater (`/update` & `/check-update`)**:
   - Detects GitHub releases with cache-busting and prompts: `? Would you like to download and install vX.Y.Z now? [Y/n]`.
   - Performs atomic self-replacement, even on locked Windows binaries.
 - **🌐 REST API Server Mode (`actx --serve`)**:
-  - High-performance FastAPI server for external web dashboards, mobile apps, and VS Code extensions.
-  - Interactive Swagger UI documentation at `http://127.0.0.1:8000/docs`.
-  - Protected with Ed25519 cryptographic licensing configured via `ANYCONTEXT_LICENSE_KEY` in `.env`.
+  - High-performance FastAPI server with interactive Swagger UI at `http://127.0.0.1:8000/docs`.
 - **🔌 Model Context Protocol (MCP) Server (`actx --mcp`)**:
-  - Native JSON-RPC stdio implementation of Anthropic's MCP specification for **Claude Desktop**, **Cursor IDE**, and **Antigravity**.
-- **🧠 3-Level Hierarchical Long-Term Memory**:
-  - **Level 1 (Session Block Summary)**: Summarizes conversation blocks and persists them to long-term memory.
-  - **Level 2 (Active Rolling Window)**: Keeps recent messages in SQLite graph state for fast response times.
-  - **Level 3 (Consolidated Meta-Summarization)**: Consolidates older memory vectors, keeping your context lean and relevant.
-- **📊 Observability & Agent Tracing (LangSmith)**:
-  - Native, zero-overhead telemetry for power users and enterprise teams to audit token costs, latency, tool calls, and RAG retrieval chunks.
+  - Native JSON-RPC stdio implementation for **Claude Desktop**, **Cursor IDE**, and **Antigravity**.
 - **📘 Permanent Self-Help System**:
   - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
 
@@ -118,13 +130,13 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | :--- | :--- | :--- |
 | **`/switch`** | `-w`, `--workspace` | Open interactive menu to switch active workspace scope. |
 | **`/sync`** | `/index`, `-s` | Synchronize workspace files incrementally (single-line clean mode). |
-| **`/sync -v`** | `/index --verbose` | Synchronize workspace with detailed modern tree structure view. |
+| **`/sync -v`** | `/index --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
 | **`/model`** | `/m`, `models` | Open key-aware AI model selector across 9 providers. |
 | **`@model <msg>`** | — | One-shot prompt to a specific model without changing session defaults. |
 | **`/api-keys`** | `/keys`, `providers`| Step-by-step guide with portal links to obtain API keys. |
 | **`/web`** | `scrape`, `urls` | Open interactive web sources management menu. |
 | **`/web add <url>`**| — | Ingest a website URL immediately into the active workspace. |
-| **`/web list`** | — | List all registered web URLs and polling status. |
+| **`/web list`** | — | List all registered web URLs, page counts, and last scrape dates. |
 | **`/web sync`** | — | Force re-scrape and synchronize all web URLs in workspace. |
 | **`/ocr`** | `image`, `scan` | View Image & Scanned PDF OCR parsing status. |
 | **`/config`** | `-c`, `--config` | Open interactive settings menu (Workspaces, AI Models, API Keys). |
@@ -132,66 +144,76 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/check-update`**| `--check-update`| Check for newer releases with 1-click upgrade confirmation. |
 | **`/update`** | `--update` | Download and apply the latest AnyContext release immediately. |
 | **`/reset-memory`**| `/reset` | Purge conversation session memory for the active workspace. |
+| **`/clear`** | `/cls` | Clear terminal screen and redraw the clean signature banner. |
 | **`/factory-reset`**| `--factory-reset`| Reset all settings, workspaces, API keys, and databases to defaults. |
 | **`/help [cmd]`** | `/h`, `help` | Open the interactive manual index or get help for a specific command. |
+| **`/exit`** | `/q`, `exit`, `quit`| Save structured 5-dimension long-term memory and exit gracefully. |
 | **`Ctrl+C`** | — | Interrupt AI generation immediately or prompt graceful exit. |
 
 ---
 
-## 💡 Real-World Usage Examples
+## 💡 Real-World Usage Examples (For Technical & Non-Technical Users)
 
-### 1. Asking Questions with Document RAG
+### ⚖️ 1. Legal / Contract Risk Analysis (Non-Technical)
 ```text
-You [LegalDocs | gpt-4o-mini]: Qual é o prazo de vigência e as cláusulas de rescisão do Contrato de Prestação de Serviços da Acme?
+You [LegalDocs | gpt-4o-mini]: Qual é o prazo de vigência e as penalidades por quebra de confidencialidade no Contrato Acme?
 
 🤖 AI [gpt-4o-mini]:
-🔍 [Search] Searching strictly within Workspace: 'LegalDocs' (retrieving top 8 chunks)...
+🔍 [Search] Searching strictly within Workspace: 'LegalDocs' (top 8 chunks)...
 📚 Reading retrieved documents...
 
-De acordo com a Cláusula 8.1 do arquivo 'Contrato_Acme_2025.pdf':
-- O prazo de vigência é de 24 (vinte e quatro) meses a partir da data de assinatura (15/01/2025).
-- A rescisão imotivada exige aviso prévio formal por escrito de no mínimo 30 dias (Cláusula 8.3).
+De acordo com o arquivo 'Contrato_Acme_2025.docx' (Modificado em: 2026-08-12):
+- **Prazo de Vigência**: 24 meses contados a partir da data de assinatura (Cláusula 8.1).
+- **Penalidade por Quebra**: Multa não compensatória de R$ 100.000,00 (cem mil reais), sem prejuízo de perdas e danos apurados judicialmente (Cláusula 12.4).
+- **Aviso Prévio**: A rescisão imotivada exige notificação prévia de 30 dias (Cláusula 8.3).
 ```
 
-### 2. One-Shot Prompt with Another Model (`@model`)
+### 🛂 2. Temporal Immigration / Government Portal Verification (Non-Technical)
 ```text
-You [LegalDocs | gpt-4o-mini]: @claude-haiku-4-5-20251001 Faça um resumo executivo deste contrato em 3 tópicos para envio por e-mail.
+You [Immigration | gpt-4o-mini]: Qual o status atual do Start-up Visa Program do Canadá?
 
-🤖 AI [claude-haiku-4-5-20251001]:
-Aqui está o resumo executivo:
-1. Objeto: Prestação de serviços de consultoria técnica especializada.
-2. Valor: R$ 45.000,00 divididos em 3 parcelas iguais.
-3. Vigência: 24 meses com rescisão mediante aviso prévio de 30 dias.
+🤖 AI [gpt-4o-mini]:
+🔍 [Search] Searching strictly within Workspace: 'Immigration' (top 8 chunks)...
+📚 Reading retrieved documents...
+
+De acordo com a página oficial 'Start-up Visa Program - Canada.ca' (Última modificação: 2026-07-21 | Tipo: Canonical Service):
+- **Status Operacional**: O programa está atualmente **PAUSADO (Paused)** para novas aplicações.
+- **Regra em Vigor**: Apenas candidatos com certificado de compromisso válido emitido em 2025 podem submeter suas aplicações (prazo limite: 30 de junho de 2026).
+- **Permissão de Trabalho**: Solicitantes com visto de trabalho ativo vinculado ao programa podem solicitar extensão durante o processamento da residência permanente.
+
+*(Nota: Comunicados de imprensa anteriores de junho de 2023 sobre expansão de vagas representavam iniciativas históricas da época, sendo atualmente sobrepostos pela regra de pausa em vigor).*
 ```
 
-### 3. Interactive Web Discovery & Deep Site Crawling (`/web add`)
+### 🧠 3. Cross-Session Long-Term Memory Recall (Business & Management)
 ```text
-You [Immigration | gpt-4o-mini]: /web add https://www.canada.ca/en/immigration-refugees-citizenship.html
+# Session 1:
+You [FinTech | gpt-4o-mini]: Vamos adotar a arquitetura SQLite WAL com migrações gerenciadas via Alembic para a release v2.0.
+🤖 AI [gpt-4o-mini]: Excelente decisão! Registrado: SQLite WAL mode com Alembic para a v2.0.
+You [FinTech | gpt-4o-mini]: /exit
+🧠 [Hierarchical Memory - Level 1] Generating structured 5-dimension session summary block...
+✔ Session memory persisted!
 
-⠋ [Discovery] Mapping site structure, internal links & sitemaps for 'canada.ca'...
+# Session 2 (Days later):
+You [FinTech | gpt-4o-mini]: O que decidimos na última conversa sobre o banco de dados da release v2.0?
+🤖 AI [gpt-4o-mini]:
+🔍 [Search] Searching session memory records for workspace 'FinTech'...
 
-================================================================================
-🌐 Website Discovery Report: Immigration, Refugees and Citizenship Canada
-🔗 https://www.canada.ca/en/immigration-refugees-citizenship.html
-================================================================================
-  • 📄 Section Pages (matching path prefix) : 142 pages
-  • 🌐 Total Internal Domain URLs Found    : 1,580 pages
-  • 🗺️ XML Sitemap Detected                : Yes (Structured XML)
-================================================================================
+Na sessão anterior, decidimos as seguintes diretrizes técnicas para a **release v2.0**:
+1. **Engine**: SQLite configurado em modo **WAL (Write-Ahead Logging)** para suporte a leitura/escrita concorrente.
+2. **Migrações**: Gerenciamento de esquema estruturado via **Alembic**.
+```
 
-? Select indexing scope for workspace 'Immigration':
-  ❯ 1. 📄 Current Section Only (142 pages) [Recommended]
-    2. ⚡ Fast Crawl Limit (Top 50 pages) ~ 5s
-    3. 🚀 Deep Crawl Limit (Top 250 pages) ~ 20s
-    4. 📦 Extensive Crawl Limit (Top 500 pages) ~ 45s
-    5. 🌐 Entire Discovered Domain (1,580 pages)
-    6. 📄 Single Start Page Only (1 page) ~ 1s
+### 💻 4. Developer / Software Engineering Codebase Analysis (Technical)
+```text
+You [BackendAPI | deepseek-chat]: Como funciona o fluxo de autenticação por tokens na rota /v1/auth/login?
 
-⠸ [Web Crawler] [████████████████████████] 142/142 (100%) • 142 indexed
-✔ Successfully ingested and indexed 142 web pages (845,210 chars) into workspace 'Immigration'!
+🤖 AI [deepseek-chat]:
+🔍 [Search] Searching strictly within Workspace: 'BackendAPI' (top 8 chunks)...
 
-You [Immigration | gpt-4o-mini]: Quem é elegível para aplicar para um Open Work Permit no Canadá?
-🤖 AI [gpt-4o-mini]: De acordo com a documentação do IRCC indexada...
+Conforme implementado no arquivo `src/any_context/server/routes.py` (Modificado em: 2026-08-18):
+1. A rota recebe `POST /v1/auth/login` com payload `{"username": "...", "password": "..."}`.
+2. O método `ConfigDBStore.verify_user_password()` valida o hash PBKDF2 com salt de 100.000 iterações.
+3. Se válido, gera um Bearer Token com prefixo `actx_sec_` e expiração de 30 dias, retornando o papel do usuário (`Admin`, `Analyst` ou `Viewer`).
 ```
 
 ### 4. Viewing Workspace Tree Structure (`/sync --verbose`)
