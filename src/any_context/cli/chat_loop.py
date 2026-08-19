@@ -60,6 +60,49 @@ def format_session_error(error: Exception) -> str:
     )
 
 
+def collect_multiline_paste(active_workspace: Optional[str] = None, initial_text: str = "") -> Optional[str]:
+    """
+    Explicit multiline / paste capture mode.
+    Allows users to freely paste or type large blocks of text with line breaks.
+    Terminates when the user types '\"\"\"', 'EOF' (Ctrl+D / Ctrl+Z), or '/send'.
+    Aborts cleanly on '/cancel'.
+    """
+    safe_stdout_write("\n=======================================================\n")
+    safe_stdout_write("📋 Multi-line Paste Mode Active\n")
+    safe_stdout_write("  • Paste (Ctrl+V) or type your text with line breaks below.\n")
+    safe_stdout_write("  • Type '\"\"\"' or '/send' on a new line to finish & send.\n")
+    safe_stdout_write("  • Type '/cancel' or press Ctrl+C to abort.\n")
+    safe_stdout_write("=======================================================\n\n")
+
+    lines = []
+    if initial_text:
+        lines.append(initial_text)
+
+    while True:
+        try:
+            line = safe_prompt_input("\033[90m... \033[0m", workspace_name=active_workspace)
+            if line is None:
+                return None
+
+            stripped = line.strip()
+            if stripped == "/cancel":
+                safe_stdout_write("\n↩️ Multi-line paste cancelled.\n\n")
+                return None
+            if stripped in ["/send", '"""', "'''"]:
+                break
+
+            lines.append(line)
+        except (KeyboardInterrupt, EOFError):
+            safe_stdout_write("\n↩️ Multi-line paste cancelled.\n\n")
+            return None
+
+    full_text = "\n".join(lines).strip()
+    if not full_text:
+        safe_stdout_write("⚠️ Empty text entered. Returning to normal chat.\n\n")
+        return None
+    return full_text
+
+
 def run_chat_loop(active_workspace: str = None):
     thread_id = f"chat_{uuid.uuid4()}"
     config = {
@@ -98,6 +141,56 @@ def run_chat_loop(active_workspace: str = None):
             cmd = user_input.lower()
             if not cmd:
                 continue
+
+            # Multi-line / Paste command
+            if cmd in ["/paste", "/multiline", "/mline"]:
+                pasted_text = collect_multiline_paste(active_workspace=active_workspace)
+                if not pasted_text:
+                    continue
+                user_input = pasted_text
+                cmd = user_input.lower()
+
+            # Triple quotes block delimiter support (""" or ''')
+            elif user_input.startswith('"""') or user_input.startswith("'''"):
+                delimiter = '"""' if user_input.startswith('"""') else "'''"
+                if len(user_input) >= 6 and user_input.endswith(delimiter):
+                    user_input = user_input[3:-3].strip()
+                    if not user_input:
+                        continue
+                    cmd = user_input.lower()
+                else:
+                    initial_part = user_input[3:].strip()
+                    lines = [initial_part] if initial_part else []
+                    safe_stdout_write(f"\n\033[90m[Multi-line mode: finish with {delimiter} or /send | abort with /cancel]\033[0m\n")
+                    is_closed = False
+                    while True:
+                        try:
+                            line = safe_prompt_input("\033[90m... \033[0m", workspace_name=active_workspace)
+                            if line is None:
+                                break
+                            stripped = line.strip()
+                            if stripped == "/cancel":
+                                safe_stdout_write("\n↩️ Multi-line block cancelled.\n\n")
+                                lines = []
+                                break
+                            if stripped in ["/send", delimiter]:
+                                is_closed = True
+                                break
+                            if stripped.endswith(delimiter):
+                                lines.append(line[:line.rfind(delimiter)].rstrip())
+                                is_closed = True
+                                break
+                            lines.append(line)
+                        except (KeyboardInterrupt, EOFError):
+                            safe_stdout_write("\n↩️ Multi-line block cancelled.\n\n")
+                            lines = []
+                            break
+
+                    if is_closed and lines:
+                        user_input = "\n".join(lines).strip()
+                        cmd = user_input.lower()
+                    else:
+                        continue
 
             # Intercept command help flags and /help commands
             if handle_command_help_interception(user_input):
@@ -328,7 +421,8 @@ def run_chat_loop(active_workspace: str = None):
                     "/clear", "/cls",
                     "/switch", "/model", "/m", "/sync", "/index", "/update", "/check-update",
                     "/reset-memory", "/reset", "/factory-reset", "/config",
-                    "/keys", "/billing", "/plans", "/web", "/history", "/clear-history"
+                    "/keys", "/billing", "/plans", "/web", "/history", "/clear-history",
+                    "/paste", "/multiline", "/mline"
                 ]
                 typed_cmd = user_input.split()[0]
                 matches = difflib.get_close_matches(typed_cmd.lower(), known_commands, n=1, cutoff=0.45)

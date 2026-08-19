@@ -55,6 +55,56 @@ def clear_workspace_history(workspace_name: Optional[str]) -> bool:
     return True
 
 
+def create_workspace_prompt_session(history_file: str):
+    """
+    Creates a configured prompt_toolkit PromptSession supporting:
+    - Bracketed Paste: Pasting multiline text does not prematurely submit.
+    - Alt+Enter / Ctrl+J: Inserts manual newlines.
+    - Enter: Submits the prompt buffer.
+    - Continuation Prompt: '... ' for subsequent lines.
+    """
+    try:
+        from any_context.cli.entrypoint import _patch_prompt_toolkit_for_git_bash
+        _patch_prompt_toolkit_for_git_bash()
+    except Exception:
+        pass
+
+    try:
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.history import FileHistory
+        from prompt_toolkit.key_binding import KeyBindings
+
+        kb = KeyBindings()
+
+        # Alt+Enter (Escape followed by Enter) inserts a newline into the prompt buffer
+        @kb.add("escape", "enter")
+        def _insert_newline_alt_enter(event):
+            event.current_buffer.insert_text("\n")
+
+        # Ctrl+J inserts a newline into the prompt buffer
+        @kb.add("c-j")
+        def _insert_newline_ctrl_j(event):
+            event.current_buffer.insert_text("\n")
+
+        # Enter submits the buffer immediately
+        @kb.add("enter")
+        def _submit_buffer(event):
+            event.current_buffer.validate_and_handle()
+
+        def prompt_continuation(width, line_number, is_soft_wrap):
+            return "\033[90m... \033[0m"
+
+        return PromptSession(
+            history=FileHistory(history_file),
+            key_bindings=kb,
+            multiline=True,
+            prompt_continuation=prompt_continuation,
+            enable_history_search=True
+        )
+    except Exception:
+        return None
+
+
 class WorkspaceHistoryManager:
     """
     Manages prompt_toolkit PromptSession instances keyed by workspace name.
@@ -68,16 +118,11 @@ class WorkspaceHistoryManager:
         if ws in self._sessions:
             return self._sessions[ws]
 
-        try:
-            from prompt_toolkit import PromptSession
-            from prompt_toolkit.history import FileHistory
-            
-            history_file = get_workspace_history_file(ws)
-            sess = PromptSession(history=FileHistory(history_file))
+        history_file = get_workspace_history_file(ws)
+        sess = create_workspace_prompt_session(history_file)
+        if sess:
             self._sessions[ws] = sess
-            return sess
-        except Exception:
-            return None
+        return sess
 
     def prompt(self, prompt_text: str, workspace_name: Optional[str] = None) -> Optional[str]:
         """

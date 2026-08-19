@@ -58,5 +58,72 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
             run_chat_loop(active_workspace="Default")
         safe_stdout_write("  [OK] /model dispatch verified!\n")
 
+    def test_04_paste_command_and_multiline_dispatch(self):
+        """Validates that /paste collects multiline text and dispatches to AI agent loop."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /paste Command Multiline Dispatch...\n")
+        mock_inputs = [
+            "/paste",
+            "Contract Clause 1: Confidentiality duration 5 years.",
+            "Contract Clause 2: Liquidated damages $100,000.",
+            "/send",
+            "/exit"
+        ]
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.core.agent.create_anycontext_agent") as mock_create_agent:
+                mock_agent = unittest.mock.MagicMock()
+                mock_agent.stream.return_value = []
+                mock_create_agent.return_value = mock_agent
+
+                run_chat_loop(active_workspace="Default")
+                self.assertTrue(mock_agent.stream.called, "Agent stream must be called with pasted multiline text")
+                called_args = mock_agent.stream.call_args[0][0]
+                self.assertIn("Contract Clause 1", called_args["messages"][0])
+                self.assertIn("Contract Clause 2", called_args["messages"][0])
+        safe_stdout_write("  [OK] /paste command multiline dispatch verified!\n")
+
+    def test_05_triple_quotes_block_dispatch(self):
+        """Validates that triple quotes delimiter ('\"\"\"') collects multiline text."""
+        safe_stdout_write(">>> [CLI UNIT] Testing Triple Quotes ('\"\"\"') Multiline Block...\n")
+        mock_inputs = [
+            '"""Here is my meeting transcript:',
+            "- Topic A: Vector DB architecture",
+            "- Topic B: Temporal RAG metadata",
+            '"""',
+            "/exit"
+        ]
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.core.agent.create_anycontext_agent") as mock_create_agent:
+                mock_agent = unittest.mock.MagicMock()
+                mock_agent.stream.return_value = []
+                mock_create_agent.return_value = mock_agent
+
+                run_chat_loop(active_workspace="Default")
+                self.assertTrue(mock_agent.stream.called, "Agent stream must be called with triple quotes block text")
+                called_args = mock_agent.stream.call_args[0][0]
+                self.assertIn("Topic A: Vector DB architecture", called_args["messages"][0])
+                self.assertIn("Topic B: Temporal RAG metadata", called_args["messages"][0])
+        safe_stdout_write("  [OK] Triple quotes multiline block verified!\n")
+
+    def test_06_paste_cancel_dispatch(self):
+        """Validates that /cancel cleanly aborts multiline paste without dispatching to AI."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /paste /cancel Abort Flow...\n")
+        mock_inputs = [
+            "/paste",
+            "This text will be cancelled.",
+            "/cancel",
+            "/exit"
+        ]
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.core.agent.create_anycontext_agent") as mock_create_agent:
+                mock_agent = unittest.mock.MagicMock()
+                mock_create_agent.return_value = mock_agent
+
+                run_chat_loop(active_workspace="Default")
+                self.assertFalse(mock_agent.stream.called, "Agent stream must NOT be called when paste is cancelled")
+        safe_stdout_write("  [OK] /paste cancellation verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
