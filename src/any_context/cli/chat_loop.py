@@ -613,10 +613,10 @@ def run_chat_loop(active_workspace: str = None):
                             print(f"    - [Folder] {f}")
                         for w in ws_d.get("web_sources", []):
                             pages_badge = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
-                            print(f"    - [Web Portal] {w['url']} ({w.get('title') or 'Web Source'}{pages_badge})")
+                            print(f"    - [Web] {w['url']} ({w.get('title') or 'Web Source'}{pages_badge})")
                         for cd in ws_d.get("cloud_drives", []):
                             auth_badge = f" • {cd.get('auth_status')}" if cd.get('auth_status') else ""
-                            print(f"    - [Cloud Drive] {cd['provider']}://{cd['mount_path_or_id']} ({cd.get('title') or 'Cloud Drive'}{auth_badge})")
+                            print(f"    - [Drive] {cd['provider']}://{cd['mount_path_or_id']} ({cd.get('title') or 'Cloud Drive'}{auth_badge})")
                         if not ws_d.get("sources"):
                             print("    - (No sources configured)")
                     print()
@@ -628,10 +628,10 @@ def run_chat_loop(active_workspace: str = None):
                         print(f"  • [Folder] {f}")
                     for w in ws_detail.get("web_sources", []):
                         pages_badge = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
-                        print(f"  • [Web Portal] \033[96m{w.get('title') or w['url']}\033[0m{pages_badge} ({w['url']})")
+                        print(f"  • [Web] \033[96m{w.get('title') or w['url']}\033[0m{pages_badge} ({w['url']})")
                     for cd in ws_detail.get("cloud_drives", []):
                         auth_badge = f" • {cd.get('auth_status')}" if cd.get('auth_status') else ""
-                        print(f"  • [Cloud Drive] \033[95m{cd.get('title') or cd['mount_path_or_id']}\033[0m ({cd['provider']}://{cd['mount_path_or_id']}{auth_badge})")
+                        print(f"  • [Drive] \033[95m{cd.get('title') or cd['mount_path_or_id']}\033[0m ({cd['provider']}://{cd['mount_path_or_id']}{auth_badge})")
                     if not ws_detail.get("sources"):
                         print("  (No sources configured yet. Type '/web add <url>' or '/config' to add folders/websites)")
                     print()
