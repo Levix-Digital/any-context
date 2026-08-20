@@ -182,9 +182,9 @@ def _manage_workspaces(store: ConfigDBStore):
             print(f"✅ Created workspace '{clean_name}'.")
 
     elif ws_action.startswith("✏️"):
-        names = [ws.name for ws in workspaces]
+        names = [ws.name for ws in workspaces if ws.name.lower() not in ["default", "global"]]
         if not names:
-            print("No workspaces configured.")
+            print("\n⚠️ No custom workspaces configured to rename ('Default' and 'Global' are protected system workspaces).\n")
             return
         target_ws = questionary.select("Select Workspace to rename:", choices=names).ask()
         if not target_ws:
@@ -254,9 +254,9 @@ def _manage_workspaces(store: ConfigDBStore):
         _transfer_workspace_source(store=store)
 
     elif ws_action.startswith("🗑️"):
-        names = [ws.name for ws in workspaces]
+        names = [ws.name for ws in workspaces if ws.name.lower() not in ["default", "global"]]
         if not names:
-            print("No workspaces to delete.")
+            print("\n⚠️ No custom workspaces available to delete ('Default' and 'Global' are protected system workspaces).\n")
             return
         to_remove = questionary.select("Select workspace to delete entirely:", choices=names).ask()
         if to_remove:

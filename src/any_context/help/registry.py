@@ -763,15 +763,16 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         examples=[
             "In Chat: /rename",
             "In Chat: /rename TesteDestino CanadaLegal",
-            "In Chat: /workspace rename Default MainHQ",
+            "In Chat: /workspace rename TeamDocs ArchiveDocs",
             "In REST API: POST /v1/workspaces/rename {\"old_name\":\"TesteDestino\",\"new_name\":\"CanadaLegal\"}",
             "In MCP Server: rename_workspace(old_name='TesteDestino', new_name='CanadaLegal')",
             "In Chat: /rename -h"
         ],
         tips=[
+            "Workspaces 'Default' and 'Global' are protected system workspaces and cannot be renamed or deleted.",
             "Renaming executes atomically in sub-50ms regardless of how many thousands of document chunks exist.",
             "Zero tokens are spent: vector embeddings are preserved without calling OpenAI/LLMs.",
-            "If you rename your active workspace, your current session prompt automatically updates to the new name."
+            "RBAC user and token permissions cascade automatically, ensuring continuous access after renames."
         ]
     ),
     "sources": HelpPage(

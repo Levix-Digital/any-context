@@ -111,7 +111,26 @@ class TestWorkspaceRename(unittest.TestCase):
         res4 = self.store.rename_workspace(self.old_ws, "   ")
         self.assertFalse(res4["success"])
 
-        safe_stdout_write("  [OK] Workspace rename guardrails verified!\n")
+        # Protected workspace Default cannot be renamed
+        res_def = self.store.rename_workspace("Default", "NewDefault")
+        self.assertFalse(res_def["success"])
+        self.assertIn("protected system workspace", res_def["error"])
+
+        # Protected workspace Global cannot be renamed
+        res_glob = self.store.rename_workspace("Global", "NewGlobal")
+        self.assertFalse(res_glob["success"])
+        self.assertIn("protected system workspace", res_glob["error"])
+
+        # Cannot rename custom workspace to Default or Global
+        res_to_def = self.store.rename_workspace(self.old_ws, "Default")
+        self.assertFalse(res_to_def["success"])
+        self.assertIn("protected system workspace", res_to_def["error"])
+
+        # Protected workspaces Default and Global cannot be removed
+        self.assertFalse(self.store.remove_workspace("Default"))
+        self.assertFalse(self.store.remove_workspace("Global"))
+
+        safe_stdout_write("  [OK] Workspace rename and delete protection guardrails verified!\n")
 
 
 if __name__ == "__main__":
