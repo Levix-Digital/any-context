@@ -566,7 +566,14 @@ class ConfigDBStore:
                 for u_row in cursor.fetchall():
                     try:
                         aws = json.loads(u_row["allowed_workspaces_json"])
-                        updated_aws = [new_ws if (w == actual_old_name or w == old_ws) else w for w in aws]
+                        updated_aws = []
+                        for w in aws:
+                            if w == "*":
+                                updated_aws.append("*")
+                            elif w == ws_id or w.lower() in [actual_old_name.lower(), old_ws.lower()]:
+                                updated_aws.append(ws_id)
+                            else:
+                                updated_aws.append(w)
                         if updated_aws != aws:
                             cursor.execute("UPDATE users SET allowed_workspaces_json = ? WHERE id = ?", (json.dumps(updated_aws), u_row["id"]))
                     except Exception:
@@ -580,7 +587,14 @@ class ConfigDBStore:
                 for t_row in cursor.fetchall():
                     try:
                         aws = json.loads(t_row["allowed_workspaces_json"])
-                        updated_aws = [new_ws if (w == actual_old_name or w == old_ws) else w for w in aws]
+                        updated_aws = []
+                        for w in aws:
+                            if w == "*":
+                                updated_aws.append("*")
+                            elif w == ws_id or w.lower() in [actual_old_name.lower(), old_ws.lower()]:
+                                updated_aws.append(ws_id)
+                            else:
+                                updated_aws.append(w)
                         if updated_aws != aws:
                             cursor.execute("UPDATE access_tokens SET allowed_workspaces_json = ? WHERE id = ?", (json.dumps(updated_aws), t_row["id"]))
                     except Exception:
@@ -1108,6 +1122,37 @@ class ConfigDBStore:
 
     # --- User Accounts & Security RBAC Methods ---
 
+    def _canonicalize_workspace_list(self, ws_list: Optional[List[str]]) -> List[str]:
+        """Converts workspace names/IDs to canonical workspace_ids (or '*' / raw strings)."""
+        if ws_list is None:
+            return ["ws_default"]
+        canonical = []
+        for w in ws_list:
+            clean = str(w).strip()
+            if clean == "*":
+                canonical.append("*")
+            else:
+                meta = self.get_workspace_meta(clean)
+                if meta:
+                    canonical.append(meta["workspace_id"])
+                else:
+                    canonical.append(clean)
+        return canonical
+
+    def _resolve_allowed_workspaces_display(self, ws_list: List[str]) -> List[str]:
+        """Resolves canonical workspace_ids to their current live workspace names."""
+        resolved = []
+        for w in ws_list:
+            if w == "*":
+                resolved.append("*")
+            else:
+                meta = self.get_workspace_meta(w)
+                if meta:
+                    resolved.append(meta["name"])
+                else:
+                    resolved.append(w)
+        return resolved
+
     def is_admin_configured(self) -> bool:
         """Returns True if an Admin user has been configured in SQLite."""
         with self._get_connection() as conn:
@@ -1167,14 +1212,15 @@ class ConfigDBStore:
 
             user_id = row["user_id"]
             role = row["role"]
-            allowed_ws = json.loads(row["allowed_workspaces_json"])
+            raw_allowed_ws = json.loads(row["allowed_workspaces_json"])
+            display_allowed_ws = self._resolve_allowed_workspaces_display(raw_allowed_ws)
 
             # Retrieve or generate active Bearer token for user
             tokens = self.get_access_tokens(user_id=user_id)
             if tokens:
                 token_str = tokens[0]["token_id"]
             else:
-                new_t = self.create_access_token(name=f"Session Token ({row['name']})", role=role, allowed_workspaces=allowed_ws, user_id=user_id)
+                new_t = self.create_access_token(name=f"Session Token ({row['name']})", role=role, allowed_workspaces=raw_allowed_ws, user_id=user_id)
                 token_str = new_t["token_id"]
 
             return {
@@ -1182,7 +1228,7 @@ class ConfigDBStore:
                 "email": row["email"],
                 "name": row["name"],
                 "role": role,
-                "allowed_workspaces": allowed_ws,
+                "allowed_workspaces": display_allowed_ws,
                 "token_id": token_str
             }
 
@@ -1194,7 +1240,7 @@ class ConfigDBStore:
         user_id = f"usr_{uuid.uuid4().hex[:12]}"
         password_h = hash_password(password)
         role_clean = role.lower() if role in ["admin", "analyst", "viewer"] else "analyst"
-        allowed_ws = allowed_workspaces if allowed_workspaces is not None else ["Default"]
+        canonical_ws = self._canonicalize_workspace_list(allowed_workspaces if allowed_workspaces is not None else ["Default"])
         created_at = datetime.utcnow().isoformat()
 
         with self._get_connection() as conn:
@@ -1202,7 +1248,7 @@ class ConfigDBStore:
             cursor.execute("""
                 INSERT INTO users (user_id, email, name, password_hash, role, allowed_workspaces_json, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (user_id, email.lower().strip(), name.strip(), password_h, role_clean, json.dumps(allowed_ws), created_at))
+            """, (user_id, email.lower().strip(), name.strip(), password_h, role_clean, json.dumps(canonical_ws), created_at))
             conn.commit()
 
         return {
@@ -1210,24 +1256,25 @@ class ConfigDBStore:
             "email": email.lower().strip(),
             "name": name.strip(),
             "role": role_clean,
-            "allowed_workspaces": allowed_ws,
+            "allowed_workspaces": self._resolve_allowed_workspaces_display(canonical_ws),
             "created_at": created_at
         }
 
     def list_users(self) -> List[Dict[str, Any]]:
-        """Lists all configured users."""
+        """Lists all configured users with dynamically resolved workspace names."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT user_id, email, name, role, allowed_workspaces_json, created_at FROM users ORDER BY id DESC")
             rows = cursor.fetchall()
             users = []
             for r in rows:
+                raw_aws = json.loads(r["allowed_workspaces_json"])
                 users.append({
                     "user_id": r["user_id"],
                     "email": r["email"],
                     "name": r["name"],
                     "role": r["role"],
-                    "allowed_workspaces": json.loads(r["allowed_workspaces_json"]),
+                    "allowed_workspaces": self._resolve_allowed_workspaces_display(raw_aws),
                     "created_at": r["created_at"]
                 })
             return users
@@ -1250,7 +1297,7 @@ class ConfigDBStore:
         
         token_id = f"actx_sec_{uuid.uuid4().hex}"
         role_clean = role.lower() if role in ["admin", "analyst", "viewer"] else "viewer"
-        ws_list = allowed_workspaces if allowed_workspaces is not None else ["*"]
+        canonical_ws = self._canonicalize_workspace_list(allowed_workspaces if allowed_workspaces is not None else ["*"])
         created_at = datetime.utcnow().isoformat()
 
         with self._get_connection() as conn:
@@ -1258,7 +1305,7 @@ class ConfigDBStore:
             cursor.execute("""
                 INSERT INTO access_tokens (token_id, user_id, name, role, allowed_workspaces_json, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (token_id, user_id, name, role_clean, json.dumps(ws_list), created_at))
+            """, (token_id, user_id, name, role_clean, json.dumps(canonical_ws), created_at))
             conn.commit()
 
         return {
@@ -1266,7 +1313,7 @@ class ConfigDBStore:
             "user_id": user_id,
             "name": name,
             "role": role_clean,
-            "allowed_workspaces": ws_list,
+            "allowed_workspaces": self._resolve_allowed_workspaces_display(canonical_ws),
             "created_at": created_at
         }
 
@@ -1281,12 +1328,13 @@ class ConfigDBStore:
             rows = cursor.fetchall()
             tokens = []
             for r in rows:
+                raw_aws = json.loads(r["allowed_workspaces_json"])
                 tokens.append({
                     "token_id": r["token_id"],
                     "user_id": r["user_id"],
                     "name": r["name"],
                     "role": r["role"],
-                    "allowed_workspaces": json.loads(r["allowed_workspaces_json"]),
+                    "allowed_workspaces": self._resolve_allowed_workspaces_display(raw_aws),
                     "created_at": r["created_at"]
                 })
             return tokens
@@ -1299,12 +1347,13 @@ class ConfigDBStore:
             row = cursor.fetchone()
             if not row:
                 return None
+            raw_aws = json.loads(row["allowed_workspaces_json"])
             return {
                 "token_id": row["token_id"],
                 "user_id": row["user_id"],
                 "name": row["name"],
                 "role": row["role"],
-                "allowed_workspaces": json.loads(row["allowed_workspaces_json"]),
+                "allowed_workspaces": self._resolve_allowed_workspaces_display(raw_aws),
                 "created_at": row["created_at"]
             }
 
@@ -1342,7 +1391,23 @@ class ConfigDBStore:
             ws_meta = self.get_workspace_meta(clean_req)
             ws_name = ws_meta["name"] if ws_meta else clean_req
             ws_id = ws_meta["workspace_id"] if ws_meta else clean_req
-            if clean_req not in allowed_workspaces and ws_name not in allowed_workspaces and ws_id not in allowed_workspaces:
+
+            allowed_ids = set()
+            allowed_names = set()
+            for w in allowed_workspaces:
+                allowed_ids.add(w)
+                allowed_names.add(w.lower())
+                m = self.get_workspace_meta(w)
+                if m:
+                    allowed_ids.add(m["workspace_id"])
+                    allowed_names.add(m["name"].lower())
+
+            if (
+                ws_id not in allowed_ids
+                and ws_name.lower() not in allowed_names
+                and clean_req.lower() not in allowed_names
+                and clean_req not in allowed_ids
+            ):
                 return False
 
         return True
