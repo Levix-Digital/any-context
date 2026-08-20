@@ -8,6 +8,9 @@ from typing import Optional, List, Dict, Any
 from any_context.config.app_settings import (
     AppSettings,
     WorkspaceSettings,
+    WorkspaceWebSource,
+    WorkspaceCloudDrive,
+    WorkspaceSourceItem,
     ContextSettings,
     SessionSettings,
     ModelSettings,
@@ -193,6 +196,21 @@ class ConfigDBStore:
                     allowed_users_json TEXT NOT NULL
                 )
             """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_cloud_drives (
+                    id TEXT PRIMARY KEY,
+                    workspace_name TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    mount_path_or_id TEXT NOT NULL,
+                    title TEXT,
+                    auth_status TEXT DEFAULT 'pending',
+                    last_synced_at TEXT,
+                    created_at TEXT,
+                    metadata_json TEXT
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wcd_ws ON workspace_cloud_drives (workspace_name)")
     def reset_model_settings_to_default(self):
         """Resets model settings and API keys to factory defaults while preserving workspaces and user data."""
         with sqlite3.connect(self.db_path) as conn:
@@ -275,13 +293,42 @@ class ConfigDBStore:
             return True
 
     def remove_workspace(self, workspace_name: str) -> bool:
-        """Deletes a workspace entry completely from SQLite."""
+        """Deletes a workspace entry and all its associated source records completely from SQLite."""
         clean_ws = workspace_name.strip()
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM workspaces WHERE name = ?", (clean_ws,))
+            deleted_count = cursor.rowcount
+            try:
+                cursor.execute("DELETE FROM workspace_folders WHERE workspace_name = ?", (clean_ws,))
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("DELETE FROM workspace_web_urls WHERE workspace_name = ?", (clean_ws,))
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("DELETE FROM workspace_indexed_web_pages WHERE workspace_name = ?", (clean_ws,))
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("DELETE FROM workspace_cloud_drives WHERE workspace_name = ?", (clean_ws,))
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("DELETE FROM workspace_permissions WHERE workspace_name = ?", (clean_ws,))
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("DELETE FROM workspace_user_permissions WHERE workspace_name = ?", (clean_ws,))
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("DELETE FROM workspace_share_invites WHERE workspace_name = ?", (clean_ws,))
+            except sqlite3.OperationalError:
+                pass
             conn.commit()
-            return cursor.rowcount > 0
+            return deleted_count > 0
 
     def transfer_local_folder_source(
         self,
@@ -454,6 +501,12 @@ class ConfigDBStore:
             except sqlite3.OperationalError:
                 pass
 
+            # Update workspace_cloud_drives (if table exists)
+            try:
+                cursor.execute("UPDATE workspace_cloud_drives SET workspace_name = ? WHERE workspace_name = ?", (new_ws, old_ws))
+            except sqlite3.OperationalError:
+                pass
+
             conn.commit()
 
         # 2. Update ChromaDB vector metadata (Document vectors)
@@ -515,17 +568,272 @@ class ConfigDBStore:
 
 
 
+    def add_cloud_drive_to_workspace(
+        self,
+        workspace_name: str,
+        provider: str,
+        mount_path_or_id: str,
+        title: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Attaches a cloud drive (e.g. Google Drive, OneDrive, S3, Dropbox) to a workspace.
+        """
+        import uuid
+        from datetime import datetime
+        clean_ws = workspace_name.strip()
+        clean_provider = provider.strip().lower()
+        clean_mount = mount_path_or_id.strip()
+        drive_id = f"drive_{uuid.uuid4().hex[:8]}"
+        now_str = datetime.utcnow().isoformat()
+        meta_json = json.dumps(metadata or {})
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            # Ensure workspace exists
+            cursor.execute("SELECT id FROM workspaces WHERE name = ?", (clean_ws,))
+            if not cursor.fetchone():
+                self.add_workspace(clean_ws, paths=[])
+
+            cursor.execute("""
+                INSERT INTO workspace_cloud_drives (id, workspace_name, provider, mount_path_or_id, title, auth_status, created_at, metadata_json)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+            """, (drive_id, clean_ws, clean_provider, clean_mount, title, now_str, meta_json))
+            conn.commit()
+
+        return {
+            "id": drive_id,
+            "workspace_name": clean_ws,
+            "provider": clean_provider,
+            "mount_path_or_id": clean_mount,
+            "title": title,
+            "auth_status": "pending",
+            "created_at": now_str,
+            "metadata": metadata or {}
+        }
+
+    def get_workspace_cloud_drives(self, workspace_name: str) -> List[Dict[str, Any]]:
+        """Returns all configured cloud drive sources for a workspace."""
+        clean_ws = workspace_name.strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    SELECT id, workspace_name, provider, mount_path_or_id, title, auth_status, last_synced_at, created_at, metadata_json
+                    FROM workspace_cloud_drives
+                    WHERE workspace_name = ?
+                """, (clean_ws,))
+                rows = cursor.fetchall()
+                result = []
+                for r in rows:
+                    d = dict(r)
+                    meta = {}
+                    if d.get("metadata_json"):
+                        try:
+                            meta = json.loads(d["metadata_json"])
+                        except Exception:
+                            pass
+                    d["metadata"] = meta
+                    result.append(d)
+                return result
+            except sqlite3.OperationalError:
+                return []
+
+    def delete_cloud_drive(self, drive_id: str, workspace_name: Optional[str] = None) -> bool:
+        """Removes a cloud drive attachment from SQLite."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                if workspace_name:
+                    cursor.execute("DELETE FROM workspace_cloud_drives WHERE id = ? AND workspace_name = ?", (drive_id, workspace_name.strip()))
+                else:
+                    cursor.execute("DELETE FROM workspace_cloud_drives WHERE id = ?", (drive_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+            except sqlite3.OperationalError:
+                return False
+
+    def get_workspace_sources(self, workspace_name: str) -> Dict[str, Any]:
+        """
+        Retrieves all associated sources for a workspace in a UI-agnostic structured format.
+        Aggregates:
+        1. Local Folders (from workspaces table and workspace_folders table).
+        2. Web Sources / Portals (from workspace_web_urls table).
+        3. Cloud Drives (from workspace_cloud_drives table).
+        4. Unified polymorphic 'sources' list.
+        """
+        clean_ws = workspace_name.strip()
+        folders: List[str] = []
+        web_sources: List[Dict[str, Any]] = []
+        cloud_drives: List[Dict[str, Any]] = []
+        unified_sources: List[Dict[str, Any]] = []
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 1. Local folders from workspaces table
+            cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (clean_ws,))
+            row = cursor.fetchone()
+            if row:
+                try:
+                    for p in json.loads(row["paths_json"]):
+                        norm_p = os.path.abspath(p.strip().strip("'\""))
+                        if norm_p and norm_p not in folders:
+                            folders.append(norm_p)
+                except Exception:
+                    pass
+
+            # Also check workspace_folders table if present
+            try:
+                cursor.execute("SELECT folder_path FROM workspace_folders WHERE workspace_name = ?", (clean_ws,))
+                for f_row in cursor.fetchall():
+                    norm_p = os.path.abspath(f_row["folder_path"].strip().strip("'\""))
+                    if norm_p and norm_p not in folders:
+                        folders.append(norm_p)
+            except sqlite3.OperationalError:
+                pass
+
+            # 2. Web sources from workspace_web_urls
+            try:
+                cursor.execute("""
+                    SELECT id, workspace_name, url, title, page_count, root_url, scope, last_scraped_at, created_at
+                    FROM workspace_web_urls
+                    WHERE workspace_name = ?
+                """, (clean_ws,))
+                for w_row in cursor.fetchall():
+                    w_dict = dict(w_row)
+                    web_sources.append({
+                        "id": w_dict.get("id"),
+                        "url": w_dict.get("url"),
+                        "root_url": w_dict.get("root_url") or w_dict.get("url"),
+                        "title": w_dict.get("title"),
+                        "page_count": w_dict.get("page_count", 1) or 1,
+                        "scope": w_dict.get("scope"),
+                        "last_scraped_at": w_dict.get("last_scraped_at"),
+                        "created_at": w_dict.get("created_at")
+                    })
+            except sqlite3.OperationalError:
+                pass
+
+            # 3. Cloud drives from workspace_cloud_drives
+            try:
+                cursor.execute("""
+                    SELECT id, workspace_name, provider, mount_path_or_id, title, auth_status, last_synced_at, created_at, metadata_json
+                    FROM workspace_cloud_drives
+                    WHERE workspace_name = ?
+                """, (clean_ws,))
+                for cd_row in cursor.fetchall():
+                    cd_dict = dict(cd_row)
+                    meta = {}
+                    if cd_dict.get("metadata_json"):
+                        try:
+                            meta = json.loads(cd_dict["metadata_json"])
+                        except Exception:
+                            pass
+                    cloud_drives.append({
+                        "id": cd_dict.get("id"),
+                        "provider": cd_dict.get("provider"),
+                        "mount_path_or_id": cd_dict.get("mount_path_or_id"),
+                        "title": cd_dict.get("title"),
+                        "auth_status": cd_dict.get("auth_status") or "pending",
+                        "last_synced_at": cd_dict.get("last_synced_at"),
+                        "created_at": cd_dict.get("created_at"),
+                        "metadata": meta
+                    })
+            except sqlite3.OperationalError:
+                pass
+
+        # Build unified polymorphic sources list
+        for f in folders:
+            folder_title = os.path.basename(f) or f
+            unified_sources.append({
+                "type": "folder",
+                "id": None,
+                "identifier": f,
+                "title": folder_title,
+                "details": {
+                    "path": f,
+                    "exists": os.path.exists(f)
+                }
+            })
+
+        for w in web_sources:
+            unified_sources.append({
+                "type": "web",
+                "id": w["id"],
+                "identifier": w["url"],
+                "title": w.get("title") or w["url"],
+                "details": {
+                    "root_url": w.get("root_url"),
+                    "page_count": w.get("page_count", 1),
+                    "scope": w.get("scope"),
+                    "last_scraped_at": w.get("last_scraped_at")
+                }
+            })
+
+        for cd in cloud_drives:
+            unified_sources.append({
+                "type": "cloud_drive",
+                "id": cd["id"],
+                "identifier": cd["mount_path_or_id"],
+                "title": cd.get("title") or f"{cd['provider']}://{cd['mount_path_or_id']}",
+                "details": {
+                    "provider": cd["provider"],
+                    "auth_status": cd["auth_status"],
+                    "last_synced_at": cd.get("last_synced_at")
+                }
+            })
+
+        return {
+            "name": clean_ws,
+            "paths": folders,
+            "folders": folders,
+            "web_sources": web_sources,
+            "cloud_drives": cloud_drives,
+            "sources": unified_sources,
+            "total_sources": len(unified_sources)
+        }
+
+    def list_workspaces_detailed(self) -> List[Dict[str, Any]]:
+        """
+        Lists all workspaces with complete, UI-agnostic sources detail.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM workspaces ORDER BY id ASC")
+            rows = cursor.fetchall()
+            ws_names = [r["name"] for r in rows]
+
+        return [self.get_workspace_sources(ws_name) for ws_name in ws_names]
+
     def get_app_settings(self) -> AppSettings:
         """Reads and constructs AppSettings Pydantic instance from SQLite"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute("SELECT name, paths_json FROM workspaces")
+            cursor.execute("SELECT name FROM workspaces ORDER BY id ASC")
             ws_rows = cursor.fetchall()
-            workspaces = [
-                WorkspaceSettings(name=row["name"], paths=json.loads(row["paths_json"]))
-                for row in ws_rows
-            ]
+            workspaces = []
+            for row in ws_rows:
+                ws_name = row["name"]
+                ws_detail = self.get_workspace_sources(ws_name)
+                workspaces.append(WorkspaceSettings(
+                    name=ws_name,
+                    paths=ws_detail["paths"],
+                    folders=ws_detail["folders"],
+                    web_sources=[WorkspaceWebSource(**w) for w in ws_detail["web_sources"]],
+                    cloud_drives=[WorkspaceCloudDrive(
+                        id=cd["id"],
+                        provider=cd["provider"],
+                        mount_path_or_id=cd["mount_path_or_id"],
+                        title=cd.get("title"),
+                        auth_status=cd.get("auth_status", "pending"),
+                        last_synced_at=cd.get("last_synced_at"),
+                        created_at=cd.get("created_at")
+                    ) for cd in ws_detail["cloud_drives"]],
+                    sources=[WorkspaceSourceItem(**s) for s in ws_detail["sources"]],
+                    total_sources=ws_detail["total_sources"]
+                ))
 
             cursor.execute("SELECT * FROM models WHERE id = 1")
             m_row = cursor.fetchone()

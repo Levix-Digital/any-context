@@ -150,6 +150,7 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`""" ... """`** | `''' ... '''` | Multi-line block delimiter (close with `"""` or `/send`). |
 | **`/paste`** | `/multiline`, `/mline` | Open dedicated multi-line paste capture mode. |
 | **`/transfer`** | `/move-source` | Instant zero-cost transfer of folders or web portals between workspaces. |
+| **`/sources`** | `/workspace sources`| List all data sources (local folders, web portals, cloud drives) in active workspace. |
 | **`/switch [name]`** | `/workspace`, `-w` | Switch active workspace or create a new empty workspace on the fly. |
 | **`/sync`** | `/index`, `-s` | Synchronize workspace files incrementally (single-line clean mode). |
 | **`/sync -v`** | `/index --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
@@ -393,8 +394,11 @@ Access the interactive OpenAPI / Swagger UI at: **`http://127.0.0.1:8000/docs`**
 
 Key API Endpoints include:
 - `POST /v1/chat` — Streaming & non-streaming AI Agent queries with RAG & memory.
-- `GET /v1/workspaces` & `POST /v1/workspaces` — Workspace management.
+- `GET /v1/workspaces` — Lists all workspaces with complete source breakdown (`folders`, `web_sources`, `cloud_drives`, and unified `sources`).
+- `GET /v1/workspaces/{name}` & `GET /v1/workspaces/{name}/sources` — Detailed workspace sources inspection.
+- `POST /v1/workspaces` — Create workspace (with or without initial folders).
 - `POST /v1/workspaces/transfer` — Instant zero-cost transfer of local folders and web portals between workspaces with vector metadata migration in < 50ms.
+- `POST /v1/workspaces/{name}/cloud-drives` — Connect cloud drive sources (Google Drive, OneDrive, S3, Dropbox).
 - `POST /v1/index` — Background folder re-indexing.
 - `GET /v1/models` — Active & available model inspection.
 
@@ -434,11 +438,13 @@ actx --mcp
 ### Registered MCP Tools:
 - `search_workspace_docs` — Vector semantic search across indexed files.
 - `query_anycontext_agent` — Direct RAG query with 3-level session memory.
+- `list_workspaces` — Lists all configured workspaces along with all their associated sources (local folders, web portals, cloud drives).
+- `get_workspace_sources` — Retrieves detailed sources breakdown for a specific workspace.
 - `transfer_workspace_source` — Zero-cost instant data source transfer (folders/websites) between workspaces.
 - `rename_workspace` — Instant zero-cost atomic workspace rename across SQLite and ChromaDB.
 - `get_context_retrieval_settings` — Inspect current RAG retrieval density parameters and active preset.
 - `set_context_retrieval_preset` — Configure RAG presets (`balanced`, `turbo`, `deep_research`) or custom quotas.
-- `list_workspaces` & `create_workspace` — Workspace configuration.
+- `create_workspace` — Create a new workspace.
 - `list_available_models` — Model verification.
 
 ### Claude Desktop Configuration (`claude_desktop_config.json`):

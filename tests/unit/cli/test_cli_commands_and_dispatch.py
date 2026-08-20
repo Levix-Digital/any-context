@@ -272,6 +272,22 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
             self.store.remove_workspace(old_ws)
             self.store.remove_workspace(new_ws)
 
+    def test_13_sources_command_dispatch(self):
+        """Validates that /sources and /sources all execute cleanly in the chat loop."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /sources and /sources all Command Dispatch...\n")
+        ws_test = "cli_sources_test"
+        self.store.add_workspace(ws_test, paths=[])
+        try:
+            mock_inputs = [
+                "/sources",
+                "/sources all",
+                "/exit"
+            ]
+            with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+                run_chat_loop(active_workspace=ws_test)
+            safe_stdout_write("  [OK] /sources and /sources all dispatch verified!\n")
+        finally:
+            self.store.remove_workspace(ws_test)
 
 if __name__ == "__main__":
     unittest.main()

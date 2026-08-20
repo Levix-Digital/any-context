@@ -123,6 +123,7 @@ def show_slash_commands_palette(active_workspace: Optional[str] = None) -> Optio
         "⚡ AnyContext Slash Commands Palette (Choose a command to run):",
         choices=[
             "📂 /switch       - Switch or create active workspace",
+            "📁 /sources      - View all sources (folders, web portals, drives)",
             "✏️ /rename       - Rename a workspace and migrate vector records",
             "🌐 /web          - Ingest, crawl, list, or sync web portals",
             "🔄 /transfer     - Instant zero-cost transfer of folders/websites",
@@ -600,6 +601,42 @@ def run_chat_loop(active_workspace: str = None):
                     print(f"\n⚠️ Could not clear history for workspace '{active_workspace or 'Global'}'.\n")
                 continue
 
+            elif cmd in ["/sources", "/sources all", "/workspace sources", "/sources list"]:
+                store = ConfigDBStore()
+                if cmd == "/sources all":
+                    detailed = store.list_workspaces_detailed()
+                    print("\n📂 All Configured Workspaces & Sources:")
+                    for ws_d in detailed:
+                        src_count = f" ({ws_d['total_sources']} sources)" if ws_d.get('total_sources', 0) > 0 else " (Empty)"
+                        print(f"• \033[93m{ws_d['name']}\033[0m{src_count}:")
+                        for f in ws_d.get("folders", []):
+                            print(f"    - [Folder] {f}")
+                        for w in ws_d.get("web_sources", []):
+                            pages_badge = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
+                            print(f"    - [Web Portal] {w['url']} ({w.get('title') or 'Web Source'}{pages_badge})")
+                        for cd in ws_d.get("cloud_drives", []):
+                            auth_badge = f" • {cd.get('auth_status')}" if cd.get('auth_status') else ""
+                            print(f"    - [Cloud Drive] {cd['provider']}://{cd['mount_path_or_id']} ({cd.get('title') or 'Cloud Drive'}{auth_badge})")
+                        if not ws_d.get("sources"):
+                            print("    - (No sources configured)")
+                    print()
+                else:
+                    ws_detail = store.get_workspace_sources(active_workspace)
+                    src_count = f" ({ws_detail['total_sources']} sources)" if ws_detail.get('total_sources', 0) > 0 else " (Empty)"
+                    print(f"\n📂 Sources for Active Workspace '\033[93m{active_workspace or 'Global'}\033[0m'{src_count}:")
+                    for f in ws_detail.get("folders", []):
+                        print(f"  • [Folder] {f}")
+                    for w in ws_detail.get("web_sources", []):
+                        pages_badge = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
+                        print(f"  • [Web Portal] \033[96m{w.get('title') or w['url']}\033[0m{pages_badge} ({w['url']})")
+                    for cd in ws_detail.get("cloud_drives", []):
+                        auth_badge = f" • {cd.get('auth_status')}" if cd.get('auth_status') else ""
+                        print(f"  • [Cloud Drive] \033[95m{cd.get('title') or cd['mount_path_or_id']}\033[0m ({cd['provider']}://{cd['mount_path_or_id']}{auth_badge})")
+                    if not ws_detail.get("sources"):
+                        print("  (No sources configured yet. Type '/web add <url>' or '/config' to add folders/websites)")
+                    print()
+                continue
+
             elif cmd.startswith("/"):
                 import difflib
                 known_commands = [
@@ -608,7 +645,8 @@ def run_chat_loop(active_workspace: str = None):
                     "/switch", "/model", "/m", "/sync", "/index", "/update", "/check-update",
                     "/reset-memory", "/reset", "/factory-reset", "/config",
                     "/keys", "/billing", "/plans", "/web", "/history", "/clear-history",
-                    "/paste", "/multiline", "/mline", "/transfer", "/move-source"
+                    "/paste", "/multiline", "/mline", "/transfer", "/move-source",
+                    "/sources", "/density"
                 ]
                 typed_cmd = user_input.split()[0]
                 matches = difflib.get_close_matches(typed_cmd.lower(), known_commands, n=1, cutoff=0.45)
