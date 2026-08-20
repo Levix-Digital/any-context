@@ -43,78 +43,36 @@ def display_help_page(page: HelpPage):
     safe_print(f"================================================================================\n")
 
 def show_interactive_help_menu():
-    """Displays an interactive Questionary menu listing all command documentation topics."""
+    """Displays an interactive Questionary menu listing all 22 command documentation topics dynamically."""
     while True:
-        choices = [
-            "📂 /switch (Workspace Switching & Scope Isolation)",
-            "⚡ /sync & /index (Workspace Document Synchronization & Deep Scan)",
-            "🤖 /model (Dynamic AI Model Switching & 9 Providers)",
-            "⚙️ /config (Configuration Menu, AI Models & Workspaces)",
-            "🔑 /api-keys (How to Get API Keys - Guide & Portal Links)",
-            "🌐 /web (Web Scraping & Recurring Polling Engine)",
-            "📷 /ocr (Image & Scanned PDF OCR Ingestion)",
-            "💳 /billing (Subscription Plans, Licensing & Capabilities)",
-            "🤝 /share (Workspace Sharing & Collaboration)",
-            "🔐 /auth & /login (User Accounts, Access Control & Bearer Tokens)",
-            "🚀 --serve (REST API Server & Enterprise VPC Deploy)",
-            "🔌 --mcp (Model Context Protocol for Claude & Cursor)",
-            "🔄 /update (Auto-Updater Engine)",
-            "🧹 /clear & /cls (Clear Screen & Redraw Signature Banner)",
-            "🗑️ /reset-memory (Purge Long-Term Vector Memory)",
-            "💥 /factory-reset (Complete Factory Reset)",
-            "🔙 Return to Chat"
-        ]
+        # Build choices dynamically from registered HelpPages
+        choices_map = {}
+        for key, page in HELP_REGISTRY.items():
+            label = f"{page.title} ({page.command})"
+            choices_map[label] = page
 
-        safe_print("\n\033[93m📖 AnyContext Interactive Manual & Documentation Index\033[0m")
+        sorted_labels = sorted(list(choices_map.keys()))
+        sorted_labels.append("🔙 Return to Chat")
+
+        safe_print("\n\033[93m📖 AnyContext Interactive Manual & Documentation Index (22 Topics)\033[0m")
         choice = questionary.select(
             "Select a command topic to view detailed documentation and usage examples:",
-            choices=choices
+            choices=sorted_labels
         ).ask()
 
         if not choice or choice.startswith("🔙"):
             break
 
-        if choice.startswith("📂"):
-            page = get_help_page("switch")
-        elif choice.startswith("⚡"):
-            page = get_help_page("sync")
-        elif choice.startswith("🤖"):
-            page = get_help_page("model")
-        elif choice.startswith("⚙️"):
-            page = get_help_page("config")
-        elif choice.startswith("🔑"):
-            page = get_help_page("api-keys")
-        elif choice.startswith("🌐"):
-            page = get_help_page("web")
-        elif choice.startswith("📷"):
-            page = get_help_page("ocr")
-        elif choice.startswith("💳"):
-            page = get_help_page("billing")
-        elif choice.startswith("🤝"):
-            page = get_help_page("share")
-        elif choice.startswith("🔐"):
-            page = get_help_page("auth")
-        elif choice.startswith("🚀"):
-            page = get_help_page("serve")
-        elif choice.startswith("🔌"):
-            page = get_help_page("mcp")
-        elif choice.startswith("🔄"):
-            page = get_help_page("update")
-        elif choice.startswith("🧹"):
-            page = get_help_page("clear")
-        elif choice.startswith("🗑️"):
-            page = get_help_page("reset-memory")
-        elif choice.startswith("💥"):
-            page = get_help_page("factory-reset")
-        else:
-            page = None
-
-        if page:
-            display_help_page(page)
+        selected_page = choices_map.get(choice)
+        if selected_page:
+            display_help_page(selected_page)
 
 def handle_command_help_interception(user_input: str) -> bool:
     """
-    Intercepts user inputs ending with --help, -h, /help, or /h, or exact /help / /keys commands.
+    Intercepts user inputs for help commands in both prefix and suffix styles:
+      - Prefix: '/help density', 'help switch', 'actx --help density', 'actx help mcp'
+      - Suffix: '/density --help', '/density -h', 'actx serve --help', '/sync /h'
+      - Exact:  '/help', 'help', '--help', '-h', '/keys', '/api-keys'
     Displays dedicated help page or opens interactive help index. Returns True if intercepted.
     """
     raw_input = user_input.strip()
@@ -135,18 +93,37 @@ def handle_command_help_interception(user_input: str) -> bool:
             display_help_page(page)
             return True
 
-    # Case 3: Subcommand help requested (e.g. '/switch --help', '/config -h', 'actx serve --help', '/login /h')
     parts = clean_input.split()
-    if len(parts) >= 2:
-        last_arg = parts[-1]
-        if last_arg in ["--help", "-h", "/help", "/h", "help"]:
-            target_cmd = parts[0]
-            page = get_help_page(target_cmd)
-            if page:
-                display_help_page(page)
+
+    # Case 3: Leading 'actx' CLI command prefix (e.g. 'actx --help density', 'actx help sync')
+    if parts[0] in ["actx", "anycontext", "any-context", "ac"] and len(parts) >= 2:
+        parts = parts[1:]
+
+    # Case 4: Prefix help syntax (e.g. '/help density', 'help switch', '--help sources', '-h model')
+    if parts[0] in ["/help", "help", "--help", "-h", "/h"] and len(parts) >= 2:
+        target_topic = " ".join(parts[1:]).strip()
+        page = get_help_page(target_topic)
+        if page:
+            display_help_page(page)
+            return True
+        else:
+            safe_print(f"\n⚠️ Command or topic '\033[93m{target_topic}\033[0m' not found in Help manual.")
+            show_interactive_help_menu()
+            return True
+
+    # Case 5: Suffix help flag (e.g. '/switch --help', '/config -h', 'serve --help', '/login /h')
+    if len(parts) >= 2 and parts[-1] in ["--help", "-h", "/help", "/h", "help"]:
+        target_topic = " ".join(parts[:-1]).strip()
+        page = get_help_page(target_topic)
+        if page:
+            display_help_page(page)
+            return True
+        else:
+            page_single = get_help_page(parts[0])
+            if page_single:
+                display_help_page(page_single)
                 return True
-            else:
-                show_interactive_help_menu()
-                return True
+            show_interactive_help_menu()
+            return True
 
     return False
