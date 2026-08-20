@@ -21,7 +21,7 @@ class TestCLIHelpRegistry(unittest.TestCase):
             "switch", "sync", "model", "api-keys", "web", "ocr",
             "billing", "update", "config", "auth", "share",
             "serve", "mcp", "reset-memory", "clear", "factory-reset", "history", "paste", "transfer",
-            "density", "rename", "sources"
+            "density", "rename", "sources", "mode"
         ]
 
         for cmd in expected_commands:
@@ -55,6 +55,10 @@ class TestCLIHelpRegistry(unittest.TestCase):
         self.assertEqual(get_help_page("/workspace sources"), get_help_page("sources"))
         self.assertEqual(get_help_page("listsources"), get_help_page("sources"))
         self.assertEqual(get_help_page("workspace-list"), get_help_page("sources"))
+        self.assertEqual(get_help_page("/mode"), get_help_page("mode"))
+        self.assertEqual(get_help_page("/answer-mode"), get_help_page("mode"))
+        self.assertEqual(get_help_page("grounding"), get_help_page("mode"))
+        self.assertEqual(get_help_page("/am"), get_help_page("mode"))
         safe_stdout_write("  [OK] Help alias resolution verified across all shortcuts!\n")
 
     def test_03_prefix_and_suffix_help_interception(self):

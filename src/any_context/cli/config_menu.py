@@ -81,6 +81,7 @@ def show_config_menu():
             choices=[
                 "📂 Workspaces & Folders Management (List / Add / Delete Folders)",
                 "🤝 Workspace Sharing & Collaboration (Google Drive Style)",
+                "🎛️ AI Grounding & Answer Modes (Hybrid / Strict / Proactive)",
                 "🔍 Context Retrieval Density & RAG Presets (Balanced / Turbo / Deep Research)",
                 "🤖 AI Models, Base URL & API Keys",
                 "🔑 Manage Saved API Keys",
@@ -99,6 +100,8 @@ def show_config_menu():
             _manage_workspaces(store)
         elif choice.startswith("🤝"):
             _manage_workspace_sharing(store)
+        elif choice.startswith("🎛️"):
+            _manage_grounding_mode(store)
         elif choice.startswith("🔍"):
             _manage_retrieval_density(store)
         elif choice.startswith("🤖"):
@@ -791,6 +794,43 @@ def _manage_workspace_sharing(store: ConfigDBStore):
                     print(f"• Path: {tf['folder_path']}")
                     print(f"  Status: {status_color}{tf['tag']}\033[0m")
             print("--------------------------------------------------\n")
+
+
+def _manage_grounding_mode(store: ConfigDBStore):
+    current_mode = store.get_grounding_mode()
+    mode_titles = {
+        "hybrid": "⚖️ Hybrid (Default - Workspace facts + clearly labeled suggestions)",
+        "strict": "🛡️ Strict (Audit & Legal - 100% grounded to indexed documents, zero speculation)",
+        "proactive": "🚀 Proactive (Research & Ideation - Broad synthesis, insights & web recommendations)"
+    }
+
+    print("\n=======================================================")
+    print("🎛️ AI Grounding & Answer Modes")
+    print("=======================================================")
+    print(f"Current Active Mode : \033[93m{current_mode.upper()}\033[0m")
+    print(f"Description         : {mode_titles.get(current_mode, current_mode)}")
+    print("=======================================================\n")
+
+    choices = [
+        f"⚖️ Hybrid (Default - Facts from workspace + labeled suggestions){'  [Active]' if current_mode == 'hybrid' else ''}",
+        f"🛡️ Strict (Audit & Legal - 100% grounded to indexed documents, zero speculation){'  [Active]' if current_mode == 'strict' else ''}",
+        f"🚀 Proactive (Research & Ideation - Broad synthesis, insights & web recommendations){'  [Active]' if current_mode == 'proactive' else ''}",
+        "🔙 Back"
+    ]
+
+    choice = questionary.select("Select AI Grounding & Answer Mode:", choices=choices).ask()
+    if not choice or choice.startswith("🔙"):
+        return
+
+    if choice.startswith("🛡️"):
+        new_mode = "strict"
+    elif choice.startswith("🚀"):
+        new_mode = "proactive"
+    else:
+        new_mode = "hybrid"
+
+    saved = store.set_grounding_mode(new_mode)
+    print(f"\n✅ AI Grounding Mode updated to: \033[92m{saved.capitalize()}\033[0m!\n")
 
 
 def _manage_retrieval_density(store: ConfigDBStore):

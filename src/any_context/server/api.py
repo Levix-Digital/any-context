@@ -148,11 +148,14 @@ class ChatRequest(BaseModel):
     workspace: Optional[str] = Field(None, description="Target workspace name (optional)")
     thread_id: Optional[str] = Field(None, description="Session thread ID for conversation context continuity")
     model: Optional[str] = Field(None, description="Optional inference model override on-the-fly (e.g. 'gpt-4o', 'claude-3-5-sonnet-20241022', 'deepseek-chat')")
+    grounding_mode: Optional[str] = Field(None, description="Optional AI grounding mode override: 'hybrid', 'strict', 'proactive'")
+    mode: Optional[str] = Field(None, description="Alias for grounding_mode ('hybrid', 'strict', 'proactive')")
 
 class ChatResponse(BaseModel):
     thread_id: str
     workspace: Optional[str]
     model_used: str
+    grounding_mode: str = "hybrid"
     reply: str
 
 class ModelDTO(BaseModel):
@@ -163,6 +166,13 @@ class ModelDTO(BaseModel):
 class AvailableModelsResponse(BaseModel):
     active_default: str
     available_models: List[ModelDTO]
+
+class GroundingModeDTO(BaseModel):
+    mode: str = Field("hybrid", description="Active AI grounding mode: 'hybrid', 'strict', or 'proactive'")
+    available_modes: List[str] = Field(default_factory=lambda: ["hybrid", "strict", "proactive"])
+
+class UpdateGroundingModeRequest(BaseModel):
+    mode: str = Field(..., description="Target grounding mode: 'hybrid', 'strict', or 'proactive'")
 
 class SearchRequest(BaseModel):
     query: str = Field(..., description="Search query string")
@@ -181,12 +191,14 @@ class ContextRetrievalSettingsDTO(BaseModel):
     max_chunks_per_source: int = Field(3, description="Maximum chunks allowed per unique document/URL to enforce cross-source diversity")
     chunk_size: int = 1024
     chunk_overlap: int = 200
+    grounding_mode: str = Field("hybrid", description="Active AI Grounding Mode: 'hybrid', 'strict', 'proactive'")
 
 class UpdateRetrievalPresetRequest(BaseModel):
     preset: Optional[str] = Field(None, description="Preset name: 'balanced', 'turbo', 'deep_research', or 'custom'")
     top_k: Optional[int] = Field(None, description="Custom target top_k (if custom)")
     candidate_pool_size: Optional[int] = Field(None, description="Custom candidate pool size (if custom)")
     max_chunks_per_source: Optional[int] = Field(None, description="Custom max chunks per source (if custom)")
+    grounding_mode: Optional[str] = Field(None, description="Optional grounding mode: 'hybrid', 'strict', 'proactive'")
 
 class IndexRequest(BaseModel):
     workspace: Optional[str] = Field(None, description="Workspace name to re-index. If omitted, indexes all workspaces.")
@@ -634,12 +646,23 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
             }
         }
 
+        # Resolve grounding mode
+        store = ConfigDBStore()
+        effective_mode = req.grounding_mode or req.mode
+        if not effective_mode:
+            effective_mode = store.get_grounding_mode()
+        else:
+            effective_mode = effective_mode.lower().strip()
+            if effective_mode not in ["hybrid", "strict", "proactive"]:
+                effective_mode = "hybrid"
+
         try:
             full_response = ""
             agent_instance = create_anycontext_agent(
                 active_workspace=req.workspace, 
                 checkpointer=saver,
-                model_override=effective_model
+                model_override=effective_model,
+                grounding_mode=effective_mode
             )
             for token, metadata in agent_instance.stream(
                 {"messages": [req.message]},
@@ -655,6 +678,7 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                 thread_id=thread_id,
                 workspace=req.workspace,
                 model_used=effective_model,
+                grounding_mode=effective_mode,
                 reply=full_response.strip()
             )
         except Exception as e:
@@ -670,6 +694,20 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                 }
             )
 
+    @app.get("/v1/context/mode", response_model=GroundingModeDTO, tags=["Knowledge Base"])
+    def get_grounding_mode_endpoint(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials)
+        store = ConfigDBStore()
+        mode = store.get_grounding_mode()
+        return GroundingModeDTO(mode=mode)
+
+    @app.post("/v1/context/mode", response_model=GroundingModeDTO, tags=["Knowledge Base"])
+    def set_grounding_mode_endpoint(req: UpdateGroundingModeRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        saved = store.set_grounding_mode(req.mode)
+        return GroundingModeDTO(mode=saved)
+
     @app.get("/v1/context/settings", response_model=ContextRetrievalSettingsDTO, tags=["Knowledge Base"])
     def get_context_settings_endpoint(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
         verify_token_access(credentials=credentials)
@@ -684,7 +722,8 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
             candidate_pool_size=ctx.candidate_pool_size,
             max_chunks_per_source=ctx.max_chunks_per_source,
             chunk_size=ctx.chunk_size,
-            chunk_overlap=ctx.chunk_overlap
+            chunk_overlap=ctx.chunk_overlap,
+            grounding_mode=getattr(ctx, "grounding_mode", "hybrid")
         )
 
     @app.post("/v1/context/settings", response_model=ContextRetrievalSettingsDTO, tags=["Knowledge Base"])
@@ -707,6 +746,10 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         if req.max_chunks_per_source is not None:
             ctx.max_chunks_per_source = req.max_chunks_per_source
             ctx.retrieval_preset = "custom"
+        if req.grounding_mode is not None:
+            clean_mode = req.grounding_mode.lower().strip()
+            if clean_mode in ["hybrid", "strict", "proactive"]:
+                ctx.grounding_mode = clean_mode
 
         store.update_context_settings(ctx)
         return ContextRetrievalSettingsDTO(
@@ -715,7 +758,8 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
             candidate_pool_size=ctx.candidate_pool_size,
             max_chunks_per_source=ctx.max_chunks_per_source,
             chunk_size=ctx.chunk_size,
-            chunk_overlap=ctx.chunk_overlap
+            chunk_overlap=ctx.chunk_overlap,
+            grounding_mode=getattr(ctx, "grounding_mode", "hybrid")
         )
 
     @app.post("/v1/search", response_model=SearchResponse, tags=["Knowledge Base"])

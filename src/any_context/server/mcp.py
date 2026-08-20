@@ -28,13 +28,14 @@ MCP_TOOLS_DEFINITIONS = [
     },
     {
         "name": "query_anycontext_agent",
-        "description": "Sends a prompt/question to AnyContext AI Agent with automatic RAG search, 3-level session memory, and optional on-the-fly model switching.",
+        "description": "Sends a prompt/question to AnyContext AI Agent with automatic RAG search, 3-level session memory, grounding mode directives, and optional on-the-fly model switching.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "message": {"type": "string", "description": "User instruction or prompt"},
                 "workspace": {"type": "string", "description": "Target workspace name (optional)"},
-                "model": {"type": "string", "description": "Optional inference model override on-the-fly (e.g. 'gpt-4o', 'claude-3-5-sonnet-20241022', 'deepseek-chat')"}
+                "model": {"type": "string", "description": "Optional inference model override on-the-fly (e.g. 'gpt-4o', 'claude-3-5-sonnet-20241022', 'deepseek-chat')"},
+                "grounding_mode": {"type": "string", "enum": ["hybrid", "strict", "proactive"], "description": "Optional AI grounding mode: 'hybrid' (default dual-layer), 'strict' (100% verified facts, zero speculation), 'proactive' (broad synthesis & research recommendations)"}
             },
             "required": ["message"]
         }
@@ -320,6 +321,26 @@ MCP_TOOLS_DEFINITIONS = [
             },
             "required": []
         }
+    },
+    {
+        "name": "get_grounding_mode",
+        "description": "Retrieves the active AI Grounding & Answer Mode ('hybrid', 'strict', or 'proactive').",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "set_grounding_mode",
+        "description": "Sets the active AI Grounding Mode: 'hybrid' (default dual-layer), 'strict' (100% verified facts, zero speculation), or 'proactive' (broad synthesis & research recommendations).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["hybrid", "strict", "proactive"], "description": "Target grounding mode ('hybrid', 'strict', 'proactive')"}
+            },
+            "required": ["mode"]
+        }
     }
 ]
 
@@ -369,13 +390,15 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 msg = arguments.get("message", "")
                 ws = arguments.get("workspace")
                 model_req = arguments.get("model")
+                grounding_mode = arguments.get("grounding_mode") or arguments.get("mode")
                 thread_id = f"mcp_chat_{uuid.uuid4()}"
                 config = {
                     "configurable": {
                         "thread_id": thread_id, 
                         "active_workspace": ws,
                         "model": model_req,
-                        "model_override": model_req
+                        "model_override": model_req,
+                        "grounding_mode": grounding_mode
                     }
                 }
                 
@@ -611,7 +634,8 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                         "candidate_pool_size": ctx.candidate_pool_size,
                         "max_chunks_per_source": ctx.max_chunks_per_source,
                         "chunk_size": ctx.chunk_size,
-                        "chunk_overlap": ctx.chunk_overlap
+                        "chunk_overlap": ctx.chunk_overlap,
+                        "grounding_mode": getattr(ctx, "grounding_mode", "hybrid")
                     }, indent=2)
 
             elif tool_name == "set_context_retrieval_preset":
@@ -645,8 +669,32 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                         "retrieval_preset": ctx.retrieval_preset,
                         "top_k": ctx.top_k,
                         "candidate_pool_size": ctx.candidate_pool_size,
-                        "max_chunks_per_source": ctx.max_chunks_per_source
+                        "max_chunks_per_source": ctx.max_chunks_per_source,
+                        "grounding_mode": getattr(ctx, "grounding_mode", "hybrid")
                     }, indent=2)
+
+            elif tool_name == "get_grounding_mode":
+                store = ConfigDBStore()
+                mode = store.get_grounding_mode()
+                result_text = json.dumps({
+                    "grounding_mode": mode,
+                    "available_modes": ["hybrid", "strict", "proactive"],
+                    "description": {
+                        "hybrid": "Balanced default: facts from workspace + labeled external suggestions",
+                        "strict": "Audit & Legal: 100% verified facts from indexed docs, zero speculation",
+                        "proactive": "Research & Strategy: broad synthesis, strategic insights & web recommendations"
+                    }
+                }, indent=2)
+
+            elif tool_name == "set_grounding_mode":
+                store = ConfigDBStore()
+                mode_arg = arguments.get("mode", "hybrid")
+                saved = store.set_grounding_mode(mode_arg)
+                result_text = json.dumps({
+                    "status": "success",
+                    "grounding_mode": saved,
+                    "message": f"AI Grounding & Answer Mode set to '{saved}'."
+                }, indent=2)
 
             else:
                 result_text = f"Error: Tool '{tool_name}' not found."

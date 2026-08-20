@@ -20,11 +20,12 @@ def create_anycontext_agent(
     active_workspace: str = None, 
     checkpointer=None,
     model_override: str = None,
-    provider_override: str = None
+    provider_override: str = None,
+    grounding_mode: str = None
 ):
     """
     Dynamically creates an AnyContext AI Agent with temperature=0.0 for deterministic RAG synthesis,
-    active workspace context awareness, on-the-fly model switching, and fresh configuration.
+    active workspace context awareness, on-the-fly model switching, grounding mode directives, and fresh configuration.
     """
     from any_context.core.models_catalog import infer_provider_for_model
 
@@ -74,7 +75,7 @@ def create_anycontext_agent(
 
     model = init_chat_model(**init_kwargs)
 
-    system_prompt = get_system_prompt(active_workspace=active_workspace)
+    system_prompt = get_system_prompt(active_workspace=active_workspace, grounding_mode=grounding_mode)
 
     return create_agent(
         model=model,
@@ -90,20 +91,24 @@ class LazyAgentProxy:
     def stream(self, input_data, stream_mode="messages", config=None):
         active_ws = config.get("configurable", {}).get("active_workspace") if config else None
         model_override = config.get("configurable", {}).get("model") or config.get("configurable", {}).get("model_override") if config else None
+        grounding_override = config.get("configurable", {}).get("grounding_mode") or config.get("configurable", {}).get("mode") if config else None
         agent_inst = create_anycontext_agent(
             active_workspace=active_ws, 
             checkpointer=self.checkpointer,
-            model_override=model_override
+            model_override=model_override,
+            grounding_mode=grounding_override
         )
         return agent_inst.stream(input_data, stream_mode=stream_mode, config=config)
 
     def invoke(self, input_data, config=None):
         active_ws = config.get("configurable", {}).get("active_workspace") if config else None
         model_override = config.get("configurable", {}).get("model") or config.get("configurable", {}).get("model_override") if config else None
+        grounding_override = config.get("configurable", {}).get("grounding_mode") or config.get("configurable", {}).get("mode") if config else None
         agent_inst = create_anycontext_agent(
             active_workspace=active_ws, 
             checkpointer=self.checkpointer,
-            model_override=model_override
+            model_override=model_override,
+            grounding_mode=grounding_override
         )
         return agent_inst.invoke(input_data, config=config)
 

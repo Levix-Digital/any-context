@@ -151,6 +151,7 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/paste`** | `/multiline`, `/mline` | Open dedicated multi-line paste capture mode. |
 | **`/transfer`** | `/move-source` | Instant zero-cost transfer of folders or web portals between workspaces. |
 | **`/sources`** | `/workspace sources`| List all data sources (local folders, web portals, cloud drives) in active workspace. |
+| **`/mode [mode]`** | `/answer-mode`, `/am` | Switch AI grounding mode: **`Hybrid`** (default dual-layer), **`Strict`** (100% verified facts), or **`Proactive`** (research & synthesis). |
 | **`/switch [name]`** | `/workspace`, `-w` | Switch active workspace or create a new empty workspace on the fly. |
 | **`/sync`** | `/index`, `-s` | Synchronize workspace files incrementally (single-line clean mode). |
 | **`/sync -v`** | `/index --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
@@ -393,7 +394,8 @@ actx --serve --host 0.0.0.0 --port 8000
 Access the interactive OpenAPI / Swagger UI at: **`http://127.0.0.1:8000/docs`**.
 
 Key API Endpoints include:
-- `POST /v1/chat` — Streaming & non-streaming AI Agent queries with RAG & memory.
+- `POST /v1/chat` — Streaming & non-streaming AI Agent queries with RAG, session memory, and optional `grounding_mode` (`"hybrid"`, `"strict"`, `"proactive"`).
+- `GET /v1/context/mode` & `POST /v1/context/mode` — Inspect and configure active AI Grounding & Answer Mode.
 - `GET /v1/workspaces` — Lists all workspaces with complete source breakdown (`folders`, `web_sources`, `cloud_drives`, and unified `sources`).
 - `GET /v1/workspaces/{name}` & `GET /v1/workspaces/{name}/sources` — Detailed workspace sources inspection.
 - `POST /v1/workspaces` — Create workspace (with or without initial folders).
@@ -437,7 +439,8 @@ actx --mcp
 
 ### Registered MCP Tools:
 - `search_workspace_docs` — Vector semantic search across indexed files.
-- `query_anycontext_agent` — Direct RAG query with 3-level session memory.
+- `query_anycontext_agent` — Direct RAG query with 3-level session memory and optional `grounding_mode`.
+- `get_grounding_mode` & `set_grounding_mode` — Inspect and switch active AI Grounding Mode (`hybrid`, `strict`, `proactive`).
 - `list_workspaces` — Lists all configured workspaces along with all their associated sources (local folders, web portals, cloud drives).
 - `get_workspace_sources` — Retrieves detailed sources breakdown for a specific workspace.
 - `transfer_workspace_source` — Zero-cost instant data source transfer (folders/websites) between workspaces.

@@ -815,6 +815,40 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Cloud drives (Google Drive, OneDrive, S3, Dropbox) display connection status and sync metadata.",
             "REST API responses return both legacy 'paths' and rich 'folders', 'web_sources', 'cloud_drives', and 'sources' arrays."
         ]
+    ),
+    "mode": HelpPage(
+        command="/mode",
+        aliases=["mode", "answer-mode", "answermode", "grounding", "grounding-mode", "am", "/answer-mode", "/grounding", "/am"],
+        title="🎛️ AI Grounding & Answer Mode Manager (Hybrid, Strict, Proactive)",
+        description="Dynamically configures how the AI Agent reasons, cites sources, and handles external knowledge. Switch seamlessly between Strict (100% verified facts, zero speculation for audits/legal), Hybrid (balanced default with dual-layer labeled suggestions), and Proactive (broad synthesis & research recommendations).",
+        syntax="/mode [hybrid | strict | proactive]",
+        parameters=[
+            "/mode                    : Opens the interactive Questionary selector to change grounding mode.",
+            "/mode hybrid             : Switches to Hybrid mode (Layer 1 workspace facts + Layer 2 labeled external suggestions).",
+            "/mode strict             : Switches to Strict mode (100% verified facts from indexed docs, zero speculation).",
+            "/mode proactive          : Switches to Proactive mode (Broad synthesis, insights, and /web add recommendations).",
+            "--help, -h               : Display this detailed help page for /mode."
+        ],
+        examples=[
+            "In Chat: /mode",
+            "In Chat: /mode strict",
+            "In Chat: /mode hybrid",
+            "In Chat: /mode proactive",
+            "In Chat: /answer-mode strict",
+            "REST API: GET /v1/context/mode",
+            "REST API: POST /v1/context/mode -d '{\"mode\": \"strict\"}'",
+            "REST API: POST /v1/chat -d '{\"message\": \"...\", \"grounding_mode\": \"strict\"}'",
+            "In MCP Server: set_grounding_mode(mode='strict')",
+            "In MCP Server: get_grounding_mode()",
+            "In MCP Server: query_anycontext_agent(message='...', grounding_mode='strict')"
+        ],
+        tips=[
+            "The active grounding mode is displayed dynamically in your prompt: You [Workspace | Model | Mode]:",
+            "Use 'Strict' for contracts, compliance audits, medical/legal queries, and formal reports.",
+            "Use 'Hybrid' (default) for everyday consulting, software development, and document analysis.",
+            "Use 'Proactive' for market research, brainstorm sessions, and strategy planning.",
+            "Changing the mode immediately invalidates the agent cache and reconfigures system directives without restarting the session."
+        ]
     )
 }
 
