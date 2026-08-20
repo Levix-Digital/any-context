@@ -57,5 +57,44 @@ class TestCLIHelpRegistry(unittest.TestCase):
         self.assertEqual(get_help_page("workspace-list"), get_help_page("sources"))
         safe_stdout_write("  [OK] Help alias resolution verified across all shortcuts!\n")
 
+    def test_03_prefix_and_suffix_help_interception(self):
+        """Tests that prefix (/help <cmd>, actx --help <cmd>) and suffix (<cmd> --help, -h) intercept cleanly."""
+        safe_stdout_write(">>> [CLI UNIT] Testing Prefix & Suffix Help Interception...\n")
+        from any_context.help.manager import handle_command_help_interception
+        from unittest.mock import patch
+
+        with patch("any_context.help.manager.display_help_page") as mock_display:
+            # 1. Prefix tests (/help density, help switch, actx --help sources)
+            self.assertTrue(handle_command_help_interception("/help density"))
+            self.assertTrue(mock_display.called)
+            mock_display.reset_mock()
+
+            self.assertTrue(handle_command_help_interception("help switch"))
+            self.assertTrue(mock_display.called)
+            mock_display.reset_mock()
+
+            self.assertTrue(handle_command_help_interception("actx --help density"))
+            self.assertTrue(mock_display.called)
+            mock_display.reset_mock()
+
+            self.assertTrue(handle_command_help_interception("actx help sources"))
+            self.assertTrue(mock_display.called)
+            mock_display.reset_mock()
+
+            # 2. Suffix tests (/density --help, /sync -h, actx serve --help)
+            self.assertTrue(handle_command_help_interception("/density --help"))
+            self.assertTrue(mock_display.called)
+            mock_display.reset_mock()
+
+            self.assertTrue(handle_command_help_interception("/sources -h"))
+            self.assertTrue(mock_display.called)
+            mock_display.reset_mock()
+
+            self.assertTrue(handle_command_help_interception("actx serve --help"))
+            self.assertTrue(mock_display.called)
+            mock_display.reset_mock()
+
+        safe_stdout_write("  [OK] Prefix and suffix help interception verified for all command styles!\n")
+
 if __name__ == "__main__":
     unittest.main()
