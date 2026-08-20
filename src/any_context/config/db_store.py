@@ -331,9 +331,12 @@ class ConfigDBStore:
     def remove_workspace(self, workspace_name: str) -> bool:
         """Deletes a workspace entry and all its associated source records completely from SQLite."""
         clean_ws = workspace_name.strip()
+        if clean_ws.lower() in ["default", "global"]:
+            return False
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM workspaces WHERE name = ?", (clean_ws,))
+            cursor.execute("DELETE FROM workspaces WHERE name = ? AND LOWER(name) NOT IN ('default', 'global')", (clean_ws,))
             deleted_count = cursor.rowcount
             try:
                 cursor.execute("DELETE FROM workspace_folders WHERE workspace_name = ?", (clean_ws,))
@@ -490,6 +493,10 @@ class ConfigDBStore:
             return {"success": False, "error": "New workspace name cannot be empty."}
         if old_ws == new_ws:
             return {"success": False, "error": "New workspace name must be different from current name."}
+        if old_ws.lower() in ["default", "global"]:
+            return {"success": False, "error": f"Workspace '{old_ws}' is a protected system workspace and cannot be renamed."}
+        if new_ws.lower() in ["default", "global"]:
+            return {"success": False, "error": f"Cannot rename to protected system workspace '{new_ws}'."}
 
         # 1. Update SQLite tables atomically
         with self._get_connection() as conn:

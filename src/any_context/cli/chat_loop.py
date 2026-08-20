@@ -160,7 +160,11 @@ def parse_command_args(command_line: str) -> List[str]:
         return [p.strip().strip("'\"") for p in command_line.strip().split() if p.strip()]
 
 
-def run_chat_loop(active_workspace: str = None):
+def run_chat_loop(active_workspace: str = "Default"):
+    active_workspace = (active_workspace or "Default").strip()
+    if not active_workspace:
+        active_workspace = "Default"
+
     thread_id = f"chat_{uuid.uuid4()}"
     config = {
         "configurable": {
@@ -201,7 +205,7 @@ def run_chat_loop(active_workspace: str = None):
             else:
                 mode_color = "\033[96m" # Cyan for Hybrid
 
-            prompt_ws = f"\033[93m{active_workspace}\033[96m" if active_workspace else "Global"
+            prompt_ws = f"\033[93m{active_workspace}\033[96m"
             prompt_str = f"You [{prompt_ws} | \033[95m{current_model}\033[96m | {mode_color}{mode_display}\033[96m]"
             raw_input = safe_prompt_input(f"\n\033[96m👤 {prompt_str}:\033[0m ", workspace_name=active_workspace)
             if raw_input is None:
@@ -420,9 +424,9 @@ def run_chat_loop(active_workspace: str = None):
                 if len(parts) < 3 or (len(parts) > 1 and parts[1].lower() == "rename" and len(parts) < 4):
                     # Interactive guided rename wizard
                     settings = store.get_app_settings()
-                    known_workspaces = [w.name for w in settings.workspaces] if settings else []
+                    known_workspaces = [w.name for w in settings.workspaces if w.name.lower() not in ["default", "global"]] if settings else []
                     if not known_workspaces:
-                        safe_stdout_write("\n⚠️ No workspaces configured to rename.\n\n")
+                        safe_stdout_write("\n⚠️ No custom workspaces configured to rename ('Default' and 'Global' are protected system workspaces).\n\n")
                         continue
                     old_ws = questionary.select("Select Workspace to rename:", choices=known_workspaces).ask()
                     if not old_ws:
@@ -435,6 +439,13 @@ def run_chat_loop(active_workspace: str = None):
                     arg_offset = 2 if len(parts) > 1 and parts[1].lower() == "rename" else 1
                     old_ws = parts[arg_offset]
                     clean_new_ws = parts[arg_offset + 1].strip().strip("'\"")
+
+                if old_ws.lower() in ["default", "global"]:
+                    safe_stdout_write(f"\n❌ Error renaming workspace: Workspace '{old_ws}' is a protected system workspace and cannot be renamed.\n\n")
+                    continue
+                if clean_new_ws.lower() in ["default", "global"]:
+                    safe_stdout_write(f"\n❌ Error renaming workspace: Cannot rename to protected system workspace '{clean_new_ws}'.\n\n")
+                    continue
 
                 with Spinner(f"Renaming workspace '{old_ws}' to '{clean_new_ws}'..."):
                     res = store.rename_workspace(old_name=old_ws, new_name=clean_new_ws)

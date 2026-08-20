@@ -276,8 +276,8 @@ def get_active_workspace() -> str:
 
     ensure_api_key_configured()
     
-    if args.workspace:
-        return args.workspace
+    if args.workspace and args.workspace.strip():
+        return args.workspace.strip()
         
-    return show_workspace_menu()
+    return "Default"
 
