@@ -663,14 +663,19 @@ def run_chat_loop(active_workspace: str = None):
                     for ws_d in detailed:
                         src_count = f" ({ws_d['total_sources']} sources)" if ws_d.get('total_sources', 0) > 0 else " (Empty)"
                         print(f"• \033[93m{ws_d['name']}\033[0m{src_count}:")
-                        for f in ws_d.get("folders", []):
-                            print(f"    - [Folder] {f}")
-                        for w in ws_d.get("web_sources", []):
-                            pages_badge = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
-                            print(f"    - [Web] {w['url']} ({w.get('title') or 'Web Source'}{pages_badge})")
-                        for cd in ws_d.get("cloud_drives", []):
-                            auth_badge = f" • {cd.get('auth_status')}" if cd.get('auth_status') else ""
-                            print(f"    - [Drive] {cd['provider']}://{cd['mount_path_or_id']} ({cd.get('title') or 'Cloud Drive'}{auth_badge})")
+                        for s in ws_d.get("sources", []):
+                            stype = s.get("type", "")
+                            if stype == "folder":
+                                print(f"    - [Folder] {s.get('identifier')}")
+                            elif stype == "web":
+                                p_cnt = s.get("details", {}).get("page_count", 1)
+                                pages_badge = f" • {p_cnt} pages" if p_cnt > 1 else ""
+                                print(f"    - [Web] {s.get('identifier')} ({s.get('title') or 'Web Source'}{pages_badge})")
+                            elif stype == "cloud_drive":
+                                auth_st = s.get("details", {}).get("auth_status", "")
+                                prov = s.get("details", {}).get("provider", "drive")
+                                auth_badge = f" • {auth_st}" if auth_st else ""
+                                print(f"    - [Drive] {prov}://{s.get('identifier')} ({s.get('title') or 'Cloud Drive'}{auth_badge})")
                         if not ws_d.get("sources"):
                             print("    - (No sources configured)")
                     print()
@@ -678,14 +683,19 @@ def run_chat_loop(active_workspace: str = None):
                     ws_detail = store.get_workspace_sources(active_workspace)
                     src_count = f" ({ws_detail['total_sources']} sources)" if ws_detail.get('total_sources', 0) > 0 else " (Empty)"
                     print(f"\n📂 Sources for Active Workspace '\033[93m{active_workspace or 'Global'}\033[0m'{src_count}:")
-                    for f in ws_detail.get("folders", []):
-                        print(f"  • [Folder] {f}")
-                    for w in ws_detail.get("web_sources", []):
-                        pages_badge = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
-                        print(f"  • [Web] \033[96m{w.get('title') or w['url']}\033[0m{pages_badge} ({w['url']})")
-                    for cd in ws_detail.get("cloud_drives", []):
-                        auth_badge = f" • {cd.get('auth_status')}" if cd.get('auth_status') else ""
-                        print(f"  • [Drive] \033[95m{cd.get('title') or cd['mount_path_or_id']}\033[0m ({cd['provider']}://{cd['mount_path_or_id']}{auth_badge})")
+                    for s in ws_detail.get("sources", []):
+                        stype = s.get("type", "")
+                        if stype == "folder":
+                            print(f"  • [Folder] {s.get('identifier')}")
+                        elif stype == "web":
+                            p_cnt = s.get("details", {}).get("page_count", 1)
+                            pages_badge = f" • {p_cnt} pages" if p_cnt > 1 else ""
+                            print(f"  • [Web] \033[96m{s.get('title') or s.get('identifier')}\033[0m{pages_badge} ({s.get('identifier')})")
+                        elif stype == "cloud_drive":
+                            auth_st = s.get("details", {}).get("auth_status", "")
+                            prov = s.get("details", {}).get("provider", "drive")
+                            auth_badge = f" • {auth_st}" if auth_st else ""
+                            print(f"  • [Drive] \033[95m{s.get('title') or s.get('identifier')}\033[0m ({prov}://{s.get('identifier')}{auth_badge})")
                     if not ws_detail.get("sources"):
                         print("  (No sources configured yet. Type '/web add <url>' or '/config' to add folders/websites)")
                     print()

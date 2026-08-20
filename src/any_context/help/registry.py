@@ -811,9 +811,10 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "In MCP Server: get_workspace_sources(workspace='Legal')"
         ],
         tips=[
+            "Workspaces now feature unique immutable workspace_ids (e.g. 'ws_default', 'ws_3d3fa3') preserving permissions across renames.",
             "Web portals display page count, crawl scope, and last scraped timestamp.",
             "Cloud drives (Google Drive, OneDrive, S3, Dropbox) display connection status and sync metadata.",
-            "REST API responses return both legacy 'paths' and rich 'folders', 'web_sources', 'cloud_drives', and 'sources' arrays."
+            "REST API responses return a clean, unified, non-redundant 'sources' array with explicit 'type' tags ('folder', 'web', 'cloud_drive')."
         ]
     ),
     "mode": HelpPage(

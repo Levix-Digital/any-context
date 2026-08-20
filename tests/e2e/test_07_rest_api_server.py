@@ -73,10 +73,9 @@ class Test07RestApiServer(unittest.TestCase):
         self.assertEqual(res_create.status_code, 200)
         create_data = res_create.json()
         self.assertEqual(create_data["name"], "E2E_Empty_Workspace")
-        self.assertEqual(create_data["paths"], [])
-        self.assertIn("web_sources", create_data)
-        self.assertIn("cloud_drives", create_data)
-        self.assertIn("sources", create_data)
+        self.assertIn("id", create_data)
+        self.assertEqual(create_data["sources"], [])
+        self.assertEqual(create_data["total_sources"], 0)
 
         # 2. Add web source via WebSchedulerStore
         from any_context.ingestion.web_scheduler import WebSchedulerStore
@@ -111,24 +110,27 @@ class Test07RestApiServer(unittest.TestCase):
 
         target_ws_dto = next((w for w in workspaces if w["name"] == self.test_ws), None)
         self.assertIsNotNone(target_ws_dto)
-        self.assertGreaterEqual(len(target_ws_dto["web_sources"]), 1)
-        self.assertEqual(target_ws_dto["web_sources"][0]["url"], "https://canada.ca/en/immigration")
-        self.assertGreaterEqual(len(target_ws_dto["cloud_drives"]), 1)
-        self.assertEqual(target_ws_dto["cloud_drives"][0]["provider"], "google_drive")
+        self.assertIn("id", target_ws_dto)
         self.assertGreaterEqual(target_ws_dto["total_sources"], 2)
+        source_types = {s["type"] for s in target_ws_dto["sources"]}
+        self.assertIn("web", source_types)
+        self.assertIn("cloud_drive", source_types)
 
         # 5. Get Workspace Detail & Sources endpoints
         res_single = self.client.get(f"/v1/workspaces/{self.test_ws}", headers=self.headers)
         self.assertEqual(res_single.status_code, 200)
         single_data = res_single.json()
         self.assertEqual(single_data["name"], self.test_ws)
-        self.assertGreaterEqual(len(single_data["web_sources"]), 1)
+        self.assertIn("id", single_data)
+        self.assertGreaterEqual(len(single_data["sources"]), 2)
 
         res_sources = self.client.get(f"/v1/workspaces/{self.test_ws}/sources", headers=self.headers)
         self.assertEqual(res_sources.status_code, 200)
         src_breakdown = res_sources.json()
-        self.assertEqual(src_breakdown["workspace"], self.test_ws)
+        self.assertEqual(src_breakdown["name"], self.test_ws)
+        self.assertIn("id", src_breakdown)
         self.assertGreaterEqual(src_breakdown["total_sources"], 2)
+        self.assertGreaterEqual(len(src_breakdown["sources"]), 2)
 
         # 6. Delete cloud drive
         res_del_cd = self.client.delete(f"/v1/workspaces/{self.test_ws}/cloud-drives/{drive_id}", headers=self.headers)

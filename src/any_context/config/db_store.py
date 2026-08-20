@@ -4,6 +4,7 @@ import json
 import sqlite3
 import hashlib
 import secrets
+import uuid
 from typing import Optional, List, Dict, Any
 from any_context.config.app_settings import (
     AppSettings,
@@ -85,10 +86,21 @@ class ConfigDBStore:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS workspaces (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace_id TEXT UNIQUE,
                     name TEXT UNIQUE NOT NULL,
                     paths_json TEXT NOT NULL
                 )
             """)
+
+            # Ensure workspace_id column exists for existing tables
+            cursor.execute("PRAGMA table_info(workspaces)")
+            ws_cols = [r[1] for r in cursor.fetchall()]
+            if "workspace_id" not in ws_cols:
+                cursor.execute("ALTER TABLE workspaces ADD COLUMN workspace_id TEXT")
+                cursor.execute("SELECT id, name FROM workspaces")
+                for r in cursor.fetchall():
+                    ws_auto_id = "ws_default" if r["name"].strip().lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}"
+                    cursor.execute("UPDATE workspaces SET workspace_id = ? WHERE id = ?", (ws_auto_id, r["id"]))
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS models (
@@ -224,7 +236,6 @@ class ConfigDBStore:
         self._init_db()
 
     def ensure_default_workspace(self):
-
         """Ensures that at least a 'Default' workspace exists for instant friction-free onboarding."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -233,10 +244,26 @@ class ConfigDBStore:
                 default_path = os.path.abspath(os.path.join(os.getcwd(), "documents"))
                 os.makedirs(default_path, exist_ok=True)
                 cursor.execute(
-                    "INSERT INTO workspaces (name, paths_json) VALUES (?, ?)",
-                    ("Default", json.dumps([default_path]))
+                    "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
+                    ("ws_default", "Default", json.dumps([default_path]))
                 )
                 conn.commit()
+
+    def get_workspace_meta(self, identifier: str) -> Optional[Dict[str, Any]]:
+        """Resolves a workspace by its immutable workspace_id or its name."""
+        clean = identifier.strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, workspace_id, name, paths_json FROM workspaces WHERE workspace_id = ? OR name = ?", (clean, clean))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": row["id"],
+                    "workspace_id": row["workspace_id"] or f"ws_{row['id']}",
+                    "name": row["name"],
+                    "paths": json.loads(row["paths_json"]) if row["paths_json"] else []
+                }
+            return None
 
     def is_empty(self) -> bool:
         """Returns True if no workspaces other than 'Default' exist"""
@@ -246,21 +273,27 @@ class ConfigDBStore:
             count = cursor.fetchone()[0]
             return count == 0
 
-    def add_workspace(self, name: str, paths: List[str]):
-        """Adds or updates a workspace entry with folder paths."""
+    def add_workspace(self, name: str, paths: List[str], workspace_id: Optional[str] = None) -> Dict[str, Any]:
+        """Adds or updates a workspace entry with folder paths and an immutable workspace_id."""
         clean_name = name.strip()
         clean_paths = [os.path.abspath(p.strip().strip("'\"")) for p in paths if p and p.strip()]
+        ws_id = workspace_id or ("ws_default" if clean_name.lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}")
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (clean_name,))
+            cursor.execute("SELECT workspace_id, paths_json FROM workspaces WHERE name = ?", (clean_name,))
             row = cursor.fetchone()
             if row:
+                existing_ws_id = row["workspace_id"] or ws_id
                 existing_paths = [os.path.abspath(p.strip().strip("'\"")) for p in json.loads(row["paths_json"])]
                 combined = list(dict.fromkeys(existing_paths + clean_paths))
-                cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(combined), clean_name))
+                cursor.execute("UPDATE workspaces SET paths_json = ?, workspace_id = ? WHERE name = ?", (json.dumps(combined), existing_ws_id, clean_name))
+                conn.commit()
+                return {"id": existing_ws_id, "workspace_id": existing_ws_id, "name": clean_name, "paths": combined}
             else:
-                cursor.execute("INSERT INTO workspaces (name, paths_json) VALUES (?, ?)", (clean_name, json.dumps(clean_paths)))
-            conn.commit()
+                cursor.execute("INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)", (ws_id, clean_name, json.dumps(clean_paths)))
+                conn.commit()
+                return {"id": ws_id, "workspace_id": ws_id, "name": clean_name, "paths": clean_paths}
 
     def add_folder_to_workspace(self, workspace_name: str, folder_path: str) -> bool:
         """Adds a new folder path to an existing workspace."""
@@ -462,51 +495,89 @@ class ConfigDBStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             # Verify old workspace exists
-            cursor.execute("SELECT id FROM workspaces WHERE name = ?", (old_ws,))
-            if not cursor.fetchone():
+            cursor.execute("SELECT id, workspace_id, name FROM workspaces WHERE workspace_id = ? OR name = ?", (old_ws, old_ws))
+            row_old = cursor.fetchone()
+            if not row_old:
                 return {"success": False, "error": f"Workspace '{old_ws}' does not exist."}
 
-            # Verify new workspace name is not taken
-            cursor.execute("SELECT id FROM workspaces WHERE name = ?", (new_ws,))
+            actual_old_name = row_old["name"]
+            ws_id = row_old["workspace_id"] or f"ws_{row_old['id']}"
+
+            # Verify new workspace name is not taken by another workspace
+            cursor.execute("SELECT id FROM workspaces WHERE name = ? AND id != ?", (new_ws, row_old["id"]))
             if cursor.fetchone():
                 return {"success": False, "error": f"Workspace '{new_ws}' already exists."}
 
             # Update workspaces table
-            cursor.execute("UPDATE workspaces SET name = ? WHERE name = ?", (new_ws, old_ws))
+            cursor.execute("UPDATE workspaces SET name = ? WHERE id = ?", (new_ws, row_old["id"]))
 
             # Update workspace_folders (if table exists)
             try:
-                cursor.execute("UPDATE workspace_folders SET workspace_name = ? WHERE workspace_name = ?", (new_ws, old_ws))
+                cursor.execute("UPDATE workspace_folders SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
+            except sqlite3.OperationalError:
+                pass
+
+            # Update workspace_permissions (if table exists)
+            try:
+                cursor.execute("UPDATE workspace_permissions SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
             except sqlite3.OperationalError:
                 pass
 
             # Update workspace_user_permissions (if table exists)
             try:
-                cursor.execute("UPDATE workspace_user_permissions SET workspace_name = ? WHERE workspace_name = ?", (new_ws, old_ws))
+                cursor.execute("UPDATE workspace_user_permissions SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
             except sqlite3.OperationalError:
                 pass
 
             # Update workspace_share_invites (if table exists)
             try:
-                cursor.execute("UPDATE workspace_share_invites SET workspace_name = ? WHERE workspace_name = ?", (new_ws, old_ws))
+                cursor.execute("UPDATE workspace_share_invites SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
             except sqlite3.OperationalError:
                 pass
 
             # Update workspace_web_urls (if table exists)
             try:
-                cursor.execute("UPDATE workspace_web_urls SET workspace_name = ? WHERE workspace_name = ?", (new_ws, old_ws))
+                cursor.execute("UPDATE workspace_web_urls SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
             except sqlite3.OperationalError:
                 pass
 
             # Update workspace_indexed_web_pages (if table exists)
             try:
-                cursor.execute("UPDATE workspace_indexed_web_pages SET workspace_name = ? WHERE workspace_name = ?", (new_ws, old_ws))
+                cursor.execute("UPDATE workspace_indexed_web_pages SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
             except sqlite3.OperationalError:
                 pass
 
             # Update workspace_cloud_drives (if table exists)
             try:
-                cursor.execute("UPDATE workspace_cloud_drives SET workspace_name = ? WHERE workspace_name = ?", (new_ws, old_ws))
+                cursor.execute("UPDATE workspace_cloud_drives SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
+            except sqlite3.OperationalError:
+                pass
+
+            # Cascade update users.allowed_workspaces_json
+            try:
+                cursor.execute("SELECT id, allowed_workspaces_json FROM users")
+                for u_row in cursor.fetchall():
+                    try:
+                        aws = json.loads(u_row["allowed_workspaces_json"])
+                        updated_aws = [new_ws if (w == actual_old_name or w == old_ws) else w for w in aws]
+                        if updated_aws != aws:
+                            cursor.execute("UPDATE users SET allowed_workspaces_json = ? WHERE id = ?", (json.dumps(updated_aws), u_row["id"]))
+                    except Exception:
+                        pass
+            except sqlite3.OperationalError:
+                pass
+
+            # Cascade update access_tokens.allowed_workspaces_json
+            try:
+                cursor.execute("SELECT id, allowed_workspaces_json FROM access_tokens")
+                for t_row in cursor.fetchall():
+                    try:
+                        aws = json.loads(t_row["allowed_workspaces_json"])
+                        updated_aws = [new_ws if (w == actual_old_name or w == old_ws) else w for w in aws]
+                        if updated_aws != aws:
+                            cursor.execute("UPDATE access_tokens SET allowed_workspaces_json = ? WHERE id = ?", (json.dumps(updated_aws), t_row["id"]))
+                    except Exception:
+                        pass
             except sqlite3.OperationalError:
                 pass
 
@@ -562,9 +633,11 @@ class ConfigDBStore:
 
         return {
             "success": True,
-            "old_workspace": old_ws,
+            "workspace_id": ws_id,
+            "old_workspace": actual_old_name,
             "new_workspace": new_ws,
-            "migrated_chunks": migrated_chunks
+            "migrated_chunks": migrated_chunks,
+            "api_cost": "$0.00"
         }
 
 
@@ -670,14 +743,18 @@ class ConfigDBStore:
         web_sources: List[Dict[str, Any]] = []
         cloud_drives: List[Dict[str, Any]] = []
         unified_sources: List[Dict[str, Any]] = []
+        actual_ws_id = "ws_default" if clean_ws.lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}"
+        actual_ws_name = clean_ws
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
             # 1. Local folders from workspaces table
-            cursor.execute("SELECT paths_json FROM workspaces WHERE name = ?", (clean_ws,))
+            cursor.execute("SELECT id, workspace_id, name, paths_json FROM workspaces WHERE workspace_id = ? OR name = ?", (clean_ws, clean_ws))
             row = cursor.fetchone()
             if row:
+                actual_ws_id = row["workspace_id"] or ("ws_default" if row["name"].lower() == "default" else f"ws_{row['id']}")
+                actual_ws_name = row["name"]
                 try:
                     for p in json.loads(row["paths_json"]):
                         norm_p = os.path.abspath(p.strip().strip("'\""))
@@ -688,7 +765,7 @@ class ConfigDBStore:
 
             # Also check workspace_folders table if present
             try:
-                cursor.execute("SELECT folder_path FROM workspace_folders WHERE workspace_name = ?", (clean_ws,))
+                cursor.execute("SELECT folder_path FROM workspace_folders WHERE workspace_name = ? OR workspace_name = ?", (actual_ws_name, actual_ws_id))
                 for f_row in cursor.fetchall():
                     norm_p = os.path.abspath(f_row["folder_path"].strip().strip("'\""))
                     if norm_p and norm_p not in folders:
@@ -701,8 +778,8 @@ class ConfigDBStore:
                 cursor.execute("""
                     SELECT id, workspace_name, url, title, page_count, root_url, scope, last_scraped_at, created_at
                     FROM workspace_web_urls
-                    WHERE workspace_name = ?
-                """, (clean_ws,))
+                    WHERE workspace_name = ? OR workspace_name = ?
+                """, (actual_ws_name, actual_ws_id))
                 for w_row in cursor.fetchall():
                     w_dict = dict(w_row)
                     web_sources.append({
@@ -723,8 +800,8 @@ class ConfigDBStore:
                 cursor.execute("""
                     SELECT id, workspace_name, provider, mount_path_or_id, title, auth_status, last_synced_at, created_at, metadata_json
                     FROM workspace_cloud_drives
-                    WHERE workspace_name = ?
-                """, (clean_ws,))
+                    WHERE workspace_name = ? OR workspace_name = ?
+                """, (actual_ws_name, actual_ws_id))
                 for cd_row in cursor.fetchall():
                     cd_dict = dict(cd_row)
                     meta = {}
@@ -788,13 +865,11 @@ class ConfigDBStore:
             })
 
         return {
-            "name": clean_ws,
-            "paths": folders,
-            "folders": folders,
-            "web_sources": web_sources,
-            "cloud_drives": cloud_drives,
+            "id": actual_ws_id,
+            "name": actual_ws_name,
             "sources": unified_sources,
-            "total_sources": len(unified_sources)
+            "total_sources": len(unified_sources),
+            "paths": folders
         }
 
     def list_workspaces_detailed(self) -> List[Dict[str, Any]]:
@@ -814,26 +889,17 @@ class ConfigDBStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute("SELECT name FROM workspaces ORDER BY id ASC")
+            cursor.execute("SELECT workspace_id, name FROM workspaces ORDER BY id ASC")
             ws_rows = cursor.fetchall()
             workspaces = []
             for row in ws_rows:
                 ws_name = row["name"]
+                ws_id = row["workspace_id"] or ("ws_default" if ws_name.lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}")
                 ws_detail = self.get_workspace_sources(ws_name)
                 workspaces.append(WorkspaceSettings(
+                    id=ws_id,
                     name=ws_name,
-                    paths=ws_detail["paths"],
-                    folders=ws_detail["folders"],
-                    web_sources=[WorkspaceWebSource(**w) for w in ws_detail["web_sources"]],
-                    cloud_drives=[WorkspaceCloudDrive(
-                        id=cd["id"],
-                        provider=cd["provider"],
-                        mount_path_or_id=cd["mount_path_or_id"],
-                        title=cd.get("title"),
-                        auth_status=cd.get("auth_status", "pending"),
-                        last_synced_at=cd.get("last_synced_at"),
-                        created_at=cd.get("created_at")
-                    ) for cd in ws_detail["cloud_drives"]],
+                    paths=ws_detail.get("paths", []),
                     sources=[WorkspaceSourceItem(**s) for s in ws_detail["sources"]],
                     total_sources=ws_detail["total_sources"]
                 ))
@@ -1265,7 +1331,11 @@ class ConfigDBStore:
 
         # Check Workspace Scope
         if required_workspace and "*" not in allowed_workspaces:
-            if required_workspace not in allowed_workspaces:
+            clean_req = required_workspace.strip()
+            ws_meta = self.get_workspace_meta(clean_req)
+            ws_name = ws_meta["name"] if ws_meta else clean_req
+            ws_id = ws_meta["workspace_id"] if ws_meta else clean_req
+            if clean_req not in allowed_workspaces and ws_name not in allowed_workspaces and ws_id not in allowed_workspaces:
                 return False
 
         return True

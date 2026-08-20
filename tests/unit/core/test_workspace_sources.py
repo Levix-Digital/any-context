@@ -40,9 +40,7 @@ class TestWorkspaceSources(unittest.TestCase):
 
         detail = self.store.get_workspace_sources(ws_name)
         self.assertEqual(detail["name"], ws_name)
-        self.assertEqual(detail["folders"], [])
-        self.assertEqual(detail["web_sources"], [])
-        self.assertEqual(detail["cloud_drives"], [])
+        self.assertIn("id", detail)
         self.assertEqual(detail["sources"], [])
         self.assertEqual(detail["total_sources"], 0)
         safe_stdout_write("  [OK] Empty workspace sources verified!\n")
@@ -57,8 +55,7 @@ class TestWorkspaceSources(unittest.TestCase):
 
         detail = self.store.get_workspace_sources(ws_name)
         self.assertEqual(detail["name"], ws_name)
-        self.assertEqual(len(detail["folders"]), 1)
-        self.assertEqual(detail["folders"][0], os.path.abspath(test_folder))
+        self.assertIn("id", detail)
         self.assertEqual(detail["total_sources"], 1)
         
         source_item = detail["sources"][0]
@@ -81,17 +78,11 @@ class TestWorkspaceSources(unittest.TestCase):
         )
 
         detail = self.store.get_workspace_sources(ws_name)
-        self.assertEqual(len(detail["web_sources"]), 1)
-        web_src = detail["web_sources"][0]
-        self.assertEqual(web_src["url"], "https://docs.python.org")
-        self.assertEqual(web_src["title"], "Python Documentation")
-        self.assertEqual(web_src["page_count"], 42)
-        self.assertEqual(web_src["scope"], "domain")
-
         self.assertEqual(detail["total_sources"], 1)
         unified = detail["sources"][0]
         self.assertEqual(unified["type"], "web")
         self.assertEqual(unified["identifier"], "https://docs.python.org")
+        self.assertEqual(unified["title"], "Python Documentation")
         self.assertEqual(unified["details"]["page_count"], 42)
         safe_stdout_write("  [OK] Web portal sources verified!\n")
 
@@ -121,8 +112,8 @@ class TestWorkspaceSources(unittest.TestCase):
 
         # 3. Check workspace sources aggregation
         detail = self.store.get_workspace_sources(ws_name)
-        self.assertEqual(len(detail["cloud_drives"]), 1)
         self.assertEqual(detail["total_sources"], 1)
+        self.assertEqual(len(detail["sources"]), 1)
         unified = detail["sources"][0]
         self.assertEqual(unified["type"], "cloud_drive")
         self.assertEqual(unified["identifier"], "gdrive://folder-abc123xyz")
@@ -157,9 +148,7 @@ class TestWorkspaceSources(unittest.TestCase):
         all_ws = self.store.list_workspaces_detailed()
         target = next((w for w in all_ws if w["name"] == ws_multi), None)
         self.assertIsNotNone(target)
-        self.assertEqual(len(target["folders"]), 1)
-        self.assertEqual(len(target["web_sources"]), 1)
-        self.assertEqual(len(target["cloud_drives"]), 1)
+        self.assertIn("id", target)
         self.assertEqual(target["total_sources"], 3)
         self.assertEqual(len(target["sources"]), 3)
 
@@ -168,8 +157,8 @@ class TestWorkspaceSources(unittest.TestCase):
         safe_stdout_write("  [OK] list_workspaces_detailed verified across all 3 source types!\n")
 
     def test_06_atomic_rename_migrates_all_sources(self):
-        """Validates that rename_workspace atomically migrates folders, web URLs, and cloud drives."""
-        safe_stdout_write(">>> [UNIT] Testing Workspace Rename Source Migration...\n")
+        """Validates that rename_workspace atomically migrates sources, users, and tokens permissions."""
+        safe_stdout_write(">>> [UNIT] Testing Workspace Rename Source Migration & RBAC Cascade...\n")
         old_ws = "Unit_Old_WS"
         new_ws = "Unit_New_WS"
         self.store.add_workspace(old_ws, paths=[os.path.join(self.temp_dir, "old_folder")])
@@ -186,9 +175,14 @@ class TestWorkspaceSources(unittest.TestCase):
             title="OneDrive Docs"
         )
 
+        # Create user and token assigned to old_ws
+        u = self.store.create_user(name="Cascade User", email="cascade@test.com", password="pwd", role="analyst", allowed_workspaces=[old_ws])
+        t = self.store.create_access_token(name="Cascade Token", role="analyst", allowed_workspaces=[old_ws])
+
         # Rename workspace
         res = self.store.rename_workspace(old_name=old_ws, new_name=new_ws)
         self.assertTrue(res["success"])
+        self.assertIn("workspace_id", res)
 
         # Old workspace should have 0 sources
         old_detail = self.store.get_workspace_sources(old_ws)
@@ -197,10 +191,24 @@ class TestWorkspaceSources(unittest.TestCase):
         # New workspace should have all 3 sources
         new_detail = self.store.get_workspace_sources(new_ws)
         self.assertEqual(new_detail["total_sources"], 3)
-        self.assertEqual(len(new_detail["folders"]), 1)
-        self.assertEqual(len(new_detail["web_sources"]), 1)
-        self.assertEqual(len(new_detail["cloud_drives"]), 1)
-        safe_stdout_write("  [OK] Workspace rename atomically migrated all source types!\n")
+        self.assertEqual(len(new_detail["sources"]), 3)
+
+        # Verify RBAC Cascade in users and access_tokens
+        users = self.store.list_users()
+        cascaded_u = next((usr for usr in users if usr["email"] == "cascade@test.com"), None)
+        self.assertIsNotNone(cascaded_u)
+        self.assertIn(new_ws, cascaded_u["allowed_workspaces"])
+        self.assertNotIn(old_ws, cascaded_u["allowed_workspaces"])
+
+        tokens = self.store.get_access_tokens()
+        cascaded_t = next((tok for tok in tokens if tok["token_id"] == t["token_id"]), None)
+        self.assertIsNotNone(cascaded_t)
+        self.assertIn(new_ws, cascaded_t["allowed_workspaces"])
+        self.assertNotIn(old_ws, cascaded_t["allowed_workspaces"])
+
+        # Token validation allows access to new_ws
+        self.assertTrue(self.store.validate_token_permissions(t["token_id"], required_workspace=new_ws))
+        safe_stdout_write("  [OK] Workspace rename atomically migrated all source types and cascaded RBAC permissions!\n")
 
     def test_07_remove_workspace_cleans_all_source_tables(self):
         """Validates that deleting a workspace purges associated records across all SQLite tables."""
