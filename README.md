@@ -396,7 +396,7 @@ Access the interactive OpenAPI / Swagger UI at: **`http://127.0.0.1:8000/docs`**
 Key API Endpoints include:
 - `POST /v1/chat` — Streaming & non-streaming AI Agent queries with RAG, session memory, and optional `grounding_mode` (`"hybrid"`, `"strict"`, `"proactive"`).
 - `GET /v1/context/mode` & `POST /v1/context/mode` — Inspect and configure active AI Grounding & Answer Mode.
-- `GET /v1/workspaces` — Lists all workspaces with complete source breakdown (`folders`, `web_sources`, `cloud_drives`, and unified `sources`).
+- `GET /v1/workspaces` — Lists all workspaces with immutable `id`, `name`, `total_sources`, and unified typed `sources` array (`folder`, `web`, `cloud_drive`).
 - `GET /v1/workspaces/{name}` & `GET /v1/workspaces/{name}/sources` — Detailed workspace sources inspection.
 - `POST /v1/workspaces` — Create workspace (with or without initial folders).
 - `POST /v1/workspaces/transfer` — Instant zero-cost transfer of local folders and web portals between workspaces with vector metadata migration in < 50ms.

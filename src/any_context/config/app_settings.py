@@ -62,11 +62,9 @@ class WorkspaceSourceItem(BaseModel):
     details: Dict[str, Any] = Field(default_factory=dict)
 
 class WorkspaceSettings(BaseModel):
+    id: str = Field(default="ws_default", description="Unique immutable workspace identifier")
     name: str = Field(default="Default")
     paths: List[str] = Field(default_factory=list)
-    folders: List[str] = Field(default_factory=list)
-    web_sources: List[WorkspaceWebSource] = Field(default_factory=list)
-    cloud_drives: List[WorkspaceCloudDrive] = Field(default_factory=list)
     sources: List[WorkspaceSourceItem] = Field(default_factory=list)
     total_sources: int = 0
 
@@ -149,5 +147,8 @@ class AppSettings(BaseModel):
             if settings:
                 return settings
         except Exception as e:
-            print(f"❌ Error loading settings from SQLite DB: {e}")
+            try:
+                print(f"❌ Error loading settings from SQLite DB: {e}")
+            except Exception:
+                print(f"[Error] Error loading settings from SQLite DB: {e}")
         return None

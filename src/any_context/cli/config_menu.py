@@ -157,14 +157,19 @@ def _manage_workspaces(store: ConfigDBStore):
         for ws in detailed_workspaces:
             src_count_badge = f" ({ws['total_sources']} sources)" if ws.get('total_sources', 0) > 0 else " (Empty)"
             print(f"• \033[93m{ws['name']}\033[0m{src_count_badge}:")
-            for f in ws.get("folders", []):
-                print(f"    - [Folder] {f}")
-            for w in ws.get("web_sources", []):
-                pages_badge = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
-                print(f"    - [Web] {w['url']} ({w.get('title') or 'Web Source'}{pages_badge})")
-            for cd in ws.get("cloud_drives", []):
-                auth_badge = f" • {cd.get('auth_status')}" if cd.get('auth_status') else ""
-                print(f"    - [Drive] {cd['provider']}://{cd['mount_path_or_id']} ({cd.get('title') or 'Cloud Drive'}{auth_badge})")
+            for s in ws.get("sources", []):
+                stype = s.get("type", "")
+                if stype == "folder":
+                    print(f"    - [Folder] {s.get('identifier')}")
+                elif stype == "web":
+                    p_cnt = s.get("details", {}).get("page_count", 1)
+                    pages_badge = f" • {p_cnt} pages" if p_cnt > 1 else ""
+                    print(f"    - [Web] {s.get('identifier')} ({s.get('title') or 'Web Source'}{pages_badge})")
+                elif stype == "cloud_drive":
+                    auth_st = s.get("details", {}).get("auth_status", "")
+                    prov = s.get("details", {}).get("provider", "drive")
+                    auth_badge = f" • {auth_st}" if auth_st else ""
+                    print(f"    - [Drive] {prov}://{s.get('identifier')} ({s.get('title') or 'Cloud Drive'}{auth_badge})")
             if not ws.get("sources"):
                 print("    - (No sources configured. Use /web add, /sync, or /config)")
         print("-----------------------------\n")

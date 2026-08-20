@@ -88,25 +88,20 @@ class WorkspaceSourceItemDTO(BaseModel):
     details: Dict[str, Any] = Field(default_factory=dict)
 
 class WorkspaceDTO(BaseModel):
-    name: str
-    paths: List[str] = Field(default_factory=list, description="Legacy/convenience list of local folder paths")
-    folders: List[str] = Field(default_factory=list, description="List of local folder paths attached to workspace")
-    web_sources: List[WorkspaceWebSourceDTO] = Field(default_factory=list, description="List of web portal/URL sources")
-    cloud_drives: List[WorkspaceCloudDriveDTO] = Field(default_factory=list, description="List of connected cloud drive sources")
-    sources: List[WorkspaceSourceItemDTO] = Field(default_factory=list, description="Unified polymorphic list of all workspace sources")
-    total_sources: int = 0
+    id: str = Field(..., description="Unique immutable workspace identifier (e.g. 'ws_default', 'ws_3d3fa3')")
+    name: str = Field(..., description="Workspace display name")
+    sources: List[WorkspaceSourceItemDTO] = Field(default_factory=list, description="Unified polymorphic list of all workspace sources (folders, web portals, cloud drives)")
+    total_sources: int = Field(0, description="Total count of sources attached to this workspace")
 
 class WorkspacesResponse(BaseModel):
     total: int
     workspaces: List[WorkspaceDTO]
 
 class WorkspaceSourcesResponse(BaseModel):
-    workspace: str
-    total_sources: int
-    folders: List[str] = Field(default_factory=list)
-    web_sources: List[WorkspaceWebSourceDTO] = Field(default_factory=list)
-    cloud_drives: List[WorkspaceCloudDriveDTO] = Field(default_factory=list)
-    sources: List[WorkspaceSourceItemDTO] = Field(default_factory=list)
+    id: str = Field(..., description="Unique immutable workspace identifier")
+    name: str = Field(..., description="Workspace display name")
+    total_sources: int = Field(0, description="Total count of sources attached to this workspace")
+    sources: List[WorkspaceSourceItemDTO] = Field(default_factory=list, description="Unified polymorphic list of all workspace sources")
 
 class CloudDriveAddRequest(BaseModel):
     provider: str = Field(..., description="Cloud provider (e.g. 'google_drive', 'onedrive', 's3', 'dropbox')")
@@ -469,21 +464,18 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
 
     @app.get("/v1/workspaces/{workspace_name}/sources", response_model=WorkspaceSourcesResponse, tags=["Workspaces"])
     def get_workspace_sources_endpoint(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
-        """Returns grouped and unified sources breakdown for a specific workspace."""
+        """Returns unified sources breakdown for a specific workspace."""
         verify_token_access(credentials=credentials, required_workspace=workspace_name)
         store = ConfigDBStore()
         clean_ws = workspace_name.strip()
-        settings = store.get_app_settings()
-        known = [w.name for w in settings.workspaces] if settings else []
-        if clean_ws not in known:
+        ws_meta = store.get_workspace_meta(clean_ws)
+        if not ws_meta:
             raise HTTPException(status_code=404, detail=f"Workspace '{clean_ws}' not found.")
         ws_detail = store.get_workspace_sources(clean_ws)
         return WorkspaceSourcesResponse(
-            workspace=clean_ws,
+            id=ws_detail["id"],
+            name=ws_detail["name"],
             total_sources=ws_detail["total_sources"],
-            folders=ws_detail["folders"],
-            web_sources=[WorkspaceWebSourceDTO(**w) for w in ws_detail["web_sources"]],
-            cloud_drives=[WorkspaceCloudDriveDTO(**cd) for cd in ws_detail["cloud_drives"]],
             sources=[WorkspaceSourceItemDTO(**s) for s in ws_detail["sources"]]
         )
 
