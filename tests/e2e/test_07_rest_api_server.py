@@ -260,6 +260,33 @@ class Test07RestApiServer(unittest.TestCase):
             self.store.remove_workspace(orig_name)
             self.store.remove_workspace(new_name)
 
+    def test_08_grounding_mode_endpoints(self):
+        """TC-7.10: Tests GET and POST /v1/context/mode endpoints for AI Grounding Mode switching."""
+        safe_stdout_write(">>> [MOD 7 / TC-7.10] Testing /v1/context/mode REST Endpoints...\n")
+
+        # 1. GET /v1/context/mode
+        res = self.client.get("/v1/context/mode", headers=self.headers)
+        self.assertEqual(res.status_code, 200, f"GET /v1/context/mode failed: {res.text}")
+        data = res.json()
+        self.assertIn("mode", data)
+        self.assertIn("available_modes", data)
+        self.assertIn("hybrid", data["available_modes"])
+        self.assertIn("strict", data["available_modes"])
+        self.assertIn("proactive", data["available_modes"])
+
+        # 2. POST /v1/context/mode (Switch to Strict)
+        res_post = self.client.post("/v1/context/mode", json={"mode": "strict"}, headers=self.headers)
+        self.assertEqual(res_post.status_code, 200)
+        self.assertEqual(res_post.json()["mode"], "strict")
+        self.assertEqual(self.store.get_grounding_mode(), "strict")
+
+        # 3. POST /v1/context/mode (Switch back to Hybrid)
+        res_post_hyb = self.client.post("/v1/context/mode", json={"mode": "hybrid"}, headers=self.headers)
+        self.assertEqual(res_post_hyb.status_code, 200)
+        self.assertEqual(res_post_hyb.json()["mode"], "hybrid")
+        self.assertEqual(self.store.get_grounding_mode(), "hybrid")
+        safe_stdout_write("  [OK] /v1/context/mode GET and POST endpoints verified!\n")
+
 
 if __name__ == "__main__":
     unittest.main()

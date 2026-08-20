@@ -289,6 +289,21 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
         finally:
             self.store.remove_workspace(ws_test)
 
+    def test_14_mode_command_dispatch(self):
+        """Validates that /mode switches AI Grounding Mode dynamically in the chat loop."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /mode Command Dispatch...\n")
+        mock_inputs = [
+            "/mode strict",
+            "/mode proactive",
+            "/mode hybrid",
+            "/exit"
+        ]
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            run_chat_loop(active_workspace="Default")
+
+        self.assertEqual(self.store.get_grounding_mode(), "hybrid")
+        safe_stdout_write("  [OK] /mode CLI command dispatch verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
 

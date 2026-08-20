@@ -276,6 +276,64 @@ class Test08MCPProtocolServer(unittest.TestCase):
             self.store.remove_workspace(mcp_src)
             self.store.remove_workspace(mcp_tgt)
 
+    def test_07_mcp_grounding_mode_tools(self):
+        """TC-8.7: Tests tools/call invoking get_grounding_mode and set_grounding_mode MCP tools."""
+        safe_stdout_write(">>> [MOD 8 / TC-8.7] Testing MCP Grounding Mode Tools Execution...\n")
+
+        # 1. get_grounding_mode
+        req_get = {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {
+                "name": "get_grounding_mode",
+                "arguments": {}
+            }
+        }
+        res_get = dispatch_mcp_request(req_get)
+        self.assertIn("result", res_get)
+        data_get = json.loads(res_get["result"]["content"][0]["text"])
+        self.assertIn("grounding_mode", data_get)
+        self.assertIn("available_modes", data_get)
+
+        # 2. set_grounding_mode (Strict)
+        req_set = {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "tools/call",
+            "params": {
+                "name": "set_grounding_mode",
+                "arguments": {
+                    "mode": "strict"
+                }
+            }
+        }
+        res_set = dispatch_mcp_request(req_set)
+        self.assertIn("result", res_set)
+        data_set = json.loads(res_set["result"]["content"][0]["text"])
+        self.assertEqual(data_set["status"], "success")
+        self.assertEqual(data_set["grounding_mode"], "strict")
+        self.assertEqual(self.store.get_grounding_mode(), "strict")
+
+        # 3. set_grounding_mode (Reset to Hybrid)
+        req_reset = {
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "tools/call",
+            "params": {
+                "name": "set_grounding_mode",
+                "arguments": {
+                    "mode": "hybrid"
+                }
+            }
+        }
+        res_reset = dispatch_mcp_request(req_reset)
+        self.assertIn("result", res_reset)
+        data_reset = json.loads(res_reset["result"]["content"][0]["text"])
+        self.assertEqual(data_reset["grounding_mode"], "hybrid")
+        self.assertEqual(self.store.get_grounding_mode(), "hybrid")
+        safe_stdout_write("  [OK] MCP get_grounding_mode and set_grounding_mode tools verified!\n")
+
 
 if __name__ == "__main__":
     unittest.main()

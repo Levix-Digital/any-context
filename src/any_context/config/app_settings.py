@@ -13,6 +13,7 @@ class ContextSettings(BaseModel):
     candidate_pool_size: int = Field(default=100, description="Initial candidate pool size retrieved from ChromaDB before source diversification")
     max_chunks_per_source: int = Field(default=3, description="Maximum chunks allowed per document/URL to enforce cross-source diversity")
     retrieval_preset: str = Field(default="balanced", description="RAG Retrieval Density Preset: 'balanced', 'turbo', 'deep_research', 'custom'")
+    grounding_mode: str = Field(default="hybrid", description="AI Grounding & Answer Mode: 'hybrid' (default), 'strict', 'proactive'")
 
     def apply_preset(self, preset_name: str):
         p = preset_name.lower().strip()

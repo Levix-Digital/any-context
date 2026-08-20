@@ -103,7 +103,7 @@ def find_agent_prompt_file(filename: str = "AGENT.md") -> str:
             return os.path.abspath(candidate)
     return None
 
-def get_system_prompt(path: str = None, active_workspace: str = None):
+def get_system_prompt(path: str = None, active_workspace: str = None, grounding_mode: str = None):
     target_path = path if (path and os.path.exists(path)) else find_agent_prompt_file("AGENT.md")
     prompt = ""
     if target_path and os.path.exists(target_path):
@@ -116,11 +116,18 @@ def get_system_prompt(path: str = None, active_workspace: str = None):
     if not prompt:
         prompt = "You are AnyContext, an AI assistant with access to user workspace documents."
 
+    effective_mode = (grounding_mode or "hybrid").lower().strip()
+    if effective_mode not in ["hybrid", "strict", "proactive"]:
+        effective_mode = "hybrid"
+
     try:
         settings = AppSettings.load()
         if settings and settings.workspaces:
             workspaces_str = ", ".join([f"'{ws.name}'" for ws in settings.workspaces])
             prompt += f"\n\n### 6. Workspaces\n- **Available Workspaces:** {workspaces_str}\n"
+
+        if not grounding_mode and settings and settings.context:
+            effective_mode = getattr(settings.context, "grounding_mode", "hybrid").lower().strip()
 
         if active_workspace:
             prompt += f"\n\n### 🎯 ACTIVE WORKSPACE & TOOL CALLING CONTEXT\n"
@@ -129,8 +136,35 @@ def get_system_prompt(path: str = None, active_workspace: str = None):
             prompt += f"- **SINGLE SEARCH EXECUTION:** Call `search_db` AT MOST ONCE per question. Do NOT repeat or loop calls to `search_db`. Analyze the retrieved document snippets immediately and write a complete, beautifully structured answer.\n"
         else:
             prompt += "- When searching the knowledge base (search_session_memory=False), specify the `workspace` argument in `search_db` if a specific workspace topic is mentioned.\n"
+
+        # Inject Grounding Mode Directives
+        if effective_mode == "strict":
+            prompt += (
+                "\n\n### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL)\n"
+                "- **ZERO SPECULATION / ZERO HALLUCINATION:** Answer EXCLUSIVELY and ONLY using verified facts present in the retrieved workspace chunks.\n"
+                "- **LITERAL CITING:** You MUST quote and reference the exact file names, page numbers, or URLs where the information was found.\n"
+                "- **FACTUAL ABSENCE PROTOCOL:** If the user asks for specific names, telephone numbers, addresses, agencies, laws, clauses, or dates that are NOT present in the retrieved documents, you MUST explicitly state that this information is not found in the indexed workspace files.\n"
+                "- **FORBIDDEN ACTION:** Do NOT use pre-training weights or parametric memory to invent, assume, extrapolate, or provide unverified external factual lists.\n"
+            )
+        elif effective_mode == "proactive":
+            prompt += (
+                "\n\n### 🚀 ACTIVE GROUNDING MODE: PROACTIVE (RESEARCH & STRATEGY)\n"
+                "- **COMPREHENSIVE SYNTHESIS:** Provide a rich, detailed answer using the retrieved workspace context as the core factual foundation.\n"
+                "- **FORWARD-LOOKING INSIGHTS:** In addition to answering the user's question, proactively identify potential risks, related considerations, adjacent questions to explore, and actionable next steps.\n"
+                "- **WEB SOURCE RECOMMENDATIONS:** If relevant, recommend authoritative public websites or documentation URLs the user could index into this workspace using the command '/web add <url>'.\n"
+            )
+        else: # Default: hybrid
+            prompt += (
+                "\n\n### ⚖️ ACTIVE GROUNDING MODE: HYBRID (BALANCED - DEFAULT DUAL-LAYER GROUNDING)\n"
+                "- **DUAL-LAYER STRUCTURE:**\n"
+                "  1. **Layer 1 (Workspace Facts):** Answer first using all verified facts found in the retrieved workspace documents and cite the sources.\n"
+                "  2. **Layer 2 (External Suggestions / General Knowledge):** If any part of the user's question is not covered by the workspace documents, you MAY provide general background, reasoning, or suggestions, BUT you MUST clearly segregate and label it under a distinct heading:\n"
+                "     '### 💡 Sugestões / Conhecimento Geral do Modelo (Não Verificado nos Documentos)'\n"
+                "  3. **VERIFICATION WARNING:** Advise the user to verify external suggestions on official sources, or suggest indexing additional URLs using '/web add <url>'.\n"
+            )
+
     except Exception as e:
-        print(f"⚠️ Warning: Could not load workspaces into system prompt: {e}")
+        print(f"⚠️ Warning: Could not configure system prompt directives: {e}")
 
     return prompt
 

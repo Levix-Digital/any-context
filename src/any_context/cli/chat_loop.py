@@ -129,6 +129,7 @@ def show_slash_commands_palette(active_workspace: Optional[str] = None) -> Optio
             "🔄 /transfer     - Instant zero-cost transfer of folders/websites",
             "📋 /paste        - Enter multi-line paste mode for long texts",
             "🤖 /model        - Change active AI inference model on-the-fly",
+            "🎛️ /mode         - Select AI grounding mode (Hybrid, Strict, Proactive)",
             "⚙️ /config       - Open interactive configuration & settings menu",
             "🔍 /density      - Configure RAG retrieval density presets",
             "🧠 /reset-memory - Reset/purge long-term session memory",
@@ -174,8 +175,12 @@ def run_chat_loop(active_workspace: str = None):
         run_index_folder(workspace_name=active_workspace, verbose=False)
 
     from any_context.config.app_settings import AppSettings
+    from any_context.config.db_store import ConfigDBStore
     settings = AppSettings.load()
     current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
+    current_grounding_mode = getattr(settings.context, "grounding_mode", "hybrid") if (settings and settings.context) else "hybrid"
+    if current_grounding_mode not in ["hybrid", "strict", "proactive"]:
+        current_grounding_mode = "hybrid"
 
     safe_stdout_write("\n=======================================================\n")
     safe_stdout_write("💬 Chat started! Type '/' for command palette or '/exit' to quit.\n")
@@ -184,11 +189,20 @@ def run_chat_loop(active_workspace: str = None):
     agent_instance = None
     active_workspace_for_agent = None
     active_model_for_agent = None
+    active_mode_for_agent = None
 
     while True:
         try:
+            mode_display = current_grounding_mode.capitalize()
+            if current_grounding_mode == "strict":
+                mode_color = "\033[92m" # Green for Strict
+            elif current_grounding_mode == "proactive":
+                mode_color = "\033[94m" # Blue for Proactive
+            else:
+                mode_color = "\033[96m" # Cyan for Hybrid
+
             prompt_ws = f"\033[93m{active_workspace}\033[96m" if active_workspace else "Global"
-            prompt_str = f"You [{prompt_ws} | \033[95m{current_model}\033[96m]"
+            prompt_str = f"You [{prompt_ws} | \033[95m{current_model}\033[96m | {mode_color}{mode_display}\033[96m]"
             raw_input = safe_prompt_input(f"\n\033[96m👤 {prompt_str}:\033[0m ", workspace_name=active_workspace)
             if raw_input is None:
                 continue
@@ -501,6 +515,46 @@ def run_chat_loop(active_workspace: str = None):
                     agent_instance = None
                     print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for this session.\n")
                 continue
+            elif cmd.startswith("/mode") or cmd.startswith("/answer-mode") or cmd.startswith("/grounding") or cmd.startswith("/am"):
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+                if len(parts) >= 2:
+                    arg_mode = parts[1].lower().strip()
+                    if arg_mode in ["strict", "audit", "legal", "1"]:
+                        new_mode = "strict"
+                    elif arg_mode in ["proactive", "research", "creative", "strategy", "3"]:
+                        new_mode = "proactive"
+                    else:
+                        new_mode = "hybrid"
+                    current_grounding_mode = store.set_grounding_mode(new_mode)
+                    agent_instance = None
+                    active_mode_for_agent = None
+                    print(f"\n✅ AI Grounding & Answer Mode set to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m\n")
+                    continue
+                else:
+                    choices = [
+                        f"⚖️ Hybrid (Default - Workspace facts + clearly labeled external suggestions){'  [Active]' if current_grounding_mode == 'hybrid' else ''}",
+                        f"🛡️ Strict (Audit & Legal - 100% grounded to indexed documents, zero speculation){'  [Active]' if current_grounding_mode == 'strict' else ''}",
+                        f"🚀 Proactive (Research & Ideation - Broad synthesis, insights & web recommendations){'  [Active]' if current_grounding_mode == 'proactive' else ''}",
+                        "🔙 [Cancel]"
+                    ]
+                    mode_choice = questionary.select(
+                        "Select AI Grounding & Answer Mode:",
+                        choices=choices
+                    ).ask()
+                    if not mode_choice or mode_choice.startswith("🔙"):
+                        continue
+                    if mode_choice.startswith("🛡️"):
+                        new_mode = "strict"
+                    elif mode_choice.startswith("🚀"):
+                        new_mode = "proactive"
+                    else:
+                        new_mode = "hybrid"
+                    current_grounding_mode = store.set_grounding_mode(new_mode)
+                    agent_instance = None
+                    active_mode_for_agent = None
+                    print(f"\n✅ AI Grounding & Answer Mode set to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m\n")
+                    continue
             elif cmd == "/update":
                 run_self_update()
                 continue
@@ -675,16 +729,18 @@ def run_chat_loop(active_workspace: str = None):
                     effective_prompt = actual_msg
 
             try:
-                if agent_instance is None or active_workspace_for_agent != active_workspace or active_model_for_agent != effective_model:
-                    with Spinner(f"Initializing AI Agent ({effective_model})..."):
+                if agent_instance is None or active_workspace_for_agent != active_workspace or active_model_for_agent != effective_model or active_mode_for_agent != current_grounding_mode:
+                    with Spinner(f"Initializing AI Agent ({effective_model} • {current_grounding_mode.capitalize()})..."):
                         from any_context.core.agent import create_anycontext_agent, saver
                         agent_instance = create_anycontext_agent(
                             active_workspace=active_workspace, 
                             checkpointer=saver,
-                            model_override=effective_model
+                            model_override=effective_model,
+                            grounding_mode=current_grounding_mode
                         )
                         active_workspace_for_agent = active_workspace
                         active_model_for_agent = effective_model
+                        active_mode_for_agent = current_grounding_mode
 
                 has_printed_ai_header = False
 

@@ -119,7 +119,8 @@ class ConfigDBStore:
                     top_k INTEGER DEFAULT 40,
                     candidate_pool_size INTEGER DEFAULT 100,
                     max_chunks_per_source INTEGER DEFAULT 3,
-                    retrieval_preset TEXT DEFAULT 'balanced'
+                    retrieval_preset TEXT DEFAULT 'balanced',
+                    grounding_mode TEXT DEFAULT 'hybrid'
                 )
             """)
             cursor.execute("PRAGMA table_info(context_settings)")
@@ -136,6 +137,8 @@ class ConfigDBStore:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN max_chunks_per_source INTEGER DEFAULT 3")
             if "retrieval_preset" not in ctx_cols:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN retrieval_preset TEXT DEFAULT 'balanced'")
+            if "grounding_mode" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN grounding_mode TEXT DEFAULT 'hybrid'")
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS session_settings (
@@ -867,6 +870,7 @@ class ConfigDBStore:
                 c_pool = c_row["candidate_pool_size"] if ("candidate_pool_size" in c_keys and c_row["candidate_pool_size"]) else 100
                 c_max_src = c_row["max_chunks_per_source"] if ("max_chunks_per_source" in c_keys and c_row["max_chunks_per_source"]) else 3
                 c_preset = c_row["retrieval_preset"] if ("retrieval_preset" in c_keys and c_row["retrieval_preset"]) else "balanced"
+                c_mode = c_row["grounding_mode"] if ("grounding_mode" in c_keys and c_row["grounding_mode"]) else "hybrid"
                 context = ContextSettings(
                     db_path=c_row["db_path"],
                     collection_name=c_row["collection_name"],
@@ -875,7 +879,8 @@ class ConfigDBStore:
                     top_k=c_top_k,
                     candidate_pool_size=c_pool,
                     max_chunks_per_source=c_max_src,
-                    retrieval_preset=c_preset
+                    retrieval_preset=c_preset,
+                    grounding_mode=c_mode
                 )
             else:
                 context = ContextSettings()
@@ -924,9 +929,9 @@ class ConfigDBStore:
 
             c = settings.context
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset)
-                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap, c.top_k, c.candidate_pool_size, c.max_chunks_per_source, c.retrieval_preset))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap, c.top_k, c.candidate_pool_size, c.max_chunks_per_source, c.retrieval_preset, c.grounding_mode))
 
             s = settings.session
             cursor.execute("INSERT OR REPLACE INTO session_settings (id, db_path, collection_name) VALUES (1, ?, ?)", (s.db_path, s.collection_name))
@@ -940,14 +945,40 @@ class ConfigDBStore:
             conn.commit()
 
     def update_context_settings(self, context: ContextSettings):
-        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap, retrieval parameters)"""
+        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap, retrieval parameters, grounding_mode)"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset)
-                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap, context.top_k, context.candidate_pool_size, context.max_chunks_per_source, context.retrieval_preset))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap, context.top_k, context.candidate_pool_size, context.max_chunks_per_source, context.retrieval_preset, context.grounding_mode))
             conn.commit()
+
+    def get_grounding_mode(self) -> str:
+        """Retrieves the active AI Grounding & Answer Mode ('hybrid', 'strict', 'proactive')."""
+        settings = self.get_app_settings()
+        if settings and settings.context:
+            mode = getattr(settings.context, "grounding_mode", "hybrid")
+            if mode in ["hybrid", "strict", "proactive"]:
+                return mode
+        return "hybrid"
+
+    def set_grounding_mode(self, mode: str) -> str:
+        """Sets and persists the active AI Grounding Mode in SQLite context_settings."""
+        clean_mode = mode.lower().strip() if mode else "hybrid"
+        if clean_mode not in ["hybrid", "strict", "proactive"]:
+            if "strict" in clean_mode:
+                clean_mode = "strict"
+            elif "pro" in clean_mode or "creat" in clean_mode:
+                clean_mode = "proactive"
+            else:
+                clean_mode = "hybrid"
+
+        settings = self.get_app_settings()
+        ctx = settings.context if (settings and settings.context) else ContextSettings()
+        ctx.grounding_mode = clean_mode
+        self.update_context_settings(ctx)
+        return clean_mode
 
     def update_session_settings(self, session: SessionSettings):
         """Updates session vector database settings"""
