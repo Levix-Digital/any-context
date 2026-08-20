@@ -15,12 +15,13 @@ class TestCLIHelpRegistry(unittest.TestCase):
     """
 
     def test_01_help_registry_complete_coverage(self):
-        """Validates that all 19 core commands resolve to valid, complete HelpPages."""
+        """Validates that all 22 core commands resolve to valid, complete HelpPages."""
         safe_stdout_write("\n>>> [CLI UNIT] Testing Help Engine & Command Registry...\n")
         expected_commands = [
             "switch", "sync", "model", "api-keys", "web", "ocr",
             "billing", "update", "config", "auth", "share",
-            "serve", "mcp", "reset-memory", "clear", "factory-reset", "history", "paste", "transfer"
+            "serve", "mcp", "reset-memory", "clear", "factory-reset", "history", "paste", "transfer",
+            "density", "rename", "sources"
         ]
 
         for cmd in expected_commands:
@@ -50,6 +51,10 @@ class TestCLIHelpRegistry(unittest.TestCase):
         self.assertEqual(get_help_page("/multiline"), get_help_page("paste"))
         self.assertEqual(get_help_page("/transfer"), get_help_page("transfer"))
         self.assertEqual(get_help_page("move-source"), get_help_page("transfer"))
+        self.assertEqual(get_help_page("/sources"), get_help_page("sources"))
+        self.assertEqual(get_help_page("/workspace sources"), get_help_page("sources"))
+        self.assertEqual(get_help_page("listsources"), get_help_page("sources"))
+        self.assertEqual(get_help_page("workspace-list"), get_help_page("sources"))
         safe_stdout_write("  [OK] Help alias resolution verified across all shortcuts!\n")
 
 if __name__ == "__main__":

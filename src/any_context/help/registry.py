@@ -486,7 +486,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Claude Desktop Config (claude_desktop_config.json):\n{\n  'mcpServers': {\n    'any-context': {\n      'command': 'actx',\n      'args': ['--mcp']\n    }\n  }\n}"
         ],
         tips=[
-            "MCP tools include 'search_workspace_docs', 'query_anycontext_agent', 'list_workspaces', 'create_access_token', and 'get_anycontext_system_documentation'."
+            "MCP tools include 'search_workspace_docs', 'query_anycontext_agent', 'list_workspaces', 'get_workspace_sources', 'transfer_workspace_source', 'rename_workspace', 'create_access_token', and 'get_anycontext_system_documentation'."
         ]
     ),
 
@@ -772,6 +772,48 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Renaming executes atomically in sub-50ms regardless of how many thousands of document chunks exist.",
             "Zero tokens are spent: vector embeddings are preserved without calling OpenAI/LLMs.",
             "If you rename your active workspace, your current session prompt automatically updates to the new name."
+        ]
+    ),
+    "sources": HelpPage(
+        command="/sources",
+        aliases=["sources", "/sources", "workspace sources", "/workspace sources", "workspace-sources", "listsources", "sources-list", "workspace-list"],
+        title="📁 Workspace Multi-Source Listing & Tripartite Parity",
+        description=(
+            "The /sources command lists all data sources attached to your workspaces in a unified, UI-agnostic format. "
+            "AnyContext supports 3 core source types: Local Folders, Web Portals/URLs, and Cloud Drives (Google Drive, OneDrive, S3, Dropbox).\n\n"
+            "✨ TRIPARTITE PARITY & UI-AGNOSTIC ARCHITECTURE:\n"
+            "Workspace and source listing is fully synchronized across all 3 interfaces: CLI terminal (/sources, /config), "
+            "REST API (GET /v1/workspaces, GET /v1/workspaces/{name}/sources), and MCP Protocol (list_workspaces, get_workspace_sources)."
+        ),
+        syntax=(
+            "In Chat (Active Workspace) : /sources   OR   /workspace sources\n"
+            "  In Chat (All Workspaces)    : /sources all   OR   /workspace list\n"
+            "  In CLI Config Menu          : actx --config -> 📂 Workspaces & Folders -> 📋 List Workspaces & Folders\n"
+            "  REST API Endpoints          : GET /v1/workspaces\n"
+            "                                GET /v1/workspaces/{name}\n"
+            "                                GET /v1/workspaces/{name}/sources\n"
+            "  MCP Server Tools            : list_workspaces()\n"
+            "                                get_workspace_sources(workspace='...')\n"
+            "  View Help                   : /sources --help   OR   /sources -h"
+        ),
+        parameters=[
+            "/sources                 : Lists all local folders, web portals, and cloud drives in the active workspace.",
+            "/sources all             : Lists all sources across every configured workspace.",
+            "--help, -h               : Display this detailed help page for /sources."
+        ],
+        examples=[
+            "In Chat: /sources",
+            "In Chat: /sources all",
+            "In Chat: /workspace sources",
+            "curl -H 'Authorization: Bearer actx_sec_...' http://127.0.0.1:8000/v1/workspaces",
+            "curl -H 'Authorization: Bearer actx_sec_...' http://127.0.0.1:8000/v1/workspaces/Default/sources",
+            "In MCP Server: list_workspaces()",
+            "In MCP Server: get_workspace_sources(workspace='Legal')"
+        ],
+        tips=[
+            "Web portals display page count, crawl scope, and last scraped timestamp.",
+            "Cloud drives (Google Drive, OneDrive, S3, Dropbox) display connection status and sync metadata.",
+            "REST API responses return both legacy 'paths' and rich 'folders', 'web_sources', 'cloud_drives', and 'sources' arrays."
         ]
     )
 }

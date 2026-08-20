@@ -65,13 +65,24 @@ class Test08MCPProtocolServer(unittest.TestCase):
         self.assertIn("search_workspace_docs", tool_names)
         self.assertIn("query_anycontext_agent", tool_names)
         self.assertIn("list_workspaces", tool_names)
+        self.assertIn("get_workspace_sources", tool_names)
         self.assertIn("create_access_token", tool_names)
         self.assertIn("get_subscription_status", tool_names)
         safe_stdout_write("  [OK] MCP Tools List (20+ tools) verified!\n")
 
     def test_03_mcp_tools_call_execution(self):
-        """TC-8.3: Tests tools/call invoking list_workspaces and get_subscription_status."""
+        """TC-8.3: Tests tools/call invoking list_workspaces, get_workspace_sources and get_subscription_status."""
         safe_stdout_write(">>> [MOD 8 / TC-8.3] Testing MCP Tools Call Execution...\n")
+        # Add web source to workspace
+        from any_context.ingestion.web_scheduler import WebSchedulerStore
+        web_store = WebSchedulerStore()
+        web_store.add_or_update_root_web_source(
+            workspace_name=self.ws,
+            root_url="https://python.org",
+            title="Python Portal",
+            page_count=5
+        )
+
         # 1. Call list_workspaces
         req_ws = {
             "jsonrpc": "2.0",
@@ -86,8 +97,25 @@ class Test08MCPProtocolServer(unittest.TestCase):
         self.assertIn("result", res_ws)
         content_ws = res_ws["result"]["content"][0]["text"]
         self.assertIn(self.ws, content_ws)
+        self.assertIn("https://python.org", content_ws)
 
-        # 2. Call get_subscription_status
+        # 2. Call get_workspace_sources
+        req_src = {
+            "jsonrpc": "2.0",
+            "id": 35,
+            "method": "tools/call",
+            "params": {
+                "name": "get_workspace_sources",
+                "arguments": {"workspace": self.ws}
+            }
+        }
+        res_src = dispatch_mcp_request(req_src)
+        self.assertIn("result", res_src)
+        content_src = res_src["result"]["content"][0]["text"]
+        self.assertIn(self.ws, content_src)
+        self.assertIn("https://python.org", content_src)
+
+        # 3. Call get_subscription_status
         req_sub = {
             "jsonrpc": "2.0",
             "id": 4,

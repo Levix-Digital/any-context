@@ -1,7 +1,7 @@
 import json
 import os
 import sys
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
 class ContextSettings(BaseModel):
@@ -34,9 +34,40 @@ class ContextSettings(BaseModel):
             self.top_k = 40
             self.max_chunks_per_source = 3
 
+class WorkspaceWebSource(BaseModel):
+    id: str
+    url: str
+    root_url: Optional[str] = None
+    title: Optional[str] = None
+    page_count: int = 1
+    scope: Optional[str] = None
+    last_scraped_at: Optional[str] = None
+    created_at: Optional[str] = None
+
+class WorkspaceCloudDrive(BaseModel):
+    id: str
+    provider: str
+    mount_path_or_id: str
+    title: Optional[str] = None
+    auth_status: str = "pending"
+    last_synced_at: Optional[str] = None
+    created_at: Optional[str] = None
+
+class WorkspaceSourceItem(BaseModel):
+    type: str  # 'folder', 'web', 'cloud_drive'
+    id: Optional[str] = None
+    identifier: str
+    title: Optional[str] = None
+    details: Dict[str, Any] = Field(default_factory=dict)
+
 class WorkspaceSettings(BaseModel):
     name: str = Field(default="Default")
     paths: List[str] = Field(default_factory=list)
+    folders: List[str] = Field(default_factory=list)
+    web_sources: List[WorkspaceWebSource] = Field(default_factory=list)
+    cloud_drives: List[WorkspaceCloudDrive] = Field(default_factory=list)
+    sources: List[WorkspaceSourceItem] = Field(default_factory=list)
+    total_sources: int = 0
 
 class SessionSettings(BaseModel):
     db_path: str = Field(default="./memory")

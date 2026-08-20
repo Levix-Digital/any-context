@@ -74,8 +74,33 @@ class Test07RestApiServer(unittest.TestCase):
         create_data = res_create.json()
         self.assertEqual(create_data["name"], "E2E_Empty_Workspace")
         self.assertEqual(create_data["paths"], [])
+        self.assertIn("web_sources", create_data)
+        self.assertIn("cloud_drives", create_data)
+        self.assertIn("sources", create_data)
 
-        # 2. List Workspaces
+        # 2. Add web source via WebSchedulerStore
+        from any_context.ingestion.web_scheduler import WebSchedulerStore
+        web_store = WebSchedulerStore()
+        web_store.add_or_update_root_web_source(
+            workspace_name=self.test_ws,
+            root_url="https://canada.ca/en/immigration",
+            title="Canada Immigration",
+            page_count=10,
+            scope="section"
+        )
+
+        # 3. Add cloud drive via REST API endpoint
+        res_cd = self.client.post(
+            f"/v1/workspaces/{self.test_ws}/cloud-drives",
+            json={"provider": "google_drive", "mount_path_or_id": "gdrive://folder-test-123", "title": "Google Drive Docs"},
+            headers=self.headers
+        )
+        self.assertEqual(res_cd.status_code, 200)
+        cd_data = res_cd.json()
+        self.assertEqual(cd_data["status"], "success")
+        drive_id = cd_data["cloud_drive"]["id"]
+
+        # 4. List Workspaces (verifying multi-source parity)
         res_list = self.client.get("/v1/workspaces", headers=self.headers)
         self.assertEqual(res_list.status_code, 200)
         data = res_list.json()
@@ -84,12 +109,37 @@ class Test07RestApiServer(unittest.TestCase):
         self.assertIn(self.test_ws, ws_names)
         self.assertIn("E2E_Empty_Workspace", ws_names)
 
-        # 3. Trigger Indexing
+        target_ws_dto = next((w for w in workspaces if w["name"] == self.test_ws), None)
+        self.assertIsNotNone(target_ws_dto)
+        self.assertGreaterEqual(len(target_ws_dto["web_sources"]), 1)
+        self.assertEqual(target_ws_dto["web_sources"][0]["url"], "https://canada.ca/en/immigration")
+        self.assertGreaterEqual(len(target_ws_dto["cloud_drives"]), 1)
+        self.assertEqual(target_ws_dto["cloud_drives"][0]["provider"], "google_drive")
+        self.assertGreaterEqual(target_ws_dto["total_sources"], 2)
+
+        # 5. Get Workspace Detail & Sources endpoints
+        res_single = self.client.get(f"/v1/workspaces/{self.test_ws}", headers=self.headers)
+        self.assertEqual(res_single.status_code, 200)
+        single_data = res_single.json()
+        self.assertEqual(single_data["name"], self.test_ws)
+        self.assertGreaterEqual(len(single_data["web_sources"]), 1)
+
+        res_sources = self.client.get(f"/v1/workspaces/{self.test_ws}/sources", headers=self.headers)
+        self.assertEqual(res_sources.status_code, 200)
+        src_breakdown = res_sources.json()
+        self.assertEqual(src_breakdown["workspace"], self.test_ws)
+        self.assertGreaterEqual(src_breakdown["total_sources"], 2)
+
+        # 6. Delete cloud drive
+        res_del_cd = self.client.delete(f"/v1/workspaces/{self.test_ws}/cloud-drives/{drive_id}", headers=self.headers)
+        self.assertEqual(res_del_cd.status_code, 200)
+
+        # 7. Trigger Indexing
         res_idx = self.client.post("/v1/index", json={"workspace": self.test_ws}, headers=self.headers)
         self.assertEqual(res_idx.status_code, 200)
         idx_data = res_idx.json()
         self.assertEqual(idx_data["status"], "accepted")
-        safe_stdout_write("  [OK] Workspace creation, listing and background index REST endpoints verified!\n")
+        safe_stdout_write("  [OK] Workspace creation, multi-source listing, cloud drive CRUD and background index REST endpoints verified!\n")
 
     def test_04_billing_and_plans_endpoints(self):
         """TC-7.6: Tests /v1/billing/status and /v1/billing/plans licensing endpoints."""

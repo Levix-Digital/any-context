@@ -61,13 +61,58 @@ class UserCreateRequest(BaseModel):
     role: str = Field("analyst", description="Role: 'admin', 'analyst', or 'viewer'")
     allowed_workspaces: List[str] = Field(default_factory=lambda: ["Default"], description="Allowed workspace names")
 
+class WorkspaceWebSourceDTO(BaseModel):
+    id: str
+    url: str
+    root_url: Optional[str] = None
+    title: Optional[str] = None
+    page_count: int = 1
+    scope: Optional[str] = None
+    last_scraped_at: Optional[str] = None
+    created_at: Optional[str] = None
+
+class WorkspaceCloudDriveDTO(BaseModel):
+    id: str
+    provider: str
+    mount_path_or_id: str
+    title: Optional[str] = None
+    auth_status: str = "pending"
+    last_synced_at: Optional[str] = None
+    created_at: Optional[str] = None
+
+class WorkspaceSourceItemDTO(BaseModel):
+    type: str  # 'folder', 'web', 'cloud_drive'
+    id: Optional[str] = None
+    identifier: str
+    title: Optional[str] = None
+    details: Dict[str, Any] = Field(default_factory=dict)
+
 class WorkspaceDTO(BaseModel):
     name: str
-    paths: List[str]
+    paths: List[str] = Field(default_factory=list, description="Legacy/convenience list of local folder paths")
+    folders: List[str] = Field(default_factory=list, description="List of local folder paths attached to workspace")
+    web_sources: List[WorkspaceWebSourceDTO] = Field(default_factory=list, description="List of web portal/URL sources")
+    cloud_drives: List[WorkspaceCloudDriveDTO] = Field(default_factory=list, description="List of connected cloud drive sources")
+    sources: List[WorkspaceSourceItemDTO] = Field(default_factory=list, description="Unified polymorphic list of all workspace sources")
+    total_sources: int = 0
 
 class WorkspacesResponse(BaseModel):
     total: int
     workspaces: List[WorkspaceDTO]
+
+class WorkspaceSourcesResponse(BaseModel):
+    workspace: str
+    total_sources: int
+    folders: List[str] = Field(default_factory=list)
+    web_sources: List[WorkspaceWebSourceDTO] = Field(default_factory=list)
+    cloud_drives: List[WorkspaceCloudDriveDTO] = Field(default_factory=list)
+    sources: List[WorkspaceSourceItemDTO] = Field(default_factory=list)
+
+class CloudDriveAddRequest(BaseModel):
+    provider: str = Field(..., description="Cloud provider (e.g. 'google_drive', 'onedrive', 's3', 'dropbox')")
+    mount_path_or_id: str = Field(..., description="Drive ID, folder URI, or bucket/prefix")
+    title: Optional[str] = Field(None, description="Descriptive display title")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Optional provider-specific metadata")
 
 class TransferSourceRequest(BaseModel):
     source_workspace: str = Field(..., description="Origin workspace name")
@@ -390,14 +435,45 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
 
     @app.get("/v1/workspaces", response_model=WorkspacesResponse, tags=["Workspaces"])
     def list_workspaces(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Lists all configured workspaces with their complete sources (folders, web portals, cloud drives, and unified sources list)."""
         verify_token_access(credentials=credentials)
         store = ConfigDBStore()
-        settings = store.get_app_settings()
-        if not settings or not settings.workspaces:
-            return WorkspacesResponse(total=0, workspaces=[])
-        
-        dto_list = [WorkspaceDTO(name=ws.name, paths=ws.paths) for ws in settings.workspaces]
+        detailed_list = store.list_workspaces_detailed()
+        dto_list = [WorkspaceDTO(**ws) for ws in detailed_list]
         return WorkspacesResponse(total=len(dto_list), workspaces=dto_list)
+
+    @app.get("/v1/workspaces/{workspace_name}", response_model=WorkspaceDTO, tags=["Workspaces"])
+    def get_workspace_endpoint(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Retrieves details and all sources for a specific workspace."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        store = ConfigDBStore()
+        clean_ws = workspace_name.strip()
+        settings = store.get_app_settings()
+        known = [w.name for w in settings.workspaces] if settings else []
+        if clean_ws not in known:
+            raise HTTPException(status_code=404, detail=f"Workspace '{clean_ws}' not found.")
+        ws_detail = store.get_workspace_sources(clean_ws)
+        return WorkspaceDTO(**ws_detail)
+
+    @app.get("/v1/workspaces/{workspace_name}/sources", response_model=WorkspaceSourcesResponse, tags=["Workspaces"])
+    def get_workspace_sources_endpoint(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Returns grouped and unified sources breakdown for a specific workspace."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        store = ConfigDBStore()
+        clean_ws = workspace_name.strip()
+        settings = store.get_app_settings()
+        known = [w.name for w in settings.workspaces] if settings else []
+        if clean_ws not in known:
+            raise HTTPException(status_code=404, detail=f"Workspace '{clean_ws}' not found.")
+        ws_detail = store.get_workspace_sources(clean_ws)
+        return WorkspaceSourcesResponse(
+            workspace=clean_ws,
+            total_sources=ws_detail["total_sources"],
+            folders=ws_detail["folders"],
+            web_sources=[WorkspaceWebSourceDTO(**w) for w in ws_detail["web_sources"]],
+            cloud_drives=[WorkspaceCloudDriveDTO(**cd) for cd in ws_detail["cloud_drives"]],
+            sources=[WorkspaceSourceItemDTO(**s) for s in ws_detail["sources"]]
+        )
 
     @app.post("/v1/workspaces", response_model=WorkspaceDTO, tags=["Workspaces"])
     def create_workspace_endpoint(name: str, paths: Optional[List[str]] = None, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
@@ -409,7 +485,40 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         store = ConfigDBStore()
         clean_paths = paths or []
         store.add_workspace(clean_name, clean_paths)
-        return WorkspaceDTO(name=clean_name, paths=clean_paths)
+        ws_detail = store.get_workspace_sources(clean_name)
+        return WorkspaceDTO(**ws_detail)
+
+    @app.post("/v1/workspaces/{workspace_name}/cloud-drives", tags=["Workspaces"])
+    def add_cloud_drive_endpoint(workspace_name: str, req: CloudDriveAddRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Attaches a cloud drive source (e.g. Google Drive, OneDrive, S3, Dropbox) to a workspace."""
+        verify_token_access(credentials=credentials, required_role="analyst", required_workspace=workspace_name)
+        store = ConfigDBStore()
+        res = store.add_cloud_drive_to_workspace(
+            workspace_name=workspace_name,
+            provider=req.provider,
+            mount_path_or_id=req.mount_path_or_id,
+            title=req.title,
+            metadata=req.metadata
+        )
+        return {"status": "success", "cloud_drive": res}
+
+    @app.get("/v1/workspaces/{workspace_name}/cloud-drives", tags=["Workspaces"])
+    def list_cloud_drives_endpoint(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Lists attached cloud drive sources for a workspace."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        store = ConfigDBStore()
+        drives = store.get_workspace_cloud_drives(workspace_name)
+        return {"workspace_name": workspace_name, "cloud_drives": drives}
+
+    @app.delete("/v1/workspaces/{workspace_name}/cloud-drives/{drive_id}", tags=["Workspaces"])
+    def delete_cloud_drive_endpoint(workspace_name: str, drive_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Removes an attached cloud drive source from a workspace."""
+        verify_token_access(credentials=credentials, required_role="analyst", required_workspace=workspace_name)
+        store = ConfigDBStore()
+        deleted = store.delete_cloud_drive(drive_id=drive_id, workspace_name=workspace_name)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Cloud drive not found.")
+        return {"status": "success", "message": f"Cloud drive '{drive_id}' removed from workspace '{workspace_name}'."}
 
     @app.post("/v1/workspaces/transfer", response_model=TransferSourceResponse, tags=["Workspaces"])
     def transfer_workspace_source_endpoint(req: TransferSourceRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):

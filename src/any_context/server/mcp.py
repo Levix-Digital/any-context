@@ -50,11 +50,25 @@ MCP_TOOLS_DEFINITIONS = [
     },
     {
         "name": "list_workspaces",
-        "description": "Lists all configured workspaces and their associated disk directory paths.",
+        "description": "Lists all configured workspaces along with all their associated sources (local folders, web portals/URLs, and cloud drives).",
         "inputSchema": {
             "type": "object",
             "properties": {},
             "required": []
+        }
+    },
+    {
+        "name": "get_workspace_sources",
+        "description": "Retrieves all sources (local folders, web portals, cloud drives) configured in a specific workspace.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {
+                    "type": "string",
+                    "description": "Workspace name to inspect (e.g. 'Default', 'Legal', 'Tech')"
+                }
+            },
+            "required": ["workspace"]
         }
     },
     {
@@ -394,9 +408,17 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
 
             elif tool_name == "list_workspaces":
                 store = ConfigDBStore()
-                settings = store.get_app_settings()
-                workspaces = [{"name": w.name, "paths": w.paths} for w in settings.workspaces] if settings else []
-                result_text = json.dumps(workspaces, indent=2)
+                detailed_workspaces = store.list_workspaces_detailed()
+                result_text = json.dumps(detailed_workspaces, indent=2)
+
+            elif tool_name == "get_workspace_sources":
+                ws = arguments.get("workspace")
+                if not ws:
+                    result_text = "Error: 'workspace' argument is required."
+                else:
+                    store = ConfigDBStore()
+                    sources_detail = store.get_workspace_sources(ws)
+                    result_text = json.dumps(sources_detail, indent=2)
 
             elif tool_name == "reset_workspace_memory":
                 ws = arguments.get("workspace")
