@@ -158,10 +158,10 @@ def _manage_workspaces(store: ConfigDBStore):
                 print(f"    - [Folder] {f}")
             for w in ws.get("web_sources", []):
                 pages_badge = f" • {w.get('page_count')} pages" if w.get('page_count', 1) > 1 else ""
-                print(f"    - [Web Portal] {w['url']} ({w.get('title') or 'Web Source'}{pages_badge})")
+                print(f"    - [Web] {w['url']} ({w.get('title') or 'Web Source'}{pages_badge})")
             for cd in ws.get("cloud_drives", []):
                 auth_badge = f" • {cd.get('auth_status')}" if cd.get('auth_status') else ""
-                print(f"    - [Cloud Drive] {cd['provider']}://{cd['mount_path_or_id']} ({cd.get('title') or 'Cloud Drive'}{auth_badge})")
+                print(f"    - [Drive] {cd['provider']}://{cd['mount_path_or_id']} ({cd.get('title') or 'Cloud Drive'}{auth_badge})")
             if not ws.get("sources"):
                 print("    - (No sources configured. Use /web add, /sync, or /config)")
         print("-----------------------------\n")
