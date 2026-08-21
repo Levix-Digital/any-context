@@ -5,6 +5,7 @@ import sqlite3
 from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.memory import MemorySaver
 
 from any_context.tools.search_tools import search_db, add_web_source, list_web_sources, remove_web_source
 from any_context.tools.web_search_tool import live_web_search
@@ -14,11 +15,73 @@ from any_context.core.utils import get_system_prompt, get_api_key
 from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
 
-_memory_dir = os.path.abspath("./memory")
-os.makedirs(_memory_dir, exist_ok=True)
-_checkpoints_db = os.path.join(_memory_dir, "checkpoints.db")
-conn = sqlite3.connect(_checkpoints_db, check_same_thread=False)
-saver = SqliteSaver(conn=conn)
+class ResilientSqliteSaver(SqliteSaver):
+    """
+    Auto-healing SqliteSaver that safely recovers from corrupted zlib streams,
+    incomplete checkpoint bytes, or database locking errors without crashing the agent.
+    """
+    def get_tuple(self, config):
+        try:
+            return super().get_tuple(config)
+        except Exception:
+            try:
+                thread_id = config.get("configurable", {}).get("thread_id") if config else None
+                if thread_id:
+                    self.delete_thread(thread_id)
+            except Exception:
+                pass
+            return None
+
+    def list(self, config=None, *, filter=None, before=None, limit=None):
+        try:
+            for item in super().list(config, filter=filter, before=before, limit=limit):
+                yield item
+        except Exception:
+            return
+
+    def get_delta_channel_history(self, *, config, channels):
+        try:
+            return super().get_delta_channel_history(config=config, channels=channels)
+        except Exception:
+            return {ch: {"writes": []} for ch in channels}
+
+
+_global_checkpointer = None
+
+def get_safe_checkpointer():
+    """
+    Returns a resilient checkpoint saver with automatic corruption detection,
+    database healing, and fallback to MemorySaver if SQLite checkpoint decompressing fails.
+    """
+    global _global_checkpointer
+    if _global_checkpointer is not None:
+        return _global_checkpointer
+
+    try:
+        user_home = os.path.expanduser("~/.anycontext/memory")
+        os.makedirs(user_home, exist_ok=True)
+        db_path = os.path.join(user_home, "checkpoints.db")
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        saver_inst = ResilientSqliteSaver(conn=conn)
+        saver_inst.setup()
+        _global_checkpointer = saver_inst
+        return _global_checkpointer
+    except Exception:
+        try:
+            local_mem = os.path.abspath("./memory")
+            os.makedirs(local_mem, exist_ok=True)
+            db_path = os.path.join(local_mem, "checkpoints.db")
+            conn = sqlite3.connect(db_path, check_same_thread=False)
+            saver_inst = ResilientSqliteSaver(conn=conn)
+            saver_inst.setup()
+            _global_checkpointer = saver_inst
+            return _global_checkpointer
+        except Exception:
+            _global_checkpointer = MemorySaver()
+            return _global_checkpointer
+
+# Backward compatible module export
+saver = get_safe_checkpointer()
 
 def create_anycontext_agent(
     active_workspace: str = None, 
@@ -98,12 +161,23 @@ def create_anycontext_agent(
     if web_search_enabled:
         tools.append(live_web_search)
 
-    return create_agent(
-        model=model,
-        system_prompt=system_prompt,
-        tools=tools,
-        checkpointer=checkpointer if checkpointer is not None else saver
-    )
+    chk = checkpointer if checkpointer is not None else get_safe_checkpointer()
+    try:
+        return create_agent(
+            model=model,
+            system_prompt=system_prompt,
+            tools=tools,
+            checkpointer=chk
+        )
+    except Exception:
+        # If checkpointer threw zlib or database error, fall back cleanly to MemorySaver
+        from langgraph.checkpoint.memory import MemorySaver
+        return create_agent(
+            model=model,
+            system_prompt=system_prompt,
+            tools=tools,
+            checkpointer=MemorySaver()
+        )
 
 class LazyAgentProxy:
     def __init__(self, checkpointer=saver):

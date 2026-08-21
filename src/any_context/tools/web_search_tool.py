@@ -57,7 +57,8 @@ def execute_web_search(
                 "max_results": max_results,
                 "include_domains": domains if domains else []
             }
-            resp = httpx.post("https://api.tavily.com/search", json=payload, timeout=10.0)
+            headers = {"Accept-Encoding": "identity", "Content-Type": "application/json"}
+            resp = httpx.post("https://api.tavily.com/search", headers=headers, json=payload, timeout=10.0)
             if resp.status_code == 200:
                 data = resp.json()
                 for item in data.get("results", []):
@@ -76,7 +77,7 @@ def execute_web_search(
     if serper_key and serper_key.strip():
         try:
             import httpx
-            headers = {"X-API-KEY": serper_key.strip(), "Content-Type": "application/json"}
+            headers = {"X-API-KEY": serper_key.strip(), "Content-Type": "application/json", "Accept-Encoding": "identity"}
             q = clean_query
             if domains and len(domains) == 1:
                 q = f"site:{domains[0]} {clean_query}"
