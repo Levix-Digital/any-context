@@ -224,14 +224,27 @@ def create_bottom_toolbar_renderer(
 ):
     """
     Constructs a dynamic callable for prompt_toolkit bottom_toolbar.
-    Renders a continuous full-width horizontal divider and clean status dock:
+    Renders a continuous full-width horizontal divider and clean status dock with right-aligned exit:
     ────────────────────────────────────────────────────────────────────────────
-     📂 CanadaImmigration  │  🤖 gpt-4o-mini  │  🛡️ Hybrid  │  🌐 Search: ON  │  💡 /menu  │  ⚡ Syncing...  │
+     📂 CanadaImmigration  │  🤖 gpt-4o-mini  │  🛡️ Hybrid  │  🌐 Search: ON  │  💡 /menu  │  ⚡ Syncing...  │          🚪 /exit 
     """
     import shutil
+    import unicodedata
+    import re
     from prompt_toolkit.formatted_text import HTML
     from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
     from any_context.config.db_store import ConfigDBStore
+
+    def _char_width(c: str) -> int:
+        if unicodedata.east_asian_width(c) in ('F', 'W'):
+            return 2
+        if ord(c) > 0x2000 and unicodedata.category(c) in ('So', 'Sk'):
+            return 2
+        return 1
+
+    def _visible_len(s: str) -> int:
+        clean = re.sub(r'<[^>]+>', '', s)
+        return sum(_char_width(c) for c in clean)
 
     def _render():
         clean_mode = (grounding_mode or "hybrid").capitalize()
@@ -250,11 +263,13 @@ def create_bottom_toolbar_renderer(
 
         # Check background sync status dynamically on each render frame
         sync_badge = ""
+        if_sync_part = ""
         try:
             bg_mgr = BackgroundSyncManager()
             sync_info = bg_mgr.get_status(workspace_name)
             if sync_info and sync_info.get("status") == "running":
                 sync_badge = "  <style fg='#ff9e64'><b>⚡ Syncing...</b></style>  <style fg='#565f89'>│</style>"
+                if_sync_part = "  ⚡ Syncing...  │"
         except Exception:
             pass
 
@@ -265,8 +280,7 @@ def create_bottom_toolbar_renderer(
             cols = 100
         divider_line = "─" * max(cols, 20)
 
-        return HTML(
-            f"<style fg='#444b6a'>{divider_line}</style>\n"
+        left_html = (
             f" <style fg='#e0af68'><b>📂 {workspace_name}</b></style>  "
             f"<style fg='#565f89'>│</style>  "
             f"<style fg='#bb9af7'><b>🤖 {model_name}</b></style>  "
@@ -278,6 +292,26 @@ def create_bottom_toolbar_renderer(
             f"<style fg='#e0af68'><b>💡 /menu</b></style>  "
             f"<style fg='#565f89'>│</style>"
             f"{sync_badge}"
+        )
+
+        right_html = "<style fg='#f7768e'><b>🚪 /exit</b></style> "
+
+        left_visible = (
+            f" 📂 {workspace_name}  │  "
+            f"🤖 {model_name}  │  "
+            f"🛡️ {clean_mode}  │  "
+            f"🌐 Search: {'ON' if ws_search else 'OFF'}  │  "
+            f"💡 /menu  │"
+            f"{if_sync_part}"
+        )
+        right_visible = "🚪 /exit "
+
+        pad_count = max(2, cols - _visible_len(left_visible) - _visible_len(right_visible) - 1)
+        padding = " " * pad_count
+
+        return HTML(
+            f"<style fg='#444b6a'>{divider_line}</style>\n"
+            f"{left_html}{padding}{right_html}"
         )
 
     return _render
