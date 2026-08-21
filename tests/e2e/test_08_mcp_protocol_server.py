@@ -340,13 +340,12 @@ class Test08MCPProtocolServer(unittest.TestCase):
         import tempfile
         import shutil
         temp_d = tempfile.mkdtemp()
-        ws_origin = "mcp_shared_origin"
         ws_target = "mcp_shared_target"
         test_folder = os.path.abspath(os.path.join(temp_d, "mcp_shared_folder"))
         os.makedirs(test_folder, exist_ok=True)
 
         try:
-            self.store.add_workspace(ws_origin, paths=[test_folder])
+            self.store.add_folder_to_workspace("Shared Sources", test_folder)
             self.store.add_workspace(ws_target, paths=[])
 
             # 1. list_available_shared_sources
@@ -408,9 +407,8 @@ class Test08MCPProtocolServer(unittest.TestCase):
             data_unlink = json.loads(res_unlink["result"]["content"][0]["text"])
             self.assertEqual(data_unlink["status"], "success")
 
-            safe_stdout_write("  [OK] MCP Shared Sources tools verified!\n")
         finally:
-            self.store.remove_workspace(ws_origin)
+            self.store.remove_folder_from_workspace("Shared Sources", test_folder)
             self.store.remove_workspace(ws_target)
             try:
                 shutil.rmtree(temp_d, ignore_errors=True)

@@ -272,11 +272,10 @@ class TestWorkspaceSources(unittest.TestCase):
         self.assertIsNotNone(meta_global)
         self.assertEqual(meta_global["workspace_id"], "ws_global")
 
-        # 2. Add an origin source in workspace A
-        ws_origin = "Unit_Origin_WS"
+        # 2. Add an origin source in workspace 'Shared Sources'
         folder_shared = os.path.join(self.temp_dir, "shared_framework")
         os.makedirs(folder_shared, exist_ok=True)
-        self.store.add_workspace(ws_origin, paths=[folder_shared])
+        self.store.add_folder_to_workspace("Shared Sources", folder_shared)
 
         # 3. List available shared sources
         available = self.store.list_all_available_shared_sources()
