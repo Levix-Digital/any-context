@@ -266,8 +266,7 @@ def create_bottom_toolbar_renderer(
         if_sync_part = ""
         try:
             bg_mgr = BackgroundSyncManager()
-            sync_info = bg_mgr.get_status(workspace_name)
-            if sync_info and sync_info.get("status") == "running":
+            if bg_mgr.is_syncing(workspace_name):
                 sync_badge = "  <style fg='#ff9e64'><b>⚡ Syncing...</b></style>  <style fg='#565f89'>│</style>"
                 if_sync_part = "  ⚡ Syncing...  │"
         except Exception:
