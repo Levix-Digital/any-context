@@ -108,18 +108,12 @@ def create_workspace_prompt_session(history_file: str):
 
 
 def get_default_prompt_style():
-    """Returns elegant, modern theme colors for prompt_toolkit bottom toolbar."""
+    """Returns clean, transparent theme colors for prompt_toolkit bottom toolbar without box backgrounds."""
     try:
         from prompt_toolkit.styles import Style
         return Style.from_dict({
-            "bottom-toolbar": "bg:#1a1b26 #a9b1d6",
-            "bottom-toolbar.text": "#a9b1d6",
-            "bottom-toolbar.ws": "fg:#e0af68 bold",
-            "bottom-toolbar.model": "fg:#bb9af7 bold",
-            "bottom-toolbar.mode": "fg:#7dcfff bold",
-            "bottom-toolbar.sync": "bg:#e0af68 fg:#1a1b26 bold",
-            "bottom-toolbar.dim": "fg:#565f89",
-            "bottom-toolbar.cmd": "fg:#73daca bold",
+            "bottom-toolbar": "noreverse default",
+            "bottom-toolbar.text": "noreverse default",
         })
     except Exception:
         return None
