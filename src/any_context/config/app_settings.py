@@ -13,7 +13,7 @@ class ContextSettings(BaseModel):
     candidate_pool_size: int = Field(default=100, description="Initial candidate pool size retrieved from ChromaDB before source diversification")
     max_chunks_per_source: int = Field(default=3, description="Maximum chunks allowed per document/URL to enforce cross-source diversity")
     retrieval_preset: str = Field(default="balanced", description="RAG Retrieval Density Preset: 'balanced', 'turbo', 'deep_research', 'custom'")
-    grounding_mode: str = Field(default="hybrid", description="AI Grounding & Answer Mode: 'hybrid' (default), 'strict', 'proactive'")
+    grounding_mode: str = Field(default="strict", description="AI Grounding & Answer Mode: 'strict' (default), 'hybrid', 'proactive'")
     web_search_enabled: bool = Field(default=False, description="Default/Global Web Search Toggle")
 
     def apply_preset(self, preset_name: str):
@@ -68,7 +68,7 @@ class WorkspaceSettings(BaseModel):
     paths: List[str] = Field(default_factory=list)
     sources: List[WorkspaceSourceItem] = Field(default_factory=list)
     total_sources: int = 0
-    grounding_mode: str = Field(default="hybrid", description="Per-workspace grounding mode: 'hybrid', 'strict', 'proactive'")
+    grounding_mode: str = Field(default="strict", description="Per-workspace grounding mode: 'strict' (default), 'hybrid', 'proactive'")
     web_search_enabled: bool = Field(default=False, description="Per-workspace web search toggle")
 
 class SessionSettings(BaseModel):

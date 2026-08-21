@@ -58,8 +58,8 @@ class TestWorkspaceWebSearch(unittest.TestCase):
         self.assertEqual(self.store.get_grounding_mode("ResearchWorkspace"), "proactive")
         self.assertTrue(self.store.get_web_search_status("ResearchWorkspace"))
 
-        # Verify Default remains untouched
-        self.assertEqual(self.store.get_grounding_mode("Default"), "hybrid")
+        # Verify Default remains untouched (strict default)
+        self.assertEqual(self.store.get_grounding_mode("Default"), "strict")
         self.assertFalse(self.store.get_web_search_status("Default"))
         safe_stdout_write("  [OK] Web search and grounding mode settings are completely isolated per workspace!\n")
 
@@ -122,7 +122,7 @@ class TestWorkspaceWebSearch(unittest.TestCase):
         strict_web_prompt = get_system_prompt(active_workspace="LegalTest", grounding_mode="strict", web_search_enabled=True)
         self.assertIn("LIVE WEB SEARCH ENGINE: ACTIVE", strict_web_prompt)
         self.assertIn("STRICT PROTOCOL FOR WEB SEARCH", strict_web_prompt)
-        self.assertIn("Deseja que eu faça uma busca na web", strict_web_prompt)
+        self.assertIn("Deseja que eu faça uma busca na internet", strict_web_prompt)
 
         # 2. Hybrid + Web ON
         hyb_web_prompt = get_system_prompt(active_workspace="DevTest", grounding_mode="hybrid", web_search_enabled=True)
