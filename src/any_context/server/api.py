@@ -577,7 +577,7 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
     @app.post("/v1/workspaces/rename", response_model=RenameWorkspaceResponse, tags=["Workspaces"])
     def rename_workspace_endpoint(req: RenameWorkspaceRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
         """Renames a workspace atomically across SQLite records and ChromaDB vector metadata in sub-50ms ($0.00 cost)."""
-        verify_token_access(credentials=credentials, required_role="admin", required_workspace=req.old_name)
+        verify_token_access(credentials=credentials, required_role="analyst", required_workspace=req.old_name)
 
         old_ws = (req.old_name or "").strip()
         new_ws = (req.new_name or "").strip()
