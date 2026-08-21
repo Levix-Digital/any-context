@@ -411,5 +411,51 @@ class Test07RestApiServer(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_11_sync_status_and_trigger_endpoints(self):
+        """TC-7.13: Tests GET /v1/workspaces/{name}/sync/status and POST /v1/workspaces/{name}/sync REST endpoints."""
+        safe_stdout_write(">>> [MOD 7 / TC-7.13] Testing Workspace Sync Status & Trigger REST Endpoints...\n")
+        import tempfile
+        import shutil
+        temp_d = tempfile.mkdtemp()
+        ws_test = "REST_Sync_Test"
+        test_folder = os.path.abspath(os.path.join(temp_d, "rest_sync_folder"))
+        os.makedirs(test_folder, exist_ok=True)
+        doc_f = os.path.join(test_folder, "test_doc.md")
+        with open(doc_f, "w", encoding="utf-8") as f:
+            f.write("# REST API Sync Document\nTesting hybrid stat cache synchronization.")
+
+        try:
+            self.store.add_workspace(ws_test, paths=[test_folder])
+
+            # 1. GET /v1/workspaces/{name}/sync/status
+            res_status = self.client.get(f"/v1/workspaces/{ws_test}/sync/status", headers=self.headers)
+            self.assertEqual(res_status.status_code, 200, f"GET sync/status failed: {res_status.text}")
+            data = res_status.json()
+            self.assertEqual(data["workspace_name"], ws_test)
+            self.assertIn("is_up_to_date", data)
+            self.assertIn("summary", data)
+
+            # 2. POST /v1/workspaces/{name}/sync (Synchronous)
+            sync_payload = {"force_full": False, "background": False}
+            res_sync = self.client.post(f"/v1/workspaces/{ws_test}/sync", json=sync_payload, headers=self.headers)
+            self.assertEqual(res_sync.status_code, 200, f"POST sync failed: {res_sync.text}")
+            sync_data = res_sync.json()
+            self.assertEqual(sync_data["status"], "success")
+
+            # 3. POST /v1/workspaces/{name}/sync (Background)
+            bg_payload = {"force_full": False, "background": True}
+            res_bg = self.client.post(f"/v1/workspaces/{ws_test}/sync", json=bg_payload, headers=self.headers)
+            self.assertEqual(res_bg.status_code, 200)
+            self.assertEqual(res_bg.json()["mode"], "background")
+
+            safe_stdout_write("  [OK] Workspace sync status and trigger REST endpoints verified!\n")
+        finally:
+            self.store.remove_workspace(ws_test)
+            try:
+                shutil.rmtree(temp_d, ignore_errors=True)
+            except Exception:
+                pass
+
 if __name__ == "__main__":
     unittest.main()
+

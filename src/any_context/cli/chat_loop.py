@@ -174,9 +174,18 @@ def run_chat_loop(active_workspace: str = "Default"):
         "recursion_limit": 50
     }
 
-    with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
-        from any_context.ingestion.local_folder_ingestor import run_index_folder
-        run_index_folder(workspace_name=active_workspace, verbose=False)
+    from any_context.ingestion.local_folder_ingestor import check_workspace_changes, run_index_folder, BackgroundSyncManager
+    diff = check_workspace_changes(active_workspace)
+    if diff.get("is_virgin"):
+        with Spinner(f"Indexing new workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+            run_index_folder(workspace_name=active_workspace, verbose=False)
+    elif diff.get("is_up_to_date"):
+        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready (Up to date)\n")
+    else:
+        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready\n")
+        safe_stdout_write(f"\033[90m📦 Context update available ({diff.get('summary', '')}). Auto-syncing in background...\033[0m\n")
+        bg_mgr = BackgroundSyncManager()
+        bg_mgr.start_background_sync(active_workspace, verbose=False)
 
     from any_context.config.app_settings import AppSettings
     from any_context.config.db_store import ConfigDBStore
@@ -384,9 +393,18 @@ def run_chat_loop(active_workspace: str = "Default"):
                         safe_stdout_write(f"\n🔄 Switched to workspace '\033[93m{target_ws}\033[0m'.\n\n")
                     active_workspace = target_ws
                     config["configurable"]["active_workspace"] = active_workspace
-                    with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
-                        from any_context.ingestion.local_folder_ingestor import run_index_folder
-                        run_index_folder(workspace_name=active_workspace, verbose=False)
+                    from any_context.ingestion.local_folder_ingestor import check_workspace_changes, run_index_folder, BackgroundSyncManager
+                    diff = check_workspace_changes(active_workspace)
+                    if diff.get("is_virgin"):
+                        with Spinner(f"Indexing new workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+                            run_index_folder(workspace_name=active_workspace, verbose=False)
+                    elif diff.get("is_up_to_date"):
+                        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready (Up to date)\n")
+                    else:
+                        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready\n")
+                        safe_stdout_write(f"\033[90m📦 Context update available ({diff.get('summary', '')}). Auto-syncing in background...\033[0m\n")
+                        bg_mgr = BackgroundSyncManager()
+                        bg_mgr.start_background_sync(active_workspace, verbose=False)
                     agent_instance = None
                     continue
 
@@ -394,9 +412,18 @@ def run_chat_loop(active_workspace: str = "Default"):
                 if new_workspace:
                     active_workspace = new_workspace
                     config["configurable"]["active_workspace"] = active_workspace
-                    with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
-                        from any_context.ingestion.local_folder_ingestor import run_index_folder
-                        run_index_folder(workspace_name=active_workspace, verbose=False)
+                    from any_context.ingestion.local_folder_ingestor import check_workspace_changes, run_index_folder, BackgroundSyncManager
+                    diff = check_workspace_changes(active_workspace)
+                    if diff.get("is_virgin"):
+                        with Spinner(f"Indexing new workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+                            run_index_folder(workspace_name=active_workspace, verbose=False)
+                    elif diff.get("is_up_to_date"):
+                        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready (Up to date)\n")
+                    else:
+                        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready\n")
+                        safe_stdout_write(f"\033[90m📦 Context update available ({diff.get('summary', '')}). Auto-syncing in background...\033[0m\n")
+                        bg_mgr = BackgroundSyncManager()
+                        bg_mgr.start_background_sync(active_workspace, verbose=False)
                     agent_instance = None
                 continue
 
@@ -566,12 +593,28 @@ def run_chat_loop(active_workspace: str = "Default"):
 
             elif cmd in ["/sync", "/resync", "/index"] or cmd.startswith("/sync ") or cmd.startswith("/index "):
                 is_verbose = "--verbose" in user_input or "-v" in user_input
-                from any_context.ingestion.local_folder_ingestor import run_index_folder
-                if is_verbose:
-                    run_index_folder(workspace_name=active_workspace, verbose=True)
+                is_full = "--full" in user_input or "--force" in user_input or "-f" in user_input
+                is_status = "--status" in user_input or "status" in user_input
+                is_bg = "--bg" in user_input or "--background" in user_input
+                from any_context.ingestion.local_folder_ingestor import run_index_folder, check_workspace_changes, BackgroundSyncManager
+
+                if is_status:
+                    diff = check_workspace_changes(active_workspace)
+                    safe_stdout_write(f"\n┌ 🔍 \033[1mWorkspace Sync Status: {active_workspace}\033[0m\n")
+                    safe_stdout_write(f"│ ├─ 📂 Files on Disk : {diff['total_disk_files']}\n")
+                    safe_stdout_write(f"│ ├─ 🗃️ Cached Stats  : {diff['total_cached_files']}\n")
+                    safe_stdout_write(f"│ ├─ 📦 Pending Status: {diff['summary']}\n")
+                    safe_stdout_write(f"│ └─ ⚡ Up to Date   : {'Yes (0 changes)' if diff['is_up_to_date'] else 'No (Changes detected)'}\n")
+                    safe_stdout_write(f"└─────────────────────────────────────────────────────────────\n\n")
+                elif is_bg:
+                    bg_mgr = BackgroundSyncManager()
+                    bg_mgr.start_background_sync(active_workspace, verbose=is_verbose)
+                    safe_stdout_write(f"\n🚀 Background synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
+                elif is_verbose:
+                    run_index_folder(workspace_name=active_workspace, verbose=True, force_full=is_full)
                 else:
                     with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
-                        run_index_folder(workspace_name=active_workspace, verbose=False)
+                        run_index_folder(workspace_name=active_workspace, verbose=False, force_full=is_full)
                 agent_instance = None
                 continue
             elif cmd == "/model" or cmd == "/m" or cmd.startswith("/model ") or cmd.startswith("/m "):

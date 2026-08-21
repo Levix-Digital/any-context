@@ -49,33 +49,43 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
     "sync": HelpPage(
         command="/sync",
         aliases=["sync", "index", "/index", "--sync", "--index", "-s"],
-        title="⚡ Workspace Document Synchronization & Temporal Ingestion",
+        title="⚡ Workspace Document Synchronization & Hybrid Stat Cache",
         description=(
-            "The /sync (or /index) command performs an incremental scan of all configured folders in the active workspace. "
-            "It automatically discovers files across all nested subdirectories, calculates SHA-256 hashes to only index new or modified files, "
-            "purges deleted disk files from the ChromaDB vector database, and captures filesystem timestamps (last modified date and creation date) "
-            "with 'Local Document' classification for Temporal RAG recency ranking."
+            "The /sync (or /index) command performs ultra-fast, intelligent synchronization of all configured folders in the active workspace. "
+            "It uses a sub-30ms SQLite filesystem stat cache (mtime and size) to bypass unchanged files with zero disk reads, "
+            "performs zero-cost metadata repointing ($0.00) for renamed or moved files, purges deleted disk files from the ChromaDB vector database, "
+            "and ingests only new or modified documents without blocking your chat session."
         ),
         syntax=(
-            "In Chat (Silent)  : /sync   OR   /index\n"
+            "In Chat (Fast)    : /sync   OR   /index\n"
             "  In Chat (Verbose) : /sync --verbose   OR   /index -v\n"
-            "  CLI Re-indexing   : actx --index   OR   POST /v1/index (REST API)\n"
-            "  View Help         : /sync --help   OR   /sync -h"
+            "  In Chat (Status)  : /sync --status   OR   /sync status\n"
+            "  In Chat (Full)    : /sync --full   OR   /sync -f\n"
+            "  In Chat (Bg)      : /sync --bg   OR   /sync --background\n"
+            "  REST API Endpoints: GET/POST /v1/workspaces/{name}/sync/status & POST /v1/workspaces/{name}/sync\n"
+            "  MCP Protocol Tools: check_workspace_sync_status & sync_workspace_folders"
         ),
         parameters=[
-            "/sync, /index         : Runs fast, clean single-line background synchronization.",
+            "/sync, /index         : Runs fast incremental synchronization with smart stat cache bypass.",
             "--verbose, -v         : Displays a detailed, modern tree view showing discovered subfolders, file counts, and vector chunks.",
+            "--status              : Displays the quick diff summary (new, modified, deleted, renamed files) without indexing.",
+            "--full, -f            : Forces a full re-indexing across all files in the workspace.",
+            "--bg, --background    : Triggers synchronization in a non-blocking background worker thread.",
             "--help, -h            : Display this detailed help page for /sync."
         ],
         examples=[
             "In Chat: /sync",
             "In Chat: /sync --verbose",
-            "In Chat: /index -v",
-            "curl -X POST http://127.0.0.1:8000/v1/index -H 'Content-Type: application/json' -d '{\"workspace\":\"Legal\"}'"
+            "In Chat: /sync --status",
+            "In Chat: /sync --full",
+            "In Chat: /sync --bg",
+            "curl -X GET http://127.0.0.1:8000/v1/workspaces/Legal/sync/status",
+            "curl -X POST http://127.0.0.1:8000/v1/workspaces/Legal/sync -H 'Content-Type: application/json' -d '{\"background\": true}'"
         ],
         tips=[
             "Whenever you add, edit, or delete files on your computer, type '/sync' to update the AI's knowledge base immediately.",
-            "Use '/sync --verbose' whenever you want to inspect exactly which files, timestamps, and subdirectories are currently indexed.",
+            "Renaming or moving folders is 100% zero-cost ($0.00) — AnyContext updates vector paths instantly without re-calling embedding APIs.",
+            "Use '/sync --status' anytime to check if files were modified on disk before running a sync.",
             "Temporal RAG automatically stamps every local chunk with its filesystem modified date so the AI prioritizes the latest versions."
         ]
     ),

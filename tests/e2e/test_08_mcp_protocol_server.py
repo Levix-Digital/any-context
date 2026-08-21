@@ -463,6 +463,65 @@ class Test08MCPProtocolServer(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_10_mcp_sync_tools(self):
+        """TC-8.10: Tests check_workspace_sync_status and sync_workspace_folders MCP tools."""
+        safe_stdout_write(">>> [MOD 8 / TC-8.10] Testing MCP Workspace Sync Tools Execution...\n")
+        import tempfile
+        import shutil
+        temp_d = tempfile.mkdtemp()
+        ws_test = "mcp_sync_test"
+        test_folder = os.path.abspath(os.path.join(temp_d, "mcp_sync_folder"))
+        os.makedirs(test_folder, exist_ok=True)
+        doc_f = os.path.join(test_folder, "mcp_doc.md")
+        with open(doc_f, "w", encoding="utf-8") as f:
+            f.write("# MCP Sync Test Document\nTesting MCP folder sync tools.")
+
+        try:
+            self.store.add_workspace(ws_test, paths=[test_folder])
+
+            # 1. check_workspace_sync_status tool
+            req_status = {
+                "jsonrpc": "2.0",
+                "id": 17,
+                "method": "tools/call",
+                "params": {
+                    "name": "check_workspace_sync_status",
+                    "arguments": {
+                        "workspace": ws_test
+                    }
+                }
+            }
+            res_status = dispatch_mcp_request(req_status)
+            self.assertIn("result", res_status)
+            data_status = json.loads(res_status["result"]["content"][0]["text"])
+            self.assertEqual(data_status["workspace_name"], ws_test)
+            self.assertIn("is_up_to_date", data_status)
+
+            # 2. sync_workspace_folders tool
+            req_sync = {
+                "jsonrpc": "2.0",
+                "id": 18,
+                "method": "tools/call",
+                "params": {
+                    "name": "sync_workspace_folders",
+                    "arguments": {
+                        "workspace": ws_test,
+                        "force_full": False
+                    }
+                }
+            }
+            res_sync = dispatch_mcp_request(req_sync)
+            self.assertIn("result", res_sync)
+            data_sync = json.loads(res_sync["result"]["content"][0]["text"])
+            self.assertIn(data_sync.get("status"), ["completed", "updated", "up_to_date"])
+
+            safe_stdout_write("  [OK] MCP sync tools execution verified!\n")
+        finally:
+            self.store.remove_workspace(ws_test)
+            try:
+                shutil.rmtree(temp_d, ignore_errors=True)
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     unittest.main()

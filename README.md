@@ -160,9 +160,10 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/transfer`** | `/move-source` | Instant zero-cost transfer of folders or web portals between workspaces. |
 | **`/sources`** | `/workspace sources`| List all data sources (local folders, web portals, cloud drives, shared links) in active workspace. |
 | **`/mode [mode]`** | `/answer-mode`, `/am` | Switch AI grounding mode: **`Hybrid`** (default dual-layer), **`Strict`** (100% verified facts), or **`Proactive`** (research & synthesis). |
-| **`/switch [name]`** | `/workspace`, `-w` | Switch active workspace or create a new empty workspace on the fly. |
-| **`/sync`** | `/index`, `-s` | Synchronize workspace files incrementally (single-line clean mode). |
-| **`/sync -v`** | `/index --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
+| **`/sync`** | `/index`, `-s` | Ultra-fast hybrid synchronization using sub-30ms SQLite stat cache bypass. |
+| **`/sync -v`** | `/sync --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
+| **`/sync --status`**| `/sync status` | Quick diff summary (new, modified, deleted, renamed files) without indexing. |
+| **`/sync --bg`** | `/sync --background`| Run workspace synchronization in non-blocking background thread. |
 | **`/model`** | `/m`, `models` | Open key-aware AI model selector across 9 providers. |
 | **`@model <msg>`** | — | One-shot prompt to a specific model without changing session defaults. |
 | **`/api-keys`** | `/keys`, `providers`| Step-by-step guide with portal links to obtain API keys. |

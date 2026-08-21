@@ -239,6 +239,20 @@ class ConfigDBStore:
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_wsl_ws ON workspace_source_links (workspace_name)")
 
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_files_stat_cache (
+                    workspace_name TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    last_mtime REAL NOT NULL,
+                    file_size INTEGER NOT NULL,
+                    doc_id TEXT,
+                    content_hash TEXT,
+                    indexed_at TEXT,
+                    PRIMARY KEY (workspace_name, file_path)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wfsc_ws ON workspace_files_stat_cache (workspace_name)")
+
             # Backfill/canonicalize existing users.allowed_workspaces_json to immutable workspace_ids
             try:
                 cursor.execute("SELECT id, allowed_workspaces_json FROM users")
@@ -468,6 +482,10 @@ class ConfigDBStore:
                 cursor.execute("DELETE FROM workspace_source_links WHERE workspace_name = ?", (clean_ws,))
             except sqlite3.OperationalError:
                 pass
+            try:
+                cursor.execute("DELETE FROM workspace_files_stat_cache WHERE workspace_name = ?", (clean_ws,))
+            except sqlite3.OperationalError:
+                pass
             conn.commit()
             return deleted_count > 0
 
@@ -527,6 +545,13 @@ class ConfigDBStore:
 
             cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(new_src_paths), source_ws))
             cursor.execute("UPDATE workspaces SET paths_json = ? WHERE name = ?", (json.dumps(clean_tgt_paths), target_ws))
+            try:
+                cursor.execute(
+                    "UPDATE workspace_files_stat_cache SET workspace_name = ? WHERE workspace_name = ? AND (file_path = ? OR file_path LIKE ?)",
+                    (target_ws, source_ws, abs_folder, abs_folder + os.sep + "%")
+                )
+            except sqlite3.OperationalError:
+                pass
             conn.commit()
 
         # 2. Update ChromaDB vector metadata
@@ -578,6 +603,96 @@ class ConfigDBStore:
             "transferred_chunks": transferred_chunks
         }
 
+    def get_workspace_files_cache(self, workspace_name: str) -> Dict[str, Dict[str, Any]]:
+        """Returns a dict mapping normalized file_path to its cached stat metadata {last_mtime, file_size, doc_id, content_hash, indexed_at}."""
+        clean_ws = workspace_name.strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT file_path, last_mtime, file_size, doc_id, content_hash, indexed_at FROM workspace_files_stat_cache WHERE workspace_name = ?",
+                (clean_ws,)
+            )
+            rows = cursor.fetchall()
+            return {
+                r["file_path"]: {
+                    "file_path": r["file_path"],
+                    "last_mtime": r["last_mtime"],
+                    "file_size": r["file_size"],
+                    "doc_id": r["doc_id"],
+                    "content_hash": r["content_hash"],
+                    "indexed_at": r["indexed_at"]
+                }
+                for r in rows
+            }
+
+    def upsert_workspace_files_cache(self, workspace_name: str, records: List[Dict[str, Any]]):
+        """Batch upserts file stat records into workspace_files_stat_cache."""
+        if not records:
+            return
+        clean_ws = workspace_name.strip()
+        from datetime import datetime
+        now_str = datetime.utcnow().isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.executemany(
+                """
+                INSERT INTO workspace_files_stat_cache (workspace_name, file_path, last_mtime, file_size, doc_id, content_hash, indexed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(workspace_name, file_path) DO UPDATE SET
+                    last_mtime = excluded.last_mtime,
+                    file_size = excluded.file_size,
+                    doc_id = excluded.doc_id,
+                    content_hash = excluded.content_hash,
+                    indexed_at = excluded.indexed_at
+                """,
+                [
+                    (
+                        clean_ws,
+                        rec["file_path"],
+                        rec["last_mtime"],
+                        rec["file_size"],
+                        rec.get("doc_id"),
+                        rec.get("content_hash"),
+                        rec.get("indexed_at", now_str)
+                    )
+                    for rec in records
+                ]
+            )
+            conn.commit()
+
+    def remove_workspace_files_cache(self, workspace_name: str, file_paths: List[str]):
+        """Batch deletes file stat records from workspace_files_stat_cache."""
+        if not file_paths:
+            return
+        clean_ws = workspace_name.strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.executemany(
+                "DELETE FROM workspace_files_stat_cache WHERE workspace_name = ? AND file_path = ?",
+                [(clean_ws, fp) for fp in file_paths]
+            )
+            conn.commit()
+
+    def rename_cached_file_path(self, workspace_name: str, old_path: str, new_path: str):
+        """Updates a cached file path when a file or folder is renamed."""
+        clean_ws = workspace_name.strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE workspace_files_stat_cache SET file_path = ? WHERE workspace_name = ? AND file_path = ?",
+                (new_path, clean_ws, old_path)
+            )
+            conn.commit()
+
+    def clear_workspace_files_cache(self, workspace_name: Optional[str] = None):
+        """Clears all cached file stats for a workspace, or for all workspaces."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if workspace_name:
+                cursor.execute("DELETE FROM workspace_files_stat_cache WHERE workspace_name = ?", (workspace_name.strip(),))
+            else:
+                cursor.execute("DELETE FROM workspace_files_stat_cache")
+            conn.commit()
 
     def rename_workspace(self, old_name: str, new_name: str) -> Dict[str, Any]:
         """
@@ -665,6 +780,12 @@ class ConfigDBStore:
             # Update workspace_source_links (if table exists)
             try:
                 cursor.execute("UPDATE workspace_source_links SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
+            except sqlite3.OperationalError:
+                pass
+
+            # Update workspace_files_stat_cache (if table exists)
+            try:
+                cursor.execute("UPDATE workspace_files_stat_cache SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
             except sqlite3.OperationalError:
                 pass
 

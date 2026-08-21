@@ -158,7 +158,24 @@ class UnlinkSharedSourceRequest(BaseModel):
 class AddFolderRequest(BaseModel):
     folder_path: str = Field(..., description="Absolute path of the local folder to add")
     user_email: Optional[str] = Field(None, description="Optional email of the user adding the folder")
-    link_to_workspaces: Optional[List[str]] = Field(default_factory=list, description="Optional workspaces to link this folder to ($0.00 cost)")
+    link_to_workspaces: Optional[List[str]] = Field(default_factory=list, description="Optional list of additional workspace names to link this folder to simultaneously")
+
+class WorkspaceSyncStatusDTO(BaseModel):
+    workspace_name: str
+    is_up_to_date: bool
+    has_changes: bool
+    is_virgin: bool
+    new_files: List[str] = Field(default_factory=list)
+    modified_files: List[str] = Field(default_factory=list)
+    deleted_files: List[str] = Field(default_factory=list)
+    renamed_files: List[List[str]] = Field(default_factory=list)
+    total_disk_files: int = 0
+    total_cached_files: int = 0
+    summary: str = "Up to date"
+
+class WorkspaceSyncRequest(BaseModel):
+    force_full: bool = Field(False, description="Forces full re-indexing of all files instead of incremental stat diff")
+    background: bool = Field(True, description="Runs synchronization in non-blocking background worker thread")
 
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User query or instruction for the AI agent")
@@ -541,6 +558,58 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         if not deleted:
             raise HTTPException(status_code=404, detail="Cloud drive not found.")
         return {"status": "success", "message": f"Cloud drive '{drive_id}' removed from workspace '{workspace_name}'."}
+
+    @app.get("/v1/workspaces/{workspace_name}/sync/status", response_model=WorkspaceSyncStatusDTO, tags=["Workspaces"])
+    def get_workspace_sync_status_endpoint(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Inspects pending file additions, modifications, deletions, and stat cache status for a workspace in < 30ms."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        from any_context.ingestion.local_folder_ingestor import check_workspace_changes
+        diff = check_workspace_changes(workspace_name)
+        renamed_pairs = [[r[0], r[1]] for r in diff.get("renamed_files", [])]
+        return WorkspaceSyncStatusDTO(
+            workspace_name=diff["workspace_name"],
+            is_up_to_date=diff["is_up_to_date"],
+            has_changes=diff["has_changes"],
+            is_virgin=diff["is_virgin"],
+            new_files=diff["new_files"],
+            modified_files=diff["modified_files"],
+            deleted_files=diff["deleted_files"],
+            renamed_files=renamed_pairs,
+            total_disk_files=diff["total_disk_files"],
+            total_cached_files=diff["total_cached_files"],
+            summary=diff["summary"]
+        )
+
+    @app.post("/v1/workspaces/{workspace_name}/sync", tags=["Workspaces"])
+    def sync_workspace_folders_endpoint(
+        workspace_name: str,
+        background_tasks: BackgroundTasks,
+        req: Optional[WorkspaceSyncRequest] = None,
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    ):
+        """Triggers incremental or full vector synchronization for a workspace's folders."""
+        verify_token_access(credentials=credentials, required_role="analyst", required_workspace=workspace_name)
+        force_full = req.force_full if req else False
+        use_bg = req.background if req else True
+
+        from any_context.ingestion.local_folder_ingestor import run_index_folder, BackgroundSyncManager
+        if use_bg:
+            bg_mgr = BackgroundSyncManager()
+            bg_mgr.start_background_sync(workspace_name, verbose=False)
+            return {
+                "status": "success",
+                "message": f"Background synchronization started for workspace '{workspace_name}'.",
+                "workspace_name": workspace_name,
+                "mode": "background"
+            }
+        else:
+            res = run_index_folder(workspace_name=workspace_name, verbose=False, force_full=force_full)
+            return {
+                "status": "success",
+                "message": f"Synchronization completed for workspace '{workspace_name}'.",
+                "workspace_name": workspace_name,
+                "result": res
+            }
 
     @app.post("/v1/workspaces/transfer", response_model=TransferSourceResponse, tags=["Workspaces"])
     def transfer_workspace_source_endpoint(req: TransferSourceRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
