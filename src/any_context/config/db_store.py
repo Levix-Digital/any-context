@@ -1001,9 +1001,10 @@ class ConfigDBStore:
             stype = ls.get("source_type", "folder")
             ident = ls.get("source_identifier", "")
             clean_title = ls.get("title") or (os.path.basename(ident) if stype == "folder" else ident)
+            link_id = f"link_{ls.get('id')}" if ls.get("id") is not None else f"link_{len(unified_sources)+1}"
             unified_sources.append({
                 "type": stype,
-                "id": ls.get("id"),
+                "id": link_id,
                 "identifier": ident,
                 "title": f"{clean_title} (Shared)",
                 "details": {

@@ -442,14 +442,32 @@ def run_chat_loop(active_workspace: str = "Default"):
                     _link_shared_source(store)
                     continue
 
-                # Direct command: /link <path_or_url> [to_ws]
+                # Direct command: /link <path_or_url_or_keyword> [to_ws]
                 arg_offset = 2 if len(parts) > 1 and parts[1].lower() == "link" else 1
                 source_item = parts[arg_offset].strip().strip("'\"")
                 target_ws = parts[arg_offset + 1] if len(parts) > arg_offset + 1 else active_workspace
 
-                stype = "web" if source_item.startswith("http://") or source_item.startswith("https://") else "folder"
-                res = store.link_shared_source_to_workspace(workspace_name=target_ws, source_type=stype, source_identifier=source_item)
-                safe_stdout_write(f"\n🔗 Successfully linked Shared Source '{source_item}' to workspace '\033[93m{target_ws}\033[0m' ($0.00 cost)!\n\n")
+                available_sources = store.list_all_available_shared_sources()
+                matched_src = None
+                for s in available_sources:
+                    if (source_item.lower() == s["identifier"].lower() or 
+                        source_item.lower() == (s.get("title") or "").lower() or 
+                        source_item.lower() in s["identifier"].lower() or 
+                        source_item.lower() in (s.get("title") or "").lower()):
+                        matched_src = s
+                        break
+
+                if matched_src:
+                    source_identifier = matched_src["identifier"]
+                    stype = matched_src["type"]
+                    title = matched_src.get("title")
+                else:
+                    source_identifier = source_item
+                    stype = "web" if source_item.startswith("http://") or source_item.startswith("https://") else "folder"
+                    title = None
+
+                res = store.link_shared_source_to_workspace(workspace_name=target_ws, source_type=stype, source_identifier=source_identifier, title=title)
+                safe_stdout_write(f"\n🔗 Successfully linked Shared Source '{title or source_identifier}' to workspace '\033[93m{target_ws}\033[0m' ($0.00 cost)!\n\n")
                 continue
 
             elif cmd == "/unlink" or cmd.startswith("/unlink ") or cmd.startswith("/workspace unlink"):
@@ -464,10 +482,26 @@ def run_chat_loop(active_workspace: str = "Default"):
                 source_item = parts[arg_offset].strip().strip("'\"")
                 target_ws = parts[arg_offset + 1] if len(parts) > arg_offset + 1 else active_workspace
 
-                stype = "web" if source_item.startswith("http://") or source_item.startswith("https://") else "folder"
-                unlinked = store.unlink_shared_source_from_workspace(workspace_name=target_ws, source_type=stype, source_identifier=source_item)
+                links = store.get_workspace_shared_links(target_ws)
+                matched_link = None
+                for l in links:
+                    if (source_item.lower() == l["source_identifier"].lower() or 
+                        source_item.lower() == (l.get("title") or "").lower() or 
+                        source_item.lower() in l["source_identifier"].lower() or 
+                        source_item.lower() in (l.get("title") or "").lower()):
+                        matched_link = l
+                        break
+
+                if matched_link:
+                    source_identifier = matched_link["source_identifier"]
+                    stype = matched_link["source_type"]
+                else:
+                    source_identifier = source_item
+                    stype = "web" if source_item.startswith("http://") or source_item.startswith("https://") else "folder"
+
+                unlinked = store.unlink_shared_source_from_workspace(workspace_name=target_ws, source_type=stype, source_identifier=source_identifier)
                 if unlinked:
-                    safe_stdout_write(f"\n🗑️ Unlinked Shared Source '{source_item}' from workspace '\033[93m{target_ws}\033[0m'.\n\n")
+                    safe_stdout_write(f"\n🗑️ Unlinked Shared Source '{source_identifier}' from workspace '\033[93m{target_ws}\033[0m'.\n\n")
                 else:
                     safe_stdout_write(f"\n❌ Shared Source link '{source_item}' not found in workspace '{target_ws}'.\n\n")
                 continue
