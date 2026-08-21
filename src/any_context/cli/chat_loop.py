@@ -357,14 +357,30 @@ def run_chat_loop(active_workspace: str = "Default"):
                         target_ws = target_ws[7:].strip()
                     elif target_ws.lower().startswith("add "):
                         target_ws = target_ws[4:].strip()
+                    elif target_ws.lower().startswith("delete ") or target_ws.lower().startswith("remove "):
+                        target_ws_del = target_ws[7:].strip()
+                        store = ConfigDBStore()
+                        if target_ws_del.lower() in ["default", "global"]:
+                            safe_stdout_write(f"\n❌ Cannot delete protected system workspace '{target_ws_del}'.\n\n")
+                        else:
+                            deleted = store.remove_workspace(target_ws_del)
+                            if deleted:
+                                safe_stdout_write(f"\n🗑️ Successfully deleted workspace '\033[93m{target_ws_del}\033[0m'.\n\n")
+                                if active_workspace.lower() == target_ws_del.lower():
+                                    active_workspace = "Default"
+                                    config["configurable"]["active_workspace"] = "Default"
+                                    agent_instance = None
+                            else:
+                                safe_stdout_write(f"\n❌ Workspace '{target_ws_del}' not found.\n\n")
+                        continue
                     
                     store = ConfigDBStore()
-                    settings = store.get_app_settings()
-                    known_workspaces = [w.name for w in settings.workspaces] if settings else []
-                    if target_ws not in known_workspaces:
+                    meta = store.get_workspace_meta(target_ws)
+                    if not meta:
                         store.add_workspace(target_ws, paths=[])
                         safe_stdout_write(f"\n✅ Created and switched to new workspace '\033[93m{target_ws}\033[0m'.\n\n")
                     else:
+                        target_ws = meta["name"]
                         safe_stdout_write(f"\n🔄 Switched to workspace '\033[93m{target_ws}\033[0m'.\n\n")
                     active_workspace = target_ws
                     config["configurable"]["active_workspace"] = active_workspace

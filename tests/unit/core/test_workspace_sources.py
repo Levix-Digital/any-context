@@ -240,5 +240,28 @@ class TestWorkspaceSources(unittest.TestCase):
         self.assertEqual(len(self.web_store.get_workspace_web_urls(del_ws)), 0)
         safe_stdout_write("  [OK] Workspace deletion SQLite cleanup verified!\n")
 
+    def test_08_workspace_lifecycle_and_deletion_discovery(self):
+        """Validates that newly created workspaces like 'all' are immediately discoverable for deletion."""
+        safe_stdout_write(">>> [UNIT] Testing Workspace Lifecycle & Deletion Discovery...\n")
+        ws_name = "all"
+        
+        # 1. Create workspace 'all'
+        self.store.add_workspace(ws_name, paths=[])
+        
+        # 2. Verify discoverable in AppSettings
+        settings = self.store.get_app_settings()
+        deletable = [w.name for w in settings.workspaces if w.name.lower() not in ["default", "global"]]
+        self.assertIn("all", deletable, "Workspace 'all' must be present in deletable list")
+
+        # 3. Delete workspace 'all'
+        deleted = self.store.remove_workspace(ws_name)
+        self.assertTrue(deleted)
+
+        # 4. Verify removed
+        settings_after = self.store.get_app_settings()
+        deletable_after = [w.name for w in settings_after.workspaces if w.name.lower() not in ["default", "global"]]
+        self.assertNotIn("all", deletable_after)
+        safe_stdout_write("  [OK] Workspace lifecycle and deletion discovery verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
