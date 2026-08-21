@@ -267,8 +267,8 @@ def create_bottom_toolbar_renderer(
         try:
             bg_mgr = BackgroundSyncManager()
             if bg_mgr.is_syncing(workspace_name):
-                sync_badge = "  <style fg='#ff9e64'><b>⚡ Syncing...</b></style>  <style fg='#565f89'>│</style>"
-                if_sync_part = "  ⚡ Syncing...  │"
+                sync_badge = "  <style fg='#565f89'>│</style>  <style fg='#ff9e64'><b>⚡ Syncing...</b></style>"
+                if_sync_part = "  │  ⚡ Syncing..."
         except Exception:
             pass
 
@@ -288,8 +288,7 @@ def create_bottom_toolbar_renderer(
             f"<style fg='#565f89'>│</style>  "
             f"{search_badge}  "
             f"<style fg='#565f89'>│</style>  "
-            f"<style fg='#e0af68'><b>💡 /menu</b></style>  "
-            f"<style fg='#565f89'>│</style>"
+            f"<style fg='#e0af68'><b>💡 /menu</b></style>"
             f"{sync_badge}"
         )
 
@@ -300,7 +299,7 @@ def create_bottom_toolbar_renderer(
             f"🤖 {model_name}  │  "
             f"🛡️ {clean_mode}  │  "
             f"🌐 Search: {'ON' if ws_search else 'OFF'}  │  "
-            f"💡 /menu  │"
+            f"💡 /menu"
             f"{if_sync_part}"
         )
         right_visible = "🚪 /exit "
