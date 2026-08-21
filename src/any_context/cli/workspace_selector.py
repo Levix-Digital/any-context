@@ -53,7 +53,7 @@ def show_workspace_menu() -> Optional[str]:
                             f"[{s.get('type', 'folder').upper()}] {s.get('title', s.get('identifier'))} (from '{s.get('origin_workspace')}')"
                             for s in available_sources
                         ]
-                        selected_links = questionary.checkbox("Select Shared Sources to link (Space to select, Enter to finish):", choices=source_choices).ask()
+                        selected_links = questionary.checkbox("Select Shared Sources to link (Use Arrow Keys, Space to select, Enter to confirm):", choices=source_choices).ask()
                         if selected_links:
                             for ch in selected_links:
                                 idx = source_choices.index(ch)
@@ -65,6 +65,8 @@ def show_workspace_menu() -> Optional[str]:
                                     title=src.get("title")
                                 )
                             print(f"🔗 Linked {len(selected_links)} Shared Sources to '{clean_name}' ($0.00 cost).\n")
+                        else:
+                            print(f"ℹ️ No sources selected. Workspace '{clean_name}' created as empty. (Tip: Type '/link' anytime in chat to connect sources).\n")
             except Exception:
                 pass
             return clean_name

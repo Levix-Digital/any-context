@@ -1,7 +1,7 @@
 import json
 import os
 import sys
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 
 class ContextSettings(BaseModel):
@@ -56,7 +56,7 @@ class WorkspaceCloudDrive(BaseModel):
 
 class WorkspaceSourceItem(BaseModel):
     type: str  # 'folder', 'web', 'cloud_drive'
-    id: Optional[str] = None
+    id: Optional[Union[str, int]] = None
     identifier: str
     title: Optional[str] = None
     details: Dict[str, Any] = Field(default_factory=dict)

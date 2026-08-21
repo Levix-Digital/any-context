@@ -1,7 +1,7 @@
 import os
 import sys
 import uuid
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
@@ -82,7 +82,7 @@ class WorkspaceCloudDriveDTO(BaseModel):
 
 class WorkspaceSourceItemDTO(BaseModel):
     type: str  # 'folder', 'web', 'cloud_drive'
-    id: Optional[str] = None
+    id: Optional[Union[str, int]] = None
     identifier: str
     title: Optional[str] = None
     details: Dict[str, Any] = Field(default_factory=dict)
