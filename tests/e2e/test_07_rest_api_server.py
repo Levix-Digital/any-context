@@ -257,10 +257,34 @@ class Test07RestApiServer(unittest.TestCase):
             ws_names = [w.name for w in settings.workspaces]
             self.assertNotIn(orig_name, ws_names)
             self.assertIn(new_name, ws_names)
-            safe_stdout_write("  [OK] POST /v1/workspaces/rename REST API verified!\n")
+
+            # Test Analyst Token Rename on Assigned Workspace
+            analyst_ws = "analyst_ws_test"
+            analyst_ws_new = "analyst_ws_renamed"
+            self.store.add_workspace(analyst_ws, paths=[])
+            u_info = self.store.create_user("AnalystTest", "analyst_test@firm.com", "pass12345", role="analyst", allowed_workspaces=["Default", analyst_ws])
+            auth_info = self.store.authenticate_user("analyst_test@firm.com", "pass12345")
+            analyst_headers = {"Authorization": f"Bearer {auth_info['token_id']}"}
+
+            analyst_payload = {"old_name": analyst_ws, "new_name": analyst_ws_new}
+            analyst_res = self.client.post("/v1/workspaces/rename", json=analyst_payload, headers=analyst_headers)
+            self.assertEqual(analyst_res.status_code, 200, f"Analyst rename failed: {analyst_res.text}")
+
+            # Verify that list_users now reflects the new name for the analyst
+            u_list = self.store.list_users()
+            matching_u = next((u for u in u_list if u["email"] == "analyst_test@firm.com"), None)
+            self.assertIsNotNone(matching_u)
+            self.assertIn(analyst_ws_new, matching_u["allowed_workspaces"])
+
+            safe_stdout_write("  [OK] POST /v1/workspaces/rename REST API verified for Admin and Analyst!\n")
         finally:
             self.store.remove_workspace(orig_name)
             self.store.remove_workspace(new_name)
+            try:
+                self.store.remove_workspace("analyst_ws_test")
+                self.store.remove_workspace("analyst_ws_renamed")
+            except Exception:
+                pass
 
     def test_08_grounding_mode_endpoints(self):
         """TC-7.10: Tests GET and POST /v1/context/mode endpoints for AI Grounding Mode switching."""

@@ -92,15 +92,16 @@ class ConfigDBStore:
                 )
             """)
 
-            # Ensure workspace_id column exists for existing tables
+            # Ensure workspace_id column exists for existing tables and all rows have a non-null workspace_id
             cursor.execute("PRAGMA table_info(workspaces)")
             ws_cols = [r[1] for r in cursor.fetchall()]
             if "workspace_id" not in ws_cols:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN workspace_id TEXT")
-                cursor.execute("SELECT id, name FROM workspaces")
-                for r in cursor.fetchall():
-                    ws_auto_id = "ws_default" if r["name"].strip().lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}"
-                    cursor.execute("UPDATE workspaces SET workspace_id = ? WHERE id = ?", (ws_auto_id, r["id"]))
+            
+            cursor.execute("SELECT id, name, workspace_id FROM workspaces WHERE workspace_id IS NULL OR workspace_id = ''")
+            for r in cursor.fetchall():
+                ws_auto_id = "ws_default" if r["name"].strip().lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}"
+                cursor.execute("UPDATE workspaces SET workspace_id = ? WHERE id = ?", (ws_auto_id, r["id"]))
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS models (
@@ -226,6 +227,63 @@ class ConfigDBStore:
                 )
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_wcd_ws ON workspace_cloud_drives (workspace_name)")
+
+            # Backfill/canonicalize existing users.allowed_workspaces_json to immutable workspace_ids
+            try:
+                cursor.execute("SELECT id, allowed_workspaces_json FROM users")
+                for u_row in cursor.fetchall():
+                    try:
+                        raw_aws = json.loads(u_row["allowed_workspaces_json"])
+                        updated = []
+                        changed = False
+                        for w in raw_aws:
+                            if w == "*":
+                                updated.append("*")
+                            elif str(w).startswith("ws_"):
+                                updated.append(w)
+                            else:
+                                cursor.execute("SELECT workspace_id FROM workspaces WHERE name = ? COLLATE NOCASE", (str(w).strip(),))
+                                match = cursor.fetchone()
+                                if match and match["workspace_id"]:
+                                    updated.append(match["workspace_id"])
+                                    changed = True
+                                else:
+                                    updated.append(w)
+                        if changed:
+                            cursor.execute("UPDATE users SET allowed_workspaces_json = ? WHERE id = ?", (json.dumps(updated), u_row["id"]))
+                    except Exception:
+                        pass
+            except sqlite3.OperationalError:
+                pass
+
+            # Backfill/canonicalize existing access_tokens.allowed_workspaces_json to immutable workspace_ids
+            try:
+                cursor.execute("SELECT id, allowed_workspaces_json FROM access_tokens")
+                for t_row in cursor.fetchall():
+                    try:
+                        raw_aws = json.loads(t_row["allowed_workspaces_json"])
+                        updated = []
+                        changed = False
+                        for w in raw_aws:
+                            if w == "*":
+                                updated.append("*")
+                            elif str(w).startswith("ws_"):
+                                updated.append(w)
+                            else:
+                                cursor.execute("SELECT workspace_id FROM workspaces WHERE name = ? COLLATE NOCASE", (str(w).strip(),))
+                                match = cursor.fetchone()
+                                if match and match["workspace_id"]:
+                                    updated.append(match["workspace_id"])
+                                    changed = True
+                                else:
+                                    updated.append(w)
+                        if changed:
+                            cursor.execute("UPDATE access_tokens SET allowed_workspaces_json = ? WHERE id = ?", (json.dumps(updated), t_row["id"]))
+                    except Exception:
+                        pass
+            except sqlite3.OperationalError:
+                pass
+            conn.commit()
     def reset_model_settings_to_default(self):
         """Resets model settings and API keys to factory defaults while preserving workspaces and user data."""
         with sqlite3.connect(self.db_path) as conn:
@@ -250,16 +308,28 @@ class ConfigDBStore:
                 conn.commit()
 
     def get_workspace_meta(self, identifier: str) -> Optional[Dict[str, Any]]:
-        """Resolves a workspace by its immutable workspace_id or its name."""
-        clean = identifier.strip()
+        """Resolves a workspace by its immutable workspace_id, numeric ID, or its name."""
+        clean = str(identifier).strip()
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, workspace_id, name, paths_json FROM workspaces WHERE workspace_id = ? OR name = ?", (clean, clean))
+            cursor.execute(
+                "SELECT id, workspace_id, name, paths_json FROM workspaces WHERE workspace_id = ? OR name = ? COLLATE NOCASE",
+                (clean, clean)
+            )
             row = cursor.fetchone()
+            if not row and clean.startswith("ws_") and clean[3:].isdigit():
+                cursor.execute("SELECT id, workspace_id, name, paths_json FROM workspaces WHERE id = ?", (int(clean[3:]),))
+                row = cursor.fetchone()
+
             if row:
+                ws_id = row["workspace_id"]
+                if not ws_id:
+                    ws_id = "ws_default" if row["name"].strip().lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}"
+                    cursor.execute("UPDATE workspaces SET workspace_id = ? WHERE id = ?", (ws_id, row["id"]))
+                    conn.commit()
                 return {
                     "id": row["id"],
-                    "workspace_id": row["workspace_id"] or f"ws_{row['id']}",
+                    "workspace_id": ws_id,
                     "name": row["name"],
                     "paths": json.loads(row["paths_json"]) if row["paths_json"] else []
                 }
@@ -502,21 +572,21 @@ class ConfigDBStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             # Verify old workspace exists
-            cursor.execute("SELECT id, workspace_id, name FROM workspaces WHERE workspace_id = ? OR name = ?", (old_ws, old_ws))
+            cursor.execute("SELECT id, workspace_id, name FROM workspaces WHERE workspace_id = ? OR name = ? COLLATE NOCASE", (old_ws, old_ws))
             row_old = cursor.fetchone()
             if not row_old:
                 return {"success": False, "error": f"Workspace '{old_ws}' does not exist."}
 
             actual_old_name = row_old["name"]
-            ws_id = row_old["workspace_id"] or f"ws_{row_old['id']}"
+            ws_id = row_old["workspace_id"] or f"ws_{uuid.uuid4().hex[:8]}"
 
             # Verify new workspace name is not taken by another workspace
-            cursor.execute("SELECT id FROM workspaces WHERE name = ? AND id != ?", (new_ws, row_old["id"]))
+            cursor.execute("SELECT id FROM workspaces WHERE name = ? COLLATE NOCASE AND id != ?", (new_ws, row_old["id"]))
             if cursor.fetchone():
                 return {"success": False, "error": f"Workspace '{new_ws}' already exists."}
 
             # Update workspaces table
-            cursor.execute("UPDATE workspaces SET name = ? WHERE id = ?", (new_ws, row_old["id"]))
+            cursor.execute("UPDATE workspaces SET name = ?, workspace_id = ? WHERE id = ?", (new_ws, ws_id, row_old["id"]))
 
             # Update workspace_folders (if table exists)
             try:
@@ -1129,15 +1199,23 @@ class ConfigDBStore:
         canonical = []
         for w in ws_list:
             clean = str(w).strip()
+            if not clean:
+                continue
             if clean == "*":
                 canonical.append("*")
+            elif clean.startswith("ws_"):
+                canonical.append(clean)
             else:
                 meta = self.get_workspace_meta(clean)
-                if meta:
+                if meta and meta.get("workspace_id"):
                     canonical.append(meta["workspace_id"])
                 else:
-                    canonical.append(clean)
-        return canonical
+                    try:
+                        new_ws = self.add_workspace(name=clean, paths=[])
+                        canonical.append(new_ws["workspace_id"])
+                    except Exception:
+                        canonical.append(clean)
+        return list(dict.fromkeys(canonical))
 
     def _resolve_allowed_workspaces_display(self, ws_list: List[str]) -> List[str]:
         """Resolves canonical workspace_ids to their current live workspace names."""

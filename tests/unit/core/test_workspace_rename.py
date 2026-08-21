@@ -132,6 +132,47 @@ class TestWorkspaceRename(unittest.TestCase):
 
         safe_stdout_write("  [OK] Workspace rename and delete protection guardrails verified!\n")
 
+    def test_03_user_allowed_workspaces_linked_by_id_and_live_resolved(self):
+        """Tests that users and tokens link by workspace_id and dynamically resolve renamed workspace names."""
+        safe_stdout_write(">>> [CORE UNIT] Testing User RBAC Linking by workspace_id & Live Resolution...\n")
+        
+        # 1. Create a workspace 'TargetWs'
+        ws_info = self.store.add_workspace("TargetWs", paths=[])
+        target_ws_id = ws_info["workspace_id"]
+
+        # 2. Create an analyst user assigned to ['Default', 'TargetWs']
+        user_info = self.store.create_user(
+            name="Gui",
+            email="gui@exemplo.com",
+            password="securePassword123!",
+            role="analyst",
+            allowed_workspaces=["Default", "TargetWs"]
+        )
+        self.assertEqual(user_info["role"], "analyst")
+        self.assertIn("TargetWs", user_info["allowed_workspaces"])
+
+        # Authenticate to get active token
+        auth_data = self.store.authenticate_user("gui@exemplo.com", "securePassword123!")
+        self.assertIsNotNone(auth_data)
+        token_id = auth_data["token_id"]
+
+        # 3. Rename 'TargetWs' to 'NewWorkspace'
+        rename_res = self.store.rename_workspace(old_name="TargetWs", new_name="NewWorkspace")
+        self.assertTrue(rename_res["success"])
+
+        # 4. List users and verify that allowed_workspaces resolves to 'NewWorkspace'
+        users = self.store.list_users()
+        gui_user = next((u for u in users if u["email"] == "gui@exemplo.com"), None)
+        self.assertIsNotNone(gui_user)
+        self.assertIn("NewWorkspace", gui_user["allowed_workspaces"], "User allowed_workspaces must resolve to live renamed workspace name")
+        self.assertNotIn("TargetWs", gui_user["allowed_workspaces"], "User allowed_workspaces must not retain obsolete name")
+
+        # 5. Verify token permissions validate against 'NewWorkspace', 'ws_id' and 'TargetWs'
+        self.assertTrue(self.store.validate_token_permissions(token_id=token_id, required_role="analyst", required_workspace="NewWorkspace"))
+        self.assertTrue(self.store.validate_token_permissions(token_id=token_id, required_role="analyst", required_workspace=target_ws_id))
+
+        safe_stdout_write("  [OK] User RBAC linking by workspace_id & live resolution verified!\n")
+
 
 if __name__ == "__main__":
     unittest.main()
