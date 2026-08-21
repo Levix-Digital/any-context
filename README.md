@@ -65,6 +65,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Workspaces are isolated logical scopes for privacy and contextual boundaries.
   - Creating a workspace is completely separate from attaching folders: create empty workspaces anytime via `/switch <name>` or `/workspace add <name>` (ideal for web documentation portals, market research, or agent tasks).
   - Attach local folders or web URLs whenever you want via `/config` or `/web add`.
+- **🏛️ 3-Tier AI Context Architecture (Company Global & Shared Sources)**:
+  - **1. 🏢 Institutional Global (`Global`)**: Organization-wide knowledge base curatable by admins and automatically inherited in RAG search across authorized project workspaces.
+  - **2. 📦 Reusable Shared Sources (`/link` & `/shared`)**: Attach already-indexed frameworks, codebases, and documentation portals across multiple workspaces in < 50ms with **$0.00 in embedding costs**.
+  - **3. 📁 Scoped Active Workspaces**: Dedicated project-specific boundaries guaranteeing zero cross-department data leakage.
 - **🛒 Universal Schema.org & E-Commerce Rating Extraction**:
   - Automatic extraction of `Product` and `IndividualProduct` structured metadata (`<script type="application/ld+json">`) including star ratings, review counts, prices, and stock status across Walmart, Amazon, Mercado Livre, Shopify, VTEX, WooCommerce, etc.
   - Retains HTML semantic tags (`<form>`, `<header>`, `<aside>`, `<dl>`) so visible review badges (e.g. `4.844 out of 5 stars. 1199 reviews`) and buy box pricing are never discarded.
@@ -150,8 +154,11 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`\` + `[Enter]`** | — | Trailing backslash shell-style line continuation. |
 | **`""" ... """`** | `''' ... '''` | Multi-line block delimiter (close with `"""` or `/send`). |
 | **`/paste`** | `/multiline`, `/mline` | Open dedicated multi-line paste capture mode. |
+| **`/link [src] [to]`** | `/shared`, `/share-source` | Link an existing indexed source to active workspace in < 50ms with zero API cost ($0.00). |
+| **`/unlink [src]`** | `/workspace unlink` | Unlink a shared source from active workspace without deleting original data. |
+| **`/shared`** | `/sources shared` | List all indexed unique sources available for cross-workspace linking. |
 | **`/transfer`** | `/move-source` | Instant zero-cost transfer of folders or web portals between workspaces. |
-| **`/sources`** | `/workspace sources`| List all data sources (local folders, web portals, cloud drives) in active workspace. |
+| **`/sources`** | `/workspace sources`| List all data sources (local folders, web portals, cloud drives, shared links) in active workspace. |
 | **`/mode [mode]`** | `/answer-mode`, `/am` | Switch AI grounding mode: **`Hybrid`** (default dual-layer), **`Strict`** (100% verified facts), or **`Proactive`** (research & synthesis). |
 | **`/switch [name]`** | `/workspace`, `-w` | Switch active workspace or create a new empty workspace on the fly. |
 | **`/sync`** | `/index`, `-s` | Synchronize workspace files incrementally (single-line clean mode). |

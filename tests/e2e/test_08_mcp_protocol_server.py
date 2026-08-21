@@ -334,6 +334,89 @@ class Test08MCPProtocolServer(unittest.TestCase):
         self.assertEqual(self.store.get_grounding_mode(), "hybrid")
         safe_stdout_write("  [OK] MCP get_grounding_mode and set_grounding_mode tools verified!\n")
 
+    def test_08_mcp_shared_sources_tools(self):
+        """TC-8.8: Tests list_available_shared_sources, link_shared_source_to_workspace, unlink_shared_source_from_workspace tools."""
+        safe_stdout_write(">>> [MOD 8 / TC-8.8] Testing MCP Shared Sources Tools Execution...\n")
+        import tempfile
+        import shutil
+        temp_d = tempfile.mkdtemp()
+        ws_origin = "mcp_shared_origin"
+        ws_target = "mcp_shared_target"
+        test_folder = os.path.abspath(os.path.join(temp_d, "mcp_shared_folder"))
+        os.makedirs(test_folder, exist_ok=True)
+
+        try:
+            self.store.add_workspace(ws_origin, paths=[test_folder])
+            self.store.add_workspace(ws_target, paths=[])
+
+            # 1. list_available_shared_sources
+            req_list = {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "tools/call",
+                "params": {
+                    "name": "list_available_shared_sources",
+                    "arguments": {}
+                }
+            }
+            res_list = dispatch_mcp_request(req_list)
+            self.assertIn("result", res_list)
+            data_list = json.loads(res_list["result"]["content"][0]["text"])
+            self.assertIn("sources", data_list)
+
+            # 2. link_shared_source_to_workspace
+            req_link = {
+                "jsonrpc": "2.0",
+                "id": 14,
+                "method": "tools/call",
+                "params": {
+                    "name": "link_shared_source_to_workspace",
+                    "arguments": {
+                        "workspace_name": ws_target,
+                        "source_type": "folder",
+                        "source_identifier": test_folder,
+                        "title": "MCP Shared Framework"
+                    }
+                }
+            }
+            res_link = dispatch_mcp_request(req_link)
+            self.assertIn("result", res_link)
+            data_link = json.loads(res_link["result"]["content"][0]["text"])
+            self.assertEqual(data_link["status"], "success")
+
+            # Verify in DB
+            sources = self.store.get_workspace_sources(ws_target)
+            self.assertEqual(sources["total_sources"], 1)
+            self.assertTrue(sources["sources"][0]["details"].get("is_shared_link"))
+
+            # 3. unlink_shared_source_from_workspace
+            req_unlink = {
+                "jsonrpc": "2.0",
+                "id": 15,
+                "method": "tools/call",
+                "params": {
+                    "name": "unlink_shared_source_from_workspace",
+                    "arguments": {
+                        "workspace_name": ws_target,
+                        "source_type": "folder",
+                        "source_identifier": test_folder
+                    }
+                }
+            }
+            res_unlink = dispatch_mcp_request(req_unlink)
+            self.assertIn("result", res_unlink)
+            data_unlink = json.loads(res_unlink["result"]["content"][0]["text"])
+            self.assertEqual(data_unlink["status"], "success")
+
+            safe_stdout_write("  [OK] MCP Shared Sources tools verified!\n")
+        finally:
+            self.store.remove_workspace(ws_origin)
+            self.store.remove_workspace(ws_target)
+            try:
+                shutil.rmtree(temp_d, ignore_errors=True)
+            except Exception:
+                pass
+
 
 if __name__ == "__main__":
     unittest.main()

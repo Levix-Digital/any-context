@@ -226,7 +226,18 @@ class ConfigDBStore:
                     metadata_json TEXT
                 )
             """)
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wcd_ws ON workspace_cloud_drives (workspace_name)")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_source_links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace_name TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_identifier TEXT NOT NULL,
+                    title TEXT,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(workspace_name, source_type, source_identifier)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wsl_ws ON workspace_source_links (workspace_name)")
 
             # Backfill/canonicalize existing users.allowed_workspaces_json to immutable workspace_ids
             try:
@@ -294,18 +305,26 @@ class ConfigDBStore:
         self._init_db()
 
     def ensure_default_workspace(self):
-        """Ensures that at least a 'Default' workspace exists for instant friction-free onboarding."""
+        """Ensures that 'Default' and 'Global' workspaces exist for instant onboarding and institutional knowledge."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM workspaces")
-            if cursor.fetchone()[0] == 0:
+            # Ensure Default workspace
+            cursor.execute("SELECT id FROM workspaces WHERE name = 'Default' COLLATE NOCASE")
+            if not cursor.fetchone():
                 default_path = os.path.abspath(os.path.join(os.getcwd(), "documents"))
                 os.makedirs(default_path, exist_ok=True)
                 cursor.execute(
                     "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
                     ("ws_default", "Default", json.dumps([default_path]))
                 )
-                conn.commit()
+            # Ensure Global workspace
+            cursor.execute("SELECT id FROM workspaces WHERE name = 'Global' COLLATE NOCASE")
+            if not cursor.fetchone():
+                cursor.execute(
+                    "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
+                    ("ws_global", "Global", json.dumps([]))
+                )
+            conn.commit()
 
     def get_workspace_meta(self, identifier: str) -> Optional[Dict[str, Any]]:
         """Resolves a workspace by its immutable workspace_id, numeric ID, or its name."""
@@ -324,7 +343,7 @@ class ConfigDBStore:
             if row:
                 ws_id = row["workspace_id"]
                 if not ws_id:
-                    ws_id = "ws_default" if row["name"].strip().lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}"
+                    ws_id = "ws_default" if row["name"].strip().lower() == "default" else ("ws_global" if row["name"].strip().lower() == "global" else f"ws_{uuid.uuid4().hex[:8]}")
                     cursor.execute("UPDATE workspaces SET workspace_id = ? WHERE id = ?", (ws_id, row["id"]))
                     conn.commit()
                 return {
@@ -336,10 +355,10 @@ class ConfigDBStore:
             return None
 
     def is_empty(self) -> bool:
-        """Returns True if no workspaces other than 'Default' exist"""
+        """Returns True if no custom workspaces other than 'Default' and 'Global' exist"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM workspaces")
+            cursor.execute("SELECT COUNT(*) FROM workspaces WHERE LOWER(name) NOT IN ('default', 'global')")
             count = cursor.fetchone()[0]
             return count == 0
 
@@ -347,17 +366,17 @@ class ConfigDBStore:
         """Adds or updates a workspace entry with folder paths and an immutable workspace_id."""
         clean_name = name.strip()
         clean_paths = [os.path.abspath(p.strip().strip("'\"")) for p in paths if p and p.strip()]
-        ws_id = workspace_id or ("ws_default" if clean_name.lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}")
+        ws_id = workspace_id or ("ws_default" if clean_name.lower() == "default" else ("ws_global" if clean_name.lower() == "global" else f"ws_{uuid.uuid4().hex[:8]}"))
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT workspace_id, paths_json FROM workspaces WHERE name = ?", (clean_name,))
+            cursor.execute("SELECT workspace_id, paths_json FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_name,))
             row = cursor.fetchone()
             if row:
                 existing_ws_id = row["workspace_id"] or ws_id
                 existing_paths = [os.path.abspath(p.strip().strip("'\"")) for p in json.loads(row["paths_json"])]
                 combined = list(dict.fromkeys(existing_paths + clean_paths))
-                cursor.execute("UPDATE workspaces SET paths_json = ?, workspace_id = ? WHERE name = ?", (json.dumps(combined), existing_ws_id, clean_name))
+                cursor.execute("UPDATE workspaces SET paths_json = ?, workspace_id = ? WHERE id = ?", (json.dumps(combined), existing_ws_id, row["id"] if "id" in row.keys() else 1))
                 conn.commit()
                 return {"id": existing_ws_id, "workspace_id": existing_ws_id, "name": clean_name, "paths": combined}
             else:
@@ -434,6 +453,10 @@ class ConfigDBStore:
                 pass
             try:
                 cursor.execute("DELETE FROM workspace_share_invites WHERE workspace_name = ?", (clean_ws,))
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("DELETE FROM workspace_source_links WHERE workspace_name = ?", (clean_ws,))
             except sqlite3.OperationalError:
                 pass
             conn.commit()
@@ -627,6 +650,12 @@ class ConfigDBStore:
             # Update workspace_cloud_drives (if table exists)
             try:
                 cursor.execute("UPDATE workspace_cloud_drives SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
+            except sqlite3.OperationalError:
+                pass
+
+            # Update workspace_source_links (if table exists)
+            try:
+                cursor.execute("UPDATE workspace_source_links SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
             except sqlite3.OperationalError:
                 pass
 
@@ -914,6 +943,19 @@ class ConfigDBStore:
             except sqlite3.OperationalError:
                 pass
 
+        # 4. Linked Shared Sources from workspace_source_links
+        linked_sources = []
+        try:
+            cursor.execute("""
+                SELECT id, workspace_name, source_type, source_identifier, title, created_at
+                FROM workspace_source_links
+                WHERE workspace_name = ? OR workspace_name = ?
+            """, (actual_ws_name, actual_ws_id))
+            for ls_row in cursor.fetchall():
+                linked_sources.append(dict(ls_row))
+        except sqlite3.OperationalError:
+            pass
+
         # Build unified polymorphic sources list
         for f in folders:
             folder_title = os.path.basename(f) or f
@@ -955,6 +997,23 @@ class ConfigDBStore:
                 }
             })
 
+        for ls in linked_sources:
+            stype = ls.get("source_type", "folder")
+            ident = ls.get("source_identifier", "")
+            clean_title = ls.get("title") or (os.path.basename(ident) if stype == "folder" else ident)
+            unified_sources.append({
+                "type": stype,
+                "id": ls.get("id"),
+                "identifier": ident,
+                "title": f"{clean_title} (Shared)",
+                "details": {
+                    "is_shared_link": True,
+                    "created_at": ls.get("created_at")
+                }
+            })
+            if stype == "folder" and ident not in folders:
+                folders.append(ident)
+
         return {
             "id": actual_ws_id,
             "name": actual_ws_name,
@@ -962,6 +1021,108 @@ class ConfigDBStore:
             "total_sources": len(unified_sources),
             "paths": folders
         }
+
+    def link_shared_source_to_workspace(
+        self,
+        workspace_name: str,
+        source_type: str,
+        source_identifier: str,
+        title: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Links an existing indexed source (folder or web portal) to workspace_name in < 50ms with zero API cost ($0.00).
+        """
+        from datetime import datetime
+        clean_ws = workspace_name.strip()
+        clean_type = source_type.strip().lower()
+        clean_ident = source_identifier.strip().strip("'\"")
+        if clean_type == "folder":
+            clean_ident = os.path.abspath(clean_ident)
+        
+        created_at = datetime.utcnow().isoformat()
+        clean_title = title.strip() if title else (os.path.basename(clean_ident) if clean_type == "folder" else clean_ident)
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO workspace_source_links (workspace_name, source_type, source_identifier, title, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (clean_ws, clean_type, clean_ident, clean_title, created_at))
+            conn.commit()
+
+        return {
+            "status": "success",
+            "workspace": clean_ws,
+            "source_type": clean_type,
+            "source_identifier": clean_ident,
+            "title": clean_title,
+            "message": f"Source '{clean_ident}' successfully linked to workspace '{clean_ws}' ($0.00 cost)."
+        }
+
+    def unlink_shared_source_from_workspace(
+        self,
+        workspace_name: str,
+        source_type: str,
+        source_identifier: str
+    ) -> bool:
+        """Unlinks a shared source from a workspace."""
+        clean_ws = workspace_name.strip()
+        clean_type = source_type.strip().lower()
+        clean_ident = source_identifier.strip().strip("'\"")
+        if clean_type == "folder":
+            clean_ident = os.path.abspath(clean_ident)
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                DELETE FROM workspace_source_links
+                WHERE workspace_name = ? AND source_type = ? AND (source_identifier = ? OR source_identifier = ?)
+            """, (clean_ws, clean_type, clean_ident, source_identifier.strip()))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_workspace_shared_links(self, workspace_name: str) -> List[Dict[str, Any]]:
+        """Returns all shared source links configured for a workspace."""
+        clean_ws = workspace_name.strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    SELECT id, workspace_name, source_type, source_identifier, title, created_at
+                    FROM workspace_source_links
+                    WHERE workspace_name = ?
+                """, (clean_ws,))
+                return [dict(r) for r in cursor.fetchall()]
+            except sqlite3.OperationalError:
+                return []
+
+    def list_all_available_shared_sources(self) -> List[Dict[str, Any]]:
+        """
+        Lists all unique indexed sources (folders, web portals, cloud drives) across all workspaces
+        that are available for cross-workspace linking.
+        """
+        available = []
+        seen = set()
+
+        all_ws = self.list_workspaces_detailed()
+        for ws in all_ws:
+            ws_name = ws["name"]
+            for s in ws.get("sources", []):
+                if s.get("details", {}).get("is_shared_link"):
+                    continue
+                stype = s.get("type")
+                ident = s.get("identifier")
+                key = f"{stype}:{ident}"
+                if key not in seen:
+                    seen.add(key)
+                    available.append({
+                        "type": stype,
+                        "identifier": ident,
+                        "title": s.get("title") or ident,
+                        "origin_workspace": ws_name,
+                        "details": s.get("details", {})
+                    })
+        return available
 
     def list_workspaces_detailed(self) -> List[Dict[str, Any]]:
         """

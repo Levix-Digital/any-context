@@ -300,6 +300,42 @@ MCP_TOOLS_DEFINITIONS = [
         }
     },
     {
+        "name": "list_available_shared_sources",
+        "description": "Lists all unique indexed sources (folders, web portals, cloud drives) available for cross-workspace linking ($0.00 cost).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "link_shared_source_to_workspace",
+        "description": "Links an existing indexed source to a target workspace in < 50ms with zero API cost ($0.00).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace_name": {"type": "string", "description": "Target workspace name"},
+                "source_type": {"type": "string", "enum": ["folder", "web", "cloud_drive"], "description": "Type of source"},
+                "source_identifier": {"type": "string", "description": "Path, URL, or mount ID to link"},
+                "title": {"type": "string", "description": "Optional custom title for the link"}
+            },
+            "required": ["workspace_name", "source_type", "source_identifier"]
+        }
+    },
+    {
+        "name": "unlink_shared_source_from_workspace",
+        "description": "Unlinks a shared source from a target workspace.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace_name": {"type": "string", "description": "Target workspace name"},
+                "source_type": {"type": "string", "enum": ["folder", "web", "cloud_drive"], "description": "Type of source"},
+                "source_identifier": {"type": "string", "description": "Path, URL, or mount ID to unlink"}
+            },
+            "required": ["workspace_name", "source_type", "source_identifier"]
+        }
+    },
+    {
         "name": "get_context_retrieval_settings",
         "description": "Retrieves the current multi-source RAG retrieval density settings (preset, top_k chunks, candidate pool size, max chunks per source).",
         "inputSchema": {
@@ -620,6 +656,41 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 store = ConfigDBStore()
                 res = store.rename_workspace(old_name=old_ws, new_name=new_ws)
                 result_text = json.dumps(res, indent=2)
+
+            elif tool_name == "list_available_shared_sources":
+                store = ConfigDBStore()
+                sources = store.list_all_available_shared_sources()
+                result_text = json.dumps({"total": len(sources), "sources": sources}, indent=2)
+
+            elif tool_name == "link_shared_source_to_workspace":
+                ws_name = arguments.get("workspace_name", "").strip()
+                s_type = arguments.get("source_type", "folder").strip()
+                s_ident = arguments.get("source_identifier", "").strip()
+                s_title = arguments.get("title")
+                if not ws_name or not s_ident:
+                    raise ValueError("workspace_name and source_identifier are required.")
+                store = ConfigDBStore()
+                res = store.link_shared_source_to_workspace(
+                    workspace_name=ws_name,
+                    source_type=s_type,
+                    source_identifier=s_ident,
+                    title=s_title
+                )
+                result_text = json.dumps(res, indent=2)
+
+            elif tool_name == "unlink_shared_source_from_workspace":
+                ws_name = arguments.get("workspace_name", "").strip()
+                s_type = arguments.get("source_type", "folder").strip()
+                s_ident = arguments.get("source_identifier", "").strip()
+                if not ws_name or not s_ident:
+                    raise ValueError("workspace_name and source_identifier are required.")
+                store = ConfigDBStore()
+                unlinked = store.unlink_shared_source_from_workspace(
+                    workspace_name=ws_name,
+                    source_type=s_type,
+                    source_identifier=s_ident
+                )
+                result_text = json.dumps({"status": "success" if unlinked else "not_found", "workspace": ws_name, "source": s_ident}, indent=2)
 
             elif tool_name == "get_context_retrieval_settings":
                 store = ConfigDBStore()

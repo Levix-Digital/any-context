@@ -186,18 +186,59 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
 
         if workspace and not search_session_memory:
             safe_stdout_write(f"\r\033[K🔍 [Search] Scanning Workspace: '{workspace}' (pool: {candidate_k} -> diversified top {effective_top_k})...")
+            from any_context.config.db_store import ConfigDBStore
+            store = ConfigDBStore()
+            target_workspaces = [workspace]
+            if workspace.lower() != "global":
+                target_workspaces.append("Global")
+
+            shared_links = store.get_workspace_shared_links(workspace)
+            linked_identifiers = [l["source_identifier"] for l in shared_links]
+
+            # 1. Query primary workspace
             try:
                 filters = MetadataFilters(
                     filters=[ExactMatchFilter(key="workspace", value=workspace)]
                 )
                 retriever = index.as_retriever(similarity_top_k=candidate_k, filters=filters)
-                raw_nodes = retriever.retrieve(prompt_text)
+                raw_nodes.extend(retriever.retrieve(prompt_text))
             except Exception:
-                # Resilient Fallback: broad query with in-memory Python workspace isolation filter
+                pass
+
+            # 2. Query Global workspace if applicable
+            if "Global" in target_workspaces:
+                try:
+                    filters_glob = MetadataFilters(
+                        filters=[ExactMatchFilter(key="workspace", value="Global")]
+                    )
+                    retriever_glob = index.as_retriever(similarity_top_k=candidate_k // 2 or 10, filters=filters_glob)
+                    glob_nodes = retriever_glob.retrieve(prompt_text)
+                    raw_nodes.extend(glob_nodes)
+                except Exception:
+                    pass
+
+            # 3. Query linked Shared Sources if present
+            if linked_identifiers:
+                try:
+                    retriever_all = index.as_retriever(similarity_top_k=candidate_k * 2, filters=None)
+                    all_nodes = retriever_all.retrieve(prompt_text)
+                    for n in all_nodes:
+                        fp = str(n.metadata.get("file_path") or n.metadata.get("url") or "")
+                        if any(l_id in fp for l_id in linked_identifiers):
+                            raw_nodes.append(n)
+                except Exception:
+                    pass
+
+            # Fallback: broad query with in-memory target workspaces & linked sources filter
+            if not raw_nodes:
                 try:
                     retriever = index.as_retriever(similarity_top_k=candidate_k * 2, filters=None)
                     all_nodes = retriever.retrieve(prompt_text)
-                    raw_nodes = [n for n in all_nodes if n.metadata.get("workspace") == workspace]
+                    raw_nodes = [
+                        n for n in all_nodes 
+                        if n.metadata.get("workspace") in target_workspaces or 
+                        any(l_id in str(n.metadata.get("file_path") or "") for l_id in linked_identifiers)
+                    ]
                 except Exception:
                     raw_nodes = []
         elif not search_session_memory:
