@@ -254,10 +254,13 @@ def create_bottom_toolbar_renderer(
             ws_mode = store.get_grounding_mode(workspace_name=workspace_name)
             ws_search = store.get_web_search_status(workspace_name=workspace_name)
         except Exception:
-            ws_mode = grounding_mode or "hybrid"
+            ws_mode = grounding_mode or "strict"
             ws_search = False
 
-        clean_mode = (ws_mode or "hybrid").capitalize()
+        if not ws_mode:
+            ws_mode = grounding_mode or "strict"
+
+        clean_mode = (ws_mode or "strict").capitalize()
 
         search_badge = (
             "<style fg='#73daca'><b>🌐 Search: ON</b></style>"

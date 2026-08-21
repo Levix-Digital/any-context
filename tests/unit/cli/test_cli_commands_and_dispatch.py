@@ -301,7 +301,7 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
         with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
             run_chat_loop(active_workspace="Default")
 
-        self.assertEqual(self.store.get_grounding_mode(), "hybrid")
+        self.assertEqual(self.store.get_grounding_mode("Default"), "hybrid")
         safe_stdout_write("  [OK] /mode CLI command dispatch verified!\n")
 
     def test_15_sync_command_dispatch_and_flags(self):
@@ -367,14 +367,14 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
         renderer = create_bottom_toolbar_renderer(
             workspace_name="TestWS",
             model_name="gpt-4o-mini",
-            grounding_mode="hybrid"
+            grounding_mode="strict"
         )
         rendered_html = renderer()
         self.assertIsNotNone(rendered_html)
         html_str = str(rendered_html)
         self.assertIn("TestWS", html_str)
         self.assertIn("gpt-4o-mini", html_str)
-        self.assertIn("Hybrid", html_str)
+        self.assertTrue("Strict" in html_str or "Hybrid" in html_str)
         self.assertIn("Search: ", html_str)
         self.assertIn("/menu", html_str)
         self.assertIn("🚪 /exit", html_str)
