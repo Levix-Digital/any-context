@@ -377,6 +377,7 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
         self.assertIn("Hybrid", html_str)
         self.assertIn("Search: ", html_str)
         self.assertIn("/menu", html_str)
+        self.assertIn("🚪 /exit", html_str)
         self.assertIn("─", html_str)
 
         # 2. Test style retrieval
