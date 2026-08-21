@@ -169,10 +169,10 @@ def find_active_instances() -> List[Dict[str, Any]]:
     if is_windows:
         try:
             res = subprocess.run(
-                ["tasklist", "/V", "/FO", "CSV", "/NH"],
+                ["tasklist", "/FO", "CSV", "/NH"],
                 capture_output=True,
                 text=True,
-                timeout=4
+                timeout=5
             )
             if res.returncode == 0 and res.stdout:
                 import csv
@@ -181,7 +181,6 @@ def find_active_instances() -> List[Dict[str, Any]]:
                     if len(row) >= 2:
                         img_name = row[0].strip().strip('"')
                         pid_str = row[1].strip().strip('"')
-                        title = row[8].strip().strip('"') if len(row) > 8 else ""
 
                         if pid_str.isdigit():
                             pid = int(pid_str)
@@ -189,29 +188,12 @@ def find_active_instances() -> List[Dict[str, Any]]:
                                 continue
 
                             img_lower = img_name.lower()
-                            title_lower = title.lower()
-
-                            is_match = False
-                            proc_type = "cli"
-
                             if img_lower in ["actx.exe", "anycontext.exe", "any-context.exe", "ac.exe"]:
-                                is_match = True
-                            elif "python" in img_lower and ("anycontext" in title_lower or "any-context" in title_lower or "actx" in title_lower):
-                                is_match = True
-
-                            if is_match:
-                                if "mcp" in title_lower:
-                                    proc_type = "mcp"
-                                elif "serve" in title_lower or "server" in title_lower or "api" in title_lower:
-                                    proc_type = "server"
-                                else:
-                                    proc_type = "cli"
-
                                 instances.append({
                                     "pid": pid,
                                     "name": img_name,
-                                    "title": title if title and title != "N/A" else f"{img_name} (PID: {pid})",
-                                    "type": proc_type
+                                    "title": f"AnyContext Session (PID: {pid})",
+                                    "type": "cli"
                                 })
         except Exception:
             pass
