@@ -129,8 +129,9 @@ def show_slash_commands_palette(active_workspace: Optional[str] = None) -> Optio
             "🔄 /transfer     - Instant zero-cost transfer of folders/websites",
             "📋 /paste        - Enter multi-line paste mode for long texts",
             "🤖 /model        - Change active AI inference model on-the-fly",
-            "🎛️ /mode         - Select AI grounding mode (Hybrid, Strict, Proactive)",
+            "🎛️ /mode         - Select AI grounding mode (Strict, Hybrid, Proactive)",
             "🌐 /web-search   - Toggle real-time live web search for active workspace",
+            "🔑 /key          - Manage and configure API Keys (Tavily, OpenAI, Gemini, etc.)",
             "⚙️ /config       - Open interactive configuration & settings menu",
             "🔍 /density      - Configure RAG retrieval density presets",
             "🧠 /reset-memory - Reset/purge long-term session memory",
@@ -1070,12 +1071,41 @@ def run_chat_loop(active_workspace: str = "Default"):
                 show_config_menu()
                 continue
 
-            elif cmd in ["/keys", "/api-keys", "/apikeys"]:
-                from any_context.help.manager import display_help_page
-                from any_context.help.registry import get_help_page
-                page = get_help_page("api-keys")
-                if page:
-                    display_help_page(page)
+            elif cmd == "/key" or cmd.startswith("/key ") or cmd in ["/keys", "/api-keys", "/apikeys"] or cmd.startswith("/keys ") or cmd.startswith("/apikey "):
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+                from any_context.cli.config_menu import mask_key, _manage_api_keys
+
+                if len(parts) == 1:
+                    _manage_api_keys(store)
+                    continue
+
+                if "--list" in parts or "-l" in parts or "list" in parts:
+                    all_keys = store.get_all_api_keys()
+                    safe_stdout_write("\n--- Saved API Keys ---\n")
+                    if not all_keys:
+                        safe_stdout_write("No API keys saved in database yet.\n")
+                    else:
+                        for provider, key in all_keys.items():
+                            safe_stdout_write(f"• \033[93m{provider.upper()}\033[0m: {mask_key(key)}\n")
+                    safe_stdout_write("----------------------\n\n")
+                    continue
+
+                action_parts = [p for p in parts if p not in ["--set", "-s", "set"]]
+                # e.g. /key tavily tvly-xxx OR /key set tavily tvly-xxx
+                if len(action_parts) >= 3:
+                    prov = action_parts[1].lower().strip()
+                    val = action_parts[2].strip()
+                    store.set_api_key(prov, val)
+                    safe_stdout_write(f"\n✅ Saved API Key for provider '\033[93m{prov.upper()}\033[0m' ({mask_key(val)}).\n\n")
+                elif len(action_parts) == 2 and action_parts[1] in ["--help", "-h", "help", "guide"]:
+                    from any_context.help.manager import display_help_page
+                    from any_context.help.registry import get_help_page
+                    page = get_help_page("api-keys")
+                    if page:
+                        display_help_page(page)
+                else:
+                    _manage_api_keys(store)
                 continue
 
             elif cmd in ["/billing", "/plans"]:

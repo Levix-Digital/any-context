@@ -667,6 +667,8 @@ def _manage_api_keys(store: ConfigDBStore):
                 "OpenAI",
                 "Anthropic",
                 "Gemini (Google)",
+                "Tavily (Web Search Engine)",
+                "Serper (Google Search API)",
                 "Azure OpenAI",
                 "xAI (Grok)",
                 "DeepSeek",
@@ -676,13 +678,29 @@ def _manage_api_keys(store: ConfigDBStore):
             ]
         ).ask()
         if provider:
-            if provider == "Other":
-                provider = questionary.text("Enter Provider Name:").ask()
-            if provider:
-                key = questionary.password(f"Enter API Key for {provider}:").ask()
+            clean_provider = provider
+            if "Tavily" in provider:
+                clean_provider = "tavily"
+            elif "Serper" in provider:
+                clean_provider = "serper"
+            elif "Gemini" in provider:
+                clean_provider = "gemini"
+            elif "Azure" in provider:
+                clean_provider = "azure"
+            elif "xAI" in provider:
+                clean_provider = "xai"
+            elif "Groq" in provider:
+                clean_provider = "groq"
+            elif "OpenRouter" in provider:
+                clean_provider = "openrouter"
+            elif provider == "Other":
+                clean_provider = questionary.text("Enter Provider Name:").ask()
+
+            if clean_provider:
+                key = questionary.password(f"Enter API Key for {clean_provider}:").ask()
                 if key:
-                    store.set_api_key(provider, key)
-                    print(f"✅ Saved API Key for provider '{provider}'.")
+                    store.set_api_key(clean_provider, key)
+                    print(f"✅ Saved API Key for provider '{clean_provider}'.")
 
 
 def _manage_memory(store: ConfigDBStore):
@@ -955,13 +973,20 @@ def _manage_grounding_mode(store: ConfigDBStore):
 def _manage_web_search(store: ConfigDBStore):
     settings = store.get_app_settings()
     global_status = store.get_web_search_status()
+    tavily_key = store.get_api_key("tavily") or os.getenv("TAVILY_API_KEY")
+    serper_key = store.get_api_key("serper") or os.getenv("SERPER_API_KEY")
+
+    tavily_status = f"\033[92mConfigured ({mask_key(tavily_key)})\033[0m" if tavily_key else "\033[90mNot Configured (Free DuckDuckGo fallback)\033[0m"
+    serper_status = f"\033[92mConfigured ({mask_key(serper_key)})\033[0m" if serper_key else "\033[90mNot Configured\033[0m"
 
     print("\n=======================================================")
     print("🌐 Live Web Search & External Intelligence")
     print("=======================================================")
     status_label = "\033[92mENABLED (ON)\033[0m" if global_status else "\033[90mDISABLED (OFF)\033[0m"
     print(f"Global Default Status : {status_label}")
-    print("Description           : Enables real-time internet searches and portal lookups.")
+    print(f"• DuckDuckGo Engine   : \033[92mFree / Active (No Key Required)\033[0m")
+    print(f"• Tavily Search API   : {tavily_status}")
+    print(f"• Serper Search API   : {serper_status}")
     print("=======================================================\n")
 
     workspaces = settings.workspaces if settings else []
@@ -969,6 +994,8 @@ def _manage_web_search(store: ConfigDBStore):
         f"🟢 Enable Web Search Globally (All Workspaces){'  [Active]' if global_status else ''}",
         f"🔴 Disable Web Search Globally (100% Offline Local){'  [Active]' if not global_status else ''}",
         "📂 Configure Web Search for a Specific Workspace...",
+        "🔑 Set / Update Tavily API Key (Premium Web Intelligence)...",
+        "🔑 Set / Update Serper API Key (Google Search API)...",
         "🔙 Back"
     ]
 
@@ -983,6 +1010,24 @@ def _manage_web_search(store: ConfigDBStore):
     elif choice.startswith("🔴"):
         store.set_web_search_status(False, apply_global=True)
         print("\n🔒 \033[90mWeb Search DISABLED globally. (100% offline local isolation)\033[0m\n")
+    elif choice.startswith("🔑 Set / Update Tavily"):
+        cur_tvly = store.get_api_key("tavily") or ""
+        new_key = questionary.password("Enter Tavily API Key (tvly-...):", default=cur_tvly).ask()
+        if new_key is not None:
+            if new_key.strip():
+                store.set_api_key("tavily", new_key.strip())
+                print(f"\n✅ \033[92mSaved Tavily API Key ({mask_key(new_key.strip())}) successfully!\033[0m\n")
+            else:
+                print("\n⚠️ No Tavily API key entered.\n")
+    elif choice.startswith("🔑 Set / Update Serper"):
+        cur_serp = store.get_api_key("serper") or ""
+        new_key = questionary.password("Enter Serper API Key:", default=cur_serp).ask()
+        if new_key is not None:
+            if new_key.strip():
+                store.set_api_key("serper", new_key.strip())
+                print(f"\n✅ \033[92mSaved Serper API Key ({mask_key(new_key.strip())}) successfully!\033[0m\n")
+            else:
+                print("\n⚠️ No Serper API key entered.\n")
     elif choice.startswith("📂"):
         if not workspaces:
             print("⚠️ No workspaces found.")
