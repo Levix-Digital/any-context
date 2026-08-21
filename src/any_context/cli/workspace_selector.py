@@ -165,6 +165,17 @@ def get_active_workspace() -> str:
         help="Check if a newer version of AnyContext is available."
     )
     parser.add_argument(
+        "--close-instances",
+        action="store_true",
+        help="Automatically terminate active AnyContext sessions during update."
+    )
+    parser.add_argument(
+        "--background", "--force-background",
+        dest="force_background",
+        action="store_true",
+        help="Perform update in background keeping active sessions running."
+    )
+    parser.add_argument(
         "--billing", "--plans",
         dest="billing",
         action="store_true",
@@ -248,7 +259,10 @@ def get_active_workspace() -> str:
         sys.exit(0)
     
     if args.update:
-        run_self_update()
+        run_self_update(
+            auto_close_instances=getattr(args, "close_instances", False),
+            force_background=getattr(args, "force_background", False)
+        )
         sys.exit(0)
 
     if args.check_update:
@@ -261,7 +275,10 @@ def get_active_workspace() -> str:
                     default=True
                 ).ask()
                 if do_upgrade:
-                    run_self_update()
+                    run_self_update(
+                        auto_close_instances=getattr(args, "close_instances", False),
+                        force_background=getattr(args, "force_background", False)
+                    )
             except Exception:
                 pass
         sys.exit(0)
