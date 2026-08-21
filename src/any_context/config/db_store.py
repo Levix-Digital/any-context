@@ -363,10 +363,10 @@ class ConfigDBStore:
             return None
 
     def is_empty(self) -> bool:
-        """Returns True if no custom workspaces other than 'Default', 'Global', and 'Shared Sources' exist"""
+        """Returns True if no workspaces exist in the database"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM workspaces WHERE LOWER(name) NOT IN ('default', 'global', 'shared sources')")
+            cursor.execute("SELECT COUNT(*) FROM workspaces")
             count = cursor.fetchone()[0]
             return count == 0
 
