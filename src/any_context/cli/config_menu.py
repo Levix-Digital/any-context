@@ -19,7 +19,7 @@ def run_first_time_wizard():
     print("=======================================================\n")
 
     ws_name = questionary.text(
-        "1. Enter a name for your first workspace (e.g. Default, Mercado, MyProject):",
+        "1. Enter a name for your first workspace (or press Enter for 'Default'):",
         default="Default"
     ).ask()
 
