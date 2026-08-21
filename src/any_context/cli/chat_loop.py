@@ -67,12 +67,12 @@ def collect_multiline_paste(active_workspace: Optional[str] = None, initial_text
     Terminates when the user types '\"\"\"', 'EOF' (Ctrl+D / Ctrl+Z), or '/send'.
     Aborts cleanly on '/cancel'.
     """
-    safe_stdout_write("\n=======================================================\n")
-    safe_stdout_write("📋 Multi-line Paste Mode Active\n")
-    safe_stdout_write("  • Paste (Ctrl+V) or type your text with line breaks below.\n")
-    safe_stdout_write("  • Type '\"\"\"' or '/send' on a new line to finish & send.\n")
-    safe_stdout_write("  • Type '/cancel' or press Ctrl+C to abort.\n")
-    safe_stdout_write("=======================================================\n\n")
+    safe_stdout_write("\n┌" + "─" * 68 + "┐\n")
+    safe_stdout_write("│ 📋 Multi-line Paste Mode Active                                    │\n")
+    safe_stdout_write("│   • Paste (Ctrl+V) or type your text with line breaks below.       │\n")
+    safe_stdout_write("│   • Type '\"\"\"' or '/send' on a new line to finish & send.          │\n")
+    safe_stdout_write("│   • Type '/cancel' or press Ctrl+C to abort.                       │\n")
+    safe_stdout_write("└" + "─" * 68 + "┘\n\n")
 
     lines = []
     if initial_text:
@@ -251,9 +251,9 @@ def run_chat_loop(active_workspace: str = "Default"):
     if current_grounding_mode not in ["hybrid", "strict", "proactive"]:
         current_grounding_mode = "hybrid"
 
-    safe_stdout_write("\n=======================================================\n")
-    safe_stdout_write("💬 Chat started! Type '/' for command palette or '/exit' to quit.\n")
-    safe_stdout_write("=======================================================\n\n")
+    safe_stdout_write("\n┌" + "─" * 72 + "┐\n")
+    safe_stdout_write("│ 💬 Chat started! Type '/' for command palette or '/exit' to quit.      │\n")
+    safe_stdout_write("└" + "─" * 72 + "┘\n\n")
 
     agent_instance = None
     active_workspace_for_agent = None
