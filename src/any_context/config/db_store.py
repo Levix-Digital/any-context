@@ -1059,6 +1059,58 @@ class ConfigDBStore:
             "message": f"Source '{clean_ident}' successfully linked to workspace '{clean_ws}' ($0.00 cost)."
         }
 
+    def attach_and_broadcast_source(
+        self,
+        primary_workspace: str,
+        source_type: str,
+        source_identifier: str,
+        title: Optional[str] = None,
+        link_to_workspaces: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Attaches a data source (folder, web portal, or cloud drive) to primary_workspace
+        and automatically broadcasts/links it to an optional list of additional workspaces ($0.00 cost).
+        """
+        clean_ws = primary_workspace.strip()
+        clean_type = source_type.strip().lower()
+        clean_ident = source_identifier.strip().strip("'\"")
+        if clean_type == "folder":
+            clean_ident = os.path.abspath(clean_ident)
+            self.add_folder_to_workspace(clean_ws, clean_ident)
+        elif clean_type in ["web", "url", "portal"]:
+            from any_context.ingestion.web_scheduler import WebSchedulerStore
+            web_store = WebSchedulerStore()
+            web_store.add_or_update_root_web_source(
+                workspace_name=clean_ws,
+                root_url=clean_ident,
+                title=title or clean_ident,
+                page_count=1
+            )
+
+        linked_targets = []
+        if link_to_workspaces:
+            for tgt in link_to_workspaces:
+                clean_tgt = tgt.strip()
+                if clean_tgt and clean_tgt.lower() != clean_ws.lower():
+                    self.link_shared_source_to_workspace(
+                        workspace_name=clean_tgt,
+                        source_type=clean_type,
+                        source_identifier=clean_ident,
+                        title=title
+                    )
+                    linked_targets.append(clean_tgt)
+
+        return {
+            "status": "success",
+            "primary_workspace": clean_ws,
+            "source_type": clean_type,
+            "source_identifier": clean_ident,
+            "title": title or (os.path.basename(clean_ident) if clean_type == "folder" else clean_ident),
+            "linked_workspaces": linked_targets,
+            "total_linked": len(linked_targets),
+            "message": f"Source attached to '{clean_ws}' and broadcast-linked to {len(linked_targets)} workspaces."
+        }
+
     def unlink_shared_source_from_workspace(
         self,
         workspace_name: str,

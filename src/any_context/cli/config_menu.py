@@ -236,11 +236,30 @@ def _manage_workspaces(store: ConfigDBStore):
 
         if folder_action and folder_action.startswith("➕"):
             new_path = questionary.text("Enter absolute folder path to add:").ask()
-            if new_path:
-                if store.add_folder_to_workspace(selected_ws, new_path):
-                    print(f"✅ Added folder '{new_path}' to workspace '{selected_ws}'.")
-                else:
-                    print("❌ Error adding folder.")
+            if new_path and new_path.strip():
+                clean_path = new_path.strip().strip("'\"")
+                other_workspaces = [w.name for w in workspaces if w.name.lower() != selected_ws.lower()]
+                link_targets = []
+                if other_workspaces:
+                    try:
+                        ask_link = questionary.confirm(f"🔗 Would you like to link '{clean_path}' to other workspaces as well?").ask()
+                        if ask_link:
+                            link_targets = questionary.checkbox(
+                                "Select workspaces to link this folder to (Space to select, Enter to confirm):",
+                                choices=other_workspaces
+                            ).ask() or []
+                    except Exception:
+                        link_targets = []
+
+                res = store.attach_and_broadcast_source(
+                    primary_workspace=selected_ws,
+                    source_type="folder",
+                    source_identifier=clean_path,
+                    link_to_workspaces=link_targets
+                )
+                print(f"✅ Added folder '{clean_path}' to workspace '{selected_ws}'.")
+                if link_targets:
+                    print(f"🔗 Also linked to: {', '.join(link_targets)} ($0.00 cost)!\n")
 
         elif folder_action and folder_action.startswith("🗑️"):
             if not curr_paths:

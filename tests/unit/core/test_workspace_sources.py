@@ -311,5 +311,45 @@ class TestWorkspaceSources(unittest.TestCase):
         self.assertEqual(target_sources_after["total_sources"], 0)
         safe_stdout_write("  [OK] Global Workspace & Shared Sources linking verified!\n")
 
+    def test_10_attach_and_broadcast_source_modular_core(self):
+        """Validates attach_and_broadcast_source modular core API attaching to primary and linking to multiple targets."""
+        safe_stdout_write(">>> [UNIT] Testing Modular attach_and_broadcast_source Core API...\n")
+        ws_primary = "Unit_Broadcast_Primary"
+        ws_sub1 = "Unit_Broadcast_Sub1"
+        ws_sub2 = "Unit_Broadcast_Sub2"
+        folder_shared = os.path.join(self.temp_dir, "broadcast_folder")
+        os.makedirs(folder_shared, exist_ok=True)
+
+        self.store.add_workspace(ws_primary, paths=[])
+        self.store.add_workspace(ws_sub1, paths=[])
+        self.store.add_workspace(ws_sub2, paths=[])
+
+        # Attach to primary and broadcast to sub1 and sub2
+        res = self.store.attach_and_broadcast_source(
+            primary_workspace=ws_primary,
+            source_type="folder",
+            source_identifier=folder_shared,
+            title="Broadcast Component",
+            link_to_workspaces=[ws_sub1, ws_sub2]
+        )
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["total_linked"], 2)
+
+        # Verify primary has direct folder
+        src_primary = self.store.get_workspace_sources(ws_primary)
+        self.assertEqual(src_primary["total_sources"], 1)
+        self.assertFalse(src_primary["sources"][0]["details"].get("is_shared_link", False))
+
+        # Verify sub1 and sub2 have linked shared source
+        src_sub1 = self.store.get_workspace_sources(ws_sub1)
+        self.assertEqual(src_sub1["total_sources"], 1)
+        self.assertTrue(src_sub1["sources"][0]["details"].get("is_shared_link"))
+
+        src_sub2 = self.store.get_workspace_sources(ws_sub2)
+        self.assertEqual(src_sub2["total_sources"], 1)
+        self.assertTrue(src_sub2["sources"][0]["details"].get("is_shared_link"))
+
+        safe_stdout_write("  [OK] attach_and_broadcast_source modular core API verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
