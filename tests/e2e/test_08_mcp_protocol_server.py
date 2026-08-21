@@ -18,15 +18,28 @@ class Test08MCPProtocolServer(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        import tempfile
+        import shutil
+        from any_context.config.app_settings import ContextSettings
         setup_mock_embeddings_if_needed()
+        cls.test_dir = tempfile.mkdtemp(prefix="anycontext_e2e_mcp_")
+        cls.db_dir = os.path.join(cls.test_dir, "context_db")
+        os.makedirs(cls.db_dir, exist_ok=True)
         cls.store = ConfigDBStore()
+        cls.orig_settings = cls.store.get_app_settings()
+        cls.store.update_context_settings(ContextSettings(db_path=cls.db_dir, collection_name="mcp_docs"))
         cls.ws = "E2E_Mod8_MCP"
         cls.store.add_workspace(cls.ws, [])
 
     @classmethod
     def tearDownClass(cls):
+        import shutil
         try:
             cls.store.remove_workspace(cls.ws)
+            if hasattr(cls, "orig_settings") and cls.orig_settings and cls.orig_settings.context:
+                cls.store.update_context_settings(cls.orig_settings.context)
+            if hasattr(cls, "test_dir") and os.path.exists(cls.test_dir):
+                shutil.rmtree(cls.test_dir, ignore_errors=True)
         except Exception:
             pass
 
