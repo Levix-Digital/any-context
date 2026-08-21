@@ -375,8 +375,9 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
         self.assertIn("TestWS", html_str)
         self.assertIn("gpt-4o-mini", html_str)
         self.assertIn("Hybrid", html_str)
+        self.assertIn("Search: ", html_str)
         self.assertIn("/menu", html_str)
-        self.assertIn("/exit", html_str)
+        self.assertIn("─", html_str)
 
         # 2. Test style retrieval
         style = get_default_prompt_style()

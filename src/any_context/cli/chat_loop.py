@@ -224,9 +224,11 @@ def create_bottom_toolbar_renderer(
 ):
     """
     Constructs a dynamic callable for prompt_toolkit bottom_toolbar.
-    Renders an elegant, information-dense status dock pinned at the bottom of the screen:
-    📂 [Workspace]  │  🤖 [Model]  │  🛡️ [Grounding Mode]  │  🌐 Search: [ON/OFF]  │  [⚡ Syncing...] (if active)  │  /menu  │  /exit
+    Renders a continuous full-width horizontal divider and clean status dock:
+    ────────────────────────────────────────────────────────────────────────────
+     📂 CanadaImmigration  │  🤖 gpt-4o-mini  │  🛡️ Hybrid  │  🌐 Search: ON  │  💡 /menu  │  ⚡ Syncing...  │
     """
+    import shutil
     from prompt_toolkit.formatted_text import HTML
     from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
     from any_context.config.db_store import ConfigDBStore
@@ -241,9 +243,9 @@ def create_bottom_toolbar_renderer(
             ws_search = False
 
         search_badge = (
-            "<style fg='#73daca'><b>🌐 ON</b></style>"
+            "<style fg='#73daca'><b>🌐 Search: ON</b></style>"
             if ws_search
-            else "<style fg='#565f89'>🌐 OFF</style>"
+            else "<style fg='#7a84a0'>🌐 Search: OFF</style>"
         )
 
         # Check background sync status dynamically on each render frame
@@ -252,18 +254,30 @@ def create_bottom_toolbar_renderer(
             bg_mgr = BackgroundSyncManager()
             sync_info = bg_mgr.get_status(workspace_name)
             if sync_info and sync_info.get("status") == "running":
-                sync_badge = "  <style bg='#e0af68' fg='#1a1b26'><b> ⚡ Syncing... </b></style>  │"
+                sync_badge = "  <style fg='#ff9e64'><b>⚡ Syncing...</b></style>  <style fg='#565f89'>│</style>"
         except Exception:
             pass
 
+        # Calculate exact terminal width to stretch horizontal divider line across entire screen
+        try:
+            cols = shutil.get_terminal_size((100, 24)).columns
+        except Exception:
+            cols = 100
+        divider_line = "─" * max(cols, 20)
+
         return HTML(
-            f" <style fg='#e0af68'><b>📂 {workspace_name}</b></style>  │  "
-            f"<style fg='#bb9af7'><b>🤖 {model_name}</b></style>  │  "
-            f"<style fg='#7dcfff'><b>🛡️ {clean_mode}</b></style>  │  "
-            f"{search_badge}"
-            f"{sync_badge}  │  "
-            f"<style fg='#73daca'><b>/menu</b></style><style fg='#565f89'> for commands</style>  │  "
-            f"<style fg='#f7768e'><b>/exit</b></style><style fg='#565f89'> to quit</style> "
+            f"<style fg='#444b6a'>{divider_line}</style>\n"
+            f" <style fg='#e0af68'><b>📂 {workspace_name}</b></style>  "
+            f"<style fg='#565f89'>│</style>  "
+            f"<style fg='#bb9af7'><b>🤖 {model_name}</b></style>  "
+            f"<style fg='#565f89'>│</style>  "
+            f"<style fg='#7dcfff'><b>🛡️ {clean_mode}</b></style>  "
+            f"<style fg='#565f89'>│</style>  "
+            f"{search_badge}  "
+            f"<style fg='#565f89'>│</style>  "
+            f"<style fg='#e0af68'><b>💡 /menu</b></style>  "
+            f"<style fg='#565f89'>│</style>"
+            f"{sync_badge}"
         )
 
     return _render
