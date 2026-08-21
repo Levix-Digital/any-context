@@ -305,10 +305,10 @@ class ConfigDBStore:
         self._init_db()
 
     def ensure_default_workspace(self):
-        """Ensures that 'Default' and 'Global' workspaces exist for instant onboarding and institutional knowledge."""
+        """Ensures that 'Default', 'Global', and 'Shared Sources' system workspaces exist for instant onboarding, compliance, and reusable libraries."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            # Ensure Default workspace
+            # 1. Ensure Default workspace
             cursor.execute("SELECT id FROM workspaces WHERE name = 'Default' COLLATE NOCASE")
             if not cursor.fetchone():
                 default_path = os.path.abspath(os.path.join(os.getcwd(), "documents"))
@@ -317,12 +317,19 @@ class ConfigDBStore:
                     "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
                     ("ws_default", "Default", json.dumps([default_path]))
                 )
-            # Ensure Global workspace
+            # 2. Ensure Global workspace
             cursor.execute("SELECT id FROM workspaces WHERE name = 'Global' COLLATE NOCASE")
             if not cursor.fetchone():
                 cursor.execute(
                     "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
                     ("ws_global", "Global", json.dumps([]))
+                )
+            # 3. Ensure Shared Sources library workspace
+            cursor.execute("SELECT id FROM workspaces WHERE name = 'Shared Sources' COLLATE NOCASE")
+            if not cursor.fetchone():
+                cursor.execute(
+                    "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
+                    ("ws_shared_sources", "Shared Sources", json.dumps([]))
                 )
             conn.commit()
 
@@ -343,7 +350,8 @@ class ConfigDBStore:
             if row:
                 ws_id = row["workspace_id"]
                 if not ws_id:
-                    ws_id = "ws_default" if row["name"].strip().lower() == "default" else ("ws_global" if row["name"].strip().lower() == "global" else f"ws_{uuid.uuid4().hex[:8]}")
+                    lname = row["name"].strip().lower()
+                    ws_id = "ws_default" if lname == "default" else ("ws_global" if lname == "global" else ("ws_shared_sources" if lname == "shared sources" else f"ws_{uuid.uuid4().hex[:8]}"))
                     cursor.execute("UPDATE workspaces SET workspace_id = ? WHERE id = ?", (ws_id, row["id"]))
                     conn.commit()
                 return {
@@ -355,10 +363,10 @@ class ConfigDBStore:
             return None
 
     def is_empty(self) -> bool:
-        """Returns True if no custom workspaces other than 'Default' and 'Global' exist"""
+        """Returns True if no custom workspaces other than 'Default', 'Global', and 'Shared Sources' exist"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM workspaces WHERE LOWER(name) NOT IN ('default', 'global')")
+            cursor.execute("SELECT COUNT(*) FROM workspaces WHERE LOWER(name) NOT IN ('default', 'global', 'shared sources')")
             count = cursor.fetchone()[0]
             return count == 0
 
@@ -366,7 +374,8 @@ class ConfigDBStore:
         """Adds or updates a workspace entry with folder paths and an immutable workspace_id."""
         clean_name = name.strip()
         clean_paths = [os.path.abspath(p.strip().strip("'\"")) for p in paths if p and p.strip()]
-        ws_id = workspace_id or ("ws_default" if clean_name.lower() == "default" else ("ws_global" if clean_name.lower() == "global" else f"ws_{uuid.uuid4().hex[:8]}"))
+        lname = clean_name.lower()
+        ws_id = workspace_id or ("ws_default" if lname == "default" else ("ws_global" if lname == "global" else ("ws_shared_sources" if lname == "shared sources" else f"ws_{uuid.uuid4().hex[:8]}")))
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -420,12 +429,12 @@ class ConfigDBStore:
     def remove_workspace(self, workspace_name: str) -> bool:
         """Deletes a workspace entry and all its associated source records completely from SQLite."""
         clean_ws = workspace_name.strip()
-        if clean_ws.lower() in ["default", "global"]:
+        if clean_ws.lower() in ["default", "global", "shared sources"]:
             return False
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM workspaces WHERE name = ? AND LOWER(name) NOT IN ('default', 'global')", (clean_ws,))
+            cursor.execute("DELETE FROM workspaces WHERE name = ? AND LOWER(name) NOT IN ('default', 'global', 'shared sources')", (clean_ws,))
             deleted_count = cursor.rowcount
             try:
                 cursor.execute("DELETE FROM workspace_folders WHERE workspace_name = ?", (clean_ws,))
@@ -586,9 +595,9 @@ class ConfigDBStore:
             return {"success": False, "error": "New workspace name cannot be empty."}
         if old_ws == new_ws:
             return {"success": False, "error": "New workspace name must be different from current name."}
-        if old_ws.lower() in ["default", "global"]:
+        if old_ws.lower() in ["default", "global", "shared sources"]:
             return {"success": False, "error": f"Workspace '{old_ws}' is a protected system workspace and cannot be renamed."}
-        if new_ws.lower() in ["default", "global"]:
+        if new_ws.lower() in ["default", "global", "shared sources"]:
             return {"success": False, "error": f"Cannot rename to protected system workspace '{new_ws}'."}
 
         # 1. Update SQLite tables atomically
@@ -1151,16 +1160,15 @@ class ConfigDBStore:
 
     def list_all_available_shared_sources(self) -> List[Dict[str, Any]]:
         """
-        Lists all unique indexed sources (folders, web portals, cloud drives) across all workspaces
-        that are available for cross-workspace linking.
+        Lists all unique indexed sources (folders, web portals, cloud drives) configured
+        in the central 'Shared Sources' library (or institutional 'Global') available for cross-workspace linking.
         """
         available = []
         seen = set()
 
-        all_ws = self.list_workspaces_detailed()
-        for ws in all_ws:
-            ws_name = ws["name"]
-            for s in ws.get("sources", []):
+        for lib_ws_name in ["Shared Sources", "Global"]:
+            ws_detail = self.get_workspace_sources(lib_ws_name)
+            for s in ws_detail.get("sources", []):
                 if s.get("details", {}).get("is_shared_link"):
                     continue
                 stype = s.get("type")
@@ -1172,7 +1180,7 @@ class ConfigDBStore:
                         "type": stype,
                         "identifier": ident,
                         "title": s.get("title") or ident,
-                        "origin_workspace": ws_name,
+                        "origin_workspace": lib_ws_name,
                         "details": s.get("details", {})
                     })
         return available

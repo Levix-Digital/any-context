@@ -869,18 +869,19 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         aliases=["link", "/link", "shared", "/shared", "unlink", "/unlink", "workspace link", "/workspace link"],
         title="🔗 Cross-Workspace Shared Sources & Reusable Knowledge Linking",
         description=(
-            "The /link and /shared commands allow you to reuse already-indexed folders, web portals, and documentation across multiple workspaces "
-            "with zero API embedding cost ($0.00) and instant attachment in under 50ms.\n\n"
+            "The /link and /shared commands allow you to reuse folders, web portals, and documentation configured in the central "
+            "'Shared Sources' library (or institutional 'Global') across multiple project workspaces with zero API embedding cost ($0.00) "
+            "and instant attachment in under 50ms.\n\n"
             "✨ 3-TIER CONTEXT ARCHITECTURE:\n"
             "1. 🏢 Company Global ('Global'): Institutional knowledge automatically shared with authorized users.\n"
-            "2. 📦 Shared Sources: Reusable libraries and frameworks linked across projects on-demand.\n"
-            "3. 📁 Active Workspace: Isolated project-specific documentation."
+            "2. 📦 Shared Sources Workspace ('Shared Sources'): Central repository of reusable frameworks, libraries, and web portals.\n"
+            "3. 📁 Project Workspaces: Isolated, private workspaces that link in reusable sources on-demand."
         ),
         syntax=(
             "In Chat (Interactive Link)     : /link   OR   /workspace link\n"
-            "  In Chat (Direct Link)          : /link <path_or_url> [destination_workspace]\n"
+            "  In Chat (Direct Link)          : /link <keyword_or_path> [destination_workspace]\n"
             "  In Chat (List Shared Sources)  : /shared   OR   /sources shared\n"
-            "  In Chat (Unlink Source)        : /unlink <path_or_url> [from_workspace]\n"
+            "  In Chat (Unlink Source)        : /unlink <keyword_or_path> [from_workspace]\n"
             "  In CLI Config Menu             : actx --config -> 📂 Workspaces & Folders -> 🔗 Link Shared Source\n"
             "  REST API Endpoints             : GET /v1/workspaces/shared-sources/available\n"
             "                                   POST /v1/workspaces/{name}/shared-sources/link\n"
@@ -891,10 +892,10 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "  View Help                      : /link --help   OR   /link -h"
         ),
         parameters=[
-            "/link                         : Opens interactive wizard to select and link an indexed source.",
-            "/link <path_or_url>           : Directly links an indexed folder or website to the active workspace.",
-            "/shared                       : Lists all indexed unique sources available for cross-workspace linking.",
-            "/unlink <path_or_url>         : Unlinks a shared source from the active workspace.",
+            "/link                         : Opens interactive wizard to select and link a source from Shared Sources library.",
+            "/link <keyword_or_path>       : Directly links a source matching the keyword, URL, or path to the active workspace.",
+            "/shared                       : Lists all sources in the central 'Shared Sources' library available for linking.",
+            "/unlink <keyword_or_path>     : Unlinks a shared source from the active workspace.",
             "--help, -h                    : Display this detailed help page for /link."
         ],
         examples=[

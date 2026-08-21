@@ -67,7 +67,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Attach local folders or web URLs whenever you want via `/config` or `/web add`.
 - **🏛️ 3-Tier AI Context Architecture (Company Global & Shared Sources)**:
   - **1. 🏢 Institutional Global (`Global`)**: Organization-wide knowledge base curatable by admins and automatically inherited in RAG search across authorized project workspaces.
-  - **2. 📦 Reusable Shared Sources (`/link` & `/shared`)**: Attach already-indexed frameworks, codebases, and documentation portals across multiple workspaces in < 50ms with **$0.00 in embedding costs**.
+  - **2. 📦 Reusable Shared Sources Library (`Shared Sources`)**: Dedicated central library workspace for reusable frameworks, codebases, and documentation portals linked across project workspaces on-demand in < 50ms with **$0.00 in embedding costs** via `/link` and `/shared`.
   - **3. 📁 Scoped Active Workspaces**: Dedicated project-specific boundaries guaranteeing zero cross-department data leakage.
 - **🛒 Universal Schema.org & E-Commerce Rating Extraction**:
   - Automatic extraction of `Product` and `IndividualProduct` structured metadata (`<script type="application/ld+json">`) including star ratings, review counts, prices, and stock status across Walmart, Amazon, Mercado Livre, Shopify, VTEX, WooCommerce, etc.

@@ -360,7 +360,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                     elif target_ws.lower().startswith("delete ") or target_ws.lower().startswith("remove "):
                         target_ws_del = target_ws[7:].strip()
                         store = ConfigDBStore()
-                        if target_ws_del.lower() in ["default", "global"]:
+                        if target_ws_del.lower() in ["default", "global", "shared sources"]:
                             safe_stdout_write(f"\n❌ Cannot delete protected system workspace '{target_ws_del}'.\n\n")
                         else:
                             deleted = store.remove_workspace(target_ws_del)
@@ -528,9 +528,9 @@ def run_chat_loop(active_workspace: str = "Default"):
                 if len(parts) < 3 or (len(parts) > 1 and parts[1].lower() == "rename" and len(parts) < 4):
                     # Interactive guided rename wizard
                     settings = store.get_app_settings()
-                    known_workspaces = [w.name for w in settings.workspaces if w.name.lower() not in ["default", "global"]] if settings else []
+                    known_workspaces = [w.name for w in settings.workspaces if w.name.lower() not in ["default", "global", "shared sources"]] if settings else []
                     if not known_workspaces:
-                        safe_stdout_write("\n⚠️ No custom workspaces configured to rename ('Default' and 'Global' are protected system workspaces).\n\n")
+                        safe_stdout_write("\n⚠️ No custom workspaces configured to rename ('Default', 'Global', and 'Shared Sources' are protected system workspaces).\n\n")
                         continue
                     old_ws = questionary.select("Select Workspace to rename:", choices=known_workspaces).ask()
                     if not old_ws:
@@ -544,10 +544,10 @@ def run_chat_loop(active_workspace: str = "Default"):
                     old_ws = parts[arg_offset]
                     clean_new_ws = parts[arg_offset + 1].strip().strip("'\"")
 
-                if old_ws.lower() in ["default", "global"]:
+                if old_ws.lower() in ["default", "global", "shared sources"]:
                     safe_stdout_write(f"\n❌ Error renaming workspace: Workspace '{old_ws}' is a protected system workspace and cannot be renamed.\n\n")
                     continue
-                if clean_new_ws.lower() in ["default", "global"]:
+                if clean_new_ws.lower() in ["default", "global", "shared sources"]:
                     safe_stdout_write(f"\n❌ Error renaming workspace: Cannot rename to protected system workspace '{clean_new_ws}'.\n\n")
                     continue
 
