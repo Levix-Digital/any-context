@@ -100,9 +100,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Modern hierarchical tree view for verbose inspection (`/sync --verbose` or `/index -v`).
 - **🎯 Typo-Resilient Slash Command Interception**:
   - Mistyped commands (e.g. `/check-updaete`, `/swich`, `/modeel`, `/sinc`) are caught by the intelligent fuzzy matcher and suggest the correct command without wasting AI tokens.
-- **🔄 Interactive 1-Click Self-Updater (`/update` & `/check-update`)**:
+- **🔄 Interactive Multi-Instance Aware Self-Updater (`/update` & `/check-update`)**:
   - Detects GitHub releases with cache-busting and prompts: `? Would you like to download and install vX.Y.Z now? [Y/n]`.
-  - Performs atomic self-replacement, even on locked Windows binaries.
+  - **Multi-Instance Intelligence**: Detects other open AnyContext sessions (CLI terminals, REST API, MCP servers) and gives you the choice to update in background without losing work or close instances cleanly.
+  - Performs atomic self-replacement with retry loops, even on locked Windows binaries.
 - **🌐 REST API Server Mode (`actx --serve`)**:
   - High-performance FastAPI server with interactive Swagger UI at `http://127.0.0.1:8000/docs`.
 - **🔌 Model Context Protocol (MCP) Server (`actx --mcp`)**:

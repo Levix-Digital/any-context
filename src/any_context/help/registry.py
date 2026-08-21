@@ -299,30 +299,38 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
     "update": HelpPage(
         command="/update",
         aliases=["update", "--update", "/check-update", "--check-update"],
-        title="🔄 Interactive 1-Click Self-Updater Engine",
+        title="🔄 Interactive Multi-Instance Aware Self-Updater Engine",
         description=(
             "Checks GitHub Releases for newer AnyContext versions and provides an interactive 1-click upgrade prompt. "
-            "Automatically downloads and applies the latest release executable with atomic replacement, even on locked Windows binaries."
+            "Detects active background sessions (CLI terminals, REST API, or MCP servers) and lets you choose between "
+            "updating in background without interrupting active work or closing active instances for an immediate clean refresh. "
+            "Employs zero-downtime atomic executable replacement on Windows and Unix."
         ),
         syntax=(
             "In Chat (Interactive Update) : /update\n"
             "  In Chat (Check Only)          : /check-update\n"
             "  CLI Launch (Interactive)      : actx --update\n"
             "  CLI Launch (Check Only)       : actx --check-update\n"
+            "  CLI (Auto-Close Sessions)     : actx --update --close-instances\n"
+            "  CLI (Force Background)        : actx --update --background\n"
             "  View Help                     : /update --help   OR   /update -h"
         ),
         parameters=[
             "/update, --update       : Check for updates and prompt to install immediately [Y/n].",
             "/check-update, --check  : Check if a new version is available and offer 1-click update.",
+            "--close-instances       : Automatically terminate active AnyContext background sessions during update.",
+            "--background            : Perform atomic update in background without closing running sessions.",
             "--help, -h            : Display this detailed help page for the updater."
         ],
         examples=[
             "actx --check-update",
             "actx --update",
+            "actx --update --close-instances",
             "In Chat: /check-update",
             "In Chat: /update"
         ],
         tips=[
+            "Multi-instance awareness ensures you never lose work: active sessions continue running undisturbed while the new binary is placed in disk.",
             "When a new version is detected, AnyContext prompts: 'Would you like to download and install now? [Y/n]'. Simply press Enter to update!",
             "Non-blocking startup checks ensure your CLI opens in under 3 milliseconds without waiting for network requests."
         ]

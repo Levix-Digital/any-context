@@ -11,8 +11,14 @@ if repo_root not in sys.path:
 from any_context import __version__
 from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
-from any_context.cli.updater import parse_version_tuple
+from any_context.cli.updater import (
+    parse_version_tuple,
+    find_active_instances,
+    close_active_instances,
+    prompt_multi_instance_decision
+)
 from tests.e2e_helpers import safe_stdout_write
+from unittest.mock import patch, MagicMock
 
 class Test10SystemLifecycleRecovery(unittest.TestCase):
     """
@@ -53,6 +59,54 @@ class Test10SystemLifecycleRecovery(unittest.TestCase):
         api_key_after = store.get_api_key("openai")
         self.assertIsNone(api_key_after, "Factory reset must purge all saved API keys")
         safe_stdout_write("  [OK] Factory Reset simulated and verified!\n")
+
+    def test_03_find_active_instances_ignores_self_and_parent(self):
+        """TC-10.3: Tests find_active_instances and verifies current PID is strictly excluded."""
+        safe_stdout_write(">>> [MOD 10 / TC-10.3] Testing Active Instances Discovery...\n")
+        instances = find_active_instances()
+        self.assertIsInstance(instances, list)
+        current_pid = os.getpid()
+        for inst in instances:
+            self.assertIn("pid", inst)
+            self.assertNotEqual(inst["pid"], current_pid, "Current process PID must never be in active instances list")
+        safe_stdout_write("  [OK] Active instances discovery verified!\n")
+
+    def test_04_close_active_instances_mock(self):
+        """TC-10.4: Tests close_active_instances with mock subprocess."""
+        safe_stdout_write(">>> [MOD 10 / TC-10.4] Testing Close Active Instances...\n")
+        mock_instances = [
+            {"pid": 99991, "name": "actx.exe", "type": "cli"},
+            {"pid": 99992, "name": "actx.exe", "type": "server"}
+        ]
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            closed_cnt = close_active_instances(mock_instances)
+            self.assertEqual(closed_cnt, 2)
+            self.assertEqual(mock_run.call_count, 2)
+        safe_stdout_write("  [OK] Close active instances verified!\n")
+
+    def test_05_prompt_multi_instance_decision_logic(self):
+        """TC-10.5: Tests prompt_multi_instance_decision choices and fallback."""
+        safe_stdout_write(">>> [MOD 10 / TC-10.5] Testing Multi-Instance Decision Prompt Logic...\n")
+        mock_instances = [{"pid": 88881, "name": "actx.exe", "type": "cli"}]
+        # Test questionary background choice
+        with patch("questionary.select") as mock_select:
+            mock_select.return_value.ask.return_value = "background"
+            res = prompt_multi_instance_decision(mock_instances)
+            self.assertEqual(res, "background")
+
+        # Test questionary close choice
+        with patch("questionary.select") as mock_select:
+            mock_select.return_value.ask.return_value = "close"
+            res = prompt_multi_instance_decision(mock_instances)
+            self.assertEqual(res, "close")
+
+        # Test questionary cancel choice
+        with patch("questionary.select") as mock_select:
+            mock_select.return_value.ask.return_value = "cancel"
+            res = prompt_multi_instance_decision(mock_instances)
+            self.assertEqual(res, "cancel")
+        safe_stdout_write("  [OK] Multi-instance decision prompt logic verified!\n")
 
 if __name__ == "__main__":
     unittest.main()

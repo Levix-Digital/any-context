@@ -3,7 +3,7 @@ import sys
 import json
 import subprocess
 import urllib.request
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict, Any
 from any_context import __version__ as CURRENT_VERSION
 
 PRIMARY_REPO = "Levix-Digital/any-context-releases"
@@ -149,10 +149,187 @@ def print_startup_update_notice():
         safe_print(f"{cyan}👉 Run 'actx --update' or type '/update' inside the chat to update automatically.{reset}\n")
 
 
-def run_self_update():
+def find_active_instances() -> List[Dict[str, Any]]:
+    """
+    Scans for other running AnyContext processes (CLI sessions, MCP servers, REST servers)
+    excluding the current process PID and parent PID.
+    Returns a list of dictionaries: [{'pid': int, 'name': str, 'title': str, 'type': str}]
+    """
+    instances = []
+    current_pid = os.getpid()
+    ignored_pids = {current_pid}
+    if hasattr(os, "getppid"):
+        try:
+            ignored_pids.add(os.getppid())
+        except Exception:
+            pass
+
+    is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
+
+    if is_windows:
+        try:
+            res = subprocess.run(
+                ["tasklist", "/V", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                timeout=4
+            )
+            if res.returncode == 0 and res.stdout:
+                import csv
+                reader = csv.reader(res.stdout.strip().splitlines())
+                for row in reader:
+                    if len(row) >= 2:
+                        img_name = row[0].strip().strip('"')
+                        pid_str = row[1].strip().strip('"')
+                        title = row[8].strip().strip('"') if len(row) > 8 else ""
+
+                        if pid_str.isdigit():
+                            pid = int(pid_str)
+                            if pid in ignored_pids:
+                                continue
+
+                            img_lower = img_name.lower()
+                            title_lower = title.lower()
+
+                            is_match = False
+                            proc_type = "cli"
+
+                            if img_lower in ["actx.exe", "anycontext.exe", "any-context.exe", "ac.exe"]:
+                                is_match = True
+                            elif "python" in img_lower and ("anycontext" in title_lower or "any-context" in title_lower or "actx" in title_lower):
+                                is_match = True
+
+                            if is_match:
+                                if "mcp" in title_lower:
+                                    proc_type = "mcp"
+                                elif "serve" in title_lower or "server" in title_lower or "api" in title_lower:
+                                    proc_type = "server"
+                                else:
+                                    proc_type = "cli"
+
+                                instances.append({
+                                    "pid": pid,
+                                    "name": img_name,
+                                    "title": title if title and title != "N/A" else f"{img_name} (PID: {pid})",
+                                    "type": proc_type
+                                })
+        except Exception:
+            pass
+    else:
+        # Unix (Linux / macOS)
+        try:
+            res = subprocess.run(
+                ["ps", "-eo", "pid,comm,args"],
+                capture_output=True,
+                text=True,
+                timeout=4
+            )
+            if res.returncode == 0 and res.stdout:
+                for line in res.stdout.strip().splitlines()[1:]:
+                    parts = line.strip().split(None, 2)
+                    if len(parts) >= 2 and parts[0].isdigit():
+                        pid = int(parts[0])
+                        if pid in ignored_pids:
+                            continue
+                        comm = parts[1].lower()
+                        args = parts[2] if len(parts) > 2 else ""
+                        args_lower = args.lower()
+
+                        if comm in ["actx", "anycontext", "ac"] or ("python" in comm and "any_context" in args_lower):
+                            if any(t in args_lower for t in ["test_", "pytest", "run_all"]):
+                                continue
+                            proc_type = "mcp" if "--mcp" in args_lower else ("server" if ("--serve" in args_lower or "serve" in args_lower) else "cli")
+                            instances.append({
+                                "pid": pid,
+                                "name": parts[1],
+                                "title": args if args else parts[1],
+                                "type": proc_type
+                            })
+        except Exception:
+            pass
+
+    return instances
+
+
+def close_active_instances(instances: List[Dict[str, Any]]) -> int:
+    """
+    Gracefully closes or terminates the specified running AnyContext instances.
+    Returns number of successfully terminated instances.
+    """
+    closed_count = 0
+    is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
+
+    for inst in instances:
+        pid = inst.get("pid")
+        if not pid:
+            continue
+        try:
+            if is_windows:
+                res = subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/F"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3
+                )
+                if res.returncode == 0:
+                    closed_count += 1
+            else:
+                import signal
+                os.kill(pid, signal.SIGTERM)
+                closed_count += 1
+        except Exception:
+            pass
+    return closed_count
+
+
+def prompt_multi_instance_decision(active_instances: List[Dict[str, Any]]) -> str:
+    """
+    Prompts user for how to handle active instances during update.
+    Returns: 'background' | 'close' | 'cancel'
+    """
+    try:
+        import questionary
+        choices = [
+            questionary.Choice(
+                title="⚡ Update in background (Recommended - Active sessions will continue working undisturbed)",
+                value="background"
+            ),
+            questionary.Choice(
+                title="⏹️ Close other instances and update now (Terminates running background processes)",
+                value="close"
+            ),
+            questionary.Choice(
+                title="🔙 Cancel update",
+                value="cancel"
+            ),
+        ]
+        choice = questionary.select(
+            "How would you like to handle active AnyContext sessions?",
+            choices=choices,
+            default=choices[0]
+        ).ask()
+        if not choice:
+            return "cancel"
+        return choice
+    except Exception:
+        try:
+            sys.stdout.write("Choose [1] Update in background (Default), [2] Close instances, [3] Cancel: ")
+            sys.stdout.flush()
+            ans = input().strip()
+            if ans == "2":
+                return "close"
+            elif ans == "3":
+                return "cancel"
+            return "background"
+        except Exception:
+            return "background"
+
+
+def run_self_update(auto_close_instances: bool = False, force_background: bool = False):
     """
     Executes automatic binary update by downloading the latest release asset
-    and performing safe, atomic replacement (supporting locked executables on Windows).
+    and performing safe, atomic replacement (supporting locked executables on Windows
+    and graceful handling of multiple active instances).
     """
     safe_print(f"\n🔍 Checking for AnyContext updates...")
     has_update, latest_tag = check_for_updates(quiet_if_latest=False)
@@ -162,6 +339,37 @@ def run_self_update():
 
     clean_tag = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
     safe_print(f"\n🚀 Updating AnyContext from v{CURRENT_VERSION} to {clean_tag}...")
+
+    # Multi-instance detection and graceful handling
+    active_instances = find_active_instances()
+    decision = "background"
+
+    if active_instances:
+        yellow = "\033[93m"
+        bold = "\033[1m"
+        reset = "\033[0m"
+        safe_print(f"\n{yellow}ℹ️ Detected {len(active_instances)} other active AnyContext session(s):{reset}")
+        for inst in active_instances:
+            type_label = inst.get("type", "cli").upper()
+            safe_print(f"  • PID {bold}{inst['pid']}{reset}: {inst.get('name', 'actx')} \033[90m[{type_label}]\033[0m \033[90m({inst.get('title', '')})\033[0m")
+        print()
+
+        if auto_close_instances:
+            decision = "close"
+        elif force_background:
+            decision = "background"
+        else:
+            decision = prompt_multi_instance_decision(active_instances)
+
+        if decision == "cancel":
+            safe_print("\n⚠️ Update cancelled by user.\n")
+            return
+        elif decision == "close":
+            safe_print("⏹️ Closing active AnyContext sessions...")
+            closed_cnt = close_active_instances(active_instances)
+            safe_print(f"✅ Closed {closed_cnt} active session(s).\n")
+        else:
+            safe_print("⚡ Proceeding with background update (active sessions will remain undisturbed)...\n")
 
     is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
     target_asset = "actx-windows-x86_64.exe" if is_windows else "actx-linux-x86_64"
@@ -292,12 +500,16 @@ def run_self_update():
             pass
 
         safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
+        if active_instances and decision != "close":
+            safe_print(f"💡 Note: {len(active_instances)} other background session(s) are still active. Restart them when ready to use {clean_tag}.")
         safe_print(f"👉 Restart your terminal or type 'actx' to launch {clean_tag}.\n")
         sys.exit(0)
     else:
         try:
             os.replace(temp_download, target_exe)
             safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
+            if active_instances and decision != "close":
+                safe_print(f"💡 Note: {len(active_instances)} other background session(s) are still active. Restart them when ready to use {clean_tag}.")
             safe_print(f"👉 Restart your terminal or type 'actx' to launch {clean_tag}.\n")
             sys.exit(0)
         except Exception as e:
