@@ -18,10 +18,18 @@ class Test07RestApiServer(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        import tempfile
+        import shutil
+        from any_context.config.app_settings import ContextSettings
         setup_mock_embeddings_if_needed()
+        cls.test_dir = tempfile.mkdtemp(prefix="anycontext_e2e_rest_")
+        cls.db_dir = os.path.join(cls.test_dir, "context_db")
+        os.makedirs(cls.db_dir, exist_ok=True)
+        cls.store = ConfigDBStore()
+        cls.orig_settings = cls.store.get_app_settings()
+        cls.store.update_context_settings(ContextSettings(db_path=cls.db_dir, collection_name="rest_api_docs"))
         cls.app = create_app()
         cls.client = TestClient(cls.app)
-        cls.store = ConfigDBStore()
         cls.test_ws = "E2E_Mod7_RestApi"
         cls.store.add_workspace(cls.test_ws, [])
 
@@ -35,9 +43,14 @@ class Test07RestApiServer(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        import shutil
         try:
             cls.store.remove_workspace(cls.test_ws)
             cls.store.delete_access_token(cls.admin_token)
+            if hasattr(cls, "orig_settings") and cls.orig_settings and cls.orig_settings.context:
+                cls.store.update_context_settings(cls.orig_settings.context)
+            if hasattr(cls, "test_dir") and os.path.exists(cls.test_dir):
+                shutil.rmtree(cls.test_dir, ignore_errors=True)
         except Exception:
             pass
 
