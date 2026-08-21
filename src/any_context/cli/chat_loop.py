@@ -45,6 +45,9 @@ def format_session_error(error: Exception) -> str:
     elif "connection" in err_msg.lower() or "timeout" in err_msg.lower():
         friendly_desc = "Houve uma instabilidade temporária na conexão de rede."
         tip = "Verifique sua conexão com a internet e tente novamente."
+    elif "decompress" in err_msg.lower() or "truncated stream" in err_msg.lower() or "error -5" in err_msg.lower() or "zlib" in err_msg.lower():
+        friendly_desc = "Houve uma oscilação na resposta comprimida da rede ou no stream da API."
+        tip = "O AnyContext recuperou e estabilizou sua sessão automaticamente. Basta reenviar sua mensagem."
     elif isinstance(error, (UnboundLocalError, NameError, AttributeError, TypeError, ValueError)):
         friendly_desc = "Ocorreu uma falha interna temporária ao processar esta ação."
         tip = "Sua sessão e seus dados continuam intactos. Tente executar o comando novamente ou digite '/help'."

@@ -259,6 +259,10 @@ def format_inference_error(error: Exception, model_name: str, provider: str = No
             "  • DeepSeek : /model deepseek-chat"
         )
 
+    elif "decompress" in err_lower or "truncated stream" in err_lower or "error -5" in err_lower or "zlib" in err_lower:
+        cause = "Houve uma interrupção ou oscilação na transmissão de streaming comprimido (gzip) da API ou no estado local de checkpoints."
+        action = "O AnyContext recuperou e estabilizou sua sessão automaticamente com fallback resiliente. Tente reenviar sua pergunta agora."
+
     else:
         cause = f"Provider {prov.capitalize()} returned an unexpected error:\n  {err_str[:250]}"
         action = "Try switching to another model with '/model' or verify your configuration in '/config'."
