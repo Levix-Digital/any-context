@@ -352,91 +352,129 @@ def run_chat_loop(active_workspace: str = "Default"):
             elif cmd in ["/version", "/v"]:
                 safe_stdout_write(f"\033[93m🤖 AnyContext (actx) v{__version__}\033[0m - Levix Digital\n")
                 continue
+
             elif cmd in ["/clear", "/cls", "clear", "cls"]:
                 from any_context.cli.banner import clear_terminal
                 clear_terminal()
                 print_banner()
                 safe_stdout_write(f"🧹 Screen cleared | Workspace: \033[93m{active_workspace or 'Global'}\033[0m | Model: \033[95m{current_model}\033[0m\n\n")
                 continue
+
             elif cmd == "/switch" or cmd.startswith("/switch ") or cmd == "/workspace" or cmd.startswith("/workspace "):
-                parts = user_input.strip().split(maxsplit=1)
-                if len(parts) > 1 and parts[1].strip():
-                    target_ws = parts[1].strip()
-                    if target_ws.lower().startswith("create "):
-                        target_ws = target_ws[7:].strip()
-                    elif target_ws.lower().startswith("add "):
-                        target_ws = target_ws[4:].strip()
-                    elif target_ws.lower().startswith("delete ") or target_ws.lower().startswith("remove "):
-                        target_ws_del = target_ws[7:].strip()
-                        store = ConfigDBStore()
-                        if target_ws_del.lower() in ["default", "global", "shared sources"]:
-                            safe_stdout_write(f"\n❌ Cannot delete protected system workspace '{target_ws_del}'.\n\n")
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+
+                if len(parts) == 1:
+                    new_workspace = show_workspace_menu()
+                    if new_workspace:
+                        active_workspace = new_workspace
+                        config["configurable"]["active_workspace"] = active_workspace
+                        from any_context.ingestion.local_folder_ingestor import check_workspace_changes, run_index_folder, BackgroundSyncManager
+                        diff = check_workspace_changes(active_workspace)
+                        if diff.get("is_virgin"):
+                            with Spinner(f"Indexing new workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+                                run_index_folder(workspace_name=active_workspace, verbose=False)
+                        elif diff.get("is_up_to_date"):
+                            safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready (Up to date)\n")
                         else:
-                            deleted = store.remove_workspace(target_ws_del)
-                            if deleted:
-                                safe_stdout_write(f"\n🗑️ Successfully deleted workspace '\033[93m{target_ws_del}\033[0m'.\n\n")
-                                if active_workspace.lower() == target_ws_del.lower():
-                                    active_workspace = "Default"
-                                    config["configurable"]["active_workspace"] = "Default"
-                                    agent_instance = None
-                            else:
-                                safe_stdout_write(f"\n❌ Workspace '{target_ws_del}' not found.\n\n")
-                        continue
-                    
-                    store = ConfigDBStore()
-                    meta = store.get_workspace_meta(target_ws)
-                    if not meta:
-                        store.add_workspace(target_ws, paths=[])
-                        safe_stdout_write(f"\n✅ Created and switched to new workspace '\033[93m{target_ws}\033[0m'.\n\n")
-                    else:
-                        target_ws = meta["name"]
-                        safe_stdout_write(f"\n🔄 Switched to workspace '\033[93m{target_ws}\033[0m'.\n\n")
-                    active_workspace = target_ws
-                    config["configurable"]["active_workspace"] = active_workspace
-                    from any_context.ingestion.local_folder_ingestor import check_workspace_changes, run_index_folder, BackgroundSyncManager
-                    diff = check_workspace_changes(active_workspace)
-                    if diff.get("is_virgin"):
-                        with Spinner(f"Indexing new workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
-                            run_index_folder(workspace_name=active_workspace, verbose=False)
-                    elif diff.get("is_up_to_date"):
-                        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready (Up to date)\n")
-                    else:
-                        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready\n")
-                        safe_stdout_write(f"\033[90m📦 Context update available ({diff.get('summary', '')}). Auto-syncing in background...\033[0m\n")
-                        bg_mgr = BackgroundSyncManager()
-                        bg_mgr.start_background_sync(active_workspace, verbose=False)
-                    agent_instance = None
+                            safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready\n")
+                            safe_stdout_write(f"\033[90m📦 Context update available ({diff.get('summary', '')}). Auto-syncing in background...\033[0m\n")
+                            bg_mgr = BackgroundSyncManager()
+                            bg_mgr.start_background_sync(active_workspace, verbose=False)
+                        agent_instance = None
                     continue
 
-                new_workspace = show_workspace_menu()
-                if new_workspace:
-                    active_workspace = new_workspace
-                    config["configurable"]["active_workspace"] = active_workspace
-                    from any_context.ingestion.local_folder_ingestor import check_workspace_changes, run_index_folder, BackgroundSyncManager
-                    diff = check_workspace_changes(active_workspace)
-                    if diff.get("is_virgin"):
-                        with Spinner(f"Indexing new workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
-                            run_index_folder(workspace_name=active_workspace, verbose=False)
-                    elif diff.get("is_up_to_date"):
-                        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready (Up to date)\n")
+                if "--list" in parts or "-l" in parts:
+                    settings = store.get_app_settings()
+                    known_workspaces = [w.name for w in settings.workspaces] if settings else []
+                    safe_stdout_write(f"\n📂 Configured Workspaces ({len(known_workspaces)}):\n")
+                    for w in known_workspaces:
+                        active_tag = " \033[92m[Active]\033[0m" if w == active_workspace else ""
+                        safe_stdout_write(f"  • \033[93m{w}\033[0m{active_tag}\n")
+                    safe_stdout_write("\n")
+                    continue
+
+                if "--delete" in parts or "-d" in parts or "--remove" in parts:
+                    idx = next(i for i, p in enumerate(parts) if p in ["--delete", "-d", "--remove"])
+                    if len(parts) > idx + 1:
+                        target_ws_del = parts[idx + 1]
                     else:
-                        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready\n")
-                        safe_stdout_write(f"\033[90m📦 Context update available ({diff.get('summary', '')}). Auto-syncing in background...\033[0m\n")
-                        bg_mgr = BackgroundSyncManager()
-                        bg_mgr.start_background_sync(active_workspace, verbose=False)
-                    agent_instance = None
+                        safe_stdout_write("\n❌ Please specify the workspace name to delete: /switch --delete <name>\n\n")
+                        continue
+                    if target_ws_del.lower() in ["default", "global", "shared sources"]:
+                        safe_stdout_write(f"\n❌ Cannot delete protected system workspace '{target_ws_del}'.\n\n")
+                    else:
+                        deleted = store.remove_workspace(target_ws_del)
+                        if deleted:
+                            safe_stdout_write(f"\n🗑️ Successfully deleted workspace '\033[93m{target_ws_del}\033[0m'.\n\n")
+                            if active_workspace.lower() == target_ws_del.lower():
+                                active_workspace = "Default"
+                                config["configurable"]["active_workspace"] = "Default"
+                                agent_instance = None
+                        else:
+                            safe_stdout_write(f"\n❌ Workspace '{target_ws_del}' not found.\n\n")
+                    continue
+
+                if "--create" in parts or "-c" in parts or "--add" in parts:
+                    idx = next(i for i, p in enumerate(parts) if p in ["--create", "-c", "--add"])
+                    target_ws = parts[idx + 1] if len(parts) > idx + 1 else None
+                elif len(parts) > 1 and parts[1].lower() in ["add", "create"] and len(parts) > 2:
+                    target_ws = parts[2]
+                elif len(parts) > 1 and parts[1].lower() in ["delete", "remove"] and len(parts) > 2:
+                    target_ws_del = parts[2]
+                    if target_ws_del.lower() in ["default", "global", "shared sources"]:
+                        safe_stdout_write(f"\n❌ Cannot delete protected system workspace '{target_ws_del}'.\n\n")
+                    else:
+                        deleted = store.remove_workspace(target_ws_del)
+                        if deleted:
+                            safe_stdout_write(f"\n🗑️ Successfully deleted workspace '\033[93m{target_ws_del}\033[0m'.\n\n")
+                            if active_workspace.lower() == target_ws_del.lower():
+                                active_workspace = "Default"
+                                config["configurable"]["active_workspace"] = "Default"
+                                agent_instance = None
+                        else:
+                            safe_stdout_write(f"\n❌ Workspace '{target_ws_del}' not found.\n\n")
+                    continue
+                else:
+                    target_ws = parts[1]
+
+                if not target_ws:
+                    safe_stdout_write("\n❌ Please specify a workspace name.\n\n")
+                    continue
+
+                meta = store.get_workspace_meta(target_ws)
+                if not meta:
+                    store.add_workspace(target_ws, paths=[])
+                    safe_stdout_write(f"\n✅ Created and switched to new workspace '\033[93m{target_ws}\033[0m'.\n\n")
+                else:
+                    target_ws = meta["name"]
+                    safe_stdout_write(f"\n🔄 Switched to workspace '\033[93m{target_ws}\033[0m'.\n\n")
+
+                active_workspace = target_ws
+                config["configurable"]["active_workspace"] = active_workspace
+                from any_context.ingestion.local_folder_ingestor import check_workspace_changes, run_index_folder, BackgroundSyncManager
+                diff = check_workspace_changes(active_workspace)
+                if diff.get("is_virgin"):
+                    with Spinner(f"Indexing new workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+                        run_index_folder(workspace_name=active_workspace, verbose=False)
+                elif diff.get("is_up_to_date"):
+                    safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready (Up to date)\n")
+                else:
+                    safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready\n")
+                    safe_stdout_write(f"\033[90m📦 Context update available ({diff.get('summary', '')}). Auto-syncing in background...\033[0m\n")
+                    bg_mgr = BackgroundSyncManager()
+                    bg_mgr.start_background_sync(active_workspace, verbose=False)
+                agent_instance = None
                 continue
 
             elif cmd == "/transfer" or cmd.startswith("/transfer ") or cmd.startswith("/workspace transfer") or cmd.startswith("/move-source"):
                 parts = parse_command_args(user_input)
-                # If typed: /transfer or /workspace transfer without full args -> open interactive guided wizard
                 if len(parts) < 4 or (len(parts) > 1 and parts[1].lower() == "transfer" and len(parts) < 5):
                     from any_context.cli.config_menu import _transfer_workspace_source
                     store = ConfigDBStore()
                     _transfer_workspace_source(store)
                     continue
 
-                # If typed with direct arguments: /transfer <source_ws> <target_ws> <path_or_url>
                 arg_offset = 2 if len(parts) > 1 and parts[1].lower() == "transfer" else 1
                 source_ws = parts[arg_offset]
                 target_ws = parts[arg_offset + 1]
@@ -461,15 +499,66 @@ def run_chat_loop(active_workspace: str = "Default"):
                             safe_stdout_write(f"\n❌ Transfer error: {res.get('error')}\n\n")
                 continue
 
-            elif cmd == "/link" or cmd.startswith("/link ") or cmd.startswith("/workspace link") or cmd.startswith("/share-source"):
+            elif cmd in ["/link", "/unlink", "/shared"] or cmd.startswith("/link ") or cmd.startswith("/unlink ") or cmd.startswith("/shared ") or cmd.startswith("/workspace link") or cmd.startswith("/workspace unlink"):
                 parts = parse_command_args(user_input)
                 store = ConfigDBStore()
-                if len(parts) == 1 or (len(parts) == 2 and parts[1].lower() == "link"):
+                is_unlink = cmd.startswith("/unlink") or "--unlink" in parts or "-u" in parts or (len(parts) > 1 and parts[1].lower() == "unlink")
+                is_list = cmd.startswith("/shared") or "--list" in parts or "-l" in parts or (len(parts) > 1 and parts[1].lower() == "shared")
+
+                if is_list:
+                    sources = store.list_all_available_shared_sources()
+                    safe_stdout_write("\n📚 \033[1mIndexed Shared Sources across Workspaces ($0.00 Reusable):\033[0m\n")
+                    if not sources:
+                        safe_stdout_write("  (No sources indexed yet. Add a local folder or web portal to any workspace first!)\n\n")
+                    else:
+                        for s in sources:
+                            orig = s.get("origin_workspace", "Workspace")
+                            stype = s.get("type", "folder").upper()
+                            ident = s.get("identifier")
+                            title = s.get("title") or ident
+                            safe_stdout_write(f"  • [\033[96m{stype}\033[0m] \033[93m{title}\033[0m (Origin: {orig})\n    Path: {ident}\n")
+                        safe_stdout_write("----------------------------------------------------\n\n")
+                    continue
+
+                if is_unlink:
+                    if len(parts) == 1 or (len(parts) == 2 and parts[1].lower() in ["unlink", "--unlink", "-u"]):
+                        from any_context.cli.config_menu import _unlink_shared_source
+                        _unlink_shared_source(store)
+                        continue
+
+                    arg_offset = 2 if len(parts) > 1 and parts[1].lower() in ["unlink", "--unlink", "-u"] else 1
+                    source_item = parts[arg_offset].strip().strip("'\"")
+                    target_ws = parts[arg_offset + 1] if len(parts) > arg_offset + 1 else active_workspace
+
+                    links = store.get_workspace_shared_links(target_ws)
+                    matched_link = None
+                    for l in links:
+                        if (source_item.lower() == l["source_identifier"].lower() or 
+                            source_item.lower() == (l.get("title") or "").lower() or 
+                            source_item.lower() in l["source_identifier"].lower() or 
+                            source_item.lower() in (l.get("title") or "").lower()):
+                            matched_link = l
+                            break
+
+                    if matched_link:
+                        source_identifier = matched_link["source_identifier"]
+                        stype = matched_link["source_type"]
+                    else:
+                        source_identifier = source_item
+                        stype = "web" if source_item.startswith("http://") or source_item.startswith("https://") else "folder"
+
+                    unlinked = store.unlink_shared_source_from_workspace(workspace_name=target_ws, source_type=stype, source_identifier=source_identifier)
+                    if unlinked:
+                        safe_stdout_write(f"\n🗑️ Unlinked Shared Source '{source_identifier}' from workspace '\033[93m{target_ws}\033[0m'.\n\n")
+                    else:
+                        safe_stdout_write(f"\n❌ Shared Source link '{source_item}' not found in workspace '{target_ws}'.\n\n")
+                    continue
+
+                if len(parts) == 1:
                     from any_context.cli.config_menu import _link_shared_source
                     _link_shared_source(store)
                     continue
 
-                # Direct command: /link <path_or_url_or_keyword> [to_ws]
                 arg_offset = 2 if len(parts) > 1 and parts[1].lower() == "link" else 1
                 source_item = parts[arg_offset].strip().strip("'\"")
                 target_ws = parts[arg_offset + 1] if len(parts) > arg_offset + 1 else active_workspace
@@ -497,63 +586,10 @@ def run_chat_loop(active_workspace: str = "Default"):
                 safe_stdout_write(f"\n🔗 Successfully linked Shared Source '{title or source_identifier}' to workspace '\033[93m{target_ws}\033[0m' ($0.00 cost)!\n\n")
                 continue
 
-            elif cmd == "/unlink" or cmd.startswith("/unlink ") or cmd.startswith("/workspace unlink"):
-                parts = parse_command_args(user_input)
-                store = ConfigDBStore()
-                if len(parts) == 1 or (len(parts) == 2 and parts[1].lower() == "unlink"):
-                    from any_context.cli.config_menu import _unlink_shared_source
-                    _unlink_shared_source(store)
-                    continue
-
-                arg_offset = 2 if len(parts) > 1 and parts[1].lower() == "unlink" else 1
-                source_item = parts[arg_offset].strip().strip("'\"")
-                target_ws = parts[arg_offset + 1] if len(parts) > arg_offset + 1 else active_workspace
-
-                links = store.get_workspace_shared_links(target_ws)
-                matched_link = None
-                for l in links:
-                    if (source_item.lower() == l["source_identifier"].lower() or 
-                        source_item.lower() == (l.get("title") or "").lower() or 
-                        source_item.lower() in l["source_identifier"].lower() or 
-                        source_item.lower() in (l.get("title") or "").lower()):
-                        matched_link = l
-                        break
-
-                if matched_link:
-                    source_identifier = matched_link["source_identifier"]
-                    stype = matched_link["source_type"]
-                else:
-                    source_identifier = source_item
-                    stype = "web" if source_item.startswith("http://") or source_item.startswith("https://") else "folder"
-
-                unlinked = store.unlink_shared_source_from_workspace(workspace_name=target_ws, source_type=stype, source_identifier=source_identifier)
-                if unlinked:
-                    safe_stdout_write(f"\n🗑️ Unlinked Shared Source '{source_identifier}' from workspace '\033[93m{target_ws}\033[0m'.\n\n")
-                else:
-                    safe_stdout_write(f"\n❌ Shared Source link '{source_item}' not found in workspace '{target_ws}'.\n\n")
-                continue
-
-            elif cmd == "/shared" or cmd.startswith("/shared ") or cmd.startswith("/sources shared"):
-                store = ConfigDBStore()
-                sources = store.list_all_available_shared_sources()
-                safe_stdout_write("\n📚 \033[1mIndexed Shared Sources across Workspaces ($0.00 Reusable):\033[0m\n")
-                if not sources:
-                    safe_stdout_write("  (No sources indexed yet. Add a local folder or web portal to any workspace first!)\n\n")
-                else:
-                    for s in sources:
-                        orig = s.get("origin_workspace", "Workspace")
-                        stype = s.get("type", "folder").upper()
-                        ident = s.get("identifier")
-                        title = s.get("title") or ident
-                        safe_stdout_write(f"  • [\033[96m{stype}\033[0m] \033[93m{title}\033[0m (Origin: {orig})\n    Path: {ident}\n")
-                    safe_stdout_write("----------------------------------------------------\n\n")
-                continue
-
             elif cmd == "/rename" or cmd.startswith("/rename ") or cmd.startswith("/workspace rename"):
                 parts = parse_command_args(user_input)
                 store = ConfigDBStore()
                 if len(parts) < 3 or (len(parts) > 1 and parts[1].lower() == "rename" and len(parts) < 4):
-                    # Interactive guided rename wizard
                     settings = store.get_app_settings()
                     known_workspaces = [w.name for w in settings.workspaces if w.name.lower() not in ["default", "global", "shared sources"]] if settings else []
                     if not known_workspaces:
@@ -592,10 +628,11 @@ def run_chat_loop(active_workspace: str = "Default"):
                 continue
 
             elif cmd in ["/sync", "/resync", "/index"] or cmd.startswith("/sync ") or cmd.startswith("/index "):
-                is_verbose = "--verbose" in user_input or "-v" in user_input
-                is_full = "--full" in user_input or "--force" in user_input or "-f" in user_input
-                is_status = "--status" in user_input or "status" in user_input
-                is_bg = "--bg" in user_input or "--background" in user_input
+                parts = parse_command_args(user_input)
+                is_verbose = "--verbose" in parts or "-v" in parts
+                is_full = "--full" in parts or "--force" in parts or "-f" in parts
+                is_status = "--status" in parts or "-s" in parts or "status" in parts
+                is_bg = "--bg" in parts or "--background" in parts
                 from any_context.ingestion.local_folder_ingestor import run_index_folder, check_workspace_changes, BackgroundSyncManager
 
                 if is_status:
@@ -617,11 +654,21 @@ def run_chat_loop(active_workspace: str = "Default"):
                         run_index_folder(workspace_name=active_workspace, verbose=False, force_full=is_full)
                 agent_instance = None
                 continue
+
             elif cmd == "/model" or cmd == "/m" or cmd.startswith("/model ") or cmd.startswith("/m "):
                 from any_context.core.models_catalog import get_available_models, validate_model_key_availability
 
-                parts = user_input.strip().split(maxsplit=1)
-                if len(parts) > 1:
+                parts = parse_command_args(user_input)
+                if "--list" in parts or "-l" in parts:
+                    available = get_available_models()
+                    print("\n🤖 Available Models with Configured API Keys:")
+                    for m in available:
+                        active_tag = " \033[92m[Active]\033[0m" if m["id"] == current_model else ""
+                        print(f"  • \033[95m{m['name']}\033[0m (\033[93m{m['id']}\033[0m){active_tag}")
+                    print()
+                    continue
+
+                if len(parts) > 1 and not parts[1].startswith("-"):
                     new_model = parts[1].strip()
                     is_valid, prov, err_msg = validate_model_key_availability(new_model)
                     if not is_valid:
@@ -632,7 +679,6 @@ def run_chat_loop(active_workspace: str = "Default"):
                     print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m ({prov.upper()}) for this session.\n")
                     continue
 
-                # Interactive selection menu (strictly key-aware)
                 available_models = get_available_models()
                 choices = []
                 for m in available_models:
@@ -673,14 +719,15 @@ def run_chat_loop(active_workspace: str = "Default"):
                     agent_instance = None
                     print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for this session.\n")
                 continue
+
             elif cmd.startswith("/mode") or cmd.startswith("/answer-mode") or cmd.startswith("/grounding") or cmd.startswith("/am"):
                 parts = parse_command_args(user_input)
                 store = ConfigDBStore()
                 if len(parts) >= 2:
-                    arg_mode = parts[1].lower().strip()
-                    if arg_mode in ["strict", "audit", "legal", "1"]:
+                    arg_mode = parts[1].lower().strip().lstrip("-")
+                    if arg_mode in ["strict", "s", "audit", "legal", "1"]:
                         new_mode = "strict"
-                    elif arg_mode in ["proactive", "research", "creative", "strategy", "3"]:
+                    elif arg_mode in ["proactive", "p", "research", "creative", "strategy", "3"]:
                         new_mode = "proactive"
                     else:
                         new_mode = "hybrid"
@@ -713,32 +760,47 @@ def run_chat_loop(active_workspace: str = "Default"):
                     active_mode_for_agent = None
                     print(f"\n✅ AI Grounding & Answer Mode set to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m\n")
                     continue
-            elif cmd == "/update":
+
+            elif cmd == "/update" or cmd.startswith("/update ") or cmd in ["/check-update", "/checkupdate", "/check"]:
+                parts = parse_command_args(user_input)
+                is_check_only = "--check" in parts or "-c" in parts or cmd in ["/check-update", "/checkupdate", "/check"]
+
+                if is_check_only:
+                    has_up, new_tag = check_for_updates(quiet_if_latest=False)
+                    if has_up:
+                        try:
+                            do_upgrade = questionary.confirm(
+                                f"Would you like to download and install {new_tag} now?",
+                                default=True
+                            ).ask()
+                            if do_upgrade:
+                                run_self_update()
+                        except Exception:
+                            pass
+                    continue
+
                 run_self_update()
                 continue
-            elif cmd in ["/check-update", "/checkupdate", "/check"]:
-                has_up, new_tag = check_for_updates(quiet_if_latest=False)
-                if has_up:
-                    try:
-                        do_upgrade = questionary.confirm(
-                            f"Would you like to download and install {new_tag} now?",
-                            default=True
-                        ).ask()
-                        if do_upgrade:
-                            run_self_update()
-                    except Exception:
-                        pass
+
+            elif cmd in ["/reset-memory", "/reset"] or cmd.startswith("/reset-memory ") or cmd.startswith("/reset "):
+                parts = parse_command_args(user_input)
+                is_force = "--force" in parts or "-f" in parts
+                is_all = "--all" in parts or "-a" in parts
+
+                target_desc = "ALL workspaces" if is_all else f"workspace '{active_workspace}'"
+                if not is_force:
+                    confirm = questionary.confirm(
+                        f"⚠️ Are you sure you want to reset long-term memory for {target_desc}?"
+                    ).ask()
+                    if not confirm:
+                        continue
+                from any_context.memory import MemoryManager
+                memory_mgr = MemoryManager()
+                target_ws_arg = None if is_all else active_workspace
+                deleted = memory_mgr.reset_memory(workspace=target_ws_arg)
+                print(f"🧹 Reset complete! Deleted {deleted} long-term memory entries for {target_desc}.")
                 continue
-            elif cmd in ["/reset-memory", "/reset"]:
-                confirm = questionary.confirm(
-                    f"⚠️ Are you sure you want to reset long-term memory for workspace '{active_workspace}'?"
-                ).ask()
-                if confirm:
-                    from any_context.memory import MemoryManager
-                    memory_mgr = MemoryManager()
-                    deleted = memory_mgr.reset_memory(workspace=active_workspace)
-                    print(f"🧹 Reset complete! Deleted {deleted} long-term memory entries for workspace '{active_workspace}'.")
-                continue
+
             elif cmd in ["/factory-reset", "/reset-factory"]:
                 confirm = questionary.confirm(
                     "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
@@ -750,9 +812,11 @@ def run_chat_loop(active_workspace: str = "Default"):
                     print("Run 'actx' again anytime to launch the first-time setup wizard.\n")
                     sys.exit(0)
                 continue
+
             elif cmd == "/config":
                 show_config_menu()
                 continue
+
             elif cmd in ["/keys", "/api-keys", "/apikeys"]:
                 from any_context.help.manager import display_help_page
                 from any_context.help.registry import get_help_page
@@ -760,41 +824,89 @@ def run_chat_loop(active_workspace: str = "Default"):
                 if page:
                     display_help_page(page)
                 continue
+
             elif cmd in ["/billing", "/plans"]:
                 from any_context.cli.config_menu import _manage_subscription
                 _manage_subscription()
                 continue
-            elif cmd == "/web":
+
+            elif cmd == "/web" or cmd.startswith("/web "):
+                parts = parse_command_args(user_input)
+                if len(parts) == 1:
+                    from any_context.cli.config_menu import _manage_workspace_web_urls
+                    _manage_workspace_web_urls(workspace_name=active_workspace)
+                    continue
+
+                is_list = "--list" in parts or "-l" in parts or "list" in parts or "urls" in parts
+                is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
+                is_add = "--add" in parts or "-a" in parts or "add" in parts
+
+                if is_list:
+                    from any_context.ingestion.web_scheduler import WebSchedulerStore
+                    web_store = WebSchedulerStore()
+                    urls = web_store.get_workspace_web_urls(active_workspace)
+                    print(f"\n🌐 Web Sources for Workspace '{active_workspace}':")
+                    if not urls:
+                        print("  (No web URLs configured yet. Type '/web --add <url>' to add one)")
+                    for u in urls:
+                        pages_info = f" • {u.get('page_count')} pages" if u.get('page_count', 1) > 1 else ""
+                        print(f"  • \033[96m{u.get('title') or u['url']}\033[0m{pages_info} ({u['url']}) - Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
+                    print()
+                    continue
+
+                if is_sync:
+                    from any_context.ingestion.web_scheduler import sync_workspace_web_urls
+                    with Spinner(f"Re-scraping and synchronizing all web URLs for workspace '{active_workspace}'..."):
+                        sync_res = sync_workspace_web_urls(active_workspace)
+                    print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
+                    continue
+
+                if is_add:
+                    from any_context.ingestion.web_crawler import run_interactive_web_crawler
+                    url_to_add = None
+                    for i, p in enumerate(parts):
+                        if p in ["--add", "-a", "add"] and len(parts) > i + 1:
+                            url_to_add = parts[i + 1]
+                            break
+                        elif p.startswith("http://") or p.startswith("https://"):
+                            url_to_add = p
+                            break
+                    run_interactive_web_crawler(workspace_name=active_workspace, start_url=url_to_add)
+                    continue
+
+                if len(parts) > 1 and (parts[1].startswith("http://") or parts[1].startswith("https://")):
+                    from any_context.ingestion.web_crawler import run_interactive_web_crawler
+                    run_interactive_web_crawler(workspace_name=active_workspace, start_url=parts[1])
+                    continue
+
                 from any_context.cli.config_menu import _manage_workspace_web_urls
                 _manage_workspace_web_urls(workspace_name=active_workspace)
                 continue
-            elif cmd.startswith("/web add ") or cmd == "/web add":
-                from any_context.ingestion.web_crawler import run_interactive_web_crawler
-                url_to_add = user_input.strip()[9:].strip() if len(user_input.strip()) > 9 else None
-                run_interactive_web_crawler(workspace_name=active_workspace, start_url=url_to_add)
-                continue
-            elif cmd in ["/web list", "/web urls"]:
-                from any_context.ingestion.web_scheduler import WebSchedulerStore
-                web_store = WebSchedulerStore()
-                urls = web_store.get_workspace_web_urls(active_workspace)
-                print(f"\n🌐 Web Sources for Workspace '{active_workspace}':")
-                if not urls:
-                    print("  (No web URLs configured yet. Type '/web' to add one)")
-                for u in urls:
-                    pages_info = f" • {u.get('page_count')} pages" if u.get('page_count', 1) > 1 else ""
-                    print(f"  • \033[96m{u.get('title') or u['url']}\033[0m{pages_info} ({u['url']}) - Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
-                print()
-                continue
-            elif cmd in ["/web sync", "/web resync"]:
-                from any_context.ingestion.web_scheduler import sync_workspace_web_urls
-                with Spinner(f"Re-scraping and synchronizing all web URLs for workspace '{active_workspace}'..."):
-                    sync_res = sync_workspace_web_urls(active_workspace)
-                print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
-                continue
 
-            elif cmd in ["/history", "/hist"]:
+            elif cmd in ["/history", "/hist"] or cmd.startswith("/history ") or cmd.startswith("/hist ") or cmd in ["/clear-history", "/clearhistory", "/reset-history"]:
+                parts = parse_command_args(user_input)
+                is_clear = "--clear" in parts or "-c" in parts or cmd in ["/clear-history", "/clearhistory", "/reset-history"]
+
+                if is_clear:
+                    from any_context.cli.history import clear_workspace_history
+                    cleared = clear_workspace_history(active_workspace)
+                    if cleared:
+                        print(f"\n🧹 Input history cleared for workspace '\033[93m{active_workspace or 'Global'}\033[0m'!\n")
+                    else:
+                        print(f"\n⚠️ Could not clear history for workspace '{active_workspace or 'Global'}'.\n")
+                    continue
+
+                limit = 20
+                for i, p in enumerate(parts):
+                    if p in ["--limit", "-n"] and len(parts) > i + 1:
+                        try:
+                            limit = int(parts[i + 1])
+                        except ValueError:
+                            pass
+                        break
+
                 from any_context.cli.history import get_workspace_history_entries
-                entries = get_workspace_history_entries(active_workspace, limit=20)
+                entries = get_workspace_history_entries(active_workspace, limit=limit)
                 print(f"\n📜 Recent Input History for Workspace '\033[93m{active_workspace or 'Global'}\033[0m' ({len(entries)} entries):")
                 if not entries:
                     print("  (No previous inputs recorded for this workspace. Use ↑ / ↓ arrow keys as you chat)")
@@ -804,18 +916,12 @@ def run_chat_loop(active_workspace: str = "Default"):
                 print("  \033[90mTip: Press [↑] Up Arrow / [↓] Down Arrow anytime to cycle through past inputs.\033[0m\n")
                 continue
 
-            elif cmd in ["/clear-history", "/clearhistory", "/reset-history"]:
-                from any_context.cli.history import clear_workspace_history
-                cleared = clear_workspace_history(active_workspace)
-                if cleared:
-                    print(f"\n🧹 Input history cleared for workspace '\033[93m{active_workspace or 'Global'}\033[0m'!\n")
-                else:
-                    print(f"\n⚠️ Could not clear history for workspace '{active_workspace or 'Global'}'.\n")
-                continue
-
-            elif cmd in ["/sources", "/sources all", "/workspace sources", "/sources list"]:
+            elif cmd == "/sources" or cmd.startswith("/sources "):
+                parts = parse_command_args(user_input)
                 store = ConfigDBStore()
-                if cmd == "/sources all":
+                is_all = "--all" in parts or "-a" in parts or "all" in parts
+
+                if is_all:
                     detailed = store.list_workspaces_detailed()
                     print("\n📂 All Configured Workspaces & Sources:")
                     for ws_d in detailed:
@@ -855,7 +961,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                             auth_badge = f" • {auth_st}" if auth_st else ""
                             print(f"  • [Drive] \033[95m{s.get('title') or s.get('identifier')}\033[0m ({prov}://{s.get('identifier')}{auth_badge})")
                     if not ws_detail.get("sources"):
-                        print("  (No sources configured yet. Type '/web add <url>' or '/config' to add folders/websites)")
+                        print("  (No sources configured yet. Type '/web --add <url>' or '/config' to add folders/websites)")
                     print()
                 continue
 
