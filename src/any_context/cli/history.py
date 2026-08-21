@@ -96,13 +96,22 @@ def create_workspace_prompt_session(history_file: str):
         def prompt_continuation(width, line_number, is_soft_wrap):
             return ANSI("\033[90m... \033[0m")
 
-        return PromptSession(
+        sess = PromptSession(
             history=FileHistory(history_file),
             key_bindings=kb,
             multiline=True,
             prompt_continuation=prompt_continuation,
             enable_history_search=True
         )
+
+        from prompt_toolkit.filters import to_filter
+        from prompt_toolkit.layout.controls import BufferControl
+
+        for w in sess.layout.find_all_windows():
+            if isinstance(w.content, BufferControl) and getattr(w.content.buffer, 'name', '') == 'DEFAULT_BUFFER':
+                w.dont_extend_height = to_filter(True)
+
+        return sess
     except Exception:
         return None
 
