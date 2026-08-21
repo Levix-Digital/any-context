@@ -959,7 +959,8 @@ def _manage_web_search(store: ConfigDBStore):
     print("\n=======================================================")
     print("🌐 Live Web Search & External Intelligence")
     print("=======================================================")
-    print(f"Global Default Status : {'\033[92mENABLED (ON)\033[0m' if global_status else '\033[90mDISABLED (OFF)\033[0m'}")
+    status_label = "\033[92mENABLED (ON)\033[0m" if global_status else "\033[90mDISABLED (OFF)\033[0m"
+    print(f"Global Default Status : {status_label}")
     print("Description           : Enables real-time internet searches and portal lookups.")
     print("=======================================================\n")
 
