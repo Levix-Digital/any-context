@@ -4,9 +4,16 @@ Provides real-time internet search with domain prioritization for workspace web 
 """
 import os
 import re
+import warnings
 from typing import Optional, List, Dict, Any
 from urllib.parse import urlparse
 from langchain.tools import tool
+
+# Suppress RuntimeWarning from duckduckgo_search renaming/deprecation
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="duckduckgo_search.*")
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="ddgs.*")
+warnings.filterwarnings("ignore", message=".*renamed to.*")
+warnings.filterwarnings("ignore", message=".*duckduckgo_search.*")
 
 
 def _extract_domain(url: str) -> Optional[str]:
@@ -87,7 +94,11 @@ def execute_web_search(
 
     # 3. DuckDuckGo Search (Default / Free)
     try:
-        from duckduckgo_search import DDGS
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
+
         with DDGS() as ddgs:
             # First attempt: site-filtered query if domains are registered in workspace
             if domains:
@@ -119,7 +130,7 @@ def execute_web_search(
                             })
                 except Exception:
                     pass
-    except Exception as e:
+    except Exception:
         # Fallback / Mock for offline and testing environments
         pass
 
@@ -131,6 +142,11 @@ def live_web_search(query: str, workspace: Optional[str] = None, max_results: in
     """
     Performs real-time public web search on the internet when web search is enabled for the workspace.
     Prioritizes domain portals registered in the active workspace before searching the open web.
+
+    CRITICAL STRICT MODE SAFETY RULE:
+    In Strict Grounding Mode, you MUST NEVER call this tool autonomously.
+    If the question is not covered by the local workspace documents, DO NOT run this tool; instead, inform the user that the information is absent from the workspace documents and ask for permission to search the web.
+    ONLY call this tool if the user explicitly requested/confirmed a web search.
 
     Args:
         query (str): The search query to look up online.

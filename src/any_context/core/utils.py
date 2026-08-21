@@ -116,9 +116,9 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
     if not prompt:
         prompt = "You are AnyContext, an AI assistant with access to user workspace documents."
 
-    effective_mode = (grounding_mode or "hybrid").lower().strip()
+    effective_mode = (grounding_mode or "strict").lower().strip()
     if effective_mode not in ["hybrid", "strict", "proactive"]:
-        effective_mode = "hybrid"
+        effective_mode = "strict"
 
     try:
         from any_context.config.db_store import ConfigDBStore
@@ -131,7 +131,7 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
         if not grounding_mode and active_workspace:
             effective_mode = store.get_grounding_mode(workspace_name=active_workspace)
         elif not grounding_mode and settings and settings.context:
-            effective_mode = getattr(settings.context, "grounding_mode", "hybrid").lower().strip()
+            effective_mode = getattr(settings.context, "grounding_mode", "strict").lower().strip()
 
         if web_search_enabled is None:
             if active_workspace:
@@ -158,12 +158,16 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
 
             if effective_mode == "strict":
                 prompt += (
-                    "- **STRICT PROTOCOL FOR WEB SEARCH:**\n"
+                    "- **STRICT PROTOCOL FOR WEB SEARCH (USER PERMISSION MANDATORY):**\n"
                     "  1. Search `search_db` FIRST. Rely 100% on the local workspace documents.\n"
-                    "  2. Do NOT execute `live_web_search` autonomously or silently.\n"
-                    "  3. If information is missing from the local files, explain what the documents contain and explicitly ASK the user:\n"
-                    "     *\"⚠️ Essa informação não foi encontrada nos documentos locais do workspace. Deseja que eu faça uma busca na web sobre '[tópico]'?\"*\n"
-                    "  4. If the user explicitly confirms or requests web search, execute `live_web_search` and present findings under:\n"
+                    "  2. You are STRICTLY FORBIDDEN from calling `live_web_search` autonomously without prior explicit user confirmation.\n"
+                    "  3. If information is missing from the local workspace files (e.g. weather forecast, current news, topics not indexed in files):\n"
+                    "     - DO NOT call `live_web_search`.\n"
+                    "     - DO NOT guess or hallucinate answers.\n"
+                    "     - You MUST inform the user and explicitly ASK:\n"
+                    "       *\"⚠️ Essa informação não foi encontrada nos documentos locais do workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\"*\n"
+                    "  4. ONLY call `live_web_search` if the user explicitly confirms (e.g. 'sim', 'pesquise', 'busque na web') OR if their prompt explicitly contains a direct web search instruction (e.g. 'pesquise na internet a previsão do tempo').\n"
+                    "  5. Present all web findings under:\n"
                     "     `### 🌐 Resultados da Web Externa (Fonte: <URL>)`\n"
                 )
             elif effective_mode == "proactive":
@@ -190,10 +194,12 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
         # Inject Grounding Mode Directives
         if effective_mode == "strict":
             prompt += (
-                "\n### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL)\n"
+                "\n### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL & MANDATORY CITATIONS)\n"
                 "- **ZERO SPECULATION / ZERO HALLUCINATION:** Answer EXCLUSIVELY and ONLY using verified facts present in the retrieved workspace chunks.\n"
-                "- **LITERAL CITING:** You MUST quote and reference the exact file names, page numbers, or URLs where the information was found.\n"
-                "- **FACTUAL ABSENCE PROTOCOL:** If the user asks for specific names, telephone numbers, addresses, agencies, laws, clauses, or dates that are NOT present in the retrieved documents, you MUST explicitly state that this information is not found in the indexed workspace files.\n"
+                "- **MANDATORY SOURCE CITATIONS:** You MUST explicitly cite the exact file names, page numbers, or URLs where every piece of information was found.\n"
+                "- **MANDATORY CITATION FOOTER:** At the end of every answer that uses workspace documents, you MUST append:\n"
+                "  `---\n  📄 **Fontes Consultadas no Workspace:**\n  - [Nome do Arquivo / URL]`\n"
+                "- **FACTUAL ABSENCE PROTOCOL:** If the user asks for information, status, rules, or details NOT present in the retrieved documents, you MUST explicitly state that this information is not found in the indexed workspace files.\n"
                 "- **FORBIDDEN ACTION:** Do NOT use pre-training weights or parametric memory to invent, assume, extrapolate, or provide unverified external factual lists.\n"
             )
         elif effective_mode == "proactive":
@@ -205,7 +211,7 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
             )
         else: # Default: hybrid
             prompt += (
-                "\n### ⚖️ ACTIVE GROUNDING MODE: HYBRID (BALANCED - DEFAULT DUAL-LAYER GROUNDING)\n"
+                "\n### ⚖️ ACTIVE GROUNDING MODE: HYBRID (BALANCED - DUAL-LAYER GROUNDING)\n"
                 "- **DUAL-LAYER STRUCTURE:**\n"
                 "  1. **Layer 1 (Workspace Facts):** Answer first using all verified facts found in the retrieved workspace documents and cite the sources.\n"
                 "  2. **Layer 2 (External Suggestions / General Knowledge):** If any part of the user's question is not covered by the workspace documents, you MAY provide general background, reasoning, or suggestions, BUT you MUST clearly segregate and label it under a distinct heading:\n"

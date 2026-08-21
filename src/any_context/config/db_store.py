@@ -89,7 +89,7 @@ class ConfigDBStore:
                     workspace_id TEXT UNIQUE,
                     name TEXT UNIQUE NOT NULL,
                     paths_json TEXT NOT NULL,
-                    grounding_mode TEXT DEFAULT 'hybrid',
+                    grounding_mode TEXT DEFAULT 'strict',
                     web_search_enabled INTEGER DEFAULT 0
                 )
             """)
@@ -100,7 +100,7 @@ class ConfigDBStore:
             if "workspace_id" not in ws_cols:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN workspace_id TEXT")
             if "grounding_mode" not in ws_cols:
-                cursor.execute("ALTER TABLE workspaces ADD COLUMN grounding_mode TEXT DEFAULT 'hybrid'")
+                cursor.execute("ALTER TABLE workspaces ADD COLUMN grounding_mode TEXT DEFAULT 'strict'")
             if "web_search_enabled" not in ws_cols:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN web_search_enabled INTEGER DEFAULT 0")
             
@@ -139,7 +139,7 @@ class ConfigDBStore:
                     candidate_pool_size INTEGER DEFAULT 100,
                     max_chunks_per_source INTEGER DEFAULT 3,
                     retrieval_preset TEXT DEFAULT 'balanced',
-                    grounding_mode TEXT DEFAULT 'hybrid',
+                    grounding_mode TEXT DEFAULT 'strict',
                     web_search_enabled INTEGER DEFAULT 0
                 )
             """)
@@ -158,7 +158,7 @@ class ConfigDBStore:
             if "retrieval_preset" not in ctx_cols:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN retrieval_preset TEXT DEFAULT 'balanced'")
             if "grounding_mode" not in ctx_cols:
-                cursor.execute("ALTER TABLE context_settings ADD COLUMN grounding_mode TEXT DEFAULT 'hybrid'")
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN grounding_mode TEXT DEFAULT 'strict'")
             if "web_search_enabled" not in ctx_cols:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN web_search_enabled INTEGER DEFAULT 0")
 
@@ -168,7 +168,7 @@ class ConfigDBStore:
                     INSERT INTO context_settings (
                         id, db_path, collection_name, chunk_size, chunk_overlap,
                         top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled
-                    ) VALUES (1, './chroma_db', 'documents', 1024, 200, 40, 100, 3, 'balanced', 'hybrid', 0)
+                    ) VALUES (1, './chroma_db', 'documents', 1024, 200, 40, 100, 3, 'balanced', 'strict', 0)
                 """)
 
             cursor.execute("""
@@ -423,7 +423,7 @@ class ConfigDBStore:
         name: str,
         paths: List[str],
         workspace_id: Optional[str] = None,
-        grounding_mode: str = "hybrid",
+        grounding_mode: str = "strict",
         web_search_enabled: bool = False
     ) -> Dict[str, Any]:
         """Adds or updates a workspace entry with folder paths and an immutable workspace_id."""
@@ -447,7 +447,7 @@ class ConfigDBStore:
                     "workspace_id": existing_ws_id,
                     "name": clean_name,
                     "paths": combined,
-                    "grounding_mode": row["grounding_mode"] if "grounding_mode" in row.keys() and row["grounding_mode"] else "hybrid",
+                    "grounding_mode": row["grounding_mode"] if "grounding_mode" in row.keys() and row["grounding_mode"] else "strict",
                     "web_search_enabled": bool(row["web_search_enabled"]) if "web_search_enabled" in row.keys() and row["web_search_enabled"] is not None else False
                 }
             else:
@@ -1391,7 +1391,7 @@ class ConfigDBStore:
                 ws_name = row["name"]
                 ws_id = row["workspace_id"] or ("ws_default" if ws_name.lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}")
                 ws_keys = row.keys()
-                ws_mode = row["grounding_mode"] if ("grounding_mode" in ws_keys and row["grounding_mode"]) else "hybrid"
+                ws_mode = row["grounding_mode"] if ("grounding_mode" in ws_keys and row["grounding_mode"]) else "strict"
                 ws_web = bool(row["web_search_enabled"]) if ("web_search_enabled" in ws_keys and row["web_search_enabled"] is not None) else False
                 ws_detail = self.get_workspace_sources(ws_name)
                 workspaces.append(WorkspaceSettings(
@@ -1436,7 +1436,7 @@ class ConfigDBStore:
                 c_pool = c_row["candidate_pool_size"] if ("candidate_pool_size" in c_keys and c_row["candidate_pool_size"]) else 100
                 c_max_src = c_row["max_chunks_per_source"] if ("max_chunks_per_source" in c_keys and c_row["max_chunks_per_source"]) else 3
                 c_preset = c_row["retrieval_preset"] if ("retrieval_preset" in c_keys and c_row["retrieval_preset"]) else "balanced"
-                c_mode = c_row["grounding_mode"] if ("grounding_mode" in c_keys and c_row["grounding_mode"]) else "hybrid"
+                c_mode = c_row["grounding_mode"] if ("grounding_mode" in c_keys and c_row["grounding_mode"]) else "strict"
                 c_web = bool(c_row["web_search_enabled"]) if ("web_search_enabled" in c_keys and c_row["web_search_enabled"] is not None) else False
                 context = ContextSettings(
                     db_path=c_row["db_path"],
@@ -1484,7 +1484,7 @@ class ConfigDBStore:
             
             cursor.execute("DELETE FROM workspaces")
             for ws in settings.workspaces:
-                ws_mode = getattr(ws, "grounding_mode", "hybrid") or "hybrid"
+                ws_mode = getattr(ws, "grounding_mode", "strict") or "strict"
                 ws_web = 1 if getattr(ws, "web_search_enabled", False) else 0
                 cursor.execute(
                     "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled) VALUES (?, ?, ?, ?, ?)",
@@ -1528,7 +1528,7 @@ class ConfigDBStore:
 
     def get_grounding_mode(self, workspace_name: Optional[str] = None) -> str:
         """
-        Retrieves the active AI Grounding & Answer Mode ('hybrid', 'strict', 'proactive').
+        Retrieves the active AI Grounding & Answer Mode ('strict', 'hybrid', 'proactive').
         Prioritizes per-workspace setting if workspace_name is provided, with fallback to global setting.
         """
         if workspace_name:
@@ -1547,22 +1547,22 @@ class ConfigDBStore:
             if row and row["grounding_mode"] in ["hybrid", "strict", "proactive"]:
                 return row["grounding_mode"]
 
-        return "hybrid"
+        return "strict"
 
     def set_grounding_mode(self, mode: str, workspace_name: Optional[str] = None, apply_global: bool = False) -> str:
         """
-        Sets and persists the AI Grounding Mode ('hybrid', 'strict', 'proactive').
+        Sets and persists the AI Grounding Mode ('strict', 'hybrid', 'proactive').
         If apply_global is True, updates global setting and all workspaces.
         If workspace_name is specified, updates that workspace specifically.
         """
-        clean_mode = mode.lower().strip() if mode else "hybrid"
+        clean_mode = mode.lower().strip() if mode else "strict"
         if clean_mode not in ["hybrid", "strict", "proactive"]:
-            if "strict" in clean_mode:
-                clean_mode = "strict"
+            if "hybrid" in clean_mode or "balanc" in clean_mode:
+                clean_mode = "hybrid"
             elif "pro" in clean_mode or "creat" in clean_mode:
                 clean_mode = "proactive"
             else:
-                clean_mode = "hybrid"
+                clean_mode = "strict"
 
         with self._get_connection() as conn:
             cursor = conn.cursor()

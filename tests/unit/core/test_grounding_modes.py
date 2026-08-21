@@ -28,12 +28,12 @@ class TestGroundingModes(unittest.TestCase):
         except Exception:
             pass
 
-    def test_01_default_grounding_mode_is_hybrid(self):
-        """Validates that default grounding mode is 'hybrid'."""
+    def test_01_default_grounding_mode_is_strict(self):
+        """Validates that default grounding mode is 'strict'."""
         safe_stdout_write("\n>>> [CORE UNIT] Testing Default Grounding Mode...\n")
         mode = self.store.get_grounding_mode()
-        self.assertEqual(mode, "hybrid")
-        safe_stdout_write("  [OK] Default grounding mode is 'hybrid'!\n")
+        self.assertEqual(mode, "strict")
+        safe_stdout_write("  [OK] Default grounding mode is 'strict'!\n")
 
     def test_02_set_and_persist_grounding_modes(self):
         """Validates setting and persisting 'strict', 'proactive', and 'hybrid' modes."""
@@ -55,12 +55,12 @@ class TestGroundingModes(unittest.TestCase):
         safe_stdout_write("  [OK] Grounding modes successfully set and persisted in SQLite!\n")
 
     def test_03_invalid_grounding_mode_fallback(self):
-        """Validates that unknown grounding mode strings fallback safely to 'hybrid'."""
+        """Validates that unknown grounding mode strings fallback safely to 'strict'."""
         safe_stdout_write(">>> [CORE UNIT] Testing Invalid Grounding Mode Fallback...\n")
         mode = self.store.set_grounding_mode("unknown_mode_xyz")
-        self.assertEqual(mode, "hybrid")
-        self.assertEqual(self.store.get_grounding_mode(), "hybrid")
-        safe_stdout_write("  [OK] Unknown grounding mode safely fell back to 'hybrid'!\n")
+        self.assertEqual(mode, "strict")
+        self.assertEqual(self.store.get_grounding_mode(), "strict")
+        safe_stdout_write("  [OK] Unknown grounding mode safely fell back to 'strict'!\n")
 
     def test_04_system_prompt_directives_injection(self):
         """Validates that get_system_prompt injects the correct directive for each mode."""
