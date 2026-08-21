@@ -500,17 +500,17 @@ class Test07RestApiServer(unittest.TestCase):
             data3 = res3.json()
             self.assertEqual(data3["workspace_name"], ws_test)
             self.assertTrue(data3["web_search_enabled"])
-            self.assertEqual(data3["grounding_mode"], "hybrid")
+            self.assertEqual(data3["grounding_mode"], "strict")
 
             # 4. POST /v1/workspaces/{name}/settings to update mode and search
             res4 = self.client.post(
                 f"/v1/workspaces/{ws_test}/settings",
-                json={"grounding_mode": "strict", "web_search_enabled": False},
+                json={"grounding_mode": "proactive", "web_search_enabled": False},
                 headers=self.headers
             )
             self.assertEqual(res4.status_code, 200)
             data4 = res4.json()
-            self.assertEqual(data4["grounding_mode"], "strict")
+            self.assertEqual(data4["grounding_mode"], "proactive")
             self.assertFalse(data4["web_search_enabled"])
 
             safe_stdout_write("  [OK] Web search and workspace settings REST endpoints verified!\n")
