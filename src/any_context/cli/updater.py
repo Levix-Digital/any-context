@@ -524,7 +524,10 @@ def run_self_update(
     target_asset = "actx-windows-x86_64.exe" if is_windows else "actx-linux-x86_64"
 
     # Determine target executable location
-    if getattr(sys, "frozen", False):
+    if "ACTX_UPDATE_DIR" in os.environ and os.environ["ACTX_UPDATE_DIR"].strip():
+        target_dir = os.path.abspath(os.environ["ACTX_UPDATE_DIR"].strip())
+        target_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
+    elif getattr(sys, "frozen", False):
         target_exe = os.path.abspath(sys.executable)
         target_dir = os.path.dirname(target_exe)
     else:

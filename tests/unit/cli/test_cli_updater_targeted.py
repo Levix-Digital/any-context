@@ -64,12 +64,21 @@ class TestTargetedUpdater(unittest.TestCase):
         mock_resp.read.side_effect = [b"mock_binary_data", b""]
         mock_urlopen.return_value.__enter__.return_value = mock_resp
 
-        with patch("sys.exit"):
-            with patch("subprocess.Popen"):
-                run_self_update(target_version="0.15.2", force=True, force_background=True)
-                mock_urlopen.assert_called()
-                call_arg = mock_urlopen.call_args[0][0]
-                self.assertIn("v0.15.2", call_arg.full_url)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            orig_env = os.environ.get("ACTX_UPDATE_DIR")
+            os.environ["ACTX_UPDATE_DIR"] = tmp_dir
+            try:
+                with patch("sys.exit"):
+                    with patch("subprocess.Popen"):
+                        run_self_update(target_version="0.15.2", force=True, force_background=True)
+                        mock_urlopen.assert_called()
+                        call_arg = mock_urlopen.call_args[0][0]
+                        self.assertIn("v0.15.2", call_arg.full_url)
+            finally:
+                if orig_env is None:
+                    os.environ.pop("ACTX_UPDATE_DIR", None)
+                else:
+                    os.environ["ACTX_UPDATE_DIR"] = orig_env
         safe_stdout_write("  [OK] Targeted download for release tag verified!\n")
 
 if __name__ == "__main__":
