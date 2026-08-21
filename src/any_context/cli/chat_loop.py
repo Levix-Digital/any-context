@@ -1018,9 +1018,19 @@ def run_chat_loop(active_workspace: str = "Default"):
                         print("\n🔒 \033[90mWeb Search disabled GLOBALLY across all workspaces.\033[0m\n")
                 continue
 
-            elif cmd == "/update" or cmd.startswith("/update ") or cmd in ["/check-update", "/checkupdate", "/check"]:
+            elif cmd == "/update" or cmd.startswith("/update ") or cmd.startswith("/update@") or cmd in ["/check-update", "/checkupdate", "/check"]:
                 parts = parse_command_args(user_input)
+                is_force = "--force" in parts or "-f" in parts
                 is_check_only = "--check" in parts or "-c" in parts or cmd in ["/check-update", "/checkupdate", "/check"]
+                is_list = "--list" in parts or "-l" in parts or "list" in parts or "--releases" in parts or "releases" in parts
+                is_rollback = "--rollback" in parts or "-r" in parts or "rollback" in parts
+                from any_context.cli.updater import run_self_update, check_for_updates, display_available_releases
+
+                if is_list or is_rollback:
+                    picked = display_available_releases(interactive_select=True)
+                    if picked:
+                        run_self_update(target_version=picked, force=is_force)
+                    continue
 
                 if is_check_only:
                     has_up, new_tag = check_for_updates(quiet_if_latest=False)
@@ -1031,12 +1041,30 @@ def run_chat_loop(active_workspace: str = "Default"):
                                 default=True
                             ).ask()
                             if do_upgrade:
-                                run_self_update()
+                                run_self_update(force=is_force)
                         except Exception:
                             pass
                     continue
 
-                run_self_update()
+                # Extract targeted version if specified
+                target_version = None
+                if cmd.startswith("/update@"):
+                    target_version = cmd.split("@", 1)[1].strip()
+                elif "--to" in parts:
+                    idx = parts.index("--to")
+                    if idx + 1 < len(parts):
+                        target_version = parts[idx + 1]
+                elif "--version" in parts:
+                    idx = parts.index("--version")
+                    if idx + 1 < len(parts):
+                        target_version = parts[idx + 1]
+                else:
+                    # Look for positional version argument (e.g. /update 0.15.2 or /update @0.15.2 or /update v0.15.2)
+                    non_flags = [p for p in parts[1:] if not p.startswith("-")]
+                    if non_flags:
+                        target_version = non_flags[0]
+
+                run_self_update(target_version=target_version, force=is_force)
                 continue
 
             elif cmd in ["/reset-memory", "/reset"] or cmd.startswith("/reset-memory ") or cmd.startswith("/reset "):
