@@ -259,11 +259,14 @@ class Test07RestApiServer(unittest.TestCase):
             self.assertIn(new_name, ws_names)
 
             # Test Analyst Token Rename on Assigned Workspace
-            analyst_ws = "analyst_ws_test"
-            analyst_ws_new = "analyst_ws_renamed"
+            import uuid
+            rand_suffix = uuid.uuid4().hex[:6]
+            analyst_email = f"analyst_{rand_suffix}@firm.com"
+            analyst_ws = f"analyst_ws_{rand_suffix}"
+            analyst_ws_new = f"analyst_ws_renamed_{rand_suffix}"
             self.store.add_workspace(analyst_ws, paths=[])
-            u_info = self.store.create_user("AnalystTest", "analyst_test@firm.com", "pass12345", role="analyst", allowed_workspaces=["Default", analyst_ws])
-            auth_info = self.store.authenticate_user("analyst_test@firm.com", "pass12345")
+            u_info = self.store.create_user("AnalystTest", analyst_email, "pass12345", role="analyst", allowed_workspaces=["Default", analyst_ws])
+            auth_info = self.store.authenticate_user(analyst_email, "pass12345")
             analyst_headers = {"Authorization": f"Bearer {auth_info['token_id']}"}
 
             analyst_payload = {"old_name": analyst_ws, "new_name": analyst_ws_new}
@@ -272,7 +275,7 @@ class Test07RestApiServer(unittest.TestCase):
 
             # Verify that list_users now reflects the new name for the analyst
             u_list = self.store.list_users()
-            matching_u = next((u for u in u_list if u["email"] == "analyst_test@firm.com"), None)
+            matching_u = next((u for u in u_list if u["email"] == analyst_email), None)
             self.assertIsNotNone(matching_u)
             self.assertIn(analyst_ws_new, matching_u["allowed_workspaces"])
 
@@ -281,8 +284,10 @@ class Test07RestApiServer(unittest.TestCase):
             self.store.remove_workspace(orig_name)
             self.store.remove_workspace(new_name)
             try:
-                self.store.remove_workspace("analyst_ws_test")
-                self.store.remove_workspace("analyst_ws_renamed")
+                self.store.remove_workspace(analyst_ws)
+                self.store.remove_workspace(analyst_ws_new)
+                if 'u_info' in locals():
+                    self.store.delete_user(u_info["user_id"])
             except Exception:
                 pass
 

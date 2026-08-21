@@ -18,20 +18,23 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "CLI Launch (Direct Switch) : actx -w <workspace_name>\n"
             "  In Chat (Interactive Menu) : /switch   OR   /workspace\n"
             "  In Chat (Create / Switch)  : /switch <name>   OR   /workspace add <name>\n"
+            "  In Chat (Delete Workspace) : /workspace delete <name>\n"
             "  REST API                   : POST /v1/workspaces?name=<name>\n"
             "  View Help                  : actx --switch --help   OR   /switch --help   OR   /switch -h"
         ),
         parameters=[
-            "-w, --workspace <name> : Directly specify target workspace on CLI launch.",
-            "/switch, /workspace   : Opens interactive menu with workspace list and '➕ Create New Workspace' option.",
-            "/switch <name>        : Switch directly to <name> (creates empty workspace if it doesn't exist).",
-            "/workspace add <name> : Create and switch directly to a new workspace.",
-            "--help, -h            : Display this detailed help page for /switch."
+            "-w, --workspace <name>    : Directly specify target workspace on CLI launch.",
+            "/switch, /workspace      : Opens interactive menu with workspace list and '➕ Create New Workspace' option.",
+            "/switch <name>           : Switch directly to <name> (creates empty workspace if it doesn't exist).",
+            "/workspace add <name>    : Create and switch directly to a new workspace.",
+            "/workspace delete <name> : Delete a workspace and its data sources completely.",
+            "--help, -h               : Display this detailed help page for /switch."
         ],
         examples=[
             "In Chat: /switch",
             "In Chat: /switch Mercado",
             "In Chat: /workspace create TechDocs",
+            "In Chat: /workspace delete ObsoleteProject",
             "actx -w LegalConsulting",
             "In Chat: /switch -h",
             "curl -X POST 'http://127.0.0.1:8000/v1/workspaces?name=Mercado'"

@@ -294,7 +294,9 @@ def get_active_workspace() -> str:
     ensure_api_key_configured()
     
     if args.workspace and args.workspace.strip():
-        return args.workspace.strip()
+        clean_ws = args.workspace.strip()
+        store.add_workspace(clean_ws, paths=[])
+        return clean_ws
         
     return "Default"
 
