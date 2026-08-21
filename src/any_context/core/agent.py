@@ -7,10 +7,12 @@ from langchain.agents import create_agent
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from any_context.tools.search_tools import search_db, add_web_source, list_web_sources, remove_web_source
+from any_context.tools.web_search_tool import live_web_search
 from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.ingestion.session_ingestor import index_session
 from any_context.core.utils import get_system_prompt, get_api_key
 from any_context.config.app_settings import AppSettings
+from any_context.config.db_store import ConfigDBStore
 
 _memory_dir = os.path.abspath("./memory")
 os.makedirs(_memory_dir, exist_ok=True)
@@ -23,7 +25,8 @@ def create_anycontext_agent(
     checkpointer=None,
     model_override: str = None,
     provider_override: str = None,
-    grounding_mode: str = None
+    grounding_mode: str = None,
+    web_search_enabled: bool = None
 ):
     """
     Dynamically creates an AnyContext AI Agent with temperature=0.0 for deterministic RAG synthesis,
@@ -77,12 +80,28 @@ def create_anycontext_agent(
 
     model = init_chat_model(**init_kwargs)
 
-    system_prompt = get_system_prompt(active_workspace=active_workspace, grounding_mode=grounding_mode)
+    # Resolve web search status if not explicitly passed
+    if web_search_enabled is None:
+        try:
+            store = ConfigDBStore()
+            web_search_enabled = store.get_web_search_status(workspace_name=active_workspace)
+        except Exception:
+            web_search_enabled = False
+
+    system_prompt = get_system_prompt(
+        active_workspace=active_workspace,
+        grounding_mode=grounding_mode,
+        web_search_enabled=web_search_enabled
+    )
+
+    tools = [search_db, add_web_source, list_web_sources, remove_web_source, index_folder, index_session]
+    if web_search_enabled:
+        tools.append(live_web_search)
 
     return create_agent(
         model=model,
         system_prompt=system_prompt,
-        tools=[search_db, add_web_source, list_web_sources, remove_web_source, index_folder, index_session],
+        tools=tools,
         checkpointer=checkpointer if checkpointer is not None else saver
     )
 
@@ -94,11 +113,13 @@ class LazyAgentProxy:
         active_ws = config.get("configurable", {}).get("active_workspace") if config else None
         model_override = config.get("configurable", {}).get("model") or config.get("configurable", {}).get("model_override") if config else None
         grounding_override = config.get("configurable", {}).get("grounding_mode") or config.get("configurable", {}).get("mode") if config else None
+        web_search_override = config.get("configurable", {}).get("web_search_enabled") if config else None
         agent_inst = create_anycontext_agent(
             active_workspace=active_ws, 
             checkpointer=self.checkpointer,
             model_override=model_override,
-            grounding_mode=grounding_override
+            grounding_mode=grounding_override,
+            web_search_enabled=web_search_override
         )
         return agent_inst.stream(input_data, stream_mode=stream_mode, config=config)
 
@@ -106,11 +127,13 @@ class LazyAgentProxy:
         active_ws = config.get("configurable", {}).get("active_workspace") if config else None
         model_override = config.get("configurable", {}).get("model") or config.get("configurable", {}).get("model_override") if config else None
         grounding_override = config.get("configurable", {}).get("grounding_mode") or config.get("configurable", {}).get("mode") if config else None
+        web_search_override = config.get("configurable", {}).get("web_search_enabled") if config else None
         agent_inst = create_anycontext_agent(
             active_workspace=active_ws, 
             checkpointer=self.checkpointer,
             model_override=model_override,
-            grounding_mode=grounding_override
+            grounding_mode=grounding_override,
+            web_search_enabled=web_search_override
         )
         return agent_inst.invoke(input_data, config=config)
 

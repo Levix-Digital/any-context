@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.14.3"
+version = "0.15.0"
 description = "Transform any file, folder, website, or drive into a living, real-time AI context."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,6 +26,7 @@ dependencies = [
     "pydantic",
     "questionary",
     "prompt-toolkit>=3.0.40",
+    "duckduckgo-search>=7.0.0",
     "tqdm",
     "python-dotenv",
     "fastapi",

@@ -130,6 +130,7 @@ def show_slash_commands_palette(active_workspace: Optional[str] = None) -> Optio
             "📋 /paste        - Enter multi-line paste mode for long texts",
             "🤖 /model        - Change active AI inference model on-the-fly",
             "🎛️ /mode         - Select AI grounding mode (Hybrid, Strict, Proactive)",
+            "🌐 /web-search   - Toggle real-time live web search for active workspace",
             "⚙️ /config       - Open interactive configuration & settings menu",
             "🔍 /density      - Configure RAG retrieval density presets",
             "🧠 /reset-memory - Reset/purge long-term session memory",
@@ -224,13 +225,27 @@ def create_bottom_toolbar_renderer(
     """
     Constructs a dynamic callable for prompt_toolkit bottom_toolbar.
     Renders an elegant, information-dense status dock pinned at the bottom of the screen:
-    📂 [Workspace]  │  🤖 [Model]  │  🛡️ [Grounding Mode]  │  [⚡ Syncing...] (if active)  │  /menu  │  /exit
+    📂 [Workspace]  │  🤖 [Model]  │  🛡️ [Grounding Mode]  │  🌐 Search: [ON/OFF]  │  [⚡ Syncing...] (if active)  │  /menu  │  /exit
     """
     from prompt_toolkit.formatted_text import HTML
     from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+    from any_context.config.db_store import ConfigDBStore
 
     def _render():
         clean_mode = (grounding_mode or "hybrid").capitalize()
+        # Dynamically check web search status for active workspace
+        try:
+            store = ConfigDBStore()
+            ws_search = store.get_web_search_status(workspace_name=workspace_name)
+        except Exception:
+            ws_search = False
+
+        search_badge = (
+            "<style fg='#73daca'><b>🌐 ON</b></style>"
+            if ws_search
+            else "<style fg='#565f89'>🌐 OFF</style>"
+        )
+
         # Check background sync status dynamically on each render frame
         sync_badge = ""
         try:
@@ -244,7 +259,8 @@ def create_bottom_toolbar_renderer(
         return HTML(
             f" <style fg='#e0af68'><b>📂 {workspace_name}</b></style>  │  "
             f"<style fg='#bb9af7'><b>🤖 {model_name}</b></style>  │  "
-            f"<style fg='#7dcfff'><b>🛡️ {clean_mode}</b></style>"
+            f"<style fg='#7dcfff'><b>🛡️ {clean_mode}</b></style>  │  "
+            f"{search_badge}"
             f"{sync_badge}  │  "
             f"<style fg='#73daca'><b>/menu</b></style><style fg='#565f89'> for commands</style>  │  "
             f"<style fg='#f7768e'><b>/exit</b></style><style fg='#565f89'> to quit</style> "
@@ -830,28 +846,33 @@ def run_chat_loop(active_workspace: str = "Default"):
             elif cmd.startswith("/mode") or cmd.startswith("/answer-mode") or cmd.startswith("/grounding") or cmd.startswith("/am"):
                 parts = parse_command_args(user_input)
                 store = ConfigDBStore()
-                if len(parts) >= 2:
-                    arg_mode = parts[1].lower().strip().lstrip("-")
+                is_global = "--global" in parts or "-g" in parts
+                action_parts = [p for p in parts if p not in ["--global", "-g"]]
+
+                if len(action_parts) >= 2:
+                    arg_mode = action_parts[1].lower().strip().lstrip("-")
                     if arg_mode in ["strict", "s", "audit", "legal", "1"]:
                         new_mode = "strict"
                     elif arg_mode in ["proactive", "p", "research", "creative", "strategy", "3"]:
                         new_mode = "proactive"
                     else:
                         new_mode = "hybrid"
-                    current_grounding_mode = store.set_grounding_mode(new_mode)
+                    current_grounding_mode = store.set_grounding_mode(new_mode, workspace_name=None if is_global else active_workspace, apply_global=is_global)
                     agent_instance = None
                     active_mode_for_agent = None
-                    print(f"\n✅ AI Grounding & Answer Mode set to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m\n")
+                    target_label = "all workspaces (global)" if is_global else f"workspace '\033[1m{active_workspace}\033[0m\033[96m'"
+                    print(f"\n✅ AI Grounding Mode for {target_label} set to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m\n")
                     continue
                 else:
                     choices = [
                         f"⚖️ Hybrid (Default - Workspace facts + clearly labeled external suggestions){'  [Active]' if current_grounding_mode == 'hybrid' else ''}",
                         f"🛡️ Strict (Audit & Legal - 100% grounded to indexed documents, zero speculation){'  [Active]' if current_grounding_mode == 'strict' else ''}",
                         f"🚀 Proactive (Research & Ideation - Broad synthesis, insights & web recommendations){'  [Active]' if current_grounding_mode == 'proactive' else ''}",
+                        "🌐 Apply Grounding Mode Globally Across All Workspaces...",
                         "🔙 [Cancel]"
                     ]
                     mode_choice = questionary.select(
-                        "Select AI Grounding & Answer Mode:",
+                        f"Select AI Grounding & Answer Mode for Workspace '{active_workspace}':",
                         choices=choices
                     ).ask()
                     if not mode_choice or mode_choice.startswith("🔙"):
@@ -860,13 +881,91 @@ def run_chat_loop(active_workspace: str = "Default"):
                         new_mode = "strict"
                     elif mode_choice.startswith("🚀"):
                         new_mode = "proactive"
+                    elif mode_choice.startswith("🌐"):
+                        g_choice = questionary.select(
+                            "Select Grounding Mode to apply GLOBALLY across ALL workspaces:",
+                            choices=["⚖️ Hybrid (Global)", "🛡️ Strict (Global)", "🚀 Proactive (Global)", "🔙 [Cancel]"]
+                        ).ask()
+                        if not g_choice or g_choice.startswith("🔙"):
+                            continue
+                        g_mode = "strict" if "Strict" in g_choice else ("proactive" if "Proactive" in g_choice else "hybrid")
+                        current_grounding_mode = store.set_grounding_mode(g_mode, apply_global=True)
+                        agent_instance = None
+                        active_mode_for_agent = None
+                        print(f"\n✅ AI Grounding Mode set GLOBALLY to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m across all workspaces!\n")
+                        continue
                     else:
                         new_mode = "hybrid"
-                    current_grounding_mode = store.set_grounding_mode(new_mode)
+                    current_grounding_mode = store.set_grounding_mode(new_mode, workspace_name=active_workspace)
                     agent_instance = None
                     active_mode_for_agent = None
-                    print(f"\n✅ AI Grounding & Answer Mode set to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m\n")
+                    print(f"\n✅ AI Grounding Mode for workspace '\033[1m{active_workspace}\033[0m\033[96m' set to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m\n")
                     continue
+
+            elif cmd.startswith("/web-search") or cmd.startswith("/websearch") or cmd.startswith("/search-web") or cmd == "/search" or cmd.startswith("/search ") or cmd == "/ws" or cmd.startswith("/ws "):
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+                is_global = "--global" in parts or "-g" in parts
+                action_parts = [p for p in parts if p not in ["--global", "-g"]]
+
+                if len(action_parts) >= 2:
+                    arg_action = action_parts[1].lower().strip().lstrip("-")
+                    if arg_action in ["on", "1", "true", "enable", "enabled"]:
+                        store.set_web_search_status(True, workspace_name=None if is_global else active_workspace, apply_global=is_global)
+                        agent_instance = None
+                        target_label = "all workspaces (global)" if is_global else f"workspace '\033[1m{active_workspace}\033[0m\033[92m'"
+                        print(f"\n✅ \033[92mWeb Search enabled for {target_label}!\033[0m")
+                        print("\033[93m⚠️ Cost & Transparency Notice:\033[0m The agent will perform real-time internet searches and consume external web tokens when answering. Registered domain portals in this workspace will be prioritized automatically.\n")
+                        continue
+                    elif arg_action in ["off", "0", "false", "disable", "disabled"]:
+                        store.set_web_search_status(False, workspace_name=None if is_global else active_workspace, apply_global=is_global)
+                        agent_instance = None
+                        target_label = "all workspaces (global)" if is_global else f"workspace '\033[1m{active_workspace}\033[0m\033[90m'"
+                        print(f"\n🔒 \033[90mWeb Search disabled for {target_label}. (100% offline local isolation)\033[0m\n")
+                        continue
+                    elif arg_action in ["status", "s", "info"]:
+                        st = store.get_web_search_status(workspace_name=active_workspace)
+                        status_str = "\033[92mENABLED (ON)\033[0m" if st else "\033[90mDISABLED (OFF)\033[0m"
+                        print(f"\n🌐 Web Search Status for Workspace '\033[1m{active_workspace}\033[0m': {status_str}\n")
+                        continue
+
+                current_st = store.get_web_search_status(workspace_name=active_workspace)
+                choices = [
+                    f"🟢 Enable Web Search for Workspace '{active_workspace}' (Real-time online search){'  [Active]' if current_st else ''}",
+                    f"🔴 Disable Web Search for Workspace '{active_workspace}' (100% offline local docs){'  [Active]' if not current_st else ''}",
+                    "🌐 Apply Web Search Setting Globally Across All Workspaces...",
+                    "🔙 [Cancel]"
+                ]
+                choice = questionary.select(
+                    f"Configure Web Search for Workspace '{active_workspace}':",
+                    choices=choices
+                ).ask()
+                if not choice or choice.startswith("🔙"):
+                    continue
+                if choice.startswith("🟢"):
+                    store.set_web_search_status(True, workspace_name=active_workspace)
+                    agent_instance = None
+                    print(f"\n✅ \033[92mWeb Search enabled for workspace '\033[1m{active_workspace}\033[0m\033[92m'!\033[0m")
+                    print("\033[93m⚠️ Cost & Transparency Notice:\033[0m The agent will perform real-time internet searches and consume external web tokens when answering. Registered domain portals in this workspace will be prioritized automatically.\n")
+                elif choice.startswith("🔴"):
+                    store.set_web_search_status(False, workspace_name=active_workspace)
+                    agent_instance = None
+                    print(f"\n🔒 \033[90mWeb Search disabled for workspace '\033[1m{active_workspace}\033[0m\033[90m'. (100% offline local isolation)\033[0m\n")
+                elif choice.startswith("🌐"):
+                    g_choice = questionary.select(
+                        "Apply Web Search setting across ALL workspaces:",
+                        choices=["Enable Web Search Globally (All Workspaces)", "Disable Web Search Globally (All Workspaces)", "🔙 [Cancel]"]
+                    ).ask()
+                    if g_choice and "Enable" in g_choice:
+                        store.set_web_search_status(True, apply_global=True)
+                        agent_instance = None
+                        print("\n✅ \033[92mWeb Search enabled GLOBALLY across all workspaces!\033[0m")
+                        print("\033[93m⚠️ Cost Notice:\033[0m Real-time web lookups are now active for all workspaces.\n")
+                    elif g_choice and "Disable" in g_choice:
+                        store.set_web_search_status(False, apply_global=True)
+                        agent_instance = None
+                        print("\n🔒 \033[90mWeb Search disabled GLOBALLY across all workspaces.\033[0m\n")
+                continue
 
             elif cmd == "/update" or cmd.startswith("/update ") or cmd in ["/check-update", "/checkupdate", "/check"]:
                 parts = parse_command_args(user_input)
@@ -1081,7 +1180,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                     "/reset-memory", "/reset", "/factory-reset", "/config",
                     "/keys", "/billing", "/plans", "/web", "/history", "/clear-history",
                     "/paste", "/multiline", "/mline", "/transfer", "/move-source",
-                    "/sources", "/density"
+                    "/sources", "/density", "/web-search", "/websearch", "/search", "/ws"
                 ]
                 typed_cmd = user_input.split()[0]
                 matches = difflib.get_close_matches(typed_cmd.lower(), known_commands, n=1, cutoff=0.45)
@@ -1110,15 +1209,26 @@ def run_chat_loop(active_workspace: str = "Default"):
                     effective_prompt = actual_msg
 
             try:
-                if agent_instance is None or active_workspace_for_agent != active_workspace or active_model_for_agent != effective_model or active_mode_for_agent != current_grounding_mode:
-                    with Spinner(f"Initializing AI Agent ({effective_model} • {current_grounding_mode.capitalize()})..."):
+                store = ConfigDBStore()
+                current_web_search_enabled = store.get_web_search_status(workspace_name=active_workspace)
+                if (
+                    agent_instance is None
+                    or active_workspace_for_agent != active_workspace
+                    or active_model_for_agent != effective_model
+                    or active_mode_for_agent != current_grounding_mode
+                    or getattr(agent_instance, "_web_search_enabled", None) != current_web_search_enabled
+                ):
+                    search_spin = " • Web:ON" if current_web_search_enabled else ""
+                    with Spinner(f"Initializing AI Agent ({effective_model} • {current_grounding_mode.capitalize()}{search_spin})..."):
                         from any_context.core.agent import create_anycontext_agent, saver
                         agent_instance = create_anycontext_agent(
                             active_workspace=active_workspace, 
                             checkpointer=saver,
                             model_override=effective_model,
-                            grounding_mode=current_grounding_mode
+                            grounding_mode=current_grounding_mode,
+                            web_search_enabled=current_web_search_enabled
                         )
+                        setattr(agent_instance, "_web_search_enabled", current_web_search_enabled)
                         active_workspace_for_agent = active_workspace
                         active_model_for_agent = effective_model
                         active_mode_for_agent = current_grounding_mode

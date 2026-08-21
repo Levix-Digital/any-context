@@ -400,10 +400,12 @@ MCP_TOOLS_DEFINITIONS = [
     },
     {
         "name": "get_grounding_mode",
-        "description": "Retrieves the active AI Grounding & Answer Mode ('hybrid', 'strict', or 'proactive').",
+        "description": "Retrieves the active AI Grounding & Answer Mode ('hybrid', 'strict', or 'proactive') for a workspace or global setting.",
         "inputSchema": {
             "type": "object",
-            "properties": {},
+            "properties": {
+                "workspace": {"type": "string", "description": "Optional workspace name"}
+            },
             "required": []
         }
     },
@@ -413,9 +415,59 @@ MCP_TOOLS_DEFINITIONS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "mode": {"type": "string", "enum": ["hybrid", "strict", "proactive"], "description": "Target grounding mode ('hybrid', 'strict', 'proactive')"}
+                "mode": {"type": "string", "enum": ["hybrid", "strict", "proactive"], "description": "Target grounding mode ('hybrid', 'strict', 'proactive')"},
+                "workspace": {"type": "string", "description": "Optional workspace name to apply setting specifically"},
+                "apply_global": {"type": "boolean", "description": "Whether to apply mode globally across all workspaces"}
             },
             "required": ["mode"]
+        }
+    },
+    {
+        "name": "get_web_search_status",
+        "description": "Retrieves the real-time Web Search toggle status (True/False) for a workspace or global setting.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Optional workspace name"}
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "set_web_search_status",
+        "description": "Enables or disables real-time Web Search and portal lookups for a workspace or globally.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "enabled": {"type": "boolean", "description": "True to enable, False to disable"},
+                "workspace": {"type": "string", "description": "Optional workspace name"},
+                "apply_global": {"type": "boolean", "description": "Whether to apply across all workspaces"}
+            },
+            "required": ["enabled"]
+        }
+    },
+    {
+        "name": "get_workspace_settings",
+        "description": "Retrieves isolated configuration settings (grounding_mode, web_search_enabled) for a specific workspace.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Target workspace name"}
+            },
+            "required": ["workspace"]
+        }
+    },
+    {
+        "name": "update_workspace_settings",
+        "description": "Updates isolated configuration settings (grounding_mode, web_search_enabled) for a specific workspace.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Target workspace name"},
+                "grounding_mode": {"type": "string", "enum": ["hybrid", "strict", "proactive"], "description": "Optional grounding mode"},
+                "web_search_enabled": {"type": "boolean", "description": "Optional web search toggle"}
+            },
+            "required": ["workspace"]
         }
     }
 ]
@@ -814,9 +866,11 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
 
             elif tool_name == "get_grounding_mode":
                 store = ConfigDBStore()
-                mode = store.get_grounding_mode()
+                ws_arg = arguments.get("workspace")
+                mode = store.get_grounding_mode(workspace_name=ws_arg)
                 result_text = json.dumps({
                     "grounding_mode": mode,
+                    "workspace": ws_arg,
                     "available_modes": ["hybrid", "strict", "proactive"],
                     "description": {
                         "hybrid": "Balanced default: facts from workspace + labeled external suggestions",
@@ -828,11 +882,67 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
             elif tool_name == "set_grounding_mode":
                 store = ConfigDBStore()
                 mode_arg = arguments.get("mode", "hybrid")
-                saved = store.set_grounding_mode(mode_arg)
+                ws_arg = arguments.get("workspace")
+                is_global = bool(arguments.get("apply_global", False))
+                saved = store.set_grounding_mode(mode_arg, workspace_name=ws_arg, apply_global=is_global)
                 result_text = json.dumps({
                     "status": "success",
                     "grounding_mode": saved,
+                    "workspace": ws_arg,
+                    "applied_globally": is_global,
                     "message": f"AI Grounding & Answer Mode set to '{saved}'."
+                }, indent=2)
+
+            elif tool_name == "get_web_search_status":
+                store = ConfigDBStore()
+                ws_arg = arguments.get("workspace")
+                st = store.get_web_search_status(workspace_name=ws_arg)
+                result_text = json.dumps({
+                    "web_search_enabled": st,
+                    "workspace": ws_arg,
+                    "message": "Web search is active for this context." if st else "Web search is disabled (offline-first isolation)."
+                }, indent=2)
+
+            elif tool_name == "set_web_search_status":
+                store = ConfigDBStore()
+                enabled = bool(arguments.get("enabled", False))
+                ws_arg = arguments.get("workspace")
+                is_global = bool(arguments.get("apply_global", False))
+                saved = store.set_web_search_status(enabled, workspace_name=ws_arg, apply_global=is_global)
+                result_text = json.dumps({
+                    "status": "success",
+                    "web_search_enabled": saved,
+                    "workspace": ws_arg,
+                    "applied_globally": is_global,
+                    "message": f"Web search {'enabled' if saved else 'disabled'}."
+                }, indent=2)
+
+            elif tool_name == "get_workspace_settings":
+                store = ConfigDBStore()
+                ws_name = arguments.get("workspace", "Default")
+                mode = store.get_grounding_mode(workspace_name=ws_name)
+                search = store.get_web_search_status(workspace_name=ws_name)
+                result_text = json.dumps({
+                    "workspace_name": ws_name,
+                    "grounding_mode": mode,
+                    "web_search_enabled": search
+                }, indent=2)
+
+            elif tool_name == "update_workspace_settings":
+                store = ConfigDBStore()
+                ws_name = arguments.get("workspace", "Default")
+                if "grounding_mode" in arguments and arguments["grounding_mode"]:
+                    store.set_grounding_mode(arguments["grounding_mode"], workspace_name=ws_name)
+                if "web_search_enabled" in arguments and arguments["web_search_enabled"] is not None:
+                    store.set_web_search_status(arguments["web_search_enabled"], workspace_name=ws_name)
+
+                mode = store.get_grounding_mode(workspace_name=ws_name)
+                search = store.get_web_search_status(workspace_name=ws_name)
+                result_text = json.dumps({
+                    "status": "success",
+                    "workspace_name": ws_name,
+                    "grounding_mode": mode,
+                    "web_search_enabled": search
                 }, indent=2)
 
             else:

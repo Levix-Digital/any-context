@@ -156,8 +156,8 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/paste`** | `/multiline` | Open dedicated multi-line paste capture mode. |
 | **`/switch`** | `<name>`, `--create`, `--delete`, `--list` | Switch active workspace or create, delete, and list workspaces. |
 | **`/sync`** | `--status`, `--verbose`, `--bg`, `--full` | Ultra-fast hybrid synchronization using sub-30ms SQLite stat cache bypass. |
-| **`/sources`** | `--all`, `-a` | List all data sources (local folders, web portals, cloud drives) in active or all workspaces. |
-| **`/mode`** | `--hybrid`, `--strict`, `--proactive` | Switch AI grounding mode: **`Hybrid`** (dual-layer), **`Strict`** (100% verified facts), or **`Proactive`** (research & synthesis). |
+| **`/mode`** | `--hybrid`, `--strict`, `--proactive`, `--global` | Switch AI grounding mode per workspace or globally: **`Hybrid`** (dual-layer), **`Strict`** (100% verified facts), or **`Proactive`** (research & synthesis). |
+| **`/web-search`** | `--on`, `--off`, `--status`, `--global`, `/ws` | Toggle real-time live web search per workspace with domain portal prioritization and source discrimination. |
 | **`/web`** | `--add <url>`, `--list`, `--sync` | Manage, crawl, and synchronize web documentation portals. |
 | **`/link`** | `<src> [dst]`, `--list`, `--unlink <src>` | Link or unlink reusable indexed sources across workspaces with zero API cost ($0.00). |
 | **`/transfer`** | `<src_ws> <tgt_ws> <path_or_url>` | Instant zero-cost transfer of folders or web portals between workspaces. |

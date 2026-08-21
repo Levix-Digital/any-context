@@ -472,6 +472,51 @@ class Test07RestApiServer(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_12_workspace_web_search_and_settings_endpoints(self):
+        """TC-7.14: Tests GET/POST /v1/context/web-search and GET/POST /v1/workspaces/{name}/settings endpoints."""
+        safe_stdout_write("\n>>> [TEST 12] Testing Web Search & Workspace-Isolated Settings REST Endpoints...\n")
+        ws_test = "E2E_WebSearch_WS"
+        self.store.add_workspace(ws_test, paths=[])
+
+        try:
+            # 1. GET /v1/context/web-search (default global)
+            res1 = self.client.get("/v1/context/web-search", headers=self.headers)
+            self.assertEqual(res1.status_code, 200)
+            self.assertFalse(res1.json()["web_search_enabled"])
+
+            # 2. POST /v1/context/web-search for specific workspace
+            res2 = self.client.post(
+                "/v1/context/web-search",
+                json={"enabled": True, "workspace": ws_test, "apply_global": False},
+                headers=self.headers
+            )
+            self.assertEqual(res2.status_code, 200)
+            self.assertTrue(res2.json()["web_search_enabled"])
+            self.assertEqual(res2.json()["workspace"], ws_test)
+
+            # 3. GET /v1/workspaces/{name}/settings
+            res3 = self.client.get(f"/v1/workspaces/{ws_test}/settings", headers=self.headers)
+            self.assertEqual(res3.status_code, 200)
+            data3 = res3.json()
+            self.assertEqual(data3["workspace_name"], ws_test)
+            self.assertTrue(data3["web_search_enabled"])
+            self.assertEqual(data3["grounding_mode"], "hybrid")
+
+            # 4. POST /v1/workspaces/{name}/settings to update mode and search
+            res4 = self.client.post(
+                f"/v1/workspaces/{ws_test}/settings",
+                json={"grounding_mode": "strict", "web_search_enabled": False},
+                headers=self.headers
+            )
+            self.assertEqual(res4.status_code, 200)
+            data4 = res4.json()
+            self.assertEqual(data4["grounding_mode"], "strict")
+            self.assertFalse(data4["web_search_enabled"])
+
+            safe_stdout_write("  [OK] Web search and workspace settings REST endpoints verified!\n")
+        finally:
+            self.store.remove_workspace(ws_test)
+
 if __name__ == "__main__":
     unittest.main()
 
