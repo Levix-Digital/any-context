@@ -74,18 +74,27 @@ class Test10SystemLifecycleRecovery(unittest.TestCase):
         safe_stdout_write("  [OK] Active instances discovery verified!\n")
 
     def test_04_close_active_instances_mock(self):
-        """TC-10.4: Tests close_active_instances with mock subprocess."""
+        """TC-10.4: Tests close_active_instances with mock subprocess and os.kill cross-platform."""
         safe_stdout_write(">>> [MOD 10 / TC-10.4] Testing Close Active Instances...\n")
         mock_instances = [
             {"pid": 99991, "name": "actx.exe", "type": "cli"},
             {"pid": 99992, "name": "actx.exe", "type": "server"}
         ]
-        with patch("subprocess.run") as mock_run:
+        # 1. Test Windows branch
+        with patch("sys.platform", "win32"), patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            closed_cnt = close_active_instances(mock_instances)
-            self.assertEqual(closed_cnt, 2)
+            closed_cnt_win = close_active_instances(mock_instances)
+            self.assertEqual(closed_cnt_win, 2)
             self.assertEqual(mock_run.call_count, 2)
-        safe_stdout_write("  [OK] Close active instances verified!\n")
+
+        # 2. Test Linux / Unix branch
+        with patch("sys.platform", "linux"), patch.dict("os.environ", {"MSYSTEM": ""}, clear=False), patch("os.kill") as mock_kill:
+            mock_kill.return_value = None
+            closed_cnt_linux = close_active_instances(mock_instances)
+            self.assertEqual(closed_cnt_linux, 2)
+            self.assertEqual(mock_kill.call_count, 2)
+
+        safe_stdout_write("  [OK] Close active instances verified across Windows and Linux!\n")
 
     def test_05_prompt_multi_instance_decision_logic(self):
         """TC-10.5: Tests prompt_multi_instance_decision choices and fallback."""
