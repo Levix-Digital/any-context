@@ -214,6 +214,22 @@ class ConfigDBStore:
             """)
 
             cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_web_urls (
+                    id TEXT PRIMARY KEY,
+                    workspace_name TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    title TEXT,
+                    last_hash TEXT,
+                    polling_interval_hours INTEGER DEFAULT 24,
+                    last_scraped_at TEXT,
+                    created_at TEXT,
+                    page_count INTEGER DEFAULT 1,
+                    root_url TEXT,
+                    scope TEXT
+                )
+            """)
+
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS workspace_cloud_drives (
                     id TEXT PRIMARY KEY,
                     workspace_name TEXT NOT NULL,
@@ -999,8 +1015,8 @@ class ConfigDBStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
-            # 1. Local folders from workspaces table
-            cursor.execute("SELECT id, workspace_id, name, paths_json FROM workspaces WHERE workspace_id = ? OR name = ?", (clean_ws, clean_ws))
+            # 1. Local folders from workspaces table (case-insensitive)
+            cursor.execute("SELECT id, workspace_id, name, paths_json FROM workspaces WHERE workspace_id = ? OR name = ? COLLATE NOCASE", (clean_ws, clean_ws))
             row = cursor.fetchone()
             if row:
                 actual_ws_id = row["workspace_id"] or ("ws_default" if row["name"].lower() == "default" else f"ws_{row['id']}")
@@ -1015,7 +1031,7 @@ class ConfigDBStore:
 
             # Also check workspace_folders table if present
             try:
-                cursor.execute("SELECT folder_path FROM workspace_folders WHERE workspace_name = ? OR workspace_name = ?", (actual_ws_name, actual_ws_id))
+                cursor.execute("SELECT folder_path FROM workspace_folders WHERE workspace_name = ? COLLATE NOCASE OR workspace_name = ?", (actual_ws_name, actual_ws_id))
                 for f_row in cursor.fetchall():
                     norm_p = os.path.abspath(f_row["folder_path"].strip().strip("'\""))
                     if norm_p and norm_p not in folders:
@@ -1028,7 +1044,7 @@ class ConfigDBStore:
                 cursor.execute("""
                     SELECT id, workspace_name, url, title, page_count, root_url, scope, last_scraped_at, created_at
                     FROM workspace_web_urls
-                    WHERE workspace_name = ? OR workspace_name = ?
+                    WHERE workspace_name = ? COLLATE NOCASE OR workspace_name = ? COLLATE NOCASE
                 """, (actual_ws_name, actual_ws_id))
                 for w_row in cursor.fetchall():
                     w_dict = dict(w_row)
@@ -1050,7 +1066,7 @@ class ConfigDBStore:
                 cursor.execute("""
                     SELECT id, workspace_name, provider, mount_path_or_id, title, auth_status, last_synced_at, created_at, metadata_json
                     FROM workspace_cloud_drives
-                    WHERE workspace_name = ? OR workspace_name = ?
+                    WHERE workspace_name = ? COLLATE NOCASE OR workspace_name = ? COLLATE NOCASE
                 """, (actual_ws_name, actual_ws_id))
                 for cd_row in cursor.fetchall():
                     cd_dict = dict(cd_row)
@@ -1079,7 +1095,7 @@ class ConfigDBStore:
             cursor.execute("""
                 SELECT id, workspace_name, source_type, source_identifier, title, created_at
                 FROM workspace_source_links
-                WHERE workspace_name = ? OR workspace_name = ?
+                WHERE workspace_name = ? COLLATE NOCASE OR workspace_name = ? COLLATE NOCASE
             """, (actual_ws_name, actual_ws_id))
             for ls_row in cursor.fetchall():
                 linked_sources.append(dict(ls_row))
@@ -1148,9 +1164,15 @@ class ConfigDBStore:
         return {
             "id": actual_ws_id,
             "name": actual_ws_name,
+            "workspace_id": actual_ws_id,
+            "workspace_name": actual_ws_name,
             "sources": unified_sources,
             "total_sources": len(unified_sources),
-            "paths": folders
+            "folders": folders,
+            "paths": folders,
+            "web_sources": web_sources,
+            "cloud_drives": cloud_drives,
+            "linked_sources": linked_sources
         }
 
     def link_shared_source_to_workspace(

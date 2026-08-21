@@ -305,11 +305,13 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
         safe_stdout_write("  [OK] /mode CLI command dispatch verified!\n")
 
     def test_15_sync_command_dispatch_and_flags(self):
-        """Validates that /sync, /sync --status, /sync --bg, and /sync --verbose dispatch cleanly."""
+        """Validates that /sync, /sync --status, /sync --status --all, /sync --bg, and /sync --verbose dispatch cleanly."""
         safe_stdout_write(">>> [CLI UNIT] Testing /sync Command Dispatch & Flags...\n")
         mock_inputs = [
             "/sync",
             "/sync --status",
+            "/sync --status --all",
+            "/sync -s -a",
             "/sync --bg",
             "/sync --verbose",
             "/sync --full",

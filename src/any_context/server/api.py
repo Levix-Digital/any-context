@@ -165,6 +165,14 @@ class WorkspaceSyncStatusDTO(BaseModel):
     is_up_to_date: bool
     has_changes: bool
     is_virgin: bool
+    total_sources: int = 0
+    local_folders_count: int = 0
+    web_sources_count: int = 0
+    web_pages_count: int = 0
+    cloud_drives_count: int = 0
+    folders: List[str] = Field(default_factory=list)
+    web_sources: List[Dict[str, Any]] = Field(default_factory=list)
+    cloud_drives: List[Dict[str, Any]] = Field(default_factory=list)
     new_files: List[str] = Field(default_factory=list)
     modified_files: List[str] = Field(default_factory=list)
     deleted_files: List[str] = Field(default_factory=list)
@@ -561,7 +569,7 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
 
     @app.get("/v1/workspaces/{workspace_name}/sync/status", response_model=WorkspaceSyncStatusDTO, tags=["Workspaces"])
     def get_workspace_sync_status_endpoint(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
-        """Inspects pending file additions, modifications, deletions, and stat cache status for a workspace in < 30ms."""
+        """Inspects pending file additions, modifications, deletions, web sources, and stat cache status for a workspace in < 30ms."""
         verify_token_access(credentials=credentials, required_workspace=workspace_name)
         from any_context.ingestion.local_folder_ingestor import check_workspace_changes
         diff = check_workspace_changes(workspace_name)
@@ -571,6 +579,14 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
             is_up_to_date=diff["is_up_to_date"],
             has_changes=diff["has_changes"],
             is_virgin=diff["is_virgin"],
+            total_sources=diff.get("total_sources", 0),
+            local_folders_count=diff.get("local_folders_count", 0),
+            web_sources_count=diff.get("web_sources_count", 0),
+            web_pages_count=diff.get("web_pages_count", 0),
+            cloud_drives_count=diff.get("cloud_drives_count", 0),
+            folders=diff.get("folders", []),
+            web_sources=diff.get("web_sources", []),
+            cloud_drives=diff.get("cloud_drives", []),
             new_files=diff["new_files"],
             modified_files=diff["modified_files"],
             deleted_files=diff["deleted_files"],

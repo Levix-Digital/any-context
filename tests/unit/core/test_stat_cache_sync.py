@@ -146,5 +146,32 @@ class TestStatCacheSync(unittest.TestCase):
         self.assertEqual(len(completed_events), 1)
         safe_stdout_write("  [OK] BackgroundSyncManager lifecycle verified!\n")
 
+    def test_06_multi_source_status_detection(self):
+        """TC-SC.6: Validates multi-source status reporting (web sources, cloud drives, local folders)."""
+        safe_stdout_write(">>> [STAT CACHE / TC-SC.6] Testing Multi-Source Status Reporting...\n")
+        from any_context.ingestion.web_scheduler import WebSchedulerStore
+        web_store = WebSchedulerStore(db_path=self.store.db_path)
+        web_ws = "Test_Multi_Source_WS"
+        self.store.add_workspace(web_ws, paths=[])
+        web_store.add_or_update_root_web_source(
+            workspace_name=web_ws,
+            root_url="https://docs.test-portal.org/guide",
+            title="Test Documentation Portal",
+            page_count=42
+        )
+
+        try:
+            diff = check_workspace_changes(web_ws)
+            self.assertEqual(diff["workspace_name"], web_ws)
+            self.assertEqual(diff["total_sources"], 1)
+            self.assertEqual(diff["web_sources_count"], 1)
+            self.assertEqual(diff["web_pages_count"], 42)
+            self.assertEqual(diff["local_folders_count"], 0)
+            self.assertTrue(diff["is_up_to_date"])
+            self.assertIn("web source", diff["summary"].lower())
+            safe_stdout_write("  [OK] Multi-source status detection and metadata verified!\n")
+        finally:
+            self.store.remove_workspace(web_ws)
+
 if __name__ == "__main__":
     unittest.main()

@@ -434,6 +434,9 @@ class Test07RestApiServer(unittest.TestCase):
             self.assertEqual(data["workspace_name"], ws_test)
             self.assertIn("is_up_to_date", data)
             self.assertIn("summary", data)
+            self.assertEqual(data["total_sources"], 1)
+            self.assertEqual(data["local_folders_count"], 1)
+            self.assertEqual(len(data["folders"]), 1)
 
             # 2. POST /v1/workspaces/{name}/sync (Synchronous)
             sync_payload = {"force_full": False, "background": False}

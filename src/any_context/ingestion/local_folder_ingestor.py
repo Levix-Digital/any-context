@@ -124,52 +124,40 @@ def clear_context_vector_db(verbose: bool = False):
 
 def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
     """
-    Performs ultra-fast (<30ms) stat scan over workspace folders without reading file contents.
-    Compares (file_path, mtime, size) against workspace_files_stat_cache in SQLite.
+    Performs ultra-fast (<30ms) holistic scan over all workspace sources:
+    1. Local Folders: Compares (file_path, mtime, size) against workspace_files_stat_cache in SQLite.
+    2. Web Sources: Queries registered web URLs, total page counts, and last scrape dates.
+    3. Cloud Drives: Queries registered cloud drives and sync state.
+    4. Shared Links: Reusable sources linked to this workspace.
     """
     from any_context.config.db_store import ConfigDBStore
     store = ConfigDBStore()
     clean_ws = (workspace_name or "Default").strip()
 
-    current_settings = AppSettings.load()
-    if not current_settings or not current_settings.workspaces:
-        return {
-            "workspace_name": clean_ws,
-            "is_up_to_date": True,
-            "has_changes": False,
-            "is_virgin": False,
-            "new_files": [],
-            "modified_files": [],
-            "deleted_files": [],
-            "renamed_files": [],
-            "total_disk_files": 0,
-            "total_cached_files": 0,
-            "summary": "No workspaces configured."
-        }
+    # Query multi-source details from SQLite
+    ws_sources = store.get_workspace_sources(clean_ws)
+    folders = list(ws_sources.get("folders", []))
+    web_sources = ws_sources.get("web_sources", [])
+    cloud_drives = ws_sources.get("cloud_drives", [])
+    unified_sources = ws_sources.get("sources", [])
+    total_web_pages = sum(w.get("page_count", 1) or 1 for w in web_sources)
 
-    ws_obj = None
-    for ws in current_settings.workspaces:
-        if ws.name.lower() == clean_ws.lower() or (getattr(ws, "workspace_id", None) and ws.workspace_id == clean_ws):
-            ws_obj = ws
-            break
-
-    if not ws_obj or not ws_obj.paths:
-        return {
-            "workspace_name": clean_ws,
-            "is_up_to_date": True,
-            "has_changes": False,
-            "is_virgin": False,
-            "new_files": [],
-            "modified_files": [],
-            "deleted_files": [],
-            "renamed_files": [],
-            "total_disk_files": 0,
-            "total_cached_files": 0,
-            "summary": "No folder paths configured."
-        }
+    # Also merge folders from AppSettings if present
+    try:
+        current_settings = AppSettings.load()
+        if current_settings and current_settings.workspaces:
+            for ws in current_settings.workspaces:
+                if ws.name.lower() == clean_ws.lower() or (getattr(ws, "workspace_id", None) and ws.workspace_id == clean_ws):
+                    for p in (ws.paths or []):
+                        norm_p = os.path.abspath(p.strip().strip("'\""))
+                        if norm_p and norm_p not in folders:
+                            folders.append(norm_p)
+                    break
+    except Exception:
+        pass
 
     disk_files: Dict[str, Dict[str, Any]] = {}
-    for folder_path in ws_obj.paths:
+    for folder_path in folders:
         if os.path.exists(folder_path):
             discovered = discover_workspace_files(folder_path)
             for f in discovered:
@@ -247,10 +235,31 @@ def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
     if renamed_files:
         parts.append(f"{len(renamed_files)} renamed file{'s' if len(renamed_files) > 1 else ''}")
 
-    summary = ", ".join(parts) if parts else "Up to date (0 changes)"
+    if parts:
+        summary = ", ".join(parts)
+    elif len(unified_sources) == 0:
+        summary = "No sources configured."
+    elif len(folders) == 0 and len(web_sources) > 0:
+        summary = f"All {len(web_sources)} web sources ({total_web_pages} pages) up to date."
+    elif len(folders) == 0 and len(cloud_drives) > 0:
+        summary = f"All {len(cloud_drives)} cloud drives connected."
+    else:
+        summary = "Up to date (0 changes)"
 
     return {
         "workspace_name": clean_ws,
+        "workspace_id": ws_sources.get("workspace_id", clean_ws),
+        "total_sources": len(unified_sources),
+        "sources": unified_sources,
+        "folders": folders,
+        "web_sources": web_sources,
+        "cloud_drives": cloud_drives,
+        "local_folders_count": len(folders),
+        "total_disk_files": len(disk_files),
+        "total_cached_files": len(cached_files),
+        "web_sources_count": len(web_sources),
+        "web_pages_count": total_web_pages,
+        "cloud_drives_count": len(cloud_drives),
         "is_up_to_date": is_up_to_date,
         "has_changes": has_changes,
         "is_virgin": is_virgin,
@@ -258,8 +267,6 @@ def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
         "modified_files": modified_files,
         "deleted_files": deleted_files,
         "renamed_files": renamed_files,
-        "total_disk_files": len(disk_files),
-        "total_cached_files": len(cached_files),
         "summary": summary
     }
 
