@@ -319,6 +319,42 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
             run_chat_loop(active_workspace="Default")
         safe_stdout_write("  [OK] /sync CLI command dispatch and flags verified!\n")
 
+    def test_16_standard_flags_across_all_commands(self):
+        """Validates that all standardized POSIX/GNU flags dispatch cleanly across commands."""
+        safe_stdout_write(">>> [CLI UNIT] Testing Standard POSIX/GNU Flags Across All Commands...\n")
+        ws_test = "cli_flags_test_ws"
+        mock_inputs = [
+            # 1. /switch flags
+            f"/switch --create {ws_test}",
+            "/switch --list",
+            f"/switch --delete {ws_test}",
+            # 2. /sources flags
+            "/sources --all",
+            "/sources -a",
+            # 3. /web flags
+            "/web --list",
+            "/web --sync",
+            # 4. /history flags
+            "/history --limit 10",
+            "/history --clear",
+            # 5. /model flags
+            "/model --list",
+            # 6. /mode flags
+            "/mode --strict",
+            "/mode --proactive",
+            "/mode --hybrid",
+            # 7. /update flags
+            "/update --check",
+            # 8. /reset-memory flags
+            "/reset-memory --force",
+            "/exit"
+        ]
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.ingestion.local_folder_ingestor.run_index_folder"):
+                with patch("any_context.cli.chat_loop.check_for_updates", return_value=(False, None)):
+                    run_chat_loop(active_workspace="Default")
+        safe_stdout_write("  [OK] Standard POSIX/GNU flags verified across all commands!\n")
+
 if __name__ == "__main__":
     unittest.main()
 

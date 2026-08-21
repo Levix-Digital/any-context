@@ -147,43 +147,36 @@ pip install -e .
 
 Inside the interactive chat (`actx`), use these powerful slash commands:
 
-| Command | Aliases | Description |
+| Command | Standard Options / Flags | Description |
 | :--- | :--- | :--- |
 | **`Ctrl+V` (Paste)** | — | Paste multi-line text with line breaks without premature submission. |
 | **`[Ctrl + J]`** | `[Esc] + Enter` | Universal terminal newline shortcut (Linefeed). |
 | **`\` + `[Enter]`** | — | Trailing backslash shell-style line continuation. |
 | **`""" ... """`** | `''' ... '''` | Multi-line block delimiter (close with `"""` or `/send`). |
-| **`/paste`** | `/multiline`, `/mline` | Open dedicated multi-line paste capture mode. |
-| **`/link [src] [to]`** | `/shared`, `/share-source` | Link an existing indexed source to active workspace in < 50ms with zero API cost ($0.00). |
-| **`/unlink [src]`** | `/workspace unlink` | Unlink a shared source from active workspace without deleting original data. |
-| **`/shared`** | `/sources shared` | List all indexed unique sources available for cross-workspace linking. |
-| **`/transfer`** | `/move-source` | Instant zero-cost transfer of folders or web portals between workspaces. |
-| **`/sources`** | `/workspace sources`| List all data sources (local folders, web portals, cloud drives, shared links) in active workspace. |
-| **`/mode [mode]`** | `/answer-mode`, `/am` | Switch AI grounding mode: **`Hybrid`** (default dual-layer), **`Strict`** (100% verified facts), or **`Proactive`** (research & synthesis). |
-| **`/sync`** | `/index`, `-s` | Ultra-fast hybrid synchronization using sub-30ms SQLite stat cache bypass. |
-| **`/sync -v`** | `/sync --verbose` | Synchronize workspace with detailed modern tree view and timestamps. |
-| **`/sync --status`**| `/sync status` | Quick diff summary (new, modified, deleted, renamed files) without indexing. |
-| **`/sync --bg`** | `/sync --background`| Run workspace synchronization in non-blocking background thread. |
-| **`/model`** | `/m`, `models` | Open key-aware AI model selector across 9 providers. |
+| **`/paste`** | `/multiline` | Open dedicated multi-line paste capture mode. |
+| **`/switch`** | `<name>`, `--create`, `--delete`, `--list` | Switch active workspace or create, delete, and list workspaces. |
+| **`/sync`** | `--status`, `--verbose`, `--bg`, `--full` | Ultra-fast hybrid synchronization using sub-30ms SQLite stat cache bypass. |
+| **`/sources`** | `--all`, `-a` | List all data sources (local folders, web portals, cloud drives) in active or all workspaces. |
+| **`/mode`** | `--hybrid`, `--strict`, `--proactive` | Switch AI grounding mode: **`Hybrid`** (dual-layer), **`Strict`** (100% verified facts), or **`Proactive`** (research & synthesis). |
+| **`/web`** | `--add <url>`, `--list`, `--sync` | Manage, crawl, and synchronize web documentation portals. |
+| **`/link`** | `<src> [dst]`, `--list`, `--unlink <src>` | Link or unlink reusable indexed sources across workspaces with zero API cost ($0.00). |
+| **`/transfer`** | `<src_ws> <tgt_ws> <path_or_url>` | Instant zero-cost transfer of folders or web portals between workspaces. |
+| **`/rename`** | `<old_ws> <new_ws>` | Atomic zero-cost workspace renaming ($0.00). |
+| **`/model`** | `<name>`, `--list`, `-l` | Open key-aware AI model selector across 9 providers or list available models. |
 | **`@model <msg>`** | — | One-shot prompt to a specific model without changing session defaults. |
-| **`/api-keys`** | `/keys`, `providers`| Step-by-step guide with portal links to obtain API keys. |
-| **`/web`** | `scrape`, `urls` | Open interactive web sources management menu. |
-| **`/web add <url>`**| — | Ingest a website URL immediately into the active workspace. |
-| **`/web list`** | — | List all registered web URLs, page counts, and last scrape dates. |
-| **`/web sync`** | — | Force re-scrape and synchronize all web URLs in workspace. |
+| **`/api-keys`** | `/keys` | Step-by-step guide with portal links to obtain API keys. |
 | **`/ocr`** | `image`, `scan` | View Image & Scanned PDF OCR parsing status. |
-| **`/config`** | `-c`, `--config` | Open interactive settings menu (Workspaces, AI Models, API Keys). |
-| **`/billing`** | `/plans`, `pricing` | View subscription tiers, capabilities, and license status. |
+| **`/config`** | `-c` | Open interactive settings menu (Workspaces, AI Models, API Keys). |
+| **`/billing`** | `--plans`, `-p` | View subscription tiers, capabilities, and license status. |
 | **`[↑] / [↓]`** | — | Navigate through past prompts & commands in the active workspace. |
-| **`/history`** | `/hist` | List recent input history entries for the active workspace. |
-| **`/clear-history`** | `/reset-history` | Purge input history file for the active workspace. |
-| **`/check-update`**| `--check-update`| Check for newer releases with 1-click upgrade confirmation. |
-| **`/update`** | `--update` | Download and apply the latest AnyContext release immediately. |
-| **`/reset-memory`**| `/reset` | Purge conversation session memory for the active workspace. |
+| **`/history`** | `--clear`, `--limit <n>` | Display or clear input history for the active workspace. |
+| **`/update`** | `--check`, `-c`, `--force` | Check for updates and download/install the latest release. |
+| **`/reset-memory`**| `--force`, `--all` | Purge conversation session memory for active or all workspaces. |
 | **`/clear`** | `/cls` | Clear terminal screen and redraw the clean signature banner. |
-| **`/factory-reset`**| `--factory-reset`| Reset all settings, workspaces, API keys, and databases to defaults. |
-| **`/help [cmd]`** | `/h`, `help` | Open the interactive manual index or get help for a specific command. |
-| **`/exit`** | `/q`, `exit`, `quit`| Save structured 5-dimension long-term memory and exit gracefully. |
+| **`/factory-reset`**| `--force` | Reset all settings, workspaces, API keys, and databases to clean factory state. |
+| **`/version`** | `/v` | Display current AnyContext version. |
+| **`/help [cmd]`** | `/h`, `[cmd] --help`, `[cmd] -h` | Open the interactive manual index or get help for a specific command. |
+| **`/exit`** | `/q`, `exit`, `quit` | Save structured 5-dimension long-term memory and exit gracefully. |
 | **`Ctrl+C`** | — | Interrupt AI generation immediately or prompt graceful exit. |
 
 ---

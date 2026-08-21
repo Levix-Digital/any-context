@@ -12,35 +12,39 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "✨ DECOUPLED WORKSPACE ARCHITECTURE:\n"
             "Creating a workspace and attaching data sources are completely separate actions. You can create an empty workspace "
             "(e.g. for web scraping only, market research, or agent tasks) without being forced to attach a local folder. "
-            "You can later attach local folders via '/config' or web documentation via '/web add' at any time."
+            "You can later attach local folders via '/config' or web documentation via '/web --add <url>' at any time."
         ),
         syntax=(
             "CLI Launch (Direct Switch) : actx -w <workspace_name>\n"
             "  In Chat (Interactive Menu) : /switch   OR   /workspace\n"
-            "  In Chat (Create / Switch)  : /switch <name>   OR   /workspace add <name>\n"
-            "  In Chat (Delete Workspace) : /workspace delete <name>\n"
+            "  In Chat (Direct Switch)    : /switch <name>\n"
+            "  In Chat (Create & Switch)  : /switch --create <name>   OR   /switch -c <name>\n"
+            "  In Chat (Delete Workspace) : /switch --delete <name>   OR   /switch -d <name>\n"
+            "  In Chat (List Workspaces)  : /switch --list   OR   /switch -l\n"
             "  REST API                   : POST /v1/workspaces?name=<name>\n"
-            "  View Help                  : actx --switch --help   OR   /switch --help   OR   /switch -h"
+            "  View Help                  : /switch --help   OR   /switch -h"
         ),
         parameters=[
-            "-w, --workspace <name>    : Directly specify target workspace on CLI launch.",
-            "/switch, /workspace      : Opens interactive menu with workspace list and '➕ Create New Workspace' option.",
-            "/switch <name>           : Switch directly to <name> (creates empty workspace if it doesn't exist).",
-            "/workspace add <name>    : Create and switch directly to a new workspace.",
-            "/workspace delete <name> : Delete a workspace and its data sources completely.",
-            "--help, -h               : Display this detailed help page for /switch."
+            "-w, --workspace <name>     : Directly specify target workspace on CLI launch.",
+            "/switch, /workspace       : Opens interactive menu with workspace list and '➕ Create New Workspace' option.",
+            "/switch <name>            : Switch directly to <name> (creates empty workspace if it doesn't exist).",
+            "--create, -c <name>        : Create and switch directly to a new workspace.",
+            "--delete, -d <name>        : Delete a workspace and its data sources completely.",
+            "--list, -l                : List all configured workspaces.",
+            "--help, -h                : Display this detailed help page for /switch."
         ],
         examples=[
             "In Chat: /switch",
             "In Chat: /switch Mercado",
-            "In Chat: /workspace create TechDocs",
-            "In Chat: /workspace delete ObsoleteProject",
+            "In Chat: /switch --create TechDocs",
+            "In Chat: /switch --delete ObsoleteProject",
+            "In Chat: /switch --list",
             "actx -w LegalConsulting",
             "In Chat: /switch -h",
             "curl -X POST 'http://127.0.0.1:8000/v1/workspaces?name=Mercado'"
         ],
         tips=[
-            "Workspaces can be 100% web-based: create an empty workspace and use '/web add <url>' to index entire documentation portals.",
+            "Workspaces can be 100% web-based: create an empty workspace and use '/web --add <url>' to index entire documentation portals.",
             "Workspaces keep your files and projects completely separate, preventing information from one client or project from mixing with another.",
             "You can manage folders inside a workspace anytime using the '/config' -> '📂 Workspaces & Folders' menu."
         ]
@@ -102,6 +106,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         syntax=(
             "In Chat (Interactive Menu) : /model   OR   /m\n"
             "  In Chat (Direct Switch)     : /model <model_name>\n"
+            "  In Chat (List Available)    : /model --list   OR   /model -l\n"
             "  In Chat (One-Shot Prompt)   : @<model_name> <your message>\n"
             "  REST API                    : POST /v1/chat  with {'model': 'gpt-4o', 'message': '...'}\n"
             "  View Help                   : /model --help   OR   /model -h"
@@ -109,18 +114,19 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         parameters=[
             "/model, /m            : Opens interactive selection menu showing available models with active API keys.",
             "/model <name>         : Instantly changes active inference model for the current session.",
+            "--list, -l            : List all available models with configured API keys.",
             "@<model> <prompt>     : Asks a single question to a specific model without changing session defaults.",
             "--help, -h            : Display this detailed help page for /model."
         ],
         examples=[
             "In Chat: /model",
             "In Chat: /model gpt-4o-mini",
+            "In Chat: /model --list",
+            "In Chat: /model -l",
             "In Chat: /model claude-haiku-4-5-20251001",
             "In Chat: /model gemini-flash-latest",
             "In Chat: /model deepseek-chat",
-            "In Chat: /model llama-3.3-70b-versatile",
-            "In Chat: @gpt-4o Resuma os principais riscos desta minuta contratual",
-            "In Chat: @mistral-small-latest Traduza esta ata para o francês"
+            "In Chat: @gpt-4o Resuma os principais riscos desta minuta contratual"
         ],
         tips=[
             "Switching inference models NEVER re-indexes your documents or clears your vector cache.",
@@ -214,29 +220,27 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "  8. Workspace Isolation : Web vectors are strictly scoped by workspace metadata, ensuring complete privacy."
         ),
         syntax=(
-            "In Chat (Interactive Crawler) : /web add <url>   OR   /web add\n"
-            "  In Chat (Management Menu)      : /web\n"
-            "  In Chat (List Sources)         : /web list\n"
-            "  In Chat (Force Sync All)       : /web sync\n"
-            "  Conversational Ingestion       : Tell the AI: 'adicione o site https://... ao workspace'\n"
-            "  REST API                       : POST /v1/workspaces/{name}/web-urls?url=...\n"
-            "  View Help                      : /web --help   OR   /web -h"
+            "In Chat (Interactive Menu) : /web\n"
+            "  In Chat (Discover & Add)    : /web --add <url>   OR   /web -a <url>\n"
+            "  In Chat (List Web Sources)  : /web --list   OR   /web -l\n"
+            "  In Chat (Force Sync All)    : /web --sync   OR   /web -s\n"
+            "  Conversational Ingestion    : Tell the AI: 'adicione o site https://... ao workspace'\n"
+            "  REST API                    : POST /v1/workspaces/{name}/web-urls?url=...\n"
+            "  View Help                   : /web --help   OR   /web -h"
         ),
         parameters=[
             "/web                   : Open interactive web sources management menu (list, re-sync, or delete sources and purge vectors).",
-            "/web add <url>         : Launch interactive site discovery, view Discovery Report, pick scope (Section, Top 50/250/500, Domain), and crawl.",
-            "/web list              : List all configured root web URLs, indexed page counts, and last scrape timestamps.",
-            "/web sync              : Force re-scrape and synchronize all web URLs in active workspace.",
-            "url                    : Target website URL or documentation portal (e.g. 'https://docs.python.org/3/').",
-            "--help, -h            : Display this detailed help page for web crawler."
+            "--add, -a <url>         : Launch interactive site discovery, view Discovery Report, pick scope, and crawl.",
+            "--list, -l             : List all configured root web URLs, indexed page counts, and last scrape timestamps.",
+            "--sync, -s             : Force re-scrape and synchronize all web URLs in active workspace.",
+            "--help, -h             : Display this detailed help page for web crawler."
         ],
         examples=[
-            "In Chat: /web add https://www.canada.ca/en/immigration-refugees-citizenship.html",
-            "In Chat: /web add https://docs.python.org/3/",
-            "In Chat: /web add https://platform.openai.com/docs/",
+            "In Chat: /web --add https://www.canada.ca/en/immigration-refugees-citizenship.html",
+            "In Chat: /web -a https://docs.python.org/3/",
+            "In Chat: /web --list",
+            "In Chat: /web --sync",
             "In Chat: /web",
-            "In Chat: /web list",
-            "In Chat: /web sync",
             "Conversational: 'Adicione a documentação https://docs.anthropic.com ao workspace'",
             "curl -X POST 'http://127.0.0.1:8000/v1/workspaces/MyProject/web-urls?url=https://docs.python.org/3/'"
         ],
@@ -321,7 +325,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ),
         syntax=(
             "In Chat (Interactive Update) : /update\n"
-            "  In Chat (Check Only)          : /check-update\n"
+            "  In Chat (Check Only)          : /update --check   OR   /update -c\n"
             "  CLI Launch (Interactive)      : actx --update\n"
             "  CLI Launch (Check Only)       : actx --check-update\n"
             "  CLI (Auto-Close Sessions)     : actx --update --close-instances\n"
@@ -330,7 +334,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ),
         parameters=[
             "/update, --update       : Check for updates and prompt to install immediately [Y/n].",
-            "/check-update, --check  : Check if a new version is available and offer 1-click update.",
+            "--check, -c             : Check if a new version is available without installing.",
             "--close-instances       : Automatically terminate active AnyContext background sessions during update.",
             "--background            : Perform atomic update in background without closing running sessions.",
             "--help, -h            : Display this detailed help page for the updater."
@@ -339,7 +343,8 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "actx --check-update",
             "actx --update",
             "actx --update --close-instances",
-            "In Chat: /check-update",
+            "In Chat: /update --check",
+            "In Chat: /update -c",
             "In Chat: /update"
         ],
         tips=[
@@ -527,18 +532,24 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "allowing you to start fresh conversations without losing indexed document files or web sources."
         ),
         syntax=(
-            "REST API   : POST /v1/reset-memory\n"
-            "  In Chat    : type '/reset-memory' or '/reset' during chat\n"
-            "  View Help  : actx --reset-memory --help   OR   /reset-memory --help   OR   /reset-memory -h"
+            "In Chat (Active Workspace) : /reset-memory   OR   /reset\n"
+            "  In Chat (Force Without Qs) : /reset-memory --force   OR   /reset -f\n"
+            "  In Chat (All Workspaces)   : /reset-memory --all   OR   /reset -a\n"
+            "  REST API                   : POST /v1/reset-memory\n"
+            "  View Help                  : /reset-memory --help   OR   /reset-memory -h"
         ),
         parameters=[
             "/reset-memory, /reset : Reset conversation memory for the active workspace (interactive confirmation).",
+            "--force, -f           : Force memory reset immediately without confirmation prompt.",
+            "--all, -a             : Reset conversation memory across all workspaces.",
             "/config               : Open memory settings menu to perform global or workspace-specific memory reset.",
             "--help, -h           : Display this detailed help page for memory management."
         ],
         examples=[
             "In Chat: /reset-memory",
-            "In Chat: /reset",
+            "In Chat: /reset-memory --force",
+            "In Chat: /reset -f",
+            "In Chat: /reset --all",
             "In Chat: /reset -h",
             "actx --reset-memory --help"
         ],
@@ -615,21 +626,24 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ),
         syntax=(
             "Navigate in Chat : Press [↑] Up Arrow / [↓] Down Arrow\n"
-            "  View Recent List : /history   OR   /hist\n"
-            "  Clear History    : /clear-history   OR   /reset-history\n"
+            "  View Recent List : /history   OR   /history --limit <n>\n"
+            "  Clear History    : /history --clear   OR   /history -c\n"
             "  View Help        : /history --help   OR   /history -h"
         ),
         parameters=[
             "/history, /hist       : Display the list of recent prompt inputs for the active workspace.",
-            "/clear-history        : Permanently purge the input history file for the active workspace.",
+            "--clear, -c           : Permanently purge the input history file for the active workspace.",
+            "--limit, -n <int>     : Limit number of historical prompt entries displayed (default: 20).",
             "[↑] Up / [↓] Down     : Interactive keyboard shortcuts to cycle through past prompts in terminal.",
             "--help, -h            : Display this detailed help page for input history."
         ],
         examples=[
             "In Chat: [↑] (Up Arrow)",
             "In Chat: /history",
-            "In Chat: /hist",
-            "In Chat: /clear-history",
+            "In Chat: /history --limit 50",
+            "In Chat: /history -n 10",
+            "In Chat: /history --clear",
+            "In Chat: /history -c",
             "In Chat: /history -h"
         ],
         tips=[
@@ -808,8 +822,8 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "REST API (GET /v1/workspaces, GET /v1/workspaces/{name}/sources), and MCP Protocol (list_workspaces, get_workspace_sources)."
         ),
         syntax=(
-            "In Chat (Active Workspace) : /sources   OR   /workspace sources\n"
-            "  In Chat (All Workspaces)    : /sources all   OR   /workspace list\n"
+            "In Chat (Active Workspace) : /sources\n"
+            "  In Chat (All Workspaces)    : /sources --all   OR   /sources -a\n"
             "  In CLI Config Menu          : actx --config -> 📂 Workspaces & Folders -> 📋 List Workspaces & Folders\n"
             "  REST API Endpoints          : GET /v1/workspaces\n"
             "                                GET /v1/workspaces/{name}\n"
@@ -820,13 +834,13 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ),
         parameters=[
             "/sources                 : Lists all local folders, web portals, and cloud drives in the active workspace.",
-            "/sources all             : Lists all sources across every configured workspace.",
+            "--all, -a                : Lists all sources across every configured workspace.",
             "--help, -h               : Display this detailed help page for /sources."
         ],
         examples=[
             "In Chat: /sources",
-            "In Chat: /sources all",
-            "In Chat: /workspace sources",
+            "In Chat: /sources --all",
+            "In Chat: /sources -a",
             "curl -H 'Authorization: Bearer actx_sec_...' http://127.0.0.1:8000/v1/workspaces",
             "curl -H 'Authorization: Bearer actx_sec_...' http://127.0.0.1:8000/v1/workspaces/Default/sources",
             "In MCP Server: list_workspaces()",
@@ -844,26 +858,33 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         aliases=["mode", "answer-mode", "answermode", "grounding", "grounding-mode", "am", "/answer-mode", "/grounding", "/am"],
         title="🎛️ AI Grounding & Answer Mode Manager (Hybrid, Strict, Proactive)",
         description="Dynamically configures how the AI Agent reasons, cites sources, and handles external knowledge. Switch seamlessly between Strict (100% verified facts, zero speculation for audits/legal), Hybrid (balanced default with dual-layer labeled suggestions), and Proactive (broad synthesis & research recommendations).",
-        syntax="/mode [hybrid | strict | proactive]",
+        syntax=(
+            "In Chat (Interactive Menu) : /mode   OR   /am\n"
+            "  In Chat (Hybrid Mode)       : /mode --hybrid   OR   /mode -H   OR   /mode hybrid\n"
+            "  In Chat (Strict Mode)       : /mode --strict   OR   /mode -S   OR   /mode strict\n"
+            "  In Chat (Proactive Mode)    : /mode --proactive   OR   /mode -P   OR   /mode proactive\n"
+            "  REST API Endpoints          : GET/POST /v1/context/mode\n"
+            "  MCP Server Tools            : get_grounding_mode()   AND   set_grounding_mode(mode='...')\n"
+            "  View Help                   : /mode --help   OR   /mode -h"
+        ),
         parameters=[
             "/mode                    : Opens the interactive Questionary selector to change grounding mode.",
-            "/mode hybrid             : Switches to Hybrid mode (Layer 1 workspace facts + Layer 2 labeled external suggestions).",
-            "/mode strict             : Switches to Strict mode (100% verified facts from indexed docs, zero speculation).",
-            "/mode proactive          : Switches to Proactive mode (Broad synthesis, insights, and /web add recommendations).",
+            "--hybrid, -H             : Switches to Hybrid mode (Layer 1 workspace facts + Layer 2 labeled external suggestions).",
+            "--strict, -S             : Switches to Strict mode (100% verified facts from indexed docs, zero speculation).",
+            "--proactive, -P          : Switches to Proactive mode (Broad synthesis, insights, and /web recommendations).",
             "--help, -h               : Display this detailed help page for /mode."
         ],
         examples=[
             "In Chat: /mode",
+            "In Chat: /mode --strict",
+            "In Chat: /mode --hybrid",
+            "In Chat: /mode --proactive",
+            "In Chat: /mode -S",
             "In Chat: /mode strict",
-            "In Chat: /mode hybrid",
-            "In Chat: /mode proactive",
-            "In Chat: /answer-mode strict",
             "REST API: GET /v1/context/mode",
             "REST API: POST /v1/context/mode -d '{\"mode\": \"strict\"}'",
-            "REST API: POST /v1/chat -d '{\"message\": \"...\", \"grounding_mode\": \"strict\"}'",
             "In MCP Server: set_grounding_mode(mode='strict')",
-            "In MCP Server: get_grounding_mode()",
-            "In MCP Server: query_anycontext_agent(message='...', grounding_mode='strict')"
+            "In MCP Server: get_grounding_mode()"
         ],
         tips=[
             "The active grounding mode is displayed dynamically in your prompt: You [Workspace | Model | Mode]:",
@@ -888,10 +909,10 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "3. 📁 Project Workspaces: Isolated, private workspaces that link in reusable sources on-demand."
         ),
         syntax=(
-            "In Chat (Interactive Link)     : /link   OR   /workspace link\n"
+            "In Chat (Interactive Link)     : /link\n"
             "  In Chat (Direct Link)          : /link <keyword_or_path> [destination_workspace]\n"
-            "  In Chat (List Shared Sources)  : /shared   OR   /sources shared\n"
-            "  In Chat (Unlink Source)        : /unlink <keyword_or_path> [from_workspace]\n"
+            "  In Chat (List Shared Sources)  : /link --list   OR   /link -l   OR   /shared\n"
+            "  In Chat (Unlink Source)        : /link --unlink <keyword_or_path> [from_workspace]   OR   /unlink <src>\n"
             "  In CLI Config Menu             : actx --config -> 📂 Workspaces & Folders -> 🔗 Link Shared Source\n"
             "  REST API Endpoints             : GET /v1/workspaces/shared-sources/available\n"
             "                                   POST /v1/workspaces/{name}/shared-sources/link\n"
@@ -904,15 +925,16 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         parameters=[
             "/link                         : Opens interactive wizard to select and link a source from Shared Sources library.",
             "/link <keyword_or_path>       : Directly links a source matching the keyword, URL, or path to the active workspace.",
-            "/shared                       : Lists all sources in the central 'Shared Sources' library available for linking.",
-            "/unlink <keyword_or_path>     : Unlinks a shared source from the active workspace.",
+            "--list, -l                    : Lists all sources in the central 'Shared Sources' library available for linking.",
+            "--unlink, -u <path_or_url>    : Unlinks a shared source from the active workspace.",
             "--help, -h                    : Display this detailed help page for /link."
         ],
         examples=[
             "In Chat: /link",
-            "In Chat: /shared",
+            "In Chat: /link --list",
+            "In Chat: /link -l",
             "In Chat: /link C:\\Docs\\FrameworkCore VentureHub",
-            "In Chat: /unlink C:\\Docs\\FrameworkCore",
+            "In Chat: /link --unlink C:\\Docs\\FrameworkCore",
             "In REST API: POST /v1/workspaces/VentureHub/shared-sources/link {\"source_identifier\":\"C:\\\\Docs\\\\FrameworkCore\"}",
             "In MCP Server: link_shared_source_to_workspace(workspace_name='VentureHub', source_type='folder', source_identifier='C:\\\\Docs\\\\FrameworkCore')",
             "In Chat: /link -h"
