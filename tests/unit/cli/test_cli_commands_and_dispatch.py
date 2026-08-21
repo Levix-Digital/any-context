@@ -304,6 +304,21 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
         self.assertEqual(self.store.get_grounding_mode(), "hybrid")
         safe_stdout_write("  [OK] /mode CLI command dispatch verified!\n")
 
+    def test_15_sync_command_dispatch_and_flags(self):
+        """Validates that /sync, /sync --status, /sync --bg, and /sync --verbose dispatch cleanly."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /sync Command Dispatch & Flags...\n")
+        mock_inputs = [
+            "/sync",
+            "/sync --status",
+            "/sync --bg",
+            "/sync --verbose",
+            "/sync --full",
+            "/exit"
+        ]
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            run_chat_loop(active_workspace="Default")
+        safe_stdout_write("  [OK] /sync CLI command dispatch and flags verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
 

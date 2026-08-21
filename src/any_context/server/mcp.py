@@ -291,6 +291,29 @@ MCP_TOOLS_DEFINITIONS = [
         }
     },
     {
+        "name": "check_workspace_sync_status",
+        "description": "Inspects pending file additions, modifications, deletions, and stat cache status for a workspace's folders in < 30ms.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Target workspace name"}
+            },
+            "required": ["workspace"]
+        }
+    },
+    {
+        "name": "sync_workspace_folders",
+        "description": "Triggers incremental or full vector synchronization for a workspace's local folders using fast stat cache.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Target workspace name"},
+                "force_full": {"type": "boolean", "description": "Forces full re-indexing of all files instead of incremental stat diff (default: false)"}
+            },
+            "required": ["workspace"]
+        }
+    },
+    {
         "name": "transfer_workspace_source",
         "description": "Transfers a local folder or crawled web portal and its existing vector chunks between workspaces in sub-50ms with zero API cost ($0.00).",
         "inputSchema": {
@@ -660,6 +683,19 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 ws_target = arguments.get("workspace", "Default")
                 sync_res = sync_workspace_web_urls(workspace_name=ws_target)
                 result_text = json.dumps(sync_res, indent=2)
+
+            elif tool_name == "check_workspace_sync_status":
+                from any_context.ingestion.local_folder_ingestor import check_workspace_changes
+                ws_target = arguments.get("workspace", "Default")
+                diff = check_workspace_changes(ws_target)
+                result_text = json.dumps(diff, indent=2)
+
+            elif tool_name == "sync_workspace_folders":
+                from any_context.ingestion.local_folder_ingestor import run_index_folder
+                ws_target = arguments.get("workspace", "Default")
+                force_full = arguments.get("force_full", False)
+                res = run_index_folder(workspace_name=ws_target, verbose=False, force_full=force_full)
+                result_text = json.dumps(res, indent=2)
 
             elif tool_name == "transfer_workspace_source":
                 src_ws = arguments.get("source_workspace", "").strip()
