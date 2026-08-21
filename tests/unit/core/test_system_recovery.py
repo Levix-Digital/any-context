@@ -53,8 +53,10 @@ class Test10SystemLifecycleRecovery(unittest.TestCase):
         store.factory_reset()
 
         workspaces_after = store.get_app_settings().workspaces
-        self.assertEqual(len(workspaces_after), 1, "Factory reset must restore only 1 Default workspace")
-        self.assertEqual(workspaces_after[0].name, "Default")
+        ws_after_names = [w.name for w in workspaces_after]
+        self.assertEqual(len(workspaces_after), 2, "Factory reset must restore Default and Global workspaces")
+        self.assertIn("Default", ws_after_names)
+        self.assertIn("Global", ws_after_names)
 
         api_key_after = store.get_api_key("openai")
         self.assertIsNone(api_key_after, "Factory reset must purge all saved API keys")

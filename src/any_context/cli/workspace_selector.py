@@ -44,6 +44,29 @@ def show_workspace_menu() -> Optional[str]:
             clean_name = new_name.strip()
             store.add_workspace(clean_name, paths=[])
             print(f"✅ Created workspace '{clean_name}'.\n")
+            try:
+                available_sources = store.list_all_available_shared_sources()
+                if available_sources:
+                    link_confirm = questionary.confirm("📚 Would you like to link reusable Shared Sources to this new workspace?").ask()
+                    if link_confirm:
+                        source_choices = [
+                            f"[{s.get('type', 'folder').upper()}] {s.get('title', s.get('identifier'))} (from '{s.get('origin_workspace')}')"
+                            for s in available_sources
+                        ]
+                        selected_links = questionary.checkbox("Select Shared Sources to link (Space to select, Enter to finish):", choices=source_choices).ask()
+                        if selected_links:
+                            for ch in selected_links:
+                                idx = source_choices.index(ch)
+                                src = available_sources[idx]
+                                store.link_shared_source_to_workspace(
+                                    workspace_name=clean_name,
+                                    source_type=src["type"],
+                                    source_identifier=src["identifier"],
+                                    title=src.get("title")
+                                )
+                            print(f"🔗 Linked {len(selected_links)} Shared Sources to '{clean_name}' ($0.00 cost).\n")
+            except Exception:
+                pass
             return clean_name
         return None
 

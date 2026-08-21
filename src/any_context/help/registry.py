@@ -862,6 +862,55 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Use 'Proactive' for market research, brainstorm sessions, and strategy planning.",
             "Changing the mode immediately invalidates the agent cache and reconfigures system directives without restarting the session."
         ]
+    ),
+
+    "link": HelpPage(
+        command="/link",
+        aliases=["link", "/link", "shared", "/shared", "unlink", "/unlink", "workspace link", "/workspace link"],
+        title="🔗 Cross-Workspace Shared Sources & Reusable Knowledge Linking",
+        description=(
+            "The /link and /shared commands allow you to reuse already-indexed folders, web portals, and documentation across multiple workspaces "
+            "with zero API embedding cost ($0.00) and instant attachment in under 50ms.\n\n"
+            "✨ 3-TIER CONTEXT ARCHITECTURE:\n"
+            "1. 🏢 Company Global ('Global'): Institutional knowledge automatically shared with authorized users.\n"
+            "2. 📦 Shared Sources: Reusable libraries and frameworks linked across projects on-demand.\n"
+            "3. 📁 Active Workspace: Isolated project-specific documentation."
+        ),
+        syntax=(
+            "In Chat (Interactive Link)     : /link   OR   /workspace link\n"
+            "  In Chat (Direct Link)          : /link <path_or_url> [destination_workspace]\n"
+            "  In Chat (List Shared Sources)  : /shared   OR   /sources shared\n"
+            "  In Chat (Unlink Source)        : /unlink <path_or_url> [from_workspace]\n"
+            "  In CLI Config Menu             : actx --config -> 📂 Workspaces & Folders -> 🔗 Link Shared Source\n"
+            "  REST API Endpoints             : GET /v1/workspaces/shared-sources/available\n"
+            "                                   POST /v1/workspaces/{name}/shared-sources/link\n"
+            "                                   POST /v1/workspaces/{name}/shared-sources/unlink\n"
+            "  MCP Server Tools               : list_available_shared_sources()\n"
+            "                                   link_shared_source_to_workspace(workspace_name='...', ...)\n"
+            "                                   unlink_shared_source_from_workspace(workspace_name='...', ...)\n"
+            "  View Help                      : /link --help   OR   /link -h"
+        ),
+        parameters=[
+            "/link                         : Opens interactive wizard to select and link an indexed source.",
+            "/link <path_or_url>           : Directly links an indexed folder or website to the active workspace.",
+            "/shared                       : Lists all indexed unique sources available for cross-workspace linking.",
+            "/unlink <path_or_url>         : Unlinks a shared source from the active workspace.",
+            "--help, -h                    : Display this detailed help page for /link."
+        ],
+        examples=[
+            "In Chat: /link",
+            "In Chat: /shared",
+            "In Chat: /link C:\\Docs\\FrameworkCore VentureHub",
+            "In Chat: /unlink C:\\Docs\\FrameworkCore",
+            "In REST API: POST /v1/workspaces/VentureHub/shared-sources/link {\"source_identifier\":\"C:\\\\Docs\\\\FrameworkCore\"}",
+            "In MCP Server: link_shared_source_to_workspace(workspace_name='VentureHub', source_type='folder', source_identifier='C:\\\\Docs\\\\FrameworkCore')",
+            "In Chat: /link -h"
+        ],
+        tips=[
+            "Zero Re-Indexing Tax: Linking an indexed source reuses existing ChromaDB vectors without recalculating embeddings.",
+            "Linking is instantaneous (< 50ms) and spends zero OpenAI/LLM tokens ($0.00).",
+            "When creating a new workspace (/switch or /workspace add), AnyContext automatically offers a checklist of available Shared Sources."
+        ]
     )
 }
 

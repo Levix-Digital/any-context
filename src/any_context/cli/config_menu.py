@@ -140,6 +140,8 @@ def _manage_workspaces(store: ConfigDBStore):
             "✏️ Rename Workspace",
             "📁 Manage Folders in Existing Workspace",
             "🌐 Manage Web URLs & Scraping Sources",
+            "🔗 Link Shared Source (Reusable Library)",
+            "🔓 Unlink Shared Source",
             "🔄 Transfer Source (Folder/Web) to Another Workspace",
             "🗑️ Delete Workspace Entirely",
             "🔙 Back"
@@ -254,6 +256,12 @@ def _manage_workspaces(store: ConfigDBStore):
     elif ws_action.startswith("🌐"):
         _manage_workspace_web_urls(store=store)
 
+    elif ws_action.startswith("🔗"):
+        _link_shared_source(store=store)
+
+    elif ws_action.startswith("🔓"):
+        _unlink_shared_source(store=store)
+
     elif ws_action.startswith("🔄"):
         _transfer_workspace_source(store=store)
 
@@ -270,6 +278,84 @@ def _manage_workspaces(store: ConfigDBStore):
             if confirm:
                 store.remove_workspace(to_remove)
                 print(f"🗑️ Deleted workspace '{to_remove}'.")
+
+
+def _link_shared_source(store: ConfigDBStore):
+    """Interactive guided linking of existing indexed sources across workspaces ($0.00 cost)."""
+    settings = store.get_app_settings()
+    workspaces = settings.workspaces if settings else []
+    if not workspaces:
+        print("\n⚠️ No workspaces configured.\n")
+        return
+
+    available_sources = store.list_all_available_shared_sources()
+    if not available_sources:
+        print("\n⚠️ No indexed sources found across any workspaces. Add a folder or web portal first!\n")
+        return
+
+    ws_names = [w.name for w in workspaces]
+    target_ws = questionary.select("1. Select Destination Workspace to attach shared source:", choices=ws_names).ask()
+    if not target_ws:
+        return
+
+    source_choices = []
+    for s in available_sources:
+        orig = s.get("origin_workspace", "Workspace")
+        stype = s.get("type", "folder")
+        title = s.get("title", s.get("identifier"))
+        badge = f"[{stype.upper()}] {title} (from '{orig}')"
+        source_choices.append(badge)
+
+    selected_choice = questionary.select("2. Select Shared Source to link:", choices=source_choices).ask()
+    if not selected_choice:
+        return
+
+    idx = source_choices.index(selected_choice)
+    chosen_source = available_sources[idx]
+
+    from any_context.cli.spinner import Spinner
+    with Spinner(f"Linking shared source to '{target_ws}'..."):
+        res = store.link_shared_source_to_workspace(
+            workspace_name=target_ws,
+            source_type=chosen_source["type"],
+            source_identifier=chosen_source["identifier"],
+            title=chosen_source.get("title")
+        )
+    print(f"\n✅ Successfully linked shared source '{chosen_source.get('title')}' to workspace '{target_ws}'! (Cost: $0.00)\n")
+
+
+def _unlink_shared_source(store: ConfigDBStore):
+    """Interactive unlinking of a shared source from a workspace."""
+    settings = store.get_app_settings()
+    workspaces = settings.workspaces if settings else []
+    if not workspaces:
+        print("\n⚠️ No workspaces configured.\n")
+        return
+
+    ws_names = [w.name for w in workspaces]
+    target_ws = questionary.select("1. Select Workspace to manage shared links:", choices=ws_names).ask()
+    if not target_ws:
+        return
+
+    links = store.get_workspace_shared_links(target_ws)
+    if not links:
+        print(f"\n⚠️ Workspace '{target_ws}' has no linked shared sources.\n")
+        return
+
+    link_choices = [f"[{l.get('source_type', '').upper()}] {l.get('title', l.get('source_identifier'))}" for l in links]
+    chosen = questionary.select("2. Select Shared Link to remove:", choices=link_choices).ask()
+    if not chosen:
+        return
+
+    idx = link_choices.index(chosen)
+    target_link = links[idx]
+
+    store.unlink_shared_source_from_workspace(
+        workspace_name=target_ws,
+        source_type=target_link["source_type"],
+        source_identifier=target_link["source_identifier"]
+    )
+    print(f"\n🗑️ Unlinked shared source from '{target_ws}'.\n")
 
 
 def _transfer_workspace_source(store: ConfigDBStore):

@@ -138,6 +138,23 @@ class RenameWorkspaceResponse(BaseModel):
     api_cost: str = "$0.00"
     message: str
 
+class LinkSharedSourceRequest(BaseModel):
+    source_type: str = Field("folder", description="Type of source: 'folder', 'web', or 'cloud_drive'")
+    source_identifier: str = Field(..., description="Path, URL, or mount ID of the source to link")
+    title: Optional[str] = Field(None, description="Optional custom title for the linked source")
+
+class LinkSharedSourceResponse(BaseModel):
+    status: str = "success"
+    workspace: str
+    source_type: str
+    source_identifier: str
+    title: str
+    message: str
+
+class UnlinkSharedSourceRequest(BaseModel):
+    source_type: str = Field("folder", description="Type of source to unlink: 'folder', 'web', or 'cloud_drive'")
+    source_identifier: str = Field(..., description="Path, URL, or mount ID to unlink")
+
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User query or instruction for the AI agent")
     workspace: Optional[str] = Field(None, description="Target workspace name (optional)")
@@ -573,6 +590,49 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                 api_embedding_cost="$0.00",
                 message=f"Local folder '{src_item}' successfully transferred from '{src_ws}' to '{tgt_ws}' in < 50ms with zero API cost ($0.00)."
             )
+
+    @app.get("/v1/workspaces/shared-sources/available", tags=["Workspaces"])
+    def list_available_shared_sources_endpoint(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Lists all unique indexed sources available for cross-workspace linking ($0.00 cost)."""
+        verify_token_access(credentials=credentials)
+        store = ConfigDBStore()
+        sources = store.list_all_available_shared_sources()
+        return {"total": len(sources), "sources": sources}
+
+    @app.get("/v1/workspaces/{workspace_name}/shared-sources", tags=["Workspaces"])
+    def list_workspace_shared_sources_endpoint(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Lists linked shared sources for a workspace."""
+        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        store = ConfigDBStore()
+        links = store.get_workspace_shared_links(workspace_name)
+        return {"workspace": workspace_name, "shared_links": links}
+
+    @app.post("/v1/workspaces/{workspace_name}/shared-sources/link", response_model=LinkSharedSourceResponse, tags=["Workspaces"])
+    def link_shared_source_endpoint(workspace_name: str, req: LinkSharedSourceRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Links an existing indexed source to workspace_name in < 50ms with zero API cost ($0.00)."""
+        verify_token_access(credentials=credentials, required_role="analyst", required_workspace=workspace_name)
+        store = ConfigDBStore()
+        res = store.link_shared_source_to_workspace(
+            workspace_name=workspace_name,
+            source_type=req.source_type,
+            source_identifier=req.source_identifier,
+            title=req.title
+        )
+        return LinkSharedSourceResponse(**res)
+
+    @app.post("/v1/workspaces/{workspace_name}/shared-sources/unlink", tags=["Workspaces"])
+    def unlink_shared_source_endpoint(workspace_name: str, req: UnlinkSharedSourceRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Unlinks a shared source from a workspace."""
+        verify_token_access(credentials=credentials, required_role="analyst", required_workspace=workspace_name)
+        store = ConfigDBStore()
+        unlinked = store.unlink_shared_source_from_workspace(
+            workspace_name=workspace_name,
+            source_type=req.source_type,
+            source_identifier=req.source_identifier
+        )
+        if not unlinked:
+            raise HTTPException(status_code=404, detail="Shared source link not found.")
+        return {"status": "success", "message": f"Shared source '{req.source_identifier}' unlinked from workspace '{workspace_name}'."}
 
     @app.post("/v1/workspaces/rename", response_model=RenameWorkspaceResponse, tags=["Workspaces"])
     def rename_workspace_endpoint(req: RenameWorkspaceRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):

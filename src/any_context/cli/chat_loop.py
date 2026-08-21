@@ -434,6 +434,60 @@ def run_chat_loop(active_workspace: str = "Default"):
                             safe_stdout_write(f"\n❌ Transfer error: {res.get('error')}\n\n")
                 continue
 
+            elif cmd == "/link" or cmd.startswith("/link ") or cmd.startswith("/workspace link") or cmd.startswith("/share-source"):
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+                if len(parts) == 1 or (len(parts) == 2 and parts[1].lower() == "link"):
+                    from any_context.cli.config_menu import _link_shared_source
+                    _link_shared_source(store)
+                    continue
+
+                # Direct command: /link <path_or_url> [to_ws]
+                arg_offset = 2 if len(parts) > 1 and parts[1].lower() == "link" else 1
+                source_item = parts[arg_offset].strip().strip("'\"")
+                target_ws = parts[arg_offset + 1] if len(parts) > arg_offset + 1 else active_workspace
+
+                stype = "web" if source_item.startswith("http://") or source_item.startswith("https://") else "folder"
+                res = store.link_shared_source_to_workspace(workspace_name=target_ws, source_type=stype, source_identifier=source_item)
+                safe_stdout_write(f"\n🔗 Successfully linked Shared Source '{source_item}' to workspace '\033[93m{target_ws}\033[0m' ($0.00 cost)!\n\n")
+                continue
+
+            elif cmd == "/unlink" or cmd.startswith("/unlink ") or cmd.startswith("/workspace unlink"):
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+                if len(parts) == 1 or (len(parts) == 2 and parts[1].lower() == "unlink"):
+                    from any_context.cli.config_menu import _unlink_shared_source
+                    _unlink_shared_source(store)
+                    continue
+
+                arg_offset = 2 if len(parts) > 1 and parts[1].lower() == "unlink" else 1
+                source_item = parts[arg_offset].strip().strip("'\"")
+                target_ws = parts[arg_offset + 1] if len(parts) > arg_offset + 1 else active_workspace
+
+                stype = "web" if source_item.startswith("http://") or source_item.startswith("https://") else "folder"
+                unlinked = store.unlink_shared_source_from_workspace(workspace_name=target_ws, source_type=stype, source_identifier=source_item)
+                if unlinked:
+                    safe_stdout_write(f"\n🗑️ Unlinked Shared Source '{source_item}' from workspace '\033[93m{target_ws}\033[0m'.\n\n")
+                else:
+                    safe_stdout_write(f"\n❌ Shared Source link '{source_item}' not found in workspace '{target_ws}'.\n\n")
+                continue
+
+            elif cmd == "/shared" or cmd.startswith("/shared ") or cmd.startswith("/sources shared"):
+                store = ConfigDBStore()
+                sources = store.list_all_available_shared_sources()
+                safe_stdout_write("\n📚 \033[1mIndexed Shared Sources across Workspaces ($0.00 Reusable):\033[0m\n")
+                if not sources:
+                    safe_stdout_write("  (No sources indexed yet. Add a local folder or web portal to any workspace first!)\n\n")
+                else:
+                    for s in sources:
+                        orig = s.get("origin_workspace", "Workspace")
+                        stype = s.get("type", "folder").upper()
+                        ident = s.get("identifier")
+                        title = s.get("title") or ident
+                        safe_stdout_write(f"  • [\033[96m{stype}\033[0m] \033[93m{title}\033[0m (Origin: {orig})\n    Path: {ident}\n")
+                    safe_stdout_write("----------------------------------------------------\n\n")
+                continue
+
             elif cmd == "/rename" or cmd.startswith("/rename ") or cmd.startswith("/workspace rename"):
                 parts = parse_command_args(user_input)
                 store = ConfigDBStore()

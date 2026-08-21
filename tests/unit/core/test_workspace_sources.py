@@ -263,5 +263,53 @@ class TestWorkspaceSources(unittest.TestCase):
         self.assertNotIn("all", deletable_after)
         safe_stdout_write("  [OK] Workspace lifecycle and deletion discovery verified!\n")
 
+    def test_09_global_workspace_and_shared_sources_linking(self):
+        """Validates Global workspace provisioning, Shared Sources linking, listing and unlinking."""
+        safe_stdout_write(">>> [UNIT] Testing Global Workspace & Shared Sources Linking...\n")
+        # 1. Ensure default and global
+        self.store.ensure_default_workspace()
+        meta_global = self.store.get_workspace_meta("Global")
+        self.assertIsNotNone(meta_global)
+        self.assertEqual(meta_global["workspace_id"], "ws_global")
+
+        # 2. Add an origin source in workspace A
+        ws_origin = "Unit_Origin_WS"
+        folder_shared = os.path.join(self.temp_dir, "shared_framework")
+        os.makedirs(folder_shared, exist_ok=True)
+        self.store.add_workspace(ws_origin, paths=[folder_shared])
+
+        # 3. List available shared sources
+        available = self.store.list_all_available_shared_sources()
+        found = next((s for s in available if s["identifier"] == os.path.abspath(folder_shared)), None)
+        self.assertIsNotNone(found, "Origin folder must be discoverable in list_all_available_shared_sources")
+
+        # 4. Link shared source to workspace B
+        ws_target = "Unit_Target_WS"
+        self.store.add_workspace(ws_target, paths=[])
+        link_res = self.store.link_shared_source_to_workspace(
+            workspace_name=ws_target,
+            source_type="folder",
+            source_identifier=folder_shared,
+            title="Shared Framework"
+        )
+        self.assertEqual(link_res["status"], "success")
+
+        # 5. Verify target workspace sources contains the shared source
+        target_sources = self.store.get_workspace_sources(ws_target)
+        self.assertEqual(target_sources["total_sources"], 1)
+        self.assertTrue(target_sources["sources"][0]["details"].get("is_shared_link"))
+        self.assertIn("Shared", target_sources["sources"][0]["title"])
+
+        # 6. Unlink shared source
+        unlinked = self.store.unlink_shared_source_from_workspace(
+            workspace_name=ws_target,
+            source_type="folder",
+            source_identifier=folder_shared
+        )
+        self.assertTrue(unlinked)
+        target_sources_after = self.store.get_workspace_sources(ws_target)
+        self.assertEqual(target_sources_after["total_sources"], 0)
+        safe_stdout_write("  [OK] Global Workspace & Shared Sources linking verified!\n")
+
 if __name__ == "__main__":
     unittest.main()

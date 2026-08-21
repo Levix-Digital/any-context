@@ -318,8 +318,61 @@ class Test07RestApiServer(unittest.TestCase):
         self.assertEqual(self.store.get_grounding_mode(), "hybrid")
         safe_stdout_write("  [OK] /v1/context/mode GET and POST endpoints verified!\n")
 
+    def test_09_shared_sources_endpoints(self):
+        """TC-7.11: Tests GET/POST endpoints for Shared Sources linking and unlinking across workspaces."""
+        safe_stdout_write(">>> [MOD 7 / TC-7.11] Testing Shared Sources REST Endpoints...\n")
+        import tempfile
+        import shutil
+        temp_d = tempfile.mkdtemp()
+        ws_origin = "REST_Shared_Origin"
+        ws_target = "REST_Shared_Target"
+        test_folder = os.path.abspath(os.path.join(temp_d, "rest_shared_docs"))
+        os.makedirs(test_folder, exist_ok=True)
+
+        try:
+            self.store.add_workspace(ws_origin, paths=[test_folder])
+            self.store.add_workspace(ws_target, paths=[])
+
+            # 1. GET /v1/workspaces/shared-sources/available
+            res_avail = self.client.get("/v1/workspaces/shared-sources/available", headers=self.headers)
+            self.assertEqual(res_avail.status_code, 200)
+            avail_data = res_avail.json()
+            self.assertIn("sources", avail_data)
+            matching = next((s for s in avail_data["sources"] if s["identifier"] == test_folder), None)
+            self.assertIsNotNone(matching)
+
+            # 2. POST /v1/workspaces/{target}/shared-sources/link
+            link_payload = {
+                "source_type": "folder",
+                "source_identifier": test_folder,
+                "title": "REST Shared Docs"
+            }
+            res_link = self.client.post(f"/v1/workspaces/{ws_target}/shared-sources/link", json=link_payload, headers=self.headers)
+            self.assertEqual(res_link.status_code, 200, f"Link failed: {res_link.text}")
+            self.assertEqual(res_link.json()["status"], "success")
+
+            # 3. GET /v1/workspaces/{target}/shared-sources
+            res_list = self.client.get(f"/v1/workspaces/{ws_target}/shared-sources", headers=self.headers)
+            self.assertEqual(res_list.status_code, 200)
+            self.assertEqual(len(res_list.json()["shared_links"]), 1)
+
+            # 4. POST /v1/workspaces/{target}/shared-sources/unlink
+            unlink_payload = {
+                "source_type": "folder",
+                "source_identifier": test_folder
+            }
+            res_unlink = self.client.post(f"/v1/workspaces/{ws_target}/shared-sources/unlink", json=unlink_payload, headers=self.headers)
+            self.assertEqual(res_unlink.status_code, 200)
+            self.assertEqual(res_unlink.json()["status"], "success")
+
+            safe_stdout_write("  [OK] Shared Sources REST endpoints verified!\n")
+        finally:
+            self.store.remove_workspace(ws_origin)
+            self.store.remove_workspace(ws_target)
+            try:
+                shutil.rmtree(temp_d, ignore_errors=True)
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     unittest.main()
-
-
