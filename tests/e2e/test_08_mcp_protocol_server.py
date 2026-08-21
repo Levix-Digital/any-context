@@ -496,6 +496,9 @@ class Test08MCPProtocolServer(unittest.TestCase):
             data_status = json.loads(res_status["result"]["content"][0]["text"])
             self.assertEqual(data_status["workspace_name"], ws_test)
             self.assertIn("is_up_to_date", data_status)
+            self.assertEqual(data_status["total_sources"], 1)
+            self.assertEqual(data_status["local_folders_count"], 1)
+            self.assertEqual(len(data_status["folders"]), 1)
 
             # 2. sync_workspace_folders tool
             req_sync = {

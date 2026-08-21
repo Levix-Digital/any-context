@@ -62,8 +62,9 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ),
         syntax=(
             "In Chat (Fast)    : /sync   OR   /index\n"
-            "  In Chat (Verbose) : /sync --verbose   OR   /index -v\n"
-            "  In Chat (Status)  : /sync --status   OR   /sync status\n"
+            "  In Chat (Verbose) : /sync --verbose   OR   /sync -v\n"
+            "  In Chat (Status)  : /sync --status   OR   /sync -s\n"
+            "  In Chat (All Ws)  : /sync --status --all   OR   /sync -s -a\n"
             "  In Chat (Full)    : /sync --full   OR   /sync -f\n"
             "  In Chat (Bg)      : /sync --bg   OR   /sync --background\n"
             "  REST API Endpoints: GET/POST /v1/workspaces/{name}/sync/status & POST /v1/workspaces/{name}/sync\n"
@@ -71,16 +72,19 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ),
         parameters=[
             "/sync, /index         : Runs fast incremental synchronization with smart stat cache bypass.",
+            "--status, -s          : Displays holistic multi-source status (folders, web portals, cloud drives, pending changes).",
+            "--all, -a             : When used with --status, lists sync status across all configured workspaces.",
             "--verbose, -v         : Displays a detailed, modern tree view showing discovered subfolders, file counts, and vector chunks.",
-            "--status              : Displays the quick diff summary (new, modified, deleted, renamed files) without indexing.",
             "--full, -f            : Forces a full re-indexing across all files in the workspace.",
             "--bg, --background    : Triggers synchronization in a non-blocking background worker thread.",
             "--help, -h            : Display this detailed help page for /sync."
         ],
         examples=[
             "In Chat: /sync",
-            "In Chat: /sync --verbose",
             "In Chat: /sync --status",
+            "In Chat: /sync --status --all",
+            "In Chat: /sync -s -a",
+            "In Chat: /sync --verbose",
             "In Chat: /sync --full",
             "In Chat: /sync --bg",
             "curl -X GET http://127.0.0.1:8000/v1/workspaces/Legal/sync/status",
@@ -89,7 +93,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         tips=[
             "Whenever you add, edit, or delete files on your computer, type '/sync' to update the AI's knowledge base immediately.",
             "Renaming or moving folders is 100% zero-cost ($0.00) — AnyContext updates vector paths instantly without re-calling embedding APIs.",
-            "Use '/sync --status' anytime to check if files were modified on disk before running a sync.",
+            "Use '/sync --status' anytime to check all attached sources (local folders, web portals, cloud drives) before running a sync.",
             "Temporal RAG automatically stamps every local chunk with its filesystem modified date so the AI prioritizes the latest versions."
         ]
     ),

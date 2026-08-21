@@ -160,6 +160,62 @@ def parse_command_args(command_line: str) -> List[str]:
         return [p.strip().strip("'\"") for p in command_line.strip().split() if p.strip()]
 
 
+def format_sync_status_box(diff: Dict[str, Any]) -> str:
+    """Formats a modern, comprehensive multi-source sync status card for a workspace."""
+    ws_name = diff.get("workspace_name", "Default")
+    total_sources = diff.get("total_sources", 0)
+    src_label = f" ({total_sources} source{'s' if total_sources != 1 else ''})" if total_sources > 0 else " (Empty)"
+
+    lines = [f"┌ 🔍 \033[1mWorkspace Sync Status: {ws_name}{src_label}\033[0m"]
+
+    # 1. Local Folders
+    folders = diff.get("folders", [])
+    disk_files = diff.get("total_disk_files", 0)
+    cached_files = diff.get("total_cached_files", 0)
+    if folders:
+        lines.append(f"│ ├─ 📂 Local Folders : {len(folders)} folder{'s' if len(folders) != 1 else ''} ({disk_files} files on disk, {cached_files} cached)")
+        for f in folders[:3]:
+            lines.append(f"│ │    • [Folder] {f}")
+        if len(folders) > 3:
+            lines.append(f"│ │    • ... (+ {len(folders) - 3} more folders)")
+    else:
+        lines.append(f"│ ├─ 📂 Local Folders : 0 folders (0 files on disk, 0 cached)")
+
+    # 2. Web Sources
+    web_sources = diff.get("web_sources", [])
+    web_pages = diff.get("web_pages_count", 0)
+    if web_sources:
+        lines.append(f"│ ├─ 🌐 Web Sources   : {len(web_sources)} portal{'s' if len(web_sources) != 1 else ''} ({web_pages} pages indexed)")
+        for w in web_sources[:3]:
+            title = w.get("title") or w.get("url")
+            p_cnt = w.get("page_count", 1) or 1
+            lines.append(f"│ │    • [Web] {w.get('url')} ({title} • {p_cnt} pages)")
+        if len(web_sources) > 3:
+            lines.append(f"│ │    • ... (+ {len(web_sources) - 3} more portals)")
+    else:
+        lines.append(f"│ ├─ 🌐 Web Sources   : 0 portals")
+
+    # 3. Cloud Drives
+    cloud_drives = diff.get("cloud_drives", [])
+    if cloud_drives:
+        lines.append(f"│ ├─ ☁️ Cloud Drives  : {len(cloud_drives)} connected")
+        for cd in cloud_drives[:3]:
+            dtype = (cd.get("drive_type") or "drive").capitalize()
+            dname = cd.get("folder_name") or cd.get("folder_id") or "Drive Folder"
+            lines.append(f"│ │    • [{dtype}] {dname}")
+        if len(cloud_drives) > 3:
+            lines.append(f"│ │    • ... (+ {len(cloud_drives) - 3} more drives)")
+    else:
+        lines.append(f"│ ├─ ☁️ Cloud Drives  : 0 connected")
+
+    # 4. Pending Status & Up to Date
+    lines.append(f"│ ├─ 📦 Pending Status: {diff.get('summary', 'Up to date')}")
+    status_str = "Yes (0 changes)" if diff.get("is_up_to_date") else "No (Changes detected - run '/sync' to update)"
+    lines.append(f"│ └─ ⚡ Up to Date   : {status_str}")
+    lines.append("└─────────────────────────────────────────────────────────────")
+    return "\n".join(lines)
+
+
 def run_chat_loop(active_workspace: str = "Default"):
     active_workspace = (active_workspace or "Default").strip()
     if not active_workspace:
@@ -632,17 +688,23 @@ def run_chat_loop(active_workspace: str = "Default"):
                 is_verbose = "--verbose" in parts or "-v" in parts
                 is_full = "--full" in parts or "--force" in parts or "-f" in parts
                 is_status = "--status" in parts or "-s" in parts or "status" in parts
+                is_all = "--all" in parts or "-a" in parts or "all" in parts
                 is_bg = "--bg" in parts or "--background" in parts
                 from any_context.ingestion.local_folder_ingestor import run_index_folder, check_workspace_changes, BackgroundSyncManager
 
                 if is_status:
-                    diff = check_workspace_changes(active_workspace)
-                    safe_stdout_write(f"\n┌ 🔍 \033[1mWorkspace Sync Status: {active_workspace}\033[0m\n")
-                    safe_stdout_write(f"│ ├─ 📂 Files on Disk : {diff['total_disk_files']}\n")
-                    safe_stdout_write(f"│ ├─ 🗃️ Cached Stats  : {diff['total_cached_files']}\n")
-                    safe_stdout_write(f"│ ├─ 📦 Pending Status: {diff['summary']}\n")
-                    safe_stdout_write(f"│ └─ ⚡ Up to Date   : {'Yes (0 changes)' if diff['is_up_to_date'] else 'No (Changes detected)'}\n")
-                    safe_stdout_write(f"└─────────────────────────────────────────────────────────────\n\n")
+                    if is_all:
+                        from any_context.config.db_store import ConfigDBStore
+                        store = ConfigDBStore()
+                        all_ws = store.list_all_workspace_sources()
+                        safe_stdout_write(f"\n📋 \033[1mAll Configured Workspaces Sync Status ({len(all_ws)} Workspaces):\033[0m\n\n")
+                        for ws_entry in all_ws:
+                            w_name = ws_entry.get("name")
+                            diff = check_workspace_changes(w_name)
+                            safe_stdout_write(format_sync_status_box(diff) + "\n\n")
+                    else:
+                        diff = check_workspace_changes(active_workspace)
+                        safe_stdout_write("\n" + format_sync_status_box(diff) + "\n\n")
                 elif is_bg:
                     bg_mgr = BackgroundSyncManager()
                     bg_mgr.start_background_sync(active_workspace, verbose=is_verbose)
