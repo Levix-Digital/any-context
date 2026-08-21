@@ -417,6 +417,54 @@ class Test08MCPProtocolServer(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_09_mcp_broadcast_source_linking_tool(self):
+        """TC-8.9: Tests add_workspace_folder MCP tool with link_to_workspaces broadcast."""
+        safe_stdout_write(">>> [MOD 8 / TC-8.9] Testing MCP add_workspace_folder Broadcast Tool Execution...\n")
+        import tempfile
+        import shutil
+        temp_d = tempfile.mkdtemp()
+        ws_prim = "mcp_broadcast_prim"
+        ws_sub = "mcp_broadcast_sub"
+        test_folder = os.path.abspath(os.path.join(temp_d, "mcp_broadcast_folder"))
+        os.makedirs(test_folder, exist_ok=True)
+
+        try:
+            self.store.add_workspace(ws_prim, paths=[])
+            self.store.add_workspace(ws_sub, paths=[])
+
+            req = {
+                "jsonrpc": "2.0",
+                "id": 16,
+                "method": "tools/call",
+                "params": {
+                    "name": "add_workspace_folder",
+                    "arguments": {
+                        "workspace": ws_prim,
+                        "folder_path": test_folder,
+                        "link_to_workspaces": [ws_sub]
+                    }
+                }
+            }
+            res = dispatch_mcp_request(req)
+            self.assertIn("result", res)
+            data = json.loads(res["result"]["content"][0]["text"])
+            self.assertEqual(data["status"], "success")
+            self.assertEqual(data["total_linked"], 1)
+
+            # Verify in DB
+            sources_sub = self.store.get_workspace_sources(ws_sub)
+            self.assertEqual(sources_sub["total_sources"], 1)
+            self.assertTrue(sources_sub["sources"][0]["details"].get("is_shared_link"))
+
+            safe_stdout_write("  [OK] MCP add_workspace_folder broadcast tool verified!\n")
+        finally:
+            self.store.remove_workspace(ws_prim)
+            self.store.remove_workspace(ws_sub)
+            try:
+                shutil.rmtree(temp_d, ignore_errors=True)
+            except Exception:
+                pass
+
 
 if __name__ == "__main__":
     unittest.main()

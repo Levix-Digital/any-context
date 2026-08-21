@@ -240,6 +240,23 @@ MCP_TOOLS_DEFINITIONS = [
         }
     },
     {
+        "name": "add_workspace_folder",
+        "description": "Adds a local folder to a workspace and optionally broadcasts/links it to additional workspaces ($0.00 cost).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Target workspace name"},
+                "folder_path": {"type": "string", "description": "Absolute folder path on disk"},
+                "link_to_workspaces": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of additional workspaces to link this folder to ($0.00 cost)"
+                }
+            },
+            "required": ["workspace", "folder_path"]
+        }
+    },
+    {
         "name": "list_workspace_web_urls",
         "description": "Lists all registered web URLs and their polling schedules for a specific workspace.",
         "inputSchema": {
@@ -593,6 +610,21 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 mgr = BillingManager()
                 plans = [p.dict() for p in get_all_plans()]
                 result_text = json.dumps({"plans": plans, "pricing_table": mgr.format_pricing_table_markdown()}, indent=2)
+
+            elif tool_name == "add_workspace_folder":
+                ws_target = arguments.get("workspace", "Default").strip()
+                folder_p = arguments.get("folder_path", "").strip().strip("'\"")
+                link_targets = arguments.get("link_to_workspaces", [])
+                if not folder_p:
+                    raise ValueError("folder_path is required.")
+                store = ConfigDBStore()
+                res = store.attach_and_broadcast_source(
+                    primary_workspace=ws_target,
+                    source_type="folder",
+                    source_identifier=folder_p,
+                    link_to_workspaces=link_targets
+                )
+                result_text = json.dumps(res, indent=2)
 
             elif tool_name == "add_workspace_web_url":
                 from any_context.ingestion.web_scheduler import index_web_url_to_chromadb

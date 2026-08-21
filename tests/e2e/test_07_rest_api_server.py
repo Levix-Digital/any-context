@@ -374,5 +374,44 @@ class Test07RestApiServer(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_10_broadcast_source_linking_endpoint(self):
+        """TC-7.12: Tests POST /v1/workspaces/{workspace_name}/folders endpoint with link_to_workspaces broadcast."""
+        safe_stdout_write(">>> [MOD 7 / TC-7.12] Testing POST /v1/workspaces/{workspace_name}/folders Broadcast Endpoint...\n")
+        import tempfile
+        import shutil
+        temp_d = tempfile.mkdtemp()
+        ws_prim = "REST_Broadcast_Prim"
+        ws_sub = "REST_Broadcast_Sub"
+        test_folder = os.path.abspath(os.path.join(temp_d, "rest_broadcast_folder"))
+        os.makedirs(test_folder, exist_ok=True)
+
+        try:
+            self.store.add_workspace(ws_prim, paths=[])
+            self.store.add_workspace(ws_sub, paths=[])
+
+            payload = {
+                "folder_path": test_folder,
+                "link_to_workspaces": [ws_sub]
+            }
+            res = self.client.post(f"/v1/workspaces/{ws_prim}/folders", json=payload, headers=self.headers)
+            self.assertEqual(res.status_code, 200, f"Folder add failed: {res.text}")
+            data = res.json()
+            self.assertEqual(data["status"], "success")
+            self.assertEqual(data["total_linked"], 1)
+
+            # Verify sub workspace has linked source
+            res_sub = self.client.get(f"/v1/workspaces/{ws_sub}/shared-sources", headers=self.headers)
+            self.assertEqual(res_sub.status_code, 200)
+            self.assertEqual(len(res_sub.json()["shared_links"]), 1)
+
+            safe_stdout_write("  [OK] POST /v1/workspaces/{workspace_name}/folders broadcast endpoint verified!\n")
+        finally:
+            self.store.remove_workspace(ws_prim)
+            self.store.remove_workspace(ws_sub)
+            try:
+                shutil.rmtree(temp_d, ignore_errors=True)
+            except Exception:
+                pass
+
 if __name__ == "__main__":
     unittest.main()

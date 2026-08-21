@@ -155,6 +155,11 @@ class UnlinkSharedSourceRequest(BaseModel):
     source_type: str = Field("folder", description="Type of source to unlink: 'folder', 'web', or 'cloud_drive'")
     source_identifier: str = Field(..., description="Path, URL, or mount ID to unlink")
 
+class AddFolderRequest(BaseModel):
+    folder_path: str = Field(..., description="Absolute path of the local folder to add")
+    user_email: Optional[str] = Field(None, description="Optional email of the user adding the folder")
+    link_to_workspaces: Optional[List[str]] = Field(default_factory=list, description="Optional workspaces to link this folder to ($0.00 cost)")
+
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User query or instruction for the AI agent")
     workspace: Optional[str] = Field(None, description="Target workspace name (optional)")
@@ -249,10 +254,6 @@ class ShareInviteCreateRequest(BaseModel):
 class ShareInviteAcceptRequest(BaseModel):
     invite_code: str = Field(..., description="Workspace invite code (e.g. 'SHARE-WKS-1234')")
     user_email: str = Field(..., description="User email accepting the invite")
-
-class AddFolderRequest(BaseModel):
-    folder_path: str = Field(..., description="Absolute path of the local folder to add")
-    user_email: str = Field(..., description="Email of the user adding the folder")
 
 # --- Security Dependency ---
 
@@ -945,20 +946,34 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error retrieving workspace folders: {str(e)}")
 
-    @app.post("/v1/workspaces/{workspace_name}/folders", tags=["Workspace Sharing"])
+    @app.post("/v1/workspaces/{workspace_name}/folders", tags=["Workspaces", "Workspace Sharing"])
     def add_folder_to_workspace(workspace_name: str, req: AddFolderRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
-        verify_token_access(credentials=credentials, required_workspace=workspace_name)
+        verify_token_access(credentials=credentials, required_role="analyst", required_workspace=workspace_name)
         try:
             mgr = WorkspaceSharingManager()
-            if not mgr.can_add_folder(user_email=req.user_email, workspace_name=workspace_name):
+            if req.user_email and not mgr.can_add_folder(user_email=req.user_email, workspace_name=workspace_name):
                 raise HTTPException(status_code=403, detail="Access Denied: Read-only 'Viewer' role cannot add folders to this workspace.")
 
-            entry = mgr.store.add_workspace_folder(
-                workspace_name=workspace_name,
-                folder_path=req.folder_path,
-                added_by_email=req.user_email
+            store = ConfigDBStore()
+            clean_path = req.folder_path.strip().strip("'\"")
+            if not os.path.isabs(clean_path):
+                clean_path = os.path.abspath(clean_path)
+
+            res = store.attach_and_broadcast_source(
+                primary_workspace=workspace_name,
+                source_type="folder",
+                source_identifier=clean_path,
+                link_to_workspaces=req.link_to_workspaces
             )
-            return {"status": "success", "folder": entry.dict()}
+
+            if req.user_email:
+                entry = mgr.store.add_workspace_folder(
+                    workspace_name=workspace_name,
+                    folder_path=clean_path,
+                    added_by_email=req.user_email
+                )
+                res["folder"] = entry.dict()
+            return res
         except HTTPException:
             raise
         except Exception as e:
