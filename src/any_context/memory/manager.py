@@ -23,14 +23,24 @@ class MemoryManager:
         """
         Level-1 & Level-2: Extract history from SQLite, summarize Level-1, and perform Level-2 rolling window
         """
+        db_dir = os.path.abspath(self.settings.session.db_path if self.settings and self.settings.session else "./memory")
+        os.makedirs(db_dir, exist_ok=True)
+        checkpoints_path = os.path.join(db_dir, "checkpoints.db")
+        if not os.path.exists(checkpoints_path):
+            return
+
+        conn = None
         try:
-            conn = sqlite3.connect("./memory/checkpoints.db", check_same_thread=False)
+            conn = sqlite3.connect(checkpoints_path, check_same_thread=False)
             saver = SqliteSaver(conn=conn)
 
             config = {"configurable": {"thread_id": thread_id}}
-            state = saver.get(config)
+            try:
+                state = saver.get(config)
+            except Exception:
+                return
 
-            if not state or "messages" not in state["channel_values"]:
+            if not state or "channel_values" not in state or "messages" not in state["channel_values"]:
                 return
 
             messages = state["channel_values"]["messages"]
@@ -65,10 +75,13 @@ class MemoryManager:
             self.run_meta_summarizer_if_needed(workspace=workspace or "global")
 
         except Exception as e:
-            print(f"❌ [MemoryManager Error]: {e}")
+            pass
         finally:
-            if 'conn' in locals():
-                conn.close()
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def run_meta_summarizer_if_needed(self, workspace: str = "global"):
         """

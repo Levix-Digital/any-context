@@ -12,8 +12,10 @@ from any_context.ingestion.session_ingestor import index_session
 from any_context.core.utils import get_system_prompt, get_api_key
 from any_context.config.app_settings import AppSettings
 
-os.makedirs("./memory", exist_ok=True)
-conn = sqlite3.connect("./memory/checkpoints.db", check_same_thread=False)
+_memory_dir = os.path.abspath("./memory")
+os.makedirs(_memory_dir, exist_ok=True)
+_checkpoints_db = os.path.join(_memory_dir, "checkpoints.db")
+conn = sqlite3.connect(_checkpoints_db, check_same_thread=False)
 saver = SqliteSaver(conn=conn)
 
 def create_anycontext_agent(
