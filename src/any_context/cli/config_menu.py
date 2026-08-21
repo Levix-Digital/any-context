@@ -82,6 +82,7 @@ def show_config_menu():
                 "📂 Workspaces & Folders Management (List / Add / Delete Folders)",
                 "🤝 Workspace Sharing & Collaboration (Google Drive Style)",
                 "🎛️ AI Grounding & Answer Modes (Hybrid / Strict / Proactive)",
+                "🌐 Live Web Search & External Intelligence (ON / OFF / Per-Workspace)",
                 "🔍 Context Retrieval Density & RAG Presets (Balanced / Turbo / Deep Research)",
                 "🤖 AI Models, Base URL & API Keys",
                 "🔑 Manage Saved API Keys",
@@ -102,6 +103,8 @@ def show_config_menu():
             _manage_workspace_sharing(store)
         elif choice.startswith("🎛️"):
             _manage_grounding_mode(store)
+        elif choice.startswith("🌐"):
+            _manage_web_search(store)
         elif choice.startswith("🔍"):
             _manage_retrieval_density(store)
         elif choice.startswith("🤖"):
@@ -947,6 +950,61 @@ def _manage_grounding_mode(store: ConfigDBStore):
 
     saved = store.set_grounding_mode(new_mode)
     print(f"\n✅ AI Grounding Mode updated to: \033[92m{saved.capitalize()}\033[0m!\n")
+
+
+def _manage_web_search(store: ConfigDBStore):
+    settings = store.get_app_settings()
+    global_status = store.get_web_search_status()
+
+    print("\n=======================================================")
+    print("🌐 Live Web Search & External Intelligence")
+    print("=======================================================")
+    print(f"Global Default Status : {'\033[92mENABLED (ON)\033[0m' if global_status else '\033[90mDISABLED (OFF)\033[0m'}")
+    print("Description           : Enables real-time internet searches and portal lookups.")
+    print("=======================================================\n")
+
+    workspaces = settings.workspaces if settings else []
+    choices = [
+        f"🟢 Enable Web Search Globally (All Workspaces){'  [Active]' if global_status else ''}",
+        f"🔴 Disable Web Search Globally (100% Offline Local){'  [Active]' if not global_status else ''}",
+        "📂 Configure Web Search for a Specific Workspace...",
+        "🔙 Back"
+    ]
+
+    choice = questionary.select("Select Web Search Action:", choices=choices).ask()
+    if not choice or choice.startswith("🔙"):
+        return
+
+    if choice.startswith("🟢"):
+        store.set_web_search_status(True, apply_global=True)
+        print("\n✅ \033[92mWeb Search ENABLED globally for all workspaces!\033[0m")
+        print("\033[93m⚠️ Cost Notice:\033[0m Real-time internet searches consume external web tokens.\n")
+    elif choice.startswith("🔴"):
+        store.set_web_search_status(False, apply_global=True)
+        print("\n🔒 \033[90mWeb Search DISABLED globally. (100% offline local isolation)\033[0m\n")
+    elif choice.startswith("📂"):
+        if not workspaces:
+            print("⚠️ No workspaces found.")
+            return
+        ws_choices = [f"{w.name} (Search: {'ON' if getattr(w, 'web_search_enabled', False) else 'OFF'})" for w in workspaces]
+        ws_choices.append("🔙 Back")
+        ws_pick = questionary.select("Select Workspace to Configure:", choices=ws_choices).ask()
+        if not ws_pick or ws_pick.startswith("🔙"):
+            return
+        picked_name = ws_pick.split("(")[0].strip()
+        cur_ws_st = store.get_web_search_status(workspace_name=picked_name)
+        toggle_choices = [
+            f"🟢 Enable Web Search for '{picked_name}'{'  [Active]' if cur_ws_st else ''}",
+            f"🔴 Disable Web Search for '{picked_name}'{'  [Active]' if not cur_ws_st else ''}",
+            "🔙 Cancel"
+        ]
+        t_pick = questionary.select(f"Set Web Search for '{picked_name}':", choices=toggle_choices).ask()
+        if t_pick and t_pick.startswith("🟢"):
+            store.set_web_search_status(True, workspace_name=picked_name)
+            print(f"\n✅ \033[92mWeb Search ENABLED for workspace '{picked_name}'!\033[0m\n")
+        elif t_pick and t_pick.startswith("🔴"):
+            store.set_web_search_status(False, workspace_name=picked_name)
+            print(f"\n🔒 \033[90mWeb Search DISABLED for workspace '{picked_name}'.\033[0m\n")
 
 
 def _manage_retrieval_density(store: ConfigDBStore):

@@ -14,6 +14,7 @@ class ContextSettings(BaseModel):
     max_chunks_per_source: int = Field(default=3, description="Maximum chunks allowed per document/URL to enforce cross-source diversity")
     retrieval_preset: str = Field(default="balanced", description="RAG Retrieval Density Preset: 'balanced', 'turbo', 'deep_research', 'custom'")
     grounding_mode: str = Field(default="hybrid", description="AI Grounding & Answer Mode: 'hybrid' (default), 'strict', 'proactive'")
+    web_search_enabled: bool = Field(default=False, description="Default/Global Web Search Toggle")
 
     def apply_preset(self, preset_name: str):
         p = preset_name.lower().strip()
@@ -67,6 +68,8 @@ class WorkspaceSettings(BaseModel):
     paths: List[str] = Field(default_factory=list)
     sources: List[WorkspaceSourceItem] = Field(default_factory=list)
     total_sources: int = 0
+    grounding_mode: str = Field(default="hybrid", description="Per-workspace grounding mode: 'hybrid', 'strict', 'proactive'")
+    web_search_enabled: bool = Field(default=False, description="Per-workspace web search toggle")
 
 class SessionSettings(BaseModel):
     db_path: str = Field(default="./memory")

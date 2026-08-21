@@ -88,15 +88,21 @@ class ConfigDBStore:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     workspace_id TEXT UNIQUE,
                     name TEXT UNIQUE NOT NULL,
-                    paths_json TEXT NOT NULL
+                    paths_json TEXT NOT NULL,
+                    grounding_mode TEXT DEFAULT 'hybrid',
+                    web_search_enabled INTEGER DEFAULT 0
                 )
             """)
 
-            # Ensure workspace_id column exists for existing tables and all rows have a non-null workspace_id
+            # Ensure workspace_id, grounding_mode, web_search_enabled columns exist for existing tables
             cursor.execute("PRAGMA table_info(workspaces)")
             ws_cols = [r[1] for r in cursor.fetchall()]
             if "workspace_id" not in ws_cols:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN workspace_id TEXT")
+            if "grounding_mode" not in ws_cols:
+                cursor.execute("ALTER TABLE workspaces ADD COLUMN grounding_mode TEXT DEFAULT 'hybrid'")
+            if "web_search_enabled" not in ws_cols:
+                cursor.execute("ALTER TABLE workspaces ADD COLUMN web_search_enabled INTEGER DEFAULT 0")
             
             cursor.execute("SELECT id, name, workspace_id FROM workspaces WHERE workspace_id IS NULL OR workspace_id = ''")
             for r in cursor.fetchall():
@@ -133,7 +139,8 @@ class ConfigDBStore:
                     candidate_pool_size INTEGER DEFAULT 100,
                     max_chunks_per_source INTEGER DEFAULT 3,
                     retrieval_preset TEXT DEFAULT 'balanced',
-                    grounding_mode TEXT DEFAULT 'hybrid'
+                    grounding_mode TEXT DEFAULT 'hybrid',
+                    web_search_enabled INTEGER DEFAULT 0
                 )
             """)
             cursor.execute("PRAGMA table_info(context_settings)")
@@ -152,6 +159,17 @@ class ConfigDBStore:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN retrieval_preset TEXT DEFAULT 'balanced'")
             if "grounding_mode" not in ctx_cols:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN grounding_mode TEXT DEFAULT 'hybrid'")
+            if "web_search_enabled" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN web_search_enabled INTEGER DEFAULT 0")
+
+            cursor.execute("SELECT id FROM context_settings WHERE id = 1")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT INTO context_settings (
+                        id, db_path, collection_name, chunk_size, chunk_overlap,
+                        top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled
+                    ) VALUES (1, './chroma_db', 'documents', 1024, 200, 40, 100, 3, 'balanced', 'hybrid', 0)
+                """)
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS session_settings (
@@ -400,7 +418,14 @@ class ConfigDBStore:
             count = cursor.fetchone()[0]
             return count == 0
 
-    def add_workspace(self, name: str, paths: List[str], workspace_id: Optional[str] = None) -> Dict[str, Any]:
+    def add_workspace(
+        self,
+        name: str,
+        paths: List[str],
+        workspace_id: Optional[str] = None,
+        grounding_mode: str = "hybrid",
+        web_search_enabled: bool = False
+    ) -> Dict[str, Any]:
         """Adds or updates a workspace entry with folder paths and an immutable workspace_id."""
         clean_name = name.strip()
         clean_paths = [os.path.abspath(p.strip().strip("'\"")) for p in paths if p and p.strip()]
@@ -409,7 +434,7 @@ class ConfigDBStore:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT workspace_id, paths_json FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_name,))
+            cursor.execute("SELECT workspace_id, paths_json, grounding_mode, web_search_enabled FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_name,))
             row = cursor.fetchone()
             if row:
                 existing_ws_id = row["workspace_id"] or ws_id
@@ -417,11 +442,25 @@ class ConfigDBStore:
                 combined = list(dict.fromkeys(existing_paths + clean_paths))
                 cursor.execute("UPDATE workspaces SET paths_json = ?, workspace_id = ? WHERE id = ?", (json.dumps(combined), existing_ws_id, row["id"] if "id" in row.keys() else 1))
                 conn.commit()
-                return {"id": existing_ws_id, "workspace_id": existing_ws_id, "name": clean_name, "paths": combined}
+                return {
+                    "id": existing_ws_id,
+                    "workspace_id": existing_ws_id,
+                    "name": clean_name,
+                    "paths": combined,
+                    "grounding_mode": row["grounding_mode"] if "grounding_mode" in row.keys() and row["grounding_mode"] else "hybrid",
+                    "web_search_enabled": bool(row["web_search_enabled"]) if "web_search_enabled" in row.keys() and row["web_search_enabled"] is not None else False
+                }
             else:
-                cursor.execute("INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)", (ws_id, clean_name, json.dumps(clean_paths)))
+                cursor.execute("INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled) VALUES (?, ?, ?, ?, ?)", (ws_id, clean_name, json.dumps(clean_paths), grounding_mode, 1 if web_search_enabled else 0))
                 conn.commit()
-                return {"id": ws_id, "workspace_id": ws_id, "name": clean_name, "paths": clean_paths}
+                return {
+                    "id": ws_id,
+                    "workspace_id": ws_id,
+                    "name": clean_name,
+                    "paths": clean_paths,
+                    "grounding_mode": grounding_mode,
+                    "web_search_enabled": bool(web_search_enabled)
+                }
 
     def add_folder_to_workspace(self, workspace_name: str, folder_path: str) -> bool:
         """Adds a new folder path to an existing workspace."""
@@ -1345,19 +1384,24 @@ class ConfigDBStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute("SELECT workspace_id, name FROM workspaces ORDER BY id ASC")
+            cursor.execute("SELECT workspace_id, name, grounding_mode, web_search_enabled FROM workspaces ORDER BY id ASC")
             ws_rows = cursor.fetchall()
             workspaces = []
             for row in ws_rows:
                 ws_name = row["name"]
                 ws_id = row["workspace_id"] or ("ws_default" if ws_name.lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}")
+                ws_keys = row.keys()
+                ws_mode = row["grounding_mode"] if ("grounding_mode" in ws_keys and row["grounding_mode"]) else "hybrid"
+                ws_web = bool(row["web_search_enabled"]) if ("web_search_enabled" in ws_keys and row["web_search_enabled"] is not None) else False
                 ws_detail = self.get_workspace_sources(ws_name)
                 workspaces.append(WorkspaceSettings(
                     id=ws_id,
                     name=ws_name,
                     paths=ws_detail.get("paths", []),
                     sources=[WorkspaceSourceItem(**s) for s in ws_detail["sources"]],
-                    total_sources=ws_detail["total_sources"]
+                    total_sources=ws_detail["total_sources"],
+                    grounding_mode=ws_mode,
+                    web_search_enabled=ws_web
                 ))
 
             cursor.execute("SELECT * FROM models WHERE id = 1")
@@ -1393,6 +1437,7 @@ class ConfigDBStore:
                 c_max_src = c_row["max_chunks_per_source"] if ("max_chunks_per_source" in c_keys and c_row["max_chunks_per_source"]) else 3
                 c_preset = c_row["retrieval_preset"] if ("retrieval_preset" in c_keys and c_row["retrieval_preset"]) else "balanced"
                 c_mode = c_row["grounding_mode"] if ("grounding_mode" in c_keys and c_row["grounding_mode"]) else "hybrid"
+                c_web = bool(c_row["web_search_enabled"]) if ("web_search_enabled" in c_keys and c_row["web_search_enabled"] is not None) else False
                 context = ContextSettings(
                     db_path=c_row["db_path"],
                     collection_name=c_row["collection_name"],
@@ -1402,7 +1447,8 @@ class ConfigDBStore:
                     candidate_pool_size=c_pool,
                     max_chunks_per_source=c_max_src,
                     retrieval_preset=c_preset,
-                    grounding_mode=c_mode
+                    grounding_mode=c_mode,
+                    web_search_enabled=c_web
                 )
             else:
                 context = ContextSettings()
@@ -1438,9 +1484,11 @@ class ConfigDBStore:
             
             cursor.execute("DELETE FROM workspaces")
             for ws in settings.workspaces:
+                ws_mode = getattr(ws, "grounding_mode", "hybrid") or "hybrid"
+                ws_web = 1 if getattr(ws, "web_search_enabled", False) else 0
                 cursor.execute(
-                    "INSERT INTO workspaces (name, paths_json) VALUES (?, ?)",
-                    (ws.name, json.dumps(ws.paths))
+                    "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled) VALUES (?, ?, ?, ?, ?)",
+                    (ws.id, ws.name, json.dumps(ws.paths), ws_mode, ws_web)
                 )
 
             m = settings.models
@@ -1450,10 +1498,11 @@ class ConfigDBStore:
             """, (m.embedding_model, m.embedding_model, m.embedding_model, m.inference_model, m.summary_model, m.model_provider, m.local_base_url))
 
             c = settings.context
+            c_web = 1 if getattr(c, "web_search_enabled", False) else 0
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode)
-                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap, c.top_k, c.candidate_pool_size, c.max_chunks_per_source, c.retrieval_preset, c.grounding_mode))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap, c.top_k, c.candidate_pool_size, c.max_chunks_per_source, c.retrieval_preset, c.grounding_mode, c_web))
 
             s = settings.session
             cursor.execute("INSERT OR REPLACE INTO session_settings (id, db_path, collection_name) VALUES (1, ?, ?)", (s.db_path, s.collection_name))
@@ -1467,26 +1516,45 @@ class ConfigDBStore:
             conn.commit()
 
     def update_context_settings(self, context: ContextSettings):
-        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap, retrieval parameters, grounding_mode)"""
+        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap, retrieval parameters, grounding_mode, web_search_enabled)"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            c_web = 1 if getattr(context, "web_search_enabled", False) else 0
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode)
-                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap, context.top_k, context.candidate_pool_size, context.max_chunks_per_source, context.retrieval_preset, context.grounding_mode))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap, context.top_k, context.candidate_pool_size, context.max_chunks_per_source, context.retrieval_preset, context.grounding_mode, c_web))
             conn.commit()
 
-    def get_grounding_mode(self) -> str:
-        """Retrieves the active AI Grounding & Answer Mode ('hybrid', 'strict', 'proactive')."""
-        settings = self.get_app_settings()
-        if settings and settings.context:
-            mode = getattr(settings.context, "grounding_mode", "hybrid")
-            if mode in ["hybrid", "strict", "proactive"]:
-                return mode
+    def get_grounding_mode(self, workspace_name: Optional[str] = None) -> str:
+        """
+        Retrieves the active AI Grounding & Answer Mode ('hybrid', 'strict', 'proactive').
+        Prioritizes per-workspace setting if workspace_name is provided, with fallback to global setting.
+        """
+        if workspace_name:
+            ws = workspace_name.strip()
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT grounding_mode FROM workspaces WHERE LOWER(name) = LOWER(?)", (ws,))
+                row = cursor.fetchone()
+                if row and row["grounding_mode"] in ["hybrid", "strict", "proactive"]:
+                    return row["grounding_mode"]
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT grounding_mode FROM context_settings WHERE id = 1")
+            row = cursor.fetchone()
+            if row and row["grounding_mode"] in ["hybrid", "strict", "proactive"]:
+                return row["grounding_mode"]
+
         return "hybrid"
 
-    def set_grounding_mode(self, mode: str) -> str:
-        """Sets and persists the active AI Grounding Mode in SQLite context_settings."""
+    def set_grounding_mode(self, mode: str, workspace_name: Optional[str] = None, apply_global: bool = False) -> str:
+        """
+        Sets and persists the AI Grounding Mode ('hybrid', 'strict', 'proactive').
+        If apply_global is True, updates global setting and all workspaces.
+        If workspace_name is specified, updates that workspace specifically.
+        """
         clean_mode = mode.lower().strip() if mode else "hybrid"
         if clean_mode not in ["hybrid", "strict", "proactive"]:
             if "strict" in clean_mode:
@@ -1496,11 +1564,77 @@ class ConfigDBStore:
             else:
                 clean_mode = "hybrid"
 
-        settings = self.get_app_settings()
-        ctx = settings.context if (settings and settings.context) else ContextSettings()
-        ctx.grounding_mode = clean_mode
-        self.update_context_settings(ctx)
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if apply_global:
+                cursor.execute("UPDATE workspaces SET grounding_mode = ?", (clean_mode,))
+                cursor.execute("""
+                    INSERT INTO context_settings (id, db_path, collection_name, grounding_mode)
+                    VALUES (1, './chroma_db', 'documents', ?)
+                    ON CONFLICT(id) DO UPDATE SET grounding_mode = ?
+                """, (clean_mode, clean_mode))
+            elif workspace_name:
+                cursor.execute("UPDATE workspaces SET grounding_mode = ? WHERE LOWER(name) = LOWER(?)", (clean_mode, workspace_name.strip()))
+            else:
+                cursor.execute("""
+                    INSERT INTO context_settings (id, db_path, collection_name, grounding_mode)
+                    VALUES (1, './chroma_db', 'documents', ?)
+                    ON CONFLICT(id) DO UPDATE SET grounding_mode = ?
+                """, (clean_mode, clean_mode))
+            conn.commit()
+
         return clean_mode
+
+    def get_web_search_status(self, workspace_name: Optional[str] = None) -> bool:
+        """
+        Retrieves the Web Search status (True/False).
+        Prioritizes per-workspace setting if workspace_name is provided, with fallback to global setting.
+        """
+        if workspace_name:
+            ws = workspace_name.strip()
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT web_search_enabled FROM workspaces WHERE LOWER(name) = LOWER(?)", (ws,))
+                row = cursor.fetchone()
+                if row is not None and row["web_search_enabled"] is not None:
+                    return bool(row["web_search_enabled"])
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT web_search_enabled FROM context_settings WHERE id = 1")
+            row = cursor.fetchone()
+            if row is not None and row["web_search_enabled"] is not None:
+                return bool(row["web_search_enabled"])
+
+        return False
+
+    def set_web_search_status(self, enabled: bool, workspace_name: Optional[str] = None, apply_global: bool = False) -> bool:
+        """
+        Sets and persists the Web Search status (True/False).
+        If apply_global is True, updates global setting and all workspaces.
+        If workspace_name is specified, updates that workspace specifically.
+        """
+        val = 1 if enabled else 0
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if apply_global:
+                cursor.execute("UPDATE workspaces SET web_search_enabled = ?", (val,))
+                cursor.execute("""
+                    INSERT INTO context_settings (id, db_path, collection_name, web_search_enabled)
+                    VALUES (1, './chroma_db', 'documents', ?)
+                    ON CONFLICT(id) DO UPDATE SET web_search_enabled = ?
+                """, (val, val))
+            elif workspace_name:
+                cursor.execute("UPDATE workspaces SET web_search_enabled = ? WHERE LOWER(name) = LOWER(?)", (val, workspace_name.strip()))
+            else:
+                cursor.execute("""
+                    INSERT INTO context_settings (id, db_path, collection_name, web_search_enabled)
+                    VALUES (1, './chroma_db', 'documents', ?)
+                    ON CONFLICT(id) DO UPDATE SET web_search_enabled = ?
+                """, (val, val))
+            conn.commit()
+
+        return bool(enabled)
 
     def update_session_settings(self, session: SessionSettings):
         """Updates session vector database settings"""

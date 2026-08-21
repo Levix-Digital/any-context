@@ -883,19 +883,77 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "In Chat: /mode --strict",
             "In Chat: /mode --hybrid",
             "In Chat: /mode --proactive",
+            "In Chat: /mode --strict --global",
             "In Chat: /mode -S",
             "In Chat: /mode strict",
-            "REST API: GET /v1/context/mode",
-            "REST API: POST /v1/context/mode -d '{\"mode\": \"strict\"}'",
-            "In MCP Server: set_grounding_mode(mode='strict')",
-            "In MCP Server: get_grounding_mode()"
+            "REST API: GET /v1/context/mode?workspace=Legal",
+            "REST API: POST /v1/context/mode -d '{\"mode\": \"strict\", \"workspace\": \"Legal\"}'",
+            "In MCP Server: set_grounding_mode(mode='strict', workspace='Legal')",
+            "In MCP Server: get_grounding_mode(workspace='Legal')"
         ],
         tips=[
-            "The active grounding mode is displayed dynamically in your prompt: You [Workspace | Model | Mode]:",
-            "Use 'Strict' for contracts, compliance audits, medical/legal queries, and formal reports.",
-            "Use 'Hybrid' (default) for everyday consulting, software development, and document analysis.",
-            "Use 'Proactive' for market research, brainstorm sessions, and strategy planning.",
+            "Grounding mode is saved independently per workspace, allowing Strict auditing in legal projects and Proactive synthesis in research workspaces.",
+            "Use '--global' or '-g' with /mode to apply your grounding mode across all workspaces at once.",
+            "The active grounding mode is displayed dynamically in your prompt and bottom status dock.",
             "Changing the mode immediately invalidates the agent cache and reconfigures system directives without restarting the session."
+        ]
+    ),
+
+    "web-search": HelpPage(
+        command="/web-search",
+        aliases=["web-search", "/web-search", "websearch", "/websearch", "search", "/search", "ws", "/ws", "live-search", "/live-search"],
+        title="🌐 Live Web Search & External Intelligence (Workspace-Isolated)",
+        description=(
+            "The /web-search command enables real-time public internet search for the AI agent. "
+            "Web search settings are completely isolated per workspace: you can enable live web search in market research workspaces "
+            "while maintaining 100% offline local file isolation in sensitive audit/legal workspaces.\n\n"
+            "✨ GROUNDING MODES INTERACTION WITH WEB SEARCH:\n"
+            "• Strict Mode + Web ON: The agent NEVER searches silently. It relies on local docs first, and asks explicitly if you want an external web search.\n"
+            "• Hybrid Mode + Web ON: Queries local docs first, searches the web if needed, and cleanly divides the response into '### 📂 Informações do Workspace' and '### 🌐 Informações Complementares da Web'.\n"
+            "• Proactive Mode + Web ON: Autonomously searches both local docs and the live web, strictly citing every source URL.\n"
+            "• Portal Prioritization: If the workspace has registered websites (/web --add <url>), queries automatically prioritize those domains first."
+        ),
+        syntax=(
+            "In Chat (Interactive Menu) : /web-search   OR   /ws\n"
+            "  In Chat (Enable Web)        : /web-search --on   OR   /ws on   OR   /ws 1\n"
+            "  In Chat (Disable Web)       : /web-search --off   OR   /ws off   OR   /ws 0\n"
+            "  In Chat (Check Status)      : /web-search --status   OR   /ws status\n"
+            "  In Chat (Global Setting)    : /web-search --on --global   OR   /ws --off -g\n"
+            "  REST API Endpoints          : GET/POST /v1/context/web-search\n"
+            "                                GET/POST /v1/workspaces/{name}/settings\n"
+            "  MCP Server Tools            : get_web_search_status(workspace='...')\n"
+            "                                set_web_search_status(enabled=True, workspace='...')\n"
+            "                                get_workspace_settings(workspace='...')\n"
+            "                                update_workspace_settings(workspace='...', ...)\n"
+            "  View Help                   : /web-search --help   OR   /ws -h"
+        ),
+        parameters=[
+            "/web-search, /ws          : Opens interactive Questionary menu to toggle web search for the active workspace.",
+            "--on, on, 1, true         : Enables live web search for the active workspace.",
+            "--off, off, 0, false      : Disables live web search for the active workspace (100% offline local docs).",
+            "--status, status, -s      : Displays current web search status for the active workspace.",
+            "--global, -g              : When toggling, applies the setting globally across all workspaces.",
+            "--help, -h                : Display this detailed help page for /web-search."
+        ],
+        examples=[
+            "In Chat: /web-search",
+            "In Chat: /web-search --on",
+            "In Chat: /web-search --off",
+            "In Chat: /ws on",
+            "In Chat: /ws off",
+            "In Chat: /ws --on --global",
+            "In Chat: /ws --status",
+            "REST API: GET /v1/context/web-search?workspace=TechResearch",
+            "REST API: POST /v1/context/web-search -d '{\"enabled\": true, \"workspace\": \"TechResearch\"}'",
+            "REST API: POST /v1/workspaces/TechResearch/settings -d '{\"web_search_enabled\": true}'",
+            "In MCP Server: set_web_search_status(enabled=True, workspace='TechResearch')",
+            "In MCP Server: get_workspace_settings(workspace='TechResearch')"
+        ],
+        tips=[
+            "Web search is OFF by default to preserve privacy, token usage, and strict offline guarantees.",
+            "When web search is enabled, the prompt status dock displays '🌐 ON' (highlighted).",
+            "Enabling web search consumes additional external web tokens and API requests during inference.",
+            "You can manage web search per workspace inside the '/config' -> '🌐 Live Web Search' menu."
         ]
     ),
 

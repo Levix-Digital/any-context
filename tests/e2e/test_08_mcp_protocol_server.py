@@ -539,6 +539,83 @@ class Test08MCPProtocolServer(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_10_mcp_workspace_web_search_tools(self):
+        """TC-8.10: Tests MCP tools: get/set_web_search_status and get/update_workspace_settings."""
+        safe_stdout_write(">>> [MOD 8 / TC-8.10] Testing MCP Web Search & Workspace Settings Tools...\n")
+        ws_test = "E2E_MCP_WebSearch"
+        self.store.add_workspace(ws_test, paths=[])
+
+        try:
+            # 1. get_web_search_status for workspace
+            req1 = {
+                "jsonrpc": "2.0",
+                "id": 19,
+                "method": "tools/call",
+                "params": {
+                    "name": "get_web_search_status",
+                    "arguments": {"workspace": ws_test}
+                }
+            }
+            res1 = dispatch_mcp_request(req1)
+            self.assertIn("result", res1)
+            d1 = json.loads(res1["result"]["content"][0]["text"])
+            self.assertFalse(d1["web_search_enabled"])
+
+            # 2. set_web_search_status to True
+            req2 = {
+                "jsonrpc": "2.0",
+                "id": 20,
+                "method": "tools/call",
+                "params": {
+                    "name": "set_web_search_status",
+                    "arguments": {"workspace": ws_test, "enabled": True}
+                }
+            }
+            res2 = dispatch_mcp_request(req2)
+            self.assertIn("result", res2)
+            d2 = json.loads(res2["result"]["content"][0]["text"])
+            self.assertTrue(d2["web_search_enabled"])
+
+            # 3. get_workspace_settings
+            req3 = {
+                "jsonrpc": "2.0",
+                "id": 21,
+                "method": "tools/call",
+                "params": {
+                    "name": "get_workspace_settings",
+                    "arguments": {"workspace": ws_test}
+                }
+            }
+            res3 = dispatch_mcp_request(req3)
+            self.assertIn("result", res3)
+            d3 = json.loads(res3["result"]["content"][0]["text"])
+            self.assertEqual(d3["workspace_name"], ws_test)
+            self.assertTrue(d3["web_search_enabled"])
+
+            # 4. update_workspace_settings
+            req4 = {
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "tools/call",
+                "params": {
+                    "name": "update_workspace_settings",
+                    "arguments": {
+                        "workspace": ws_test,
+                        "grounding_mode": "proactive",
+                        "web_search_enabled": False
+                    }
+                }
+            }
+            res4 = dispatch_mcp_request(req4)
+            self.assertIn("result", res4)
+            d4 = json.loads(res4["result"]["content"][0]["text"])
+            self.assertEqual(d4["grounding_mode"], "proactive")
+            self.assertFalse(d4["web_search_enabled"])
+
+            safe_stdout_write("  [OK] MCP Web Search and Workspace Settings tools verified!\n")
+        finally:
+            self.store.remove_workspace(ws_test)
+
 if __name__ == "__main__":
     unittest.main()
 

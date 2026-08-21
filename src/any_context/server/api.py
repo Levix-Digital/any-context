@@ -4,7 +4,7 @@ import uuid
 from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -192,12 +192,14 @@ class ChatRequest(BaseModel):
     model: Optional[str] = Field(None, description="Optional inference model override on-the-fly (e.g. 'gpt-4o', 'claude-3-5-sonnet-20241022', 'deepseek-chat')")
     grounding_mode: Optional[str] = Field(None, description="Optional AI grounding mode override: 'hybrid', 'strict', 'proactive'")
     mode: Optional[str] = Field(None, description="Alias for grounding_mode ('hybrid', 'strict', 'proactive')")
+    web_search_enabled: Optional[bool] = Field(None, description="Optional Web Search toggle override: True or False")
 
 class ChatResponse(BaseModel):
     thread_id: str
     workspace: Optional[str]
     model_used: str
     grounding_mode: str = "hybrid"
+    web_search_enabled: bool = False
     reply: str
 
 class ModelDTO(BaseModel):
@@ -211,10 +213,31 @@ class AvailableModelsResponse(BaseModel):
 
 class GroundingModeDTO(BaseModel):
     mode: str = Field("hybrid", description="Active AI grounding mode: 'hybrid', 'strict', or 'proactive'")
+    workspace: Optional[str] = Field(None, description="Specific workspace if queried")
     available_modes: List[str] = Field(default_factory=lambda: ["hybrid", "strict", "proactive"])
 
 class UpdateGroundingModeRequest(BaseModel):
     mode: str = Field(..., description="Target grounding mode: 'hybrid', 'strict', or 'proactive'")
+    workspace: Optional[str] = Field(None, description="Optional workspace name to apply mode specifically")
+    apply_global: bool = Field(False, description="Whether to apply mode globally across all workspaces")
+
+class WebSearchStatusDTO(BaseModel):
+    web_search_enabled: bool = Field(False, description="Web search active status")
+    workspace: Optional[str] = Field(None, description="Specific workspace if queried, or None for global")
+
+class UpdateWebSearchRequest(BaseModel):
+    enabled: bool = Field(..., description="Enable (True) or Disable (False) real-time Web Search")
+    workspace: Optional[str] = Field(None, description="Target workspace (if omitted, applies to global setting)")
+    apply_global: bool = Field(False, description="Whether to apply across all workspaces")
+
+class WorkspaceSettingsDTO(BaseModel):
+    workspace_name: str
+    grounding_mode: str = "hybrid"
+    web_search_enabled: bool = False
+
+class UpdateWorkspaceSettingsRequest(BaseModel):
+    grounding_mode: Optional[str] = Field(None, description="'hybrid', 'strict', or 'proactive'")
+    web_search_enabled: Optional[bool] = Field(None, description="True or False")
 
 class SearchRequest(BaseModel):
     query: str = Field(..., description="Search query string")
@@ -784,15 +807,19 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
             }
         }
 
-        # Resolve grounding mode
+        # Resolve grounding mode and web search status
         store = ConfigDBStore()
         effective_mode = req.grounding_mode or req.mode
         if not effective_mode:
-            effective_mode = store.get_grounding_mode()
+            effective_mode = store.get_grounding_mode(workspace_name=req.workspace)
         else:
             effective_mode = effective_mode.lower().strip()
             if effective_mode not in ["hybrid", "strict", "proactive"]:
                 effective_mode = "hybrid"
+
+        effective_web_search = req.web_search_enabled
+        if effective_web_search is None:
+            effective_web_search = store.get_web_search_status(workspace_name=req.workspace)
 
         try:
             full_response = ""
@@ -800,7 +827,8 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                 active_workspace=req.workspace, 
                 checkpointer=saver,
                 model_override=effective_model,
-                grounding_mode=effective_mode
+                grounding_mode=effective_mode,
+                web_search_enabled=effective_web_search
             )
             for token, metadata in agent_instance.stream(
                 {"messages": [req.message]},
@@ -817,6 +845,7 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                 workspace=req.workspace,
                 model_used=effective_model,
                 grounding_mode=effective_mode,
+                web_search_enabled=effective_web_search,
                 reply=full_response.strip()
             )
         except Exception as e:
@@ -833,18 +862,59 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
             )
 
     @app.get("/v1/context/mode", response_model=GroundingModeDTO, tags=["Knowledge Base"])
-    def get_grounding_mode_endpoint(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    def get_grounding_mode_endpoint(
+        workspace: Optional[str] = Query(None, description="Optional workspace name to query specific grounding mode"),
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    ):
         verify_token_access(credentials=credentials)
         store = ConfigDBStore()
-        mode = store.get_grounding_mode()
-        return GroundingModeDTO(mode=mode)
+        mode = store.get_grounding_mode(workspace_name=workspace)
+        return GroundingModeDTO(mode=mode, workspace=workspace)
 
     @app.post("/v1/context/mode", response_model=GroundingModeDTO, tags=["Knowledge Base"])
     def set_grounding_mode_endpoint(req: UpdateGroundingModeRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
         verify_token_access(credentials=credentials, required_role="admin")
         store = ConfigDBStore()
-        saved = store.set_grounding_mode(req.mode)
-        return GroundingModeDTO(mode=saved)
+        saved = store.set_grounding_mode(req.mode, workspace_name=req.workspace, apply_global=req.apply_global)
+        return GroundingModeDTO(mode=saved, workspace=req.workspace)
+
+    @app.get("/v1/context/web-search", response_model=WebSearchStatusDTO, tags=["Knowledge Base"])
+    def get_web_search_status_endpoint(
+        workspace: Optional[str] = Query(None, description="Optional workspace name to query specific web search status"),
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    ):
+        verify_token_access(credentials=credentials)
+        store = ConfigDBStore()
+        status = store.get_web_search_status(workspace_name=workspace)
+        return WebSearchStatusDTO(web_search_enabled=status, workspace=workspace)
+
+    @app.post("/v1/context/web-search", response_model=WebSearchStatusDTO, tags=["Knowledge Base"])
+    def set_web_search_status_endpoint(req: UpdateWebSearchRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        saved = store.set_web_search_status(req.enabled, workspace_name=req.workspace, apply_global=req.apply_global)
+        return WebSearchStatusDTO(web_search_enabled=saved, workspace=req.workspace)
+
+    @app.get("/v1/workspaces/{workspace_name}/settings", response_model=WorkspaceSettingsDTO, tags=["Workspaces"])
+    def get_workspace_settings_endpoint(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials)
+        store = ConfigDBStore()
+        mode = store.get_grounding_mode(workspace_name=workspace_name)
+        search = store.get_web_search_status(workspace_name=workspace_name)
+        return WorkspaceSettingsDTO(workspace_name=workspace_name, grounding_mode=mode, web_search_enabled=search)
+
+    @app.post("/v1/workspaces/{workspace_name}/settings", response_model=WorkspaceSettingsDTO, tags=["Workspaces"])
+    def update_workspace_settings_endpoint(workspace_name: str, req: UpdateWorkspaceSettingsRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        verify_token_access(credentials=credentials, required_role="admin")
+        store = ConfigDBStore()
+        if req.grounding_mode is not None:
+            store.set_grounding_mode(req.grounding_mode, workspace_name=workspace_name)
+        if req.web_search_enabled is not None:
+            store.set_web_search_status(req.web_search_enabled, workspace_name=workspace_name)
+
+        mode = store.get_grounding_mode(workspace_name=workspace_name)
+        search = store.get_web_search_status(workspace_name=workspace_name)
+        return WorkspaceSettingsDTO(workspace_name=workspace_name, grounding_mode=mode, web_search_enabled=search)
 
     @app.get("/v1/context/settings", response_model=ContextRetrievalSettingsDTO, tags=["Knowledge Base"])
     def get_context_settings_endpoint(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
