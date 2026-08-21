@@ -59,6 +59,134 @@ def parse_version_tuple(version_str: str) -> Tuple[int, ...]:
         return (0, 0, 0)
 
 
+def normalize_version_tag(version_str: str) -> str:
+    """
+    Normalizes version strings like '@0.15.2', '0.15.2', 'v0.15.2', '@latest' -> 'v0.15.2' or 'latest'.
+    """
+    cleaned = version_str.strip()
+    if cleaned.startswith("@"):
+        cleaned = cleaned[1:].strip()
+    if cleaned.lower() in ["latest", "current", "head"]:
+        return "latest"
+    if not cleaned.startswith("v"):
+        cleaned = f"v{cleaned}"
+    return cleaned
+
+
+def fetch_available_releases(limit: int = 15) -> List[Dict[str, Any]]:
+    """
+    Fetches the list of recent available release tags and metadata from GitHub.
+    """
+    import time
+    releases = []
+    for repo in [PRIMARY_REPO, FALLBACK_REPO]:
+        try:
+            url = f"https://api.github.com/repos/{repo}/releases?per_page={limit}&_t={int(time.time())}"
+            headers = {
+                "User-Agent": "AnyContext-CLI",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache"
+            }
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=6) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode("utf-8"))
+                    if isinstance(data, list) and data:
+                        for item in data:
+                            tag = item.get("tag_name", "")
+                            if tag:
+                                releases.append({
+                                    "tag": tag if tag.startswith("v") else f"v{tag}",
+                                    "name": item.get("name") or tag,
+                                    "published_at": item.get("published_at", "")[:10],
+                                    "prerelease": item.get("prerelease", False),
+                                    "body": (item.get("body") or "").strip()
+                                })
+                        if releases:
+                            return releases
+        except Exception:
+            pass
+
+        # Fallback to gh CLI
+        try:
+            res = subprocess.run(
+                ["gh", "release", "list", "--repo", repo, "--limit", str(limit), "--json", "tagName,name,createdAt,isPrerelease"],
+                capture_output=True,
+                text=True,
+                timeout=6
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                data = json.loads(res.stdout)
+                if isinstance(data, list) and data:
+                    for item in data:
+                        tag = item.get("tagName", "")
+                        if tag:
+                            releases.append({
+                                "tag": tag if tag.startswith("v") else f"v{tag}",
+                                "name": item.get("name") or tag,
+                                "published_at": item.get("createdAt", "")[:10],
+                                "prerelease": item.get("isPrerelease", False),
+                                "body": ""
+                            })
+                    if releases:
+                        return releases
+        except Exception:
+            pass
+
+    return releases
+
+
+def display_available_releases(interactive_select: bool = False) -> Optional[str]:
+    """
+    Displays a formatted list of available versions from GitHub and optionally allows selecting one.
+    """
+    safe_print("\n🔍 Fetching available AnyContext releases from GitHub...")
+    releases = fetch_available_releases(limit=12)
+    if not releases:
+        safe_print("⚠️ Could not retrieve release list from GitHub (offline or rate limited).\n")
+        return None
+
+    safe_print("\n=======================================================")
+    safe_print("📦 Available AnyContext Releases")
+    safe_print("=======================================================")
+    safe_print(f"Current Installed Version: \033[1m\033[92mv{CURRENT_VERSION}\033[0m\n")
+
+    choices = []
+    for r in releases:
+        tag = r["tag"]
+        is_cur = tag.lstrip("v") == CURRENT_VERSION.lstrip("v")
+        tag_disp = f"\033[92m{tag} [Active / Current]\033[0m" if is_cur else f"\033[93m{tag}\033[0m"
+        date_str = f"({r['published_at']})" if r.get("published_at") else ""
+        title_str = f"- {r['name']}" if r.get("name") and r['name'] != tag else ""
+        safe_print(f"  • {tag_disp} {date_str} {title_str}")
+        
+        status_label = " [Installed]" if is_cur else ""
+        choices.append(f"{tag} {date_str} {title_str}{status_label}")
+
+    safe_print("=======================================================\n")
+    safe_print("💡 Usage:")
+    safe_print("  • Update to latest   : actx --update          OR /update")
+    safe_print("  • Update to specific : actx --update@0.15.2    OR /update@0.15.2")
+    safe_print("  • Interactive update : actx --update --list   OR /update --list\n")
+
+    if interactive_select:
+        try:
+            import questionary
+            choices.append("🔙 Cancel")
+            pick = questionary.select(
+                "Select a version to install / rollback to:",
+                choices=choices
+            ).ask()
+            if not pick or pick.startswith("🔙"):
+                return None
+            picked_tag = pick.split()[0].strip()
+            return picked_tag
+        except Exception:
+            return None
+
+    return None
+
+
 def fetch_latest_release_tag() -> Optional[str]:
     """
     Fetches the latest release tag from GitHub.
@@ -307,20 +435,59 @@ def prompt_multi_instance_decision(active_instances: List[Dict[str, Any]]) -> st
             return "background"
 
 
-def run_self_update(auto_close_instances: bool = False, force_background: bool = False):
+def run_self_update(
+    target_version: Optional[str] = None,
+    auto_close_instances: bool = False,
+    force_background: bool = False,
+    force: bool = False
+):
     """
-    Executes automatic binary update by downloading the latest release asset
+    Executes automatic binary update or rollback by downloading the target/latest release asset
     and performing safe, atomic replacement (supporting locked executables on Windows
     and graceful handling of multiple active instances).
     """
-    safe_print(f"\n🔍 Checking for AnyContext updates...")
-    has_update, latest_tag = check_for_updates(quiet_if_latest=False)
+    clean_stale_update_files()
+    
+    if target_version:
+        norm = normalize_version_tag(target_version)
+        if norm.lower() in ["latest", "current", "head"]:
+            safe_print(f"\n🔍 Checking for latest AnyContext release...")
+            latest_tag = fetch_latest_release_tag()
+            if not latest_tag:
+                safe_print("\n⚠️ Could not fetch latest release from GitHub.\n")
+                return
+            target_tag = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
+        else:
+            target_tag = norm
+    else:
+        safe_print(f"\n🔍 Checking for AnyContext updates...")
+        has_update, latest_tag = check_for_updates(quiet_if_latest=False)
+        if not latest_tag:
+            return
+        if not has_update and not force:
+            return
+        target_tag = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
 
-    if not has_update or not latest_tag:
-        return
+    clean_tag = target_tag if target_tag.startswith("v") else f"v{target_tag}"
+    cur_tuple = parse_version_tuple(CURRENT_VERSION)
+    target_tuple = parse_version_tuple(clean_tag)
 
-    clean_tag = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
-    safe_print(f"\n🚀 Updating AnyContext from v{CURRENT_VERSION} to {clean_tag}...")
+    if cur_tuple == target_tuple and not force:
+        safe_print(f"\nℹ️ You are already running AnyContext \033[1m\033[92mv{CURRENT_VERSION}\033[0m.")
+        try:
+            import questionary
+            reinstall = questionary.confirm("Do you want to force reinstall / repair this version?").ask()
+            if not reinstall:
+                return
+        except Exception:
+            return
+
+    if target_tuple < cur_tuple:
+        safe_print(f"\n🔄 Rolling back / Downgrading AnyContext from \033[93mv{CURRENT_VERSION}\033[0m to \033[1m\033[96m{clean_tag}\033[0m...")
+    elif target_tuple > cur_tuple:
+        safe_print(f"\n🚀 Updating AnyContext from \033[93mv{CURRENT_VERSION}\033[0m to \033[1m\033[92m{clean_tag}\033[0m...")
+    else:
+        safe_print(f"\n⚡ Reinstalling AnyContext \033[1m\033[92m{clean_tag}\033[0m...")
 
     # Multi-instance detection and graceful handling
     active_instances = find_active_instances()
@@ -380,7 +547,7 @@ def run_self_update(auto_close_instances: bool = False, force_background: bool =
     safe_print(f"⬇️ Downloading '{target_asset}' from GitHub Release {clean_tag}...")
     for repo in [PRIMARY_REPO, FALLBACK_REPO]:
         try:
-            url = f"https://github.com/{repo}/releases/download/{latest_tag}/{target_asset}"
+            url = f"https://github.com/{repo}/releases/download/{clean_tag}/{target_asset}"
             req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-CLI"})
             with urllib.request.urlopen(req, timeout=120) as response:
                 if response.status == 200:
@@ -413,7 +580,7 @@ def run_self_update(auto_close_instances: bool = False, force_background: bool =
         for repo in [PRIMARY_REPO, FALLBACK_REPO]:
             try:
                 res = subprocess.run(
-                    ["gh", "release", "download", latest_tag, "--repo", repo, "--pattern", target_asset, "--dir", target_dir, "--clobber"],
+                    ["gh", "release", "download", clean_tag, "--repo", repo, "--pattern", target_asset, "--dir", target_dir, "--clobber"],
                     capture_output=True,
                     text=True,
                     timeout=120

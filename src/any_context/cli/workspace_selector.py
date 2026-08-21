@@ -138,6 +138,17 @@ def get_active_workspace() -> str:
         if handle_command_help_interception(cli_str):
             sys.exit(0)
 
+    # Intercept targeted update syntax: --update@0.15.2, -u@0.15.2, --update@latest
+    for arg in sys.argv[1:]:
+        if arg.startswith("--update@") or arg.startswith("-u@"):
+            target_v = arg.split("@", 1)[1]
+            from any_context.cli.updater import run_self_update
+            is_close = "--close-instances" in sys.argv or "-c" in sys.argv
+            is_bg = "--background" in sys.argv or "--force-background" in sys.argv
+            is_force = "--force" in sys.argv or "-f" in sys.argv
+            run_self_update(target_version=target_v, auto_close_instances=is_close, force_background=is_bg, force=is_force)
+            sys.exit(0)
+
     parser = argparse.ArgumentParser(description="Start the AnyContext AI Agent.", add_help=False)
 
     parser.add_argument(
@@ -180,9 +191,36 @@ def get_active_workspace() -> str:
         help="Start the AnyContext Model Context Protocol (MCP) Server on stdio."
     )
     parser.add_argument(
-        "--update", 
-        action="store_true", 
-        help="Update AnyContext to the latest released version."
+        "--update", "-u",
+        dest="update",
+        nargs="?",
+        const="LATEST_FLAG_DEFAULT",
+        default=None,
+        help="Update AnyContext to the latest or specific version (e.g. --update, --update@0.15.2, --update 0.15.2, --update --list)."
+    )
+    parser.add_argument(
+        "--to", "--target-version",
+        dest="to_version",
+        type=str,
+        default=None,
+        help="Target version to update or rollback to."
+    )
+    parser.add_argument(
+        "--releases", "--list-releases",
+        dest="list_releases",
+        action="store_true",
+        help="List available AnyContext releases from GitHub."
+    )
+    parser.add_argument(
+        "--rollback",
+        action="store_true",
+        help="Interactive rollback to a previous AnyContext release."
+    )
+    parser.add_argument(
+        "--force", "-f",
+        dest="force",
+        action="store_true",
+        help="Force reinstall or overwrite current version during update."
     )
     parser.add_argument(
         "--check-update", 
@@ -260,8 +298,6 @@ def get_active_workspace() -> str:
         sys.exit(0)
 
     if args.factory_reset:
-
-
         confirm = questionary.confirm(
             "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
         ).ask()
@@ -272,7 +308,6 @@ def get_active_workspace() -> str:
             print("Run 'actx' again anytime to launch the first-time setup wizard.\n")
         sys.exit(0)
 
-
     if args.serve or "server" in unknown or "serve" in unknown:
         from any_context.server.api import start_api_server
         start_api_server(host=args.host, port=args.port)
@@ -282,15 +317,39 @@ def get_active_workspace() -> str:
         from any_context.server.mcp import start_mcp_server
         start_mcp_server()
         sys.exit(0)
-    
-    if args.update:
+
+    # 1. Releases listing or interactive rollback
+    if args.list_releases or args.rollback or (args.update and str(args.update).lower() in ["list", "--list", "-l", "releases", "rollback", "--rollback", "-r"]):
+        from any_context.cli.updater import display_available_releases, run_self_update
+        picked = display_available_releases(interactive_select=True)
+        if picked:
+            run_self_update(
+                target_version=picked,
+                auto_close_instances=getattr(args, "close_instances", False),
+                force_background=getattr(args, "force_background", False),
+                force=getattr(args, "force", False)
+            )
+        sys.exit(0)
+
+    # 2. Targeted or Latest self-update
+    if args.update is not None or args.to_version is not None:
+        target_v = None
+        if args.update and args.update != "LATEST_FLAG_DEFAULT":
+            target_v = args.update
+        elif args.to_version:
+            target_v = args.to_version
+
+        from any_context.cli.updater import run_self_update
         run_self_update(
+            target_version=target_v,
             auto_close_instances=getattr(args, "close_instances", False),
-            force_background=getattr(args, "force_background", False)
+            force_background=getattr(args, "force_background", False),
+            force=getattr(args, "force", False)
         )
         sys.exit(0)
 
     if args.check_update:
+        from any_context.cli.updater import check_for_updates, run_self_update
         has_up, new_tag = check_for_updates(quiet_if_latest=False)
         if has_up:
             try:
@@ -302,7 +361,8 @@ def get_active_workspace() -> str:
                 if do_upgrade:
                     run_self_update(
                         auto_close_instances=getattr(args, "close_instances", False),
-                        force_background=getattr(args, "force_background", False)
+                        force_background=getattr(args, "force_background", False),
+                        force=getattr(args, "force", False)
                     )
             except Exception:
                 pass
