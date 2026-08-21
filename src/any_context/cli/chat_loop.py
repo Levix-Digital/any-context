@@ -247,13 +247,16 @@ def create_bottom_toolbar_renderer(
         return sum(_char_width(c) for c in clean)
 
     def _render():
-        clean_mode = (grounding_mode or "hybrid").capitalize()
-        # Dynamically check web search status for active workspace
+        # Dynamically check grounding mode and web search status for active workspace
         try:
             store = ConfigDBStore()
+            ws_mode = store.get_grounding_mode(workspace_name=workspace_name)
             ws_search = store.get_web_search_status(workspace_name=workspace_name)
         except Exception:
+            ws_mode = grounding_mode or "hybrid"
             ws_search = False
+
+        clean_mode = (ws_mode or "hybrid").capitalize()
 
         search_badge = (
             "<style fg='#73daca'><b>🌐 Search: ON</b></style>"
@@ -344,11 +347,10 @@ def run_chat_loop(active_workspace: str = "Default"):
 
     from any_context.config.app_settings import AppSettings
     from any_context.config.db_store import ConfigDBStore
+    store = ConfigDBStore()
     settings = AppSettings.load()
     current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
-    current_grounding_mode = getattr(settings.context, "grounding_mode", "hybrid") if (settings and settings.context) else "hybrid"
-    if current_grounding_mode not in ["hybrid", "strict", "proactive"]:
-        current_grounding_mode = "hybrid"
+    current_grounding_mode = store.get_grounding_mode(workspace_name=active_workspace)
 
     safe_stdout_write("\n┌" + "─" * 72 + "┐\n")
     safe_stdout_write("│ 💬 Chat started! Type '/' for command palette or '/exit' to quit.      │\n")
@@ -362,12 +364,11 @@ def run_chat_loop(active_workspace: str = "Default"):
     while True:
         try:
             # Dynamically refresh settings in case changed during past turn
+            store = ConfigDBStore()
             settings = AppSettings.load()
-            if settings:
-                if settings.models and settings.models.inference_model:
-                    current_model = settings.models.inference_model
-                if settings.context and getattr(settings.context, "grounding_mode", None):
-                    current_grounding_mode = settings.context.grounding_mode
+            if settings and settings.models and settings.models.inference_model:
+                current_model = settings.models.inference_model
+            current_grounding_mode = store.get_grounding_mode(workspace_name=active_workspace)
 
             toolbar_fn = create_bottom_toolbar_renderer(
                 workspace_name=active_workspace,
