@@ -357,6 +357,40 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
                     run_chat_loop(active_workspace="Default")
         safe_stdout_write("  [OK] Standard POSIX/GNU flags verified across all commands!\n")
 
+    def test_17_bottom_toolbar_renderer_and_prompt_dock(self):
+        """Validates that create_bottom_toolbar_renderer renders dynamic toolbar with workspace, model, mode, and sync status."""
+        safe_stdout_write(">>> [CLI UNIT] Testing Bottom Toolbar Renderer & Prompt Dock...\n")
+        from any_context.cli.chat_loop import create_bottom_toolbar_renderer
+        from any_context.cli.history import safe_prompt_input, WorkspaceHistoryManager, get_default_prompt_style
+
+        # 1. Test toolbar renderer output
+        renderer = create_bottom_toolbar_renderer(
+            workspace_name="TestWS",
+            model_name="gpt-4o-mini",
+            grounding_mode="hybrid"
+        )
+        rendered_html = renderer()
+        self.assertIsNotNone(rendered_html)
+        html_str = str(rendered_html)
+        self.assertIn("TestWS", html_str)
+        self.assertIn("gpt-4o-mini", html_str)
+        self.assertIn("Hybrid", html_str)
+        self.assertIn("/menu", html_str)
+        self.assertIn("/exit", html_str)
+
+        # 2. Test style retrieval
+        style = get_default_prompt_style()
+        self.assertIsNotNone(style)
+
+        # 3. Test non-TTY prompt fallback with bottom_toolbar
+        mgr = WorkspaceHistoryManager()
+        with patch("sys.stdin.isatty", return_value=False):
+            with patch("builtins.input", return_value="hello"):
+                res = mgr.prompt("Test: ", workspace_name="TestWS", bottom_toolbar=renderer)
+                self.assertEqual(res, "hello")
+
+        safe_stdout_write("  [OK] Bottom Toolbar renderer and prompt dock verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
 

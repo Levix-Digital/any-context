@@ -107,6 +107,24 @@ def create_workspace_prompt_session(history_file: str):
         return None
 
 
+def get_default_prompt_style():
+    """Returns elegant, modern theme colors for prompt_toolkit bottom toolbar."""
+    try:
+        from prompt_toolkit.styles import Style
+        return Style.from_dict({
+            "bottom-toolbar": "bg:#1a1b26 #a9b1d6",
+            "bottom-toolbar.text": "#a9b1d6",
+            "bottom-toolbar.ws": "fg:#e0af68 bold",
+            "bottom-toolbar.model": "fg:#bb9af7 bold",
+            "bottom-toolbar.mode": "fg:#7dcfff bold",
+            "bottom-toolbar.sync": "bg:#e0af68 fg:#1a1b26 bold",
+            "bottom-toolbar.dim": "fg:#565f89",
+            "bottom-toolbar.cmd": "fg:#73daca bold",
+        })
+    except Exception:
+        return None
+
+
 class WorkspaceHistoryManager:
     """
     Manages prompt_toolkit PromptSession instances keyed by workspace name.
@@ -126,16 +144,32 @@ class WorkspaceHistoryManager:
             self._sessions[ws] = sess
         return sess
 
-    def prompt(self, prompt_text: str, workspace_name: Optional[str] = None) -> Optional[str]:
+    def prompt(
+        self,
+        prompt_text: str,
+        workspace_name: Optional[str] = None,
+        bottom_toolbar: Optional[Any] = None,
+        style: Optional[Any] = None
+    ) -> Optional[str]:
         """
         Prompts user for input using the active workspace's PromptSession.
+        Supports rich bottom_toolbar (docked at the bottom of the screen) and custom styling.
         Gracefully falls back to standard input() if prompt_toolkit or TTY is unavailable.
         """
         try:
             sess = self.get_session(workspace_name)
             if sess and sys.stdin.isatty():
                 from prompt_toolkit.formatted_text import ANSI
-                return sess.prompt(ANSI(prompt_text))
+                prompt_kwargs = {}
+                if bottom_toolbar is not None:
+                    prompt_kwargs["bottom_toolbar"] = bottom_toolbar
+                if style is not None:
+                    prompt_kwargs["style"] = style
+                else:
+                    def_style = get_default_prompt_style()
+                    if def_style:
+                        prompt_kwargs["style"] = def_style
+                return sess.prompt(ANSI(prompt_text), **prompt_kwargs)
             return input(prompt_text)
         except (KeyboardInterrupt, EOFError):
             print()
@@ -153,8 +187,18 @@ class WorkspaceHistoryManager:
 history_manager = WorkspaceHistoryManager()
 
 
-def safe_prompt_input(prompt_text: str, workspace_name: Optional[str] = None) -> Optional[str]:
+def safe_prompt_input(
+    prompt_text: str,
+    workspace_name: Optional[str] = None,
+    bottom_toolbar: Optional[Any] = None,
+    style: Optional[Any] = None
+) -> Optional[str]:
     """
-    Convenience wrapper to safely read user input with per-workspace history navigation.
+    Convenience wrapper to safely read user input with per-workspace history navigation and bottom toolbar.
     """
-    return history_manager.prompt(prompt_text, workspace_name=workspace_name)
+    return history_manager.prompt(
+        prompt_text,
+        workspace_name=workspace_name,
+        bottom_toolbar=bottom_toolbar,
+        style=style
+    )

@@ -216,6 +216,43 @@ def format_sync_status_box(diff: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def create_bottom_toolbar_renderer(
+    workspace_name: str,
+    model_name: str,
+    grounding_mode: str
+):
+    """
+    Constructs a dynamic callable for prompt_toolkit bottom_toolbar.
+    Renders an elegant, information-dense status dock pinned at the bottom of the screen:
+    📂 [Workspace]  │  🤖 [Model]  │  🛡️ [Grounding Mode]  │  [⚡ Syncing...] (if active)  │  /menu  │  /exit
+    """
+    from prompt_toolkit.formatted_text import HTML
+    from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+
+    def _render():
+        clean_mode = (grounding_mode or "hybrid").capitalize()
+        # Check background sync status dynamically on each render frame
+        sync_badge = ""
+        try:
+            bg_mgr = BackgroundSyncManager()
+            sync_info = bg_mgr.get_status(workspace_name)
+            if sync_info and sync_info.get("status") == "running":
+                sync_badge = "  <style bg='#e0af68' fg='#1a1b26'><b> ⚡ Syncing... </b></style>  │"
+        except Exception:
+            pass
+
+        return HTML(
+            f" <style fg='#e0af68'><b>📂 {workspace_name}</b></style>  │  "
+            f"<style fg='#bb9af7'><b>🤖 {model_name}</b></style>  │  "
+            f"<style fg='#7dcfff'><b>🛡️ {clean_mode}</b></style>"
+            f"{sync_badge}  │  "
+            f"<style fg='#73daca'><b>/menu</b></style><style fg='#565f89'> for commands</style>  │  "
+            f"<style fg='#f7768e'><b>/exit</b></style><style fg='#565f89'> to quit</style> "
+        )
+
+    return _render
+
+
 def run_chat_loop(active_workspace: str = "Default"):
     active_workspace = (active_workspace or "Default").strip()
     if not active_workspace:
@@ -262,17 +299,25 @@ def run_chat_loop(active_workspace: str = "Default"):
 
     while True:
         try:
-            mode_display = current_grounding_mode.capitalize()
-            if current_grounding_mode == "strict":
-                mode_color = "\033[92m" # Green for Strict
-            elif current_grounding_mode == "proactive":
-                mode_color = "\033[94m" # Blue for Proactive
-            else:
-                mode_color = "\033[96m" # Cyan for Hybrid
+            # Dynamically refresh settings in case changed during past turn
+            settings = AppSettings.load()
+            if settings:
+                if settings.models and settings.models.inference_model:
+                    current_model = settings.models.inference_model
+                if settings.context and getattr(settings.context, "grounding_mode", None):
+                    current_grounding_mode = settings.context.grounding_mode
 
-            prompt_ws = f"\033[93m{active_workspace}\033[96m"
-            prompt_str = f"You [{prompt_ws} | \033[95m{current_model}\033[96m | {mode_color}{mode_display}\033[96m]"
-            raw_input = safe_prompt_input(f"\n\033[96m👤 {prompt_str}:\033[0m ", workspace_name=active_workspace)
+            toolbar_fn = create_bottom_toolbar_renderer(
+                workspace_name=active_workspace,
+                model_name=current_model,
+                grounding_mode=current_grounding_mode
+            )
+
+            raw_input = safe_prompt_input(
+                "\n\033[96m👤 You:\033[0m ",
+                workspace_name=active_workspace,
+                bottom_toolbar=toolbar_fn
+            )
             if raw_input is None:
                 continue
 

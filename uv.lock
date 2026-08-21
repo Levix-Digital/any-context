@@ -216,7 +216,7 @@ wheels = [
 
 [[package]]
 name = "any-context"
-version = "0.14.2"
+version = "0.14.3"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },
@@ -233,6 +233,7 @@ dependencies = [
     { name = "llama-index-embeddings-openai" },
     { name = "llama-index-readers-file" },
     { name = "llama-index-vector-stores-chroma" },
+    { name = "prompt-toolkit" },
     { name = "pydantic" },
     { name = "python-docx" },
     { name = "python-dotenv" },
@@ -257,6 +258,7 @@ requires-dist = [
     { name = "llama-index-embeddings-openai" },
     { name = "llama-index-readers-file" },
     { name = "llama-index-vector-stores-chroma" },
+    { name = "prompt-toolkit", specifier = ">=3.0.40" },
     { name = "pydantic" },
     { name = "python-docx" },
     { name = "python-dotenv" },
