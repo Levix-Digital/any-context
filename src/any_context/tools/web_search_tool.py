@@ -44,8 +44,10 @@ def execute_web_search(
 
     results = []
 
-    # 1. Check Tavily API
-    tavily_key = os.getenv("TAVILY_API_KEY")
+    from any_context.core.utils import get_api_key
+
+    # 1. Check Tavily API (from SQLite DB or Environment)
+    tavily_key = get_api_key("tavily") or os.getenv("TAVILY_API_KEY")
     if tavily_key and tavily_key.strip():
         try:
             import httpx
@@ -69,8 +71,8 @@ def execute_web_search(
         except Exception:
             pass
 
-    # 2. Check Serper API
-    serper_key = os.getenv("SERPER_API_KEY")
+    # 2. Check Serper API (from SQLite DB or Environment)
+    serper_key = get_api_key("serper") or os.getenv("SERPER_API_KEY")
     if serper_key and serper_key.strip():
         try:
             import httpx

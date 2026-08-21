@@ -2,4 +2,4 @@
 AnyContext - Agnostic AI Agent with Isolated Workspaces and Long-Term Memory
 """
 
-__version__ = "0.15.4"
+__version__ = "0.15.5"
