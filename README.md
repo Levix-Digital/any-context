@@ -36,7 +36,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
 **AnyContext changes everything:**
 
 1. **You Point to Your Folders**: Point AnyContext to any folder on your computer (PDFs, Word docs, Excel spreadsheets, images, text files, or source code).
-2. **Instant Local Memory**: AnyContext reads and organizes your documents locally into an ultra-fast vector database (ChromaDB).
+2. **Instant Local Memory**: AnyContext reads and organizes your documents locally into an ultra-fast columnar vector database (**LanceDB / Apache Arrow in Rust**).
 3. **Ask Anything Naturally**: Open the terminal and ask questions in plain English or Portuguese (*"What is the renewal deadline in contract 42?"*, *"Compare the tax policies across our 2025 financial reports"*).
 4. **Cites Real Sources**: The AI answers accurately, quoting the exact file name, page, and chunk where the information was found.
 5. **Zero Cloud Lock-In**: Choose from **9 leading AI providers** (OpenAI, Claude, Gemini, DeepSeek, Groq, Mistral, xAI Grok, OpenRouter) or run **100% offline and free** using local models (LM Studio / Ollama).
@@ -45,6 +45,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **⚡ 100% LanceDB Columnar Vector Engine (Apache Arrow / Rust)**:
+  - **Sub-5ms Vector Queries**: Powered by native Rust SIMD vector distance routines, eliminating database locks and enabling instant retrieval across 100,000+ chunks.
+  - **Zero Database Locks**: Columnar Apache Arrow dataset architecture eliminates SQLite write-lock contentions on Windows.
+  - **Live Dataset Inspection (`/inspect` ou `/chunks`)**: Directly inspect live vector records, record counts, and snippet previews for both document context and session memory.
+  - **Instant $0.00 Transfers & Renames**: Data source transfers and workspace renames execute on LanceDB datasets in `< 50ms` with zero token expenditure.
 - **🕒 Temporal RAG & Metadata Freshness Engine**:
   - **5-Tier Web Date Resolution**: Automatically extracts publication and update dates via OpenGraph/Schema.org, visible in-page text/footers (`Page details YYYY-MM-DD`, `Date modified:`), URL date patterns (`/2023/06/...`), HTTP `Last-Modified` headers, and crawl timestamps.
   - **Content Classification**: Distinguishes between `Canonical Service / Documentation` (authoritative current rules), `Historical News / Press Release` (past announcements), and `Local Document`.
@@ -52,7 +57,6 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Time-Aware Chunk Headers**: Injects `Source: ... | Workspace: ... | Last Modified: YYYY-MM-DD | Type: ...` into every chunk.
   - **Recency Primacy & Conflict Resolution**: The AI agent evaluates timestamps and status notices, ensuring that current rules (`Status: Paused`) always supersede older historical announcements.
 - **🔬 2-Phase High-Precision RAG & Context Calibration Engine**:
-  - **⚡ High-Speed Columnar Search Engine (LanceDB & Rust)**: Instant vector retrieval (< 5ms) powered by embedded columnar datasets, eliminating database locks and enabling lightning-fast query resolution across hundreds of thousands of document chunks.
   - **🎯 Semantic Precision & Zero Cross-Domain Noise (Contextual Retrieval)**: The system captures the overarching theme and domain keywords of each document and web page before reading paragraphs. Searches on a specific subject never pull unrelated files (like financial or IT docs in legal questions).
   - **Phase 1 (Deep Candidate Pool Scanning)**: Evaluates a broad initial pool of **100+ candidate chunks** across thousands of indexed pages and files, guaranteeing 100% recall coverage.
   - **Phase 2 (Balanced Multi-Source Diversity)**: Balanced round-robin distribution ensures fair representation across all documents and web portals (up to 3 chunks per source), preventing a single large file from monopolizing the context window.
@@ -61,7 +65,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **🧹 Smart Conversation Flow & Zero Token Overflows**: Automatically compacts past search dumps in multi-turn conversations, keeping dialogue fast and prompt size permanently optimized (~10,000 tokens) even after dozens of consecutive questions.
   - **🔄 Resilient Auto-Retry with Exponential Backoff**: Automatic transparent recovery from AI provider rate limits (TPM/RPM 429 errors) across all 9 supported providers with millisecond backoff loops, ensuring zero disruption during heavy research sessions.
   - **🎛️ Dynamic Retrieval Presets Matrix**:
-    | Preset | Pool no ChromaDB | Chunks Injetados | Tokens de Contexto | Melhor uso |
+    | Preset | Pool no LanceDB | Chunks Injetados | Tokens de Contexto | Melhor uso |
     | :--- | :---: | :---: | :---: | :--- |
     | **⚡ Turbo** | 50 candidatos | 10 chunks | ~5.000 tokens | **Velocidade máxima:** perguntas rápidas, fatos pontuais, dúvidas do dia a dia. |
     | **⚖️ Balanced** *(Padrão)* | 100 candidatos | 20 chunks | ~10.000 a 15.000 tokens | **Equilíbrio perfeito:** alta precisão factual sem ruído (o padrão ideal). |

@@ -6,14 +6,16 @@
 
 ## 📑 Table of Contents
 1. [System Architecture & 3-Tier Context Model](#1-system-architecture--3-tier-context-model)
-2. [2-Phase High-Precision RAG & Context Calibration Engine](#2-2-phase-high-precision-rag--context-calibration-engine)
+2. [100% LanceDB Columnar Vector Engine & Modular RAG Architecture](#2-100-lancedb-columnar-vector-engine--modular-rag-architecture)
 3. [Temporal RAG & Metadata Freshness Engine](#3-temporal-rag--metadata-freshness-engine)
 4. [Intelligent Web Ingestion & Recursive Crawler Engine](#4-intelligent-web-ingestion--recursive-crawler-engine)
 5. [3-Level Structured Long-Term Memory Architecture](#5-3-level-structured-long-term-memory-architecture)
-6. [REST API Server Architecture & Security (`actx --serve`)](#6-rest-api-server-architecture--security-actx---serve)
-7. [Model Context Protocol (MCP) Implementation (`actx --mcp`)](#7-model-context-protocol-mcp-implementation-actx---mcp)
-8. [Observability & Telemetry Pipeline (LangSmith)](#8-observability--telemetry-pipeline-langsmith)
-9. [Multi-Interface Surface Parity & Governance Protocol](#9-multi-interface-surface-parity--governance-protocol)
+6. [Unified Synchronization & Multi-Source Parity Engine](#6-unified-synchronization--multi-source-parity-engine)
+7. [REST API Server Architecture & Security (`actx --serve`)](#7-rest-api-server-architecture--security-actx---serve)
+8. [Model Context Protocol (MCP) Implementation (`actx --mcp`)](#8-model-context-protocol-mcp-implementation-actx---mcp)
+9. [Cross-Version Python Compatibility (3.10 - 3.13) & AST Engineering](#9-cross-version-python-compatibility-310---313--ast-engineering)
+10. [Observability & Telemetry Pipeline (LangSmith)](#10-observability--telemetry-pipeline-langsmith)
+11. [Multi-Interface Surface Parity & Governance Protocol](#11-multi-interface-surface-parity--governance-protocol)
 
 ---
 
@@ -30,7 +32,7 @@ To eliminate redundant re-indexing and guarantee multi-department data isolation
 2. **📦 Reusable Shared Sources Library (`Shared Sources`)**:
    - Dedicated central library workspace for reusable frameworks, technical codebases, and web documentation portals.
    - **Zero-Cost Source Linking**: Any project workspace can link an existing indexed source in `< 50ms` with **$0.00 in embedding API costs** via `/link` or the REST API.
-   - ChromaDB vectors and SQLite metadata are referenced dynamically without duplication.
+   - LanceDB columnar vector datasets and SQLite metadata are referenced dynamically without physical duplication.
 3. **📁 Scoped Project Workspaces**:
    - Isolated contextual boundaries guaranteeing zero cross-project data leakage.
    - Workspaces can exist as empty logical scopes (ideal for documentation portals, market research, or agent tasks) before attaching local folders or web URLs.
@@ -40,8 +42,8 @@ graph TD
     subgraph "🏛️ 3-Tier Context Hierarchy"
         A["🏢 Institutional Global (Global)"] --> D["📁 Project Workspace A (Legal)"]
         A --> E["📁 Project Workspace B (Engineering)"]
-        B["📦 Reusable Shared Sources (Frameworks, Docs)"] -.->|Zero-Cost Link < 50ms| D
-        B -.->|Zero-Cost Link < 50ms| E
+        B["📦 Reusable Shared Sources (Frameworks, Docs)"] -.->|Zero-Cost Link < 50ms ($0.00)| D
+        B -.->|Zero-Cost Link < 50ms ($0.00)| E
     end
 ```
 
@@ -56,28 +58,88 @@ AnyContext resolves settings, API credentials, and environment overrides through
 
 ---
 
-## 2. 2-Phase High-Precision RAG & Context Calibration Engine
+## 2. 100% LanceDB Columnar Vector Engine & Modular RAG Architecture
 
-AnyContext implements an advanced **2-Phase Retrieval-Augmented Generation (RAG)** pipeline designed for maximum factual precision, cross-source fairness, and elimination of context window attention degradation.
+Starting in version `v0.21.0`, AnyContext has **fully unified all vector operations into LanceDB (Apache Arrow / Rust)**, completely eliminating ChromaDB, SQLite write-lock contentions, and `docstore.json` serialization bottlenecks.
 
 ```mermaid
 graph TD
-    A["📚 10.000+ Páginas & Arquivos no Workspace"] --> B["⚡ Etapa 1: Busca Paralela na CPU (ThreadPoolExecutor)<br/>(Escaneia pool de 100+ candidatos no ChromaDB em < 15ms)"]
-    B --> C["⚖️ Etapa 2: Diversificação Source-Fair Round-Robin<br/>(Filtra a nata de 15-20 chunks mais densos sem ruído)"]
-    C --> D["🧠 LLM Prompt Calibrado (~10.000 tokens)<br/>(Foco cirúrgico, zero alucinação, 3x mais rápido)"]
-    D --> E["💬 Resposta Instantânea & Fundamentada"]
+    subgraph "Fontes de Dados"
+        A["📁 Pastas Locais"]
+        B["🌐 Portais Web (Crawlers)"]
+        C["☁️ Cloud Drives"]
+        D["🧠 Memória de Sessão"]
+    end
+
+    subgraph "Motor Vetorial Modular (src/any_context/vector_engine/)"
+        E["⚡ ParallelIndexer<br/>(Enriquecimento + Batch Embeddings)"]
+        F[("⚡ LanceDB Columnar Store<br/>(Apache Arrow em Rust | < 5ms)")]
+        G["🔍 ParallelRetriever<br/>(Busca Concorrente Multi-Fonte)"]
+        H["⚖️ RelevanceFilter<br/>(Thresholding + Round-Robin + Density)"]
+    end
+
+    A --> E
+    B --> E
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I["💬 Prompt Calibrado no LLM (~10k tokens)"]
 ```
 
-### 🔍 Phase 1: Deep Candidate Pool Scanning
-- The ChromaDB vector database evaluates a broad initial pool of **100+ candidate chunks** across all indexed documents, guarantee 100% recall coverage.
-- **Parallel Multi-Source Retrieval (`ThreadPoolExecutor`)**: Concurrently searches across the active workspace, linked Shared Sources, and Global knowledge bases on all CPU cores, fusing results in sub-10ms.
+### 🧩 Modular Subsystem Breakdown (`src/any_context/vector_engine/`)
 
-### ⚖️ Phase 2: Source-Fair Round-Robin Diversification (`_diversify_nodes`)
-- To prevent a monolithic 500-page document from monopolizing all context slots, the `_diversify_nodes` algorithm allocates chunks using a balanced round-robin strategy:
-  - **Pass 1:** Selects up to `max_chunks_per_source` (default: 3) from each distinct document or web URL.
-  - **Pass 2:** If the target quota remains unfilled, populates remaining slots with the highest-scoring candidate chunks.
+#### 1. `LanceDBStore` (`src/any_context/vector_engine/store.py`):
+- **Native Columnar Engine**: Encapsulates raw LanceDB driver operations using PyArrow schemas. All vector data is stored in Apache Arrow format on disk (`workspace_chunks.lance` and `session_memory.lance`).
+- **Zero-Copy & Sub-Millisecond Speed**: Vector queries execute in `< 5ms` on 100k+ chunks through Rust-based AVX2/AVX-512 SIMD vector distance routines.
+- **PyArrow Record Schema**:
+  ```python
+  pa.schema([
+      pa.field("id", pa.string()),
+      pa.field("vector", pa.list_(pa.float32(), dim)),
+      pa.field("text", pa.string()),
+      pa.field("file_name", pa.string()),
+      pa.field("file_path", pa.string()),
+      pa.field("workspace", pa.string()),
+      pa.field("last_modified", pa.string()),
+      pa.field("content_type", pa.string()),
+      pa.field("document_summary", pa.string()),
+      pa.field("keywords", pa.string()),
+      pa.field("content_hash", pa.string()),
+  ])
+  ```
+- **Cross-Platform Path Normalization (`_norm_path`)**: Standardizes Windows (`\`) and POSIX (`/`) paths to forward slashes before SQL/Arrow filtering, guaranteeing 100% search compatibility across operating systems.
+- **Atomic Zero-Cost Metadata Operations ($0.00)**:
+  - `update_workspace_name(old_ws, new_ws, table_name)`: Reads matching records, updates the workspace metadata attribute, and commits changes atomically in `< 50ms` without recomputing vector embeddings.
+  - `transfer_file(source_ws, target_ws, file_path, table_name)`: Migrates all records belonging to a folder, file, or URL domain from one workspace to another in `< 50ms` with zero token expenditure.
+
+#### 2. `ParallelIndexer` (`src/any_context/vector_engine/indexer.py`):
+- **Concurrent Ingestion Pipeline**: Coordinates file parsing, semantic enrichment, batch embedding, and columnar writes.
+- **Micro-Batch Vectorization**: Calls `get_text_embeddings_batch` in batches of 32 to 100 chunks, maximizing OpenAI/local embedding throughput while avoiding HTTP 429 rate limits.
+- **Dynamic Dimension Resolution**: Inspects the length of the first computed embedding vector (e.g. 1536 for OpenAI `text-embedding-3-small` or 3072 for `text-embedding-3-large`) and provisions the PyArrow schema dynamically.
+
+#### 3. `ParallelRetriever` (`src/any_context/vector_engine/retriever.py`):
+- **Multi-Source Thread Pool Execution**: Uses `ThreadPoolExecutor` to simultaneously query the active workspace partition, the `Global` knowledge base, and linked `Shared Sources`.
+- **Distance to Similarity Normalization**: Converts LanceDB L2 / Cosine distances to a normalized `[0.0, 1.0]` score:
+  $$\text{score} = \frac{1.0}{1.0 + \max(0.0, \text{distance})}$$
+- **Zero-Lock Concurrency**: Multiple read threads query the Apache Arrow dataset concurrently without database lock contention.
+
+#### 4. `RelevanceFilter` (`src/any_context/vector_engine/filters.py`):
+- **Pure-Function Decoupled Filter**: Applies mathematical score thresholding (`apply_threshold`), source-fair round-robin balancing (`apply_source_diversification`), and strict prompt density budgeting (`apply_density_budget`).
+- **Density Budgeting**: Enforces a strict ceiling of **45,000 characters (~10,000-11,000 tokens)**, ensuring that injected context fits safely within LLM attention windows without causing attention degradation ("Lost in the Middle").
+
+#### 5. `RetrievalConfig` & `IngestionConfig` (`src/any_context/vector_engine/models.py`):
+- **Decoupled Parameter Objects**: Immutable dataclasses injected via Dependency Injection into the retriever and indexer.
+- **Retrieval Presets**:
+  - `turbo`: `candidate_pool_k=50`, `target_top_k=10`, `max_chunks_per_source=2` (~5,000 tokens).
+  - `balanced` (Default): `candidate_pool_k=100`, `target_top_k=20`, `max_chunks_per_source=3` (~10,000-15,000 tokens).
+  - `deep_research`: `candidate_pool_k=150`, `target_top_k=40`, `max_chunks_per_source=5` (~30,000-40,000 tokens).
+
+---
 
 ### 🌐 Contextual Retrieval & Semantic Enrichment (`ContextualEnricher`)
+
 - **The Problem of Out-of-Domain False Positives**: In dense vector search, generic terms like "authorizations" or "deadlines" in unrelated documents (e.g. IT access forms or financial agreements) can falsely match queries about child immigration laws.
 - **The Contextual Enrichment Solution (`src/any_context/vector_engine/enricher.py`)**:
   - Before chunking and embedding, every local document or crawled web URL passes through the `ContextualEnricher`.
@@ -92,58 +154,19 @@ graph TD
     ```
   - **SHA-256 Persistent SQLite Caching**: The semantic envelope is generated once per file/URL and cached in SQLite (`contextual_enrichment_cache.db`), guaranteeing **sub-millisecond bypass (0.00ms)** for unmodified files on subsequent syncs.
 
-### ⚡ Modular Parallel Vector Engine & LanceDB Columnar Storage (`vector_engine/`)
-- **Encapsulated LanceDB Driver (`src/any_context/vector_engine/store.py`)**:
-  - Direct persistence into Apache Arrow columnar datasets (`.lance`) in Rust.
-  - Zero SQLite write locks, zero-copy retrieval, sub-5ms vector queries across 100,000+ chunks.
-- **Dependency Injection Contracts (`src/any_context/vector_engine/models.py`)**:
-  - `RetrievalConfig`: Immutable dataclass parameter object encapsulating candidate pool size (`candidate_pool_k`), target chunks (`target_top_k`), score threshold (`min_similarity_score`), and max chunks per source (`max_chunks_per_source`).
-  - `IngestionConfig`: Immutable dataclass parameter object defining chunk size, token overlap, and batch embedding concurrency.
-- **High-Throughput Parallel Ingestor (`src/any_context/vector_engine/indexer.py`)**:
-  - `ParallelIndexer`: Coordinates concurrent file parsing, contextual enrichment, batch vector embeddings (50-100 chunks/batch), and zero-copy columnar ingestion into LanceDB.
-- **Multi-Source Parallel Retriever (`src/any_context/vector_engine/retriever.py`)**:
-  - `ParallelRetriever`: Concurrently executes vector search across the active workspace, Global knowledge base, and linked Shared Sources using thread pools calling LanceDB's native Rust HNSW index.
-- **Decoupled Relevance & Diversification Filter (`src/any_context/vector_engine/filters.py`)**:
-  - `RelevanceFilter`: Pure-function ranking module applying mathematical score thresholding, source-fair round-robin balancing, and strict density budgeting (~10,000 tokens) with zero I/O side effects.
+---
 
-### 🔄 Unified Synchronization Architecture & Multi-Source Parity (`src/any_context/ingestion/unified_sync.py`)
-- **Unified Master Orchestrator (`run_unified_sync`)**:
-  - `/sync` orchestrates synchronization across all registered source categories in the active workspace:
-    1. 📁 **Local Folders**: Scanned, diffed (SHA-256), contextualized and ingested via `run_index_folder`.
-    2. 🌐 **Web Portals**: Tracked, scraped, hashed and updated via `sync_workspace_web_urls`.
-    3. ☁️ **Cloud Drives**: Synced via cloud drive managers.
-  - **Granular Target Flags**: `/sync --folder` (folders only), `/sync --web` (web only), `/sync --drive` (cloud only), `/sync --all` (all workspaces), `/sync --force` (full re-index).
-- **Source Family Command Parity**:
-  - Standardized symmetric CLI verbs across `/folder`, `/web`, `/drive`:
-    - `--list` / `-l`: Inspect configured sources.
-    - `--add` / `-a <path|url>`: Add new source with auto-ingestion.
-    - `--remove` / `-r <path|url>`: Remove source and purge associated vector records.
-    - `--sync` / `-s`: Synchronize only that source category.
+### 🔍 Live Database Inspection Command (`/inspect` ou `/chunks`)
 
-### 🧹 Multi-Query Turn Consolidation & Runtime Pruning (`PruningChatModelWrapper`)
-- In multi-turn chat sessions (`actx`), LangGraph retains the compiled state graph in RAM across consecutive turns within the same terminal session.
-- To prevent past searches from accumulating across turns (e.g. 3 turns × 42k chars = 138,992 tokens) while **fully preserving multi-subtopic searches within the same question**:
-  - **Historical Tool Messages**: All `ToolMessage` payloads prior to the latest `HumanMessage` are compacted to `"[Prior workspace context retrieved and synthesized in conversation history]"`.
-  - **Current Turn Multi-Tool Consolidation**: When the agent searches multiple sub-topics in the active turn (e.g. Subtopic A + Subtopic B), the system partitions the 40,000-character density budget proportionally across all active tool calls. Every researched topic is preserved with high-density snippets without dropping facts.
-  - **Conversation Dialogue**: `HumanMessage` and `AIMessage` history is **100% preserved**.
-  - **Prompt Size**: Stays safely at ~5,000 to 12,000 tokens indefinitely, completely eliminating 128,000 token context overflow errors across 100+ turns and multi-topic tool loops.
-
-### 🔄 Resilient Auto-Retry with Exponential Backoff (`max_retries=5`)
-- All 9 supported AI providers (OpenAI, Anthropic, Gemini, Groq, DeepSeek, Mistral, xAI) enforce Tokens Per Minute (TPM) and Requests Per Minute (RPM) rate limits.
-- AnyContext configures `max_retries=5` with exponential backoff on all chat model initializations. If a provider returns **HTTP 429 (Rate Limit)**, AnyContext waits the required milliseconds and completes the response seamlessly without user-facing errors.
-
-### 🎛️ Dynamic Retrieval Presets Matrix
-
-| Preset | Pool no ChromaDB | Chunks Injetados | Tokens de Contexto | Melhor uso |
-| :--- | :---: | :---: | :---: | :--- |
-| **⚡ Turbo** | 50 candidatos | 10 chunks | ~5.000 tokens | **Velocidade máxima:** perguntas rápidas, fatos pontuais, dúvidas do dia a dia. |
-| **⚖️ Balanced** *(Padrão)* | 100 candidatos | 20 chunks | ~10.000 a 15.000 tokens | **Equilíbrio perfeito:** alta precisão factual sem ruído (o padrão ideal). |
-| **🔬 Deep Research** | 150 candidatos | 40 chunks | ~30.000 a 40.000 tokens | **Auditoria pesada:** comparar cláusulas de 10 contratos ou analisar dossiês complexos. |
-
-### 🛡️ AI Grounding & Answer Modes
-- **🛡️ Strict Mode**: 100% anchored to workspace chunks. Zero parametric speculation; explicitly declares absence of facts if not found. Web search requires explicit user confirmation.
-- **⚖️ Hybrid Mode (Default)**: Dual-layer response. Answers factual questions using workspace documents, followed by clearly labeled general knowledge insights (*"De acordo com meus conhecimentos gerais..."*).
-- **🚀 Proactive Mode**: Open research and strategic ideation. Broad cross-synthesis and proactive recommendations.
+Users and administrators can verify vector database state directly from the chat interface without leaving the terminal:
+- Command: `/inspect` (aliases: `/chunks`, `/lance`)
+- Options: `/inspect -n 10` (custom sample limit)
+- Output Data:
+  - Active storage engine: `⚡ LanceDB Columnar (Apache Arrow / Rust)`
+  - Physical disk path of the `.lance` dataset
+  - Total chunks in active workspace vs. total across all workspaces in `workspace_chunks.lance`
+  - Total long-term memories in `session_memory.lance`
+  - Formatted text snippets, content types (`Local Document`, `Web Documentation`), and source paths
 
 ---
 
@@ -177,12 +200,12 @@ AnyContext includes a built-in, concurrent web ingestion engine designed for hig
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                        ANYCONTEXT WEB INGESTION LIFECYCLE                              │
 ├─────────────────┬─────────────────┬──────────────────┬─────────────────┬───────────────┤
-│  1. Discovery   │  2. Resolution  │   3. Proximity   │  4. Concurrent  │ 5. Ingestion  │
-│  & Normalization│  & Sitemaps     │     Ranking      │    Extraction   │   Pipeline    │
+│  1. Discovery   │  2. Resolution  │   3. Proximity   │  4. Concurrent  │ 5. Columnar   │
+│  & Normalization│  & Sitemaps     │     Ranking      │    Extraction   │   LanceDB     │
 ├─────────────────┼─────────────────┼──────────────────┼─────────────────┼───────────────┤
 │ • Strip .html   │ • sitemapindex  │ • Landing (10k)  │ • Multi-threaded│ • Chunk 500/50│
-│ • Infer Prefix  │ • Keyword Match │ • Section (2k)   │ • Strip Boiler  │ • OpenAI Embed│
-│ • Extract Links │ • Filter .xml   │ • Keywords (300) │ • Markdown AST  │ • ChromaDB    │
+│ • Infer Prefix  │ • Keyword Match │ • Section (2k)   │ • Strip Boiler  │ • Batch Embed │
+│ • Extract Links │ • Filter .xml   │ • Keywords (300) │ • Markdown AST  │ • Arrow Batch │
 └─────────────────┴─────────────────┴──────────────────┴─────────────────┴───────────────┘
 ```
 
@@ -196,14 +219,15 @@ AnyContext includes a built-in, concurrent web ingestion engine designed for hig
    - 🏅 **Keyword & Slug Matches** (Priority 300 per keyword)
    - ⚪ **Generic Domain URLs** (Priority 0)
 4. **Clean Semantic HTML Extraction**: Strips navigation bars, footers, cookies, scripts, and ads while preserving headings, markdown tables, and code blocks.
-5. **SentenceSplitter & Rate-Limited Batching**: Splits content into 500-token chunks (50 overlap) and generates embeddings in micro-batches (`embed_batch_size=32`) to prevent rate limits.
-6. **E-Commerce & Schema.org Rating Extraction**: Parses `<script type="application/ld+json">` for `Product` and `IndividualProduct` schema (star ratings, review counts, prices, stock status) and preserves HTML review badges (`4.844 out of 5 stars. 1199 reviews`).
+5. **Multi-Page Portal Re-Crawling on `/web --sync`**:
+   - `sync_workspace_web_urls` inspects whether a web source has multiple indexed pages (`page_count > 1` or crawler root).
+   - For multi-page portals, it executes the full crawler pipeline (`crawl_website`) across all sub-pages with support for `force_rescrape`, guaranteeing that all portal chunks are populated in LanceDB.
 
 ---
 
 ## 5. 3-Level Structured Long-Term Memory Architecture
 
-AnyContext implements a hierarchical 3-level memory system:
+AnyContext implements a hierarchical 3-level memory system powered exclusively by LanceDB table `session_memory.lance`:
 
 ### 🧠 Level 1: Structured 5-Dimension Session Summary
 Extracted automatically upon `/exit` or `/q` across 5 clear dimensions:
@@ -217,11 +241,39 @@ Extracted automatically upon `/exit` or `/q` across 5 clear dimensions:
 Retains recent conversation messages in SQLite state for immediate context continuity.
 
 ### 🧠 Level 3: Consolidated Meta-Summarization
-Consolidates older memory vectors into high-level indices using 1024-token expanded chunks (`chunk_size=1024`, `chunk_overlap=200`).
+Consolidates older memory vectors into high-level indices using 1024-token expanded chunks (`chunk_size=1024`, `chunk_overlap=200`) stored in LanceDB.
 
 ---
 
-## 6. REST API Server Architecture & Security (`actx --serve`)
+## 6. Unified Synchronization & Multi-Source Parity Engine
+
+### 🔄 Unified Master Orchestrator (`src/any_context/ingestion/unified_sync.py`)
+- `/sync` orchestrates synchronization across all registered source categories in the active workspace:
+  1. 📁 **Local Folders**: Scanned, diffed (SHA-256), contextualized and ingested via `run_index_folder`.
+  2. 🌐 **Web Portals**: Tracked, scraped, hashed and updated via `sync_workspace_web_urls`.
+  3. ☁️ **Cloud Drives**: Synced via cloud drive managers.
+- **Granular Target Flags**:
+  - `/sync --folder` / `/sync -f`: Synchronizes local folders only.
+  - `/sync --web` / `/sync -w`: Synchronizes web sources only.
+  - `/sync --drive` / `/sync -d`: Synchronizes cloud drives only.
+  - `/sync --all` / `/sync -a`: Synchronizes across all configured workspaces.
+  - `/sync --force`: Forces re-hashing and re-indexing of all sources.
+  - `/sync --status`: Displays real-time sync metrics without performing writes.
+  - `/sync --bg`: Triggers synchronization in an asynchronous background thread.
+
+### 📁 Source Family CLI Parity Matrix
+Standardized symmetric CLI verbs across `/folder`, `/web`, and `/drive`:
+
+| Verb | `/folder` | `/web` | `/drive` |
+| :--- | :--- | :--- | :--- |
+| **List** | `/folder` or `/folder --list` | `/web` or `/web --list` | `/drive` or `/drive --list` |
+| **Add** | `/folder --add <path>` | `/web --add <url>` | `/drive --add <provider>` |
+| **Remove** | `/folder --remove <path>` | `/web --remove <url>` | `/drive --remove <id>` |
+| **Sync** | `/folder --sync` | `/web --sync` | `/drive --sync` |
+
+---
+
+## 7. REST API Server Architecture & Security (`actx --serve`)
 
 AnyContext includes a production-grade FastAPI REST server for enterprise VPC deployments.
 
@@ -242,12 +294,12 @@ AnyContext includes a production-grade FastAPI REST server for enterprise VPC de
 
 ---
 
-## 7. Model Context Protocol (MCP) Implementation (`actx --mcp`)
+## 8. Model Context Protocol (MCP) Implementation (`actx --mcp`)
 
 Native JSON-RPC 2.0 stdio implementation connecting AnyContext to Claude Desktop, Cursor IDE, and Antigravity.
 
 ### 🔌 11 Registered MCP Tools:
-1. `search_workspace_docs` — Vector semantic search across indexed files.
+1. `search_workspace_docs` — Vector semantic search across indexed files via LanceDB.
 2. `query_anycontext_agent` — Direct RAG query with 3-level session memory.
 3. `get_grounding_mode` — Inspect active AI Grounding Mode (`hybrid`, `strict`, `proactive`).
 4. `set_grounding_mode` — Switch active AI Grounding Mode.
@@ -261,7 +313,24 @@ Native JSON-RPC 2.0 stdio implementation connecting AnyContext to Claude Desktop
 
 ---
 
-## 8. Observability & Telemetry Pipeline (LangSmith)
+## 9. Cross-Version Python Compatibility (3.10 - 3.13) & AST Engineering
+
+### 🐍 The PEP 701 f-string Syntax Constraint:
+In Python 3.12+, backslashes are permitted inside `{...}` expressions within f-strings. In Python 3.10 and 3.11, any backslash inside `{...}` generates an immediate `SyntaxError: f-string expression part cannot include a backslash`.
+
+### 🛡️ Pre-Sanitization Protocol:
+All code throughout AnyContext pre-sanitizes variables outside f-string interpolation:
+```python
+# Guaranteed 100% compatible across Python 3.10, 3.11, 3.12, 3.13:
+clean_workspaces = [w.replace("'", "''") for w in workspaces]
+ws_in = ", ".join("'" + w + "'" for w in clean_workspaces)
+where_clauses.append(f"workspace IN ({ws_in})")
+```
+Automated AST static verification checks are executed across all codebase files (`src/` and `tests/`) as part of the continuous integration test suite.
+
+---
+
+## 10. Observability & Telemetry Pipeline (LangSmith)
 
 When `LANGSMITH_TRACING=true` is present in the environment (via `.env` or system variables):
 - Every user query, LangGraph agent step, tool call (`search_db`, `live_web_search`), and LLM synthesis is traced in real-time.
@@ -270,7 +339,7 @@ When `LANGSMITH_TRACING=true` is present in the environment (via `.env` or syste
 
 ---
 
-## 9. Multi-Interface Surface Parity & Governance Protocol
+## 11. Multi-Interface Surface Parity & Governance Protocol
 
 AnyContext strictly follows the **`dev-cycle-protocol`** universal software engineering lifecycle:
 - **Modular Architecture**: Complete decoupling of core business logic from consumer interfaces.
