@@ -1,2 +1,0 @@
-$c9f67e13-7964-4222-bd74-161fdd466038ª±
-«workspace = 'Transfer_Source_WS' AND (file_path = 'https://example.com/docs' OR file_path LIKE 'https://example.com/docs/%' OR file_path LIKE '%https://example.com/docs%')

@@ -184,6 +184,9 @@ class WorkspaceSyncStatusDTO(BaseModel):
 class WorkspaceSyncRequest(BaseModel):
     force_full: bool = Field(False, description="Forces full re-indexing of all files instead of incremental stat diff")
     background: bool = Field(True, description="Runs synchronization in non-blocking background worker thread")
+    sync_folders: bool = Field(True, description="Synchronize local folder documents")
+    sync_web: bool = Field(True, description="Synchronize indexed web portals")
+    sync_drives: bool = Field(True, description="Synchronize connected cloud drives")
 
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User query or instruction for the AI agent")
@@ -630,11 +633,21 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         verify_token_access(credentials=credentials, required_role="analyst", required_workspace=workspace_name)
         force_full = req.force_full if req else False
         use_bg = req.background if req else True
+        sync_folders = req.sync_folders if req else True
+        sync_web = req.sync_web if req else True
+        sync_drives = req.sync_drives if req else True
 
-        from any_context.ingestion.local_folder_ingestor import run_index_folder, BackgroundSyncManager
+        from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
         if use_bg:
             bg_mgr = BackgroundSyncManager()
-            bg_mgr.start_background_sync(workspace_name, verbose=False)
+            bg_mgr.start_background_sync(
+                workspace_name=workspace_name,
+                sync_folders=sync_folders,
+                sync_web=sync_web,
+                sync_drives=sync_drives,
+                force_full=force_full,
+                verbose=False
+            )
             return {
                 "status": "success",
                 "message": f"Background synchronization started for workspace '{workspace_name}'.",
@@ -642,7 +655,15 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
                 "mode": "background"
             }
         else:
-            res = run_index_folder(workspace_name=workspace_name, verbose=False, force_full=force_full)
+            from any_context.ingestion.unified_sync import run_unified_sync
+            res = run_unified_sync(
+                workspace_name=workspace_name,
+                sync_folders=sync_folders,
+                sync_web=sync_web,
+                sync_drives=sync_drives,
+                force_full=force_full,
+                verbose=False
+            )
             return {
                 "status": "success",
                 "message": f"Synchronization completed for workspace '{workspace_name}'.",

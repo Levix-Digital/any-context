@@ -173,5 +173,30 @@ class TestStatCacheSync(unittest.TestCase):
         finally:
             self.store.remove_workspace(web_ws)
 
+    def test_07_unified_multi_source_background_sync(self):
+        """TC-SC.7: Validates unified multi-source background sync execution across folder and web sources."""
+        safe_stdout_write(">>> [STAT CACHE / TC-SC.7] Testing Unified Multi-Source Background Sync...\n")
+        bg_mgr = BackgroundSyncManager()
+        completed_results = []
+        thread = bg_mgr.start_background_sync(
+            workspace_name=self.ws_name,
+            sync_folders=True,
+            sync_web=True,
+            sync_drives=True,
+            force_full=False,
+            verbose=False,
+            on_complete=lambda res: completed_results.append(res)
+        )
+        self.assertTrue(thread.is_alive() or bg_mgr.get_sync_status(self.ws_name)["status"] in ["syncing", "completed"])
+        thread.join(timeout=5.0)
+        self.assertFalse(bg_mgr.is_syncing(self.ws_name))
+        status = bg_mgr.get_sync_status(self.ws_name)
+        self.assertEqual(status["status"], "completed")
+        self.assertEqual(len(completed_results), 1)
+        self.assertIn("folder_results", completed_results[0])
+        self.assertIn("web_results", completed_results[0])
+        self.assertIn("drive_results", completed_results[0])
+        safe_stdout_write("  [OK] Unified multi-source background sync verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
