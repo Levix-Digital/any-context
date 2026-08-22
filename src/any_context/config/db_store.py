@@ -58,11 +58,19 @@ class ConfigDBStore:
         candidates = [
             os.path.join(os.getcwd(), "config", filename),
             os.path.join(os.getcwd(), filename),
+            os.path.join(os.path.dirname(sys.executable), filename),
+            os.path.join(os.path.dirname(sys.executable), "..", filename),
             os.path.expanduser(os.path.join("~", ".config", "any-context", filename)),
         ]
 
-        if sys.platform == "win32" and "APPDATA" in os.environ:
-            candidates.append(os.path.join(os.environ["APPDATA"], "any-context", filename))
+        if sys.platform == "win32":
+            if "LOCALAPPDATA" in os.environ:
+                candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", filename))
+                candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", "bin", filename))
+                candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "any-context", filename))
+            if "APPDATA" in os.environ:
+                candidates.append(os.path.join(os.environ["APPDATA"], "any-context", filename))
+                candidates.append(os.path.join(os.environ["APPDATA"], "actx", filename))
 
         for candidate in candidates:
             if os.path.exists(candidate):

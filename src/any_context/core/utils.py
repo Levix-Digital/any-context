@@ -8,16 +8,37 @@ from any_context.config.app_settings import AppSettings
 def load_env():
     candidates = [
         os.path.join(os.getcwd(), ".env"),
+        os.path.join(os.path.dirname(sys.executable), ".env"),
+        os.path.join(os.path.dirname(sys.executable), "..", ".env"),
         os.path.expanduser(os.path.join("~", ".config", "any-context", ".env")),
     ]
-    if sys.platform == "win32" and "APPDATA" in os.environ:
-        candidates.append(os.path.join(os.environ["APPDATA"], "any-context", ".env"))
+    if sys.platform == "win32":
+        if "LOCALAPPDATA" in os.environ:
+            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", ".env"))
+            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", "bin", ".env"))
+            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "any-context", ".env"))
+        if "APPDATA" in os.environ:
+            candidates.append(os.path.join(os.environ["APPDATA"], "any-context", ".env"))
+            candidates.append(os.path.join(os.environ["APPDATA"], "actx", ".env"))
 
     for c in candidates:
         if os.path.exists(c):
             dotenv.load_dotenv(c)
+            _map_langsmith_env()
             return
     dotenv.load_dotenv()
+    _map_langsmith_env()
+
+def _map_langsmith_env():
+    """Maps LANGSMITH environment variables to LANGCHAIN variables for 100% tracing compatibility."""
+    if os.getenv("LANGSMITH_TRACING") and not os.getenv("LANGCHAIN_TRACING_V2"):
+        os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGSMITH_TRACING")
+    if os.getenv("LANGSMITH_API_KEY") and not os.getenv("LANGCHAIN_API_KEY"):
+        os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGSMITH_API_KEY")
+    if os.getenv("LANGSMITH_PROJECT") and not os.getenv("LANGCHAIN_PROJECT"):
+        os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGSMITH_PROJECT")
+    if os.getenv("LANGSMITH_ENDPOINT") and not os.getenv("LANGCHAIN_ENDPOINT"):
+        os.environ["LANGCHAIN_ENDPOINT"] = os.getenv("LANGSMITH_ENDPOINT")
 
 def get_api_key(provider: str = "openai") -> Optional[str]:
     """
