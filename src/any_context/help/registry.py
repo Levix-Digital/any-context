@@ -1072,9 +1072,12 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         title="🔬 2-Phase High-Precision RAG & Context Calibration Engine",
         description=(
             "AnyContext implements an advanced 2-Phase Retrieval-Augmented Generation (RAG) pipeline designed for maximum factual precision, "
-            "zero multi-portal monopolization, and prevention of the 'Lost in the Middle' attention degradation phenomenon. "
-            "Phase 1 performs a deep ChromaDB vector scan over a 100+ chunk candidate pool. "
-            "Phase 2 applies Source-Fair Round-Robin diversification, injecting the 15-20 densest chunks (~15,000-20,000 tokens) with resilient exponential backoff auto-retries."
+            "zero multi-portal monopolization, and prevention of the 'Lost in the Middle' attention degradation phenomenon.\n\n"
+            "• Phase 1 (Deep Search): Parallel ChromaDB scan over a 100+ chunk candidate pool.\n"
+            "• Phase 2 (Calibration): Source-Fair Round-Robin diversification injecting 15-20 high-density chunks.\n"
+            "• Multi-Threading: Parallel ThreadPoolExecutor querying across active, Shared Sources, and Global workspaces.\n"
+            "• Historical Pruning: Compacts past turns' tool payloads to prevent 128k context overflow.\n"
+            "• Auto-Retry: Resilient exponential backoff (max_retries=5) across all 9 LLM providers."
         ),
         syntax=(
             "  View RAG Guide & Details       : /rag   OR   /retrieval   OR   /help rag\n"
@@ -1083,9 +1086,9 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ),
         parameters=[
             "/rag, /retrieval              : Displays the technical architecture and grounding mechanics of the AnyContext RAG engine.",
-            "--preset balanced             : Default optimal setting (Candidate Pool: 100, Top Chunks: 20, Max Per Source: 3).",
-            "--preset turbo                : Speed-optimized setting (Candidate Pool: 50, Top Chunks: 10, Max Per Source: 2).",
-            "--preset deep_research        : Deep synthesis setting (Candidate Pool: 150, Top Chunks: 40, Max Per Source: 4)."
+            "--preset balanced             : ⚖️ Default (ChromaDB Pool: 100 | Top Chunks: 20 | Tokens: ~10k-15k) - Ideal precision without noise.",
+            "--preset turbo                : ⚡ Speed   (ChromaDB Pool: 50  | Top Chunks: 10 | Tokens: ~5k)      - Maximum speed for quick Q&A.",
+            "--preset deep_research        : 🔬 Deep    (ChromaDB Pool: 150 | Top Chunks: 40 | Tokens: ~30k-40k) - Heavy multi-contract cross-auditing."
         ],
         examples=[
             "In Chat: /rag",
@@ -1094,9 +1097,12 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "In Chat: /config"
         ],
         tips=[
+            "Dynamic Presets Matrix:",
+            "  • Turbo (50 pool -> 10 chunks -> ~5k tokens)         : Fast facts and conversational speed.",
+            "  • Balanced (100 pool -> 20 chunks -> ~10k-15k tokens): Optimal standard setting (Source-Fair Round-Robin).",
+            "  • Deep Research (150 pool -> 40 chunks -> ~30k-40k)  : Exhaustive synthesis across 20+ documents.",
             "Why 15-20 chunks? Stanford research shows prompts with 40+ chunks suffer from 'Lost in the Middle' attention degradation and noise injection.",
-            "Source-Fair Round-Robin ensures that workspaces with 50+ documents give fair representation to all relevant sources without a single file dominating the context.",
-            "All LLM requests feature built-in auto-retry with exponential backoff (max_retries=5) to seamlessly survive OpenAI/provider TPM rate limits."
+            "All LLM requests feature built-in auto-retry with exponential backoff (max_retries=5) to seamlessly survive provider TPM rate limits."
         ]
     )
 }
