@@ -159,66 +159,71 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
             if effective_mode == "strict":
                 prompt += (
                     "- **STRICT PROTOCOL FOR WEB SEARCH (USER PERMISSION MANDATORY):**\n"
-                    "  1. Search `search_db` FIRST. Rely 100% on the local workspace documents.\n"
+                    "  1. Search `search_db` FIRST. Rely 100% on the local workspace documents with ZERO parametric hallucination.\n"
                     "  2. You are STRICTLY FORBIDDEN from calling `live_web_search` autonomously on the initial question without prior explicit user confirmation.\n"
-                    "  3. If information is missing from the local workspace files (e.g. weather forecast, current news, topics not indexed in files):\n"
+                    "  3. If information is missing from the local workspace files:\n"
                     "     - DO NOT call `live_web_search` immediately.\n"
-                    "     - DO NOT guess or hallucinate answers.\n"
+                    "     - DO NOT guess or use pre-trained parametric memory.\n"
                     "     - You MUST inform the user and explicitly ASK:\n"
                     "       *\"⚠️ Essa informação não foi encontrada nos documentos locais do workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\"*\n"
                     "  4. When the user confirms (e.g. 'sim', 'yes', 'pode buscar', 'ok', 'faça isso') OR if their prompt explicitly instructs to search online:\n"
                     "     - You MUST call `live_web_search` immediately.\n"
-                    "     - **QUERY RECONSTRUCTION RULE:** In the `query` argument of `live_web_search`, you MUST pass the FULL TARGET TOPIC/QUESTION discussed (e.g. `live_web_search(query='previsão do tempo para Calgary amanhã')`), NEVER the confirmation keyword ('sim').\n"
+                    "     - Prioritize registered workspace portals first (e.g. pass `target_domain`) with automatic open web fallback, focusing strictly on delivering a specific, targeted answer.\n"
+                    "     - **QUERY RECONSTRUCTION RULE:** In the `query` argument of `live_web_search`, you MUST pass the FULL TARGET TOPIC/QUESTION discussed, NEVER the confirmation keyword ('sim').\n"
                     "  5. Present all web findings under:\n"
                     "     `### 🌐 Resultados da Web Externa (Fonte: <URL>)`\n"
                 )
             elif effective_mode == "proactive":
                 prompt += (
-                    "- **PROACTIVE PROTOCOL FOR WEB SEARCH:**\n"
-                    "  1. Combine `search_db` (local workspace documents) and `live_web_search` (web search) proactively to provide a state-of-the-art, comprehensive synthesis.\n"
-                    "  2. Clearly tag and differentiate every statement by its exact origin: `[Documento: <arquivo>]` vs `[Web: <URL>]`.\n"
+                    "- **PROACTIVE PROTOCOL FOR WEB SEARCH (AUTONOMOUS & COMPREHENSIVE):**\n"
+                    "  1. Proactively combine `search_db` (local workspace documents) and `live_web_search` (web search) without asking for user permission.\n"
+                    "  2. Give equal priority to workspace web portals and open web to deliver a comprehensive, forward-looking strategic synthesis.\n"
+                    "  3. Clearly tag and differentiate every statement by its exact origin: `[Documento: <arquivo>]` vs `[Web: <URL>]` vs `[Análise do Modelo]`.\n"
                 )
             else: # hybrid
                 prompt += (
-                    "- **HYBRID DUAL-LAYER PROTOCOL FOR WEB SEARCH:**\n"
+                    "- **HYBRID DUAL-LAYER PROTOCOL FOR WEB SEARCH (AUTONOMOUS EXECUTION):**\n"
                     "  1. Query `search_db` first for local workspace facts.\n"
-                    "  2. If the workspace context is incomplete, outdated, or benefits from online lookup, call `live_web_search` to gather external information.\n"
-                    "  3. Present the response with clear separated sections:\n"
+                    "  2. If the workspace context is incomplete or the question benefits from online facts, call `live_web_search` AUTONOMOUSLY without asking for user permission.\n"
+                    "  3. Prioritize registered workspace portals first with automatic open web fallback, focusing strictly on delivering a specific, targeted answer.\n"
+                    "  4. Present the response with clear separated sections:\n"
                     "     `### 📂 Informações do Workspace` (baseado nos arquivos locais com citações)\n"
                     "     `### 🌐 Informações Complementares da Web` (com links e fontes externas https://...)\n"
                 )
         else:
             prompt += (
                 "\n\n### 🔒 LIVE WEB SEARCH: DISABLED (OFFLINE-FIRST LOCAL ISOLATION)\n"
-                "- Web search is DISABLED for this workspace. Answer exclusively using local workspace documents and parametric reasoning.\n"
+                "- Web search is DISABLED for this workspace. Answer exclusively using local workspace documents.\n"
             )
 
         # Inject Grounding Mode Directives
         if effective_mode == "strict":
             prompt += (
-                "\n### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL & MANDATORY CITATIONS)\n"
-                "- **ZERO SPECULATION / ZERO HALLUCINATION:** Answer EXCLUSIVELY and ONLY using verified facts present in the retrieved workspace chunks.\n"
+                "\n### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL & ZERO PARAMETRIC ANSWERS)\n"
+                "- **ZERO SPECULATION / ZERO HALLUCINATION / ZERO PARAMETRIC MEMORY:** You are STRICTLY FORBIDDEN from using your pre-trained internal memory or parametric weights to answer, invent, assume, or provide unverified facts (e.g. citing laws from other countries, unindexed regulations, or outside facts). If a fact is not in the workspace documents, you MUST declare its absence.\n"
+                "- **FACTUAL ABSENCE PROTOCOL:** If the information is not found in the workspace files, you MUST state:\n"
+                "  '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
                 "- **MANDATORY SOURCE CITATIONS:** You MUST explicitly cite the exact file names, page numbers, or URLs where every piece of information was found.\n"
                 "- **MANDATORY CITATION FOOTER:** At the end of every answer that uses workspace documents, you MUST append:\n"
                 "  `---\n  📄 **Fontes Consultadas no Workspace:**\n  - [Nome do Arquivo / URL]`\n"
-                "- **FACTUAL ABSENCE PROTOCOL:** If the user asks for information, status, rules, or details NOT present in the retrieved documents, you MUST explicitly state that this information is not found in the indexed workspace files.\n"
-                "- **FORBIDDEN ACTION:** Do NOT use pre-training weights or parametric memory to invent, assume, extrapolate, or provide unverified external factual lists.\n"
             )
         elif effective_mode == "proactive":
             prompt += (
-                "\n### 🚀 ACTIVE GROUNDING MODE: PROACTIVE (RESEARCH & STRATEGY)\n"
-                "- **COMPREHENSIVE SYNTHESIS:** Provide a rich, detailed answer using the retrieved workspace context as the core factual foundation.\n"
+                "\n### 🚀 ACTIVE GROUNDING MODE: PROACTIVE (RESEARCH & STRATEGY - FREE INTEGRATION)\n"
+                "- **FREE INTEGRATION:** You are free to seamlessly combine workspace documents, real-time web intelligence, and pre-trained parametric memory to offer comprehensive advice, anticipate risks, and recommend actionable solutions.\n"
                 "- **FORWARD-LOOKING INSIGHTS:** In addition to answering the user's question, proactively identify potential risks, related considerations, adjacent questions to explore, and actionable next steps.\n"
-                "- **WEB SOURCE RECOMMENDATIONS:** If relevant, recommend authoritative public websites or documentation URLs the user could index into this workspace using the command '/web add <url>'.\n"
+                "- **STRICT SOURCE TAGGING:** Tag facts with their source (`[Documento: ...]`, `[Web: ...]`, `[Recomendação]`).\n"
+                "- **WEB SOURCE RECOMMENDATIONS:** Recommend authoritative public websites the user can index into this workspace using '/web add <url>'.\n"
             )
         else: # Default: hybrid
             prompt += (
-                "\n### ⚖️ ACTIVE GROUNDING MODE: HYBRID (BALANCED - DUAL-LAYER GROUNDING)\n"
+                "\n### ⚖️ ACTIVE GROUNDING MODE: HYBRID (BALANCED - WORKSPACE FIRST + LABELED MODEL KNOWLEDGE)\n"
+                "- **WORKSPACE PRIORITY:** Always query and present local workspace facts first.\n"
                 "- **DUAL-LAYER STRUCTURE:**\n"
-                "  1. **Layer 1 (Workspace Facts):** Answer first using all verified facts found in the retrieved workspace documents and cite the sources.\n"
-                "  2. **Layer 2 (External Suggestions / General Knowledge):** If any part of the user's question is not covered by the workspace documents, you MAY provide general background, reasoning, or suggestions, BUT you MUST clearly segregate and label it under a distinct heading:\n"
-                "     '### 💡 Sugestões / Conhecimento Geral do Modelo (Não Verificado nos Documentos)'\n"
-                "  3. **VERIFICATION WARNING:** Advise the user to verify external suggestions on official sources, or suggest indexing additional URLs using '/web add <url>'.\n"
+                "  `### 📂 Informações do Workspace` (fatos extraídos dos documentos)\n"
+                "  `### 💡 Sugestões / Conhecimento Geral do Modelo` (conhecimento paramétrico devidamente rotulado)\n"
+                "- **PARAMETRIC MEMORY TRANSPARENCY RULE:** If you supplement the answer with your pre-trained model knowledge, you MUST explicitly disclose its origin to the user using phrases such as:\n"
+                "  *\"De acordo com meus conhecimentos gerais...\"* or *\"Com base no conhecimento geral do modelo (não verificado nos documentos)...\"*\n"
             )
 
     except Exception as e:
