@@ -7,7 +7,36 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.22.1): Telemetria em Tempo Real & Micro-Barra de Progresso na Barra de Ferramentas Inferior
+### 📌 Cenário 1 (v0.23.0): Sincronização Web de Alta Velocidade com HTTP 304, Sitemap Diff & Embeddings Paralelos
+
+- **Objetivo**: Validar que a sincronização de portais web massivos (> 2.000 páginas) ocorre em alta velocidade usando HTTP Conditional GET (`304 Not Modified`), pre-filtragem por sitemap `<lastmod>` e paralelização concorrente de embeddings no `ParallelIndexer` com retry anti-429.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.23.0` com portal web indexado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Atualizar e Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.23.0
+   actx
+   ```
+
+2. **⚡ Disparar Sincronização Incremental (`/sync` ou `/web sync`):**
+   ```text
+   /sync
+   ```
+   - **Critério de Sucesso:**
+     - O crawler utiliza até 20 workers simultâneos na rede.
+     - Páginas com `<lastmod>` idêntico no sitemap ou que retornam `HTTP 304 Not Modified` são identificadas em milissegundos sem re-baixar o HTML.
+     - Documentos novos/modificados são vetorizados em lotes paralelos no `ParallelIndexer` com redução substancial do tempo total.
+     - A micro-barra `⚡ Syncing [████░░░░]` atualiza o progresso em tempo real.
+
+3. **🔍 Verificar Persistência no LanceDB:**
+   - Faça uma pergunta de busca sobre uma página recém-atualizada do site.
+   - **Critério de Sucesso:** A resposta utiliza os vetores atualizados com precisão absoluta.
+
+---
+
+### 📌 Cenário 2 (v0.22.1): Telemetria em Tempo Real & Micro-Barra de Progresso na Barra de Ferramentas Inferior
 
 - **Objetivo**: Comprovar que durante a sincronização em segundo plano, a barra inferior (`bottom_toolbar`) exibe a micro-barra gráfica de blocos unicode `[████░░░░]` com percentual e contagem atualizada em tempo real (ex: `⚡ Syncing [████░░░░] 50% (15/30 files)`), transitando para `100%` e finalizando suavemente sem travar o teclado.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.22.1`.

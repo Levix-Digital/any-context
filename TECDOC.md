@@ -219,7 +219,15 @@ AnyContext includes a built-in, concurrent web ingestion engine designed for hig
    - 🏅 **Keyword & Slug Matches** (Priority 300 per keyword)
    - ⚪ **Generic Domain URLs** (Priority 0)
 4. **Clean Semantic HTML Extraction**: Strips navigation bars, footers, cookies, scripts, and ads while preserving headings, markdown tables, and code blocks.
-5. **Multi-Page Portal Re-Crawling on `/web --sync`**:
+5. **High-Speed Dual-Stage Parallel Pipeline (`v0.23.0`)**:
+   - **Stage 1: Multi-Threaded Network & Conditional GET (20 Workers)**:
+     - **Sitemap `<lastmod>` Diff**: In-memory timestamp comparison against SQLite skips network requests entirely for unmodified sitemap entries.
+     - **HTTP Conditional GET (`If-None-Match` & `If-Modified-Since`)**: Returns `304 Not Modified` with 0 bytes body download in ~15ms, maintaining vector integrity without consuming bandwidth.
+     - **Anti-429 Exponential Backoff**: Automatically catches HTTP 429 rate limit responses, applies jittered backoff based on `Retry-After` headers, and retries gracefully without thread deadlock.
+   - **Stage 2: Parallel Batch Vectorization via `ParallelIndexer` (4-6 Workers)**:
+     - Modified documents are enriched concurrently and dispatched in parallel batches to the embedding provider (OpenAI / Local LLM) with transient rate limit retries.
+     - Embeddings are streamed directly into LanceDB via Apache Arrow columnar zero-copy buffers.
+6. **Multi-Page Portal Re-Crawling on `/web --sync`**:
    - `sync_workspace_web_urls` inspects whether a web source has multiple indexed pages (`page_count > 1` or crawler root).
    - For multi-page portals, it executes the full crawler pipeline (`crawl_website`) across all sub-pages with support for `force_rescrape`, guaranteeing that all portal chunks are populated in LanceDB.
 

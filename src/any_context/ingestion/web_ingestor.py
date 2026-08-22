@@ -254,12 +254,19 @@ def extract_web_metadata(url: str, html_text: str, headers: dict = None) -> Dict
         "content_type": content_type
     }
 
-def scrape_url(url: str, timeout: int = 15) -> Dict[str, Any]:
+def scrape_url(
+    url: str,
+    cached_etag: Optional[str] = None,
+    cached_last_modified: Optional[str] = None,
+    timeout: int = 15
+) -> Dict[str, Any]:
     """
-    Fetches a web page URL, cleans HTML tags, computes SHA-256 content hash,
-    and extracts page title, body text, last modified date, and content classification.
+    Fetches a web page URL with HTTP Conditional GET support (If-None-Match, If-Modified-Since),
+    cleans HTML tags, computes SHA-256 content hash, and extracts page title, body text,
+    last modified date, ETag, and content classification.
     Strictly obeys RFC 9309 robots.txt policies.
     """
+    import urllib.error
     if not url.startswith("http://") and not url.startswith("https://"):
         url = f"https://{url}"
 
@@ -275,19 +282,48 @@ def scrape_url(url: str, timeout: int = 15) -> Dict[str, Any]:
             "char_count": len(blocked_msg),
             "last_modified": now_date,
             "date_confidence": "robots_compliance",
-            "content_type": "Disallowed by Robots.txt"
+            "content_type": "Disallowed by Robots.txt",
+            "is_not_modified": False
         }
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AnyContext-WebScraper/1.0"
     }
+    if cached_etag:
+        headers["If-None-Match"] = cached_etag
+    if cached_last_modified:
+        headers["If-Modified-Since"] = cached_last_modified
+
     req = urllib.request.Request(url, headers=headers)
     
     resp_headers = {}
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        html_bytes = response.read()
-        html_text = html_bytes.decode("utf-8", errors="ignore")
-        resp_headers = dict(response.headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            html_bytes = response.read()
+            html_text = html_bytes.decode("utf-8", errors="ignore")
+            resp_headers = dict(response.headers)
+    except urllib.error.HTTPError as e:
+        if e.code == 304:
+            # 304 Not Modified - Server authoritatively confirms page has not changed since last crawl
+            return {
+                "url": url,
+                "title": "",
+                "content": "",
+                "hash": "",
+                "char_count": 0,
+                "is_not_modified": True,
+                "etag": cached_etag,
+                "http_last_modified": cached_last_modified,
+                "last_modified": cached_last_modified,
+                "date_confidence": "http_conditional_304",
+                "content_type": "Unchanged (HTTP 304)",
+                "is_dynamic_spa": False
+            }
+        raise
+
+    # Extract HTTP caching headers
+    response_etag = resp_headers.get("ETag") or resp_headers.get("etag")
+    response_last_mod = resp_headers.get("Last-Modified") or resp_headers.get("last-modified")
 
     # Extract title
     title_match = re.search(r"<title>(.*?)</title>", html_text, re.IGNORECASE | re.DOTALL)
@@ -328,10 +364,13 @@ def scrape_url(url: str, timeout: int = 15) -> Dict[str, Any]:
         "content": clean_text,
         "hash": content_hash,
         "char_count": len(clean_text),
-        "last_modified": meta["last_modified"],
+        "last_modified": meta["last_modified"] or response_last_mod,
         "date_confidence": meta["date_confidence"],
         "content_type": meta["content_type"],
-        "is_dynamic_spa": is_spa
+        "is_dynamic_spa": is_spa,
+        "is_not_modified": False,
+        "etag": response_etag,
+        "http_last_modified": response_last_mod
     }
 
 def scrape_sitemap(sitemap_url: str, max_urls: int = 50) -> List[str]:

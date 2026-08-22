@@ -33,6 +33,25 @@ class ParallelIndexer:
 
         return Settings.embed_model.get_text_embedding_batch(texts)
 
+    def _embed_batch_with_retry(self, texts: List[str], max_retries: int = 4) -> List[List[float]]:
+        """
+        Embeds a batch of texts with exponential backoff and jitter upon rate limit (429) errors.
+        """
+        import time
+        import random
+        for attempt in range(max_retries):
+            try:
+                return self._get_text_embeddings_batch(texts)
+            except Exception as e:
+                err_str = str(e).lower()
+                is_rate_limit = ("rate" in err_str and "limit" in err_str) or "429" in err_str or "tpm" in err_str
+                if is_rate_limit and attempt < max_retries - 1:
+                    sleep_time = (1.5 * (2 ** attempt)) + (random.uniform(0.1, 0.5))
+                    time.sleep(sleep_time)
+                else:
+                    raise
+        return []
+
     def index_documents(
         self,
         documents: List[Any],
@@ -53,7 +72,7 @@ class ParallelIndexer:
         def _enrich_single_doc(doc):
             if doc.metadata.get("is_system_help"):
                 return doc, None
-            fp = doc.metadata.get("file_path") or doc.id_
+            fp = doc.metadata.get("file_path") or getattr(doc, "id_", getattr(doc, "doc_id", ""))
             fn = doc.metadata.get("file_name") or os.path.basename(str(fp))
             envelope = self._enricher.extract_rich_summary_and_keywords(
                 doc_text=doc.text,
@@ -63,7 +82,11 @@ class ParallelIndexer:
             )
             doc.metadata["document_summary"] = envelope.summary
             doc.metadata["keywords"] = ", ".join(envelope.keywords)
-            doc.text = self._enricher.apply_envelope_to_chunk(doc.text, envelope)
+            new_text = self._enricher.apply_envelope_to_chunk(doc.text, envelope)
+            if hasattr(doc, "set_content"):
+                doc.set_content(new_text)
+            else:
+                doc = Document(text=new_text, metadata=dict(doc.metadata), id_=getattr(doc, "id_", getattr(doc, "doc_id", None)))
             return doc, envelope
 
         with ThreadPoolExecutor(max_workers=cfg.max_workers) as executor:
@@ -90,18 +113,26 @@ class ParallelIndexer:
         if not raw_chunks:
             return {"status": "empty", "indexed_chunks": 0}
 
-        # 3. Batch Vector Embeddings
+        # 3. Parallel Batch Vector Embeddings
         total_chunks = len(raw_chunks)
-        records_to_insert = []
         batch_size = cfg.batch_embed_size
+        batches = [raw_chunks[i:i + batch_size] for i in range(0, total_chunks, batch_size)]
 
-        for i in range(0, total_chunks, batch_size):
-            batch = raw_chunks[i:i + batch_size]
+        def _process_embed_batch(batch):
             texts = [c["text"] for c in batch]
-            embeddings = self._get_text_embeddings_batch(texts)
+            embeddings = self._embed_batch_with_retry(texts)
+            batch_records = []
             for chunk_data, emb in zip(batch, embeddings):
-                chunk_data["vector"] = emb
-                records_to_insert.append(chunk_data)
+                item = dict(chunk_data)
+                item["vector"] = emb
+                batch_records.append(item)
+            return batch_records
+
+        records_to_insert = []
+        with ThreadPoolExecutor(max_workers=min(5, max(1, len(batches)))) as executor:
+            batch_results = list(executor.map(_process_embed_batch, batches))
+            for res_list in batch_results:
+                records_to_insert.extend(res_list)
 
         # 4. Columnar Persistence in LanceDB
         dim = len(records_to_insert[0]["vector"]) if records_to_insert else 1536

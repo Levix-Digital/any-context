@@ -48,10 +48,11 @@ class HTMLLinkExtractor(HTMLParser):
                         pass
 
 
-def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) -> List[str]:
+def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) -> Tuple[List[str], Dict[str, str]]:
     """
-    Locates and parses sitemaps, properly handling sitemap indexes by following sub-sitemaps
-    to extract actual web page URLs (excluding raw XML files).
+    Locates and parses sitemaps, extracting web page URLs and their <lastmod> timestamps.
+    Properly handles sitemap indexes by following sub-sitemaps (excluding raw XML files).
+    Returns (discovered_urls, sitemap_lastmods).
     """
     parsed_base = urllib.parse.urlparse(base_url)
     domain_root = f"{parsed_base.scheme}://{parsed_base.netloc}"
@@ -62,18 +63,33 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
     ]
 
     discovered_pages = set()
+    sitemap_lastmods: Dict[str, str] = {}
     headers = {"User-Agent": "AnyContext-WebCrawler/1.0 (+https://levix-digital.github.io/any-context-releases/)"}
 
-    def _parse_xml_locs(xml_content: bytes) -> List[str]:
+    def _parse_xml_entries(xml_content: bytes) -> List[Tuple[str, Optional[str]]]:
         try:
             root = ET.fromstring(xml_content)
-            locs = []
+            entries = []
             for elem in root.iter():
-                if elem.tag.endswith("loc") and elem.text:
-                    l = elem.text.strip()
-                    if l.startswith("http") and parsed_base.netloc in l:
-                        locs.append(l)
-            return locs
+                tag_lower = elem.tag.lower()
+                if tag_lower.endswith("url") or tag_lower.endswith("sitemap"):
+                    loc_val = None
+                    lastmod_val = None
+                    for child in elem:
+                        c_tag = child.tag.lower()
+                        if c_tag.endswith("loc") and child.text:
+                            loc_val = child.text.strip()
+                        elif c_tag.endswith("lastmod") and child.text:
+                            lastmod_val = child.text.strip()
+                    if loc_val and loc_val.startswith("http") and parsed_base.netloc in loc_val:
+                        entries.append((loc_val, lastmod_val))
+            if not entries:
+                for elem in root.iter():
+                    if elem.tag.lower().endswith("loc") and elem.text:
+                        l = elem.text.strip()
+                        if l.startswith("http") and parsed_base.netloc in l:
+                            entries.append((l, None))
+            return entries
         except Exception:
             return []
 
@@ -83,13 +99,15 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 if response.status == 200:
                     raw_xml = response.read()
-                    locs = _parse_xml_locs(raw_xml)
+                    entries = _parse_xml_entries(raw_xml)
                     
-                    sub_sitemaps = [l for l in locs if l.endswith(".xml") or l.endswith(".xml.gz") or "sitemap" in l]
-                    page_locs = [l for l in locs if l not in sub_sitemaps]
+                    sub_sitemaps = [l for l, _ in entries if l.endswith(".xml") or l.endswith(".xml.gz") or "sitemap" in l]
+                    page_entries = [(l, lm) for l, lm in entries if l not in sub_sitemaps]
 
-                    for p in page_locs:
+                    for p, lm in page_entries:
                         discovered_pages.add(p)
+                        if lm:
+                            sitemap_lastmods[p] = lm
                         if len(discovered_pages) >= max_urls:
                             break
 
@@ -114,10 +132,12 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
                                 sub_req = urllib.request.Request(sub, headers=headers)
                                 with urllib.request.urlopen(sub_req, timeout=timeout) as sub_resp:
                                     if sub_resp.status == 200:
-                                        sub_locs = _parse_xml_locs(sub_resp.read())
-                                        for sp in sub_locs:
+                                        sub_entries = _parse_xml_entries(sub_resp.read())
+                                        for sp, slm in sub_entries:
                                             if not sp.endswith(".xml") and not sp.endswith(".xml.gz"):
                                                 discovered_pages.add(sp)
+                                                if slm:
+                                                    sitemap_lastmods[sp] = slm
                                                 if len(discovered_pages) >= max_urls:
                                                     break
                             except Exception:
@@ -128,7 +148,7 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
         except Exception:
             continue
 
-    return list(discovered_pages)
+    return list(discovered_pages), sitemap_lastmods
 
 
 def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int = 6) -> Dict[str, Any]:
@@ -180,7 +200,7 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
         }
 
     # 2. Check sitemap
-    sitemap_urls = fetch_sitemap_urls(start_url, max_urls=max_discovery, timeout=timeout)
+    sitemap_urls, sitemap_lastmods = fetch_sitemap_urls(start_url, max_urls=max_discovery, timeout=timeout)
 
     all_domain_urls: Set[str] = {start_url}
     all_domain_urls.update(sitemap_urls)
@@ -259,7 +279,8 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
         "section_count": len(section_urls),
         "domain_urls": ranked_domain_urls,
         "domain_count": len(ranked_domain_urls),
-        "has_sitemap": bool(sitemap_urls)
+        "has_sitemap": bool(sitemap_urls),
+        "sitemap_lastmods": sitemap_lastmods
     }
 
 
@@ -270,18 +291,26 @@ def crawl_and_index_urls(
     root_title: Optional[str] = None,
     scope: str = "custom",
     force_refresh: bool = False,
-    max_workers: int = 12,
+    max_workers: int = 20,
     progress_callback = None,
-    embed_progress_callback = None
+    embed_progress_callback = None,
+    sitemap_lastmods: Optional[Dict[str, str]] = None
 ) -> Dict[str, Any]:
     """
-    Concurrent multi-threaded scraper and ChromaDB batch vector indexer.
-    Implements incremental SHA-256 hash checking, automatic deduplication, and atomic vector updates.
+    High-speed concurrent multi-threaded scraper and LanceDB batch vector indexer.
+    Implements:
+      1. Sitemap <lastmod> in-memory diff (0 network calls for unchanged sitemap entries).
+      2. HTTP Conditional GET (If-None-Match / If-Modified-Since with 304 Not Modified support).
+      3. Incremental SHA-256 content deduplication ($0.00 vector cost for unchanged content).
+      4. Parallel vector embeddings & columnar LanceDB persistence via ParallelIndexer.
     """
     import os
+    import time
+    import random
     import logging
     import hashlib
     import urllib.parse
+    import urllib.error
     import chromadb
 
     # Suppress verbose HTTP/OpenAI retry logs in terminal
@@ -294,11 +323,9 @@ def crawl_and_index_urls(
     from any_context.config.app_settings import AppSettings
     from any_context.tools.search_tools import configure_embedding_model
     from any_context.ingestion.web_scheduler import WebSchedulerStore
+    from any_context.vector_engine.indexer import ParallelIndexer
+    from any_context.vector_engine.store import LanceDBStore
     from llama_index.core import Document
-    from llama_index.core.node_parser import SentenceSplitter
-    from llama_index.core.ingestion import IngestionPipeline
-    from llama_index.core.settings import Settings
-    from llama_index.vector_stores.chroma import ChromaVectorStore
 
     settings = AppSettings.load()
     db_path = settings.context.db_path if settings else "./context_db"
@@ -307,19 +334,7 @@ def crawl_and_index_urls(
     os.makedirs(db_path, exist_ok=True)
     db = chromadb.PersistentClient(path=db_path)
     chroma_collection = db.get_or_create_collection(collection_name)
-    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     configure_embedding_model()
-
-    chunk_size = settings.context.chunk_size if (settings and settings.context) else 1024
-    chunk_overlap = settings.context.chunk_overlap if (settings and settings.context) else 200
-
-    pipeline = IngestionPipeline(
-        transformations=[
-            SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap),
-            Settings.embed_model
-        ],
-        vector_store=vector_store
-    )
 
     store = WebSchedulerStore()
     total_urls = len(urls)
@@ -335,164 +350,190 @@ def crawl_and_index_urls(
     effective_root = root_url or (urls[0] if urls else "https://unknown")
     domain = urllib.parse.urlparse(effective_root).netloc.lower()
 
-    # Load existing indexed pages map for incremental SHA-256 comparison
+    # Load existing indexed pages map for incremental comparison
     indexed_map = store.get_indexed_pages_map(workspace_name, domain_or_prefix=domain)
 
-    # Worker function to scrape single url with RFC 9309 robots.txt compliance
+    # 1. Sitemap <lastmod> In-Memory Pre-Filtering
+    urls_to_scrape: List[str] = []
+    if sitemap_lastmods and not force_refresh:
+        for u in urls:
+            cached_item = indexed_map.get(u)
+            s_lm = sitemap_lastmods.get(u)
+            if cached_item and s_lm and cached_item.get("sitemap_lastmod") == s_lm:
+                # Sitemap timestamp unchanged - skip network call entirely
+                skipped_count += 1
+                processed_records.append({
+                    "url": u,
+                    "title": cached_item.get("title", u),
+                    "content_hash": cached_item.get("content_hash", ""),
+                    "char_count": cached_item.get("char_count", 0),
+                    "scraped_at": now_str,
+                    "etag": cached_item.get("etag"),
+                    "http_last_modified": cached_item.get("http_last_modified"),
+                    "sitemap_lastmod": s_lm
+                })
+                if progress_callback:
+                    progress_callback(len(processed_records), total_urls, indexed_count, skipped_count, u, cached_item.get("title", u))
+            else:
+                urls_to_scrape.append(u)
+    else:
+        urls_to_scrape = list(urls)
+
+    # 2. Multi-threaded concurrent download with HTTP Conditional GET & Anti-429 Backoff
     def _fetch_single(url: str) -> Optional[Dict[str, Any]]:
         if not is_url_allowed_by_robots(url):
             return None
-        try:
-            return scrape_url(url, timeout=10)
-        except Exception:
-            return None
+        cached = indexed_map.get(url, {})
+        c_etag = cached.get("etag")
+        c_lastmod = cached.get("http_last_modified")
 
-    # Multi-threaded concurrent download (Stage 1)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_url = {executor.submit(_fetch_single, u): u for u in urls}
-        
-        for i, future in enumerate(as_completed(future_to_url)):
-            url = future_to_url[future]
-            data = None
+        for attempt in range(3):
             try:
-                data = future.result()
-                if data and data.get("is_dynamic_spa"):
-                    spa_detected_count += 1
+                return scrape_url(url, cached_etag=c_etag, cached_last_modified=c_lastmod, timeout=10)
+            except urllib.error.HTTPError as he:
+                if he.code == 429 and attempt < 2:
+                    retry_after = he.headers.get("Retry-After") if he.headers else None
+                    try:
+                        sleep_time = float(retry_after) if retry_after else (1.5 * (2 ** attempt) + random.uniform(0.1, 0.4))
+                    except Exception:
+                        sleep_time = (1.5 * (2 ** attempt) + random.uniform(0.1, 0.4))
+                    time.sleep(sleep_time)
+                else:
+                    return None
+            except Exception:
+                return None
+        return None
 
-                if data and data.get("content") and len(data["content"].strip()) > 30:
-                    text_content = data["content"]
-                    url_hash = data["hash"]
+    if urls_to_scrape:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_url = {executor.submit(_fetch_single, u): u for u in urls_to_scrape}
+            
+            for i, future in enumerate(as_completed(future_to_url)):
+                url = future_to_url[future]
+                data = None
+                try:
+                    data = future.result()
+                    if data and data.get("is_dynamic_spa"):
+                        spa_detected_count += 1
 
-                    # Check if page is already indexed and hash has not changed (Skip / Zero Cost)
-                    is_cached = (not force_refresh) and (url in indexed_map) and (indexed_map[url].get("content_hash") == url_hash)
-
-                    if is_cached:
+                    # Scenario A: HTTP 304 Not Modified
+                    if data and data.get("is_not_modified"):
                         skipped_count += 1
+                        cached_meta = indexed_map.get(url, {})
                         processed_records.append({
                             "url": url,
-                            "title": data["title"],
-                            "content_hash": url_hash,
-                            "char_count": len(text_content),
-                            "scraped_at": now_str
+                            "title": cached_meta.get("title", url),
+                            "content_hash": cached_meta.get("content_hash", ""),
+                            "char_count": cached_meta.get("char_count", 0),
+                            "scraped_at": now_str,
+                            "etag": data.get("etag") or cached_meta.get("etag"),
+                            "http_last_modified": data.get("http_last_modified") or cached_meta.get("http_last_modified"),
+                            "sitemap_lastmod": (sitemap_lastmods.get(url) if sitemap_lastmods else cached_meta.get("sitemap_lastmod"))
                         })
-                    else:
-                        # If page was previously indexed but hash changed, delete old vectors from ChromaDB
-                        if url in indexed_map:
-                            try:
-                                chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"url": url}]})
-                            except Exception:
-                                pass
 
-                        doc_id = f"web_{workspace_name}_{hashlib.sha256(url.encode()).hexdigest()[:20]}"
-                        try:
-                            from any_context.vector_engine.enricher import ContextualEnricher
-                            web_enricher = ContextualEnricher()
-                            envelope = web_enricher.extract_rich_summary_and_keywords(
-                                doc_text=text_content,
-                                file_name=data['title'],
-                                url=url
-                            )
-                            enveloped_text = web_enricher.apply_envelope_to_chunk(
-                                f"=== Web Page: {data['title']} ({url}) ===\n\n{text_content}",
-                                envelope
-                            )
-                            doc_summary = envelope.summary
-                            doc_keywords = ", ".join(envelope.keywords)
-                        except Exception:
-                            enveloped_text = f"=== Web Page: {data['title']} ({url}) ===\n\n{text_content}"
-                            doc_summary = ""
-                            doc_keywords = ""
+                    # Scenario B: HTTP 200 OK with extracted text
+                    elif data and data.get("content") and len(data["content"].strip()) > 30:
+                        text_content = data["content"]
+                        url_hash = data["hash"]
+                        etag_val = data.get("etag")
+                        http_lm_val = data.get("http_last_modified")
+                        s_lm_val = sitemap_lastmods.get(url) if sitemap_lastmods else None
 
-                        doc = Document(
-                            text=enveloped_text,
-                            doc_id=doc_id,
-                            metadata={
-                                "file_name": f"[Web] {data['title'][:60]}",
-                                "file_path": url,
+                        # Check if page is already indexed and hash has not changed (Skip / Zero Cost)
+                        is_cached = (not force_refresh) and (url in indexed_map) and (indexed_map[url].get("content_hash") == url_hash)
+
+                        if is_cached:
+                            skipped_count += 1
+                            processed_records.append({
                                 "url": url,
-                                "root_url": effective_root,
-                                "workspace": workspace_name,
                                 "title": data["title"],
                                 "content_hash": url_hash,
-                                "source_type": "web",
-                                "last_modified_date": data.get("last_modified", now_str[:10]),
-                                "date_confidence": data.get("date_confidence", "crawl_timestamp"),
-                                "content_type": data.get("content_type", "Web Documentation"),
-                                "document_summary": doc_summary,
-                                "keywords": doc_keywords,
-                                "scraped_at": now_str
-                            }
-                        )
-                        documents_batch.append(doc)
-                        total_chars += len(text_content)
-                        indexed_count += 1
-                        processed_records.append({
-                            "url": url,
-                            "title": data["title"],
-                            "content_hash": url_hash,
-                            "char_count": len(text_content),
-                            "scraped_at": now_str
-                        })
-                else:
+                                "char_count": len(text_content),
+                                "scraped_at": now_str,
+                                "etag": etag_val,
+                                "http_last_modified": http_lm_val,
+                                "sitemap_lastmod": s_lm_val
+                            })
+                        else:
+                            # If page was previously indexed but content changed, remove old vectors
+                            if url in indexed_map:
+                                try:
+                                    chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"url": url}]})
+                                except Exception:
+                                    pass
+                                try:
+                                    lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
+                                    lance_store.delete_by_file(url, workspace_name=workspace_name)
+                                except Exception:
+                                    pass
+
+                            doc_id = f"web_{workspace_name}_{hashlib.sha256(url.encode()).hexdigest()[:20]}"
+                            doc = Document(
+                                text=f"=== Web Page: {data['title']} ({url}) ===\n\n{text_content}",
+                                doc_id=doc_id,
+                                metadata={
+                                    "file_name": f"[Web] {data['title'][:60]}",
+                                    "file_path": url,
+                                    "url": url,
+                                    "root_url": effective_root,
+                                    "workspace": workspace_name,
+                                    "title": data["title"],
+                                    "content_hash": url_hash,
+                                    "source_type": "web",
+                                    "last_modified_date": data.get("last_modified", now_str[:10]),
+                                    "date_confidence": data.get("date_confidence", "crawl_timestamp"),
+                                    "content_type": data.get("content_type", "Web Documentation"),
+                                    "scraped_at": now_str,
+                                    "etag": etag_val,
+                                    "http_last_modified": http_lm_val,
+                                    "sitemap_lastmod": s_lm_val
+                                }
+                            )
+                            documents_batch.append(doc)
+                            total_chars += len(text_content)
+                            indexed_count += 1
+                            processed_records.append({
+                                "url": url,
+                                "title": data["title"],
+                                "content_hash": url_hash,
+                                "char_count": len(text_content),
+                                "scraped_at": now_str,
+                                "etag": etag_val,
+                                "http_last_modified": http_lm_val,
+                                "sitemap_lastmod": s_lm_val
+                            })
+                    else:
+                        errors += 1
+                except Exception:
                     errors += 1
-            except Exception:
-                errors += 1
 
-            if progress_callback:
-                progress_callback(i + 1, total_urls, indexed_count, skipped_count, url, (data.get("title") if data else ""))
+                if progress_callback:
+                    curr_completed = len(processed_records)
+                    progress_callback(curr_completed, total_urls, indexed_count, skipped_count, url, (data.get("title") if data else ""))
 
-    # Batch index vectors into ChromaDB using IngestionPipeline with micro-batching and Stage 2 Progress Ticker
+    # 3. Parallel Vector Embeddings and Columnar Persistence via ParallelIndexer (Stage 2)
     if documents_batch:
         try:
-            chunk_size = 20
             total_docs_to_embed = len(documents_batch)
             if embed_progress_callback:
                 embed_progress_callback(0, total_docs_to_embed)
 
-            for k in range(0, total_docs_to_embed, chunk_size):
-                batch = documents_batch[k:k+chunk_size]
-                batch_nodes = pipeline.run(documents=batch, show_progress=False)
-                try:
-                    from any_context.vector_engine.store import LanceDBStore
-                    lancedb_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
-                    lance_records = []
-                    for n in (batch_nodes or []):
-                        emb = getattr(n, "embedding", None)
-                        if emb:
-                            lance_records.append({
-                                "id": n.id_,
-                                "vector": emb,
-                                "text": n.text or "",
-                                "file_name": n.metadata.get("file_name", "Unknown"),
-                                "file_path": n.metadata.get("file_path", ""),
-                                "workspace": workspace_name,
-                                "last_modified": n.metadata.get("last_modified_date") or n.metadata.get("last_modified") or "",
-                                "content_type": n.metadata.get("content_type", "Web Documentation"),
-                                "document_summary": n.metadata.get("document_summary", ""),
-                                "keywords": n.metadata.get("keywords", ""),
-                                "content_hash": n.metadata.get("content_hash", "")
-                            })
-                    if lance_records:
-                        unique_urls = {(r["file_path"], r["workspace"]) for r in lance_records if r.get("file_path")}
-                        for u_path, ws in unique_urls:
-                            lancedb_store.delete_by_file(u_path, workspace_name=ws)
-                        lancedb_store.upsert_records(lance_records, dim=len(lance_records[0]["vector"]))
-                except Exception:
-                    pass
-                processed = min(k + len(batch), total_docs_to_embed)
-                if embed_progress_callback:
-                    embed_progress_callback(processed, total_docs_to_embed)
-                time.sleep(0.04)
+            lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
+            parallel_indexer = ParallelIndexer(store=lance_store)
+            parallel_indexer.index_documents(documents=documents_batch, workspace_name=workspace_name)
+
+            if embed_progress_callback:
+                embed_progress_callback(total_docs_to_embed, total_docs_to_embed)
         except Exception as e:
             return {
                 "status": "partial_error",
                 "indexed_count": indexed_count,
                 "skipped_count": skipped_count,
                 "total_chars": total_chars,
-                "error": f"Vector indexing failed: {str(e)}"
+                "error": f"Parallel vector indexing failed: {str(e)}"
             }
 
-    # Record all indexed pages and update SQLite root source with distinct page count
+    # 4. Record all indexed pages and update SQLite root source with distinct page count
     if processed_records:
         store.record_indexed_web_pages(
             workspace_name=workspace_name,
@@ -529,10 +570,10 @@ def crawl_website(
     scope: str = "domain",
     max_pages: Optional[int] = None,
     force_rescrape: bool = False,
-    max_workers: int = 12
+    max_workers: int = 20
 ) -> Dict[str, Any]:
     """
-    Programmatic, non-interactive website crawler and indexer.
+    Programmatic, non-interactive website crawler and indexer with High-Speed Dual-Stage Parallel Pipeline.
     Discovers internal links/sitemaps and crawls them automatically into LanceDB.
     """
     disc = discover_site_urls(start_url)
@@ -551,7 +592,8 @@ def crawl_website(
         root_title=disc.get("title") or start_url,
         scope=scope,
         force_refresh=force_rescrape,
-        max_workers=max_workers
+        max_workers=max_workers,
+        sitemap_lastmods=disc.get("sitemap_lastmods")
     )
 
 
@@ -751,9 +793,10 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
             root_title=title,
             scope=scope_name,
             force_refresh=force_refresh,
-            max_workers=12,
+            max_workers=20,
             progress_callback=_render_crawl_progress,
-            embed_progress_callback=_render_embed_progress
+            embed_progress_callback=_render_embed_progress,
+            sitemap_lastmods=disc.get("sitemap_lastmods")
         )
     finally:
         # Restore terminal cursor visibility
