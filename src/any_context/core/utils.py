@@ -6,26 +6,30 @@ from any_context.config.app_settings import AppSettings
 
 
 def load_env():
-    candidates = [
-        os.path.join(os.getcwd(), ".env"),
-        os.path.join(os.path.dirname(sys.executable), ".env"),
-        os.path.join(os.path.dirname(sys.executable), "..", ".env"),
-        os.path.expanduser(os.path.join("~", ".config", "any-context", ".env")),
-    ]
+    candidates = []
     if sys.platform == "win32":
-        if "LOCALAPPDATA" in os.environ:
-            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", ".env"))
-            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", "bin", ".env"))
-            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "any-context", ".env"))
         if "APPDATA" in os.environ:
             candidates.append(os.path.join(os.environ["APPDATA"], "any-context", ".env"))
             candidates.append(os.path.join(os.environ["APPDATA"], "actx", ".env"))
+        if "LOCALAPPDATA" in os.environ:
+            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "any-context", ".env"))
+            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", ".env"))
+            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", "bin", ".env"))
+
+    candidates.extend([
+        os.path.expanduser(os.path.join("~", ".config", "any-context", ".env")),
+        os.path.join(os.path.dirname(sys.executable), "..", ".env"),
+        os.path.join(os.path.dirname(sys.executable), ".env"),
+        os.path.join(os.getcwd(), ".env"),
+    ])
 
     for c in candidates:
         if os.path.exists(c):
-            dotenv.load_dotenv(c)
-            _map_langsmith_env()
-            return
+            try:
+                dotenv.load_dotenv(c, override=False)
+            except Exception:
+                pass
+
     dotenv.load_dotenv()
     _map_langsmith_env()
 
