@@ -971,6 +971,50 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ]
     ),
 
+    "search-engine": HelpPage(
+        command="/search-engine",
+        aliases=["search-engine", "/search-engine", "searchengine", "/searchengine", "engine", "/engine"],
+        title="🎯 Preferred Web Search Engine Selector (Auto / Tavily / Serper / DuckDuckGo)",
+        description=(
+            "The /search-engine command configures the preferred search provider for live web intelligence.\n\n"
+            "🔍 AVAILABLE SEARCH ENGINES:\n"
+            "• Auto (Default) : Smart selection hierarchy (Tavily if key present -> Serper if key present -> DuckDuckGo Free).\n"
+            "• Tavily API     : AI-native research engine (optimized for clean markdown extraction and RAG synthesis).\n"
+            "• Serper API     : High-speed Google Search engine (ideal for local businesses, maps, real-time Google indexing).\n"
+            "• DuckDuckGo     : 100% Free search engine (zero configuration, no API key required, zero external token cost)."
+        ),
+        syntax=(
+            "In Chat (Interactive Menu) : /search-engine   OR   /engine\n"
+            "  In Chat (Direct Selection)  : /search-engine tavily\n"
+            "                                /search-engine serper\n"
+            "                                /search-engine ddg   OR   /search-engine duckduckgo\n"
+            "                                /search-engine auto\n"
+            "  In Config Menu              : /config -> 🌐 Live Web Search -> 🎯 Select Default Search Engine\n"
+            "  View Help                   : /search-engine --help   OR   /engine -h"
+        ),
+        parameters=[
+            "/search-engine, /engine   : Opens interactive Questionary menu to select default web search engine.",
+            "tavily, tvly              : Sets Tavily Search API as active engine.",
+            "serper, google, serp      : Sets Serper Google Search API as active engine.",
+            "duckduckgo, ddg, free     : Sets DuckDuckGo (Free / No Key) as active engine.",
+            "auto, default, smart      : Sets Auto smart cascade mode (Tavily -> Serper -> DuckDuckGo).",
+            "--help, -h                : Display this detailed help page for /search-engine."
+        ],
+        examples=[
+            "In Chat: /search-engine",
+            "In Chat: /search-engine tavily",
+            "In Chat: /search-engine serper",
+            "In Chat: /search-engine ddg",
+            "In Chat: /search-engine auto",
+            "In Chat: /engine ddg"
+        ],
+        tips=[
+            "DuckDuckGo is always available with 0 API keys and $0.00 cost.",
+            "Use '/key tavily <api-key>' or '/key serper <api-key>' to configure premium search keys.",
+            "In 'Auto' mode, AnyContext automatically upgrades to your configured premium keys and falls back gracefully to DuckDuckGo."
+        ]
+    ),
+
     "link": HelpPage(
         command="/link",
         aliases=["link", "/link", "shared", "/shared", "unlink", "/unlink", "workspace link", "/workspace link"],

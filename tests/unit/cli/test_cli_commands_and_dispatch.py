@@ -393,6 +393,24 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
 
         safe_stdout_write("  [OK] Bottom Toolbar renderer and prompt dock verified!\n")
 
+    def test_18_search_engine_cli_dispatch(self):
+        """Validates that /search-engine and /engine commands update store preference."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /search-engine and /engine CLI Commands...\n")
+        mock_inputs = [
+            "/search-engine tavily",
+            "/search-engine ddg",
+            "/engine serper",
+            "/engine auto",
+            "/exit"
+        ]
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            run_chat_loop(active_workspace="DispatchEngineWS")
+            store = ConfigDBStore()
+            self.assertEqual(store.get_default_search_engine("DispatchEngineWS"), "auto")
+
+        safe_stdout_write("  [OK] /search-engine and /engine CLI commands verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
 
