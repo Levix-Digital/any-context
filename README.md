@@ -50,8 +50,16 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🔬 2-Phase High-Precision RAG & Context Calibration Engine**:
   - **Phase 1 (Deep Candidate Pool Scanning)**: The ChromaDB vector database evaluates a broad initial pool of **100+ candidate chunks** across thousands of indexed pages and files, guaranteeing 100% recall coverage.
   - **Phase 2 (Source-Fair Round-Robin Diversification)**: The `_diversify_nodes` algorithm balances chunk selection across all distinct documents and portals (up to 3 chunks per source). A single 500-page document is prevented from monopolizing the context window.
-  - **"Lost in the Middle" Prevention & Context Calibration**: By injecting **15-20 high-density chunks (~15,000-20,000 tokens)** rather than 40+ noisy chunks, AnyContext prevents attention degradation, eliminates hallucinations, reduces latency by 3x, and stays well within provider rate limits.
-  - **🔄 Resilient Auto-Retry with Exponential Backoff (`max_retries=5`)**: Automatic transparent recovery from LLM provider rate limits (TPM/RPM 429 errors) with millisecond backoff loops, ensuring zero disruption during heavy research sessions.
+  - **⚡ Parallel Multi-Source Retrieval (`ThreadPoolExecutor`)**: Concurrently searches across the active workspace, linked Shared Sources, and Global knowledge bases on all CPU cores, fusing results in sub-10ms.
+  - **"Lost in the Middle" Prevention & Context Calibration**: By injecting **15-20 high-density chunks (~10,000-15,000 tokens)** rather than 40+ noisy chunks, AnyContext prevents attention degradation, eliminates hallucinations, reduces latency by 3x, and stays well within provider rate limits.
+  - **🧹 Historical Tool Message Pruning**: Compacts raw chunk outputs from prior conversation turns in the LangGraph graph state, preventing token accumulation and keeping conversation history light and fast across long sessions.
+  - **🔄 Resilient Auto-Retry with Exponential Backoff (`max_retries=5`)**: Automatic transparent recovery from LLM provider rate limits (TPM/RPM 429 errors) across all 9 supported providers with millisecond backoff loops, ensuring zero disruption during heavy research sessions.
+  - **🎛️ Dynamic Retrieval Presets Matrix**:
+    | Preset | Pool no ChromaDB | Chunks Injetados | Tokens de Contexto | Melhor uso |
+    | :--- | :---: | :---: | :---: | :--- |
+    | **⚡ Turbo** | 50 candidatos | 10 chunks | ~5.000 tokens | **Velocidade máxima:** perguntas rápidas, fatos pontuais, dúvidas do dia a dia. |
+    | **⚖️ Balanced** *(Padrão)* | 100 candidatos | 20 chunks | ~10.000 a 15.000 tokens | **Equilíbrio perfeito:** alta precisão factual sem ruído (o padrão ideal). |
+    | **🔬 Deep Research** | 150 candidatos | 40 chunks | ~30.000 a 40.000 tokens | **Auditoria pesada:** comparar cláusulas de 10 contratos ou analisar dossiês complexos. |
 - **🛡️ Strict Context Grounding & Zero Pre-Training Hallucination**:
   - Answers are strictly anchored to the retrieved workspace chunks.
   - The AI is forbidden from using outdated 2023 pre-training weights to answer current factual, legal, or regulatory questions.

@@ -185,8 +185,9 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         filters = None
 
         if workspace and not search_session_memory:
-            safe_stdout_write(f"\r\033[K🔍 [Search] Scanning Workspace: '{workspace}' (pool: {candidate_k} -> diversified top {effective_top_k})...")
+            safe_stdout_write(f"\r\033[K🔍 [Search] Parallel Multi-Source Scan: '{workspace}' (pool: {candidate_k} -> diversified top {effective_top_k})...")
             from any_context.config.db_store import ConfigDBStore
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             store = ConfigDBStore()
             target_workspaces = [workspace]
             if workspace.lower() != "global":
@@ -195,39 +196,37 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
             shared_links = store.get_workspace_shared_links(workspace)
             linked_identifiers = [l["source_identifier"] for l in shared_links]
 
-            # 1. Query primary workspace
-            try:
-                filters = MetadataFilters(
-                    filters=[ExactMatchFilter(key="workspace", value=workspace)]
-                )
-                retriever = index.as_retriever(similarity_top_k=candidate_k, filters=filters)
-                raw_nodes.extend(retriever.retrieve(prompt_text))
-            except Exception:
-                pass
-
-            # 2. Query Global workspace if applicable
-            if "Global" in target_workspaces:
+            def _query_workspace(ws_name, top_k_val):
                 try:
-                    filters_glob = MetadataFilters(
-                        filters=[ExactMatchFilter(key="workspace", value="Global")]
-                    )
-                    retriever_glob = index.as_retriever(similarity_top_k=candidate_k // 2 or 10, filters=filters_glob)
-                    glob_nodes = retriever_glob.retrieve(prompt_text)
-                    raw_nodes.extend(glob_nodes)
+                    f = MetadataFilters(filters=[ExactMatchFilter(key="workspace", value=ws_name)])
+                    r = index.as_retriever(similarity_top_k=top_k_val, filters=f)
+                    return r.retrieve(prompt_text)
                 except Exception:
-                    pass
+                    return []
 
-            # 3. Query linked Shared Sources if present
-            if linked_identifiers:
+            def _query_shared(link_ids, top_k_val):
                 try:
-                    retriever_all = index.as_retriever(similarity_top_k=candidate_k * 2, filters=None)
-                    all_nodes = retriever_all.retrieve(prompt_text)
-                    for n in all_nodes:
-                        fp = str(n.metadata.get("file_path") or n.metadata.get("url") or "")
-                        if any(l_id in fp for l_id in linked_identifiers):
-                            raw_nodes.append(n)
+                    r = index.as_retriever(similarity_top_k=top_k_val, filters=None)
+                    all_n = r.retrieve(prompt_text)
+                    return [n for n in all_n if any(l_id in str(n.metadata.get("file_path") or n.metadata.get("url") or "") for l_id in link_ids)]
                 except Exception:
-                    pass
+                    return []
+
+            tasks = []
+            with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() or 4)) as executor:
+                tasks.append(executor.submit(_query_workspace, workspace, candidate_k))
+                if "Global" in target_workspaces:
+                    tasks.append(executor.submit(_query_workspace, "Global", candidate_k // 2 or 10))
+                if linked_identifiers:
+                    tasks.append(executor.submit(_query_shared, linked_identifiers, candidate_k * 2))
+
+                for future in as_completed(tasks):
+                    try:
+                        res = future.result()
+                        if res:
+                            raw_nodes.extend(res)
+                    except Exception:
+                        pass
 
             # Fallback: broad query with in-memory target workspaces & linked sources filter
             if not raw_nodes:
@@ -262,6 +261,9 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
             nodes = _diversify_nodes(raw_nodes=raw_nodes, target_top_k=effective_top_k, max_per_source=max_per_source)
 
         results_list = []
+        accumulated_chars = 0
+        MAX_TOTAL_CHARS = 45000  # Strict density budget (~10,000-11,000 tokens) to guarantee prompt safety
+
         for i, node in enumerate(nodes):
             file_name = node.metadata.get('file_name', 'Unknown')
             file_path = node.metadata.get('file_path', file_name)
@@ -276,7 +278,18 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
                 header_parts.append(f"Type: {content_type}")
                 
             header_str = " | ".join(header_parts)
-            results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {file_path}\nContent:\n{node.text}")
+            chunk_text = node.text or ""
+
+            # Check context budget
+            if accumulated_chars + len(chunk_text) > MAX_TOTAL_CHARS and i >= 3:
+                remaining_space = max(0, MAX_TOTAL_CHARS - accumulated_chars)
+                if remaining_space > 200:
+                    chunk_text = chunk_text[:remaining_space] + "\n[...trecho adicional condensado por limite de densidade...]"
+                    results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {file_path}\nContent:\n{chunk_text}")
+                break
+
+            accumulated_chars += len(chunk_text)
+            results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {file_path}\nContent:\n{chunk_text}")
 
         if not results_list:
             if search_session_memory:

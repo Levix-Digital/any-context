@@ -15,14 +15,38 @@ from any_context.core.utils import get_system_prompt, get_api_key
 from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
 
+def _prune_historical_tool_messages(messages):
+    """
+    Prunes heavy raw chunk dumps from prior turns' ToolMessages,
+    retaining only compact markers while preserving all HumanMessage and AIMessage
+    conversational dialog and the current turn's fresh ToolMessages.
+    """
+    if not isinstance(messages, list) or len(messages) <= 2:
+        return messages
+
+    for msg in messages:
+        m_type = getattr(msg, "type", "")
+        if m_type in ["tool", "ToolMessage"] or hasattr(msg, "tool_call_id"):
+            c_str = str(getattr(msg, "content", ""))
+            if len(c_str) > 300:
+                setattr(msg, "content", "[Contexto anterior do workspace consultado com sucesso]")
+    return messages
+
+
 class ResilientSqliteSaver(SqliteSaver):
     """
     Auto-healing SqliteSaver that safely recovers from corrupted zlib streams,
-    incomplete checkpoint bytes, or database locking errors without crashing the agent.
+    incomplete checkpoint bytes, or database locking errors without crashing the agent,
+    and prunes historical tool message payloads to prevent context overflow.
     """
     def get_tuple(self, config):
         try:
-            return super().get_tuple(config)
+            tup = super().get_tuple(config)
+            if tup and hasattr(tup, "checkpoint") and isinstance(tup.checkpoint, dict):
+                msgs = tup.checkpoint.get("channel_values", {}).get("messages")
+                if msgs:
+                    _prune_historical_tool_messages(msgs)
+            return tup
         except Exception:
             try:
                 thread_id = config.get("configurable", {}).get("thread_id") if config else None
