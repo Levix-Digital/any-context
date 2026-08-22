@@ -605,12 +605,15 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
     if not all_documents:
         for ws in workspaces_to_process:
             try:
-                collection.delete(where={"workspace": ws.name})
+                collection.delete(where={"$and": [{"workspace": ws.name}, {"content_type": "Local Document"}]})
             except Exception:
-                pass
+                try:
+                    collection.delete(where={"workspace": ws.name})
+                except Exception:
+                    pass
             try:
                 from any_context.vector_engine.store import LanceDBStore
-                LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb")).delete_by_workspace(ws.name)
+                LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb")).delete_local_documents_by_workspace(ws.name)
             except Exception:
                 pass
         if verbose:
@@ -705,6 +708,15 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
     deleted_count = 0
     for node_id, node in list(docstore.docs.items()):
         node_workspace = node.metadata.get("workspace") if node.metadata else None
+        content_type = node.metadata.get("content_type", "") if node.metadata else ""
+        is_web = (
+            content_type == "Web Documentation"
+            or (node.metadata and node.metadata.get("source_type") == "web")
+            or (node.metadata and str(node.metadata.get("file_path", "")).startswith("http"))
+        )
+        if is_web:
+            # NEVER purge web pages during local folder sync!
+            continue
         
         if not node_workspace or node_workspace in processed_workspace_names:
             if getattr(node, "ref_doc_id", None) not in current_doc_ids and node.id_ not in current_doc_ids:

@@ -454,7 +454,7 @@ def crawl_and_index_urls(
                 batch_nodes = pipeline.run(documents=batch, show_progress=False)
                 try:
                     from any_context.vector_engine.store import LanceDBStore
-                    lancedb_store = LanceDBStore.get_instance()
+                    lancedb_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
                     lance_records = []
                     for n in (batch_nodes or []):
                         emb = getattr(n, "embedding", None)
@@ -473,6 +473,9 @@ def crawl_and_index_urls(
                                 "content_hash": n.metadata.get("content_hash", "")
                             })
                     if lance_records:
+                        unique_urls = {(r["file_path"], r["workspace"]) for r in lance_records if r.get("file_path")}
+                        for u_path, ws in unique_urls:
+                            lancedb_store.delete_by_file(u_path, workspace_name=ws)
                         lancedb_store.upsert_records(lance_records, dim=len(lance_records[0]["vector"]))
                 except Exception:
                     pass
