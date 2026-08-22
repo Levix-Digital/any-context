@@ -7,7 +7,38 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.24.0): Desacoplamento Arquitetural & Orquestrador de Ingestão Multi-Fonte
+### 📌 Cenário 1 (v0.24.1): Pureza Hexagonal do Core e Isolamento do Adaptador CLI
+
+- **Objetivo**: Comprovar que o Core Domain do AnyContext opera de forma 100% agnóstica a UI (sem vazamentos de ANSI ou questionários no Core), enquanto o adaptador CLI ([`formatters.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/cli/formatters.py)) renderiza perfeitamente os cards de status, planos de preços e relatórios de crawling.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.1`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.24.1
+   actx
+   ```
+
+2. **⚡ Visualizar a Tabela de Preços e Planos (`/billing`):**
+   ```text
+   /billing
+   ```
+   - **Critério de Sucesso:**
+     - Selecione `📊 View Complete Pricing & Capability Matrix Table`.
+     - A matriz de planos é exibida com formatação visual e cores destacando o plano ativo.
+
+3. **⚡ Testar o Assistente Interativo de Web Crawling (`/web add`):**
+   ```text
+   /web add https://fastapi.tiangolo.com/
+   ```
+   - **Critério de Sucesso:**
+     - O relatório de descoberta de páginas web é apresentado com cores claras no terminal.
+     - As opções de escopo (incremental ou total) são exibidas via menu interativo (`questionary`) isolado no adaptador CLI.
+
+---
+
+### 📌 Cenário 2 (v0.24.0): Desacoplamento Arquitetural & Orquestrador de Ingestão Multi-Fonte
 
 - **Objetivo**: Comprovar a estabilidade do orquestrador multi-fonte desacoplado ([`orchestrator.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/ingestion/orchestrator.py)) durante a inspeção e sincronização concorrente de pastas locais, portais web e drives na nuvem.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.0`.

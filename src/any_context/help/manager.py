@@ -1,51 +1,59 @@
+"""
+AnyContext Help Page Display & Menu Manager.
+Encapsulates rich command manual formatting, interactive questionary help menus,
+and CLI command interception for help requests.
+"""
 import sys
 import questionary
 from typing import Optional
 from any_context.help.models import HelpPage
 from any_context.help.registry import HELP_REGISTRY, get_help_page
 
+
 def safe_print(msg: str):
+    """Safely prints strings handling legacy Windows encoding errors."""
     try:
         print(msg)
     except UnicodeEncodeError:
         print(msg.encode("ascii", errors="ignore").decode("ascii"))
 
+
 def display_help_page(page: HelpPage):
     """Prints a beautifully formatted, rich help manual page for a command."""
-    safe_print(f"\n================================================================================")
+    safe_print("\n================================================================================")
     safe_print(f"\033[93m{page.title}\033[0m")
-    safe_print(f"================================================================================\n")
+    safe_print("================================================================================\n")
     
-    safe_print(f"\033[1m📖 DESCRIPTION:\033[0m")
+    safe_print("\033[1m📖 DESCRIPTION:\033[0m")
     safe_print(f"  {page.description}\n")
 
-    safe_print(f"\033[1m⚡ SYNTAX / USAGE:\033[0m")
+    safe_print("\033[1m⚡ SYNTAX / USAGE:\033[0m")
     safe_print(f"  \033[96m{page.syntax}\033[0m\n")
 
     if page.parameters:
-        safe_print(f"\033[1m⚙️ PARAMETERS & OPTIONS:\033[0m")
+        safe_print("\033[1m⚙️ PARAMETERS & OPTIONS:\033[0m")
         for param in page.parameters:
             safe_print(f"  • {param}")
         safe_print("")
 
     if page.examples:
-        safe_print(f"\033[1m💡 EXAMPLES:\033[0m")
+        safe_print("\033[1m💡 EXAMPLES:\033[0m")
         for example in page.examples:
             safe_print(f"  \033[92m$ {example}\033[0m")
         safe_print("")
 
     if page.tips:
-        safe_print(f"\033[1m📌 TIPS & BEST PRACTICES:\033[0m")
+        safe_print("\033[1m📌 TIPS & BEST PRACTICES:\033[0m")
         for tip in page.tips:
             safe_print(f"  • {tip}")
         safe_print("")
 
-    safe_print(f"================================================================================\n")
+    safe_print("================================================================================\n")
+
 
 def show_interactive_help_menu():
-    """Displays an interactive Questionary menu listing all 22 command documentation topics dynamically."""
+    """Displays an interactive Questionary menu listing all command documentation topics dynamically."""
     while True:
-        # Build choices dynamically from registered HelpPages
         choices_map = {}
         for key, page in HELP_REGISTRY.items():
             label = f"{page.title} ({page.command})"
@@ -54,7 +62,7 @@ def show_interactive_help_menu():
         sorted_labels = sorted(list(choices_map.keys()))
         sorted_labels.append("🔙 Return to Chat")
 
-        safe_print("\n\033[93m📖 AnyContext Interactive Manual & Documentation Index (22 Topics)\033[0m")
+        safe_print("\n\033[93m📖 AnyContext Interactive Manual & Documentation Index (28 Topics)\033[0m")
         choice = questionary.select(
             "Select a command topic to view detailed documentation and usage examples:",
             choices=sorted_labels
@@ -66,6 +74,7 @@ def show_interactive_help_menu():
         selected_page = choices_map.get(choice)
         if selected_page:
             display_help_page(selected_page)
+
 
 def handle_command_help_interception(user_input: str) -> bool:
     """

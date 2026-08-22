@@ -469,7 +469,7 @@ def _transfer_workspace_source(store: ConfigDBStore):
 def _manage_workspace_web_urls(workspace_name: Optional[str] = None, store: Optional[ConfigDBStore] = None):
     """Interactive management of Web URLs and Documentation Site Ingestors for a Workspace."""
     from any_context.ingestion.web_scheduler import WebSchedulerStore, sync_workspace_web_urls, remove_web_url_from_chromadb
-    from any_context.ingestion.web_crawler import run_interactive_web_crawler
+    from any_context.cli.formatters import run_interactive_web_crawler
 
     # Handle polymorphic call if first argument was passed as store
     if isinstance(workspace_name, ConfigDBStore):
@@ -1167,8 +1167,9 @@ def _manage_subscription():
         return
 
     if action.startswith("📊"):
-        from any_context.tools.search_tools import safe_stdout_write
-        safe_stdout_write("\n" + mgr.format_pricing_cards_cli() + "\n\n")
+        from any_context.cli.formatters import safe_stdout_write, format_pricing_plans_cli
+        cards_text = format_pricing_plans_cli(plans=get_all_plans(), current_tier=status.active_tier_id)
+        safe_stdout_write("\n" + cards_text + "\n\n")
 
     elif action.startswith("🔑"):
         plans = get_all_plans()

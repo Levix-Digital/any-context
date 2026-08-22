@@ -170,60 +170,8 @@ def parse_command_args(command_line: str) -> List[str]:
         return [p.strip().strip("'\"") for p in command_line.strip().split() if p.strip()]
 
 
-def format_sync_status_box(diff: Dict[str, Any]) -> str:
-    """Formats a modern, comprehensive multi-source sync status card for a workspace."""
-    ws_name = diff.get("workspace_name", "Default")
-    total_sources = diff.get("total_sources", 0)
-    src_label = f" ({total_sources} source{'s' if total_sources != 1 else ''})" if total_sources > 0 else " (Empty)"
+from any_context.cli.formatters import format_sync_status_box
 
-    lines = [f"┌ 🔍 \033[1mWorkspace Sync Status: {ws_name}{src_label}\033[0m"]
-
-    # 1. Local Folders
-    folders = diff.get("folders", [])
-    disk_files = diff.get("total_disk_files", 0)
-    cached_files = diff.get("total_cached_files", 0)
-    if folders:
-        lines.append(f"│ ├─ 📂 Local Folders : {len(folders)} folder{'s' if len(folders) != 1 else ''} ({disk_files} files on disk, {cached_files} cached)")
-        for f in folders[:3]:
-            lines.append(f"│ │    • [Folder] {f}")
-        if len(folders) > 3:
-            lines.append(f"│ │    • ... (+ {len(folders) - 3} more folders)")
-    else:
-        lines.append(f"│ ├─ 📂 Local Folders : 0 folders (0 files on disk, 0 cached)")
-
-    # 2. Web Sources
-    web_sources = diff.get("web_sources", [])
-    web_pages = diff.get("web_pages_count", 0)
-    if web_sources:
-        lines.append(f"│ ├─ 🌐 Web Sources   : {len(web_sources)} portal{'s' if len(web_sources) != 1 else ''} ({web_pages} pages indexed)")
-        for w in web_sources[:3]:
-            title = w.get("title") or w.get("url")
-            p_cnt = w.get("page_count", 1) or 1
-            lines.append(f"│ │    • [Web] {w.get('url')} ({title} • {p_cnt} pages)")
-        if len(web_sources) > 3:
-            lines.append(f"│ │    • ... (+ {len(web_sources) - 3} more portals)")
-    else:
-        lines.append(f"│ ├─ 🌐 Web Sources   : 0 portals")
-
-    # 3. Cloud Drives
-    cloud_drives = diff.get("cloud_drives", [])
-    if cloud_drives:
-        lines.append(f"│ ├─ ☁️ Cloud Drives  : {len(cloud_drives)} connected")
-        for cd in cloud_drives[:3]:
-            dtype = (cd.get("drive_type") or "drive").capitalize()
-            dname = cd.get("folder_name") or cd.get("folder_id") or "Drive Folder"
-            lines.append(f"│ │    • [{dtype}] {dname}")
-        if len(cloud_drives) > 3:
-            lines.append(f"│ │    • ... (+ {len(cloud_drives) - 3} more drives)")
-    else:
-        lines.append(f"│ ├─ ☁️ Cloud Drives  : 0 connected")
-
-    # 4. Pending Status & Up to Date
-    lines.append(f"│ ├─ 📦 Pending Status: {diff.get('summary', 'Up to date')}")
-    status_str = "Yes (0 changes)" if diff.get("is_up_to_date") else "No (Changes detected - run '/sync' to update)"
-    lines.append(f"│ └─ ⚡ Up to Date   : {status_str}")
-    lines.append("└─────────────────────────────────────────────────────────────")
-    return "\n".join(lines)
 
 
 def create_bottom_toolbar_renderer(
@@ -1424,7 +1372,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                     continue
 
                 if is_add:
-                    from any_context.ingestion.web_crawler import run_interactive_web_crawler
+                    from any_context.cli.formatters import run_interactive_web_crawler
                     url_to_add = None
                     for i, p in enumerate(parts):
                         if p in ["--add", "-a", "add"] and len(parts) > i + 1:
@@ -1438,7 +1386,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                     continue
 
                 if len(parts) > 1 and (parts[1].startswith("http://") or parts[1].startswith("https://")):
-                    from any_context.ingestion.web_crawler import run_interactive_web_crawler
+                    from any_context.cli.formatters import run_interactive_web_crawler
                     run_interactive_web_crawler(workspace_name=active_workspace, start_url=parts[1])
                     agent_instance = None
                     continue

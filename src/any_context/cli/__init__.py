@@ -11,9 +11,9 @@ def __getattr__(name: str):
         from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
         mapping = {"show_workspace_menu": show_workspace_menu, "get_active_workspace": get_active_workspace}
         return mapping[name]
-    elif name == "Spinner":
-        from any_context.cli.spinner import Spinner
-        return Spinner
+    elif name in ["format_sync_status_box", "format_pricing_plans_cli", "run_interactive_web_crawler", "display_help_page", "show_interactive_help_menu"]:
+        from any_context.cli import formatters
+        return getattr(formatters, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -23,5 +23,10 @@ __all__ = [
     "main_cli",
     "show_workspace_menu",
     "get_active_workspace",
-    "Spinner"
+    "Spinner",
+    "format_sync_status_box",
+    "format_pricing_plans_cli",
+    "run_interactive_web_crawler",
+    "display_help_page",
+    "show_interactive_help_menu"
 ]
