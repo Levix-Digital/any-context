@@ -1102,7 +1102,8 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "  • Balanced (100 pool -> 20 chunks -> ~10k-15k tokens): Optimal standard setting (Source-Fair Round-Robin).",
             "  • Deep Research (150 pool -> 40 chunks -> ~30k-40k)  : Exhaustive synthesis across 20+ documents.",
             "Why 15-20 chunks? Stanford research shows prompts with 40+ chunks suffer from 'Lost in the Middle' attention degradation and noise injection.",
-            "All LLM requests feature built-in auto-retry with exponential backoff (max_retries=5) to seamlessly survive provider TPM rate limits."
+            "All LLM requests feature built-in auto-retry with exponential backoff (max_retries=5) to seamlessly survive provider TPM rate limits.",
+            "Full Engineering Architecture: For exhaustive mathematical formulas, benchmarks, and deep-dive specs, consult 'TECDOC.md'."
         ]
     )
 }

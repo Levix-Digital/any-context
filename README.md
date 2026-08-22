@@ -18,8 +18,12 @@
 [![License](https://img.shields.io/badge/license-Community%20%2F%20Enterprise-green.svg)](https://github.com/Levix-Digital/any-context)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Privacy](https://img.shields.io/badge/privacy-100%25%20Offline%20First-success.svg)](https://lmstudio.ai/)
+[![Architecture & TecDoc](https://img.shields.io/badge/docs-TecDoc%20(Architecture)-blueviolet.svg)](TECDOC.md)
 
 **AnyContext** is the universal intelligence layer for your personal and professional data. Built with an uncompromising focus on **privacy, speed, and versatility**, AnyContext connects your local folders, scanned documents, and web portals directly to the world's most capable Artificial Intelligence models.
+
+> 📖 **Looking for Deep Engineering & Architecture Details?**  
+> Check our exhaustive technical manual: 👉 **[`TECDOC.md`](TECDOC.md)** (covers 2-Phase RAG, ChromaDB parallel scanning, 5-tier date resolution, SQLite memory, REST API schemas, and MCP specs).
 
 Whether you are a **lawyer reviewing hundreds of contract pages**, a **consultant managing immigration dossiers**, a **researcher navigating scientific publications**, or an **enterprise deploying a secure in-VPC context server**, AnyContext operates **100% on your terms and infrastructure**.
 
