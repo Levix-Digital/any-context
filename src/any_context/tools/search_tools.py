@@ -190,6 +190,11 @@ def _execute_search_context(
         effective_top_k = max(top_k, configured_top_k) if top_k else configured_top_k
         candidate_k = max(candidate_pool_size, effective_top_k * 2)
         min_score = 0.40
+        try:
+            from any_context.help.bootstrap import ensure_system_knowledge_indexed
+            ensure_system_knowledge_indexed(db_path=folder_db_path)
+        except Exception:
+            pass
 
     lance_store = LanceDBStore.get_instance(db_path=target_db_path)
     total_records = lance_store.count_records(table_name=table_name)
