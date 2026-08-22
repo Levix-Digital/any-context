@@ -121,8 +121,8 @@ def create_anycontext_agent(
         init_kwargs["temperature"] = 0.0
 
     # Route provider base URLs when switching on the fly
-    if model_provider in ["local", "lm-studio", "ollama"] or (base_url and ("localhost" in base_url or "127.0.0.1" in base_url)):
-        init_kwargs["base_url"] = base_url
+    if model_provider in ["local", "lm-studio", "ollama"]:
+        init_kwargs["base_url"] = base_url or "http://localhost:1234/v1"
     elif model_provider == "deepseek":
         init_kwargs["base_url"] = "https://api.deepseek.com/v1"
         init_kwargs["model_provider"] = "openai" # langchain deepseek uses openai-compatible client
