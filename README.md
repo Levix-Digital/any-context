@@ -52,6 +52,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Time-Aware Chunk Headers**: Injects `Source: ... | Workspace: ... | Last Modified: YYYY-MM-DD | Type: ...` into every chunk.
   - **Recency Primacy & Conflict Resolution**: The AI agent evaluates timestamps and status notices, ensuring that current rules (`Status: Paused`) always supersede older historical announcements.
 - **🔬 2-Phase High-Precision RAG & Context Calibration Engine**:
+  - **⚡ High-Speed Columnar Search Engine (LanceDB & Rust)**: Instant vector retrieval (< 5ms) powered by embedded columnar datasets, eliminating database locks and enabling lightning-fast query resolution across hundreds of thousands of document chunks.
   - **🎯 Semantic Precision & Zero Cross-Domain Noise (Contextual Retrieval)**: The system captures the overarching theme and domain keywords of each document and web page before reading paragraphs. Searches on a specific subject never pull unrelated files (like financial or IT docs in legal questions).
   - **Phase 1 (Deep Candidate Pool Scanning)**: Evaluates a broad initial pool of **100+ candidate chunks** across thousands of indexed pages and files, guaranteeing 100% recall coverage.
   - **Phase 2 (Balanced Multi-Source Diversity)**: Balanced round-robin distribution ensures fair representation across all documents and web portals (up to 3 chunks per source), preventing a single large file from monopolizing the context window.

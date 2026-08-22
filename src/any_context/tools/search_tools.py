@@ -173,6 +173,56 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
         db = chromadb.PersistentClient(path=db_path)
         chroma_collection = db.get_or_create_collection(collection_name)
 
+        # Phase 2: Parallel LanceDB Retrieval with RelevanceFilter
+        if not search_session_memory:
+            try:
+                from any_context.vector_engine.store import LanceDBStore
+                from any_context.vector_engine.retriever import ParallelRetriever
+                from any_context.vector_engine.models import RetrievalConfig
+                from any_context.config.db_store import ConfigDBStore
+
+                lance_store = LanceDBStore.get_instance(db_path=os.path.join(folder_db_path, "lancedb"))
+                if lance_store.count_records() > 0:
+                    config_store = ConfigDBStore()
+                    target_workspaces = [workspace] if workspace else ["Default", "Global"]
+                    if workspace and workspace.lower() != "global":
+                        target_workspaces.append("Global")
+
+                    shared_links = config_store.get_workspace_shared_links(workspace) if workspace else []
+                    linked_identifiers = [l["source_identifier"] for l in shared_links]
+
+                    retrieval_config = RetrievalConfig(
+                        candidate_pool_k=candidate_k,
+                        target_top_k=effective_top_k,
+                        min_similarity_score=0.45,
+                        max_chunks_per_source=max_per_source,
+                        max_density_chars=45000
+                    )
+                    parallel_retriever = ParallelRetriever(store=lance_store)
+                    lance_results = parallel_retriever.search(
+                        query=prompt_text,
+                        workspace=workspace,
+                        target_workspaces=target_workspaces,
+                        linked_sources=linked_identifiers,
+                        config=retrieval_config
+                    )
+                    if lance_results:
+                        results_list = []
+                        for i, sc in enumerate(lance_results):
+                            header_parts = [f"Source: {sc.file_name}", f"Workspace: {sc.workspace}"]
+                            if sc.last_modified:
+                                header_parts.append(f"Last Modified: {sc.last_modified}")
+                            if sc.content_type:
+                                header_parts.append(f"Type: {sc.content_type}")
+                            if sc.keywords:
+                                header_parts.append(f"Keywords: {sc.keywords}")
+                            header_str = " | ".join(header_parts)
+                            results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {sc.file_path}\nContent:\n{sc.text}")
+                        if results_list:
+                            return "\n\n".join(results_list)
+            except Exception:
+                pass
+
         if chroma_collection.count() == 0:
             if search_session_memory:
                 return "No long-term session memory summaries found in database yet."
