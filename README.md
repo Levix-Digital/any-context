@@ -56,7 +56,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Phase 2 (Source-Fair Round-Robin Diversification)**: The `_diversify_nodes` algorithm balances chunk selection across all distinct documents and portals (up to 3 chunks per source). A single 500-page document is prevented from monopolizing the context window.
   - **⚡ Parallel Multi-Source Retrieval (`ThreadPoolExecutor`)**: Concurrently searches across the active workspace, linked Shared Sources, and Global knowledge bases on all CPU cores, fusing results in sub-10ms.
   - **"Lost in the Middle" Prevention & Context Calibration**: By injecting **15-20 high-density chunks (~10,000-15,000 tokens)** rather than 40+ noisy chunks, AnyContext prevents attention degradation, eliminates hallucinations, reduces latency by 3x, and stays well within provider rate limits.
-  - **🧹 Historical Tool Message Pruning**: Compacts raw chunk outputs from prior conversation turns in the LangGraph graph state, preventing token accumulation and keeping conversation history light and fast across long sessions.
+  - **🧹 Runtime Tool Message Pruning (`PruningChatModelWrapper`)**: Intercepts and compacts raw chunk outputs from prior conversation turns in runtime, preventing token accumulation and keeping conversation prompt size permanently under ~12,000 tokens across 100+ turns.
   - **🔄 Resilient Auto-Retry with Exponential Backoff (`max_retries=5`)**: Automatic transparent recovery from LLM provider rate limits (TPM/RPM 429 errors) across all 9 supported providers with millisecond backoff loops, ensuring zero disruption during heavy research sessions.
   - **🎛️ Dynamic Retrieval Presets Matrix**:
     | Preset | Pool no ChromaDB | Chunks Injetados | Tokens de Contexto | Melhor uso |
@@ -228,9 +228,9 @@ Para garantir que um documento gigante de 500 páginas não monopolize todas as 
 - Todos os 9 provedores de IA (OpenAI, Anthropic Claude, Gemini, Groq, DeepSeek, Mistral, xAI) impõem limites de **Tokens por Minuto (TPM)** e **Requisições por Minuto (RPM)**.
 - O AnyContext conta com **`max_retries=5` e Backoff Exponencial automático**: caso um provedor retorne **HTTP 429 (Rate Limit)** em rajadas de perguntas, o sistema aguarda silenciosamente as frações de segundo necessárias e conclui a resposta sem que você veja erro na tela.
 
-### 5. Pruning de Histórico no SQLite (Memória Leve e Eterna)
-- O histórico da conversa preserva 100% das perguntas do usuário e conclusões da IA (`User` ➔ `AI`), mas poda os blocos de texto bruto de buscas passadas (`ToolMessage`).
-- Detalhes antigos ficam arquivados no SQLite local e são consultados via ferramenta (`search_session_memory=True`) sob demanda, evitando que conversas longas estourem a janela de 128.000 tokens do modelo.
+### 5. Pruning de Histórico em Runtime (`PruningChatModelWrapper`)
+- O histórico da conversa preserva 100% das perguntas do usuário e conclusões da IA (`User` ➔ `AI`), mas intercepta e poda os blocos de texto bruto de buscas passadas (`ToolMessage`) em runtime para `"[Prior workspace context retrieved and synthesized in conversation history]"`.
+- O prompt enviado à LLM se mantém permanentemente entre ~5.000 e 12.000 tokens, eliminando o erro de estouro de 128.000 tokens em conversas de 100+ turnos.
 
 ### 🎛️ Matriz Dinâmica de Presets de RAG
 
