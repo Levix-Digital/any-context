@@ -586,7 +586,28 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
         if verbose:
             safe_print("└ ❌ No valid documents found across any workspace.\n")
         return {"status": "empty", "total_files": 0}
-        
+
+    # Contextual Retrieval Enrichment (Rich Summary + Top-N Keywords per Document)
+    try:
+        from any_context.vector_engine.enricher import ContextualEnricher
+        enricher = ContextualEnricher()
+        for doc_item in all_documents:
+            # Skip system help synthetic docs from altering their prefix
+            if doc_item.metadata.get("is_system_help"):
+                continue
+            fp = doc_item.metadata.get("file_path") or doc_item.id_
+            fn = doc_item.metadata.get("file_name") or os.path.basename(str(fp))
+            envelope = enricher.extract_rich_summary_and_keywords(
+                doc_text=doc_item.text,
+                file_name=fn,
+                file_path=str(fp)
+            )
+            doc_item.metadata["document_summary"] = envelope.summary
+            doc_item.metadata["keywords"] = ", ".join(envelope.keywords)
+            doc_item.text = enricher.apply_envelope_to_chunk(doc_item.text, envelope)
+    except Exception:
+        pass
+
     try:
         nodes = pipeline.run(documents=all_documents, show_progress=False)
     except Exception as e:

@@ -4,48 +4,51 @@
 
 ---
 
-## 🎯 Teste Ativo (Última Release: v0.17.7)
+## 🎯 Teste Ativo (Última Release: v0.18.0)
 
-### 📌 Cenário: Perguntas Compostas Multi-Tópico & Orçamento Proporcional de Contexto
+### 📌 Cenário: Enriquecimento Semântico Contextual & Eliminação de Falsos Positivos
 
-- **Objetivo**: Comprovar que perguntas com múltiplos tópicos simultâneos (ex: autorização de menores + regras de outra jurisdição) preservam os fatos de **todos os tópicos pesquisados** no prompt final sem estourar o limite de 128k tokens da OpenAI.
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.17.7`.
+- **Objetivo**: Comprovar que o `ContextualEnricher` ancora os chunks ao tema macro e palavras-chave de cada documento/URL, impedindo que documentos irrelevantes de outros domínios (ex: finanças, TI) apareçam em buscas de imigração ou autorizações.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.18.0`.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Atualizar e Iniciar o AnyContext:**
    ```powershell
-   actx --update@0.17.7
+   actx --update@0.18.0
    actx
    ```
 
-2. **💬 Turno 1 (Pergunta Composta com Múltiplos Sub-Tópicos):**
+2. **🔄 Sincronizar Workspace com Enriquecimento Contextual:**
+   ```text
+   /sync
+   ```
+   - **Critério de Sucesso:**
+     - A sincronização conclui com sucesso.
+     - Cada arquivo e página web recebe seu envelope com **Sumário Rico** e **Top-N Palavras-Chave** (armazenados em cache SQLite persistente).
+
+3. **💬 Turno 1 (Busca Semântica Específica com Termos Genéricos):**
    ```text
    👤 You: Quem deve assinar autorizações para crianças? O que as leis do Canadá dizem sobre isso?
    ```
    - **Critério de Sucesso:**
-     - A resposta é gerada em **menos de 4 segundos** (sem loops de 10 buscas).
-     - **Zero Erro 400 (`ContextOverflowError - 139001 tokens`)**.
-     - A IA aborda **ambos os aspectos** (autorização de menores E a legislação/regras pertinentes) com citações exatas das fontes.
+     - **100% de Precisão Temática**: Todos os chunks recuperados e citados pertencem estritamente aos documentos de imigração/menores (`Regras_Menores`, `Canada.ca`).
+     - **Zero Falsos Positivos**: Nenhum arquivo financeiro, de RH ou de TI aparece nos chunks recuperados.
+     - Os cabeçalhos de busca exibem `Keywords: ...` e o tema associado.
 
-3. **💬 Turno 2 (Segunda Pergunta Consecutiva na Mesma Sessão):**
+4. **💬 Turno 2 (Verificação de Sub-30ms em Arquivos Inalterados):**
    ```text
-   👤 You: E quais são os prazos e penalidades caso essa autorização não seja entregue a tempo?
+   /sync
    ```
    - **Critério de Sucesso:**
-     - O Turno 1 é compactado em runtime para `"[Prior workspace context retrieved and synthesized in conversation history]"`.
-     - O prompt permanece calibrado em ~10.000 tokens e a resposta sai instantaneamente.
-
-4. **💬 Turno 3 (Verificação de Memória do Diálogo):**
-   ```text
-   👤 You: Resuma em 3 tópicos os pontos principais que discutimos até aqui.
-   ```
-   - **Critério de Sucesso:**
-     - A IA sintetiza as respostas dos Turnos 1 e 2 perfeitamente, comprovando a integridade da memória conversacional.
+     - O cache SHA-256 é acionado instantaneamente sem reprocessar sumários para arquivos inalterados.
 
 ---
 
 ## 📚 Histórico de Cenários de Testes Anteriores
+
+### 🔬 v0.17.7 - Perguntas Compostas Multi-Tópico & Orçamento Proporcional
+- **Validação:** Perguntas com múltiplos tópicos simultâneos preservam trechos de todos os tópicos no prompt sem estouro de 128k tokens.
 
 ### 🔬 v0.17.3 - Busca Paralela Multi-Fonte (`ThreadPoolExecutor`) & Presets de RAG
 1. **Configuração de Presets:**
