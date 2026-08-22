@@ -53,7 +53,7 @@ def run_unified_sync(
                         print(f"\n🌐 Synchronizing {len(ws_urls)} web source(s) for workspace '{ws}'...")
                     except UnicodeEncodeError:
                         print(f"\n[Web] Synchronizing {len(ws_urls)} web source(s) for workspace '{ws}'...")
-                web_res = sync_workspace_web_urls(ws)
+                web_res = sync_workspace_web_urls(ws, force=force_full)
                 results["web_results"][ws] = web_res
             else:
                 results["web_results"][ws] = {"status": "empty", "total_urls": 0}

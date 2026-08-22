@@ -599,14 +599,30 @@ def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
         return False
 
 
-def sync_workspace_web_urls(workspace_name: str) -> Dict[str, Any]:
+def sync_workspace_web_urls(workspace_name: str, force: bool = False) -> Dict[str, Any]:
     """
-    Synchronizes / re-indexes all web URLs configured for a workspace.
+    Synchronizes / re-indexes all web URLs and crawled portals configured for a workspace.
+    Properly handles both single URLs and multi-page crawled portals.
     """
     store = WebSchedulerStore()
     urls = store.get_workspace_web_urls(workspace_name)
     results = []
     for u in urls:
-        res = index_web_url_to_chromadb(workspace_name=workspace_name, url=u["url"], url_id=u["id"])
-        results.append({"url": u["url"], "result": res})
+        page_count = u.get("page_count", 1) or 1
+        scope = u.get("scope")
+        if page_count > 1 or scope in ["domain", "section", "custom"]:
+            from any_context.ingestion.web_crawler import crawl_website
+            try:
+                crawl_res = crawl_website(
+                    workspace_name=workspace_name,
+                    start_url=u["url"],
+                    scope=scope or "domain",
+                    force_rescrape=force
+                )
+                results.append({"url": u["url"], "result": crawl_res, "type": "portal"})
+            except Exception as e:
+                results.append({"url": u["url"], "result": {"status": "error", "error": str(e)}, "type": "portal"})
+        else:
+            res = index_web_url_to_chromadb(workspace_name=workspace_name, url=u["url"], url_id=u["id"], force=force)
+            results.append({"url": u["url"], "result": res, "type": "single_page"})
     return {"workspace_name": workspace_name, "total_urls": len(urls), "synced": results}

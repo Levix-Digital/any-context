@@ -130,6 +130,7 @@ def show_slash_commands_palette(active_workspace: Optional[str] = None) -> Optio
             "📁 /folder       - Add, list, remove, or sync local folders",
             "🌐 /web          - Ingest, crawl, list, or sync web portals",
             "☁️ /drive        - Connect, list, remove, or sync cloud drives",
+            "🔍 /inspect      - View vector DB chunks, LanceDB records & snippets",
             "📂 /switch       - Switch or create active workspace",
             "📁 /sources      - View all sources (folders, web portals, drives)",
             "✏️ /rename       - Rename a workspace and migrate vector records",
@@ -1477,6 +1478,65 @@ def run_chat_loop(active_workspace: str = "Default"):
                 print("  \033[90mTip: Press [↑] Up Arrow / [↓] Down Arrow anytime to cycle through past inputs.\033[0m\n")
                 continue
 
+            elif cmd in ["/inspect", "/chunks", "/lance", "/status-chunks", "/db-status"] or cmd.startswith("/inspect ") or cmd.startswith("/chunks "):
+                parts = parse_command_args(user_input)
+                limit = 5
+                for i, p in enumerate(parts):
+                    if p in ["--limit", "-n"] and len(parts) > i + 1:
+                        try:
+                            limit = int(parts[i + 1])
+                        except ValueError:
+                            pass
+                        break
+
+                from any_context.config.app_settings import AppSettings
+                from any_context.vector_engine.store import LanceDBStore
+                import chromadb
+
+                settings = AppSettings.load()
+                db_save_path = settings.context.db_path if settings else "./context_db"
+                coll_name = settings.context.collection_name if settings else "context_docs"
+
+                print(f"\n🔍 \033[1mVector Database Inspection for Workspace '\033[93m{active_workspace}\033[0m\033[1m':\033[0m")
+                print(f"  • Storage Path: \033[90m{os.path.abspath(db_save_path)}\033[0m")
+
+                # LanceDB
+                lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+                lance_count = lance_store.count_records()
+                print(f"  • \033[92m⚡ LanceDB Columnar Records:\033[0m \033[1m{lance_count}\033[0m chunks")
+
+                # ChromaDB
+                try:
+                    chroma_client = chromadb.PersistentClient(path=db_save_path)
+                    chroma_coll = chroma_client.get_or_create_collection(coll_name)
+                    chroma_count = chroma_coll.count()
+                except Exception:
+                    chroma_count = 0
+                print(f"  • \033[94m📦 ChromaDB Records:\033[0m \033[1m{chroma_count}\033[0m chunks\n")
+
+                if lance_count > 0:
+                    try:
+                        table = lance_store._db.open_table(lance_store._table_name)
+                        clean_ws = active_workspace.replace("'", "''")
+                        results = table.search().where(f"workspace = '{clean_ws}'").limit(limit).to_list()
+                        if not results:
+                            results = table.search().limit(limit).to_list()
+
+                        print(f"📄 \033[1mSample Indexed Chunks ({len(results)} shown of {lance_count}):\033[0m")
+                        for idx, r in enumerate(results, 1):
+                            src_name = r.get("file_name") or r.get("file_path") or "Unknown"
+                            ctype = r.get("content_type") or "Document"
+                            text_snip = (r.get("text") or "").strip().replace("\n", " ")[:140]
+                            print(f"  {idx}. [\033[96m{ctype}\033[0m] \033[1m{src_name}\033[0m")
+                            print(f"     \033[90mPath: {r.get('file_path')}\033[0m")
+                            print(f"     \033[37mSnippet: \"{text_snip}...\"\033[0m\n")
+                    except Exception as e:
+                        print(f"  ⚠️ Could not read sample records from LanceDB: {e}\n")
+                else:
+                    print("  ⚠️ \033[93mDatabase is currently empty (0 chunks).\033[0m")
+                    print("  👉 Type '\033[96m/sync\033[0m' or '\033[96m/web --add <url>\033[0m' to index content into LanceDB.\n")
+                continue
+
             elif cmd == "/sources" or cmd.startswith("/sources "):
                 parts = parse_command_args(user_input)
                 store = ConfigDBStore()
@@ -1533,6 +1593,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                     "/clear", "/cls",
                     "/switch", "/model", "/m", "/sync", "/resync", "/index", "/update", "/check-update",
                     "/folder", "/folders", "/web", "/urls", "/drive", "/drives", "/cloud",
+                    "/inspect", "/chunks", "/lance",
                     "/reset-memory", "/reset", "/factory-reset", "/config",
                     "/keys", "/billing", "/plans", "/history", "/clear-history",
                     "/paste", "/multiline", "/mline", "/transfer", "/move-source",
