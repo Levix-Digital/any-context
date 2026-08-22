@@ -480,35 +480,18 @@ def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[st
         if not force and curr_entry and curr_entry.get("last_hash") == data["hash"]:
             return {"status": "unchanged", "message": f"Content for '{url}' has not changed.", "title": data["title"]}
 
-        # Index to main context_db ChromaDB collection
+        # Index to main context_db via ParallelIndexer & LanceDBStore
         configure_embedding_model()
         settings = AppSettings.load()
         db_save_path = settings.context.db_path if settings else "./context_db"
-        collection_name = settings.context.collection_name if settings else "context_docs"
-        os.makedirs(db_save_path, exist_ok=True)
+        lance_dir = os.path.join(db_save_path, "lancedb")
+        os.makedirs(lance_dir, exist_ok=True)
+        
+        from any_context.vector_engine.store import LanceDBStore
+        from any_context.vector_engine.indexer import ParallelIndexer
+        from any_context.vector_engine.models import IngestionConfig
 
-        db = chromadb.PersistentClient(path=db_save_path)
-        chroma_collection = db.get_or_create_collection(collection_name)
-        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-
-        docstore_path = os.path.join(db_save_path, "docstore.json")
-        if os.path.exists(docstore_path):
-            docstore = SimpleDocumentStore.from_persist_path(persist_path=docstore_path)
-        else:
-            docstore = SimpleDocumentStore()
-
-        chunk_size = settings.context.chunk_size if (settings and settings.context) else 1024
-        chunk_overlap = settings.context.chunk_overlap if (settings and settings.context) else 200
-
-        pipeline = IngestionPipeline(
-            transformations=[
-                SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap),
-                Settings.embed_model
-            ],
-            vector_store=vector_store,
-            docstore=docstore,
-            docstore_strategy=DocstoreStrategy.UPSERTS
-        )
+        lance_store = LanceDBStore.get_instance(db_path=lance_dir)
 
         doc = Document(
             text=f"Web Document Title: {data['title']}\nSource URL: {data['url']}\n\n{data['content']}",
@@ -518,39 +501,19 @@ def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[st
                 "file_path": data["url"],
                 "source": data["url"],
                 "type": "web",
+                "content_type": "Web Documentation",
+                "last_modified": time.strftime("%Y-%m-%d"),
                 "char_count": data["char_count"]
             },
             id_=f"web_{data['url']}"
         )
 
-        nodes = pipeline.run(documents=[doc], show_progress=False)
-        docstore.persist(persist_path=docstore_path)
+        chunk_size = settings.context.chunk_size if (settings and settings.context) else 1024
+        chunk_overlap = settings.context.chunk_overlap if (settings and settings.context) else 200
 
-        try:
-            from any_context.vector_engine.store import LanceDBStore
-            l_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
-            lance_records = []
-            for n in (nodes or []):
-                emb = getattr(n, "embedding", None)
-                if emb:
-                    lance_records.append({
-                        "id": n.id_,
-                        "vector": emb,
-                        "text": n.text or "",
-                        "file_name": data["title"],
-                        "file_path": data["url"],
-                        "workspace": workspace_name,
-                        "last_modified": time.strftime("%Y-%m-%d"),
-                        "content_type": "Web Documentation",
-                        "document_summary": "",
-                        "keywords": "",
-                        "content_hash": data["hash"]
-                    })
-            if lance_records:
-                l_store.delete_by_file(data["url"], workspace_name=workspace_name)
-                l_store.upsert_records(lance_records, dim=len(lance_records[0]["vector"]))
-        except Exception:
-            pass
+        indexer = ParallelIndexer(store=lance_store)
+        cfg = IngestionConfig(chunk_size=chunk_size, chunk_overlap=chunk_overlap, max_workers=2)
+        indexer.index_documents(documents=[doc], workspace_name=workspace_name, config=cfg)
 
         store.update_url_hash(
             url_id,

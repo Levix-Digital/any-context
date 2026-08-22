@@ -7,7 +7,38 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.23.1): Auto-Consciência e Auto-Bootstrap Permanente do Sistema (Help & README Global)
+### 📌 Cenário 1 (v0.24.0): Desacoplamento Arquitetural & Orquestrador de Ingestão Multi-Fonte
+
+- **Objetivo**: Comprovar a estabilidade do orquestrador multi-fonte desacoplado ([`orchestrator.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/ingestion/orchestrator.py)) durante a inspeção e sincronização concorrente de pastas locais, portais web e drives na nuvem.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.0`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.24.0
+   actx
+   ```
+
+2. **⚡ Executar Inspeção de Status Multi-Fonte (`/sync --status`):**
+   ```text
+   /sync --status
+   ```
+   - **Critério de Sucesso:**
+     - O card multi-fonte é renderizado pelo `orchestrator.py` exibindo separadamente:
+       `📂 Local Folders`, `🌐 Web Sources`, `☁️ Cloud Drives` e `📦 Pending Status`.
+
+3. **⚡ Disparar Sincronização em Background (`/sync --bg`):**
+   ```text
+   /sync --bg
+   ```
+   - **Critério de Sucesso:**
+     - O prompt `👤 You:` permanece interativo instantaneamente.
+     - A micro-barra `⚡ Syncing [████░░░░]` é exibida na barra inferior até a conclusão (100%).
+
+---
+
+### 📌 Cenário 2 (v0.23.1): Auto-Consciência e Auto-Bootstrap Permanente do Sistema (Help & README Global)
 
 - **Objetivo**: Comprovar que em qualquer workspace (inclusive workspaces 100% vazios ou contendo apenas páginas web), a IA responde imediatamente perguntas sobre comandos do AnyContext (ex: `/transfer`, `/switch`, `/sync`, `/web`, `/link`, `/config`) citando a sintaxe, opções e parâmetros exatos da documentação do sistema indexada em `Global`.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.23.1`.

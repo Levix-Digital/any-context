@@ -135,19 +135,28 @@ class AnyContextE2ETestSuite(unittest.TestCase):
         run_index_folder(workspace_name=self.ws_legal, verbose=False)
         run_index_folder(workspace_name=self.ws_tech, verbose=False)
 
-        # Verify ChromaDB contains indexed chunks for both workspaces
+        # Verify LanceDB contains indexed chunks for both workspaces
         settings = AppSettings.load()
         db_path = settings.context.db_path if settings else "./context_db"
-        coll_name = settings.context.collection_name if settings else "context_docs"
-        client = chromadb.PersistentClient(path=db_path)
-        coll = client.get_collection(coll_name)
+        from any_context.vector_engine.store import LanceDBStore
+        lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
 
-        legal_docs = coll.get(where={"workspace": self.ws_legal})
-        tech_docs = coll.get(where={"workspace": self.ws_tech})
+        legal_docs = lance_store.search_vector(
+            query_vector=[0.0] * 1536,
+            limit=20,
+            workspace=self.ws_legal,
+            filter_expr=f"workspace = '{self.ws_legal}'"
+        )
+        tech_docs = lance_store.search_vector(
+            query_vector=[0.0] * 1536,
+            limit=20,
+            workspace=self.ws_tech,
+            filter_expr=f"workspace = '{self.ws_tech}'"
+        )
 
-        self.assertGreaterEqual(len(legal_docs["ids"]), 1, "Legal workspace should have indexed chunks")
-        self.assertGreaterEqual(len(tech_docs["ids"]), 1, "Tech workspace should have indexed chunks")
-        safe_stdout_write(f"  [OK] Successfully ingested {len(legal_docs['ids'])} Legal chunks and {len(tech_docs['ids'])} Tech chunks recursively!\n")
+        self.assertGreaterEqual(len(legal_docs), 1, "Legal workspace should have indexed chunks")
+        self.assertGreaterEqual(len(tech_docs), 1, "Tech workspace should have indexed chunks")
+        safe_stdout_write(f"  [OK] Successfully ingested {len(legal_docs)} Legal chunks and {len(tech_docs)} Tech chunks recursively!\n")
 
     # -------------------------------------------------------------------------
     # TEST 2: Strict Privacy Scoping & Zero Cross-Workspace Leakage

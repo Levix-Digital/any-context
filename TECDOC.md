@@ -255,6 +255,13 @@ Consolidates older memory vectors into high-level indices using 1024-token expan
 
 ## 6. Unified Synchronization & Multi-Source Parity Engine
 
+### 🎛️ Shared Multi-Source Orchestration Layer (`src/any_context/ingestion/orchestrator.py` - `v0.24.0`)
+To enforce strict Single Responsibility Principles (SRP), all cross-source orchestration, background thread management, and multi-source workspace inspection are isolated into `orchestrator.py`:
+- `BackgroundSyncManager`: Thread-safe worker thread daemon management and atomic telemetry.
+- `check_workspace_changes`: Holistic multi-source scanner (<30ms) inspecting Local Folders, Web Portals, Cloud Drives, and Shared Links.
+- `format_sync_status_box`: Unified UI status card formatter.
+- `clear_context_vector_db`: LanceDB table and cache maintenance routines.
+
 ### 🔄 Unified Master Orchestrator (`src/any_context/ingestion/unified_sync.py`)
 - `/sync` orchestrates synchronization across all registered source categories in the active workspace:
   1. 📁 **Local Folders**: Scanned, diffed (SHA-256), contextualized and ingested via `run_index_folder`.
