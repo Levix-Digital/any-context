@@ -63,6 +63,10 @@ class WebSchedulerStore:
                 cursor.execute("ALTER TABLE workspace_web_urls ADD COLUMN root_url TEXT")
             if "scope" not in cols:
                 cursor.execute("ALTER TABLE workspace_web_urls ADD COLUMN scope TEXT")
+            if "etag" not in cols:
+                cursor.execute("ALTER TABLE workspace_web_urls ADD COLUMN etag TEXT")
+            if "http_last_modified" not in cols:
+                cursor.execute("ALTER TABLE workspace_web_urls ADD COLUMN http_last_modified TEXT")
 
             # Table for granular tracking of individual web pages indexed within websites
             cursor.execute("""
@@ -75,9 +79,21 @@ class WebSchedulerStore:
                     content_hash TEXT NOT NULL,
                     char_count INTEGER DEFAULT 0,
                     scraped_at TEXT,
-                    created_at TEXT
+                    created_at TEXT,
+                    etag TEXT,
+                    http_last_modified TEXT,
+                    sitemap_lastmod TEXT
                 );
             """)
+            cursor.execute("PRAGMA table_info(workspace_indexed_web_pages)")
+            page_cols = [r[1] for r in cursor.fetchall()]
+            if "etag" not in page_cols:
+                cursor.execute("ALTER TABLE workspace_indexed_web_pages ADD COLUMN etag TEXT")
+            if "http_last_modified" not in page_cols:
+                cursor.execute("ALTER TABLE workspace_indexed_web_pages ADD COLUMN http_last_modified TEXT")
+            if "sitemap_lastmod" not in page_cols:
+                cursor.execute("ALTER TABLE workspace_indexed_web_pages ADD COLUMN sitemap_lastmod TEXT")
+
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_wiwp_ws_root ON workspace_indexed_web_pages (workspace_name, root_url);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_wiwp_ws_url ON workspace_indexed_web_pages (workspace_name, url);")
             conn.commit()
@@ -187,15 +203,15 @@ class WebSchedulerStore:
             conn.commit()
             return cursor.rowcount > 0
 
-    def update_url_hash(self, url_id: str, title: str, content_hash: str):
+    def update_url_hash(self, url_id: str, title: str, content_hash: str, etag: Optional[str] = None, http_last_modified: Optional[str] = None):
         now_str = datetime.utcnow().isoformat()
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE workspace_web_urls
-                SET title = ?, last_hash = ?, last_scraped_at = ?
+                SET title = ?, last_hash = ?, last_scraped_at = ?, etag = ?, http_last_modified = ?
                 WHERE id = ?
-            """, (title, content_hash, now_str, url_id))
+            """, (title, content_hash, now_str, etag, http_last_modified, url_id))
             conn.commit()
 
     def get_indexed_pages_map(
@@ -212,17 +228,17 @@ class WebSchedulerStore:
             cursor = conn.cursor()
             if root_url:
                 cursor.execute(
-                    "SELECT url, title, content_hash, char_count, scraped_at, root_url FROM workspace_indexed_web_pages WHERE workspace_name = ? AND root_url = ?",
+                    "SELECT url, title, content_hash, char_count, scraped_at, root_url, etag, http_last_modified, sitemap_lastmod FROM workspace_indexed_web_pages WHERE workspace_name = ? AND root_url = ?",
                     (workspace_name, root_url)
                 )
             elif domain_or_prefix:
                 cursor.execute(
-                    "SELECT url, title, content_hash, char_count, scraped_at, root_url FROM workspace_indexed_web_pages WHERE workspace_name = ? AND (url LIKE ? OR root_url LIKE ?)",
+                    "SELECT url, title, content_hash, char_count, scraped_at, root_url, etag, http_last_modified, sitemap_lastmod FROM workspace_indexed_web_pages WHERE workspace_name = ? AND (url LIKE ? OR root_url LIKE ?)",
                     (workspace_name, f"%{domain_or_prefix}%", f"%{domain_or_prefix}%")
                 )
             else:
                 cursor.execute(
-                    "SELECT url, title, content_hash, char_count, scraped_at, root_url FROM workspace_indexed_web_pages WHERE workspace_name = ?",
+                    "SELECT url, title, content_hash, char_count, scraped_at, root_url, etag, http_last_modified, sitemap_lastmod FROM workspace_indexed_web_pages WHERE workspace_name = ?",
                     (workspace_name,)
                 )
             res_map = {
@@ -231,7 +247,10 @@ class WebSchedulerStore:
                     "content_hash": r["content_hash"],
                     "char_count": r["char_count"],
                     "scraped_at": r["scraped_at"],
-                    "root_url": r["root_url"]
+                    "root_url": r["root_url"],
+                    "etag": r["etag"] if "etag" in r.keys() else None,
+                    "http_last_modified": r["http_last_modified"] if "http_last_modified" in r.keys() else None,
+                    "sitemap_lastmod": r["sitemap_lastmod"] if "sitemap_lastmod" in r.keys() else None
                 }
                 for r in cursor.fetchall()
             }
@@ -264,14 +283,20 @@ class WebSchedulerStore:
                                             "content_hash": m.get("content_hash", "legacy"),
                                             "char_count": 0,
                                             "scraped_at": m.get("scraped_at", ""),
-                                            "root_url": m.get("root_url", u)
+                                            "root_url": m.get("root_url", u),
+                                            "etag": None,
+                                            "http_last_modified": None,
+                                            "sitemap_lastmod": None
                                         }
                                         backfill_pages.append({
                                             "url": u,
                                             "title": m.get("title", u),
                                             "content_hash": m.get("content_hash", "legacy"),
                                             "char_count": 0,
-                                            "scraped_at": m.get("scraped_at", "")
+                                            "scraped_at": m.get("scraped_at", ""),
+                                            "etag": None,
+                                            "http_last_modified": None,
+                                            "sitemap_lastmod": None
                                         })
                             if backfill_pages:
                                 self.record_indexed_web_pages(workspace_name, root_url or list(res_map.keys())[0], backfill_pages)
@@ -300,7 +325,7 @@ class WebSchedulerStore:
         pages: List[Dict[str, Any]]
     ):
         """
-        Upserts multiple crawled web pages into workspace_indexed_web_pages with SHA-256 content hashes.
+        Upserts multiple crawled web pages into workspace_indexed_web_pages with SHA-256 content hashes, etag and lastmod.
         """
         import hashlib
         now_str = datetime.utcnow().isoformat()
@@ -311,13 +336,16 @@ class WebSchedulerStore:
                 page_id = hashlib.sha256(f"{workspace_name}:{url}".encode()).hexdigest()[:24]
                 cursor.execute("""
                     INSERT INTO workspace_indexed_web_pages (
-                        id, workspace_name, url, root_url, title, content_hash, char_count, scraped_at, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        id, workspace_name, url, root_url, title, content_hash, char_count, scraped_at, created_at, etag, http_last_modified, sitemap_lastmod
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         title = excluded.title,
                         content_hash = excluded.content_hash,
                         char_count = excluded.char_count,
-                        scraped_at = excluded.scraped_at
+                        scraped_at = excluded.scraped_at,
+                        etag = excluded.etag,
+                        http_last_modified = excluded.http_last_modified,
+                        sitemap_lastmod = excluded.sitemap_lastmod
                 """, (
                     page_id,
                     workspace_name,
@@ -327,7 +355,10 @@ class WebSchedulerStore:
                     p.get("content_hash", ""),
                     p.get("char_count", 0),
                     p.get("scraped_at", now_str),
-                    now_str
+                    now_str,
+                    p.get("etag"),
+                    p.get("http_last_modified"),
+                    p.get("sitemap_lastmod")
                 ))
             conn.commit()
 
@@ -432,9 +463,19 @@ def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[st
         url_id = entry["id"]
 
     try:
-        data = scrape_url(url)
         urls = store.get_workspace_web_urls(workspace_name)
         curr_entry = next((u for u in urls if u["id"] == url_id or u["url"] == url), None)
+        c_etag = curr_entry.get("etag") if curr_entry else None
+        c_lastmod = curr_entry.get("http_last_modified") if curr_entry else None
+
+        data = scrape_url(url, cached_etag=c_etag, cached_last_modified=c_lastmod)
+
+        if not force and data.get("is_not_modified"):
+            return {
+                "status": "unchanged",
+                "message": f"Content for '{url}' has not changed (HTTP 304 Not Modified).",
+                "title": curr_entry.get("title", url) if curr_entry else url
+            }
 
         if not force and curr_entry and curr_entry.get("last_hash") == data["hash"]:
             return {"status": "unchanged", "message": f"Content for '{url}' has not changed.", "title": data["title"]}
@@ -511,7 +552,13 @@ def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[st
         except Exception:
             pass
 
-        store.update_url_hash(url_id, data["title"], data["hash"])
+        store.update_url_hash(
+            url_id,
+            data["title"],
+            data["hash"],
+            etag=data.get("etag"),
+            http_last_modified=data.get("http_last_modified")
+        )
         return {
             "status": "success",
             "message": f"Successfully scraped and indexed '{data['title']}' ({data['char_count']} chars).",
