@@ -112,7 +112,8 @@ def create_anycontext_agent(
     init_kwargs = {
         "model": inference_model,
         "model_provider": model_provider,
-        "api_key": api_key
+        "api_key": api_key,
+        "max_retries": 5
     }
 
     # Standard models use temperature=0.0 for deterministic RAG; reasoning models (o1/o3/gpt-5/sonnet-5) reject custom temperature
