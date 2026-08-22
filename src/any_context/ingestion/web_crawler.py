@@ -384,8 +384,27 @@ def crawl_and_index_urls(
                                 pass
 
                         doc_id = f"web_{workspace_name}_{hashlib.sha256(url.encode()).hexdigest()[:20]}"
+                        try:
+                            from any_context.vector_engine.enricher import ContextualEnricher
+                            web_enricher = ContextualEnricher()
+                            envelope = web_enricher.extract_rich_summary_and_keywords(
+                                doc_text=text_content,
+                                file_name=data['title'],
+                                url=url
+                            )
+                            enveloped_text = web_enricher.apply_envelope_to_chunk(
+                                f"=== Web Page: {data['title']} ({url}) ===\n\n{text_content}",
+                                envelope
+                            )
+                            doc_summary = envelope.summary
+                            doc_keywords = ", ".join(envelope.keywords)
+                        except Exception:
+                            enveloped_text = f"=== Web Page: {data['title']} ({url}) ===\n\n{text_content}"
+                            doc_summary = ""
+                            doc_keywords = ""
+
                         doc = Document(
-                            text=f"=== Web Page: {data['title']} ({url}) ===\n\n{text_content}",
+                            text=enveloped_text,
                             doc_id=doc_id,
                             metadata={
                                 "file_name": f"[Web] {data['title'][:60]}",
@@ -399,6 +418,8 @@ def crawl_and_index_urls(
                                 "last_modified_date": data.get("last_modified", now_str[:10]),
                                 "date_confidence": data.get("date_confidence", "crawl_timestamp"),
                                 "content_type": data.get("content_type", "Web Documentation"),
+                                "document_summary": doc_summary,
+                                "keywords": doc_keywords,
                                 "scraped_at": now_str
                             }
                         )

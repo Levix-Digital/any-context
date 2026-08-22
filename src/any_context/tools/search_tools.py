@@ -276,6 +276,9 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
                 header_parts.append(f"Last Modified: {last_mod}")
             if content_type:
                 header_parts.append(f"Type: {content_type}")
+            keywords = node.metadata.get("keywords")
+            if keywords:
+                header_parts.append(f"Keywords: {keywords}")
                 
             header_str = " | ".join(header_parts)
             chunk_text = node.text or ""
