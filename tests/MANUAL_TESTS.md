@@ -4,48 +4,52 @@
 
 ---
 
-## 🎯 Teste Ativo (Última Release: v0.20.0)
+## 🎯 Teste Ativo (Última Release: v0.21.0)
 
-### 📌 Cenário: Sincronização Unificada de Fontes (`/sync`) & Paridade de Famílias (`/folder`, `/web`, `/drive`)
+### 📌 Cenário: Unificação de Motor Vetorial 100% LanceDB & Comando `/inspect`
 
-- **Objetivo**: Comprovar que `/sync` orquestra todas as fontes cadastradas no workspace (Pastas Locais + Fontes Web + Drives na Nuvem), suportando flags granulares (`/sync --folder`, `/sync --web`, `/sync --drive`, `/sync --all`, `/sync --force`) e paridade de comandos individuais (`/folder`, `/web`, `/drive`).
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.20.0`.
+- **Objetivo**: Comprovar que o AnyContext opera exclusivamente sobre o **LanceDB (Apache Arrow / Rust)** com zero dependência de ChromaDB e zero travas SQLite, proporcionando máxima velocidade de busca (< 5ms), re-crawling de portais web e inspeção transparente de chunks via `/inspect`.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.21.0`.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Atualizar e Iniciar o AnyContext:**
    ```powershell
-   actx --update@0.20.0
+   actx --update@0.21.0
    actx
    ```
 
-2. **🔄 Sincronizador Mestre Unificado (`/sync`):**
+2. **🔍 Inspecionar o Banco Vetorial Unificado (`/inspect` ou `/chunks`):**
    ```text
-   /sync
+   /inspect
    ```
    - **Critério de Sucesso:**
-     - O AnyContext sincroniza simultaneamente todas as pastas locais, fontes web e cloud drives do workspace ativo.
-     - Nenhuma fonte web é apagada indevidamente durante a checagem de pastas locais.
+     - Exibe o motor vetorial ativo: `⚡ LanceDB Columnar (Apache Arrow / Rust)`.
+     - Exibe a contagem exata de chunks no workspace ativo e total no LanceDB.
+     - Exibe a contagem de memórias de sessão no LanceDB.
+     - Exibe amostras dos chunks com tipo, caminho e snippet de texto.
 
-3. **🌐 Sincronização e Gerenciamento Específico de Web:**
+3. **🌐 Ingestão de Portal Web com Múltiplas Páginas:**
    ```text
-   /sync --web
+   /web --add https://flyingsquirrelsports.ca/south-calgary-alberta/
    ```
-   *(ou `/web --sync`)*
    - **Critério de Sucesso:**
-     - Sincroniza exclusivamente as fontes web sem reprocessar pastas locais.
+     - O crawler descobre e vetoriza as sub-páginas no LanceDB.
+     - O `/inspect` passa a exibir as centenas de chunks gravados.
 
-4. **📁 Gerenciamento Simétrico de Pastas Locais:**
+4. **🧠 Pergunta ao RAG no Modo Strict:**
    ```text
-   /folder
+   👤 You: Quais atrações posso encontrar nesse lugar?
    ```
    - **Critério de Sucesso:**
-     - Lista as pastas locais do workspace.
-     - Suporta `/folder --sync`, `/folder --add <path>` e `/folder --remove <path>`.
+     - Resposta instantânea e precisa detalhando as atrações do parque a partir dos chunks indexados no LanceDB.
 
 ---
 
 ## 📚 Histórico de Cenários de Testes Anteriores
+
+### 🔬 v0.20.0 - Sincronização Unificada de Fontes (`/sync`) & Paridade de Famílias (`/folder`, `/web`, `/drive`)
+- **Validação:** Sincronização unificada de pastas, portais e drives com flags granulares e comandos dedicados.
 
 ### 🔬 v0.19.0 - Motor Vetorial Paralelo LanceDB & Injeção de Presets de RAG
 - **Validação:** Armazenamento colunar em Rust, buscas sub-5ms e injeção de dependência de `RetrievalConfig`.

@@ -68,6 +68,22 @@ class TestSourceTransfer(unittest.TestCase):
             embeddings=[[0.01] * 1536]
         )
 
+        from any_context.vector_engine.store import LanceDBStore
+        l_store = LanceDBStore.get_instance(db_path=os.path.join(chroma_dir, "lancedb"))
+        l_store.upsert_records([{
+            "id": mock_id,
+            "vector": [0.01] * 1536,
+            "text": "Sample legal contract clause 101",
+            "file_name": "contract.pdf",
+            "file_path": os.path.join(self.test_folder, "contract.pdf"),
+            "workspace": self.source_ws,
+            "last_modified": "2026-08-22",
+            "content_type": "Local Document",
+            "document_summary": "",
+            "keywords": "",
+            "content_hash": ""
+        }])
+
         # 2. Execute transfer
         res = self.store.transfer_local_folder_source(
             source_ws=self.source_ws,
@@ -85,17 +101,18 @@ class TestSourceTransfer(unittest.TestCase):
         self.assertNotIn(os.path.abspath(self.test_folder), [os.path.abspath(p) for p in src_obj.paths])
         self.assertIn(os.path.abspath(self.test_folder), [os.path.abspath(p) for p in tgt_obj.paths])
 
-        # 4. Verify ChromaDB metadata
-        chunk_data = coll.get(ids=[mock_id], include=["metadatas"])
-        self.assertEqual(chunk_data["metadatas"][0]["workspace"], self.target_ws)
+        # 4. Verify LanceDB metadata
+        table = l_store._db.open_table(l_store._default_table_name)
+        chunk_data = table.search().where(f"id = '{mock_id}'").to_list()
+        self.assertEqual(chunk_data[0]["workspace"], self.target_ws)
 
         # Clean up mock chunk
         try:
-            coll.delete(ids=[mock_id])
+            l_store.delete_by_id(mock_id)
         except Exception:
             pass
 
-        safe_stdout_write("  [OK] Local folder transfer & ChromaDB metadata migration verified!\n")
+        safe_stdout_write("  [OK] Local folder transfer & LanceDB metadata migration verified!\n")
 
     def test_02_transfer_web_source(self):
         """Tests transferring a web source and indexed sub-pages with ChromaDB vector migration."""
@@ -134,6 +151,22 @@ class TestSourceTransfer(unittest.TestCase):
             embeddings=[[0.01] * 1536]
         )
 
+        from any_context.vector_engine.store import LanceDBStore
+        l_store = LanceDBStore.get_instance(db_path=os.path.join(chroma_dir, "lancedb"))
+        l_store.upsert_records([{
+            "id": mock_web_id,
+            "vector": [0.01] * 1536,
+            "text": "Sample documentation content",
+            "file_name": "Example Docs",
+            "file_path": test_url,
+            "workspace": self.source_ws,
+            "last_modified": "2026-08-22",
+            "content_type": "Web Documentation",
+            "document_summary": "",
+            "keywords": "",
+            "content_hash": ""
+        }])
+
         # 2. Execute transfer
         res = self.web_store.transfer_web_source(
             source_ws=self.source_ws,
@@ -152,17 +185,18 @@ class TestSourceTransfer(unittest.TestCase):
         self.assertEqual(len(tgt_urls), 1)
         self.assertEqual(tgt_urls[0]["url"], test_url)
 
-        # 4. Verify ChromaDB metadata
-        chunk_data = coll.get(ids=[mock_web_id], include=["metadatas"])
-        self.assertEqual(chunk_data["metadatas"][0]["workspace"], self.target_ws)
+        # 4. Verify LanceDB metadata
+        table = l_store._db.open_table(l_store._default_table_name)
+        chunk_data = table.search().where(f"id = '{mock_web_id}'").to_list()
+        self.assertEqual(chunk_data[0]["workspace"], self.target_ws)
 
         # Clean up
         try:
-            coll.delete(ids=[mock_web_id])
+            l_store.delete_by_id(mock_web_id)
         except Exception:
             pass
 
-        safe_stdout_write("  [OK] Web source transfer & ChromaDB metadata migration verified!\n")
+        safe_stdout_write("  [OK] Web source transfer & LanceDB metadata migration verified!\n")
 
     def test_03_transfer_validation_guards(self):
         """Tests guardrails for invalid source/target parameters."""

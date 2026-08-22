@@ -631,44 +631,14 @@ class ConfigDBStore:
                 pass
             conn.commit()
 
-        # 2. Update ChromaDB vector metadata
+        # 2. Update LanceDB vector metadata
         transferred_chunks = 0
         try:
+            from any_context.vector_engine.store import LanceDBStore
             settings = AppSettings.load()
             db_path = settings.context.db_path if (settings and settings.context) else "./context_db"
-            coll_name = settings.context.collection_name if (settings and settings.context) else "context_docs"
-
-            if os.path.exists(db_path):
-                import chromadb
-                client = chromadb.PersistentClient(path=db_path)
-                try:
-                    collection = client.get_collection(coll_name)
-                    results = collection.get(
-                        where={"workspace": source_ws},
-                        include=["metadatas"]
-                    )
-                    ids_to_update = []
-                    metas_to_update = []
-
-                    if results and results.get("ids"):
-                        for cid, meta in zip(results["ids"], results["metadatas"]):
-                            fp = (meta.get("file_path", "") or meta.get("source", "")).strip().strip("'\"")
-                            if fp:
-                                abs_fp = os.path.abspath(fp)
-                                if abs_fp == abs_folder or abs_fp.startswith(abs_folder + os.sep) or abs_folder.startswith(abs_fp) or abs_folder in abs_fp:
-                                    ids_to_update.append(cid)
-                                    new_meta = dict(meta)
-                                    new_meta["workspace"] = target_ws
-                                    metas_to_update.append(new_meta)
-
-                    if ids_to_update:
-                        collection.update(
-                            ids=ids_to_update,
-                            metadatas=metas_to_update
-                        )
-                        transferred_chunks = len(ids_to_update)
-                except Exception:
-                    pass
+            l_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
+            transferred_chunks = l_store.transfer_file(source_ws, target_ws, abs_folder)
         except Exception:
             pass
 
@@ -910,51 +880,18 @@ class ConfigDBStore:
 
             conn.commit()
 
-        # 2. Update ChromaDB vector metadata (Document vectors)
+        # 2. Update LanceDB vector metadata (Document & Session Memory vectors)
         migrated_chunks = 0
         try:
+            from any_context.vector_engine.store import LanceDBStore
             settings = AppSettings.load()
             db_path = settings.context.db_path if (settings and settings.context) else "./context_db"
-            coll_name = settings.context.collection_name if (settings and settings.context) else "context_docs"
+            l_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
+            migrated_chunks = l_store.update_workspace_name(old_ws, new_ws, table_name="workspace_chunks")
 
-            if os.path.exists(db_path):
-                import chromadb
-                client = chromadb.PersistentClient(path=db_path)
-                try:
-                    coll = client.get_collection(coll_name)
-                    results = coll.get(where={"workspace": old_ws}, include=["metadatas"])
-                    if results and results.get("ids"):
-                        ids = results["ids"]
-                        metadatas = results["metadatas"]
-                        for meta in metadatas:
-                            meta["workspace"] = new_ws
-                        coll.update(ids=ids, metadatas=metadatas)
-                        migrated_chunks += len(ids)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-        # 3. Update ChromaDB vector metadata (Session memory vectors)
-        try:
-            settings = AppSettings.load()
             mem_db_path = settings.session.db_path if (settings and settings.session) else "./memory"
-            mem_coll_name = settings.session.collection_name if (settings and settings.session) else "session_docs"
-
-            if os.path.exists(mem_db_path):
-                import chromadb
-                mem_client = chromadb.PersistentClient(path=mem_db_path)
-                try:
-                    mem_coll = mem_client.get_collection(mem_coll_name)
-                    mem_results = mem_coll.get(where={"workspace": old_ws}, include=["metadatas"])
-                    if mem_results and mem_results.get("ids"):
-                        m_ids = mem_results["ids"]
-                        m_metas = mem_results["metadatas"]
-                        for meta in m_metas:
-                            meta["workspace"] = new_ws
-                        mem_coll.update(ids=m_ids, metadatas=m_metas)
-                except Exception:
-                    pass
+            mem_store = LanceDBStore.get_instance(db_path=os.path.join(mem_db_path, "lancedb"))
+            mem_store.update_workspace_name(old_ws, new_ws, table_name="session_memory")
         except Exception:
             pass
 

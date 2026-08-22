@@ -132,7 +132,7 @@ def _diversify_nodes(raw_nodes: List[Any], target_top_k: int, max_per_source: in
 
 
 @tool()
-def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 40, workspace: str = None):
+def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 40, workspace: str = None) -> str:
     """
     Search for relevant information in the vector database based on the provided prompt text.
     Enforces strict workspace isolation and multi-source round-robin diversity across all documents.
@@ -146,216 +146,102 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
     Returns:
         str: Relevant document content snippets or memory entries.
     """
+    return _execute_search_context(
+        prompt_text=prompt_text,
+        workspace=workspace,
+        top_k=top_k,
+        search_session_memory=search_session_memory
+    )
+
+
+def _execute_search_context(
+    prompt_text: str,
+    workspace: str = None,
+    top_k: int = None,
+    search_session_memory: bool = False
+) -> str:
+    """
+    Core search logic powered exclusively by LanceDB columnar parallel vector retriever.
+    Eliminates ChromaDB completely.
+    """
     configure_embedding_model()
     settings = AppSettings.load()
     session_db_path = settings.session.db_path if settings else "./memory"
-    session_collection_name = settings.session.collection_name if settings else "session_docs"
     folder_db_path = settings.context.db_path if settings else "./context_db"
-    folder_collection_name = settings.context.collection_name if settings else "context_docs"
 
     configured_top_k = settings.context.top_k if (settings and settings.context) else 40
     candidate_pool_size = settings.context.candidate_pool_size if (settings and settings.context) else 100
     max_per_source = settings.context.max_chunks_per_source if (settings and settings.context) else 3
 
+    from any_context.vector_engine.store import LanceDBStore
+    from any_context.vector_engine.retriever import ParallelRetriever
+    from any_context.vector_engine.models import RetrievalConfig
+    from any_context.config.db_store import ConfigDBStore
+
     if search_session_memory:
-        db_path = session_db_path
-        collection_name = session_collection_name
+        target_db_path = os.path.join(session_db_path, "lancedb")
+        table_name = "session_memory"
         effective_top_k = 8
         candidate_k = 16
+        min_score = 0.35
     else:
-        db_path = folder_db_path
-        collection_name = folder_collection_name
+        target_db_path = os.path.join(folder_db_path, "lancedb")
+        table_name = "workspace_chunks"
         effective_top_k = max(top_k, configured_top_k) if top_k else configured_top_k
         candidate_k = max(candidate_pool_size, effective_top_k * 2)
+        min_score = 0.40
 
-    try:
-        os.makedirs(db_path, exist_ok=True)
-        db = chromadb.PersistentClient(path=db_path)
-        chroma_collection = db.get_or_create_collection(collection_name)
-
-        # Phase 2: Parallel LanceDB Retrieval with RelevanceFilter
-        if not search_session_memory:
-            try:
-                from any_context.vector_engine.store import LanceDBStore
-                from any_context.vector_engine.retriever import ParallelRetriever
-                from any_context.vector_engine.models import RetrievalConfig
-                from any_context.config.db_store import ConfigDBStore
-
-                lance_store = LanceDBStore.get_instance(db_path=os.path.join(folder_db_path, "lancedb"))
-                if lance_store.count_records() > 0:
-                    config_store = ConfigDBStore()
-                    target_workspaces = [workspace] if workspace else ["Default", "Global"]
-                    if workspace and workspace.lower() != "global":
-                        target_workspaces.append("Global")
-
-                    shared_links = config_store.get_workspace_shared_links(workspace) if workspace else []
-                    linked_identifiers = [l["source_identifier"] for l in shared_links]
-
-                    retrieval_config = RetrievalConfig(
-                        candidate_pool_k=candidate_k,
-                        target_top_k=effective_top_k,
-                        min_similarity_score=0.45,
-                        max_chunks_per_source=max_per_source,
-                        max_density_chars=45000
-                    )
-                    parallel_retriever = ParallelRetriever(store=lance_store)
-                    lance_results = parallel_retriever.search(
-                        query=prompt_text,
-                        workspace=workspace,
-                        target_workspaces=target_workspaces,
-                        linked_sources=linked_identifiers,
-                        config=retrieval_config
-                    )
-                    if lance_results:
-                        results_list = []
-                        for i, sc in enumerate(lance_results):
-                            header_parts = [f"Source: {sc.file_name}", f"Workspace: {sc.workspace}"]
-                            if sc.last_modified:
-                                header_parts.append(f"Last Modified: {sc.last_modified}")
-                            if sc.content_type:
-                                header_parts.append(f"Type: {sc.content_type}")
-                            if sc.keywords:
-                                header_parts.append(f"Keywords: {sc.keywords}")
-                            header_str = " | ".join(header_parts)
-                            results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {sc.file_path}\nContent:\n{sc.text}")
-                        if results_list:
-                            return "\n\n".join(results_list)
-            except Exception:
-                pass
-
-        if chroma_collection.count() == 0:
-            if search_session_memory:
-                return "No long-term session memory summaries found in database yet."
-            return "No documents found in vector database."
-
-        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-        index = VectorStoreIndex.from_vector_store(vector_store)
-
-        raw_nodes = []
-        filters = None
-
-        if workspace and not search_session_memory:
-            safe_stdout_write(f"\r\033[K🔍 [Search] Parallel Multi-Source Scan: '{workspace}' (pool: {candidate_k} -> diversified top {effective_top_k})...")
-            from any_context.config.db_store import ConfigDBStore
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            store = ConfigDBStore()
-            target_workspaces = [workspace]
-            if workspace.lower() != "global":
-                target_workspaces.append("Global")
-
-            shared_links = store.get_workspace_shared_links(workspace)
-            linked_identifiers = [l["source_identifier"] for l in shared_links]
-
-            def _query_workspace(ws_name, top_k_val):
-                try:
-                    f = MetadataFilters(filters=[ExactMatchFilter(key="workspace", value=ws_name)])
-                    r = index.as_retriever(similarity_top_k=top_k_val, filters=f)
-                    return r.retrieve(prompt_text)
-                except Exception:
-                    return []
-
-            def _query_shared(link_ids, top_k_val):
-                try:
-                    r = index.as_retriever(similarity_top_k=top_k_val, filters=None)
-                    all_n = r.retrieve(prompt_text)
-                    return [n for n in all_n if any(l_id in str(n.metadata.get("file_path") or n.metadata.get("url") or "") for l_id in link_ids)]
-                except Exception:
-                    return []
-
-            tasks = []
-            with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() or 4)) as executor:
-                tasks.append(executor.submit(_query_workspace, workspace, candidate_k))
-                if "Global" in target_workspaces:
-                    tasks.append(executor.submit(_query_workspace, "Global", candidate_k // 2 or 10))
-                if linked_identifiers:
-                    tasks.append(executor.submit(_query_shared, linked_identifiers, candidate_k * 2))
-
-                for future in as_completed(tasks):
-                    try:
-                        res = future.result()
-                        if res:
-                            raw_nodes.extend(res)
-                    except Exception:
-                        pass
-
-            # Fallback: broad query with in-memory target workspaces & linked sources filter
-            if not raw_nodes:
-                try:
-                    retriever = index.as_retriever(similarity_top_k=candidate_k * 2, filters=None)
-                    all_nodes = retriever.retrieve(prompt_text)
-                    raw_nodes = [
-                        n for n in all_nodes 
-                        if n.metadata.get("workspace") in target_workspaces or 
-                        any(l_id in str(n.metadata.get("file_path") or "") for l_id in linked_identifiers)
-                    ]
-                except Exception:
-                    raw_nodes = []
-        elif not search_session_memory:
-            safe_stdout_write(f"\r\033[K🔍 [Search] Searching across workspaces (pool: {candidate_k} -> diversified top {effective_top_k})...")
-            try:
-                retriever = index.as_retriever(similarity_top_k=candidate_k, filters=None)
-                raw_nodes = retriever.retrieve(prompt_text)
-            except Exception:
-                raw_nodes = []
-        else:
-            try:
-                retriever = index.as_retriever(similarity_top_k=candidate_k, filters=None)
-                raw_nodes = retriever.retrieve(prompt_text)
-            except Exception:
-                raw_nodes = []
-
-        # Apply Source-Fair Round-Robin Diversification for document search
+    lance_store = LanceDBStore.get_instance(db_path=target_db_path)
+    total_records = lance_store.count_records(table_name=table_name)
+    if total_records == 0:
         if search_session_memory:
-            nodes = raw_nodes[:effective_top_k]
-        else:
-            nodes = _diversify_nodes(raw_nodes=raw_nodes, target_top_k=effective_top_k, max_per_source=max_per_source)
+            return "No long-term session memory summaries found in database yet."
+        return "No documents found in vector database."
 
-        results_list = []
-        accumulated_chars = 0
-        MAX_TOTAL_CHARS = 45000  # Strict density budget (~10,000-11,000 tokens) to guarantee prompt safety
+    config_store = ConfigDBStore()
+    target_workspaces = [workspace] if workspace else ["Default", "Global"]
+    if workspace and workspace.lower() != "global":
+        target_workspaces.append("Global")
 
-        for i, node in enumerate(nodes):
-            file_name = node.metadata.get('file_name', 'Unknown')
-            file_path = node.metadata.get('file_path', file_name)
-            ws_tag = node.metadata.get('workspace', 'Global')
-            last_mod = node.metadata.get('last_modified_date') or node.metadata.get('last_modified') or node.metadata.get('creation_date')
-            content_type = node.metadata.get('content_type') or ("Web Documentation" if str(file_path).startswith("http") else "Local Document")
-            
-            header_parts = [f"Source: {file_name}", f"Workspace: {ws_tag}"]
-            if last_mod:
-                header_parts.append(f"Last Modified: {last_mod}")
-            if content_type:
-                header_parts.append(f"Type: {content_type}")
-            keywords = node.metadata.get("keywords")
-            if keywords:
-                header_parts.append(f"Keywords: {keywords}")
-                
-            header_str = " | ".join(header_parts)
-            chunk_text = node.text or ""
+    shared_links = config_store.get_workspace_shared_links(workspace) if workspace else []
+    linked_identifiers = [l["source_identifier"] for l in shared_links]
 
-            # Check context budget
-            if accumulated_chars + len(chunk_text) > MAX_TOTAL_CHARS and i >= 3:
-                remaining_space = max(0, MAX_TOTAL_CHARS - accumulated_chars)
-                if remaining_space > 200:
-                    chunk_text = chunk_text[:remaining_space] + "\n[...trecho adicional condensado por limite de densidade...]"
-                    results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {file_path}\nContent:\n{chunk_text}")
-                break
+    retrieval_config = RetrievalConfig(
+        candidate_pool_k=candidate_k,
+        target_top_k=effective_top_k,
+        min_similarity_score=min_score,
+        max_chunks_per_source=max_per_source,
+        max_density_chars=45000
+    )
 
-            accumulated_chars += len(chunk_text)
-            results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {file_path}\nContent:\n{chunk_text}")
+    parallel_retriever = ParallelRetriever(store=lance_store)
+    lance_results = parallel_retriever.search(
+        query=prompt_text,
+        workspace=workspace,
+        target_workspaces=target_workspaces,
+        linked_sources=linked_identifiers,
+        config=retrieval_config,
+        table_name=table_name
+    )
 
-        if not results_list:
-            if search_session_memory:
-                return f"No session memory records found for query '{prompt_text}' in workspace '{workspace}'." if workspace else "No session memory records found."
-            return f"No relevant documents found for query '{prompt_text}' in workspace '{workspace}'. (Search executed across {chroma_collection.count()} indexed chunks)." if workspace else f"No relevant documents found for query '{prompt_text}'."
-            
-        return "\n\n".join(results_list)
-
-    except Exception as e:
-        safe_stdout_write(f"\r\033[K⚠️ [Search] Vector search failed: {e}\n")
+    if not lance_results:
         if search_session_memory:
-            return "No long-term session memory entries found yet."
-        return f"DATABASE_SEARCH_FAILED: {str(e)}. The requested information could not be retrieved from the workspace vector database."
+            return f"No session memory records found for query '{prompt_text}' in workspace '{workspace}'." if workspace else "No session memory records found."
+        return f"No relevant documents found for query '{prompt_text}' in workspace '{workspace}'. (Search executed across {total_records} indexed chunks)." if workspace else f"No relevant documents found for query '{prompt_text}'."
+
+    results_list = []
+    for i, sc in enumerate(lance_results):
+        header_parts = [f"Source: {sc.file_name}", f"Workspace: {sc.workspace}"]
+        if sc.last_modified:
+            header_parts.append(f"Last Modified: {sc.last_modified}")
+        if sc.content_type:
+            header_parts.append(f"Type: {sc.content_type}")
+        if sc.keywords:
+            header_parts.append(f"Keywords: {sc.keywords}")
+        header_str = " | ".join(header_parts)
+        results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {sc.file_path}\nContent:\n{sc.text}")
+
+    return "\n\n".join(results_list)
 
 
 @tool()
