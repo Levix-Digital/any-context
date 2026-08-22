@@ -969,7 +969,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                         agent_instance = None
                         target_label = "all workspaces (global)" if is_global else f"workspace '\033[1m{active_workspace}\033[0m\033[92m'"
                         print(f"\n✅ \033[92mWeb Search enabled for {target_label}!\033[0m")
-                        print("\033[93m⚠️ Cost & Transparency Notice:\033[0m The agent will perform real-time internet searches and consume external web tokens when answering. Registered domain portals in this workspace will be prioritized automatically.\n")
+                        print("\033[93m⚠️ Cost & Transparency Notice:\033[0m The agent will perform real-time internet searches and consume external web tokens when answering.\n")
                         continue
                     elif arg_action in ["off", "0", "false", "disable", "disabled"]:
                         store.set_web_search_status(False, workspace_name=None if is_global else active_workspace, apply_global=is_global)
@@ -1000,7 +1000,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                     store.set_web_search_status(True, workspace_name=active_workspace)
                     agent_instance = None
                     print(f"\n✅ \033[92mWeb Search enabled for workspace '\033[1m{active_workspace}\033[0m\033[92m'!\033[0m")
-                    print("\033[93m⚠️ Cost & Transparency Notice:\033[0m The agent will perform real-time internet searches and consume external web tokens when answering. Registered domain portals in this workspace will be prioritized automatically.\n")
+                    print("\033[93m⚠️ Cost & Transparency Notice:\033[0m The agent will perform real-time internet searches and consume external web tokens when answering.\n")
                 elif choice.startswith("🔴"):
                     store.set_web_search_status(False, workspace_name=active_workspace)
                     agent_instance = None
