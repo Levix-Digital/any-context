@@ -37,7 +37,8 @@ class ParallelRetriever:
         workspace: Optional[str] = None,
         target_workspaces: Optional[List[str]] = None,
         linked_sources: Optional[List[str]] = None,
-        config: Optional[RetrievalConfig] = None
+        config: Optional[RetrievalConfig] = None,
+        table_name: str = "workspace_chunks"
     ) -> List[ScoredChunk]:
         """
         Executes parallel multi-source vector retrieval and applies decoupled RelevanceFilter.
@@ -64,7 +65,7 @@ class ParallelRetriever:
         max_workers = min(len(targets) + (1 if linked_sources else 0), os.cpu_count() or 4)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_target = {
-                executor.submit(self._store.search_vector, query_vector, limit, ws_name): ws_name
+                executor.submit(self._store.search_vector, query_vector, limit, ws_name, None, None, table_name): ws_name
                 for ws_name, limit in targets
             }
 
@@ -77,7 +78,8 @@ class ParallelRetriever:
                     cfg.candidate_pool_k * 2,
                     None,
                     None,
-                    filter_or
+                    filter_or,
+                    table_name
                 )] = "SharedSources"
 
             for future in as_completed(future_to_target):

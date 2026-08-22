@@ -392,44 +392,14 @@ class WebSchedulerStore:
             transferred_pages = cursor.rowcount
             conn.commit()
 
-        # Update ChromaDB vector metadata
+        # Update LanceDB vector metadata
         transferred_chunks = 0
         try:
+            from any_context.vector_engine.store import LanceDBStore
             settings = AppSettings.load()
             db_path = settings.context.db_path if (settings and settings.context) else "./context_db"
-            coll_name = settings.context.collection_name if (settings and settings.context) else "context_docs"
-
-            if os.path.exists(db_path):
-                import chromadb
-                client = chromadb.PersistentClient(path=db_path)
-                try:
-                    collection = client.get_collection(coll_name)
-                    results = collection.get(
-                        where={"workspace": source_ws},
-                        include=["metadatas"]
-                    )
-                    ids_to_update = []
-                    metas_to_update = []
-
-                    if results and results.get("ids"):
-                        for cid, meta in zip(results["ids"], results["metadatas"]):
-                            c_root = meta.get("root_url", "")
-                            c_url = meta.get("url", "")
-                            c_source = meta.get("source", "")
-                            if (exact_root and (exact_root in c_root or exact_root in c_url or exact_root in c_source)) or (target_url and target_url in c_url):
-                                ids_to_update.append(cid)
-                                new_meta = dict(meta)
-                                new_meta["workspace"] = target_ws
-                                metas_to_update.append(new_meta)
-
-                    if ids_to_update:
-                        collection.update(
-                            ids=ids_to_update,
-                            metadatas=metas_to_update
-                        )
-                        transferred_chunks = len(ids_to_update)
-                except Exception:
-                    pass
+            l_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
+            transferred_chunks = l_store.transfer_file(source_ws, target_ws, exact_root)
         except Exception:
             pass
 
@@ -556,43 +526,14 @@ def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[st
 
 def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
     """
-    Deletes vectors associated with a specific web URL or root source URL in a workspace.
+    Deletes vectors associated with a specific web URL or root source URL in a workspace from LanceDB.
     """
     try:
         settings = AppSettings.load()
         db_save_path = settings.context.db_path if settings else "./context_db"
-        collection_name = settings.context.collection_name if settings else "context_docs"
-        if not os.path.exists(db_save_path):
-            return True
-
-        db = chromadb.PersistentClient(path=db_save_path)
-        chroma_collection = db.get_or_create_collection(collection_name)
-        
-        # 1. Delete vectors by root_url match
-        try:
-            chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"root_url": url}]})
-        except Exception:
-            pass
-
-        # 2. Delete vectors by exact file_path match
-        try:
-            chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"file_path": url}]})
-        except Exception:
-            pass
-
-        # 3. Delete vectors by url match
-        try:
-            chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"url": url}]})
-        except Exception:
-            pass
-
-        try:
-            from any_context.vector_engine.store import LanceDBStore
-            l_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
-            l_store.delete_by_file(url, workspace_name=workspace_name)
-        except Exception:
-            pass
-
+        from any_context.vector_engine.store import LanceDBStore
+        l_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+        l_store.delete_by_file(url, workspace_name=workspace_name)
         return True
     except Exception as e:
         print(f"⚠️ Warning removing web vectors for '{url}': {e}")

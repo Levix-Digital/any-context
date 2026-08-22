@@ -1498,31 +1498,31 @@ def run_chat_loop(active_workspace: str = "Default"):
                 coll_name = settings.context.collection_name if settings else "context_docs"
 
                 print(f"\n🔍 \033[1mVector Database Inspection for Workspace '\033[93m{active_workspace}\033[0m\033[1m':\033[0m")
-                print(f"  • Storage Path: \033[90m{os.path.abspath(db_save_path)}\033[0m")
+                print(f"  • Storage Engine: \033[92m⚡ LanceDB Columnar (Apache Arrow / Rust)\033[0m")
+                print(f"  • Storage Path  : \033[90m{os.path.abspath(os.path.join(db_save_path, 'lancedb'))}\033[0m")
 
-                # LanceDB
+                # Document chunks in LanceDB
                 lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
-                lance_count = lance_store.count_records()
-                print(f"  • \033[92m⚡ LanceDB Columnar Records:\033[0m \033[1m{lance_count}\033[0m chunks")
+                lance_count = lance_store.count_records(table_name="workspace_chunks")
+                ws_count = lance_store.count_records(workspace_name=active_workspace, table_name="workspace_chunks")
+                print(f"  • \033[96m📁 Workspace Chunks:\033[0m \033[1m{ws_count}\033[0m (Total in DB: {lance_count})")
 
-                # ChromaDB
-                try:
-                    chroma_client = chromadb.PersistentClient(path=db_save_path)
-                    chroma_coll = chroma_client.get_or_create_collection(coll_name)
-                    chroma_count = chroma_coll.count()
-                except Exception:
-                    chroma_count = 0
-                print(f"  • \033[94m📦 ChromaDB Records:\033[0m \033[1m{chroma_count}\033[0m chunks\n")
+                # Session memory in LanceDB
+                session_db_path = settings.session.db_path if settings else "./memory"
+                mem_store = LanceDBStore.get_instance(db_path=os.path.join(session_db_path, "lancedb"))
+                mem_count = mem_store.count_records(table_name="session_memory")
+                ws_mem_count = mem_store.count_records(workspace_name=active_workspace, table_name="session_memory")
+                print(f"  • \033[95m🧠 Session Memory:\033[0m \033[1m{ws_mem_count}\033[0m (Total in DB: {mem_count})\n")
 
-                if lance_count > 0:
+                if ws_count > 0 or lance_count > 0:
                     try:
-                        table = lance_store._db.open_table(lance_store._table_name)
+                        table = lance_store._db.open_table(lance_store._default_table_name)
                         clean_ws = active_workspace.replace("'", "''")
                         results = table.search().where(f"workspace = '{clean_ws}'").limit(limit).to_list()
                         if not results:
                             results = table.search().limit(limit).to_list()
 
-                        print(f"📄 \033[1mSample Indexed Chunks ({len(results)} shown of {lance_count}):\033[0m")
+                        print(f"📄 \033[1mSample Indexed Chunks ({len(results)} shown):\033[0m")
                         for idx, r in enumerate(results, 1):
                             src_name = r.get("file_name") or r.get("file_path") or "Unknown"
                             ctype = r.get("content_type") or "Document"
