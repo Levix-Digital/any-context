@@ -126,10 +126,13 @@ def show_slash_commands_palette(active_workspace: Optional[str] = None) -> Optio
     choice = questionary.select(
         "⚡ AnyContext Slash Commands Palette (Choose a command to run):",
         choices=[
+            "🔄 /sync         - Unified sync across all sources (folders, web, drives)",
+            "📁 /folder       - Add, list, remove, or sync local folders",
+            "🌐 /web          - Ingest, crawl, list, or sync web portals",
+            "☁️ /drive        - Connect, list, remove, or sync cloud drives",
             "📂 /switch       - Switch or create active workspace",
             "📁 /sources      - View all sources (folders, web portals, drives)",
             "✏️ /rename       - Rename a workspace and migrate vector records",
-            "🌐 /web          - Ingest, crawl, list, or sync web portals",
             "🔄 /transfer     - Instant zero-cost transfer of folders/websites",
             "📋 /paste        - Enter multi-line paste mode for long texts",
             "🤖 /model        - Change active AI inference model on-the-fly",
@@ -802,11 +805,17 @@ def run_chat_loop(active_workspace: str = "Default"):
             elif cmd in ["/sync", "/resync", "/index"] or cmd.startswith("/sync ") or cmd.startswith("/index "):
                 parts = parse_command_args(user_input)
                 is_verbose = "--verbose" in parts or "-v" in parts
-                is_full = "--full" in parts or "--force" in parts or "-f" in parts
+                is_full = "--full" in parts or "--force" in parts
                 is_status = "--status" in parts or "-s" in parts or "status" in parts
                 is_all = "--all" in parts or "-a" in parts or "all" in parts
                 is_bg = "--bg" in parts or "--background" in parts
-                from any_context.ingestion.local_folder_ingestor import run_index_folder, check_workspace_changes, BackgroundSyncManager
+
+                is_folder_only = "--folder" in parts or "--folders" in parts or "-f" in parts
+                is_web_only = "--web" in parts or "-w" in parts or "--urls" in parts
+                is_drive_only = "--drive" in parts or "--drives" in parts or "--cloud" in parts
+
+                from any_context.ingestion.unified_sync import run_unified_sync
+                from any_context.ingestion.local_folder_ingestor import check_workspace_changes, BackgroundSyncManager, format_sync_status_box
 
                 if is_status:
                     if is_all:
@@ -821,17 +830,47 @@ def run_chat_loop(active_workspace: str = "Default"):
                     else:
                         diff = check_workspace_changes(active_workspace)
                         safe_stdout_write("\n" + format_sync_status_box(diff) + "\n\n")
-                elif is_bg:
+                    continue
+
+                if is_bg:
                     bg_mgr = BackgroundSyncManager()
                     bg_mgr.start_background_sync(active_workspace, verbose=is_verbose)
                     safe_stdout_write(f"\n🚀 Background synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
+                    continue
+
                 target_ws = None if is_all else active_workspace
+                has_specific_flag = is_folder_only or is_web_only or is_drive_only
+
+                sync_folders = is_folder_only if has_specific_flag else True
+                sync_web = is_web_only if has_specific_flag else True
+                sync_drives = is_drive_only if has_specific_flag else True
+
+                scope_desc = "all sources (folders, web, drives)" if not has_specific_flag else (
+                    "local folders only" if sync_folders else ("web sources only" if sync_web else "cloud drives only")
+                )
+                ws_label = "all workspaces" if is_all else f"workspace '{active_workspace}'"
+
                 if is_verbose:
-                    run_index_folder(workspace_name=target_ws, verbose=True, force_full=is_full)
+                    run_unified_sync(
+                        workspace_name=target_ws,
+                        sync_folders=sync_folders,
+                        sync_web=sync_web,
+                        sync_drives=sync_drives,
+                        force_full=is_full,
+                        verbose=True,
+                        is_all=is_all
+                    )
                 else:
-                    ws_label = "all workspaces" if is_all else f"workspace '{active_workspace}'"
-                    with Spinner(f"Synchronizing {ws_label}...", done_message=f"{ws_label.capitalize()} ready"):
-                        run_index_folder(workspace_name=target_ws, verbose=False, force_full=is_full)
+                    with Spinner(f"Synchronizing {scope_desc} for {ws_label}...", done_message=f"{ws_label.capitalize()} ready"):
+                        run_unified_sync(
+                            workspace_name=target_ws,
+                            sync_folders=sync_folders,
+                            sync_web=sync_web,
+                            sync_drives=sync_drives,
+                            force_full=is_full,
+                            verbose=False,
+                            is_all=is_all
+                        )
                 agent_instance = None
                 continue
 
@@ -1223,18 +1262,107 @@ def run_chat_loop(active_workspace: str = "Default"):
                 _manage_subscription()
                 continue
 
-            elif cmd == "/web" or cmd.startswith("/web "):
+            elif cmd == "/folder" or cmd.startswith("/folder ") or cmd == "/folders" or cmd.startswith("/folders "):
                 parts = parse_command_args(user_input)
-                if len(parts) == 1:
-                    from any_context.cli.config_menu import _manage_workspace_web_urls
-                    _manage_workspace_web_urls(workspace_name=active_workspace)
-                    continue
-
-                is_list = "--list" in parts or "-l" in parts or "list" in parts or "urls" in parts
                 is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
                 is_add = "--add" in parts or "-a" in parts or "add" in parts
+                is_remove = "--remove" in parts or "-r" in parts or "remove" in parts or "rm" in parts or "delete" in parts
+                is_full = "--full" in parts or "--force" in parts
 
-                if is_list:
+                from any_context.config.db_store import ConfigDBStore
+                store = ConfigDBStore()
+
+                if is_sync:
+                    from any_context.ingestion.unified_sync import run_unified_sync
+                    with Spinner(f"Synchronizing folders for workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' folders ready"):
+                        run_unified_sync(workspace_name=active_workspace, sync_folders=True, sync_web=False, sync_drives=False, force_full=is_full)
+                    agent_instance = None
+                    continue
+
+                if is_add:
+                    folder_to_add = None
+                    for i, p in enumerate(parts):
+                        if p in ["--add", "-a", "add"] and len(parts) > i + 1:
+                            folder_to_add = parts[i + 1]
+                            break
+                        elif os.path.exists(p) and p not in ["/folder", "/folders"]:
+                            folder_to_add = p
+                            break
+                    if folder_to_add and os.path.exists(folder_to_add):
+                        abs_p = os.path.abspath(folder_to_add)
+                        store.add_folder_to_workspace(active_workspace, abs_p)
+                        print(f"\n📁 Added folder '\033[96m{abs_p}\033[0m' to workspace '\033[93m{active_workspace}\033[0m'!")
+                        with Spinner(f"Indexing new folder...", done_message=f"Folder indexed"):
+                            from any_context.ingestion.unified_sync import run_unified_sync
+                            run_unified_sync(workspace_name=active_workspace, sync_folders=True, sync_web=False, sync_drives=False)
+                        agent_instance = None
+                    else:
+                        print("\n⚠️ Folder path does not exist or was not specified. Usage: /folder --add <path>\n")
+                    continue
+
+                if is_remove:
+                    folder_to_rm = None
+                    for i, p in enumerate(parts):
+                        if p in ["--remove", "-r", "remove", "rm", "delete"] and len(parts) > i + 1:
+                            folder_to_rm = parts[i + 1]
+                            break
+                    if folder_to_rm:
+                        abs_p = os.path.abspath(folder_to_rm)
+                        removed = store.remove_folder_from_workspace(active_workspace, abs_p)
+                        if removed:
+                            print(f"\n🗑️ Removed folder '\033[96m{abs_p}\033[0m' from workspace '\033[93m{active_workspace}\033[0m'!\n")
+                        else:
+                            print(f"\n⚠️ Folder '{folder_to_rm}' not found in workspace '{active_workspace}'.\n")
+                    else:
+                        print("\n⚠️ Please specify a folder path to remove. Usage: /folder --remove <path>\n")
+                    continue
+
+                # Default: list folders
+                folders = store.get_workspace_folders(active_workspace)
+                print(f"\n📁 Local Folders for Workspace '\033[93m{active_workspace}\033[0m':")
+                if not folders:
+                    print("  (No local folders configured. Type '/folder --add <path>' to add one)")
+                for f in folders:
+                    print(f"  • \033[96m{f}\033[0m")
+                print()
+                continue
+
+            elif cmd == "/drive" or cmd.startswith("/drive ") or cmd == "/drives" or cmd.startswith("/drives ") or cmd == "/cloud" or cmd.startswith("/cloud "):
+                parts = parse_command_args(user_input)
+                is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
+                is_add = "--add" in parts or "-a" in parts or "add" in parts
+                is_remove = "--remove" in parts or "-r" in parts or "remove" in parts or "delete" in parts
+                is_full = "--full" in parts or "--force" in parts
+
+                from any_context.config.db_store import ConfigDBStore
+                store = ConfigDBStore()
+
+                if is_sync:
+                    from any_context.ingestion.unified_sync import run_unified_sync
+                    with Spinner(f"Synchronizing cloud drives for workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' drives ready"):
+                        run_unified_sync(workspace_name=active_workspace, sync_folders=False, sync_web=False, sync_drives=True, force_full=is_full)
+                    agent_instance = None
+                    continue
+
+                if is_add or is_remove:
+                    from any_context.cli.config_menu import _manage_cloud_drives
+                    _manage_cloud_drives(workspace_name=active_workspace)
+                    continue
+
+                # Default: list cloud drives
+                drives = store.get_workspace_cloud_drives(active_workspace) if hasattr(store, "get_workspace_cloud_drives") else []
+                print(f"\n☁️ Cloud Drives for Workspace '\033[93m{active_workspace}\033[0m':")
+                if not drives:
+                    print("  (No cloud drives connected. Type '/drive --add' or use /config to connect Google Drive / OneDrive)")
+                for d in drives:
+                    title = d.get("title") or d.get("provider", "Cloud Drive")
+                    print(f"  • \033[96m{title}\033[0m ({d.get('provider')}) - Status: {d.get('auth_status', 'connected')}")
+                print()
+                continue
+
+            elif cmd == "/web" or cmd.startswith("/web ") or cmd == "/urls" or cmd.startswith("/urls "):
+                parts = parse_command_args(user_input)
+                if len(parts) == 1:
                     from any_context.ingestion.web_scheduler import WebSchedulerStore
                     web_store = WebSchedulerStore()
                     urls = web_store.get_workspace_web_urls(active_workspace)
@@ -1247,11 +1375,38 @@ def run_chat_loop(active_workspace: str = "Default"):
                     print()
                     continue
 
+                is_list = "--list" in parts or "-l" in parts or "list" in parts or "urls" in parts
+                is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
+                is_add = "--add" in parts or "-a" in parts or "add" in parts
+                is_remove = "--remove" in parts or "-r" in parts or "remove" in parts or "delete" in parts or "rm" in parts
+                is_full = "--full" in parts or "--force" in parts
+
+                from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_chromadb
+                web_store = WebSchedulerStore()
+
                 if is_sync:
-                    from any_context.ingestion.web_scheduler import sync_workspace_web_urls
-                    with Spinner(f"Re-scraping and synchronizing all web URLs for workspace '{active_workspace}'..."):
-                        sync_res = sync_workspace_web_urls(active_workspace)
-                    print(f"✅ Synced {sync_res.get('total_urls', 0)} web URLs successfully!\n")
+                    from any_context.ingestion.unified_sync import run_unified_sync
+                    with Spinner(f"Re-scraping and synchronizing web URLs for workspace '{active_workspace}'..."):
+                        run_unified_sync(workspace_name=active_workspace, sync_folders=False, sync_web=True, sync_drives=False, force_full=is_full)
+                    agent_instance = None
+                    print(f"✅ Synced web URLs for workspace '{active_workspace}' successfully!\n")
+                    continue
+
+                if is_remove:
+                    url_to_rm = None
+                    for i, p in enumerate(parts):
+                        if p in ["--remove", "-r", "remove", "rm", "delete"] and len(parts) > i + 1:
+                            url_to_rm = parts[i + 1]
+                            break
+                    if url_to_rm:
+                        removed = web_store.remove_web_url(active_workspace, url_to_rm)
+                        remove_web_url_from_chromadb(active_workspace, url_to_rm)
+                        if removed:
+                            print(f"\n🗑️ Removed web source '\033[96m{url_to_rm}\033[0m' from workspace '\033[93m{active_workspace}\033[0m'!\n")
+                        else:
+                            print(f"\n⚠️ Web URL '{url_to_rm}' not found in workspace '{active_workspace}'.\n")
+                    else:
+                        print("\n⚠️ Please specify a web URL to remove. Usage: /web --remove <url>\n")
                     continue
 
                 if is_add:
@@ -1265,11 +1420,24 @@ def run_chat_loop(active_workspace: str = "Default"):
                             url_to_add = p
                             break
                     run_interactive_web_crawler(workspace_name=active_workspace, start_url=url_to_add)
+                    agent_instance = None
                     continue
 
                 if len(parts) > 1 and (parts[1].startswith("http://") or parts[1].startswith("https://")):
                     from any_context.ingestion.web_crawler import run_interactive_web_crawler
                     run_interactive_web_crawler(workspace_name=active_workspace, start_url=parts[1])
+                    agent_instance = None
+                    continue
+
+                if is_list:
+                    urls = web_store.get_workspace_web_urls(active_workspace)
+                    print(f"\n🌐 Web Sources for Workspace '{active_workspace}':")
+                    if not urls:
+                        print("  (No web URLs configured yet. Type '/web --add <url>' to add one)")
+                    for u in urls:
+                        pages_info = f" • {u.get('page_count')} pages" if u.get('page_count', 1) > 1 else ""
+                        print(f"  • \033[96m{u.get('title') or u['url']}\033[0m{pages_info} ({u['url']}) - Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
+                    print()
                     continue
 
                 from any_context.cli.config_menu import _manage_workspace_web_urls
@@ -1363,9 +1531,10 @@ def run_chat_loop(active_workspace: str = "Default"):
                 known_commands = [
                     "/help", "/exit", "/quit", "/q", "/version", "/v",
                     "/clear", "/cls",
-                    "/switch", "/model", "/m", "/sync", "/index", "/update", "/check-update",
+                    "/switch", "/model", "/m", "/sync", "/resync", "/index", "/update", "/check-update",
+                    "/folder", "/folders", "/web", "/urls", "/drive", "/drives", "/cloud",
                     "/reset-memory", "/reset", "/factory-reset", "/config",
-                    "/keys", "/billing", "/plans", "/web", "/history", "/clear-history",
+                    "/keys", "/billing", "/plans", "/history", "/clear-history",
                     "/paste", "/multiline", "/mline", "/transfer", "/move-source",
                     "/sources", "/density", "/web-search", "/websearch", "/search", "/ws"
                 ]
