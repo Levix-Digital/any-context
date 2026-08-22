@@ -451,7 +451,31 @@ def crawl_and_index_urls(
 
             for k in range(0, total_docs_to_embed, chunk_size):
                 batch = documents_batch[k:k+chunk_size]
-                pipeline.run(documents=batch, show_progress=False)
+                batch_nodes = pipeline.run(documents=batch, show_progress=False)
+                try:
+                    from any_context.vector_engine.store import LanceDBStore
+                    lancedb_store = LanceDBStore.get_instance()
+                    lance_records = []
+                    for n in (batch_nodes or []):
+                        emb = getattr(n, "embedding", None)
+                        if emb:
+                            lance_records.append({
+                                "id": n.id_,
+                                "vector": emb,
+                                "text": n.text or "",
+                                "file_name": n.metadata.get("file_name", "Unknown"),
+                                "file_path": n.metadata.get("file_path", ""),
+                                "workspace": workspace_name,
+                                "last_modified": n.metadata.get("last_modified_date") or n.metadata.get("last_modified") or "",
+                                "content_type": n.metadata.get("content_type", "Web Documentation"),
+                                "document_summary": n.metadata.get("document_summary", ""),
+                                "keywords": n.metadata.get("keywords", ""),
+                                "content_hash": n.metadata.get("content_hash", "")
+                            })
+                    if lance_records:
+                        lancedb_store.upsert_records(lance_records, dim=len(lance_records[0]["vector"]))
+                except Exception:
+                    pass
                 processed = min(k + len(batch), total_docs_to_embed)
                 if embed_progress_callback:
                     embed_progress_callback(processed, total_docs_to_embed)

@@ -116,8 +116,14 @@ def clear_context_vector_db(verbose: bool = False):
         store = ConfigDBStore()
         store.clear_workspace_files_cache()
 
+        try:
+            from any_context.vector_engine.store import LanceDBStore
+            LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb")).delete_all_records()
+        except Exception:
+            pass
+
         if verbose:
-            safe_print("│ ├─ 🧹 Context vector collection, docstore, and stat cache cleared for re-indexing")
+            safe_print("│ ├─ 🧹 Context vector collection, docstore, LanceDB table, and stat cache cleared for re-indexing")
     except Exception as e:
         if verbose:
             safe_print(f"│ ├─ ⚠️ Warning during vector db clear: {e}")
@@ -417,12 +423,19 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
 
                 for old_p, new_p in diff["renamed_files"]:
                     store.rename_cached_file_path(target_ws_name, old_p, new_p)
+                try:
+                    from any_context.vector_engine.store import LanceDBStore
+                    lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+                    for old_p, new_p in diff["renamed_files"]:
+                        lance_store.delete_by_file(old_p, workspace_name=target_ws_name)
+                except Exception:
+                    pass
                 if verbose:
                     safe_print(f"│ ├─ 🔄 Renamed     : {len(diff['renamed_files'])} files repointed with zero-cost ($0.00)")
             except Exception:
                 pass
 
-        # Purge Deleted Files from ChromaDB, docstore & SQLite cache
+        # Purge Deleted Files from ChromaDB, LanceDB, docstore & SQLite cache
         if diff["deleted_files"]:
             deleted_set = set(diff["deleted_files"])
             del_chunk_count = 0
@@ -436,6 +449,13 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
                         del_chunk_count += 1
                     except Exception:
                         pass
+            try:
+                from any_context.vector_engine.store import LanceDBStore
+                lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+                for dfp in diff["deleted_files"]:
+                    lance_store.delete_by_file(dfp, workspace_name=target_ws_name)
+            except Exception:
+                pass
             store.remove_workspace_files_cache(target_ws_name, diff["deleted_files"])
             if verbose:
                 safe_print(f"│ ├─ 🗑️ Deleted     : {len(diff['deleted_files'])} files ({del_chunk_count} chunks purged)")
@@ -583,6 +603,16 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
         safe_print(f"│ ├─ ⚡ Embeddings  : {embed_label} (incremental check)")
 
     if not all_documents:
+        for ws in workspaces_to_process:
+            try:
+                collection.delete(where={"workspace": ws.name})
+            except Exception:
+                pass
+            try:
+                from any_context.vector_engine.store import LanceDBStore
+                LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb")).delete_by_workspace(ws.name)
+            except Exception:
+                pass
         if verbose:
             safe_print("└ ❌ No valid documents found across any workspace.\n")
         return {"status": "empty", "total_files": 0}
@@ -639,6 +669,36 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
         else:
             raise e
 
+    # Phase 2: Parallel Columnar Persistence to LanceDBStore
+    try:
+        from any_context.vector_engine.store import LanceDBStore
+        lancedb_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+        lance_records = []
+        for n in (nodes or []):
+            emb = getattr(n, "embedding", None)
+            if emb:
+                lance_records.append({
+                    "id": n.id_,
+                    "vector": emb,
+                    "text": n.text or "",
+                    "file_name": n.metadata.get("file_name", "Unknown"),
+                    "file_path": n.metadata.get("file_path", ""),
+                    "workspace": n.metadata.get("workspace", "Global"),
+                    "last_modified": n.metadata.get("last_modified_date") or n.metadata.get("last_modified") or "",
+                    "content_type": n.metadata.get("content_type", "Local Document"),
+                    "document_summary": n.metadata.get("document_summary", ""),
+                    "keywords": n.metadata.get("keywords", ""),
+                    "content_hash": n.metadata.get("content_hash", "")
+                })
+        if lance_records:
+            # Purge previous chunks for modified files to prevent stale duplication
+            unique_files = {(r["file_path"], r["workspace"]) for r in lance_records if r.get("file_path")}
+            for fp, ws in unique_files:
+                lancedb_store.delete_by_file(fp, workspace_name=ws)
+            lancedb_store.upsert_records(lance_records, dim=len(lance_records[0]["vector"]))
+    except Exception:
+        pass
+
     current_doc_ids = {doc.doc_id for doc in all_documents}
     processed_workspace_names = {ws.name for ws in workspaces_to_process}
     
@@ -651,6 +711,15 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
                 try:
                     docstore.delete_document(node_id)
                     vector_store.delete(node_id)
+                    try:
+                        from any_context.vector_engine.store import LanceDBStore
+                        l_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+                        l_store.delete_by_id(node_id)
+                        fp = node.metadata.get("file_path") if node.metadata else None
+                        if fp:
+                            l_store.delete_by_file(fp, workspace_name=node_workspace)
+                    except Exception:
+                        pass
                     deleted_count += 1
                 except Exception:
                     pass

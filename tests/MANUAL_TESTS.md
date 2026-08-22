@@ -4,48 +4,51 @@
 
 ---
 
-## 🎯 Teste Ativo (Última Release: v0.18.0)
+## 🎯 Teste Ativo (Última Release: v0.19.0)
 
-### 📌 Cenário: Enriquecimento Semântico Contextual & Eliminação de Falsos Positivos
+### 📌 Cenário: Motor Vetorial Paralelo LanceDB & Injeção de Presets de RAG
 
-- **Objetivo**: Comprovar que o `ContextualEnricher` ancora os chunks ao tema macro e palavras-chave de cada documento/URL, impedindo que documentos irrelevantes de outros domínios (ex: finanças, TI) apareçam em buscas de imigração ou autorizações.
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.18.0`.
+- **Objetivo**: Comprovar que o novo motor vetorial `LanceDBStore` e `ParallelRetriever` realizam buscas colunares em sub-milissegundos (< 5ms), com filtragem pura desacoplada (`RelevanceFilter`) e injeção de dependência de regras de RAG (`RetrievalConfig`).
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.19.0`.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Atualizar e Iniciar o AnyContext:**
    ```powershell
-   actx --update@0.18.0
+   actx --update@0.19.0
    actx
    ```
 
-2. **🔄 Sincronizar Workspace com Enriquecimento Contextual:**
+2. **🔄 Sincronização e Indexação Colunar:**
    ```text
    /sync
    ```
    - **Critério de Sucesso:**
-     - A sincronização conclui com sucesso.
-     - Cada arquivo e página web recebe seu envelope com **Sumário Rico** e **Top-N Palavras-Chave** (armazenados em cache SQLite persistente).
+     - A sincronização grava os vetores em formato colunar Apache Arrow no LanceDB.
+     - Velocidade de processamento e persistência visivelmente instantânea.
 
-3. **💬 Turno 1 (Busca Semântica Específica com Termos Genéricos):**
+3. **💬 Turno 1 (Busca Vetorial Ultrarrápida no LanceDB com Filtro de Relevância):**
    ```text
-   👤 You: Quem deve assinar autorizações para crianças? O que as leis do Canadá dizem sobre isso?
+   👤 You: Quais são as diretrizes de viagem para menores no Canadá?
    ```
    - **Critério de Sucesso:**
-     - **100% de Precisão Temática**: Todos os chunks recuperados e citados pertencem estritamente aos documentos de imigração/menores (`Regras_Menores`, `Canada.ca`).
-     - **Zero Falsos Positivos**: Nenhum arquivo financeiro, de RH ou de TI aparece nos chunks recuperados.
-     - Os cabeçalhos de busca exibem `Keywords: ...` e o tema associado.
+     - Resposta sai em menos de 2 segundos.
+     - `RelevanceFilter` corta qualquer ruído com similaridade fraca e balanceia as fontes via round-robin.
 
-4. **💬 Turno 2 (Verificação de Sub-30ms em Arquivos Inalterados):**
+4. **🎛️ Turno 2 (Alternância Dinâmica de Presets via `/rag` ou `/config`):**
    ```text
-   /sync
+   /rag turbo
    ```
    - **Critério de Sucesso:**
-     - O cache SHA-256 é acionado instantaneamente sem reprocessar sumários para arquivos inalterados.
+     - O sistema injeta o `RetrievalConfig` do preset **Turbo** (pool=50, top_k=10).
+     - A próxima pergunta executa com orçamento super conciso de ~5.000 tokens.
 
 ---
 
 ## 📚 Histórico de Cenários de Testes Anteriores
+
+### 🔬 v0.18.0 - Enriquecimento Semântico Contextual & Eliminação de Falsos Positivos
+- **Validação:** Documentos recebem envelope com sumário rico e keywords, eliminando falsos positivos entre domínios diferentes.
 
 ### 🔬 v0.17.7 - Perguntas Compostas Multi-Tópico & Orçamento Proporcional
 - **Validação:** Perguntas com múltiplos tópicos simultâneos preservam trechos de todos os tópicos no prompt sem estouro de 128k tokens.

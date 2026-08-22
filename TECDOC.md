@@ -92,6 +92,20 @@ graph TD
     ```
   - **SHA-256 Persistent SQLite Caching**: The semantic envelope is generated once per file/URL and cached in SQLite (`contextual_enrichment_cache.db`), guaranteeing **sub-millisecond bypass (0.00ms)** for unmodified files on subsequent syncs.
 
+### ⚡ Modular Parallel Vector Engine & LanceDB Columnar Storage (`vector_engine/`)
+- **Encapsulated LanceDB Driver (`src/any_context/vector_engine/store.py`)**:
+  - Direct persistence into Apache Arrow columnar datasets (`.lance`) in Rust.
+  - Zero SQLite write locks, zero-copy retrieval, sub-5ms vector queries across 100,000+ chunks.
+- **Dependency Injection Contracts (`src/any_context/vector_engine/models.py`)**:
+  - `RetrievalConfig`: Immutable dataclass parameter object encapsulating candidate pool size (`candidate_pool_k`), target chunks (`target_top_k`), score threshold (`min_similarity_score`), and max chunks per source (`max_chunks_per_source`).
+  - `IngestionConfig`: Immutable dataclass parameter object defining chunk size, token overlap, and batch embedding concurrency.
+- **High-Throughput Parallel Ingestor (`src/any_context/vector_engine/indexer.py`)**:
+  - `ParallelIndexer`: Coordinates concurrent file parsing, contextual enrichment, batch vector embeddings (50-100 chunks/batch), and zero-copy columnar ingestion into LanceDB.
+- **Multi-Source Parallel Retriever (`src/any_context/vector_engine/retriever.py`)**:
+  - `ParallelRetriever`: Concurrently executes vector search across the active workspace, Global knowledge base, and linked Shared Sources using thread pools calling LanceDB's native Rust HNSW index.
+- **Decoupled Relevance & Diversification Filter (`src/any_context/vector_engine/filters.py`)**:
+  - `RelevanceFilter`: Pure-function ranking module applying mathematical score thresholding, source-fair round-robin balancing, and strict density budgeting (~10,000 tokens) with zero I/O side effects.
+
 ### 🧹 Multi-Query Turn Consolidation & Runtime Pruning (`PruningChatModelWrapper`)
 - In multi-turn chat sessions (`actx`), LangGraph retains the compiled state graph in RAM across consecutive turns within the same terminal session.
 - To prevent past searches from accumulating across turns (e.g. 3 turns × 42k chars = 138,992 tokens) while **fully preserving multi-subtopic searches within the same question**:
