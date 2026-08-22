@@ -96,16 +96,16 @@ def run_index_folder(
     lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
 
     if verbose:
-        safe_print(f"\n┌ 📦 \033[1mIngestion Pipeline: {target_ws_name}\033[0m")
-        safe_print(f"│ ├─ 📂 Storage     : LanceDB Columnar Vector Store ({db_save_path}/lancedb)")
+        safe_print(f"\n[Ingestion Pipeline: {target_ws_name}]")
+        safe_print(f"  • Storage: LanceDB Columnar Vector Store ({db_save_path}/lancedb)")
 
     # 1. Fast SQLite Stat Cache Diff Check
     if workspace_name and not force_full:
         diff = check_workspace_changes(target_ws_name)
         if diff["is_up_to_date"]:
             if verbose:
-                safe_print(f"│ ├─ ⚡ Stat Check  : 100% up to date ({diff['total_disk_files']} files, 0 changes)")
-                safe_print("└ \033[92m✔ Ingestion completed successfully (0 changes)!\033[0m\n")
+                safe_print(f"  • Stat Check: 100% up to date ({diff['total_disk_files']} files, 0 changes)")
+                safe_print("✔ Ingestion completed successfully (0 changes)!\n")
             return {"status": "up_to_date", "total_files": diff["total_disk_files"], "changes": diff}
 
         # Zero-cost Renamed/Moved Files Metadata Repointing ($0.00)
@@ -115,7 +115,7 @@ def run_index_folder(
                     store.rename_cached_file_path(target_ws_name, old_p, new_p)
                     lance_store.delete_by_file(old_p, workspace_name=target_ws_name)
                 if verbose:
-                    safe_print(f"│ ├─ 🔄 Renamed     : {len(diff['renamed_files'])} files repointed with zero-cost ($0.00)")
+                    safe_print(f"  • Renamed: {len(diff['renamed_files'])} files repointed with zero-cost ($0.00)")
             except Exception:
                 pass
 
@@ -128,12 +128,12 @@ def run_index_folder(
                 pass
             store.remove_workspace_files_cache(target_ws_name, diff["deleted_files"])
             if verbose:
-                safe_print(f"│ ├─ 🗑️ Deleted     : {len(diff['deleted_files'])} files purged")
+                safe_print(f"  • Deleted: {len(diff['deleted_files'])} files purged")
 
         # If only deletions and renames occurred, return early
         if not diff["new_files"] and not diff["modified_files"]:
             if verbose:
-                safe_print("└ \033[92m✔ Ingestion completed successfully!\033[0m\n")
+                safe_print("✔ Ingestion completed successfully!\n")
             return {"status": "updated", "changes": diff}
 
     configure_embedding_model()
@@ -221,14 +221,14 @@ def run_index_folder(
                 progress_callback(total_ws_files, total_ws_files, "files", "")
 
     if verbose:
-        safe_print(f"│ ├─ 🔍 Discovery   : {total_discovered_files} files scanned across configured paths")
+        safe_print(f"  • Discovery: {total_discovered_files} files scanned across configured paths")
         for sample in scanned_file_samples[:3]:
-            safe_print(f"│ │    • 📄 {os.path.basename(sample)}")
+            safe_print(f"    - {os.path.basename(sample)}")
         if total_discovered_files > 3:
-            safe_print(f"│ │    • ... (+ {total_discovered_files - 3} more files)")
-        safe_print(f"│ ├─ 📚 Chunks      : {len(all_documents)} document nodes parsed")
+            safe_print(f"    - ... (+ {total_discovered_files - 3} more files)")
+        safe_print(f"  • Chunks: {len(all_documents)} document nodes parsed")
         embed_label = current_settings.models.embedding_model if (current_settings and current_settings.models) else "text-embedding-3-small"
-        safe_print(f"│ ├─ ⚡ Embeddings  : {embed_label} (incremental check)")
+        safe_print(f"  • Embeddings: {embed_label} (incremental check)")
 
     if not all_documents:
         for ws in workspaces_to_process:
@@ -237,7 +237,7 @@ def run_index_folder(
             except Exception:
                 pass
         if verbose:
-            safe_print("└ ❌ No valid documents found across any workspace.\n")
+            safe_print("❌ No valid documents found across any workspace.\n")
         return {"status": "empty", "total_files": 0}
 
     # Vectorize and Index via ParallelIndexer into LanceDBStore
@@ -267,8 +267,8 @@ def run_index_folder(
             store.upsert_workspace_files_cache(ws.name, ws_recs)
 
     if verbose:
-        safe_print(f"│ └─ ⚡ Vectorized  : {idx_res.get('indexed_chunks', len(all_documents))} chunks indexed in LanceDB")
-        safe_print(f"└ \033[92m✔ Ingestion completed successfully!\033[0m\n")
+        safe_print(f"  • Vectorized: {idx_res.get('indexed_chunks', len(all_documents))} chunks indexed in LanceDB")
+        safe_print("✔ Ingestion completed successfully!\n")
 
     return {
         "status": "completed",

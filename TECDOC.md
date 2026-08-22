@@ -255,11 +255,19 @@ Consolidates older memory vectors into high-level indices using 1024-token expan
 
 ## 6. Unified Synchronization & Multi-Source Parity Engine
 
+### 🏛️ Hexagonal Architecture & CLI Presentation Adapter (`src/any_context/cli/formatters.py` - `v0.24.1`)
+In accordance with strict **Hexagonal Architecture (Ports & Adapters)** principles:
+- **Core Domain & Use Cases (`core/`, `vector_engine/`, `ingestion/`, `billing/`, `help/`)**:
+  - **100% UI-Agnostic**: Absolutely zero ANSI escape codes (`\033[...]`), zero hardcoded ASCII box drawings (`┌ │ └`), zero direct interactive prompts (`questionary`), and zero unbuffered `print()` calls.
+  - Returns pure data structures (dictionaries, dataclasses, pydantic models) and emits progress via callback functions (`progress_callback(current, total, stage, item)`).
+- **CLI Presentation Adapter (`src/any_context/cli/formatters.py`)**:
+  - Encapsulates all terminal-specific visual formatting: `format_sync_status_box`, `format_pricing_plans_cli`, `format_crawler_discovery_report`, and `run_interactive_web_crawler`.
+  - Guarantees seamless operation across all surfaces (CLI, REST API, MCP Server) without presentation coupling.
+
 ### 🎛️ Shared Multi-Source Orchestration Layer (`src/any_context/ingestion/orchestrator.py` - `v0.24.0`)
 To enforce strict Single Responsibility Principles (SRP), all cross-source orchestration, background thread management, and multi-source workspace inspection are isolated into `orchestrator.py`:
 - `BackgroundSyncManager`: Thread-safe worker thread daemon management and atomic telemetry.
 - `check_workspace_changes`: Holistic multi-source scanner (<30ms) inspecting Local Folders, Web Portals, Cloud Drives, and Shared Links.
-- `format_sync_status_box`: Unified UI status card formatter.
 - `clear_context_vector_db`: LanceDB table and cache maintenance routines.
 
 ### 🔄 Unified Master Orchestrator (`src/any_context/ingestion/unified_sync.py`)

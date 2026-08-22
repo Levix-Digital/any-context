@@ -73,7 +73,7 @@ class BillingManager:
         return "\n".join(md)
 
     def format_pricing_cards_cli(self) -> str:
-        """Formats the official AnyContext pricing and plans as clean, visual terminal cards."""
+        """Formats the official AnyContext pricing and plans as clean text."""
         plans = get_all_plans()
         current_tier = self.get_status().active_tier_id
         lines = []
@@ -95,12 +95,12 @@ class BillingManager:
                 m_price = f"${p.monthly_price_usd:.0f}/mês"
                 a_price = f"${p.annual_price_usd:.0f}/ano (~${p.annual_price_usd/12:.0f}/mês - 20% OFF)" if p.annual_price_usd else "-"
 
-            lines.append(f"\n  [{idx}] \033[1;97m{p.name}\033[0m\033[92m{active_badge}\033[0m")
+            lines.append(f"\n  [{idx}] {p.name}{active_badge}")
             lines.append("  " + "-" * 74)
-            lines.append(f"  • \033[1mPreço Mensal\033[0m   : \033[92m{m_price}\033[0m")
-            lines.append(f"  • \033[1mPreço Anual\033[0m    : \033[96m{a_price}\033[0m")
-            lines.append(f"  • \033[1mEscopo & RAG\033[0m   : {p.ingestion_scope}")
-            lines.append(f"  • \033[1mPúblico-Alvo\033[0m   : \033[90m{p.target_audience}\033[0m")
+            lines.append(f"  • Preço Mensal   : {m_price}")
+            lines.append(f"  • Preço Anual    : {a_price}")
+            lines.append(f"  • Escopo & RAG   : {p.ingestion_scope}")
+            lines.append(f"  • Público-Alvo   : {p.target_audience}")
 
         lines.append("\n" + "=" * 80)
         return "\n".join(lines)
