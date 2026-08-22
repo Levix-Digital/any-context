@@ -52,13 +52,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Time-Aware Chunk Headers**: Injects `Source: ... | Workspace: ... | Last Modified: YYYY-MM-DD | Type: ...` into every chunk.
   - **Recency Primacy & Conflict Resolution**: The AI agent evaluates timestamps and status notices, ensuring that current rules (`Status: Paused`) always supersede older historical announcements.
 - **🔬 2-Phase High-Precision RAG & Context Calibration Engine**:
-  - **🌐 Contextual Retrieval & Semantic Enrichment (`ContextualEnricher`)**: Automatically generates a rich 3-4 sentence summary and Top-N domain keywords for each document and web page, anchoring all chunks to their true parent topic and eliminating cross-domain false positives.
-  - **Phase 1 (Deep Candidate Pool Scanning)**: The ChromaDB vector database evaluates a broad initial pool of **100+ candidate chunks** across thousands of indexed pages and files, guaranteeing 100% recall coverage.
-  - **Phase 2 (Source-Fair Round-Robin Diversification)**: The `_diversify_nodes` algorithm balances chunk selection across all distinct documents and portals (up to 3 chunks per source). A single 500-page document is prevented from monopolizing the context window.
-  - **⚡ Parallel Multi-Source Retrieval (`ThreadPoolExecutor`)**: Concurrently searches across the active workspace, linked Shared Sources, and Global knowledge bases on all CPU cores, fusing results in sub-10ms.
+  - **🎯 Semantic Precision & Zero Cross-Domain Noise (Contextual Retrieval)**: The system captures the overarching theme and domain keywords of each document and web page before reading paragraphs. Searches on a specific subject never pull unrelated files (like financial or IT docs in legal questions).
+  - **Phase 1 (Deep Candidate Pool Scanning)**: Evaluates a broad initial pool of **100+ candidate chunks** across thousands of indexed pages and files, guaranteeing 100% recall coverage.
+  - **Phase 2 (Balanced Multi-Source Diversity)**: Balanced round-robin distribution ensures fair representation across all documents and web portals (up to 3 chunks per source), preventing a single large file from monopolizing the context window.
+  - **⚡ Ultra-Fast Parallel Multi-Source Search**: Concurrently searches the active workspace, linked Shared Sources, and Global knowledge bases on all CPU cores, fusing results in sub-10ms.
   - **"Lost in the Middle" Prevention & Context Calibration**: By injecting **15-20 high-density chunks (~10,000-15,000 tokens)** rather than 40+ noisy chunks, AnyContext prevents attention degradation, eliminates hallucinations, reduces latency by 3x, and stays well within provider rate limits.
-  - **🧹 Runtime Tool Message Pruning (`PruningChatModelWrapper`)**: Intercepts and compacts raw chunk outputs from prior conversation turns in runtime, preventing token accumulation and keeping conversation prompt size permanently under ~12,000 tokens across 100+ turns.
-  - **🔄 Resilient Auto-Retry with Exponential Backoff (`max_retries=5`)**: Automatic transparent recovery from LLM provider rate limits (TPM/RPM 429 errors) across all 9 supported providers with millisecond backoff loops, ensuring zero disruption during heavy research sessions.
+  - **🧹 Smart Conversation Flow & Zero Token Overflows**: Automatically compacts past search dumps in multi-turn conversations, keeping dialogue fast and prompt size permanently optimized (~10,000 tokens) even after dozens of consecutive questions.
+  - **🔄 Resilient Auto-Retry with Exponential Backoff**: Automatic transparent recovery from AI provider rate limits (TPM/RPM 429 errors) across all 9 supported providers with millisecond backoff loops, ensuring zero disruption during heavy research sessions.
   - **🎛️ Dynamic Retrieval Presets Matrix**:
     | Preset | Pool no ChromaDB | Chunks Injetados | Tokens de Contexto | Melhor uso |
     | :--- | :---: | :---: | :---: | :--- |
