@@ -173,11 +173,12 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`\` + `[Enter]`** | — | Trailing backslash shell-style line continuation. |
 | **`""" ... """`** | `''' ... '''` | Multi-line block delimiter (close with `"""` or `/send`). |
 | **`/paste`** | `/multiline` | Open dedicated multi-line paste capture mode. |
-| **`/switch`** | `<name>`, `--create`, `--delete`, `--list` | Switch active workspace or create, delete, and list workspaces. |
-| **`/sync`** | `--status`, `--verbose`, `--bg`, `--full` | Ultra-fast hybrid synchronization using sub-30ms SQLite stat cache bypass. |
+| **`/sync`** | `--folder`, `--web`, `--drive`, `--all`, `--force`, `--status`, `--bg` | **Sincronizador Mestre Unificado**: Sincroniza todas as fontes (pastas, web, drives) do workspace ativo ou todas de uma vez (`--all`). |
+| **`/folder`** | `--add <path>`, `--remove <path>`, `--list`, `--sync` | Gerencia e sincroniza exclusivamente pastas locais do workspace. |
+| **`/web`** | `--add <url>`, `--remove <url>`, `--list`, `--sync` | Gerencia, rastreia e sincroniza exclusivamente portais e páginas web. |
+| **`/drive`** | `--add`, `--remove <id>`, `--list`, `--sync`, `/cloud` | Gerencia e sincroniza conexões com Google Drive e OneDrive. |
 | **`/mode`** | `--hybrid`, `--strict`, `--proactive`, `--global` | Switch AI grounding mode per workspace or globally: **`Hybrid`** (dual-layer), **`Strict`** (100% verified facts), or **`Proactive`** (research & synthesis). |
 | **`/web-search`** | `--on`, `--off`, `--status`, `--global`, `/ws` | Toggle real-time live web search per workspace with domain portal prioritization and source discrimination. |
-| **`/web`** | `--add <url>`, `--list`, `--sync` | Manage, crawl, and synchronize web documentation portals. |
 | **`/link`** | `<src> [dst]`, `--list`, `--unlink <src>` | Link or unlink reusable indexed sources across workspaces with zero API cost ($0.00). |
 | **`/transfer`** | `<src_ws> <tgt_ws> <path_or_url>` | Instant zero-cost transfer of folders or web portals between workspaces. |
 | **`/rename`** | `<old_ws> <new_ws>` | Atomic zero-cost workspace renaming ($0.00). |

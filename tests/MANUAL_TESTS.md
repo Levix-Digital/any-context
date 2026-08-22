@@ -4,48 +4,51 @@
 
 ---
 
-## 🎯 Teste Ativo (Última Release: v0.19.0)
+## 🎯 Teste Ativo (Última Release: v0.20.0)
 
-### 📌 Cenário: Motor Vetorial Paralelo LanceDB & Injeção de Presets de RAG
+### 📌 Cenário: Sincronização Unificada de Fontes (`/sync`) & Paridade de Famílias (`/folder`, `/web`, `/drive`)
 
-- **Objetivo**: Comprovar que o novo motor vetorial `LanceDBStore` e `ParallelRetriever` realizam buscas colunares em sub-milissegundos (< 5ms), com filtragem pura desacoplada (`RelevanceFilter`) e injeção de dependência de regras de RAG (`RetrievalConfig`).
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.19.0`.
+- **Objetivo**: Comprovar que `/sync` orquestra todas as fontes cadastradas no workspace (Pastas Locais + Fontes Web + Drives na Nuvem), suportando flags granulares (`/sync --folder`, `/sync --web`, `/sync --drive`, `/sync --all`, `/sync --force`) e paridade de comandos individuais (`/folder`, `/web`, `/drive`).
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.20.0`.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Atualizar e Iniciar o AnyContext:**
    ```powershell
-   actx --update@0.19.0
+   actx --update@0.20.0
    actx
    ```
 
-2. **🔄 Sincronização e Indexação Colunar:**
+2. **🔄 Sincronizador Mestre Unificado (`/sync`):**
    ```text
    /sync
    ```
    - **Critério de Sucesso:**
-     - A sincronização grava os vetores em formato colunar Apache Arrow no LanceDB.
-     - Velocidade de processamento e persistência visivelmente instantânea.
+     - O AnyContext sincroniza simultaneamente todas as pastas locais, fontes web e cloud drives do workspace ativo.
+     - Nenhuma fonte web é apagada indevidamente durante a checagem de pastas locais.
 
-3. **💬 Turno 1 (Busca Vetorial Ultrarrápida no LanceDB com Filtro de Relevância):**
+3. **🌐 Sincronização e Gerenciamento Específico de Web:**
    ```text
-   👤 You: Quais são as diretrizes de viagem para menores no Canadá?
+   /sync --web
+   ```
+   *(ou `/web --sync`)*
+   - **Critério de Sucesso:**
+     - Sincroniza exclusivamente as fontes web sem reprocessar pastas locais.
+
+4. **📁 Gerenciamento Simétrico de Pastas Locais:**
+   ```text
+   /folder
    ```
    - **Critério de Sucesso:**
-     - Resposta sai em menos de 2 segundos.
-     - `RelevanceFilter` corta qualquer ruído com similaridade fraca e balanceia as fontes via round-robin.
-
-4. **🎛️ Turno 2 (Alternância Dinâmica de Presets via `/rag` ou `/config`):**
-   ```text
-   /rag turbo
-   ```
-   - **Critério de Sucesso:**
-     - O sistema injeta o `RetrievalConfig` do preset **Turbo** (pool=50, top_k=10).
-     - A próxima pergunta executa com orçamento super conciso de ~5.000 tokens.
+     - Lista as pastas locais do workspace.
+     - Suporta `/folder --sync`, `/folder --add <path>` e `/folder --remove <path>`.
 
 ---
 
 ## 📚 Histórico de Cenários de Testes Anteriores
+
+### 🔬 v0.19.0 - Motor Vetorial Paralelo LanceDB & Injeção de Presets de RAG
+- **Validação:** Armazenamento colunar em Rust, buscas sub-5ms e injeção de dependência de `RetrievalConfig`.
 
 ### 🔬 v0.18.0 - Enriquecimento Semântico Contextual & Eliminação de Falsos Positivos
 - **Validação:** Documentos recebem envelope com sumário rico e keywords, eliminando falsos positivos entre domínios diferentes.

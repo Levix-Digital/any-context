@@ -46,8 +46,16 @@ class ConfigDBStore:
     Handles persistent CRUD operations for Workspaces, Models, Database paths, Memory settings, API Keys, Users, and Access Tokens.
     """
 
+    _instance: Optional["ConfigDBStore"] = None
+
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or self.find_db_file("settings.db")
+        if db_path:
+            self.db_path = db_path
+            ConfigDBStore._instance = self
+        elif ConfigDBStore._instance and getattr(ConfigDBStore._instance, "db_path", None):
+            self.db_path = ConfigDBStore._instance.db_path
+        else:
+            self.db_path = self.find_db_file("settings.db")
         self._init_db()
         self.ensure_default_workspace()
 

@@ -23,7 +23,12 @@ class WebSchedulerStore:
     SQLite persistence for workspace web URLs, content hashes, and polling schedules.
     """
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or ConfigDBStore.find_db_file("settings.db")
+        if db_path:
+            self.db_path = db_path
+        elif ConfigDBStore._instance and getattr(ConfigDBStore._instance, "db_path", None):
+            self.db_path = ConfigDBStore._instance.db_path
+        else:
+            self.db_path = ConfigDBStore.find_db_file("settings.db")
         self._init_db()
 
     def _get_connection(self):

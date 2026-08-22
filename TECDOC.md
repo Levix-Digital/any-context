@@ -106,6 +106,20 @@ graph TD
 - **Decoupled Relevance & Diversification Filter (`src/any_context/vector_engine/filters.py`)**:
   - `RelevanceFilter`: Pure-function ranking module applying mathematical score thresholding, source-fair round-robin balancing, and strict density budgeting (~10,000 tokens) with zero I/O side effects.
 
+### 🔄 Unified Synchronization Architecture & Multi-Source Parity (`src/any_context/ingestion/unified_sync.py`)
+- **Unified Master Orchestrator (`run_unified_sync`)**:
+  - `/sync` orchestrates synchronization across all registered source categories in the active workspace:
+    1. 📁 **Local Folders**: Scanned, diffed (SHA-256), contextualized and ingested via `run_index_folder`.
+    2. 🌐 **Web Portals**: Tracked, scraped, hashed and updated via `sync_workspace_web_urls`.
+    3. ☁️ **Cloud Drives**: Synced via cloud drive managers.
+  - **Granular Target Flags**: `/sync --folder` (folders only), `/sync --web` (web only), `/sync --drive` (cloud only), `/sync --all` (all workspaces), `/sync --force` (full re-index).
+- **Source Family Command Parity**:
+  - Standardized symmetric CLI verbs across `/folder`, `/web`, `/drive`:
+    - `--list` / `-l`: Inspect configured sources.
+    - `--add` / `-a <path|url>`: Add new source with auto-ingestion.
+    - `--remove` / `-r <path|url>`: Remove source and purge associated vector records.
+    - `--sync` / `-s`: Synchronize only that source category.
+
 ### 🧹 Multi-Query Turn Consolidation & Runtime Pruning (`PruningChatModelWrapper`)
 - In multi-turn chat sessions (`actx`), LangGraph retains the compiled state graph in RAM across consecutive turns within the same terminal session.
 - To prevent past searches from accumulating across turns (e.g. 3 turns × 42k chars = 138,992 tokens) while **fully preserving multi-subtopic searches within the same question**:
