@@ -267,5 +267,37 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
 
         safe_stdout_write("  [OK] Client-Side Rendering (CSR / SPA) detection verified!\n")
 
+    def test_08_programmatic_crawl_website_and_sync_helpers(self):
+        """TC-2.10: Verifies programmatic crawl_website function and format_sync_status_box export."""
+        safe_stdout_write(">>> [MOD 2 / TC-2.10] Testing Programmatic crawl_website & format_sync_status_box...\n")
+        from any_context.ingestion.web_crawler import crawl_website
+        from any_context.ingestion.local_folder_ingestor import format_sync_status_box
+        from any_context.ingestion.unified_sync import run_unified_sync
+
+        # Test format_sync_status_box
+        sample_diff = {
+            "workspace_name": "TestWS",
+            "total_sources": 1,
+            "folders": ["C:/Test/Folder"],
+            "total_disk_files": 5,
+            "total_cached_files": 5,
+            "web_sources": [{"url": "https://example.com", "title": "Example", "page_count": 10}],
+            "web_pages_count": 10,
+            "cloud_drives": [],
+            "summary": "Up to date",
+            "is_up_to_date": True
+        }
+        card = format_sync_status_box(sample_diff)
+        self.assertIn("Workspace Sync Status: TestWS", card)
+        self.assertIn("Local Folders", card)
+        self.assertIn("Web Sources", card)
+
+        # Test run_unified_sync execution without throwing ImportErrors
+        sync_res = run_unified_sync(workspace_name=self.ws_web, sync_folders=True, sync_web=True, sync_drives=True)
+        self.assertIn(self.ws_web, sync_res["folder_results"])
+        self.assertIn(self.ws_web, sync_res["web_results"])
+
+        safe_stdout_write("  [OK] Programmatic crawl_website and format_sync_status_box exports verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
