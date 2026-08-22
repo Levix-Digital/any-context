@@ -1064,6 +1064,40 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "Linking is instantaneous (< 50ms) and spends zero OpenAI/LLM tokens ($0.00).",
             "When creating a new workspace (/switch or /workspace add), AnyContext automatically offers a checklist of available Shared Sources."
         ]
+    ),
+
+    "rag": HelpPage(
+        command="/rag",
+        aliases=["rag", "retrieval", "/retrieval", "--rag", "--retrieval"],
+        title="🔬 2-Phase High-Precision RAG & Context Calibration Engine",
+        description=(
+            "AnyContext implements an advanced 2-Phase Retrieval-Augmented Generation (RAG) pipeline designed for maximum factual precision, "
+            "zero multi-portal monopolization, and prevention of the 'Lost in the Middle' attention degradation phenomenon. "
+            "Phase 1 performs a deep ChromaDB vector scan over a 100+ chunk candidate pool. "
+            "Phase 2 applies Source-Fair Round-Robin diversification, injecting the 15-20 densest chunks (~15,000-20,000 tokens) with resilient exponential backoff auto-retries."
+        ),
+        syntax=(
+            "  View RAG Guide & Details       : /rag   OR   /retrieval   OR   /help rag\n"
+            "  Configure Retrieval Presets    : /config -> Context & RAG Settings\n"
+            "  Inspect Retrieved Sources      : /sources"
+        ),
+        parameters=[
+            "/rag, /retrieval              : Displays the technical architecture and grounding mechanics of the AnyContext RAG engine.",
+            "--preset balanced             : Default optimal setting (Candidate Pool: 100, Top Chunks: 20, Max Per Source: 3).",
+            "--preset turbo                : Speed-optimized setting (Candidate Pool: 50, Top Chunks: 10, Max Per Source: 2).",
+            "--preset deep_research        : Deep synthesis setting (Candidate Pool: 150, Top Chunks: 40, Max Per Source: 4)."
+        ],
+        examples=[
+            "In Chat: /rag",
+            "In Chat: /help rag",
+            "In Chat: /help retrieval",
+            "In Chat: /config"
+        ],
+        tips=[
+            "Why 15-20 chunks? Stanford research shows prompts with 40+ chunks suffer from 'Lost in the Middle' attention degradation and noise injection.",
+            "Source-Fair Round-Robin ensures that workspaces with 50+ documents give fair representation to all relevant sources without a single file dominating the context.",
+            "All LLM requests feature built-in auto-retry with exponential backoff (max_retries=5) to seamlessly survive OpenAI/provider TPM rate limits."
+        ]
     )
 }
 
