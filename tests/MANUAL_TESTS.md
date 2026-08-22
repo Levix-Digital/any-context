@@ -4,52 +4,44 @@
 
 ---
 
-## 🎯 Teste Ativo (Última Release: v0.17.5)
+## 🎯 Teste Ativo (Última Release: v0.17.7)
 
-### 📌 Cenário: Resiliência de Contexto & Multi-Turn Chat (Prevenção de Overflow de 128k Tokens)
+### 📌 Cenário: Perguntas Compostas Multi-Tópico & Orçamento Proporcional de Contexto
 
-- **Objetivo**: Comprovar que o `PruningChatModelWrapper` poda chunks de ferramentas antigas em runtime, mantendo o prompt da LLM calibrado em ~10.000 tokens e permitindo conversas longas de múltiplos turnos sem erro 400 (`OpenAIContextOverflowError`).
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.17.5`.
+- **Objetivo**: Comprovar que perguntas com múltiplos tópicos simultâneos (ex: autorização de menores + regras de outra jurisdição) preservam os fatos de **todos os tópicos pesquisados** no prompt final sem estourar o limite de 128k tokens da OpenAI.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.17.7`.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Atualizar e Iniciar o AnyContext:**
    ```powershell
-   actx --update@0.17.5
+   actx --update@0.17.7
    actx
    ```
 
-2. **💬 Turno 1 (Primeira Pergunta no Workspace):**
-   ```text
-   👤 You: Qual é a regra geral do nosso projeto/documento?
-   ```
-   - **Critério de Sucesso:**
-     - Exibe `📚 [RAG] Reading retrieved context documents for AI analysis...`
-     - A IA responde normalmente baseada nos documentos.
-
-3. **💬 Turno 2 (Segunda Pergunta Consecutiva na Mesma Sessão):**
-   *(Sem sair do terminal ou fechar o chat)*
+2. **💬 Turno 1 (Pergunta Composta com Múltiplos Sub-Tópicos):**
    ```text
    👤 You: Quem deve assinar autorizações para crianças? O que as leis do Canadá dizem sobre isso?
    ```
    - **Critério de Sucesso:**
-     - O sistema realiza a busca normalmente.
-     - A resposta é sintetizada com rapidez (~2 a 4s) sem erro de limite de taxa.
+     - A resposta é gerada em **menos de 4 segundos** (sem loops de 10 buscas).
+     - **Zero Erro 400 (`ContextOverflowError - 139001 tokens`)**.
+     - A IA aborda **ambos os aspectos** (autorização de menores E a legislação/regras pertinentes) com citações exatas das fontes.
 
-4. **💬 Turno 3 (Terceira Pergunta Consecutiva - Ponto Crítico Anterior):**
+3. **💬 Turno 2 (Segunda Pergunta Consecutiva na Mesma Sessão):**
    ```text
-   👤 You: E quanto aos prazos de recursos ou penalidades descritos nos documentos?
+   👤 You: E quais são os prazos e penalidades caso essa autorização não seja entregue a tempo?
    ```
    - **Critério de Sucesso:**
-     - **Zero Erro 400 (`ContextOverflowError - 138992 tokens`):** A IA responde imediatamente.
-     - O wrapper de pruning reduziu os chunks dos turnos 1 e 2 para marcadores compactos de 71 caracteres.
+     - O Turno 1 é compactado em runtime para `"[Prior workspace context retrieved and synthesized in conversation history]"`.
+     - O prompt permanece calibrado em ~10.000 tokens e a resposta sai instantaneamente.
 
-5. **💬 Turno 4 (Verificação de Continuidade do Diálogo Humano):**
+4. **💬 Turno 3 (Verificação de Memória do Diálogo):**
    ```text
-   👤 You: Você pode resumir em tópicos o que me explicou na pergunta anterior?
+   👤 You: Resuma em 3 tópicos os pontos principais que discutimos até aqui.
    ```
    - **Critério de Sucesso:**
-     - A IA lembra perfeitamente do diálogo humano e resume os pontos com precisão, confirmando que apenas o lixo de chunks brutos foi podado sem afetar a memória da conversa.
+     - A IA sintetiza as respostas dos Turnos 1 e 2 perfeitamente, comprovando a integridade da memória conversacional.
 
 ---
 

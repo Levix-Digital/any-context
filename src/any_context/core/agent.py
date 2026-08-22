@@ -33,29 +33,60 @@ def _prune_historical_tool_messages(messages):
     return messages
 
 
-def _prune_messages_for_llm(messages):
+def _prune_messages_for_llm(messages, max_current_turn_chars=40000):
     """
-    Prunes heavy raw chunk dumps from prior turns' ToolMessages at LLM call-time,
-    retaining only compact English markers while preserving all HumanMessage, AIMessage,
-    and the current turn's fresh ToolMessages.
+    Prunes raw chunk dumps from prior turns' ToolMessages at LLM call-time,
+    while intelligently consolidating multiple ToolMessages within the current turn
+    so that every researched topic is preserved under a combined safe token budget.
     """
     if not messages or not isinstance(messages, list):
         return messages
 
+    # 1. Find the index of the latest HumanMessage (demarcating current turn)
     last_human_idx = -1
     for i in range(len(messages) - 1, -1, -1):
-        if getattr(messages[i], "type", "") == "human" or messages[i].__class__.__name__ == "HumanMessage":
+        m = messages[i]
+        if getattr(m, "type", "") == "human" or m.__class__.__name__ == "HumanMessage":
             last_human_idx = i
             break
+
+    # 2. Collect current turn ToolMessages
+    current_turn_tool_indices = []
+    if last_human_idx != -1:
+        for idx in range(last_human_idx + 1, len(messages)):
+            m = messages[idx]
+            m_type = getattr(m, "type", "")
+            if m_type in ["tool", "ToolMessage"] or hasattr(m, "tool_call_id"):
+                current_turn_tool_indices.append(idx)
+    else:
+        for idx, m in enumerate(messages):
+            m_type = getattr(m, "type", "")
+            if m_type in ["tool", "ToolMessage"] or hasattr(m, "tool_call_id"):
+                current_turn_tool_indices.append(idx)
+
+    # Budget per tool call in current turn
+    num_current_tools = len(current_turn_tool_indices)
+    per_tool_char_budget = max(4000, max_current_turn_chars // max(1, num_current_tools))
 
     pruned = []
     for idx, msg in enumerate(messages):
         m_type = getattr(msg, "type", "")
-        # If it is a ToolMessage prior to the latest HumanMessage, it's historical
-        if (m_type in ["tool", "ToolMessage"] or hasattr(msg, "tool_call_id")) and idx < last_human_idx:
+        is_tool = (m_type in ["tool", "ToolMessage"] or hasattr(msg, "tool_call_id"))
+
+        if is_tool and idx < last_human_idx:
+            # Historical tool from a prior turn: compact to English marker
             cloned = msg.model_copy() if hasattr(msg, "model_copy") else msg
             cloned.content = "[Prior workspace context retrieved and synthesized in conversation history]"
             pruned.append(cloned)
+        elif is_tool and idx in current_turn_tool_indices:
+            # Current turn tool: preserve topics within proportional budget!
+            content_str = str(getattr(msg, "content", "") or "")
+            if len(content_str) > per_tool_char_budget:
+                cloned = msg.model_copy() if hasattr(msg, "model_copy") else msg
+                cloned.content = content_str[:per_tool_char_budget] + "\n[...additional topic snippets condensed for turn budget...]"
+                pruned.append(cloned)
+            else:
+                pruned.append(msg)
         else:
             pruned.append(msg)
 
