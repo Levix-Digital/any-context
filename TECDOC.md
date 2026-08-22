@@ -82,13 +82,13 @@ graph TD
 - **The Danger of Injecting 50,000+ Tokens**: Dumping 40 to 50 raw chunks introduces 40+ pages of irrelevant noise (navigation footers, sidebars, general disclaimers). Research (including Stanford studies) proves that LLMs suffer from **attention degradation in long contexts ("Lost in the Middle")**, missing critical facts and hallucinating.
 - **Calibrated Injection**: By delivering **15 to 20 dense chunks (~10,000 to 15,000 tokens)**, AnyContext eliminates noise, improves factual precision, accelerates latency by 3x, and drastically reduces token costs.
 
-### 🧹 Runtime Call-Time Tool Message Pruning (`PruningChatModelWrapper`)
+### 🧹 Multi-Query Turn Consolidation & Runtime Pruning (`PruningChatModelWrapper`)
 - In multi-turn chat sessions (`actx`), LangGraph retains the compiled state graph in RAM across consecutive turns within the same terminal session.
-- To prevent past searches from accumulating across turns (e.g. 3 turns × 42k chars = 138,992 tokens), `PruningChatModelWrapper` and `PruningBoundModel` intercept the message stream at LLM call-time immediately before invoking the provider API:
+- To prevent past searches from accumulating across turns (e.g. 3 turns × 42k chars = 138,992 tokens) while **fully preserving multi-subtopic searches within the same question**:
   - **Historical Tool Messages**: All `ToolMessage` payloads prior to the latest `HumanMessage` are compacted to `"[Prior workspace context retrieved and synthesized in conversation history]"`.
-  - **Current Turn Tool Messages**: The active turn's retrieved context is delivered at 100% full fidelity.
+  - **Current Turn Multi-Tool Consolidation**: When the agent searches multiple sub-topics in the active turn (e.g. Subtopic A + Subtopic B), the system partitions the 40,000-character density budget proportionally across all active tool calls. Every researched topic is preserved with high-density snippets without dropping facts.
   - **Conversation Dialogue**: `HumanMessage` and `AIMessage` history is **100% preserved**.
-  - **Prompt Size**: Stays safely at ~5,000 to 12,000 tokens indefinitely, completely eliminating 128,000 token context overflow errors across 100+ turns.
+  - **Prompt Size**: Stays safely at ~5,000 to 12,000 tokens indefinitely, completely eliminating 128,000 token context overflow errors across 100+ turns and multi-topic tool loops.
 
 ### 🔄 Resilient Auto-Retry with Exponential Backoff (`max_retries=5`)
 - All 9 supported AI providers (OpenAI, Anthropic, Gemini, Groq, DeepSeek, Mistral, xAI) enforce Tokens Per Minute (TPM) and Requests Per Minute (RPM) rate limits.
