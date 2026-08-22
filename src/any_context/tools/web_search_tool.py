@@ -32,11 +32,14 @@ def _extract_domain(url: str) -> Optional[str]:
 def execute_web_search(
     query: str,
     domains: Optional[List[str]] = None,
-    max_results: int = 5
+    max_results: int = 5,
+    allow_fallback: bool = True
 ) -> List[Dict[str, str]]:
     """
-    Executes web search across DuckDuckGo, Tavily, or Serper.
+    Executes web search across Tavily, Serper, or DuckDuckGo.
     If domains are provided, prioritizes domain-targeted queries.
+    If domain-targeted search yields no results and allow_fallback is True,
+    automatically cascades to the open global web.
     """
     clean_query = query.strip()
     if not clean_query:
@@ -55,8 +58,10 @@ def execute_web_search(
                 "api_key": tavily_key.strip(),
                 "query": clean_query,
                 "max_results": max_results,
-                "include_domains": domains if domains else []
             }
+            if domains and len(domains) > 0:
+                payload["include_domains"] = domains
+
             headers = {"Accept-Encoding": "identity", "Content-Type": "application/json"}
             resp = httpx.post("https://api.tavily.com/search", headers=headers, json=payload, timeout=10.0)
             if resp.status_code == 200:
@@ -137,6 +142,10 @@ def execute_web_search(
         # Fallback / Mock for offline and testing environments
         pass
 
+    # 4. Automatic Cascade Fallback: If targeted domain returned no results, search open global web
+    if not results and domains and allow_fallback:
+        return execute_web_search(clean_query, domains=None, max_results=max_results, allow_fallback=False)
+
     return results[:max_results]
 
 
@@ -151,10 +160,18 @@ def get_active_web_search_engine() -> str:
 
 
 @tool()
-def live_web_search(query: str, workspace: Optional[str] = None, max_results: int = 5) -> str:
+def live_web_search(
+    query: str,
+    target_domain: Optional[str] = None,
+    workspace: Optional[str] = None,
+    max_results: int = 5
+) -> str:
     """
     Performs real-time public web search on the internet when web search is enabled for the workspace.
-    Prioritizes domain portals registered in the active workspace before searching the open web.
+
+    SMART DOMAIN ROUTING RULE:
+    - If the user's question specifically relates to a website or organization registered in the workspace (especially SPAs), pass its domain in `target_domain` (e.g. target_domain='flyingsquirrelsports.ca').
+    - If the user's question is about general knowledge, current events, weather, stock prices, or external topics, do NOT pass `target_domain` (leave it empty) to search the global open web.
 
     CRITICAL CONVERSATIONAL SEARCH RULE:
     When the user confirms or grants permission to search the web (e.g. answering 'sim', 'yes', 'pode', 'ok', etc.),
@@ -163,7 +180,8 @@ def live_web_search(query: str, workspace: Optional[str] = None, max_results: in
 
     Args:
         query (str): The search query to look up online (e.g. 'previsão do tempo para Calgary amanhã').
-        workspace (str, optional): Target workspace name to prioritize its registered web portals.
+        target_domain (str, optional): Target specific website domain when query is about that portal (e.g. 'flyingsquirrelsports.ca').
+        workspace (str, optional): Active workspace name.
         max_results (int): Maximum number of search results to return (default: 5).
 
     Returns:
@@ -173,14 +191,19 @@ def live_web_search(query: str, workspace: Optional[str] = None, max_results: in
     if not clean_query:
         return "⚠️ Please provide a non-empty search query."
 
-    # Search open web directly with top search engine
-    results = execute_web_search(clean_query, domains=None, max_results=max_results)
+    domains = []
+    if target_domain and target_domain.strip():
+        extracted = _extract_domain(target_domain.strip())
+        domains.append(extracted if extracted else target_domain.strip())
+
+    results = execute_web_search(clean_query, domains=domains if domains else None, max_results=max_results, allow_fallback=True)
     engine_name = get_active_web_search_engine()
 
     if not results:
         return f"🔍 Nenhuma informação adicional encontrada na internet via {engine_name} para a busca: '{clean_query}'."
 
-    lines = [f"### 🌐 Resultados da Busca Web (via {engine_name}) para '{clean_query}':"]
+    prioritized_str = f" • Portal: {', '.join(domains)}" if domains else ""
+    lines = [f"### 🌐 Resultados da Busca Web (via {engine_name}{prioritized_str}) para '{clean_query}':"]
 
     for i, r in enumerate(results, 1):
         title = r.get("title", "Resultado Web")

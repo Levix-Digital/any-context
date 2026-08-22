@@ -153,7 +153,7 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
         if web_search_enabled:
             prompt += f"\n\n### 🌐 LIVE WEB SEARCH ENGINE: ACTIVE (ENABLED FOR WORKSPACE '{active_workspace or 'Current'}')\n"
             prompt += "- You have access to the `live_web_search` tool to fetch real-time public internet data.\n"
-            prompt += "- **PORTAL PRIORITIZATION:** If the active workspace has registered web sources, always attempt queries focused on those domains first before falling back to general internet search.\n"
+            prompt += "- **SMART DOMAIN ROUTING & FALLBACK:** If the user asks about a specific portal or organization registered in this workspace (especially for SPAs with dynamic content), pass `target_domain` to `live_web_search`. For general queries (weather, news, facts), omit `target_domain` to search the open global web.\n"
             prompt += "- **SOURCE DISCRIMINATION RULE:** You MUST strictly and visually discriminate the origin of each piece of information in your final response.\n"
 
             if effective_mode == "strict":
