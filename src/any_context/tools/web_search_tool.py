@@ -140,19 +140,29 @@ def execute_web_search(
     return results[:max_results]
 
 
+def get_active_web_search_engine() -> str:
+    """Returns the name of the currently active search engine (Tavily, Serper, or DuckDuckGo)."""
+    from any_context.core.utils import get_api_key
+    if get_api_key("tavily") or os.getenv("TAVILY_API_KEY"):
+        return "Tavily Search API"
+    elif get_api_key("serper") or os.getenv("SERPER_API_KEY"):
+        return "Serper Google Search API"
+    return "DuckDuckGo (Free Engine)"
+
+
 @tool()
 def live_web_search(query: str, workspace: Optional[str] = None, max_results: int = 5) -> str:
     """
     Performs real-time public web search on the internet when web search is enabled for the workspace.
     Prioritizes domain portals registered in the active workspace before searching the open web.
 
-    CRITICAL STRICT MODE SAFETY RULE:
-    In Strict Grounding Mode, you MUST NEVER call this tool autonomously.
-    If the question is not covered by the local workspace documents, DO NOT run this tool; instead, inform the user that the information is absent from the workspace documents and ask for permission to search the web.
-    ONLY call this tool if the user explicitly requested/confirmed a web search.
+    CRITICAL CONVERSATIONAL SEARCH RULE:
+    When the user confirms or grants permission to search the web (e.g. answering 'sim', 'yes', 'pode', 'ok', etc.),
+    DO NOT pass the literal confirmation string 'sim' as the query!
+    You MUST reconstruct and pass the full search topic/question previously discussed (e.g., query='previsão do tempo para Calgary amanhã').
 
     Args:
-        query (str): The search query to look up online.
+        query (str): The search query to look up online (e.g. 'previsão do tempo para Calgary amanhã').
         workspace (str, optional): Target workspace name to prioritize its registered web portals.
         max_results (int): Maximum number of search results to return (default: 5).
 
@@ -179,11 +189,12 @@ def live_web_search(query: str, workspace: Optional[str] = None, max_results: in
         pass
 
     results = execute_web_search(clean_query, domains=domains if domains else None, max_results=max_results)
+    engine_name = get_active_web_search_engine()
 
     if not results:
-        return f"🔍 Nenhuma informação adicional encontrada na internet para a busca: '{clean_query}'."
+        return f"🔍 Nenhuma informação adicional encontrada na internet via {engine_name} para a busca: '{clean_query}'."
 
-    lines = [f"### 🌐 Resultados da Busca Web para '{clean_query}':"]
+    lines = [f"### 🌐 Resultados da Busca Web (via {engine_name}) para '{clean_query}':"]
     if domains:
         lines.append(f"*(Priorizando portais do workspace: {', '.join(domains)})*\n")
 

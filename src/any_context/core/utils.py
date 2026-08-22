@@ -160,13 +160,15 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
                 prompt += (
                     "- **STRICT PROTOCOL FOR WEB SEARCH (USER PERMISSION MANDATORY):**\n"
                     "  1. Search `search_db` FIRST. Rely 100% on the local workspace documents.\n"
-                    "  2. You are STRICTLY FORBIDDEN from calling `live_web_search` autonomously without prior explicit user confirmation.\n"
+                    "  2. You are STRICTLY FORBIDDEN from calling `live_web_search` autonomously on the initial question without prior explicit user confirmation.\n"
                     "  3. If information is missing from the local workspace files (e.g. weather forecast, current news, topics not indexed in files):\n"
-                    "     - DO NOT call `live_web_search`.\n"
+                    "     - DO NOT call `live_web_search` immediately.\n"
                     "     - DO NOT guess or hallucinate answers.\n"
                     "     - You MUST inform the user and explicitly ASK:\n"
                     "       *\"⚠️ Essa informação não foi encontrada nos documentos locais do workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\"*\n"
-                    "  4. ONLY call `live_web_search` if the user explicitly confirms (e.g. 'sim', 'pesquise', 'busque na web') OR if their prompt explicitly contains a direct web search instruction (e.g. 'pesquise na internet a previsão do tempo').\n"
+                    "  4. When the user confirms (e.g. 'sim', 'yes', 'pode buscar', 'ok', 'faça isso') OR if their prompt explicitly instructs to search online:\n"
+                    "     - You MUST call `live_web_search` immediately.\n"
+                    "     - **QUERY RECONSTRUCTION RULE:** In the `query` argument of `live_web_search`, you MUST pass the FULL TARGET TOPIC/QUESTION discussed (e.g. `live_web_search(query='previsão do tempo para Calgary amanhã')`), NEVER the confirmation keyword ('sim').\n"
                     "  5. Present all web findings under:\n"
                     "     `### 🌐 Resultados da Web Externa (Fonte: <URL>)`\n"
                 )

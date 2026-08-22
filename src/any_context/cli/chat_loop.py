@@ -1374,7 +1374,13 @@ def run_chat_loop(active_workspace: str = "Default"):
 
                     elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
                         if not has_printed_ai_header:
-                            safe_stdout_write(f"\r\033[K📚 [RAG] Reading retrieved context documents for AI analysis...")
+                            tool_name = str(getattr(token, "name", "") or "")
+                            if "web" in tool_name.lower():
+                                from any_context.tools.web_search_tool import get_active_web_search_engine
+                                eng = get_active_web_search_engine()
+                                safe_stdout_write(f"\r\033[K🌐 [{eng}] Pesquisando na internet em tempo real...")
+                            else:
+                                safe_stdout_write(f"\r\033[K📚 [RAG] Reading retrieved context documents for AI analysis...")
 
                 if not has_printed_ai_header:
                     safe_stdout_write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
