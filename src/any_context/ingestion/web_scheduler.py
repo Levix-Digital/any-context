@@ -506,8 +506,34 @@ def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[st
             id_=f"web_{data['url']}"
         )
 
-        pipeline.run(documents=[doc], show_progress=False)
+        nodes = pipeline.run(documents=[doc], show_progress=False)
         docstore.persist(persist_path=docstore_path)
+
+        try:
+            from any_context.vector_engine.store import LanceDBStore
+            l_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+            lance_records = []
+            for n in (nodes or []):
+                emb = getattr(n, "embedding", None)
+                if emb:
+                    lance_records.append({
+                        "id": n.id_,
+                        "vector": emb,
+                        "text": n.text or "",
+                        "file_name": data["title"],
+                        "file_path": data["url"],
+                        "workspace": workspace_name,
+                        "last_modified": time.strftime("%Y-%m-%d"),
+                        "content_type": "Web Documentation",
+                        "document_summary": "",
+                        "keywords": "",
+                        "content_hash": data["hash"]
+                    })
+            if lance_records:
+                l_store.delete_by_file(data["url"], workspace_name=workspace_name)
+                l_store.upsert_records(lance_records, dim=len(lance_records[0]["vector"]))
+        except Exception:
+            pass
 
         store.update_url_hash(url_id, data["title"], data["hash"])
         return {
@@ -554,6 +580,14 @@ def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
             chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"url": url}]})
         except Exception:
             pass
+
+        try:
+            from any_context.vector_engine.store import LanceDBStore
+            l_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+            l_store.delete_by_file(url, workspace_name=workspace_name)
+        except Exception:
+            pass
+
         return True
     except Exception as e:
         print(f"⚠️ Warning removing web vectors for '{url}': {e}")

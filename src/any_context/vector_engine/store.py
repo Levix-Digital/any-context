@@ -193,7 +193,20 @@ class LanceDBStore:
         with self._table_lock:
             try:
                 table = self._db.open_table(self._table_name)
-                table.delete(f"workspace = '{workspace_name}'")
+                clean_ws = workspace_name.replace("'", "''")
+                table.delete(f"workspace = '{clean_ws}'")
+            except Exception:
+                pass
+
+    def delete_local_documents_by_workspace(self, workspace_name: str):
+        """Purges only local document chunks associated with a specific workspace, preserving web sources."""
+        if not self._has_table(self._table_name):
+            return
+        with self._table_lock:
+            try:
+                table = self._db.open_table(self._table_name)
+                clean_ws = workspace_name.replace("'", "''")
+                table.delete(f"workspace = '{clean_ws}' AND content_type = 'Local Document'")
             except Exception:
                 pass
 

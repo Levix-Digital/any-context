@@ -825,11 +825,13 @@ def run_chat_loop(active_workspace: str = "Default"):
                     bg_mgr = BackgroundSyncManager()
                     bg_mgr.start_background_sync(active_workspace, verbose=is_verbose)
                     safe_stdout_write(f"\n🚀 Background synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
-                elif is_verbose:
-                    run_index_folder(workspace_name=active_workspace, verbose=True, force_full=is_full)
+                target_ws = None if is_all else active_workspace
+                if is_verbose:
+                    run_index_folder(workspace_name=target_ws, verbose=True, force_full=is_full)
                 else:
-                    with Spinner(f"Synchronizing workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
-                        run_index_folder(workspace_name=active_workspace, verbose=False, force_full=is_full)
+                    ws_label = "all workspaces" if is_all else f"workspace '{active_workspace}'"
+                    with Spinner(f"Synchronizing {ws_label}...", done_message=f"{ws_label.capitalize()} ready"):
+                        run_index_folder(workspace_name=target_ws, verbose=False, force_full=is_full)
                 agent_instance = None
                 continue
 
