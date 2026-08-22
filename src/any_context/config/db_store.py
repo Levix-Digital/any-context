@@ -635,7 +635,7 @@ class ConfigDBStore:
         transferred_chunks = 0
         try:
             from any_context.vector_engine.store import LanceDBStore
-            settings = AppSettings.load()
+            settings = self.get_app_settings()
             db_path = settings.context.db_path if (settings and settings.context) else "./context_db"
             l_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
             transferred_chunks = l_store.transfer_file(source_ws, target_ws, abs_folder)

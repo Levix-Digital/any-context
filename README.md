@@ -121,9 +121,9 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🔄 Instant Zero-Cost Source Transfer (`/transfer` & `/config`)**:
   - Move folders and web portals between workspaces in sub-50ms with **$0.00 in embedding API costs**.
   - Dynamically updates vector metadata tags in ChromaDB and SQLite without re-indexing or re-crawling.
-- **⚡ Non-Blocking Background Synchronization & Dynamic Status Dock (`/sync`)**:
+- **⚡ Non-Blocking Background Synchronization & Micro-Bar Status Dock (`/sync`)**:
   - Sincronização desacoplada em threads em segundo plano (`BackgroundSyncManager`) que libera o prompt `👤 You:` imediatamente para conversação sem travar o teclado.
-  - Badge dinâmico `⚡ Syncing...` refletido em tempo real na barra de ferramentas inferior (`bottom_toolbar`) durante a indexação vetorial.
+  - Micro-barra de blocos unicode em tempo real (`⚡ Syncing [████░░░░] 50% (15/30 files)`) na barra inferior (`bottom_toolbar`).
   - Sincronização mestre unificada em todas as fontes (pastas locais, portais web, cloud drives) com modo verbose estruturado para auditoria completa (`/sync --verbose`).
 - **🎯 Typo-Resilient Slash Command Interception**:
   - Mistyped commands (e.g. `/check-updaete`, `/swich`, `/modeel`, `/sinc`) are caught by the intelligent fuzzy matcher and suggest the correct command without wasting AI tokens.

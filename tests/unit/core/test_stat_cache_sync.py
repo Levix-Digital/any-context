@@ -39,6 +39,7 @@ class TestStatCacheSync(unittest.TestCase):
         cls.orig_settings = cls.store.get_app_settings()
         cls.store.update_context_settings(ContextSettings(db_path=cls.db_dir, collection_name="stat_cache_docs"))
         cls.ws_name = "Test_Hospital_Cache"
+        cls.store.remove_workspace(cls.ws_name)
         cls.store.add_workspace(cls.ws_name, [cls.docs_dir])
 
         setup_mock_embeddings_if_needed()
@@ -197,6 +198,36 @@ class TestStatCacheSync(unittest.TestCase):
         self.assertIn("web_results", completed_results[0])
         self.assertIn("drive_results", completed_results[0])
         safe_stdout_write("  [OK] Unified multi-source background sync verified!\n")
+
+    def test_08_background_sync_progress_telemetry(self):
+        """TC-SC.8: Validates progress telemetry and micro-bar formatting in BackgroundSyncManager."""
+        safe_stdout_write(">>> [STAT CACHE / TC-SC.8] Testing Progress Telemetry & Micro-Bar Formatting...\n")
+        bg_mgr = BackgroundSyncManager()
+        test_ws = "TelemetryWS"
+
+        # 1. Test scanning stage (total == 0)
+        bg_mgr.update_progress(test_ws, current=0, total=0, stage="scanning")
+        prog = bg_mgr.get_progress(test_ws)
+        self.assertEqual(prog["stage"], "scanning")
+        self.assertEqual(prog["pct"], 0.0)
+        self.assertEqual(bg_mgr.format_progress_bar(test_ws), "[scanning...]")
+
+        # 2. Test 50% progress on 10 files with width 8
+        bg_mgr.update_progress(test_ws, current=5, total=10, stage="files", item_name="doc.pdf")
+        prog = bg_mgr.get_progress(test_ws)
+        self.assertEqual(prog["current"], 5)
+        self.assertEqual(prog["total"], 10)
+        self.assertEqual(prog["pct"], 50.0)
+        self.assertEqual(prog["item_name"], "doc.pdf")
+        bar_str = bg_mgr.format_progress_bar(test_ws, width=8)
+        self.assertEqual(bar_str, "[████░░░░] 50% (5/10 files)")
+
+        # 3. Test 100% progress on web pages with width 10
+        bg_mgr.update_progress(test_ws, current=20, total=20, stage="pages")
+        bar_str = bg_mgr.format_progress_bar(test_ws, width=10)
+        self.assertEqual(bar_str, "[██████████] 100% (20/20 pages)")
+
+        safe_stdout_write("  [OK] Progress telemetry and micro-bar formatting verified!\n")
 
 if __name__ == "__main__":
     unittest.main()

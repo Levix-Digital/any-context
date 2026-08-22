@@ -429,6 +429,40 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
 
         safe_stdout_write("  [OK] /sync, /folder --sync, /web --sync, /drive --sync non-blocking dispatch verified!\n")
 
+    def test_20_bottom_toolbar_progress_bar_render(self):
+        """Validates that create_bottom_toolbar_renderer renders the progress micro-bar when syncing."""
+        safe_stdout_write(">>> [CLI UNIT] Testing Bottom Toolbar Progress Micro-Bar Render...\n")
+        from any_context.cli.chat_loop import create_bottom_toolbar_renderer
+        from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+        import threading
+
+        bg_mgr = BackgroundSyncManager()
+        test_ws = "RenderTestWS"
+
+        # 1. Idle state -> no sync badge
+        renderer = create_bottom_toolbar_renderer(test_ws, "gpt-4o-mini", "hybrid")
+        rendered_idle = str(renderer())
+        self.assertNotIn("⚡ Syncing", rendered_idle)
+
+        # 2. Mock syncing state with 60% progress
+        dummy_thread = threading.Thread(target=lambda: None)
+        dummy_thread.start()
+        dummy_thread.join() # finished thread, but we will mock is_alive
+        with patch.object(threading.Thread, "is_alive", return_value=True):
+            bg_mgr._active_jobs[test_ws] = {
+                "thread": dummy_thread,
+                "status": "syncing",
+                "start_time": 0,
+                "result": None,
+                "error": None
+            }
+            bg_mgr.update_progress(test_ws, current=6, total=10, stage="files")
+            rendered_syncing = str(renderer())
+            self.assertIn("⚡ Syncing", rendered_syncing)
+            self.assertIn("[█████░░░] 60% (6/10 files)", rendered_syncing)
+
+        safe_stdout_write("  [OK] Bottom toolbar progress micro-bar render verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
 

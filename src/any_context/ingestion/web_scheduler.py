@@ -396,7 +396,8 @@ class WebSchedulerStore:
         transferred_chunks = 0
         try:
             from any_context.vector_engine.store import LanceDBStore
-            settings = AppSettings.load()
+            config_store = ConfigDBStore(db_path=self.db_path)
+            settings = config_store.get_app_settings()
             db_path = settings.context.db_path if (settings and settings.context) else "./context_db"
             l_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
             transferred_chunks = l_store.transfer_file(source_ws, target_ws, exact_root)
@@ -540,7 +541,11 @@ def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
         return False
 
 
-def sync_workspace_web_urls(workspace_name: str, force: bool = False) -> Dict[str, Any]:
+def sync_workspace_web_urls(
+    workspace_name: str,
+    force: bool = False,
+    progress_callback: Optional[Any] = None
+) -> Dict[str, Any]:
     """
     Synchronizes / re-indexes all web URLs and crawled portals configured for a workspace.
     Properly handles both single URLs and multi-page crawled portals.
@@ -548,7 +553,10 @@ def sync_workspace_web_urls(workspace_name: str, force: bool = False) -> Dict[st
     store = WebSchedulerStore()
     urls = store.get_workspace_web_urls(workspace_name)
     results = []
-    for u in urls:
+    total_u = len(urls)
+    for idx, u in enumerate(urls):
+        if progress_callback:
+            progress_callback(idx + 1, total_u, "web", u["url"])
         page_count = u.get("page_count", 1) or 1
         scope = u.get("scope")
         if page_count > 1 or scope in ["domain", "section", "custom"]:

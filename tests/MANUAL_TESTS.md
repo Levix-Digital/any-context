@@ -7,7 +7,47 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.22.0): Sincronização Unificada em Background Não-Bloqueante & Status Dinâmico
+### 📌 Cenário 1 (v0.22.1): Telemetria em Tempo Real & Micro-Barra de Progresso na Barra de Ferramentas Inferior
+
+- **Objetivo**: Comprovar que durante a sincronização em segundo plano, a barra inferior (`bottom_toolbar`) exibe a micro-barra gráfica de blocos unicode `[████░░░░]` com percentual e contagem atualizada em tempo real (ex: `⚡ Syncing [████░░░░] 50% (15/30 files)`), transitando para `100%` e finalizando suavemente sem travar o teclado.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.22.1`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Atualizar e Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.22.1
+   actx
+   ```
+
+2. **⚡ Disparar Sincronização em Background (`/sync`):**
+   ```text
+   /sync
+   ```
+   - **Critério de Sucesso:**
+     - O prompt `👤 You:` permanece livre e interativo.
+     - A barra inferior exibe a micro-barra de progresso com blocos unicode em tempo real:
+       `⚡ Syncing [████░░░░] 50% (15/30 files)` (ou `[scanning...]` na fase de descoberta).
+
+3. **💬 Conversar com a IA enquanto o Progresso Atualiza na Barra:**
+   ```text
+   Olá! Resuma o que você sabe sobre os documentos deste workspace.
+   ```
+   - **Critério de Sucesso:**
+     - A IA responde sem atraso enquanto o percentual e a contagem da micro-barra sobem de forma fluida.
+     - Ao término da sincronização (100%), o badge é removido da barra de status.
+
+4. **🌐 Inspeção via REST API e MCP:**
+   ```powershell
+   # Em outro terminal com actx --serve ativo:
+   curl http://127.0.0.1:8000/v1/workspaces/Default/sync/status
+   ```
+   - **Critério de Sucesso:**
+     - Retorna campos estruturados `is_syncing`, `progress` (`pct`, `current`, `total`, `stage`) e `progress_bar`.
+
+---
+
+### 📌 Cenário 2 (v0.22.0): Sincronização Unificada em Background Não-Bloqueante & Status Dinâmico
 
 - **Objetivo**: Comprovar que os comandos de sincronização (`/sync`, `/folder --sync`, `/web --sync`, `/drive --sync`) executam em segundo plano via `BackgroundSyncManager` de forma totalmente desacoplada e não-bloqueante, liberando o prompt de digitação `👤 You:` instantaneamente e exibindo o indicador `⚡ Syncing...` em tempo real na barra de ferramentas inferior (`bottom_toolbar`).
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.22.0`.
