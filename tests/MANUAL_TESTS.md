@@ -7,7 +7,37 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.23.0): Sincronização Web de Alta Velocidade com HTTP 304, Sitemap Diff & Embeddings Paralelos
+### 📌 Cenário 1 (v0.23.1): Auto-Consciência e Auto-Bootstrap Permanente do Sistema (Help & README Global)
+
+- **Objetivo**: Comprovar que em qualquer workspace (inclusive workspaces 100% vazios ou contendo apenas páginas web), a IA responde imediatamente perguntas sobre comandos do AnyContext (ex: `/transfer`, `/switch`, `/sync`, `/web`, `/link`, `/config`) citando a sintaxe, opções e parâmetros exatos da documentação do sistema indexada em `Global`.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.23.1`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.23.1
+   actx
+   ```
+
+2. **❓ Fazer Pergunta sobre Comandos do Sistema:**
+   ```text
+   Como mover um web source de um workspace para outro aqui no AnyContext?
+   ```
+   - **Critério de Sucesso:**
+     - A IA consulta os chunks do `Global` e responde detalhadamente com a sintaxe do comando `/transfer` (ex: `/transfer <origem> <destino> <url>`), explicando o tempo de execução sub-50ms e custo zero ($0.00).
+     - A IA NÃO responde com mensagens de que a informação não consta no workspace.
+
+3. **❓ Perguntar sobre Outros Comandos (/link, /sync, /web):**
+   ```text
+   Qual comando uso para vincular uma pasta de outro workspace sem duplicar vetores?
+   ```
+   - **Critério de Sucesso:**
+     - A IA responde citando o comando `/link <source_id>` e explicando o compartilhamento de fontes.
+
+---
+
+### 📌 Cenário 2 (v0.23.0): Sincronização Web de Alta Velocidade com HTTP 304, Sitemap Diff & Embeddings Paralelos
 
 - **Objetivo**: Validar que a sincronização de portais web massivos (> 2.000 páginas) ocorre em alta velocidade usando HTTP Conditional GET (`304 Not Modified`), pre-filtragem por sitemap `<lastmod>` e paralelização concorrente de embeddings no `ParallelIndexer` com retry anti-429.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.23.0` com portal web indexado.
