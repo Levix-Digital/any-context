@@ -143,7 +143,8 @@ class LanceDBStore:
                 clean_ws = workspace.replace("'", "''")
                 where_clauses.append(f"workspace = '{clean_ws}'")
             elif workspaces:
-                ws_in = ", ".join([f"'{ws.replace('\'', '\'\'')}'" for ws in workspaces])
+                clean_workspaces = [w.replace("'", "''") for w in workspaces]
+                ws_in = ", ".join("'" + w + "'" for w in clean_workspaces)
                 where_clauses.append(f"workspace IN ({ws_in})")
 
             if filter_expr:
