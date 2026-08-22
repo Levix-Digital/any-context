@@ -173,30 +173,14 @@ def live_web_search(query: str, workspace: Optional[str] = None, max_results: in
     if not clean_query:
         return "⚠️ Please provide a non-empty search query."
 
-    target_ws = (workspace or "Default").strip()
-
-    # Discover registered domains in the active workspace
-    domains = []
-    try:
-        from any_context.ingestion.web_scheduler import WebSchedulerStore
-        store = WebSchedulerStore()
-        urls = store.get_workspace_web_urls(target_ws)
-        for u in urls:
-            dom = _extract_domain(u.get("url", ""))
-            if dom and dom not in domains:
-                domains.append(dom)
-    except Exception:
-        pass
-
-    results = execute_web_search(clean_query, domains=domains if domains else None, max_results=max_results)
+    # Search open web directly with top search engine
+    results = execute_web_search(clean_query, domains=None, max_results=max_results)
     engine_name = get_active_web_search_engine()
 
     if not results:
         return f"🔍 Nenhuma informação adicional encontrada na internet via {engine_name} para a busca: '{clean_query}'."
 
     lines = [f"### 🌐 Resultados da Busca Web (via {engine_name}) para '{clean_query}':"]
-    if domains:
-        lines.append(f"*(Priorizando portais do workspace: {', '.join(domains)})*\n")
 
     for i, r in enumerate(results, 1):
         title = r.get("title", "Resultado Web")
