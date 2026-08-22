@@ -46,7 +46,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
 ## 🚀 Key Features & Superpowers
 
 - **⚡ 100% LanceDB Columnar Vector Engine (Apache Arrow / Rust)**:
-  - **Sub-5ms Vector Queries**: Powered by native Rust SIMD vector distance routines, eliminating database locks and enabling instant retrieval across 100,000+ chunks.
+  - **Sub-5ms Vector Queries**: Powered by native Rust SIMD vector distance routines, eliminating database locks and enabling instant retrieval across 500,000+ chunks.
   - **Zero Database Locks**: Columnar Apache Arrow dataset architecture eliminates SQLite write-lock contentions on Windows.
   - **Live Dataset Inspection (`/inspect` ou `/chunks`)**: Directly inspect live vector records, record counts, and snippet previews for both document context and session memory.
   - **Instant $0.00 Transfers & Renames**: Data source transfers and workspace renames execute on LanceDB datasets in `< 50ms` with zero token expenditure.

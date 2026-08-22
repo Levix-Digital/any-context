@@ -179,7 +179,9 @@ class AnyContextE2ETestSuite(unittest.TestCase):
 
         # 4. Search Tech workspace for Legal terms -> must NOT find liquidated damages clause 42
         tech_legal_leak = search_db.invoke({"prompt_text": "liquidated damages clause 42", "workspace": self.ws_tech})
-        self.assertNotIn("100,000", tech_legal_leak, "Tech workspace must NOT return legal liquidated damages")
+        self.assertNotIn("Acme Corporation", tech_legal_leak, "Tech workspace must NOT return Acme Corporation NDA")
+        self.assertNotIn("acme_nda_agreement", tech_legal_leak, "Tech workspace must NOT return legal agreement file")
+        self.assertNotIn("100,000 USD", tech_legal_leak, "Tech workspace must NOT return legal liquidated damages")
         
         safe_stdout_write("  [OK] Privacy Scoping verified: 100% data isolation guaranteed between workspaces!\n")
 
