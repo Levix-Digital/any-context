@@ -1,3 +1,4 @@
+import os
 import sys
 import uuid
 from typing import Optional, List, Dict, Any
@@ -1019,6 +1020,79 @@ def run_chat_loop(active_workspace: str = "Default"):
                         store.set_web_search_status(False, apply_global=True)
                         agent_instance = None
                         print("\n🔒 \033[90mWeb Search disabled GLOBALLY across all workspaces.\033[0m\n")
+                continue
+
+            elif cmd in ["/search-engine", "/searchengine", "/engine"] or cmd.startswith("/search-engine ") or cmd.startswith("/engine "):
+                parts = parse_command_args(user_input)
+                cur_eng = store.get_default_search_engine(workspace_name=active_workspace)
+                tavily_key = store.get_api_key("tavily") or os.getenv("TAVILY_API_KEY")
+                serper_key = store.get_api_key("serper") or os.getenv("SERPER_API_KEY")
+
+                # Direct argument mode (e.g. /search-engine tavily, /engine serper, /search-engine --ddg)
+                if len(parts) >= 2:
+                    raw_arg = parts[1].lower().strip().lstrip("-")
+                    if raw_arg in ["tavily", "tvly"]:
+                        store.set_default_search_engine("tavily", workspace_name=active_workspace)
+                        agent_instance = None
+                        safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92mTAVILY (AI-Native Research)\033[0m\n")
+                        if not tavily_key:
+                            safe_stdout_write("\033[93m⚠️ Notice:\033[0m Tavily API key is not yet configured. Run '/key tavily <chave>' or configure in '/config'.\n\n")
+                        else:
+                            safe_stdout_write("\n")
+                        continue
+                    elif raw_arg in ["serper", "google", "serp"]:
+                        store.set_default_search_engine("serper", workspace_name=active_workspace)
+                        agent_instance = None
+                        safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92mSERPER (Google Search API)\033[0m\n")
+                        if not serper_key:
+                            safe_stdout_write("\033[93m⚠️ Notice:\033[0m Serper API key is not yet configured. Run '/key serper <chave>' or configure in '/config'.\n\n")
+                        else:
+                            safe_stdout_write("\n")
+                        continue
+                    elif raw_arg in ["duckduckgo", "ddg", "duck", "free"]:
+                        store.set_default_search_engine("duckduckgo", workspace_name=active_workspace)
+                        agent_instance = None
+                        safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92mDUCKDUCKGO (Free / No Key Required)\033[0m\n\n")
+                        continue
+                    elif raw_arg in ["auto", "smart", "default"]:
+                        store.set_default_search_engine("auto", workspace_name=active_workspace)
+                        agent_instance = None
+                        safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92mAUTO (Tavily -> Serper -> DuckDuckGo)\033[0m\n\n")
+                        continue
+
+                # Interactive selection menu
+                tav_status = f" [Key: {mask_key(tavily_key)}]" if tavily_key else " [No Key]"
+                serp_status = f" [Key: {mask_key(serper_key)}]" if serper_key else " [No Key]"
+                eng_choices = [
+                    f"⭐ Auto (Tavily -> Serper -> DuckDuckGo){'  [Active]' if cur_eng == 'auto' else ''}",
+                    f"🌐 Tavily Search API (AI-Native Research){tav_status}{'  [Active]' if cur_eng == 'tavily' else ''}",
+                    f"🔍 Serper (Google Search API){serp_status}{'  [Active]' if cur_eng == 'serper' else ''}",
+                    f"🦆 DuckDuckGo (Free / 100% No-Cost){'  [Active]' if cur_eng in ['duckduckgo', 'ddg'] else ''}",
+                    "🔙 [Cancel]"
+                ]
+                choice = questionary.select(
+                    f"Select Web Search Engine for Workspace '{active_workspace}':",
+                    choices=eng_choices
+                ).ask()
+                if not choice or choice.startswith("🔙"):
+                    continue
+
+                if choice.startswith("⭐"):
+                    new_eng = "auto"
+                    label = "Auto (Tavily -> Serper -> DuckDuckGo)"
+                elif choice.startswith("🌐"):
+                    new_eng = "tavily"
+                    label = "Tavily Search API"
+                elif choice.startswith("🔍"):
+                    new_eng = "serper"
+                    label = "Serper (Google Search API)"
+                else:
+                    new_eng = "duckduckgo"
+                    label = "DuckDuckGo (Free / No Key)"
+
+                store.set_default_search_engine(new_eng, workspace_name=active_workspace)
+                agent_instance = None
+                safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92m{label}\033[0m!\n\n")
                 continue
 
             elif cmd == "/update" or cmd.startswith("/update ") or cmd.startswith("/update@") or cmd in ["/check-update", "/checkupdate", "/check"]:

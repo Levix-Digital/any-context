@@ -15,6 +15,7 @@ class ContextSettings(BaseModel):
     retrieval_preset: str = Field(default="balanced", description="RAG Retrieval Density Preset: 'balanced', 'turbo', 'deep_research', 'custom'")
     grounding_mode: str = Field(default="strict", description="AI Grounding & Answer Mode: 'strict' (default), 'hybrid', 'proactive'")
     web_search_enabled: bool = Field(default=False, description="Default/Global Web Search Toggle")
+    default_web_engine: str = Field(default="auto", description="Default Web Search Engine: 'auto', 'tavily', 'serper', 'duckduckgo'")
 
     def apply_preset(self, preset_name: str):
         p = preset_name.lower().strip()
@@ -70,6 +71,7 @@ class WorkspaceSettings(BaseModel):
     total_sources: int = 0
     grounding_mode: str = Field(default="strict", description="Per-workspace grounding mode: 'strict' (default), 'hybrid', 'proactive'")
     web_search_enabled: bool = Field(default=False, description="Per-workspace web search toggle")
+    default_web_engine: str = Field(default="auto", description="Per-workspace search engine preference: 'auto', 'tavily', 'serper', 'duckduckgo'")
 
 class SessionSettings(BaseModel):
     db_path: str = Field(default="./memory")

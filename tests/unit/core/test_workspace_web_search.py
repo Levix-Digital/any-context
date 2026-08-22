@@ -141,5 +141,51 @@ class TestWorkspaceWebSearch(unittest.TestCase):
         self.assertIn("LIVE WEB SEARCH: DISABLED (OFFLINE-FIRST LOCAL ISOLATION)", off_prompt)
         safe_stdout_write("  [OK] System prompt dynamically configures strict source discrimination protocols!\n")
 
+    def test_07_search_engine_persistence_and_selection(self):
+        """Validates get_default_search_engine and set_default_search_engine per-workspace and globally."""
+        safe_stdout_write(">>> [CORE UNIT] Testing Search Engine Selector Persistence...\n")
+        self.store.add_workspace("WS_Tavily", paths=[])
+        self.store.add_workspace("WS_DDG", paths=[])
+
+        # Default is auto
+        self.assertEqual(self.store.get_default_search_engine(), "auto")
+        self.assertEqual(self.store.get_default_search_engine("WS_Tavily"), "auto")
+
+        # Per workspace config
+        self.store.set_default_search_engine("tavily", workspace_name="WS_Tavily")
+        self.store.set_default_search_engine("duckduckgo", workspace_name="WS_DDG")
+
+        self.assertEqual(self.store.get_default_search_engine("WS_Tavily"), "tavily")
+        self.assertEqual(self.store.get_default_search_engine("WS_DDG"), "duckduckgo")
+        self.assertEqual(self.store.get_default_search_engine("Default"), "auto")
+
+        # Global apply
+        self.store.set_default_search_engine("serper", apply_global=True)
+        self.assertEqual(self.store.get_default_search_engine(), "serper")
+        self.assertEqual(self.store.get_default_search_engine("WS_Tavily"), "serper")
+        self.assertEqual(self.store.get_default_search_engine("WS_DDG"), "serper")
+        safe_stdout_write("  [OK] Search engine selector is persisted and isolated correctly!\n")
+
+    @patch("any_context.tools.web_search_tool.os.getenv")
+    @patch("any_context.core.utils.get_api_key")
+    def test_08_active_search_engine_label_and_hierarchy(self, mock_get_key, mock_getenv):
+        """Validates get_active_web_search_engine honors hierarchy and preference."""
+        safe_stdout_write(">>> [CORE UNIT] Testing Active Search Engine Identification...\n")
+        from any_context.tools.web_search_tool import get_active_web_search_engine
+
+        # When no keys present
+        mock_get_key.return_value = None
+        mock_getenv.return_value = None
+        self.assertIn("DuckDuckGo", get_active_web_search_engine())
+
+        # When Tavily key present
+        mock_get_key.side_effect = lambda k: "tvly-test-123" if k == "tavily" else None
+        self.assertIn("Tavily", get_active_web_search_engine())
+
+        # When Serper key present and Tavily missing
+        mock_get_key.side_effect = lambda k: "serper-test-123" if k == "serper" else None
+        self.assertIn("Serper", get_active_web_search_engine())
+        safe_stdout_write("  [OK] Active search engine label and hierarchy validated successfully!\n")
+
 if __name__ == "__main__":
     unittest.main()

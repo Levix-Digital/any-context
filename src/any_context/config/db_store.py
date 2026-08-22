@@ -90,11 +90,12 @@ class ConfigDBStore:
                     name TEXT UNIQUE NOT NULL,
                     paths_json TEXT NOT NULL,
                     grounding_mode TEXT DEFAULT 'strict',
-                    web_search_enabled INTEGER DEFAULT 0
+                    web_search_enabled INTEGER DEFAULT 0,
+                    default_web_engine TEXT DEFAULT 'auto'
                 )
             """)
 
-            # Ensure workspace_id, grounding_mode, web_search_enabled columns exist for existing tables
+            # Ensure workspace_id, grounding_mode, web_search_enabled, default_web_engine columns exist for existing tables
             cursor.execute("PRAGMA table_info(workspaces)")
             ws_cols = [r[1] for r in cursor.fetchall()]
             if "workspace_id" not in ws_cols:
@@ -103,6 +104,8 @@ class ConfigDBStore:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN grounding_mode TEXT DEFAULT 'strict'")
             if "web_search_enabled" not in ws_cols:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN web_search_enabled INTEGER DEFAULT 0")
+            if "default_web_engine" not in ws_cols:
+                cursor.execute("ALTER TABLE workspaces ADD COLUMN default_web_engine TEXT DEFAULT 'auto'")
             
             cursor.execute("SELECT id, name, workspace_id FROM workspaces WHERE workspace_id IS NULL OR workspace_id = ''")
             for r in cursor.fetchall():
@@ -140,7 +143,8 @@ class ConfigDBStore:
                     max_chunks_per_source INTEGER DEFAULT 3,
                     retrieval_preset TEXT DEFAULT 'balanced',
                     grounding_mode TEXT DEFAULT 'strict',
-                    web_search_enabled INTEGER DEFAULT 0
+                    web_search_enabled INTEGER DEFAULT 0,
+                    default_web_engine TEXT DEFAULT 'auto'
                 )
             """)
             cursor.execute("PRAGMA table_info(context_settings)")
@@ -161,14 +165,16 @@ class ConfigDBStore:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN grounding_mode TEXT DEFAULT 'strict'")
             if "web_search_enabled" not in ctx_cols:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN web_search_enabled INTEGER DEFAULT 0")
+            if "default_web_engine" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN default_web_engine TEXT DEFAULT 'auto'")
 
             cursor.execute("SELECT id FROM context_settings WHERE id = 1")
             if not cursor.fetchone():
                 cursor.execute("""
                     INSERT INTO context_settings (
                         id, db_path, collection_name, chunk_size, chunk_overlap,
-                        top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled
-                    ) VALUES (1, './chroma_db', 'documents', 1024, 200, 40, 100, 3, 'balanced', 'strict', 0)
+                        top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine
+                    ) VALUES (1, './chroma_db', 'documents', 1024, 200, 40, 100, 3, 'balanced', 'strict', 0, 'auto')
                 """)
 
             cursor.execute("""
@@ -1384,7 +1390,7 @@ class ConfigDBStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute("SELECT workspace_id, name, grounding_mode, web_search_enabled FROM workspaces ORDER BY id ASC")
+            cursor.execute("SELECT workspace_id, name, grounding_mode, web_search_enabled, default_web_engine FROM workspaces ORDER BY id ASC")
             ws_rows = cursor.fetchall()
             workspaces = []
             for row in ws_rows:
@@ -1393,6 +1399,7 @@ class ConfigDBStore:
                 ws_keys = row.keys()
                 ws_mode = row["grounding_mode"] if ("grounding_mode" in ws_keys and row["grounding_mode"]) else "strict"
                 ws_web = bool(row["web_search_enabled"]) if ("web_search_enabled" in ws_keys and row["web_search_enabled"] is not None) else False
+                ws_eng = row["default_web_engine"] if ("default_web_engine" in ws_keys and row["default_web_engine"]) else "auto"
                 ws_detail = self.get_workspace_sources(ws_name)
                 workspaces.append(WorkspaceSettings(
                     id=ws_id,
@@ -1401,7 +1408,8 @@ class ConfigDBStore:
                     sources=[WorkspaceSourceItem(**s) for s in ws_detail["sources"]],
                     total_sources=ws_detail["total_sources"],
                     grounding_mode=ws_mode,
-                    web_search_enabled=ws_web
+                    web_search_enabled=ws_web,
+                    default_web_engine=ws_eng
                 ))
 
             cursor.execute("SELECT * FROM models WHERE id = 1")
@@ -1438,6 +1446,7 @@ class ConfigDBStore:
                 c_preset = c_row["retrieval_preset"] if ("retrieval_preset" in c_keys and c_row["retrieval_preset"]) else "balanced"
                 c_mode = c_row["grounding_mode"] if ("grounding_mode" in c_keys and c_row["grounding_mode"]) else "strict"
                 c_web = bool(c_row["web_search_enabled"]) if ("web_search_enabled" in c_keys and c_row["web_search_enabled"] is not None) else False
+                c_eng = c_row["default_web_engine"] if ("default_web_engine" in c_keys and c_row["default_web_engine"]) else "auto"
                 context = ContextSettings(
                     db_path=c_row["db_path"],
                     collection_name=c_row["collection_name"],
@@ -1448,7 +1457,8 @@ class ConfigDBStore:
                     max_chunks_per_source=c_max_src,
                     retrieval_preset=c_preset,
                     grounding_mode=c_mode,
-                    web_search_enabled=c_web
+                    web_search_enabled=c_web,
+                    default_web_engine=c_eng
                 )
             else:
                 context = ContextSettings()
@@ -1635,6 +1645,76 @@ class ConfigDBStore:
             conn.commit()
 
         return bool(enabled)
+
+    def get_default_search_engine(self, workspace_name: Optional[str] = None) -> str:
+        """
+        Retrieves the preferred/default Web Search Engine ('auto', 'tavily', 'serper', 'duckduckgo').
+        Prioritizes per-workspace setting if workspace_name is provided, with fallback to global setting.
+        """
+        if workspace_name:
+            ws = workspace_name.strip()
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("SELECT default_web_engine FROM workspaces WHERE LOWER(name) = LOWER(?)", (ws,))
+                    row = cursor.fetchone()
+                    if row is not None and row["default_web_engine"] is not None:
+                        val = str(row["default_web_engine"]).strip().lower()
+                        if val in ["auto", "tavily", "serper", "duckduckgo", "ddg"]:
+                            return "duckduckgo" if val == "ddg" else val
+                except sqlite3.OperationalError:
+                    pass
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("SELECT default_web_engine FROM context_settings WHERE id = 1")
+                row = cursor.fetchone()
+                if row is not None and row["default_web_engine"] is not None:
+                    val = str(row["default_web_engine"]).strip().lower()
+                    if val in ["auto", "tavily", "serper", "duckduckgo", "ddg"]:
+                        return "duckduckgo" if val == "ddg" else val
+            except sqlite3.OperationalError:
+                pass
+
+        return "auto"
+
+    def set_default_search_engine(self, engine: str, workspace_name: Optional[str] = None, apply_global: bool = False) -> str:
+        """
+        Sets and persists the preferred/default Web Search Engine ('auto', 'tavily', 'serper', 'duckduckgo').
+        """
+        clean_engine = str(engine or "auto").strip().lower()
+        if clean_engine in ["ddg", "duck", "duckduck"]:
+            clean_engine = "duckduckgo"
+        elif clean_engine not in ["auto", "tavily", "serper", "duckduckgo"]:
+            clean_engine = "auto"
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if apply_global:
+                try:
+                    cursor.execute("UPDATE workspaces SET default_web_engine = ?", (clean_engine,))
+                except sqlite3.OperationalError:
+                    pass
+                cursor.execute("""
+                    INSERT INTO context_settings (id, db_path, collection_name, default_web_engine)
+                    VALUES (1, './chroma_db', 'documents', ?)
+                    ON CONFLICT(id) DO UPDATE SET default_web_engine = ?
+                """, (clean_engine, clean_engine))
+            elif workspace_name:
+                try:
+                    cursor.execute("UPDATE workspaces SET default_web_engine = ? WHERE LOWER(name) = LOWER(?)", (clean_engine, workspace_name.strip()))
+                except sqlite3.OperationalError:
+                    pass
+            else:
+                cursor.execute("""
+                    INSERT INTO context_settings (id, db_path, collection_name, default_web_engine)
+                    VALUES (1, './chroma_db', 'documents', ?)
+                    ON CONFLICT(id) DO UPDATE SET default_web_engine = ?
+                """, (clean_engine, clean_engine))
+            conn.commit()
+
+        return clean_engine
 
     def update_session_settings(self, session: SessionSettings):
         """Updates session vector database settings"""

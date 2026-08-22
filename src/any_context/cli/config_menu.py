@@ -978,6 +978,7 @@ def _manage_web_search(store: ConfigDBStore):
     tavily_key = store.get_api_key("tavily") or os.getenv("TAVILY_API_KEY")
     serper_key = store.get_api_key("serper") or os.getenv("SERPER_API_KEY")
 
+    current_eng = store.get_default_search_engine()
     tavily_status = f"\033[92mConfigured ({mask_key(tavily_key)})\033[0m" if tavily_key else "\033[90mNot Configured (Free DuckDuckGo fallback)\033[0m"
     serper_status = f"\033[92mConfigured ({mask_key(serper_key)})\033[0m" if serper_key else "\033[90mNot Configured\033[0m"
 
@@ -987,6 +988,7 @@ def _manage_web_search(store: ConfigDBStore):
     print(sep)
     status_label = "\033[92mENABLED (ON)\033[0m" if global_status else "\033[90mDISABLED (OFF)\033[0m"
     print(f"Global Default Status : {status_label}")
+    print(f"Preferred Engine      : \033[93m{current_eng.upper()}\033[0m")
     print(f"• DuckDuckGo Engine   : \033[92mFree / Active (No Key Required)\033[0m")
     print(f"• Tavily Search API   : {tavily_status}")
     print(f"• Serper Search API   : {serper_status}")
@@ -996,6 +998,7 @@ def _manage_web_search(store: ConfigDBStore):
     choices = [
         f"🟢 Enable Web Search Globally (All Workspaces){'  [Active]' if global_status else ''}",
         f"🔴 Disable Web Search Globally (100% Offline Local){'  [Active]' if not global_status else ''}",
+        "🎯 Select Default Search Engine (Auto / Tavily / Serper / DuckDuckGo)...",
         "📂 Configure Web Search for a Specific Workspace...",
         "🔑 Set / Update Tavily API Key (Premium Web Intelligence)...",
         "🔑 Set / Update Serper API Key (Google Search API)...",
@@ -1013,6 +1016,26 @@ def _manage_web_search(store: ConfigDBStore):
     elif choice.startswith("🔴"):
         store.set_web_search_status(False, apply_global=True)
         print("\n🔒 \033[90mWeb Search DISABLED globally. (100% offline local isolation)\033[0m\n")
+    elif choice.startswith("🎯"):
+        eng_choices = [
+            f"⭐ Auto (Tavily -> Serper -> DuckDuckGo){'  [Active]' if current_eng == 'auto' else ''}",
+            f"🌐 Tavily Search API (AI-Native Research){'  [Active]' if current_eng == 'tavily' else ''}",
+            f"🔍 Serper (Google Search API){'  [Active]' if current_eng == 'serper' else ''}",
+            f"🦆 DuckDuckGo (Free / 100% No-Cost){'  [Active]' if current_eng in ['duckduckgo', 'ddg'] else ''}",
+            "🔙 Cancel"
+        ]
+        pick = questionary.select("Select Default Web Search Engine:", choices=eng_choices).ask()
+        if pick and not pick.startswith("🔙"):
+            if pick.startswith("⭐"):
+                new_eng = "auto"
+            elif pick.startswith("🌐"):
+                new_eng = "tavily"
+            elif pick.startswith("🔍"):
+                new_eng = "serper"
+            else:
+                new_eng = "duckduckgo"
+            store.set_default_search_engine(new_eng, apply_global=True)
+            print(f"\n✅ Default Web Search Engine set to: \033[92m{new_eng.upper()}\033[0m!\n")
     elif choice.startswith("🔑 Set / Update Tavily"):
         cur_tvly = store.get_api_key("tavily") or ""
         new_key = questionary.password("Enter Tavily API Key (tvly-...):", default=cur_tvly).ask()

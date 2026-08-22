@@ -32,11 +32,13 @@ def _extract_domain(url: str) -> Optional[str]:
 def execute_web_search(
     query: str,
     domains: Optional[List[str]] = None,
+    preferred_engine: Optional[str] = None,
     max_results: int = 5,
     allow_fallback: bool = True
 ) -> List[Dict[str, str]]:
     """
     Executes web search across Tavily, Serper, or DuckDuckGo.
+    Honors preferred_engine ('auto', 'tavily', 'serper', 'duckduckgo').
     If domains are provided, prioritizes domain-targeted queries.
     If domain-targeted search yields no results and allow_fallback is True,
     automatically cascades to the open global web.
@@ -48,10 +50,22 @@ def execute_web_search(
     results = []
 
     from any_context.core.utils import get_api_key
+    from any_context.config.db_store import ConfigDBStore
 
-    # 1. Check Tavily API (from SQLite DB or Environment)
+    pref = str(preferred_engine or "").strip().lower()
+    if not pref or pref == "auto":
+        try:
+            store = ConfigDBStore()
+            pref = store.get_default_search_engine()
+        except Exception:
+            pref = "auto"
+
     tavily_key = get_api_key("tavily") or os.getenv("TAVILY_API_KEY")
-    if tavily_key and tavily_key.strip():
+    serper_key = get_api_key("serper") or os.getenv("SERPER_API_KEY")
+
+    def _try_tavily() -> List[Dict[str, str]]:
+        if not (tavily_key and tavily_key.strip()):
+            return []
         try:
             import httpx
             payload = {
@@ -66,20 +80,21 @@ def execute_web_search(
             resp = httpx.post("https://api.tavily.com/search", headers=headers, json=payload, timeout=10.0)
             if resp.status_code == 200:
                 data = resp.json()
+                t_res = []
                 for item in data.get("results", []):
-                    results.append({
+                    t_res.append({
                         "title": item.get("title", "Web Result"),
                         "url": item.get("url", ""),
                         "snippet": item.get("content", item.get("snippet", ""))
                     })
-                if results:
-                    return results[:max_results]
+                return t_res
         except Exception:
             pass
+        return []
 
-    # 2. Check Serper API (from SQLite DB or Environment)
-    serper_key = get_api_key("serper") or os.getenv("SERPER_API_KEY")
-    if serper_key and serper_key.strip():
+    def _try_serper() -> List[Dict[str, str]]:
+        if not (serper_key and serper_key.strip()):
+            return []
         try:
             import httpx
             headers = {"X-API-KEY": serper_key.strip(), "Content-Type": "application/json", "Accept-Encoding": "identity"}
@@ -89,74 +104,114 @@ def execute_web_search(
             resp = httpx.post("https://google.serper.dev/search", headers=headers, json={"q": q, "num": max_results}, timeout=10.0)
             if resp.status_code == 200:
                 data = resp.json()
+                s_res = []
                 for item in data.get("organic", []):
-                    results.append({
+                    s_res.append({
                         "title": item.get("title", "Web Result"),
                         "url": item.get("link", ""),
                         "snippet": item.get("snippet", "")
                     })
-                if results:
-                    return results[:max_results]
+                return s_res
         except Exception:
             pass
+        return []
 
-    # 3. DuckDuckGo Search (Default / Free)
-    try:
+    def _try_duckduckgo() -> List[Dict[str, str]]:
+        d_res = []
         try:
-            from ddgs import DDGS
-        except ImportError:
-            from duckduckgo_search import DDGS
+            try:
+                from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
 
-        with DDGS() as ddgs:
-            # First attempt: site-filtered query if domains are registered in workspace
-            if domains:
-                for dom in domains[:2]:
-                    site_query = f"site:{dom} {clean_query}"
+            with DDGS() as ddgs:
+                if domains:
+                    for dom in domains[:2]:
+                        site_query = f"site:{dom} {clean_query}"
+                        try:
+                            ddg_res = list(ddgs.text(site_query, max_results=max_results))
+                            for r in ddg_res:
+                                d_res.append({
+                                    "title": r.get("title", "Web Result"),
+                                    "url": r.get("href", r.get("link", "")),
+                                    "snippet": r.get("body", r.get("snippet", ""))
+                                })
+                        except Exception:
+                            pass
+
+                if len(d_res) < max_results:
+                    needed = max_results - len(d_res)
                     try:
-                        ddg_res = list(ddgs.text(site_query, max_results=max_results))
-                        for r in ddg_res:
-                            results.append({
-                                "title": r.get("title", "Web Result"),
-                                "url": r.get("href", r.get("link", "")),
-                                "snippet": r.get("body", r.get("snippet", ""))
-                            })
+                        ddg_gen = list(ddgs.text(clean_query, max_results=needed))
+                        for r in ddg_gen:
+                            url = r.get("href", r.get("link", ""))
+                            if not any(existing["url"] == url for existing in d_res):
+                                d_res.append({
+                                    "title": r.get("title", "Web Result"),
+                                    "url": url,
+                                    "snippet": r.get("body", r.get("snippet", ""))
+                                })
                     except Exception:
                         pass
+        except Exception:
+            pass
+        return d_res
 
-            # Second attempt: General open web search if needed
-            if len(results) < max_results:
-                needed = max_results - len(results)
-                try:
-                    ddg_gen = list(ddgs.text(clean_query, max_results=needed))
-                    for r in ddg_gen:
-                        url = r.get("href", r.get("link", ""))
-                        if not any(existing["url"] == url for existing in results):
-                            results.append({
-                                "title": r.get("title", "Web Result"),
-                                "url": url,
-                                "snippet": r.get("body", r.get("snippet", ""))
-                            })
-                except Exception:
-                    pass
-    except Exception:
-        # Fallback / Mock for offline and testing environments
-        pass
+    # Dispatch according to user's preferred search engine
+    if pref == "tavily":
+        results = _try_tavily()
+        if not results and allow_fallback:
+            results = _try_duckduckgo()
+    elif pref == "serper":
+        results = _try_serper()
+        if not results and allow_fallback:
+            results = _try_duckduckgo()
+    elif pref in ["duckduckgo", "ddg"]:
+        results = _try_duckduckgo()
+    else:
+        # Default Auto: Tavily (if key) -> Serper (if key) -> DuckDuckGo
+        if tavily_key:
+            results = _try_tavily()
+        elif serper_key:
+            results = _try_serper()
+        if not results:
+            results = _try_duckduckgo()
 
-    # 4. Automatic Cascade Fallback: If targeted domain returned no results, search open global web
+    # Automatic Cascade Fallback: If targeted domain returned no results, search open global web
     if not results and domains and allow_fallback:
-        return execute_web_search(clean_query, domains=None, max_results=max_results, allow_fallback=False)
+        return execute_web_search(clean_query, domains=None, preferred_engine=pref, max_results=max_results, allow_fallback=False)
 
     return results[:max_results]
 
 
-def get_active_web_search_engine() -> str:
-    """Returns the name of the currently active search engine (Tavily, Serper, or DuckDuckGo)."""
+def get_active_web_search_engine(workspace: Optional[str] = None) -> str:
+    """Returns the name of the currently active search engine (Tavily, Serper, or DuckDuckGo) based on preferences and configured keys."""
     from any_context.core.utils import get_api_key
-    if get_api_key("tavily") or os.getenv("TAVILY_API_KEY"):
+    from any_context.config.db_store import ConfigDBStore
+
+    pref = "auto"
+    try:
+        store = ConfigDBStore()
+        pref = store.get_default_search_engine(workspace_name=workspace)
+    except Exception:
+        pass
+
+    tavily_key = get_api_key("tavily") or os.getenv("TAVILY_API_KEY")
+    serper_key = get_api_key("serper") or os.getenv("SERPER_API_KEY")
+
+    if pref == "tavily" and tavily_key:
         return "Tavily Search API"
-    elif get_api_key("serper") or os.getenv("SERPER_API_KEY"):
+    elif pref == "serper" and serper_key:
         return "Serper Google Search API"
-    return "DuckDuckGo (Free Engine)"
+    elif pref in ["duckduckgo", "ddg"]:
+        return "DuckDuckGo (Free Engine)"
+
+    # Default Auto: Tavily -> Serper -> DuckDuckGo
+    if tavily_key:
+        return "Tavily Search API (Auto)"
+    elif serper_key:
+        return "Serper Google Search API (Auto)"
+    return "DuckDuckGo (Free Engine • Auto)"
 
 
 @tool()
