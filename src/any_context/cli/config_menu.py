@@ -13,10 +13,11 @@ def run_first_time_wizard():
     """
     Interactive first-time onboarding wizard if no settings/workspaces exist.
     """
-    print("\n=======================================================")
+    sep = "=" * 82
+    print(f"\n{sep}")
     print("🎉 Welcome to AnyContext (actx) Initial Setup!")
     print("No workspaces were found in your configuration database.")
-    print("=======================================================\n")
+    print(f"{sep}\n")
 
     ws_name = questionary.text(
         "1. Enter a name for your first workspace (or press Enter for 'Default'):",
@@ -936,21 +937,22 @@ def _manage_workspace_sharing(store: ConfigDBStore):
 def _manage_grounding_mode(store: ConfigDBStore):
     current_mode = store.get_grounding_mode()
     mode_titles = {
-        "hybrid": "⚖️ Hybrid (Default - Workspace facts + clearly labeled suggestions)",
-        "strict": "🛡️ Strict (Audit & Legal - 100% grounded to indexed documents, zero speculation)",
-        "proactive": "🚀 Proactive (Research & Ideation - Broad synthesis, insights & web recommendations)"
+        "strict": "🛡️ Strict (Default - 100% grounded to indexed documents, zero speculation)",
+        "hybrid": "⚖️ Hybrid (Balanced - Facts from workspace + labeled suggestions)",
+        "proactive": "🚀 Proactive (Research - Broad synthesis, insights & web recommendations)"
     }
 
-    print("\n=======================================================")
+    sep = "=" * 82
+    print(f"\n{sep}")
     print("🎛️ AI Grounding & Answer Modes")
-    print("=======================================================")
+    print(sep)
     print(f"Current Active Mode : \033[93m{current_mode.upper()}\033[0m")
     print(f"Description         : {mode_titles.get(current_mode, current_mode)}")
-    print("=======================================================\n")
+    print(f"{sep}\n")
 
     choices = [
-        f"⚖️ Hybrid (Default - Facts from workspace + labeled suggestions){'  [Active]' if current_mode == 'hybrid' else ''}",
-        f"🛡️ Strict (Audit & Legal - 100% grounded to indexed documents, zero speculation){'  [Active]' if current_mode == 'strict' else ''}",
+        f"🛡️ Strict (Default - 100% grounded to indexed documents, zero speculation){'  [Active]' if current_mode == 'strict' else ''}",
+        f"⚖️ Hybrid (Balanced - Facts from workspace + labeled suggestions){'  [Active]' if current_mode == 'hybrid' else ''}",
         f"🚀 Proactive (Research & Ideation - Broad synthesis, insights & web recommendations){'  [Active]' if current_mode == 'proactive' else ''}",
         "🔙 Back"
     ]
@@ -979,15 +981,16 @@ def _manage_web_search(store: ConfigDBStore):
     tavily_status = f"\033[92mConfigured ({mask_key(tavily_key)})\033[0m" if tavily_key else "\033[90mNot Configured (Free DuckDuckGo fallback)\033[0m"
     serper_status = f"\033[92mConfigured ({mask_key(serper_key)})\033[0m" if serper_key else "\033[90mNot Configured\033[0m"
 
-    print("\n=======================================================")
+    sep = "=" * 82
+    print(f"\n{sep}")
     print("🌐 Live Web Search & External Intelligence")
-    print("=======================================================")
+    print(sep)
     status_label = "\033[92mENABLED (ON)\033[0m" if global_status else "\033[90mDISABLED (OFF)\033[0m"
     print(f"Global Default Status : {status_label}")
     print(f"• DuckDuckGo Engine   : \033[92mFree / Active (No Key Required)\033[0m")
     print(f"• Tavily Search API   : {tavily_status}")
     print(f"• Serper Search API   : {serper_status}")
-    print("=======================================================\n")
+    print(f"{sep}\n")
 
     workspaces = settings.workspaces if settings else []
     choices = [
@@ -1061,14 +1064,15 @@ def _manage_retrieval_density(store: ConfigDBStore):
         print("⚠️ Could not load context settings.")
         return
 
-    print("\n=======================================================")
+    sep = "=" * 82
+    print(f"\n{sep}")
     print("🔍 Context Retrieval Density & Multi-Source RAG Presets")
-    print("=======================================================")
+    print(sep)
     print(f"Current Preset      : \033[93m{ctx.retrieval_preset.upper()}\033[0m")
     print(f"Top-K Chunks to AI  : \033[92m{ctx.top_k}\033[0m chunks (~{ctx.top_k * 130} tokens)")
     print(f"ChromaDB Candidate  : \033[96m{ctx.candidate_pool_size}\033[0m candidate chunks")
     print(f"Max Chunks per Doc  : \033[95m{ctx.max_chunks_per_source}\033[0m chunks per unique source")
-    print("=======================================================\n")
+    print(f"{sep}\n")
 
     preset_choice = questionary.select(
         "Select Retrieval Density Preset:",
@@ -1119,11 +1123,13 @@ def _manage_subscription():
     mgr = BillingManager()
     status = mgr.get_status()
 
-    print("\n=======================================================")
+    sep = "=" * 82
+    print(f"\n{sep}")
     print("💳 AnyContext Subscription & Payment Plans")
+    print(sep)
     print(f"Active Tier : \033[93m{status.active_tier_name}\033[0m (ID: {status.active_tier_id})")
     print(f"License Key : {status.license_key or 'None'}")
-    print("=======================================================\n")
+    print(f"{sep}\n")
 
     action = questionary.select(
         "Subscription Action:",
