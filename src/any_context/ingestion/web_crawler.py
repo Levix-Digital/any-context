@@ -523,6 +523,38 @@ def crawl_and_index_urls(
     }
 
 
+def crawl_website(
+    workspace_name: str,
+    start_url: str,
+    scope: str = "domain",
+    max_pages: Optional[int] = None,
+    force_rescrape: bool = False,
+    max_workers: int = 12
+) -> Dict[str, Any]:
+    """
+    Programmatic, non-interactive website crawler and indexer.
+    Discovers internal links/sitemaps and crawls them automatically into LanceDB.
+    """
+    disc = discover_site_urls(start_url)
+    if scope == "section":
+        target_urls = disc.get("section_urls") or [start_url]
+    else:
+        target_urls = disc.get("domain_urls") or disc.get("section_urls") or [start_url]
+
+    if max_pages and len(target_urls) > max_pages:
+        target_urls = target_urls[:max_pages]
+
+    return crawl_and_index_urls(
+        workspace_name=workspace_name,
+        urls=target_urls,
+        root_url=start_url,
+        root_title=disc.get("title") or start_url,
+        scope=scope,
+        force_refresh=force_rescrape,
+        max_workers=max_workers
+    )
+
+
 def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = None) -> bool:
     """
     Guides the user through interactive website discovery, scope selection, and concurrent crawling.

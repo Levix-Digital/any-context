@@ -7,16 +7,16 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.21.1 / v0.21.0): Unificação de Motor Vetorial 100% LanceDB & Comando `/inspect`
+### 📌 Cenário 1 (v0.21.2): Unificação de Motor Vetorial 100% LanceDB, Sincronização e `/inspect`
 
-- **Objetivo**: Comprovar que o AnyContext opera exclusivamente sobre o **LanceDB (Apache Arrow / Rust)** com zero dependência de ChromaDB e zero travas SQLite, proporcionando máxima velocidade de busca (< 5ms), re-crawling de portais web e inspeção transparente de chunks via `/inspect`.
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.21.1`.
+- **Objetivo**: Comprovar que o AnyContext opera exclusivamente sobre o **LanceDB (Apache Arrow / Rust)** com zero dependência de ChromaDB e zero travas SQLite, proporcionando máxima velocidade de busca (< 5ms), re-crawling e sincronização de portais web (`/web --sync` e `/sync --web`) e inspeção transparente de chunks via `/inspect`.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.21.2`.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Atualizar e Iniciar o AnyContext:**
    ```powershell
-   actx --update@0.21.1
+   actx --update@0.21.2
    actx
    ```
 
