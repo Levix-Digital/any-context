@@ -411,6 +411,24 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
 
         safe_stdout_write("  [OK] /search-engine and /engine CLI commands verified!\n")
 
+    def test_19_sync_nonblocking_cli_dispatch(self):
+        """Validates that /sync and /folder --sync dispatch non-blocking background jobs."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /sync and /folder --sync Non-Blocking Dispatch...\n")
+        mock_inputs = [
+            "/sync",
+            "/folder --sync",
+            "/web --sync",
+            "/drive --sync",
+            "/exit"
+        ]
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.ingestion.local_folder_ingestor.BackgroundSyncManager.start_background_sync") as mock_start_bg:
+                run_chat_loop(active_workspace="Default")
+                self.assertEqual(mock_start_bg.call_count, 4, "BackgroundSyncManager.start_background_sync must be called 4 times")
+
+        safe_stdout_write("  [OK] /sync, /folder --sync, /web --sync, /drive --sync non-blocking dispatch verified!\n")
+
 if __name__ == "__main__":
     unittest.main()
 

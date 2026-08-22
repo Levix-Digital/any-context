@@ -261,6 +261,16 @@ Consolidates older memory vectors into high-level indices using 1024-token expan
   - `/sync --status`: Displays real-time sync metrics without performing writes.
   - `/sync --bg`: Triggers synchronization in an asynchronous background thread.
 
+### ⚡ Non-Blocking Background Synchronization (`BackgroundSyncManager`)
+- **Decoupled Worker Architecture**: `BackgroundSyncManager` encapsulates thread-safe daemon worker threads (`SyncWorker-<workspace>`) for non-blocking execution of unified synchronization jobs across folders, web sources, and cloud drives.
+- **Dynamic Status Toolbar Integration**:
+  - `BackgroundSyncManager.is_syncing(workspace_name)` provides sub-millisecond atomic state queries.
+  - The CLI `bottom_toolbar` renderer evaluates `is_syncing` dynamically on each render frame, flashing `⚡ Syncing...` in bold orange while background workers operate.
+  - The interactive prompt (`prompt_toolkit`) remains **100% unlocked and responsive**, allowing uninterrupted user interaction while document ingestion and vectorization run in parallel.
+- **REST & MCP Parity**:
+  - REST endpoint `POST /v1/workspaces/{name}/sync` returns `{"status": "success", "mode": "background"}` immediately.
+  - MCP tool `check_workspace_sync_status` and `sync_workspace_folders` seamlessly query and trigger background tasks.
+
 ### 📁 Source Family CLI Parity Matrix
 Standardized symmetric CLI verbs across `/folder`, `/web`, and `/drive`:
 

@@ -315,8 +315,13 @@ class BackgroundSyncManager:
     def start_background_sync(
         self,
         workspace_name: str,
-        on_complete: Optional[Callable[[Dict[str, Any]], None]] = None,
-        verbose: bool = False
+        sync_folders: bool = True,
+        sync_web: bool = True,
+        sync_drives: bool = True,
+        force_full: bool = False,
+        verbose: bool = False,
+        is_all: bool = False,
+        on_complete: Optional[Callable[[Dict[str, Any]], None]] = None
     ) -> threading.Thread:
         clean_ws = (workspace_name or "Default").strip()
         with self._lock:
@@ -325,7 +330,16 @@ class BackgroundSyncManager:
 
         def _worker():
             try:
-                res = run_index_folder(workspace_name=clean_ws, verbose=verbose)
+                from any_context.ingestion.unified_sync import run_unified_sync
+                res = run_unified_sync(
+                    workspace_name=clean_ws if not is_all else None,
+                    sync_folders=sync_folders,
+                    sync_web=sync_web,
+                    sync_drives=sync_drives,
+                    force_full=force_full,
+                    verbose=verbose,
+                    is_all=is_all
+                )
                 with self._lock:
                     self._active_jobs[clean_ws]["status"] = "completed"
                     self._active_jobs[clean_ws]["result"] = res

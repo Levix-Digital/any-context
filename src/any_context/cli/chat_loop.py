@@ -833,12 +833,6 @@ def run_chat_loop(active_workspace: str = "Default"):
                         safe_stdout_write("\n" + format_sync_status_box(diff) + "\n\n")
                     continue
 
-                if is_bg:
-                    bg_mgr = BackgroundSyncManager()
-                    bg_mgr.start_background_sync(active_workspace, verbose=is_verbose)
-                    safe_stdout_write(f"\n🚀 Background synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
-                    continue
-
                 target_ws = None if is_all else active_workspace
                 has_specific_flag = is_folder_only or is_web_only or is_drive_only
 
@@ -862,16 +856,17 @@ def run_chat_loop(active_workspace: str = "Default"):
                         is_all=is_all
                     )
                 else:
-                    with Spinner(f"Synchronizing {scope_desc} for {ws_label}...", done_message=f"{ws_label.capitalize()} ready"):
-                        run_unified_sync(
-                            workspace_name=target_ws,
-                            sync_folders=sync_folders,
-                            sync_web=sync_web,
-                            sync_drives=sync_drives,
-                            force_full=is_full,
-                            verbose=False,
-                            is_all=is_all
-                        )
+                    bg_mgr = BackgroundSyncManager()
+                    bg_mgr.start_background_sync(
+                        workspace_name=target_ws or active_workspace,
+                        sync_folders=sync_folders,
+                        sync_web=sync_web,
+                        sync_drives=sync_drives,
+                        force_full=is_full,
+                        verbose=False,
+                        is_all=is_all
+                    )
+                    safe_stdout_write(f"\n⚡ Background synchronization started for {ws_label} ({scope_desc}). You can continue chatting!\n\n")
                 agent_instance = None
                 continue
 
@@ -1274,9 +1269,15 @@ def run_chat_loop(active_workspace: str = "Default"):
                 store = ConfigDBStore()
 
                 if is_sync:
-                    from any_context.ingestion.unified_sync import run_unified_sync
-                    with Spinner(f"Synchronizing folders for workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' folders ready"):
-                        run_unified_sync(workspace_name=active_workspace, sync_folders=True, sync_web=False, sync_drives=False, force_full=is_full)
+                    is_verbose = "--verbose" in parts or "-v" in parts
+                    if is_verbose:
+                        from any_context.ingestion.unified_sync import run_unified_sync
+                        run_unified_sync(workspace_name=active_workspace, sync_folders=True, sync_web=False, sync_drives=False, force_full=is_full, verbose=True)
+                    else:
+                        from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+                        bg_mgr = BackgroundSyncManager()
+                        bg_mgr.start_background_sync(active_workspace, sync_folders=True, sync_web=False, sync_drives=False, force_full=is_full)
+                        safe_stdout_write(f"\n⚡ Background folder synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
                     agent_instance = None
                     continue
 
@@ -1339,9 +1340,15 @@ def run_chat_loop(active_workspace: str = "Default"):
                 store = ConfigDBStore()
 
                 if is_sync:
-                    from any_context.ingestion.unified_sync import run_unified_sync
-                    with Spinner(f"Synchronizing cloud drives for workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' drives ready"):
-                        run_unified_sync(workspace_name=active_workspace, sync_folders=False, sync_web=False, sync_drives=True, force_full=is_full)
+                    is_verbose = "--verbose" in parts or "-v" in parts
+                    if is_verbose:
+                        from any_context.ingestion.unified_sync import run_unified_sync
+                        run_unified_sync(workspace_name=active_workspace, sync_folders=False, sync_web=False, sync_drives=True, force_full=is_full, verbose=True)
+                    else:
+                        from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+                        bg_mgr = BackgroundSyncManager()
+                        bg_mgr.start_background_sync(active_workspace, sync_folders=False, sync_web=False, sync_drives=True, force_full=is_full)
+                        safe_stdout_write(f"\n⚡ Background cloud drive synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
                     agent_instance = None
                     continue
 
@@ -1386,11 +1393,16 @@ def run_chat_loop(active_workspace: str = "Default"):
                 web_store = WebSchedulerStore()
 
                 if is_sync:
-                    from any_context.ingestion.unified_sync import run_unified_sync
-                    with Spinner(f"Re-scraping and synchronizing web URLs for workspace '{active_workspace}'..."):
-                        run_unified_sync(workspace_name=active_workspace, sync_folders=False, sync_web=True, sync_drives=False, force_full=is_full)
+                    is_verbose = "--verbose" in parts or "-v" in parts
+                    if is_verbose:
+                        from any_context.ingestion.unified_sync import run_unified_sync
+                        run_unified_sync(workspace_name=active_workspace, sync_folders=False, sync_web=True, sync_drives=False, force_full=is_full, verbose=True)
+                    else:
+                        from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+                        bg_mgr = BackgroundSyncManager()
+                        bg_mgr.start_background_sync(active_workspace, sync_folders=False, sync_web=True, sync_drives=False, force_full=is_full)
+                        safe_stdout_write(f"\n⚡ Background web synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
                     agent_instance = None
-                    print(f"✅ Synced web URLs for workspace '{active_workspace}' successfully!\n")
                     continue
 
                 if is_remove:

@@ -4,9 +4,11 @@ venv/
 env/
 .env
 
-# Bancos de Dados ChromaDB / SQLite (ancorados na raiz)
+# Bancos de Dados ChromaDB / LanceDB / SQLite (ancorados na raiz)
 /context_db/
 /memory/
+/chroma_db/
+/session_history/
 *.sqlite3
 *.db
 

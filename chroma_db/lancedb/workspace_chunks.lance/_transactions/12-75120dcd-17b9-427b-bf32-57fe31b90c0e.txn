@@ -1,1 +1,0 @@
-$75120dcd-17b9-427b-bf32-57fe31b90c0eª±«workspace = 'Transfer_Source_WS' AND (file_path = 'https://example.com/docs' OR file_path LIKE 'https://example.com/docs/%' OR file_path LIKE '%https://example.com/docs%')
