@@ -11,7 +11,8 @@ def run_unified_sync(
     sync_drives: bool = True,
     force_full: bool = False,
     verbose: bool = False,
-    is_all: bool = False
+    is_all: bool = False,
+    progress_callback: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Unified synchronization orchestrator across all source categories:
@@ -41,7 +42,12 @@ def run_unified_sync(
     for ws in target_ws_list:
         # 1. Synchronize Local Folders
         if sync_folders:
-            folder_res = run_index_folder(workspace_name=ws, verbose=verbose, force_full=force_full)
+            folder_res = run_index_folder(
+                workspace_name=ws,
+                verbose=verbose,
+                force_full=force_full,
+                progress_callback=progress_callback
+            )
             results["folder_results"][ws] = folder_res
 
         # 2. Synchronize Web Sources
@@ -53,7 +59,7 @@ def run_unified_sync(
                         print(f"\n🌐 Synchronizing {len(ws_urls)} web source(s) for workspace '{ws}'...")
                     except UnicodeEncodeError:
                         print(f"\n[Web] Synchronizing {len(ws_urls)} web source(s) for workspace '{ws}'...")
-                web_res = sync_workspace_web_urls(ws, force=force_full)
+                web_res = sync_workspace_web_urls(ws, force=force_full, progress_callback=progress_callback)
                 results["web_results"][ws] = web_res
             else:
                 results["web_results"][ws] = {"status": "empty", "total_urls": 0}

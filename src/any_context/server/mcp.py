@@ -737,9 +737,14 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 result_text = json.dumps(sync_res, indent=2)
 
             elif tool_name == "check_workspace_sync_status":
-                from any_context.ingestion.local_folder_ingestor import check_workspace_changes
+                from any_context.ingestion.local_folder_ingestor import check_workspace_changes, BackgroundSyncManager
                 ws_target = arguments.get("workspace", "Default")
                 diff = check_workspace_changes(ws_target)
+                bg_mgr = BackgroundSyncManager()
+                diff["is_syncing"] = bg_mgr.is_syncing(ws_target)
+                if diff["is_syncing"]:
+                    diff["progress"] = bg_mgr.get_progress(ws_target)
+                    diff["progress_bar"] = bg_mgr.format_progress_bar(ws_target)
                 result_text = json.dumps(diff, indent=2)
 
             elif tool_name == "sync_workspace_folders":

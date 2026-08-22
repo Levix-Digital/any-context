@@ -180,6 +180,9 @@ class WorkspaceSyncStatusDTO(BaseModel):
     total_disk_files: int = 0
     total_cached_files: int = 0
     summary: str = "Up to date"
+    is_syncing: bool = False
+    progress: Optional[Dict[str, Any]] = None
+    progress_bar: Optional[str] = None
 
 class WorkspaceSyncRequest(BaseModel):
     force_full: bool = Field(False, description="Forces full re-indexing of all files instead of incremental stat diff")
@@ -597,9 +600,14 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
     def get_workspace_sync_status_endpoint(workspace_name: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
         """Inspects pending file additions, modifications, deletions, web sources, and stat cache status for a workspace in < 30ms."""
         verify_token_access(credentials=credentials, required_workspace=workspace_name)
-        from any_context.ingestion.local_folder_ingestor import check_workspace_changes
+        from any_context.ingestion.local_folder_ingestor import check_workspace_changes, BackgroundSyncManager
         diff = check_workspace_changes(workspace_name)
         renamed_pairs = [[r[0], r[1]] for r in diff.get("renamed_files", [])]
+        bg_mgr = BackgroundSyncManager()
+        is_syncing = bg_mgr.is_syncing(workspace_name)
+        prog = bg_mgr.get_progress(workspace_name) if is_syncing else None
+        prog_bar = bg_mgr.format_progress_bar(workspace_name) if is_syncing else None
+
         return WorkspaceSyncStatusDTO(
             workspace_name=diff["workspace_name"],
             is_up_to_date=diff["is_up_to_date"],
@@ -619,7 +627,10 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
             renamed_files=renamed_pairs,
             total_disk_files=diff["total_disk_files"],
             total_cached_files=diff["total_cached_files"],
-            summary=diff["summary"]
+            summary=diff["summary"],
+            is_syncing=is_syncing,
+            progress=prog,
+            progress_bar=prog_bar
         )
 
     @app.post("/v1/workspaces/{workspace_name}/sync", tags=["Workspaces"])

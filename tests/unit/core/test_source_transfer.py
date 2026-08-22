@@ -2,6 +2,7 @@ import os
 import sys
 import unittest
 import tempfile
+import shutil
 import chromadb
 
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -27,6 +28,8 @@ class TestSourceTransfer(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp(prefix="actx_test_transfer_")
         self.db_path = os.path.join(self.temp_dir, "test_settings.db")
         self.store = ConfigDBStore(db_path=self.db_path)
+        from any_context.config.app_settings import ContextSettings
+        self.store.update_context_settings(ContextSettings(db_path=os.path.join(self.temp_dir, "context_db")))
         self.web_store = WebSchedulerStore(db_path=self.db_path)
 
         self.source_ws = "Transfer_Source_WS"
@@ -41,6 +44,7 @@ class TestSourceTransfer(unittest.TestCase):
         try:
             self.store.remove_workspace(self.source_ws)
             self.store.remove_workspace(self.target_ws)
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
         except Exception:
             pass
 
@@ -49,8 +53,7 @@ class TestSourceTransfer(unittest.TestCase):
         safe_stdout_write("\n>>> [CORE UNIT] Testing Local Folder Source Transfer...\n")
         
         # 1. Setup mock vector chunk in ChromaDB
-        from any_context.config.app_settings import AppSettings
-        settings = AppSettings.load()
+        settings = self.store.get_app_settings()
         chroma_dir = settings.context.db_path if (settings and settings.context) else "./context_db"
         coll_name = settings.context.collection_name if (settings and settings.context) else "context_docs"
         
@@ -131,8 +134,7 @@ class TestSourceTransfer(unittest.TestCase):
         )
 
         # Setup mock vector chunk in ChromaDB
-        from any_context.config.app_settings import AppSettings
-        settings = AppSettings.load()
+        settings = self.store.get_app_settings()
         chroma_dir = settings.context.db_path if (settings and settings.context) else "./context_db"
         coll_name = settings.context.collection_name if (settings and settings.context) else "context_docs"
 

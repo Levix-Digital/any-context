@@ -280,13 +280,14 @@ def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
 class BackgroundSyncManager:
     """Thread-safe manager for background workspace synchronization workers."""
     _instance = None
-    _lock = threading.Lock()
+    _lock = threading.RLock()
 
     def __new__(cls):
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super(BackgroundSyncManager, cls).__new__(cls)
                 cls._instance._active_jobs = {}
+                cls._instance._progress = {}
             return cls._instance
 
     def is_syncing(self, workspace_name: str) -> bool:
@@ -297,6 +298,58 @@ class BackgroundSyncManager:
                 return True
             return False
 
+    def update_progress(
+        self,
+        workspace_name: str,
+        current: int,
+        total: int,
+        stage: str = "files",
+        item_name: str = ""
+    ) -> None:
+        """Atomically updates the synchronization progress telemetry for a workspace."""
+        clean_ws = (workspace_name or "Default").strip()
+        pct = round((current / total * 100), 1) if total > 0 else 0.0
+        with self._lock:
+            self._progress[clean_ws] = {
+                "current": current,
+                "total": total,
+                "pct": pct,
+                "stage": stage,
+                "item_name": item_name
+            }
+
+    def get_progress(self, workspace_name: str) -> Dict[str, Any]:
+        """Returns the current synchronization progress telemetry for a workspace."""
+        clean_ws = (workspace_name or "Default").strip()
+        with self._lock:
+            return self._progress.get(
+                clean_ws,
+                {"current": 0, "total": 0, "pct": 0.0, "stage": "idle", "item_name": ""}
+            )
+
+    def format_progress_bar(self, workspace_name: str, width: int = 8) -> str:
+        """
+        Formats a compact Unicode block progress bar:
+        [████░░░░] 50% (15/30 files) or [scanning...]
+        """
+        clean_ws = (workspace_name or "Default").strip()
+        prog = self.get_progress(clean_ws)
+        total = prog.get("total", 0)
+        current = prog.get("current", 0)
+        pct = prog.get("pct", 0.0)
+        stage = prog.get("stage", "files")
+
+        if total <= 0:
+            if stage == "scanning":
+                return "[scanning...]"
+            return "[calculating...]"
+
+        fill = int(round(width * (current / total))) if total > 0 else 0
+        fill = min(width, max(0, fill))
+        bar = "█" * fill + "░" * (width - fill)
+        stage_suffix = f" {stage}" if stage in ["files", "pages", "drives"] else ""
+        return f"[{bar}] {int(pct)}% ({current}/{total}{stage_suffix})"
+
     def get_sync_status(self, workspace_name: str) -> Dict[str, Any]:
         clean_ws = (workspace_name or "Default").strip()
         with self._lock:
@@ -304,10 +357,16 @@ class BackgroundSyncManager:
             if not job:
                 return {"status": "idle", "workspace_name": clean_ws}
             is_alive = job["thread"].is_alive()
+            prog = self._progress.get(
+                clean_ws,
+                {"current": 0, "total": 0, "pct": 0.0, "stage": "idle", "item_name": ""}
+            )
             return {
                 "workspace_name": clean_ws,
                 "status": "syncing" if is_alive else job.get("status", "completed"),
                 "start_time": job.get("start_time"),
+                "progress": prog,
+                "progress_bar": self.format_progress_bar(clean_ws),
                 "result": job.get("result"),
                 "error": job.get("error")
             }
@@ -328,9 +387,15 @@ class BackgroundSyncManager:
             if clean_ws in self._active_jobs and self._active_jobs[clean_ws]["thread"].is_alive():
                 return self._active_jobs[clean_ws]["thread"]
 
+        self.update_progress(clean_ws, current=0, total=0, stage="scanning")
+
         def _worker():
             try:
                 from any_context.ingestion.unified_sync import run_unified_sync
+                
+                def _prog_cb(curr: int, tot: int, stg: str = "files", itm: str = ""):
+                    self.update_progress(clean_ws, current=curr, total=tot, stage=stg, item_name=itm)
+
                 res = run_unified_sync(
                     workspace_name=clean_ws if not is_all else None,
                     sync_folders=sync_folders,
@@ -338,11 +403,19 @@ class BackgroundSyncManager:
                     sync_drives=sync_drives,
                     force_full=force_full,
                     verbose=verbose,
-                    is_all=is_all
+                    is_all=is_all,
+                    progress_callback=_prog_cb
                 )
                 with self._lock:
                     self._active_jobs[clean_ws]["status"] = "completed"
                     self._active_jobs[clean_ws]["result"] = res
+                    self._progress[clean_ws] = {
+                        "current": self._progress.get(clean_ws, {}).get("total", 1),
+                        "total": self._progress.get(clean_ws, {}).get("total", 1),
+                        "pct": 100.0,
+                        "stage": "done",
+                        "item_name": ""
+                    }
                 if on_complete:
                     try:
                         on_complete(res)
@@ -366,13 +439,21 @@ class BackgroundSyncManager:
         return t
 
 
-def run_index_folder(workspace_name: str = None, verbose: bool = False, force_full: bool = False):
+def run_index_folder(
+    workspace_name: str = None,
+    verbose: bool = False,
+    force_full: bool = False,
+    progress_callback: Optional[Callable[[int, int, str, str], None]] = None
+):
     """
     Index documents in the vector database incrementally across all configured workspaces,
     or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
     Automatically embeds application README and Help Module Registry as permanent system self-help context.
     Uses SQLite stat cache (mtime & size) for sub-30ms bypass when unchanged and zero-cost file path migration.
     """
+    if progress_callback:
+        progress_callback(0, 0, "scanning", "")
+
     current_settings = AppSettings.load()
     if not current_settings or not current_settings.workspaces:
         if verbose:
@@ -536,10 +617,13 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
 
         # Load discovered files safely
         if ws_file_paths:
+            total_ws_files = len(ws_file_paths)
+            if progress_callback:
+                progress_callback(1, total_ws_files, "files", os.path.basename(ws_file_paths[0]))
             try:
                 reader = SimpleDirectoryReader(input_files=ws_file_paths)
                 docs = reader.load_data()
-                for d in docs:
+                for idx, d in enumerate(docs):
                     d.metadata["workspace"] = ws.name
                     if "file_path" in d.metadata:
                         fp = d.metadata["file_path"]
@@ -553,10 +637,14 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
                             d.metadata["date_confidence"] = "filesystem_timestamp"
                         except Exception:
                             pass
+                    if progress_callback and idx % 5 == 0:
+                        progress_callback(min(idx + 1, total_ws_files), total_ws_files, "files", d.metadata.get("file_name", ""))
                 all_documents.extend(docs)
             except Exception:
                 # Fallback: file-by-file loading if a batch contains a corrupted or locked file
-                for single_file in ws_file_paths:
+                for f_idx, single_file in enumerate(ws_file_paths):
+                    if progress_callback:
+                        progress_callback(f_idx + 1, total_ws_files, "files", os.path.basename(single_file))
                     try:
                         single_reader = SimpleDirectoryReader(input_files=[single_file])
                         s_docs = single_reader.load_data()
@@ -578,6 +666,8 @@ def run_index_folder(workspace_name: str = None, verbose: bool = False, force_fu
                         all_documents.extend(s_docs)
                     except Exception:
                         pass
+            if progress_callback:
+                progress_callback(total_ws_files, total_ws_files, "files", "")
 
         # Auto-inject application README.md as permanent system context for Default/Global workspace
         if ws.name in ["Default", "Global"] and readme_path:

@@ -282,8 +282,9 @@ def create_bottom_toolbar_renderer(
         try:
             bg_mgr = BackgroundSyncManager()
             if bg_mgr.is_syncing(workspace_name):
-                sync_badge = "  <style fg='#565f89'>│</style>  <style fg='#ff9e64'><b>⚡ Syncing...</b></style>"
-                if_sync_part = "  │  ⚡ Syncing..."
+                prog_bar = bg_mgr.format_progress_bar(workspace_name, width=8)
+                sync_badge = f"  <style fg='#565f89'>│</style>  <style fg='#ff9e64'><b>⚡ Syncing {prog_bar}</b></style>"
+                if_sync_part = f"  │  ⚡ Syncing {prog_bar}"
         except Exception:
             pass
 
