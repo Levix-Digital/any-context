@@ -18,7 +18,7 @@ from any_context.config.db_store import ConfigDBStore
 def _prune_historical_tool_messages(messages):
     """
     Prunes heavy raw chunk dumps from prior turns' ToolMessages,
-    retaining only compact markers while preserving all HumanMessage and AIMessage
+    retaining only compact English markers while preserving all HumanMessage and AIMessage
     conversational dialog and the current turn's fresh ToolMessages.
     """
     if not isinstance(messages, list) or len(messages) <= 2:
@@ -29,8 +29,98 @@ def _prune_historical_tool_messages(messages):
         if m_type in ["tool", "ToolMessage"] or hasattr(msg, "tool_call_id"):
             c_str = str(getattr(msg, "content", ""))
             if len(c_str) > 300:
-                setattr(msg, "content", "[Contexto anterior do workspace consultado com sucesso]")
+                setattr(msg, "content", "[Prior workspace context retrieved and synthesized in conversation history]")
     return messages
+
+
+def _prune_messages_for_llm(messages):
+    """
+    Prunes heavy raw chunk dumps from prior turns' ToolMessages at LLM call-time,
+    retaining only compact English markers while preserving all HumanMessage, AIMessage,
+    and the current turn's fresh ToolMessages.
+    """
+    if not messages or not isinstance(messages, list):
+        return messages
+
+    last_human_idx = -1
+    for i in range(len(messages) - 1, -1, -1):
+        if getattr(messages[i], "type", "") == "human" or messages[i].__class__.__name__ == "HumanMessage":
+            last_human_idx = i
+            break
+
+    pruned = []
+    for idx, msg in enumerate(messages):
+        m_type = getattr(msg, "type", "")
+        # If it is a ToolMessage prior to the latest HumanMessage, it's historical
+        if (m_type in ["tool", "ToolMessage"] or hasattr(msg, "tool_call_id")) and idx < last_human_idx:
+            cloned = msg.model_copy() if hasattr(msg, "model_copy") else msg
+            cloned.content = "[Prior workspace context retrieved and synthesized in conversation history]"
+            pruned.append(cloned)
+        else:
+            pruned.append(msg)
+
+    return pruned
+
+
+class PruningBoundModel:
+    def __init__(self, bound_model):
+        self._bound_model = bound_model
+
+    def __getattr__(self, name):
+        return getattr(self._bound_model, name)
+
+    def invoke(self, input_val, config=None, **kwargs):
+        if isinstance(input_val, list):
+            input_val = _prune_messages_for_llm(input_val)
+        return self._bound_model.invoke(input_val, config=config, **kwargs)
+
+    def stream(self, input_val, config=None, **kwargs):
+        if isinstance(input_val, list):
+            input_val = _prune_messages_for_llm(input_val)
+        return self._bound_model.stream(input_val, config=config, **kwargs)
+
+    async def ainvoke(self, input_val, config=None, **kwargs):
+        if isinstance(input_val, list):
+            input_val = _prune_messages_for_llm(input_val)
+        return await self._bound_model.ainvoke(input_val, config=config, **kwargs)
+
+    async def astream(self, input_val, config=None, **kwargs):
+        if isinstance(input_val, list):
+            input_val = _prune_messages_for_llm(input_val)
+        async for chunk in self._bound_model.astream(input_val, config=config, **kwargs):
+            yield chunk
+
+    def generate_prompt(self, prompts, **kwargs):
+        pruned_prompts = []
+        for p in prompts:
+            if hasattr(p, "to_messages"):
+                msgs = _prune_messages_for_llm(p.to_messages())
+                pruned_prompts.append(msgs)
+            else:
+                pruned_prompts.append(p)
+        return self._bound_model.generate(pruned_prompts, **kwargs)
+
+
+class PruningChatModelWrapper:
+    def __init__(self, raw_model):
+        self._raw_model = raw_model
+
+    def __getattr__(self, name):
+        return getattr(self._raw_model, name)
+
+    def bind_tools(self, tools, **kwargs):
+        bound = self._raw_model.bind_tools(tools, **kwargs)
+        return PruningBoundModel(bound)
+
+    def invoke(self, input_val, config=None, **kwargs):
+        if isinstance(input_val, list):
+            input_val = _prune_messages_for_llm(input_val)
+        return self._raw_model.invoke(input_val, config=config, **kwargs)
+
+    def stream(self, input_val, config=None, **kwargs):
+        if isinstance(input_val, list):
+            input_val = _prune_messages_for_llm(input_val)
+        return self._raw_model.stream(input_val, config=config, **kwargs)
 
 
 class ResilientSqliteSaver(SqliteSaver):
@@ -166,7 +256,8 @@ def create_anycontext_agent(
     elif model_provider in ["google_genai", "gemini"]:
         init_kwargs["model_provider"] = "google_genai"
 
-    model = init_chat_model(**init_kwargs)
+    raw_model = init_chat_model(**init_kwargs)
+    model = PruningChatModelWrapper(raw_model)
 
     # Resolve web search status if not explicitly passed
     if web_search_enabled is None:
