@@ -67,8 +67,8 @@ def entrypoint():
 
     # 4. Load environment variables (.env) for LangSmith tracing, licenses, and API keys
     try:
-        from dotenv import load_dotenv
-        load_dotenv()
+        from any_context.core.utils import load_env
+        load_env()
     except Exception:
         pass
 
