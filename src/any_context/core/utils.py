@@ -183,19 +183,17 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
 
             if effective_mode == "strict":
                 prompt += (
-                    "- **STRICT PROTOCOL FOR WEB SEARCH (USER PERMISSION MANDATORY):**\n"
-                    "  1. Search `search_db` FIRST. Rely 100% on the local workspace documents with ZERO parametric hallucination.\n"
-                    "  2. You are STRICTLY FORBIDDEN from calling `live_web_search` autonomously on the initial question without prior explicit user confirmation.\n"
-                    "  3. If information is missing from the local workspace files:\n"
-                    "     - DO NOT call `live_web_search` immediately.\n"
-                    "     - DO NOT guess or use pre-trained parametric memory.\n"
-                    "     - You MUST inform the user and explicitly ASK:\n"
-                    "       *\"⚠️ Essa informação não foi encontrada nos documentos locais do workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\"*\n"
-                    "  4. When the user confirms (e.g. 'sim', 'yes', 'pode buscar', 'ok', 'faça isso') OR if their prompt explicitly instructs to search online:\n"
-                    "     - You MUST call `live_web_search` immediately.\n"
-                    "     - Prioritize registered workspace portals first (e.g. pass `target_domain`) with automatic open web fallback, focusing strictly on delivering a specific, targeted answer.\n"
-                    "     - **QUERY RECONSTRUCTION RULE:** In the `query` argument of `live_web_search`, you MUST pass the FULL TARGET TOPIC/QUESTION discussed, NEVER the confirmation keyword ('sim').\n"
-                    "  5. Present all web findings under:\n"
+                    "- **🛡️ STRICT PROTOCOL FOR WEB SEARCH & PERMISSION GATE (MANDATORY RULE):**\n"
+                    "  1. You are operating in STRICT AUDIT & LEGAL GROUNDING MODE.\n"
+                    "  2. Search `search_db` FIRST. Rely 100% on the local workspace documents with ZERO parametric hallucination.\n"
+                    "  3. **ABSOLUTE PROHIBITION ON AUTONOMOUS WEB SEARCH:** You are STRICTLY FORBIDDEN from calling `live_web_search` on any initial question unless the user explicitly used search commands (e.g. 'pesquise na internet', 'busque online') or explicitly confirmed permission.\n"
+                    "  4. If information is missing from the local workspace files:\n"
+                    "     - DO NOT call `live_web_search`.\n"
+                    "     - DO NOT invent or guess.\n"
+                    "     - You MUST STOP, inform the user, and explicitly ASK:\n"
+                    "       *\"⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\"*\n"
+                    "  5. ONLY when the user replies confirming (e.g. 'sim', 'yes', 'pode buscar', 'ok', 'faça isso') is `live_web_search` permitted to be invoked.\n"
+                    "  6. When confirmed, pass the FULL TOPIC to `query` (never the literal 'sim') and present web findings under:\n"
                     "     `### 🌐 Resultados da Web Externa (Fonte: <URL>)`\n"
                 )
             elif effective_mode == "proactive":
