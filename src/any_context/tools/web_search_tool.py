@@ -119,25 +119,27 @@ def execute_web_search(
     def _try_duckduckgo() -> List[Dict[str, str]]:
         d_res = []
         try:
-            try:
-                from ddgs import DDGS
-            except ImportError:
-                from duckduckgo_search import DDGS
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                try:
+                    from ddgs import DDGS
+                except ImportError:
+                    from duckduckgo_search import DDGS
 
-            with DDGS() as ddgs:
-                if domains:
-                    for dom in domains[:2]:
-                        site_query = f"site:{dom} {clean_query}"
-                        try:
-                            ddg_res = list(ddgs.text(site_query, max_results=max_results))
-                            for r in ddg_res:
-                                d_res.append({
-                                    "title": r.get("title", "Web Result"),
-                                    "url": r.get("href", r.get("link", "")),
-                                    "snippet": r.get("body", r.get("snippet", ""))
-                                })
-                        except Exception:
-                            pass
+                with DDGS() as ddgs:
+                    if domains:
+                        for dom in domains[:2]:
+                            site_query = f"site:{dom} {clean_query}"
+                            try:
+                                ddg_res = list(ddgs.text(site_query, max_results=max_results))
+                                for r in ddg_res:
+                                    d_res.append({
+                                        "title": r.get("title", "Web Result"),
+                                        "url": r.get("href", r.get("link", "")),
+                                        "snippet": r.get("body", r.get("snippet", ""))
+                                    })
+                            except Exception:
+                                pass
 
                 if len(d_res) < max_results:
                     needed = max_results - len(d_res)
@@ -223,6 +225,11 @@ def live_web_search(
 ) -> str:
     """
     Performs real-time public web search on the internet when web search is enabled for the workspace.
+
+    🛡️ STRICT GROUNDING MODE PERMISSION GATE (MANDATORY):
+    - When active Grounding Mode is 'Strict', you MUST NOT call this tool autonomously on initial questions!
+    - In Strict Mode, you must first search local documents via `search_db`. If not found, you MUST ASK the user for confirmation first.
+    - In Strict Mode, ONLY invoke `live_web_search` if the user explicitly confirmed (e.g. 'sim', 'yes', 'pode buscar') or explicitly commanded to search online.
 
     SMART DOMAIN ROUTING RULE:
     - If the user's question specifically relates to a website or organization registered in the workspace (especially SPAs), pass its domain in `target_domain` (e.g. target_domain='flyingsquirrelsports.ca').
