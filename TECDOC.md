@@ -260,9 +260,13 @@ In accordance with strict **Hexagonal Architecture (Ports & Adapters)** principl
 - **Core Domain & Use Cases (`core/`, `vector_engine/`, `ingestion/`, `billing/`, `help/`)**:
   - **100% UI-Agnostic**: Absolutely zero ANSI escape codes (`\033[...]`), zero hardcoded ASCII box drawings (`┌ │ └`), zero direct interactive prompts (`questionary`), and zero unbuffered `print()` calls.
   - Returns pure data structures (dictionaries, dataclasses, pydantic models) and emits progress via callback functions (`progress_callback(current, total, stage, item)`).
-- **CLI Presentation Adapter (`src/any_context/cli/formatters.py`)**:
-  - Encapsulates all terminal-specific visual formatting: `format_sync_status_box`, `format_pricing_plans_cli`, `format_crawler_discovery_report`, and `run_interactive_web_crawler`.
-  - Guarantees seamless operation across all surfaces (CLI, REST API, MCP Server) without presentation coupling.
+### 📊 Universal Two-Stage Progress Telemetry (`src/any_context/cli/progress.py` - `v0.24.2`)
+To eliminate duplicate progress bar and spinner implementations across data sources:
+- **`TwoStageProgressRenderer`**: A universal, thread-safe presentation context manager providing live terminal progress rendering for any ingestion pipeline (Folders, Web, Drives):
+  - **Stage 1 (Discovery & Collection)**: Displays `[1/2 <Stage>] [████░░░░] N/Total (Pct%) • new, cached • item` for file scanning, web scraping, and cloud downloads.
+  - **Stage 2 (Vectorization & IA)**: Connected directly to `ParallelIndexer`, rendering real-time enrichment and batch vector embeddings `[2/2 Embedding] [██████░░░░] N/Total (chunks) • Vector Knowledge Base`.
+  - Encapsulates automatic terminal cursor management (`\033[?25l` / `\033[?25h`) and safe stdout flushing on Windows CP1252 consoles.
+
 
 ### 🎛️ Shared Multi-Source Orchestration Layer (`src/any_context/ingestion/orchestrator.py` - `v0.24.0`)
 To enforce strict Single Responsibility Principles (SRP), all cross-source orchestration, background thread management, and multi-source workspace inspection are isolated into `orchestrator.py`:
