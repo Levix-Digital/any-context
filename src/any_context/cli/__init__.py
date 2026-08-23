@@ -14,6 +14,12 @@ def __getattr__(name: str):
     elif name in ["format_sync_status_box", "format_pricing_plans_cli", "run_interactive_web_crawler", "display_help_page", "show_interactive_help_menu"]:
         from any_context.cli import formatters
         return getattr(formatters, name)
+    elif name == "TwoStageProgressRenderer":
+        from any_context.cli.progress import TwoStageProgressRenderer
+        return TwoStageProgressRenderer
+    elif name == "Spinner":
+        from any_context.cli.spinner import Spinner
+        return Spinner
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -24,6 +30,7 @@ __all__ = [
     "show_workspace_menu",
     "get_active_workspace",
     "Spinner",
+    "TwoStageProgressRenderer",
     "format_sync_status_box",
     "format_pricing_plans_cli",
     "run_interactive_web_crawler",

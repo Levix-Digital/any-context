@@ -291,38 +291,9 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
     total_target = len(chosen_urls)
     print(f"\n🚀 Processing and indexing \033[92m{total_target}\033[0m web pages into workspace '\033[93m{workspace_name}\033[0m'...")
 
-    SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    from any_context.cli.progress import TwoStageProgressRenderer
 
-    def _render_crawl_progress(current: int, total: int, indexed: int, skipped: int, latest_url: str = "", latest_title: str = ""):
-        pct = int((current / total) * 100) if total else 100
-        bar_len = 14
-        filled = int((pct / 100) * bar_len)
-        bar = "█" * filled + "░" * (bar_len - filled)
-        frame = SPINNER_FRAMES[current % len(SPINNER_FRAMES)]
-
-        display_url = latest_url
-        if len(display_url) > 30:
-            display_url = display_url[:12] + "..." + display_url[-15:]
-
-        status_text = f"{indexed} new"
-        if skipped > 0:
-            status_text += f", {skipped} cached"
-
-        safe_stdout_write(f"\r\033[K\033[96m{frame}\033[0m [1/2 Crawling] [{bar}] {current}/{total} ({pct}%) • \033[93m{status_text}\033[0m • \033[90m{display_url}\033[0m")
-
-    def _render_embed_progress(current: int, total: int, chunk_curr: int = 0, chunk_total: int = 0, stage: str = "Vector Knowledge Base"):
-        pct = int((current / total) * 100) if total else 100
-        bar_len = 14
-        filled = int((pct / 100) * bar_len)
-        bar = "█" * filled + "░" * (bar_len - filled)
-        frame = SPINNER_FRAMES[current % len(SPINNER_FRAMES)]
-
-        chunks_label = f" ({chunk_curr}/{chunk_total} chunks)" if chunk_total > 0 else ""
-        safe_stdout_write(f"\r\033[K\033[95m{frame}\033[0m [2/2 Embedding] [{bar}] {current}/{total} pages{chunks_label} ({pct}%) • \033[92m{stage}\033[0m")
-
-    # Hide terminal cursor during active live progress ticks
-    safe_stdout_write("\033[?25l")
-    try:
+    with TwoStageProgressRenderer(stage1_label="Crawling") as progress:
         res = crawl_and_index_urls(
             workspace_name=workspace_name,
             urls=chosen_urls,
@@ -331,16 +302,10 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
             scope=scope_name,
             force_refresh=force_refresh,
             max_workers=20,
-            progress_callback=_render_crawl_progress,
-            embed_progress_callback=_render_embed_progress,
+            progress_callback=progress.create_stage1_callback(stage_name="Crawling"),
+            embed_progress_callback=lambda curr, tot, c_c=0, c_t=0, st="Vector Knowledge Base": progress.update_stage2(curr, tot, c_c, c_t, stage_detail=st),
             sitemap_lastmods=disc.get("sitemap_lastmods")
         )
-    finally:
-        # Restore terminal cursor visibility
-        safe_stdout_write("\033[?25h")
-
-    # Completely clear the live ticker line and print a clean final summary
-    safe_stdout_write("\r\033[K")
     indexed_cnt = res.get("indexed_count", 0)
     skipped_cnt = res.get("skipped_count", 0)
     total_distinct = res.get("total_distinct_indexed", indexed_cnt + skipped_cnt)

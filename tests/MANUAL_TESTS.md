@@ -7,7 +7,30 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.24.1): Pureza Hexagonal do Core e Isolamento do Adaptador CLI
+### 📌 Cenário 1 (v0.24.2): Barra de Progresso Universal de Duas Etapas (`TwoStageProgressRenderer`)
+
+- **Objetivo**: Comprovar que durante a ingestão web e de pastas locais, o terminal exibe animação contínua e atualização fluida em tempo real tanto na **Etapa 1 (Crawling/Coleta)** quanto na **Etapa 2 (Vetorização & IA)**, sem congelar no zero.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.2`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.24.2
+   actx
+   ```
+
+2. **⚡ Iniciar Ingestão de Portal Web (`/web add`):**
+   ```text
+   /web add https://www.saskatchewan.ca/residents/moving-to-saskatchewan
+   ```
+   - **Critério de Sucesso:**
+     - Na **Etapa 1**, a barra `[1/2 Crawling]` avança página por página com spinner animado (`⠋`, `⠙`, `⠹`...).
+     - Na **Etapa 2**, a barra `[2/2 Embedding]` inicia exibindo `Enriching Context` e progride fluentemente informando páginas e chunks (ex: `120/292 pages (450/1100 chunks) (41%) • Vector Knowledge Base`) até 100%.
+
+---
+
+### 📌 Cenário 2 (v0.24.1): Pureza Hexagonal do Core e Isolamento do Adaptador CLI
 
 - **Objetivo**: Comprovar que o Core Domain do AnyContext opera de forma 100% agnóstica a UI (sem vazamentos de ANSI ou questionários no Core), enquanto o adaptador CLI ([`formatters.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/cli/formatters.py)) renderiza perfeitamente os cards de status, planos de preços e relatórios de crawling.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.1`.
