@@ -179,6 +179,10 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
             prompt += f"\n\n### 🌐 LIVE WEB SEARCH ENGINE: ACTIVE (ENABLED FOR WORKSPACE '{active_workspace or 'Current'}')\n"
             prompt += "- You have access to the `live_web_search` tool to fetch real-time public internet data.\n"
             prompt += "- **SMART DOMAIN ROUTING & FALLBACK:** If the user asks about a specific portal or organization registered in this workspace (especially for SPAs with dynamic content), pass `target_domain` to `live_web_search`. For general queries (weather, news, facts), omit `target_domain` to search the open global web.\n"
+            prompt += "- **MANDATORY WEB CITATION FOOTER RULE:** Whenever you fetch or use information from `live_web_search`, you MUST include a dedicated sources footer block at the very end of your response with the exact clickable Markdown URLs consulted:\n"
+            prompt += "  ---\n"
+            prompt += "  🌐 **Fontes Consultadas na Web:**\n"
+            prompt += "  - [Título da Página / Loja](https://...)\n"
             prompt += "- **SOURCE DISCRIMINATION RULE:** You MUST strictly and visually discriminate the origin of each piece of information in your final response.\n"
 
             if effective_mode == "strict":
