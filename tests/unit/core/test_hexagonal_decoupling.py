@@ -110,6 +110,36 @@ class TestHexagonalDecoupling(unittest.TestCase):
             self.assertTrue(mock_print.called)
         print("  [OK] display_help_page executed successfully!")
 
+    def test_06_parallel_indexer_progress_callbacks(self):
+        """Validates that ParallelIndexer emits live progress callbacks during enrichment and embedding."""
+        print("\n>>> [UNIT] Testing ParallelIndexer Live Progress Callbacks...")
+        from any_context.vector_engine.indexer import ParallelIndexer
+        from llama_index.core import Document
+        from llama_index.core.embeddings.mock_embed_model import MockEmbedding
+        from llama_index.core import Settings
+        Settings.embed_model = MockEmbedding(embed_dim=1536)
+
+        mock_store = MagicMock()
+        indexer = ParallelIndexer(store=mock_store)
+
+        docs = [
+            Document(text="Document 1 for testing live progress.", metadata={"file_name": "doc1.txt"}),
+            Document(text="Document 2 for testing live progress.", metadata={"file_name": "doc2.txt"})
+        ]
+
+        recorded_progress = []
+        def _cb(curr, total, stage, detail=""):
+            recorded_progress.append((curr, total, stage, detail))
+
+        res = indexer.index_documents(documents=docs, workspace_name="UnitTest", progress_callback=_cb)
+        self.assertEqual(res["status"], "success")
+        self.assertGreaterEqual(len(recorded_progress), 2, "Must receive multiple progress updates")
+        
+        stages = [p[2] for p in recorded_progress]
+        self.assertIn("enriching", stages)
+        self.assertIn("embedding", stages)
+        print(f"  [OK] ParallelIndexer emitted {len(recorded_progress)} live progress callbacks across stages: {set(stages)}!")
+
 
 if __name__ == "__main__":
     unittest.main()
