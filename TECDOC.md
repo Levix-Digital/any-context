@@ -378,9 +378,38 @@ When `LANGSMITH_TRACING=true` is present in the environment (via `.env` or syste
 - Traces are streamed to `https://api.smith.langchain.com` under the project `AnyContext`.
 - Captures precise token counts (input/output), millisecond latencies, and execution trees.
 
+## 11. AI Grounding Modes & Strict Web Search Permission Gate (`v0.24.3`)
+
+### 🛡️ Grounding Mode Architecture & Source Discrimination
+AnyContext implements 3 distinct Grounding Modes configured per-workspace or globally (`/mode`):
+1. **⚖️ Hybrid (Default)**: Combines indexed workspace facts with autonomous external web knowledge, segregating responses into `📂 Informações do Workspace` and `🌐 Informações Complementares da Web`.
+2. **🛡️ Strict (Audit & Legal)**: 100% grounded in indexed workspace documents with zero parametric hallucination. Autonomous web search is **strictly forbidden**. If documents lack information, the agent halts and asks for explicit user confirmation.
+3. **🚀 Proactive (Research & Ideation)**: Autonomous dual-layer synthesis combining local files and web search with multi-source strategic insights.
+
+### 🔒 Multi-Source Citation Templates (`AGENT.md` - `v0.24.3`)
+Every factual statement retrieved from workspace data or external search MUST append the standardized citation block corresponding to its source category:
+1. 📂 **Local Folders (`Folder`)**:
+   ```markdown
+   ---
+   📄 **Fontes Consultadas (Arquivos Locais):**
+   - `[Nome_do_Arquivo.ext]` (Última Modificação: YYYY-MM-DD | Seção / Página)
+   ```
+2. 🌐 **Web Portals & Search (`Web`):**
+   ```markdown
+   ---
+   🌐 **Fontes Consultadas (Portais Web do Workspace / Busca em Tempo Real):**
+   - [Título da Página Web / Loja](https://url-completa...) (Última Modificação: YYYY-MM-DD)
+   ```
+3. ☁️ **Cloud Drives (`Driver` - Google Drive, OneDrive, Dropbox):**
+   ```markdown
+   ---
+   ☁️ **Fontes Consultadas (Cloud Drive):**
+   - `[Nome_do_Arquivo.ext]` (Provedor: Google Drive / OneDrive | Caminho: `drive://pasta/arquivo.ext`)
+   ```
+
 ---
 
-## 11. Multi-Interface Surface Parity & Governance Protocol
+## 12. Multi-Interface Surface Parity & Governance Protocol
 
 AnyContext strictly follows the **`dev-cycle-protocol`** universal software engineering lifecycle:
 - **Modular Architecture**: Complete decoupling of core business logic from consumer interfaces.

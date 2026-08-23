@@ -7,7 +7,50 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.24.2): Barra de Progresso Universal de Duas Etapas (`TwoStageProgressRenderer`)
+### 📌 Cenário 1 (v0.24.3): Gate de Permissão no Modo Strict & Bloco Mandatório de Fontes Web
+
+- **Objetivo**: Comprovar que no modo `Strict` a IA jamais dispara busca na internet autonomamente sem antes perguntar e receber confirmação explícita do usuário, e que respostas fundamentadas na web exibem o rodapé padronizado de fontes com URLs completas.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.3`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.24.3
+   actx
+   ```
+
+2. **⚡ Ativar Modo Strict e Busca Web:**
+   ```text
+   /mode Strict
+   /web-search --on
+   ```
+
+3. **⚡ Fazer uma pergunta sobre dado não indexado no workspace:**
+   ```text
+   qual o preço do Windex?
+   ```
+   - **Critério de Sucesso:**
+     - A IA **NÃO** faz a busca na web automaticamente.
+     - A IA responde informando que o dado não consta no workspace e pergunta:
+       *`⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre 'preço do Windex'?`*
+
+4. **⚡ Confirmar a busca na web:**
+   ```text
+   sim
+   ```
+   - **Critério de Sucesso:**
+     - A IA executa a busca na web e exibe a resposta com os preços.
+     - No final da resposta, é exibido o rodapé obrigatório:
+       ```markdown
+       ---
+       🌐 **Fontes Consultadas na Web:**
+       - [Título da Loja/Página](https://...)
+       ```
+
+---
+
+### 📌 Cenário 2 (v0.24.2): Barra de Progresso Universal de Duas Etapas (`TwoStageProgressRenderer`)
 
 - **Objetivo**: Comprovar que durante a ingestão web e de pastas locais, o terminal exibe animação contínua e atualização fluida em tempo real tanto na **Etapa 1 (Crawling/Coleta)** quanto na **Etapa 2 (Vetorização & IA)**, sem congelar no zero.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.2`.
