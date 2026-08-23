@@ -7,16 +7,16 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.24.3): Gate de Permissão no Modo Strict & Bloco Mandatório de Fontes Web
+### 📌 Cenário 1 (v0.24.4): Gating Dinâmico Determinístico no Modo Strict & Bloco Mandatório de Fontes
 
-- **Objetivo**: Comprovar que no modo `Strict` a IA jamais dispara busca na internet autonomamente sem antes perguntar e receber confirmação explícita do usuário, e que respostas fundamentadas na web exibem o rodapé padronizado de fontes com URLs completas.
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.3`.
+- **Objetivo**: Comprovar que no modo `Strict` a IA jamais dispara busca na internet autonomamente na pergunta inicial (com ferramenta dinamicamente restrita), perguntando ao usuário e liberando a busca apenas sob confirmação explícita (`sim`), com rodapé completo de fontes.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.4`.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Iniciar o AnyContext:**
    ```powershell
-   actx --update@0.24.3
+   actx --update@0.24.4
    actx
    ```
 

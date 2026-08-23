@@ -407,6 +407,14 @@ Every factual statement retrieved from workspace data or external search MUST ap
    - `[Nome_do_Arquivo.ext]` (Provedor: Google Drive / OneDrive | Caminho: `drive://pasta/arquivo.ext`)
    ```
 
+### ⚡ Deterministic Dynamic Tool Gating & Global Intent Isolation (`v0.24.4`)
+- **Dynamic Tool Gating at Model Wrapper Layer (`PruningBoundModel`)**:
+  - In `Strict Mode`, `live_web_search` is physically withheld from the model's bound toolset on initial unconfirmed prompts.
+  - Smaller LLMs (`gpt-4o-mini`, `claude-3-5-haiku`) cannot bypass textual instructions because the function schema is absent.
+  - When the user explicitly confirms (e.g. `sim`, `yes`, `pode pesquisar`) or uses an explicit web command, `live_web_search` is dynamically bound for that turn, executing the search with full citations.
+- **Intent-Based Global System Help Isolation (`search_db`)**:
+  - The `Global` workspace (containing `README.md` and `HELP_REGISTRY`) is excluded from domain searches (e.g. products, legal, medical) and queried only when slash commands or system help keywords are detected, preventing false-positive matches from system manuals.
+
 ---
 
 ## 12. Multi-Interface Surface Parity & Governance Protocol

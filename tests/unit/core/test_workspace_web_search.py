@@ -187,5 +187,29 @@ class TestWorkspaceWebSearch(unittest.TestCase):
         self.assertIn("Serper", get_active_web_search_engine())
         safe_stdout_write("  [OK] Active search engine label and hierarchy validated successfully!\n")
 
+    def test_09_strict_mode_permission_gate_and_query_isolation(self):
+        """Validates that Strict Mode permission authorization helper accurately distinguishes initial questions from confirmations."""
+        safe_stdout_write(">>> [CORE UNIT] Testing Strict Mode Web Permission Gate Authorization...\n")
+        from any_context.core.agent import _is_web_search_authorized_by_prompt
+
+        # Unconfirmed queries should return False
+        self.assertFalse(_is_web_search_authorized_by_prompt("Qual é o preço do Windex?"))
+        self.assertFalse(_is_web_search_authorized_by_prompt("Quem é o responsável pelo contrato?"))
+        self.assertFalse(_is_web_search_authorized_by_prompt("Quais são os prazos de entrega?"))
+
+        # Explicit confirmation tokens should return True
+        self.assertTrue(_is_web_search_authorized_by_prompt("sim"))
+        self.assertTrue(_is_web_search_authorized_by_prompt("Sim, por favor"))
+        self.assertTrue(_is_web_search_authorized_by_prompt("yes"))
+        self.assertTrue(_is_web_search_authorized_by_prompt("pode buscar"))
+        self.assertTrue(_is_web_search_authorized_by_prompt("pode pesquisar"))
+        self.assertTrue(_is_web_search_authorized_by_prompt("ok"))
+        self.assertTrue(_is_web_search_authorized_by_prompt("prossiga"))
+
+        # Explicit search commands should return True
+        self.assertTrue(_is_web_search_authorized_by_prompt("pesquise na internet sobre o valor do Windex"))
+        self.assertTrue(_is_web_search_authorized_by_prompt("busque na web os dados mais recentes"))
+        safe_stdout_write("  [OK] Strict Mode Web Permission Gate logic validated with 100% precision!\n")
+
 if __name__ == "__main__":
     unittest.main()
