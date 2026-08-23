@@ -93,32 +93,77 @@ def _prune_messages_for_llm(messages, max_current_turn_chars=40000):
     return pruned
 
 
+def _is_web_search_authorized_by_prompt(prompt: str) -> bool:
+    """Checks whether the user's prompt is an explicit web search confirmation or request."""
+    if not prompt:
+        return False
+    p = prompt.strip().lower()
+    confirmations = {
+        "sim", "yes", "y", "s", "pode", "pode buscar", "pode pesquisar",
+        "faça isso", "faca isso", "prossiga", "ok", "buscar", "pesquisar",
+        "pesquise", "busca", "faça", "faca", "claro", "com certeza", "autorizo"
+    }
+    if p in confirmations or any(p.startswith(c) for c in ["sim,", "sim ", "yes,", "yes ", "pode ", "claro,"]):
+        return True
+    search_keywords = [
+        "pesquise na web", "pesquise na internet", "busque na web", "busque na internet",
+        "procure na web", "procure na internet", "search online", "search the web", "search internet",
+        "google", "na internet", "no google", "pesquisa online"
+    ]
+    return any(k in p for k in search_keywords)
+
+
 class PruningBoundModel:
-    def __init__(self, bound_model):
+    def __init__(self, bound_model, bound_no_web=None, grounding_mode: str = "hybrid"):
         self._bound_model = bound_model
+        self._bound_no_web = bound_no_web
+        self._grounding_mode = (grounding_mode or "hybrid").lower().strip()
 
     def __getattr__(self, name):
         return getattr(self._bound_model, name)
 
+    def _select_bound(self, messages):
+        if self._bound_no_web is None or self._grounding_mode != "strict" or not isinstance(messages, list):
+            return self._bound_model
+
+        latest_human_text = ""
+        for i in range(len(messages) - 1, -1, -1):
+            m = messages[i]
+            if getattr(m, "type", "") == "human" or m.__class__.__name__ == "HumanMessage":
+                content = getattr(m, "content", "")
+                if isinstance(content, str):
+                    latest_human_text = content
+                elif isinstance(content, list):
+                    latest_human_text = " ".join([str(p) for p in content])
+                break
+
+        if _is_web_search_authorized_by_prompt(latest_human_text):
+            return self._bound_model
+        return self._bound_no_web
+
     def invoke(self, input_val, config=None, **kwargs):
         if isinstance(input_val, list):
             input_val = _prune_messages_for_llm(input_val)
-        return self._bound_model.invoke(input_val, config=config, **kwargs)
+        active_bound = self._select_bound(input_val)
+        return active_bound.invoke(input_val, config=config, **kwargs)
 
     def stream(self, input_val, config=None, **kwargs):
         if isinstance(input_val, list):
             input_val = _prune_messages_for_llm(input_val)
-        return self._bound_model.stream(input_val, config=config, **kwargs)
+        active_bound = self._select_bound(input_val)
+        return active_bound.stream(input_val, config=config, **kwargs)
 
     async def ainvoke(self, input_val, config=None, **kwargs):
         if isinstance(input_val, list):
             input_val = _prune_messages_for_llm(input_val)
-        return await self._bound_model.ainvoke(input_val, config=config, **kwargs)
+        active_bound = self._select_bound(input_val)
+        return await active_bound.ainvoke(input_val, config=config, **kwargs)
 
     async def astream(self, input_val, config=None, **kwargs):
         if isinstance(input_val, list):
             input_val = _prune_messages_for_llm(input_val)
-        async for chunk in self._bound_model.astream(input_val, config=config, **kwargs):
+        active_bound = self._select_bound(input_val)
+        async for chunk in active_bound.astream(input_val, config=config, **kwargs):
             yield chunk
 
     def generate_prompt(self, prompts, **kwargs):
@@ -133,15 +178,23 @@ class PruningBoundModel:
 
 
 class PruningChatModelWrapper:
-    def __init__(self, raw_model):
+    def __init__(self, raw_model, grounding_mode: str = "hybrid"):
         self._raw_model = raw_model
+        self._grounding_mode = (grounding_mode or "hybrid").lower().strip()
 
     def __getattr__(self, name):
         return getattr(self._raw_model, name)
 
     def bind_tools(self, tools, **kwargs):
+        has_web = any(getattr(t, "name", "") == "live_web_search" for t in tools)
+        if has_web and self._grounding_mode == "strict":
+            bound_all = self._raw_model.bind_tools(tools, **kwargs)
+            tools_no_web = [t for t in tools if getattr(t, "name", "") != "live_web_search"]
+            bound_no_web = self._raw_model.bind_tools(tools_no_web, **kwargs)
+            return PruningBoundModel(bound_all, bound_no_web=bound_no_web, grounding_mode="strict")
+
         bound = self._raw_model.bind_tools(tools, **kwargs)
-        return PruningBoundModel(bound)
+        return PruningBoundModel(bound, grounding_mode=self._grounding_mode)
 
     def invoke(self, input_val, config=None, **kwargs):
         if isinstance(input_val, list):
@@ -288,7 +341,7 @@ def create_anycontext_agent(
         init_kwargs["model_provider"] = "google_genai"
 
     raw_model = init_chat_model(**init_kwargs)
-    model = PruningChatModelWrapper(raw_model)
+    model = PruningChatModelWrapper(raw_model, grounding_mode=grounding_mode)
 
     # Resolve web search status if not explicitly passed
     if web_search_enabled is None:

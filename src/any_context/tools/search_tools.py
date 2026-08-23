@@ -204,9 +204,22 @@ def _execute_search_context(
         return "No documents found in vector database."
 
     config_store = ConfigDBStore()
-    target_workspaces = [workspace] if workspace else ["Default", "Global"]
-    if workspace and workspace.lower() != "global":
-        target_workspaces.append("Global")
+    target_workspaces = [workspace] if workspace else ["Default"]
+    if workspace and workspace.lower() == "global":
+        target_workspaces = ["Global"]
+    else:
+        # Only include Global (System Help) if the query is actually asking about AnyContext commands/features
+        q_lower = prompt_text.strip().lower()
+        is_help_intent = q_lower.startswith("/") or any(k in q_lower for k in [
+            "anycontext", "actx", "command", "comando", "slash", "ajuda", "help", "manual",
+            "como usar", "how to use", "como mover", "como transferir", "como adicionar", "como sincronizar",
+            "transfer", "transferir", "mover", "sync", "sincronizar", "workspace", "model", "modelo",
+            "config", "configurar", "billing", "plano", "plans", "key", "chave", "api key",
+            "grounding", "mode", "history", "historico", "reset", "update", "atualizar",
+            "link", "unlink", "inspect", "chunks", "ocr"
+        ])
+        if is_help_intent and "Global" not in target_workspaces:
+            target_workspaces.append("Global")
 
     shared_links = config_store.get_workspace_shared_links(workspace) if workspace else []
     linked_identifiers = [l["source_identifier"] for l in shared_links]
