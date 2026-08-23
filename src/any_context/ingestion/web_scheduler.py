@@ -571,12 +571,18 @@ def sync_workspace_web_urls(
         scope = u.get("scope")
         if page_count > 1 or scope in ["domain", "section", "custom"]:
             from any_context.ingestion.web_crawler import crawl_website
+
+            def _sub_crawl_prog(curr, tot, idxed, skp, url, title):
+                if progress_callback:
+                    progress_callback(curr, tot, "pages", url)
+
             try:
                 crawl_res = crawl_website(
                     workspace_name=workspace_name,
                     start_url=u["url"],
                     scope=scope or "domain",
-                    force_rescrape=force
+                    force_rescrape=force,
+                    progress_callback=_sub_crawl_prog
                 )
                 results.append({"url": u["url"], "result": crawl_res, "type": "portal"})
             except Exception as e:

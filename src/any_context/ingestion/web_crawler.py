@@ -583,7 +583,9 @@ def crawl_website(
     scope: str = "domain",
     max_pages: Optional[int] = None,
     force_rescrape: bool = False,
-    max_workers: int = 20
+    max_workers: int = 20,
+    progress_callback: Optional[Any] = None,
+    embed_progress_callback: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Programmatic, non-interactive website crawler and indexer with High-Speed Dual-Stage Parallel Pipeline.
@@ -606,7 +608,9 @@ def crawl_website(
         scope=scope,
         force_refresh=force_rescrape,
         max_workers=max_workers,
-        sitemap_lastmods=disc.get("sitemap_lastmods")
+        sitemap_lastmods=disc.get("sitemap_lastmods"),
+        progress_callback=progress_callback,
+        embed_progress_callback=embed_progress_callback
     )
 
 
