@@ -243,7 +243,12 @@ def run_index_folder(
     # Vectorize and Index via ParallelIndexer into LanceDBStore
     indexer = ParallelIndexer(store=lance_store)
     cfg = IngestionConfig(chunk_size=chunk_size, chunk_overlap=chunk_overlap, max_workers=6)
-    idx_res = indexer.index_documents(documents=all_documents, workspace_name=target_ws_name, config=cfg)
+    idx_res = indexer.index_documents(
+        documents=all_documents,
+        workspace_name=target_ws_name,
+        config=cfg,
+        progress_callback=progress_callback
+    )
 
     # Batch upsert file stat records into SQLite cache
     cache_records = []

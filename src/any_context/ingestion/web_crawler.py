@@ -516,14 +516,27 @@ def crawl_and_index_urls(
         try:
             total_docs_to_embed = len(documents_batch)
             if embed_progress_callback:
-                embed_progress_callback(0, total_docs_to_embed)
+                embed_progress_callback(0, total_docs_to_embed, 0, 0, "Enriching Context")
+
+            def _indexer_progress(current: int, total: int, stage: str, detail: str = ""):
+                if embed_progress_callback:
+                    if stage == "enriching":
+                        curr_docs = min(current, total_docs_to_embed)
+                        embed_progress_callback(curr_docs, total_docs_to_embed, 0, 0, "Enriching Context")
+                    elif stage in ["embedding", "persisting"]:
+                        curr_docs = min(int((current / max(total, 1)) * total_docs_to_embed), total_docs_to_embed)
+                        embed_progress_callback(curr_docs, total_docs_to_embed, current, total, "Vector Knowledge Base")
 
             lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
             parallel_indexer = ParallelIndexer(store=lance_store)
-            parallel_indexer.index_documents(documents=documents_batch, workspace_name=workspace_name)
+            parallel_indexer.index_documents(
+                documents=documents_batch,
+                workspace_name=workspace_name,
+                progress_callback=_indexer_progress
+            )
 
             if embed_progress_callback:
-                embed_progress_callback(total_docs_to_embed, total_docs_to_embed)
+                embed_progress_callback(total_docs_to_embed, total_docs_to_embed, total_docs_to_embed, total_docs_to_embed, "Vector Knowledge Base")
         except Exception as e:
             return {
                 "status": "partial_error",

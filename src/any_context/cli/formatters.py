@@ -310,14 +310,15 @@ def run_interactive_web_crawler(workspace_name: str, start_url: Optional[str] = 
 
         safe_stdout_write(f"\r\033[K\033[96m{frame}\033[0m [1/2 Crawling] [{bar}] {current}/{total} ({pct}%) • \033[93m{status_text}\033[0m • \033[90m{display_url}\033[0m")
 
-    def _render_embed_progress(current: int, total: int):
+    def _render_embed_progress(current: int, total: int, chunk_curr: int = 0, chunk_total: int = 0, stage: str = "Vector Knowledge Base"):
         pct = int((current / total) * 100) if total else 100
         bar_len = 14
         filled = int((pct / 100) * bar_len)
         bar = "█" * filled + "░" * (bar_len - filled)
         frame = SPINNER_FRAMES[current % len(SPINNER_FRAMES)]
 
-        safe_stdout_write(f"\r\033[K\033[95m{frame}\033[0m [2/2 Embedding] [{bar}] {current}/{total} pages ({pct}%) • \033[92mVector Knowledge Base\033[0m")
+        chunks_label = f" ({chunk_curr}/{chunk_total} chunks)" if chunk_total > 0 else ""
+        safe_stdout_write(f"\r\033[K\033[95m{frame}\033[0m [2/2 Embedding] [{bar}] {current}/{total} pages{chunks_label} ({pct}%) • \033[92m{stage}\033[0m")
 
     # Hide terminal cursor during active live progress ticks
     safe_stdout_write("\033[?25l")

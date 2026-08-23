@@ -6,11 +6,12 @@ batch vector embeddings, and zero-copy columnar persistence into LanceDB.
 import os
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 
 from any_context.vector_engine.models import IngestionConfig
 from any_context.vector_engine.store import LanceDBStore
 from any_context.vector_engine.enricher import ContextualEnricher
+from llama_index.core import Document
 
 
 class ParallelIndexer:
@@ -56,10 +57,12 @@ class ParallelIndexer:
         self,
         documents: List[Any],
         workspace_name: str = "Default",
-        config: Optional[IngestionConfig] = None
+        config: Optional[IngestionConfig] = None,
+        progress_callback: Optional[Callable[[int, int, str, str], None]] = None
     ) -> Dict[str, Any]:
         """
         Processes and indexes a list of LlamaIndex Document instances into LanceDB in parallel.
+        Emits live real-time progress callbacks for both contextual enrichment and batch vector embeddings.
         """
         if not documents:
             return {"status": "empty", "indexed_chunks": 0}
@@ -67,6 +70,7 @@ class ParallelIndexer:
         cfg = config or IngestionConfig()
         from llama_index.core.node_parser import SentenceSplitter
         splitter = SentenceSplitter(chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap)
+        total_docs = len(documents)
 
         # 1. Parallel Contextual Enrichment
         def _enrich_single_doc(doc):
@@ -89,20 +93,30 @@ class ParallelIndexer:
                 doc = Document(text=new_text, metadata=dict(doc.metadata), id_=getattr(doc, "id_", getattr(doc, "doc_id", None)))
             return doc, envelope
 
+        enriched_results = []
         with ThreadPoolExecutor(max_workers=cfg.max_workers) as executor:
-            enriched_results = list(executor.map(_enrich_single_doc, documents))
+            future_to_doc = {executor.submit(_enrich_single_doc, doc): doc for doc in documents}
+            completed_enrich = 0
+            for future in as_completed(future_to_doc):
+                doc, env = future.result()
+                enriched_results.append((doc, env))
+                completed_enrich += 1
+                if progress_callback:
+                    fn = doc.metadata.get("file_name") or os.path.basename(str(doc.metadata.get("file_path", "")))
+                    progress_callback(completed_enrich, total_docs, "enriching", str(fn))
 
         # 2. Chunking
         raw_chunks = []
         for doc, _ in enriched_results:
             nodes = splitter.get_nodes_from_documents([doc])
             for node in nodes:
+                node_ws = node.metadata.get("workspace") or getattr(doc, "metadata", {}).get("workspace") or workspace_name
                 raw_chunks.append({
-                    "id": f"{workspace_name}_{hashlib.sha256(node.text.encode('utf-8')).hexdigest()[:20]}",
+                    "id": f"{node_ws}_{hashlib.sha256(node.text.encode('utf-8')).hexdigest()[:20]}",
                     "text": node.text,
                     "file_name": node.metadata.get("file_name", "Unknown"),
                     "file_path": node.metadata.get("file_path", ""),
-                    "workspace": workspace_name,
+                    "workspace": node_ws,
                     "last_modified": node.metadata.get("last_modified_date") or node.metadata.get("last_modified") or "",
                     "content_type": node.metadata.get("content_type", "Local Document"),
                     "document_summary": node.metadata.get("document_summary", ""),
@@ -130,13 +144,20 @@ class ParallelIndexer:
 
         records_to_insert = []
         with ThreadPoolExecutor(max_workers=min(5, max(1, len(batches)))) as executor:
-            batch_results = list(executor.map(_process_embed_batch, batches))
-            for res_list in batch_results:
+            future_to_batch = {executor.submit(_process_embed_batch, b): b for b in batches}
+            completed_chunks = 0
+            for future in as_completed(future_to_batch):
+                res_list = future.result()
                 records_to_insert.extend(res_list)
+                completed_chunks += len(res_list)
+                if progress_callback:
+                    progress_callback(completed_chunks, total_chunks, "embedding", f"{completed_chunks}/{total_chunks} chunks")
 
         # 4. Columnar Persistence in LanceDB
         dim = len(records_to_insert[0]["vector"]) if records_to_insert else 1536
         self._store.upsert_records(records_to_insert, dim=dim)
+        if progress_callback:
+            progress_callback(total_chunks, total_chunks, "persisting", "LanceDB")
 
         return {
             "status": "success",
