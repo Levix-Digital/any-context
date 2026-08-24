@@ -258,3 +258,18 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
 
     return prompt
 
+
+def format_turn_grounding_header(
+    active_workspace: Optional[str] = None,
+    grounding_mode: Optional[str] = None,
+    web_search_enabled: bool = False
+) -> str:
+    """
+    Convenience helper to format an ultra-compact, token-efficient prompt header
+    for the active conversation turn using the Strategy Pattern.
+    """
+    from any_context.core.grounding_strategies import get_grounding_strategy
+    strategy = get_grounding_strategy(grounding_mode)
+    return strategy.format_turn_header(workspace_name=active_workspace, web_search_enabled=web_search_enabled)
+
+
