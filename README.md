@@ -249,13 +249,13 @@ Para garantir que um documento gigante de 500 páginas não monopolize todas as 
 
 ### 🛡️ Modos de Grounding & Matriz Dinâmica de Prioridades (`/mode`)
 
-O AnyContext adota uma arquitetura determinística de **Injeção de Estratégias por Turno (*Strategy Pattern*)** que protege o agente contra *prompt dilution* (degradação de foco em conversas longas). Cada turno de conversa recebe dinamicamente um cabeçalho ultracompacto (~35-45 tokens) contendo a matriz exata de precedência de fontes e regras de recência temporal:
+O AnyContext adota uma arquitetura determinística de **Injeção de Estratégias por Turno (*Strategy Pattern*)** que protege o agente contra *prompt dilution* (degradação de foco em conversas longas). Cada turno de conversa recebe dinamicamente um cabeçalho ultracompacto (~35-45 tokens) contendo a matriz exata de precedência de fontes, priorização de portais web registrados e a **Regra Universal de Recência Temporal (*Most Recent Always Wins*)**:
 
-| Modo de Grounding | VectorDB (Arquivos Locais) | Memória Paramétrica (Pesos do LLM) | Web Search (Quando Ativo) | Regra de Resolução & Comportamento do Turno |
-| :--- | :---: | :---: | :---: | :--- |
-| **🛡️ Strict** *(Auditoria / Jurídico)* | **Prioridade 0** *(Única fonte)* | **❌ Proibida** *(Zero alucinação)* | **Prioridade 2** *(Gate com permissão)* | Responde 100% pelos documentos locais. Se ausente, **declara ausência** e **pergunta se deseja pesquisar na web**. Nunca busca na web sem consentimento. |
-| **⚖️ Hybrid** *(Equilibrado / Padrão)* | **Prioridade 0** *(Base factual)* | **Prioridade 1** *(Rotulado)* | **Prioridade 1** *(Autônomo)* | Fatos do workspace primeiro. Para dados externos, compara Web e Memória: **a fonte mais recente prevalece**. Resposta dividida em camadas transparentes. |
-| **🚀 Proactive** *(Pesquisa & Estratégia)* | **Prioridade 0** *(Base de apoio)* | **Prioridade 0** *(Domínio analítico)* | **Prioridade 0** *(Tempo real)* | **Fusão total em tempo real**. A informação mais recente prevalece. Identifica discrepâncias temporais, antecipa riscos e recomenda links para indexação. |
+| Modo de Grounding | 1. VectorDB (Docs Locais) | 2. Portais Web do Workspace | 3. Web Aberta Global | 4. Memória do Modelo | Regra de Resolução & Comportamento do Turno |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **🛡️ Strict** *(Auditoria / Jurídico)* | **Prioridade 0** | **Prioridade 0 (Ao Vivo)** *(Sob confirmação)* | **Prioridade 1** *(Fallback)* | **❌ Proibida** *(Zero alucinação)* | Responde 100% pelos docs locais. Se ausente, consulta o usuário e pesquisa no portal web registrado primeiro. **A fonte mais recente sempre vence**. |
+| **⚖️ Hybrid** *(Equilibrado / Padrão)* | **Prioridade 0** | **Prioridade 0 (Ao Vivo)** *(Autônomo)* | **Prioridade 1** | **Prioridade 1** *(Rotulado)* | Fatos do workspace primeiro. Para dados ao vivo, pesquisa no portal do workspace primeiro (`target_domain`). **A fonte mais recente sempre vence**. |
+| **🚀 Proactive** *(Pesquisa & Estratégia)* | **Prioridade 0** | **Prioridade 0 (Ao Vivo)** | **Prioridade 0** | **Prioridade 0** | **Fusão total em tempo real**. A informação mais recente sempre prevalece. Antecipa riscos e recomenda links para indexação. |
 
 ### 🖥️ Painel Fixo de Input & Barra de Status Ancorada no Rodapé (`v0.24.6`)
 

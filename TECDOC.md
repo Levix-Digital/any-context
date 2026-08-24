@@ -432,12 +432,13 @@ Every factual statement retrieved from workspace data or external search MUST ap
   - Abstract `GroundingStrategy` interface declaring `format_turn_header(workspace_name, web_search_enabled) -> str`.
   - Concrete strategies: `StrictGroundingStrategy`, `HybridGroundingStrategy`, and `ProactiveGroundingStrategy`.
   - Factory function `get_grounding_strategy(mode)` resolves strategies in O(1) runtime.
-- **Priority Hierarchy & Temporal Recency Matrix**:
-  - **`Strict`**: VectorDB (Priority 0 / Sole Source of Truth) | Parametric Memory (❌ Forbidden) | Web Search (Permission-Gated).
-  - **`Hybrid`**: VectorDB (Priority 0) | Parametric Memory (Priority 1) | Web Search (Priority 1) -> Most recent source between Web and Parametric wins.
-  - **`Proactive`**: VectorDB (Priority 0) | Parametric Memory (Priority 0) | Web Search (Priority 0) -> Total real-time fusion; most recent source across all channels wins.
+- **Priority Hierarchy & Universal Temporal Recency Matrix (`v0.24.7`)**:
+  - **`Strict`**: VectorDB (Priority 0) & Registered Workspace Portals (Priority 0 live unindexed data, permission-gated) | Parametric Memory (❌ Forbidden) | Open Web Search (Priority 1 fallback). Universal Recency: If data appears in multiple sources, most recent source always prevails.
+  - **`Hybrid`**: VectorDB (Priority 0) & Registered Workspace Portals (Priority 0 live targeted search) | Parametric Memory & Open Web Search (Priority 1). Universal Recency: Most recent source always prevails.
+  - **`Proactive`**: VectorDB (Priority 0), Registered Workspace Portals (Priority 0), Parametric Memory (Priority 0), Web Search (Priority 0). Universal Recency: Total real-time fusion where the most recent source across all channels always wins.
 - **Runtime Injection Lifecycle in `_prune_messages_for_llm`**:
   - Dynamically attaches the ultra-compact (~35-45 tokens) header exclusively to the active turn's `HumanMessage` (`latest_human_idx`) at LLM call-time.
+  - Inspects active workspace registered web portals (`WebSchedulerStore`) and targets `live_web_search(target_domain='...')` to workspace domains first.
   - Historical messages in SQLite checkpoints, terminal display, and memory summarizers remain 100% clean and unpolluted.
   - Generates massive token savings across long sessions while ensuring 100% adherence to active grounding modes.
 

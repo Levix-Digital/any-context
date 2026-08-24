@@ -7,7 +7,34 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.24.6): Painel Fixo de Input & Barra de Status Ancorada no Rodapé (`PinnedBottomDock`)
+### 📌 Cenário 1 (v0.24.7): Prioridade 0 em Portais Web Registrados e Desempate por Recência Temporal
+
+- **Objetivo**: Comprovar que quando um portal web está registrado no workspace e o Web Search está ON, a IA pesquisa no portal registrado primeiro (Prioridade 0) antes de recorrer à web aberta, e aplica a regra de que a fonte mais recente sempre prevalece.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.7`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar o AnyContext e registrar um portal web no workspace:**
+   ```powershell
+   actx --update@0.24.7
+   actx
+   /web --add https://docs.python.org/3/
+   /web-search --on
+   /mode Hybrid
+   ```
+
+2. **⚡ Enviar uma pergunta sobre funcionalidade recente do portal:**
+   ```text
+   qual a novidade da versão mais recente do Python documentada no portal?
+   ```
+
+3. **⚡ Critérios de Aceitação:**
+   - A IA consulta os documentos locais e dispara `live_web_search(target_domain='docs.python.org')` como Prioridade 0 primária.
+   - Em caso de conflito de datas entre documentos locais mais antigos e páginas da web mais novas, a informação com data mais recente prevalece categoricamente.
+
+---
+
+### 📌 Cenário 2 (v0.24.6): Painel Fixo de Input & Barra de Status Ancorada no Rodapé (`PinnedBottomDock`)
 
 - **Objetivo**: Comprovar que o divisor horizontal e a barra de status inferior (`bottom_toolbar`) permanecem permanentemente fixos e visíveis na base da tela durante a geração e streaming da IA, enquanto o texto sobe suavemente na área de rolagem superior sem apagar o rodapé.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.6`.
