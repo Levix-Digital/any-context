@@ -267,6 +267,16 @@ To eliminate duplicate progress bar and spinner implementations across data sour
   - **Stage 2 (Vectorization & IA)**: Connected directly to `ParallelIndexer`, rendering real-time enrichment and batch vector embeddings `[2/2 Embedding] [██████░░░░] N/Total (chunks) • Vector Knowledge Base`.
   - Encapsulates automatic terminal cursor management (`\033[?25l` / `\033[?25h`) and safe stdout flushing on Windows CP1252 consoles.
 
+### 🖥️ Pinned Bottom Dock & Terminal Viewport Architecture (`src/any_context/cli/viewport.py` - `v0.24.6`)
+- **DECSTBM (DEC Set Top & Bottom Margins) Terminal Viewport Management**:
+  - The CLI manages terminal scrolling margins via standard VT100 escape sequences: `\033[1;{rows - 2}r`.
+  - Content streaming (`agent.stream`) and tool logging scroll seamlessly within lines `1` to `rows - 2`.
+  - Lines `rows - 1` (horizontal divider) and `rows` (dynamic status dock) remain **permanently pinned and anchored on screen**.
+- **`PinnedBottomDock` Presentation Manager**:
+  - Encapsulates safe stdout flushing, dynamic terminal geometry calculations (`shutil.get_terminal_size`), and real-time status line updates (`dock.update_status(...)`).
+  - Guaranteed `try...finally` margin reset (`\033[r`) preventing terminal state locking under any interruption (`Ctrl+C`, exceptions).
+  - Safe automatic pass-through when `sys.stdout.isatty() == False` (CI/CD and headless automation).
+
 
 ### 🎛️ Shared Multi-Source Orchestration Layer (`src/any_context/ingestion/orchestrator.py` - `v0.24.0`)
 To enforce strict Single Responsibility Principles (SRP), all cross-source orchestration, background thread management, and multi-source workspace inspection are isolated into `orchestrator.py`:

@@ -1611,47 +1611,58 @@ def run_chat_loop(active_workspace: str = "Default"):
                         active_model_for_agent = effective_model
                         active_mode_for_agent = current_grounding_mode
 
-                has_printed_ai_header = False
+                from any_context.cli.viewport import PinnedBottomDock
 
-                for token, metadata in agent_instance.stream(
-                    {
-                        "messages": [effective_prompt]
-                    },
-                    stream_mode="messages",
-                    config=config
-                ):
-                    if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
-                        content_str = ""
-                        if isinstance(token.content, str) and token.content:
-                            content_str = token.content
-                        elif isinstance(token.content, list):
-                            parts = []
-                            for part in token.content:
-                                if isinstance(part, str):
-                                    parts.append(part)
-                                elif isinstance(part, dict) and "text" in part:
-                                    parts.append(part["text"])
-                            content_str = "".join(parts)
+                with PinnedBottomDock(
+                    workspace_name=active_workspace,
+                    model_name=effective_model,
+                    grounding_mode=current_grounding_mode,
+                    web_search_enabled=current_web_search_enabled
+                ) as dock:
+                    has_printed_ai_header = False
 
-                        if content_str:
-                            if not has_printed_ai_header:
-                                safe_stdout_write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
-                                has_printed_ai_header = True
-                            safe_stdout_write(content_str)
+                    for token, metadata in agent_instance.stream(
+                        {
+                            "messages": [effective_prompt]
+                        },
+                        stream_mode="messages",
+                        config=config
+                    ):
+                        if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
+                            content_str = ""
+                            if isinstance(token.content, str) and token.content:
+                                content_str = token.content
+                            elif isinstance(token.content, list):
+                                parts = []
+                                for part in token.content:
+                                    if isinstance(part, str):
+                                        parts.append(part)
+                                    elif isinstance(part, dict) and "text" in part:
+                                        parts.append(part["text"])
+                                content_str = "".join(parts)
 
-                    elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
-                        if not has_printed_ai_header:
+                            if content_str:
+                                if not has_printed_ai_header:
+                                    dock.write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
+                                    has_printed_ai_header = True
+                                dock.write(content_str)
+
+                        elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
                             tool_name = str(getattr(token, "name", "") or "")
                             if "web" in tool_name.lower():
                                 from any_context.tools.web_search_tool import get_active_web_search_engine
                                 eng = get_active_web_search_engine()
-                                safe_stdout_write(f"\r\033[K🌐 [{eng}] Pesquisando na internet em tempo real...")
+                                status_msg = f"🌐 [{eng}] Pesquisando na internet em tempo real..."
                             else:
-                                safe_stdout_write(f"\r\033[K📚 [RAG] Reading retrieved context documents for AI analysis...")
+                                status_msg = "📚 [RAG] Reading retrieved context documents for AI analysis..."
 
-                if not has_printed_ai_header:
-                    safe_stdout_write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
-                print()
+                            if not has_printed_ai_header:
+                                dock.write(f"\r\033[K{status_msg}")
+                            dock.update_status(status_msg)
+
+                    if not has_printed_ai_header:
+                        dock.write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
+                    dock.write("\n")
 
             except KeyboardInterrupt:
                 print("\n\n⏹️ Generation interrupted by user.\n")

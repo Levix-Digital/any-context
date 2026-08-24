@@ -7,7 +7,33 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.24.5): Injeção Dinâmica via Strategy Pattern de Grounding & Matriz de Prioridades por Turno
+### 📌 Cenário 1 (v0.24.6): Painel Fixo de Input & Barra de Status Ancorada no Rodapé (`PinnedBottomDock`)
+
+- **Objetivo**: Comprovar que o divisor horizontal e a barra de status inferior (`bottom_toolbar`) permanecem permanentemente fixos e visíveis na base da tela durante a geração e streaming da IA, enquanto o texto sobe suavemente na área de rolagem superior sem apagar o rodapé.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.6`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.24.6
+   actx
+   ```
+
+2. **⚡ Observar a tela e enviar uma pergunta que exija resposta longa:**
+   ```text
+   explique detalhadamente a arquitetura de banco de dados do AnyContext
+   ```
+
+3. **⚡ Critérios Visuais de Aceitação durante o Streaming:**
+   - **Fixação do Rodapé**: A linha divisória `───...` e a barra de status (`📂 Workspace │ 🤖 Modelo │ 🛡️ Modo │ 🌐 Search │ 🚪 /exit`) **NÃO** somem e **NÃO** são empurradas para cima.
+   - **Rolagem Suave Superior**: Conforme os parágrafos da resposta da IA vão surgindo, apenas a janela superior de conteúdo rola para cima.
+   - **Atualização Dinâmica de Status**: Quando a IA pesquisa ou lê documentos, o status é refletido no rodapé e volta imediatamente ao estado normal.
+   - **Transição Suave para o Próximo Input**: Ao terminar a resposta, o console já se encontra com a barra de status pronta e o cursor posicionado no próximo `👤 You:`.
+
+---
+
+### 📌 Cenário 2 (v0.24.5): Injeção Dinâmica via Strategy Pattern de Grounding & Matriz de Prioridades por Turno
 
 - **Objetivo**: Comprovar que o AnyContext injeta dinamicamente a matriz de prioridades (0 vs 1) e regras de recência no turno ativo, garantindo 100% de aderência contra *prompt dilution* após múltiplos turnos sem poluir o histórico nem a UI.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.5`.

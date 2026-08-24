@@ -257,6 +257,13 @@ O AnyContext adota uma arquitetura determinística de **Injeção de Estratégia
 | **⚖️ Hybrid** *(Equilibrado / Padrão)* | **Prioridade 0** *(Base factual)* | **Prioridade 1** *(Rotulado)* | **Prioridade 1** *(Autônomo)* | Fatos do workspace primeiro. Para dados externos, compara Web e Memória: **a fonte mais recente prevalece**. Resposta dividida em camadas transparentes. |
 | **🚀 Proactive** *(Pesquisa & Estratégia)* | **Prioridade 0** *(Base de apoio)* | **Prioridade 0** *(Domínio analítico)* | **Prioridade 0** *(Tempo real)* | **Fusão total em tempo real**. A informação mais recente prevalece. Identifica discrepâncias temporais, antecipa riscos e recomenda links para indexação. |
 
+### 🖥️ Painel Fixo de Input & Barra de Status Ancorada no Rodapé (`v0.24.6`)
+
+Inspirado na experiência de console do **Antigravity CLI**, o AnyContext gerencia as margens de rolagem do terminal via sequências ANSI VT100 (`DECSTBM - \033[top;bottom r`):
+- **Barra de Status Permanentemente Ancorada**: O divisor horizontal e o dock de informações (`📂 Workspace │ 🤖 Modelo │ 🛡️ Modo │ 🌐 Search │ ⚡ Syncing │ 🚪 /exit`) permanecem **fixos na base da tela** durante todo o ciclo de busca vetorial, chamadas de ferramentas e streaming de tokens.
+- **Streaming Fluido na Janela Superior**: A resposta da IA sobe naturalmente na área de rolagem superior sem empurrar, piscar ou apagar a barra de status.
+- **Resiliência Multi-Console**: Compatível com Windows Terminal, PowerShell, VS Code Terminal, Cursor e Git Bash, com fallback transparente para ambientes não-TTY (CI/CD).
+
 ---
 
 
