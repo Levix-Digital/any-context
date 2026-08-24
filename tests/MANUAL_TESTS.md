@@ -7,7 +7,52 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.24.4): Gating Dinâmico Determinístico no Modo Strict & Bloco Mandatório de Fontes
+### 📌 Cenário 1 (v0.24.5): Injeção Dinâmica via Strategy Pattern de Grounding & Matriz de Prioridades por Turno
+
+- **Objetivo**: Comprovar que o AnyContext injeta dinamicamente a matriz de prioridades (0 vs 1) e regras de recência no turno ativo, garantindo 100% de aderência contra *prompt dilution* após múltiplos turnos sem poluir o histórico nem a UI.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.5`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.24.5
+   actx
+   ```
+
+2. **⚡ Configurar Modo Strict com Web Search ON:**
+   ```text
+   /mode Strict
+   /web-search --on
+   ```
+
+3. **⚡ Conversar durante 5 turnos com perguntas variadas e depois perguntar sobre fato não indexado:**
+   - **Turno 1**: Pergunte sobre o help (`/help`).
+   - **Turno 2**: Faça uma pergunta sobre arquivos do workspace.
+   - **Turno 3**: Faça outra pergunta contextual.
+   - **Turno 4**: Alterne para `/mode Hybrid` e faça uma pergunta comparativa.
+   - **Turno 5**: Alterne de volta para `/mode Strict` e pergunte:
+     ```text
+     qual a cotação do dólar hoje?
+     ```
+   - **Critério de Sucesso:**
+     - Mesmo no 5º turno longo, a IA **NÃO** alucina e **NÃO** busca na web autonomamente.
+     - A IA responde estritamente:
+       *`⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre 'cotação do dólar hoje'?`*
+
+4. **⚡ Validar o critério de Recência no Modo Hybrid:**
+   ```text
+   /mode Hybrid
+   /web-search --on
+   qual a versão mais recente do Python lançada?
+   ```
+   - **Critério de Sucesso:**
+     - A IA busca na web autonomamente (prioridade 1 com recência temporal vencendo a memória pré-treinada).
+     - Apresenta a resposta estruturada com as seções e o rodapé de fontes web consultadas.
+
+---
+
+### 📌 Cenário 2 (v0.24.4): Gating Dinâmico Determinístico no Modo Strict & Bloco Mandatório de Fontes
 
 - **Objetivo**: Comprovar que no modo `Strict` a IA jamais dispara busca na internet autonomamente na pergunta inicial (com ferramenta dinamicamente restrita), perguntando ao usuário e liberando a busca apenas sob confirmação explícita (`sim`), com rodapé completo de fontes.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.4`.

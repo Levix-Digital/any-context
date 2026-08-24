@@ -415,6 +415,22 @@ Every factual statement retrieved from workspace data or external search MUST ap
 - **Intent-Based Global System Help Isolation (`search_db`)**:
   - The `Global` workspace (containing `README.md` and `HELP_REGISTRY`) is excluded from domain searches (e.g. products, legal, medical) and queried only when slash commands or system help keywords are detected, preventing false-positive matches from system manuals.
 
+### 🎯 Dynamic Strategy Pattern for Turn-Level Grounding Injection & Token Economy (`v0.24.5`)
+- **The Prompt Dilution & Attention Degradation Problem**:
+  - In long multi-turn conversations, lighter models (`gpt-4o-mini`, `deepseek-chat`, `claude-3-haiku`) experience context fatigue and attention loss when relying exclusively on static directives placed in the initial `SystemMessage`.
+- **Strategy Pattern Architecture (`src/any_context/core/grounding_strategies.py`)**:
+  - Abstract `GroundingStrategy` interface declaring `format_turn_header(workspace_name, web_search_enabled) -> str`.
+  - Concrete strategies: `StrictGroundingStrategy`, `HybridGroundingStrategy`, and `ProactiveGroundingStrategy`.
+  - Factory function `get_grounding_strategy(mode)` resolves strategies in O(1) runtime.
+- **Priority Hierarchy & Temporal Recency Matrix**:
+  - **`Strict`**: VectorDB (Priority 0 / Sole Source of Truth) | Parametric Memory (❌ Forbidden) | Web Search (Permission-Gated).
+  - **`Hybrid`**: VectorDB (Priority 0) | Parametric Memory (Priority 1) | Web Search (Priority 1) -> Most recent source between Web and Parametric wins.
+  - **`Proactive`**: VectorDB (Priority 0) | Parametric Memory (Priority 0) | Web Search (Priority 0) -> Total real-time fusion; most recent source across all channels wins.
+- **Runtime Injection Lifecycle in `_prune_messages_for_llm`**:
+  - Dynamically attaches the ultra-compact (~35-45 tokens) header exclusively to the active turn's `HumanMessage` (`latest_human_idx`) at LLM call-time.
+  - Historical messages in SQLite checkpoints, terminal display, and memory summarizers remain 100% clean and unpolluted.
+  - Generates massive token savings across long sessions while ensuring 100% adherence to active grounding modes.
+
 ---
 
 ## 12. Multi-Interface Surface Parity & Governance Protocol

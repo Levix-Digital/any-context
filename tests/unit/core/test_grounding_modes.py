@@ -85,5 +85,105 @@ class TestGroundingModes(unittest.TestCase):
 
         safe_stdout_write("  [OK] System prompt correctly injects unique behavioral directives per mode!\n")
 
+    def test_05_grounding_strategies_formatting_and_recency_matrix(self):
+        """Validates that GroundingStrategy implementations produce exact priority matrices and recency directives."""
+        safe_stdout_write(">>> [CORE UNIT] Testing Grounding Strategy Pattern Formatting & Recency Matrix...\n")
+        from any_context.core.grounding_strategies import (
+            get_grounding_strategy,
+            StrictGroundingStrategy,
+            HybridGroundingStrategy,
+            ProactiveGroundingStrategy,
+        )
+        from any_context.core.utils import format_turn_grounding_header
+
+        # Factory resolution
+        self.assertIsInstance(get_grounding_strategy("strict"), StrictGroundingStrategy)
+        self.assertIsInstance(get_grounding_strategy("hybrid"), HybridGroundingStrategy)
+        self.assertIsInstance(get_grounding_strategy("proactive"), ProactiveGroundingStrategy)
+        self.assertIsInstance(get_grounding_strategy("unknown_fallback"), HybridGroundingStrategy)
+
+        # Strict Strategy (Web OFF / Web ON)
+        strict_off = format_turn_grounding_header("LegalDoc", "strict", web_search_enabled=False)
+        self.assertIn("GROUNDING: STRICT", strict_off)
+        self.assertIn("Priority 0: VectorDB ONLY", strict_off)
+        self.assertIn("Parametric Memory: FORBIDDEN", strict_off)
+        self.assertIn("Web Search: DISABLED", strict_off)
+
+        strict_on = format_turn_grounding_header("LegalDoc", "strict", web_search_enabled=True)
+        self.assertIn("Web Search: PERMISSION-GATED", strict_on)
+        self.assertIn("NEVER call live_web_search autonomously", strict_on)
+
+        # Hybrid Strategy (Web OFF / Web ON)
+        hyb_off = format_turn_grounding_header("DevDoc", "hybrid", web_search_enabled=False)
+        self.assertIn("GROUNDING: HYBRID", hyb_off)
+        self.assertIn("Priority 0: VectorDB", hyb_off)
+        self.assertIn("Priority 1: Parametric Memory", hyb_off)
+
+        hyb_on = format_turn_grounding_header("DevDoc", "hybrid", web_search_enabled=True)
+        self.assertIn("Priority 1: Web Search & Parametric (Most Recent Wins)", hyb_on)
+        self.assertIn("most recent fact wins", hyb_on)
+
+        # Proactive Strategy (Web OFF / Web ON)
+        pro_off = format_turn_grounding_header("StratDoc", "proactive", web_search_enabled=False)
+        self.assertIn("GROUNDING: PROACTIVE", pro_off)
+        self.assertIn("All Sources Priority 0", pro_off)
+
+        pro_on = format_turn_grounding_header("StratDoc", "proactive", web_search_enabled=True)
+        self.assertIn("All Sources Priority 0 (VectorDB + Web + Parametric) | Most Recent Wins", pro_on)
+        self.assertIn("Total real-time fusion", pro_on)
+
+        safe_stdout_write("  [OK] Strategy pattern formats precise, token-efficient priority matrices!\n")
+
+    def test_06_turn_level_header_injection_in_prune_messages(self):
+        """Validates that _prune_messages_for_llm injects the strategy header ONLY on the active HumanMessage."""
+        safe_stdout_write(">>> [CORE UNIT] Testing Turn-Level Header Injection in _prune_messages_for_llm...\n")
+        from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+        from any_context.core.agent import _prune_messages_for_llm
+
+        messages = [
+            HumanMessage(content="Turn 1: Qual o faturamento de 2024?"),
+            AIMessage(content="O faturamento de 2024 foi de R$ 10 milhões."),
+            HumanMessage(content="Turn 2: E a projeção para 2025?"),
+            ToolMessage(content="[Chunk 1] Projeção 2025 é de R$ 15 milhões.", tool_call_id="call_1"),
+        ]
+
+        pruned = _prune_messages_for_llm(
+            messages,
+            active_workspace="FinanceWS",
+            grounding_mode="strict",
+            web_search_enabled=True
+        )
+
+        # Turn 1 HumanMessage should NOT have the turn grounding header injected
+        self.assertEqual(pruned[0].content, "Turn 1: Qual o faturamento de 2024?")
+        # Turn 1 AIMessage should be untouched
+        self.assertEqual(pruned[1].content, "O faturamento de 2024 foi de R$ 10 milhões.")
+        # Turn 2 HumanMessage (the active turn) MUST have the turn grounding header injected
+        self.assertIn("[GROUNDING: STRICT", pruned[2].content)
+        self.assertIn("Turn 2: E a projeção para 2025?", pruned[2].content)
+        self.assertIn("Workspace: 'FinanceWS'", pruned[2].content)
+
+        safe_stdout_write("  [OK] Strategy turn header injected strictly on the active turn without history pollution!\n")
+
+    def test_07_is_web_search_authorized_with_injected_header(self):
+        """Validates that _is_web_search_authorized_by_prompt accurately parses prompts even with injected headers."""
+        safe_stdout_write(">>> [CORE UNIT] Testing Web Search Authorization with Injected Headers...\n")
+        from any_context.core.agent import _is_web_search_authorized_by_prompt
+        from any_context.core.utils import format_turn_grounding_header
+
+        header = format_turn_grounding_header("LegalDoc", "strict", web_search_enabled=True)
+
+        unauthorized_prompt = f"{header}\n\nQual a multa rescisória?"
+        self.assertFalse(_is_web_search_authorized_by_prompt(unauthorized_prompt))
+
+        authorized_confirm = f"{header}\n\nSim, pode pesquisar na web"
+        self.assertTrue(_is_web_search_authorized_by_prompt(authorized_confirm))
+
+        authorized_short = f"{header}\n\nsim"
+        self.assertTrue(_is_web_search_authorized_by_prompt(authorized_short))
+
+        safe_stdout_write("  [OK] Web search authorization helper is 100% resilient to header-prefixed prompts!\n")
+
 if __name__ == "__main__":
     unittest.main()
+

@@ -247,7 +247,18 @@ Para garantir que um documento gigante de 500 páginas não monopolize todas as 
 | **⚖️ Balanced** *(Padrão)* | 100 candidatos | 20 chunks | ~10.000 a 15.000 tokens | **Equilíbrio perfeito:** alta precisão factual sem ruído (o padrão ideal). |
 | **🔬 Deep Research** | 150 candidatos | 40 chunks | ~30.000 a 40.000 tokens | **Auditoria pesada:** comparar cláusulas de 10 contratos ou analisar dossiês complexos. |
 
+### 🛡️ Modos de Grounding & Matriz Dinâmica de Prioridades (`/mode`)
+
+O AnyContext adota uma arquitetura determinística de **Injeção de Estratégias por Turno (*Strategy Pattern*)** que protege o agente contra *prompt dilution* (degradação de foco em conversas longas). Cada turno de conversa recebe dinamicamente um cabeçalho ultracompacto (~35-45 tokens) contendo a matriz exata de precedência de fontes e regras de recência temporal:
+
+| Modo de Grounding | VectorDB (Arquivos Locais) | Memória Paramétrica (Pesos do LLM) | Web Search (Quando Ativo) | Regra de Resolução & Comportamento do Turno |
+| :--- | :---: | :---: | :---: | :--- |
+| **🛡️ Strict** *(Auditoria / Jurídico)* | **Prioridade 0** *(Única fonte)* | **❌ Proibida** *(Zero alucinação)* | **Prioridade 2** *(Gate com permissão)* | Responde 100% pelos documentos locais. Se ausente, **declara ausência** e **pergunta se deseja pesquisar na web**. Nunca busca na web sem consentimento. |
+| **⚖️ Hybrid** *(Equilibrado / Padrão)* | **Prioridade 0** *(Base factual)* | **Prioridade 1** *(Rotulado)* | **Prioridade 1** *(Autônomo)* | Fatos do workspace primeiro. Para dados externos, compara Web e Memória: **a fonte mais recente prevalece**. Resposta dividida em camadas transparentes. |
+| **🚀 Proactive** *(Pesquisa & Estratégia)* | **Prioridade 0** *(Base de apoio)* | **Prioridade 0** *(Domínio analítico)* | **Prioridade 0** *(Tempo real)* | **Fusão total em tempo real**. A informação mais recente prevalece. Identifica discrepâncias temporais, antecipa riscos e recomenda links para indexação. |
+
 ---
+
 
 ## 💡 Real-World Usage Examples (For Technical & Non-Technical Users)
 
