@@ -108,31 +108,37 @@ class TestGroundingModes(unittest.TestCase):
         self.assertIn("Priority 0: VectorDB ONLY", strict_off)
         self.assertIn("Parametric Memory: FORBIDDEN", strict_off)
         self.assertIn("Web Search: DISABLED", strict_off)
+        self.assertIn("RECENCY RULE", strict_off)
 
         strict_on = format_turn_grounding_header("LegalDoc", "strict", web_search_enabled=True)
         self.assertIn("Web Search: PERMISSION-GATED", strict_on)
         self.assertIn("NEVER call live_web_search autonomously", strict_on)
+        self.assertIn("RECENCY RULE", strict_on)
 
         # Hybrid Strategy (Web OFF / Web ON)
         hyb_off = format_turn_grounding_header("DevDoc", "hybrid", web_search_enabled=False)
         self.assertIn("GROUNDING: HYBRID", hyb_off)
         self.assertIn("Priority 0: VectorDB", hyb_off)
         self.assertIn("Priority 1: Parametric Memory", hyb_off)
+        self.assertIn("RECENCY RULE", hyb_off)
 
         hyb_on = format_turn_grounding_header("DevDoc", "hybrid", web_search_enabled=True)
-        self.assertIn("Priority 1: Web Search & Parametric (Most Recent Wins)", hyb_on)
-        self.assertIn("most recent fact wins", hyb_on)
+        self.assertIn("Priority 0: VectorDB", hyb_on)
+        self.assertIn("Priority 1: Open Web & Parametric", hyb_on)
+        self.assertIn("RECENCY RULE", hyb_on)
 
         # Proactive Strategy (Web OFF / Web ON)
         pro_off = format_turn_grounding_header("StratDoc", "proactive", web_search_enabled=False)
         self.assertIn("GROUNDING: PROACTIVE", pro_off)
         self.assertIn("All Sources Priority 0", pro_off)
+        self.assertIn("RECENCY RULE", pro_off)
 
         pro_on = format_turn_grounding_header("StratDoc", "proactive", web_search_enabled=True)
-        self.assertIn("All Sources Priority 0 (VectorDB + Web + Parametric) | Most Recent Wins", pro_on)
+        self.assertIn("All Sources Priority 0", pro_on)
         self.assertIn("Total real-time fusion", pro_on)
+        self.assertIn("RECENCY RULE", pro_on)
 
-        safe_stdout_write("  [OK] Strategy pattern formats precise, token-efficient priority matrices!\n")
+        safe_stdout_write("  [OK] Strategy pattern formats precise, token-efficient priority matrices with universal recency rules!\n")
 
     def test_06_turn_level_header_injection_in_prune_messages(self):
         """Validates that _prune_messages_for_llm injects the strategy header ONLY on the active HumanMessage."""
@@ -183,6 +189,28 @@ class TestGroundingModes(unittest.TestCase):
         self.assertTrue(_is_web_search_authorized_by_prompt(authorized_short))
 
         safe_stdout_write("  [OK] Web search authorization helper is 100% resilient to header-prefixed prompts!\n")
+
+    def test_08_registered_workspace_portals_priority_and_recency_rule(self):
+        """Validates that registered workspace portals receive Priority 0 and recency rules are injected."""
+        safe_stdout_write(">>> [CORE UNIT] Testing Registered Workspace Portals Priority & Recency Rule...\n")
+        from unittest.mock import patch
+        from any_context.core.utils import format_turn_grounding_header
+
+        mock_urls = [{"url": "https://www.canada.ca/en/immigration.html"}]
+        with patch("any_context.ingestion.web_scheduler.WebSchedulerStore.get_workspace_web_urls", return_value=mock_urls):
+            # Hybrid with registered portal
+            hyb_portal = format_turn_grounding_header("CanadaWS", "hybrid", web_search_enabled=True)
+            self.assertIn("Priority 0: VectorDB & Registered Portals (canada.ca)", hyb_portal)
+            self.assertIn("query registered workspace portal (canada.ca) FIRST", hyb_portal)
+            self.assertIn("RECENCY RULE: If information is found in multiple sources, the most recent source always prevails", hyb_portal)
+
+            # Strict with registered portal
+            strict_portal = format_turn_grounding_header("CanadaWS", "strict", web_search_enabled=True)
+            self.assertIn("Priority 0: VectorDB & Registered Portals (canada.ca)", strict_portal)
+            self.assertIn("query registered portal (canada.ca) FIRST before open web", strict_portal)
+            self.assertIn("RECENCY RULE", strict_portal)
+
+        safe_stdout_write("  [OK] Registered workspace portals mapped to Priority 0 with universal recency rules!\n")
 
 if __name__ == "__main__":
     unittest.main()
