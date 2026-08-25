@@ -267,15 +267,15 @@ To eliminate duplicate progress bar and spinner implementations across data sour
   - **Stage 2 (Vectorization & IA)**: Connected directly to `ParallelIndexer`, rendering real-time enrichment and batch vector embeddings `[2/2 Embedding] [██████░░░░] N/Total (chunks) • Vector Knowledge Base`.
   - Encapsulates automatic terminal cursor management (`\033[?25l` / `\033[?25h`) and safe stdout flushing on Windows CP1252 consoles.
 
-### 🖥️ Pinned Bottom Dock & Terminal Viewport Architecture (`src/any_context/cli/viewport.py` - `v0.24.6`)
-- **DECSTBM (DEC Set Top & Bottom Margins) Terminal Viewport Management**:
-  - The CLI manages terminal scrolling margins via standard VT100 escape sequences: `\033[1;{rows - 2}r`.
-  - Content streaming (`agent.stream`) and tool logging scroll seamlessly within lines `1` to `rows - 2`.
-  - Lines `rows - 1` (horizontal divider) and `rows` (dynamic status dock) remain **permanently pinned and anchored on screen**.
+### 🖥️ Cursor-Aware Terminal Viewport & Stream Presenter Architecture (`src/any_context/cli/viewport.py` - `v0.24.8`)
+- **Natural Top-Down Growth & Zero Buffer Clipping**:
+  - Eliminates disruptive DECSTBM scrolling margin resets (`\033[top;bottom r`) and hardcoded bottom-row cursor jumps (`\033[{rows};1H`).
+  - Conversation turns begin directly underneath the startup banner, growing naturally downwards line-by-line as messages are exchanged.
+  - Full terminal scrollback history is 100% preserved and accessible across all conversation turns.
 - **`PinnedBottomDock` Presentation Manager**:
-  - Encapsulates safe stdout flushing, dynamic terminal geometry calculations (`shutil.get_terminal_size`), and real-time status line updates (`dock.update_status(...)`).
-  - Guaranteed `try...finally` margin reset (`\033[r`) preventing terminal state locking under any interruption (`Ctrl+C`, exceptions).
-  - Safe automatic pass-through when `sys.stdout.isatty() == False` (CI/CD and headless automation).
+  - Streams AI tokens inline at the current cursor position with safe stdout flushing and dynamic terminal geometry calculation (`shutil.get_terminal_size`).
+  - Dynamic tool calls and background status tickers update cleanly at the current cursor boundary using `\r\033[K` and clear gracefully when output tokens stream.
+  - Seamlessly handsoff to `prompt_toolkit`'s interactive `PromptSession` and `bottom_toolbar` on completion.
 
 
 ### 🎛️ Shared Multi-Source Orchestration Layer (`src/any_context/ingestion/orchestrator.py` - `v0.24.0`)
