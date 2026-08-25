@@ -267,14 +267,14 @@ To eliminate duplicate progress bar and spinner implementations across data sour
   - **Stage 2 (Vectorization & IA)**: Connected directly to `ParallelIndexer`, rendering real-time enrichment and batch vector embeddings `[2/2 Embedding] [██████░░░░] N/Total (chunks) • Vector Knowledge Base`.
   - Encapsulates automatic terminal cursor management (`\033[?25l` / `\033[?25h`) and safe stdout flushing on Windows CP1252 consoles.
 
-### 🖥️ Textual Reactive TUI & Stream Presenter Architecture (`src/any_context/cli/tui_app.py` - `v0.25.0`)
-- **Full Reactive TUI Framework (Cline / Claude Code Standard)**:
-  - Built on `textual>=8.2.8` providing a full-screen, reactive terminal user interface.
-  - **`ChatScroll` (VerticalScroll)**: Dedicated scrollable chat viewport preserving 100% of conversation history with smooth mouse wheel and keyboard navigation (`Page Up` / `Page Down`).
-  - **Rich Markdown & Syntax Highlighting**: AI responses stream directly into dynamic `Markdown` widgets with full code syntax highlighting and table formatting.
-  - **Permanent Anchored Input & Footer Dock**: The `Input` bar and `StatusFooterDock` remain permanently anchored at the bottom of the screen (`dock: bottom`) with real-time badges (`📂 Workspace`, `🤖 Model`, `🛡️ Grounding Mode`, `🌐 Search`, `⚡ Background Sync`).
-  - **Background Worker Streaming**: LangGraph agent streams asynchronously via `@work(thread=True)` and thread-safe UI callbacks (`call_from_thread`), ensuring zero UI freeze.
-  - **Headless / Non-TTY Fallback**: Detects non-interactive pipe environments and `--classic` / `--cli` flags to seamlessly fall back to `run_chat_loop()` for CI pipelines and scripts.
+### 🖥️ Native Stream CLI & Headless Batch Engine (`src/any_context/cli/` - `v0.25.1`)
+- **Developer-Centric Native Terminal Architecture**:
+  - Operates directly in the native terminal stdout stream without intrusive alternate screen buffer takeovers.
+  - **100% OS-Native Clipboard & Mouse Selection**: Users can highlight, copy, and paste text directly in Windows Terminal, PowerShell, Linux, and macOS without UI locks.
+  - **One-Shot Prompt & Shell Batch Execution**: Supports direct command execution via `actx "question"` or `actx -p "..."` for automation scripts, CI/CD, and cron jobs.
+  - **Full Slash Command & Interactive Palette Support**: Complete access to all 23 slash commands (`/sources`, `/switch`, `/sync`, `/config`, `/help`, `/mode`, `/web-search`).
+  - **Dual Architecture Roadmap (`src/tui/`)**: Prepares modular isolation for the upcoming dedicated OpenTUI interactive client.
+
 
 
 

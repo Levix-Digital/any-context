@@ -7,6 +7,39 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.25.1): CLI Nativa Consolidada & Execução de Batch/One-Shot
+
+- **Objetivo**: Comprovar que a CLI executa no terminal nativo sem sequestro de tela, com seleção por mouse e copiar/colar nativos 100% funcionais, suporte a comandos interativos (`/sources`, `/switch`, `/sync`, etc.) e execução direta de prompt via argumentos de linha de comando (`actx "..."`).
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.25.1`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Atualizar e Iniciar o AnyContext:**
+   ```powershell
+   actx --update@0.25.1
+   actx
+   ```
+
+2. **⚡ Validar Copiar, Colar e Seleção com Mouse:**
+   - Selecione um trecho de texto no terminal com o mouse e copie (Ctrl+C).
+   - Cole (Ctrl+V) no prompt e envie. Verifique que o texto foi inserido perfeitamente.
+
+3. **⚡ Validar Comandos Internos:**
+   - Execute `/sources` e veja a listagem de arquivos e fontes indexadas.
+   - Execute `/help` e confira a lista de todos os 23 comandos.
+   - Execute `/mode Hybrid` e verifique a alteração do modo.
+   - Digite `/exit` para sair.
+
+4. **⚡ Validar Execução Direta / One-Shot Batch:**
+   - Execute direto no terminal sem abrir o loop interativo:
+     ```powershell
+     actx "quais os principais comandos do AnyContext?"
+     ```
+   - Verifique que a resposta é impressa diretamente no stdout e o processo finaliza com sucesso.
+
+---
+
+
 ### 📌 Cenário 1 (v0.25.0): Textual Reactive TUI (Interface Estilo Cline / Claude Code)
 
 - **Objetivo**: Comprovar a experiência completa da interface TUI reativa com layout persistente em tela cheia, painel de histórico de chat rolável com Markdown rico e realce de sintaxe, barra de input permanente e status footer dock ancorado na base.
