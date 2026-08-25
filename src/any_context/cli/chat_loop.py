@@ -1724,7 +1724,9 @@ def launch_opentui(workspace: str = "Default") -> bool:
         return False
 
     try:
-        res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index))
+        env = dict(os.environ)
+        env["ACTX_EXECUTABLE"] = sys.executable or "actx"
+        res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index), env=env)
         return res.returncode == 0
     except Exception:
         return False
