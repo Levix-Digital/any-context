@@ -1719,7 +1719,7 @@ def launch_opentui(workspace: str = "Default") -> bool:
     if not bun_bin:
         return False
 
-    tui_index = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tui", "index.tsx"))
+    tui_index = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tui", "index.tsx"))
     if not os.path.exists(tui_index):
         return False
 

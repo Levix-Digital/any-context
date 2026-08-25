@@ -7,18 +7,19 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.26.0): OpenTUI Desktop Frontend com Slash Command Palette (`/`)
+### 📌 Cenário 1 (v0.26.1): OpenTUI Desktop Frontend com Slash Command Palette (`/`)
 
-- **Objetivo**: Comprovar a experiência completa da interface OpenTUI estilo Cline (`src/tui/`) com abertura instantânea da Slash Command Palette ao teclar `/`, filtro fuzzy em tempo real, navegação por setas, streaming com Markdown rico e comunicação local por Stdio RPC.
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.0` e Bun instalado.
+- **Objetivo**: Comprovar a experiência completa da interface OpenTUI estilo Cline (`src/any_context/tui/`) com abertura instantânea da Slash Command Palette ao teclar `/`, filtro fuzzy em tempo real, navegação por setas, streaming com Markdown rico e comunicação local por Stdio RPC.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.1` e Bun instalado.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Iniciar a TUI OpenTUI:**
    ```powershell
-   actx --update@0.26.0
+   actx --update@0.26.1
    actx --tui
    ```
+
 
 2. **⚡ Validar o Layout e a Command Palette:**
    - Digitar `/` no campo de input inferior.
