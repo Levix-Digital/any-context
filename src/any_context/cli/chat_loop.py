@@ -1706,10 +1706,39 @@ def run_chat_loop(active_workspace: str = "Default"):
             continue
 
 
+def launch_opentui(workspace: str = "Default") -> bool:
+    """Attempts to launch the OpenTUI frontend using bun if installed."""
+    import shutil
+    import subprocess
+    bun_bin = shutil.which("bun")
+    if not bun_bin:
+        home_bun = os.path.expanduser("~/.bun/bin/bun.exe")
+        if os.path.exists(home_bun):
+            bun_bin = home_bun
+
+    if not bun_bin:
+        return False
+
+    tui_index = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tui", "index.tsx"))
+    if not os.path.exists(tui_index):
+        return False
+
+    try:
+        res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index))
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
 def main_cli():
     try:
         workspace = get_active_workspace()
         print_startup_update_notice()
+
+        # Check for --tui flag
+        if "--tui" in sys.argv:
+            if launch_opentui(workspace):
+                return
 
         # Check for direct prompt passed via arguments (e.g. actx "my question" or actx -p "my question")
         non_flag_args = [a for a in sys.argv[1:] if not a.startswith("-") and a.lower() not in ["serve", "api", "mcp"]]

@@ -1,0 +1,21 @@
+{
+  "name": "any-context-tui",
+  "version": "0.26.0",
+  "description": "AnyContext Reactive Terminal User Interface built with OpenTUI and React",
+  "type": "module",
+  "main": "index.tsx",
+  "scripts": {
+    "start": "bun run index.tsx",
+    "dev": "bun run --watch index.tsx"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.5.8",
+    "@opentui/react": "^0.5.8",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
