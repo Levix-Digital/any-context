@@ -70,9 +70,17 @@ export class BridgeClient {
       args = ["-m", "any_context.server.rpc_bridge", this.initialWorkspace];
     }
 
+    const childEnv = { ...process.env };
+    delete childEnv._MEIPASS2;
+    delete childEnv._MEIPASS;
+    delete childEnv.PYI_PARENT_PID;
+    if (path.isAbsolute(repoRoot)) {
+      childEnv.PYTHONPATH = path.join(repoRoot, "src");
+    }
+
     this.process = spawn(command, args, {
       cwd: repoRoot,
-      env: { ...process.env, PYTHONPATH: path.join(repoRoot, "src") },
+      env: childEnv,
       stdio: ["pipe", "pipe", "inherit"],
     });
 
