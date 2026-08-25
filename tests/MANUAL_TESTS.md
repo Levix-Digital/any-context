@@ -7,18 +7,19 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.26.3): OpenTUI Desktop Frontend com Resolução Inteligente de Binário (`actx --rpc`)
+### 📌 Cenário 1 (v0.26.4): OpenTUI Desktop Frontend com Isolamento de Bootloader PyInstaller (`_MEIPASS2`)
 
-- **Objetivo**: Comprovar que o comando `actx --tui` resolve automaticamente o processo bridge (`actx --rpc` ou `.venv`) sem erros de `ModuleNotFoundError: No module named 'any_context'`, abrindo instantaneamente a Slash Command Palette ao teclar `/`, com streaming Markdown e navegação por setas.
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.3` e Bun instalado.
+- **Objetivo**: Comprovar que o comando `actx --tui` abre a interface OpenTUI de forma 100% transparente no executável PyInstaller compilado sem o erro de segurança `[PYI-34180:ERROR] Security validation failure: Parent process has different executable!`, exibindo a Slash Command Palette ao teclar `/` e o chat com streaming Markdown.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.4` e Bun instalado.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Iniciar a TUI OpenTUI:**
    ```powershell
-   actx --update@0.26.3
+   actx --update@0.26.4
    actx --tui
    ```
+
 
 
 

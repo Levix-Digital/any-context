@@ -1725,6 +1725,10 @@ def launch_opentui(workspace: str = "Default") -> bool:
 
     try:
         env = dict(os.environ)
+        # Clean PyInstaller bootloader internal variables to prevent child process security validation failure
+        env.pop("_MEIPASS2", None)
+        env.pop("_MEIPASS", None)
+        env.pop("PYI_PARENT_PID", None)
         env["ACTX_EXECUTABLE"] = sys.executable or "actx"
         res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index), env=env)
         return res.returncode == 0

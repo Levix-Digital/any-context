@@ -1,6 +1,9 @@
 import sys
 import os
 import io
+import multiprocessing
+
+multiprocessing.freeze_support()
 
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
