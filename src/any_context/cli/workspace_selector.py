@@ -191,6 +191,12 @@ def get_active_workspace() -> str:
         help="Start the AnyContext Model Context Protocol (MCP) Server on stdio."
     )
     parser.add_argument(
+        "--rpc", 
+        action="store_true", 
+        help="Start the AnyContext Stdio RPC Bridge Server for OpenTUI."
+    )
+
+    parser.add_argument(
         "--update", "-u",
         dest="update",
         nargs="?",
@@ -317,6 +323,12 @@ def get_active_workspace() -> str:
         from any_context.server.mcp import start_mcp_server
         start_mcp_server()
         sys.exit(0)
+    if getattr(args, "rpc", False) or "--rpc" in sys.argv:
+        from any_context.server.rpc_bridge import run_rpc_server
+        target_ws = args.workspace or (unknown[0] if unknown and not unknown[0].startswith("-") else "Default")
+        run_rpc_server(default_workspace=target_ws)
+        sys.exit(0)
+
 
     # 1. Releases listing or interactive rollback
     if args.list_releases or args.rollback or (args.update and str(args.update).lower() in ["list", "--list", "-l", "releases", "rollback", "--rollback", "-r"]):

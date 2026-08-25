@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from "child_process";
 import * as path from "path";
+import * as fs from "fs";
 import * as readline from "readline";
 
 export interface AnyContextState {
@@ -49,9 +50,27 @@ export class BridgeClient {
 
   public async start(): Promise<void> {
     const repoRoot = path.resolve(__dirname, "..", "..", "..");
-    const pythonExe = process.platform === "win32" ? "python" : "python3";
+    
+    let command = process.env.ACTX_EXECUTABLE || "";
+    let args: string[] = [];
 
-    this.process = spawn(pythonExe, ["-m", "any_context.server.rpc_bridge", this.initialWorkspace], {
+    if (command && (command.toLowerCase().endsWith("actx.exe") || command.toLowerCase().endsWith("actx"))) {
+      args = ["--rpc", this.initialWorkspace];
+    } else {
+      const venvPythonWin = path.join(repoRoot, ".venv", "Scripts", "python.exe");
+      const venvPythonUnix = path.join(repoRoot, ".venv", "bin", "python");
+
+      if (fs.existsSync(venvPythonWin)) {
+        command = venvPythonWin;
+      } else if (fs.existsSync(venvPythonUnix)) {
+        command = venvPythonUnix;
+      } else {
+        command = process.platform === "win32" ? "python" : "python3";
+      }
+      args = ["-m", "any_context.server.rpc_bridge", this.initialWorkspace];
+    }
+
+    this.process = spawn(command, args, {
       cwd: repoRoot,
       env: { ...process.env, PYTHONPATH: path.join(repoRoot, "src") },
       stdio: ["pipe", "pipe", "inherit"],

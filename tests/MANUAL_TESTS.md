@@ -7,18 +7,19 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.26.2): OpenTUI Desktop Frontend com Slash Command Palette (`/`) & Pipeline Atômico
+### 📌 Cenário 1 (v0.26.3): OpenTUI Desktop Frontend com Resolução Inteligente de Binário (`actx --rpc`)
 
-- **Objetivo**: Comprovar a experiência completa da interface OpenTUI estilo Cline (`src/any_context/tui/`) com abertura instantânea da Slash Command Palette ao teclar `/`, filtro fuzzy em tempo real, navegação por setas, streaming com Markdown rico e release atômica com todos os 6 assets publicados.
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.2` e Bun instalado.
+- **Objetivo**: Comprovar que o comando `actx --tui` resolve automaticamente o processo bridge (`actx --rpc` ou `.venv`) sem erros de `ModuleNotFoundError: No module named 'any_context'`, abrindo instantaneamente a Slash Command Palette ao teclar `/`, com streaming Markdown e navegação por setas.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.3` e Bun instalado.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Iniciar a TUI OpenTUI:**
    ```powershell
-   actx --update@0.26.2
+   actx --update@0.26.3
    actx --tui
    ```
+
 
 
 
