@@ -1,19 +1,20 @@
 import React from "react";
 import { SlashCommandMeta } from "../bridge-client";
+import { anyContextTheme } from "../themes";
 
-interface PaletteProps {
+interface AutocompleteDropdownProps {
   isOpen: boolean;
   filterText: string;
   commands: SlashCommandMeta[];
   selectedIndex: number;
 }
 
-export const SlashCommandPalette = ({
+export const AutocompleteDropdown = ({
   isOpen,
   filterText,
   commands,
   selectedIndex,
-}: PaletteProps): any => {
+}: AutocompleteDropdownProps): any => {
   if (!isOpen) return null;
 
   const query = filterText.startsWith("/") ? filterText.slice(1).toLowerCase().trim() : filterText.toLowerCase().trim();
@@ -24,37 +25,37 @@ export const SlashCommandPalette = ({
       c.category.toLowerCase().includes(query)
   );
 
-  const displayList = filtered.slice(0, 7);
+  const displayList = filtered.slice(0, 6);
 
   return (
     <box
+      flexDirection="column"
+      backgroundColor={anyContextTheme.surface}
       borderStyle="rounded"
-      borderColor="#7aa2f7"
-      backgroundColor="#1f2335"
+      borderColor={anyContextTheme.accent}
       paddingLeft={1}
       paddingRight={1}
       paddingTop={0}
       paddingBottom={0}
-      flexDirection="column"
-      marginBottom={1}
+      marginBottom={0}
     >
       <box flexDirection="row" marginBottom={0}>
-        <text fg="#e0af68">
+        <text fg={anyContextTheme.accentWarning}>
           <b>📚 Slash Commands Palette</b>
         </text>
         {query.length > 0 && (
-          <text fg="#565f89"> (Filtering: "{query}")</text>
+          <text fg={anyContextTheme.foregroundMuted}> (Filtering: "{query}")</text>
         )}
       </box>
 
       {displayList.length === 0 ? (
-        <text fg="#f7768e">No matching slash command found.</text>
+        <text fg={anyContextTheme.accentError}>No matching command found.</text>
       ) : (
         displayList.map((cmd, idx) => {
           const isSelected = idx === selectedIndex;
           const prefix = isSelected ? "▸ " : "  ";
-          const bgColor = isSelected ? "#24283b" : undefined;
-          const cmdColor = isSelected ? "#7dcfff" : "#7aa2f7";
+          const bgColor = isSelected ? anyContextTheme.surfaceHighlight : undefined;
+          const cmdColor = isSelected ? anyContextTheme.accent : anyContextTheme.foreground;
 
           return (
             <box
@@ -67,18 +68,16 @@ export const SlashCommandPalette = ({
               <text fg={cmdColor}>
                 <b>{prefix}{cmd.command}</b>
               </text>
-              <text fg="#9ece6a"> {cmd.args} </text>
-              <text fg="#c0caf5"> - {cmd.description} </text>
-              <text fg="#bb9af7">[{cmd.category}]</text>
+              <text fg={anyContextTheme.accentSuccess}> {cmd.args} </text>
+              <text fg={anyContextTheme.foreground}> - {cmd.description} </text>
+              <text fg={anyContextTheme.accentSecondary}>[{cmd.category}]</text>
             </box>
           );
         })
       )}
-      <text fg="#565f89">
-        [↑/↓ Navigate • Tab/Enter Select • Esc Close]
+      <text fg={anyContextTheme.foregroundMuted}>
+        [↑/↓ Navigate • Tab Select • Esc Close]
       </text>
     </box>
   );
 };
-
-
