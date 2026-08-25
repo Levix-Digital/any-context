@@ -7,6 +7,43 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.26.0): OpenTUI Desktop Frontend com Slash Command Palette (`/`)
+
+- **Objetivo**: Comprovar a experiência completa da interface OpenTUI estilo Cline (`src/tui/`) com abertura instantânea da Slash Command Palette ao teclar `/`, filtro fuzzy em tempo real, navegação por setas, streaming com Markdown rico e comunicação local por Stdio RPC.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.0` e Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a TUI OpenTUI:**
+   ```powershell
+   actx --update@0.26.0
+   actx --tui
+   ```
+
+2. **⚡ Validar o Layout e a Command Palette:**
+   - Digitar `/` no campo de input inferior.
+   - Verificar a abertura instantânea da caixa flutuante `📚 Slash Commands Palette`.
+   - Digitar `sw` e validar que a lista é filtrada em tempo real exibindo `/switch <workspace>`.
+   - Navegar com as setas `↑` / `↓` e apertar `Tab` ou `Enter` para autocompletar.
+
+3. **⚡ Enviar Pergunta e Validar Streaming & Markdown:**
+   - Digitar uma pergunta técnica solicitando código:
+     ```text
+     crie uma classe em Python de singleton thread-safe e explique
+     ```
+   - Validar que a resposta é renderizada em Markdown com realce de sintaxe colorido para o bloco de código Python.
+   - Validar que o ticker de status surge e desaparece suavemente.
+
+4. **⚡ Validar Seleção de Mouse e Clipboard:**
+   - Selecionar um trecho do código no terminal com o mouse.
+   - Pressionar `Ctrl+C` e colar em outro editor para validar a cópia de texto limpa.
+
+5. **⚡ Testar Encerramento Limpo:**
+   - Digitar `/exit` ou pressionar `Ctrl+C` para fechar a aplicação salvando a memória.
+
+---
+
+
 ### 📌 Cenário 1 (v0.25.1): CLI Nativa Consolidada & Execução de Batch/One-Shot
 
 - **Objetivo**: Comprovar que a CLI executa no terminal nativo sem sequestro de tela, com seleção por mouse e copiar/colar nativos 100% funcionais, suporte a comandos interativos (`/sources`, `/switch`, `/sync`, etc.) e execução direta de prompt via argumentos de linha de comando (`actx "..."`).

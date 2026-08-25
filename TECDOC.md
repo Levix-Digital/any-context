@@ -267,13 +267,15 @@ To eliminate duplicate progress bar and spinner implementations across data sour
   - **Stage 2 (Vectorization & IA)**: Connected directly to `ParallelIndexer`, rendering real-time enrichment and batch vector embeddings `[2/2 Embedding] [██████░░░░] N/Total (chunks) • Vector Knowledge Base`.
   - Encapsulates automatic terminal cursor management (`\033[?25l` / `\033[?25h`) and safe stdout flushing on Windows CP1252 consoles.
 
-### 🖥️ Native Stream CLI & Headless Batch Engine (`src/any_context/cli/` - `v0.25.1`)
-- **Developer-Centric Native Terminal Architecture**:
-  - Operates directly in the native terminal stdout stream without intrusive alternate screen buffer takeovers.
-  - **100% OS-Native Clipboard & Mouse Selection**: Users can highlight, copy, and paste text directly in Windows Terminal, PowerShell, Linux, and macOS without UI locks.
-  - **One-Shot Prompt & Shell Batch Execution**: Supports direct command execution via `actx "question"` or `actx -p "..."` for automation scripts, CI/CD, and cron jobs.
-  - **Full Slash Command & Interactive Palette Support**: Complete access to all 23 slash commands (`/sources`, `/switch`, `/sync`, `/config`, `/help`, `/mode`, `/web-search`).
-  - **Dual Architecture Roadmap (`src/tui/`)**: Prepares modular isolation for the upcoming dedicated OpenTUI interactive client.
+### 🖥️ OpenTUI Reactive TUI & Stdio RPC Architecture (`src/tui/` & `src/any_context/server/rpc_bridge.py` - `v0.26.0`)
+- **Full Reactive TUI Framework (Cline / OpenTUI Standard)**:
+  - Built on `@opentui/core` and `@opentui/react` running on Zig/React/Bun.
+  - **Slash Command Palette Overlay (`src/tui/components/palette.tsx`)**: Floating popover dialog triggered automatically upon typing `/`, featuring real-time fuzzy filtering, keyboard navigation (`↑`/`↓`), and tab completion across all 23 internal slash commands.
+  - **Virtualized Scrollable Chat (`src/tui/components/chat-view.tsx`)**: Renders rich Markdown, syntax-highlighted code blocks, tables, and tool execution tickers (`🌐 Searching web...`, `📚 Reading context...`).
+  - **Permanent Anchored Input & Status Bar**: Sticky prompt input line and bottom status toolbar displaying active workspace, model, grounding mode, web search toggle, and background sync telemetry.
+  - **Zero-Network-Port Stdio RPC Bridge (`src/any_context/server/rpc_bridge.py`)**: Sub-millisecond (<1ms) communication over OS pipes using Newline-Delimited JSON (NDJSON), eliminating port conflicts, firewall popups, and zombie processes.
+  - **Dual Architecture Parity**: Headless developer CLI (`actx "..."`, pipes `cat | actx`) and interactive shell in `src/any_context/cli/` remain fully preserved and available.
+
 
 
 
