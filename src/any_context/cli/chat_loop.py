@@ -1711,16 +1711,50 @@ def main_cli():
         workspace = get_active_workspace()
         print_startup_update_notice()
 
-        is_tty = hasattr(sys.stdin, "isatty") and sys.stdin.isatty() and hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
-        use_classic = "--classic" in sys.argv or "--cli" in sys.argv or not is_tty
+        # Check for direct prompt passed via arguments (e.g. actx "my question" or actx -p "my question")
+        non_flag_args = [a for a in sys.argv[1:] if not a.startswith("-") and a.lower() not in ["serve", "api", "mcp"]]
+        p_flag_idx = -1
+        for flag in ["-p", "--prompt", "-q", "--query"]:
+            if flag in sys.argv:
+                p_flag_idx = sys.argv.index(flag)
+                break
 
-        if not use_classic:
-            try:
-                from any_context.cli.tui_app import run_tui
-                run_tui(workspace_name=workspace)
-                return
-            except Exception:
-                pass
+        direct_prompt = None
+        if p_flag_idx != -1 and p_flag_idx + 1 < len(sys.argv):
+            direct_prompt = sys.argv[p_flag_idx + 1].strip()
+        elif non_flag_args and not any(arg.lower() in ["--help", "-h", "--version", "-v", "--update", "-u", "--mcp", "--server", "serve", "api"] for arg in sys.argv[1:]):
+            direct_prompt = " ".join(non_flag_args).strip()
+
+        # If direct prompt provided, execute one-shot query cleanly and exit
+        if direct_prompt:
+            from any_context.core.agent import create_anycontext_agent
+            from any_context.config.db_store import ConfigDBStore
+            store = ConfigDBStore()
+            settings = store.get_app_settings()
+            model = settings.models.inference_model if settings and settings.models else "gpt-4o-mini"
+            mode = store.get_grounding_mode(workspace_name=workspace) or "strict"
+            search_enabled = store.get_web_search_status(workspace_name=workspace) or False
+
+            agent = create_anycontext_agent(
+                model_name=model,
+                workspace_name=workspace,
+                grounding_mode=mode,
+                web_search_enabled=search_enabled
+            )
+            config = {
+                "configurable": {
+                    "thread_id": f"batch_{workspace}",
+                    "active_workspace": workspace,
+                    "grounding_mode": mode,
+                    "web_search_enabled": search_enabled
+                }
+            }
+            for token, meta in agent.stream({"messages": [direct_prompt]}, stream_mode="messages", config=config):
+                if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"] and token.content:
+                    if isinstance(token.content, str):
+                        safe_stdout_write(token.content)
+            safe_stdout_write("\n")
+            return
 
         run_chat_loop(active_workspace=workspace)
     except (KeyboardInterrupt, EOFError):

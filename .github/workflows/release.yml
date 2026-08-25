@@ -55,12 +55,13 @@ jobs:
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
         run: |
-          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all chromadb --collect-all tiktoken --collect-all tiktoken_ext --collect-all textual --collect-all rich --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "src/any_context/config;any_context/config" main.py
+          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all chromadb --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "src/any_context/config;any_context/config" main.py
 
       - name: Build with PyInstaller (Linux)
         if: runner.os == 'Linux'
         run: |
-          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all chromadb --collect-all tiktoken --collect-all tiktoken_ext --collect-all textual --collect-all rich --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "src/any_context/config:any_context/config" main.py
+          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all chromadb --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "src/any_context/config:any_context/config" main.py
+
 
 
 

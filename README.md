@@ -121,11 +121,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🔄 Instant Zero-Cost Source Transfer (`/transfer` & `/config`)**:
   - Move folders and web portals between workspaces in sub-50ms with **$0.00 in embedding API costs**.
   - Dynamically updates vector metadata tags in ChromaDB and SQLite without re-indexing or re-crawling.
-- **🖥️ Modern Reactive Textual TUI (Estilo Cline / Claude Code)**:
-  - Layout persistente em tela cheia via `Textual`: painel de histórico de chat superior rolável com Markdown rico e realce de sintaxe colorido para código.
-  - Campo de input permanente e barra de status inferior ancorada (`📂 Workspace │ 🤖 Modelo │ 🛡️ Modo │ 🌐 Search │ ⚡ Syncing │ 🚪 /exit`) com atualização de badges em tempo real.
-  - Streaming fluido e assíncrono de tokens sem congelamento de interface e com suporte a cancelamento via `Esc`.
-  - Fallback automático para modo clássico (`--classic` / `--cli`) em ambientes não-TTY / scripts.
+- **⚡ Native Developer CLI & One-Shot Prompt Engine**:
+  - Direct terminal execution without alternate screen buffer locks: 100% native mouse selection and copy/paste support.
+  - One-shot execution for scripts & automation: `actx "sua pergunta aqui"` or `actx -p "..."`.
+  - All 23 Slash Commands with rich interactive menus (`/sources`, `/switch`, `/sync`, `/config`, `/help`, `/mode`, `/web-search`).
+
 - **⚡ Non-Blocking Background Synchronization & Micro-Bar Status Dock (`/sync`)**:
   - Sincronização desacoplada em threads em segundo plano (`BackgroundSyncManager`) que libera o prompt `👤 You:` imediatamente para conversação sem travar o teclado.
   - Micro-barra de blocos unicode em tempo real (`⚡ Syncing [████░░░░] 50% (15/30 files)`) na barra inferior (`bottom_toolbar`).

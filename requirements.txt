@@ -16,5 +16,4 @@ pydantic
 questionary
 tqdm
 python-dotenv
-textual>=0.80.0
 
