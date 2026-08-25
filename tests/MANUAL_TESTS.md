@@ -7,18 +7,19 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.26.4): OpenTUI Desktop Frontend com Isolamento de Bootloader PyInstaller (`_MEIPASS2`)
+### 📌 Cenário 1 (v0.26.5): OpenTUI Desktop Frontend no Padrão Arquitetural Oficial do Cline
 
-- **Objetivo**: Comprovar que o comando `actx --tui` abre a interface OpenTUI de forma 100% transparente no executável PyInstaller compilado sem o erro de segurança `[PYI-34180:ERROR] Security validation failure: Parent process has different executable!`, exibindo a Slash Command Palette ao teclar `/` e o chat com streaming Markdown.
-- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.4` e Bun instalado.
+- **Objetivo**: Comprovar a interface OpenTUI reconstruída segundo o esqueleto oficial do Cline CLI (`apps/cli/src/tui/`), com `InputBar` (prompt `❯`, textarea multiline), `StatusBar` com pills de Grounding Mode, `ChatMessageList` com Markdown nativo e `AutocompleteDropdown` flutuante para comandos `/`.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.5` e Bun instalado.
 
 #### 📋 Passo a Passo de Execução:
 
 1. **🚀 Iniciar a TUI OpenTUI:**
    ```powershell
-   actx --update@0.26.4
+   actx --update@0.26.5
    actx --tui
    ```
+
 
 
 

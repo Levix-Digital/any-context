@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useKeyboard } from "@opentui/react";
 import { BridgeClient, AnyContextState } from "./bridge-client";
-import { ChatView, MessageItem } from "./components/chat-view";
-import { SlashCommandPalette } from "./components/palette";
-import { PromptInput } from "./components/prompt-input";
-import { StatusBar } from "./components/status-bar";
+import { ChatMessage } from "./components/chat-message-list";
+import { ChatView } from "./views/chat-view";
 
 interface AppProps {
   initialWorkspace?: string;
@@ -13,7 +11,7 @@ interface AppProps {
 export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
   const [client] = useState(() => new BridgeClient(initialWorkspace));
   const [state, setState] = useState<AnyContextState>(client.state);
-  const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteIndex, setPaletteIndex] = useState(0);
@@ -81,8 +79,8 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
     }
   });
 
-  const handleSubmit = async (text: string) => {
-    const trimmed = text.trim();
+  const handleSubmit = async (text?: string) => {
+    const trimmed = (text !== undefined ? text : inputValue).trim();
     if (!trimmed) return;
 
     setInputValue("");
@@ -269,41 +267,17 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
   };
 
   return (
-    <box flexDirection="column" width="100%" height="100%" backgroundColor="#1a1b26">
-      <box
-        flexDirection="row"
-        backgroundColor="#16161e"
-        borderStyle="single"
-        borderColor="#3b4261"
-        paddingLeft={1}
-        paddingRight={1}
-        height={3}
-        alignItems="center"
-      >
-        <text fg="#7aa2f7">
-          <b>🤖 AnyContext OpenTUI v{state.version}</b>
-        </text>
-        <text fg="#565f89"> - Universal Multi-Context RAG Assistant & Engine</text>
-      </box>
-
-      <ChatView messages={messages} />
-
-      <SlashCommandPalette
-        isOpen={paletteOpen}
-        filterText={inputValue}
-        commands={client.commands}
-        selectedIndex={paletteIndex}
-      />
-
-      <PromptInput
-        value={inputValue}
-        onChange={handleInputChange}
-        onSubmit={handleSubmit}
-        disabled={isGenerating}
-      />
-
-      <StatusBar state={state} />
-    </box>
+    <ChatView
+      state={state}
+      messages={messages}
+      inputValue={inputValue}
+      paletteOpen={paletteOpen}
+      paletteIndex={paletteIndex}
+      commands={client.commands}
+      isGenerating={isGenerating}
+      onInputChange={handleInputChange}
+      onSubmit={() => handleSubmit()}
+    />
   );
 };
 

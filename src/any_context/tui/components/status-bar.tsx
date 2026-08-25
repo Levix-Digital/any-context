@@ -1,58 +1,81 @@
 import React from "react";
 import { AnyContextState } from "../bridge-client";
+import { anyContextTheme } from "../themes";
 
 interface StatusBarProps {
   state: AnyContextState;
+  onToggleMode?: () => void;
 }
 
-export const StatusBar = ({ state }: StatusBarProps): any => {
-  const modeCap = (state.grounding_mode || "strict").toUpperCase();
-  const searchBadge = state.web_search_enabled ? "🌐 Search: ON" : "🌐 Search: OFF";
-  const searchColor = state.web_search_enabled ? "#73daca" : "#565f89";
+export const StatusBar = ({ state, onToggleMode }: StatusBarProps): any => {
+  const currentMode = (state.grounding_mode || "strict").toLowerCase();
+  const searchBadge = state.web_search_enabled ? "🌐 Web Search: ON" : "🌐 Web Search: OFF";
+  const searchColor = state.web_search_enabled ? anyContextTheme.accentSuccess : anyContextTheme.foregroundMuted;
 
   return (
     <box
-      flexDirection="row"
-      backgroundColor="#16161e"
-      borderStyle="single"
-      borderColor="#3b4261"
+      flexDirection="column"
+      backgroundColor={anyContextTheme.background}
       paddingLeft={1}
       paddingRight={1}
-      height={3}
-      alignItems="center"
+      paddingTop={0}
+      paddingBottom={0}
     >
-      <text fg="#e0af68">
-        <b>📂 {state.workspace}</b>
-      </text>
-      <text fg="#565f89"> │ </text>
-
-      <text fg="#bb9af7">
-        <b>🤖 {state.model}</b>
-      </text>
-      <text fg="#565f89"> │ </text>
-
-      <text fg="#7aa2f7">
-        <b>🛡️ {modeCap}</b>
-      </text>
-      <text fg="#565f89"> │ </text>
-
-      <text fg={searchColor}>
-        <b>{searchBadge}</b>
-      </text>
-
-      {state.is_syncing && (
-        <>
-          <text fg="#565f89"> │ </text>
-          <text fg="#ff9e64">
-            <b>⚡ Syncing {state.sync_info}</b>
+      {/* Row 1: Model & Grounding Mode Pills */}
+      <box flexDirection="row" justifyContent="space-between" alignItems="center">
+        <box flexDirection="row">
+          <text fg={anyContextTheme.accentSecondary}>
+            <b>🤖 {state.model}</b>
           </text>
-        </>
-      )}
+          <text fg={anyContextTheme.foregroundMuted}> │ </text>
+          <text fg={searchColor}>
+            <b>{searchBadge}</b>
+          </text>
+        </box>
 
-      <text fg="#565f89"> │ </text>
-      <text fg="#565f89">💡 /help │ 🚪 /exit</text>
+        {/* Mode Pills (Cline Style: Strict / Hybrid / Proactive) */}
+        <box flexDirection="row" gap={1}>
+          <text fg={currentMode === "strict" ? anyContextTheme.accent : anyContextTheme.foregroundMuted}>
+            {currentMode === "strict" ? "●" : "○"} Strict
+          </text>
+          <text fg={currentMode === "hybrid" ? anyContextTheme.accentWarning : anyContextTheme.foregroundMuted}>
+            {currentMode === "hybrid" ? "●" : "○"} Hybrid
+          </text>
+          <text fg={currentMode === "proactive" ? anyContextTheme.accentSuccess : anyContextTheme.foregroundMuted}>
+            {currentMode === "proactive" ? "●" : "○"} Proactive
+          </text>
+          <text fg={anyContextTheme.foregroundMuted}>(/mode)</text>
+        </box>
+      </box>
+
+      {/* Row 2: Workspace Info & Sync Status & Exit Shortcut */}
+      <box flexDirection="row" justifyContent="space-between" alignItems="center">
+        <box flexDirection="row">
+          <text fg={anyContextTheme.accentWarning}>
+            <b>📂 {state.workspace}</b>
+          </text>
+          {state.is_syncing ? (
+            <>
+              <text fg={anyContextTheme.foregroundMuted}> │ </text>
+              <text fg={anyContextTheme.accentWarning}>
+                <b>⚡ Syncing {state.sync_info}</b>
+              </text>
+            </>
+          ) : (
+            <>
+              <text fg={anyContextTheme.foregroundMuted}> │ </text>
+              <text fg={anyContextTheme.foregroundMuted}>⚡ Ready</text>
+            </>
+          )}
+        </box>
+
+        <box flexDirection="row">
+          <text fg={anyContextTheme.foregroundMuted}>💡 /help │ 🚪 /exit</text>
+        </box>
+      </box>
     </box>
   );
 };
+
 
 
