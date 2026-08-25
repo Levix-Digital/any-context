@@ -48,7 +48,7 @@ export class BridgeClient {
   }
 
   public async start(): Promise<void> {
-    const repoRoot = path.resolve(__dirname, "..", "..");
+    const repoRoot = path.resolve(__dirname, "..", "..", "..");
     const pythonExe = process.platform === "win32" ? "python" : "python3";
 
     this.process = spawn(pythonExe, ["-m", "any_context.server.rpc_bridge", this.initialWorkspace], {
