@@ -4,7 +4,7 @@ import uuid
 from typing import Optional, List, Dict, Any
 import questionary
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
-from any_context.cli.config_menu import show_config_menu, mask_key
+from any_context.cli.config_menu import show_config_menu
 from any_context.cli.banner import print_banner
 from any_context.cli.updater import print_startup_update_notice, check_for_updates, run_self_update
 from any_context.cli.spinner import Spinner
@@ -827,4 +827,902 @@ def run_chat_loop(active_workspace: str = "Default"):
                     available = get_available_models()
                     print("\n🤖 Available Models with Configured API Keys:")
                     for m in available:
-                        active_tag = " \0
+                        active_tag = " \033[92m[Active]\033[0m" if m["id"] == current_model else ""
+                        print(f"  • \033[95m{m['name']}\033[0m (\033[93m{m['id']}\033[0m){active_tag}")
+                    print()
+                    continue
+
+                if len(parts) > 1 and not parts[1].startswith("-"):
+                    new_model = parts[1].strip()
+                    is_valid, prov, err_msg = validate_model_key_availability(new_model)
+                    if not is_valid:
+                        print(f"\n{err_msg}\n")
+                        continue
+                    current_model = new_model
+                    agent_instance = None
+                    print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m ({prov.upper()}) for this session.\n")
+                    continue
+
+                available_models = get_available_models()
+                choices = []
+                for m in available_models:
+                    prefix = "👉 " if m["id"] == current_model else "• "
+                    choices.append(f"{prefix}{m['name']} ({m['id']})")
+
+                choices.append("➕ Enter Custom Model ID")
+                choices.append("🔑 Add API Key for Another Provider (/config)")
+                choices.append("🔙 Cancel")
+
+                selected = questionary.select(
+                    f"Select Inference Model (Active: {current_model}):",
+                    choices=choices
+                ).ask()
+
+                if not selected or selected.startswith("🔙"):
+                    continue
+
+                if selected.startswith("🔑"):
+                    show_config_menu()
+                    continue
+
+                if selected.startswith("➕"):
+                    custom_id = questionary.text("Enter Model Identifier (e.g. 'claude-3-5-sonnet-20241022', 'gpt-4o', 'deepseek-chat'):").ask()
+                    if custom_id and custom_id.strip():
+                        is_valid, prov, err_msg = validate_model_key_availability(custom_id.strip())
+                        if not is_valid:
+                            print(f"\n{err_msg}\n")
+                            continue
+                        current_model = custom_id.strip()
+                        agent_instance = None
+                        print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for this session.\n")
+                    continue
+
+                if "(" in selected and selected.endswith(")"):
+                    extracted_id = selected[selected.rfind("(") + 1 : -1].strip()
+                    current_model = extracted_id
+                    agent_instance = None
+                    print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for this session.\n")
+                continue
+
+            elif cmd.startswith("/mode") or cmd.startswith("/answer-mode") or cmd.startswith("/grounding") or cmd.startswith("/am"):
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+                is_global = "--global" in parts or "-g" in parts
+                action_parts = [p for p in parts if p not in ["--global", "-g"]]
+
+                if len(action_parts) >= 2:
+                    arg_mode = action_parts[1].lower().strip().lstrip("-")
+                    if arg_mode in ["strict", "s", "audit", "legal", "1"]:
+                        new_mode = "strict"
+                    elif arg_mode in ["proactive", "p", "research", "creative", "strategy", "3"]:
+                        new_mode = "proactive"
+                    else:
+                        new_mode = "hybrid"
+                    current_grounding_mode = store.set_grounding_mode(new_mode, workspace_name=None if is_global else active_workspace, apply_global=is_global)
+                    agent_instance = None
+                    active_mode_for_agent = None
+                    target_label = "all workspaces (global)" if is_global else f"workspace '\033[1m{active_workspace}\033[0m\033[96m'"
+                    print(f"\n✅ AI Grounding Mode for {target_label} set to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m\n")
+                    continue
+                else:
+                    choices = [
+                        f"⚖️ Hybrid (Default - Workspace facts + clearly labeled external suggestions){'  [Active]' if current_grounding_mode == 'hybrid' else ''}",
+                        f"🛡️ Strict (Audit & Legal - 100% grounded to indexed documents, zero speculation){'  [Active]' if current_grounding_mode == 'strict' else ''}",
+                        f"🚀 Proactive (Research & Ideation - Broad synthesis, insights & web recommendations){'  [Active]' if current_grounding_mode == 'proactive' else ''}",
+                        "🌐 Apply Grounding Mode Globally Across All Workspaces...",
+                        "🔙 [Cancel]"
+                    ]
+                    mode_choice = questionary.select(
+                        f"Select AI Grounding & Answer Mode for Workspace '{active_workspace}':",
+                        choices=choices
+                    ).ask()
+                    if not mode_choice or mode_choice.startswith("🔙"):
+                        continue
+                    if mode_choice.startswith("🛡️"):
+                        new_mode = "strict"
+                    elif mode_choice.startswith("🚀"):
+                        new_mode = "proactive"
+                    elif mode_choice.startswith("🌐"):
+                        g_choice = questionary.select(
+                            "Select Grounding Mode to apply GLOBALLY across ALL workspaces:",
+                            choices=["⚖️ Hybrid (Global)", "🛡️ Strict (Global)", "🚀 Proactive (Global)", "🔙 [Cancel]"]
+                        ).ask()
+                        if not g_choice or g_choice.startswith("🔙"):
+                            continue
+                        g_mode = "strict" if "Strict" in g_choice else ("proactive" if "Proactive" in g_choice else "hybrid")
+                        current_grounding_mode = store.set_grounding_mode(g_mode, apply_global=True)
+                        agent_instance = None
+                        active_mode_for_agent = None
+                        print(f"\n✅ AI Grounding Mode set GLOBALLY to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m across all workspaces!\n")
+                        continue
+                    else:
+                        new_mode = "hybrid"
+                    current_grounding_mode = store.set_grounding_mode(new_mode, workspace_name=active_workspace)
+                    agent_instance = None
+                    active_mode_for_agent = None
+                    print(f"\n✅ AI Grounding Mode for workspace '\033[1m{active_workspace}\033[0m\033[96m' set to: \033[1m\033[96m{current_grounding_mode.capitalize()}\033[0m\n")
+                    continue
+
+            elif cmd.startswith("/web-search") or cmd.startswith("/websearch") or cmd.startswith("/search-web") or cmd == "/search" or cmd.startswith("/search ") or cmd == "/ws" or cmd.startswith("/ws "):
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+                is_global = "--global" in parts or "-g" in parts
+                action_parts = [p for p in parts if p not in ["--global", "-g"]]
+
+                if len(action_parts) >= 2:
+                    arg_action = action_parts[1].lower().strip().lstrip("-")
+                    if arg_action in ["on", "1", "true", "enable", "enabled"]:
+                        store.set_web_search_status(True, workspace_name=None if is_global else active_workspace, apply_global=is_global)
+                        agent_instance = None
+                        target_label = "all workspaces (global)" if is_global else f"workspace '\033[1m{active_workspace}\033[0m\033[92m'"
+                        print(f"\n✅ \033[92mWeb Search enabled for {target_label}!\033[0m")
+                        print("\033[93m⚠️ Cost & Transparency Notice:\033[0m The agent will perform real-time internet searches and consume external web tokens when answering.\n")
+                        continue
+                    elif arg_action in ["off", "0", "false", "disable", "disabled"]:
+                        store.set_web_search_status(False, workspace_name=None if is_global else active_workspace, apply_global=is_global)
+                        agent_instance = None
+                        target_label = "all workspaces (global)" if is_global else f"workspace '\033[1m{active_workspace}\033[0m\033[90m'"
+                        print(f"\n🔒 \033[90mWeb Search disabled for {target_label}. (100% offline local isolation)\033[0m\n")
+                        continue
+                    elif arg_action in ["status", "s", "info"]:
+                        st = store.get_web_search_status(workspace_name=active_workspace)
+                        status_str = "\033[92mENABLED (ON)\033[0m" if st else "\033[90mDISABLED (OFF)\033[0m"
+                        print(f"\n🌐 Web Search Status for Workspace '\033[1m{active_workspace}\033[0m': {status_str}\n")
+                        continue
+
+                current_st = store.get_web_search_status(workspace_name=active_workspace)
+                choices = [
+                    f"🟢 Enable Web Search for Workspace '{active_workspace}' (Real-time online search){'  [Active]' if current_st else ''}",
+                    f"🔴 Disable Web Search for Workspace '{active_workspace}' (100% offline local docs){'  [Active]' if not current_st else ''}",
+                    "🌐 Apply Web Search Setting Globally Across All Workspaces...",
+                    "🔙 [Cancel]"
+                ]
+                choice = questionary.select(
+                    f"Configure Web Search for Workspace '{active_workspace}':",
+                    choices=choices
+                ).ask()
+                if not choice or choice.startswith("🔙"):
+                    continue
+                if choice.startswith("🟢"):
+                    store.set_web_search_status(True, workspace_name=active_workspace)
+                    agent_instance = None
+                    print(f"\n✅ \033[92mWeb Search enabled for workspace '\033[1m{active_workspace}\033[0m\033[92m'!\033[0m")
+                    print("\033[93m⚠️ Cost & Transparency Notice:\033[0m The agent will perform real-time internet searches and consume external web tokens when answering.\n")
+                elif choice.startswith("🔴"):
+                    store.set_web_search_status(False, workspace_name=active_workspace)
+                    agent_instance = None
+                    print(f"\n🔒 \033[90mWeb Search disabled for workspace '\033[1m{active_workspace}\033[0m\033[90m'. (100% offline local isolation)\033[0m\n")
+                elif choice.startswith("🌐"):
+                    g_choice = questionary.select(
+                        "Apply Web Search setting across ALL workspaces:",
+                        choices=["Enable Web Search Globally (All Workspaces)", "Disable Web Search Globally (All Workspaces)", "🔙 [Cancel]"]
+                    ).ask()
+                    if g_choice and "Enable" in g_choice:
+                        store.set_web_search_status(True, apply_global=True)
+                        agent_instance = None
+                        print("\n✅ \033[92mWeb Search enabled GLOBALLY across all workspaces!\033[0m")
+                        print("\033[93m⚠️ Cost Notice:\033[0m Real-time web lookups are now active for all workspaces.\n")
+                    elif g_choice and "Disable" in g_choice:
+                        store.set_web_search_status(False, apply_global=True)
+                        agent_instance = None
+                        print("\n🔒 \033[90mWeb Search disabled GLOBALLY across all workspaces.\033[0m\n")
+                continue
+
+            elif cmd in ["/search-engine", "/searchengine", "/engine"] or cmd.startswith("/search-engine ") or cmd.startswith("/engine "):
+                parts = parse_command_args(user_input)
+                cur_eng = store.get_default_search_engine(workspace_name=active_workspace)
+                tavily_key = store.get_api_key("tavily") or os.getenv("TAVILY_API_KEY")
+                serper_key = store.get_api_key("serper") or os.getenv("SERPER_API_KEY")
+
+                # Direct argument mode (e.g. /search-engine tavily, /engine serper, /search-engine --ddg)
+                if len(parts) >= 2:
+                    raw_arg = parts[1].lower().strip().lstrip("-")
+                    if raw_arg in ["tavily", "tvly"]:
+                        store.set_default_search_engine("tavily", workspace_name=active_workspace)
+                        agent_instance = None
+                        safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92mTAVILY (AI-Native Research)\033[0m\n")
+                        if not tavily_key:
+                            safe_stdout_write("\033[93m⚠️ Notice:\033[0m Tavily API key is not yet configured. Run '/key tavily <chave>' or configure in '/config'.\n\n")
+                        else:
+                            safe_stdout_write("\n")
+                        continue
+                    elif raw_arg in ["serper", "google", "serp"]:
+                        store.set_default_search_engine("serper", workspace_name=active_workspace)
+                        agent_instance = None
+                        safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92mSERPER (Google Search API)\033[0m\n")
+                        if not serper_key:
+                            safe_stdout_write("\033[93m⚠️ Notice:\033[0m Serper API key is not yet configured. Run '/key serper <chave>' or configure in '/config'.\n\n")
+                        else:
+                            safe_stdout_write("\n")
+                        continue
+                    elif raw_arg in ["duckduckgo", "ddg", "duck", "free"]:
+                        store.set_default_search_engine("duckduckgo", workspace_name=active_workspace)
+                        agent_instance = None
+                        safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92mDUCKDUCKGO (Free / No Key Required)\033[0m\n\n")
+                        continue
+                    elif raw_arg in ["auto", "smart", "default"]:
+                        store.set_default_search_engine("auto", workspace_name=active_workspace)
+                        agent_instance = None
+                        safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92mAUTO (Tavily -> Serper -> DuckDuckGo)\033[0m\n\n")
+                        continue
+
+                # Interactive selection menu
+                tav_status = f" [Key: {mask_key(tavily_key)}]" if tavily_key else " [No Key]"
+                serp_status = f" [Key: {mask_key(serper_key)}]" if serper_key else " [No Key]"
+                eng_choices = [
+                    f"⭐ Auto (Tavily -> Serper -> DuckDuckGo){'  [Active]' if cur_eng == 'auto' else ''}",
+                    f"🌐 Tavily Search API (AI-Native Research){tav_status}{'  [Active]' if cur_eng == 'tavily' else ''}",
+                    f"🔍 Serper (Google Search API){serp_status}{'  [Active]' if cur_eng == 'serper' else ''}",
+                    f"🦆 DuckDuckGo (Free / 100% No-Cost){'  [Active]' if cur_eng in ['duckduckgo', 'ddg'] else ''}",
+                    "🔙 [Cancel]"
+                ]
+                choice = questionary.select(
+                    f"Select Web Search Engine for Workspace '{active_workspace}':",
+                    choices=eng_choices
+                ).ask()
+                if not choice or choice.startswith("🔙"):
+                    continue
+
+                if choice.startswith("⭐"):
+                    new_eng = "auto"
+                    label = "Auto (Tavily -> Serper -> DuckDuckGo)"
+                elif choice.startswith("🌐"):
+                    new_eng = "tavily"
+                    label = "Tavily Search API"
+                elif choice.startswith("🔍"):
+                    new_eng = "serper"
+                    label = "Serper (Google Search API)"
+                else:
+                    new_eng = "duckduckgo"
+                    label = "DuckDuckGo (Free / No Key)"
+
+                store.set_default_search_engine(new_eng, workspace_name=active_workspace)
+                agent_instance = None
+                safe_stdout_write(f"\n✅ Web Search Engine for workspace '\033[1m{active_workspace}\033[0m' set to: \033[92m{label}\033[0m!\n\n")
+                continue
+
+            elif cmd == "/update" or cmd.startswith("/update ") or cmd.startswith("/update@") or cmd in ["/check-update", "/checkupdate", "/check"]:
+                parts = parse_command_args(user_input)
+                is_force = "--force" in parts or "-f" in parts
+                is_check_only = "--check" in parts or "-c" in parts or cmd in ["/check-update", "/checkupdate", "/check"]
+                is_list = "--list" in parts or "-l" in parts or "list" in parts or "--releases" in parts or "releases" in parts
+                is_rollback = "--rollback" in parts or "-r" in parts or "rollback" in parts
+                from any_context.cli.updater import run_self_update, check_for_updates, display_available_releases
+
+                if is_list or is_rollback:
+                    picked = display_available_releases(interactive_select=True)
+                    if picked:
+                        run_self_update(target_version=picked, force=is_force)
+                    continue
+
+                if is_check_only:
+                    has_up, new_tag = check_for_updates(quiet_if_latest=False)
+                    if has_up:
+                        try:
+                            do_upgrade = questionary.confirm(
+                                f"Would you like to download and install {new_tag} now?",
+                                default=True
+                            ).ask()
+                            if do_upgrade:
+                                run_self_update(force=is_force)
+                        except Exception:
+                            pass
+                    continue
+
+                # Extract targeted version if specified
+                target_version = None
+                if cmd.startswith("/update@"):
+                    target_version = cmd.split("@", 1)[1].strip()
+                elif "--to" in parts:
+                    idx = parts.index("--to")
+                    if idx + 1 < len(parts):
+                        target_version = parts[idx + 1]
+                elif "--version" in parts:
+                    idx = parts.index("--version")
+                    if idx + 1 < len(parts):
+                        target_version = parts[idx + 1]
+                else:
+                    # Look for positional version argument (e.g. /update 0.15.2 or /update @0.15.2 or /update v0.15.2)
+                    non_flags = [p for p in parts[1:] if not p.startswith("-")]
+                    if non_flags:
+                        target_version = non_flags[0]
+
+                run_self_update(target_version=target_version, force=is_force)
+                continue
+
+            elif cmd in ["/reset-memory", "/reset"] or cmd.startswith("/reset-memory ") or cmd.startswith("/reset "):
+                parts = parse_command_args(user_input)
+                is_force = "--force" in parts or "-f" in parts
+                is_all = "--all" in parts or "-a" in parts
+
+                target_desc = "ALL workspaces" if is_all else f"workspace '{active_workspace}'"
+                if not is_force:
+                    confirm = questionary.confirm(
+                        f"⚠️ Are you sure you want to reset long-term memory for {target_desc}?"
+                    ).ask()
+                    if not confirm:
+                        continue
+                from any_context.memory import MemoryManager
+                memory_mgr = MemoryManager()
+                target_ws_arg = None if is_all else active_workspace
+                deleted = memory_mgr.reset_memory(workspace=target_ws_arg)
+                print(f"🧹 Reset complete! Deleted {deleted} long-term memory entries for {target_desc}.")
+                continue
+
+            elif cmd in ["/factory-reset", "/reset-factory"]:
+                confirm = questionary.confirm(
+                    "⚠️ DANGER: Are you sure you want to reset AnyContext to Factory Defaults?\n  This will erase ALL workspaces, folders, API keys, configuration settings, and vector memory databases!"
+                ).ask()
+                if confirm:
+                    store = ConfigDBStore()
+                    store.factory_reset()
+                    print("\n🎉 AnyContext has been completely reset to factory defaults!")
+                    print("Run 'actx' again anytime to launch the first-time setup wizard.\n")
+                    sys.exit(0)
+                continue
+
+            elif cmd == "/config":
+                show_config_menu()
+                continue
+
+            elif cmd == "/key" or cmd.startswith("/key ") or cmd in ["/keys", "/api-keys", "/apikeys"] or cmd.startswith("/keys ") or cmd.startswith("/apikey "):
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+                from any_context.cli.config_menu import mask_key, _manage_api_keys
+
+                if len(parts) == 1:
+                    _manage_api_keys(store)
+                    continue
+
+                if "--list" in parts or "-l" in parts or "list" in parts:
+                    all_keys = store.get_all_api_keys()
+                    safe_stdout_write("\n--- Saved API Keys ---\n")
+                    if not all_keys:
+                        safe_stdout_write("No API keys saved in database yet.\n")
+                    else:
+                        for provider, key in all_keys.items():
+                            safe_stdout_write(f"• \033[93m{provider.upper()}\033[0m: {mask_key(key)}\n")
+                    safe_stdout_write("----------------------\n\n")
+                    continue
+
+                action_parts = [p for p in parts if p not in ["--set", "-s", "set"]]
+                # e.g. /key tavily tvly-xxx OR /key set tavily tvly-xxx
+                if len(action_parts) >= 3:
+                    prov = action_parts[1].lower().strip()
+                    val = action_parts[2].strip()
+                    store.set_api_key(prov, val)
+                    safe_stdout_write(f"\n✅ Saved API Key for provider '\033[93m{prov.upper()}\033[0m' ({mask_key(val)}).\n\n")
+                elif len(action_parts) == 2 and action_parts[1] in ["--help", "-h", "help", "guide"]:
+                    from any_context.help.manager import display_help_page
+                    from any_context.help.registry import get_help_page
+                    page = get_help_page("api-keys")
+                    if page:
+                        display_help_page(page)
+                else:
+                    _manage_api_keys(store)
+                continue
+
+            elif cmd in ["/billing", "/plans"]:
+                from any_context.cli.config_menu import _manage_subscription
+                _manage_subscription()
+                continue
+
+            elif cmd == "/folder" or cmd.startswith("/folder ") or cmd == "/folders" or cmd.startswith("/folders "):
+                parts = parse_command_args(user_input)
+                is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
+                is_add = "--add" in parts or "-a" in parts or "add" in parts
+                is_remove = "--remove" in parts or "-r" in parts or "remove" in parts or "rm" in parts or "delete" in parts
+                is_full = "--full" in parts or "--force" in parts
+
+                from any_context.config.db_store import ConfigDBStore
+                store = ConfigDBStore()
+
+                if is_sync:
+                    is_verbose = "--verbose" in parts or "-v" in parts
+                    if is_verbose:
+                        from any_context.ingestion.unified_sync import run_unified_sync
+                        run_unified_sync(workspace_name=active_workspace, sync_folders=True, sync_web=False, sync_drives=False, force_full=is_full, verbose=True)
+                    else:
+                        from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+                        bg_mgr = BackgroundSyncManager()
+                        bg_mgr.start_background_sync(active_workspace, sync_folders=True, sync_web=False, sync_drives=False, force_full=is_full)
+                        safe_stdout_write(f"\n⚡ Background folder synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
+                    agent_instance = None
+                    continue
+
+                if is_add:
+                    folder_to_add = None
+                    for i, p in enumerate(parts):
+                        if p in ["--add", "-a", "add"] and len(parts) > i + 1:
+                            folder_to_add = parts[i + 1]
+                            break
+                        elif os.path.exists(p) and p not in ["/folder", "/folders"]:
+                            folder_to_add = p
+                            break
+                    if folder_to_add and os.path.exists(folder_to_add):
+                        abs_p = os.path.abspath(folder_to_add)
+                        store.add_folder_to_workspace(active_workspace, abs_p)
+                        print(f"\n📁 Added folder '\033[96m{abs_p}\033[0m' to workspace '\033[93m{active_workspace}\033[0m'!")
+                        with Spinner(f"Indexing new folder...", done_message=f"Folder indexed"):
+                            from any_context.ingestion.unified_sync import run_unified_sync
+                            run_unified_sync(workspace_name=active_workspace, sync_folders=True, sync_web=False, sync_drives=False)
+                        agent_instance = None
+                    else:
+                        print("\n⚠️ Folder path does not exist or was not specified. Usage: /folder --add <path>\n")
+                    continue
+
+                if is_remove:
+                    folder_to_rm = None
+                    for i, p in enumerate(parts):
+                        if p in ["--remove", "-r", "remove", "rm", "delete"] and len(parts) > i + 1:
+                            folder_to_rm = parts[i + 1]
+                            break
+                    if folder_to_rm:
+                        abs_p = os.path.abspath(folder_to_rm)
+                        removed = store.remove_folder_from_workspace(active_workspace, abs_p)
+                        if removed:
+                            print(f"\n🗑️ Removed folder '\033[96m{abs_p}\033[0m' from workspace '\033[93m{active_workspace}\033[0m'!\n")
+                        else:
+                            print(f"\n⚠️ Folder '{folder_to_rm}' not found in workspace '{active_workspace}'.\n")
+                    else:
+                        print("\n⚠️ Please specify a folder path to remove. Usage: /folder --remove <path>\n")
+                    continue
+
+                # Default: list folders
+                folders = store.get_workspace_folders(active_workspace)
+                print(f"\n📁 Local Folders for Workspace '\033[93m{active_workspace}\033[0m':")
+                if not folders:
+                    print("  (No local folders configured. Type '/folder --add <path>' to add one)")
+                for f in folders:
+                    print(f"  • \033[96m{f}\033[0m")
+                print()
+                continue
+
+            elif cmd == "/drive" or cmd.startswith("/drive ") or cmd == "/drives" or cmd.startswith("/drives ") or cmd == "/cloud" or cmd.startswith("/cloud "):
+                parts = parse_command_args(user_input)
+                is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
+                is_add = "--add" in parts or "-a" in parts or "add" in parts
+                is_remove = "--remove" in parts or "-r" in parts or "remove" in parts or "delete" in parts
+                is_full = "--full" in parts or "--force" in parts
+
+                from any_context.config.db_store import ConfigDBStore
+                store = ConfigDBStore()
+
+                if is_sync:
+                    is_verbose = "--verbose" in parts or "-v" in parts
+                    if is_verbose:
+                        from any_context.ingestion.unified_sync import run_unified_sync
+                        run_unified_sync(workspace_name=active_workspace, sync_folders=False, sync_web=False, sync_drives=True, force_full=is_full, verbose=True)
+                    else:
+                        from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+                        bg_mgr = BackgroundSyncManager()
+                        bg_mgr.start_background_sync(active_workspace, sync_folders=False, sync_web=False, sync_drives=True, force_full=is_full)
+                        safe_stdout_write(f"\n⚡ Background cloud drive synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
+                    agent_instance = None
+                    continue
+
+                if is_add or is_remove:
+                    from any_context.cli.config_menu import _manage_cloud_drives
+                    _manage_cloud_drives(workspace_name=active_workspace)
+                    continue
+
+                # Default: list cloud drives
+                drives = store.get_workspace_cloud_drives(active_workspace) if hasattr(store, "get_workspace_cloud_drives") else []
+                print(f"\n☁️ Cloud Drives for Workspace '\033[93m{active_workspace}\033[0m':")
+                if not drives:
+                    print("  (No cloud drives connected. Type '/drive --add' or use /config to connect Google Drive / OneDrive)")
+                for d in drives:
+                    title = d.get("title") or d.get("provider", "Cloud Drive")
+                    print(f"  • \033[96m{title}\033[0m ({d.get('provider')}) - Status: {d.get('auth_status', 'connected')}")
+                print()
+                continue
+
+            elif cmd == "/web" or cmd.startswith("/web ") or cmd == "/urls" or cmd.startswith("/urls "):
+                parts = parse_command_args(user_input)
+                if len(parts) == 1:
+                    from any_context.ingestion.web_scheduler import WebSchedulerStore
+                    web_store = WebSchedulerStore()
+                    urls = web_store.get_workspace_web_urls(active_workspace)
+                    print(f"\n🌐 Web Sources for Workspace '{active_workspace}':")
+                    if not urls:
+                        print("  (No web URLs configured yet. Type '/web --add <url>' to add one)")
+                    for u in urls:
+                        pages_info = f" • {u.get('page_count')} pages" if u.get('page_count', 1) > 1 else ""
+                        print(f"  • \033[96m{u.get('title') or u['url']}\033[0m{pages_info} ({u['url']}) - Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
+                    print()
+                    continue
+
+                is_list = "--list" in parts or "-l" in parts or "list" in parts or "urls" in parts
+                is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
+                is_add = "--add" in parts or "-a" in parts or "add" in parts
+                is_remove = "--remove" in parts or "-r" in parts or "remove" in parts or "delete" in parts or "rm" in parts
+                is_full = "--full" in parts or "--force" in parts
+
+                from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_chromadb
+                web_store = WebSchedulerStore()
+
+                if is_sync:
+                    is_verbose = "--verbose" in parts or "-v" in parts
+                    if is_verbose:
+                        from any_context.ingestion.unified_sync import run_unified_sync
+                        run_unified_sync(workspace_name=active_workspace, sync_folders=False, sync_web=True, sync_drives=False, force_full=is_full, verbose=True)
+                    else:
+                        from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+                        bg_mgr = BackgroundSyncManager()
+                        bg_mgr.start_background_sync(active_workspace, sync_folders=False, sync_web=True, sync_drives=False, force_full=is_full)
+                        safe_stdout_write(f"\n⚡ Background web synchronization started for workspace '\033[93m{active_workspace}\033[0m'. You can continue chatting!\n\n")
+                    agent_instance = None
+                    continue
+
+                if is_remove:
+                    url_to_rm = None
+                    for i, p in enumerate(parts):
+                        if p in ["--remove", "-r", "remove", "rm", "delete"] and len(parts) > i + 1:
+                            url_to_rm = parts[i + 1]
+                            break
+                    if url_to_rm:
+                        removed = web_store.remove_web_url(active_workspace, url_to_rm)
+                        remove_web_url_from_chromadb(active_workspace, url_to_rm)
+                        if removed:
+                            print(f"\n🗑️ Removed web source '\033[96m{url_to_rm}\033[0m' from workspace '\033[93m{active_workspace}\033[0m'!\n")
+                        else:
+                            print(f"\n⚠️ Web URL '{url_to_rm}' not found in workspace '{active_workspace}'.\n")
+                    else:
+                        print("\n⚠️ Please specify a web URL to remove. Usage: /web --remove <url>\n")
+                    continue
+
+                if is_add:
+                    from any_context.cli.formatters import run_interactive_web_crawler
+                    url_to_add = None
+                    for i, p in enumerate(parts):
+                        if p in ["--add", "-a", "add"] and len(parts) > i + 1:
+                            url_to_add = parts[i + 1]
+                            break
+                        elif p.startswith("http://") or p.startswith("https://"):
+                            url_to_add = p
+                            break
+                    run_interactive_web_crawler(workspace_name=active_workspace, start_url=url_to_add)
+                    agent_instance = None
+                    continue
+
+                if len(parts) > 1 and (parts[1].startswith("http://") or parts[1].startswith("https://")):
+                    from any_context.cli.formatters import run_interactive_web_crawler
+                    run_interactive_web_crawler(workspace_name=active_workspace, start_url=parts[1])
+                    agent_instance = None
+                    continue
+
+                if is_list:
+                    urls = web_store.get_workspace_web_urls(active_workspace)
+                    print(f"\n🌐 Web Sources for Workspace '{active_workspace}':")
+                    if not urls:
+                        print("  (No web URLs configured yet. Type '/web --add <url>' to add one)")
+                    for u in urls:
+                        pages_info = f" • {u.get('page_count')} pages" if u.get('page_count', 1) > 1 else ""
+                        print(f"  • \033[96m{u.get('title') or u['url']}\033[0m{pages_info} ({u['url']}) - Interval: {u.get('polling_interval_hours', 24)}h | Last Scraped: {u.get('last_scraped_at') or 'Pending'}")
+                    print()
+                    continue
+
+                from any_context.cli.config_menu import _manage_workspace_web_urls
+                _manage_workspace_web_urls(workspace_name=active_workspace)
+                continue
+
+            elif cmd in ["/history", "/hist"] or cmd.startswith("/history ") or cmd.startswith("/hist ") or cmd in ["/clear-history", "/clearhistory", "/reset-history"]:
+                parts = parse_command_args(user_input)
+                is_clear = "--clear" in parts or "-c" in parts or cmd in ["/clear-history", "/clearhistory", "/reset-history"]
+
+                if is_clear:
+                    from any_context.cli.history import clear_workspace_history
+                    cleared = clear_workspace_history(active_workspace)
+                    if cleared:
+                        print(f"\n🧹 Input history cleared for workspace '\033[93m{active_workspace or 'Global'}\033[0m'!\n")
+                    else:
+                        print(f"\n⚠️ Could not clear history for workspace '{active_workspace or 'Global'}'.\n")
+                    continue
+
+                limit = 20
+                for i, p in enumerate(parts):
+                    if p in ["--limit", "-n"] and len(parts) > i + 1:
+                        try:
+                            limit = int(parts[i + 1])
+                        except ValueError:
+                            pass
+                        break
+
+                from any_context.cli.history import get_workspace_history_entries
+                entries = get_workspace_history_entries(active_workspace, limit=limit)
+                print(f"\n📜 Recent Input History for Workspace '\033[93m{active_workspace or 'Global'}\033[0m' ({len(entries)} entries):")
+                if not entries:
+                    print("  (No previous inputs recorded for this workspace. Use ↑ / ↓ arrow keys as you chat)")
+                else:
+                    for idx, h_entry in enumerate(entries, 1):
+                        print(f"  {idx:2d}. \033[96m{h_entry}\033[0m")
+                print("  \033[90mTip: Press [↑] Up Arrow / [↓] Down Arrow anytime to cycle through past inputs.\033[0m\n")
+                continue
+
+            elif cmd in ["/inspect", "/chunks", "/lance", "/status-chunks", "/db-status"] or cmd.startswith("/inspect ") or cmd.startswith("/chunks "):
+                parts = parse_command_args(user_input)
+                limit = 5
+                for i, p in enumerate(parts):
+                    if p in ["--limit", "-n"] and len(parts) > i + 1:
+                        try:
+                            limit = int(parts[i + 1])
+                        except ValueError:
+                            pass
+                        break
+
+                from any_context.config.app_settings import AppSettings
+                from any_context.vector_engine.store import LanceDBStore
+                import chromadb
+
+                settings = AppSettings.load()
+                db_save_path = settings.context.db_path if settings else "./context_db"
+                coll_name = settings.context.collection_name if settings else "context_docs"
+
+                print(f"\n🔍 \033[1mVector Database Inspection for Workspace '\033[93m{active_workspace}\033[0m\033[1m':\033[0m")
+                print(f"  • Storage Engine: \033[92m⚡ LanceDB Columnar (Apache Arrow / Rust)\033[0m")
+                print(f"  • Storage Path  : \033[90m{os.path.abspath(os.path.join(db_save_path, 'lancedb'))}\033[0m")
+
+                # Document chunks in LanceDB
+                lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+                lance_count = lance_store.count_records(table_name="workspace_chunks")
+                ws_count = lance_store.count_records(workspace_name=active_workspace, table_name="workspace_chunks")
+                print(f"  • \033[96m📁 Workspace Chunks:\033[0m \033[1m{ws_count}\033[0m (Total in DB: {lance_count})")
+
+                # Session memory in LanceDB
+                session_db_path = settings.session.db_path if settings else "./memory"
+                mem_store = LanceDBStore.get_instance(db_path=os.path.join(session_db_path, "lancedb"))
+                mem_count = mem_store.count_records(table_name="session_memory")
+                ws_mem_count = mem_store.count_records(workspace_name=active_workspace, table_name="session_memory")
+                print(f"  • \033[95m🧠 Session Memory:\033[0m \033[1m{ws_mem_count}\033[0m (Total in DB: {mem_count})\n")
+
+                if ws_count > 0 or lance_count > 0:
+                    try:
+                        table = lance_store._db.open_table(lance_store._default_table_name)
+                        clean_ws = active_workspace.replace("'", "''")
+                        results = table.search().where(f"workspace = '{clean_ws}'").limit(limit).to_list()
+                        if not results:
+                            results = table.search().limit(limit).to_list()
+
+                        print(f"📄 \033[1mSample Indexed Chunks ({len(results)} shown):\033[0m")
+                        for idx, r in enumerate(results, 1):
+                            src_name = r.get("file_name") or r.get("file_path") or "Unknown"
+                            ctype = r.get("content_type") or "Document"
+                            text_snip = (r.get("text") or "").strip().replace("\n", " ")[:140]
+                            print(f"  {idx}. [\033[96m{ctype}\033[0m] \033[1m{src_name}\033[0m")
+                            print(f"     \033[90mPath: {r.get('file_path')}\033[0m")
+                            print(f"     \033[37mSnippet: \"{text_snip}...\"\033[0m\n")
+                    except Exception as e:
+                        print(f"  ⚠️ Could not read sample records from LanceDB: {e}\n")
+                else:
+                    print("  ⚠️ \033[93mDatabase is currently empty (0 chunks).\033[0m")
+                    print("  👉 Type '\033[96m/sync\033[0m' or '\033[96m/web --add <url>\033[0m' to index content into LanceDB.\n")
+                continue
+
+            elif cmd == "/sources" or cmd.startswith("/sources "):
+                parts = parse_command_args(user_input)
+                store = ConfigDBStore()
+                is_all = "--all" in parts or "-a" in parts or "all" in parts
+
+                if is_all:
+                    detailed = store.list_workspaces_detailed()
+                    print("\n📂 All Configured Workspaces & Sources:")
+                    for ws_d in detailed:
+                        src_count = f" ({ws_d['total_sources']} sources)" if ws_d.get('total_sources', 0) > 0 else " (Empty)"
+                        print(f"• \033[93m{ws_d['name']}\033[0m{src_count}:")
+                        for s in ws_d.get("sources", []):
+                            stype = s.get("type", "")
+                            if stype == "folder":
+                                print(f"    - [Folder] {s.get('identifier')}")
+                            elif stype == "web":
+                                p_cnt = s.get("details", {}).get("page_count", 1)
+                                pages_badge = f" • {p_cnt} pages" if p_cnt > 1 else ""
+                                print(f"    - [Web] {s.get('identifier')} ({s.get('title') or 'Web Source'}{pages_badge})")
+                            elif stype == "cloud_drive":
+                                auth_st = s.get("details", {}).get("auth_status", "")
+                                prov = s.get("details", {}).get("provider", "drive")
+                                auth_badge = f" • {auth_st}" if auth_st else ""
+                                print(f"    - [Drive] {prov}://{s.get('identifier')} ({s.get('title') or 'Cloud Drive'}{auth_badge})")
+                        if not ws_d.get("sources"):
+                            print("    - (No sources configured)")
+                    print()
+                else:
+                    ws_detail = store.get_workspace_sources(active_workspace)
+                    src_count = f" ({ws_detail['total_sources']} sources)" if ws_detail.get('total_sources', 0) > 0 else " (Empty)"
+                    print(f"\n📂 Sources for Active Workspace '\033[93m{active_workspace or 'Global'}\033[0m'{src_count}:")
+                    for s in ws_detail.get("sources", []):
+                        stype = s.get("type", "")
+                        if stype == "folder":
+                            print(f"  • [Folder] {s.get('identifier')}")
+                        elif stype == "web":
+                            p_cnt = s.get("details", {}).get("page_count", 1)
+                            pages_badge = f" • {p_cnt} pages" if p_cnt > 1 else ""
+                            print(f"  • [Web] \033[96m{s.get('title') or s.get('identifier')}\033[0m{pages_badge} ({s.get('identifier')})")
+                        elif stype == "cloud_drive":
+                            auth_st = s.get("details", {}).get("auth_status", "")
+                            prov = s.get("details", {}).get("provider", "drive")
+                            auth_badge = f" • {auth_st}" if auth_st else ""
+                            print(f"  • [Drive] \033[95m{s.get('title') or s.get('identifier')}\033[0m ({prov}://{s.get('identifier')}{auth_badge})")
+                    if not ws_detail.get("sources"):
+                        print("  (No sources configured yet. Type '/web --add <url>' or '/config' to add folders/websites)")
+                    print()
+                continue
+
+            elif cmd.startswith("/"):
+                import difflib
+                known_commands = [
+                    "/help", "/exit", "/quit", "/q", "/version", "/v",
+                    "/clear", "/cls",
+                    "/switch", "/model", "/m", "/sync", "/resync", "/index", "/update", "/check-update",
+                    "/folder", "/folders", "/web", "/urls", "/drive", "/drives", "/cloud",
+                    "/inspect", "/chunks", "/lance",
+                    "/reset-memory", "/reset", "/factory-reset", "/config",
+                    "/keys", "/billing", "/plans", "/history", "/clear-history",
+                    "/paste", "/multiline", "/mline", "/transfer", "/move-source",
+                    "/sources", "/density", "/web-search", "/websearch", "/search", "/ws"
+                ]
+                typed_cmd = user_input.split()[0]
+                matches = difflib.get_close_matches(typed_cmd.lower(), known_commands, n=1, cutoff=0.45)
+                if matches:
+                    print(f"\n\033[91m⚠️ Unknown command '\033[1m{typed_cmd}\033[0m\033[91m'.\033[0m Did you mean '\033[93m{matches[0]}\033[0m'?")
+                else:
+                    print(f"\n\033[91m⚠️ Unknown command '\033[1m{typed_cmd}\033[0m\033[91m'.\033[0m")
+                print("👉 Type '\033[96m/help\033[0m' to view all available commands.\n")
+                continue
+
+            # Check for one-shot model prefix (e.g. '@gpt-4o summarize this file')
+            effective_model = current_model
+            effective_prompt = user_input
+
+            if user_input.startswith("@") and " " in user_input:
+                target_model, actual_msg = user_input[1:].split(" ", 1)
+                target_model = target_model.strip()
+                actual_msg = actual_msg.strip()
+                if target_model and actual_msg:
+                    from any_context.core.models_catalog import validate_model_key_availability
+                    is_valid, prov, err_msg = validate_model_key_availability(target_model)
+                    if not is_valid:
+                        print(f"\n{err_msg}\n")
+                        continue
+                    effective_model = target_model
+                    effective_prompt = actual_msg
+
+            try:
+                store = ConfigDBStore()
+                current_web_search_enabled = store.get_web_search_status(workspace_name=active_workspace)
+                if (
+                    agent_instance is None
+                    or active_workspace_for_agent != active_workspace
+                    or active_model_for_agent != effective_model
+                    or active_mode_for_agent != current_grounding_mode
+                    or getattr(agent_instance, "_web_search_enabled", None) != current_web_search_enabled
+                ):
+                    search_spin = " • Web:ON" if current_web_search_enabled else ""
+                    with Spinner(f"Initializing AI Agent ({effective_model} • {current_grounding_mode.capitalize()}{search_spin})..."):
+                        from any_context.core.agent import create_anycontext_agent, saver
+                        agent_instance = create_anycontext_agent(
+                            active_workspace=active_workspace, 
+                            checkpointer=saver,
+                            model_override=effective_model,
+                            grounding_mode=current_grounding_mode,
+                            web_search_enabled=current_web_search_enabled
+                        )
+                        setattr(agent_instance, "_web_search_enabled", current_web_search_enabled)
+                        active_workspace_for_agent = active_workspace
+                        active_model_for_agent = effective_model
+                        active_mode_for_agent = current_grounding_mode
+
+                from any_context.cli.viewport import PinnedBottomDock
+
+                with PinnedBottomDock(
+                    workspace_name=active_workspace,
+                    model_name=effective_model,
+                    grounding_mode=current_grounding_mode,
+                    web_search_enabled=current_web_search_enabled
+                ) as dock:
+                    has_printed_ai_header = False
+
+                    for token, metadata in agent_instance.stream(
+                        {
+                            "messages": [effective_prompt]
+                        },
+                        stream_mode="messages",
+                        config=config
+                    ):
+                        if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
+                            content_str = ""
+                            if isinstance(token.content, str) and token.content:
+                                content_str = token.content
+                            elif isinstance(token.content, list):
+                                parts = []
+                                for part in token.content:
+                                    if isinstance(part, str):
+                                        parts.append(part)
+                                    elif isinstance(part, dict) and "text" in part:
+                                        parts.append(part["text"])
+                                content_str = "".join(parts)
+
+                            if content_str:
+                                if not has_printed_ai_header:
+                                    dock.write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
+                                    has_printed_ai_header = True
+                                dock.write(content_str)
+
+                        elif hasattr(token, "type") and token.type in ["tool", "ToolMessage", "ToolMessageChunk"]:
+                            tool_name = str(getattr(token, "name", "") or "")
+                            if "web" in tool_name.lower():
+                                from any_context.tools.web_search_tool import get_active_web_search_engine
+                                eng = get_active_web_search_engine()
+                                status_msg = f"🌐 [{eng}] Pesquisando na internet em tempo real..."
+                            else:
+                                status_msg = "📚 [RAG] Reading retrieved context documents for AI analysis..."
+
+                            if not has_printed_ai_header:
+                                dock.write(f"\r\033[K{status_msg}")
+                            dock.update_status(status_msg)
+
+                    if not has_printed_ai_header:
+                        dock.write(f"\r\033[K\033[93m🤖 AI [\033[95m{effective_model}\033[93m]:\033[0m ")
+                    dock.write("\n")
+
+            except KeyboardInterrupt:
+                print("\n\n⏹️ Generation interrupted by user.\n")
+                continue
+            except Exception as e:
+                from any_context.core.models_catalog import format_inference_error
+                err_info = format_inference_error(e, effective_model)
+                print(err_info["formatted_box"])
+
+                # Invalidate agent instance so next prompt re-initializes cleanly
+                agent_instance = None
+                active_model_for_agent = None
+
+                # If the failed model was set as current_model, offer automatic fallback
+                if current_model == effective_model and current_model != "gpt-4o-mini":
+                    current_model = "gpt-4o-mini"
+                    print(f"🔄 Automatically reverted active session model to \033[95m{current_model}\033[0m.\n")
+
+        except (KeyboardInterrupt, EOFError, StopIteration):
+            safe_stdout_write("\n")
+            try:
+                safe_stdout_write("\033[93m❓ Are you sure you want to exit AnyContext? [y/N]:\033[0m ")
+                confirm_ans = input().strip().lower()
+                should_exit = confirm_ans in ["y", "yes", "s", "sim"]
+            except (KeyboardInterrupt, EOFError, StopIteration):
+                should_exit = True
+
+            if should_exit:
+                safe_stdout_write("\n👋 Saving session memory and exiting AnyContext. See you soon!\n\n")
+                try:
+                    from any_context.memory import run_session_summarizer_async
+                    run_session_summarizer_async(thread_id, active_workspace)
+                except Exception:
+                    pass
+                break
+            else:
+                safe_stdout_write("↩️ Resuming session...\n\n")
+                continue
+        except Exception as e:
+            safe_stdout_write(format_session_error(e))
+            continue
+
+
+def main_cli():
+    try:
+        workspace = get_active_workspace()
+        print_startup_update_notice()
+        run_chat_loop(active_workspace=workspace)
+    except (KeyboardInterrupt, EOFError):
+        print("\n\n👋 AnyContext closed.\n")
+        sys.exit(0)
+
+
+def main():
+    if "--mcp" not in sys.argv:
+        print_banner()
+    main_cli()
+
+
+if __name__ == "__main__":
+    main()
+
+

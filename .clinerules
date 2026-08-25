@@ -1,0 +1,70 @@
+# AnyContext Project Governance & AI Skills
+
+You are working on the **AnyContext** project. You must strictly follow the architectural principles, development cycle protocol, and operational skills located in the `.ai/` directory.
+
+---
+
+## 🏛️ 1. Universal Development Cycle Protocol (`dev-cycle-protocol`)
+
+You must strictly adhere to the guidelines and workflows defined in:
+📄 `.ai/skills/dev-cycle-protocol/SKILL.md`
+
+### 4 Inviolable Engineering Pillars:
+1. **Rigorous Modularization & Low Coupling**: Keep domain logic decoupled from infrastructure, storage, and interfaces.
+2. **Multi-Interface Surface Parity**: Any new feature or capability must be exposed consistently across all active project surfaces:
+   - CLI Interactive Shell (`src/any_context/cli/`)
+   - REST API Server (`src/any_context/server/api.py`)
+   - MCP Server Tools (`src/any_context/server/mcp.py`)
+3. **Dual-Doc Standard (Synchronous Updates)**:
+   - **`UserDoc`**: User manuals, quickstart, `/help` menus, commands, and `README.md`.
+   - **`TecDoc`**: Deep-dive technical documentation, Mermaid diagrams, mathematical models, data schemas, algorithms, and `TECDOC.md`.
+4. **Cumulative Non-Truncated Manual Test Suite (`tests/MANUAL_TESTS.md`)**:
+   - **Never compact or truncate** previous test scenarios.
+   - Add new end-to-end verification scenarios to `tests/MANUAL_TESTS.md` with step-by-step copyable commands, preconditions, and acceptance criteria.
+   - Only remove tests that are genuinely obsolete due to architectural changes.
+
+### The 8-Step Lifecycle & Explicit Approval Gate:
+- **Stage 1 (Discovery & Exploration)**: Default mode. 100% consultative and analytical. Do NOT edit code, run write commands, or implement prematurely while exploring alternatives.
+- **Stage 2 (Blueprint Planning)**: Consolidate the complete architecture, interface parity mapping, impacted files, Dual-Doc plan, automated & manual test strategies.
+- **Stage 3 (Explicit Approval Gate - IMMUTABLE)**: Implementation **ONLY** starts after explicit user confirmation (e.g., "Approved", "Go", "Pode implementar"). If the user asks questions or proposes changes, return to Stage 1.
+- **Stage 4 (Modular Implementation)**: Implement modularly with interface parity across CLI, API, and MCP.
+- **Stage 5 (Automated Tests)**: Execute `pytest tests/` ensuring 100% pass rate.
+- **Stage 6 (Dual-Doc Synchronous Update)**: Update `README.md` and `TECDOC.md`.
+- **Stage 7 (Cumulative Manual Test Scripting)**: Record detailed test steps in `tests/MANUAL_TESTS.md`.
+- **Stage 8 (Closure, Release & Transparent Report)**: Version bump, Git commit/merge/tag, and present the 8-stage checklist report to the user.
+
+---
+
+## 🧠 2. Session Memory Skill (`session-memory`)
+
+A persistent vector database (ChromaDB) maintains architecture context, decisions, and session state.
+📄 Skill details: `.ai/skills/session-memory/SKILL.md`
+
+### Operational Commands:
+- **Read Consolidated Memory**:
+  ```powershell
+  python .ai/skills/session-memory/read_memory.py
+  ```
+  *Run this at the start of complex tasks or when restoring context from previous sessions.*
+
+- **Save 20-Turn Incremental Checkpoint**:
+  ```powershell
+  python .ai/skills/session-memory/save_incremental_turns.py --start <START_TURN> --end <END_TURN> --content "<SUMMARY_TEXT>"
+  ```
+  *Run every 20 conversation turns during active development.*
+
+- **Finalize Session & Consolidate Master Summary**:
+  ```powershell
+  python .ai/skills/session-memory/finalize_session.py --summary "<UNIFIED_MASTER_SUMMARY>"
+  ```
+  *Run at the conclusion of a session or milestone.*
+
+---
+
+## 🧪 3. Automated Testing & Quality Gate
+
+- Run the full test suite before concluding any implementation:
+  ```powershell
+  pytest tests/
+  ```
+- Ensure zero regressions and 100% passing tests.
