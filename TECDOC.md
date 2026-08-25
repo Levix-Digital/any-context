@@ -267,15 +267,16 @@ To eliminate duplicate progress bar and spinner implementations across data sour
   - **Stage 2 (Vectorization & IA)**: Connected directly to `ParallelIndexer`, rendering real-time enrichment and batch vector embeddings `[2/2 Embedding] [██████░░░░] N/Total (chunks) • Vector Knowledge Base`.
   - Encapsulates automatic terminal cursor management (`\033[?25l` / `\033[?25h`) and safe stdout flushing on Windows CP1252 consoles.
 
-### 🖥️ Cursor-Aware Terminal Viewport & Stream Presenter Architecture (`src/any_context/cli/viewport.py` - `v0.24.8`)
-- **Natural Top-Down Growth & Zero Buffer Clipping**:
-  - Eliminates disruptive DECSTBM scrolling margin resets (`\033[top;bottom r`) and hardcoded bottom-row cursor jumps (`\033[{rows};1H`).
-  - Conversation turns begin directly underneath the startup banner, growing naturally downwards line-by-line as messages are exchanged.
-  - Full terminal scrollback history is 100% preserved and accessible across all conversation turns.
-- **`PinnedBottomDock` Presentation Manager**:
-  - Streams AI tokens inline at the current cursor position with safe stdout flushing and dynamic terminal geometry calculation (`shutil.get_terminal_size`).
-  - Dynamic tool calls and background status tickers update cleanly at the current cursor boundary using `\r\033[K` and clear gracefully when output tokens stream.
-  - Seamlessly handsoff to `prompt_toolkit`'s interactive `PromptSession` and `bottom_toolbar` on completion.
+### 🖥️ Textual Reactive TUI & Stream Presenter Architecture (`src/any_context/cli/tui_app.py` - `v0.25.0`)
+- **Full Reactive TUI Framework (Cline / Claude Code Standard)**:
+  - Built on `textual>=8.2.8` providing a full-screen, reactive terminal user interface.
+  - **`ChatScroll` (VerticalScroll)**: Dedicated scrollable chat viewport preserving 100% of conversation history with smooth mouse wheel and keyboard navigation (`Page Up` / `Page Down`).
+  - **Rich Markdown & Syntax Highlighting**: AI responses stream directly into dynamic `Markdown` widgets with full code syntax highlighting and table formatting.
+  - **Permanent Anchored Input & Footer Dock**: The `Input` bar and `StatusFooterDock` remain permanently anchored at the bottom of the screen (`dock: bottom`) with real-time badges (`📂 Workspace`, `🤖 Model`, `🛡️ Grounding Mode`, `🌐 Search`, `⚡ Background Sync`).
+  - **Background Worker Streaming**: LangGraph agent streams asynchronously via `@work(thread=True)` and thread-safe UI callbacks (`call_from_thread`), ensuring zero UI freeze.
+  - **Headless / Non-TTY Fallback**: Detects non-interactive pipe environments and `--classic` / `--cli` flags to seamlessly fall back to `run_chat_loop()` for CI pipelines and scripts.
+
+
 
 
 ### 🎛️ Shared Multi-Source Orchestration Layer (`src/any_context/ingestion/orchestrator.py` - `v0.24.0`)

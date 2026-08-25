@@ -7,6 +7,47 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.25.0): Textual Reactive TUI (Interface Estilo Cline / Claude Code)
+
+- **Objetivo**: Comprovar a experiência completa da interface TUI reativa com layout persistente em tela cheia, painel de histórico de chat rolável com Markdown rico e realce de sintaxe, barra de input permanente e status footer dock ancorado na base.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.25.0`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar o AnyContext com a nova TUI:**
+   ```powershell
+   actx --update@0.25.0
+   actx
+   ```
+
+2. **⚡ Validar o Layout Permanente da TUI:**
+   - O cabeçalho superior deve exibir `🤖 AnyContext (actx) v0.25.0`.
+   - O painel central exibe o card de boas-vindas.
+   - O campo de input inferior permanece fixo acima do rodapé.
+   - A barra de status no rodapé exibe os badges: `📂 Workspace`, `🤖 Model`, `🛡️ Grounding Mode`, `🌐 Search`, e atalhos.
+
+3. **⚡ Enviar Pergunta com Código e Markdown:**
+   - Digitar no input inferior e pressionar `Enter`:
+     ```text
+     escreva uma função em Python com docstring para calcular a sequência de Fibonacci e explique
+     ```
+
+4. **⚡ Critérios de Aceitação do Streaming e Markdown:**
+   - O card do usuário (`👤 You`) surge no painel de chat.
+   - O card da IA (`🤖 AI`) exibe o ticker de pensamento e inicia o streaming suave do texto.
+   - O bloco de código Python é renderizado com realce de sintaxe colorido nativo do Textual.
+   - O campo de input na base permanece 100% estático, estável e pronto para a próxima digitação.
+
+5. **⚡ Testar Rolagem e Slash Commands:**
+   - Rolar o painel de chat para cima e para baixo usando a roda do mouse e as teclas `Page Up` / `Page Down`.
+   - Digitar `/mode Hybrid` e verificar a atualização instantânea do badge `🛡️ Hybrid` no rodapé.
+   - Digitar `/web-search on` e verificar a atualização instantânea do badge `🌐 Search: ON`.
+   - Digitar `/help` e verificar a exibição da lista de comandos.
+   - Digitar `/exit` para encerrar a sessão salvando a memória.
+
+---
+
+
 ### 📌 Cenário 1 (v0.24.8): Crescimento Natural de Conversa Top-Down e Preservação de Histórico no Terminal
 
 - **Objetivo**: Comprovar que a conversa cresce naturalmente de cima para baixo (linha a linha após o banner), sem saltar para o final da tela deixando linhas em branco no 1º turno, e que após as respostas da IA todo o histórico de perguntas e respostas anteriores permanece 100% visível e rolável no buffer do terminal.

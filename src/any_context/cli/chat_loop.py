@@ -1710,6 +1710,18 @@ def main_cli():
     try:
         workspace = get_active_workspace()
         print_startup_update_notice()
+
+        is_tty = hasattr(sys.stdin, "isatty") and sys.stdin.isatty() and hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+        use_classic = "--classic" in sys.argv or "--cli" in sys.argv or not is_tty
+
+        if not use_classic:
+            try:
+                from any_context.cli.tui_app import run_tui
+                run_tui(workspace_name=workspace)
+                return
+            except Exception:
+                pass
+
         run_chat_loop(active_workspace=workspace)
     except (KeyboardInterrupt, EOFError):
         print("\n\n👋 AnyContext closed.\n")
