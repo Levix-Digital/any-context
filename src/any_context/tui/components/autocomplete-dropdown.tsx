@@ -1,5 +1,5 @@
 import React from "react";
-import { SlashCommandMeta } from "../bridge-client";
+import { SlashCommandMeta, filterSlashCommands, MAX_PALETTE_ITEMS } from "../commands";
 import { anyContextTheme } from "../themes";
 
 interface AutocompleteDropdownProps {
@@ -17,15 +17,10 @@ export const AutocompleteDropdown = ({
 }: AutocompleteDropdownProps): any => {
   if (!isOpen) return null;
 
-  const query = filterText.startsWith("/") ? filterText.slice(1).toLowerCase().trim() : filterText.toLowerCase().trim();
-  const filtered = commands.filter(
-    (c) =>
-      c.command.toLowerCase().includes(query) ||
-      c.description.toLowerCase().includes(query) ||
-      c.category.toLowerCase().includes(query)
-  );
-
-  const displayList = filtered.slice(0, 6);
+  const raw = filterText || "";
+  const query = raw.startsWith("/") ? raw.slice(1).toLowerCase().trim() : raw.toLowerCase().trim();
+  const filtered = filterSlashCommands(commands, filterText);
+  const displayList = filtered.slice(0, MAX_PALETTE_ITEMS);
 
   return (
     <box

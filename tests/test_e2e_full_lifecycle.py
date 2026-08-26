@@ -92,13 +92,11 @@ class AnyContextE2ETestSuite(unittest.TestCase):
             web_store.delete_indexed_pages_for_root(ws, "https://httpbin.org/html")
             web_store.delete_web_url_by_url(ws, "https://httpbin.org/html")
 
-        # Configure deterministic mock embeddings if no API key is present in CI runner
-        from any_context.core.utils import get_api_key
-        api_key = get_api_key()
-        if not api_key or api_key.startswith("mock_") or "fake" in api_key.lower() or api_key in ["sk-test", "test", "placeholder", "sk-placeholder"]:
-            from llama_index.core import Settings
-            from llama_index.core.embeddings.mock_embed_model import MockEmbedding
-            Settings.embed_model = MockEmbedding(embed_dim=1536)
+        from tests.e2e_helpers import setup_mock_embeddings_if_needed
+        setup_mock_embeddings_if_needed()
+        from llama_index.core import Settings
+        from llama_index.core.embeddings.mock_embed_model import MockEmbedding
+        Settings.embed_model = MockEmbedding(embed_dim=1536)
 
     @classmethod
     def tearDownClass(cls):

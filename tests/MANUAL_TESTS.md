@@ -7,6 +7,42 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.27.0): Validação do Desacoplamento Hexagonal & Universal Command Adapter (CLI & TUI)
+
+- **Objetivo**: Comprovar a paridade absoluta e a execução universal de todos os 23 Slash Commands entre o Terminal CLI e a OpenTUI (`actx --tui`) através dos Core Application Services (`src/any_context/core/services/`), garantindo a supressão do banner duplicado da CLI na inicialização da TUI.
+- **Pré-requisito**: Código atualizado para a versão `v0.27.0` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+
+2. **⚡ Validar Inicialização Limpa (Sem Banner Duplicado):**
+   - Comprovar que a tela inicial da TUI abre limpa e direta, sem o vazamento de texto do banner da CLI ou avisos de atualização duplicados.
+
+3. **⚡ Validar Execução Direta e Autocompletação dos 23 Comandos na TUI:**
+   - Teclar `/` para abrir a paleta flutuante.
+   - Navegar com `↑` e `↓` ou filtrar por nome (`/help`, `/sources`, `/models`, `/billing`, `/version`).
+   - Pressionar `Enter` em `/version` e comprovar a resposta formatada como mensagem do sistema no chat.
+   - Executar `/help` e verificar a listagem completa dos 23 comandos agrupados por categoria.
+   - Executar `/model gpt-4o-mini` e verificar a atualização imediata do modelo na barra inferior de status.
+   - Executar `/mode strict` e comprovar a transição do modo de grounding no dock inferior.
+   - Executar `/sources` e verificar a listagem das fontes ativas formatadas em Markdown.
+   - Executar `/clear` e verificar a limpeza imediata do histórico visual.
+
+4. **⚡ Validar Execução no Terminal CLI Clássico:**
+   ```powershell
+   actx
+   ```
+   - Executar `/help`, `/version`, `/sources`, `/mode hybrid` e comprovar que os mesmos Core Services respondem de forma idêntica.
+
+5. **⚡ Testar Encerramento Limpo:**
+   - Executar `/exit` em ambas as interfaces e validar o encerramento sem travamentos.
+
+---
+
 ### 📌 Cenário 1 (v0.26.8): Validação de Inicialização Standalone da TUI sem Erro de Bootloader
 
 - **Objetivo**: Comprovar a inicialização autônoma da interface OpenTUI (`actx --tui`) executando a partir do binário compilado PyInstaller (`actx.exe`), garantindo a ausência do erro `Security validation failure: parent process has different executable!`.

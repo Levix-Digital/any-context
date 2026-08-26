@@ -3,6 +3,11 @@ import { useKeyboard } from "@opentui/react";
 import { BridgeClient, AnyContextState } from "./bridge-client";
 import { ChatMessage } from "./components/chat-message-list";
 import { ChatView } from "./views/chat-view";
+import {
+  filterSlashCommands,
+  isDirectExecutionCommand,
+  MAX_PALETTE_ITEMS,
+} from "./commands";
 
 interface AppProps {
   initialWorkspace?: string;
@@ -59,20 +64,22 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
     }
 
     if (paletteOpen) {
-      const query = inputValue.startsWith("/") ? inputValue.slice(1).toLowerCase().trim() : "";
-      const filtered = client.commands.filter((c) =>
-        c.command.toLowerCase().includes(query) || c.description.toLowerCase().includes(query)
-      );
-      const count = Math.min(filtered.length, 7);
+      const filtered = filterSlashCommands(client.commands, inputValue);
+      const displayCount = Math.min(filtered.length, MAX_PALETTE_ITEMS);
 
-      if (event.name === "up" && count > 0) {
-        setPaletteIndex((prev) => (prev > 0 ? prev - 1 : count - 1));
-      } else if (event.name === "down" && count > 0) {
-        setPaletteIndex((prev) => (prev < count - 1 ? prev + 1 : 0));
-      } else if (event.name === "tab" && count > 0) {
-        const selectedCmd = filtered[paletteIndex];
+      if (event.name === "up" && displayCount > 0) {
+        setPaletteIndex((prev) => (prev > 0 ? prev - 1 : displayCount - 1));
+      } else if (event.name === "down" && displayCount > 0) {
+        setPaletteIndex((prev) => (prev < displayCount - 1 ? prev + 1 : 0));
+      } else if (event.name === "tab" && displayCount > 0) {
+        const safeIdx = Math.min(paletteIndex, displayCount - 1);
+        const selectedCmd = filtered[safeIdx];
         if (selectedCmd) {
-          setInputValue(`${selectedCmd.command} `);
+          if (isDirectExecutionCommand(selectedCmd)) {
+            setInputValue(selectedCmd.command);
+          } else {
+            setInputValue(`${selectedCmd.command} `);
+          }
           setPaletteOpen(false);
         }
       }
@@ -80,14 +87,38 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
   });
 
   const handleSubmit = async (text?: string) => {
-    const trimmed = (text !== undefined ? text : inputValue).trim();
-    if (!trimmed) return;
+    const raw = (text !== undefined ? text : inputValue).trim();
+    if (!raw) return;
+
+    if (paletteOpen) {
+      const filtered = filterSlashCommands(client.commands, raw);
+      const displayCount = Math.min(filtered.length, MAX_PALETTE_ITEMS);
+
+      // If user submitted '/' or a partial command name without arguments
+      if (raw === "/" || (!raw.includes(" ") && !client.commands.some((c) => c.command.toLowerCase() === raw.toLowerCase()))) {
+        if (displayCount > 0) {
+          const safeIdx = Math.min(paletteIndex, displayCount - 1);
+          const selectedCmd = filtered[safeIdx];
+          if (selectedCmd) {
+            setPaletteOpen(false);
+            if (isDirectExecutionCommand(selectedCmd)) {
+              setInputValue("");
+              await handleSlashCommand(selectedCmd.command);
+              return;
+            } else {
+              setInputValue(`${selectedCmd.command} `);
+              return;
+            }
+          }
+        }
+      }
+    }
 
     setInputValue("");
     setPaletteOpen(false);
 
-    if (trimmed.startsWith("/")) {
-      await handleSlashCommand(trimmed);
+    if (raw.startsWith("/")) {
+      await handleSlashCommand(raw);
       return;
     }
 
@@ -108,13 +139,13 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
 
     setMessages((prev) => [
       ...prev,
-      { id: userMsgId, role: "user", content: trimmed },
+      { id: userMsgId, role: "user", content: raw },
       { id: aiMsgId, role: "assistant", content: "", model: state.model },
     ]);
 
     setIsGenerating(true);
 
-    client.streamChat(trimmed, {
+    client.streamChat(raw, {
       onToken: (chunk) => {
         setMessages((prev) =>
           prev.map((m) => (m.id === aiMsgId ? { ...m, content: m.content + chunk, ticker: undefined } : m))
@@ -144,7 +175,7 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
     const parts = cmdText.split(" ");
     const cmd = parts[0].toLowerCase();
 
-    if (cmd === "/exit" || cmd === "/quit") {
+    if (cmd === "/exit" || cmd === "/quit" || cmd === "/q") {
       client.stop();
       process.exit(0);
     }
@@ -154,116 +185,37 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
       return;
     }
 
-    if (cmd === "/version" || cmd === "/v") {
-      setMessages((prev) => [
-        ...prev,
-        { id: `sys_${Date.now()}`, role: "system", content: `🤖 AnyContext (actx) v${state.version} - Levix Digital` },
-      ]);
-      return;
-    }
+    try {
+      const res = await client.executeCommand(cmdText);
+      if (res) {
+        if (res.action === "exit") {
+          client.stop();
+          process.exit(0);
+        }
+        if (res.action === "clear") {
+          setMessages([]);
+          return;
+        }
 
-    if (cmd === "/help" || cmd === "/menu") {
-      const helpLines = client.commands.map((c) => `• \`${c.command} ${c.args}\` : ${c.description}`);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `sys_${Date.now()}`,
+            role: "system",
+            content: res.message || (res.success ? "Command executed successfully." : `❌ Error: ${res.error}`),
+          },
+        ]);
+      }
+    } catch (err: any) {
       setMessages((prev) => [
         ...prev,
         {
-          id: `sys_${Date.now()}`,
+          id: `err_${Date.now()}`,
           role: "system",
-          content: `**Available Slash Commands:**\n\n${helpLines.join("\n")}`,
+          content: `❌ Command failed: ${err.message || err}`,
         },
       ]);
-      return;
     }
-
-    if (cmd === "/switch") {
-      const target = parts[1]?.trim();
-      if (target) {
-        const newState = await client.switchWorkspace(target);
-        setMessages((prev) => [
-          ...prev,
-          { id: `sys_${Date.now()}`, role: "system", content: `Switched active workspace to '${newState.workspace}'.` },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { id: `sys_${Date.now()}`, role: "system", content: "Usage: `/switch <workspace_name>`" },
-        ]);
-      }
-      return;
-    }
-
-    if (cmd === "/model") {
-      const targetModel = parts[1]?.trim();
-      if (targetModel) {
-        const newState = await client.setModel(targetModel);
-        setMessages((prev) => [
-          ...prev,
-          { id: `sys_${Date.now()}`, role: "system", content: `Inference model switched to '${newState.model}'.` },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { id: `sys_${Date.now()}`, role: "system", content: "Usage: `/model <model_name>` (e.g. `gpt-4o-mini`, `claude-3-5-sonnet`)" },
-        ]);
-      }
-      return;
-    }
-
-    if (cmd === "/mode") {
-      const targetMode = parts[1]?.trim()?.toLowerCase();
-      if (targetMode && ["strict", "hybrid", "proactive"].includes(targetMode)) {
-        const newState = await client.setMode(targetMode);
-        setMessages((prev) => [
-          ...prev,
-          { id: `sys_${Date.now()}`, role: "system", content: `Grounding mode updated to '${newState.grounding_mode.toUpperCase()}'.` },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { id: `sys_${Date.now()}`, role: "system", content: "Usage: `/mode <strict|hybrid|proactive>`" },
-        ]);
-      }
-      return;
-    }
-
-    if (cmd === "/web-search" || cmd === "/search") {
-      const enabled = parts[1] ? ["on", "true", "1"].includes(parts[1].toLowerCase()) : !state.web_search_enabled;
-      const newState = await client.setWebSearch(enabled);
-      setMessages((prev) => [
-        ...prev,
-        { id: `sys_${Date.now()}`, role: "system", content: `Web Search is now ${newState.web_search_enabled ? "ON" : "OFF"}.` },
-      ]);
-      return;
-    }
-
-    if (cmd === "/sync") {
-      const force = parts.includes("--force") || parts.includes("-f");
-      await client.startSync(force);
-      setMessages((prev) => [
-        ...prev,
-        { id: `sys_${Date.now()}`, role: "system", content: `⚡ Background synchronization started for workspace '${state.workspace}'.` },
-      ]);
-      return;
-    }
-
-    if (cmd === "/sources") {
-      const sources = await client.listSources();
-      const count = (sources?.folders?.length || 0) + (sources?.web_urls?.length || 0);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `sys_${Date.now()}`,
-          role: "system",
-          content: `📂 Indexed Sources in '${state.workspace}': ${count} source(s) configured.`,
-        },
-      ]);
-      return;
-    }
-
-    setMessages((prev) => [
-      ...prev,
-      { id: `sys_${Date.now()}`, role: "system", content: `Unknown command '${cmd}'. Type \`/help\` to see available commands.` },
-    ]);
   };
 
   return (

@@ -13,11 +13,15 @@ export interface AnyContextState {
   is_syncing: boolean;
 }
 
-export interface SlashCommandMeta {
-  command: string;
-  args: string;
-  description: string;
-  category: string;
+import { SlashCommandMeta, DEFAULT_SLASH_COMMANDS } from "./commands";
+export { SlashCommandMeta };
+
+export interface CommandExecutionResult {
+  success: boolean;
+  message: string;
+  action?: string;
+  error?: string;
+  state: AnyContextState;
 }
 
 export interface StreamCallbacks {
@@ -41,7 +45,7 @@ export class BridgeClient {
     sync_info: "",
     is_syncing: false,
   };
-  public commands: SlashCommandMeta[] = [];
+  public commands: SlashCommandMeta[] = [...DEFAULT_SLASH_COMMANDS];
   public onStateChange?: (state: AnyContextState) => void;
 
   constructor(private initialWorkspace: string = "Default") {
@@ -211,8 +215,12 @@ export class BridgeClient {
     return this.sendRequest("start_sync", { force });
   }
 
-  public async listSources(): Promise<any> {
-    return this.sendRequest("list_sources");
+  public async executeCommand(cmdLine: string): Promise<CommandExecutionResult> {
+    const res = await this.sendRequest<CommandExecutionResult>("execute_command", { command: cmdLine });
+    if (res && res.state) {
+      this.updateState(res.state);
+    }
+    return res;
   }
 
   public streamChat(prompt: string, callbacks: StreamCallbacks): number {
