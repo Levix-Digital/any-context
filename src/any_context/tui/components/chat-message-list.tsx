@@ -27,7 +27,7 @@ const ASCII_BANNER = `  ___               ____ ___  _   _ _____ _____ _  _______
              |___/                                          `;
 
 export const ChatMessageList = ({ messages, state }: ChatMessageListProps): any => {
-  const versionStr = state?.version || "0.26.6";
+  const versionStr = state?.version || "0.26.7";
 
   return (
     <scrollbox flexGrow={1} flexDirection="column" paddingLeft={1} paddingRight={1}>

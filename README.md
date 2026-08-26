@@ -122,8 +122,8 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Move folders and web portals between workspaces in sub-50ms with **$0.00 in embedding API costs**.
   - Dynamically updates vector metadata tags in ChromaDB and SQLite without re-indexing or re-crawling.
 - **🖥️ OpenTUI Reactive Desktop Interface (`actx --tui`)**:
-  - TUI reativa desenvolvida com **OpenTUI (`@opentui/core` + `@opentui/react`)** e Zig/React: chat rolável fluido com **paridade estética e visual completa com a CLI UI**, incluindo o clássico Banner ASCII Art, identificadores `👤 You:` e `🤖 AI [modelo]:`, e barra de status inferior de 1 linha.
-  - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy e navegação por setas para todos os 23 comandos internos.
+  - TUI reativa desenvolvida com **OpenTUI (`@opentui/core` + `@opentui/react`)** e Zig/React: chat rolável fluido com **paridade estética e visual completa com a CLI UI**, herança de background transparente nativo do terminal, Banner ASCII Art clássico, identificadores `👤 You:` e `🤖 AI [modelo]:`, e barra de status inferior de 1 linha.
+  - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os 23 comandos internos.
   - **Zero-Port Stdio RPC Bridge**: Comunicação local em sub-milissegundo com o backend AnyContext via NDJSON, sem portas de rede ou avisos de firewall.
 - **⚡ Native Developer CLI & One-Shot Prompt Engine**:
   - Direct terminal execution without alternate screen buffer locks: 100% native mouse selection and copy/paste support.
