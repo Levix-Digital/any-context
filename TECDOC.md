@@ -453,6 +453,57 @@ Every factual statement retrieved from workspace data or external search MUST ap
 
 AnyContext strictly follows the **`dev-cycle-protocol`** universal software engineering lifecycle:
 - **Modular Architecture**: Complete decoupling of core business logic from consumer interfaces.
-- **Multi-Interface Surface Parity**: Every feature is delivered across all 3 active interfaces (`CLI`, `REST API`, `MCP Server`).
+- **Multi-Interface Surface Parity**: Every feature is delivered across all active interfaces (`CLI`, `OpenTUI`, `REST API`, `MCP Server`, `Desktop`).
 - **Dual-Doc Standard**: Synchronous maintenance of `UserDoc` (`README.md` / `/help`) and `TecDoc` (`TECDOC.md`).
 - **Explicit Approval Gate**: Implementation strictly begins only after explicit user confirmation of the Final Blueprint.
+
+---
+
+## 13. Hexagonal Decoupling & Universal Command Adapter Architecture (`v0.27.0`)
+
+Starting in `v0.27.0`, AnyContext has finalized its complete **Hexagonal Architecture (Ports & Adapters)** decoupling:
+
+```mermaid
+graph TD
+    subgraph "Core Domain & Application Services (src/any_context/core/services/)"
+        WS["WorkspaceService"]
+        SS["SourceService"]
+        MS["ModelService"]
+        GS["GroundingService"]
+        SyncS["SyncService"]
+        MemS["MemoryService"]
+        BS["BillingService"]
+    end
+
+    subgraph "Adapters & Consumer Interfaces"
+        CLI["💻 CLI Terminal<br/>(prompt-toolkit)"] -->|"Commands Adapter<br/>(src/any_context/commands/)"| WS & SS & MS & GS & SyncS & MemS & BS
+        TUI["🖥️ OpenTUI Desktop TUI<br/>(actx --tui / React / Zig)"] -->|"Stdio RPC Bridge<br/>(execute_command)"| WS & SS & MS & GS & SyncS & MemS & BS
+        REST["🌐 REST API Server<br/>(FastAPI / Swagger)"] -->|"HTTP Controllers"| WS & SS & MS & GS & SyncS & MemS & BS
+        MCP["🔌 MCP Protocol Server<br/>(JSON-RPC Tools)" ] -->|"MCP Tool Handlers"| WS & SS & MS & GS & SyncS & MemS & BS
+        DESK["⚡ Desktop App (Electron / Tauri)<br/>(WebUI React Components)"] -->|"Stdio RPC Bridge / IPC"| WS & SS & MS & GS & SyncS & MemS & BS
+    end
+```
+
+### 🧩 1. Core Application Services (`src/any_context/core/services/`)
+- Pure Python domain services with zero dependencies on terminal formatting, ANSI colors, prompt-toolkit, HTTP request objects, or RPC transports:
+  - `WorkspaceService`: Create, list, delete (with system protections for `Default` and `Global`), rename with instant vector remapping.
+  - `SourceService`: List sources, add/remove local folders and web URLs, transfer sources between workspaces ($0.00 vector metadata remapping), link/unlink reusable shared sources.
+  - `ModelService`: Get/set active inference model, inspect 9-provider model catalog with API key availability validation, configure provider credentials.
+  - `GroundingService`: Get/set workspace grounding mode (`strict`, `hybrid`, `proactive`), get/set web search status.
+  - `SyncService`: Trigger asynchronous background synchronization (`BackgroundSyncManager`), check sync status, inspect pending file diffs.
+  - `MemoryService`: Atomic purging of workspace session memory and hierarchical summaries.
+  - `BillingService`: Subscription status, tier limits, and capabilities matrix.
+
+### ⚡ 2. Universal Command Adapter (`src/any_context/commands/`)
+- `registry.py`: Canonical registry of all 23 slash commands with aliases, parameter schemas, category metadata, and direct execution flags.
+- `result.py`: Standardized `CommandResult(success: bool, message: str, state_updates: Dict, action: Optional[str], error: Optional[str])`.
+- `dispatcher.py`: Pure `CommandDispatcher` and `dispatch_command(command_line, active_workspace)` delivering structured execution and markdown formatting.
+
+### 🔌 3. Multi-Interface Consumer Parity & Desktop Strategy (Electron -> Tauri)
+- **Stdio RPC Bridge (`src/any_context/server/rpc_bridge.py`)**:
+  - Bi-directional NDJSON over stdin/stdout with sub-millisecond local latency, zero network port conflicts, and PyInstaller bootloader variable sanitization.
+  - Exposes `execute_command` to execute any slash command directly through the core dispatcher.
+- **Desktop Strategy**:
+  - Fast Time-to-Market via **Electron** utilizing existing WebUI React components and local Stdio RPC Bridge pipe.
+  - Seamless future migration to **Tauri** with zero backend modifications due to Hexagonal decoupling.
+

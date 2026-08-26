@@ -15,6 +15,7 @@ from any_context import __version__
 from any_context.config.db_store import ConfigDBStore
 from any_context.core.models_catalog import get_available_models, validate_model_key_availability
 from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager, check_workspace_changes
+from any_context.commands import COMMANDS_REGISTRY, dispatch_command
 
 
 def _send_ndjson(data: Dict[str, Any]):
@@ -77,29 +78,15 @@ class StdioRPCServer:
     def list_commands(self) -> list:
         """Returns metadata for all 23 available slash commands for the OpenTUI palette."""
         return [
-            {"command": "/switch", "args": "<workspace>", "description": "Switch or create active workspace", "category": "Workspace"},
-            {"command": "/model", "args": "<name>", "description": "Change active AI inference model", "category": "Model"},
-            {"command": "/mode", "args": "<strict|hybrid|proactive>", "description": "Change Grounding Strategy mode", "category": "AI Grounding"},
-            {"command": "/web-search", "args": "[on|off]", "description": "Toggle real-time workspace Web Search", "category": "Web Search"},
-            {"command": "/sync", "args": "[--force|--status]", "description": "Synchronize local folders and web sources", "category": "Sources"},
-            {"command": "/sources", "args": "", "description": "List indexed documents and web portals in workspace", "category": "Sources"},
-            {"command": "/folder", "args": "--add <path>", "description": "Add local folder to active workspace", "category": "Sources"},
-            {"command": "/web", "args": "--add <url>", "description": "Add documentation portal or web URL", "category": "Sources"},
-            {"command": "/transfer", "args": "<from_ws> <to_ws> <item>", "description": "Transfer source to another workspace in <50ms ($0.00)", "category": "Sources"},
-            {"command": "/link", "args": "<source> [ws]", "description": "Link shared source across workspaces", "category": "Sources"},
-            {"command": "/unlink", "args": "<source>", "description": "Unlink shared source from workspace", "category": "Sources"},
-            {"command": "/shared", "args": "", "description": "List reusable indexed shared sources", "category": "Sources"},
-            {"command": "/rename", "args": "<old> <new>", "description": "Rename custom workspace", "category": "Workspace"},
-            {"command": "/config", "args": "", "description": "Open interactive configuration wizard", "category": "System"},
-            {"command": "/key", "args": "<provider> <api-key>", "description": "Configure AI provider API keys", "category": "System"},
-            {"command": "/models", "args": "--list", "description": "Display catalog of available AI models", "category": "Model"},
-            {"command": "/billing", "args": "", "description": "Manage subscription tier and plans", "category": "System"},
-            {"command": "/reset-memory", "args": "", "description": "Reset long-term session memory database", "category": "Memory"},
-            {"command": "/clear", "args": "", "description": "Clear visual chat history view", "category": "Chat"},
-            {"command": "/paste", "args": "", "description": "Enter dedicated multi-line capture mode", "category": "Chat"},
-            {"command": "/help", "args": "[command]", "description": "Display interactive help documentation", "category": "Help"},
-            {"command": "/version", "args": "", "description": "Display AnyContext version and build info", "category": "System"},
-            {"command": "/exit", "args": "", "description": "Save session memory and exit", "category": "System"}
+            {
+                "command": c.name,
+                "args": c.args,
+                "description": c.description,
+                "category": c.category,
+                "direct_execution": c.direct_execution,
+                "aliases": c.aliases,
+            }
+            for c in COMMANDS_REGISTRY
         ]
 
     def handle_request(self, req: Dict[str, Any]):
@@ -116,6 +103,32 @@ class StdioRPCServer:
             elif method == "list_commands":
                 cmds = self.list_commands()
                 _send_ndjson({"id": req_id, "result": cmds})
+
+            elif method == "execute_command":
+                cmd_line = params.get("command", "")
+                result = dispatch_command(cmd_line, active_workspace=self.active_workspace)
+                if result.state_updates:
+                    if "workspace" in result.state_updates:
+                        self.active_workspace = result.state_updates["workspace"]
+                    if "model" in result.state_updates:
+                        self._current_model = result.state_updates["model"]
+                    if "grounding_mode" in result.state_updates:
+                        self._grounding_mode = result.state_updates["grounding_mode"]
+                    if "web_search_enabled" in result.state_updates:
+                        self._web_search_enabled = result.state_updates["web_search_enabled"]
+                    self.agent_instance = None
+                    self._load_state()
+
+                _send_ndjson({
+                    "id": req_id,
+                    "result": {
+                        "success": result.success,
+                        "message": result.message,
+                        "action": result.action,
+                        "error": result.error,
+                        "state": self.get_state()
+                    }
+                })
 
             elif method == "switch_workspace":
                 target_ws = params.get("workspace", "Default").strip()

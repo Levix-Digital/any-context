@@ -56,11 +56,11 @@ def entrypoint():
     # 2. Patch prompt_toolkit for Git Bash / MinGW compatibility
     _patch_prompt_toolkit_for_git_bash()
 
-    # 3. Print banner IMMEDIATELY before importing anything heavy
-    if "--mcp" not in sys.argv and "--rpc" not in sys.argv:
+    # 3. Print banner IMMEDIATELY before importing anything heavy (suppressed for TUI, MCP, RPC, API)
+    if "--mcp" not in sys.argv and "--rpc" not in sys.argv and "--tui" not in sys.argv:
         from any_context.cli.banner import print_banner, clear_terminal
         # Clear screen for interactive session unless user passed one-shot flags
-        non_interactive_flags = {"--help", "-h", "--version", "-v", "--mcp", "--rpc", "--server", "serve", "api"}
+        non_interactive_flags = {"--help", "-h", "--version", "-v", "--mcp", "--rpc", "--tui", "--server", "serve", "api"}
         if not any(arg.lower() in non_interactive_flags for arg in sys.argv[1:]):
             clear_terminal()
         print_banner()

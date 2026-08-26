@@ -1741,7 +1741,8 @@ def launch_opentui(workspace: str = "Default") -> bool:
 def main_cli():
     try:
         workspace = get_active_workspace()
-        print_startup_update_notice()
+        if "--tui" not in sys.argv:
+            print_startup_update_notice()
 
         # Check for --tui flag
         if "--tui" in sys.argv:
