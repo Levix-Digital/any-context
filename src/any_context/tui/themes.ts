@@ -20,12 +20,12 @@ export const anyContextTheme: Theme = {
   surfaceHighlight: "#24283b",
   foreground: "#c0caf5",
   foregroundMuted: "#565f89",
-  accent: "#7aa2f7",          // Neon Blue / Cyan (User & Prompts)
-  accentSecondary: "#bb9af7", // Violet (AI Model)
-  accentSuccess: "#73daca",   // Emerald (Web Search & Ready)
-  accentWarning: "#e0af68",   // Warm Gold (Sync & System Notices)
-  accentError: "#f7768e",     // Coral Red (Errors)
-  ruleColor: "#3b4261",       // Subtle Divider Borders
-  inputBackground: "#16161e", // Deep Dark Input Container
-  inputPlaceholder: "#414868",
+  accent: "#7dcfff",          // Cyan (User Prompt & Highlights - ANSI 96m)
+  accentSecondary: "#bb9af7", // Violet / Magenta (AI Model - ANSI 95m)
+  accentSuccess: "#73daca",   // Emerald / Green (Web Search & Edition Badge - ANSI 92m)
+  accentWarning: "#e0af68",   // Warm Gold / Yellow (Workspace & AI Header - ANSI 93m)
+  accentError: "#f7768e",     // Coral Red (Exit & Errors - ANSI 91m)
+  ruleColor: "#444b6a",       // Subtle Divider Border (ANSI 90m)
+  inputBackground: "#16161e", // Clean Dark Input Container
+  inputPlaceholder: "#565f89",
 };

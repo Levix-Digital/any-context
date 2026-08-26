@@ -31,26 +31,8 @@ export const ChatView = ({
 }: ChatViewProps): any => {
   return (
     <box flexDirection="column" width="100%" height="100%" backgroundColor={anyContextTheme.background}>
-      {/* Top Header Bar */}
-      <box
-        flexDirection="row"
-        backgroundColor={anyContextTheme.inputBackground}
-        border={["bottom"]}
-        borderStyle="single"
-        borderColor={anyContextTheme.ruleColor}
-        paddingLeft={1}
-        paddingRight={1}
-        height={3}
-        alignItems="center"
-      >
-        <text fg={anyContextTheme.accent}>
-          <b>🤖 AnyContext OpenTUI v{state.version}</b>
-        </text>
-        <text fg={anyContextTheme.foregroundMuted}> - Universal Multi-Context RAG Assistant & Engine</text>
-      </box>
-
-      {/* Main Chat Message Scroll View */}
-      <ChatMessageList messages={messages} />
+      {/* Main Chat Message Scroll View with ASCII Banner and Natural Top-Down Flow */}
+      <ChatMessageList messages={messages} state={state} />
 
       {/* Floating Autocomplete / Slash Command Dropdown */}
       <AutocompleteDropdown
@@ -60,7 +42,7 @@ export const ChatView = ({
         selectedIndex={paletteIndex}
       />
 
-      {/* Input Bar (❯ textarea) */}
+      {/* Input Bar (👤 You: prompt) */}
       <InputBar
         value={inputValue}
         onChange={onInputChange}
@@ -68,7 +50,7 @@ export const ChatView = ({
         disabled={isGenerating}
       />
 
-      {/* Bottom Status Bar */}
+      {/* Bottom Status Bar (1-line unified dock) */}
       <StatusBar state={state} />
     </box>
   );

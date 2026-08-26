@@ -7,75 +7,66 @@ interface StatusBarProps {
   onToggleMode?: () => void;
 }
 
-export const StatusBar = ({ state, onToggleMode }: StatusBarProps): any => {
+export const StatusBar = ({ state }: StatusBarProps): any => {
   const currentMode = (state.grounding_mode || "strict").toLowerCase();
-  const searchBadge = state.web_search_enabled ? "🌐 Web Search: ON" : "🌐 Web Search: OFF";
+  const cleanMode = currentMode.charAt(0).toUpperCase() + currentMode.slice(1);
+  const searchBadge = state.web_search_enabled ? "🌐 Search: ON" : "🌐 Search: OFF";
   const searchColor = state.web_search_enabled ? anyContextTheme.accentSuccess : anyContextTheme.foregroundMuted;
 
   return (
     <box
-      flexDirection="column"
+      flexDirection="row"
+      justifyContent="space-between"
+      alignItems="center"
       backgroundColor={anyContextTheme.background}
+      border={["top"]}
+      borderStyle="single"
+      borderColor={anyContextTheme.ruleColor}
       paddingLeft={1}
       paddingRight={1}
-      paddingTop={0}
-      paddingBottom={0}
+      height={1}
     >
-      {/* Row 1: Model & Grounding Mode Pills */}
-      <box flexDirection="row" justifyContent="space-between" alignItems="center">
-        <box flexDirection="row">
-          <text fg={anyContextTheme.accentSecondary}>
-            <b>🤖 {state.model}</b>
-          </text>
-          <text fg={anyContextTheme.foregroundMuted}> │ </text>
-          <text fg={searchColor}>
-            <b>{searchBadge}</b>
-          </text>
-        </box>
-
-        {/* Mode Pills (Cline Style: Strict / Hybrid / Proactive) */}
-        <box flexDirection="row" gap={1}>
-          <text fg={currentMode === "strict" ? anyContextTheme.accent : anyContextTheme.foregroundMuted}>
-            {currentMode === "strict" ? "●" : "○"} Strict
-          </text>
-          <text fg={currentMode === "hybrid" ? anyContextTheme.accentWarning : anyContextTheme.foregroundMuted}>
-            {currentMode === "hybrid" ? "●" : "○"} Hybrid
-          </text>
-          <text fg={currentMode === "proactive" ? anyContextTheme.accentSuccess : anyContextTheme.foregroundMuted}>
-            {currentMode === "proactive" ? "●" : "○"} Proactive
-          </text>
-          <text fg={anyContextTheme.foregroundMuted}>(/mode)</text>
-        </box>
+      {/* Left Dock Items: Workspace | Model | Mode | Web Search | /menu | Syncing */}
+      <box flexDirection="row" alignItems="center">
+        <text fg={anyContextTheme.accentWarning}>
+          <b>📂 {state.workspace}</b>
+        </text>
+        <text fg={anyContextTheme.ruleColor}> │ </text>
+        <text fg={anyContextTheme.accentSecondary}>
+          <b>🤖 {state.model}</b>
+        </text>
+        <text fg={anyContextTheme.ruleColor}> │ </text>
+        <text fg={anyContextTheme.accent}>
+          <b>🛡️ {cleanMode}</b>
+        </text>
+        <text fg={anyContextTheme.ruleColor}> │ </text>
+        <text fg={searchColor}>
+          <b>{searchBadge}</b>
+        </text>
+        <text fg={anyContextTheme.ruleColor}> │ </text>
+        <text fg={anyContextTheme.accentWarning}>
+          <b>💡 /menu</b>
+        </text>
+        {state.is_syncing ? (
+          <>
+            <text fg={anyContextTheme.ruleColor}> │ </text>
+            <text fg={anyContextTheme.accentWarning}>
+              <b>⚡ Syncing {state.sync_info}</b>
+            </text>
+          </>
+        ) : null}
       </box>
 
-      {/* Row 2: Workspace Info & Sync Status & Exit Shortcut */}
-      <box flexDirection="row" justifyContent="space-between" alignItems="center">
-        <box flexDirection="row">
-          <text fg={anyContextTheme.accentWarning}>
-            <b>📂 {state.workspace}</b>
-          </text>
-          {state.is_syncing ? (
-            <>
-              <text fg={anyContextTheme.foregroundMuted}> │ </text>
-              <text fg={anyContextTheme.accentWarning}>
-                <b>⚡ Syncing {state.sync_info}</b>
-              </text>
-            </>
-          ) : (
-            <>
-              <text fg={anyContextTheme.foregroundMuted}> │ </text>
-              <text fg={anyContextTheme.foregroundMuted}>⚡ Ready</text>
-            </>
-          )}
-        </box>
-
-        <box flexDirection="row">
-          <text fg={anyContextTheme.foregroundMuted}>💡 /help │ 🚪 /exit</text>
-        </box>
+      {/* Right Dock Item: /exit */}
+      <box flexDirection="row" alignItems="center">
+        <text fg={anyContextTheme.accentError}>
+          <b>🚪 /exit</b>
+        </text>
       </box>
     </box>
   );
 };
+
 
 
 
