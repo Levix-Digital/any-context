@@ -124,7 +124,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🖥️ OpenTUI Reactive Desktop Interface (`actx --tui`)**:
   - TUI reativa desenvolvida com **OpenTUI (`@opentui/core` + `@opentui/react`)** e Zig/React: chat rolável fluido com **paridade estética e visual completa com a CLI UI**, herança de background transparente nativo do terminal, Banner ASCII Art clássico, identificadores `👤 You:` e `🤖 AI [modelo]:`, e barra de status inferior de 1 linha.
   - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os 23 comandos internos.
-  - **Zero-Port Stdio RPC Bridge**: Comunicação local em sub-milissegundo com o backend AnyContext via NDJSON, sem portas de rede ou avisos de firewall.
+  - **Zero-Port Stdio RPC Bridge & Standalone Bootloader Isolation**: Comunicação local em sub-milissegundo com o backend AnyContext via NDJSON, sem portas de rede ou avisos de firewall, com isolamento total de variáveis de bootloader (`_MEIPASS2`, `PYI_PARENT_PID`) para execução perfeita em binários compilados.
 - **⚡ Native Developer CLI & One-Shot Prompt Engine**:
   - Direct terminal execution without alternate screen buffer locks: 100% native mouse selection and copy/paste support.
   - One-shot execution for scripts & automation: `actx "sua pergunta aqui"` or `actx -p "..."`.

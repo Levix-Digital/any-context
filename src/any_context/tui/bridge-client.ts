@@ -70,10 +70,15 @@ export class BridgeClient {
       args = ["-m", "any_context.server.rpc_bridge", this.initialWorkspace];
     }
 
-    const childEnv = { ...process.env };
-    delete childEnv._MEIPASS2;
-    delete childEnv._MEIPASS;
-    delete childEnv.PYI_PARENT_PID;
+    const childEnv: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined) {
+        const lowerKey = key.toLowerCase();
+        if (!lowerKey.startsWith("_mei") && !lowerKey.startsWith("pyi_") && !lowerKey.includes("meipass")) {
+          childEnv[key] = value;
+        }
+      }
+    }
     if (path.isAbsolute(repoRoot)) {
       childEnv.PYTHONPATH = path.join(repoRoot, "src");
     }

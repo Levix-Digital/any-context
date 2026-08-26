@@ -7,6 +7,30 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.26.8): Validação de Inicialização Standalone da TUI sem Erro de Bootloader
+
+- **Objetivo**: Comprovar a inicialização autônoma da interface OpenTUI (`actx --tui`) executando a partir do binário compilado PyInstaller (`actx.exe`), garantindo a ausência do erro `Security validation failure: parent process has different executable!`.
+- **Pré-requisito**: Binário compilado atualizado para a versão `v0.26.8` e Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Atualizar e Iniciar a TUI via Binário:**
+   ```powershell
+   actx --update@0.26.8
+   actx --tui
+   ```
+
+2. **⚡ Validar Ausência de Erros de Bootloader:**
+   - Comprovar que o aplicativo não exibe `Security validation failure` e inicializa a tela cheia imediatamente.
+   - Verificar que a conexão Stdio RPC entre `bun` e `actx --rpc` ocorre em sub-milissegundo sem falhas.
+
+3. **⚡ Validar Interatividade Completa:**
+   - Teclar `/` para abrir a Command Palette e selecionar `/model`.
+   - Digitar uma pergunta e verificar resposta em streaming com o cabeçalho `🤖 AI [gpt-4o-mini]:`.
+   - Finalizar com `/exit`.
+
+---
+
 ### 📌 Cenário 1 (v0.26.7): Validação de Input Ativo, Background Transparente e Dock de Status na TUI
 
 - **Objetivo**: Comprovar a interface reativa OpenTUI (`actx --tui`) com background transparente nativo do terminal, buffer de input com captura em tempo real (incluindo ativação automática da Command Palette ao teclar `/`), e visibilidade permanente do dock inferior de status de 1 linha.
