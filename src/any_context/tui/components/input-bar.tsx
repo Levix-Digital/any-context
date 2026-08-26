@@ -20,7 +20,7 @@ export const InputBar = ({
     <box
       flexDirection="row"
       alignItems="flex-start"
-      border={["top", "bottom"]}
+      border={["top"]}
       borderStyle="single"
       borderColor={anyContextTheme.ruleColor}
       backgroundColor={anyContextTheme.inputBackground}
@@ -31,7 +31,7 @@ export const InputBar = ({
     >
       <box paddingTop={0} paddingRight={1}>
         <text fg={anyContextTheme.accent}>
-          <b>❯</b>
+          <b>👤 You:</b>
         </text>
       </box>
       <box flexGrow={1}>
@@ -59,3 +59,4 @@ export const InputBar = ({
     </box>
   );
 };
+

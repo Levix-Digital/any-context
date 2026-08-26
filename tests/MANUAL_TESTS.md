@@ -7,6 +7,48 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.26.6): OpenTUI com Paridade Estética e Visual com a CLI UI
+
+- **Objetivo**: Comprovar a interface reativa OpenTUI (`actx --tui`) reformulada com paridade visual completa com a CLI UI: renderização no scroll do clássico Banner ASCII Art (`ANYCONTEXT`), metadados de versão/edição (`🌿 Community Edition`), box de boas-vindas, prompt `👤 You:`, respostas `🤖 AI [modelo]:`, tickers ricos de status e dock inferior unificado em 1 linha.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.6` e Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a TUI OpenTUI:**
+   ```powershell
+   actx --update@0.26.6
+   actx --tui
+   ```
+
+2. **⚡ Validar o Banner Inicial e o Prompt:**
+   - Verificar se o Banner ASCII Art `ANYCONTEXT` em ciano, o badge `🌿 Community Edition` e o box de boas-vindas aparecem no topo do chat.
+   - Verificar se o campo de input inferior exibe o prefixo `👤 You:` em ciano brilhante.
+   - Validar a barra inferior (dock de 1 linha):
+     `📂 Default  │  🤖 gpt-4o-mini  │  🛡️ Strict  │  🌐 Search: OFF  │  💡 /menu        🚪 /exit`
+
+3. **⚡ Validar a Command Palette Flutuante com `/`:**
+   - Digitar `/` no campo de input.
+   - Validar a abertura da janela flutuante com filtro em tempo real.
+   - Digitar `mode` e navegar com `↑` / `↓` até `/mode <strict|hybrid|proactive>`.
+   - Pressionar `Tab` ou `Enter` para autocompletar.
+
+4. **⚡ Enviar Pergunta e Validar Streaming & Cabeçalho da IA:**
+   - Enviar uma pergunta solicitando código:
+     ```text
+     crie uma função em Python para calcular fatorial de forma recursiva e iterativa
+     ```
+   - Validar que o cabeçalho da resposta é exibido como `🤖 AI [gpt-4o-mini]:` em amarelo/violeta.
+   - Validar o streaming suave e o realce de sintaxe colorido dos blocos de código em Markdown.
+
+5. **⚡ Validar Seleção de Mouse e Clipboard:**
+   - Selecionar com o mouse um trecho do código renderizado na tela.
+   - Pressionar `Ctrl+C` e colar em outro editor para validar a cópia de texto limpa.
+
+6. **⚡ Testar Encerramento Limpo:**
+   - Digitar `/exit` para encerrar a sessão salvando a memória.
+
+---
+
 ### 📌 Cenário 1 (v0.26.5): OpenTUI Desktop Frontend no Padrão Arquitetural Oficial do Cline
 
 - **Objetivo**: Comprovar a interface OpenTUI reconstruída segundo o esqueleto oficial do Cline CLI (`apps/cli/src/tui/`), com `InputBar` (prompt `❯`, textarea multiline), `StatusBar` com pills de Grounding Mode, `ChatMessageList` com Markdown nativo e `AutocompleteDropdown` flutuante para comandos `/`.
