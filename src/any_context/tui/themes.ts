@@ -1,6 +1,6 @@
 export interface Theme {
-  background: string;
-  surface: string;
+  background?: string;
+  surface?: string;
   surfaceHighlight: string;
   foreground: string;
   foregroundMuted: string;
@@ -10,14 +10,14 @@ export interface Theme {
   accentWarning: string;
   accentError: string;
   ruleColor: string;
-  inputBackground: string;
+  inputBackground?: string;
   inputPlaceholder: string;
 }
 
 export const anyContextTheme: Theme = {
-  background: "#1a1b26",
-  surface: "#1f2335",
-  surfaceHighlight: "#24283b",
+  background: undefined,      // Transparent - inherits user's native terminal background
+  surface: undefined,         // Transparent
+  surfaceHighlight: "#24283b", // Highlight for active palette selection
   foreground: "#c0caf5",
   foregroundMuted: "#565f89",
   accent: "#7dcfff",          // Cyan (User Prompt & Highlights - ANSI 96m)
@@ -26,6 +26,6 @@ export const anyContextTheme: Theme = {
   accentWarning: "#e0af68",   // Warm Gold / Yellow (Workspace & AI Header - ANSI 93m)
   accentError: "#f7768e",     // Coral Red (Exit & Errors - ANSI 91m)
   ruleColor: "#444b6a",       // Subtle Divider Border (ANSI 90m)
-  inputBackground: "#16161e", // Clean Dark Input Container
+  inputBackground: undefined, // Transparent
   inputPlaceholder: "#565f89",
 };

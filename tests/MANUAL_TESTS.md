@@ -7,6 +7,43 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.26.7): Validação de Input Ativo, Background Transparente e Dock de Status na TUI
+
+- **Objetivo**: Comprovar a interface reativa OpenTUI (`actx --tui`) com background transparente nativo do terminal, buffer de input com captura em tempo real (incluindo ativação automática da Command Palette ao teclar `/`), e visibilidade permanente do dock inferior de status de 1 linha.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.7` e Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a TUI OpenTUI:**
+   ```powershell
+   actx --update@0.26.7
+   actx --tui
+   ```
+
+2. **⚡ Validar o Background Transparente e a Barra de Status:**
+   - Verificar que a tela assume o fundo nativo do terminal (sem retângulos pretos ou caixas opacas cortadas).
+   - Verificar que a barra de status inferior de 1 linha aparece com nitidez logo abaixo do input:
+     `📂 Default  │  🤖 gpt-4o-mini  │  🛡️ Strict  │  🌐 Search: OFF  │  💡 /menu        🚪 /exit`
+
+3. **⚡ Validar a Digitação e a Command Palette com `/`:**
+   - Digitar `/` no campo de input.
+   - Validar que a janela flutuante `📚 Slash Commands Palette` abre instantaneamente.
+   - Digitar `mode` e navegar com as setas `↑` / `↓`.
+   - Pressionar `Tab` ou `Enter` para autocompletar `/mode <strict|hybrid|proactive>`.
+
+4. **⚡ Enviar Pergunta e Validar Streaming:**
+   - Digitar uma pergunta no campo de input:
+     ```text
+     explique o conceito de RAG em 2 frases simples
+     ```
+   - Pressionar `Enter` e verificar que a pergunta é enviada e o buffer limpo.
+   - Validar o streaming suave da resposta com o cabeçalho `🤖 AI [gpt-4o-mini]:`.
+
+5. **⚡ Testar Encerramento Limpo:**
+   - Digitar `/exit` para encerrar a sessão salvando a memória.
+
+---
+
 ### 📌 Cenário 1 (v0.26.6): OpenTUI com Paridade Estética e Visual com a CLI UI
 
 - **Objetivo**: Comprovar a interface reativa OpenTUI (`actx --tui`) reformulada com paridade visual completa com a CLI UI: renderização no scroll do clássico Banner ASCII Art (`ANYCONTEXT`), metadados de versão/edição (`🌿 Community Edition`), box de boas-vindas, prompt `👤 You:`, respostas `🤖 AI [modelo]:`, tickers ricos de status e dock inferior unificado em 1 linha.

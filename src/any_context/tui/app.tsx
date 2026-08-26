@@ -276,7 +276,7 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
       commands={client.commands}
       isGenerating={isGenerating}
       onInputChange={handleInputChange}
-      onSubmit={() => handleSubmit()}
+      onSubmit={(text?: string) => handleSubmit(text)}
     />
   );
 };

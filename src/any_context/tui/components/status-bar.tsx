@@ -24,7 +24,8 @@ export const StatusBar = ({ state }: StatusBarProps): any => {
       borderColor={anyContextTheme.ruleColor}
       paddingLeft={1}
       paddingRight={1}
-      height={1}
+      flexShrink={0}
+      minHeight={2}
     >
       {/* Left Dock Items: Workspace | Model | Mode | Web Search | /menu | Syncing */}
       <box flexDirection="row" alignItems="center">

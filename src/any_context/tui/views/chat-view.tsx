@@ -15,7 +15,7 @@ interface ChatViewProps {
   commands: SlashCommandMeta[];
   isGenerating: boolean;
   onInputChange: (val: string) => void;
-  onSubmit: () => void;
+  onSubmit: (text?: string) => void;
 }
 
 export const ChatView = ({
@@ -30,7 +30,7 @@ export const ChatView = ({
   onSubmit,
 }: ChatViewProps): any => {
   return (
-    <box flexDirection="column" width="100%" height="100%" backgroundColor={anyContextTheme.background}>
+    <box flexDirection="column" width="100%" height="100%">
       {/* Main Chat Message Scroll View with ASCII Banner and Natural Top-Down Flow */}
       <ChatMessageList messages={messages} state={state} />
 
