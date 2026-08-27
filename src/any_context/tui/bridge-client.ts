@@ -13,8 +13,9 @@ export interface AnyContextState {
   is_syncing: boolean;
 }
 
-import { SlashCommandMeta, DEFAULT_SLASH_COMMANDS } from "./commands";
-export { SlashCommandMeta };
+import { DEFAULT_SLASH_COMMANDS } from "./commands";
+import type { SlashCommandMeta } from "./commands";
+export type { SlashCommandMeta };
 
 export interface CommandExecutionResult {
   success: boolean;

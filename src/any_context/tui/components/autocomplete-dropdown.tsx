@@ -1,5 +1,6 @@
 import React from "react";
-import { SlashCommandMeta, filterSlashCommands, MAX_PALETTE_ITEMS } from "../commands";
+import type { SlashCommandMeta } from "../commands";
+import { filterSlashCommands, MAX_PALETTE_ITEMS } from "../commands";
 import { anyContextTheme } from "../themes";
 
 interface AutocompleteDropdownProps {

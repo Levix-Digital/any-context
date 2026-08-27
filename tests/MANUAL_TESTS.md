@@ -7,6 +7,36 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.27.1): Validação de Inicialização Direta da OpenTUI no Bun e Fallback para Community Edition
+
+- **Objetivo**: Comprovar a inicialização imediata da interface OpenTUI (`actx --tui`) no Bun sem nenhum erro de sintaxe ES Module (`SyntaxError: export 'SlashCommandMeta' not found`), e verificar a exibição correta do badge `🌿 Community Edition` por padrão (ou a licença ativa configurada no SQLite).
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.1` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+
+2. **⚡ Validar Inicialização sem Erros de Sintaxe:**
+   - Comprovar que o aplicativo não exibe `SyntaxError: export 'SlashCommandMeta' not found in './commands'` e abre a tela de chat interativa instantaneamente.
+   - Validar que a barra de status inferior de 1 linha aparece com nitidez:
+     `📂 Default  │  🤖 gpt-4o-mini  │  🛡️ Strict  │  🌐 Search: OFF  │  💡 /menu        🚪 /exit`
+
+3. **⚡ Validar o Badge de Licença no Banner da CLI:**
+   ```powershell
+   actx /version
+   ```
+   - Validar que a CLI exibe por padrão `🌿 Community Edition` (quando nenhuma chave paga estiver ativada).
+
+4. **⚡ Validar Comandos Interativos na TUI:**
+   - Digitar `/` e comprovar a abertura suave da paleta flutuante.
+   - Digitar `/help` e verificar a resposta com a listagem completa dos 23 comandos.
+   - Digitar `/exit` e comprovar o encerramento limpo.
+
+---
+
 ### 📌 Cenário 1 (v0.27.0): Validação do Desacoplamento Hexagonal & Universal Command Adapter (CLI & TUI)
 
 - **Objetivo**: Comprovar a paridade absoluta e a execução universal de todos os 23 Slash Commands entre o Terminal CLI e a OpenTUI (`actx --tui`) através dos Core Application Services (`src/any_context/core/services/`), garantindo a supressão do banner duplicado da CLI na inicialização da TUI.

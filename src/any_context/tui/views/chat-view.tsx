@@ -1,5 +1,5 @@
 import React from "react";
-import { AnyContextState, SlashCommandMeta } from "../bridge-client";
+import type { AnyContextState, SlashCommandMeta } from "../bridge-client";
 import { ChatMessage, ChatMessageList } from "../components/chat-message-list";
 import { AutocompleteDropdown } from "../components/autocomplete-dropdown";
 import { InputBar } from "../components/input-bar";
