@@ -38,6 +38,19 @@ class TestInteractionEngine(unittest.TestCase):
         self.assertEqual(opts.type, "retrieval_density")
         self.assertGreaterEqual(len(opts.items), 3)
 
+    def test_options_engine_workspaces(self):
+        engine = OptionsEngine()
+        opts = engine.get_workspace_options("Default")
+        self.assertIsInstance(opts, OptionsGroupSchema)
+        self.assertEqual(opts.type, "workspace")
+        self.assertGreaterEqual(len(opts.items), 1)
+        titles = [i.title for i in opts.items]
+        self.assertIn("Default", titles)
+
+        res = engine.set_workspace("Default")
+        self.assertTrue(res.success)
+        self.assertEqual(res.state_updates.get("workspace"), "Default")
+
     def test_config_engine_main_menu(self):
         engine = ConfigEngine()
         tree = engine.get_menu_tree("main", "Default")

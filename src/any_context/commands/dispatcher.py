@@ -291,7 +291,7 @@ class CommandDispatcher:
                 + "\n".join(ws_lines)
                 + "\n\n*Usage:* `/switch <name>` to switch or create | `/switch --delete <name>` to remove."
             )
-            return CommandResult(success=True, message=msg)
+            return CommandResult(success=True, message=msg, action="open_switch_modal")
 
         if "--list" in parts or "-l" in parts:
             workspaces = self.workspace_svc.list_workspaces(active_workspace=current_ws)

@@ -65,6 +65,73 @@ class OptionsEngine:
             items=items
         )
 
+    def get_workspace_options(self, current_workspace: str = "Default") -> OptionsGroupSchema:
+        """Returns the available workspaces as an OptionsGroupSchema."""
+        curr = (current_workspace or "Default").strip()
+        workspaces = self.workspace_svc.list_workspaces(active_workspace=curr)
+
+        items = []
+        for ws in workspaces:
+            name = ws["name"]
+            is_act = (name.lower() == curr.lower())
+            
+            if name.lower() == "global":
+                icon = "🏢"
+                type_label = "Global Knowledge Base"
+            elif name.lower() == "shared sources":
+                icon = "📦"
+                type_label = "Shared Sources Library"
+            else:
+                icon = "📁"
+                type_label = "Project Workspace"
+
+            # Get sources count for this workspace
+            try:
+                sources = self.store.get_workspace_sources(workspace_name=name)
+                sources_count = len(sources)
+            except Exception:
+                sources_count = len(ws.get("paths", []))
+
+            sources_badge = f"{sources_count} sources" if sources_count > 0 else "Empty"
+            badge = f"[{sources_badge}]" + (" [Active]" if is_act else "")
+
+            desc = f"{type_label} | {sources_count} indexed sources"
+            if ws.get("created_at"):
+                desc += f" (Created: {str(ws['created_at'])[:10]})"
+
+            items.append(OptionItemSchema(
+                id=name,
+                title=name,
+                description=desc,
+                icon=icon,
+                badge=badge,
+                is_active=is_act,
+                metadata={"workspace": name, "sources_count": sources_count}
+            ))
+
+        return OptionsGroupSchema(
+            type="workspace",
+            title="📂 Switch Active Workspace",
+            description="Select a workspace to switch active context and isolated scope:",
+            active_id=curr,
+            items=items
+        )
+
+    def set_workspace(self, workspace_name: str) -> MenuActionResult:
+        """Switches the active workspace."""
+        clean_name = (workspace_name or "Default").strip()
+        if not self.store.get_workspace_meta(clean_name):
+            try:
+                self.store.add_workspace(name=clean_name, paths=[])
+            except Exception:
+                pass
+
+        return MenuActionResult(
+            success=True,
+            message=f"📂 Active workspace switched to: **{clean_name}**",
+            state_updates={"workspace": clean_name}
+        )
+
     def set_grounding_mode(self, mode: str, workspace: str = "Default", apply_global: bool = False) -> MenuActionResult:
         """Applies the selected grounding mode and returns a MenuActionResult."""
         ws_name = (workspace or "Default").strip()
