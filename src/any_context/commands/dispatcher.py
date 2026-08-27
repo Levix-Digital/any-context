@@ -166,14 +166,18 @@ class CommandDispatcher:
                     action="paste_mode"
                 )
 
-            # 24. /update
-            if canonical == "/update":
+            # 24. /update or /check-update
+            if canonical in ("/update", "/check-update"):
                 try:
-                    from any_context.update.updater import check_for_updates
-                    has_up, latest_v, msg = check_for_updates()
+                    from any_context.cli.updater import check_for_updates
+                    has_up, latest_v = check_for_updates(quiet_if_latest=True)
+                    if has_up and latest_v:
+                        msg = f"💡 New update available! v{__version__} → {latest_v}. Run `actx --update` to install."
+                    else:
+                        msg = f"🚀 AnyContext v{__version__} is up to date."
                     return CommandResult(
                         success=True,
-                        message=msg or f"🚀 AnyContext v{__version__} is up to date."
+                        message=msg
                     )
                 except Exception as e:
                     return CommandResult(
