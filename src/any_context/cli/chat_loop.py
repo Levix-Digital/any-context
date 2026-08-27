@@ -1731,6 +1731,9 @@ def launch_opentui(workspace: str = "Default") -> bool:
             if not lower_k.startswith("_mei") and not lower_k.startswith("pyi_") and "meipass" not in lower_k:
                 env[k] = v
 
+        from any_context.config.db_store import ConfigDBStore
+        env["ACTX_SETTINGS_DB"] = ConfigDBStore().db_path
+        env["ACTX_CALLER_CWD"] = os.getcwd()
         env["ACTX_EXECUTABLE"] = sys.executable or "actx"
         res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index), env=env)
         return res.returncode == 0

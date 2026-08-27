@@ -62,14 +62,31 @@ class ConfigDBStore:
 
     @classmethod
     def find_db_file(cls, filename: str = "settings.db") -> str:
-        """Resolves the settings.db SQLite file location"""
-        candidates = [
+        """Resolves the settings.db SQLite file location ensuring Hexagonal Single Database Instance."""
+        # 1. Explicit environment override has highest priority
+        env_db = os.getenv("ACTX_SETTINGS_DB")
+        if env_db and env_db.strip():
+            env_db_path = os.path.abspath(env_db.strip())
+            if os.path.exists(env_db_path):
+                return env_db_path
+            os.makedirs(os.path.dirname(env_db_path), exist_ok=True)
+            return env_db_path
+
+        # 2. Check caller working directory if passed from parent process
+        caller_cwd = os.getenv("ACTX_CALLER_CWD")
+        candidates = []
+        if caller_cwd and os.path.exists(caller_cwd):
+            candidates.append(os.path.join(caller_cwd, "config", filename))
+            candidates.append(os.path.join(caller_cwd, filename))
+
+        candidates.extend([
             os.path.join(os.getcwd(), "config", filename),
             os.path.join(os.getcwd(), filename),
+            os.path.expanduser(os.path.join("~", "config", filename)),
+            os.path.expanduser(os.path.join("~", ".config", "any-context", filename)),
             os.path.join(os.path.dirname(sys.executable), filename),
             os.path.join(os.path.dirname(sys.executable), "..", filename),
-            os.path.expanduser(os.path.join("~", ".config", "any-context", filename)),
-        ]
+        ])
 
         if sys.platform == "win32":
             if "LOCALAPPDATA" in os.environ:

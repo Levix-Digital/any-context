@@ -7,6 +7,39 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.27.2): Validação de Paridade Hexagonal Absoluta (CLI & TUI) e Encerramento Limpo (/exit)
+
+- **Objetivo**: Comprovar a paridade absoluta de base de dados (`settings.db`), modelo ativo (`gpt-4o-mini`), plano de assinatura (`Pro Plan`), fontes indexadas (`Walmart.ca`) e catálogo universal de 23 comandos entre a CLI e a OpenTUI (`actx --tui`), além de validar o encerramento suave e limpo no `/exit` sem tela piscando.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.2` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+
+2. **⚡ Validar Paridade de Dados no Dock e Status Bar:**
+   - Comprovar que a barra inferior exibe o modelo real configurado pelo usuário no core:
+     `📂 Default  │  🤖 gpt-4o-mini  │  🛡️ Strict  │  🌐 Search: OFF  │  💡 /menu        🚪 /exit`
+   - O modelo NÃO deve ser diferente daquele configurado no CLI.
+
+3. **⚡ Validar Listagem Completa de Fontes com `/sources`:**
+   - Digitar `/sources` no chat da TUI.
+   - Comprovar a exibição idêntica às fontes cadastradas no workspace `Default`:
+     `### 📂 Indexed Sources in Default (1 sources)`
+     `🌐 Web Portals & URLs:`
+     `• [Online Shopping Canada: Everyday Low Prices at Walmart.ca!](https://www.walmart.ca/en) • 264 pages`
+
+4. **⚡ Validar Comando Global de Fontes `/sources --all`:**
+   - Digitar `/sources --all` e verificar a listagem consolidada de todos os workspaces.
+
+5. **⚡ Validar Encerramento Limpo e Restauração de Terminal (`/exit`):**
+   - Digitar `/exit` na TUI.
+   - Comprovar que o aplicativo encerra **imediatamente e de forma limpa**, restaurando o cursor e o prompt do PowerShell/Bash sem qualquer loop de tela piscando.
+
+---
+
 ### 📌 Cenário 1 (v0.27.1): Validação de Inicialização Direta da OpenTUI no Bun e Fallback para Community Edition
 
 - **Objetivo**: Comprovar a inicialização imediata da interface OpenTUI (`actx --tui`) no Bun sem nenhum erro de sintaxe ES Module (`SyntaxError: export 'SlashCommandMeta' not found`), e verificar a exibição correta do badge `🌿 Community Edition` por padrão (ou a licença ativa configurada no SQLite).

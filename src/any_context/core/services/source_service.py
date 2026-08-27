@@ -18,12 +18,26 @@ class SourceService:
         """Returns all configured sources (folders, web URLs, cloud drives) for a workspace."""
         ws_name = (workspace or "Default").strip()
         all_sources = self.store.get_workspace_sources(workspace_name=ws_name)
+        folders = all_sources.get("folders", [])
+        web_sources = all_sources.get("web_sources", [])
+        web_urls = all_sources.get("web_urls", [])
+
+        # Harmonize web_urls and web_sources
+        if not web_urls and web_sources:
+            web_urls = [w.get("url") if isinstance(w, dict) else str(w) for w in web_sources]
+        elif web_urls and not web_sources:
+            web_sources = [{"url": u, "title": u, "page_count": 1} if isinstance(u, str) else u for u in web_urls]
+
+        cloud_drives = all_sources.get("cloud_drives", [])
+        total_count = len(folders) + len(web_urls or web_sources) + len(cloud_drives)
         return {
             "workspace": ws_name,
-            "folders": all_sources.get("folders", []),
-            "web_urls": all_sources.get("web_urls", []),
-            "cloud_drives": all_sources.get("cloud_drives", []),
-            "total_count": len(all_sources.get("folders", [])) + len(all_sources.get("web_urls", [])) + len(all_sources.get("cloud_drives", []))
+            "folders": folders,
+            "web_sources": web_sources,
+            "web_urls": web_urls,
+            "cloud_drives": cloud_drives,
+            "sources": all_sources.get("sources", []),
+            "total_count": total_count
         }
 
     def add_folder(self, workspace: str, folder_path: str) -> Dict[str, Any]:

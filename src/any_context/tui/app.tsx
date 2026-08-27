@@ -12,9 +12,10 @@ import {
 
 interface AppProps {
   initialWorkspace?: string;
+  onExit?: () => void;
 }
 
-export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
+export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => {
   const [client] = useState(() => new BridgeClient(initialWorkspace));
   const [state, setState] = useState<AnyContextState>(client.state);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -178,7 +179,12 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
 
     if (cmd === "/exit" || cmd === "/quit" || cmd === "/q") {
       client.stop();
-      process.exit(0);
+      if (onExit) {
+        onExit();
+      } else {
+        process.exit(0);
+      }
+      return;
     }
 
     if (cmd === "/clear" || cmd === "/cls") {
@@ -191,7 +197,12 @@ export const App = ({ initialWorkspace = "Default" }: AppProps): any => {
       if (res) {
         if (res.action === "exit") {
           client.stop();
-          process.exit(0);
+          if (onExit) {
+            onExit();
+          } else {
+            process.exit(0);
+          }
+          return;
         }
         if (res.action === "clear") {
           setMessages([]);
