@@ -7,6 +7,34 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.27.3): Validação de Layout do Slash Command Palette, Scoring por Prefixo e Indicador de Sync
+
+- **Objetivo**: Comprovar a separação visual nítida do rodapé de instruções no Slash Command Palette (sem sobreposição com o último comando), a pontuação por relevância garantindo que `/source` selecione `/sources` e `/sources --all` em vez de `/sync`, e a exibição do badge verde `✔ Up to date` na barra inferior após sincronização.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.3` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+
+2. **⚡ Validar o Layout e Rodapé do Slash Command Palette:**
+   - Digitar `/` para abrir o palette.
+   - Comprovar que as instruções `💡 [↑/↓] Navigate  •  [↹ Tab] Select  •  [Esc] Close` aparecem em uma linha dedicada abaixo da lista, separadas por uma linha divisória nítida e sem misturar com o último item.
+
+3. **⚡ Validar Scoring por Prefixo no Autocomplete:**
+   - Digitar `/source` no input.
+   - Comprovar que o primeiro item selecionado no topo é **`/sources`** e o segundo é **`/sources --all`** (e NÃO o `/sync`).
+   - Pressionar `Tab` e validar que `/sources` é autocompletado.
+
+4. **⚡ Validar Feedback de Sincronização na Barra de Status:**
+   - Observar a barra de status inferior.
+   - Validar que a barra exibe o status de sincronização em verde:
+     `📂 Default  │  🤖 gpt-4o-mini  │  🛡️ Strict  │  🌐 Search: OFF  │  💡 /menu  │  ✔ Up to date        🚪 /exit`
+
+---
+
 ### 📌 Cenário 1 (v0.27.2): Validação de Paridade Hexagonal Absoluta (CLI & TUI) e Encerramento Limpo (/exit)
 
 - **Objetivo**: Comprovar a paridade absoluta de base de dados (`settings.db`), modelo ativo (`gpt-4o-mini`), plano de assinatura (`Pro Plan`), fontes indexadas (`Walmart.ca`) e catálogo universal de 23 comandos entre a CLI e a OpenTUI (`actx --tui`), além de validar o encerramento suave e limpo no `/exit` sem tela piscando.
