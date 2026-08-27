@@ -7,7 +7,37 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.0): Seletor Modal do `/mode` no OpenTUI (Strict, Hybrid, Proactive)
+### 📌 Cenário 1 (v0.28.16): Validação de Diretórios Nativos do SO e Criptografia em Repouso AES-GCM-256
+
+- **Objetivo**: Comprovar que o AnyContext armazena todos os bancos de dados em diretórios nativos do sistema operacional (`%LOCALAPPDATA%\AnyContext\` no Windows), migra dados legados sem perda, cifra os textos dos chunks em disco com AES-GCM-256 amarrado ao hardware e entrega respostas RAG descriptografadas em tempo real com performance máxima tanto no CLI quanto na TUI.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.16`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Inspecionar o Diretório Oficial de Dados do SO:**
+   - Abrir o PowerShell e verificar o diretório do AnyContext em `%LOCALAPPDATA%\AnyContext`:
+     ```powershell
+     Test-Path "$env:LOCALAPPDATA\AnyContext\data\context_db\lancedb"
+     Test-Path "$env:LOCALAPPDATA\AnyContext\config\settings.db"
+     ```
+   - Comprovar que ambos retornam `True` e que a raiz do usuário (`C:\Users\<user>`) não é mais poluída com novas bases desprotegidas.
+
+2. **🔒 Inspecionar a Criptografia em Repouso no LanceDB:**
+   - Executar uma leitura direta em Python no arquivo bruto do LanceDB sem passar pelo AnyContext:
+     ```powershell
+     python -c "import lancedb; db = lancedb.connect('$env:LOCALAPPDATA/AnyContext/data/context_db/lancedb'); tbl = db.open_table('workspace_chunks'); row = tbl.search().limit(1).to_list()[0]; print('Encrypted text preview:', row['text'][:50])"
+     ```
+   - Comprovar que o campo `text` inicia com `enc::` e é completamente ilegível (cifrado com chave de hardware).
+
+3. **⚡ Validar Consulta Semântica RAG no CLI e na TUI:**
+   - Abrir o CLI (`actx`) e fazer a pergunta no workspace `ProvincialImmigration`:
+     `Quais são os programas provinciais mais adequados para empreendedores?`
+   - Abrir a TUI (`actx --tui`) e fazer a mesma pergunta no mesmo workspace.
+   - Comprovar que ambos recuperam e descriptografam o contexto instantaneamente (< 2ms) trazendo as informações completas de Alberta e Saskatchewan!
+
+---
+
+### 📌 Cenário 2 (v0.28.0): Seletor Modal do `/mode` no OpenTUI (Strict, Hybrid, Proactive)
 
 - **Objetivo**: Comprovar que o comando `/mode` (sem argumentos) abre um modal de seleção interativo estilizado (`<InteractiveModal>`) na TUI, listando as 3 estratégias de grounding (`Strict`, `Hybrid`, `Proactive`), destacando o modo ativo atual com o badge `[Active]`, navegável por setas `[↑/↓]`, selecionável com `[Enter/Tab]` e cancelável com `[Esc]`, atualizando a barra de status inferior imediatamente.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.0` com Bun instalado.

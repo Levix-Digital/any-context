@@ -109,13 +109,20 @@ class LanceDBStore:
     def upsert_records(self, records: List[Dict[str, Any]], table_name: str = "workspace_chunks", dim: int = 1536):
         """
         Inserts or updates vector records into LanceDB using high-speed columnar Arrow batches.
+        Payload text, summaries, and paths are encrypted on disk with hardware-bound AES-GCM-256.
         """
         if not records:
             return
 
+        from any_context.core.security_engine import SecurityEngine
+        sec = SecurityEngine.get_instance()
+
+        prepared_records = []
         for r in records:
-            if "file_path" in r:
-                r["file_path"] = self._norm_path(r["file_path"])
+            item = dict(r)
+            if "file_path" in item:
+                item["file_path"] = self._norm_path(item["file_path"])
+            prepared_records.append(sec.encrypt_record(item))
 
         with self._table_lock:
             if not self._has_table(table_name):
@@ -124,7 +131,7 @@ class LanceDBStore:
             else:
                 table = self._db.open_table(table_name)
 
-            table.add(records)
+            table.add(prepared_records)
 
     def search_vector(
         self,
@@ -137,7 +144,7 @@ class LanceDBStore:
     ) -> List[ScoredChunk]:
         """
         Executes Rust-powered vector similarity search with optional workspace filtering.
-        Converts raw LanceDB records into standardized ScoredChunk contracts.
+        Decrypts top-K matched chunk payloads on-the-fly and converts into ScoredChunk contracts.
         """
         if not self._has_table(table_name):
             return []
@@ -165,31 +172,35 @@ class LanceDBStore:
             raw_results = query.to_list()
             scored_chunks: List[ScoredChunk] = []
 
+            from any_context.core.security_engine import SecurityEngine
+            sec = SecurityEngine.get_instance()
+
             for r in raw_results:
+                r_dec = sec.decrypt_record(r)
                 dist = float(r.get("_distance", 0.0))
                 # Convert Euclidean / Cosine L2 distance to normalized similarity score [0.0, 1.0]
                 similarity = 1.0 / (1.0 + max(0.0, dist))
 
                 chunk = ScoredChunk(
-                    text=r.get("text", ""),
-                    file_name=r.get("file_name", "Unknown"),
-                    file_path=r.get("file_path", ""),
-                    workspace=r.get("workspace", "Global"),
+                    text=r_dec.get("text", ""),
+                    file_name=r_dec.get("file_name", "Unknown"),
+                    file_path=r_dec.get("file_path", ""),
+                    workspace=r_dec.get("workspace", "Global"),
                     score=similarity,
-                    last_modified=r.get("last_modified"),
-                    content_type=r.get("content_type", "Local Document"),
-                    document_summary=r.get("document_summary"),
-                    keywords=r.get("keywords"),
-                    chunk_id=r.get("id"),
+                    last_modified=r_dec.get("last_modified"),
+                    content_type=r_dec.get("content_type", "Local Document"),
+                    document_summary=r_dec.get("document_summary"),
+                    keywords=r_dec.get("keywords"),
+                    chunk_id=r_dec.get("id"),
                     metadata={
-                        "file_name": r.get("file_name", "Unknown"),
-                        "file_path": r.get("file_path", ""),
-                        "workspace": r.get("workspace", "Global"),
-                        "last_modified": r.get("last_modified"),
-                        "content_type": r.get("content_type", "Local Document"),
-                        "document_summary": r.get("document_summary"),
-                        "keywords": r.get("keywords"),
-                        "content_hash": r.get("content_hash", "")
+                        "file_name": r_dec.get("file_name", "Unknown"),
+                        "file_path": r_dec.get("file_path", ""),
+                        "workspace": r_dec.get("workspace", "Global"),
+                        "last_modified": r_dec.get("last_modified"),
+                        "content_type": r_dec.get("content_type", "Local Document"),
+                        "document_summary": r_dec.get("document_summary"),
+                        "keywords": r_dec.get("keywords"),
+                        "content_hash": r_dec.get("content_hash", "")
                     }
                 )
                 scored_chunks.append(chunk)
