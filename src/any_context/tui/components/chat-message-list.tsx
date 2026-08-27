@@ -112,4 +112,4 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
       })}
     </scrollbox>
   );
-};
+});
