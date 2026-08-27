@@ -30,7 +30,6 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
       paddingLeft={1}
       paddingRight={1}
       stickyScroll={true}
-      stickyStart="bottom"
     >
       {/* Render Conversation Messages */}
       {messages.map((msg) => {
@@ -38,15 +37,13 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
           return (
             <box
               key={msg.id}
-              flexDirection="row"
+              flexDirection="column"
               paddingTop={1}
               paddingBottom={0}
             >
               <text fg={anyContextTheme.accent}>
                 <b>👤 You: </b>
-              </text>
-              <text fg={anyContextTheme.foreground}>
-                <b>{msg.content}</b>
+                <span fg={anyContextTheme.foreground}><b>{msg.content}</b></span>
               </text>
             </box>
           );
@@ -82,24 +79,16 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
             paddingTop={1}
             paddingBottom={0}
           >
-            <box flexDirection="row" marginBottom={0}>
-              <text fg={anyContextTheme.accentWarning}>
-                <b>🤖 AI [</b>
-              </text>
-              <text fg={anyContextTheme.accentSecondary}>
-                <b>{msg.model || state?.model || "gpt-4o-mini"}</b>
-              </text>
-              <text fg={anyContextTheme.accentWarning}>
-                <b>]:</b>
-              </text>
-            </box>
+            <text fg={anyContextTheme.accentWarning}>
+              <b>🤖 AI [</b>
+              <span fg={anyContextTheme.accentSecondary}><b>{msg.model || state?.model || "gpt-4o-mini"}</b></span>
+              <b>]:</b>
+            </text>
 
             {msg.ticker ? (
-              <box paddingTop={0} paddingBottom={0}>
-                <text fg={anyContextTheme.accentWarning}>
-                  <b>⚡ {msg.ticker}</b>
-                </text>
-              </box>
+              <text fg={anyContextTheme.accentWarning}>
+                <b>⚡ {msg.ticker}</b>
+              </text>
             ) : null}
 
             {msg.content ? (
