@@ -36,8 +36,8 @@ class ParallelIndexer:
 
     def _embed_batch_with_retry(self, texts: List[str], max_retries: int = 6) -> List[List[float]]:
         """
-        Embeds a batch of texts with exponential backoff and jitter upon rate limit (429) errors.
-        Provides clear actionable diagnostics when API quotas are exceeded.
+        Embeds a batch of texts with thread-isolated exponential backoff and randomized jitter.
+        Each concurrent worker independently retries without blocking or slowing other threads.
         """
         import time
         import random
@@ -55,7 +55,8 @@ class ParallelIndexer:
 
                 is_rate_limit = ("rate" in err_str and "limit" in err_str) or "429" in err_str or "tpm" in err_str
                 if is_rate_limit and attempt < max_retries - 1:
-                    sleep_time = (2.0 * (1.8 ** attempt)) + (random.uniform(0.2, 0.8))
+                    # Thread-isolated backoff with desynchronized jitter to avoid thundering herd
+                    sleep_time = (1.5 * (1.8 ** attempt)) + random.uniform(0.4, 1.8)
                     time.sleep(sleep_time)
                 else:
                     raise
@@ -151,7 +152,7 @@ class ParallelIndexer:
             return batch_records
 
         records_to_insert = []
-        with ThreadPoolExecutor(max_workers=min(2, max(1, len(batches)))) as executor:
+        with ThreadPoolExecutor(max_workers=min(cfg.max_workers, max(1, len(batches)))) as executor:
             future_to_batch = {executor.submit(_process_embed_batch, b): b for b in batches}
             completed_chunks = 0
             for future in as_completed(future_to_batch):
