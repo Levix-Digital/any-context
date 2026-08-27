@@ -71,9 +71,18 @@ export const AutocompleteDropdown = ({
           );
         })
       )}
-      <text fg={anyContextTheme.foregroundMuted}>
-        [↑/↓ Navigate • Tab Select • Esc Close]
-      </text>
+
+      {/* Dedicated Separator */}
+      <box flexDirection="row" marginTop={0} marginBottom={0}>
+        <text fg={anyContextTheme.ruleColor}>─────────────────────────────────────────────────────────────────</text>
+      </box>
+
+      {/* Dedicated Navigation Footer */}
+      <box flexDirection="row" paddingLeft={1} paddingRight={1} marginTop={0}>
+        <text fg={anyContextTheme.foregroundMuted}>
+          💡 <b>[↑/↓]</b> Navigate  •  <b>[↹ Tab]</b> Select  •  <b>[Esc]</b> Close
+        </text>
+      </box>
     </box>
   );
 };

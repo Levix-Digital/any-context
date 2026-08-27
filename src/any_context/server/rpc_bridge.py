@@ -57,11 +57,16 @@ class StdioRPCServer:
     def get_state(self) -> Dict[str, Any]:
         """Returns the current runtime state."""
         self._load_state()
-        sync_info = ""
+        sync_info = "Up to date"
+        is_syncing = False
         try:
             bg_mgr = BackgroundSyncManager()
             if bg_mgr.is_syncing(self.active_workspace):
                 sync_info = bg_mgr.format_progress_bar(self.active_workspace, width=8)
+                is_syncing = True
+            else:
+                last_time = getattr(self, "_last_sync_timestamp", None)
+                sync_info = f"Up to date ({last_time})" if last_time else "Up to date"
         except Exception:
             pass
 
@@ -72,7 +77,7 @@ class StdioRPCServer:
             "grounding_mode": self._grounding_mode,
             "web_search_enabled": self._web_search_enabled,
             "sync_info": sync_info,
-            "is_syncing": bool(sync_info)
+            "is_syncing": is_syncing
         }
 
     def list_commands(self) -> list:

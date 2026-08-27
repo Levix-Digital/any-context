@@ -7,12 +7,14 @@ export interface SlashCommandMeta {
 }
 
 export const DEFAULT_SLASH_COMMANDS: SlashCommandMeta[] = [
+  { command: "/sources", args: "", description: "List indexed documents and web portals in active workspace", category: "Sources", direct_execution: true },
+  { command: "/sources --all", args: "", description: "List all indexed sources across all workspaces", category: "Sources", direct_execution: true },
+  { command: "/sync", args: "", description: "Synchronize local folders and web sources", category: "Sources", direct_execution: true },
+  { command: "/sync --force", args: "", description: "Force full re-indexing of all documents and web portals", category: "Sources", direct_execution: true },
   { command: "/switch", args: "<workspace>", description: "Switch, list, or create active workspace", category: "Workspace", direct_execution: false },
   { command: "/model", args: "<name>", description: "Change active AI inference model", category: "Model", direct_execution: false },
   { command: "/mode", args: "<strict|hybrid|proactive>", description: "Change Grounding Strategy mode", category: "AI Grounding", direct_execution: false },
   { command: "/web-search", args: "[on|off]", description: "Toggle real-time workspace Web Search", category: "Web Search", direct_execution: true },
-  { command: "/sync", args: "[--force|--status]", description: "Synchronize local folders and web sources", category: "Sources", direct_execution: true },
-  { command: "/sources", args: "[--all]", description: "List indexed documents and web portals in workspace", category: "Sources", direct_execution: true },
   { command: "/folder", args: "--add <path>", description: "Add, list, or remove local folder from workspace", category: "Sources", direct_execution: false },
   { command: "/web", args: "--add <url>", description: "Add, list, or crawl documentation portal or web URL", category: "Sources", direct_execution: false },
   { command: "/transfer", args: "<from_ws> <to_ws> <item>", description: "Transfer source to another workspace in <50ms ($0.00)", category: "Sources", direct_execution: false },
@@ -35,8 +37,8 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommandMeta[] = [
 export const MAX_PALETTE_ITEMS = 6;
 
 /**
- * Pure filtering function for slash commands.
- * Matches against command name (with or without '/'), description, and category.
+ * Pure filtering function for slash commands with relevance-based scoring.
+ * Prioritizes prefix matches on command name over substring, description, and category matches.
  */
 export function filterSlashCommands(commands: SlashCommandMeta[], filterText: string): SlashCommandMeta[] {
   const list = commands && commands.length > 0 ? commands : DEFAULT_SLASH_COMMANDS;
@@ -47,13 +49,31 @@ export function filterSlashCommands(commands: SlashCommandMeta[], filterText: st
     return list;
   }
 
-  return list.filter((c) => {
-    const cmdName = c.command.toLowerCase();
-    const cmdClean = cmdName.startsWith("/") ? cmdName.slice(1) : cmdName;
-    const desc = c.description.toLowerCase();
-    const cat = c.category.toLowerCase();
-    return cmdClean.includes(query) || desc.includes(query) || cat.includes(query);
-  });
+  const scored = list
+    .map((c) => {
+      const cmdName = c.command.toLowerCase();
+      const cmdClean = cmdName.startsWith("/") ? cmdName.slice(1) : cmdName;
+      const desc = c.description.toLowerCase();
+      const cat = c.category.toLowerCase();
+
+      let score = 999;
+      if (cmdClean.startsWith(query)) {
+        score = 1; // Highest priority: command name starts with query
+      } else if (cmdClean.includes(query)) {
+        score = 2; // Substring in command name
+      } else if (desc.includes(query)) {
+        score = 3; // Substring in description
+      } else if (cat.includes(query)) {
+        score = 4; // Substring in category
+      }
+
+      return { cmd: c, score };
+    })
+    .filter((item) => item.score < 999);
+
+  scored.sort((a, b) => a.score - b.score);
+
+  return scored.map((item) => item.cmd);
 }
 
 /**
