@@ -37,14 +37,15 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
       paddingLeft={1}
       paddingRight={1}
       stickyScroll={true}
+      viewportCulling={false}
     >
       {/* Permanent Welcome Banner at the top of scrollable history */}
-      <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0}>
+      <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0} flexShrink={0}>
         <text fg={anyContextTheme.accent}>
           <b>{ASCII_BANNER}</b>
         </text>
         <text fg={anyContextTheme.accentWarning}>
-          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.6"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
+          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.9"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
         </text>
         <text fg={anyContextTheme.foregroundMuted}>
           {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
@@ -63,6 +64,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
           marginTop={1}
           marginBottom={1}
           flexDirection="column"
+          flexShrink={0}
         >
           <text fg={anyContextTheme.foreground}>
             💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
@@ -79,6 +81,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
               flexDirection="column"
               paddingTop={1}
               paddingBottom={0}
+              flexShrink={0}
             >
               <text fg={anyContextTheme.accent}>
                 <b>👤 You: </b>
@@ -102,6 +105,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
               paddingBottom={0}
               marginTop={1}
               marginBottom={1}
+              flexShrink={0}
             >
               <text fg={anyContextTheme.accentSuccess}>
                 <b>💡 System:</b> {msg.content}
@@ -117,6 +121,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
             flexDirection="column"
             paddingTop={1}
             paddingBottom={0}
+            flexShrink={0}
           >
             <text fg={anyContextTheme.accentWarning}>
               <b>🤖 AI [</b>
@@ -131,7 +136,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
             ) : null}
 
             {msg.content ? (
-              <markdown content={msg.content} syntaxStyle={defaultSyntaxStyle} />
+              <markdown content={msg.content} syntaxStyle={defaultSyntaxStyle} flexShrink={0} />
             ) : (
               <text fg={anyContextTheme.foregroundMuted}>Thinking...</text>
             )}
