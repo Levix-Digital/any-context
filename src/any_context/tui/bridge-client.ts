@@ -149,11 +149,17 @@ export class BridgeClient {
     this.process = spawn(command, args, {
       cwd: repoRoot,
       env: childEnv,
-      stdio: ["pipe", "pipe", "inherit"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
     if (!this.process.stdout || !this.process.stdin) {
       throw new Error("Failed to initialize stdin/stdout pipes for AnyContext RPC Bridge");
+    }
+
+    if (this.process.stderr) {
+      this.process.stderr.on("data", () => {
+        // Silently consume backend stderr logs so they never corrupt terminal text or input
+      });
     }
 
     const rl = readline.createInterface({ input: this.process.stdout });
