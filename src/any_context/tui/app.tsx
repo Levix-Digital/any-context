@@ -38,6 +38,9 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const [menuHistory, setMenuHistory] = useState<string[]>([]);
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [inputHistory, setInputHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const [draftInput, setDraftInput] = useState<string>("");
   const scrollBoxRef = useRef<any>(null);
 
   useEffect(() => {
@@ -259,7 +262,38 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       return;
     }
 
-    // 4. CHAT HISTORY KEYBOARD SCROLLING
+    // 4. USER INPUT PROMPT HISTORY NAVIGATION (Up / Down)
+    if (!modalOpen && !paletteOpen) {
+      if (event.name === "up" && !event.ctrl && !event.shift) {
+        if (inputHistory.length > 0) {
+          if (historyIndex === -1) {
+            setDraftInput(inputValue);
+            const nextIdx = inputHistory.length - 1;
+            setHistoryIndex(nextIdx);
+            setInputValue(inputHistory[nextIdx]);
+          } else if (historyIndex > 0) {
+            const nextIdx = historyIndex - 1;
+            setHistoryIndex(nextIdx);
+            setInputValue(inputHistory[nextIdx]);
+          }
+          return;
+        }
+      } else if (event.name === "down" && !event.ctrl && !event.shift) {
+        if (historyIndex !== -1) {
+          if (historyIndex < inputHistory.length - 1) {
+            const nextIdx = historyIndex + 1;
+            setHistoryIndex(nextIdx);
+            setInputValue(inputHistory[nextIdx]);
+          } else {
+            setHistoryIndex(-1);
+            setInputValue(draftInput);
+          }
+          return;
+        }
+      }
+    }
+
+    // 5. CHAT HISTORY KEYBOARD SCROLLING (PageUp / PageDown / Home / End / Shift+Arrows)
     if (!modalOpen && !paletteOpen && scrollBoxRef.current) {
       if (event.name === "pageup") {
         try {
@@ -273,13 +307,13 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
             scrollBoxRef.current.scrollBy(15);
           }
         } catch {}
-      } else if (event.name === "up" && (event.ctrl || event.shift || inputValue === "")) {
+      } else if (event.name === "up" && (event.ctrl || event.shift)) {
         try {
           if (typeof scrollBoxRef.current.scrollBy === "function") {
             scrollBoxRef.current.scrollBy(-3);
           }
         } catch {}
-      } else if (event.name === "down" && (event.ctrl || event.shift || inputValue === "")) {
+      } else if (event.name === "down" && (event.ctrl || event.shift)) {
         try {
           if (typeof scrollBoxRef.current.scrollBy === "function") {
             scrollBoxRef.current.scrollBy(3);
@@ -304,6 +338,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const handleSubmit = async (text?: string) => {
     const raw = (text !== undefined ? text : inputValue).trim();
     if (!raw) return;
+
+    // Record into input history (avoiding immediate duplicates)
+    setInputHistory((prev) => (prev.length === 0 || prev[prev.length - 1] !== raw ? [...prev, raw] : prev));
+    setHistoryIndex(-1);
+    setDraftInput("");
 
     if (paletteOpen) {
       const filtered = filterSlashCommands(client.commands, raw);
