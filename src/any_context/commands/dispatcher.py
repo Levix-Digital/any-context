@@ -169,8 +169,9 @@ class CommandDispatcher:
             # 24. /update or /check-update
             if canonical in ("/update", "/check-update"):
                 try:
-                    from any_context.cli.updater import check_for_updates
-                    has_up, latest_v = check_for_updates(quiet_if_latest=True)
+                    from any_context.core.services import UpdateService
+                    update_svc = UpdateService()
+                    has_up, latest_v = update_svc.check_for_updates()
                     if has_up and latest_v:
                         msg = f"💡 New update available! v{__version__} → {latest_v}. Run `actx --update` to install."
                     else:

@@ -5,9 +5,14 @@ import subprocess
 import urllib.request
 from typing import Optional, Tuple, List, Dict, Any
 from any_context import __version__ as CURRENT_VERSION
-
-PRIMARY_REPO = "Levix-Digital/any-context-releases"
-FALLBACK_REPO = "Levix-Digital/any-context"
+from any_context.core.services.update_service import (
+    UpdateService,
+    PRIMARY_REPO,
+    FALLBACK_REPO,
+    clean_stale_update_files,
+    parse_version_tuple,
+    normalize_version_tag,
+)
 
 
 def safe_print(msg: str):
@@ -15,48 +20,6 @@ def safe_print(msg: str):
         print(msg)
     except UnicodeEncodeError:
         print(msg.encode("ascii", errors="ignore").decode("ascii"))
-
-
-def clean_stale_update_files():
-    """Silently cleans up any temporary or old backup binaries left from previous updates."""
-    try:
-        is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
-        if getattr(sys, "frozen", False):
-            target_dir = os.path.dirname(os.path.abspath(sys.executable))
-        else:
-            target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
-
-        if os.path.exists(target_dir):
-            for fname in ["actx_old.exe", "actx_new.exe", "actx_old", "actx_new"]:
-                p = os.path.join(target_dir, fname)
-                if os.path.exists(p):
-                    try:
-                        os.remove(p)
-                    except Exception:
-                        pass
-    except Exception:
-        pass
-
-
-def parse_version_tuple(version_str: str) -> Tuple[int, ...]:
-    """Parses a version string like '0.11.63' or 'v0.11.63' into integer tuple (0, 11, 63)"""
-    cleaned = version_str.lstrip("v").strip()
-    if " " in cleaned:
-        cleaned = cleaned.split()[-1].lstrip("v")
-    try:
-        parts = []
-        for part in cleaned.split("."):
-            num = ""
-            for c in part:
-                if c.isdigit():
-                    num += c
-                else:
-                    break
-            if num:
-                parts.append(int(num))
-        return tuple(parts) if parts else (0, 0, 0)
-    except Exception:
-        return (0, 0, 0)
 
 
 def normalize_version_tag(version_str: str) -> str:
