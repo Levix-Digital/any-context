@@ -14,7 +14,9 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommandMeta[] = [
   { command: "/switch", args: "<workspace>", description: "Switch, list, or create active workspace", category: "Workspace", direct_execution: false },
   { command: "/model", args: "<name>", description: "Change active AI inference model", category: "Model", direct_execution: false },
   { command: "/mode", args: "<strict|hybrid|proactive>", description: "Change Grounding Strategy mode", category: "AI Grounding", direct_execution: false },
-  { command: "/web-search", args: "[on|off]", description: "Toggle real-time workspace Web Search", category: "Web Search", direct_execution: true },
+  { command: "/web-search", args: "[--on|--off]", description: "Toggle real-time workspace Web Search", category: "Web Search", direct_execution: true },
+  { command: "/web-search --on", args: "", description: "Enable real-time Web Search grounding for active workspace", category: "Web Search", direct_execution: true },
+  { command: "/web-search --off", args: "", description: "Disable real-time Web Search grounding for active workspace", category: "Web Search", direct_execution: true },
   { command: "/folder", args: "--add <path>", description: "Add, list, or remove local folder from workspace", category: "Sources", direct_execution: false },
   { command: "/web", args: "--add <url>", description: "Add, list, or crawl documentation portal or web URL", category: "Sources", direct_execution: false },
   { command: "/transfer", args: "<from_ws> <to_ws> <item>", description: "Transfer source to another workspace in <50ms ($0.00)", category: "Sources", direct_execution: false },
@@ -54,6 +56,8 @@ export function filterSlashCommands(commands: SlashCommandMeta[], filterText: st
     return list;
   }
 
+  const queryBase = query.split(" ")[0];
+
   const scored = list
     .map((c) => {
       const cmdName = c.command.toLowerCase();
@@ -62,14 +66,16 @@ export function filterSlashCommands(commands: SlashCommandMeta[], filterText: st
       const cat = c.category.toLowerCase();
 
       let score = 999;
-      if (cmdClean.startsWith(query)) {
-        score = 1; // Highest priority: command name starts with query
+      if (cmdClean === query || cmdClean.startsWith(query)) {
+        score = 1; // Highest priority: exact or prefix match on full command (including flags)
+      } else if (query.includes(" ") && cmdClean.startsWith(queryBase)) {
+        score = 2; // Subcommand / flag match when base command matches
       } else if (cmdClean.includes(query)) {
-        score = 2; // Substring in command name
+        score = 3; // Substring in command name
       } else if (desc.includes(query)) {
-        score = 3; // Substring in description
+        score = 4; // Substring in description
       } else if (cat.includes(query)) {
-        score = 4; // Substring in category
+        score = 5; // Substring in category
       }
 
       return { cmd: c, score };

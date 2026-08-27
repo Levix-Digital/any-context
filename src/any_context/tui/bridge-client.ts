@@ -11,6 +11,7 @@ export interface AnyContextState {
   web_search_enabled: boolean;
   sync_info: string;
   is_syncing: boolean;
+  tier_name?: string;
 }
 
 import { DEFAULT_SLASH_COMMANDS } from "./commands";
