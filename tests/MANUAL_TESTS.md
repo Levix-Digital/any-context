@@ -7,6 +7,34 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.27.6): Validação de Header Dinâmico (Full Glory vs Compact) e Scrollbox Desacoplado
+
+- **Objetivo**: Comprovar que o cabeçalho ASCII é renderizado no topo fora do `<scrollbox>`, exibindo a arte completa e plano dinâmico (`⭐ Pro Plan`) no início (0 mensagens), retraindo-se automaticamente para uma Top Bar compacta e limpa de 1 linha durante o diálogo (1+ mensagens), restaurando o modo completo ao executar `/clear`, com 100% de estabilidade e zero gaps no scroll de conversas.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.6` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+
+2. **⚡ Validar Full Glory Mode Inicial (0 Mensagens):**
+   - Comprovar que a tela inicial exibe a arte ASCII completa e o badge `⭐ Pro Plan`.
+   - Comprovar que a área de mensagens abaixo está limpa, sem qualquer gap vertical ou barra de rolagem truncada.
+
+3. **⚡ Validar Transição para Compact Top Bar Mode (1+ Mensagens):**
+   - No prompt `👤 You:`, digitar uma pergunta qualquer (ex: `Olá!`) e pressionar Enter.
+   - Comprovar que o cabeçalho se recolhe instantaneamente para a barra compacta de 1 linha:
+     `🚀 AnyContext (actx) v0.27.6  │  Levix Digital  │  ⭐ Pro Plan`
+   - Comprovar que o `<scrollbox>` ganha mais de 90% da altura da tela e as mensagens fluem suavemente com o scroll ancorado ao final.
+
+4. **⚡ Validar Restauração do Modo Completo com `/clear`:**
+   - Digitar `/clear` no prompt e pressionar Enter.
+   - Comprovar que o histórico de mensagens é limpo e o cabeçalho retorna imediatamente ao **Full Glory Mode** com o banner ASCII completo.
+
+---
+
 ### 📌 Cenário 1 (v0.27.5): Validação de Arte ASCII Completa, Menu Interativo Modal (/menu) e Flags (--on / --off)
 
 - **Objetivo**: Comprovar a restauração da arte ASCII clássica com badge dinâmico do plano de assinatura ativo (`⭐ Pro Plan`), o funcionamento do Menu Interativo Modal acionado por `/menu` com seleção por setas `[↑/↓]` e ativação com `[Enter/Tab]`, e o suporte completo a flags com `--` no autocomplete e no dispatcher (`/web-search --on`, `/web-search --off`).

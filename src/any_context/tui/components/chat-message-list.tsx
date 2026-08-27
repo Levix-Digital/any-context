@@ -19,62 +19,9 @@ interface ChatMessageListProps {
 
 const defaultSyntaxStyle = (SyntaxStyle as any).create ? (SyntaxStyle as any).create() : new (SyntaxStyle as any)();
 
-const ASCII_BANNER = `  ___               ____ ___  _   _ _____ _____ _  _______ 
- / _ \\ _ __  _   _ / ___/ _ \\| \\ | |_   _| ____\\ \\/ /_   _|
-| |_| | '_ \\| | | | |  | | | |  \\| | | | |  _|  \\  /  | |  
-|  _  | | | | |_| | |__| |_| | |\\  | | | | |___ /  \\  | |  
-|_| |_|_| |_|\\__, |\\____\\___/|_| \\_| |_| |_____/_/\\_\\ |_|  
-             |___/                                          `;
-
 export const ChatMessageList = ({ messages, state }: ChatMessageListProps): any => {
-  const versionStr = state?.version || "0.27.5";
-  const tierStr = state?.tier_name || "Community Edition";
-  const tierIcon = tierStr.includes("Enterprise") ? "🏢" : tierStr.includes("Pro") ? "⭐" : "🌿";
-
   return (
     <scrollbox flexGrow={1} flexDirection="column" paddingLeft={1} paddingRight={1} stickyScroll={true}>
-      {/* Signature ASCII Art & Startup Banner */}
-      <box flexDirection="column" paddingTop={1} paddingBottom={0}>
-        <text fg={anyContextTheme.accent}>
-          <b>{ASCII_BANNER}</b>
-        </text>
-        <box flexDirection="row" paddingTop={0} paddingBottom={0}>
-          <text fg={anyContextTheme.accentWarning}>
-            <b>  🚀 AnyContext (actx) v{versionStr}</b>
-          </text>
-          <text fg={anyContextTheme.ruleColor}>  │  </text>
-          <text fg={anyContextTheme.accentSecondary}>
-            <b>Levix Digital</b>
-          </text>
-          <text fg={anyContextTheme.ruleColor}>  │  </text>
-          <text fg={anyContextTheme.accentSuccess}>
-            <b>{tierIcon} {tierStr}</b>
-          </text>
-        </box>
-        <text fg={anyContextTheme.foregroundMuted}>
-          {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
-        </text>
-        <text fg={anyContextTheme.foregroundMuted}>
-          {"  🔒 100% Local & Offline-First Privacy"}
-        </text>
-
-        <box
-          borderStyle="single"
-          borderColor={anyContextTheme.ruleColor}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={0}
-          paddingBottom={0}
-          marginTop={1}
-          marginBottom={0}
-          flexDirection="row"
-        >
-          <text fg={anyContextTheme.foreground}>
-            💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/menu'</b> for interactive menu, or <b>'/exit'</b> to quit.
-          </text>
-        </box>
-      </box>
-
       {/* Render Conversation Messages */}
       {messages.map((msg) => {
         if (msg.role === "user") {
