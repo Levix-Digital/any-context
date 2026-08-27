@@ -61,6 +61,74 @@ class ConfigDBStore:
 
 
     @classmethod
+    def migrate_legacy_data_if_needed(cls):
+        """
+        Transfers legacy databases and settings from root/home folders into the canonical
+        OS application data directory (%LOCALAPPDATA%\\AnyContext) with zero data loss.
+        """
+        import shutil
+        from any_context.config.paths import (
+            get_app_data_root,
+            get_default_config_db_path,
+            get_default_vector_db_path,
+            get_default_session_db_path
+        )
+
+        canonical_settings_db = get_default_config_db_path()
+        canonical_vector_dir = get_default_vector_db_path()
+        canonical_memory_dir = get_default_session_db_path()
+
+        # 1. Migrate settings.db if target does not exist yet
+        if not os.path.exists(canonical_settings_db):
+            legacy_settings_candidates = [
+                os.path.expanduser(os.path.join("~", "config", "settings.db")),
+                os.path.expanduser(os.path.join("~", ".config", "any-context", "settings.db")),
+                os.path.join(os.getcwd(), "config", "settings.db")
+            ]
+            for cand in legacy_settings_candidates:
+                if os.path.exists(cand) and os.path.getsize(cand) > 0 and os.path.abspath(cand) != canonical_settings_db:
+                    try:
+                        os.makedirs(os.path.dirname(canonical_settings_db), exist_ok=True)
+                        shutil.copy2(cand, canonical_settings_db)
+                        break
+                    except Exception:
+                        pass
+
+        # 2. Migrate context_db if target does not exist or is empty
+        canonical_lance_tbl = os.path.join(canonical_vector_dir, "lancedb")
+        if not os.path.exists(canonical_lance_tbl) or (os.path.exists(canonical_lance_tbl) and not os.listdir(canonical_lance_tbl)):
+            legacy_vector_candidates = [
+                os.path.expanduser(os.path.join("~", "context_db")),
+                os.path.join(os.getcwd(), "context_db")
+            ]
+            for cand in legacy_vector_candidates:
+                cand_lance = os.path.join(cand, "lancedb")
+                if os.path.exists(cand_lance) and os.path.abspath(cand) != canonical_vector_dir:
+                    try:
+                        os.makedirs(canonical_vector_dir, exist_ok=True)
+                        if os.path.exists(canonical_lance_tbl):
+                            shutil.rmtree(canonical_lance_tbl, ignore_errors=True)
+                        shutil.copytree(cand_lance, canonical_lance_tbl)
+                        break
+                    except Exception:
+                        pass
+
+        # 3. Migrate memory if target does not exist
+        if not os.path.exists(canonical_memory_dir) or (os.path.exists(canonical_memory_dir) and not os.listdir(canonical_memory_dir)):
+            legacy_mem_candidates = [
+                os.path.expanduser(os.path.join("~", "memory")),
+                os.path.join(os.getcwd(), "memory")
+            ]
+            for cand in legacy_mem_candidates:
+                if os.path.exists(cand) and os.path.abspath(cand) != canonical_memory_dir:
+                    try:
+                        os.makedirs(canonical_memory_dir, exist_ok=True)
+                        shutil.copytree(cand, canonical_memory_dir, dirs_exist_ok=True)
+                        break
+                    except Exception:
+                        pass
+
+    @classmethod
     def find_db_file(cls, filename: str = "settings.db") -> str:
         """Resolves the settings.db SQLite file location ensuring Hexagonal Single Database Instance."""
         # 1. Explicit environment override has highest priority
@@ -72,7 +140,19 @@ class ConfigDBStore:
             os.makedirs(os.path.dirname(env_db_path), exist_ok=True)
             return env_db_path
 
-        # 2. Check caller working directory if passed from parent process
+        # 2. Run automatic migration if needed
+        try:
+            cls.migrate_legacy_data_if_needed()
+        except Exception:
+            pass
+
+        # 3. Use canonical OS path
+        from any_context.config.paths import get_default_config_db_path
+        canonical = get_default_config_db_path()
+        if os.path.exists(canonical):
+            return canonical
+
+        # 4. Check caller working directory if passed from parent process
         caller_cwd = os.getenv("ACTX_CALLER_CWD")
         candidates = []
         if caller_cwd and os.path.exists(caller_cwd):
@@ -80,30 +160,18 @@ class ConfigDBStore:
             candidates.append(os.path.join(caller_cwd, filename))
 
         candidates.extend([
+            canonical,
             os.path.join(os.getcwd(), "config", filename),
             os.path.join(os.getcwd(), filename),
             os.path.expanduser(os.path.join("~", "config", filename)),
             os.path.expanduser(os.path.join("~", ".config", "any-context", filename)),
-            os.path.join(os.path.dirname(sys.executable), filename),
-            os.path.join(os.path.dirname(sys.executable), "..", filename),
         ])
 
-        if sys.platform == "win32":
-            if "LOCALAPPDATA" in os.environ:
-                candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", filename))
-                candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", "bin", filename))
-                candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "any-context", filename))
-            if "APPDATA" in os.environ:
-                candidates.append(os.path.join(os.environ["APPDATA"], "any-context", filename))
-                candidates.append(os.path.join(os.environ["APPDATA"], "actx", filename))
-
         for candidate in candidates:
-            if os.path.exists(candidate):
+            if candidate and os.path.exists(candidate):
                 return os.path.abspath(candidate)
 
-        target_dir = os.path.join(os.getcwd(), "config")
-        os.makedirs(target_dir, exist_ok=True)
-        return os.path.abspath(os.path.join(target_dir, filename))
+        return canonical
 
     def _get_connection(self) -> sqlite3.Connection:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
@@ -1357,32 +1425,31 @@ class ConfigDBStore:
 
     def _resolve_storage_path(self, raw_path: Optional[str], default_relative: str) -> str:
         """
-        Guarantees that storage and memory paths are canonically resolved to absolute paths,
+        Guarantees that storage and memory paths are canonically resolved to absolute paths in OS app data,
         preventing desynchronization across CLI, TUI, OpenTUI, RPC Bridge, and test runners.
         """
+        from any_context.config.paths import get_default_vector_db_path, get_default_session_db_path
+
         p = (raw_path or default_relative).strip()
         if os.path.isabs(p):
+            norm_p = os.path.normpath(p).lower()
+            legacy_ctx = os.path.normpath(os.path.expanduser("~/context_db")).lower()
+            legacy_mem = os.path.normpath(os.path.expanduser("~/memory")).lower()
+            if norm_p == legacy_ctx:
+                return get_default_vector_db_path()
+            if norm_p == legacy_mem:
+                return get_default_session_db_path()
             return os.path.abspath(p)
+
+        # Standard relative defaults -> route directly to OS AppData
+        if "context" in default_relative.lower() or "context" in p.lower():
+            return get_default_vector_db_path()
+        if "memory" in default_relative.lower() or "memory" in p.lower() or "session" in default_relative.lower():
+            return get_default_session_db_path()
 
         caller_cwd = os.getenv("ACTX_CALLER_CWD")
         if caller_cwd and os.path.exists(caller_cwd):
             return os.path.abspath(os.path.join(caller_cwd, p))
-
-        # Check relative to settings.db directory or its parent if stored in ~/config
-        db_dir = os.path.dirname(os.path.abspath(self.db_path))
-        if os.path.basename(db_dir).lower() == "config":
-            parent = os.path.dirname(db_dir)
-            candidate = os.path.join(parent, p)
-            if os.path.exists(candidate) or os.path.exists(os.path.join(parent, "context_db")):
-                return os.path.abspath(candidate)
-
-        candidate_in_db_dir = os.path.join(db_dir, p)
-        if os.path.exists(candidate_in_db_dir):
-            return os.path.abspath(candidate_in_db_dir)
-
-        user_home_candidate = os.path.expanduser(os.path.join("~", p))
-        if os.path.exists(user_home_candidate):
-            return os.path.abspath(user_home_candidate)
 
         return os.path.abspath(p)
 

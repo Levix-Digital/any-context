@@ -147,12 +147,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **📘 Permanent Self-Help System**:
   - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
 
-- **🖥️ OpenTUI Full-Terminal Interactive Desktop (`actx --tui`)**:
-  - Interface visual completa de terminal alimentada por React e Zig (`@opentui/core`).
-  - **Seletor Modal Rápido (`/mode`, `/model`, `/density`)**: Abre caixas de seleção interativas para alternar modos com setas `[↑/↓]` e confirmar com `[Enter/Tab]`.
-  - **Menu de Configuração Hierárquico (`/menu` e `/config`)**: Navegação completa pelas 11 categorias de sistema com Breadcrumbs, submenus, execução de ações e retorno com `[Esc]`.
-  - **Rolagem Nativa por Teclado**: Navegação suave pelo histórico de conversas via `PageUp`, `PageDown`, `Ctrl+Up/Down`, `Home` e `End`.
-  - **Cópia Nativa de Texto**: Selecione qualquer bloco de resposta de IA com o mouse e copie diretamente com `Ctrl+C`.
+- **🔒 Hardware-Bound AES-GCM-256 Vector Storage Encryption & OS Isolation (`v0.28.16`)**:
+  - Armazenamento nativo em diretórios padrão do sistema operacional (`%LOCALAPPDATA%\AnyContext\` no Windows, `~/Library/Application Support/AnyContext/` no Mac, `~/.local/share/any-context/` no Linux).
+  - Criptografia local em repouso: textos de documentos, resumos contextuais e palavras-chave são cifrados no disco com **AES-GCM-256** amarrado ao ID exclusivo de hardware da máquina (Hardware Binding).
+  - Proteção total contra cópia indevida ou extração de bases de dados fora do AnyContext com velocidade instantânea via aceleração por hardware (CPU AES-NI).
 
 ---
 

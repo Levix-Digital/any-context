@@ -19,6 +19,7 @@
 12. [Multi-Interface Surface Parity & Governance Protocol](#12-multi-interface-surface-parity--governance-protocol)
 13. [Hexagonal Decoupling & Universal Command Adapter Architecture (`v0.27.0`)](#13-hexagonal-decoupling--universal-command-adapter-architecture-v0270)
 14. [Central Interaction Engine & Decoupled Presentation Architecture (`v0.28.0`)](#14-central-interaction-engine--decoupled-presentation-architecture-v0280)
+15. [Hardware-Bound Data Encryption & OS-Native Storage Isolation (`v0.28.16`)](#15-hardware-bound-data-encryption--os-native-storage-isolation-v02816)
 
 ---
 
@@ -580,4 +581,38 @@ graph TD
   - `End`: Jump to latest response.
 - Reactive auto-scroll pins output to bottom on incoming streaming chunks.
 
+---
 
+## 15. Hardware-Bound Data Encryption & OS-Native Storage Isolation (`v0.28.16`)
+
+AnyContext introduces a zero-trust local storage security architecture to protect document contents, contextual summaries, and vector stores against unauthorized extraction, database dumping, or cross-system piracy.
+
+### 🏛️ 1. OS-Native Canonical Data Architecture (`paths.py`)
+Application data and vector stores are isolated into the official application directories of the operating system:
+
+- **Windows**: `%LOCALAPPDATA%\AnyContext\` (`C:\Users\<user>\AppData\Local\AnyContext\`)
+- **macOS**: `~/Library/Application Support/AnyContext/`
+- **Linux**: `~/.local/share/any-context/` (or `~/.any-context/`)
+
+```
+📁 AnyContext/
+├── 📁 config/
+│   └── 🗄️ settings.db      (SQLite Config, Workspaces, RBAC)
+├── 📁 data/
+│   ├── 📁 context_db/      (LanceDB Vector Store & Chunks)
+│   └── 📁 memory/          (Session Long-Term Memory)
+└── 📁 security/
+```
+
+### 🔒 2. Hardware-Bound Machine Key Derivation (`SecurityEngine`)
+The `SecurityEngine` extracts unique host hardware signatures:
+- **Windows**: MachineGuid from `HKLM\SOFTWARE\Microsoft\Cryptography` and CSPProduct UUID.
+- **macOS**: `IOPlatformUUID` via `IOPlatformExpertDevice`.
+- **Linux**: `/etc/machine-id` and `/var/lib/dbus/machine-id`.
+- **Derivation**: 256-bit symmetric key derived via **PBKDF2-HMAC-SHA256** with 100,000 rounds and domain separation salt.
+
+### 🛡️ 3. Field-Level AES-GCM-256 Vector Encryption
+- **Encrypted Fields in LanceDB**: `text`, `document_summary`, `keywords` are encrypted on disk with 96-bit random nonce and 128-bit authentication tag (`enc::<base64>`).
+- **Indexed Metadata Fields**: `id`, `vector` (float array), `workspace`, `file_path`, `content_type` remain queryable for high-speed sub-millisecond Rust vector filtering.
+- **Top-K On-The-Fly Decryption**: Only top-K scored chunks retrieved during vector search are decrypted in memory for LLM synthesis. Hardware CPU AES-NI acceleration guarantees `< 0.1ms` retrieval overhead.
+- **Transparent Retroactive Migration**: Any legacy unencrypted databases or home folder stores are automatically migrated and encrypted at zero token cost.
