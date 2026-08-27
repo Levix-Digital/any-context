@@ -15,6 +15,8 @@ export interface ChatMessage {
 interface ChatMessageListProps {
   messages: ChatMessage[];
   state?: AnyContextState;
+  scrollOffset?: number;
+  windowSize?: number;
 }
 
 const ASCII_BANNER = `  ___               ____ ___  _   _ _____ _____ _  _______ 
@@ -26,7 +28,24 @@ const ASCII_BANNER = `  ___               ____ ___  _   _ _____ _____ _  _______
 
 const defaultSyntaxStyle = (SyntaxStyle as any).create ? (SyntaxStyle as any).create() : new (SyntaxStyle as any)();
 
-export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages, state }, ref): any => {
+export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
+  messages,
+  state,
+  scrollOffset = 0,
+  windowSize = 8,
+}, ref): any => {
+  const total = messages.length;
+  const maxOffset = Math.max(0, total - windowSize);
+  const clampedOffset = Math.min(Math.max(0, scrollOffset), maxOffset);
+
+  const endIdx = total <= windowSize ? total : total - clampedOffset;
+  const startIdx = total <= windowSize ? 0 : Math.max(0, endIdx - windowSize);
+  const visibleMessages = messages.slice(startIdx, endIdx);
+
+  const hasOlder = startIdx > 0;
+  const hasNewer = clampedOffset > 0;
+  const showBanner = startIdx === 0;
+
   return (
     <box
       ref={ref}
@@ -38,41 +57,52 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
       paddingRight={1}
       overflow="hidden"
     >
-      {/* Permanent Welcome Banner at the top of scrollable history */}
-      <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0} flexShrink={0}>
-        <text fg={anyContextTheme.accent}>
-          <b>{ASCII_BANNER}</b>
-        </text>
-        <text fg={anyContextTheme.accentWarning}>
-          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.9"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
-        </text>
-        <text fg={anyContextTheme.foregroundMuted}>
-          {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
-        </text>
-        <text fg={anyContextTheme.foregroundMuted}>
-          {"  🔒 100% Local & Offline-First Privacy"}
-        </text>
-
-        <box
-          borderStyle="rounded"
-          borderColor={anyContextTheme.ruleColor}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={0}
-          paddingBottom={0}
-          marginTop={1}
-          marginBottom={1}
-          flexDirection="column"
-          flexShrink={0}
-        >
-          <text fg={anyContextTheme.foreground}>
-            💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
+      {/* Top Indicator if older messages exist */}
+      {hasOlder && (
+        <box flexDirection="row" justifyContent="center" paddingTop={1} paddingBottom={0} flexShrink={0}>
+          <text fg={anyContextTheme.accentSecondary}>
+            <b>▲ [{startIdx} mensagens anteriores - pressione PageUp para subir]</b>
           </text>
         </box>
-      </box>
+      )}
 
-      {/* Render Conversation Messages */}
-      {messages.map((msg) => {
+      {/* Welcome Banner when at the very beginning of history */}
+      {showBanner && (
+        <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0} flexShrink={0}>
+          <text fg={anyContextTheme.accent}>
+            <b>{ASCII_BANNER}</b>
+          </text>
+          <text fg={anyContextTheme.accentWarning}>
+            <b>  🚀 AnyContext (actx) v{state?.version || "0.28.11"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
+          </text>
+          <text fg={anyContextTheme.foregroundMuted}>
+            {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
+          </text>
+          <text fg={anyContextTheme.foregroundMuted}>
+            {"  🔒 100% Local & Offline-First Privacy"}
+          </text>
+
+          <box
+            borderStyle="rounded"
+            borderColor={anyContextTheme.ruleColor}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={0}
+            paddingBottom={0}
+            marginTop={1}
+            marginBottom={1}
+            flexDirection="column"
+            flexShrink={0}
+          >
+            <text fg={anyContextTheme.foreground}>
+              💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
+            </text>
+          </box>
+        </box>
+      )}
+
+      {/* Render Sliced Conversation Messages */}
+      {visibleMessages.map((msg) => {
         if (msg.role === "user") {
           return (
             <box
@@ -142,6 +172,15 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
           </box>
         );
       })}
+
+      {/* Bottom Indicator if newer messages exist below */}
+      {hasNewer && (
+        <box flexDirection="row" justifyContent="center" paddingTop={1} paddingBottom={0} flexShrink={0}>
+          <text fg={anyContextTheme.accentWarning}>
+            <b>▼ [{clampedOffset} mensagens mais recentes abaixo - pressione PageDown ou End para descer]</b>
+          </text>
+        </box>
+      )}
     </box>
   );
 });
