@@ -1,5 +1,6 @@
 import React from "react";
 import type { AnyContextState, SlashCommandMeta } from "../bridge-client";
+import { HeaderBar } from "../components/header-bar";
 import { ChatMessage, ChatMessageList } from "../components/chat-message-list";
 import { AutocompleteDropdown } from "../components/autocomplete-dropdown";
 import { InteractiveMenu } from "../components/interactive-menu";
@@ -36,7 +37,10 @@ export const ChatView = ({
 }: ChatViewProps): any => {
   return (
     <box flexDirection="column" width="100%" height="100%">
-      {/* Main Chat Message Scroll View with ASCII Banner and Natural Top-Down Flow */}
+      {/* Dynamic Header: Full ASCII banner when 0 messages / post-clear, sleek 1-line top bar during chat */}
+      <HeaderBar state={state} hasMessages={messages.length > 0} />
+
+      {/* Main Chat Message Scroll View */}
       <ChatMessageList messages={messages} state={state} />
 
       {/* Interactive Menu Modal Box */}
