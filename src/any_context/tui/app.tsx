@@ -41,6 +41,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [draftInput, setDraftInput] = useState<string>("");
+  const [scrollOffset, setScrollOffset] = useState<number>(0);
   const scrollBoxRef = useRef<any>(null);
 
   useEffect(() => {
@@ -294,43 +295,19 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     }
 
     // 5. CHAT HISTORY KEYBOARD SCROLLING (PageUp / PageDown / Home / End / Shift+Arrows)
-    if (!modalOpen && !paletteOpen && scrollBoxRef.current) {
+    if (!modalOpen && !paletteOpen) {
       if (event.name === "pageup") {
-        try {
-          if (typeof scrollBoxRef.current.scrollBy === "function") {
-            scrollBoxRef.current.scrollBy(-15);
-          }
-        } catch {}
+        setScrollOffset((prev) => Math.min(Math.max(0, messages.length - 1), prev + 3));
       } else if (event.name === "pagedown") {
-        try {
-          if (typeof scrollBoxRef.current.scrollBy === "function") {
-            scrollBoxRef.current.scrollBy(15);
-          }
-        } catch {}
+        setScrollOffset((prev) => Math.max(0, prev - 3));
       } else if (event.name === "up" && (event.ctrl || event.shift)) {
-        try {
-          if (typeof scrollBoxRef.current.scrollBy === "function") {
-            scrollBoxRef.current.scrollBy(-3);
-          }
-        } catch {}
+        setScrollOffset((prev) => Math.min(Math.max(0, messages.length - 1), prev + 1));
       } else if (event.name === "down" && (event.ctrl || event.shift)) {
-        try {
-          if (typeof scrollBoxRef.current.scrollBy === "function") {
-            scrollBoxRef.current.scrollBy(3);
-          }
-        } catch {}
+        setScrollOffset((prev) => Math.max(0, prev - 1));
       } else if (event.name === "home") {
-        try {
-          if (typeof scrollBoxRef.current.scrollTo === "function") {
-            scrollBoxRef.current.scrollTo(0);
-          }
-        } catch {}
+        setScrollOffset(Math.max(0, messages.length - 1));
       } else if (event.name === "end") {
-        try {
-          if (typeof scrollBoxRef.current.scrollTo === "function") {
-            scrollBoxRef.current.scrollTo(999999);
-          }
-        } catch {}
+        setScrollOffset(0);
       }
     }
   });
@@ -338,6 +315,9 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const handleSubmit = async (text?: string) => {
     const raw = (text !== undefined ? text : inputValue).trim();
     if (!raw) return;
+
+    // Reset scroll offset to latest on new user prompt
+    setScrollOffset(0);
 
     // Record into input history (avoiding immediate duplicates)
     setInputHistory((prev) => (prev.length === 0 || prev[prev.length - 1] !== raw ? [...prev, raw] : prev));
@@ -523,6 +503,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       commands={client.commands}
       isGenerating={isGenerating}
       scrollBoxRef={scrollBoxRef}
+      scrollOffset={scrollOffset}
       onInputChange={handleInputChange}
       onSubmit={(text?: string) => handleSubmit(text)}
     />
