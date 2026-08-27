@@ -40,6 +40,13 @@ class StdioRPCServer:
     """
 
     def __init__(self, default_workspace: str = "Default"):
+        caller_cwd = os.getenv("ACTX_CALLER_CWD")
+        if caller_cwd and os.path.exists(caller_cwd):
+            try:
+                os.chdir(caller_cwd)
+            except Exception:
+                pass
+
         self.store = ConfigDBStore()
         self.active_workspace = default_workspace or "Default"
         self.agent_instance = None

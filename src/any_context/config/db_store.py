@@ -1355,6 +1355,37 @@ class ConfigDBStore:
 
         return [self.get_workspace_sources(ws_name) for ws_name in ws_names]
 
+    def _resolve_storage_path(self, raw_path: Optional[str], default_relative: str) -> str:
+        """
+        Guarantees that storage and memory paths are canonically resolved to absolute paths,
+        preventing desynchronization across CLI, TUI, OpenTUI, RPC Bridge, and test runners.
+        """
+        p = (raw_path or default_relative).strip()
+        if os.path.isabs(p):
+            return os.path.abspath(p)
+
+        caller_cwd = os.getenv("ACTX_CALLER_CWD")
+        if caller_cwd and os.path.exists(caller_cwd):
+            return os.path.abspath(os.path.join(caller_cwd, p))
+
+        # Check relative to settings.db directory or its parent if stored in ~/config
+        db_dir = os.path.dirname(os.path.abspath(self.db_path))
+        if os.path.basename(db_dir).lower() == "config":
+            parent = os.path.dirname(db_dir)
+            candidate = os.path.join(parent, p)
+            if os.path.exists(candidate) or os.path.exists(os.path.join(parent, "context_db")):
+                return os.path.abspath(candidate)
+
+        candidate_in_db_dir = os.path.join(db_dir, p)
+        if os.path.exists(candidate_in_db_dir):
+            return os.path.abspath(candidate_in_db_dir)
+
+        user_home_candidate = os.path.expanduser(os.path.join("~", p))
+        if os.path.exists(user_home_candidate):
+            return os.path.abspath(user_home_candidate)
+
+        return os.path.abspath(p)
+
     def get_app_settings(self) -> AppSettings:
         """Reads and constructs AppSettings Pydantic instance from SQLite"""
         with self._get_connection() as conn:
@@ -1418,7 +1449,7 @@ class ConfigDBStore:
                 c_web = bool(c_row["web_search_enabled"]) if ("web_search_enabled" in c_keys and c_row["web_search_enabled"] is not None) else False
                 c_eng = c_row["default_web_engine"] if ("default_web_engine" in c_keys and c_row["default_web_engine"]) else "auto"
                 context = ContextSettings(
-                    db_path=c_row["db_path"],
+                    db_path=self._resolve_storage_path(c_row["db_path"], "./context_db"),
                     collection_name=c_row["collection_name"],
                     chunk_size=c_sz,
                     chunk_overlap=c_ov,
@@ -1431,11 +1462,14 @@ class ConfigDBStore:
                     default_web_engine=c_eng
                 )
             else:
-                context = ContextSettings()
+                context = ContextSettings(db_path=self._resolve_storage_path(None, "./context_db"))
 
             cursor.execute("SELECT * FROM session_settings WHERE id = 1")
             s_row = cursor.fetchone()
-            session = SessionSettings(db_path=s_row["db_path"], collection_name=s_row["collection_name"]) if s_row else SessionSettings()
+            session = SessionSettings(
+                db_path=self._resolve_storage_path(s_row["db_path"] if s_row else None, "./memory"),
+                collection_name=s_row["collection_name"] if s_row else "session_memory"
+            )
 
             cursor.execute("SELECT * FROM memory_settings WHERE id = 1")
             mem_row = cursor.fetchone()

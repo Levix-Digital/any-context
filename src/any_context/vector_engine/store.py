@@ -79,10 +79,19 @@ class LanceDBStore:
         """Helper to check if table exists across LanceDB versions."""
         try:
             res = self._db.list_tables()
-            tables = res.tables if hasattr(res, "tables") else res
-            return name in tables
+            t_list = getattr(res, "tables", None)
+            if t_list is not None and isinstance(t_list, (list, tuple, set)):
+                return name in t_list
+            if isinstance(res, (list, tuple, set)):
+                return name in res
+            self._db.open_table(name)
+            return True
         except Exception:
-            return False
+            try:
+                self._db.open_table(name)
+                return True
+            except Exception:
+                return False
 
     def get_table(self, table_name: str = "workspace_chunks", dim: int = 1536):
         """Retrieves or creates the requested table."""
