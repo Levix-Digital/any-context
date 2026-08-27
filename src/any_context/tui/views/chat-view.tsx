@@ -2,6 +2,7 @@ import React from "react";
 import type { AnyContextState, SlashCommandMeta } from "../bridge-client";
 import { ChatMessage, ChatMessageList } from "../components/chat-message-list";
 import { AutocompleteDropdown } from "../components/autocomplete-dropdown";
+import { InteractiveMenu } from "../components/interactive-menu";
 import { InputBar } from "../components/input-bar";
 import { StatusBar } from "../components/status-bar";
 import { anyContextTheme } from "../themes";
@@ -12,6 +13,8 @@ interface ChatViewProps {
   inputValue: string;
   paletteOpen: boolean;
   paletteIndex: number;
+  menuOpen: boolean;
+  menuIndex: number;
   commands: SlashCommandMeta[];
   isGenerating: boolean;
   onInputChange: (val: string) => void;
@@ -24,6 +27,8 @@ export const ChatView = ({
   inputValue,
   paletteOpen,
   paletteIndex,
+  menuOpen,
+  menuIndex,
   commands,
   isGenerating,
   onInputChange,
@@ -34,9 +39,16 @@ export const ChatView = ({
       {/* Main Chat Message Scroll View with ASCII Banner and Natural Top-Down Flow */}
       <ChatMessageList messages={messages} state={state} />
 
+      {/* Interactive Menu Modal Box */}
+      <InteractiveMenu
+        isOpen={menuOpen}
+        selectedIndex={menuIndex}
+        state={state}
+      />
+
       {/* Floating Autocomplete / Slash Command Dropdown */}
       <AutocompleteDropdown
-        isOpen={paletteOpen}
+        isOpen={paletteOpen && !menuOpen}
         filterText={inputValue}
         commands={commands}
         selectedIndex={paletteIndex}

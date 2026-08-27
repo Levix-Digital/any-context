@@ -70,6 +70,15 @@ class StdioRPCServer:
         except Exception:
             pass
 
+        tier_name = "Community Edition"
+        try:
+            from any_context.core.services.billing_service import BillingService
+            billing_svc = BillingService()
+            b_info = billing_svc.get_billing_info()
+            tier_name = b_info.get("active_tier_name", "Community Edition")
+        except Exception:
+            pass
+
         return {
             "version": __version__,
             "workspace": self.active_workspace,
@@ -77,7 +86,8 @@ class StdioRPCServer:
             "grounding_mode": self._grounding_mode,
             "web_search_enabled": self._web_search_enabled,
             "sync_info": sync_info,
-            "is_syncing": is_syncing
+            "is_syncing": is_syncing,
+            "tier_name": tier_name
         }
 
     def list_commands(self) -> list:

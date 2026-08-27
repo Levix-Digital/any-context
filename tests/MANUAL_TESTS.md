@@ -7,6 +7,35 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.27.5): Validação de Arte ASCII Completa, Menu Interativo Modal (/menu) e Flags (--on / --off)
+
+- **Objetivo**: Comprovar a restauração da arte ASCII clássica com badge dinâmico do plano de assinatura ativo (`⭐ Pro Plan`), o funcionamento do Menu Interativo Modal acionado por `/menu` com seleção por setas `[↑/↓]` e ativação com `[Enter/Tab]`, e o suporte completo a flags com `--` no autocomplete e no dispatcher (`/web-search --on`, `/web-search --off`).
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.5` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+
+2. **⚡ Validar Cabeçalho ASCII e Nível de Licença:**
+   - Comprovar que o topo do chat exibe a arte ASCII clássica do AnyContext com o plano real do usuário (ex: `⭐ Pro Plan` ou `🏢 Enterprise Edition`).
+
+3. **⚡ Validar Menu Interativo Modal (`/menu`):**
+   - Digitar `/menu` e pressionar Enter.
+   - Comprovar que abre uma caixa modal estilizada `📋 AnyContext Interactive Menu` com categorias numeradas.
+   - Navegar com as setas `[↑/↓]` e pressionar `Enter` na opção `🌐 Real-Time Web Search` ou `📁 Workspace Sources`.
+   - Comprovar que o comando é executado ou inserido no input e o menu se fecha.
+   - Abrir novamente com `/menu` e pressionar `Esc` para validar o fechamento suave.
+
+4. **⚡ Validar Suporte a Flags no Palette e Dispatcher:**
+   - Digitar `/web-search --o` no input.
+   - Comprovar que `/web-search --on` e `/web-search --off` aparecem na lista do palette.
+   - Pressionar Enter com `/web-search --on` e validar que a busca web é ativada (`🟢 ON`).
+
+---
+
 ### 📌 Cenário 1 (v0.27.4): Validação de Chat Streaming, Cópia Nativa de Texto, /menu e Ausência de Gap Vertical
 
 - **Objetivo**: Comprovar que o streaming de inferência do agente de IA responde a perguntas sobre fontes indexadas sem erros de assinatura, a seleção e cópia com o mouse de qualquer resposta do chat funciona nativamente no terminal, o comando `/menu` abre diretamente o Slash Command Palette flutuante, a área de diálogo do chat ocupa toda a tela sem gaps verticais e comandos operacionais (`/update`, `/check-update`, `/inspect`, `/density`) estão presentes no catálogo.

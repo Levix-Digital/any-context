@@ -361,7 +361,7 @@ class CommandDispatcher:
             curr = self.grounding_svc.get_web_search_status(ws_name)
             new_val = not curr
         else:
-            arg = parts[1].strip().lower()
+            arg = parts[1].strip().lower().lstrip("-")
             new_val = arg in ["on", "true", "1", "enable"]
 
         res = self.grounding_svc.set_web_search_status(ws_name, new_val)

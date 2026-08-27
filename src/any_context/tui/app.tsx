@@ -4,6 +4,7 @@ import { BridgeClient } from "./bridge-client";
 import type { AnyContextState } from "./bridge-client";
 import { ChatMessage } from "./components/chat-message-list";
 import { ChatView } from "./views/chat-view";
+import { MENU_ITEMS } from "./components/interactive-menu";
 import {
   filterSlashCommands,
   isDirectExecutionCommand,
@@ -22,6 +23,8 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const [inputValue, setInputValue] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteIndex, setPaletteIndex] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuIndex, setMenuIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
@@ -50,6 +53,9 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const handleInputChange = (val: string) => {
     setInputValue(val);
     if (val.startsWith("/")) {
+      if (menuOpen) {
+        setMenuOpen(false);
+      }
       setPaletteOpen(true);
       setPaletteIndex(0);
     } else {
@@ -59,8 +65,31 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
 
   useKeyboard((event) => {
     if (event.name === "escape") {
+      if (menuOpen) {
+        setMenuOpen(false);
+        return;
+      }
       if (paletteOpen) {
         setPaletteOpen(false);
+      }
+      return;
+    }
+
+    if (menuOpen) {
+      if (event.name === "up") {
+        setMenuIndex((prev) => (prev > 0 ? prev - 1 : MENU_ITEMS.length - 1));
+      } else if (event.name === "down") {
+        setMenuIndex((prev) => (prev < MENU_ITEMS.length - 1 ? prev + 1 : 0));
+      } else if (event.name === "return" || event.name === "enter" || event.name === "tab") {
+        const item = MENU_ITEMS[menuIndex];
+        if (item) {
+          setMenuOpen(false);
+          if (item.command === "/exit" || item.command === "/clear" || item.command === "/billing" || item.command === "/reset-memory" || item.command === "/help" || item.command === "/sources" || item.command === "/sync" || item.command === "/web-search" || item.command === "/config") {
+            handleSlashCommand(item.command);
+          } else {
+            setInputValue(`${item.command} `);
+          }
+        }
       }
       return;
     }
@@ -147,10 +176,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
 
     setIsGenerating(true);
 
-    client.streamChat(raw, {
-      onToken: (chunk) => {
+    await client.streamChat(raw, {
+      onToken: (token) => {
         setMessages((prev) =>
-          prev.map((m) => (m.id === aiMsgId ? { ...m, content: m.content + chunk, ticker: undefined } : m))
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: m.content + token } : m))
         );
       },
       onTicker: (ticker) => {
@@ -158,10 +187,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           prev.map((m) => (m.id === aiMsgId ? { ...m, ticker } : m))
         );
       },
-      onDone: (fullReply) => {
+      onDone: () => {
         setIsGenerating(false);
         setMessages((prev) =>
-          prev.map((m) => (m.id === aiMsgId ? { ...m, content: fullReply, ticker: undefined } : m))
+          prev.map((m) => (m.id === aiMsgId ? { ...m, ticker: undefined } : m))
         );
       },
       onError: (error) => {
@@ -188,9 +217,9 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     }
 
     if (cmd === "/menu" || cmd === "/palette") {
-      setInputValue("/");
-      setPaletteOpen(true);
-      setPaletteIndex(0);
+      setPaletteOpen(false);
+      setMenuOpen(true);
+      setMenuIndex(0);
       return;
     }
 
@@ -213,6 +242,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         }
         if (res.action === "clear") {
           setMessages([]);
+          return;
+        }
+        if (res.action === "menu") {
+          setMenuOpen(true);
           return;
         }
 
@@ -244,6 +277,8 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       inputValue={inputValue}
       paletteOpen={paletteOpen}
       paletteIndex={paletteIndex}
+      menuOpen={menuOpen}
+      menuIndex={menuIndex}
       commands={client.commands}
       isGenerating={isGenerating}
       onInputChange={handleInputChange}
