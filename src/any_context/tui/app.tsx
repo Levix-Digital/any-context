@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useKeyboard } from "@opentui/react";
-import { BridgeClient, AnyContextState } from "./bridge-client";
+import { BridgeClient } from "./bridge-client";
+import type { AnyContextState } from "./bridge-client";
 import { ChatMessage } from "./components/chat-message-list";
 import { ChatView } from "./views/chat-view";
 import {
