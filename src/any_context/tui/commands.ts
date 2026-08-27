@@ -29,8 +29,13 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommandMeta[] = [
   { command: "/reset-memory", args: "", description: "Reset long-term session memory database", category: "Memory", direct_execution: true },
   { command: "/clear", args: "", description: "Clear visual chat history view", category: "Chat", direct_execution: true },
   { command: "/paste", args: "", description: "Enter dedicated multi-line capture mode", category: "Chat", direct_execution: true },
-  { command: "/help", args: "[command]", description: "Display interactive help documentation", category: "Help", direct_execution: true },
   { command: "/version", args: "", description: "Display AnyContext version and build info", category: "System", direct_execution: true },
+  { command: "/update", args: "[version]", description: "Check and install latest AnyContext binary releases", category: "System", direct_execution: true },
+  { command: "/inspect", args: "[limit]", description: "Inspect vector database chunks and session memory", category: "Sources", direct_execution: true },
+  { command: "/density", args: "[level]", description: "Configure UI compact/comfortable visual density", category: "System", direct_execution: true },
+  { command: "/history", args: "[clear]", description: "View or clear recent conversation history", category: "Chat", direct_execution: true },
+  { command: "/help", args: "[command]", description: "Display interactive help documentation", category: "Help", direct_execution: true },
+  { command: "/menu", args: "", description: "Open interactive Slash Command Palette", category: "Help", direct_execution: true },
   { command: "/exit", args: "", description: "Save session memory and exit", category: "System", direct_execution: true }
 ];
 

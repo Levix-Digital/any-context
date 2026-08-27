@@ -18,13 +18,14 @@ from any_context.commands.result import CommandResult
 class TestCommandDispatcher(unittest.TestCase):
 
     def test_01_canonical_registry_completeness(self):
-        """Validates that all 23 slash commands are properly registered."""
-        self.assertEqual(len(COMMANDS_REGISTRY), 23)
+        """Validates that all 28 slash commands are properly registered."""
+        self.assertEqual(len(COMMANDS_REGISTRY), 28)
         expected_names = [
             "/switch", "/model", "/mode", "/web-search", "/sync", "/sources",
             "/folder", "/web", "/transfer", "/link", "/unlink", "/shared",
             "/rename", "/config", "/key", "/models", "/billing", "/reset-memory",
-            "/clear", "/paste", "/help", "/version", "/exit"
+            "/clear", "/paste", "/help", "/version", "/update", "/inspect",
+            "/density", "/history", "/menu", "/exit"
         ]
         registered_names = [c.name for c in COMMANDS_REGISTRY]
         for name in expected_names:

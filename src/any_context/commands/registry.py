@@ -195,6 +195,46 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
         aliases=["/v"]
     ),
     CommandMeta(
+        name="/update",
+        args="[version]",
+        description="Check and install latest AnyContext binary releases",
+        category="System",
+        direct_execution=True,
+        aliases=["/check-update"]
+    ),
+    CommandMeta(
+        name="/inspect",
+        args="[limit]",
+        description="Inspect vector database chunks and session memory",
+        category="Sources",
+        direct_execution=True,
+        aliases=["/chunks", "/lance"]
+    ),
+    CommandMeta(
+        name="/density",
+        args="[level]",
+        description="Configure UI compact/comfortable visual density",
+        category="System",
+        direct_execution=True,
+        aliases=[]
+    ),
+    CommandMeta(
+        name="/history",
+        args="[clear]",
+        description="View or clear recent conversation history",
+        category="Chat",
+        direct_execution=True,
+        aliases=["/clear-history"]
+    ),
+    CommandMeta(
+        name="/menu",
+        args="",
+        description="Open interactive Slash Command Palette",
+        category="Help",
+        direct_execution=True,
+        aliases=["/palette"]
+    ),
+    CommandMeta(
         name="/exit",
         args="",
         description="Save session memory and exit",

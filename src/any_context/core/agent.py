@@ -384,13 +384,19 @@ def create_anycontext_agent(
     model_override: str = None,
     provider_override: str = None,
     grounding_mode: str = None,
-    web_search_enabled: bool = None
+    web_search_enabled: bool = None,
+    **kwargs
 ):
     """
     Dynamically creates an AnyContext AI Agent with temperature=0.0 for deterministic RAG synthesis,
     active workspace context awareness, on-the-fly model switching, grounding mode directives, and fresh configuration.
     """
     from any_context.core.models_catalog import infer_provider_for_model
+
+    # Support flexible alias arguments across all adapters (CLI, TUI, RPC, REST, MCP)
+    active_workspace = active_workspace or kwargs.get("workspace_name") or kwargs.get("workspace")
+    model_override = model_override or kwargs.get("model_name") or kwargs.get("model")
+    provider_override = provider_override or kwargs.get("provider") or kwargs.get("model_provider")
 
     settings = AppSettings.load()
     default_provider = settings.models.model_provider if settings else "openai"
