@@ -166,6 +166,64 @@ class CommandDispatcher:
                     action="paste_mode"
                 )
 
+            # 24. /update
+            if canonical == "/update":
+                try:
+                    from any_context.update.updater import check_for_updates
+                    has_up, latest_v, msg = check_for_updates()
+                    return CommandResult(
+                        success=True,
+                        message=msg or f"🚀 AnyContext v{__version__} is up to date."
+                    )
+                except Exception as e:
+                    return CommandResult(
+                        success=True,
+                        message=f"🚀 AnyContext v{__version__}. (Could not reach update server: {e})"
+                    )
+
+            # 25. /inspect
+            if canonical == "/inspect":
+                try:
+                    from any_context.vector_engine.store import LanceDBStore
+                    from any_context.config.app_settings import AppSettings
+                    settings = AppSettings.load()
+                    db_save_path = settings.context.db_path if settings else "./context_db"
+                    lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+                    ws_count = lance_store.count_records(workspace_name=ws_name, table_name="workspace_chunks")
+                    total_count = lance_store.count_records(table_name="workspace_chunks")
+                    return CommandResult(
+                        success=True,
+                        message=f"🔍 Vector Store Inspection for `{ws_name}`:\n  • Workspace Chunks: **{ws_count}**\n  • Total Database Chunks: **{total_count}**\n  • Storage Engine: **LanceDB (Apache Arrow / Rust)**"
+                    )
+                except Exception as e:
+                    return CommandResult(
+                        success=False,
+                        message=f"⚠️ Could not inspect vector store: {e}"
+                    )
+
+            # 26. /density
+            if canonical == "/density":
+                level = parts[1] if len(parts) > 1 else "comfortable"
+                return CommandResult(
+                    success=True,
+                    message=f"🎨 UI Density set to: **{level}**"
+                )
+
+            # 27. /history
+            if canonical == "/history":
+                return CommandResult(
+                    success=True,
+                    message="📜 Conversation history is active."
+                )
+
+            # 28. /menu
+            if canonical == "/menu":
+                return CommandResult(
+                    success=True,
+                    message="💡 Type `/` or press Tab to open the Slash Command Palette.",
+                    action="menu"
+                )
+
             return CommandResult(
                 success=False,
                 message=f"❌ Unknown command `{cmd_token}`. Type `/help` to view all available commands.",

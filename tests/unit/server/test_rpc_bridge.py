@@ -22,7 +22,7 @@ class TestRPCBridge(unittest.TestCase):
         self.server = StdioRPCServer(default_workspace="RpcUnitTestWS")
 
     def test_01_get_state_and_list_commands(self):
-        """Validates that get_state and list_commands return accurate structure and all 23 commands."""
+        """Validates that get_state and list_commands return accurate structure and all 28 commands."""
         safe_stdout_write("\n>>> [RPC UNIT] Testing get_state and list_commands...\n")
         state = self.server.get_state()
         self.assertIn("workspace", state)
@@ -31,13 +31,15 @@ class TestRPCBridge(unittest.TestCase):
         self.assertIn("web_search_enabled", state)
 
         cmds = self.server.list_commands()
-        self.assertEqual(len(cmds), 23, "All 23 slash commands must be present in palette metadata")
+        self.assertEqual(len(cmds), 28, "All 28 slash commands must be present in palette metadata")
         slash_names = [c["command"] for c in cmds]
         self.assertIn("/switch", slash_names)
         self.assertIn("/model", slash_names)
         self.assertIn("/sync", slash_names)
         self.assertIn("/sources", slash_names)
-        safe_stdout_write("  [OK] State and 23-command catalog verified!\n")
+        self.assertIn("/update", slash_names)
+        self.assertIn("/menu", slash_names)
+        safe_stdout_write("  [OK] State and 28-command catalog verified!\n")
 
     def test_02_handle_request_mutations(self):
         """Validates switch_workspace, set_model, set_mode, and set_web_search mutations."""

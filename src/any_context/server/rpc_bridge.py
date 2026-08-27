@@ -121,7 +121,8 @@ class StdioRPCServer:
                         self._grounding_mode = result.state_updates["grounding_mode"]
                     if "web_search_enabled" in result.state_updates:
                         self._web_search_enabled = result.state_updates["web_search_enabled"]
-                    self.agent_instance = None
+                    if "model" in result.state_updates or "workspace" in result.state_updates or "grounding_mode" in result.state_updates:
+                        self.agent_instance = None
                     self._load_state()
 
                 _send_ndjson({
@@ -218,8 +219,8 @@ class StdioRPCServer:
 
             if self.agent_instance is None:
                 self.agent_instance = create_anycontext_agent(
-                    model_name=self._current_model,
-                    workspace_name=self.active_workspace,
+                    active_workspace=self.active_workspace,
+                    model_override=self._current_model,
                     grounding_mode=self._grounding_mode,
                     web_search_enabled=self._web_search_enabled
                 )

@@ -187,6 +187,13 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       return;
     }
 
+    if (cmd === "/menu" || cmd === "/palette") {
+      setInputValue("/");
+      setPaletteOpen(true);
+      setPaletteIndex(0);
+      return;
+    }
+
     if (cmd === "/clear" || cmd === "/cls") {
       setMessages([]);
       return;

@@ -30,15 +30,22 @@ export const ChatMessageList = ({ messages, state }: ChatMessageListProps): any 
   const versionStr = state?.version || "0.26.8";
 
   return (
-    <scrollbox flexGrow={1} flexDirection="column" paddingLeft={1} paddingRight={1}>
-      {/* Signature ASCII Art & Startup Banner in the Scroll View */}
-      <box flexDirection="column" paddingTop={1} paddingBottom={1}>
-        <text fg={anyContextTheme.accent}>
-          <b>{ASCII_BANNER}</b>
-        </text>
-        <box flexDirection="row" paddingTop={0} paddingBottom={0}>
+    <scrollbox flexGrow={1} flexDirection="column" paddingLeft={1} paddingRight={1} stickyScroll={true}>
+      {/* Signature Startup Info Box */}
+      <box
+        borderStyle="rounded"
+        borderColor={anyContextTheme.ruleColor}
+        paddingLeft={1}
+        paddingRight={1}
+        paddingTop={0}
+        paddingBottom={0}
+        marginTop={1}
+        marginBottom={1}
+        flexDirection="column"
+      >
+        <box flexDirection="row">
           <text fg={anyContextTheme.accentWarning}>
-            <b>  🚀 AnyContext (actx) v{versionStr}</b>
+            <b>🚀 AnyContext (actx) v{versionStr}</b>
           </text>
           <text fg={anyContextTheme.ruleColor}>  │  </text>
           <text fg={anyContextTheme.accentSecondary}>
@@ -46,31 +53,12 @@ export const ChatMessageList = ({ messages, state }: ChatMessageListProps): any 
           </text>
           <text fg={anyContextTheme.ruleColor}>  │  </text>
           <text fg={anyContextTheme.accentSuccess}>
-            <b>🌿 Community Edition</b>
+            <b>🔒 100% Local & Offline-First Privacy</b>
           </text>
         </box>
         <text fg={anyContextTheme.foregroundMuted}>
-          {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
+          💬 Chat started! Type <b>'/'</b> or <b>'/menu'</b> for command palette, <b>'/exit'</b> to quit.
         </text>
-        <text fg={anyContextTheme.foregroundMuted}>
-          {"  🔒 100% Local & Offline-First Privacy"}
-        </text>
-
-        <box
-          borderStyle="single"
-          borderColor={anyContextTheme.ruleColor}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={0}
-          paddingBottom={0}
-          marginTop={1}
-          marginBottom={0}
-          flexDirection="row"
-        >
-          <text fg={anyContextTheme.foreground}>
-            💬 Chat started! Type <b>'/'</b> for command palette or <b>'/exit'</b> to quit.
-          </text>
-        </box>
       </box>
 
       {/* Render Conversation Messages */}

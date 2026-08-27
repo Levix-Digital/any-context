@@ -7,6 +7,38 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.27.4): Validação de Chat Streaming, Cópia Nativa de Texto, /menu e Ausência de Gap Vertical
+
+- **Objetivo**: Comprovar que o streaming de inferência do agente de IA responde a perguntas sobre fontes indexadas sem erros de assinatura, a seleção e cópia com o mouse de qualquer resposta do chat funciona nativamente no terminal, o comando `/menu` abre diretamente o Slash Command Palette flutuante, a área de diálogo do chat ocupa toda a tela sem gaps verticais e comandos operacionais (`/update`, `/check-update`, `/inspect`, `/density`) estão presentes no catálogo.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.4` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+
+2. **⚡ Validar Inferência do Chat com IA (Zero Erros de Assinatura):**
+   - No prompt `👤 You:`, digitar uma pergunta sobre as fontes do workspace (ex: `Qual o preço do Windex?` ou `O que tem no Walmart?`).
+   - Comprovar que o agente de IA processa e faz o streaming da resposta Markdown em tempo real sem qualquer erro de `create_anycontext_agent()`.
+
+3. **⚡ Validar Cópia Nativa de Texto com o Mouse:**
+   - Clicar e arrastar com o cursor do mouse sobre o texto da resposta do assistente.
+   - Pressionar `Ctrl+C` (ou botão direito) e colar em um bloco de notas.
+   - Comprovar que o texto selecionado é copiado com 100% de integridade.
+
+4. **⚡ Validar Comando `/menu` e Catálogo de Comandos:**
+   - Digitar `/menu` e pressionar Enter.
+   - Comprovar que o Slash Command Palette flutuante é aberto diretamente na tela.
+   - Digitar `/up` e comprovar que `/update` e `/check-update` aparecem na lista.
+   - Pressionar `Esc` para fechar o palette.
+
+5. **⚡ Validar Layout Compacto Sem Gap Vertical:**
+   - Comprovar que as mensagens do chat fluem naturalmente de cima para baixo ocupando o espaço útil do terminal, sem faixa vazia com barra de rolagem truncada.
+
+---
+
 ### 📌 Cenário 1 (v0.27.3): Validação de Layout do Slash Command Palette, Scoring por Prefixo e Indicador de Sync
 
 - **Objetivo**: Comprovar a separação visual nítida do rodapé de instruções no Slash Command Palette (sem sobreposição com o último comando), a pontuação por relevância garantindo que `/source` selecione `/sources` e `/sources --all` em vez de `/sync`, e a exibição do badge verde `✔ Up to date` na barra inferior após sincronização.
