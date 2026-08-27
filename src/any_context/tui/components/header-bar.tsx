@@ -7,8 +7,13 @@ interface HeaderBarProps {
   hasMessages?: boolean;
 }
 
-export const HeaderBar = ({ state }: HeaderBarProps): any => {
-  const versionStr = state?.version || "0.28.6";
+export const HeaderBar = ({ state, hasMessages }: HeaderBarProps): any => {
+  // If there are no messages yet, do not show top dock bar (banner is visible inside the chat window)
+  if (!hasMessages) {
+    return null;
+  }
+
+  const versionStr = state?.version || "0.28.8";
   const tierStr = state?.tier_name || "Community Edition";
   const tierIcon = tierStr.includes("Enterprise") ? "🏢" : tierStr.includes("Pro") ? "⭐" : "🌿";
   const wsName = state?.workspace || "Default";

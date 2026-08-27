@@ -87,8 +87,13 @@ class OptionsEngine:
 
             # Get sources count for this workspace
             try:
-                sources = self.store.get_workspace_sources(workspace_name=name)
-                sources_count = len(sources)
+                sources_data = self.store.get_workspace_sources(workspace_name=name)
+                if isinstance(sources_data, dict):
+                    sources_count = sources_data.get("total_sources", len(sources_data.get("sources", [])))
+                elif isinstance(sources_data, list):
+                    sources_count = len(sources_data)
+                else:
+                    sources_count = 0
             except Exception:
                 sources_count = len(ws.get("paths", []))
 
