@@ -10,6 +10,7 @@ from any_context.core.services.grounding_service import GroundingService
 from any_context.core.services.sync_service import SyncService
 from any_context.core.services.memory_service import MemoryService
 from any_context.core.services.billing_service import BillingService
+from any_context.core.services.update_service import UpdateService
 
 __all__ = [
     "WorkspaceService",
@@ -19,4 +20,5 @@ __all__ = [
     "SyncService",
     "MemoryService",
     "BillingService",
+    "UpdateService",
 ]
