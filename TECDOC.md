@@ -15,9 +15,10 @@
 8. [Model Context Protocol (MCP) Implementation (`actx --mcp`)](#8-model-context-protocol-mcp-implementation-actx---mcp)
 9. [Cross-Version Python Compatibility (3.10 - 3.13) & AST Engineering](#9-cross-version-python-compatibility-310---313--ast-engineering)
 10. [Observability & Telemetry Pipeline (LangSmith)](#10-observability--telemetry-pipeline-langsmith)
-11. [Multi-Interface Surface Parity & Governance Protocol](#11-multi-interface-surface-parity--governance-protocol)
-12. [Hexagonal Decoupling & Universal Command Adapter Architecture (`v0.27.0`)](#12-hexagonal-decoupling--universal-command-adapter-architecture-v0270)
-13. [Central Interaction Engine & Decoupled Presentation Architecture (`v0.28.0`)](#13-central-interaction-engine--decoupled-presentation-architecture-v0280)
+11. [AI Grounding Modes & Strict Web Search Permission Gate (`v0.24.3`)](#11-ai-grounding-modes--strict-web-search-permission-gate-v0243)
+12. [Multi-Interface Surface Parity & Governance Protocol](#12-multi-interface-surface-parity--governance-protocol)
+13. [Hexagonal Decoupling & Universal Command Adapter Architecture (`v0.27.0`)](#13-hexagonal-decoupling--universal-command-adapter-architecture-v0270)
+14. [Central Interaction Engine & Decoupled Presentation Architecture (`v0.28.0`)](#14-central-interaction-engine--decoupled-presentation-architecture-v0280)
 
 ---
 
