@@ -68,7 +68,7 @@ export const ChatView = ({
 
       {/* Floating Autocomplete / Slash Command Dropdown */}
       <AutocompleteDropdown
-        isOpen={paletteOpen && !menuOpen}
+        isOpen={paletteOpen && !modalOpen}
         filterText={inputValue}
         commands={commands}
         selectedIndex={paletteIndex}
