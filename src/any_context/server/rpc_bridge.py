@@ -8,8 +8,13 @@ import sys
 import os
 import io
 import json
+import logging
 import traceback
 from typing import Dict, Any, Optional
+
+# Suppress noisy library loggers to prevent stdout/stderr contamination in RPC bridge mode
+for _log_name in ["llama_index", "chromadb", "httpx", "httpcore", "urllib3", "openai", "tenacity"]:
+    logging.getLogger(_log_name).setLevel(logging.ERROR)
 
 from any_context import __version__
 from any_context.config.db_store import ConfigDBStore
