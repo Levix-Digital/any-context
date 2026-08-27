@@ -32,7 +32,7 @@ export const AutocompleteDropdown = ({
       paddingLeft={1}
       paddingRight={1}
       paddingTop={0}
-      paddingBottom={0}
+      paddingBottom={1}
       marginBottom={0}
     >
       <box flexDirection="row" marginBottom={0}>

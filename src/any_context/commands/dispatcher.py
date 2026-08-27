@@ -220,8 +220,8 @@ class CommandDispatcher:
             if canonical == "/menu":
                 return CommandResult(
                     success=True,
-                    message="💡 Type `/` or press Tab to open the Slash Command Palette.",
-                    action="menu"
+                    message="💡 Opening interactive configuration menu.",
+                    action="open_config_modal"
                 )
 
             return CommandResult(
@@ -345,7 +345,8 @@ class CommandDispatcher:
             curr = self.grounding_svc.get_grounding_mode(ws_name)
             return CommandResult(
                 success=True,
-                message=f"🛡️ **Grounding Mode for `{ws_name}`:** `{curr.upper()}`\n\n*Usage:* `/mode <strict|hybrid|proactive>`"
+                message=f"🛡️ **Grounding Mode for `{ws_name}`:** `{curr.upper()}`\n\n*Usage:* `/mode <strict|hybrid|proactive>`",
+                action="open_mode_modal"
             )
 
         target_mode = parts[1].strip().lower()
@@ -580,7 +581,7 @@ class CommandDispatcher:
             f"• **Indexed Sources**: `{sources['total_count']} source(s)`\n"
             f"• **Version**: `v{__version__}`\n"
         )
-        return CommandResult(success=True, message=msg)
+        return CommandResult(success=True, message=msg, action="open_config_modal")
 
     def _handle_key(self, parts: List[str]) -> CommandResult:
         if len(parts) < 3:

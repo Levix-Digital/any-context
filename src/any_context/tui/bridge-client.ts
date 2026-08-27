@@ -26,6 +26,57 @@ export interface CommandExecutionResult {
   state: AnyContextState;
 }
 
+export interface OptionItemSchema {
+  id: string;
+  title: string;
+  description?: string;
+  icon?: string;
+  badge?: string;
+  is_active: boolean;
+  metadata?: Record<string, any>;
+}
+
+export interface OptionsGroupSchema {
+  type: string;
+  title: string;
+  description?: string;
+  active_id?: string;
+  items: OptionItemSchema[];
+}
+
+export interface MenuItemSchema {
+  id: string;
+  title: string;
+  description?: string;
+  icon?: string;
+  badge?: string;
+  type: "submenu" | "action" | "toggle" | "select" | "input";
+  command_shortcut?: string;
+  is_active?: boolean;
+  current_value?: string;
+  options?: OptionItemSchema[];
+  subitems?: MenuItemSchema[];
+  metadata?: Record<string, any>;
+}
+
+export interface MenuTreeSchema {
+  menu_id: string;
+  title: string;
+  subtitle?: string;
+  workspace: string;
+  breadcrumbs: string[];
+  items: MenuItemSchema[];
+}
+
+export interface MenuActionResult {
+  success: boolean;
+  message: string;
+  error?: string;
+  state_updates?: Record<string, any>;
+  next_menu_id?: string;
+  action?: string;
+}
+
 export interface StreamCallbacks {
   onToken: (token: string) => void;
   onTicker: (ticker: string) => void;
@@ -217,6 +268,54 @@ export class BridgeClient {
     const state = await this.sendRequest<AnyContextState>("set_web_search", { enabled });
     this.updateState(state);
     return state;
+  }
+
+  public async getMenuTree(menuId: string = "main", workspace?: string): Promise<MenuTreeSchema> {
+    return this.sendRequest<MenuTreeSchema>("get_menu_tree", {
+      menu_id: menuId,
+      workspace: workspace || this.state.workspace,
+    });
+  }
+
+  public async executeMenuAction(
+    actionId: string,
+    params: Record<string, any> = {},
+    workspace?: string
+  ): Promise<MenuActionResult> {
+    const res = await this.sendRequest<MenuActionResult>("execute_menu_action", {
+      action_id: actionId,
+      params,
+      workspace: workspace || this.state.workspace,
+    });
+    if (res && res.state_updates) {
+      this.updateState(res.state_updates as any);
+    }
+    return res;
+  }
+
+  public async getOptions(type: string, workspace?: string): Promise<OptionsGroupSchema> {
+    return this.sendRequest<OptionsGroupSchema>("get_options", {
+      type,
+      workspace: workspace || this.state.workspace,
+    });
+  }
+
+  public async setOption(
+    type: string,
+    value: string,
+    workspace?: string,
+    applyGlobal: boolean = false
+  ): Promise<MenuActionResult> {
+    const res = await this.sendRequest<MenuActionResult>("set_option", {
+      type,
+      value,
+      workspace: workspace || this.state.workspace,
+      apply_global: applyGlobal,
+    });
+    if (res && res.state_updates) {
+      this.updateState(res.state_updates as any);
+    }
+    return res;
   }
 
   public async startSync(force: boolean = false): Promise<any> {
