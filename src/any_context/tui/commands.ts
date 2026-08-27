@@ -12,7 +12,7 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommandMeta[] = [
   { command: "/mode", args: "<strict|hybrid|proactive>", description: "Change Grounding Strategy mode", category: "AI Grounding", direct_execution: false },
   { command: "/web-search", args: "[on|off]", description: "Toggle real-time workspace Web Search", category: "Web Search", direct_execution: true },
   { command: "/sync", args: "[--force|--status]", description: "Synchronize local folders and web sources", category: "Sources", direct_execution: true },
-  { command: "/sources", args: "", description: "List indexed documents and web portals in workspace", category: "Sources", direct_execution: true },
+  { command: "/sources", args: "[--all]", description: "List indexed documents and web portals in workspace", category: "Sources", direct_execution: true },
   { command: "/folder", args: "--add <path>", description: "Add, list, or remove local folder from workspace", category: "Sources", direct_execution: false },
   { command: "/web", args: "--add <url>", description: "Add, list, or crawl documentation portal or web URL", category: "Sources", direct_execution: false },
   { command: "/transfer", args: "<from_ws> <to_ws> <item>", description: "Transfer source to another workspace in <50ms ($0.00)", category: "Sources", direct_execution: false },

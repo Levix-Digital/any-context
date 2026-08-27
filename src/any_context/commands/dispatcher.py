@@ -108,7 +108,7 @@ class CommandDispatcher:
 
             # 10. /sources
             if canonical == "/sources":
-                return self._handle_sources(ws_name)
+                return self._handle_sources(parts, ws_name)
 
             # 11. /folder
             if canonical == "/folder":
@@ -329,33 +329,63 @@ class CommandDispatcher:
             message=f"⚡ **Background synchronization started** for workspace `{ws_name}`{' (Force Full)' if force else ''}."
         )
 
-    def _handle_sources(self, ws_name: str) -> CommandResult:
+    def _handle_sources(self, parts: List[str], ws_name: str) -> CommandResult:
+        show_all = "--all" in parts or "-a" in parts
+
+        if show_all:
+            workspaces = self.workspace_svc.list_workspaces()
+            lines = ["### 📂 All Indexed Sources Across Workspaces\n"]
+            for ws in workspaces:
+                w_name = ws.get("name", "Default")
+                s = self.source_svc.list_sources(w_name)
+                lines.append(f"**Workspace: `{w_name}`** ({s['total_count']} sources)")
+                for f in s.get("folders", []):
+                    lines.append(f"  • 📁 `{f}`")
+                for w in s.get("web_sources", []):
+                    title = w.get("title") or w.get("url", "Web Portal")
+                    url = w.get("url") or w.get("root_url", "")
+                    pages = w.get("page_count", 1)
+                    lines.append(f"  • 🌐 **[{title}]({url})** • {pages} pages")
+                for d in s.get("cloud_drives", []):
+                    d_title = d.get("title") or d.get("mount_path_or_id")
+                    lines.append(f"  • ☁️ `{d_title}`")
+                if not s["total_count"]:
+                    lines.append("  *(No sources)*")
+                lines.append("")
+            return CommandResult(success=True, message="\n".join(lines).strip())
+
         sources = self.source_svc.list_sources(ws_name)
         folders = sources.get("folders", [])
-        webs = sources.get("web_urls", [])
+        webs = sources.get("web_sources", [])
         drives = sources.get("cloud_drives", [])
 
-        lines = [f"### 📂 Indexed Sources in `{ws_name}` ({sources['total_count']} total)\n"]
+        lines = [f"### 📂 Indexed Sources in `{ws_name}` ({sources['total_count']} sources)\n"]
         if folders:
             lines.append("**📁 Local Folders:**")
             for f in folders:
                 lines.append(f"• `{f}`")
             lines.append("")
+
         if webs:
             lines.append("**🌐 Web Portals & URLs:**")
             for w in webs:
-                lines.append(f"• [{w}]({w})")
+                title = w.get("title") or w.get("url", "Web Source")
+                url = w.get("url") or w.get("root_url", "")
+                pages = w.get("page_count", 1)
+                lines.append(f"• **[{title}]({url})** • {pages} pages (`{url}`)")
             lines.append("")
+
         if drives:
             lines.append("**☁️ Cloud Drives:**")
             for d in drives:
-                lines.append(f"• `{d}`")
+                d_title = d.get("title") or d.get("mount_path_or_id")
+                lines.append(f"• `{d_title}`")
             lines.append("")
 
         if not sources["total_count"]:
             lines.append("*No sources indexed in this workspace yet. Add with `/folder --add <path>` or `/web --add <url>`.*")
 
-        return CommandResult(success=True, message="\n".join(lines))
+        return CommandResult(success=True, message="\n".join(lines).strip())
 
     def _handle_folder(self, parts: List[str], ws_name: str) -> CommandResult:
         if len(parts) == 1 or "--list" in parts or "-l" in parts:

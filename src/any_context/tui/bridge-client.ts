@@ -87,6 +87,12 @@ export class BridgeClient {
     if (path.isAbsolute(repoRoot)) {
       childEnv.PYTHONPATH = path.join(repoRoot, "src");
     }
+    if (process.env.ACTX_SETTINGS_DB) {
+      childEnv.ACTX_SETTINGS_DB = process.env.ACTX_SETTINGS_DB;
+    }
+    if (process.env.ACTX_CALLER_CWD) {
+      childEnv.ACTX_CALLER_CWD = process.env.ACTX_CALLER_CWD;
+    }
 
     this.process = spawn(command, args, {
       cwd: repoRoot,
@@ -101,8 +107,8 @@ export class BridgeClient {
     const rl = readline.createInterface({ input: this.process.stdout });
     rl.on("line", (line) => this.handleLine(line));
 
-    this.process.on("exit", (code) => {
-      console.log(`\nAnyContext Core backend closed (code: ${code})`);
+    this.process.on("exit", () => {
+      // Backend process terminated cleanly
     });
 
     await this.refreshState();

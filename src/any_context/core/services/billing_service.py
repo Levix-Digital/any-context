@@ -17,15 +17,23 @@ class BillingService:
         """Returns the current billing plan status and full capabilities matrix."""
         status = self.mgr.get_status()
         matrix = self.mgr.format_pricing_cards_cli()
-        tier_id = getattr(status, "tier_id", "community")
-        is_active = getattr(status, "is_active", True)
+        tier_id = getattr(status, "active_tier_id", getattr(status, "tier_id", "community"))
+        tier_name = getattr(status, "active_tier_name", "AnyContext Community")
+        license_key = getattr(status, "license_key", None)
 
         return {
             "current_tier": tier_id,
-            "status": "active" if is_active else "inactive",
+            "tier_id": tier_id,
+            "tier_name": tier_name,
+            "active_tier_id": tier_id,
+            "active_tier_name": tier_name,
+            "license_key": license_key,
+            "status": "active",
             "matrix_text": matrix,
             "subscription": {
                 "tier_id": tier_id,
-                "is_active": is_active
+                "tier_name": tier_name,
+                "license_key": license_key,
+                "is_active": True
             }
         }

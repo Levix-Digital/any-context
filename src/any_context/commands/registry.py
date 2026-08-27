@@ -60,7 +60,7 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
     ),
     CommandMeta(
         name="/sources",
-        args="",
+        args="[--all]",
         description="List indexed documents and web portals in workspace",
         category="Sources",
         direct_execution=True,

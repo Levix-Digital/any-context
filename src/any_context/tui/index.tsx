@@ -12,7 +12,15 @@ async function main() {
   });
 
   const root = createRoot(renderer);
-  root.render(<App initialWorkspace={initialWorkspace} />);
+
+  const handleExit = () => {
+    try {
+      renderer.destroy();
+    } catch (_) {}
+    process.exit(0);
+  };
+
+  root.render(<App initialWorkspace={initialWorkspace} onExit={handleExit} />);
 }
 
 main().catch((err) => {
