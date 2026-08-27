@@ -8,13 +8,21 @@ interface HeaderBarProps {
 }
 
 export const HeaderBar = ({ state }: HeaderBarProps): any => {
-  const versionStr = state?.version || "0.28.5";
+  const versionStr = state?.version || "0.28.6";
   const tierStr = state?.tier_name || "Community Edition";
   const tierIcon = tierStr.includes("Enterprise") ? "🏢" : tierStr.includes("Pro") ? "⭐" : "🌿";
   const wsName = state?.workspace || "Default";
 
   return (
-    <box flexDirection="column" flexShrink={0} paddingTop={0} paddingBottom={0}>
+    <box
+      flexDirection="column"
+      flexShrink={0}
+      paddingTop={0}
+      paddingBottom={0}
+      border={["bottom"]}
+      borderStyle="single"
+      borderColor={anyContextTheme.ruleColor}
+    >
       <box flexDirection="row" paddingLeft={1} paddingRight={1} paddingTop={0} paddingBottom={0}>
         <text fg={anyContextTheme.accentWarning}>
           <b>🚀 AnyContext (actx) v{versionStr}</b>
@@ -31,9 +39,6 @@ export const HeaderBar = ({ state }: HeaderBarProps): any => {
         <text fg={anyContextTheme.foreground}>
           📂 <b>{wsName}</b>
         </text>
-      </box>
-      <box flexDirection="row" marginTop={0} marginBottom={0}>
-        <text fg={anyContextTheme.ruleColor}>─────────────────────────────────────────────────────────────────</text>
       </box>
     </box>
   );

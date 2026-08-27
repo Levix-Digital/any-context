@@ -27,7 +27,7 @@ export const InteractiveModal = ({
 }: InteractiveModalProps): any => {
   if (!isOpen) return null;
 
-  // 1. Render Options Group Selection (e.g. /mode, /model, /density)
+  // 1. Render Options Group Selection (e.g. /mode, /model, /density, /switch)
   if (mode === "options" && optionsGroup) {
     const items = optionsGroup.items || [];
     const wsName = state?.workspace || "Default";
@@ -41,25 +41,28 @@ export const InteractiveModal = ({
         paddingLeft={1}
         paddingRight={1}
         paddingTop={0}
-        paddingBottom={1}
+        paddingBottom={0}
         marginBottom={1}
         flexShrink={0}
       >
         {/* Header */}
-        <text fg={anyContextTheme.accentWarning}>
-          <b>{optionsGroup.title}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Workspace: <b>{wsName}</b></span>
-        </text>
-
-        {optionsGroup.description ? (
-          <text fg={anyContextTheme.foregroundMuted}>
-            {optionsGroup.description}
+        <box
+          flexDirection="column"
+          paddingBottom={0}
+          border={["bottom"]}
+          borderStyle="single"
+          borderColor={anyContextTheme.ruleColor}
+        >
+          <text fg={anyContextTheme.accentWarning}>
+            <b>{optionsGroup.title}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Workspace: <b>{wsName}</b></span>
           </text>
-        ) : null}
 
-        {/* Separator */}
-        <text fg={anyContextTheme.ruleColor}>
-          ─────────────────────────────────────────────────────────────────
-        </text>
+          {optionsGroup.description ? (
+            <text fg={anyContextTheme.foregroundMuted}>
+              {optionsGroup.description}
+            </text>
+          ) : null}
+        </box>
 
         {/* Options List */}
         {items.map((item: OptionItemSchema, idx: number) => {
@@ -88,15 +91,20 @@ export const InteractiveModal = ({
           );
         })}
 
-        {/* Separator */}
-        <text fg={anyContextTheme.ruleColor}>
-          ─────────────────────────────────────────────────────────────────
-        </text>
-
         {/* Footer Navigation */}
-        <text fg={anyContextTheme.foregroundMuted}>
-          💡 <b>[↑/↓]</b> Select Option  •  <b>[Enter/Tab]</b> Confirm  •  <b>[Esc]</b> Close
-        </text>
+        <box
+          flexDirection="row"
+          paddingLeft={1}
+          paddingRight={1}
+          paddingTop={0}
+          border={["top"]}
+          borderStyle="single"
+          borderColor={anyContextTheme.ruleColor}
+        >
+          <text fg={anyContextTheme.foregroundMuted}>
+            💡 <b>[↑/↓]</b> Select Option  •  <b>[Enter/Tab]</b> Confirm  •  <b>[Esc]</b> Close
+          </text>
+        </box>
       </box>
     );
   }
@@ -119,25 +127,28 @@ export const InteractiveModal = ({
         paddingLeft={1}
         paddingRight={1}
         paddingTop={0}
-        paddingBottom={1}
+        paddingBottom={0}
         marginBottom={1}
         flexShrink={0}
       >
         {/* Header with Breadcrumbs */}
-        <text fg={anyContextTheme.accentWarning}>
-          <b>{breadcrumbStr}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Workspace: <b>{wsName}</b></span>
-        </text>
-
-        {menuTree.subtitle ? (
-          <text fg={anyContextTheme.foregroundMuted}>
-            {menuTree.subtitle}
+        <box
+          flexDirection="column"
+          paddingBottom={0}
+          border={["bottom"]}
+          borderStyle="single"
+          borderColor={anyContextTheme.ruleColor}
+        >
+          <text fg={anyContextTheme.accentWarning}>
+            <b>{breadcrumbStr}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Workspace: <b>{wsName}</b></span>
           </text>
-        ) : null}
 
-        {/* Separator */}
-        <text fg={anyContextTheme.ruleColor}>
-          ─────────────────────────────────────────────────────────────────
-        </text>
+          {menuTree.subtitle ? (
+            <text fg={anyContextTheme.foregroundMuted}>
+              {menuTree.subtitle}
+            </text>
+          ) : null}
+        </box>
 
         {/* Menu Items List */}
         {items.map((item: MenuItemSchema, idx: number) => {
@@ -169,15 +180,20 @@ export const InteractiveModal = ({
           );
         })}
 
-        {/* Separator */}
-        <text fg={anyContextTheme.ruleColor}>
-          ─────────────────────────────────────────────────────────────────
-        </text>
-
         {/* Footer Navigation */}
-        <text fg={anyContextTheme.foregroundMuted}>
-          💡 <b>[↑/↓]</b> Navigate  •  <b>[Enter/Tab]</b> Open / Execute  •  <b>[Esc]</b> {menuTree.menu_id === "main" ? "Close" : "Back"}
-        </text>
+        <box
+          flexDirection="row"
+          paddingLeft={1}
+          paddingRight={1}
+          paddingTop={0}
+          border={["top"]}
+          borderStyle="single"
+          borderColor={anyContextTheme.ruleColor}
+        >
+          <text fg={anyContextTheme.foregroundMuted}>
+            💡 <b>[↑/↓]</b> Navigate  •  <b>[Enter/Tab]</b> Open / Execute  •  <b>[Esc]</b> {menuTree.menu_id === "main" ? "Close" : "Back"}
+          </text>
+        </box>
       </box>
     );
   }

@@ -261,13 +261,25 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
 
     // 4. CHAT HISTORY KEYBOARD SCROLLING
     if (!modalOpen && !paletteOpen && scrollBoxRef.current) {
-      if (event.name === "pageup" || (event.name === "up" && (event.ctrl || event.shift || inputValue === ""))) {
+      if (event.name === "pageup") {
+        try {
+          if (typeof scrollBoxRef.current.scrollBy === "function") {
+            scrollBoxRef.current.scrollBy(-15);
+          }
+        } catch {}
+      } else if (event.name === "pagedown") {
+        try {
+          if (typeof scrollBoxRef.current.scrollBy === "function") {
+            scrollBoxRef.current.scrollBy(15);
+          }
+        } catch {}
+      } else if (event.name === "up" && (event.ctrl || event.shift || inputValue === "")) {
         try {
           if (typeof scrollBoxRef.current.scrollBy === "function") {
             scrollBoxRef.current.scrollBy(-3);
           }
         } catch {}
-      } else if (event.name === "pagedown" || (event.name === "down" && (event.ctrl || event.shift || inputValue === ""))) {
+      } else if (event.name === "down" && (event.ctrl || event.shift || inputValue === "")) {
         try {
           if (typeof scrollBoxRef.current.scrollBy === "function") {
             scrollBoxRef.current.scrollBy(3);
