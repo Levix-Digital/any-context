@@ -32,8 +32,9 @@ export const AutocompleteDropdown = ({
       paddingLeft={1}
       paddingRight={1}
       paddingTop={0}
-      paddingBottom={1}
+      paddingBottom={0}
       marginBottom={0}
+      flexShrink={0}
     >
       <box flexDirection="row" marginBottom={0}>
         <text fg={anyContextTheme.accentWarning}>
@@ -56,29 +57,33 @@ export const AutocompleteDropdown = ({
           return (
             <box
               key={cmd.command}
-              flexDirection="row"
+              flexDirection="column"
               backgroundColor={bgColor}
               paddingLeft={1}
               paddingRight={1}
             >
               <text fg={cmdColor}>
                 <b>{prefix}{cmd.command}</b>
+                {cmd.args ? <span fg={anyContextTheme.accentSuccess}> {cmd.args}</span> : ""}
+                <span fg={anyContextTheme.foregroundMuted}> - {cmd.description} </span>
+                <span fg={anyContextTheme.accentSecondary}>[{cmd.category}]</span>
               </text>
-              <text fg={anyContextTheme.accentSuccess}> {cmd.args} </text>
-              <text fg={anyContextTheme.foreground}> - {cmd.description} </text>
-              <text fg={anyContextTheme.accentSecondary}>[{cmd.category}]</text>
             </box>
           );
         })
       )}
 
-      {/* Dedicated Separator */}
-      <box flexDirection="row" marginTop={0} marginBottom={0}>
-        <text fg={anyContextTheme.ruleColor}>─────────────────────────────────────────────────────────────────</text>
-      </box>
-
       {/* Dedicated Navigation Footer */}
-      <box flexDirection="row" paddingLeft={1} paddingRight={1} marginTop={0}>
+      <box
+        flexDirection="row"
+        paddingLeft={1}
+        paddingRight={1}
+        paddingTop={0}
+        marginTop={0}
+        border={["top"]}
+        borderStyle="single"
+        borderColor={anyContextTheme.ruleColor}
+      >
         <text fg={anyContextTheme.foregroundMuted}>
           💡 <b>[↑/↓]</b> Navigate  •  <b>[↹ Tab]</b> Select  •  <b>[Esc]</b> Close
         </text>
