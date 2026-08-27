@@ -22,6 +22,15 @@ export const InputBar = ({
   useEffect(() => {
     if (textareaRef.current && value !== textareaRef.current.plainText) {
       textareaRef.current.setText(value || "");
+      if (value) {
+        try {
+          if (typeof textareaRef.current.setCursorByOffset === "function") {
+            textareaRef.current.setCursorByOffset(value.length);
+          } else if (typeof textareaRef.current.gotoLineEnd === "function") {
+            textareaRef.current.gotoLineEnd();
+          }
+        } catch (_) {}
+      }
     }
   }, [value]);
 

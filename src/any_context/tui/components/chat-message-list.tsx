@@ -28,7 +28,7 @@ const defaultSyntaxStyle = (SyntaxStyle as any).create ? (SyntaxStyle as any).cr
 
 export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages, state }, ref): any => {
   return (
-    <scrollbox
+    <box
       ref={ref}
       flexGrow={1}
       flexShrink={1}
@@ -36,8 +36,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
       flexDirection="column"
       paddingLeft={1}
       paddingRight={1}
-      stickyScroll={true}
-      viewportCulling={false}
+      overflow="hidden"
     >
       {/* Permanent Welcome Banner at the top of scrollable history */}
       <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0} flexShrink={0}>
@@ -143,6 +142,6 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
           </box>
         );
       })}
-    </scrollbox>
+    </box>
   );
 });
