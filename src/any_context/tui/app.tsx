@@ -82,6 +82,25 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     }
   };
 
+  const openSwitchModal = async () => {
+    try {
+      const opts = await client.getOptions("workspace");
+      if (opts && opts.items) {
+        setPaletteOpen(false);
+        setModalMode("options");
+        setModalOptionsGroup(opts);
+        const activeIdx = opts.items.findIndex((item) => item.is_active);
+        setModalIndex(activeIdx >= 0 ? activeIdx : 0);
+        setModalOpen(true);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `err_${Date.now()}`, role: "system", content: `❌ Could not load workspaces: ${err.message}` },
+      ]);
+    }
+  };
+
   const openConfigModal = async (menuId: string = "main", pushHistory: boolean = false) => {
     try {
       const tree = await client.getMenuTree(menuId);
@@ -378,6 +397,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       return;
     }
 
+    if (cmd === "/switch" && parts.length === 1) {
+      await openSwitchModal();
+      return;
+    }
+
     if (cmd === "/menu" || cmd === "/config" || cmd === "/settings") {
       await openConfigModal("main");
       return;
@@ -401,6 +425,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         }
         if (res.action === "open_mode_modal") {
           await openModeModal();
+          return;
+        }
+        if (res.action === "open_switch_modal") {
+          await openSwitchModal();
           return;
         }
         if (res.action === "open_config_modal" || res.action === "menu") {

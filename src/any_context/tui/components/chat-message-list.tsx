@@ -17,6 +17,13 @@ interface ChatMessageListProps {
   state?: AnyContextState;
 }
 
+const ASCII_BANNER = `  ___               ____ ___  _   _ _____ _____ _  _______ 
+ / _ \\ _ __  _   _ / ___/ _ \\| \\ | |_   _| ____\\ \\/ /_   _|
+| |_| | '_ \\| | | | |  | | | |  \\| | | | |  _|  \\  /  | |  
+|  _  | | | | |_| | |__| |_| | |\\  | | | | |___ /  \\  | |  
+|_| |_|_| |_|\\__, |\\____\\___/|_| \\_| |_| |_____/_/\\_\\ |_|  
+             |___/                                          `;
+
 const defaultSyntaxStyle = (SyntaxStyle as any).create ? (SyntaxStyle as any).create() : new (SyntaxStyle as any)();
 
 export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages, state }, ref): any => {
@@ -31,6 +38,40 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages
       paddingRight={1}
       stickyScroll={true}
     >
+      {/* Initial Welcome Banner inside scrollbox */}
+      {messages.length === 0 ? (
+        <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={1}>
+          <text fg={anyContextTheme.accent}>
+            <b>{ASCII_BANNER}</b>
+          </text>
+          <text fg={anyContextTheme.accentWarning}>
+            <b>  🚀 AnyContext (actx) v{state?.version || "0.28.5"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
+          </text>
+          <text fg={anyContextTheme.foregroundMuted}>
+            {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
+          </text>
+          <text fg={anyContextTheme.foregroundMuted}>
+            {"  🔒 100% Local & Offline-First Privacy"}
+          </text>
+
+          <box
+            borderStyle="single"
+            borderColor={anyContextTheme.ruleColor}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={0}
+            paddingBottom={0}
+            marginTop={1}
+            marginBottom={1}
+            flexDirection="column"
+          >
+            <text fg={anyContextTheme.foreground}>
+              💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
+            </text>
+          </box>
+        </box>
+      ) : null}
+
       {/* Render Conversation Messages */}
       {messages.map((msg) => {
         if (msg.role === "user") {

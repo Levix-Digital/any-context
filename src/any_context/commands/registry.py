@@ -20,10 +20,10 @@ class CommandMeta:
 COMMANDS_REGISTRY: List[CommandMeta] = [
     CommandMeta(
         name="/switch",
-        args="<workspace>",
-        description="Switch, list, or create active workspace",
+        args="[workspace]",
+        description="Switch, list, or select active workspace",
         category="Workspace",
-        direct_execution=False,
+        direct_execution=True,
         aliases=["/workspace"]
     ),
     CommandMeta(
@@ -36,10 +36,10 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
     ),
     CommandMeta(
         name="/mode",
-        args="<strict|hybrid|proactive>",
-        description="Change Grounding Strategy mode",
+        args="[strategy]",
+        description="Select AI Grounding Strategy mode",
         category="AI Grounding",
-        direct_execution=False,
+        direct_execution=True,
         aliases=["/grounding"]
     ),
     CommandMeta(
