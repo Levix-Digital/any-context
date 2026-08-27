@@ -142,12 +142,11 @@ export class BridgeClient {
     if (process.env.ACTX_SETTINGS_DB) {
       childEnv.ACTX_SETTINGS_DB = process.env.ACTX_SETTINGS_DB;
     }
-    if (process.env.ACTX_CALLER_CWD) {
-      childEnv.ACTX_CALLER_CWD = process.env.ACTX_CALLER_CWD;
-    }
+    const callerCwd = process.env.ACTX_CALLER_CWD || process.cwd();
+    childEnv.ACTX_CALLER_CWD = callerCwd;
 
     this.process = spawn(command, args, {
-      cwd: repoRoot,
+      cwd: callerCwd,
       env: childEnv,
       stdio: ["pipe", "pipe", "pipe"],
     });
