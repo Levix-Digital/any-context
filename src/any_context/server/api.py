@@ -1278,6 +1278,54 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error parsing image OCR: {str(e)}")
 
+    # --- Unified Interaction & Configuration Engine Endpoints ---
+
+    @app.get("/v1/config/schema", tags=["Configuration & Interaction"])
+    def get_config_menu_schema(menu_id: str = Query("main", description="Menu ID to retrieve"), workspace: str = Query("Default", description="Target workspace"), credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Returns the canonical hierarchical menu schema tree for CLI, Desktop UI, and Web UI."""
+        verify_token_access(credentials=credentials)
+        from any_context.core.interaction.config_engine import ConfigEngine
+        engine = ConfigEngine()
+        return engine.get_menu_tree(menu_id=menu_id, workspace=workspace)
+
+    @app.post("/v1/config/action", tags=["Configuration & Interaction"])
+    def execute_config_menu_action(action_id: str, params: Optional[Dict[str, Any]] = None, workspace: str = "Default", credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Executes a menu action (e.g. create workspace, toggle search, set key) through the central Interaction Engine."""
+        verify_token_access(credentials=credentials, required_role="analyst")
+        from any_context.core.interaction.config_engine import ConfigEngine
+        engine = ConfigEngine()
+        return engine.execute_action(action_id=action_id, params=params or {}, workspace=workspace)
+
+    @app.get("/v1/options/{option_type}", tags=["Configuration & Interaction"])
+    def get_options_group(option_type: str, workspace: str = Query("Default", description="Target workspace"), credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Returns structured option lists for quick selectors (grounding_mode, inference_model, retrieval_density)."""
+        verify_token_access(credentials=credentials)
+        from any_context.core.interaction.options_engine import OptionsEngine
+        engine = OptionsEngine()
+        if option_type == "grounding_mode":
+            return engine.get_grounding_mode_options(workspace=workspace)
+        elif option_type == "inference_model":
+            return engine.get_inference_model_options()
+        elif option_type == "retrieval_density":
+            return engine.get_retrieval_density_options()
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown option type '{option_type}'.")
+
+    @app.post("/v1/options/{option_type}", tags=["Configuration & Interaction"])
+    def set_option_value(option_type: str, value: str, workspace: str = "Default", apply_global: bool = False, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Sets an option value (e.g. grounding_mode, inference_model, retrieval_density)."""
+        verify_token_access(credentials=credentials, required_role="analyst")
+        from any_context.core.interaction.options_engine import OptionsEngine
+        engine = OptionsEngine()
+        if option_type == "grounding_mode":
+            return engine.set_grounding_mode(mode=value, workspace=workspace, apply_global=apply_global)
+        elif option_type == "inference_model":
+            return engine.set_inference_model(model_name=value)
+        elif option_type == "retrieval_density":
+            return engine.set_retrieval_density_preset(preset=value)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown option type '{option_type}'.")
+
     return app
 
 

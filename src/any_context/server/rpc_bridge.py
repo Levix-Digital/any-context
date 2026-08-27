@@ -201,6 +201,75 @@ class StdioRPCServer:
                 all_sources = self.store.get_workspace_sources(workspace_name=self.active_workspace)
                 _send_ndjson({"id": req_id, "result": all_sources})
 
+            elif method == "get_menu_tree":
+                menu_id = params.get("menu_id", "main")
+                ws = params.get("workspace", self.active_workspace)
+                from any_context.core.interaction.config_engine import ConfigEngine
+                cfg_engine = ConfigEngine()
+                tree = cfg_engine.get_menu_tree(menu_id=menu_id, workspace=ws)
+                _send_ndjson({"id": req_id, "result": tree.model_dump()})
+
+            elif method == "execute_menu_action":
+                action_id = params.get("action_id", "")
+                act_params = params.get("params", {})
+                ws = params.get("workspace", self.active_workspace)
+                from any_context.core.interaction.config_engine import ConfigEngine
+                cfg_engine = ConfigEngine()
+                action_res = cfg_engine.execute_action(action_id=action_id, params=act_params, workspace=ws)
+                if action_res.state_updates:
+                    if "workspace" in action_res.state_updates:
+                        self.active_workspace = action_res.state_updates["workspace"]
+                    if "model" in action_res.state_updates:
+                        self._current_model = action_res.state_updates["model"]
+                    if "grounding_mode" in action_res.state_updates:
+                        self._grounding_mode = action_res.state_updates["grounding_mode"]
+                    if "web_search_enabled" in action_res.state_updates:
+                        self._web_search_enabled = action_res.state_updates["web_search_enabled"]
+                    self.agent_instance = None
+                    self._load_state()
+                _send_ndjson({"id": req_id, "result": action_res.model_dump()})
+
+            elif method == "get_options":
+                opt_type = params.get("type", "grounding_mode")
+                ws = params.get("workspace", self.active_workspace)
+                from any_context.core.interaction.options_engine import OptionsEngine
+                opts_engine = OptionsEngine()
+                if opt_type == "grounding_mode":
+                    opts = opts_engine.get_grounding_mode_options(workspace=ws)
+                elif opt_type == "inference_model":
+                    opts = opts_engine.get_inference_model_options()
+                elif opt_type == "retrieval_density":
+                    opts = opts_engine.get_retrieval_density_options()
+                else:
+                    opts = opts_engine.get_grounding_mode_options(workspace=ws)
+                _send_ndjson({"id": req_id, "result": opts.model_dump()})
+
+            elif method == "set_option":
+                opt_type = params.get("type", "grounding_mode")
+                val = params.get("value", "")
+                ws = params.get("workspace", self.active_workspace)
+                apply_global = bool(params.get("apply_global", False))
+                from any_context.core.interaction.options_engine import OptionsEngine
+                opts_engine = OptionsEngine()
+                if opt_type == "grounding_mode":
+                    res = opts_engine.set_grounding_mode(mode=val, workspace=ws, apply_global=apply_global)
+                elif opt_type == "inference_model":
+                    res = opts_engine.set_inference_model(model_name=val)
+                elif opt_type == "retrieval_density":
+                    res = opts_engine.set_retrieval_density_preset(preset=val)
+                else:
+                    res = opts_engine.set_grounding_mode(mode=val, workspace=ws, apply_global=apply_global)
+
+                if res.state_updates:
+                    if "model" in res.state_updates:
+                        self._current_model = res.state_updates["model"]
+                    if "grounding_mode" in res.state_updates:
+                        self._grounding_mode = res.state_updates["grounding_mode"]
+                    self.agent_instance = None
+                    self._load_state()
+
+                _send_ndjson({"id": req_id, "result": res.model_dump()})
+
             elif method == "chat":
                 prompt_text = params.get("message", "")
                 self._stream_chat(req_id, prompt_text)

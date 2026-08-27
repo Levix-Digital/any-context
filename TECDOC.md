@@ -16,6 +16,8 @@
 9. [Cross-Version Python Compatibility (3.10 - 3.13) & AST Engineering](#9-cross-version-python-compatibility-310---313--ast-engineering)
 10. [Observability & Telemetry Pipeline (LangSmith)](#10-observability--telemetry-pipeline-langsmith)
 11. [Multi-Interface Surface Parity & Governance Protocol](#11-multi-interface-surface-parity--governance-protocol)
+12. [Hexagonal Decoupling & Universal Command Adapter Architecture (`v0.27.0`)](#12-hexagonal-decoupling--universal-command-adapter-architecture-v0270)
+13. [Central Interaction Engine & Decoupled Presentation Architecture (`v0.28.0`)](#13-central-interaction-engine--decoupled-presentation-architecture-v0280)
 
 ---
 
@@ -506,4 +508,75 @@ graph TD
 - **Desktop Strategy**:
   - Fast Time-to-Market via **Electron** utilizing existing WebUI React components and local Stdio RPC Bridge pipe.
   - Seamless future migration to **Tauri** with zero backend modifications due to Hexagonal decoupling.
+
+---
+
+## 14. Central Interaction Engine & Decoupled Presentation Architecture (`v0.28.0`)
+
+In version `v0.28.0`, AnyContext introduces the **Central Interaction Engine (`src/any_context/core/interaction/`)**, making consumer interfaces (CLI, OpenTUI, REST API, Desktop UI) presentation-only adapters ("thin, dumb frontends").
+
+```mermaid
+graph TD
+    subgraph "Core Domain & Services"
+        CoreServices["WorkspaceService, ModelService, Store, etc."]
+    end
+
+    subgraph "🎯 Central Interaction Engine (src/any_context/core/interaction/)"
+        Schemas["Declarative Schemas<br/>(MenuTreeSchema, OptionsGroupSchema, MenuActionResult)"]
+        ConfigEng["ConfigEngine<br/>(11-Category Canonical Menu Tree & Action Dispatcher)"]
+        OptionsEng["OptionsEngine<br/>(/mode, /model, /density, /web-search Schemas)"]
+    end
+
+    subgraph "Thin Presentation Adapters"
+        CLIAdapter["💻 CLI Adapter<br/>(Questionary / PromptToolkit)"]
+        TUIAdapter["🖥️ OpenTUI Adapter<br/>(InteractiveModal / Arrow Keys / Breadcrumbs)"]
+        RESTAdapter["🌐 REST API Adapter<br/>(/v1/config/schema, /v1/config/action, /v1/options)"]
+        DesktopAdapter["⚡ Desktop UI (Tauri/Electron)<br/>(Dynamic Config Dialogs from JSON Schema)"]
+    end
+
+    CoreServices <--> ConfigEng & OptionsEng
+    ConfigEng & OptionsEng --> Schemas
+    Schemas --> CLIAdapter & TUIAdapter & RESTAdapter & DesktopAdapter
+```
+
+### 🧩 1. Canonical Declarative Schemas (`src/any_context/core/interaction/schemas.py`)
+- `OptionItemSchema`: Represents individual selectable items with badges (e.g. `[Active]`), icons, titles, and descriptions.
+- `OptionsGroupSchema`: Structured collection of options (e.g. `grounding_mode`, `inference_model`, `retrieval_density`).
+- `MenuItemSchema`: Represents menu nodes with types (`submenu`, `action`, `toggle`, `select`, `input`), command shortcuts, and metadata.
+- `MenuTreeSchema`: Full hierarchical tree with breadcrumb path tracking (`⚙️ Configuration ➔ 📂 Workspaces`).
+- `MenuActionResult`: Standardized response returning status, messages, error details, and atomic `state_updates`.
+
+### 🎛️ 2. Quick Options & Hierarchical Configuration (`options_engine.py` & `config_engine.py`)
+- **Quick Selectors (`OptionsEngine`)**:
+  - `/mode`: Modal with `Strict (Audit & Legal)`, `Hybrid (Balanced)`, and `Proactive (Research)`.
+  - `/model`: Catalog of all configured and key-available AI inference models.
+  - `/density`: Presets for `Balanced`, `Turbo`, and `Deep Research`.
+- **Complete 11-Category System Tree (`ConfigEngine`)**:
+  - `📂 Workspaces & Folders Management`
+  - `🤝 Workspace Sharing & Collaboration`
+  - `🎛️ AI Grounding & Answer Modes`
+  - `🌐 Live Web Search & External Intelligence`
+  - `🔍 Context Retrieval Density & RAG Presets`
+  - `🤖 AI Models, Base URL & API Keys`
+  - `🔑 Manage Saved API Keys`
+  - `🧠 Memory Compression & Reset Settings`
+  - `💳 Subscription & Payment Plans`
+  - `🛡️ User Accounts & Security Access Control`
+  - `💥 Factory Reset AnyContext`
+
+### 🪟 3. OpenTUI Unified `<InteractiveModal>` Component
+- Generic modal component in `src/any_context/tui/components/interactive-modal.tsx`:
+  - Renders both quick option selectors and multi-level configuration trees.
+  - Keyboard navigation with `[↑/↓]`, selection/execution with `[Enter/Tab]`, and hierarchical back/close with `[Esc]`.
+  - Proper internal padding and margin containment preventing legends (`💡 [↑/↓] Navigate ...`) from clipping bottom borders.
+
+### 📜 4. Stable Viewport Flexbox & Keyboard Chat Scroll
+- `<ChatMessageList>` constrained with `flexGrow={1}`, `flexShrink={1}`, and `minHeight={0}` to prevent empty lower-half dead zones.
+- Keyboard bindings for chat history navigation:
+  - `PageUp` / `Shift+Up` / `Ctrl+Up`: Scroll up through previous messages.
+  - `PageDown` / `Shift+Down` / `Ctrl+Down`: Scroll down to latest response.
+  - `Home`: Jump to chat beginning.
+  - `End`: Jump to latest response.
+- Reactive auto-scroll pins output to bottom on incoming streaming chunks.
+
 

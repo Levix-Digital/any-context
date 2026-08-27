@@ -7,6 +7,104 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.28.0): Seletor Modal do `/mode` no OpenTUI (Strict, Hybrid, Proactive)
+
+- **Objetivo**: Comprovar que o comando `/mode` (sem argumentos) abre um modal de seleção interativo estilizado (`<InteractiveModal>`) na TUI, listando as 3 estratégias de grounding (`Strict`, `Hybrid`, `Proactive`), destacando o modo ativo atual com o badge `[Active]`, navegável por setas `[↑/↓]`, selecionável com `[Enter/Tab]` e cancelável com `[Esc]`, atualizando a barra de status inferior imediatamente.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.0` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+
+2. **⚡ Validar Abertura do Modal com `/mode`:**
+   - No prompt `👤 You:`, digitar `/mode` e pressionar Enter.
+   - Comprovar que abre o box estilizado `🎛️ AI Grounding & Answer Mode` contendo:
+     - `🛡️ Strict (Audit & Legal) - 100% grounded to indexed documents, zero speculation`
+     - `⚖️ Hybrid (Balanced) - Workspace facts + clearly labeled suggestions (Default)`
+     - `🚀 Proactive (Research & Ideation) - Broad synthesis, insights & web recommendations`
+   - Comprovar que a opção atualmente ativa exibe `[Active]`.
+
+3. **⚡ Validar Navegação e Seleção:**
+   - Navegar com as setas `[↑/↓]` até `🚀 Proactive`.
+   - Pressionar `Enter` (ou `Tab`).
+   - Comprovar que o modal se fecha, uma mensagem de sistema confirma a alteração e a barra de status inferior atualiza imediatamente para `🛡️ Proactive`.
+
+4. **⚡ Validar Fechamento com `[Esc]`:**
+   - Digitar `/mode` novamente e pressionar `Esc`.
+   - Comprovar que o modal se fecha suavemente sem realizar alterações.
+
+---
+
+### 📌 Cenário 2 (v0.28.0): Menu Hierárquico Completo `/menu` e `/config` no OpenTUI (11 Categorias)
+
+- **Objetivo**: Comprovar que `/menu` e `/config` abrem o modal de configuração hierárquica completa na TUI, replicando exatamente as 11 categorias de sistema do CLI, permitindo navegação em submenus com Breadcrumbs (`⚙️ Configuration ➔ 📂 Workspaces`), execução de toggles/ações e retorno de nível com `[Esc]`.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.0` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Abrir o Menu de Configuração:**
+   - Digitar `/config` ou `/menu` e pressionar Enter.
+   - Comprovar que abre o modal `⚙️ AnyContext Configuration & Settings` com as 11 categorias canônicas:
+     1. `📂 Workspaces & Folders Management`
+     2. `🤝 Workspace Sharing & Collaboration`
+     3. `🎛️ AI Grounding & Answer Modes`
+     4. `🌐 Live Web Search & External Intelligence`
+     5. `🔍 Context Retrieval Density & RAG Presets`
+     6. `🤖 AI Models, Base URL & API Keys`
+     7. `🔑 Manage Saved API Keys`
+     8. `🧠 Memory Compression & Reset Settings`
+     9. `💳 Subscription & Payment Plans`
+     10. `🛡️ User Accounts & Security Access Control`
+     11. `💥 Factory Reset AnyContext`
+
+2. **⚡ Navegar para um Submenu e Voltar:**
+   - Selecionar `🎛️ AI Grounding & Answer Modes` com as setas e pressionar `Enter`.
+   - Comprovar que o modal carrega o submenu exibindo o Breadcrumb `⚙️ Configuration ➔ 🎛️ Grounding`.
+   - Pressionar `Esc` para voltar ao menu principal `⚙️ Configuration`.
+   - Pressionar `Esc` novamente para fechar o menu.
+
+---
+
+### 📌 Cenário 3 (v0.28.0): Scrollbar, Rolagem por Teclado (`PageUp`/`PageDown`) e Respostas de Streaming sem Faixa Vazia
+
+- **Objetivo**: Comprovar que a área de chat ocupa 100% da altura útil sem faixa vazia na metade inferior, as respostas da IA fluem mantendo a última linha sempre visível durante o streaming, e o histórico de mensagens pode ser rolado suavemente via teclado (`PageUp`, `PageDown`, `Ctrl+Up/Down`, `Home`, `End`).
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.0` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   - Comprovar que a tela inicial não possui divisão cinza/vazia cortando a metade inferior.
+
+2. **⚡ Enviar Pergunta com Resposta Longa:**
+   - Fazer uma pergunta detalhada para a IA (ex: `Liste detalhadamente 10 dicas de organização financeira`).
+   - Comprovar que, à medida que os tokens chegam, o chat rola automaticamente e o texto novo nunca fica escondido atrás de faixas inferiores.
+
+3. **⚡ Testar Rolagem por Teclado:**
+   - Pressionar `PageUp` (ou `Ctrl+Up` / `Shift+Up`) várias vezes.
+   - Comprovar que a conversa sobe suavemente para rever o início do texto.
+   - Pressionar `PageDown` (ou `Ctrl+Down` / `Shift+Down`).
+   - Comprovar que a conversa desce suavemente de volta até a última linha.
+   - Pressionar `Home` (com `Ctrl` ou `Shift`) para saltar ao topo e `End` para saltar ao final.
+
+---
+
+### 📌 Cenário 4 (v0.28.0): Verificação de Margem Limpa e Ausência de Sobreposição nas Legendas Inferiores
+
+- **Objetivo**: Comprovar que o texto de rodapé `💡 [↑/↓] Navigate • [Enter] Select • [Esc] Close` dentro dos modais e do Slash Palette possui espaçamento vertical limpo e nunca renderiza por cima da borda inferior da caixa.
+- **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.0` com Bun instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Abrir o Palette (`/`) e os Modais (`/mode`, `/menu`):**
+   - Digitar `/` para abrir o Slash Commands Palette.
+   - Inspecionar visualmente o rodapé: comprovar que a legenda está desenhada com margem de 1 linha acima da borda arredondada inferior.
+   - Digitar `/mode` e `/menu` e comprovar o mesmo espaçamento limpo em ambos os modais.
+
+---
+
 ### 📌 Cenário 1 (v0.27.6): Validação de Header Dinâmico (Full Glory vs Compact) e Scrollbox Desacoplado
 
 - **Objetivo**: Comprovar que o cabeçalho ASCII é renderizado no topo fora do `<scrollbox>`, exibindo a arte completa e plano dinâmico (`⭐ Pro Plan`) no início (0 mensagens), retraindo-se automaticamente para uma Top Bar compacta e limpa de 1 linha durante o diálogo (1+ mensagens), restaurando o modo completo ao executar `/clear`, com 100% de estabilidade e zero gaps no scroll de conversas.

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import { SyntaxStyle } from "@opentui/core";
 import { AnyContextState } from "../bridge-client";
 import { anyContextTheme } from "../themes";
@@ -19,9 +19,19 @@ interface ChatMessageListProps {
 
 const defaultSyntaxStyle = (SyntaxStyle as any).create ? (SyntaxStyle as any).create() : new (SyntaxStyle as any)();
 
-export const ChatMessageList = ({ messages, state }: ChatMessageListProps): any => {
+export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({ messages, state }, ref): any => {
   return (
-    <scrollbox flexGrow={1} flexDirection="column" paddingLeft={1} paddingRight={1} stickyScroll={true}>
+    <scrollbox
+      ref={ref}
+      flexGrow={1}
+      flexShrink={1}
+      minHeight={0}
+      flexDirection="column"
+      paddingLeft={1}
+      paddingRight={1}
+      stickyScroll={true}
+      stickyStart="bottom"
+    >
       {/* Render Conversation Messages */}
       {messages.map((msg) => {
         if (msg.role === "user") {

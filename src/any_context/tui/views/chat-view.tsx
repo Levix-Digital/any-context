@@ -1,9 +1,14 @@
 import React from "react";
-import type { AnyContextState, SlashCommandMeta } from "../bridge-client";
+import type {
+  AnyContextState,
+  SlashCommandMeta,
+  MenuTreeSchema,
+  OptionsGroupSchema,
+} from "../bridge-client";
 import { HeaderBar } from "../components/header-bar";
 import { ChatMessage, ChatMessageList } from "../components/chat-message-list";
 import { AutocompleteDropdown } from "../components/autocomplete-dropdown";
-import { InteractiveMenu } from "../components/interactive-menu";
+import { InteractiveModal } from "../components/interactive-modal";
 import { InputBar } from "../components/input-bar";
 import { StatusBar } from "../components/status-bar";
 import { anyContextTheme } from "../themes";
@@ -14,10 +19,14 @@ interface ChatViewProps {
   inputValue: string;
   paletteOpen: boolean;
   paletteIndex: number;
-  menuOpen: boolean;
-  menuIndex: number;
+  modalOpen: boolean;
+  modalMode: "options" | "menu";
+  modalOptionsGroup: OptionsGroupSchema | null;
+  modalMenuTree: MenuTreeSchema | null;
+  modalIndex: number;
   commands: SlashCommandMeta[];
   isGenerating: boolean;
+  scrollBoxRef: React.RefObject<any>;
   onInputChange: (val: string) => void;
   onSubmit: (text?: string) => void;
 }
@@ -28,10 +37,14 @@ export const ChatView = ({
   inputValue,
   paletteOpen,
   paletteIndex,
-  menuOpen,
-  menuIndex,
+  modalOpen,
+  modalMode,
+  modalOptionsGroup,
+  modalMenuTree,
+  modalIndex,
   commands,
   isGenerating,
+  scrollBoxRef,
   onInputChange,
   onSubmit,
 }: ChatViewProps): any => {
@@ -41,12 +54,15 @@ export const ChatView = ({
       <HeaderBar state={state} hasMessages={messages.length > 0} />
 
       {/* Main Chat Message Scroll View */}
-      <ChatMessageList messages={messages} state={state} />
+      <ChatMessageList ref={scrollBoxRef} messages={messages} state={state} />
 
-      {/* Interactive Menu Modal Box */}
-      <InteractiveMenu
-        isOpen={menuOpen}
-        selectedIndex={menuIndex}
+      {/* Unified Interactive Modal (Options list or Hierarchical Config Menu) */}
+      <InteractiveModal
+        isOpen={modalOpen}
+        mode={modalMode}
+        optionsGroup={modalOptionsGroup}
+        menuTree={modalMenuTree}
+        selectedIndex={modalIndex}
         state={state}
       />
 

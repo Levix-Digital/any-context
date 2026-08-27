@@ -968,8 +968,9 @@ def _manage_grounding_mode(store: ConfigDBStore):
     else:
         new_mode = "hybrid"
 
-    saved = store.set_grounding_mode(new_mode)
-    print(f"\n✅ AI Grounding Mode updated to: \033[92m{saved.capitalize()}\033[0m!\n")
+    from any_context.core.interaction.options_engine import OptionsEngine
+    res = OptionsEngine().set_grounding_mode(new_mode)
+    print(f"\n{res.message}\n")
 
 
 def _manage_web_search(store: ConfigDBStore):
