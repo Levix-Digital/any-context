@@ -15,6 +15,7 @@ import {
   isDirectExecutionCommand,
   MAX_PALETTE_ITEMS,
 } from "./commands";
+import { tuiLog } from "./logger";
 
 interface AppProps {
   initialWorkspace?: string;
@@ -44,7 +45,13 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const scrollBoxRef = useRef<any>(null);
 
   useEffect(() => {
+    tuiLog.info("APP:MOUNT", "App component mounted", { initialWorkspace });
     client.onStateChange = (newState) => {
+      tuiLog.info("APP:STATE_CHANGE", "client.onStateChange triggered", {
+        workspace: newState.workspace,
+        model: newState.model,
+        needs_onboarding: newState.needs_onboarding,
+      });
       setState(newState);
       if (newState.needs_onboarding && !modalOpen && !hasTriggeredOnboardingRef.current) {
         openOnboardingModal(newState.onboarding_state?.options_group);
@@ -52,10 +59,14 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     };
 
     client.start().then(() => {
+      tuiLog.info("APP:START_OK", "client.start() completed successfully", {
+        needs_onboarding: client.state.needs_onboarding,
+      });
       if (client.state.needs_onboarding && !modalOpen && !hasTriggeredOnboardingRef.current) {
         openOnboardingModal(client.state.onboarding_state?.options_group);
       }
     }).catch((err) => {
+      tuiLog.error("APP:START_FAIL", `Failed to start BridgeClient: ${err.message}`, { error: err.stack });
       setMessages((prev) => [
         ...prev,
         {
@@ -88,12 +99,14 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   }, [state.needs_onboarding, modalOpen, state.onboarding_state]);
 
   const openOnboardingModal = async (overrideOpts?: OptionsGroupSchema) => {
+    tuiLog.info("APP:OPEN_ONBOARDING", "Invoking openOnboardingModal", { overrideOpts: Boolean(overrideOpts) });
     try {
       let opts = overrideOpts || (state.onboarding_state && state.onboarding_state.options_group);
       if (!opts || !opts.items || opts.items.length === 0) {
         opts = await client.getOptions("onboarding");
       }
       if (opts && opts.items && opts.items.length > 0) {
+        tuiLog.info("APP:MODAL_ACTIVE", "Opening onboarding options modal", { count: opts.items.length, active_id: opts.active_id });
         setPaletteOpen(false);
         setModalMode("options");
         setModalOptionsGroup(opts);
@@ -101,8 +114,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         setModalIndex(activeIdx >= 0 ? activeIdx : 0);
         setModalOpen(true);
         hasTriggeredOnboardingRef.current = true;
+      } else {
+        tuiLog.warn("APP:MODAL_EMPTY", "No onboarding options received from backend");
       }
     } catch (err: any) {
+      tuiLog.error("APP:MODAL_ERROR", `Failed to load onboarding setup: ${err.message}`, { error: err.stack });
       hasTriggeredOnboardingRef.current = false;
       setMessages((prev) => [
         ...prev,
@@ -632,6 +648,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   };
 
   const handleSlashCommand = async (cmdText: string) => {
+    tuiLog.info("APP:SLASH_COMMAND", `Executing slash command '${cmdText}'`);
     const parts = cmdText.split(" ");
     const cmd = parts[0].toLowerCase();
 

@@ -1717,6 +1717,9 @@ def launch_opentui(workspace: str = "Default") -> bool:
     """Attempts to launch the OpenTUI frontend using bun if installed."""
     import shutil
     import subprocess
+    from any_context.observability import obs
+    obs.info("TUI:LAUNCH", "Initiating OpenTUI launch", {"workspace": workspace})
+
     is_windows = sys.platform.startswith("win")
 
     bun_bin = None
@@ -1726,6 +1729,7 @@ def launch_opentui(workspace: str = "Default") -> bool:
             shutil.which("bun.exe"),
             os.path.expanduser("~/.bun/bin/bun.exe"),
             os.path.join(os.environ.get("USERPROFILE", ""), ".bun", "bin", "bun.exe"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "actx", "bin", "bun.exe"),
         ]
     else:
         # On Linux/WSL, prioritize native Linux Bun and strictly exclude Windows .exe binaries
@@ -1733,17 +1737,19 @@ def launch_opentui(workspace: str = "Default") -> bool:
             os.path.expanduser("~/.bun/bin/bun"),
             "/usr/local/bin/bun",
             "/usr/bin/bun",
+            os.path.expanduser("~/.local/bin/bun"),
         ]
         which_bun = shutil.which("bun")
         if which_bun and not which_bun.lower().endswith(".exe") and not which_bun.startswith("/mnt/c"):
             candidates.append(which_bun)
 
     for c in candidates:
-        if c and os.path.exists(c) and os.access(c, os.X_OK):
+        if c and os.path.exists(c) and (is_windows or os.access(c, os.X_OK)):
             bun_bin = c
             break
 
     if not bun_bin:
+        obs.warn("TUI:BUN_MISSING", "Bun runtime not detected in candidates", {"candidates": [c for c in candidates if c]})
         print("\n❌ OpenTUI Error: Bun runtime was not found.")
         print("💡 OpenTUI requires Bun (fast JavaScript runtime). Install it via:")
         print('   • Windows: powershell -c "irm bun.sh/install.ps1 | iex"')
@@ -1752,6 +1758,7 @@ def launch_opentui(workspace: str = "Default") -> bool:
 
     tui_index = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tui", "index.tsx"))
     if not os.path.exists(tui_index):
+        obs.error("TUI:ENTRYPOINT_MISSING", f"Frontend entrypoint not found at: {tui_index}")
         print(f"\n❌ OpenTUI Error: Frontend entrypoint not found at: {tui_index}\n")
         return False
 
@@ -1780,9 +1787,19 @@ def launch_opentui(workspace: str = "Default") -> bool:
         env["ACTX_EXECUTABLE"] = sys.executable or "actx"
         env["ACTX_PYTHON_PATH"] = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         env["ACTX_FRONTEND"] = "tui"
+
+        obs.info("TUI:EXEC", "Spawning OpenTUI process", {
+            "bun_bin": bun_bin,
+            "tui_index": tui_index,
+            "executable": env["ACTX_EXECUTABLE"],
+            "cwd": os.path.dirname(tui_index),
+        })
+
         res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index), env=env)
+        obs.info("TUI:EXIT", f"OpenTUI process exited with code {res.returncode}", {"returncode": res.returncode})
         return res.returncode == 0
     except Exception as e:
+        obs.error("TUI:CRASH", f"Exception running OpenTUI: {e}", exc=e)
         print(f"\n❌ OpenTUI Error: {e}\n")
         return False
 

@@ -76,6 +76,16 @@ class OnboardingService:
             needs_onboarding = True
             stage = "missing_key"
 
+        from any_context.observability import obs
+        obs.info("ONBOARDING:STATUS", f"Evaluated onboarding requirement: {needs_onboarding}", {
+            "needs_onboarding": needs_onboarding,
+            "stage": stage,
+            "provider": provider,
+            "has_key": has_key,
+            "is_local": is_local,
+            "onboarding_completed": onboarding_completed
+        })
+
         options = [
             OptionItemSchema(
                 id="openai",
