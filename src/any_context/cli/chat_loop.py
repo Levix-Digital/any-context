@@ -256,6 +256,15 @@ def create_bottom_toolbar_renderer(
             f"{sync_badge}"
         )
 
+        left_visible = (
+            f" 📂 {workspace_name}  │  "
+            f"🤖 {model_name}  │  "
+            f"🛡️ {clean_mode}  │  "
+            f"🌐 Search: {'ON' if ws_search else 'OFF'}  │  "
+            f"💡 /menu"
+            f"{if_sync_part}"
+        )
+
         if cols >= 95:
             right_html = "<style fg='#565f89'>📜 </style><style fg='#7dcfff'>Shift+PgUp/PgDn</style> <style fg='#565f89'>│</style> <style fg='#f7768e'><b>🚪 /exit</b></style> "
             right_visible = "📜 Shift+PgUp/PgDn │ 🚪 /exit "
