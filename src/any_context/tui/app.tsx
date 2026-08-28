@@ -103,6 +103,25 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     }
   };
 
+  const openModelModal = async () => {
+    try {
+      const opts = await client.getOptions("inference_model");
+      if (opts && opts.items) {
+        setPaletteOpen(false);
+        setModalMode("options");
+        setModalOptionsGroup(opts);
+        const activeIdx = opts.items.findIndex((item) => item.is_active);
+        setModalIndex(activeIdx >= 0 ? activeIdx : 0);
+        setModalOpen(true);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `err_${Date.now()}`, role: "system", content: `❌ Could not load AI models: ${err.message}` },
+      ]);
+    }
+  };
+
   const openConfigModal = async (menuId: string = "main", pushHistory: boolean = false) => {
     try {
       const tree = await client.getMenuTree(menuId);
@@ -441,6 +460,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       return;
     }
 
+    if ((cmd === "/model" || cmd === "/models" || cmd === "/m") && parts.length === 1) {
+      await openModelModal();
+      return;
+    }
+
     if ((cmd === "/update" || cmd.startsWith("/update@")) && parts.length === 1) {
       await openUpdateModal(cmd.includes("@") ? cmd.split("@")[1] : undefined);
       return;
@@ -473,6 +497,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         }
         if (res.action === "open_switch_modal") {
           await openSwitchModal();
+          return;
+        }
+        if (res.action === "open_model_modal") {
+          await openModelModal();
           return;
         }
         if (res.action === "open_update_modal") {

@@ -384,7 +384,8 @@ class CommandDispatcher:
             curr = self.model_svc.get_current_model()
             return CommandResult(
                 success=True,
-                message=f"🤖 **Active AI Model:** `{curr}`\n\n*Usage:* `/model <name>` (e.g. `/model gpt-4o-mini`, `/model claude-3-5-sonnet`)"
+                message=f"🤖 **Active AI Model:** `{curr}`\n\n*Usage:* `/model <name>` (e.g. `/model gpt-4o-mini`, `/model claude-3-5-sonnet`)",
+                action="open_model_modal"
             )
 
         new_model = parts[1].strip()
