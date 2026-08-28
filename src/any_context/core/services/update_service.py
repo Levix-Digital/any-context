@@ -322,8 +322,14 @@ class UpdateService:
             target_exe = os.path.abspath(sys.executable)
             target_dir = os.path.dirname(target_exe)
         else:
-            target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
-            target_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
+            import shutil
+            found_which = shutil.which("actx.exe" if is_windows else "actx")
+            if found_which:
+                target_exe = os.path.abspath(found_which)
+                target_dir = os.path.dirname(target_exe)
+            else:
+                target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
+                target_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
 
         os.makedirs(target_dir, exist_ok=True)
         temp_download = os.path.join(target_dir, "actx_new.exe" if is_windows else "actx_new")

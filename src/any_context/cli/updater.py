@@ -588,7 +588,7 @@ def run_self_update(
         except Exception:
             pass
 
-        # Step B: Spawn background PowerShell loop with retry to complete swap & cleanup
+        # Step B: Spawn background PowerShell loop with retry to complete swap, cleanup & auto-restart
         swap_script = (
             f"$retries = 0; "
             f"while ($retries -lt 30) {{ "
@@ -601,9 +601,13 @@ def run_self_update(
             f"    }} "
             f"    break "
             f"  }} catch {{ "
-            f"    Start-Sleep -Milliseconds 500; "
+            f"    Start-Sleep -Milliseconds 400; "
             f"    $retries++ "
             f"  }} "
+            f"}}; "
+            f"Start-Sleep -Milliseconds 600; "
+            f"if (Test-Path -LiteralPath '{target_exe}') {{ "
+            f"  Start-Process -FilePath '{target_exe}' "
             f"}}"
         )
         try:
@@ -615,17 +619,17 @@ def run_self_update(
             pass
 
         safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
-        if active_instances and decision != "close":
-            safe_print(f"💡 Note: {len(active_instances)} other background session(s) are still active. Restart them when ready to use {clean_tag}.")
-        safe_print(f"👉 Restart your terminal or type 'actx' to launch {clean_tag}.\n")
+        safe_print("🚀 Restarting AnyContext automatically in 1 second...\n")
+        time.sleep(1)
         sys.exit(0)
     else:
         try:
             os.replace(temp_download, target_exe)
             safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
-            if active_instances and decision != "close":
-                safe_print(f"💡 Note: {len(active_instances)} other background session(s) are still active. Restart them when ready to use {clean_tag}.")
-            safe_print(f"👉 Restart your terminal or type 'actx' to launch {clean_tag}.\n")
+            safe_print("🚀 Restarting AnyContext automatically...\n")
+            restart_cmd = f"sleep 1 && '{target_exe}'"
+            subprocess.Popen(restart_cmd, shell=True)
+            time.sleep(1)
             sys.exit(0)
         except Exception as e:
             safe_print(f"⚠️ Saved new binary to: {temp_download}. Please move it to {target_exe} with sudo/chmod.")
