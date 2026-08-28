@@ -73,7 +73,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
             💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/model'</b> for LLM, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
           </text>
           <text fg={anyContextTheme.foregroundMuted}>
-            📜 <i>Dica de Rolagem:</i> Use <b>PgUp / PgDn</b> ou <b>Shift + ↑ / ↓</b> (ou a rodinha do mouse) para rolar a tela.
+            📜 <i>Scroll Hint:</i> Use <b>PgUp / PgDn</b>, <b>Shift + ↑ / ↓</b>, or mouse wheel to scroll.
           </text>
         </box>
       </box>
