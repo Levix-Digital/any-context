@@ -401,15 +401,20 @@ def run_rpc_server(default_workspace: str = "Default"):
     # Notify TUI on startup that RPC server is ready
     _send_ndjson({"event": "ready", "state": server.get_state()})
 
-    for line in sys.stdin:
-        clean_line = line.strip()
-        if not clean_line:
-            continue
+    while True:
         try:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            clean_line = line.strip()
+            if not clean_line:
+                continue
             payload = json.loads(clean_line)
             server.handle_request(payload)
         except json.JSONDecodeError as e:
             _send_ndjson({"error": {"code": -32700, "message": f"Parse error: {e}"}})
+        except (KeyboardInterrupt, EOFError):
+            break
         except Exception as e:
             _send_ndjson({"error": {"code": -32000, "message": str(e)}})
 
