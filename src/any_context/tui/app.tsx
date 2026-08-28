@@ -320,20 +320,44 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       }
     }
 
-    // 5. CHAT HISTORY KEYBOARD SCROLLING (PageUp / PageDown / Home / End / Shift+Arrows)
+    // 5. CHAT HISTORY KEYBOARD SCROLLING (PageUp / PageDown / Home / End / Shift+Arrows / Ctrl+Arrows)
     if (!modalOpen && !paletteOpen) {
       if (event.name === "pageup") {
-        setScrollOffset((prev) => Math.min(Math.max(0, messages.length - 1), prev + 3));
-      } else if (event.name === "pagedown") {
-        setScrollOffset((prev) => Math.max(0, prev - 3));
-      } else if (event.name === "up" && (event.ctrl || event.shift)) {
-        setScrollOffset((prev) => Math.min(Math.max(0, messages.length - 1), prev + 1));
-      } else if (event.name === "down" && (event.ctrl || event.shift)) {
-        setScrollOffset((prev) => Math.max(0, prev - 1));
-      } else if (event.name === "home") {
-        setScrollOffset(Math.max(0, messages.length - 1));
-      } else if (event.name === "end") {
-        setScrollOffset(0);
+        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollBy === "function") {
+          scrollBoxRef.current.scrollBy(-5);
+        }
+        return;
+      }
+      if (event.name === "pagedown") {
+        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollBy === "function") {
+          scrollBoxRef.current.scrollBy(5);
+        }
+        return;
+      }
+      if (event.name === "up" && (event.ctrl || event.shift)) {
+        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollBy === "function") {
+          scrollBoxRef.current.scrollBy(-2);
+        }
+        return;
+      }
+      if (event.name === "down" && (event.ctrl || event.shift)) {
+        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollBy === "function") {
+          scrollBoxRef.current.scrollBy(2);
+        }
+        return;
+      }
+      if (event.name === "home" && (event.ctrl || event.shift || !inputValue)) {
+        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollTo === "function") {
+          scrollBoxRef.current.scrollTo(0);
+        }
+        return;
+      }
+      if (event.name === "end" && (event.ctrl || event.shift || !inputValue)) {
+        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollTo === "function") {
+          const h = scrollBoxRef.current.scrollHeight || 999999;
+          scrollBoxRef.current.scrollTo(h);
+        }
+        return;
       }
     }
   });
@@ -342,8 +366,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     const raw = (text !== undefined ? text : inputValue).trim();
     if (!raw) return;
 
-    // Reset scroll offset to latest on new user prompt
-    setScrollOffset(0);
+    // Reset scroll to latest on new user prompt
+    if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollTo === "function") {
+      const h = scrollBoxRef.current.scrollHeight || 999999;
+      scrollBoxRef.current.scrollTo(h);
+    }
 
     // Record into input history (avoiding immediate duplicates)
     setInputHistory((prev) => (prev.length === 0 || prev[prev.length - 1] !== raw ? [...prev, raw] : prev));

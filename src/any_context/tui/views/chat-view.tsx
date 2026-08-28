@@ -55,8 +55,8 @@ export const ChatView = ({
       {/* Dynamic Header: Full ASCII banner when 0 messages / post-clear, sleek 1-line top bar during chat */}
       <HeaderBar state={state} hasMessages={messages.length > 0} />
 
-      {/* Main Chat Message Scroll View with Slice Engine */}
-      <ChatMessageList ref={scrollBoxRef} messages={messages} state={state} scrollOffset={scrollOffset} />
+      {/* Main Chat Message Scroll View with Scrollbox Engine */}
+      <ChatMessageList ref={scrollBoxRef} messages={messages} state={state} />
 
       {/* Unified Interactive Modal (Options list or Hierarchical Config Menu) */}
       <InteractiveModal
