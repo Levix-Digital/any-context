@@ -648,8 +648,17 @@ class ConfigEngine:
         # Workspace actions
         if action_id == "ws_list":
             workspaces = self.workspace_svc.list_workspaces(active_workspace=ws_name)
-            ws_str = ", ".join([f"**{w['name']}**" for w in workspaces])
-            return MenuActionResult(success=True, message=f"📂 Configured Workspaces ({len(workspaces)}): {ws_str}")
+            lines = [f"### 📂 Workspaces ({len(workspaces)}):"]
+            for w in workspaces:
+                is_active = w.get("is_active", False)
+                active_badge = " **[Active]**" if is_active else ""
+                sources = w.get("sources", [])
+                lines.append(f"- **{w['name']}**{active_badge} — {len(sources)} source(s)")
+                for s in sources[:5]:
+                    lines.append(f"  • `{s.get('source_uri', s.get('path', ''))}` ({s.get('type', 'folder')})")
+                if len(sources) > 5:
+                    lines.append(f"  • ... and {len(sources) - 5} more")
+            return MenuActionResult(success=True, message="\n".join(lines))
 
         if action_id == "ws_create":
             name = params.get("value", "").strip()
@@ -679,6 +688,18 @@ class ConfigEngine:
             return MenuActionResult(success=True, message=f"🔄 Background synchronization started for **{ws_name}**.")
 
         # API Key actions
+        if action_id == "keys_list":
+            all_keys = self.store.get_all_api_keys()
+            lines = [f"### 🔑 Configured API Keys ({len(all_keys)}):"]
+            for k in ["openai", "gemini", "anthropic", "tavily", "serper", "deepseek"]:
+                val = all_keys.get(k)
+                if val:
+                    masked = val[:6] + "..." + val[-4:] if len(val) > 10 else "******"
+                    lines.append(f"- **{k.upper()}**: `✅ Configured` (`{masked}`)")
+                else:
+                    lines.append(f"- **{k.upper()}**: `⚠️ Missing / Not Configured`")
+            return MenuActionResult(success=True, message="\n".join(lines))
+
         if action_id.startswith("key_set_"):
             provider = action_id.replace("key_set_", "")
             key_val = params.get("value", "").strip()
@@ -687,9 +708,45 @@ class ConfigEngine:
             self.model_svc.set_api_key(provider, key_val)
             return MenuActionResult(success=True, message=f"🔑 Saved API key for provider **{provider.upper()}**.")
 
+        # Memory actions
+        if action_id == "memory_info":
+            lines = [
+                "### 🧠 Long-Term & Short-Term Memory Status",
+                f"- **Active Workspace**: `{ws_name}`",
+                "- **Storage Engine**: `LanceDB Local Vector Store` (AES-GCM-256 Encrypted)",
+                "- **Memory Hierarchy**: L1 (Rolling Turns) ➔ L2 (Session Checkpoints) ➔ L3 (Master Summary)",
+                "- **Auto-Summarization**: Triggered every 20 conversation turns"
+            ]
+            return MenuActionResult(success=True, message="\n".join(lines))
+
         # Billing actions
         if action_id == "billing_view_matrix":
             info = self.billing_svc.get_billing_info()
-            return MenuActionResult(success=True, message=f"💳 Active Tier: **{info['current_tier'].upper()}**\n\n{info['matrix_text']}")
+            return MenuActionResult(success=True, message=f"### 💳 Subscription Tier: {info.get('current_tier', 'community').upper()}\n\n{info.get('matrix_text', '')}")
+
+        # Sharing actions
+        if action_id == "share_list_collabs":
+            collabs = self.store.list_workspace_collaborators(ws_name)
+            lines = [f"### 👥 Collaborators for '{ws_name}' ({len(collabs)}):"]
+            if not collabs:
+                lines.append("- No external collaborators attached to this workspace.")
+            else:
+                for c in collabs:
+                    lines.append(f"- **{c.get('user_id', 'Unknown')}**: Role `{c.get('role', 'viewer')}` (Joined: {c.get('joined_at', 'N/A')[:10]})")
+            return MenuActionResult(success=True, message="\n".join(lines))
+
+        # Security actions
+        if action_id == "sec_status":
+            admin_cfg = self.store.is_admin_configured()
+            users = self.store.list_users()
+            tokens = self.store.get_access_tokens()
+            lines = [
+                "### 🛡️ User Accounts & Security Access Control",
+                f"- **Security Mode**: `{'Protected Multi-User RBAC' if admin_cfg else 'Open Local Community Mode'}`",
+                f"- **Registered Users**: `{len(users)}`",
+                f"- **Active Bearer Tokens**: `{len(tokens)}`",
+                "- **Data Encryption**: `AES-GCM-256 Hardware-Bound Key`"
+            ]
+            return MenuActionResult(success=True, message="\n".join(lines))
 
         return MenuActionResult(success=True, message=f"Action '{action_id}' executed.")
