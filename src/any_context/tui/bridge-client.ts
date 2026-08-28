@@ -91,7 +91,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.35",
+    version: "0.28.36",
     workspace: "Default",
     model: "...",
     grounding_mode: "strict",
@@ -145,6 +145,7 @@ export class BridgeClient {
     }
     const callerCwd = process.env.ACTX_CALLER_CWD || process.cwd();
     childEnv.ACTX_CALLER_CWD = callerCwd;
+    childEnv.ACTX_FRONTEND = "tui";
 
     this.process = spawn(command, args, {
       cwd: callerCwd,
