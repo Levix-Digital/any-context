@@ -160,17 +160,18 @@ class OptionsEngine:
 
         items = []
         for m in catalog:
-            is_act = (m["name"].lower() == curr.lower())
+            model_id = m.get("id", m.get("name", ""))
+            is_act = (model_id.lower() == curr.lower() or m.get("name", "").lower() == curr.lower())
             status_badge = "✅ Configured" if m.get("is_available") else "⚠️ Key Missing"
             active_badge = " [Active]" if is_act else ""
             items.append(OptionItemSchema(
-                id=m["name"],
+                id=model_id,
                 title=f"{m['name']} ({m.get('provider', 'cloud')})",
-                description=f"Provider: {m.get('provider')} | {status_badge}",
+                description=f"Provider: {m.get('provider')} | ID: {model_id} | {status_badge}",
                 icon="🤖",
                 badge=f"{status_badge}{active_badge}",
                 is_active=is_act,
-                metadata={"provider": m.get("provider"), "is_available": m.get("is_available", False)}
+                metadata={"model_id": model_id, "provider": m.get("provider"), "is_available": m.get("is_available", False)}
             ))
 
         return OptionsGroupSchema(

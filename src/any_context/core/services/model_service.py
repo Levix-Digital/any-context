@@ -10,7 +10,8 @@ from any_context.core.models_catalog import (
     get_available_models,
     validate_model_key_availability,
     PROVIDER_CATALOG,
-    infer_provider_for_model
+    infer_provider_for_model,
+    normalize_model_id
 )
 
 
@@ -25,14 +26,14 @@ class ModelService:
         try:
             settings = self.store.get_app_settings()
             if settings and settings.models and settings.models.inference_model:
-                return settings.models.inference_model
+                return normalize_model_id(settings.models.inference_model)
         except Exception:
             pass
         return "gpt-4o-mini"
 
     def set_model(self, model_name: str) -> Dict[str, Any]:
         """Validates and switches the active AI model."""
-        clean_model = model_name.strip()
+        clean_model = normalize_model_id(model_name.strip())
         if not clean_model:
             raise ValueError("Model name cannot be empty.")
 

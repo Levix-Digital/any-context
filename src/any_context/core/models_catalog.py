@@ -284,3 +284,28 @@ def format_inference_error(error: Exception, model_name: str, provider: str = No
         "action": action,
         "formatted_box": formatted_box
     }
+
+
+def normalize_model_id(model_input: str) -> str:
+    """
+    Normalizes any model name or display title back to its canonical ID.
+    e.g. 'GPT-4o Mini (Universal - Fast & Efficient)' -> 'gpt-4o-mini'
+    """
+    if not model_input:
+        return "gpt-4o-mini"
+    clean = model_input.strip()
+
+    for prov_data in PROVIDER_CATALOG.values():
+        for m in prov_data.get("models", []):
+            m_id = m.get("id", "")
+            m_name = m.get("name", "")
+            if clean.lower() == m_id.lower():
+                return m_id
+            if clean.lower() == m_name.lower():
+                return m_id
+            if clean.lower().startswith(m_id.lower()) and (len(clean) == len(m_id) or clean[len(m_id):].startswith(" ")):
+                return m_id
+            if m_name and clean.lower().startswith(m_name.lower()):
+                return m_id
+
+    return clean

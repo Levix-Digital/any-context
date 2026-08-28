@@ -60,7 +60,8 @@ class StdioRPCServer:
         try:
             settings = self.store.get_app_settings()
             if settings and settings.models and settings.models.inference_model:
-                self._current_model = settings.models.inference_model
+                from any_context.core.models_catalog import normalize_model_id
+                self._current_model = normalize_model_id(settings.models.inference_model)
             self._grounding_mode = self.store.get_grounding_mode(workspace_name=self.active_workspace) or "strict"
             self._web_search_enabled = self.store.get_web_search_status(workspace_name=self.active_workspace) or False
         except Exception:
