@@ -403,7 +403,8 @@ def run_self_update(
     target_version: Optional[str] = None,
     auto_close_instances: bool = False,
     force_background: bool = False,
-    force: bool = False
+    force: bool = False,
+    is_interactive_chat: bool = False
 ):
     """
     Executes automatic binary update or rollback by downloading the target/latest release asset
@@ -636,7 +637,28 @@ def run_self_update(
                 pass
 
         safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
-        safe_print("🚀 Restarting AnyContext automatically in the current terminal...\n")
+
+        if not is_interactive_chat:
+            safe_print(f"👉 Run 'actx' to launch {clean_tag}.\n")
+            return
+
+        # Interactive in-chat update: Warn user and confirm restart
+        safe_print("\n⚠️ Updating will close the current chat session.")
+        do_restart = True
+        try:
+            import questionary
+            do_restart = questionary.confirm(
+                f"🚀 Would you like to restart AnyContext with {clean_tag} now?",
+                default=True
+            ).ask()
+        except Exception:
+            do_restart = True
+
+        if not do_restart:
+            safe_print(f"\n👉 You can continue chatting! The new update ({clean_tag}) will take effect the next time you launch AnyContext.\n")
+            return
+
+        safe_print(f"\n🚀 Restarting AnyContext with {clean_tag} in current terminal...\n")
         time.sleep(1)
 
         # In-place restart preserving CLI arguments and active terminal session
@@ -657,7 +679,28 @@ def run_self_update(
         try:
             os.replace(temp_download, target_exe)
             safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
-            safe_print("🚀 Restarting AnyContext automatically in the current terminal...\n")
+
+            if not is_interactive_chat:
+                safe_print(f"👉 Run 'actx' to launch {clean_tag}.\n")
+                return
+
+            # Interactive in-chat update: Warn user and confirm restart
+            safe_print("\n⚠️ Updating will close the current chat session.")
+            do_restart = True
+            try:
+                import questionary
+                do_restart = questionary.confirm(
+                    f"🚀 Would you like to restart AnyContext with {clean_tag} now?",
+                    default=True
+                ).ask()
+            except Exception:
+                do_restart = True
+
+            if not do_restart:
+                safe_print(f"\n👉 You can continue chatting! The new update ({clean_tag}) will take effect the next time you launch AnyContext.\n")
+                return
+
+            safe_print(f"\n🚀 Restarting AnyContext with {clean_tag} in current terminal...\n")
             time.sleep(1)
 
             restart_args = [target_exe]

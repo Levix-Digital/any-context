@@ -1099,7 +1099,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                 if is_list or is_rollback:
                     picked = display_available_releases(interactive_select=True)
                     if picked:
-                        run_self_update(target_version=picked, force=is_force)
+                        run_self_update(target_version=picked, force=is_force, is_interactive_chat=True)
                     continue
 
                 if is_check_only:
@@ -1111,7 +1111,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                                 default=True
                             ).ask()
                             if do_upgrade:
-                                run_self_update(force=is_force)
+                                run_self_update(force=is_force, is_interactive_chat=True)
                         except Exception:
                             pass
                     continue
@@ -1134,7 +1134,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                     if non_flags:
                         target_version = non_flags[0]
 
-                run_self_update(target_version=target_version, force=is_force)
+                run_self_update(target_version=target_version, force=is_force, is_interactive_chat=True)
                 continue
 
             elif cmd in ["/reset-memory", "/reset"] or cmd.startswith("/reset-memory ") or cmd.startswith("/reset "):
