@@ -373,7 +373,7 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
         self.assertIsNotNone(rendered_html)
         html_str = str(rendered_html)
         self.assertIn("TestWS", html_str)
-        self.assertIn("gpt-4o-mini", html_str)
+        self.assertTrue("GPT-4o Mini" in html_str or "gpt-4o-mini" in html_str)
         self.assertTrue("Strict" in html_str or "Hybrid" in html_str)
         self.assertIn("Search: ", html_str)
         self.assertIn("/menu", html_str)

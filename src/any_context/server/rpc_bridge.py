@@ -83,19 +83,33 @@ class StdioRPCServer:
         except Exception:
             pass
 
-        tier_name = "Community Edition"
+        tier_name = "🌿 Community Edition"
         try:
-            from any_context.core.services.billing_service import BillingService
-            billing_svc = BillingService()
-            b_info = billing_svc.get_billing_info()
-            tier_name = b_info.get("active_tier_name", "Community Edition")
+            from any_context.billing import BillingManager
+            b_mgr = BillingManager()
+            status = b_mgr.get_status()
+            tier_id = (status.active_tier_id or "community").lower().strip()
+            if tier_id == "enterprise":
+                tier_name = "🏢 Enterprise Edition"
+            elif tier_id == "team":
+                tier_name = "👥 Team Edition"
+            elif tier_id == "pro":
+                tier_name = "⭐ Pro Plan"
+            elif tier_id == "starter":
+                tier_name = "💼 Starter Plan"
+            else:
+                tier_name = "🌿 Community Edition"
         except Exception:
             pass
+
+        from any_context.core.models_catalog import get_commercial_model_name
+        model_display = get_commercial_model_name(self._current_model)
 
         return {
             "version": __version__,
             "workspace": self.active_workspace,
             "model": self._current_model,
+            "model_display": model_display,
             "grounding_mode": self._grounding_mode,
             "web_search_enabled": self._web_search_enabled,
             "sync_info": sync_info,
@@ -387,15 +401,20 @@ def run_rpc_server(default_workspace: str = "Default"):
     # Notify TUI on startup that RPC server is ready
     _send_ndjson({"event": "ready", "state": server.get_state()})
 
-    for line in sys.stdin:
-        clean_line = line.strip()
-        if not clean_line:
-            continue
+    while True:
         try:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            clean_line = line.strip()
+            if not clean_line:
+                continue
             payload = json.loads(clean_line)
             server.handle_request(payload)
         except json.JSONDecodeError as e:
             _send_ndjson({"error": {"code": -32700, "message": f"Parse error: {e}"}})
+        except (KeyboardInterrupt, EOFError):
+            break
         except Exception as e:
             _send_ndjson({"error": {"code": -32000, "message": str(e)}})
 

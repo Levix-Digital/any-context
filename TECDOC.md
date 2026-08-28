@@ -20,6 +20,11 @@
 13. [Hexagonal Decoupling & Universal Command Adapter Architecture (`v0.27.0`)](#13-hexagonal-decoupling--universal-command-adapter-architecture-v0270)
 14. [Central Interaction Engine & Decoupled Presentation Architecture (`v0.28.0`)](#14-central-interaction-engine--decoupled-presentation-architecture-v0280)
 15. [Hardware-Bound Data Encryption & OS-Native Storage Isolation (`v0.28.16`)](#15-hardware-bound-data-encryption--os-native-storage-isolation-v02816)
+16. [Full-Screen OpenTUI Layout, Mouse Wheel & Keyboard Scroll Engine (`v0.28.28`)](#16-full-screen-opentui-layout-mouse-wheel--keyboard-scroll-engine-v02828)
+17. [RAG Self-Healing Ingestion & Stale Cache Invalidation Engine (`v0.28.29`)](#17-rag-self-healing-ingestion--stale-cache-invalidation-engine-v02829)
+18. [Interactive Workspace Deletion with Mandatory Confirmation Protocol (`v0.28.32`)](#18-interactive-workspace-deletion-with-mandatory-confirmation-protocol-v02832)
+19. [Canonical Model ID Normalization & Settings Persistence Engine (`v0.28.33`)](#19-canonical-model-id-normalization--settings-persistence-engine-v02833)
+20. [Sub-Process DLL Isolation & Fast-Path Routing in PyInstaller Binaries (`v0.28.37`)](#20-sub-process-dll-isolation--fast-path-routing-in-pyinstaller-binaries-v02837)
 
 ---
 
@@ -616,3 +621,98 @@ The `SecurityEngine` extracts unique host hardware signatures:
 - **Indexed Metadata Fields**: `id`, `vector` (float array), `workspace`, `file_path`, `content_type` remain queryable for high-speed sub-millisecond Rust vector filtering.
 - **Top-K On-The-Fly Decryption**: Only top-K scored chunks retrieved during vector search are decrypted in memory for LLM synthesis. Hardware CPU AES-NI acceleration guarantees `< 0.1ms` retrieval overhead.
 - **Transparent Retroactive Migration**: Any legacy unencrypted databases or home folder stores are automatically migrated and encrypted at zero token cost.
+
+---
+
+## 16. Full-Screen OpenTUI Layout, Mouse Wheel & Keyboard Scroll Engine (`v0.28.28`)
+
+AnyContext features a high-performance terminal layout architecture utilizing OpenTUI's `<scrollbox>` with native horizontal and vertical alignment:
+
+### 📜 1. Frozen Full-Screen Scroll Architecture (`chat-message-list.tsx`)
+- Root viewport rendered via `<scrollbox>` with `flexDirection="row"`, `flexGrow={1}`, `flexShrink={1}`, `width="100%"`, `height="100%"`, and `useMouse={true}`.
+- Scroll steps calibrated for terminal ergonomics: `scrollStep={3}` for discrete line adjustments and `pageScrollStep={15}` for rapid navigation.
+- Native mouse wheel interception handled via terminal SGR mouse tracking events without screen jitter or cursor warping.
+
+### ⌨️ 2. Dual-Axis Keyboard Navigation
+- **PageUp / Shift + Up**: Smoothly scrolls the viewport upward through conversation history.
+- **PageDown / Shift + Down**: Scrolls the viewport downward toward latest responses.
+- **Auto-Scroll Anchoring**: Incoming streaming tokens from LangChain automatically anchor the scroll offset to bottom if the user is at the latest message.
+
+---
+
+## 17. RAG Self-Healing Ingestion & Stale Cache Invalidation Engine (`v0.28.29`)
+
+To guarantee zero disparity between local filesystem documents and LanceDB columnar vectors, AnyContext implements automatic self-healing verification:
+
+```mermaid
+graph TD
+    A["Source Ingestion Triggered"] --> B["Check SQLite Document Metadata"]
+    B --> C{"Physical Files Exist on Disk<br/>AND LanceDB Table has 0 Chunks?"}
+    C -- "Yes (Stale Cache Detected)" --> D["⚡ Invalidate Stale SQLite Stats Cache"]
+    D --> E["🚀 Force Full Re-indexing of All Source Documents"]
+    E --> F["💾 Populate LanceDB Columnar Table with Fresh Chunks"]
+    C -- "No (Integrity Verified)" --> G["Incremental Ingestion via mtime/hash Check"]
+```
+
+- **Root Cause Prevention**: If external file moves, database restores, or schema migrations result in 0 vector chunks for an indexed workspace, `orchestrator.py` dynamically invalidates the SQLite `file_stat` cache and triggers an immediate background full ingestion.
+- **Source Citation Guarantees**: Guarantees that AI answers always cite concrete indexed sources rather than returning ungrounded fallback notices.
+
+---
+
+## 18. Interactive Workspace Deletion with Mandatory Confirmation Protocol (`v0.28.32`)
+
+Workspaces can be safely managed and deleted across both CLI and TUI interfaces with strict safety gates:
+
+1. **Custom Workspace Discovery (`get_delete_workspace_options`)**:
+   - Lists only deletable custom workspaces along with their indexed source counts.
+   - System workspaces (`Default`, `Global`, and `Shared Sources`) are protected and excluded from deletion lists.
+2. **Explicit Safety Confirmation (`get_confirm_delete_workspace_options`)**:
+   - Selecting a workspace opens a secondary confirmation modal with two clear choices:
+     - `🗑️ Yes, permanently delete '<name>'`
+     - `🔙 Cancel (Keep '<name>')` (Focused by default for safety).
+3. **Cascading Purge & Active Workspace Fallback**:
+   - Confirming deletion purges all SQLite metadata and permanently removes vector chunks from LanceDB.
+   - If the deleted workspace was currently active, the session automatically falls back to `Default`.
+
+---
+
+## 19. Canonical Model ID Normalization & Settings Persistence Engine (`v0.28.33`)
+
+AnyContext implements a universal normalization engine (`normalize_model_id`) across all application layers (`models_catalog.py`, `model_service.py`, `agent.py`, `rpc_bridge.py`):
+
+- **Display Title vs. API Identifier Decoupling**: The interactive `/model` modal presents rich human-readable titles (`GPT-4o Mini (Universal - Fast & Efficient)`), but passes canonical API model IDs (`gpt-4o-mini`) to underlying SDKs and SQLite storage.
+- **Bidirectional Fault Tolerance**: If a legacy configuration contains a descriptive string or alias, `normalize_model_id` resolves it to the correct provider ID before invoking OpenAI, Anthropic, Gemini, or DeepSeek API clients, preventing `400: invalid model ID` errors.
+
+---
+
+## 20. Sub-Process DLL Isolation & Fast-Path Routing in PyInstaller Binaries (`v0.28.37`)
+
+Standalone executables (`actx.exe`) running nested child processes (e.g. `actx --tui` spawning `bun run index.tsx`, which spawns `actx --rpc`) are protected against C-extension initialization collisions:
+
+### 🛡️ 1. Environment & PATH Sanitization
+- `bridge-client.ts` and `launch_opentui` filter all temporary `_MEIxxxxx` extraction folders and `pyi_` variables from `process.env.PATH` and child process environments.
+- Prevents NumPy 2.x and C-extension loaders from loading duplicate `.pyd` DLL handles across parent-child process boundaries, eliminating `ImportError: cannot load module more than once per process`.
+
+### ⚡ 2. Instant Fast-Path Dispatch (`entrypoint.py`)
+- Non-interactive flags (`--tui`, `--rpc`, `--mcp`, `--version`, `-v`) are evaluated immediately at process entrypoint (`< 10ms`), delegating to target services before importing heavy machine learning or vector dependencies.
+
+### 🔄 3. Detached Auto-Restart with Caller Directory Preservation
+- The atomic binary updater (`UpdateService`) executes an asynchronous PowerShell swap script passing `-WorkingDirectory '{caller_cwd}'`, ensuring that restarted instances retain the user's project context and workspace configuration.
+
+---
+
+## 21. Robust Uninstallation & Canonical Storage Resolution Guarantee (`v0.28.51`)
+
+AnyContext enforces strict isolation of OS application directories and eliminates legacy fallback resolution to prevent orphan configuration drift:
+
+### 🏛️ 1. Single Source of Truth Resolution (`db_store.py`)
+- `ConfigDBStore.find_db_file()` strictly resolves `%LOCALAPPDATA%\AnyContext\config\settings.db` (or `ACTX_SETTINGS_DB` override), completely eliminating legacy lookups in `~/config` or local working directories.
+- `AppSettings.load()` and `load_env()` are unified under `get_app_data_root()`, preventing accidental creation of ghost databases in arbitrary execution directories.
+
+### 🧹 2. Comprehensive Multi-Surface Uninstallation (`uninstall.ps1` & `uninstall.sh`)
+- **Canonical & Standalone Removal**: Wipes `%LOCALAPPDATA%\actx` (standalone binary) and `%LOCALAPPDATA%\AnyContext` (canonical data upon 100% clean uninstall).
+- **Legacy Database Purging**: Automatically searches and purges legacy orphan files (`~/config/settings.db`, `./config/settings.db`).
+- **Python Environment Residual Detection**: Detects `actx` commands residing in Python `pip` scripts/virtual environments and automatically invokes `pip uninstall -y any-context`.
+- **Safe Reset Fallback**: When preserving workspaces, resets model settings to safe OpenAI factory defaults (`gpt-4o-mini` / `openai`) to eliminate broken provider bindings.
+
+

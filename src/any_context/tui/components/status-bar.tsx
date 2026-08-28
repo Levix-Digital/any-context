@@ -34,7 +34,7 @@ export const StatusBar = ({ state }: StatusBarProps): any => {
         </text>
         <text fg={anyContextTheme.ruleColor}> │ </text>
         <text fg={anyContextTheme.accentSecondary}>
-          <b>🤖 {state.model}</b>
+          <b>🤖 {state.model_display || state.model}</b>
         </text>
         <text fg={anyContextTheme.ruleColor}> │ </text>
         <text fg={anyContextTheme.accent}>
@@ -68,7 +68,7 @@ export const StatusBar = ({ state }: StatusBarProps): any => {
       {/* Right Dock Items: Terminal Scroll Guide & /exit */}
       <box flexDirection="row" alignItems="center">
         <text fg={anyContextTheme.foregroundMuted}>
-          📜 <span fg={anyContextTheme.accent}>PgUp / PgDn</span> (rolar)
+          📜 <span fg={anyContextTheme.accent}>PgUp / PgDn</span> (scroll)
         </text>
         <text fg={anyContextTheme.ruleColor}> │ </text>
         <text fg={anyContextTheme.accentError}>

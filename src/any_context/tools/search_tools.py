@@ -1,10 +1,8 @@
 import os
-import chromadb
 from typing import List, Any, Dict, Optional
 from any_context.config.app_settings import AppSettings
 from any_context.core.utils import get_api_key
 from llama_index.core import Settings, VectorStoreIndex
-from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
 from llama_index.embeddings.openai import OpenAIEmbedding
 from langchain.tools import tool

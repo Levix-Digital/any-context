@@ -48,7 +48,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           <b>{ASCII_BANNER}</b>
         </text>
         <text fg={anyContextTheme.accentWarning}>
-          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.26"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
+          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.43"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "🌿 Community Edition"}</span>
         </text>
         <text fg={anyContextTheme.foregroundMuted}>
           {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
@@ -73,7 +73,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
             💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/model'</b> for LLM, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
           </text>
           <text fg={anyContextTheme.foregroundMuted}>
-            📜 <i>Dica de Rolagem:</i> Use <b>PgUp / PgDn</b> ou <b>Shift + ↑ / ↓</b> (ou a rodinha do mouse) para rolar a tela.
+            📜 <i>Scroll Hint:</i> Use <b>PgUp / PgDn</b>, <b>Shift + ↑ / ↓</b>, or mouse wheel to scroll.
           </text>
         </box>
       </box>
@@ -136,7 +136,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           >
             <text fg={anyContextTheme.accentWarning}>
               <b>🤖 AI [</b>
-              <span fg={anyContextTheme.accentSecondary}><b>{msg.model || state?.model || "gpt-4o-mini"}</b></span>
+              <span fg={anyContextTheme.accentSecondary}><b>{msg.model || state?.model_display || state?.model || "GPT-4o Mini"}</b></span>
               <b>]:</b>
             </text>
 

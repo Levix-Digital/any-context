@@ -7,7 +7,120 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.17): Atualização Interativa (`/update`) com Modal de Instâncias e Auto-Restart Automático (TUI & CLI)
+### 📌 Cenário 1 (v0.28.51): Validação de Desinstalação Robusta, Resolução Canônica de Paths (`%LOCALAPPDATA%\AnyContext`) e Reset Seguro de Modelos (`gpt-4o-mini` / `openai`)
+
+- **Objetivo**: Comprovar que o AnyContext opera unicamente sobre o diretório de dados canônico (`%LOCALAPPDATA%\AnyContext`), sem ressuscitar arquivos legados em `~\config\settings.db` ou no diretório de trabalho, e que o script de desinstalação (`uninstall.ps1` / `uninstall.sh`) remove diretórios canônicos, purga legados e desinstala resquícios de pacotes no ambiente Python (`pip uninstall`).
+- **Pré-requisito**: Versão `v0.28.51` ou superior instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Validar Inicialização Instantânea do AnyContext e Modelo Padrão:**
+   ```powershell
+   python -m any_context.cli.entrypoint --version
+   actx --version
+   ```
+   - Comprovar que a resposta de versão é exibida instantaneamente sem nenhum erro de traceback do NumPy (`cannot load module more than once per process`).
+
+2. **🤖 Validar Carregamento e Comunicação com o Modelo no Chat:**
+   - Iniciar o AnyContext:
+     ```powershell
+     actx
+     ```
+   - Comprovar que o modelo ativo exibido na barra inferior é `🤖 gpt-4o-mini` sob o provedor `OpenAI`.
+   - Enviar uma mensagem de teste: `Olá! Qual modelo você está usando agora?`
+   - Comprovar que o agente sintetiza e transmite a resposta em streaming sem erros de autenticação ou travamento.
+
+3. **🔍 Verificar Integridade de Arquivos no Sistema Operacional:**
+   - Comprovar que nenhum arquivo `settings.db` foi criado na pasta do usuário `~\config\settings.db` ou na raiz do repositório.
+   - Comprovar que apenas `%LOCALAPPDATA%\AnyContext\config\settings.db` permanece como banco ativo.
+
+4. **🧹 Executar o Desinstalador com Preservação de Dados:**
+   - Executar no terminal:
+     ```powershell
+     .\scripts\uninstall.ps1
+     ```
+   - Responder `Y` (Preservar Workspaces e Histórico).
+   - Comprovar que o executável em `AppData\Local\actx` é removido, o `settings.db` canônico tem seus modelos resetados para os padrões de fábrica da OpenAI, os bancos legados órfãos são purgados e o script verifica/desinstala resquícios de pacotes `pip`.
+
+---
+
+### 📌 Cenário 2 (v0.28.37): Validação de Inicialização Standalone do PyInstaller (`actx --tui` e `actx --rpc`) sem Colisão de DLL
+
+- **Objetivo**: Comprovar que o binário standalone compilado (`actx.exe`) inicializa o frontend OpenTUI (`actx --tui`) e dispara o backend de RPC (`actx --rpc`) sem erro de colisão de DLL do NumPy (`cannot load module more than once per process`) devido à higienização de caminhos `_MEI` no `PATH`.
+- **Pré-requisito**: Binário standalone compilado ou ambiente na versão `v0.28.37`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI pelo Executável Standalone:**
+   ```powershell
+   actx --tui
+   ```
+2. **⚡ Validar Carregamento sem Erros:**
+   - Comprovar que a interface OpenTUI abre fluidamente em tela cheia com o banner e prompt `👤 You:`.
+   - Comprovar que não há mensagens de erro de traceback do Python ou DLL loader no terminal.
+3. **💬 Enviar uma Pergunta de Teste no Chat:**
+   - Digitar `Qual o resumo deste workspace?` e pressionar Enter.
+   - Comprovar que a resposta do agente é sintetizada e transmitida em tempo real.
+
+---
+
+### 📌 Cenário 2 (v0.28.36): Auto-Restart do `/update` com Preservação do Diretório de Trabalho
+
+- **Objetivo**: Comprovar que ao atualizar via `/update`, a aplicação é reiniciada automaticamente preservando o diretório de trabalho original do usuário (`-WorkingDirectory`) em vez de abrir em `C:\Windows\System32`.
+- **Pré-requisito**: Versão `v0.28.36` ou superior.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Abrir o AnyContext em um Diretório Específico de Projeto:**
+   ```powershell
+   cd C:\Users\guilh\source\repos\any-context
+   actx --tui
+   ```
+2. **⚡ Disparar a Atualização:**
+   - No prompt, digitar `/update` e escolher `⚡ Update in background`.
+3. **🔄 Verificar a Reinicialização Automática:**
+   - Comprovar que o AnyContext fecha o processo antigo e reinicia a nova versão na tela mantendo o diretório ativo do repositório/projeto.
+
+---
+
+### 📌 Cenário 3 (v0.28.33): Normalização Canônica de Modelos de IA (`/model`)
+
+- **Objetivo**: Comprovar que ao selecionar modelos no modal `/model` (ex: `GPT-4o Mini (Universal - Fast & Efficient)`), o ID canônico técnico (`gpt-4o-mini`) é gravado no SQLite e enviado para as APIs sem gerar erro `400: invalid model ID`.
+- **Pré-requisito**: Versão `v0.28.33` ou superior.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Abrir o Modal de Modelos:**
+   - No prompt do chat, digitar `/model` e pressionar Enter.
+2. **🤖 Selecionar o Modelo:**
+   - Navegar até `GPT-4o Mini` e pressionar Enter.
+3. **💬 Enviar uma Pergunta de Raciocínio Geral:**
+   - Digitar: `Qual é mais barato por ml, o Monster, o Redbull ou o Rockstar?`
+   - Comprovar que a IA responde perfeitamente sem erros de API.
+
+---
+
+### 📌 Cenário 4 (v0.28.32): Exclusão Interativa de Workspaces com Confirmação de Segurança
+
+- **Objetivo**: Comprovar que a opção `Delete Workspace` no menu `/menu` lista todos os workspaces customizados e abre um modal de confirmação explícito antes de qualquer remoção, impedindo deleções acidentais e revertendo para `Default` se o workspace ativo for excluído.
+- **Pré-requisito**: Versão `v0.28.32` ou superior.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **➕ Criar um Workspace Temporário de Teste:**
+   - No chat, digitar `/switch --create TestDeleteFlow` e anexar ou não fontes.
+2. **🗑️ Abrir a Exclusão pelo Menu:**
+   - Digitar `/menu` ➔ **Workspaces & Folders Management** ➔ **Delete Workspace**.
+   - Comprovar que o modal lista `TestDeleteFlow` com o número de fontes.
+3. **⚠️ Validar o Modal de Confirmação:**
+   - Selecionar `TestDeleteFlow` e pressionar Enter.
+   - Comprovar que surge a tela de confirmação com `🗑️ Yes, permanently delete 'TestDeleteFlow'` e `🔙 Cancel (Keep 'TestDeleteFlow')`.
+   - Testar o cancelamento (`Cancel`) e comprovar que o workspace é mantido intacto.
+   - Repetir e confirmar com `Yes`: comprovar que o workspace é purgado e o AnyContext chaveia de volta para `Default`.
+
+---
+
+### 📌 Cenário 5 (v0.28.17): Atualização Interativa (`/update`) com Modal de Instâncias e Auto-Restart Automático (TUI & CLI)
 
 - **Objetivo**: Comprovar que ao digitar `/update` dentro do chat da TUI (`actx --tui`) ou no CLI (`actx`), o AnyContext detecta a versão mais recente e as instâncias ativas, abre o modal de opções interativo (`<InteractiveModal>`) com as 3 opções (`⚡ Update in background`, `⏹️ Close other instances`, `🔙 Cancel`), baixa o binário e realiza a substituição atômica com **reinício automático da aplicação** sem necessidade de intervenção externa.
 - **Pré-requisito**: Binário ou ambiente na versão `v0.28.17`.

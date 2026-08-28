@@ -243,10 +243,13 @@ def create_bottom_toolbar_renderer(
             cols = 100
         divider_line = "─" * max(cols, 20)
 
+        from any_context.core.models_catalog import get_commercial_model_name
+        model_display = get_commercial_model_name(model_name)
+
         left_html = (
             f" <style fg='#e0af68'><b>📂 {workspace_name}</b></style>  "
             f"<style fg='#565f89'>│</style>  "
-            f"<style fg='#bb9af7'><b>🤖 {model_name}</b></style>  "
+            f"<style fg='#bb9af7'><b>🤖 {model_display}</b></style>  "
             f"<style fg='#565f89'>│</style>  "
             f"<style fg='#7dcfff'><b>🛡️ {clean_mode}</b></style>  "
             f"<style fg='#565f89'>│</style>  "
@@ -258,7 +261,7 @@ def create_bottom_toolbar_renderer(
 
         left_visible = (
             f" 📂 {workspace_name}  │  "
-            f"🤖 {model_name}  │  "
+            f"🤖 {model_display}  │  "
             f"🛡️ {clean_mode}  │  "
             f"🌐 Search: {'ON' if ws_search else 'OFF'}  │  "
             f"💡 /menu"
@@ -1096,7 +1099,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                 if is_list or is_rollback:
                     picked = display_available_releases(interactive_select=True)
                     if picked:
-                        run_self_update(target_version=picked, force=is_force)
+                        run_self_update(target_version=picked, force=is_force, is_interactive_chat=True)
                     continue
 
                 if is_check_only:
@@ -1108,7 +1111,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                                 default=True
                             ).ask()
                             if do_upgrade:
-                                run_self_update(force=is_force)
+                                run_self_update(force=is_force, is_interactive_chat=True)
                         except Exception:
                             pass
                     continue
@@ -1131,7 +1134,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                     if non_flags:
                         target_version = non_flags[0]
 
-                run_self_update(target_version=target_version, force=is_force)
+                run_self_update(target_version=target_version, force=is_force, is_interactive_chat=True)
                 continue
 
             elif cmd in ["/reset-memory", "/reset"] or cmd.startswith("/reset-memory ") or cmd.startswith("/reset "):
@@ -1735,10 +1738,17 @@ def launch_opentui(workspace: str = "Default") -> bool:
             if not lower_k.startswith("_mei") and not lower_k.startswith("pyi_") and "meipass" not in lower_k:
                 env[k] = v
 
+        if "PATH" in env:
+            paths = env["PATH"].split(os.pathsep)
+            clean_paths = [p for p in paths if "_mei" not in p.lower() and "pyi" not in p.lower()]
+            env["PATH"] = os.pathsep.join(clean_paths)
+
         from any_context.config.db_store import ConfigDBStore
         env["ACTX_SETTINGS_DB"] = ConfigDBStore().db_path
         env["ACTX_CALLER_CWD"] = os.getcwd()
         env["ACTX_EXECUTABLE"] = sys.executable or "actx"
+        env["ACTX_PYTHON_PATH"] = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        env["ACTX_FRONTEND"] = "tui"
         res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index), env=env)
         return res.returncode == 0
     except Exception:
