@@ -1,6 +1,9 @@
 import sys
 import os
 import io
+import multiprocessing
+
+multiprocessing.freeze_support()
 
 def _patch_prompt_toolkit_for_git_bash():
     """
