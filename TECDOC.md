@@ -739,5 +739,18 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - **REST API Server (`server/api.py`)**: Exposes `/v1/onboarding/status` and `/v1/onboarding/complete`.
 - **MCP Server (`server/mcp.py`)**: Exposes `get_onboarding_status` and `complete_onboarding` tools.
 
+---
+
+## 23. Top-Level Import Hygiene & Zero-Latency OpenTUI Onboarding Preload (`v0.28.53`)
+
+### 🛡️ 1. Elimination of Nested Scope Shadowing (`workspace_selector.py`)
+- Removed nested `import questionary` within inner conditional blocks of `get_active_workspace()`.
+- Prevents Python bytecode compilation from treating `questionary` as an unbound local variable during early CLI flags (`actx --factory-reset`).
+
+### ⚡ 2. Zero-Latency Preloaded Onboarding Payload (`app.tsx`)
+- `openOnboardingModal` immediately consumes `state.onboarding_state.options_group` sent in the initial state payload without requiring an extra round-trip RPC query (`client.getOptions`).
+- Integrated lifecycle hooks in `client.onStateChange`, `client.start().then()`, and `useEffect([state.needs_onboarding])` guarantee immediate modal display on first render.
+
+
 
 
