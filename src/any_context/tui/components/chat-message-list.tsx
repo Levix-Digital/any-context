@@ -102,7 +102,6 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
         if (msg.role === "system") {
           const isError = msg.content.startsWith("❌") || msg.content.toLowerCase().includes("error:");
           const isSuccess = msg.content.startsWith("✔") || msg.content.startsWith("✅") || msg.content.toLowerCase().includes("success");
-          const borderColor = isError ? anyContextTheme.accentError : isSuccess ? anyContextTheme.accentSuccess : anyContextTheme.accentSecondary;
           const headerColor = isError ? anyContextTheme.accentError : isSuccess ? anyContextTheme.accentSuccess : anyContextTheme.accentSecondary;
           const headerTitle = isError ? "❌ System Error" : isSuccess ? "✅ System Notification" : "💡 System Info";
 
@@ -110,24 +109,15 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
             <box
               key={msg.id}
               flexDirection="column"
-              backgroundColor={anyContextTheme.inputBackground}
-              borderStyle="rounded"
-              borderColor={borderColor}
+              paddingTop={1}
+              paddingBottom={0}
               paddingLeft={1}
               paddingRight={1}
-              paddingTop={0}
-              paddingBottom={0}
-              marginTop={1}
-              marginBottom={1}
-              marginLeft={1}
-              marginRight={1}
               flexShrink={0}
             >
-              <box flexDirection="row" paddingTop={0} paddingBottom={0}>
-                <text fg={headerColor}>
-                  <b>{headerTitle}</b>
-                </text>
-              </box>
+              <text fg={headerColor}>
+                <b>{headerTitle}:</b>
+              </text>
               <markdown content={msg.content} syntaxStyle={defaultSyntaxStyle} flexShrink={0} />
             </box>
           );
