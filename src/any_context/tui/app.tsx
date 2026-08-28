@@ -231,7 +231,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           if (selectedItem) {
             if (selectedItem.type === "submenu") {
               openConfigModal(selectedItem.id, true);
-            } else if (selectedItem.type === "select" || selectedItem.type === "action" || selectedItem.type === "toggle") {
+            } else if (selectedItem.command_shortcut) {
+              setModalOpen(false);
+              handleSlashCommand(selectedItem.command_shortcut);
+            } else {
+              setModalOpen(false);
               client
                 .executeMenuAction(selectedItem.id, {})
                 .then((res) => {
@@ -244,8 +248,13 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
                     },
                   ]);
                   client.refreshState();
-                  // Re-fetch current menu to reflect toggles/badges
-                  openConfigModal(modalMenuTree.menu_id, false);
+                  if (res.state_updates && (res.state_updates as any).action === "restart") {
+                    setTimeout(() => {
+                      client.stop();
+                      if (onExit) onExit();
+                      else process.exit(0);
+                    }, 1200);
+                  }
                 })
                 .catch((err) => {
                   setMessages((prev) => [
@@ -253,11 +262,6 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
                     { id: `err_${Date.now()}`, role: "system", content: `❌ Error executing action: ${err.message}` },
                   ]);
                 });
-            } else if (selectedItem.command_shortcut) {
-              setModalOpen(false);
-              handleSlashCommand(selectedItem.command_shortcut);
-            } else {
-              setModalOpen(false);
             }
           }
         }

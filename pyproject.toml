@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.28.18"
+version = "0.28.19"
 description = "Transform any file, folder, website, or drive into a living, real-time AI context."
 readme = "README.md"
 requires-python = ">=3.10"
