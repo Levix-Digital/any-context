@@ -256,3 +256,87 @@ class OptionsEngine:
             )
 
         return MenuActionResult(success=False, message=f"⚠️ Unknown preset '{preset}'.", error="unknown_preset")
+
+    def get_update_options(self, target_version: Optional[str] = None) -> OptionsGroupSchema:
+        """Returns the available update action options with active instance detection."""
+        from any_context.core.services.update_service import UpdateService
+        from any_context import __version__ as CURRENT_VERSION
+        update_svc = UpdateService()
+
+        if target_version:
+            target_tag = target_version if target_version.startswith("v") else f"v{target_version}"
+        else:
+            has_up, latest_tag = update_svc.check_for_updates()
+            target_tag = latest_tag or f"v{CURRENT_VERSION}"
+
+        active_instances = update_svc.find_active_instances()
+        count = len(active_instances)
+
+        if count > 0:
+            sub = f"ℹ️ Detected {count} other active AnyContext session(s). How would you like to update?"
+        else:
+            sub = f"🚀 Ready to download and install AnyContext {target_tag} with auto-restart."
+
+        items = [
+            OptionItemSchema(
+                id="background",
+                title="⚡ Update in background (Recommended)",
+                description="Active background sessions continue working undisturbed.",
+                icon="⚡",
+                badge="[Recommended]",
+                is_active=True,
+                metadata={"target_version": target_tag}
+            ),
+            OptionItemSchema(
+                id="close",
+                title="⏹️ Close other instances and update now",
+                description=f"Terminates {count} background process(es) before updating.",
+                icon="⏹️",
+                is_active=False,
+                metadata={"target_version": target_tag}
+            ),
+            OptionItemSchema(
+                id="cancel",
+                title="🔙 Cancel update",
+                description="Aborts the update process and returns to chat.",
+                icon="🔙",
+                is_active=False,
+                metadata={"target_version": target_tag}
+            )
+        ]
+
+        return OptionsGroupSchema(
+            type="update",
+            title=f"🚀 AnyContext Update Available: v{CURRENT_VERSION} → {target_tag}",
+            description=sub,
+            active_id="background",
+            items=items
+        )
+
+    def execute_update_option(self, option_id: str, is_tui: bool = False) -> MenuActionResult:
+        """Executes the chosen update action with seamless auto-restart."""
+        from any_context.core.services.update_service import UpdateService
+        update_svc = UpdateService()
+
+        clean_id = (option_id or "background").lower().strip()
+        if clean_id == "cancel":
+            return MenuActionResult(
+                success=True,
+                message="⚠️ Update cancelled by user.",
+                state_updates={"action": "none"}
+            )
+
+        auto_close = (clean_id == "close")
+        success, msg, updates = update_svc.execute_binary_update(
+            auto_close_instances=auto_close,
+            force_background=not auto_close,
+            auto_restart=True,
+            is_tui=is_tui
+        )
+
+        return MenuActionResult(
+            success=success,
+            message=msg,
+            error=None if success else "update_failed",
+            state_updates=updates
+        )

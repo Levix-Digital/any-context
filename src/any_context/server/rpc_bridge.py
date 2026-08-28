@@ -254,6 +254,9 @@ class StdioRPCServer:
                     opts = opts_engine.get_inference_model_options()
                 elif opt_type == "retrieval_density":
                     opts = opts_engine.get_retrieval_density_options()
+                elif opt_type == "update":
+                    target_v = params.get("target_version")
+                    opts = opts_engine.get_update_options(target_version=target_v)
                 else:
                     opts = opts_engine.get_grounding_mode_options(workspace=ws)
                 _send_ndjson({"id": req_id, "result": opts.model_dump()})
@@ -273,6 +276,8 @@ class StdioRPCServer:
                     res = opts_engine.set_inference_model(model_name=val)
                 elif opt_type == "retrieval_density":
                     res = opts_engine.set_retrieval_density_preset(preset=val)
+                elif opt_type == "update":
+                    res = opts_engine.execute_update_option(option_id=val, is_tui=True)
                 else:
                     res = opts_engine.set_grounding_mode(mode=val, workspace=ws, apply_global=apply_global)
 

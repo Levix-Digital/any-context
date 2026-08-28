@@ -298,10 +298,11 @@ export class BridgeClient {
     return res;
   }
 
-  public async getOptions(type: string, workspace?: string): Promise<OptionsGroupSchema> {
+  public async getOptions(type: string, extraParams?: Record<string, any>, workspace?: string): Promise<OptionsGroupSchema> {
     return this.sendRequest<OptionsGroupSchema>("get_options", {
       type,
       workspace: workspace || this.state.workspace,
+      ...(extraParams || {}),
     });
   }
 

@@ -128,6 +128,25 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     }
   };
 
+  const openUpdateModal = async (targetVersion?: string) => {
+    try {
+      const opts = await client.getOptions("update", targetVersion ? { target_version: targetVersion } : undefined);
+      if (opts && opts.items && opts.items.length > 0) {
+        setPaletteOpen(false);
+        setModalMode("options");
+        setModalOptionsGroup(opts);
+        const activeIdx = opts.items.findIndex((item) => item.is_active);
+        setModalIndex(activeIdx >= 0 ? activeIdx : 0);
+        setModalOpen(true);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `err_${Date.now()}`, role: "system", content: `❌ Could not load update options: ${err.message}` },
+      ]);
+    }
+  };
+
   const handleInputChange = (val: string) => {
     setInputValue(val);
     if (val.startsWith("/")) {
@@ -192,6 +211,13 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
                   },
                 ]);
                 client.refreshState();
+                if (res.state_updates && (res.state_updates as any).action === "restart") {
+                  setTimeout(() => {
+                    client.stop();
+                    if (onExit) onExit();
+                    else process.exit(0);
+                  }, 1200);
+                }
               })
               .catch((err) => {
                 setMessages((prev) => [
@@ -433,6 +459,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       return;
     }
 
+    if ((cmd === "/update" || cmd.startsWith("/update@")) && parts.length === 1) {
+      await openUpdateModal(cmd.includes("@") ? cmd.split("@")[1] : undefined);
+      return;
+    }
+
     if (cmd === "/menu" || cmd === "/config" || cmd === "/settings") {
       await openConfigModal("main");
       return;
@@ -462,8 +493,28 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           await openSwitchModal();
           return;
         }
+        if (res.action === "open_update_modal") {
+          await openUpdateModal();
+          return;
+        }
         if (res.action === "open_config_modal" || res.action === "menu") {
           await openConfigModal("main");
+          return;
+        }
+        if (res.action === "restart") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `sys_${Date.now()}`,
+              role: "system",
+              content: res.message || "Restarting AnyContext...",
+            },
+          ]);
+          setTimeout(() => {
+            client.stop();
+            if (onExit) onExit();
+            else process.exit(0);
+          }, 1200);
           return;
         }
 
