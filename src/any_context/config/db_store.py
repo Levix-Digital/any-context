@@ -61,116 +61,19 @@ class ConfigDBStore:
 
 
     @classmethod
-    def migrate_legacy_data_if_needed(cls):
-        """
-        Transfers legacy databases and settings from root/home folders into the canonical
-        OS application data directory (%LOCALAPPDATA%\\AnyContext) with zero data loss.
-        """
-        import shutil
-        from any_context.config.paths import (
-            get_app_data_root,
-            get_default_config_db_path,
-            get_default_vector_db_path,
-            get_default_session_db_path
-        )
-
-        canonical_settings_db = get_default_config_db_path()
-        canonical_vector_dir = get_default_vector_db_path()
-        canonical_memory_dir = get_default_session_db_path()
-
-        # 1. Migrate settings.db if target does not exist yet
-        if not os.path.exists(canonical_settings_db):
-            legacy_settings_candidates = [
-                os.path.expanduser(os.path.join("~", "config", "settings.db")),
-                os.path.expanduser(os.path.join("~", ".config", "any-context", "settings.db")),
-                os.path.join(os.getcwd(), "config", "settings.db")
-            ]
-            for cand in legacy_settings_candidates:
-                if os.path.exists(cand) and os.path.getsize(cand) > 0 and os.path.abspath(cand) != canonical_settings_db:
-                    try:
-                        os.makedirs(os.path.dirname(canonical_settings_db), exist_ok=True)
-                        shutil.copy2(cand, canonical_settings_db)
-                        break
-                    except Exception:
-                        pass
-
-        # 2. Migrate context_db if target does not exist or is empty
-        canonical_lance_tbl = os.path.join(canonical_vector_dir, "lancedb")
-        if not os.path.exists(canonical_lance_tbl) or (os.path.exists(canonical_lance_tbl) and not os.listdir(canonical_lance_tbl)):
-            legacy_vector_candidates = [
-                os.path.expanduser(os.path.join("~", "context_db")),
-                os.path.join(os.getcwd(), "context_db")
-            ]
-            for cand in legacy_vector_candidates:
-                cand_lance = os.path.join(cand, "lancedb")
-                if os.path.exists(cand_lance) and os.path.abspath(cand) != canonical_vector_dir:
-                    try:
-                        os.makedirs(canonical_vector_dir, exist_ok=True)
-                        if os.path.exists(canonical_lance_tbl):
-                            shutil.rmtree(canonical_lance_tbl, ignore_errors=True)
-                        shutil.copytree(cand_lance, canonical_lance_tbl)
-                        break
-                    except Exception:
-                        pass
-
-        # 3. Migrate memory if target does not exist
-        if not os.path.exists(canonical_memory_dir) or (os.path.exists(canonical_memory_dir) and not os.listdir(canonical_memory_dir)):
-            legacy_mem_candidates = [
-                os.path.expanduser(os.path.join("~", "memory")),
-                os.path.join(os.getcwd(), "memory")
-            ]
-            for cand in legacy_mem_candidates:
-                if os.path.exists(cand) and os.path.abspath(cand) != canonical_memory_dir:
-                    try:
-                        os.makedirs(canonical_memory_dir, exist_ok=True)
-                        shutil.copytree(cand, canonical_memory_dir, dirs_exist_ok=True)
-                        break
-                    except Exception:
-                        pass
-
-    @classmethod
     def find_db_file(cls, filename: str = "settings.db") -> str:
         """Resolves the settings.db SQLite file location ensuring Hexagonal Single Database Instance."""
         # 1. Explicit environment override has highest priority
         env_db = os.getenv("ACTX_SETTINGS_DB")
         if env_db and env_db.strip():
             env_db_path = os.path.abspath(env_db.strip())
-            if os.path.exists(env_db_path):
-                return env_db_path
             os.makedirs(os.path.dirname(env_db_path), exist_ok=True)
             return env_db_path
 
-        # 2. Run automatic migration if needed
-        try:
-            cls.migrate_legacy_data_if_needed()
-        except Exception:
-            pass
-
-        # 3. Use canonical OS path
+        # 2. Use canonical OS path (%LOCALAPPDATA%\AnyContext\config\settings.db)
         from any_context.config.paths import get_default_config_db_path
         canonical = get_default_config_db_path()
-        if os.path.exists(canonical):
-            return canonical
-
-        # 4. Check caller working directory if passed from parent process
-        caller_cwd = os.getenv("ACTX_CALLER_CWD")
-        candidates = []
-        if caller_cwd and os.path.exists(caller_cwd):
-            candidates.append(os.path.join(caller_cwd, "config", filename))
-            candidates.append(os.path.join(caller_cwd, filename))
-
-        candidates.extend([
-            canonical,
-            os.path.join(os.getcwd(), "config", filename),
-            os.path.join(os.getcwd(), filename),
-            os.path.expanduser(os.path.join("~", "config", filename)),
-            os.path.expanduser(os.path.join("~", ".config", "any-context", filename)),
-        ])
-
-        for candidate in candidates:
-            if candidate and os.path.exists(candidate):
-                return os.path.abspath(candidate)
-
+        os.makedirs(os.path.dirname(canonical), exist_ok=True)
         return canonical
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -2140,6 +2043,19 @@ class ConfigDBStore:
 
         return True
 
+    def reset_model_settings_to_default(self) -> bool:
+        """
+        Resets models table to safe OpenAI defaults (gpt-4o-mini / openai).
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO models (id, embedding_model, local_embedding_model, local_openai_embedding_model, inference_model, summary_model, model_provider, local_base_url)
+                VALUES (1, 'text-embedding-3-small', 'text-embedding-3-small', 'text-embedding-3-small', 'gpt-4o-mini', 'gpt-4o-mini', 'openai', 'https://api.openai.com/v1')
+            """)
+            conn.commit()
+        return True
+
     def factory_reset(self) -> bool:
         """
         Wipes all configuration tables, API keys, workspaces, users, access tokens, and deletes local vector database directories.
@@ -2159,8 +2075,17 @@ class ConfigDBStore:
             conn.commit()
 
         import shutil
-        for dir_path in ["./context_db", "./memory", "context_db", "memory"]:
-            if os.path.exists(dir_path):
+        from any_context.config.paths import get_default_vector_db_path, get_default_session_db_path
+        cleanup_dirs = [
+            get_default_vector_db_path(),
+            get_default_session_db_path(),
+            "./context_db",
+            "./memory",
+            "context_db",
+            "memory"
+        ]
+        for dir_path in cleanup_dirs:
+            if dir_path and os.path.exists(dir_path):
                 try:
                     shutil.rmtree(dir_path, ignore_errors=True)
                 except Exception:

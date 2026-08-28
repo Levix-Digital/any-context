@@ -117,28 +117,10 @@ class AppSettings(BaseModel):
 
     @classmethod
     def find_config_file(cls, filename: str = "settings.db") -> Optional[str]:
-        """Finds the config file in candidate locations"""
-        candidates = [
-            os.path.join(os.getcwd(), "config", filename),
-            os.path.join(os.getcwd(), filename),
-            os.path.expanduser(os.path.join("~", ".config", "any-context", filename)),
-        ]
-
-        if sys.platform == "win32" and "APPDATA" in os.environ:
-            candidates.append(os.path.join(os.environ["APPDATA"], "any-context", filename))
-
-        if hasattr(sys, "_MEIPASS"):
-            candidates.append(os.path.join(sys._MEIPASS, "config", filename))
-            candidates.append(os.path.join(sys._MEIPASS, filename))
-
-        package_dir = os.path.dirname(os.path.abspath(__file__))
-        candidates.append(os.path.join(package_dir, filename))
-        candidates.append(os.path.join(package_dir, "..", "..", "..", "config", filename))
-
-        for candidate in candidates:
-            if candidate and os.path.exists(candidate):
-                return os.path.abspath(candidate)
-        return None
+        """Resolves the canonical config file location."""
+        from any_context.config.paths import get_default_config_db_path
+        canonical = get_default_config_db_path()
+        return canonical if os.path.exists(canonical) else None
 
     @classmethod
     def load(cls, path: str = None):

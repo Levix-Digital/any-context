@@ -7,7 +7,44 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.37): Validação de Inicialização Standalone do PyInstaller (`actx --tui` e `actx --rpc`) sem Colisão de DLL
+### 📌 Cenário 1 (v0.28.51): Validação de Desinstalação Robusta, Resolução Canônica de Paths (`%LOCALAPPDATA%\AnyContext`) e Reset Seguro de Modelos (`gpt-4o-mini` / `openai`)
+
+- **Objetivo**: Comprovar que o AnyContext opera unicamente sobre o diretório de dados canônico (`%LOCALAPPDATA%\AnyContext`), sem ressuscitar arquivos legados em `~\config\settings.db` ou no diretório de trabalho, e que o script de desinstalação (`uninstall.ps1` / `uninstall.sh`) remove diretórios canônicos, purga legados e desinstala resquícios de pacotes no ambiente Python (`pip uninstall`).
+- **Pré-requisito**: Versão `v0.28.51` ou superior instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Validar Inicialização Instantânea do AnyContext e Modelo Padrão:**
+   ```powershell
+   python -m any_context.cli.entrypoint --version
+   actx --version
+   ```
+   - Comprovar que a resposta de versão é exibida instantaneamente sem nenhum erro de traceback do NumPy (`cannot load module more than once per process`).
+
+2. **🤖 Validar Carregamento e Comunicação com o Modelo no Chat:**
+   - Iniciar o AnyContext:
+     ```powershell
+     actx
+     ```
+   - Comprovar que o modelo ativo exibido na barra inferior é `🤖 gpt-4o-mini` sob o provedor `OpenAI`.
+   - Enviar uma mensagem de teste: `Olá! Qual modelo você está usando agora?`
+   - Comprovar que o agente sintetiza e transmite a resposta em streaming sem erros de autenticação ou travamento.
+
+3. **🔍 Verificar Integridade de Arquivos no Sistema Operacional:**
+   - Comprovar que nenhum arquivo `settings.db` foi criado na pasta do usuário `~\config\settings.db` ou na raiz do repositório.
+   - Comprovar que apenas `%LOCALAPPDATA%\AnyContext\config\settings.db` permanece como banco ativo.
+
+4. **🧹 Executar o Desinstalador com Preservação de Dados:**
+   - Executar no terminal:
+     ```powershell
+     .\scripts\uninstall.ps1
+     ```
+   - Responder `Y` (Preservar Workspaces e Histórico).
+   - Comprovar que o executável em `AppData\Local\actx` é removido, o `settings.db` canônico tem seus modelos resetados para os padrões de fábrica da OpenAI, os bancos legados órfãos são purgados e o script verifica/desinstala resquícios de pacotes `pip`.
+
+---
+
+### 📌 Cenário 2 (v0.28.37): Validação de Inicialização Standalone do PyInstaller (`actx --tui` e `actx --rpc`) sem Colisão de DLL
 
 - **Objetivo**: Comprovar que o binário standalone compilado (`actx.exe`) inicializa o frontend OpenTUI (`actx --tui`) e dispara o backend de RPC (`actx --rpc`) sem erro de colisão de DLL do NumPy (`cannot load module more than once per process`) devido à higienização de caminhos `_MEI` no `PATH`.
 - **Pré-requisito**: Binário standalone compilado ou ambiente na versão `v0.28.37`.

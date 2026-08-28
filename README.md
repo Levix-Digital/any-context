@@ -602,16 +602,22 @@ actx --mcp
 
 ## 🧹 Uninstallation
 
-To cleanly remove AnyContext and remove PATH variables:
+To cleanly remove AnyContext, restore PATH variables, purge legacy databases, and optionally wipe or preserve your vector memory:
 
 - **Windows (PowerShell)**:
   ```powershell
   irm https://raw.githubusercontent.com/Levix-Digital/any-context/main/uninstall.ps1 | iex
   ```
+  *Or locally:* `.\scripts\uninstall.ps1`
+
 - **Linux / macOS (Bash)**:
   ```bash
   curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/uninstall.sh | bash
   ```
+  *Or locally:* `./scripts/uninstall.sh`
+
+> [!NOTE]
+> The uninstaller prompts whether to preserve or wipe your configured workspaces and vector databases (`%LOCALAPPDATA%\AnyContext` or `~/.local/share/any-context`), purges any legacy database files, cleans your User PATH variable, and automatically uninstalls residual Python `pip` wrappers.
 
 ---
 

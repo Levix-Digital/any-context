@@ -6,22 +6,15 @@ from any_context.config.app_settings import AppSettings
 
 
 def load_env():
-    candidates = []
-    if sys.platform == "win32":
-        if "APPDATA" in os.environ:
-            candidates.append(os.path.join(os.environ["APPDATA"], "any-context", ".env"))
-            candidates.append(os.path.join(os.environ["APPDATA"], "actx", ".env"))
-        if "LOCALAPPDATA" in os.environ:
-            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "any-context", ".env"))
-            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", ".env"))
-            candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", "bin", ".env"))
+    from any_context.config.paths import get_app_data_root
 
-    candidates.extend([
-        os.path.expanduser(os.path.join("~", ".config", "any-context", ".env")),
-        os.path.join(os.path.dirname(sys.executable), "..", ".env"),
-        os.path.join(os.path.dirname(sys.executable), ".env"),
+    candidates = [
+        os.path.join(get_app_data_root(), ".env"),
         os.path.join(os.getcwd(), ".env"),
-    ])
+    ]
+
+    if sys.platform == "win32" and "LOCALAPPDATA" in os.environ:
+        candidates.append(os.path.join(os.environ["LOCALAPPDATA"], "actx", "bin", ".env"))
 
     for c in candidates:
         if os.path.exists(c):
