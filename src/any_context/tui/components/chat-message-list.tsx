@@ -37,7 +37,6 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
       flexShrink={1}
       minHeight={0}
       width="100%"
-      height="100%"
       scrollY={true}
       stickyScroll={true}
       stickyStart="bottom"
