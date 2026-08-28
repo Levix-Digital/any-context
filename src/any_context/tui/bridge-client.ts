@@ -92,7 +92,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.49",
+    version: "0.28.50",
     workspace: "Default",
     model: "...",
     model_display: "...",
@@ -114,54 +114,60 @@ export class BridgeClient {
     let command = "";
     let args: string[] = [];
 
-    const envExec = process.env.ACTX_EXECUTABLE || "";
-    if (envExec && fs.existsSync(envExec)) {
-      if (envExec.toLowerCase().endsWith("actx.exe") || envExec.toLowerCase().endsWith("actx")) {
-        command = envExec;
-        args = ["--rpc", this.initialWorkspace];
-      } else if (
-        envExec.toLowerCase().endsWith("python.exe") ||
-        envExec.toLowerCase().endsWith("python3") ||
-        envExec.toLowerCase().endsWith("python")
-      ) {
-        command = envExec;
-        args = ["-m", "any_context.server.rpc_bridge", this.initialWorkspace];
-      }
-    }
+    const venvPythonWin = path.join(repoRoot, ".venv", "Scripts", "python.exe");
+    const venvPythonUnix = path.join(repoRoot, ".venv", "bin", "python");
+    const isSourceRepo = fs.existsSync(path.join(repoRoot, "src", "any_context"));
 
-    if (!command) {
-      const localActx = path.join(process.env.LOCALAPPDATA || "", "actx", "bin", "actx.exe");
-      const pythonScriptsActx = path.join(
-        process.env.LOCALAPPDATA || "",
-        "Programs",
-        "Python",
-        "Python313",
-        "Scripts",
-        "actx.exe"
-      );
-      const userHomeActx = path.join(process.env.HOME || process.env.USERPROFILE || "", ".local", "bin", "actx");
-
-      if (fs.existsSync(localActx)) {
-        command = localActx;
-        args = ["--rpc", this.initialWorkspace];
-      } else if (fs.existsSync(pythonScriptsActx)) {
-        command = pythonScriptsActx;
-        args = ["--rpc", this.initialWorkspace];
-      } else if (fs.existsSync(userHomeActx)) {
-        command = userHomeActx;
-        args = ["--rpc", this.initialWorkspace];
+    if (isSourceRepo) {
+      if (fs.existsSync(venvPythonWin)) {
+        command = venvPythonWin;
+      } else if (fs.existsSync(venvPythonUnix)) {
+        command = venvPythonUnix;
       } else {
-        const venvPythonWin = path.join(repoRoot, ".venv", "Scripts", "python.exe");
-        const venvPythonUnix = path.join(repoRoot, ".venv", "bin", "python");
+        command = process.platform === "win32" ? "python" : "python3";
+      }
+      args = ["-u", "-m", "any_context.server.rpc_bridge", this.initialWorkspace];
+    } else {
+      const envExec = process.env.ACTX_EXECUTABLE || "";
+      if (envExec && fs.existsSync(envExec)) {
+        if (envExec.toLowerCase().endsWith("actx.exe") || envExec.toLowerCase().endsWith("actx")) {
+          command = envExec;
+          args = ["--rpc", this.initialWorkspace];
+        } else if (
+          envExec.toLowerCase().endsWith("python.exe") ||
+          envExec.toLowerCase().endsWith("python3") ||
+          envExec.toLowerCase().endsWith("python")
+        ) {
+          command = envExec;
+          args = ["-u", "-m", "any_context.server.rpc_bridge", this.initialWorkspace];
+        }
+      }
 
-        if (fs.existsSync(venvPythonWin)) {
-          command = venvPythonWin;
-        } else if (fs.existsSync(venvPythonUnix)) {
-          command = venvPythonUnix;
+      if (!command) {
+        const localActx = path.join(process.env.LOCALAPPDATA || "", "actx", "bin", "actx.exe");
+        const pythonScriptsActx = path.join(
+          process.env.LOCALAPPDATA || "",
+          "Programs",
+          "Python",
+          "Python313",
+          "Scripts",
+          "actx.exe"
+        );
+        const userHomeActx = path.join(process.env.HOME || process.env.USERPROFILE || "", ".local", "bin", "actx");
+
+        if (fs.existsSync(localActx)) {
+          command = localActx;
+          args = ["--rpc", this.initialWorkspace];
+        } else if (fs.existsSync(pythonScriptsActx)) {
+          command = pythonScriptsActx;
+          args = ["--rpc", this.initialWorkspace];
+        } else if (fs.existsSync(userHomeActx)) {
+          command = userHomeActx;
+          args = ["--rpc", this.initialWorkspace];
         } else {
           command = process.platform === "win32" ? "python" : "python3";
+          args = ["-u", "-m", "any_context.server.rpc_bridge", this.initialWorkspace];
         }
-        args = ["-m", "any_context.server.rpc_bridge", this.initialWorkspace];
       }
     }
 
