@@ -71,6 +71,9 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           <text fg={anyContextTheme.foreground}>
             💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
           </text>
+          <text fg={anyContextTheme.foregroundMuted}>
+            📜 <i>Terminal Scroll:</i> Use <b>Shift+PageUp / PageDown</b> (or <b>Ctrl+Shift+↑ / ↓</b>) to scroll terminal history.
+          </text>
         </box>
       </box>
 

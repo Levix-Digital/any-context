@@ -65,8 +65,12 @@ export const StatusBar = ({ state }: StatusBarProps): any => {
         ) : null}
       </box>
 
-      {/* Right Dock Item: /exit */}
+      {/* Right Dock Items: Terminal Scroll Guide & /exit */}
       <box flexDirection="row" alignItems="center">
+        <text fg={anyContextTheme.foregroundMuted}>
+          📜 <span fg={anyContextTheme.accent}>Shift+PgUp/PgDn</span> (scroll)
+        </text>
+        <text fg={anyContextTheme.ruleColor}> │ </text>
         <text fg={anyContextTheme.accentError}>
           <b>🚪 /exit</b>
         </text>
