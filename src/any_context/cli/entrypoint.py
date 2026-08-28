@@ -72,7 +72,40 @@ def entrypoint():
     except Exception:
         pass
 
-    # 5. Configure logging silencers
+    # 5. Fast-path dispatch for non-interactive flags (sub-10ms response, avoids loading unused modules)
+    if "-v" in sys.argv or "--version" in sys.argv:
+        from any_context import __version__
+        print(f"AnyContext (actx) v{__version__} - Levix Digital")
+        sys.exit(0)
+
+    if "--tui" in sys.argv:
+        from any_context.cli.chat_loop import launch_opentui
+        ws = "Default"
+        for i, a in enumerate(sys.argv):
+            if a in ["-w", "--workspace"] and i + 1 < len(sys.argv):
+                ws = sys.argv[i + 1]
+            elif not a.startswith("-") and a != sys.argv[0]:
+                ws = a
+        if launch_opentui(ws):
+            sys.exit(0)
+
+    if "--rpc" in sys.argv:
+        from any_context.server.rpc_bridge import run_rpc_server
+        target_ws = "Default"
+        for i, a in enumerate(sys.argv):
+            if a in ["-w", "--workspace"] and i + 1 < len(sys.argv):
+                target_ws = sys.argv[i + 1]
+            elif not a.startswith("-") and a != sys.argv[0] and a != "--rpc":
+                target_ws = a
+        run_rpc_server(default_workspace=target_ws)
+        sys.exit(0)
+
+    if "--mcp" in sys.argv:
+        from any_context.server.mcp import start_mcp_server
+        start_mcp_server()
+        sys.exit(0)
+
+    # 6. Configure logging silencers
     import logging
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -81,7 +114,7 @@ def entrypoint():
     logging.getLogger("llama_index").setLevel(logging.WARNING)
     logging.getLogger("transformers").setLevel(logging.ERROR)
 
-    # 6. Now load chat loop and execute
+    # 7. Now load chat loop and execute
     try:
         from any_context.cli.chat_loop import main_cli
         main_cli()

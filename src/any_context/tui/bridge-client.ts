@@ -91,7 +91,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.36",
+    version: "0.28.37",
     workspace: "Default",
     model: "...",
     grounding_mode: "strict",
@@ -136,6 +136,12 @@ export class BridgeClient {
           childEnv[key] = value;
         }
       }
+    }
+    if (childEnv.PATH) {
+      const separator = process.platform === "win32" ? ";" : ":";
+      childEnv.PATH = childEnv.PATH.split(separator)
+        .filter((p) => !p.toLowerCase().includes("_mei") && !p.toLowerCase().includes("pyi"))
+        .join(separator);
     }
     if (path.isAbsolute(repoRoot)) {
       childEnv.PYTHONPATH = path.join(repoRoot, "src");
