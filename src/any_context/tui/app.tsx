@@ -41,8 +41,6 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [draftInput, setDraftInput] = useState<string>("");
-  const [scrollOffset, setScrollOffset] = useState<number>(0);
-  const scrollBoxRef = useRef<any>(null);
 
   useEffect(() => {
     client.onStateChange = (newState) => setState(newState);
@@ -323,58 +321,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         }
       }
     }
-
-    // 5. CHAT HISTORY KEYBOARD SCROLLING (PageUp / PageDown / Home / End / Shift+Arrows / Ctrl+Arrows)
-    if (!modalOpen && !paletteOpen) {
-      if (event.name === "pageup") {
-        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollBy === "function") {
-          scrollBoxRef.current.scrollBy(-5);
-        }
-        return;
-      }
-      if (event.name === "pagedown") {
-        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollBy === "function") {
-          scrollBoxRef.current.scrollBy(5);
-        }
-        return;
-      }
-      if (event.name === "up" && (event.ctrl || event.shift)) {
-        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollBy === "function") {
-          scrollBoxRef.current.scrollBy(-2);
-        }
-        return;
-      }
-      if (event.name === "down" && (event.ctrl || event.shift)) {
-        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollBy === "function") {
-          scrollBoxRef.current.scrollBy(2);
-        }
-        return;
-      }
-      if (event.name === "home" && (event.ctrl || event.shift || !inputValue)) {
-        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollTo === "function") {
-          scrollBoxRef.current.scrollTo(0);
-        }
-        return;
-      }
-      if (event.name === "end" && (event.ctrl || event.shift || !inputValue)) {
-        if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollTo === "function") {
-          const h = scrollBoxRef.current.scrollHeight || 999999;
-          scrollBoxRef.current.scrollTo(h);
-        }
-        return;
-      }
-    }
   });
 
   const handleSubmit = async (text?: string) => {
     const raw = (text !== undefined ? text : inputValue).trim();
     if (!raw) return;
-
-    // Reset scroll to latest on new user prompt
-    if (scrollBoxRef.current && typeof scrollBoxRef.current.scrollTo === "function") {
-      const h = scrollBoxRef.current.scrollHeight || 999999;
-      scrollBoxRef.current.scrollTo(h);
-    }
 
     // Record into input history (avoiding immediate duplicates)
     setInputHistory((prev) => (prev.length === 0 || prev[prev.length - 1] !== raw ? [...prev, raw] : prev));
@@ -584,8 +535,6 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       modalIndex={modalIndex}
       commands={client.commands}
       isGenerating={isGenerating}
-      scrollBoxRef={scrollBoxRef}
-      scrollOffset={scrollOffset}
       onInputChange={handleInputChange}
       onSubmit={(text?: string) => handleSubmit(text)}
     />
