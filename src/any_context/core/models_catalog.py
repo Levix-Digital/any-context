@@ -288,12 +288,31 @@ def format_inference_error(error: Exception, model_name: str, provider: str = No
 
 def normalize_model_id(model_input: str) -> str:
     """
-    Normalizes any model name or display title back to its canonical ID.
+    Normalizes any model name, alias, or display title back to its canonical ID.
     e.g. 'GPT-4o Mini (Universal - Fast & Efficient)' -> 'gpt-4o-mini'
+         'claude-3-5-sonnet' -> 'claude-sonnet-4-5-20250929'
     """
     if not model_input:
         return "gpt-4o-mini"
     clean = model_input.strip()
+
+    ALIAS_MAP = {
+        "claude-3-5-sonnet": "claude-sonnet-4-5-20250929",
+        "claude-3.5-sonnet": "claude-sonnet-4-5-20250929",
+        "claude-3-5-sonnet-latest": "claude-sonnet-4-5-20250929",
+        "claude-3-sonnet": "claude-sonnet-4-5-20250929",
+        "claude-3-5-haiku": "claude-haiku-4-5-20251001",
+        "claude-3.5-haiku": "claude-haiku-4-5-20251001",
+        "claude-3-haiku": "claude-haiku-4-5-20251001",
+        "gpt-4": "gpt-4o",
+        "gpt-4-mini": "gpt-4o-mini",
+        "gpt-4.5": "gpt-4o",
+        "gemini-flash": "gemini-flash-latest",
+        "gemini-pro": "gemini-pro-latest",
+        "deepseek": "deepseek-chat",
+    }
+    if clean.lower() in ALIAS_MAP:
+        return ALIAS_MAP[clean.lower()]
 
     for prov_data in PROVIDER_CATALOG.values():
         for m in prov_data.get("models", []):
