@@ -92,10 +92,14 @@ class StdioRPCServer:
         except Exception:
             pass
 
+        from any_context.core.models_catalog import get_commercial_model_name
+        model_display = get_commercial_model_name(self._current_model)
+
         return {
             "version": __version__,
             "workspace": self.active_workspace,
             "model": self._current_model,
+            "model_display": model_display,
             "grounding_mode": self._grounding_mode,
             "web_search_enabled": self._web_search_enabled,
             "sync_info": sync_info,

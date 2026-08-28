@@ -7,6 +7,7 @@ export interface AnyContextState {
   version: string;
   workspace: string;
   model: string;
+  model_display?: string;
   grounding_mode: string;
   web_search_enabled: boolean;
   sync_info: string;
@@ -91,7 +92,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.41",
+    version: "0.28.42",
     workspace: "Default",
     model: "...",
     grounding_mode: "strict",

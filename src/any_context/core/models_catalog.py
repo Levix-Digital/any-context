@@ -328,3 +328,60 @@ def normalize_model_id(model_input: str) -> str:
                 return m_id
 
     return clean
+
+
+COMMERCIAL_MODEL_NAMES = {
+    "claude-sonnet-4-5-20250929": "Claude 3.5 Sonnet",
+    "claude-3-5-sonnet": "Claude 3.5 Sonnet",
+    "claude-haiku-4-5-20251001": "Claude 3.5 Haiku",
+    "claude-3-5-haiku": "Claude 3.5 Haiku",
+    "claude-sonnet-4-6": "Claude 3.7 Sonnet",
+    "claude-opus-4-5-20251101": "Claude 3.5 Opus",
+    "gpt-4o-mini": "GPT-4o Mini",
+    "gpt-4o": "GPT-4o",
+    "gpt-4-turbo": "GPT-4 Turbo",
+    "gpt-3.5-turbo": "GPT-3.5 Turbo",
+    "gemini-flash-latest": "Gemini Flash",
+    "gemini-3.5-flash": "Gemini 2.5 Flash",
+    "gemini-3.5-flash-lite": "Gemini Flash Lite",
+    "gemini-pro-latest": "Gemini Pro",
+    "deepseek-chat": "DeepSeek V3",
+    "llama-3.3-70b-versatile": "Llama 3.3 70B",
+    "llama-3.1-8b-instant": "Llama 3.1 8B",
+    "mixtral-8x7b-32768": "Mixtral 8x7B",
+    "gemma2-9b-it": "Gemma 2 9B",
+    "openrouter/auto": "OpenRouter Auto",
+    "meta-llama/llama-3.3-70b-instruct:free": "Llama 3.3 70B (Free)",
+    "google/gemini-flash-1.5-8b": "Gemini Flash 8B",
+    "local-model": "Local Model",
+}
+
+
+def get_commercial_model_name(model_id: str) -> str:
+    """
+    Returns the clean commercial brand name for any canonical model ID.
+    e.g. 'claude-sonnet-4-5-20250929' -> 'Claude 3.5 Sonnet'
+         'gpt-4o-mini'                -> 'GPT-4o Mini'
+         'deepseek-chat'              -> 'DeepSeek V3'
+    """
+    if not model_id:
+        return "GPT-4o Mini"
+
+    clean = model_id.strip()
+    if clean.lower() in COMMERCIAL_MODEL_NAMES:
+        return COMMERCIAL_MODEL_NAMES[clean.lower()]
+
+    canonical = normalize_model_id(clean)
+    if canonical.lower() in COMMERCIAL_MODEL_NAMES:
+        return COMMERCIAL_MODEL_NAMES[canonical.lower()]
+
+    for prov_data in PROVIDER_CATALOG.values():
+        for m in prov_data.get("models", []):
+            if m.get("id", "").lower() == canonical.lower():
+                name = m.get("name", "")
+                if " (" in name:
+                    return name.split(" (")[0].strip()
+                return name or canonical
+
+    return canonical
+
