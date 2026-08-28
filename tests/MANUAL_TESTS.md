@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.55): Validação de Empacotamento de node_modules e Inicialização Segura OpenTUI (`actx --tui`)
+### 📌 Cenário 1 (v0.28.56): Validação de Execução Segura do OpenTUI no WSL e Linux Nativo (`actx --tui`)
 
-- **Objetivo**: Comprovar que o binário standalone (`actx`) contém os `node_modules` do OpenTUI embutidos pelo pipeline de build com Bun, garantindo que `actx --tui` abra a interface OpenTUI no Windows e Linux sem falhas ou fallbacks silenciosos.
-- **Pré-requisito**: Versão `v0.28.55` ou superior.
+- **Objetivo**: Comprovar que o `actx --tui` em ambientes WSL e Linux utiliza estritamente o Bun nativo do Linux (ignorando executáveis `.exe` do host Windows) e abre a interface OpenTUI diretamente no terminal.
+- **Pré-requisito**: Versão `v0.28.56` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 

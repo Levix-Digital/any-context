@@ -1717,19 +1717,31 @@ def launch_opentui(workspace: str = "Default") -> bool:
     """Attempts to launch the OpenTUI frontend using bun if installed."""
     import shutil
     import subprocess
-    bun_bin = shutil.which("bun") or shutil.which("bun.exe")
-    if not bun_bin:
+    is_windows = sys.platform.startswith("win")
+
+    bun_bin = None
+    if is_windows:
         candidates = [
-            os.path.expanduser("~/.bun/bin/bun"),
+            shutil.which("bun"),
+            shutil.which("bun.exe"),
             os.path.expanduser("~/.bun/bin/bun.exe"),
             os.path.join(os.environ.get("USERPROFILE", ""), ".bun", "bin", "bun.exe"),
+        ]
+    else:
+        # On Linux/WSL, prioritize native Linux Bun and strictly exclude Windows .exe binaries
+        candidates = [
+            os.path.expanduser("~/.bun/bin/bun"),
             "/usr/local/bin/bun",
             "/usr/bin/bun",
         ]
-        for c in candidates:
-            if c and os.path.exists(c):
-                bun_bin = c
-                break
+        which_bun = shutil.which("bun")
+        if which_bun and not which_bun.lower().endswith(".exe") and not which_bun.startswith("/mnt/c"):
+            candidates.append(which_bun)
+
+    for c in candidates:
+        if c and os.path.exists(c) and os.access(c, os.X_OK):
+            bun_bin = c
+            break
 
     if not bun_bin:
         print("\n❌ OpenTUI Error: Bun runtime was not found.")
@@ -1751,10 +1763,16 @@ def launch_opentui(workspace: str = "Default") -> bool:
             if not lower_k.startswith("_mei") and not lower_k.startswith("pyi_") and "meipass" not in lower_k:
                 env[k] = v
 
+        # Prepend Linux/Windows bun directory to PATH in child process
+        bun_dir = os.path.dirname(bun_bin)
         if "PATH" in env:
             paths = env["PATH"].split(os.pathsep)
             clean_paths = [p for p in paths if "_mei" not in p.lower() and "pyi" not in p.lower()]
+            if bun_dir not in clean_paths:
+                clean_paths.insert(0, bun_dir)
             env["PATH"] = os.pathsep.join(clean_paths)
+        else:
+            env["PATH"] = bun_dir
 
         from any_context.config.db_store import ConfigDBStore
         env["ACTX_SETTINGS_DB"] = ConfigDBStore().db_path
