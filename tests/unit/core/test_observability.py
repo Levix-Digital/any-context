@@ -78,7 +78,8 @@ class TestObservabilityModule(unittest.TestCase):
             pruned_logs = storage.get_recent_logs(limit=10)
             self.assertEqual(len(pruned_logs), 1)
 
-            # Reset singleton instance
+            # Close connection to release Windows file lock before directory cleanup
+            storage.close()
             ObservabilityStorage._instance = None
 
     def test_observability_engine_methods(self):

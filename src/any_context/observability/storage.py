@@ -205,3 +205,12 @@ class ObservabilityStorage:
                 )
         except Exception:
             pass
+
+    def close(self):
+        """Closes thread-local database connection safely."""
+        if hasattr(self._local, "conn") and self._local.conn is not None:
+            try:
+                self._local.conn.close()
+            except Exception:
+                pass
+            self._local.conn = None
