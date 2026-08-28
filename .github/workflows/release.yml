@@ -96,6 +96,11 @@ jobs:
           name: actx-windows
           path: dist
 
+      - name: Normalize line endings for Unix scripts
+        run: |
+          sed -i 's/\r$//' scripts/install.sh
+          sed -i 's/\r$//' scripts/uninstall.sh
+
       - name: Publish Unified Release
         uses: softprops/action-gh-release@v2
         with:
