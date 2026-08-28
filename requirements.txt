@@ -16,4 +16,7 @@ pydantic
 questionary
 tqdm
 python-dotenv
+lancedb
+pyarrow
+pyinstaller>=6.16.0
 
