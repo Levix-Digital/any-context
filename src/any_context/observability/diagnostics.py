@@ -97,6 +97,11 @@ def collect_diagnostic_report() -> DiagnosticReport:
 
 def format_diagnostic_report(report: DiagnosticReport) -> str:
     """Formats a diagnostic report into a clean, human-readable terminal display."""
+    bun_status = "\033[32m✅ Yes\033[0m" if report.bun_installed else "\033[31m❌ No (required for actx --tui)\033[0m"
+    db_status = "\033[32m✅ Yes\033[0m" if report.database_exists else "\033[31m❌ No\033[0m"
+    onboarding_status = "\033[32m✅ Yes\033[0m" if report.onboarding_completed else "\033[93m⏳ Pending (first-time setup)\033[0m"
+    provider_str = report.active_provider.upper()
+
     lines = [
         "\n\033[36m=======================================================\033[0m",
         "\033[1m📊 AnyContext Diagnostics & Health Checkup\033[0m",
@@ -107,16 +112,16 @@ def format_diagnostic_report(report: DiagnosticReport) -> str:
         f"  • \033[1mExecutable Binary:\033[0m {report.executable_path}",
         "",
         "  \033[1m⚡ OpenTUI Desktop Runtime (Bun):\033[0m",
-        f"    - Installed: {'\033[32m✅ Yes\033[0m' if report.bun_installed else '\033[31m❌ No (required for actx --tui)\033[0m'}",
+        f"    - Installed: {bun_status}",
         f"    - Version: {report.bun_version or 'N/A'}",
         f"    - Binary Path: {report.bun_path or 'Not detected'}",
         "",
         "  \033[1m💾 SQLite Configuration & Settings DB:\033[0m",
         f"    - Database Path: {report.database_path}",
-        f"    - Exists on Disk: {'\033[32m✅ Yes\033[0m' if report.database_exists else '\033[31m❌ No\033[0m'}",
+        f"    - Exists on Disk: {db_status}",
         f"    - Size: {report.database_size_bytes:,} bytes",
-        f"    - Onboarding Completed: {'\033[32m✅ Yes\033[0m' if report.onboarding_completed else '\033[93m⏳ Pending (first-time setup)\033[0m'}",
-        f"    - Active Provider / Model: {report.active_provider.upper()} / {report.active_model}",
+        f"    - Onboarding Completed: {onboarding_status}",
+        f"    - Active Provider / Model: {provider_str} / {report.active_model}",
         "\033[36m=======================================================\033[0m\n",
     ]
 
