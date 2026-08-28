@@ -195,12 +195,20 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
         aliases=["/v"]
     ),
     CommandMeta(
-        name="/update",
-        args="[version]",
-        description="Check and install latest AnyContext binary releases",
+        name="/check-update",
+        args="",
+        description="Check if a newer AnyContext release is available on GitHub",
         category="System",
         direct_execution=True,
-        aliases=["/check-update"]
+        aliases=["/check"]
+    ),
+    CommandMeta(
+        name="/update",
+        args="[version]",
+        description="Download and install latest AnyContext release with auto-restart",
+        category="System",
+        direct_execution=True,
+        aliases=["/self-update", "/upgrade"]
     ),
     CommandMeta(
         name="/inspect",
