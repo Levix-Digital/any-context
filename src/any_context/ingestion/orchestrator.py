@@ -110,6 +110,21 @@ def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
     cached_files = store.get_workspace_files_cache(clean_ws)
     is_virgin = len(cached_files) == 0 and len(disk_files) > 0
 
+    # Self-healing check: verify if the vector table actually has indexed chunks for this workspace
+    if len(disk_files) > 0 and not is_virgin:
+        try:
+            from any_context.vector_engine.store import LanceDBStore
+            lance = LanceDBStore.get_instance()
+            tbl = lance.get_table("workspace_chunks")
+            if tbl:
+                df = tbl.to_pandas()
+                ws_chunks = len(df[df["workspace"] == clean_ws]) if "workspace" in df.columns else 0
+                if ws_chunks == 0:
+                    is_virgin = True
+                    cached_files = {}
+        except Exception:
+            pass
+
     new_files = []
     modified_files = []
     deleted_files = []
