@@ -31,7 +31,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
   state,
 }, ref): any => {
   return (
-    <scrollbox
+    <box
       ref={ref}
       flexGrow={1}
       flexShrink={1}
@@ -39,9 +39,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
       flexDirection="column"
       paddingLeft={1}
       paddingRight={1}
-      stickyScroll={true}
-      stickyStart="bottom"
-      scrollY={true}
+      overflow="hidden"
     >
       {/* Welcome Banner */}
       <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0} flexShrink={0}>
@@ -49,7 +47,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           <b>{ASCII_BANNER}</b>
         </text>
         <text fg={anyContextTheme.accentWarning}>
-          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.17"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
+          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.21"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
         </text>
         <text fg={anyContextTheme.foregroundMuted}>
           {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
@@ -76,7 +74,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
         </box>
       </box>
 
-      {/* Render All Conversation Messages with native scrollbox virtualization */}
+      {/* Render All Conversation Messages */}
       {messages.map((msg) => {
         if (msg.role === "user") {
           return (
@@ -156,6 +154,6 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           </box>
         );
       })}
-    </scrollbox>
+    </box>
   );
 });

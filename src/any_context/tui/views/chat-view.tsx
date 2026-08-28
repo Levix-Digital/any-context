@@ -26,8 +26,6 @@ interface ChatViewProps {
   modalIndex: number;
   commands: SlashCommandMeta[];
   isGenerating: boolean;
-  scrollBoxRef: React.RefObject<any>;
-  scrollOffset?: number;
   onInputChange: (val: string) => void;
   onSubmit: (text?: string) => void;
 }
@@ -45,8 +43,6 @@ export const ChatView = ({
   modalIndex,
   commands,
   isGenerating,
-  scrollBoxRef,
-  scrollOffset = 0,
   onInputChange,
   onSubmit,
 }: ChatViewProps): any => {
@@ -55,8 +51,8 @@ export const ChatView = ({
       {/* Dynamic Header: Full ASCII banner when 0 messages / post-clear, sleek 1-line top bar during chat */}
       <HeaderBar state={state} hasMessages={messages.length > 0} />
 
-      {/* Main Chat Message Scroll View with Scrollbox Engine */}
-      <ChatMessageList ref={scrollBoxRef} messages={messages} state={state} />
+      {/* Main Chat Message View with 100% full-screen flex layout */}
+      <ChatMessageList messages={messages} state={state} />
 
       {/* Unified Interactive Modal (Options list or Hierarchical Config Menu) */}
       <InteractiveModal
