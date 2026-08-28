@@ -389,8 +389,13 @@ class UpdateService:
                 pass
 
         # 5. Atomic swap and auto-restart preparation
+        caller_cwd = os.environ.get("ACTX_CALLER_CWD") or os.getcwd()
+        is_frontend_tui = is_tui or (os.environ.get("ACTX_FRONTEND") == "tui")
+
         if is_windows:
-            restart_flag = "--tui" if is_tui else ""
+            tui_entry = os.path.join(caller_cwd, "src", "any_context", "tui", "index.tsx")
+            has_dev_tui = os.path.exists(tui_entry)
+
             swap_and_restart_script = (
                 f"$retries = 0; "
                 f"while ($retries -lt 40) {{ "
@@ -409,12 +414,24 @@ class UpdateService:
                 f"}}; "
             )
             if auto_restart:
-                swap_and_restart_script += (
-                    f"Start-Sleep -Milliseconds 600; "
-                    f"if (Test-Path -LiteralPath '{target_exe}') {{ "
-                    f"  Start-Process -FilePath '{target_exe}' -ArgumentList '{restart_flag}' "
-                    f"}}"
-                )
+                if has_dev_tui:
+                    swap_and_restart_script += (
+                        f"Start-Sleep -Milliseconds 800; "
+                        f"Set-Location -LiteralPath '{caller_cwd}'; "
+                        f"if (Get-Command 'bun' -ErrorAction SilentlyContinue) {{ "
+                        f"  Start-Process 'bun' -ArgumentList 'run', '{tui_entry}' -WorkingDirectory '{caller_cwd}' "
+                        f"}} elseif (Test-Path -LiteralPath '{target_exe}') {{ "
+                        f"  Start-Process -FilePath '{target_exe}' -WorkingDirectory '{caller_cwd}' "
+                        f"}}"
+                    )
+                else:
+                    restart_args = "'--tui'" if is_frontend_tui else "''"
+                    swap_and_restart_script += (
+                        f"Start-Sleep -Milliseconds 800; "
+                        f"if (Test-Path -LiteralPath '{target_exe}') {{ "
+                        f"  Start-Process -FilePath '{target_exe}' -ArgumentList {restart_args} -WorkingDirectory '{caller_cwd}' "
+                        f"}}"
+                    )
 
             try:
                 subprocess.Popen(
