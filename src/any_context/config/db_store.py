@@ -148,7 +148,8 @@ class ConfigDBStore:
                     retrieval_preset TEXT DEFAULT 'balanced',
                     grounding_mode TEXT DEFAULT 'strict',
                     web_search_enabled INTEGER DEFAULT 0,
-                    default_web_engine TEXT DEFAULT 'auto'
+                    default_web_engine TEXT DEFAULT 'auto',
+                    onboarding_completed INTEGER DEFAULT 0
                 )
             """)
             cursor.execute("PRAGMA table_info(context_settings)")
@@ -171,14 +172,16 @@ class ConfigDBStore:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN web_search_enabled INTEGER DEFAULT 0")
             if "default_web_engine" not in ctx_cols:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN default_web_engine TEXT DEFAULT 'auto'")
+            if "onboarding_completed" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN onboarding_completed INTEGER DEFAULT 0")
 
             cursor.execute("SELECT id FROM context_settings WHERE id = 1")
             if not cursor.fetchone():
                 cursor.execute("""
                     INSERT INTO context_settings (
                         id, db_path, collection_name, chunk_size, chunk_overlap,
-                        top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine
-                    ) VALUES (1, './chroma_db', 'documents', 1024, 200, 40, 100, 3, 'balanced', 'strict', 0, 'auto')
+                        top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed
+                    ) VALUES (1, './chroma_db', 'documents', 1024, 200, 40, 100, 3, 'balanced', 'strict', 0, 'auto', 0)
                 """)
 
             cursor.execute("""
@@ -2043,6 +2046,37 @@ class ConfigDBStore:
 
         return True
 
+    def get_onboarding_completed(self) -> bool:
+        """
+        Returns True if first-time onboarding has been completed, False otherwise.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT onboarding_completed FROM context_settings WHERE id = 1")
+                row = cursor.fetchone()
+                if row is not None and row[0] is not None:
+                    return bool(row[0])
+        except Exception:
+            pass
+        return False
+
+    def set_onboarding_completed(self, completed: bool = True) -> bool:
+        """
+        Sets the onboarding_completed flag in context_settings.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE context_settings SET onboarding_completed = ? WHERE id = 1",
+                    (1 if completed else 0,)
+                )
+                conn.commit()
+                return True
+        except Exception:
+            return False
+
     def reset_model_settings_to_default(self) -> bool:
         """
         Resets models table to safe OpenAI defaults (gpt-4o-mini / openai).
@@ -2092,4 +2126,5 @@ class ConfigDBStore:
                     pass
 
         self.ensure_default_workspace()
+        self.set_onboarding_completed(False)
         return True

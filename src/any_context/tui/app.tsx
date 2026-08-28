@@ -66,6 +66,33 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     };
   }, [client]);
 
+  const hasTriggeredOnboardingRef = useRef(false);
+  useEffect(() => {
+    if (state.needs_onboarding && !hasTriggeredOnboardingRef.current && !modalOpen) {
+      hasTriggeredOnboardingRef.current = true;
+      openOnboardingModal();
+    }
+  }, [state.needs_onboarding, modalOpen]);
+
+  const openOnboardingModal = async () => {
+    try {
+      const opts = await client.getOptions("onboarding");
+      if (opts && opts.items) {
+        setPaletteOpen(false);
+        setModalMode("options");
+        setModalOptionsGroup(opts);
+        const activeIdx = opts.items.findIndex((item) => item.is_active);
+        setModalIndex(activeIdx >= 0 ? activeIdx : 0);
+        setModalOpen(true);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `err_${Date.now()}`, role: "system", content: `❌ Could not load onboarding setup: ${err.message}` },
+      ]);
+    }
+  };
+
   const openModeModal = async () => {
     try {
       const opts = await client.getOptions("grounding_mode");
@@ -257,6 +284,46 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         if (modalMode === "options" && modalOptionsGroup) {
           const selectedOption: OptionItemSchema = modalOptionsGroup.items[modalIndex];
           if (selectedOption) {
+            if (modalOptionsGroup.type === "onboarding") {
+              setModalOpen(false);
+              if (selectedOption.id === "openai") {
+                setInputValue("/key openai ");
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: `sys_${Date.now()}`,
+                    role: "system",
+                    content: "🔑 **OpenAI Setup**: Please paste your OpenAI API Key after `/key openai ` below and press [Enter] to complete setup.",
+                  },
+                ]);
+                return;
+              } else if (selectedOption.id === "custom") {
+                openConfigModal("models", false);
+                return;
+              } else if (selectedOption.id === "local_offline") {
+                client
+                  .completeOnboarding("local_offline")
+                  .then((res) => {
+                    setMessages((prev) => [
+                      ...prev,
+                      {
+                        id: `sys_${Date.now()}`,
+                        role: "system",
+                        content: res.message || "✅ Local Offline Server (LM Studio / Ollama) configured successfully!",
+                      },
+                    ]);
+                    client.refreshState();
+                  })
+                  .catch((err) => {
+                    setMessages((prev) => [
+                      ...prev,
+                      { id: `err_${Date.now()}`, role: "system", content: `❌ Error setting local offline mode: ${err.message}` },
+                    ]);
+                  });
+                return;
+              }
+            }
+
             setModalOpen(false);
             client
               .setOption(modalOptionsGroup.type, selectedOption.id)
@@ -587,6 +654,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
 
     if (cmd === "/menu" || cmd === "/config" || cmd === "/settings") {
       await openConfigModal("main");
+      return;
+    }
+
+    if (cmd === "/onboarding" || cmd === "/setup") {
+      await openOnboardingModal();
       return;
     }
 

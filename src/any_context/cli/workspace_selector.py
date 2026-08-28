@@ -76,54 +76,53 @@ def show_workspace_menu() -> Optional[str]:
 
 def ensure_api_key_configured():
     """
-    Checks if an OpenAI API key is required and missing.
-    Presents an interactive explanation allowing the user to provide an OpenAI key
-    OR switch seamlessly to a Local Offline Server (LM Studio / Ollama) or Custom Setup.
+    Checks if first-time onboarding or API key configuration is required.
+    Delegates to OnboardingService and presents interactive options via questionary.
     """
-    store = ConfigDBStore()
-    settings = store.get_app_settings()
-    if not settings or not settings.models:
+    from any_context.core.services.onboarding_service import OnboardingService
+    onboarding_svc = OnboardingService()
+    status = onboarding_svc.check_status()
+
+    if not status.needs_onboarding:
         return
 
-    provider = settings.models.model_provider
-    if provider == "openai":
-        if "localhost" in settings.models.local_base_url or "127.0.0.1" in settings.models.local_base_url:
-            settings.models.local_base_url = "https://api.openai.com/v1"
-            store.save_app_settings(settings)
+    print("\n======================================================================")
+    print(status.title)
+    print(status.description)
+    print("======================================================================\n")
 
-        api_key = store.get_api_key("openai")
-        if not api_key or api_key == "lm-studio":
-            from any_context.core.utils import get_api_key
-            api_key = get_api_key(provider="openai")
+    choices = [opt.title for opt in status.options_group.items]
+    choice = questionary.select(
+        "How would you like to configure your AI Provider?",
+        choices=choices
+    ).ask()
 
-        if not api_key or api_key == "lm-studio":
-            print("\n======================================================================")
-            print("🤖 Welcome to AnyContext AI Setup!")
-            print("By default, AnyContext uses OpenAI Cloud models (gpt-4o-mini &")
-            print("text-embedding-3-small) for fast reasoning and semantic search.")
-            print("======================================================================\n")
+    if not choice:
+        return
 
-            choice = questionary.select(
-                "How would you like to configure your AI Provider?",
-                choices=[
-                    "⚡ OpenAI Cloud (Enter OpenAI API Key - Recommended)",
-                    "🏠 Local Offline Server (LM Studio / Ollama - 100% Free & Offline)",
-                    "🛠️ Custom Setup (Configure custom models, base URL & keys)"
-                ]
-            ).ask()
-
-            if choice and choice.startswith("⚡"):
-                entered_key = questionary.password("Enter your OpenAI API Key (sk-...):").ask()
-                if entered_key and entered_key.strip():
-                    store.set_api_key("openai", entered_key.strip())
-                    print("✅ OpenAI API Key saved successfully!\n")
-                else:
-                    print("⚠️ Notice: No OpenAI API Key entered. Opening Custom Setup Menu...")
-                    from any_context.cli.config_menu import _manage_models
-                    _manage_models(store)
-            elif choice and (choice.startswith("🏠") or choice.startswith("🛠️")):
-                from any_context.cli.config_menu import _manage_models
-                _manage_models(store)
+    if choice.startswith("⚡"):
+        entered_key = questionary.password("Enter your OpenAI API Key (sk-...):").ask()
+        if entered_key and entered_key.strip():
+            res = onboarding_svc.complete_onboarding("openai", api_key=entered_key.strip())
+            if res.success:
+                print(f"{res.message}\n")
+            else:
+                print(f"❌ Error: {res.error}\n")
+        else:
+            print("⚠️ Notice: No OpenAI API Key entered. Opening Custom Setup Menu...")
+            from any_context.cli.config_menu import _manage_models
+            _manage_models(onboarding_svc.store)
+            onboarding_svc.store.set_onboarding_completed(True)
+    elif choice.startswith("🏠"):
+        res = onboarding_svc.complete_onboarding("local_offline")
+        if res.success:
+            print(f"{res.message}\n")
+        else:
+            print(f"❌ Error: {res.error}\n")
+    elif choice.startswith("🛠️"):
+        from any_context.cli.config_menu import _manage_models
+        _manage_models(onboarding_svc.store)
+        onboarding_svc.store.set_onboarding_completed(True)
 
 
 

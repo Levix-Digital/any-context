@@ -13,6 +13,8 @@ export interface AnyContextState {
   sync_info: string;
   is_syncing: boolean;
   tier_name?: string;
+  needs_onboarding?: boolean;
+  onboarding_state?: any;
 }
 
 import { DEFAULT_SLASH_COMMANDS } from "./commands";
@@ -92,7 +94,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.51",
+    version: "0.28.52",
     workspace: "Default",
     model: "...",
     model_display: "...",
@@ -380,6 +382,30 @@ export class BridgeClient {
       value,
       workspace: workspace || this.state.workspace,
       apply_global: applyGlobal,
+    });
+    if (res && res.state_updates) {
+      this.updateState(res.state_updates as any);
+    }
+    return res;
+  }
+
+  public async getOnboardingStatus(): Promise<any> {
+    return this.sendRequest<any>("get_onboarding_status");
+  }
+
+  public async completeOnboarding(
+    choice: string,
+    apiKey?: string,
+    baseUrl?: string,
+    modelName?: string,
+    workspaceName?: string
+  ): Promise<MenuActionResult> {
+    const res = await this.sendRequest<MenuActionResult>("complete_onboarding", {
+      choice,
+      api_key: apiKey,
+      base_url: baseUrl,
+      model_name: modelName,
+      workspace_name: workspaceName || this.state.workspace,
     });
     if (res && res.state_updates) {
       this.updateState(res.state_updates as any);

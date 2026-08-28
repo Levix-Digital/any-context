@@ -715,4 +715,29 @@ AnyContext enforces strict isolation of OS application directories and eliminate
 - **Python Environment Residual Detection**: Detects `actx` commands residing in Python `pip` scripts/virtual environments and automatically invokes `pip uninstall -y any-context`.
 - **Safe Reset Fallback**: When preserving workspaces, resets model settings to safe OpenAI factory defaults (`gpt-4o-mini` / `openai`) to eliminate broken provider bindings.
 
+---
+
+## 22. Centralized Onboarding Engine & Multi-Interface Lifecycle Parity (`v0.28.52`)
+
+AnyContext enforces universal lifecycle onboarding state management across all consumer interfaces via a dedicated Core service (`OnboardingService`):
+
+### 🏛️ 1. Explicit Lifecycle State (`onboarding_completed` Flag)
+- The SQLite `context_settings` table maintains an explicit lifecycle flag `onboarding_completed INTEGER DEFAULT 0`.
+- Fresh installations or factory resets (`ConfigDBStore.factory_reset()`) reset `onboarding_completed` to `0`.
+- Concluding any provider setup (OpenAI, Local LM Studio, or Custom) marks `onboarding_completed = 1`.
+
+### 🛡️ 2. Core Service Architecture (`OnboardingService`)
+- Evaluates `check_status() -> OnboardingState`:
+  - Determines if the active provider lacks a valid API key or if first-time onboarding is pending (`stage: "first_time" | "missing_key"`).
+  - Emits declarative schemas (`OptionsGroupSchema`, `OptionItemSchema`) consumed by presentation adapters.
+- Implements `complete_onboarding(choice_id, api_key, base_url, workspace_name)`:
+  - Updates models, base URLs, and API keys atomically in SQLite.
+
+### 🖥️ 3. Decoupled Presentation Adapters (Dumb UIs)
+- **OpenTUI Desktop (`app.tsx`)**: Listens to `state.needs_onboarding` and automatically opens `<InteractiveModal>` with arrow-key navigable options, passing selections to the RPC Bridge (`complete_onboarding`).
+- **Terminal CLI (`workspace_selector.py`)**: Intercepts unconfigured startup and renders interactive questionary prompts powered by `OnboardingService`.
+- **REST API Server (`server/api.py`)**: Exposes `/v1/onboarding/status` and `/v1/onboarding/complete`.
+- **MCP Server (`server/mcp.py`)**: Exposes `get_onboarding_status` and `complete_onboarding` tools.
+
+
 
