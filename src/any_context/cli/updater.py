@@ -661,20 +661,29 @@ def run_self_update(
         safe_print(f"\n🚀 Restarting AnyContext with {clean_tag} in current terminal...\n")
         time.sleep(1)
 
-        # In-place restart preserving CLI arguments and active terminal session
+        # Build sanitized environment for the new PyInstaller process to prevent PyInstaller parent security validation failure
+        clean_env = {}
+        for k, v in os.environ.items():
+            lower_k = k.lower()
+            if not lower_k.startswith("_mei") and not lower_k.startswith("pyi_") and "meipass" not in lower_k:
+                clean_env[k] = v
+
+        if "PATH" in clean_env:
+            paths = clean_env["PATH"].split(os.pathsep)
+            clean_paths = [p for p in paths if "_mei" not in p.lower() and "pyi" not in p.lower()]
+            clean_env["PATH"] = os.pathsep.join(clean_paths)
+
+        # In-place restart preserving CLI arguments, clean environment and active terminal session
         restart_args = [target_exe]
         for arg in sys.argv[1:]:
             if not arg.startswith("--update") and not arg.startswith("-u") and not arg.startswith("/update"):
                 restart_args.append(arg)
 
         try:
-            os.execv(target_exe, restart_args)
+            res = subprocess.call(restart_args, env=clean_env)
+            sys.exit(res)
         except Exception:
-            try:
-                subprocess.call(restart_args)
-                sys.exit(0)
-            except Exception:
-                sys.exit(0)
+            sys.exit(0)
     else:
         try:
             os.replace(temp_download, target_exe)
@@ -703,18 +712,21 @@ def run_self_update(
             safe_print(f"\n🚀 Restarting AnyContext with {clean_tag} in current terminal...\n")
             time.sleep(1)
 
+            clean_env = {}
+            for k, v in os.environ.items():
+                lower_k = k.lower()
+                if not lower_k.startswith("_mei") and not lower_k.startswith("pyi_") and "meipass" not in lower_k:
+                    clean_env[k] = v
+
             restart_args = [target_exe]
             for arg in sys.argv[1:]:
                 if not arg.startswith("--update") and not arg.startswith("-u") and not arg.startswith("/update"):
                     restart_args.append(arg)
 
             try:
-                os.execv(target_exe, restart_args)
+                res = subprocess.call(restart_args, env=clean_env)
+                sys.exit(res)
             except Exception:
-                try:
-                    subprocess.call(restart_args)
-                    sys.exit(0)
-                except Exception:
-                    sys.exit(0)
+                sys.exit(0)
         except Exception as e:
             safe_print(f"⚠️ Saved new binary to: {temp_download}. Please move it to {target_exe} with sudo/chmod.")
