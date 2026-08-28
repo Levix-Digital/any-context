@@ -79,7 +79,12 @@ export const ChatView = ({
         value={inputValue}
         onChange={onInputChange}
         onSubmit={onSubmit}
-        disabled={isGenerating}
+        disabled={isGenerating || modalOpen}
+        placeholder={
+          modalOpen
+            ? "Modal active: Use [↑/↓] to navigate options, [Enter] to select, [Esc] to close"
+            : undefined
+        }
       />
 
       {/* Bottom Status Bar (1-line unified dock) */}

@@ -83,7 +83,7 @@ export const InteractiveModal = ({
               paddingRight={1}
             >
               <text fg={titleColor}>
-                <b>{prefix}{item.icon} {item.title}</b>
+                <b>{prefix}{item.icon && !item.title.startsWith(item.icon) ? `${item.icon} ` : ""}{item.title}</b>
                 {badgeStr ? <span fg={anyContextTheme.accentSuccess}>{badgeStr}</span> : ""}
                 {descStr ? <span fg={anyContextTheme.foregroundMuted}>{descStr}</span> : ""}
               </text>

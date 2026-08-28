@@ -676,6 +676,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     }
 
     if (cmd === "/onboarding" || cmd === "/setup") {
+      hasTriggeredOnboardingRef.current = false;
       await openOnboardingModal();
       return;
     }

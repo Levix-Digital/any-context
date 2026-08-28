@@ -787,6 +787,20 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - Enforces Unix LF line endings across all distribution shell scripts via `.gitattributes` and CI release normalization.
 - Automatically exports `$HOME/.local/bin` and `$HOME/.bun/bin` at the front of the user shell profile (`~/.bashrc` / `~/.zshrc`).
 
+---
+
+## 27. Autonomous Bun Linking & Modal Focus Control (`v0.28.57`)
+
+### 🔗 1. Self-Contained Bun Symlink & Copy (`install.sh` & `install.ps1`)
+- `install.sh` links `~/.bun/bin/bun` into `$INSTALL_DIR/bun` (`~/.local/bin/bun`) upon installation.
+- `install.ps1` copies `bun.exe` into `$InstallDir\bun.exe` (`%LOCALAPPDATA%\actx\bin\bun.exe`).
+- Guarantees immediate zero-step availability of Bun across terminal sessions without requiring manual shell sourcing or restarts.
+
+### 🎯 2. InputBar Modal Focus Decoupling (`chat-view.tsx` & `interactive-modal.tsx`)
+- Passed `disabled={isGenerating || modalOpen}` to `<InputBar>`, preventing the `<textarea>` from capturing arrow and confirmation keystrokes when an interactive modal is active.
+- Enhanced modal navigation responsiveness with dynamic placeholder states.
+
+
 
 
 
