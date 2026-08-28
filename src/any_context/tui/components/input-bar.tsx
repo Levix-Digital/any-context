@@ -17,33 +17,50 @@ export const InputBar = ({
   disabled = false,
 }: InputBarProps): any => {
   const textareaRef = useRef<any>(null);
+  const lastEmittedValueRef = useRef<string>(value);
+  const isSyncingRef = useRef<boolean>(false);
 
   // Sync external value updates (e.g. from slash command autocomplete or clear)
   useEffect(() => {
-    if (textareaRef.current && value !== textareaRef.current.plainText) {
-      textareaRef.current.setText(value || "");
-      if (value) {
-        try {
-          if (typeof textareaRef.current.setCursorByOffset === "function") {
-            textareaRef.current.setCursorByOffset(value.length);
-          } else if (typeof textareaRef.current.gotoLineEnd === "function") {
-            textareaRef.current.gotoLineEnd();
-          }
-        } catch (_) {}
+    if (value !== lastEmittedValueRef.current) {
+      lastEmittedValueRef.current = value;
+      if (textareaRef.current) {
+        isSyncingRef.current = true;
+        textareaRef.current.setText(value || "");
+        if (value) {
+          try {
+            if (typeof textareaRef.current.setCursorByOffset === "function") {
+              textareaRef.current.setCursorByOffset(value.length);
+            } else if (typeof textareaRef.current.gotoLineEnd === "function") {
+              textareaRef.current.gotoLineEnd();
+            }
+          } catch (_) {}
+        }
+        // Release sync flag in next microtask
+        setTimeout(() => {
+          isSyncingRef.current = false;
+        }, 0);
       }
     }
   }, [value]);
 
   const handleContentChange = () => {
+    if (isSyncingRef.current) {
+      return;
+    }
     if (textareaRef.current) {
       const text = textareaRef.current.plainText || "";
-      onChange(text);
+      if (text !== lastEmittedValueRef.current) {
+        lastEmittedValueRef.current = text;
+        onChange(text);
+      }
     }
   };
 
   const handleSubmit = () => {
     if (textareaRef.current) {
       const text = textareaRef.current.plainText || "";
+      lastEmittedValueRef.current = "";
       textareaRef.current.clear();
       onSubmit(text);
     } else {
@@ -96,4 +113,3 @@ export const InputBar = ({
     </box>
   );
 };
-

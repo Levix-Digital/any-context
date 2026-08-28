@@ -351,9 +351,15 @@ export class BridgeClient {
   }
 
   private updateState(newState: AnyContextState) {
-    this.state = { ...this.state, ...newState };
-    if (this.onStateChange) {
-      this.onStateChange(this.state);
+    let changed = false;
+    for (const [key, value] of Object.entries(newState)) {
+      if ((this.state as any)[key] !== value) {
+        (this.state as any)[key] = value;
+        changed = true;
+      }
+    }
+    if (changed && this.onStateChange) {
+      this.onStateChange({ ...this.state });
     }
   }
 
