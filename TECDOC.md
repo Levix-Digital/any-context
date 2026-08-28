@@ -775,6 +775,19 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - Evaluates candidate paths on Windows (`~/.bun/bin/bun.exe`, `%USERPROFILE%/.bun/bin/bun.exe`) and Linux/macOS (`~/.bun/bin/bun`, `/usr/local/bin/bun`, `/usr/bin/bun`).
 - Emits explicit diagnostic guidance instead of silent fallbacks to the standard CLI.
 
+---
+
+## 26. WSL Host Binary Isolation & Script LF Enforcement (`v0.28.56`)
+
+### 🛡️ 1. WSL Windows Host Binary Filtering (`chat_loop.py`)
+- On Linux and WSL environments, `launch_opentui` strictly ignores Windows host executables (`.exe` in `/mnt/c/`), prioritizing Linux native Bun (`~/.bun/bin/bun`).
+- Injects Bun binary directory into `PATH` for spawned OpenTUI processes.
+
+### 📜 2. Strict LF Line Endings & Shell Profile PATH Exports (`install.sh`)
+- Enforces Unix LF line endings across all distribution shell scripts via `.gitattributes` and CI release normalization.
+- Automatically exports `$HOME/.local/bin` and `$HOME/.bun/bin` at the front of the user shell profile (`~/.bashrc` / `~/.zshrc`).
+
+
 
 
 

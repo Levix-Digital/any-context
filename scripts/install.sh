@@ -104,6 +104,23 @@ if ! command -v bun >/dev/null 2>&1 && [ ! -f "$HOME/.bun/bin/bun" ]; then
     curl -fsSL https://bun.sh/install | bash 2>/dev/null || true
 fi
 
+# Ensure both ~/.local/bin and ~/.bun/bin are exported at the front of PATH
+if [ "$IS_WINDOWS" -eq 0 ]; then
+    SHELL_PROFILE=""
+    if [ -f "$HOME/.bashrc" ]; then
+        SHELL_PROFILE="$HOME/.bashrc"
+    elif [ -f "$HOME/.zshrc" ]; then
+        SHELL_PROFILE="$HOME/.zshrc"
+    fi
+    if [ -n "$SHELL_PROFILE" ]; then
+        if ! grep -q "actx / bun path" "$SHELL_PROFILE"; then
+            echo '' >> "$SHELL_PROFILE"
+            echo '# actx / bun path' >> "$SHELL_PROFILE"
+            echo 'export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"' >> "$SHELL_PROFILE"
+        fi
+    fi
+fi
+
 printf "\n\033[36m=======================================================\033[0m\n"
 printf "\033[32m🎉 AnyContext (actx) installed successfully!\033[0m\n"
 printf "👉 Open a new terminal window and type \033[1mactx\033[0m to launch the assistant.\n"
