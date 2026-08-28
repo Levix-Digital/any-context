@@ -32,6 +32,7 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommandMeta[] = [
   { command: "/clear", args: "", description: "Clear visual chat history view", category: "Chat", direct_execution: true },
   { command: "/paste", args: "", description: "Enter dedicated multi-line capture mode", category: "Chat", direct_execution: true },
   { command: "/version", args: "", description: "Display AnyContext version and build info", category: "System", direct_execution: true },
+  { command: "/check-update", args: "", description: "Check for available AnyContext updates from GitHub", category: "System", direct_execution: true },
   { command: "/update", args: "[version]", description: "Check and install latest AnyContext binary releases", category: "System", direct_execution: true },
   { command: "/inspect", args: "[limit]", description: "Inspect vector database chunks and session memory", category: "Sources", direct_execution: true },
   { command: "/density", args: "[level]", description: "Configure UI compact/comfortable visual density", category: "System", direct_execution: true },

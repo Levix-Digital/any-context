@@ -92,7 +92,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.46",
+    version: "0.28.47",
     workspace: "Default",
     model: "...",
     model_display: "...",
@@ -223,13 +223,6 @@ export class BridgeClient {
       if (code !== 0 && code !== null && stderrBuffer.trim()) {
         console.error(`AnyContext RPC Bridge exited with code ${code}: ${stderrBuffer}`);
       }
-    });
-
-    await this.refreshState();
-    await this.fetchCommands();
-
-    this.process.on("exit", () => {
-      // Backend process terminated cleanly
     });
 
     await this.refreshState();
