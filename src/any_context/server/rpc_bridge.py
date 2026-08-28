@@ -257,6 +257,12 @@ class StdioRPCServer:
                 elif opt_type == "update":
                     target_v = params.get("target_version")
                     opts = opts_engine.get_update_options(target_version=target_v)
+                elif opt_type in ["delete_workspace", "ws_delete"]:
+                    opts = opts_engine.get_delete_workspace_options(current_workspace=ws)
+                elif opt_type in ["confirm_delete_workspace", "confirm_delete_ws"]:
+                    target_ws = params.get("target_workspace") or ws
+                    is_active = (ws.lower() == target_ws.lower())
+                    opts = opts_engine.get_confirm_delete_workspace_options(workspace_to_delete=target_ws, is_active=is_active)
                 else:
                     opts = opts_engine.get_grounding_mode_options(workspace=ws)
                 _send_ndjson({"id": req_id, "result": opts.model_dump()})
@@ -278,6 +284,8 @@ class StdioRPCServer:
                     res = opts_engine.set_retrieval_density_preset(preset=val)
                 elif opt_type == "update":
                     res = opts_engine.execute_update_option(option_id=val, is_tui=True)
+                elif opt_type in ["delete_workspace", "ws_delete", "confirm_delete_workspace", "confirm_delete_ws"]:
+                    res = opts_engine.execute_delete_workspace_option(option_id=val, current_workspace=ws)
                 else:
                     res = opts_engine.set_grounding_mode(mode=val, workspace=ws, apply_global=apply_global)
 
