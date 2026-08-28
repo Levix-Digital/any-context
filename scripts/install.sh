@@ -98,7 +98,14 @@ else
     fi
 fi
 
+# 5. Check/Ensure Bun is available for OpenTUI desktop interface
+if ! command -v bun >/dev/null 2>&1 && [ ! -f "$HOME/.bun/bin/bun" ]; then
+    printf "\033[90m💡 Bun runtime not detected. Installing Bun for OpenTUI desktop interface...\033[0m\n"
+    curl -fsSL https://bun.sh/install | bash 2>/dev/null || true
+fi
+
 printf "\n\033[36m=======================================================\033[0m\n"
 printf "\033[32m🎉 AnyContext (actx) installed successfully!\033[0m\n"
 printf "👉 Open a new terminal window and type \033[1mactx\033[0m to launch the assistant.\n"
+printf "👉 To launch the OpenTUI desktop interface, type \033[1mactx --tui\033[0m.\n"
 printf "\033[36m=======================================================\033[0m\n\n"

@@ -46,11 +46,17 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --no-cache-dir "pyinstaller>=6.16.0" -r requirements.txt
           pip install --no-cache-dir -e .
+          cd src/any_context/tui
+          bun install --production
+          cd ../../..
 
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
