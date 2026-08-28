@@ -90,9 +90,9 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.26.0",
+    version: "0.28.28",
     workspace: "Default",
-    model: "gpt-4o-mini",
+    model: "...",
     grounding_mode: "strict",
     web_search_enabled: false,
     sync_info: "",
