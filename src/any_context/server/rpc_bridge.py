@@ -139,18 +139,22 @@ class StdioRPCServer:
 
     def handle_request(self, req: Dict[str, Any]):
         """Dispatches an incoming NDJSON request and returns responses or streams."""
+        from any_context.observability import obs
         req_id = req.get("id")
         method = req.get("method")
         params = req.get("params") or {}
+        obs.debug("RPC:RECV", f"Received method '{method}' (id={req_id})", {"id": req_id, "method": method, "params": params})
 
         try:
             if method == "get_state":
                 state = self.get_state()
                 _send_ndjson({"id": req_id, "result": state})
+                obs.debug("RPC:RESP", f"Sent get_state response (id={req_id})", {"needs_onboarding": state.get("needs_onboarding")})
 
             elif method == "list_commands":
                 cmds = self.list_commands()
                 _send_ndjson({"id": req_id, "result": cmds})
+                obs.debug("RPC:RESP", f"Sent list_commands response (id={req_id})", {"count": len(cmds)})
 
             elif method == "execute_command":
                 cmd_line = params.get("command", "")
@@ -438,6 +442,9 @@ class StdioRPCServer:
 
 def run_rpc_server(default_workspace: str = "Default"):
     """Starts the main stdio line-reading loop for NDJSON RPC."""
+    from any_context.observability import obs
+    obs.info("RPC:SERVER", "Stdio RPC bridge server started", {"workspace": default_workspace, "pid": os.getpid()})
+
     # Force UTF-8 on Windows stdin/stdout
     if hasattr(sys.stdin, "reconfigure"):
         try:
@@ -452,12 +459,15 @@ def run_rpc_server(default_workspace: str = "Default"):
 
     server = StdioRPCServer(default_workspace=default_workspace)
     # Notify TUI on startup that RPC server is ready
-    _send_ndjson({"event": "ready", "state": server.get_state()})
+    ready_state = server.get_state()
+    _send_ndjson({"event": "ready", "state": ready_state})
+    obs.info("RPC:READY", "Emitted ready event to OpenTUI", {"needs_onboarding": ready_state.get("needs_onboarding")})
 
     while True:
         try:
             line = sys.stdin.readline()
             if not line:
+                obs.info("RPC:EOF", "Stdin reached EOF. Shutting down RPC bridge server.")
                 break
             clean_line = line.strip()
             if not clean_line:
@@ -465,10 +475,13 @@ def run_rpc_server(default_workspace: str = "Default"):
             payload = json.loads(clean_line)
             server.handle_request(payload)
         except json.JSONDecodeError as e:
+            obs.error("RPC:JSON_ERROR", f"Failed to decode JSON payload: {e}", exc=e)
             _send_ndjson({"error": {"code": -32700, "message": f"Parse error: {e}"}})
         except (KeyboardInterrupt, EOFError):
+            obs.info("RPC:EXIT", "Received interrupt/EOF signal")
             break
         except Exception as e:
+            obs.error("RPC:LOOP_ERROR", f"Unexpected error in RPC loop: {e}", exc=e)
             _send_ndjson({"error": {"code": -32000, "message": str(e)}})
 
 

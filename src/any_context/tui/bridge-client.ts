@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import * as readline from "readline";
+import { tuiLog } from "./logger";
 
 export interface AnyContextState {
   version: string;
@@ -94,7 +95,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.57",
+    version: "0.28.58",
     workspace: "Default",
     model: "...",
     model_display: "...",
@@ -111,6 +112,7 @@ export class BridgeClient {
   }
 
   public async start(): Promise<void> {
+    tuiLog.info("BRIDGE:INIT", "Starting BridgeClient", { initialWorkspace: this.initialWorkspace });
     const repoRoot = path.resolve(__dirname, "..", "..", "..");
     
     let command = "";
@@ -207,6 +209,14 @@ export class BridgeClient {
     childEnv.ACTX_CALLER_CWD = callerCwd;
     childEnv.ACTX_FRONTEND = "tui";
 
+    tuiLog.info("BRIDGE:SPAWN", "Spawning Python backend subprocess", {
+      command,
+      args,
+      isSourceRepo,
+      cwd: callerCwd,
+      execEnv: process.env.ACTX_EXECUTABLE,
+    });
+
     this.process = spawn(command, args, {
       cwd: callerCwd,
       env: childEnv,
@@ -214,13 +224,16 @@ export class BridgeClient {
     });
 
     if (!this.process.stdout || !this.process.stdin) {
+      tuiLog.error("BRIDGE:PIPES_ERROR", "Failed to initialize stdin/stdout pipes for AnyContext RPC Bridge");
       throw new Error("Failed to initialize stdin/stdout pipes for AnyContext RPC Bridge");
     }
 
     let stderrBuffer = "";
     if (this.process.stderr) {
       this.process.stderr.on("data", (chunk) => {
-        stderrBuffer += chunk.toString();
+        const text = chunk.toString();
+        stderrBuffer += text;
+        tuiLog.warn("BRIDGE:STDERR", text.trim());
       });
     }
 
@@ -228,6 +241,10 @@ export class BridgeClient {
     rl.on("line", (line) => this.handleLine(line));
 
     this.process.on("exit", (code) => {
+      tuiLog.warn("BRIDGE:EXIT", `AnyContext RPC Bridge process exited with code ${code}`, {
+        code,
+        stderr: stderrBuffer.trim(),
+      });
       if (code !== 0 && code !== null && stderrBuffer.trim()) {
         console.error(`AnyContext RPC Bridge exited with code ${code}: ${stderrBuffer}`);
       }
@@ -240,6 +257,7 @@ export class BridgeClient {
   private handleLine(line: string) {
     const trimmed = line.trim();
     if (!trimmed) return;
+    tuiLog.debug("BRIDGE:RECV", trimmed);
 
     try {
       const msg = JSON.parse(trimmed);
@@ -285,6 +303,7 @@ export class BridgeClient {
   private sendRequest<T = any>(method: string, params: Record<string, any> = {}): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.process || !this.process.stdin) {
+        tuiLog.error("BRIDGE:NOT_RUNNING", `Cannot send method '${method}' - RPC bridge process is not running`);
         return reject(new Error("RPC bridge is not running"));
       }
 
@@ -292,6 +311,7 @@ export class BridgeClient {
       this.pendingRequests.set(id, { resolve, reject });
 
       const payload = JSON.stringify({ id, method, params }) + "\n";
+      tuiLog.debug("BRIDGE:SEND", payload.trim());
       this.process.stdin.write(payload);
     });
   }
@@ -447,8 +467,15 @@ export class BridgeClient {
         changed = true;
       }
     }
-    if (changed && this.onStateChange) {
-      this.onStateChange({ ...this.state });
+    if (changed) {
+      tuiLog.info("BRIDGE:STATE_CHANGE", "Runtime state updated", {
+        workspace: this.state.workspace,
+        model: this.state.model,
+        needs_onboarding: this.state.needs_onboarding,
+      });
+      if (this.onStateChange) {
+        this.onStateChange({ ...this.state });
+      }
     }
   }
 

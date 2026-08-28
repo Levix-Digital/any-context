@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.57): Validação de Autonomia Total de Instalação do Bun e Foco de Modais no OpenTUI (`actx --tui`)
+### 📌 Cenário 1 (v0.28.58): Validação de Observabilidade Nativa e Diagnóstico do RPC Bridge (`actx --diagnostics` / `actx --logs`)
 
-- **Objetivo**: Comprovar que o instalador (`install.sh` / `install.ps1`) cria link/cópia autônoma do Bun no diretório de instalação e que a interface OpenTUI gerencia o foco do `<textarea>` para navegação em modais.
-- **Pré-requisito**: Versão `v0.28.57` ou superior.
+- **Objetivo**: Comprovar que o módulo `any_context.observability` grava todos os eventos de ciclo de vida no SQLite e no disco (`tui_debug.log`), e que os comandos `actx --diagnostics` e `actx --logs` formatam o estado de integridade com precisão.
+- **Pré-requisito**: Versão `v0.28.58` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 

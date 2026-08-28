@@ -800,6 +800,20 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - Passed `disabled={isGenerating || modalOpen}` to `<InputBar>`, preventing the `<textarea>` from capturing arrow and confirmation keystrokes when an interactive modal is active.
 - Enhanced modal navigation responsiveness with dynamic placeholder states.
 
+---
+
+## 28. Native Observability Architecture & Diagnostics Subsystem (`v0.28.58`)
+
+### 📊 1. Core Observability Engine (`any_context.observability`)
+- Created full decoupled observability domain module with `schemas.py`, `storage.py`, `engine.py`, `diagnostics.py`, and `telemetry.py`.
+- Thread-safe SQLite persistence in `settings.db` (`system_logs`, `system_metrics`, and `trace_spans`) with automatic WAL mode and rolling log retention.
+- Sub-millisecond synchronous and async logging via global `obs` singleton.
+
+### 📜 2. Dual-Layer OpenTUI Logging (`logger.ts`) & CLI Inspection (`entrypoint.py`)
+- TypeScript `tuiLog` records all process spawn arguments, exit codes, and Stdio NDJSON events directly to `%LOCALAPPDATA%\AnyContext\logs\tui_debug.log` or `~/.local/share/any-context/logs/tui_debug.log`.
+- Added native CLI inspection commands `actx --diagnostics` / `actx --diag` (health checkup) and `actx --logs` (chronological timeline view).
+
+
 
 
 

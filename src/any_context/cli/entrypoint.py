@@ -59,13 +59,11 @@ def entrypoint():
     # 2. Patch prompt_toolkit for Git Bash / MinGW compatibility
     _patch_prompt_toolkit_for_git_bash()
 
-    # 3. Print banner IMMEDIATELY before importing anything heavy (suppressed for TUI, MCP, RPC, API)
-    if "--mcp" not in sys.argv and "--rpc" not in sys.argv and "--tui" not in sys.argv:
+    # 3. Print banner IMMEDIATELY before importing anything heavy (suppressed for TUI, MCP, RPC, API, Diagnostics)
+    non_interactive_flags = {"--help", "-h", "--version", "-v", "--mcp", "--rpc", "--tui", "--server", "serve", "api", "--diagnostics", "--diag", "--logs"}
+    if not any(arg.lower() in non_interactive_flags for arg in sys.argv[1:]):
         from any_context.cli.banner import print_banner, clear_terminal
-        # Clear screen for interactive session unless user passed one-shot flags
-        non_interactive_flags = {"--help", "-h", "--version", "-v", "--mcp", "--rpc", "--tui", "--server", "serve", "api"}
-        if not any(arg.lower() in non_interactive_flags for arg in sys.argv[1:]):
-            clear_terminal()
+        clear_terminal()
         print_banner()
 
     # 4. Load environment variables (.env) for LangSmith tracing, licenses, and API keys
@@ -75,13 +73,33 @@ def entrypoint():
     except Exception:
         pass
 
+    from any_context.observability import obs, collect_diagnostic_report, format_diagnostic_report, format_recent_logs
+    obs.debug("CLI:BOOT", "AnyContext entrypoint invoked", {"argv": sys.argv})
+
     # 5. Fast-path dispatch for non-interactive flags (sub-10ms response, avoids loading unused modules)
     if "-v" in sys.argv or "--version" in sys.argv:
         from any_context import __version__
         print(f"AnyContext (actx) v{__version__} - Levix Digital")
         sys.exit(0)
 
+    if "--diagnostics" in sys.argv or "--diag" in sys.argv:
+        report = collect_diagnostic_report()
+        print(format_diagnostic_report(report))
+        sys.exit(0)
+
+    if "--logs" in sys.argv:
+        from any_context.observability import ObservabilityStorage
+        storage = ObservabilityStorage()
+        limit = 50
+        for i, a in enumerate(sys.argv):
+            if a == "--limit" and i + 1 < len(sys.argv) and sys.argv[i + 1].isdigit():
+                limit = int(sys.argv[i + 1])
+        logs = storage.get_recent_logs(limit=limit)
+        print(format_recent_logs(logs, limit=limit))
+        sys.exit(0)
+
     if "--tui" in sys.argv:
+        obs.info("CLI:DISPATCH", "Dispatching to OpenTUI", {"argv": sys.argv})
         from any_context.cli.chat_loop import launch_opentui
         ws = "Default"
         for i, a in enumerate(sys.argv):
@@ -96,6 +114,7 @@ def entrypoint():
             sys.exit(1)
 
     if "--rpc" in sys.argv:
+        obs.info("CLI:DISPATCH", "Dispatching to Stdio RPC Server", {"argv": sys.argv})
         from any_context.server.rpc_bridge import run_rpc_server
         target_ws = "Default"
         for i, a in enumerate(sys.argv):
@@ -107,6 +126,7 @@ def entrypoint():
         sys.exit(0)
 
     if "--mcp" in sys.argv:
+        obs.info("CLI:DISPATCH", "Dispatching to MCP Server", {"argv": sys.argv})
         from any_context.server.mcp import start_mcp_server
         start_mcp_server()
         sys.exit(0)
