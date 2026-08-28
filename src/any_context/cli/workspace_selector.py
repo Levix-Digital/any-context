@@ -364,7 +364,6 @@ def get_active_workspace() -> str:
         has_up, new_tag = check_for_updates(quiet_if_latest=False)
         if has_up:
             try:
-                import questionary
                 do_upgrade = questionary.confirm(
                     f"Would you like to download and install {new_tag} now?",
                     default=True

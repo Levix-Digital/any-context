@@ -94,7 +94,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.52",
+    version: "0.28.53",
     workspace: "Default",
     model: "...",
     model_display: "...",

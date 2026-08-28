@@ -44,8 +44,18 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const scrollBoxRef = useRef<any>(null);
 
   useEffect(() => {
-    client.onStateChange = (newState) => setState(newState);
-    client.start().catch((err) => {
+    client.onStateChange = (newState) => {
+      setState(newState);
+      if (newState.needs_onboarding && !modalOpen && !hasTriggeredOnboardingRef.current) {
+        openOnboardingModal(newState.onboarding_state?.options_group);
+      }
+    };
+
+    client.start().then(() => {
+      if (client.state.needs_onboarding && !modalOpen && !hasTriggeredOnboardingRef.current) {
+        openOnboardingModal(client.state.onboarding_state?.options_group);
+      }
+    }).catch((err) => {
       setMessages((prev) => [
         ...prev,
         {
@@ -57,7 +67,11 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     });
 
     const interval = setInterval(() => {
-      client.refreshState();
+      client.refreshState().then((newState) => {
+        if (newState.needs_onboarding && !modalOpen && !hasTriggeredOnboardingRef.current) {
+          openOnboardingModal(newState.onboarding_state?.options_group);
+        }
+      });
     }, 2000);
 
     return () => {
@@ -69,23 +83,27 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const hasTriggeredOnboardingRef = useRef(false);
   useEffect(() => {
     if (state.needs_onboarding && !hasTriggeredOnboardingRef.current && !modalOpen) {
-      hasTriggeredOnboardingRef.current = true;
-      openOnboardingModal();
+      openOnboardingModal(state.onboarding_state?.options_group);
     }
-  }, [state.needs_onboarding, modalOpen]);
+  }, [state.needs_onboarding, modalOpen, state.onboarding_state]);
 
-  const openOnboardingModal = async () => {
+  const openOnboardingModal = async (overrideOpts?: OptionsGroupSchema) => {
     try {
-      const opts = await client.getOptions("onboarding");
-      if (opts && opts.items) {
+      let opts = overrideOpts || (state.onboarding_state && state.onboarding_state.options_group);
+      if (!opts || !opts.items || opts.items.length === 0) {
+        opts = await client.getOptions("onboarding");
+      }
+      if (opts && opts.items && opts.items.length > 0) {
         setPaletteOpen(false);
         setModalMode("options");
         setModalOptionsGroup(opts);
-        const activeIdx = opts.items.findIndex((item) => item.is_active);
+        const activeIdx = opts.items.findIndex((item: any) => item.is_active);
         setModalIndex(activeIdx >= 0 ? activeIdx : 0);
         setModalOpen(true);
+        hasTriggeredOnboardingRef.current = true;
       }
     } catch (err: any) {
+      hasTriggeredOnboardingRef.current = false;
       setMessages((prev) => [
         ...prev,
         { id: `err_${Date.now()}`, role: "system", content: `❌ Could not load onboarding setup: ${err.message}` },
