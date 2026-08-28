@@ -1717,17 +1717,30 @@ def launch_opentui(workspace: str = "Default") -> bool:
     """Attempts to launch the OpenTUI frontend using bun if installed."""
     import shutil
     import subprocess
-    bun_bin = shutil.which("bun")
+    bun_bin = shutil.which("bun") or shutil.which("bun.exe")
     if not bun_bin:
-        home_bun = os.path.expanduser("~/.bun/bin/bun.exe")
-        if os.path.exists(home_bun):
-            bun_bin = home_bun
+        candidates = [
+            os.path.expanduser("~/.bun/bin/bun"),
+            os.path.expanduser("~/.bun/bin/bun.exe"),
+            os.path.join(os.environ.get("USERPROFILE", ""), ".bun", "bin", "bun.exe"),
+            "/usr/local/bin/bun",
+            "/usr/bin/bun",
+        ]
+        for c in candidates:
+            if c and os.path.exists(c):
+                bun_bin = c
+                break
 
     if not bun_bin:
+        print("\n❌ OpenTUI Error: Bun runtime was not found.")
+        print("💡 OpenTUI requires Bun (fast JavaScript runtime). Install it via:")
+        print('   • Windows: powershell -c "irm bun.sh/install.ps1 | iex"')
+        print('   • Linux / macOS: curl -fsSL https://bun.sh/install | bash\n')
         return False
 
     tui_index = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tui", "index.tsx"))
     if not os.path.exists(tui_index):
+        print(f"\n❌ OpenTUI Error: Frontend entrypoint not found at: {tui_index}\n")
         return False
 
     try:
@@ -1751,7 +1764,8 @@ def launch_opentui(workspace: str = "Default") -> bool:
         env["ACTX_FRONTEND"] = "tui"
         res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index), env=env)
         return res.returncode == 0
-    except Exception:
+    except Exception as e:
+        print(f"\n❌ OpenTUI Error: {e}\n")
         return False
 
 

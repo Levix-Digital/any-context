@@ -763,6 +763,19 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - Set `direct_execution: true` for `/model`, `/mode`, `/onboarding`, `/setup`, `/switch`, and `/config`.
 - Prevents autocomplete palette from intercepting Enter keystrokes with trailing space mutations, triggering modal display immediately.
 
+---
+
+## 25. OpenTUI Standalone Packaging & Cross-Platform Bun Resolution (`v0.28.55`)
+
+### 📦 1. CI/CD Bun Setup & node_modules Bundling (`release.yml`)
+- Added `oven-sh/setup-bun@v2` and `bun install --production` in `src/any_context/tui` on the GitHub Actions runners.
+- Ensures all production dependencies (`@opentui/core`, `@opentui/react`, `react`) are physically collected by PyInstaller into standalone distribution assets.
+
+### 🌐 2. Cross-Platform Bun Path Resolution (`chat_loop.py`)
+- Evaluates candidate paths on Windows (`~/.bun/bin/bun.exe`, `%USERPROFILE%/.bun/bin/bun.exe`) and Linux/macOS (`~/.bun/bin/bun`, `/usr/local/bin/bun`, `/usr/bin/bun`).
+- Emits explicit diagnostic guidance instead of silent fallbacks to the standard CLI.
+
+
 
 
 

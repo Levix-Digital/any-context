@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.54): Validação de Modal Interativo e Comandos Diretos no OpenTUI (`actx --tui`)
+### 📌 Cenário 1 (v0.28.55): Validação de Empacotamento de node_modules e Inicialização Segura OpenTUI (`actx --tui`)
 
-- **Objetivo**: Comprovar que o `<InteractiveModal>` abre e se posiciona perfeitamente na viewport do terminal no OpenTUI sem ser empurrado para fora da tela, e que comandos de barra como `/model`, `/mode`, `/onboarding`, `/setup` e `/switch` abrem seus respectivos modais imediatamente.
-- **Pré-requisito**: Versão `v0.28.54` ou superior.
+- **Objetivo**: Comprovar que o binário standalone (`actx`) contém os `node_modules` do OpenTUI embutidos pelo pipeline de build com Bun, garantindo que `actx --tui` abra a interface OpenTUI no Windows e Linux sem falhas ou fallbacks silenciosos.
+- **Pré-requisito**: Versão `v0.28.55` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 

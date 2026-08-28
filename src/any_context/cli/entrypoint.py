@@ -87,10 +87,13 @@ def entrypoint():
         for i, a in enumerate(sys.argv):
             if a in ["-w", "--workspace"] and i + 1 < len(sys.argv):
                 ws = sys.argv[i + 1]
-            elif not a.startswith("-") and a != sys.argv[0]:
+            elif not a.startswith("-") and a != sys.argv[0] and a != "--tui":
                 ws = a
-        if launch_opentui(ws):
+        launched = launch_opentui(ws)
+        if launched:
             sys.exit(0)
+        else:
+            sys.exit(1)
 
     if "--rpc" in sys.argv:
         from any_context.server.rpc_bridge import run_rpc_server
