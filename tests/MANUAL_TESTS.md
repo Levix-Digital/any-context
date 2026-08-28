@@ -7,7 +7,32 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.16): Validação de Diretórios Nativos do SO e Criptografia em Repouso AES-GCM-256
+### 📌 Cenário 1 (v0.28.17): Atualização Interativa (`/update`) com Modal de Instâncias e Auto-Restart Automático (TUI & CLI)
+
+- **Objetivo**: Comprovar que ao digitar `/update` dentro do chat da TUI (`actx --tui`) ou no CLI (`actx`), o AnyContext detecta a versão mais recente e as instâncias ativas, abre o modal de opções interativo (`<InteractiveModal>`) com as 3 opções (`⚡ Update in background`, `⏹️ Close other instances`, `🔙 Cancel`), baixa o binário e realiza a substituição atômica com **reinício automático da aplicação** sem necessidade de intervenção externa.
+- **Pré-requisito**: Binário ou ambiente na versão `v0.28.17`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+
+2. **⚡ Executar o Comando `/update`:**
+   - No prompt `👤 You:`, digitar `/update` e pressionar Enter.
+   - Comprovar que abre o modal interativo `🚀 AnyContext Update Available: vX.Y.Z → vA.B.C` contendo:
+     - `⚡ Update in background (Recommended) - Active background sessions continue working undisturbed.`
+     - `⏹️ Close other instances and update now - Terminates background process(es) before updating.`
+     - `🔙 Cancel update - Aborts the update process and returns to chat.`
+
+3. **⚡ Testar Seleção e Auto-Restart:**
+   - Navegar com `[↑/↓]` e pressionar `Enter` na opção `⚡ Update in background`.
+   - Comprovar que o modal fecha, a mensagem de download/atualização é exibida e o AnyContext reinicia automaticamente abrindo a nova versão na tela!
+
+---
+
+### 📌 Cenário 2 (v0.28.16): Validação de Diretórios Nativos do SO e Criptografia em Repouso AES-GCM-256
 
 - **Objetivo**: Comprovar que o AnyContext armazena todos os bancos de dados em diretórios nativos do sistema operacional (`%LOCALAPPDATA%\AnyContext\` no Windows), migra dados legados sem perda, cifra os textos dos chunks em disco com AES-GCM-256 amarrado ao hardware e entrega respostas RAG descriptografadas em tempo real com performance máxima tanto no CLI quanto na TUI.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.16`.

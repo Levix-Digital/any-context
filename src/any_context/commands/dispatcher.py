@@ -167,13 +167,14 @@ class CommandDispatcher:
                 )
 
             # 24. /update or /check-update
-            if canonical in ("/update", "/check-update"):
+            # 24. /check-update
+            if canonical == "/check-update":
                 try:
-                    from any_context.core.services import UpdateService
+                    from any_context.core.services.update_service import UpdateService
                     update_svc = UpdateService()
                     has_up, latest_v = update_svc.check_for_updates()
                     if has_up and latest_v:
-                        msg = f"💡 New update available! v{__version__} → {latest_v}. Run `actx --update` to install."
+                        msg = f"💡 New update available! v{__version__} → {latest_v}. Type `/update` to install now."
                     else:
                         msg = f"🚀 AnyContext v{__version__} is up to date."
                     return CommandResult(
@@ -184,6 +185,56 @@ class CommandDispatcher:
                     return CommandResult(
                         success=True,
                         message=f"🚀 AnyContext v{__version__}. (Could not reach update server: {e})"
+                    )
+
+            # 25. /update
+            if canonical == "/update" or canonical.startswith("/update ") or canonical.startswith("/update@"):
+                try:
+                    from any_context.core.services.update_service import UpdateService
+                    from any_context.core.interaction.options_engine import OptionsEngine
+                    update_svc = UpdateService()
+                    opts_engine = OptionsEngine()
+
+                    is_force = "--force" in parts or "-f" in parts
+                    is_now = "--now" in parts or "--confirm" in parts
+                    target_version = None
+                    if canonical.startswith("/update@"):
+                        target_version = canonical.split("@", 1)[1].strip()
+
+                    has_up, latest_v = update_svc.check_for_updates()
+                    target_tag = target_version or latest_v or f"v{__version__}"
+
+                    if not has_up and not target_version and not is_force:
+                        return CommandResult(
+                            success=True,
+                            message=f"🚀 AnyContext v{__version__} is already up to date."
+                        )
+
+                    if is_now:
+                        success, msg, updates = update_svc.execute_binary_update(
+                            target_tag=target_tag,
+                            force_background=True,
+                            auto_restart=True,
+                            is_tui=False
+                        )
+                        return CommandResult(
+                            success=success,
+                            message=msg,
+                            action=updates.get("action", "none"),
+                            state_updates=updates
+                        )
+
+                    # Trigger interactive options modal
+                    return CommandResult(
+                        success=True,
+                        message=f"🔍 Checking for updates... Found {target_tag}.",
+                        action="open_update_modal"
+                    )
+                except Exception as e:
+                    return CommandResult(
+                        success=False,
+                        message=f"❌ Update check failed: {e}",
+                        error=str(e)
                     )
 
             # 25. /inspect
