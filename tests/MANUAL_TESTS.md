@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.53): Validação de Reset de Fábrica Robusto (`actx --factory-reset`) e Modal Instantâneo de Onboarding na OpenTUI (`actx --tui`)
+### 📌 Cenário 1 (v0.28.54): Validação de Modal Interativo e Comandos Diretos no OpenTUI (`actx --tui`)
 
-- **Objetivo**: Comprovar que `actx --factory-reset` executa perfeitamente sem erros de escopo (`UnboundLocalError`), resetando as configurações e a flag de ciclo de vida (`onboarding_completed = 0`), e que ao abrir a OpenTUI (`actx --tui`), o modal interativo de Onboarding (`<InteractiveModal>`) abre **instantaneamente (0ms)** na tela consumindo o estado pré-carregado.
-- **Pré-requisito**: Versão `v0.28.53` ou superior.
+- **Objetivo**: Comprovar que o `<InteractiveModal>` abre e se posiciona perfeitamente na viewport do terminal no OpenTUI sem ser empurrado para fora da tela, e que comandos de barra como `/model`, `/mode`, `/onboarding`, `/setup` e `/switch` abrem seus respectivos modais imediatamente.
+- **Pré-requisito**: Versão `v0.28.54` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 

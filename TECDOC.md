@@ -751,6 +751,19 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - `openOnboardingModal` immediately consumes `state.onboarding_state.options_group` sent in the initial state payload without requiring an extra round-trip RPC query (`client.getOptions`).
 - Integrated lifecycle hooks in `client.onStateChange`, `client.start().then()`, and `useEffect([state.needs_onboarding])` guarantee immediate modal display on first render.
 
+---
+
+## 24. OpenTUI Flexbox Viewport Allocation & Direct Slash Command Execution (`v0.28.54`)
+
+### 📐 1. Flexbox Viewport Allocation in OpenTUI (`chat-message-list.tsx`)
+- Removed explicit `height="100%"` constraint from `<scrollbox>`, preserving `flexGrow={1}`, `flexShrink={1}`, and `minHeight={0}`.
+- Allows Yoga flexbox to dynamically shrink the chat message viewport when `<InteractiveModal>` is active, preventing modals from overflowing beyond terminal boundaries.
+
+### ⚡ 2. Direct Slash Command Execution (`commands.ts` & `app.tsx`)
+- Set `direct_execution: true` for `/model`, `/mode`, `/onboarding`, `/setup`, `/switch`, and `/config`.
+- Prevents autocomplete palette from intercepting Enter keystrokes with trailing space mutations, triggering modal display immediately.
+
+
 
 
 
