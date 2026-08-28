@@ -229,7 +229,8 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
                   },
                 ]);
                 client.refreshState();
-                if (res.state_updates && (res.state_updates as any).action === "restart") {
+                const isRestart = Boolean((res.state_updates && (res.state_updates as any).action === "restart") || (res as any).action === "restart");
+                if (isRestart) {
                   setTimeout(() => {
                     client.stop();
                     if (onExit) onExit();
@@ -266,7 +267,8 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
                     },
                   ]);
                   client.refreshState();
-                  if (res.state_updates && (res.state_updates as any).action === "restart") {
+                  const isRestart = Boolean((res.state_updates && (res.state_updates as any).action === "restart") || (res as any).action === "restart");
+                  if (isRestart) {
                     setTimeout(() => {
                       client.stop();
                       if (onExit) onExit();
@@ -575,13 +577,14 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           await openConfigModal("main");
           return;
         }
-        if (res.action === "restart") {
+        const isRestart = res.action === "restart" || Boolean(res.state_updates && (res.state_updates as any).action === "restart");
+        if (isRestart) {
           setMessages((prev) => [
             ...prev,
             {
               id: `sys_${Date.now()}`,
               role: "system",
-              content: res.message || "Restarting AnyContext...",
+              content: res.message || "🚀 Restarting AnyContext...",
             },
           ]);
           setTimeout(() => {

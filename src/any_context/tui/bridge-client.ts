@@ -24,6 +24,7 @@ export interface CommandExecutionResult {
   action?: string;
   error?: string;
   state: AnyContextState;
+  state_updates?: Record<string, any>;
 }
 
 export interface OptionItemSchema {
