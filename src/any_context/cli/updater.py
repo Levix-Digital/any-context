@@ -575,8 +575,11 @@ def run_self_update(
             pass
 
     # 3. Perform atomic replacement
+    import shutil
+    replaced = False
+
     if is_windows:
-        # Step A: Try immediate rename of target_exe -> old_exe
+        # Step A: Perform immediate atomic rename of running target_exe -> old_exe and move temp_download -> target_exe
         try:
             if os.path.exists(old_exe):
                 try:
@@ -585,52 +588,90 @@ def run_self_update(
                     pass
             if os.path.exists(target_exe):
                 os.rename(target_exe, old_exe)
-            os.rename(temp_download, target_exe)
+            shutil.move(temp_download, target_exe)
+            replaced = True
+
+            # Also sync Python313/Scripts/actx.exe if present on this system
+            alt_script_exe = os.path.join(
+                os.environ.get("LOCALAPPDATA", ""),
+                "Programs",
+                "Python",
+                "Python313",
+                "Scripts",
+                "actx.exe"
+            )
+            if os.path.exists(alt_script_exe) and os.path.abspath(alt_script_exe) != os.path.abspath(target_exe):
+                try:
+                    shutil.copy2(target_exe, alt_script_exe)
+                except Exception:
+                    pass
         except Exception:
             pass
 
-        # Step B: Spawn background PowerShell loop with retry to complete swap, cleanup & auto-restart
-        swap_script = (
-            f"$retries = 0; "
-            f"while ($retries -lt 30) {{ "
-            f"  try {{ "
-            f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
-            f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop "
-            f"    }} "
-            f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
-            f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
-            f"    }} "
-            f"    break "
-            f"  }} catch {{ "
-            f"    Start-Sleep -Milliseconds 400; "
-            f"    $retries++ "
-            f"  }} "
-            f"}}; "
-            f"Start-Sleep -Milliseconds 600; "
-            f"if (Test-Path -LiteralPath '{target_exe}') {{ "
-            f"  Start-Process -FilePath '{target_exe}' "
-            f"}}"
-        )
-        try:
-            subprocess.Popen(
-                ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", swap_script],
-                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+        if not replaced:
+            # Step B: Fallback to background PowerShell loop if file lock prevented immediate rename
+            swap_script = (
+                f"$retries = 0; "
+                f"while ($retries -lt 30) {{ "
+                f"  try {{ "
+                f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
+                f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop "
+                f"    }} "
+                f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
+                f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
+                f"    }} "
+                f"    break "
+                f"  }} catch {{ "
+                f"    Start-Sleep -Milliseconds 400; "
+                f"    $retries++ "
+                f"  }} "
+                f"}};"
             )
-        except Exception:
-            pass
+            try:
+                subprocess.Popen(
+                    ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", swap_script],
+                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+                )
+            except Exception:
+                pass
 
         safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
-        safe_print("🚀 Restarting AnyContext automatically in 1 second...\n")
+        safe_print("🚀 Restarting AnyContext automatically in the current terminal...\n")
         time.sleep(1)
-        sys.exit(0)
+
+        # In-place restart preserving CLI arguments and active terminal session
+        restart_args = [target_exe]
+        for arg in sys.argv[1:]:
+            if not arg.startswith("--update") and not arg.startswith("-u") and not arg.startswith("/update"):
+                restart_args.append(arg)
+
+        try:
+            os.execv(target_exe, restart_args)
+        except Exception:
+            try:
+                subprocess.call(restart_args)
+                sys.exit(0)
+            except Exception:
+                sys.exit(0)
     else:
         try:
             os.replace(temp_download, target_exe)
             safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
-            safe_print("🚀 Restarting AnyContext automatically...\n")
-            restart_cmd = f"sleep 1 && '{target_exe}'"
-            subprocess.Popen(restart_cmd, shell=True)
+            safe_print("🚀 Restarting AnyContext automatically in the current terminal...\n")
             time.sleep(1)
-            sys.exit(0)
+
+            restart_args = [target_exe]
+            for arg in sys.argv[1:]:
+                if not arg.startswith("--update") and not arg.startswith("-u") and not arg.startswith("/update"):
+                    restart_args.append(arg)
+
+            try:
+                os.execv(target_exe, restart_args)
+            except Exception:
+                try:
+                    subprocess.call(restart_args)
+                    sys.exit(0)
+                except Exception:
+                    sys.exit(0)
         except Exception as e:
             safe_print(f"⚠️ Saved new binary to: {temp_download}. Please move it to {target_exe} with sudo/chmod.")
