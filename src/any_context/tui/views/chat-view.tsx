@@ -28,6 +28,7 @@ interface ChatViewProps {
   isGenerating: boolean;
   onInputChange: (val: string) => void;
   onSubmit: (text?: string) => void;
+  scrollBoxRef?: any;
 }
 
 export const ChatView = ({
@@ -45,6 +46,7 @@ export const ChatView = ({
   isGenerating,
   onInputChange,
   onSubmit,
+  scrollBoxRef,
 }: ChatViewProps): any => {
   return (
     <box flexDirection="column" width="100%" height="100%">
@@ -52,7 +54,7 @@ export const ChatView = ({
       <HeaderBar state={state} hasMessages={messages.length > 0} />
 
       {/* Main Chat Message View with 100% full-screen flex layout */}
-      <ChatMessageList messages={messages} state={state} />
+      <ChatMessageList ref={scrollBoxRef} messages={messages} state={state} />
 
       {/* Unified Interactive Modal (Options list or Hierarchical Config Menu) */}
       <InteractiveModal

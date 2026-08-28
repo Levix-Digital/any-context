@@ -41,6 +41,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [draftInput, setDraftInput] = useState<string>("");
+  const scrollBoxRef = useRef<any>(null);
 
   useEffect(() => {
     client.onStateChange = (newState) => setState(newState);
@@ -339,6 +340,69 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           return;
         }
       }
+
+      // 5. TERMINAL CHAT SCROLLING (PageUp, PageDown, Shift+Up/Down, Ctrl+Up/Down, Home, End)
+      if (event.name === "pageup") {
+        if (scrollBoxRef.current) {
+          if (typeof scrollBoxRef.current.scrollBy === "function") {
+            scrollBoxRef.current.scrollBy({ y: -8 });
+          } else if (scrollBoxRef.current.scrollTop !== undefined) {
+            scrollBoxRef.current.scrollTop = Math.max(0, scrollBoxRef.current.scrollTop - 8);
+          }
+        }
+        return;
+      }
+      if (event.name === "pagedown") {
+        if (scrollBoxRef.current) {
+          if (typeof scrollBoxRef.current.scrollBy === "function") {
+            scrollBoxRef.current.scrollBy({ y: 8 });
+          } else if (scrollBoxRef.current.scrollTop !== undefined) {
+            scrollBoxRef.current.scrollTop = scrollBoxRef.current.scrollTop + 8;
+          }
+        }
+        return;
+      }
+      if (event.name === "up" && (event.shift || event.ctrl)) {
+        if (scrollBoxRef.current) {
+          if (typeof scrollBoxRef.current.scrollBy === "function") {
+            scrollBoxRef.current.scrollBy({ y: -3 });
+          } else if (scrollBoxRef.current.scrollTop !== undefined) {
+            scrollBoxRef.current.scrollTop = Math.max(0, scrollBoxRef.current.scrollTop - 3);
+          }
+        }
+        return;
+      }
+      if (event.name === "down" && (event.shift || event.ctrl)) {
+        if (scrollBoxRef.current) {
+          if (typeof scrollBoxRef.current.scrollBy === "function") {
+            scrollBoxRef.current.scrollBy({ y: 3 });
+          } else if (scrollBoxRef.current.scrollTop !== undefined) {
+            scrollBoxRef.current.scrollTop = scrollBoxRef.current.scrollTop + 3;
+          }
+        }
+        return;
+      }
+      if (event.name === "home" && (event.shift || event.ctrl || !inputValue)) {
+        if (scrollBoxRef.current) {
+          if (typeof scrollBoxRef.current.scrollTo === "function") {
+            scrollBoxRef.current.scrollTo(0);
+          } else if (scrollBoxRef.current.scrollTop !== undefined) {
+            scrollBoxRef.current.scrollTop = 0;
+          }
+        }
+        return;
+      }
+      if (event.name === "end" && (event.shift || event.ctrl || !inputValue)) {
+        if (scrollBoxRef.current) {
+          const maxH = scrollBoxRef.current.scrollHeight || 999999;
+          if (typeof scrollBoxRef.current.scrollTo === "function") {
+            scrollBoxRef.current.scrollTo(maxH);
+          } else if (scrollBoxRef.current.scrollTop !== undefined) {
+            scrollBoxRef.current.scrollTop = maxH;
+          }
+        }
+        return;
+      }
     }
   });
 
@@ -565,6 +629,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       isGenerating={isGenerating}
       onInputChange={handleInputChange}
       onSubmit={(text?: string) => handleSubmit(text)}
+      scrollBoxRef={scrollBoxRef}
     />
   );
 };
