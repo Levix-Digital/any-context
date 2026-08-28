@@ -266,8 +266,8 @@ def create_bottom_toolbar_renderer(
         )
 
         if cols >= 95:
-            right_html = "<style fg='#565f89'>📜 </style><style fg='#7dcfff'>Shift+PgUp/PgDn</style> <style fg='#565f89'>│</style> <style fg='#f7768e'><b>🚪 /exit</b></style> "
-            right_visible = "📜 Shift+PgUp/PgDn │ 🚪 /exit "
+            right_html = "<style fg='#565f89'>📜 </style><style fg='#7dcfff'>PgUp / PgDn</style> <style fg='#565f89'>│</style> <style fg='#f7768e'><b>🚪 /exit</b></style> "
+            right_visible = "📜 PgUp / PgDn │ 🚪 /exit "
         else:
             right_html = "<style fg='#f7768e'><b>🚪 /exit</b></style> "
             right_visible = "🚪 /exit "
