@@ -250,7 +250,7 @@ class StdioRPCServer:
                     opts = opts_engine.get_grounding_mode_options(workspace=ws)
                 elif opt_type == "workspace":
                     opts = opts_engine.get_workspace_options(current_workspace=ws)
-                elif opt_type == "inference_model":
+                elif opt_type in ["inference_model", "model"]:
                     opts = opts_engine.get_inference_model_options()
                 elif opt_type == "retrieval_density":
                     opts = opts_engine.get_retrieval_density_options()
@@ -272,7 +272,7 @@ class StdioRPCServer:
                     res = opts_engine.set_grounding_mode(mode=val, workspace=ws, apply_global=apply_global)
                 elif opt_type == "workspace":
                     res = opts_engine.set_workspace(workspace_name=val)
-                elif opt_type == "inference_model":
+                elif opt_type in ["inference_model", "model"]:
                     res = opts_engine.set_inference_model(model_name=val)
                 elif opt_type == "retrieval_density":
                     res = opts_engine.set_retrieval_density_preset(preset=val)
