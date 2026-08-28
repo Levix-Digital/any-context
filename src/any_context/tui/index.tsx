@@ -6,10 +6,10 @@ import { App } from "./app";
 async function main() {
   const initialWorkspace = process.argv[2] || "Default";
 
-  // Create native OpenTUI CLI renderer with Ctrl+C exit handler and native OS mouse selection/copying
+  // Create native OpenTUI CLI renderer with Ctrl+C exit handler and mouse wheel scrolling
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
-    useMouse: false,
+    useMouse: true,
   });
 
   const root = createRoot(renderer);

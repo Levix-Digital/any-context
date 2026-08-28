@@ -31,15 +31,16 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
   state,
 }, ref): any => {
   return (
-    <box
+    <scrollbox
       ref={ref}
       flexGrow={1}
       flexShrink={1}
       minHeight={0}
-      flexDirection="column"
-      paddingLeft={1}
-      paddingRight={1}
-      overflow="hidden"
+      width="100%"
+      height="100%"
+      scrollY={true}
+      stickyScroll={true}
+      stickyStart="bottom"
     >
       {/* Welcome Banner */}
       <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0} flexShrink={0}>
@@ -47,7 +48,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           <b>{ASCII_BANNER}</b>
         </text>
         <text fg={anyContextTheme.accentWarning}>
-          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.21"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
+          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.26"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
         </text>
         <text fg={anyContextTheme.foregroundMuted}>
           {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
@@ -69,10 +70,10 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           flexShrink={0}
         >
           <text fg={anyContextTheme.foreground}>
-            💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
+            💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/model'</b> for LLM, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
           </text>
           <text fg={anyContextTheme.foregroundMuted}>
-            📜 <i>Terminal Scroll:</i> Use <b>Shift+PageUp / PageDown</b> (or <b>Ctrl+Shift+↑ / ↓</b>) to scroll terminal history.
+            📜 <i>Scroll Controls:</i> <b>PageUp / PageDown</b>, <b>Shift+Up / Down</b>, <b>Ctrl+Up / Down</b>, <b>Home / End</b>, or <b>Mouse Wheel</b>.
           </text>
         </box>
       </box>
@@ -86,6 +87,8 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
               flexDirection="column"
               paddingTop={1}
               paddingBottom={0}
+              paddingLeft={1}
+              paddingRight={1}
               flexShrink={0}
             >
               <text fg={anyContextTheme.accent}>
@@ -116,6 +119,8 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
               paddingBottom={0}
               marginTop={1}
               marginBottom={1}
+              marginLeft={1}
+              marginRight={1}
               flexShrink={0}
             >
               <box flexDirection="row" paddingTop={0} paddingBottom={0}>
@@ -135,6 +140,8 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
             flexDirection="column"
             paddingTop={1}
             paddingBottom={0}
+            paddingLeft={1}
+            paddingRight={1}
             flexShrink={0}
           >
             <text fg={anyContextTheme.accentWarning}>
@@ -157,6 +164,6 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           </box>
         );
       })}
-    </box>
+    </scrollbox>
   );
 });
