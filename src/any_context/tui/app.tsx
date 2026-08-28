@@ -165,6 +165,47 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     }
   };
 
+  const openDeleteWorkspaceModal = async () => {
+    try {
+      const opts = await client.getOptions("delete_workspace");
+      if (opts && opts.items && opts.items.length > 0) {
+        setPaletteOpen(false);
+        setModalMode("options");
+        setModalOptionsGroup(opts);
+        setModalIndex(0);
+        setModalOpen(true);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { id: `sys_${Date.now()}`, role: "system", content: "ℹ️ No custom workspaces available to delete ('Default', 'Global', and 'Shared Sources' are protected)." },
+        ]);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `err_${Date.now()}`, role: "system", content: `❌ Could not load workspaces to delete: ${err.message}` },
+      ]);
+    }
+  };
+
+  const openConfirmDeleteWorkspaceModal = async (targetWorkspace: string) => {
+    try {
+      const opts = await client.getOptions("confirm_delete_workspace", { target_workspace: targetWorkspace });
+      if (opts && opts.items && opts.items.length > 0) {
+        setPaletteOpen(false);
+        setModalMode("options");
+        setModalOptionsGroup(opts);
+        setModalIndex(1); // Default highlight on Cancel for safety
+        setModalOpen(true);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `err_${Date.now()}`, role: "system", content: `❌ Could not load confirmation prompt: ${err.message}` },
+      ]);
+    }
+  };
+
   const handleInputChange = (val: string) => {
     setInputValue(val);
     if (val.startsWith("/")) {
@@ -220,6 +261,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
             client
               .setOption(modalOptionsGroup.type, selectedOption.id)
               .then((res) => {
+                if (res.action === "open_confirm_delete_workspace_modal" && res.state_updates && (res.state_updates as any).target_workspace) {
+                  openConfirmDeleteWorkspaceModal((res.state_updates as any).target_workspace);
+                  return;
+                }
                 setMessages((prev) => [
                   ...prev,
                   {
@@ -258,6 +303,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
               client
                 .executeMenuAction(selectedItem.id, {})
                 .then((res) => {
+                  if (res.action === "open_delete_workspace_modal" || res.action === "delete_workspace") {
+                    openDeleteWorkspaceModal();
+                    return;
+                  }
                   setMessages((prev) => [
                     ...prev,
                     {
@@ -563,6 +612,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         }
         if (res.action === "open_switch_modal") {
           await openSwitchModal();
+          return;
+        }
+        if (res.action === "open_delete_workspace_modal" || res.action === "delete_workspace") {
+          await openDeleteWorkspaceModal();
           return;
         }
         if (res.action === "open_model_modal") {

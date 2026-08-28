@@ -687,6 +687,13 @@ class ConfigEngine:
             self.sync_svc.start_sync(ws_name, force_full=False)
             return MenuActionResult(success=True, message=f"🔄 Background synchronization started for **{ws_name}**.")
 
+        if action_id == "ws_delete":
+            return MenuActionResult(
+                success=True,
+                message="🗑️ Select workspace to delete:",
+                action="open_delete_workspace_modal"
+            )
+
         # API Key actions
         if action_id == "keys_list":
             all_keys = self.store.get_all_api_keys()

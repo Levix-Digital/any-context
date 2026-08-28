@@ -340,3 +340,127 @@ class OptionsEngine:
             error=None if success else "update_failed",
             state_updates=updates
         )
+
+    def get_delete_workspace_options(self, current_workspace: str = "Default") -> OptionsGroupSchema:
+        """Returns the list of custom workspaces that can be deleted."""
+        curr = (current_workspace or "Default").strip()
+        workspaces = self.workspace_svc.list_workspaces(active_workspace=curr)
+
+        items = []
+        for ws in workspaces:
+            name = ws["name"]
+            if name.lower() in ["default", "global", "shared sources"]:
+                continue
+
+            is_act = (name.lower() == curr.lower())
+            try:
+                sources_data = self.store.get_workspace_sources(workspace_name=name)
+                if isinstance(sources_data, dict):
+                    sources_count = sources_data.get("total_sources", len(sources_data.get("sources", [])))
+                elif isinstance(sources_data, list):
+                    sources_count = len(sources_data)
+                else:
+                    sources_count = 0
+            except Exception:
+                sources_count = len(ws.get("paths", []))
+
+            badge = "[Active]" if is_act else ""
+            items.append(OptionItemSchema(
+                id=f"delete_ws_{name}",
+                title=f"🗑️ Delete '{name}'",
+                description=f"Remove workspace and purge {sources_count} source(s) and all indexed vector chunks",
+                icon="🗑️",
+                badge=badge,
+                is_active=False,
+                metadata={"workspace_name": name, "is_active": is_act}
+            ))
+
+        items.append(OptionItemSchema(
+            id="cancel_delete",
+            title="🔙 Cancel",
+            description="Aborts workspace deletion and returns to chat",
+            icon="🔙",
+            badge="",
+            is_active=False,
+            metadata={}
+        ))
+
+        return OptionsGroupSchema(
+            type="delete_workspace",
+            title="🗑️ Delete Workspace",
+            description="Select a workspace to delete:",
+            active_id=items[0].id if items else "",
+            items=items
+        )
+
+    def get_confirm_delete_workspace_options(self, workspace_to_delete: str, is_active: bool = False) -> OptionsGroupSchema:
+        """Returns confirmation options before permanently deleting a workspace."""
+        ws_target = workspace_to_delete.strip()
+        items = [
+            OptionItemSchema(
+                id=f"confirm_delete_yes_{ws_target}",
+                title=f"🗑️ Yes, permanently delete '{ws_target}'",
+                description=f"All sources and vector chunks for '{ws_target}' will be permanently deleted.",
+                icon="🗑️",
+                badge="[Permanent Action]",
+                is_active=False,
+                metadata={"workspace_name": ws_target, "confirmed": True, "is_active": is_active}
+            ),
+            OptionItemSchema(
+                id="confirm_delete_cancel",
+                title=f"🔙 Cancel (Keep '{ws_target}')",
+                description="Do not delete workspace, keep all data intact.",
+                icon="🔙",
+                badge="[Safe]",
+                is_active=True,
+                metadata={"workspace_name": ws_target, "confirmed": False}
+            )
+        ]
+
+        return OptionsGroupSchema(
+            type="confirm_delete_workspace",
+            title=f"⚠️ Are you sure you want to delete workspace '{ws_target}'?",
+            description=f"This action cannot be undone. All indexed context in '{ws_target}' will be purged.",
+            active_id="confirm_delete_cancel",
+            items=items
+        )
+
+    def execute_delete_workspace_option(self, option_id: str, current_workspace: str = "Default") -> MenuActionResult:
+        """Handles selecting or confirming workspace deletion."""
+        curr = (current_workspace or "Default").strip()
+        clean_id = (option_id or "").strip()
+
+        if clean_id in ["cancel_delete", "confirm_delete_cancel", "cancel"]:
+            return MenuActionResult(
+                success=True,
+                message="⚠️ Workspace deletion cancelled.",
+                state_updates={"action": "none"}
+            )
+
+        if clean_id.startswith("delete_ws_"):
+            target_ws = clean_id.replace("delete_ws_", "").strip()
+            if target_ws.lower() in ["default", "global", "shared sources"]:
+                return MenuActionResult(success=False, message=f"⚠️ Cannot delete protected system workspace '{target_ws}'.", error="cannot_delete_system_ws")
+            return MenuActionResult(
+                success=True,
+                message=f"⚠️ Confirm deletion of workspace '{target_ws}'",
+                action="open_confirm_delete_workspace_modal",
+                state_updates={"target_workspace": target_ws}
+            )
+
+        if clean_id.startswith("confirm_delete_yes_"):
+            target_ws = clean_id.replace("confirm_delete_yes_", "").strip()
+            if target_ws.lower() in ["default", "global", "shared sources"]:
+                return MenuActionResult(success=False, message=f"⚠️ Cannot delete protected system workspace '{target_ws}'.", error="cannot_delete_system_ws")
+
+            res = self.workspace_svc.delete_workspace(target_ws)
+            was_active = (curr.lower() == target_ws.lower())
+            new_ws = "Default" if was_active else curr
+            return MenuActionResult(
+                success=True,
+                message=f"🗑️ Workspace **{target_ws}** deleted successfully." + (f" Switched active workspace back to **Default**." if was_active else ""),
+                state_updates={"workspace": new_ws} if was_active else {},
+                action="delete_workspace_success"
+            )
+
+        return MenuActionResult(success=False, message="⚠️ Unknown delete option.", error="unknown_option")
