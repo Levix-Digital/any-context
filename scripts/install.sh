@@ -99,9 +99,14 @@ else
 fi
 
 # 5. Check/Ensure Bun is available for OpenTUI desktop interface
-if ! command -v bun >/dev/null 2>&1 && [ ! -f "$HOME/.bun/bin/bun" ]; then
-    printf "\033[90m💡 Bun runtime not detected. Installing Bun for OpenTUI desktop interface...\033[0m\n"
-    curl -fsSL https://bun.sh/install | bash 2>/dev/null || true
+if [ "$IS_WINDOWS" -eq 0 ]; then
+    if ! command -v bun >/dev/null 2>&1 && [ ! -f "$HOME/.bun/bin/bun" ] && [ ! -f "$INSTALL_DIR/bun" ]; then
+        printf "\033[90m💡 Bun runtime not detected. Installing Bun for OpenTUI desktop interface...\033[0m\n"
+        curl -fsSL https://bun.sh/install | bash || true
+    fi
+    if [ -f "$HOME/.bun/bin/bun" ] && [ ! -f "$INSTALL_DIR/bun" ]; then
+        ln -sf "$HOME/.bun/bin/bun" "$INSTALL_DIR/bun" 2>/dev/null || cp -f "$HOME/.bun/bin/bun" "$INSTALL_DIR/bun" 2>/dev/null || true
+    fi
 fi
 
 # Ensure both ~/.local/bin and ~/.bun/bin are exported at the front of PATH

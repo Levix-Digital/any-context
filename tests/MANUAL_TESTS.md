@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.56): Validação de Execução Segura do OpenTUI no WSL e Linux Nativo (`actx --tui`)
+### 📌 Cenário 1 (v0.28.57): Validação de Autonomia Total de Instalação do Bun e Foco de Modais no OpenTUI (`actx --tui`)
 
-- **Objetivo**: Comprovar que o `actx --tui` em ambientes WSL e Linux utiliza estritamente o Bun nativo do Linux (ignorando executáveis `.exe` do host Windows) e abre a interface OpenTUI diretamente no terminal.
-- **Pré-requisito**: Versão `v0.28.56` ou superior.
+- **Objetivo**: Comprovar que o instalador (`install.sh` / `install.ps1`) cria link/cópia autônoma do Bun no diretório de instalação e que a interface OpenTUI gerencia o foco do `<textarea>` para navegação em modais.
+- **Pré-requisito**: Versão `v0.28.57` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 
