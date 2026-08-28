@@ -92,9 +92,10 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.42",
+    version: "0.28.43",
     workspace: "Default",
     model: "...",
+    model_display: "...",
     grounding_mode: "strict",
     web_search_enabled: false,
     sync_info: "",
@@ -110,23 +111,58 @@ export class BridgeClient {
   public async start(): Promise<void> {
     const repoRoot = path.resolve(__dirname, "..", "..", "..");
     
-    let command = process.env.ACTX_EXECUTABLE || "";
+    let command = "";
     let args: string[] = [];
 
-    if (command && (command.toLowerCase().endsWith("actx.exe") || command.toLowerCase().endsWith("actx"))) {
-      args = ["--rpc", this.initialWorkspace];
-    } else {
-      const venvPythonWin = path.join(repoRoot, ".venv", "Scripts", "python.exe");
-      const venvPythonUnix = path.join(repoRoot, ".venv", "bin", "python");
-
-      if (fs.existsSync(venvPythonWin)) {
-        command = venvPythonWin;
-      } else if (fs.existsSync(venvPythonUnix)) {
-        command = venvPythonUnix;
-      } else {
-        command = process.platform === "win32" ? "python" : "python3";
+    const envExec = process.env.ACTX_EXECUTABLE || "";
+    if (envExec && fs.existsSync(envExec)) {
+      if (envExec.toLowerCase().endsWith("actx.exe") || envExec.toLowerCase().endsWith("actx")) {
+        command = envExec;
+        args = ["--rpc", this.initialWorkspace];
+      } else if (
+        envExec.toLowerCase().endsWith("python.exe") ||
+        envExec.toLowerCase().endsWith("python3") ||
+        envExec.toLowerCase().endsWith("python")
+      ) {
+        command = envExec;
+        args = ["-m", "any_context.server.rpc_bridge", this.initialWorkspace];
       }
-      args = ["-m", "any_context.server.rpc_bridge", this.initialWorkspace];
+    }
+
+    if (!command) {
+      const localActx = path.join(process.env.LOCALAPPDATA || "", "actx", "bin", "actx.exe");
+      const pythonScriptsActx = path.join(
+        process.env.LOCALAPPDATA || "",
+        "Programs",
+        "Python",
+        "Python313",
+        "Scripts",
+        "actx.exe"
+      );
+      const userHomeActx = path.join(process.env.HOME || process.env.USERPROFILE || "", ".local", "bin", "actx");
+
+      if (fs.existsSync(localActx)) {
+        command = localActx;
+        args = ["--rpc", this.initialWorkspace];
+      } else if (fs.existsSync(pythonScriptsActx)) {
+        command = pythonScriptsActx;
+        args = ["--rpc", this.initialWorkspace];
+      } else if (fs.existsSync(userHomeActx)) {
+        command = userHomeActx;
+        args = ["--rpc", this.initialWorkspace];
+      } else {
+        const venvPythonWin = path.join(repoRoot, ".venv", "Scripts", "python.exe");
+        const venvPythonUnix = path.join(repoRoot, ".venv", "bin", "python");
+
+        if (fs.existsSync(venvPythonWin)) {
+          command = venvPythonWin;
+        } else if (fs.existsSync(venvPythonUnix)) {
+          command = venvPythonUnix;
+        } else {
+          command = process.platform === "win32" ? "python" : "python3";
+        }
+        args = ["-m", "any_context.server.rpc_bridge", this.initialWorkspace];
+      }
     }
 
     const childEnv: Record<string, string> = {};
@@ -144,8 +180,17 @@ export class BridgeClient {
         .filter((p) => !p.toLowerCase().includes("_mei") && !p.toLowerCase().includes("pyi"))
         .join(separator);
     }
-    if (path.isAbsolute(repoRoot)) {
-      childEnv.PYTHONPATH = path.join(repoRoot, "src");
+    const pythonPaths: string[] = [];
+    if (process.env.ACTX_PYTHON_PATH && fs.existsSync(process.env.ACTX_PYTHON_PATH)) {
+      pythonPaths.push(process.env.ACTX_PYTHON_PATH);
+    }
+    const srcCandidate = path.join(repoRoot, "src");
+    if (fs.existsSync(srcCandidate)) {
+      pythonPaths.push(srcCandidate);
+    }
+    if (pythonPaths.length > 0) {
+      const sep = process.platform === "win32" ? ";" : ":";
+      childEnv.PYTHONPATH = pythonPaths.join(sep);
     }
     if (process.env.ACTX_SETTINGS_DB) {
       childEnv.ACTX_SETTINGS_DB = process.env.ACTX_SETTINGS_DB;
@@ -164,14 +209,24 @@ export class BridgeClient {
       throw new Error("Failed to initialize stdin/stdout pipes for AnyContext RPC Bridge");
     }
 
+    let stderrBuffer = "";
     if (this.process.stderr) {
-      this.process.stderr.on("data", () => {
-        // Silently consume backend stderr logs so they never corrupt terminal text or input
+      this.process.stderr.on("data", (chunk) => {
+        stderrBuffer += chunk.toString();
       });
     }
 
     const rl = readline.createInterface({ input: this.process.stdout });
     rl.on("line", (line) => this.handleLine(line));
+
+    this.process.on("exit", (code) => {
+      if (code !== 0 && code !== null && stderrBuffer.trim()) {
+        console.error(`AnyContext RPC Bridge exited with code ${code}: ${stderrBuffer}`);
+      }
+    });
+
+    await this.refreshState();
+    await this.fetchCommands();
 
     this.process.on("exit", () => {
       // Backend process terminated cleanly

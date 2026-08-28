@@ -83,12 +83,22 @@ class StdioRPCServer:
         except Exception:
             pass
 
-        tier_name = "Community Edition"
+        tier_name = "🌿 Community Edition"
         try:
-            from any_context.core.services.billing_service import BillingService
-            billing_svc = BillingService()
-            b_info = billing_svc.get_billing_info()
-            tier_name = b_info.get("active_tier_name", "Community Edition")
+            from any_context.billing import BillingManager
+            b_mgr = BillingManager()
+            status = b_mgr.get_status()
+            tier_id = (status.active_tier_id or "community").lower().strip()
+            if tier_id == "enterprise":
+                tier_name = "🏢 Enterprise Edition"
+            elif tier_id == "team":
+                tier_name = "👥 Team Edition"
+            elif tier_id == "pro":
+                tier_name = "⭐ Pro Plan"
+            elif tier_id == "starter":
+                tier_name = "💼 Starter Plan"
+            else:
+                tier_name = "🌿 Community Edition"
         except Exception:
             pass
 

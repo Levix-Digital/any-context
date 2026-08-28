@@ -48,7 +48,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           <b>{ASCII_BANNER}</b>
         </text>
         <text fg={anyContextTheme.accentWarning}>
-          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.26"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "Community Edition"}</span>
+          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.43"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "🌿 Community Edition"}</span>
         </text>
         <text fg={anyContextTheme.foregroundMuted}>
           {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}

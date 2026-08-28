@@ -1747,6 +1747,7 @@ def launch_opentui(workspace: str = "Default") -> bool:
         env["ACTX_SETTINGS_DB"] = ConfigDBStore().db_path
         env["ACTX_CALLER_CWD"] = os.getcwd()
         env["ACTX_EXECUTABLE"] = sys.executable or "actx"
+        env["ACTX_PYTHON_PATH"] = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         env["ACTX_FRONTEND"] = "tui"
         res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index), env=env)
         return res.returncode == 0
