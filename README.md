@@ -123,12 +123,20 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Dynamically updates vector metadata tags in ChromaDB and SQLite without re-indexing or re-crawling.
 - **🖥️ OpenTUI Reactive Desktop Interface (`actx --tui`)**:
   - TUI reativa desenvolvida com **OpenTUI (`@opentui/core` + `@opentui/react`)** e Zig/React: chat rolável fluido com **paridade estética e visual completa com a CLI UI**, herança de background transparente nativo do terminal, Banner ASCII Art clássico, identificadores `👤 You:` e `🤖 AI [modelo]:`, e barra de status inferior de 1 linha.
+  - **Frozen Full-Screen Scroll Engine**: Rolagem nativa fluida em tela cheia com **rodinha do mouse**, teclas `PgUp` / `PgDn`, `Shift + ↑` / `↓` e auto-scroll reativo em streaming.
   - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os 23 comandos internos.
-  - **Zero-Port Stdio RPC Bridge & Standalone Bootloader Isolation**: Comunicação local em sub-milissegundo com o backend AnyContext via NDJSON, sem portas de rede ou avisos de firewall, com isolamento total de variáveis de bootloader (`_MEIPASS2`, `PYI_PARENT_PID`) para execução perfeita em binários compilados.
+  - **Zero-Port Stdio RPC Bridge & Sub-Process DLL Isolation**: Comunicação local em sub-milissegundo com o backend AnyContext via NDJSON, sem portas de rede ou avisos de firewall, com isolamento total de variáveis de bootloader (`_MEIPASS`, `PATH`) para execução perfeita em binários compilados sem colisões de DLL em C (`multiarray.pyd`).
 - **⚡ Native Developer CLI & One-Shot Prompt Engine**:
   - Direct terminal execution without alternate screen buffer locks: 100% native mouse selection and copy/paste support.
   - One-shot execution for scripts & automation: `actx "sua pergunta aqui"` or `actx -p "..."`.
   - All 23 Slash Commands with rich interactive menus (`/sources`, `/switch`, `/sync`, `/config`, `/help`, `/mode`, `/web-search`).
+
+- **🗑️ Interactive Workspace Deletion with Safety Confirmation (`/menu` & `/switch --delete`)**:
+  - Exclusão segura e interativa de workspaces com listagem do total de fontes e modal de confirmação explícito (`Yes, permanently delete` vs `Cancel` com foco seguro).
+  - Proteção de workspaces do sistema (`Default`, `Global`, `Shared Sources`) e fallback automático para `Default`.
+
+- **🩹 RAG Self-Healing Ingestion Engine**:
+  - Invalidação automática de cache desatualizado no SQLite caso arquivos físicos existam no disco mas chunks estejam ausentes no LanceDB, garantindo reindexação imediata e respostas precisas com citação de fontes.
 
 - **⚡ Non-Blocking Background Synchronization & Micro-Bar Status Dock (`/sync`)**:
   - Sincronização desacoplada em threads em segundo plano (`BackgroundSyncManager`) que libera o prompt `👤 You:` imediatamente para conversação sem travar o teclado.
@@ -136,10 +144,9 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Sincronização mestre unificada em todas as fontes (pastas locais, portais web, cloud drives) com modo verbose estruturado para auditoria completa (`/sync --verbose`).
 - **🎯 Typo-Resilient Slash Command Interception**:
   - Mistyped commands (e.g. `/check-updaete`, `/swich`, `/modeel`, `/sinc`) are caught by the intelligent fuzzy matcher and suggest the correct command without wasting AI tokens.
-- **🔄 Interactive Multi-Instance Aware Self-Updater (`/update` & `/check-update`)**:
+- **🔄 Interactive Multi-Instance Aware Self-Updater & Auto-Restart (`/update` & `/check-update`)**:
   - Detects GitHub releases with cache-busting and prompts: `? Would you like to download and install vX.Y.Z now? [Y/n]`.
-  - **Multi-Instance Intelligence**: Detects other open AnyContext sessions (CLI terminals, REST API, MCP servers) and gives you the choice to update in background without losing work or close instances cleanly.
-  - Performs atomic self-replacement with retry loops, even on locked Windows binaries.
+  - **Multi-Instance Intelligence & Preserved Working Directory**: Substituição atômica com reinicialização automática assíncrona preservando o diretório de trabalho do projeto do usuário (`-WorkingDirectory`).
 - **🌐 REST API Server Mode (`actx --serve`)**:
   - High-performance FastAPI server with interactive Swagger UI at `http://127.0.0.1:8000/docs`.
 - **🔌 Model Context Protocol (MCP) Server (`actx --mcp`)**:
