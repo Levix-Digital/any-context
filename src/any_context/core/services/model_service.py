@@ -79,6 +79,7 @@ class ModelService:
             raise ValueError("Provider name and API key cannot be empty.")
 
         self.store.set_api_key(clean_provider, clean_key)
+        self.store.set_onboarding_completed(True)
         return {
             "provider": clean_provider,
             "configured": True,

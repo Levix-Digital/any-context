@@ -15,6 +15,29 @@ def _send_json_response(response_dict: Dict[str, Any]):
 
 MCP_TOOLS_DEFINITIONS = [
     {
+        "name": "get_onboarding_status",
+        "description": "Checks whether first-time onboarding or API key configuration is required for AnyContext.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "complete_onboarding",
+        "description": "Completes first-time onboarding setup by configuring AI provider, API keys, and workspace.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "choice": {"type": "string", "enum": ["openai", "local_offline", "custom"], "description": "Selected setup choice"},
+                "api_key": {"type": "string", "description": "OpenAI or Provider API key (sk-...)"},
+                "base_url": {"type": "string", "description": "Optional custom local server URL (e.g. 'http://localhost:1234/v1')"},
+                "workspace": {"type": "string", "description": "Initial workspace name"}
+            },
+            "required": ["choice"]
+        }
+    },
+    {
         "name": "search_workspace_docs",
         "description": "Searches ChromaDB vector database for documents relevant to the query in a specific workspace.",
         "inputSchema": {
@@ -508,7 +531,23 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
         arguments = params.get("arguments", {})
 
         try:
-            if tool_name == "search_workspace_docs":
+            if tool_name == "get_onboarding_status":
+                from any_context.core.services.onboarding_service import OnboardingService
+                svc = OnboardingService()
+                st = svc.check_status()
+                result_text = json.dumps(st.model_dump(), indent=2)
+
+            elif tool_name == "complete_onboarding":
+                choice = arguments.get("choice", "openai")
+                api_key = arguments.get("api_key")
+                base_url = arguments.get("base_url")
+                ws = arguments.get("workspace")
+                from any_context.core.services.onboarding_service import OnboardingService
+                svc = OnboardingService()
+                res = svc.complete_onboarding(choice_id=choice, api_key=api_key, base_url=base_url, workspace_name=ws)
+                result_text = json.dumps(res.model_dump(), indent=2)
+
+            elif tool_name == "search_workspace_docs":
                 query = arguments.get("query", "")
                 ws = arguments.get("workspace")
                 res = search_db.invoke({"query": query, "workspace": ws, "search_session_memory": False})

@@ -105,6 +105,10 @@ class StdioRPCServer:
         from any_context.core.models_catalog import get_commercial_model_name
         model_display = get_commercial_model_name(self._current_model)
 
+        from any_context.core.services.onboarding_service import OnboardingService
+        onboarding_svc = OnboardingService(store=self.store)
+        ob_state = onboarding_svc.check_status()
+
         return {
             "version": __version__,
             "workspace": self.active_workspace,
@@ -114,7 +118,9 @@ class StdioRPCServer:
             "web_search_enabled": self._web_search_enabled,
             "sync_info": sync_info,
             "is_syncing": is_syncing,
-            "tier_name": tier_name
+            "tier_name": tier_name,
+            "needs_onboarding": ob_state.needs_onboarding,
+            "onboarding_state": ob_state.model_dump()
         }
 
     def list_commands(self) -> list:
@@ -256,12 +262,50 @@ class StdioRPCServer:
                     self._load_state()
                 _send_ndjson({"id": req_id, "result": action_res.model_dump()})
 
+            elif method == "get_onboarding_status":
+                from any_context.core.services.onboarding_service import OnboardingService
+                onboarding_svc = OnboardingService(store=self.store)
+                st = onboarding_svc.check_status()
+                _send_ndjson({"id": req_id, "result": st.model_dump()})
+
+            elif method == "complete_onboarding":
+                choice = params.get("choice") or params.get("choice_id") or "openai"
+                api_key = params.get("api_key")
+                base_url = params.get("base_url")
+                model_name = params.get("model_name")
+                workspace_name = params.get("workspace_name") or self.active_workspace
+                from any_context.core.services.onboarding_service import OnboardingService
+                onboarding_svc = OnboardingService(store=self.store)
+                res = onboarding_svc.complete_onboarding(
+                    choice_id=choice,
+                    api_key=api_key,
+                    base_url=base_url,
+                    model_name=model_name,
+                    workspace_name=workspace_name
+                )
+                if res.success:
+                    self.agent_instance = None
+                    self._load_state()
+                _send_ndjson({
+                    "id": req_id,
+                    "result": {
+                        "success": res.success,
+                        "message": res.message,
+                        "error": res.error,
+                        "state_updates": res.state_updates,
+                        "state": self.get_state()
+                    }
+                })
+
             elif method == "get_options":
                 opt_type = params.get("type", "grounding_mode")
                 ws = params.get("workspace", self.active_workspace)
                 from any_context.core.interaction.options_engine import OptionsEngine
                 opts_engine = OptionsEngine()
-                if opt_type == "grounding_mode":
+                if opt_type == "onboarding":
+                    from any_context.core.services.onboarding_service import OnboardingService
+                    opts = OnboardingService(store=self.store).check_status().options_group
+                elif opt_type == "grounding_mode":
                     opts = opts_engine.get_grounding_mode_options(workspace=ws)
                 elif opt_type == "workspace":
                     opts = opts_engine.get_workspace_options(current_workspace=ws)
@@ -289,7 +333,16 @@ class StdioRPCServer:
                 apply_global = bool(params.get("apply_global", False))
                 from any_context.core.interaction.options_engine import OptionsEngine
                 opts_engine = OptionsEngine()
-                if opt_type == "grounding_mode":
+                if opt_type == "onboarding":
+                    from any_context.core.services.onboarding_service import OnboardingService
+                    onboarding_svc = OnboardingService(store=self.store)
+                    res = onboarding_svc.complete_onboarding(
+                        choice_id=val,
+                        api_key=params.get("api_key"),
+                        base_url=params.get("base_url"),
+                        workspace_name=ws
+                    )
+                elif opt_type == "grounding_mode":
                     res = opts_engine.set_grounding_mode(mode=val, workspace=ws, apply_global=apply_global)
                 elif opt_type == "workspace":
                     res = opts_engine.set_workspace(workspace_name=val)

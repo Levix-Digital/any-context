@@ -11,6 +11,7 @@ from any_context.core.services.sync_service import SyncService
 from any_context.core.services.memory_service import MemoryService
 from any_context.core.services.billing_service import BillingService
 from any_context.core.services.update_service import UpdateService
+from any_context.core.services.onboarding_service import OnboardingService, OnboardingState, OnboardingResult
 
 __all__ = [
     "WorkspaceService",
@@ -21,4 +22,7 @@ __all__ = [
     "MemoryService",
     "BillingService",
     "UpdateService",
+    "OnboardingService",
+    "OnboardingState",
+    "OnboardingResult",
 ]

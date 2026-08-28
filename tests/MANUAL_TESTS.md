@@ -7,7 +7,47 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.51): Validação de Desinstalação Robusta, Resolução Canônica de Paths (`%LOCALAPPDATA%\AnyContext`) e Reset Seguro de Modelos (`gpt-4o-mini` / `openai`)
+### 📌 Cenário 1 (v0.28.52): Validação de Onboarding Automático e Paridade Total CLI & OpenTUI (`OnboardingService`)
+
+- **Objetivo**: Comprovar que o AnyContext detecta instalações virgens ou resets de fábrica (`factory_reset()`), abrindo automaticamente o modal interativo de Onboarding (`<InteractiveModal>`) tanto na OpenTUI (`actx --tui`) quanto no CLI (`actx`), garantindo que o aplicativo nunca inicialize com modelo mudo ou estado desconfigurado.
+- **Pré-requisito**: Versão `v0.28.52` ou superior.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **💥 Simular Estado Zero (Reset de Fábrica):**
+   ```powershell
+   actx --factory-reset
+   ```
+   - Confirmar a execução do reset de fábrica.
+   - Comprovar que o SQLite grava `onboarding_completed = 0`.
+
+2. **🖥️ Iniciar a OpenTUI (`actx --tui`):**
+   ```powershell
+   actx --tui
+   ```
+   - Comprovar que a interface OpenTUI abre e **dispara automaticamente** o modal interativo `🤖 Welcome to AnyContext AI Setup!` na tela.
+   - Comprovar que o modal exibe as 3 opções com badges e ícones:
+     - `⚡ OpenAI Cloud (Enter OpenAI API Key - Recommended) [Recommended]`
+     - `🏠 Local Offline Server (LM Studio / Ollama - 100% Free & Offline) [Offline]`
+     - `🛠️ Custom Setup (Configure custom models, base URL & keys) [Advanced]`
+
+3. **🤖 Testar Configuração da OpenAI:**
+   - Navegar com as setas `[↑/↓]` até `⚡ OpenAI Cloud` e pressionar `[Enter]`.
+   - Comprovar que o modal fecha, preenche o prompt com `/key openai ` e exibe mensagem orientando a colar a chave.
+   - Colar a chave `sk-...` e pressionar Enter.
+   - Comprovar que a chave é gravada no banco, `onboarding_completed` vai para `1` e o status bar ativa imediatamente `🤖 GPT-4o Mini`.
+
+4. **💬 Validar Comunicação no Chat:**
+   - Digitar `Olá! Qual o resumo deste projeto?` e pressionar Enter.
+   - Comprovar que o agente sintetiza e transmite a resposta sem travamentos.
+
+5. **🔄 Validar Persistência em Reinicializações Futuras:**
+   - Sair com `/exit` e reabrir `actx --tui`.
+   - Comprovar que o aplicativo entra direto no chat em milissegundos sem reabrir o modal de boas-vindas.
+
+---
+
+### 📌 Cenário 2 (v0.28.51): Validação de Desinstalação Robusta, Resolução Canônica de Paths (`%LOCALAPPDATA%\AnyContext`) e Reset Seguro de Modelos (`gpt-4o-mini` / `openai`)
 
 - **Objetivo**: Comprovar que o AnyContext opera unicamente sobre o diretório de dados canônico (`%LOCALAPPDATA%\AnyContext`), sem ressuscitar arquivos legados em `~\config\settings.db` ou no diretório de trabalho, e que o script de desinstalação (`uninstall.ps1` / `uninstall.sh`) remove diretórios canônicos, purga legados e desinstala resquícios de pacotes no ambiente Python (`pip uninstall`).
 - **Pré-requisito**: Versão `v0.28.51` ou superior instalada.

@@ -112,6 +112,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **xAI Grok**: `grok-2-1212`, `grok-2`, `grok-beta`.
   - **OpenRouter**: `openrouter/auto`, `meta-llama/llama-3.3-70b-instruct:free`, `google/gemini-flash-1.5-8b`.
   - **Local Offline (Free & Private)**: `local-model` via LM Studio or Ollama (`http://localhost:1234/v1`).
+- **🎉 Zero-Friction First-Time Onboarding & Surface Parity**:
+  - Automatically detects fresh installations or factory resets (`actx --factory-reset`).
+  - Launches an interactive setup wizard across both OpenTUI Desktop (`actx --tui`) and CLI (`actx`).
+  - One-click configuration for **OpenAI Cloud** (`gpt-4o-mini` & `text-embedding-3-small`), **Local Offline Server** (LM Studio / Ollama at $0.00), or **Custom Provider Gateway**.
 - **📋 Multi-line & Long-Prompt Input Engine**:
   - **Direct Bracketed Paste (`Ctrl+V`)**: Seamlessly paste multi-line contract clauses, meeting transcripts, or large code snippets without premature command submission.
   - **Universal Line Break (`Ctrl + J` / `Esc` then `Enter`)**: Insert clean newlines with visual continuation prompts (`... `) anytime while typing.

@@ -31,6 +31,36 @@ class HealthResponse(BaseModel):
     description: str = "AnyContext Universal AI Context Server"
     security_auth: str = "RBAC Token & User Authentication Enabled"
 
+class OnboardingOptionItemDTO(BaseModel):
+    id: str
+    title: str
+    description: Optional[str] = ""
+    icon: Optional[str] = ""
+    badge: Optional[str] = ""
+    is_active: bool = False
+
+class OnboardingStatusResponse(BaseModel):
+    needs_onboarding: bool
+    stage: str
+    title: str
+    description: str
+    active_provider: str
+    active_model: str
+    options: List[OnboardingOptionItemDTO]
+
+class CompleteOnboardingRequest(BaseModel):
+    choice: str = Field(..., description="Selected setup choice: 'openai', 'local_offline', or 'custom'")
+    api_key: Optional[str] = Field(None, description="OpenAI or Provider API key if choice is 'openai'")
+    base_url: Optional[str] = Field(None, description="Custom base URL (e.g. 'http://localhost:1234/v1')")
+    model_name: Optional[str] = Field(None, description="Model identifier if using local server")
+    workspace_name: Optional[str] = Field(None, description="Initial workspace name (defaults to 'Default')")
+
+class CompleteOnboardingResponse(BaseModel):
+    success: bool
+    message: str
+    error: Optional[str] = None
+    state_updates: Dict[str, Any] = Field(default_factory=dict)
+
 class AuthStatusResponse(BaseModel):
     admin_configured: bool
     security_enforced: bool
@@ -394,6 +424,54 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
     @app.get("/v1/health", response_model=HealthResponse, tags=["System"])
     def get_health():
         return HealthResponse()
+
+    # --- Onboarding & Initial Setup Endpoints ---
+
+    @app.get("/v1/onboarding/status", response_model=OnboardingStatusResponse, tags=["Onboarding & Setup"])
+    def get_onboarding_status_endpoint():
+        """Returns whether first-time onboarding or quick provider setup is required."""
+        from any_context.core.services.onboarding_service import OnboardingService
+        svc = OnboardingService()
+        st = svc.check_status()
+        opts_dto = [
+            OnboardingOptionItemDTO(
+                id=o.id,
+                title=o.title,
+                description=o.description or "",
+                icon=o.icon or "",
+                badge=o.badge or "",
+                is_active=o.is_active
+            )
+            for o in st.options_group.items
+        ]
+        return OnboardingStatusResponse(
+            needs_onboarding=st.needs_onboarding,
+            stage=st.stage,
+            title=st.title,
+            description=st.description,
+            active_provider=st.active_provider,
+            active_model=st.active_model,
+            options=opts_dto
+        )
+
+    @app.post("/v1/onboarding/complete", response_model=CompleteOnboardingResponse, tags=["Onboarding & Setup"])
+    def complete_onboarding_endpoint(req: CompleteOnboardingRequest):
+        """Executes first-time setup or quick provider configuration."""
+        from any_context.core.services.onboarding_service import OnboardingService
+        svc = OnboardingService()
+        res = svc.complete_onboarding(
+            choice_id=req.choice,
+            api_key=req.api_key,
+            base_url=req.base_url,
+            model_name=req.model_name,
+            workspace_name=req.workspace_name
+        )
+        return CompleteOnboardingResponse(
+            success=res.success,
+            message=res.message,
+            error=res.error,
+            state_updates=res.state_updates
+        )
 
     # --- Authentication Endpoints ---
 
