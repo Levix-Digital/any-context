@@ -136,7 +136,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           >
             <text fg={anyContextTheme.accentWarning}>
               <b>🤖 AI [</b>
-              <span fg={anyContextTheme.accentSecondary}><b>{msg.model || state?.model || "gpt-4o-mini"}</b></span>
+              <span fg={anyContextTheme.accentSecondary}><b>{msg.model || state?.model_display || state?.model || "GPT-4o Mini"}</b></span>
               <b>]:</b>
             </text>
 

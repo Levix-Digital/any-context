@@ -34,7 +34,7 @@ export const StatusBar = ({ state }: StatusBarProps): any => {
         </text>
         <text fg={anyContextTheme.ruleColor}> │ </text>
         <text fg={anyContextTheme.accentSecondary}>
-          <b>🤖 {state.model}</b>
+          <b>🤖 {state.model_display || state.model}</b>
         </text>
         <text fg={anyContextTheme.ruleColor}> │ </text>
         <text fg={anyContextTheme.accent}>

@@ -243,10 +243,13 @@ def create_bottom_toolbar_renderer(
             cols = 100
         divider_line = "─" * max(cols, 20)
 
+        from any_context.core.models_catalog import get_commercial_model_name
+        model_display = get_commercial_model_name(model_name)
+
         left_html = (
             f" <style fg='#e0af68'><b>📂 {workspace_name}</b></style>  "
             f"<style fg='#565f89'>│</style>  "
-            f"<style fg='#bb9af7'><b>🤖 {model_name}</b></style>  "
+            f"<style fg='#bb9af7'><b>🤖 {model_display}</b></style>  "
             f"<style fg='#565f89'>│</style>  "
             f"<style fg='#7dcfff'><b>🛡️ {clean_mode}</b></style>  "
             f"<style fg='#565f89'>│</style>  "
@@ -258,7 +261,7 @@ def create_bottom_toolbar_renderer(
 
         left_visible = (
             f" 📂 {workspace_name}  │  "
-            f"🤖 {model_name}  │  "
+            f"🤖 {model_display}  │  "
             f"🛡️ {clean_mode}  │  "
             f"🌐 Search: {'ON' if ws_search else 'OFF'}  │  "
             f"💡 /menu"
