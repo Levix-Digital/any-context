@@ -51,7 +51,7 @@ class TestRPCBridge(unittest.TestCase):
             # 1. Switch workspace
             self.server.handle_request({"id": 1, "method": "switch_workspace", "params": {"workspace": "NewRPCWS"}})
             # 2. Set model
-            self.server.handle_request({"id": 2, "method": "set_model", "params": {"model": "claude-3-5-sonnet"}})
+            self.server.handle_request({"id": 2, "method": "set_model", "params": {"model": "claude-sonnet-4-5-20250929"}})
             # 3. Set mode
             self.server.handle_request({"id": 3, "method": "set_mode", "params": {"mode": "hybrid"}})
             # 4. Set web search
@@ -60,7 +60,7 @@ class TestRPCBridge(unittest.TestCase):
         lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
         self.assertEqual(len(lines), 4)
         self.assertEqual(lines[0]["result"]["workspace"], "NewRPCWS")
-        self.assertEqual(lines[1]["result"]["model"], "claude-3-5-sonnet")
+        self.assertEqual(lines[1]["result"]["model"], "claude-sonnet-4-5-20250929")
         self.assertEqual(lines[2]["result"]["grounding_mode"], "hybrid")
         self.assertTrue(lines[3]["result"]["web_search_enabled"])
         safe_stdout_write("  [OK] Mutation requests executed and confirmed in state!\n")
