@@ -638,95 +638,11 @@ def run_self_update(
 
         safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
 
-        if not is_interactive_chat:
-            safe_print(f"👉 Run 'actx' to launch {clean_tag}.\n")
-            return
-
-        # Interactive in-chat update: Warn user and confirm restart
-        safe_print("\n⚠️ Updating will close the current chat session.")
-        do_restart = True
-        try:
-            import questionary
-            do_restart = questionary.confirm(
-                f"🚀 Would you like to restart AnyContext with {clean_tag} now?",
-                default=True
-            ).ask()
-        except Exception:
-            do_restart = True
-
-        if not do_restart:
-            safe_print(f"\n👉 You can continue chatting! The new update ({clean_tag}) will take effect the next time you launch AnyContext.\n")
-            return
-
-        safe_print(f"\n🚀 Restarting AnyContext with {clean_tag} in current terminal...\n")
-        time.sleep(1)
-
-        # Build sanitized environment for the new PyInstaller process to prevent PyInstaller parent security validation failure
-        clean_env = {}
-        for k, v in os.environ.items():
-            lower_k = k.lower()
-            if not lower_k.startswith("_mei") and not lower_k.startswith("pyi_") and "meipass" not in lower_k:
-                clean_env[k] = v
-
-        if "PATH" in clean_env:
-            paths = clean_env["PATH"].split(os.pathsep)
-            clean_paths = [p for p in paths if "_mei" not in p.lower() and "pyi" not in p.lower()]
-            clean_env["PATH"] = os.pathsep.join(clean_paths)
-
-        # In-place restart preserving CLI arguments, clean environment and active terminal session
-        restart_args = [target_exe]
-        for arg in sys.argv[1:]:
-            if not arg.startswith("--update") and not arg.startswith("-u") and not arg.startswith("/update"):
-                restart_args.append(arg)
-
-        try:
-            res = subprocess.call(restart_args, env=clean_env)
-            sys.exit(res)
-        except Exception:
-            sys.exit(0)
+        safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
     else:
         try:
             os.replace(temp_download, target_exe)
             safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
-
-            if not is_interactive_chat:
-                safe_print(f"👉 Run 'actx' to launch {clean_tag}.\n")
-                return
-
-            # Interactive in-chat update: Warn user and confirm restart
-            safe_print("\n⚠️ Updating will close the current chat session.")
-            do_restart = True
-            try:
-                import questionary
-                do_restart = questionary.confirm(
-                    f"🚀 Would you like to restart AnyContext with {clean_tag} now?",
-                    default=True
-                ).ask()
-            except Exception:
-                do_restart = True
-
-            if not do_restart:
-                safe_print(f"\n👉 You can continue chatting! The new update ({clean_tag}) will take effect the next time you launch AnyContext.\n")
-                return
-
-            safe_print(f"\n🚀 Restarting AnyContext with {clean_tag} in current terminal...\n")
-            time.sleep(1)
-
-            clean_env = {}
-            for k, v in os.environ.items():
-                lower_k = k.lower()
-                if not lower_k.startswith("_mei") and not lower_k.startswith("pyi_") and "meipass" not in lower_k:
-                    clean_env[k] = v
-
-            restart_args = [target_exe]
-            for arg in sys.argv[1:]:
-                if not arg.startswith("--update") and not arg.startswith("-u") and not arg.startswith("/update"):
-                    restart_args.append(arg)
-
-            try:
-                res = subprocess.call(restart_args, env=clean_env)
-                sys.exit(res)
-            except Exception:
-                sys.exit(0)
+            safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
         except Exception as e:
             safe_print(f"⚠️ Saved new binary to: {temp_download}. Please move it to {target_exe} with sudo/chmod.")

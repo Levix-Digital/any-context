@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.61): Validação da Execução de Slash Commands RPC (`/key`) e Feedback Contextual de Boot
+### 📌 Cenário 1 (v0.28.62): Validação de Atualização Transparente sem Reinicialização Forçada
 
-- **Objetivo**: Comprovar que o comando `/key openai <CHAVE>` executa com sucesso no RPC Bridge (resolvendo `dispatch_command`), que o indicador de boot adapta sua mensagem conforme `needs_onboarding`, e que o modelo padrão `gpt-4o-mini` e embeddings `text-embedding-3-small` funcionam out-of-the-box com uma única chave OpenAI.
-- **Pré-requisito**: Versão `v0.28.61` ou superior.
+- **Objetivo**: Comprovar que a execução de `/update` ou `actx --update` substitui o executável atomicamente em segundo plano sem fechar abruptamente a sessão do usuário nem tentar respawn/relaunch automático, avisando que a nova versão entrará em vigor na próxima inicialização do terminal.
+- **Pré-requisito**: Versão `v0.28.62` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 

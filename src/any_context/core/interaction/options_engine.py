@@ -276,7 +276,7 @@ class OptionsEngine:
         if count > 0:
             sub = f"ℹ️ Detected {count} other active AnyContext session(s). How would you like to update?"
         else:
-            sub = f"🚀 Ready to download and install AnyContext {target_tag} with auto-restart."
+            sub = f"🚀 Ready to download and install AnyContext {target_tag}."
 
         items = [
             OptionItemSchema(
@@ -315,7 +315,7 @@ class OptionsEngine:
         )
 
     def execute_update_option(self, option_id: str, is_tui: bool = False) -> MenuActionResult:
-        """Executes the chosen update action with seamless auto-restart."""
+        """Executes the chosen update action without abrupt auto-restart."""
         from any_context.core.services.update_service import UpdateService
         update_svc = UpdateService()
 
@@ -331,7 +331,7 @@ class OptionsEngine:
         success, msg, updates = update_svc.execute_binary_update(
             auto_close_instances=auto_close,
             force_background=not auto_close,
-            auto_restart=True,
+            auto_restart=False,
             is_tui=is_tui
         )
 

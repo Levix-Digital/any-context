@@ -286,12 +286,11 @@ class UpdateService:
         target_tag: Optional[str] = None,
         auto_close_instances: bool = False,
         force_background: bool = True,
-        auto_restart: bool = True,
+        auto_restart: bool = False,
         is_tui: bool = False,
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
-        Downloads the target/latest release asset and orchestrates atomic replacement
-        with seamless detached auto-restart.
+        Downloads the target/latest release asset and orchestrates atomic replacement.
         Returns: (success: bool, message: str, state_updates: Dict[str, Any])
         """
         clean_stale_update_files()
@@ -388,15 +387,9 @@ class UpdateService:
             except Exception:
                 pass
 
-        # 5. Atomic swap and auto-restart preparation
-        caller_cwd = os.environ.get("ACTX_CALLER_CWD") or os.getcwd()
-        is_frontend_tui = is_tui or (os.environ.get("ACTX_FRONTEND") == "tui")
-
+        # 5. Atomic swap
         if is_windows:
-            tui_entry = os.path.join(caller_cwd, "src", "any_context", "tui", "index.tsx")
-            has_dev_tui = os.path.exists(tui_entry)
-
-            swap_and_restart_script = (
+            swap_script = (
                 f"$retries = 0; "
                 f"while ($retries -lt 40) {{ "
                 f"  try {{ "
@@ -413,41 +406,17 @@ class UpdateService:
                 f"  }} "
                 f"}}; "
             )
-            if auto_restart:
-                if has_dev_tui:
-                    swap_and_restart_script += (
-                        f"Start-Sleep -Milliseconds 800; "
-                        f"Set-Location -LiteralPath '{caller_cwd}'; "
-                        f"if (Get-Command 'bun' -ErrorAction SilentlyContinue) {{ "
-                        f"  Start-Process 'bun' -ArgumentList 'run', '{tui_entry}' -WorkingDirectory '{caller_cwd}' "
-                        f"}} elseif (Test-Path -LiteralPath '{target_exe}') {{ "
-                        f"  Start-Process -FilePath '{target_exe}' -WorkingDirectory '{caller_cwd}' "
-                        f"}}"
-                    )
-                else:
-                    restart_args = "'--tui'" if is_frontend_tui else "''"
-                    swap_and_restart_script += (
-                        f"Start-Sleep -Milliseconds 800; "
-                        f"if (Test-Path -LiteralPath '{target_exe}') {{ "
-                        f"  Start-Process -FilePath '{target_exe}' -ArgumentList {restart_args} -WorkingDirectory '{caller_cwd}' "
-                        f"}}"
-                    )
 
             try:
                 subprocess.Popen(
-                    ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", swap_and_restart_script],
+                    ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", swap_script],
                     creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
                 )
             except Exception:
                 pass
 
-            msg = f"🎉 Successfully updated AnyContext to {clean_tag}!"
-            if auto_restart:
-                msg += "\n🚀 Restarting AnyContext automatically in 1 second..."
-            else:
-                msg += f"\n👉 Restart your terminal or type 'actx' to launch {clean_tag}."
-
-            return True, msg, {"action": "restart" if auto_restart else "none", "version": clean_tag}
+            msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 The new version will take effect the next time you launch 'actx' or 'actx --tui'."
+            return True, msg, {"action": "none", "version": clean_tag}
 
         else:
             # Unix / macOS
@@ -456,17 +425,5 @@ class UpdateService:
             except Exception as e:
                 return False, f"❌ Failed to replace binary: {e}", {}
 
-            if auto_restart:
-                restart_cmd = f"sleep 1 && '{target_exe}' {'--tui' if is_tui else ''}"
-                try:
-                    subprocess.Popen(restart_cmd, shell=True)
-                except Exception:
-                    pass
-
-            msg = f"🎉 Successfully updated AnyContext to {clean_tag}!"
-            if auto_restart:
-                msg += "\n🚀 Restarting AnyContext automatically..."
-            else:
-                msg += f"\n👉 Restart your terminal or type 'actx' to launch {clean_tag}."
-
-            return True, msg, {"action": "restart" if auto_restart else "none", "version": clean_tag}
+            msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 The new version will take effect the next time you launch 'actx' or 'actx --tui'."
+            return True, msg, {"action": "none", "version": clean_tag}

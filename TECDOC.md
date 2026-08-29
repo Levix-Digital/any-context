@@ -845,6 +845,16 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - **Conditional Onboarding Indicator**: `chat-message-list.tsx` now inspects `state?.needs_onboarding` and selectively renders `⏳ Initializing AnyContext AI Core & Onboarding Setup...` (when setup is pending) vs `⏳ Initializing AnyContext AI Core...` (for ready workspaces).
 - **Single-Key Architecture**: Confirmed `gpt-4o-mini` (inference & summary) and `text-embedding-3-small` (embeddings) as canonical default models, enabling complete RAG and conversation capabilities immediately upon saving an `OPENAI_API_KEY`.
 
+---
+
+## 32. Non-Intrusive In-Place Updates Without Auto-Restart (`v0.28.62`)
+
+### 🔄 1. Seamless Background Binary Replacement
+- **Removal of Forced Session Terminations**: Removed the intrusive prompt and automatic subprocess relaunching in `src/any_context/cli/updater.py`, `src/any_context/core/services/update_service.py`, `src/any_context/commands/dispatcher.py`, and `src/any_context/core/interaction/options_engine.py`.
+- **Atomic File Swap**: When `/update` or `actx --update` runs, the binary is replaced cleanly in the background without abruptly closing or restarting active sessions.
+- **Clear UX Feedback**: Notifies the user that the update succeeded and will take effect smoothly the next time they launch `actx` or `actx --tui`.
+
+
 
 
 
