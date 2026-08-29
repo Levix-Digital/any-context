@@ -369,30 +369,33 @@ class ConfigDBStore:
         """Ensures that 'Default', 'Global', and 'Shared Sources' system workspaces exist for instant onboarding, compliance, and reusable libraries."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            # 1. Ensure Default workspace
-            cursor.execute("SELECT id FROM workspaces WHERE name = 'Default' COLLATE NOCASE")
-            if not cursor.fetchone():
-                default_path = os.path.abspath(os.path.join(os.getcwd(), "documents"))
-                os.makedirs(default_path, exist_ok=True)
-                cursor.execute(
-                    "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
-                    ("ws_default", "Default", json.dumps([default_path]))
-                )
-            # 2. Ensure Global workspace
-            cursor.execute("SELECT id FROM workspaces WHERE name = 'Global' COLLATE NOCASE")
-            if not cursor.fetchone():
-                cursor.execute(
-                    "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
-                    ("ws_global", "Global", json.dumps([]))
-                )
-            # 3. Ensure Shared Sources library workspace
-            cursor.execute("SELECT id FROM workspaces WHERE name = 'Shared Sources' COLLATE NOCASE")
-            if not cursor.fetchone():
-                cursor.execute(
-                    "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
-                    ("ws_shared_sources", "Shared Sources", json.dumps([]))
-                )
-            conn.commit()
+            try:
+                # 1. Ensure Default workspace
+                cursor.execute("SELECT id FROM workspaces WHERE name = 'Default' COLLATE NOCASE")
+                if not cursor.fetchone():
+                    default_path = os.path.abspath(os.path.join(os.getcwd(), "documents"))
+                    os.makedirs(default_path, exist_ok=True)
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
+                        ("ws_default", "Default", json.dumps([default_path]))
+                    )
+                # 2. Ensure Global workspace
+                cursor.execute("SELECT id FROM workspaces WHERE name = 'Global' COLLATE NOCASE")
+                if not cursor.fetchone():
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
+                        ("ws_global", "Global", json.dumps([]))
+                    )
+                # 3. Ensure Shared Sources library workspace
+                cursor.execute("SELECT id FROM workspaces WHERE name = 'Shared Sources' COLLATE NOCASE")
+                if not cursor.fetchone():
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
+                        ("ws_shared_sources", "Shared Sources", json.dumps([]))
+                    )
+                conn.commit()
+            except sqlite3.IntegrityError:
+                pass
 
     def get_workspace_meta(self, identifier: str) -> Optional[Dict[str, Any]]:
         """Resolves a workspace by its immutable workspace_id, numeric ID, or its name."""
