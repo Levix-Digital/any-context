@@ -446,6 +446,13 @@ class CommandDispatcher:
         )
 
     def _handle_sources(self, parts: List[str], ws_name: str) -> CommandResult:
+        if "--delete" in parts or "-d" in parts or "--remove" in parts or "-r" in parts:
+            return CommandResult(
+                success=True,
+                message="🗑️ Select source to remove:",
+                action="open_delete_source_modal"
+            )
+
         show_all = "--all" in parts or "-a" in parts
 
         if show_all:

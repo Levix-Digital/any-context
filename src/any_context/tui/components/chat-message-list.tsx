@@ -15,6 +15,7 @@ export interface ChatMessage {
 interface ChatMessageListProps {
   messages: ChatMessage[];
   state?: AnyContextState;
+  isBackendReady?: boolean;
 }
 
 const ASCII_BANNER = `  ___               ____ ___  _   _ _____ _____ _  _______ 

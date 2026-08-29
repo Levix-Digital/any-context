@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.62): Validação de Atualização Transparente sem Reinicialização Forçada
+### 📌 Cenário 1 (v0.28.63): Validação de Remoção Interativa de Fontes (`/menu` ➔ Workspaces ➔ Delete Source)
 
-- **Objetivo**: Comprovar que a execução de `/update` ou `actx --update` substitui o executável atomicamente em segundo plano sem fechar abruptamente a sessão do usuário nem tentar respawn/relaunch automático, avisando que a nova versão entrará em vigor na próxima inicialização do terminal.
-- **Pré-requisito**: Versão `v0.28.62` ou superior.
+- **Objetivo**: Comprovar que o menu hierárquico `/menu` navega com profundidade total até a seleção e remoção de fontes individuais (pastas locais e URLs web) de um workspace, abrindo a lista de fontes ativas, exibindo modal de confirmação explícito e executando a remoção no SQLite e no LanceDB sem fechar o terminal.
+- **Pré-requisito**: Versão `v0.28.63` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 

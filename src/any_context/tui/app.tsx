@@ -229,7 +229,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     }
   };
 
-  const openDeleteWorkspaceModal = async () => {
+  const openDeleteWorkspaceModal = async (fromMenu: boolean = false) => {
     try {
       const opts = await client.getOptions("delete_workspace");
       if (opts && opts.items && opts.items.length > 0) {
@@ -237,6 +237,9 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         setModalMode("options");
         setModalOptionsGroup(opts);
         setModalIndex(0);
+        if (fromMenu && modalMenuTree) {
+          setMenuHistory((prev) => [...prev, modalMenuTree.menu_id]);
+        }
         setModalOpen(true);
       } else {
         setMessages((prev) => [
@@ -270,6 +273,45 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     }
   };
 
+  const openDeleteSourceModal = async (fromMenu: boolean = false) => {
+    try {
+      const opts = await client.getOptions("delete_source");
+      if (opts && opts.items && opts.items.length > 0) {
+        setPaletteOpen(false);
+        setModalMode("options");
+        setModalOptionsGroup(opts);
+        setModalIndex(0);
+        if (fromMenu && modalMenuTree) {
+          setMenuHistory((prev) => [...prev, modalMenuTree.menu_id]);
+        }
+        setModalOpen(true);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `err_${Date.now()}`, role: "system", content: `❌ Could not load workspace sources: ${err.message}` },
+      ]);
+    }
+  };
+
+  const openConfirmDeleteSourceModal = async (sourceInfo: any) => {
+    try {
+      const opts = await client.getOptions("confirm_delete_source", { source_info: sourceInfo });
+      if (opts && opts.items && opts.items.length > 0) {
+        setPaletteOpen(false);
+        setModalMode("options");
+        setModalOptionsGroup(opts);
+        setModalIndex(1); // Default highlight on Cancel for safety
+        setModalOpen(true);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `err_${Date.now()}`, role: "system", content: `❌ Could not load confirmation prompt: ${err.message}` },
+      ]);
+    }
+  };
+
   const handleInputChange = (val: string) => {
     setInputValue(val);
     if (val.startsWith("/")) {
@@ -287,7 +329,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     // 1. ESCAPE key handling
     if (event.name === "escape") {
       if (modalOpen) {
-        if (modalMode === "menu" && menuHistory.length > 0) {
+        if (menuHistory.length > 0) {
           const prevMenu = menuHistory[menuHistory.length - 1];
           setMenuHistory((prev) => prev.slice(0, -1));
           openConfigModal(prevMenu, false);
@@ -363,10 +405,22 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
 
             setModalOpen(false);
             client
-              .setOption(modalOptionsGroup.type, selectedOption.id)
+              .setOption(modalOptionsGroup.type, selectedOption.id, undefined, false, selectedOption.metadata)
               .then((res) => {
                 if (res.action === "open_confirm_delete_workspace_modal" && res.state_updates && (res.state_updates as any).target_workspace) {
                   openConfirmDeleteWorkspaceModal((res.state_updates as any).target_workspace);
+                  return;
+                }
+                if (res.action === "open_confirm_delete_source_modal" && res.state_updates && (res.state_updates as any).source_info) {
+                  openConfirmDeleteSourceModal((res.state_updates as any).source_info);
+                  return;
+                }
+                if (res.action === "open_delete_source_modal") {
+                  openDeleteSourceModal(false);
+                  return;
+                }
+                if (res.action === "open_delete_workspace_modal") {
+                  openDeleteWorkspaceModal(false);
                   return;
                 }
                 setMessages((prev) => [
@@ -378,14 +432,6 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
                   },
                 ]);
                 client.refreshState();
-                const isRestart = Boolean((res.state_updates && (res.state_updates as any).action === "restart") || (res as any).action === "restart");
-                if (isRestart) {
-                  setTimeout(() => {
-                    client.stop();
-                    if (onExit) onExit();
-                    else process.exit(0);
-                  }, 1200);
-                }
               })
               .catch((err) => {
                 setMessages((prev) => [
@@ -399,16 +445,31 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           if (selectedItem) {
             if (selectedItem.type === "submenu") {
               openConfigModal(selectedItem.id, true);
-            } else if (selectedItem.command_shortcut) {
-              setModalOpen(false);
-              handleSlashCommand(selectedItem.command_shortcut);
+            } else if (selectedItem.id === "ws_sources_delete" || selectedItem.id === "ws_delete_source") {
+              openDeleteSourceModal(true);
+            } else if (selectedItem.id === "ws_delete") {
+              openDeleteWorkspaceModal(true);
+            } else if (selectedItem.id === "ws_switch") {
+              openSwitchModal();
             } else {
               setModalOpen(false);
               client
                 .executeMenuAction(selectedItem.id, {})
                 .then((res) => {
+                  if (res.action === "open_delete_source_modal") {
+                    openDeleteSourceModal(true);
+                    return;
+                  }
                   if (res.action === "open_delete_workspace_modal" || res.action === "delete_workspace") {
-                    openDeleteWorkspaceModal();
+                    openDeleteWorkspaceModal(true);
+                    return;
+                  }
+                  if (res.action === "open_switch_modal") {
+                    openSwitchModal();
+                    return;
+                  }
+                  if (res.action === "prefill_input" && res.state_updates && (res.state_updates as any).prefill) {
+                    setInputValue((res.state_updates as any).prefill);
                     return;
                   }
                   setMessages((prev) => [
@@ -420,14 +481,6 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
                     },
                   ]);
                   client.refreshState();
-                  const isRestart = Boolean((res.state_updates && (res.state_updates as any).action === "restart") || (res as any).action === "restart");
-                  if (isRestart) {
-                    setTimeout(() => {
-                      client.stop();
-                      if (onExit) onExit();
-                      else process.exit(0);
-                    }, 1200);
-                  }
                 })
                 .catch((err) => {
                   setMessages((prev) => [
@@ -727,6 +780,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         }
         if (res.action === "open_delete_workspace_modal" || res.action === "delete_workspace") {
           await openDeleteWorkspaceModal();
+          return;
+        }
+        if (res.action === "open_delete_source_modal" || res.action === "delete_source") {
+          await openDeleteSourceModal();
           return;
         }
         if (res.action === "open_model_modal") {

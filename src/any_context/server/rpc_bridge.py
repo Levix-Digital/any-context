@@ -327,6 +327,11 @@ class StdioRPCServer:
                     target_ws = params.get("target_workspace") or ws
                     is_active = (ws.lower() == target_ws.lower())
                     opts = opts_engine.get_confirm_delete_workspace_options(workspace_to_delete=target_ws, is_active=is_active)
+                elif opt_type in ["delete_source", "ws_delete_source", "sources_delete"]:
+                    opts = opts_engine.get_delete_source_options(current_workspace=ws)
+                elif opt_type in ["confirm_delete_source", "confirm_delete_src"]:
+                    source_info = params.get("source_info") or {}
+                    opts = opts_engine.get_confirm_delete_source_options(source_info=source_info, current_workspace=ws)
                 else:
                     opts = opts_engine.get_grounding_mode_options(workspace=ws)
                 _send_ndjson({"id": req_id, "result": opts.model_dump()})
@@ -359,6 +364,8 @@ class StdioRPCServer:
                     res = opts_engine.execute_update_option(option_id=val, is_tui=True)
                 elif opt_type in ["delete_workspace", "ws_delete", "confirm_delete_workspace", "confirm_delete_ws"]:
                     res = opts_engine.execute_delete_workspace_option(option_id=val, current_workspace=ws)
+                elif opt_type in ["delete_source", "ws_delete_source", "sources_delete", "confirm_delete_source", "confirm_delete_src"]:
+                    res = opts_engine.execute_delete_source_option(option_id=val, current_workspace=ws, metadata=params.get("metadata"))
                 else:
                     res = opts_engine.set_grounding_mode(mode=val, workspace=ws, apply_global=apply_global)
 

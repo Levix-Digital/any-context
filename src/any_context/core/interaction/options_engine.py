@@ -3,9 +3,10 @@ Options Engine - Provides structured option lists and state handlers for quick s
 Handles /mode, /model, /density, /web-search option schemas and execution.
 """
 
+import os
 from typing import List, Dict, Any, Optional
 from any_context.core.interaction.schemas import OptionItemSchema, OptionsGroupSchema, MenuActionResult
-from any_context.core.services import GroundingService, ModelService, WorkspaceService
+from any_context.core.services import GroundingService, ModelService, WorkspaceService, SourceService
 from any_context.config.db_store import ConfigDBStore
 
 
@@ -465,3 +466,178 @@ class OptionsEngine:
             )
 
         return MenuActionResult(success=False, message="⚠️ Unknown delete option.", error="unknown_option")
+
+    def get_delete_source_options(self, current_workspace: str = "Default") -> OptionsGroupSchema:
+        """Returns all deletable sources (folders, web URLs, cloud drives) for a workspace."""
+        source_svc = SourceService(store=self.store)
+        curr = (current_workspace or "Default").strip()
+        data = source_svc.list_sources(curr)
+
+        items = []
+        folders = data.get("folders", [])
+        for f in folders:
+            clean_f = f if isinstance(f, str) else str(f)
+            items.append(OptionItemSchema(
+                id=f"delete_src_folder__{clean_f}",
+                title=f"📁 {os.path.basename(clean_f) or clean_f}",
+                description=f"Local folder ({clean_f})",
+                icon="📁",
+                badge="[Folder]",
+                is_active=False,
+                metadata={"source_type": "folder", "source_val": clean_f, "workspace": curr}
+            ))
+
+        web_sources = data.get("web_sources", []) or data.get("web_urls", [])
+        for w in web_sources:
+            url_str = w.get("url") if isinstance(w, dict) else str(w)
+            items.append(OptionItemSchema(
+                id=f"delete_src_web__{url_str}",
+                title=f"🌐 {url_str}",
+                description="Web documentation / portal source",
+                icon="🌐",
+                badge="[Web]",
+                is_active=False,
+                metadata={"source_type": "web", "source_val": url_str, "workspace": curr}
+            ))
+
+        cloud_drives = data.get("cloud_drives", [])
+        for cd in cloud_drives:
+            cd_str = cd.get("name", str(cd)) if isinstance(cd, dict) else str(cd)
+            items.append(OptionItemSchema(
+                id=f"delete_src_cloud__{cd_str}",
+                title=f"☁️ {cd_str}",
+                description="Cloud drive storage source",
+                icon="☁️",
+                badge="[Cloud]",
+                is_active=False,
+                metadata={"source_type": "cloud", "source_val": cd_str, "workspace": curr}
+            ))
+
+        if not items:
+            items.append(OptionItemSchema(
+                id="no_sources",
+                title=f"ℹ️ No sources configured in workspace '{curr}'",
+                description="Use /add or /web to index documents or URLs into this workspace.",
+                icon="ℹ️",
+                badge="[Empty]",
+                is_active=False,
+                metadata={}
+            ))
+
+        items.append(OptionItemSchema(
+            id="cancel_delete_source",
+            title="🔙 Cancel",
+            description="Aborts source deletion and returns to menu",
+            icon="🔙",
+            badge="",
+            is_active=False,
+            metadata={}
+        ))
+
+        return OptionsGroupSchema(
+            type="delete_source",
+            title=f"🗑️ Delete / Remove a Source ({curr})",
+            description=f"Select a folder or web source to remove from workspace '{curr}':",
+            active_id=items[0].id if items else "",
+            items=items
+        )
+
+    def get_confirm_delete_source_options(self, source_info: Dict[str, Any], current_workspace: str = "Default") -> OptionsGroupSchema:
+        """Returns confirmation options before permanently removing a source from a workspace."""
+        curr = (current_workspace or "Default").strip()
+        src_type = source_info.get("source_type", "source")
+        src_val = source_info.get("source_val", "")
+        display_name = os.path.basename(src_val) if src_type == "folder" else src_val
+
+        items = [
+            OptionItemSchema(
+                id=f"confirm_delete_src_yes__{src_type}__{src_val}",
+                title=f"🗑️ Yes, remove '{display_name}' from '{curr}'",
+                description=f"Remove this {src_type} source and its associated chunks from workspace '{curr}'.",
+                icon="🗑️",
+                badge="[Permanent Action]",
+                is_active=False,
+                metadata={"source_type": src_type, "source_val": src_val, "workspace": curr, "confirmed": True}
+            ),
+            OptionItemSchema(
+                id="confirm_delete_src_cancel",
+                title=f"🔙 Cancel (Keep '{display_name}')",
+                description="Do not remove source, keep all data intact.",
+                icon="🔙",
+                badge="[Safe]",
+                is_active=True,
+                metadata={"source_type": src_type, "source_val": src_val, "workspace": curr, "confirmed": False}
+            )
+        ]
+
+        return OptionsGroupSchema(
+            type="confirm_delete_source",
+            title=f"⚠️ Remove {src_type.capitalize()} Source '{display_name}'?",
+            description=f"Confirm removing '{src_val}' from workspace '{curr}':",
+            active_id="confirm_delete_src_cancel",
+            items=items
+        )
+
+    def execute_delete_source_option(self, option_id: str, current_workspace: str = "Default", metadata: Optional[Dict[str, Any]] = None) -> MenuActionResult:
+        """Handles selecting or confirming source removal."""
+        source_svc = SourceService(store=self.store)
+        curr = (current_workspace or "Default").strip()
+        clean_id = (option_id or "").strip()
+
+        if clean_id in ["cancel_delete_source", "confirm_delete_src_cancel", "cancel", "no_sources"]:
+            return MenuActionResult(
+                success=True,
+                message="⚠️ Source removal cancelled.",
+                state_updates={"action": "none"}
+            )
+
+        if clean_id.startswith("delete_src_"):
+            parts = clean_id.split("__", 1)
+            if len(parts) == 2:
+                src_type_part = parts[0].replace("delete_src_", "")
+                src_val = parts[1]
+                src_info = {"source_type": src_type_part, "source_val": src_val, "workspace": curr}
+                return MenuActionResult(
+                    success=True,
+                    message=f"⚠️ Confirm removal of source '{src_val}'",
+                    action="open_confirm_delete_source_modal",
+                    state_updates={"source_info": src_info}
+                )
+
+        if clean_id.startswith("confirm_delete_src_yes__"):
+            raw = clean_id.replace("confirm_delete_src_yes__", "")
+            parts = raw.split("__", 1)
+            if len(parts) == 2:
+                src_type = parts[0]
+                src_val = parts[1]
+                try:
+                    if src_type == "folder":
+                        source_svc.remove_folder(workspace=curr, folder_path=src_val)
+                    elif src_type == "web":
+                        source_svc.remove_web(workspace=curr, url=src_val)
+                    else:
+                        source_svc.unlink_source(source_identifier=src_val, target_workspace=curr)
+
+                    # Also purge chunks from LanceDB
+                    try:
+                        from any_context.vector_engine.store import LanceDBStore
+                        lancedb_store = LanceDBStore.get_instance()
+                        lancedb_store.delete_by_file(file_path=src_val, workspace_name=curr)
+                    except Exception:
+                        pass
+
+                    return MenuActionResult(
+                        success=True,
+                        message=f"🗑️ Successfully removed {src_type} source **{src_val}** from workspace **{curr}**.",
+                        action="delete_source_success",
+                        state_updates={"action": "none"}
+                    )
+                except Exception as e:
+                    return MenuActionResult(
+                        success=False,
+                        message=f"❌ Failed to remove source: {str(e)}",
+                        error="delete_source_failed"
+                    )
+
+        return MenuActionResult(success=False, message="⚠️ Unknown source delete option.", error="unknown_option")
+
