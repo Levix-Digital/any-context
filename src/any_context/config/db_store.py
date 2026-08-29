@@ -366,7 +366,7 @@ class ConfigDBStore:
         self._init_db()
 
     def ensure_default_workspace(self):
-        """Ensures that 'Default', 'Global', and 'Shared Sources' system workspaces exist for instant onboarding, compliance, and reusable libraries."""
+        """Ensures that 'Default' and 'Shared Sources' system workspaces exist for instant onboarding, compliance, and reusable libraries."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -379,14 +379,7 @@ class ConfigDBStore:
                         "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
                         ("ws_default", "Default", json.dumps([default_path]))
                     )
-                # 2. Ensure Global workspace
-                cursor.execute("SELECT id FROM workspaces WHERE name = 'Global' COLLATE NOCASE")
-                if not cursor.fetchone():
-                    cursor.execute(
-                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
-                        ("ws_global", "Global", json.dumps([]))
-                    )
-                # 3. Ensure Shared Sources library workspace
+                # 2. Ensure Shared Sources library workspace
                 cursor.execute("SELECT id FROM workspaces WHERE name = 'Shared Sources' COLLATE NOCASE")
                 if not cursor.fetchone():
                     cursor.execute(
@@ -415,7 +408,7 @@ class ConfigDBStore:
                 ws_id = row["workspace_id"]
                 if not ws_id:
                     lname = row["name"].strip().lower()
-                    ws_id = "ws_default" if lname == "default" else ("ws_global" if lname == "global" else ("ws_shared_sources" if lname == "shared sources" else f"ws_{uuid.uuid4().hex[:8]}"))
+                    ws_id = "ws_default" if lname == "default" else ("ws_shared_sources" if lname == "shared sources" else f"ws_{uuid.uuid4().hex[:8]}")
                     cursor.execute("UPDATE workspaces SET workspace_id = ? WHERE id = ?", (ws_id, row["id"]))
                     conn.commit()
                 return {
@@ -446,7 +439,7 @@ class ConfigDBStore:
         clean_name = name.strip()
         clean_paths = [os.path.abspath(p.strip().strip("'\"")) for p in paths if p and p.strip()]
         lname = clean_name.lower()
-        ws_id = workspace_id or ("ws_default" if lname == "default" else ("ws_global" if lname == "global" else ("ws_shared_sources" if lname == "shared sources" else f"ws_{uuid.uuid4().hex[:8]}")))
+        ws_id = workspace_id or ("ws_default" if lname == "default" else ("ws_shared_sources" if lname == "shared sources" else f"ws_{uuid.uuid4().hex[:8]}"))
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -514,12 +507,12 @@ class ConfigDBStore:
     def remove_workspace(self, workspace_name: str) -> bool:
         """Deletes a workspace entry and all its associated source records completely from SQLite."""
         clean_ws = workspace_name.strip()
-        if clean_ws.lower() in ["default", "global", "shared sources"]:
+        if clean_ws.lower() in ["default", "shared sources"]:
             return False
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM workspaces WHERE name = ? AND LOWER(name) NOT IN ('default', 'global', 'shared sources')", (clean_ws,))
+            cursor.execute("DELETE FROM workspaces WHERE name = ? AND LOWER(name) NOT IN ('default', 'shared sources')", (clean_ws,))
             deleted_count = cursor.rowcount
             try:
                 cursor.execute("DELETE FROM workspace_folders WHERE workspace_name = ?", (clean_ws,))
@@ -751,9 +744,9 @@ class ConfigDBStore:
             return {"success": False, "error": "New workspace name cannot be empty."}
         if old_ws == new_ws:
             return {"success": False, "error": "New workspace name must be different from current name."}
-        if old_ws.lower() in ["default", "global", "shared sources"]:
+        if old_ws.lower() in ["default", "shared sources"]:
             return {"success": False, "error": f"Workspace '{old_ws}' is a protected system workspace and cannot be renamed."}
-        if new_ws.lower() in ["default", "global", "shared sources"]:
+        if new_ws.lower() in ["default", "shared sources"]:
             return {"success": False, "error": f"Cannot rename to protected system workspace '{new_ws}'."}
 
         # 1. Update SQLite tables atomically

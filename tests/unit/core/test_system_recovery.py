@@ -54,9 +54,8 @@ class Test10SystemLifecycleRecovery(unittest.TestCase):
 
         workspaces_after = store.get_app_settings().workspaces
         ws_after_names = [w.name for w in workspaces_after]
-        self.assertEqual(len(workspaces_after), 3, "Factory reset must restore Default, Global, and Shared Sources workspaces")
+        self.assertEqual(len(workspaces_after), 2, "Factory reset must restore Default and Shared Sources workspaces")
         self.assertIn("Default", ws_after_names)
-        self.assertIn("Global", ws_after_names)
         self.assertIn("Shared Sources", ws_after_names)
 
         api_key_after = store.get_api_key("openai")

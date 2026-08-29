@@ -116,9 +116,9 @@ class TestLanceDBStore(unittest.TestCase):
         self.assertEqual(self.store.count_records(workspace_name="Immigration"), 0)
 
         # Zero-cost transfer
-        transferred = self.store.transfer_file("Immigration_CA", "Global", "/docs/Regras_Menores.pdf")
+        transferred = self.store.transfer_file("Immigration_CA", "Shared Sources", "/docs/Regras_Menores.pdf")
         self.assertEqual(transferred, 1)
-        self.assertEqual(self.store.count_records(workspace_name="Global"), 1)
+        self.assertEqual(self.store.count_records(workspace_name="Shared Sources"), 1)
 
         # Delete by workspace
         self.store.delete_by_workspace("IT_Dept")

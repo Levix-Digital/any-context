@@ -51,13 +51,13 @@ class WorkspaceService:
 
     def delete_workspace(self, name: str) -> Dict[str, Any]:
         """
-        Deletes a workspace. Protects system workspaces ('Default', 'Global', 'Shared Sources').
+        Deletes a workspace. Protects system workspaces ('Default', 'Shared Sources').
         """
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("Workspace name cannot be empty.")
 
-        protected = ["default", "global", "shared sources"]
+        protected = ["default", "shared sources"]
         if clean_name.lower() in protected:
             raise ValueError(f"Cannot delete protected system workspace '{clean_name}'.")
 
@@ -80,7 +80,7 @@ class WorkspaceService:
         if old_clean.lower() == new_clean.lower():
             return {"renamed": False, "name": old_clean, "message": "New name is identical to current name."}
 
-        protected = ["default", "global", "shared sources"]
+        protected = ["default", "shared sources"]
         if old_clean.lower() in protected:
             raise ValueError(f"Cannot rename protected system workspace '{old_clean}'.")
 

@@ -22,7 +22,7 @@ class TestCLISafeTerminal(unittest.TestCase):
             "🚀 Processing and indexing 250 web pages into workspace 'Default'...",
             "⠋ [1/2 Crawling] [██████████████] 250/250 (100%) • 250 new • Canada.ca",
             "✔ Successfully ingested 250 web pages (6,604,334 chars) into workspace 'Default'!",
-            "🧹 Screen cleared | Workspace: Global | Model: gpt-4o-mini"
+            "🧹 Screen cleared | Workspace: Default | Model: gpt-4o-mini"
         ]
         for s in test_strings:
             try:

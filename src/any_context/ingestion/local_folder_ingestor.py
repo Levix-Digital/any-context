@@ -91,7 +91,7 @@ def run_index_folder(
         return {"status": "error", "error": "No workspaces configured."}
 
     store = ConfigDBStore()
-    target_ws_name = workspace_name or (current_settings.workspaces[0].name if current_settings.workspaces else "Global")
+    target_ws_name = workspace_name or (current_settings.workspaces[0].name if current_settings.workspaces else "Default")
     db_save_path = current_settings.context.db_path if (current_settings and current_settings.context) else "./context_db"
     lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
 

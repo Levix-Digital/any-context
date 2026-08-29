@@ -344,7 +344,7 @@ class AnyContextE2ETestSuite(unittest.TestCase):
             "🔍 [Search] Searching strictly within Workspace: 'Default' (top 8 chunks)...",
             "✔ Successfully ingested 250 web pages (6,604,334 chars) into workspace 'Default'!",
             "⠋ [2/2 Embedding] [██████████████] 250/250 pages (100%) • Vector Knowledge Base",
-            "🧹 Screen cleared | Workspace: Global | Model: gpt-4o-mini"
+            "🧹 Screen cleared | Workspace: Default | Model: gpt-4o-mini"
         ]
 
         for s in test_unicode_strings:
