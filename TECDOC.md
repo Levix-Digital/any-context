@@ -813,6 +813,16 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - TypeScript `tuiLog` records all process spawn arguments, exit codes, and Stdio NDJSON events directly to `%LOCALAPPDATA%\AnyContext\logs\tui_debug.log` or `~/.local/share/any-context/logs/tui_debug.log`.
 - Added native CLI inspection commands `actx --diagnostics` / `actx --diag` (health checkup) and `actx --logs` (chronological timeline view).
 
+---
+
+## 29. PyInstaller Child Process Isolation & RPC Security Patch (`v0.28.59`)
+
+### 🛡️ 1. Elimination of `[PYI-16540:ERROR]` Security Validation Failure
+- **Root Cause**: When PyInstaller onefile standalone binary `actx.exe` launches `bun` (`chat_loop.py`), child processes inherited internal PyInstaller environment variables (`_PYI_PARENT_PROCESS_COOKIE`, `_PYI_APPLICATION_HOME_DIR`, `_PYI_ARCHIVE_FILE`, `_MEIPASS2`). When `bun` subsequently invoked `actx.exe --rpc`, PyInstaller's C bootloader compared the parent process binary (`bun.exe`) with the cookie and aborted with code 255.
+- **Resolution**: Implemented comprehensive environment sanitization in both Python (`chat_loop.py`) and TypeScript (`bridge-client.ts`) filtering all keys matching `_mei*`, `_pyi*`, `pyi*`, `*meipass*`, and `*pyinstaller*`.
+- **Result**: Enables clean standalone sub-process execution for the Stdio RPC Bridge across all parent orchestrators.
+
+
 
 
 

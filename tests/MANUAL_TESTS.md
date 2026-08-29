@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.58): Validação de Observabilidade Nativa e Diagnóstico do RPC Bridge (`actx --diagnostics` / `actx --logs`)
+### 📌 Cenário 1 (v0.28.59): Validação da Comunicação RPC Stdio & Onboarding no OpenTUI (`actx --tui`)
 
-- **Objetivo**: Comprovar que o módulo `any_context.observability` grava todos os eventos de ciclo de vida no SQLite e no disco (`tui_debug.log`), e que os comandos `actx --diagnostics` e `actx --logs` formatam o estado de integridade com precisão.
-- **Pré-requisito**: Versão `v0.28.58` ou superior.
+- **Objetivo**: Comprovar que a sanitização estrita de variáveis de ambiente do PyInstaller (`_pyi*`, `_mei*`, `meipass`) elimina o erro de segurança C `[PYI-16540:ERROR]`, permitindo que o processo RPC suba e abra o modal de Onboarding instantaneamente no `actx --tui`.
+- **Pré-requisito**: Versão `v0.28.59` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 

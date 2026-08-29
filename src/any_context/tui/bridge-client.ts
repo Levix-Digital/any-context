@@ -95,7 +95,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.58",
+    version: "0.28.59",
     workspace: "Default",
     model: "...",
     model_display: "...",
@@ -175,19 +175,27 @@ export class BridgeClient {
       }
     }
 
+    const isPyiVar = (k: string): boolean => {
+      const lk = k.toLowerCase();
+      return (
+        lk.startsWith("_mei") ||
+        lk.startsWith("_pyi") ||
+        lk.startsWith("pyi") ||
+        lk.includes("meipass") ||
+        lk.includes("pyinstaller")
+      );
+    };
+
     const childEnv: Record<string, string> = {};
     for (const [key, value] of Object.entries(process.env)) {
-      if (value !== undefined) {
-        const lowerKey = key.toLowerCase();
-        if (!lowerKey.startsWith("_mei") && !lowerKey.startsWith("pyi_") && !lowerKey.includes("meipass")) {
-          childEnv[key] = value;
-        }
+      if (value !== undefined && !isPyiVar(key)) {
+        childEnv[key] = value;
       }
     }
     if (childEnv.PATH) {
       const separator = process.platform === "win32" ? ";" : ":";
       childEnv.PATH = childEnv.PATH.split(separator)
-        .filter((p) => !p.toLowerCase().includes("_mei") && !p.toLowerCase().includes("pyi"))
+        .filter((p) => !isPyiVar(p))
         .join(separator);
     }
     const pythonPaths: string[] = [];
