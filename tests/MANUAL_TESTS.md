@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.59): Validação da Comunicação RPC Stdio & Onboarding no OpenTUI (`actx --tui`)
+### 📌 Cenário 1 (v0.28.60): Validação de Inicialização Instantânea do RPC e Feedback Visual de Carregamento (`actx --tui`)
 
-- **Objetivo**: Comprovar que a sanitização estrita de variáveis de ambiente do PyInstaller (`_pyi*`, `_mei*`, `meipass`) elimina o erro de segurança C `[PYI-16540:ERROR]`, permitindo que o processo RPC suba e abra o modal de Onboarding instantaneamente no `actx --tui`.
-- **Pré-requisito**: Versão `v0.28.59` ou superior.
+- **Objetivo**: Comprovar que a eliminação de imports pesados no boot do `rpc_bridge.py` acelera a inicialização do backend, que o indicador visual `⏳ Initializing AnyContext AI Core & Onboarding Setup...` fornece feedback imediato durante o aquecimento, e que a barra superior exibe exatamente um ícone de tier sem duplicação (`🌿 Community Edition`).
+- **Pré-requisito**: Versão `v0.28.60` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 

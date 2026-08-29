@@ -822,6 +822,19 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - **Resolution**: Implemented comprehensive environment sanitization in both Python (`chat_loop.py`) and TypeScript (`bridge-client.ts`) filtering all keys matching `_mei*`, `_pyi*`, `pyi*`, `*meipass*`, and `*pyinstaller*`.
 - **Result**: Enables clean standalone sub-process execution for the Stdio RPC Bridge across all parent orchestrators.
 
+---
+
+## 30. RPC Bridge Startup Optimization, Visual Loading Feedback & UI Polish (`v0.28.60`)
+
+### ⚡ 1. Sub-Second RPC Bridge Boot Acceleration
+- **Elimination of Top-Level Heavy Imports**: Stripped all unused imports in `src/any_context/server/rpc_bridge.py` (`llama_index`, `local_folder_ingestor`, `ParallelIndexer`, heavy service dispatchers).
+- **Lazy Module Ingestion**: Deferred `BackgroundSyncManager` resolution inside `get_state()` so heavy vector databases are never initialized during bootstrap.
+
+### 🎨 2. Visual Loading Indicator & Header Polish
+- **Real-Time Boot Feedback**: Added `isBackendReady` reactive state in OpenTUI (`app.tsx`, `chat-view.tsx`, `chat-message-list.tsx`), displaying `⏳ Initializing AnyContext AI Core & Onboarding Setup...` and disabling input interaction until backend handshake is completed.
+- **Header Emoji Normalization**: Cleaned tier string rendering in `header-bar.tsx` to prevent duplicate emoji formatting (`🌿 Community Edition`).
+
+
 
 
 

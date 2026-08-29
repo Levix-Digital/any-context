@@ -26,6 +26,7 @@ interface ChatViewProps {
   modalIndex: number;
   commands: SlashCommandMeta[];
   isGenerating: boolean;
+  isBackendReady?: boolean;
   onInputChange: (val: string) => void;
   onSubmit: (text?: string) => void;
   scrollBoxRef?: any;
@@ -44,6 +45,7 @@ export const ChatView = ({
   modalIndex,
   commands,
   isGenerating,
+  isBackendReady = true,
   onInputChange,
   onSubmit,
   scrollBoxRef,
@@ -54,7 +56,7 @@ export const ChatView = ({
       <HeaderBar state={state} hasMessages={messages.length > 0} />
 
       {/* Main Chat Message View with 100% full-screen flex layout */}
-      <ChatMessageList ref={scrollBoxRef} messages={messages} state={state} />
+      <ChatMessageList ref={scrollBoxRef} messages={messages} state={state} isBackendReady={isBackendReady} />
 
       {/* Unified Interactive Modal (Options list or Hierarchical Config Menu) */}
       <InteractiveModal
@@ -79,9 +81,11 @@ export const ChatView = ({
         value={inputValue}
         onChange={onInputChange}
         onSubmit={onSubmit}
-        disabled={isGenerating || modalOpen}
+        disabled={!isBackendReady || isGenerating || modalOpen}
         placeholder={
-          modalOpen
+          !isBackendReady
+            ? "⏳ Initializing AnyContext backend runtime..."
+            : modalOpen
             ? "Modal active: Use [↑/↓] to navigate options, [Enter] to select, [Esc] to close"
             : undefined
         }

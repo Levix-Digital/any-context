@@ -18,9 +18,7 @@ for _log_name in ["llama_index", "chromadb", "httpx", "httpcore", "urllib3", "op
 
 from any_context import __version__
 from any_context.config.db_store import ConfigDBStore
-from any_context.core.models_catalog import get_available_models, validate_model_key_availability
-from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager, check_workspace_changes
-from any_context.commands import COMMANDS_REGISTRY, dispatch_command
+from any_context.commands.registry import COMMANDS_REGISTRY
 
 
 def _send_ndjson(data: Dict[str, Any]):
@@ -73,6 +71,7 @@ class StdioRPCServer:
         sync_info = "Up to date"
         is_syncing = False
         try:
+            from any_context.ingestion.orchestrator import BackgroundSyncManager
             bg_mgr = BackgroundSyncManager()
             if bg_mgr.is_syncing(self.active_workspace):
                 sync_info = bg_mgr.format_progress_bar(self.active_workspace, width=8)
