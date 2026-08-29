@@ -1764,17 +1764,23 @@ def launch_opentui(workspace: str = "Default") -> bool:
 
     try:
         # Sanitize ALL PyInstaller bootloader internal variables to prevent child process security validation failure
-        env = {}
-        for k, v in os.environ.items():
-            lower_k = k.lower()
-            if not lower_k.startswith("_mei") and not lower_k.startswith("pyi_") and "meipass" not in lower_k:
-                env[k] = v
+        def _is_pyi_var(k: str) -> bool:
+            lk = k.lower()
+            return (
+                lk.startswith("_mei")
+                or lk.startswith("_pyi")
+                or lk.startswith("pyi")
+                or "meipass" in lk
+                or "pyinstaller" in lk
+            )
+
+        env = {k: v for k, v in os.environ.items() if not _is_pyi_var(k)}
 
         # Prepend Linux/Windows bun directory to PATH in child process
         bun_dir = os.path.dirname(bun_bin)
         if "PATH" in env:
             paths = env["PATH"].split(os.pathsep)
-            clean_paths = [p for p in paths if "_mei" not in p.lower() and "pyi" not in p.lower()]
+            clean_paths = [p for p in paths if not _is_pyi_var(p)]
             if bun_dir not in clean_paths:
                 clean_paths.insert(0, bun_dir)
             env["PATH"] = os.pathsep.join(clean_paths)
