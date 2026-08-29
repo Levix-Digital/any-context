@@ -57,7 +57,7 @@ class ParallelRetriever:
                     targets.append((ws, max(10, cfg.candidate_pool_k // 2)))
 
         if not targets:
-            targets.append(("Global", cfg.candidate_pool_k))
+            targets.append(("Default", cfg.candidate_pool_k))
 
         raw_candidates: List[ScoredChunk] = []
 

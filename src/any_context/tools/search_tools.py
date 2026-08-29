@@ -188,11 +188,6 @@ def _execute_search_context(
         effective_top_k = max(top_k, configured_top_k) if top_k else configured_top_k
         candidate_k = max(candidate_pool_size, effective_top_k * 2)
         min_score = 0.40
-        try:
-            from any_context.help.bootstrap import ensure_system_knowledge_indexed
-            ensure_system_knowledge_indexed(db_path=folder_db_path)
-        except Exception:
-            pass
 
     lance_store = LanceDBStore.get_instance(db_path=target_db_path)
     total_records = lance_store.count_records(table_name=table_name)
@@ -203,21 +198,6 @@ def _execute_search_context(
 
     config_store = ConfigDBStore()
     target_workspaces = [workspace] if workspace else ["Default"]
-    if workspace and workspace.lower() == "global":
-        target_workspaces = ["Global"]
-    else:
-        # Only include Global (System Help) if the query is actually asking about AnyContext commands/features
-        q_lower = prompt_text.strip().lower()
-        is_help_intent = q_lower.startswith("/") or any(k in q_lower for k in [
-            "anycontext", "actx", "command", "comando", "slash", "ajuda", "help", "manual",
-            "como usar", "how to use", "como mover", "como transferir", "como adicionar", "como sincronizar",
-            "transfer", "transferir", "mover", "sync", "sincronizar", "workspace", "model", "modelo",
-            "config", "configurar", "billing", "plano", "plans", "key", "chave", "api key",
-            "grounding", "mode", "history", "historico", "reset", "update", "atualizar",
-            "link", "unlink", "inspect", "chunks", "ocr"
-        ])
-        if is_help_intent and "Global" not in target_workspaces:
-            target_workspaces.append("Global")
 
     shared_links = config_store.get_workspace_shared_links(workspace) if workspace else []
     linked_identifiers = [l["source_identifier"] for l in shared_links]

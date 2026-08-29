@@ -259,18 +259,18 @@ class TestWorkspaceSources(unittest.TestCase):
 
         # 4. Verify removed
         settings_after = self.store.get_app_settings()
-        deletable_after = [w.name for w in settings_after.workspaces if w.name.lower() not in ["default", "global"]]
+        deletable_after = [w.name for w in settings_after.workspaces if w.name.lower() not in ["default", "shared sources"]]
         self.assertNotIn("all", deletable_after)
         safe_stdout_write("  [OK] Workspace lifecycle and deletion discovery verified!\n")
 
-    def test_09_global_workspace_and_shared_sources_linking(self):
-        """Validates Global workspace provisioning, Shared Sources linking, listing and unlinking."""
-        safe_stdout_write(">>> [UNIT] Testing Global Workspace & Shared Sources Linking...\n")
-        # 1. Ensure default and global
+    def test_09_shared_sources_linking(self):
+        """Validates Shared Sources provisioning, linking, listing and unlinking."""
+        safe_stdout_write(">>> [UNIT] Testing Shared Sources Linking...\n")
+        # 1. Ensure default and shared sources
         self.store.ensure_default_workspace()
-        meta_global = self.store.get_workspace_meta("Global")
-        self.assertIsNotNone(meta_global)
-        self.assertEqual(meta_global["workspace_id"], "ws_global")
+        meta_shared = self.store.get_workspace_meta("Shared Sources")
+        self.assertIsNotNone(meta_shared)
+        self.assertEqual(meta_shared["workspace_id"], "ws_shared_sources")
 
         # 2. Add an origin source in workspace 'Shared Sources'
         folder_shared = os.path.join(self.temp_dir, "shared_framework")
@@ -308,7 +308,7 @@ class TestWorkspaceSources(unittest.TestCase):
         self.assertTrue(unlinked)
         target_sources_after = self.store.get_workspace_sources(ws_target)
         self.assertEqual(target_sources_after["total_sources"], 0)
-        safe_stdout_write("  [OK] Global Workspace & Shared Sources linking verified!\n")
+        safe_stdout_write("  [OK] Shared Sources linking verified!\n")
 
     def test_10_attach_and_broadcast_source_modular_core(self):
         """Validates attach_and_broadcast_source modular core API attaching to primary and linking to multiple targets."""

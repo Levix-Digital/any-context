@@ -19,7 +19,7 @@ def get_workspace_history_file(workspace_name: Optional[str]) -> str:
     Returns the absolute path to the .history file for a given workspace.
     Sanitizes workspace names to prevent filesystem collision or invalid characters.
     """
-    ws = (workspace_name or "Global").strip()
+    ws = (workspace_name or "Default").strip()
     safe_name = "".join(c if (c.isalnum() or c in ("-", "_")) else "_" for c in ws)
     return os.path.join(get_history_dir(), f"{safe_name}.history")
 
@@ -137,7 +137,7 @@ class WorkspaceHistoryManager:
         self._sessions: Dict[str, Any] = {}
 
     def get_session(self, workspace_name: Optional[str]):
-        ws = (workspace_name or "Global").strip()
+        ws = (workspace_name or "Default").strip()
         if ws in self._sessions:
             return self._sessions[ws]
 

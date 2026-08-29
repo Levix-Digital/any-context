@@ -28,31 +28,26 @@
 
 ---
 
-## 1. System Architecture & 3-Tier Context Model
+## 1. System Architecture & 2-Tier Clean Context Model
 
 AnyContext implements a fully modular, decoupled architecture designed for local-first execution, enterprise privacy, and zero data leakage.
 
-### 🏛️ The 3-Tier AI Context Hierarchy
-To eliminate redundant re-indexing and guarantee multi-department data isolation, AnyContext organizes context into three distinct tiers:
+### 🏛️ The 2-Tier Clean AI Context Hierarchy (Zero Context Pollution)
+To eliminate redundant re-indexing, prevent context pollution, and guarantee multi-project data isolation, AnyContext organizes context into two explicit, predictable tiers:
 
-1. **🏢 Institutional Global Knowledge Base (`Global`)**:
-   - Organization-wide knowledge base curatable by system administrators.
-   - Automatically inherited and queried across all authorized project workspaces during RAG retrieval.
-2. **📦 Reusable Shared Sources Library (`Shared Sources`)**:
+1. **📦 Reusable Shared Sources Library (`Shared Sources`)**:
    - Dedicated central library workspace for reusable frameworks, technical codebases, and web documentation portals.
-   - **Zero-Cost Source Linking**: Any project workspace can link an existing indexed source in `< 50ms` with **$0.00 in embedding API costs** via `/link` or the REST API.
-   - LanceDB columnar vector datasets and SQLite metadata are referenced dynamically without physical duplication.
-3. **📁 Scoped Project Workspaces**:
+   - **Zero-Cost Explicit Source Linking**: Any project workspace can link an existing indexed source in `< 50ms` with **$0.00 in embedding API costs** via `/link` or the REST API.
+   - LanceDB columnar vector datasets and SQLite metadata are referenced dynamically without physical duplication or background context leakage.
+2. **📁 Scoped Project Workspaces**:
    - Isolated contextual boundaries guaranteeing zero cross-project data leakage.
    - Workspaces can exist as empty logical scopes (ideal for documentation portals, market research, or agent tasks) before attaching local folders or web URLs.
 
 ```mermaid
 graph TD
-    subgraph "🏛️ 3-Tier Context Hierarchy"
-        A["🏢 Institutional Global (Global)"] --> D["📁 Project Workspace A (Legal)"]
-        A --> E["📁 Project Workspace B (Engineering)"]
-        B["📦 Reusable Shared Sources (Frameworks, Docs)"] -.->|Zero-Cost Link < 50ms ($0.00)| D
-        B -.->|Zero-Cost Link < 50ms ($0.00)| E
+    subgraph "🏛️ 2-Tier Context Hierarchy"
+        B["📦 Reusable Shared Sources (Frameworks, Docs)"] -.->|Explicit Zero-Cost Link < 50ms ($0.00)| D["📁 Project Workspace A (Legal)"]
+        B -.->|Explicit Zero-Cost Link < 50ms ($0.00)| E["📁 Project Workspace B (Engineering)"]
     end
 ```
 
@@ -863,7 +858,20 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - **Dynamic Source Selector & Confirmation**: Added `get_delete_source_options`, `get_confirm_delete_source_options`, and `execute_delete_source_option` in `options_engine.py`, querying `SourceService.list_sources()` and generating an interactive list of folders, web portals, and cloud drives with instant deletion in SQLite and vector chunk pruning in LanceDB.
 - **Input Prefill Protocol**: Submenu items requiring text input (such as `/key <provider>`, `/add`, `/web`, `/switch`, `/rename`, `/factory-reset`) prefill the user's input line and dismiss modals gracefully.
 - **Hierarchical Esc Navigation**: Preserved parent menu history so pressing `Esc` inside options or source selector sub-modals cleanly returns to the parent submenu.
-- **Universal Cross-Platform & WSL Path Resolution (`resolve_folder_path`)**: Automatically converts Windows drive paths (`G:\My Drive\...`) when executing inside WSL/Linux environments to `/mnt/g/My Drive/...` (and vice-versa), expands `~` user home paths and `%ENV_VAR%` / `$ENV_VAR`, strips trailing/leading quotes, and unifies multi-token unquoted paths with spaces.
+---
+
+## 34. Holistic Removal of Global Workspace & 2-Tier Clean Context Architecture (`v0.28.64`)
+
+### 🧼 1. Architectural Motivation (Zero Context Pollution ADR)
+- **Problem**: Maintaining a background `Global` workspace alongside `Shared Sources` introduced duplicate concepts, cognitive overhead for users, and a critical risk of *Context Pollution* (where institutional files or system documents inadvertently competed with project-specific workspace files during RAG vector retrieval).
+- **Solution**: Completely removed `Global` from all system provisioning, database stores, and vector search routines. The architecture now operates strictly on a clean **2-Tier Model**:
+  1. **Project Workspaces**: 100% isolated, private contextual boundaries.
+  2. **Shared Sources Library**: Central repository of reusable frameworks, libraries, and web portals linked explicitly into target workspaces on demand via `/link` ($0.00 zero-cost linking).
+
+### ⚙️ 2. Core Implementation & Parity
+- **Database & System Workspaces (`ConfigDBStore`)**: `ensure_default_workspace()` now provisions strictly `Default` and `Shared Sources`. Protected workspace safeguards prevent accidental deletion or renaming of `Default` and `Shared Sources`.
+- **Parallel Vector Retrieval (`ParallelRetriever` & `_execute_search_context`)**: Removed `is_help_intent` keyword heuristics and implicit `Global` target workspace injection. Searches execute exclusively across the active workspace and explicitly linked shared sources. Fallback workspace defaults to `Default`.
+- **System Documentation**: Removed artificial indexing of system help into vector partitions; AnyContext commands and capabilities are natively understood via built-in system prompt knowledge and the interactive `/help` registry.
 
 
 

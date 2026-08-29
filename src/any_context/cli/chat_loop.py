@@ -489,7 +489,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                 from any_context.cli.banner import clear_terminal
                 clear_terminal()
                 print_banner()
-                safe_stdout_write(f"🧹 Screen cleared | Workspace: \033[93m{active_workspace or 'Global'}\033[0m | Model: \033[95m{current_model}\033[0m\n\n")
+                safe_stdout_write(f"🧹 Screen cleared | Workspace: \033[93m{active_workspace or 'Default'}\033[0m | Model: \033[95m{current_model}\033[0m\n\n")
                 continue
 
             elif cmd == "/switch" or cmd.startswith("/switch ") or cmd == "/workspace" or cmd.startswith("/workspace "):
@@ -723,9 +723,9 @@ def run_chat_loop(active_workspace: str = "Default"):
                 store = ConfigDBStore()
                 if len(parts) < 3 or (len(parts) > 1 and parts[1].lower() == "rename" and len(parts) < 4):
                     settings = store.get_app_settings()
-                    known_workspaces = [w.name for w in settings.workspaces if w.name.lower() not in ["default", "global", "shared sources"]] if settings else []
+                    known_workspaces = [w.name for w in settings.workspaces if w.name.lower() not in ["default", "shared sources"]] if settings else []
                     if not known_workspaces:
-                        safe_stdout_write("\n⚠️ No custom workspaces configured to rename ('Default', 'Global', and 'Shared Sources' are protected system workspaces).\n\n")
+                        safe_stdout_write("\n⚠️ No custom workspaces configured to rename ('Default' and 'Shared Sources' are protected system workspaces).\n\n")
                         continue
                     old_ws = questionary.select("Select Workspace to rename:", choices=known_workspaces).ask()
                     if not old_ws:
@@ -1421,9 +1421,9 @@ def run_chat_loop(active_workspace: str = "Default"):
                     from any_context.cli.history import clear_workspace_history
                     cleared = clear_workspace_history(active_workspace)
                     if cleared:
-                        print(f"\n🧹 Input history cleared for workspace '\033[93m{active_workspace or 'Global'}\033[0m'!\n")
+                        print(f"\n🧹 Input history cleared for workspace '\033[93m{active_workspace or 'Default'}\033[0m'!\n")
                     else:
-                        print(f"\n⚠️ Could not clear history for workspace '{active_workspace or 'Global'}'.\n")
+                        print(f"\n⚠️ Could not clear history for workspace '{active_workspace or 'Default'}'.\n")
                     continue
 
                 limit = 20
@@ -1437,7 +1437,7 @@ def run_chat_loop(active_workspace: str = "Default"):
 
                 from any_context.cli.history import get_workspace_history_entries
                 entries = get_workspace_history_entries(active_workspace, limit=limit)
-                print(f"\n📜 Recent Input History for Workspace '\033[93m{active_workspace or 'Global'}\033[0m' ({len(entries)} entries):")
+                print(f"\n📜 Recent Input History for Workspace '\033[93m{active_workspace or 'Default'}\033[0m' ({len(entries)} entries):")
                 if not entries:
                     print("  (No previous inputs recorded for this workspace. Use ↑ / ↓ arrow keys as you chat)")
                 else:
@@ -1535,7 +1535,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                 else:
                     ws_detail = store.get_workspace_sources(active_workspace)
                     src_count = f" ({ws_detail['total_sources']} sources)" if ws_detail.get('total_sources', 0) > 0 else " (Empty)"
-                    print(f"\n📂 Sources for Active Workspace '\033[93m{active_workspace or 'Global'}\033[0m'{src_count}:")
+                    print(f"\n📂 Sources for Active Workspace '\033[93m{active_workspace or 'Default'}\033[0m'{src_count}:")
                     for s in ws_detail.get("sources", []):
                         stype = s.get("type", "")
                         if stype == "folder":

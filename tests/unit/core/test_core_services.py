@@ -46,7 +46,7 @@ class TestCoreServices(unittest.TestCase):
         with self.assertRaises(ValueError):
             svc.delete_workspace("Default")
         with self.assertRaises(ValueError):
-            svc.delete_workspace("Global")
+            svc.delete_workspace("Shared Sources")
 
         # Delete custom workspace
         self.store.remove_workspace.return_value = True

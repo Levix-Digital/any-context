@@ -822,7 +822,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "In Chat: /rename -h"
         ],
         tips=[
-            "Workspaces 'Default' and 'Global' are protected system workspaces and cannot be renamed or deleted.",
+            "Workspaces 'Default' and 'Shared Sources' are protected system workspaces and cannot be renamed or deleted.",
             "Renaming executes atomically in sub-50ms regardless of how many thousands of document chunks exist.",
             "Zero tokens are spent: vector embeddings are preserved without calling OpenAI/LLMs.",
             "RBAC user and token permissions cascade automatically, ensuring continuous access after renames."
@@ -1021,12 +1021,11 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         title="🔗 Cross-Workspace Shared Sources & Reusable Knowledge Linking",
         description=(
             "The /link and /shared commands allow you to reuse folders, web portals, and documentation configured in the central "
-            "'Shared Sources' library (or institutional 'Global') across multiple project workspaces with zero API embedding cost ($0.00) "
+            "'Shared Sources' library across multiple project workspaces with zero API embedding cost ($0.00) "
             "and instant attachment in under 50ms.\n\n"
-            "✨ 3-TIER CONTEXT ARCHITECTURE:\n"
-            "1. 🏢 Company Global ('Global'): Institutional knowledge automatically shared with authorized users.\n"
-            "2. 📦 Shared Sources Workspace ('Shared Sources'): Central repository of reusable frameworks, libraries, and web portals.\n"
-            "3. 📁 Project Workspaces: Isolated, private workspaces that link in reusable sources on-demand."
+            "✨ CONTEXT & LINKING ARCHITECTURE:\n"
+            "1. 📦 Shared Sources Workspace ('Shared Sources'): Central repository of reusable frameworks, libraries, and web portals.\n"
+            "2. 📁 Project Workspaces: Isolated, private workspaces that link in reusable sources on-demand without context pollution."
         ),
         syntax=(
             "In Chat (Interactive Link)     : /link\n"
@@ -1075,7 +1074,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "zero multi-portal monopolization, and prevention of the 'Lost in the Middle' attention degradation phenomenon.\n\n"
             "• Phase 1 (Deep Search): Parallel ChromaDB scan over a 100+ chunk candidate pool.\n"
             "• Phase 2 (Calibration): Source-Fair Round-Robin diversification injecting 15-20 high-density chunks.\n"
-            "• Multi-Threading: Parallel ThreadPoolExecutor querying across active, Shared Sources, and Global workspaces.\n"
+            "• Multi-Threading: Parallel ThreadPoolExecutor querying across active workspace and explicitly linked Shared Sources.\n"
             "• Historical Pruning: Compacts past turns' tool payloads to prevent 128k context overflow.\n"
             "• Auto-Retry: Resilient exponential backoff (max_retries=5) across all 9 LLM providers."
         ),

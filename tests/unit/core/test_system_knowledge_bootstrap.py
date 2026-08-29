@@ -60,38 +60,25 @@ class TestSystemKnowledgeBootstrap(unittest.TestCase):
         self.assertNotIn("TECDOC.md", doc.metadata.get("file_name", ""))
         print("  [OK] TECDOC.md is strictly excluded from public system knowledge!")
 
-    def test_03_ensure_system_knowledge_indexed_and_search_retrieval(self):
+    def test_03_strict_workspace_isolation_without_global_leak(self):
         """
-        Tests that ensure_system_knowledge_indexed writes into LanceDB and search_context retrieves Global chunks.
+        Tests that searching an empty workspace strictly returns no documents and never leaks unlinked data.
         """
-        print("\n>>> [UNIT] Testing Auto-Bootstrap & Command Query Retrieval...")
+        print("\n>>> [UNIT] Testing Strict Workspace Isolation Without Global Leak...")
         
-        # 1. Mock embedding generator
-        def mock_embed_batch(texts):
-            return [[0.05] * 1536 for _ in texts]
-
         def mock_query_embed(query):
             return [0.05] * 1536
 
-        with patch("any_context.vector_engine.indexer.ParallelIndexer._get_text_embeddings_batch", side_effect=mock_embed_batch):
-            with patch("any_context.vector_engine.retriever.ParallelRetriever._get_query_embedding", side_effect=mock_query_embed):
-                with patch("any_context.tools.search_tools.configure_embedding_model"):
-                    success = ensure_system_knowledge_indexed(db_path=self.db_path, force=True)
-                    self.assertTrue(success)
+        with patch("any_context.vector_engine.retriever.ParallelRetriever._get_query_embedding", side_effect=mock_query_embed):
+            with patch("any_context.tools.search_tools.configure_embedding_model"):
+                # Search in an empty workspace should return no documents found
+                res = _execute_search_context(
+                    prompt_text="como mover um web source de um workspace para outro",
+                    workspace="EmptyCustomWorkspace"
+                )
 
-                    records_count = self.lance_store.count_records(table_name="workspace_chunks")
-                    self.assertGreater(records_count, 0)
-
-                    # 2. Test _execute_search_context for '/transfer' or moving web sources in an empty workspace
-                    res = _execute_search_context(
-                        prompt_text="como mover um web source de um workspace para outro",
-                        workspace="EmptyCustomWorkspace"
-                    )
-
-                    self.assertIn("Source: AnyContext", res)
-                    self.assertIn("Workspace: Global", res)
-                    self.assertIn("transfer", res.lower())
-                    print("  [OK] System Help chunks retrieved across empty workspaces successfully!")
+                self.assertTrue("No documents found in vector database" in res or "No relevant documents found" in res)
+                print("  [OK] Strict workspace isolation verified without global leak!")
 
 
 if __name__ == "__main__":

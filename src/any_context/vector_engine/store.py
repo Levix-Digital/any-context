@@ -185,7 +185,7 @@ class LanceDBStore:
                     text=r_dec.get("text", ""),
                     file_name=r_dec.get("file_name", "Unknown"),
                     file_path=r_dec.get("file_path", ""),
-                    workspace=r_dec.get("workspace", "Global"),
+                    workspace=r_dec.get("workspace", "Default"),
                     score=similarity,
                     last_modified=r_dec.get("last_modified"),
                     content_type=r_dec.get("content_type", "Local Document"),
@@ -195,7 +195,7 @@ class LanceDBStore:
                     metadata={
                         "file_name": r_dec.get("file_name", "Unknown"),
                         "file_path": r_dec.get("file_path", ""),
-                        "workspace": r_dec.get("workspace", "Global"),
+                        "workspace": r_dec.get("workspace", "Default"),
                         "last_modified": r_dec.get("last_modified"),
                         "content_type": r_dec.get("content_type", "Local Document"),
                         "document_summary": r_dec.get("document_summary"),

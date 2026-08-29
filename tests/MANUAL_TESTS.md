@@ -7,7 +7,48 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.63): Validação de Remoção Interativa de Fontes (`/menu` ➔ Workspaces ➔ Delete Source)
+### 📌 Cenário 1 (v0.28.64): Validação de Integridade do Modelo Limpo de 2 Camadas (Sem Workspace Global e com Isolamento Estrito de RAG)
+
+- **Objetivo**: Comprovar que a remoção do workspace `Global` unificou a arquitetura em um modelo de 2 camadas limpo (`Workspaces de Projeto` + `Shared Sources` vinculável sob demanda via `/link`), garantindo que apenas `Default` e `Shared Sources` sejam protegidos pelo sistema e que o RAG nunca puxe dados não-linkados de outros escopos.
+- **Pré-requisito**: Versão `v0.28.64` ou superior.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📁 Verificar Workspaces Ativos e Protegidos:**
+   ```powershell
+   actx --workspaces
+   ```
+   - Comprovar que os workspaces de sistema presentes são estritamente `Default` e `Shared Sources` (sem o workspace `Global`).
+
+2. **🗑️ Tentar Deletar ou Renomear Workspaces Protegidos:**
+   ```powershell
+   # No Chat:
+   /workspace delete Default
+   /workspace delete "Shared Sources"
+   /rename Default MeuNovoNome
+   ```
+   - Comprovar que o sistema bloqueia com mensagem de proteção de workspace de sistema (`protected system workspace`).
+
+3. **🔗 Testar Vinculação Explícita com `/link`:**
+   - Adicionar uma fonte ao `Shared Sources`:
+     ```powershell
+     /folder --add C:\MinhaBiblioteca --workspace "Shared Sources"
+     ```
+   - Criar e alternar para um novo workspace `ProjetoBeta`:
+     ```powershell
+     /switch ProjetoBeta
+     ```
+   - Fazer uma pergunta no `ProjetoBeta` antes de linkar:
+     - Comprovar que no modo `Strict`, o AnyContext informa que a informação não consta no workspace (sem poluição fantasma de outros contextos).
+   - Vincular a fonte via `/link`:
+     ```powershell
+     /link MinhaBiblioteca
+     ```
+   - Repetir a pergunta e comprovar que agora a resposta é sintetizada perfeitamente a partir dos documentos da fonte compartilhada.
+
+---
+
+### 📌 Cenário 2 (v0.28.63): Validação de Remoção Interativa de Fontes (`/menu` ➔ Workspaces ➔ Delete Source)
 
 - **Objetivo**: Comprovar que o menu hierárquico `/menu` navega com profundidade total até a seleção e remoção de fontes individuais (pastas locais e URLs web) de um workspace, abrindo a lista de fontes ativas, exibindo modal de confirmação explícito e executando a remoção no SQLite e no LanceDB sem fechar o terminal.
 - **Pré-requisito**: Versão `v0.28.63` ou superior.
