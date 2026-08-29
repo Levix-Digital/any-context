@@ -95,7 +95,7 @@ export class BridgeClient {
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.62",
+    version: "0.28.63",
     workspace: "Default",
     model: "...",
     model_display: "...",
@@ -403,13 +403,15 @@ export class BridgeClient {
     type: string,
     value: string,
     workspace?: string,
-    applyGlobal: boolean = false
+    applyGlobal: boolean = false,
+    metadata?: Record<string, any>
   ): Promise<MenuActionResult> {
     const res = await this.sendRequest<MenuActionResult>("set_option", {
       type,
       value,
       workspace: workspace || this.state.workspace,
       apply_global: applyGlobal,
+      metadata,
     });
     if (res && res.state_updates) {
       this.updateState(res.state_updates as any);

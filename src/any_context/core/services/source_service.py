@@ -42,8 +42,9 @@ class SourceService:
 
     def add_folder(self, workspace: str, folder_path: str) -> Dict[str, Any]:
         """Adds a local directory path to the specified workspace."""
+        from any_context.core.utils import resolve_folder_path
         ws_name = (workspace or "Default").strip()
-        clean_path = os.path.abspath(folder_path.strip())
+        clean_path = resolve_folder_path(folder_path)
 
         if not os.path.exists(clean_path):
             raise FileNotFoundError(f"Folder path '{clean_path}' does not exist on disk.")
@@ -66,8 +67,9 @@ class SourceService:
 
     def remove_folder(self, workspace: str, folder_path: str) -> Dict[str, Any]:
         """Removes a folder from the specified workspace."""
+        from any_context.core.utils import resolve_folder_path
         ws_name = (workspace or "Default").strip()
-        clean_path = os.path.abspath(folder_path.strip())
+        clean_path = resolve_folder_path(folder_path)
 
         removed = self.store.remove_folder_from_workspace(ws_name, clean_path)
         if not removed:

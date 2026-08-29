@@ -88,6 +88,29 @@ class TestInteractionEngine(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertIn("web_search_enabled", res.state_updates)
 
+        # Test workspace delete source action
+        res_src = engine.execute_action("ws_sources_delete", workspace="Default")
+        self.assertTrue(res_src.success)
+        self.assertEqual(res_src.action, "open_delete_source_modal")
+
+    def test_options_engine_delete_source_flow(self):
+        engine = OptionsEngine()
+        opts = engine.get_delete_source_options("Default")
+        self.assertIsInstance(opts, OptionsGroupSchema)
+        self.assertEqual(opts.type, "delete_source")
+        self.assertGreaterEqual(len(opts.items), 1)
+
+        # Test cancel option
+        res_cancel = engine.execute_delete_source_option("cancel_delete_source", "Default")
+        self.assertTrue(res_cancel.success)
+
+        # Test confirmation options builder
+        dummy_info = {"source_type": "folder", "source_val": "C:/dummy/docs", "workspace": "Default"}
+        confirm_opts = engine.get_confirm_delete_source_options(dummy_info, "Default")
+        self.assertIsInstance(confirm_opts, OptionsGroupSchema)
+        self.assertEqual(confirm_opts.type, "confirm_delete_source")
+        self.assertEqual(len(confirm_opts.items), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

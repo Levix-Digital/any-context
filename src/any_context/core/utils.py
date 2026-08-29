@@ -266,3 +266,52 @@ def format_turn_grounding_header(
     return strategy.format_turn_header(workspace_name=active_workspace, web_search_enabled=web_search_enabled)
 
 
+def resolve_folder_path(folder_path: str) -> str:
+    """
+    Universally resolves and normalizes local directory paths across Windows, Linux, macOS, and WSL.
+
+    Handles:
+    - Windows drive paths on WSL/Linux (e.g. 'G:\\My Drive\\...' -> '/mnt/g/My Drive/...')
+    - WSL paths on Windows (e.g. '/mnt/c/Users/...' -> 'C:\\Users\\...')
+    - Quotes removal ("...", '...')
+    - Tilde expansion (~ -> home directory)
+    - Environment variables expansion (%USERPROFILE%, $HOME)
+    - Backslash/forward slash normalization
+    """
+    import re
+    if not folder_path:
+        return ""
+
+    raw = folder_path.strip().strip("'\"")
+    # Expand env vars and user home
+    raw = os.path.expandvars(os.path.expanduser(raw))
+
+    # 1. Running on Linux / WSL / POSIX but given Windows drive path (e.g. "G:\My Drive" or "C:/Users")
+    if sys.platform != "win32" and os.name != "nt":
+        # Check if path starts with a Windows drive letter: e.g. "G:\" or "G:/" or "g:"
+        m = re.match(r"^([a-zA-Z]):[/\\]?(.*)", raw)
+        if m:
+            drive = m.group(1).lower()
+            rest = m.group(2).replace("\\", "/").lstrip("/")
+            wsl_mount = f"/mnt/{drive}"
+            candidate = f"{wsl_mount}/{rest}" if rest else wsl_mount
+            return os.path.abspath(candidate)
+
+        # General backslash normalization on Linux/POSIX
+        if "\\" in raw and not os.path.exists(raw):
+            candidate = raw.replace("\\", "/")
+            return os.path.abspath(candidate)
+
+    # 2. Running on Windows but given WSL/Linux mount path (e.g. "/mnt/c/Users" or "/mnt/g/...")
+    if sys.platform == "win32" or os.name == "nt":
+        m = re.match(r"^/mnt/([a-zA-Z])/(.*)", raw)
+        if m:
+            drive = m.group(1).upper()
+            rest = m.group(2).replace("/", "\\")
+            win_candidate = f"{drive}:\\{rest}"
+            return os.path.abspath(win_candidate)
+
+    return os.path.abspath(raw)
+
+
+

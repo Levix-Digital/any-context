@@ -19,6 +19,8 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommandMeta[] = [
   { command: "/web-search", args: "[--on|--off]", description: "Toggle real-time workspace Web Search", category: "Web Search", direct_execution: true },
   { command: "/web-search --on", args: "", description: "Enable real-time Web Search grounding for active workspace", category: "Web Search", direct_execution: true },
   { command: "/web-search --off", args: "", description: "Disable real-time Web Search grounding for active workspace", category: "Web Search", direct_execution: true },
+  { command: "/sources", args: "[--all]", description: "List all indexed folders, web portals, and cloud drives", category: "Sources", direct_execution: true },
+  { command: "/sources --delete", args: "", description: "Select and delete/remove a source from active workspace", category: "Sources", direct_execution: true },
   { command: "/folder", args: "--add <path>", description: "Add, list, or remove local folder from workspace", category: "Sources", direct_execution: false },
   { command: "/web", args: "--add <url>", description: "Add, list, or crawl documentation portal or web URL", category: "Sources", direct_execution: false },
   { command: "/transfer", args: "<from_ws> <to_ws> <item>", description: "Transfer source to another workspace in <50ms ($0.00)", category: "Sources", direct_execution: false },

@@ -180,11 +180,43 @@ class ConfigEngine:
                 type="action"
             ),
             MenuItemSchema(
+                id="ws_sources_delete",
+                title="Delete / Remove a Source",
+                description=f"Select and remove an indexed folder or web source from '{ws_name}'",
+                icon="🗑️",
+                type="action"
+            ),
+            MenuItemSchema(
+                id="ws_add_folder",
+                title="Add Local Folder Source",
+                description=f"Index a new directory path into '{ws_name}'",
+                icon="📁",
+                type="action",
+                command_shortcut="/add"
+            ),
+            MenuItemSchema(
+                id="ws_add_web",
+                title="Add Web Documentation / URL Source",
+                description=f"Index a web portal or URL into '{ws_name}'",
+                icon="🌐",
+                type="action",
+                command_shortcut="/web"
+            ),
+            MenuItemSchema(
+                id="ws_switch",
+                title="Switch Active Workspace",
+                description="Change current workspace scope or create context",
+                icon="📂",
+                type="action",
+                command_shortcut="/switch"
+            ),
+            MenuItemSchema(
                 id="ws_create",
                 title="Create New Workspace",
                 description="Create a new isolated workspace context with zero initial sources",
                 icon="➕",
                 type="input",
+                command_shortcut="/switch",
                 metadata={"prompt": "Enter new workspace name:"}
             ),
             MenuItemSchema(
@@ -193,6 +225,7 @@ class ConfigEngine:
                 description=f"Rename '{ws_name}' and automatically migrate all indexed vector records",
                 icon="✏️",
                 type="input",
+                command_shortcut="/rename",
                 metadata={"prompt": f"Enter new name for workspace '{ws_name}':"}
             ),
             MenuItemSchema(
@@ -205,9 +238,9 @@ class ConfigEngine:
             ),
             MenuItemSchema(
                 id="ws_delete",
-                title="Delete Workspace",
-                description=f"Remove workspace '{ws_name}' and all associated links",
-                icon="🗑️",
+                title="Delete Entire Workspace",
+                description=f"Remove custom workspace '{ws_name}' and all associated links",
+                icon="💥",
                 type="action"
             ),
         ]
@@ -645,7 +678,7 @@ class ConfigEngine:
             res = self.memory_svc.reset_memory(None)
             return MenuActionResult(success=True, message=f"🔥 {res['message']}")
 
-        # Workspace actions
+        # Workspace & Source actions
         if action_id == "ws_list":
             workspaces = self.workspace_svc.list_workspaces(active_workspace=ws_name)
             lines = [f"### 📂 Workspaces ({len(workspaces)}):"]
@@ -660,10 +693,45 @@ class ConfigEngine:
                     lines.append(f"  • ... and {len(sources) - 5} more")
             return MenuActionResult(success=True, message="\n".join(lines))
 
+        if action_id in ["ws_sources_delete", "ws_delete_source"]:
+            return MenuActionResult(
+                success=True,
+                message="🗑️ Select source to remove:",
+                action="open_delete_source_modal"
+            )
+
+        if action_id == "ws_add_folder":
+            return MenuActionResult(
+                success=True,
+                message="📁 Type `/add <path>` to index a local folder into this workspace.",
+                action="prefill_input",
+                state_updates={"prefill": "/add "}
+            )
+
+        if action_id == "ws_add_web":
+            return MenuActionResult(
+                success=True,
+                message="🌐 Type `/web <url>` to index a web portal or URL into this workspace.",
+                action="prefill_input",
+                state_updates={"prefill": "/web "}
+            )
+
+        if action_id == "ws_switch":
+            return MenuActionResult(
+                success=True,
+                message="📂 Select workspace to switch context:",
+                action="open_switch_modal"
+            )
+
         if action_id == "ws_create":
             name = params.get("value", "").strip()
             if not name:
-                return MenuActionResult(success=False, message="⚠️ Workspace name cannot be empty.")
+                return MenuActionResult(
+                    success=True,
+                    message="➕ Type `/switch <new_workspace_name>` to create and switch to a new workspace context.",
+                    action="prefill_input",
+                    state_updates={"prefill": "/switch "}
+                )
             self.workspace_svc.create_workspace(name)
             return MenuActionResult(
                 success=True,
@@ -675,7 +743,12 @@ class ConfigEngine:
         if action_id == "ws_rename":
             new_name = params.get("value", "").strip()
             if not new_name:
-                return MenuActionResult(success=False, message="⚠️ New workspace name cannot be empty.")
+                return MenuActionResult(
+                    success=True,
+                    message=f"✏️ Type `/rename <new_name>` to rename workspace '{ws_name}'.",
+                    action="prefill_input",
+                    state_updates={"prefill": "/rename "}
+                )
             res = self.workspace_svc.rename_workspace(ws_name, new_name)
             return MenuActionResult(
                 success=True,
@@ -692,6 +765,14 @@ class ConfigEngine:
                 success=True,
                 message="🗑️ Select workspace to delete:",
                 action="open_delete_workspace_modal"
+            )
+
+        if action_id == "factory_reset":
+            return MenuActionResult(
+                success=True,
+                message="⚠️ Type `/factory-reset --confirm` to permanently erase all workspaces, sources, API keys, and vector databases.",
+                action="prefill_input",
+                state_updates={"prefill": "/factory-reset --confirm"}
             )
 
         # API Key actions
@@ -711,7 +792,12 @@ class ConfigEngine:
             provider = action_id.replace("key_set_", "")
             key_val = params.get("value", "").strip()
             if not key_val:
-                return MenuActionResult(success=False, message=f"⚠️ API Key for {provider} cannot be empty.")
+                return MenuActionResult(
+                    success=True,
+                    message=f"🔑 Type `/key {provider} <KEY>` to save your API key for {provider.upper()}.",
+                    action="prefill_input",
+                    state_updates={"prefill": f"/key {provider} "}
+                )
             self.model_svc.set_api_key(provider, key_val)
             return MenuActionResult(success=True, message=f"🔑 Saved API key for provider **{provider.upper()}**.")
 

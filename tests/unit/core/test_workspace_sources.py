@@ -350,5 +350,43 @@ class TestWorkspaceSources(unittest.TestCase):
 
         safe_stdout_write("  [OK] attach_and_broadcast_source modular core API verified!\n")
 
+    def test_11_path_resolution_and_dispatcher_folder_web(self):
+        """Validates resolve_folder_path and CommandDispatcher /folder --add, /add, /web --add handling."""
+        safe_stdout_write(">>> [UNIT] Testing Path Resolution and CommandDispatcher Source Add...\n")
+        from any_context.core.utils import resolve_folder_path
+        from any_context.commands.dispatcher import CommandDispatcher
+
+        # 1. Path resolution tests
+        resolved_win = resolve_folder_path('"/mnt/c/Users/Test"')
+        if sys.platform == "win32" or os.name == "nt":
+            self.assertEqual(resolved_win, os.path.abspath("C:\\Users\\Test"))
+
+        resolved_wsl = resolve_folder_path('"G:\\My Drive\\Docs"')
+        if sys.platform != "win32" and os.name != "nt":
+            self.assertEqual(resolved_wsl, os.path.abspath("/mnt/g/My Drive/Docs"))
+
+        # 2. Add folder with spaces via dispatcher
+        ws_test = "Unit_Dispatch_WS"
+        self.store.add_workspace(ws_test, paths=[])
+        space_folder = os.path.join(self.temp_dir, "Folder With Spaces")
+        os.makedirs(space_folder, exist_ok=True)
+
+        dispatcher = CommandDispatcher()
+        res_folder = dispatcher.dispatch(f"/folder --add {space_folder}", active_workspace=ws_test)
+        self.assertTrue(res_folder.success, f"Failed adding folder with spaces: {res_folder.message}")
+
+        # 3. Add via /add shortcut
+        space_folder2 = os.path.join(self.temp_dir, "Folder With Spaces Two")
+        os.makedirs(space_folder2, exist_ok=True)
+        res_add = dispatcher.dispatch(f"/add {space_folder2}", active_workspace=ws_test)
+        self.assertTrue(res_add.success, f"Failed adding folder via /add: {res_add.message}")
+
+        # 4. Add web portal via dispatcher
+        res_web = dispatcher.dispatch("/web --add https://docs.example.com", active_workspace=ws_test)
+        self.assertTrue(res_web.success, f"Failed adding web portal: {res_web.message}")
+
+        safe_stdout_write("  [OK] Path resolution and CommandDispatcher source commands verified!\n")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -60,8 +60,8 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
     ),
     CommandMeta(
         name="/sources",
-        args="[--all]",
-        description="List indexed documents and web portals in workspace",
+        args="[--all|--delete]",
+        description="List or delete indexed documents and web portals in workspace",
         category="Sources",
         direct_execution=True,
         aliases=["/list-sources"]

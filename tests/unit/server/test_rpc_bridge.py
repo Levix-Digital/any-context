@@ -105,6 +105,23 @@ class TestRPCBridge(unittest.TestCase):
         self.assertEqual(lines[0]["error"]["code"], -32601)
         safe_stdout_write("  [OK] Error code -32601 returned on unknown method!\n")
 
+    def test_05_get_and_set_delete_source_options(self):
+        """Validates get_options and set_option for delete_source."""
+        safe_stdout_write(">>> [RPC UNIT] Testing delete_source get_options and set_option...\n")
+        fake_stdout = io.StringIO()
+
+        with patch("sys.stdout", fake_stdout):
+            # 1. get_options delete_source
+            self.server.handle_request({"id": 50, "method": "get_options", "params": {"type": "delete_source"}})
+            # 2. set_option cancel
+            self.server.handle_request({"id": 51, "method": "set_option", "params": {"type": "delete_source", "value": "cancel_delete_source"}})
+
+        lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[0]["result"]["type"], "delete_source")
+        self.assertTrue(lines[1]["result"]["success"])
+        safe_stdout_write("  [OK] delete_source get_options and set_option verified!\n")
+
 
 if __name__ == "__main__":
     unittest.main()
