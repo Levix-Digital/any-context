@@ -156,6 +156,7 @@ class StdioRPCServer:
                 obs.debug("RPC:RESP", f"Sent list_commands response (id={req_id})", {"count": len(cmds)})
 
             elif method == "execute_command":
+                from any_context.commands.dispatcher import dispatch_command
                 cmd_line = params.get("command", "")
                 result = dispatch_command(cmd_line, active_workspace=self.active_workspace)
                 if result.state_updates:
@@ -228,6 +229,7 @@ class StdioRPCServer:
                 _send_ndjson({"id": req_id, "result": self.get_state()})
 
             elif method == "start_sync":
+                from any_context.ingestion.orchestrator import BackgroundSyncManager
                 force = bool(params.get("force", False))
                 bg_mgr = BackgroundSyncManager()
                 bg_mgr.start_background_sync(workspace_name=self.active_workspace, force_full=force, verbose=False)

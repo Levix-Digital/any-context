@@ -7,10 +7,10 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.60): Validação de Inicialização Instantânea do RPC e Feedback Visual de Carregamento (`actx --tui`)
+### 📌 Cenário 1 (v0.28.61): Validação da Execução de Slash Commands RPC (`/key`) e Feedback Contextual de Boot
 
-- **Objetivo**: Comprovar que a eliminação de imports pesados no boot do `rpc_bridge.py` acelera a inicialização do backend, que o indicador visual `⏳ Initializing AnyContext AI Core & Onboarding Setup...` fornece feedback imediato durante o aquecimento, e que a barra superior exibe exatamente um ícone de tier sem duplicação (`🌿 Community Edition`).
-- **Pré-requisito**: Versão `v0.28.60` ou superior.
+- **Objetivo**: Comprovar que o comando `/key openai <CHAVE>` executa com sucesso no RPC Bridge (resolvendo `dispatch_command`), que o indicador de boot adapta sua mensagem conforme `needs_onboarding`, e que o modelo padrão `gpt-4o-mini` e embeddings `text-embedding-3-small` funcionam out-of-the-box com uma única chave OpenAI.
+- **Pré-requisito**: Versão `v0.28.61` ou superior.
 
 #### 📋 Passo a Passo de Execução:
 

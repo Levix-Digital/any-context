@@ -71,10 +71,16 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
             flexShrink={0}
           >
             <text fg={anyContextTheme.accentWarning}>
-              <b>⏳ Initializing AnyContext AI Core & Onboarding Setup...</b>
+              <b>
+                {state?.needs_onboarding
+                  ? "⏳ Initializing AnyContext AI Core & Onboarding Setup..."
+                  : "⏳ Initializing AnyContext AI Core..."}
+              </b>
             </text>
             <text fg={anyContextTheme.foregroundMuted}>
-              {"  Preparing local offline settings and loading AI provider catalog..."}
+              {state?.needs_onboarding
+                ? "  Preparing local offline settings and loading AI provider catalog..."
+                : "  Connecting to local offline backend and loading workspace settings..."}
             </text>
           </box>
         ) : (
