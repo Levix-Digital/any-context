@@ -205,7 +205,7 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
     CommandMeta(
         name="/update",
         args="[version]",
-        description="Download and install latest AnyContext release with auto-restart",
+        description="Download and install latest AnyContext release",
         category="System",
         direct_execution=True,
         aliases=["/self-update", "/upgrade"]

@@ -214,7 +214,7 @@ class CommandDispatcher:
                         success, msg, updates = update_svc.execute_binary_update(
                             target_tag=target_tag,
                             force_background=True,
-                            auto_restart=True,
+                            auto_restart=False,
                             is_tui=False
                         )
                         return CommandResult(
