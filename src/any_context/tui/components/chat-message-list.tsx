@@ -29,6 +29,7 @@ const defaultSyntaxStyle = (SyntaxStyle as any).create ? (SyntaxStyle as any).cr
 export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
   messages,
   state,
+  isBackendReady = true,
 }, ref): any => {
   return (
     <scrollbox
@@ -47,7 +48,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           <b>{ASCII_BANNER}</b>
         </text>
         <text fg={anyContextTheme.accentWarning}>
-          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.43"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "🌿 Community Edition"}</span>
+          <b>  🚀 AnyContext (actx) v{state?.version || "0.28.59"}</b>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSecondary}>Levix Digital</span>  <span fg={anyContextTheme.ruleColor}>│</span>  <span fg={anyContextTheme.accentSuccess}>{state?.tier_name || "🌿 Community Edition"}</span>
         </text>
         <text fg={anyContextTheme.foregroundMuted}>
           {"  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context."}
@@ -56,25 +57,47 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           {"  🔒 100% Local & Offline-First Privacy"}
         </text>
 
-        <box
-          borderStyle="rounded"
-          borderColor={anyContextTheme.ruleColor}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={0}
-          paddingBottom={0}
-          marginTop={1}
-          marginBottom={1}
-          flexDirection="column"
-          flexShrink={0}
-        >
-          <text fg={anyContextTheme.foreground}>
-            💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/model'</b> for LLM, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
-          </text>
-          <text fg={anyContextTheme.foregroundMuted}>
-            📜 <i>Scroll Hint:</i> Use <b>PgUp / PgDn</b>, <b>Shift + ↑ / ↓</b>, or mouse wheel to scroll.
-          </text>
-        </box>
+        {!isBackendReady ? (
+          <box
+            borderStyle="rounded"
+            borderColor={anyContextTheme.accentWarning}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={0}
+            paddingBottom={0}
+            marginTop={1}
+            marginBottom={1}
+            flexDirection="column"
+            flexShrink={0}
+          >
+            <text fg={anyContextTheme.accentWarning}>
+              <b>⏳ Initializing AnyContext AI Core & Onboarding Setup...</b>
+            </text>
+            <text fg={anyContextTheme.foregroundMuted}>
+              {"  Preparing local offline settings and loading AI provider catalog..."}
+            </text>
+          </box>
+        ) : (
+          <box
+            borderStyle="rounded"
+            borderColor={anyContextTheme.ruleColor}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={0}
+            paddingBottom={0}
+            marginTop={1}
+            marginBottom={1}
+            flexDirection="column"
+            flexShrink={0}
+          >
+            <text fg={anyContextTheme.foreground}>
+              💬 Chat started! Type <b>'/'</b> for quick commands, <b>'/switch'</b> to change workspace, <b>'/model'</b> for LLM, <b>'/menu'</b> for config, or <b>'/exit'</b> to quit.
+            </text>
+            <text fg={anyContextTheme.foregroundMuted}>
+              📜 <i>Scroll Hint:</i> Use <b>PgUp / PgDn</b>, <b>Shift + ↑ / ↓</b>, or mouse wheel to scroll.
+            </text>
+          </box>
+        )}
       </box>
 
       {/* Render All Conversation Messages */}

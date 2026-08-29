@@ -13,9 +13,11 @@ export const HeaderBar = ({ state, hasMessages }: HeaderBarProps): any => {
     return null;
   }
 
-  const versionStr = state?.version || "0.28.8";
-  const tierStr = state?.tier_name || "Community Edition";
-  const tierIcon = tierStr.includes("Enterprise") ? "🏢" : tierStr.includes("Pro") ? "⭐" : "🌿";
+  const versionStr = state?.version || "0.28.59";
+  const rawTier = state?.tier_name || "Community Edition";
+  const cleanTier = rawTier.replace(/^[^\w\s]+/, "").trim();
+  const tierIcon = rawTier.includes("Enterprise") ? "🏢" : rawTier.includes("Pro") ? "⭐" : "🌿";
+  const displayTier = `${tierIcon} ${cleanTier}`;
   const wsName = state?.workspace || "Default";
 
   return (
@@ -38,7 +40,7 @@ export const HeaderBar = ({ state, hasMessages }: HeaderBarProps): any => {
         </text>
         <text fg={anyContextTheme.ruleColor}>  │  </text>
         <text fg={anyContextTheme.accentSuccess}>
-          <b>{tierIcon} {tierStr}</b>
+          <b>{displayTier}</b>
         </text>
         <text fg={anyContextTheme.ruleColor}>  │  </text>
         <text fg={anyContextTheme.foreground}>

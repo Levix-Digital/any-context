@@ -39,6 +39,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const [menuHistory, setMenuHistory] = useState<string[]>([]);
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isBackendReady, setIsBackendReady] = useState(false);
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [draftInput, setDraftInput] = useState<string>("");
@@ -52,6 +53,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         model: newState.model,
         needs_onboarding: newState.needs_onboarding,
       });
+      setIsBackendReady(true);
       setState(newState);
       if (newState.needs_onboarding && !modalOpen && !hasTriggeredOnboardingRef.current) {
         openOnboardingModal(newState.onboarding_state?.options_group);
@@ -62,6 +64,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       tuiLog.info("APP:START_OK", "client.start() completed successfully", {
         needs_onboarding: client.state.needs_onboarding,
       });
+      setIsBackendReady(true);
       if (client.state.needs_onboarding && !modalOpen && !hasTriggeredOnboardingRef.current) {
         openOnboardingModal(client.state.onboarding_state?.options_group);
       }
@@ -791,6 +794,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       modalIndex={modalIndex}
       commands={client.commands}
       isGenerating={isGenerating}
+      isBackendReady={isBackendReady}
       onInputChange={handleInputChange}
       onSubmit={(text?: string) => handleSubmit(text)}
       scrollBoxRef={scrollBoxRef}
