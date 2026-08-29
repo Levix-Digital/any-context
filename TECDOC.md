@@ -856,13 +856,14 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 
 ---
 
-## 33. Full-Depth Submenu Navigation & Interactive Source Deletion (`v0.28.63`)
+## 33. Full-Depth Submenu Navigation, Interactive Source Deletion & Cross-Platform Path Resolution (`v0.28.63`)
 
 ### 📂 1. Deep Submenu & Source Management
 - **Workspaces Menu Enrichment**: Added `ws_sources_delete` ("Delete / Remove a Source"), `ws_add_folder` ("Add Local Folder Source"), `ws_add_web` ("Add Web Documentation / URL Source"), and `ws_switch` ("Switch Active Workspace") to `_build_workspaces_menu` in `config_engine.py`.
 - **Dynamic Source Selector & Confirmation**: Added `get_delete_source_options`, `get_confirm_delete_source_options`, and `execute_delete_source_option` in `options_engine.py`, querying `SourceService.list_sources()` and generating an interactive list of folders, web portals, and cloud drives with instant deletion in SQLite and vector chunk pruning in LanceDB.
 - **Input Prefill Protocol**: Submenu items requiring text input (such as `/key <provider>`, `/add`, `/web`, `/switch`, `/rename`, `/factory-reset`) prefill the user's input line and dismiss modals gracefully.
 - **Hierarchical Esc Navigation**: Preserved parent menu history so pressing `Esc` inside options or source selector sub-modals cleanly returns to the parent submenu.
+- **Universal Cross-Platform & WSL Path Resolution (`resolve_folder_path`)**: Automatically converts Windows drive paths (`G:\My Drive\...`) when executing inside WSL/Linux environments to `/mnt/g/My Drive/...` (and vice-versa), expands `~` user home paths and `%ENV_VAR%` / `$ENV_VAR`, strips trailing/leading quotes, and unifies multi-token unquoted paths with spaces.
 
 
 

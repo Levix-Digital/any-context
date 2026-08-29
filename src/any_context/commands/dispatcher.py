@@ -110,12 +110,12 @@ class CommandDispatcher:
             if canonical == "/sources":
                 return self._handle_sources(parts, ws_name)
 
-            # 11. /folder
-            if canonical == "/folder":
+            # 11. /folder, /add, /dir
+            if canonical in ["/folder", "/add", "/dir"]:
                 return self._handle_folder(parts, ws_name)
 
-            # 12. /web
-            if canonical == "/web":
+            # 12. /web, /url
+            if canonical in ["/web", "/url"]:
                 return self._handle_web(parts, ws_name)
 
             # 13. /transfer
@@ -518,31 +518,42 @@ class CommandDispatcher:
             for f in folders:
                 lines.append(f"• `{f}`")
             if not folders:
-                lines.append("*No folders added. Use `/folder --add <path>` to add one.*")
+                lines.append("*No folders added. Use `/folder --add <path>` or `/add <path>` to add one.*")
             return CommandResult(success=True, message="\n".join(lines))
 
         if "--add" in parts or "-a" in parts:
             idx = next(i for i, p in enumerate(parts) if p in ["--add", "-a"])
-            if len(parts) <= idx + 1:
-                return CommandResult(success=False, message="❌ Specify folder path: `/folder --add <path>`")
-            target_path = parts[idx + 1]
+            target_parts = parts[idx + 1:]
+            if not target_parts:
+                return CommandResult(success=False, message="❌ Specify folder path: `/folder --add <path>` or `/add <path>`")
+            target_path = " ".join(target_parts).strip().strip("'\"")
+            try:
+                res = self.source_svc.add_folder(ws_name, target_path)
+                self.sync_svc.start_sync(ws_name, force_full=False)
+                return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Indexing started in background.")
+            except Exception as e:
+                return CommandResult(success=False, message=f"❌ Error adding folder: {str(e)}")
+
+        if "--remove" in parts or "-r" in parts or "--delete" in parts or "-d" in parts:
+            idx = next(i for i, p in enumerate(parts) if p in ["--remove", "-r", "--delete", "-d"])
+            target_parts = parts[idx + 1:]
+            if not target_parts:
+                return CommandResult(success=False, message="❌ Specify folder path: `/folder --remove <path>`")
+            target_path = " ".join(target_parts).strip().strip("'\"")
+            try:
+                res = self.source_svc.remove_folder(ws_name, target_path)
+                return CommandResult(success=True, message=f"🗑️ {res['message']}")
+            except Exception as e:
+                return CommandResult(success=False, message=f"❌ Error removing folder: {str(e)}")
+
+        # Fallback: treat all remaining arguments as folder path to add
+        target_path = " ".join(parts[1:]).strip().strip("'\"")
+        try:
             res = self.source_svc.add_folder(ws_name, target_path)
             self.sync_svc.start_sync(ws_name, force_full=False)
             return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Indexing started in background.")
-
-        if "--remove" in parts or "-r" in parts or "--delete" in parts:
-            idx = next(i for i, p in enumerate(parts) if p in ["--remove", "-r", "--delete"])
-            if len(parts) <= idx + 1:
-                return CommandResult(success=False, message="❌ Specify folder path: `/folder --remove <path>`")
-            target_path = parts[idx + 1]
-            res = self.source_svc.remove_folder(ws_name, target_path)
-            return CommandResult(success=True, message=f"🗑️ {res['message']}")
-
-        # Fallback: treat single argument as folder path to add
-        target_path = parts[1]
-        res = self.source_svc.add_folder(ws_name, target_path)
-        self.sync_svc.start_sync(ws_name, force_full=False)
-        return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Indexing started in background.")
+        except Exception as e:
+            return CommandResult(success=False, message=f"❌ Error adding folder: {str(e)}")
 
     def _handle_web(self, parts: List[str], ws_name: str) -> CommandResult:
         if len(parts) == 1 or "--list" in parts or "-l" in parts:
@@ -557,26 +568,37 @@ class CommandDispatcher:
 
         if "--add" in parts or "-a" in parts:
             idx = next(i for i, p in enumerate(parts) if p in ["--add", "-a"])
-            if len(parts) <= idx + 1:
+            target_parts = parts[idx + 1:]
+            if not target_parts:
                 return CommandResult(success=False, message="❌ Specify URL: `/web --add <url>`")
-            target_url = parts[idx + 1]
+            target_url = " ".join(target_parts).strip().strip("'\"")
+            try:
+                res = self.source_svc.add_web(ws_name, target_url)
+                self.sync_svc.start_sync(ws_name, force_full=False)
+                return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Crawler started in background.")
+            except Exception as e:
+                return CommandResult(success=False, message=f"❌ Error adding web source: {str(e)}")
+
+        if "--remove" in parts or "-r" in parts or "--delete" in parts or "-d" in parts:
+            idx = next(i for i, p in enumerate(parts) if p in ["--remove", "-r", "--delete", "-d"])
+            target_parts = parts[idx + 1:]
+            if not target_parts:
+                return CommandResult(success=False, message="❌ Specify URL: `/web --remove <url>`")
+            target_url = " ".join(target_parts).strip().strip("'\"")
+            try:
+                res = self.source_svc.remove_web(ws_name, target_url)
+                return CommandResult(success=True, message=f"🗑️ {res['message']}")
+            except Exception as e:
+                return CommandResult(success=False, message=f"❌ Error removing web source: {str(e)}")
+
+        # Fallback: treat all remaining arguments as URL to add
+        target_url = " ".join(parts[1:]).strip().strip("'\"")
+        try:
             res = self.source_svc.add_web(ws_name, target_url)
             self.sync_svc.start_sync(ws_name, force_full=False)
             return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Crawler started in background.")
-
-        if "--remove" in parts or "-r" in parts:
-            idx = next(i for i, p in enumerate(parts) if p in ["--remove", "-r"])
-            if len(parts) <= idx + 1:
-                return CommandResult(success=False, message="❌ Specify URL: `/web --remove <url>`")
-            target_url = parts[idx + 1]
-            res = self.source_svc.remove_web(ws_name, target_url)
-            return CommandResult(success=True, message=f"🗑️ {res['message']}")
-
-        # Fallback: treat argument as URL to add
-        target_url = parts[1]
-        res = self.source_svc.add_web(ws_name, target_url)
-        self.sync_svc.start_sync(ws_name, force_full=False)
-        return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Crawler started in background.")
+        except Exception as e:
+            return CommandResult(success=False, message=f"❌ Error adding web source: {str(e)}")
 
     def _handle_transfer(self, parts: List[str]) -> CommandResult:
         if len(parts) < 4:
