@@ -834,6 +834,18 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - **Real-Time Boot Feedback**: Added `isBackendReady` reactive state in OpenTUI (`app.tsx`, `chat-view.tsx`, `chat-message-list.tsx`), displaying `⏳ Initializing AnyContext AI Core & Onboarding Setup...` and disabling input interaction until backend handshake is completed.
 - **Header Emoji Normalization**: Cleaned tier string rendering in `header-bar.tsx` to prevent duplicate emoji formatting (`🌿 Community Edition`).
 
+---
+
+## 31. RPC Slash Command Dispatcher Fix & Adaptive Boot Indicator (`v0.28.61`)
+
+### 🛠️ 1. Dynamic `dispatch_command` Execution
+- **Scoped Dispatcher Import**: Corrected the missing import in `src/any_context/server/rpc_bridge.py` inside `execute_command` (`from any_context.commands.dispatcher import dispatch_command`), resolving the `NameError: name 'dispatch_command' is not defined` when configuring API keys via `/key` or other slash commands.
+
+### 🎯 2. Adaptive Boot Messaging & Unified OpenAI Default
+- **Conditional Onboarding Indicator**: `chat-message-list.tsx` now inspects `state?.needs_onboarding` and selectively renders `⏳ Initializing AnyContext AI Core & Onboarding Setup...` (when setup is pending) vs `⏳ Initializing AnyContext AI Core...` (for ready workspaces).
+- **Single-Key Architecture**: Confirmed `gpt-4o-mini` (inference & summary) and `text-embedding-3-small` (embeddings) as canonical default models, enabling complete RAG and conversation capabilities immediately upon saving an `OPENAI_API_KEY`.
+
+
 
 
 
