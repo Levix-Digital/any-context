@@ -53,6 +53,29 @@ class StdioRPCServer:
         self._web_search_enabled = False
         self._load_state()
 
+        try:
+            from any_context.ingestion.orchestrator import BackgroundSyncManager
+            self.bg_mgr = BackgroundSyncManager()
+            self.bg_mgr.register_completion_listener(self._on_background_job_complete)
+        except Exception:
+            pass
+
+    def _on_background_job_complete(self, notif: Dict[str, Any]):
+        """Dispatches live notification and updated state across the RPC bridge when background crawl/sync finishes."""
+        try:
+            import time
+            self._last_sync_timestamp = time.strftime("%H:%M:%S")
+            _send_ndjson({
+                "event": "notification",
+                "level": "success" if notif.get("success") else "error",
+                "message": notif.get("message", "Synchronization completed."),
+                "workspace": notif.get("workspace"),
+                "state": self.get_state()
+            })
+        except Exception:
+            pass
+
+
     def _load_state(self):
         """Loads workspace settings and active configuration from SQLite."""
         try:

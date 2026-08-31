@@ -937,4 +937,18 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - Updated `ModelService.get_current_model(workspace_name)` to resolve the workspace-specific model with a strict fallback to `gpt-4o-mini`.
 - Updated `/switch` in `CommandDispatcher` and CLI chat loop to dynamically bind the active model when switching workspaces, ensuring newly created workspaces are never polluted with previous non-default models.
 
+---
+
+## 38. Background Web Crawler Progress Tracking & Instant Completion Notifications (`v0.28.68`)
+
+### ⚡ 1. Real-Time Crawling Telemetry & Visual Status Dock (`orchestrator.py`, `viewport.py`, `status-bar.tsx`)
+- Extended `BackgroundSyncManager` progress formatting to natively support `stage="pages"` and `stage="crawling"`, rendering dynamic progress bars (`⚡ Crawling [████░░░░] 50% (15/30 pages)`).
+- Prevented premature display of `✔ Up to date` while the background web crawler or indexer is actively processing.
+
+### 🔔 2. Multi-Interface Completion Notifications (`orchestrator.py`, `rpc_bridge.py`, `chat_loop.py`, `bridge-client.ts`, `app.tsx`)
+- Added thread-safe completion event dispatching and notification queues (`BackgroundSyncManager.register_completion_listener` and `pop_notifications`).
+- The RPC Bridge (`rpc_bridge.py`) pushes live `{"event": "notification"}` NDJSON messages to the OpenTUI client upon crawl completion.
+- The CLI chat loop flushes pending background sync notifications before prompting user input, giving full visibility into crawled pages and indexed files.
+
+
 

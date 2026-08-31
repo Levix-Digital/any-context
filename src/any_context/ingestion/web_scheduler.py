@@ -98,7 +98,7 @@ class WebSchedulerStore:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_wiwp_ws_url ON workspace_indexed_web_pages (workspace_name, url);")
             conn.commit()
 
-    def add_web_url(self, workspace_name: str, url: str, polling_interval_hours: int = 24, title: Optional[str] = None) -> Dict[str, Any]:
+    def add_web_url(self, workspace_name: str, url: str, polling_interval_hours: int = 24, title: Optional[str] = None, scope: str = "domain") -> Dict[str, Any]:
         import uuid
         # Check if already exists in this workspace
         existing = self.get_workspace_web_urls(workspace_name)
@@ -108,14 +108,16 @@ class WebSchedulerStore:
 
         url_id = f"web_{uuid.uuid4().hex[:8]}"
         now_str = datetime.utcnow().isoformat()
+        clean_scope = scope or "domain"
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO workspace_web_urls (id, workspace_name, url, title, polling_interval_hours, page_count, root_url, created_at)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?)
-            """, (url_id, workspace_name, url, title, polling_interval_hours, url, now_str))
+                INSERT INTO workspace_web_urls (id, workspace_name, url, title, polling_interval_hours, page_count, root_url, created_at, scope)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+            """, (url_id, workspace_name, url, title, polling_interval_hours, url, now_str, clean_scope))
             conn.commit()
-        return {"id": url_id, "workspace_name": workspace_name, "url": url, "title": title, "polling_interval_hours": polling_interval_hours, "page_count": 1, "created_at": now_str}
+        return {"id": url_id, "workspace_name": workspace_name, "url": url, "title": title, "polling_interval_hours": polling_interval_hours, "page_count": 1, "created_at": now_str, "scope": clean_scope}
+
 
     def add_or_update_root_web_source(
         self,
@@ -568,7 +570,7 @@ def sync_workspace_web_urls(
         if progress_callback:
             progress_callback(idx + 1, total_u, "web", u["url"])
         page_count = u.get("page_count", 1) or 1
-        scope = u.get("scope")
+        scope = u.get("scope") or "domain"
         if page_count > 1 or scope in ["domain", "section", "custom"]:
             from any_context.ingestion.web_crawler import crawl_website
 
@@ -580,7 +582,7 @@ def sync_workspace_web_urls(
                 crawl_res = crawl_website(
                     workspace_name=workspace_name,
                     start_url=u["url"],
-                    scope=scope or "domain",
+                    scope=scope,
                     force_rescrape=force,
                     progress_callback=_sub_crawl_prog
                 )
@@ -591,3 +593,4 @@ def sync_workspace_web_urls(
             res = index_web_url_to_chromadb(workspace_name=workspace_name, url=u["url"], url_id=u["id"], force=force)
             results.append({"url": u["url"], "result": res, "type": "single_page"})
     return {"workspace_name": workspace_name, "total_urls": len(urls), "synced": results}
+

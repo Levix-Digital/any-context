@@ -77,8 +77,16 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           role: "system",
           content: `Failed to connect to AnyContext Python backend: ${err.message}`,
         },
+    client.onNotification = (message: string, level: string) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `notif_${Date.now()}_${Math.random()}`,
+          role: "system",
+          content: message,
+        },
       ]);
-    });
+    };
 
     const interval = setInterval(() => {
       client.refreshState().then((newState) => {
@@ -86,7 +94,8 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           openOnboardingModal(newState.onboarding_state?.options_group);
         }
       });
-    }, 2000);
+    }, 1000);
+
 
     return () => {
       clearInterval(interval);

@@ -157,9 +157,14 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Native JSON-RPC stdio implementation for **Claude Desktop**, **Cursor IDE**, and **Antigravity**.
 - **📘 Permanent Self-Help System**:
   - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
+- **⚡ Background Web Crawler Real-time Progress & Instant Completion Notifications (`v0.28.68`)**:
+  - Feedback visual imediato e contínuo durante a raspagem web em background (`⚡ Crawling [████░░░░] 50% (15/30 pages)`), eliminando o estado prematuro de `✔ Up to date` enquanto o crawler ainda está indexando.
+  - Notificações de conclusão emitidas em tempo real em todas as interfaces (CLI, OpenTUI e RPC Bridge) indicando o total exato de páginas web e arquivos indexados.
+
 - **🤖 Factory Default Model Isolation (`gpt-4o-mini`) per Workspace (`v0.28.67`)**:
   - Todo e qualquer novo workspace criado no sistema (seja no primeiro uso, via `/switch`, REST API ou MCP Server) é inicializado rigorosamente com o modelo padrão de fábrica `gpt-4o-mini`.
   - O modelo configurado em um workspace é isolado e persistido de forma independente, impedindo contaminações indesejadas de modelos mais caros para workspaces recém-criados.
+
 
   - Resposta instantânea de linha de comando (`actx -v` / `actx --version` em < 5ms) via roteamento imediato sem carregamento de banco de dados ou variáveis de ambiente.
   - Verificação de atualizações (`print_startup_update_notice`) desacoplada em segundo plano de forma 100% assíncrona, eliminando qualquer travamento por latência de rede no início do terminal.
