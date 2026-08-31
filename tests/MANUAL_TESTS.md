@@ -7,7 +7,56 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.64): Validação de Integridade do Modelo Limpo de 2 Camadas (Sem Workspace Global e com Isolamento Estrito de RAG)
+### 📌 Cenário 1 (v0.28.65): Validação de Startup Instantâneo (< 100ms), Telemetria Visual de Boot e Time Watching de Observabilidade (`actx --diag`, `/logs`, `/diagnostics`, `/spans`)
+
+- **Objetivo**: Comprovar que a inicialização do AnyContext ocorre de forma quase instantânea com carregamento lazy, exibindo a telemetria visual de micro-etapas de boot (`Engine Startup Telemetry`) com tempos em milissegundos logo abaixo do banner, e que o módulo de observabilidade (*time watching*) registra a latência de todas as operações críticas e disponibiliza relatórios de diagnóstico detalhados.
+- **Pré-requisito**: Versão `v0.28.65` ou superior.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **⚡ Testar Inicialização Rápida e Telemetria Visual de Boot:**
+   ```powershell
+   actx
+   ```
+   - Validar que o CLI abre instantaneamente sem congelamento de tela.
+   - Observar o bloco de telemetria de inicialização impresso logo abaixo do banner ASCII:
+     ```text
+       ┌─ ⚡ Engine Startup Telemetry
+       │ ├─ [ 8.2ms] 🔌 SQLite Configuration Store active
+       │ ├─ [19.4ms] 🤖 AI Model engine linked (gpt-4o-mini - OPENAI)
+       │ ├─ [28.1ms] 📂 Workspace connected (Default)
+       │ ├─ [34.7ms] 📦 Context state verified (Up to date - 42 files)
+       │ └─ [41.9ms] 🚀 AnyContext ready in 0.04s
+     ```
+
+2. **⏱️ Executar Comandos de Time Watching no Chat Interativo:**
+   - No chat do AnyContext, digitar:
+     ```powershell
+     /spans
+     ```
+     - Comprovar que a lista de operações recentes é exibida com duração em milissegundos e status `[ok]`.
+   - Digitar:
+     ```powershell
+     /diagnostics
+     ```
+     - Comprovar que a seção `⏱️ Performance & Latency Metrics (Recent Spans)` consolida métricas como `rag:retrieval`, `cmd:<nome>`, `ingestion:local_folder`, `sync:check_changes` com médias (`avg_ms`), contagem (`xN`), `min` e `max`.
+   - Digitar:
+     ```powershell
+     /logs
+     ```
+     - Comprovar que os logs de sistema estruturados são renderizados com formatação clara.
+
+3. **🔍 Validar Diagnóstico via Flag CLI:**
+   - Sair do chat (`/exit`) e executar no terminal:
+     ```powershell
+     actx --diag
+     ```
+     - Validar que o relatório completo de saúde, motor SQLite, Bun runtime e a matriz de latência dos spans recentes é gerado instantaneamente no terminal com cores ANSI.
+
+---
+
+### 📌 Cenário 2 (v0.28.64): Validação de Integridade do Modelo Limpo de 2 Camadas (Sem Workspace Global e com Isolamento Estrito de RAG)
+
 
 - **Objetivo**: Comprovar que a remoção do workspace `Global` unificou a arquitetura em um modelo de 2 camadas limpo (`Workspaces de Projeto` + `Shared Sources` vinculável sob demanda via `/link`), garantindo que apenas `Default` e `Shared Sources` sejam protegidos pelo sistema e que o RAG nunca puxe dados não-linkados de outros escopos.
 - **Pré-requisito**: Versão `v0.28.64` ou superior.

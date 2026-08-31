@@ -64,3 +64,29 @@ def print_banner():
     safe_print(f"{bold}{yellow}  🚀 AnyContext {gray}(actx){yellow} v{__version__}{reset}  |  {bold}{magenta}Levix Digital{reset}  |  {bold}{badge_str}")
     safe_print(f"{gray}  ⚡ Transform any file, folder, website, or drive into a living, real-time AI context.{reset}")
     safe_print(f"{gray}  🔒 100% Local & Offline-First Privacy{reset}\n")
+
+
+def print_boot_telemetry(milestones: list):
+    """
+    Renders ultra-fast, high-tech startup telemetry under the banner.
+    Transmits an immediate feeling of high engineering speed, responsiveness, and precision.
+    """
+    gray = "\033[90m"
+    green = "\033[92m"
+    yellow = "\033[93m"
+    bold = "\033[1m"
+    reset = "\033[0m"
+
+    if not milestones:
+        return
+
+    lines = [f"  {gray}┌─ ⚡ {bold}Engine Startup Telemetry{reset}"]
+    for idx, item in enumerate(milestones):
+        elapsed_ms, label = item
+        is_last = (idx == len(milestones) - 1)
+        tree_char = "└─" if is_last else "├─"
+        time_tag = f"{green}[{elapsed_ms:>4.1f}ms]{reset}" if elapsed_ms < 100 else f"{yellow}[{elapsed_ms:>4.1f}ms]{reset}"
+        lines.append(f"  {gray}│ {tree_char}{reset} {time_tag} {label}")
+
+    safe_print("\n".join(lines) + "\n")
+

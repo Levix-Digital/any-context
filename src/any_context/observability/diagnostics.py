@@ -74,6 +74,7 @@ def collect_diagnostic_report() -> DiagnosticReport:
 
     storage = ObservabilityStorage(db_path=db_path)
     recent_errors = storage.get_recent_logs(limit=10, level="ERROR")
+    latency_summary = storage.get_latency_summary(limit=200)
 
     return DiagnosticReport(
         os_name=platform.system(),
@@ -91,6 +92,7 @@ def collect_diagnostic_report() -> DiagnosticReport:
         onboarding_completed=onboarding_done,
         active_model=active_model,
         active_provider=active_provider,
+        latency_summary=latency_summary,
         recent_errors=recent_errors,
     )
 
@@ -122,8 +124,21 @@ def format_diagnostic_report(report: DiagnosticReport) -> str:
         f"    - Size: {report.database_size_bytes:,} bytes",
         f"    - Onboarding Completed: {onboarding_status}",
         f"    - Active Provider / Model: {provider_str} / {report.active_model}",
-        "\033[36m=======================================================\033[0m\n",
     ]
+
+    if report.latency_summary:
+        lines.append("")
+        lines.append("  \033[1m⏱️ Performance & Latency Metrics (Recent Spans):\033[0m")
+        for item in report.latency_summary:
+            avg_ms = item["avg_ms"]
+            color = "\033[32m" if avg_ms < 100 else ("\033[93m" if avg_ms < 1000 else "\033[91m")
+            lines.append(
+                f"    - \033[1m{item['name']}\033[0m (x{item['count']}): "
+                f"avg {color}{avg_ms:.1f}ms\033[0m "
+                f"\033[90m[min: {item['min_ms']:.1f}ms, max: {item['max_ms']:.1f}ms]\033[0m"
+            )
+
+    lines.append("\033[36m=======================================================\033[0m\n")
 
     if report.recent_errors:
         lines.append("\033[91m⚠️ Recent Error Logs:\033[0m")
@@ -166,3 +181,29 @@ def format_recent_logs(logs: List[LogEvent], limit: int = 50) -> str:
 
     lines.append("\033[36m=======================================================\033[0m\n")
     return "\n".join(lines)
+
+
+def format_recent_spans(spans: List[Any], limit: int = 50) -> str:
+    """Formats recent execution trace spans with latency metrics."""
+    if not spans:
+        return "\n\033[90mℹ️ No latency spans recorded yet.\033[0m\n"
+
+    lines = [
+        "\n\033[36m=======================================================\033[0m",
+        f"\033[1m⏱️ AnyContext Latency & Performance Spans (Last {len(spans)})\033[0m",
+        "\033[36m=======================================================\033[0m",
+    ]
+
+    for s in spans:
+        dur = s.duration_ms or 0.0
+        color = "\033[32m" if dur < 100 else ("\033[93m" if dur < 1000 else "\033[91m")
+        status_tag = "\033[32m✔\033[0m" if getattr(s, "status", "ok") == "ok" else "\033[91m✖\033[0m"
+        meta_str = f" \033[90m{s.metadata}\033[0m" if getattr(s, "metadata", None) else ""
+        lines.append(
+            f"  {status_tag} \033[90m{s.start_time}\033[0m \033[1m{s.name:<32}\033[0m "
+            f"{color}{dur:>8.2f} ms\033[0m{meta_str}"
+        )
+
+    lines.append("\033[36m=======================================================\033[0m\n")
+    return "\n".join(lines)
+

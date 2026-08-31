@@ -14,8 +14,9 @@ from any_context.config.db_store import ConfigDBStore
 from any_context.core.agent import create_anycontext_agent, saver
 
 from any_context.tools.search_tools import search_db
-from any_context.ingestion.local_folder_ingestor import index_folder
+from any_context.ingestion.local_folder_ingestor import run_index_folder, index_folder
 from any_context.memory import MemoryManager
+
 from any_context.workspace_sharing import WorkspaceSharingStore, WorkspaceSharingManager
 from any_context.billing import BillingManager, get_all_plans, get_plan_by_id
 
@@ -1106,11 +1107,13 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
     def trigger_indexing(req: IndexRequest, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
         verify_token_access(credentials=credentials, required_role="analyst", required_workspace=req.workspace)
         try:
-            background_tasks.add_task(index_folder.invoke, {"workspace_name": req.workspace})
+            from any_context.ingestion.local_folder_ingestor import run_index_folder
+            background_tasks.add_task(run_index_folder, workspace_name=req.workspace)
             msg = f"Re-indexing started in background for workspace '{req.workspace}'." if req.workspace else "Re-indexing started in background for all workspaces."
             return IndexResponse(status="accepted", message=msg, workspace=req.workspace)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Indexing trigger error: {str(e)}")
+
 
     @app.post("/v1/reset-memory", response_model=MemoryResetResponse, tags=["Memory"])
     def reset_long_term_memory(req: MemoryResetRequest, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):

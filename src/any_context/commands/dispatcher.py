@@ -9,6 +9,14 @@ from typing import List, Dict, Any, Optional
 from any_context import __version__
 from any_context.commands.registry import find_command_meta, COMMANDS_REGISTRY
 from any_context.commands.result import CommandResult
+from any_context.observability import (
+    obs,
+    collect_diagnostic_report,
+    format_diagnostic_report,
+    format_recent_logs,
+    format_recent_spans,
+    ObservabilityStorage
+)
 from any_context.core.services import (
     WorkspaceService,
     SourceService,
@@ -18,6 +26,7 @@ from any_context.core.services import (
     MemoryService,
     BillingService,
 )
+
 
 
 def parse_args(command_line: str) -> List[str]:
@@ -58,242 +67,280 @@ class CommandDispatcher:
         meta = find_command_meta(cmd_token)
         canonical = meta.name if meta else cmd_token
 
-        try:
-            # 1. /exit or /quit
-            if canonical == "/exit":
+        with obs.span(f"cmd:{canonical}", command=canonical, workspace=ws_name):
+            try:
+                return self._dispatch_inner(canonical, cmd_token, parts, ws_name)
+            except Exception as e:
                 return CommandResult(
-                    success=True,
-                    message="👋 Saving session memory and exiting AnyContext. See you soon!",
-                    action="exit"
+                    success=False,
+                    message=f"⚠️ Error executing `{cmd_token}`: {str(e)}",
+                    error=str(e)
                 )
 
-            # 2. /clear or /cls
-            if canonical == "/clear":
-                return CommandResult(
-                    success=True,
-                    message="🧹 Screen cleared.",
-                    action="clear"
-                )
-
-            # 3. /version
-            if canonical == "/version":
-                return CommandResult(
-                    success=True,
-                    message=f"🤖 **AnyContext (actx)** `v{__version__}` — *Universal Multi-Context RAG Assistant & Engine* (Levix Digital)"
-                )
-
-            # 4. /help or /menu
-            if canonical == "/help":
-                return self._handle_help(parts)
-
-            # 5. /switch or /workspace
-            if canonical == "/switch":
-                return self._handle_switch(parts, ws_name)
-
-            # 6. /model
-            if canonical == "/model":
-                return self._handle_model(parts)
-
-            # 7. /mode or /grounding
-            if canonical == "/mode":
-                return self._handle_mode(parts, ws_name)
-
-            # 8. /web-search
-            if canonical == "/web-search":
-                return self._handle_web_search(parts, ws_name)
-
-            # 9. /sync
-            if canonical == "/sync":
-                return self._handle_sync(parts, ws_name)
-
-            # 10. /sources
-            if canonical == "/sources":
-                return self._handle_sources(parts, ws_name)
-
-            # 11. /folder, /add, /dir
-            if canonical in ["/folder", "/add", "/dir"]:
-                return self._handle_folder(parts, ws_name)
-
-            # 12. /web, /url
-            if canonical in ["/web", "/url"]:
-                return self._handle_web(parts, ws_name)
-
-            # 13. /transfer
-            if canonical == "/transfer":
-                return self._handle_transfer(parts)
-
-            # 14. /link
-            if canonical == "/link":
-                return self._handle_link(parts, ws_name)
-
-            # 15. /unlink
-            if canonical == "/unlink":
-                return self._handle_unlink(parts, ws_name)
-
-            # 16. /shared
-            if canonical == "/shared":
-                return self._handle_shared()
-
-            # 17. /rename
-            if canonical == "/rename":
-                return self._handle_rename(parts)
-
-            # 18. /config
-            if canonical == "/config":
-                return self._handle_config(ws_name)
-
-            # 19. /key
-            if canonical == "/key":
-                return self._handle_key(parts)
-
-            # 20. /models
-            if canonical == "/models":
-                return self._handle_models()
-
-            # 21. /billing
-            if canonical == "/billing":
-                return self._handle_billing()
-
-            # 22. /reset-memory
-            if canonical == "/reset-memory":
-                return self._handle_reset_memory(ws_name)
-
-            # 23. /paste
-            if canonical == "/paste":
-                return CommandResult(
-                    success=True,
-                    message="📋 Multi-line paste capture mode active.",
-                    action="paste_mode"
-                )
-
-            # 24. /update or /check-update
-            # 24. /check-update
-            if canonical == "/check-update":
-                try:
-                    from any_context.core.services.update_service import UpdateService
-                    update_svc = UpdateService()
-                    has_up, latest_v = update_svc.check_for_updates()
-                    if has_up and latest_v:
-                        msg = f"💡 New update available! v{__version__} → {latest_v}. Type `/update` to install now."
-                    else:
-                        msg = f"🚀 AnyContext v{__version__} is up to date."
-                    return CommandResult(
-                        success=True,
-                        message=msg
-                    )
-                except Exception as e:
-                    return CommandResult(
-                        success=True,
-                        message=f"🚀 AnyContext v{__version__}. (Could not reach update server: {e})"
-                    )
-
-            # 25. /update
-            if canonical == "/update" or canonical.startswith("/update ") or canonical.startswith("/update@"):
-                try:
-                    from any_context.core.services.update_service import UpdateService
-                    from any_context.core.interaction.options_engine import OptionsEngine
-                    update_svc = UpdateService()
-                    opts_engine = OptionsEngine()
-
-                    is_force = "--force" in parts or "-f" in parts
-                    is_now = "--now" in parts or "--confirm" in parts
-                    target_version = None
-                    if canonical.startswith("/update@"):
-                        target_version = canonical.split("@", 1)[1].strip()
-
-                    has_up, latest_v = update_svc.check_for_updates()
-                    target_tag = target_version or latest_v or f"v{__version__}"
-
-                    if not has_up and not target_version and not is_force:
-                        return CommandResult(
-                            success=True,
-                            message=f"🚀 AnyContext v{__version__} is already up to date."
-                        )
-
-                    if is_now:
-                        success, msg, updates = update_svc.execute_binary_update(
-                            target_tag=target_tag,
-                            force_background=True,
-                            auto_restart=False,
-                            is_tui=False
-                        )
-                        return CommandResult(
-                            success=success,
-                            message=msg,
-                            action=updates.get("action", "none"),
-                            state_updates=updates
-                        )
-
-                    # Trigger interactive options modal
-                    return CommandResult(
-                        success=True,
-                        message=f"🔍 Checking for updates... Found {target_tag}.",
-                        action="open_update_modal"
-                    )
-                except Exception as e:
-                    return CommandResult(
-                        success=False,
-                        message=f"❌ Update check failed: {e}",
-                        error=str(e)
-                    )
-
-            # 25. /inspect
-            if canonical == "/inspect":
-                try:
-                    from any_context.vector_engine.store import LanceDBStore
-                    from any_context.config.app_settings import AppSettings
-                    settings = AppSettings.load()
-                    db_save_path = settings.context.db_path if settings else "./context_db"
-                    lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
-                    ws_count = lance_store.count_records(workspace_name=ws_name, table_name="workspace_chunks")
-                    total_count = lance_store.count_records(table_name="workspace_chunks")
-                    return CommandResult(
-                        success=True,
-                        message=f"🔍 Vector Store Inspection for `{ws_name}`:\n  • Workspace Chunks: **{ws_count}**\n  • Total Database Chunks: **{total_count}**\n  • Storage Engine: **LanceDB (Apache Arrow / Rust)**"
-                    )
-                except Exception as e:
-                    return CommandResult(
-                        success=False,
-                        message=f"⚠️ Could not inspect vector store: {e}"
-                    )
-
-            # 26. /density
-            if canonical == "/density":
-                level = parts[1] if len(parts) > 1 else "comfortable"
-                return CommandResult(
-                    success=True,
-                    message=f"🎨 UI Density set to: **{level}**"
-                )
-
-            # 27. /history
-            if canonical == "/history":
-                return CommandResult(
-                    success=True,
-                    message="📜 Conversation history is active."
-                )
-
-            # 28. /menu
-            if canonical == "/menu":
-                return CommandResult(
-                    success=True,
-                    message="💡 Opening interactive configuration menu.",
-                    action="open_config_modal"
-                )
-
+    def _dispatch_inner(self, canonical: str, cmd_token: str, parts: List[str], ws_name: str) -> CommandResult:
+        # 1. /exit or /quit
+        if canonical == "/exit":
             return CommandResult(
-                success=False,
-                message=f"❌ Unknown command `{cmd_token}`. Type `/help` to view all available commands.",
-                error="unknown_command"
+                success=True,
+                message="👋 Saving session memory and exiting AnyContext. See you soon!",
+                action="exit"
             )
 
-        except Exception as e:
+
+
+        # 2. /clear or /cls
+        if canonical == "/clear":
             return CommandResult(
-                success=False,
-                message=f"⚠️ Error executing `{cmd_token}`: {str(e)}",
-                error=str(e)
+                success=True,
+                message="🧹 Screen cleared.",
+                action="clear"
             )
+
+        # 3. /version
+        if canonical == "/version":
+            return CommandResult(
+                success=True,
+                message=f"🤖 **AnyContext (actx)** `v{__version__}` — *Universal Multi-Context RAG Assistant & Engine* (Levix Digital)"
+            )
+
+        # 4. /help or /menu
+        if canonical == "/help":
+            return self._handle_help(parts)
+
+        # 5. /switch or /workspace
+        if canonical == "/switch":
+            return self._handle_switch(parts, ws_name)
+
+        # 6. /model
+        if canonical == "/model":
+            return self._handle_model(parts)
+
+        # 7. /mode or /grounding
+        if canonical == "/mode":
+            return self._handle_mode(parts, ws_name)
+
+        # 8. /web-search
+        if canonical == "/web-search":
+            return self._handle_web_search(parts, ws_name)
+
+        # 9. /sync
+        if canonical == "/sync":
+            return self._handle_sync(parts, ws_name)
+
+        # 10. /sources
+        if canonical == "/sources":
+            return self._handle_sources(parts, ws_name)
+
+        # 11. /folder, /add, /dir
+        if canonical in ["/folder", "/add", "/dir"]:
+            return self._handle_folder(parts, ws_name)
+
+        # 12. /web, /url
+        if canonical in ["/web", "/url"]:
+            return self._handle_web(parts, ws_name)
+
+        # 13. /transfer
+        if canonical == "/transfer":
+            return self._handle_transfer(parts)
+
+        # 14. /link
+        if canonical == "/link":
+            return self._handle_link(parts, ws_name)
+
+        # 15. /unlink
+        if canonical == "/unlink":
+            return self._handle_unlink(parts, ws_name)
+
+        # 16. /shared
+        if canonical == "/shared":
+            return self._handle_shared()
+
+        # 17. /rename
+        if canonical == "/rename":
+            return self._handle_rename(parts)
+
+        # 18. /config
+        if canonical == "/config":
+            return self._handle_config(ws_name)
+
+        # 19. /key
+        if canonical == "/key":
+            return self._handle_key(parts)
+
+        # 20. /models
+        if canonical == "/models":
+            return self._handle_models()
+
+        # 21. /billing
+        if canonical == "/billing":
+            return self._handle_billing()
+
+        # 22. /reset-memory
+        if canonical == "/reset-memory":
+            return self._handle_reset_memory(ws_name)
+
+        # 23. /paste
+        if canonical == "/paste":
+            return CommandResult(
+                success=True,
+                message="📋 Multi-line paste capture mode active.",
+                action="paste_mode"
+            )
+
+        # 24. /update or /check-update
+        # 24. /check-update
+        if canonical == "/check-update":
+            try:
+                from any_context.core.services.update_service import UpdateService
+                update_svc = UpdateService()
+                has_up, latest_v = update_svc.check_for_updates()
+                if has_up and latest_v:
+                    msg = f"💡 New update available! v{__version__} → {latest_v}. Type `/update` to install now."
+                else:
+                    msg = f"🚀 AnyContext v{__version__} is up to date."
+                return CommandResult(
+                    success=True,
+                    message=msg
+                )
+            except Exception as e:
+                return CommandResult(
+                    success=True,
+                    message=f"🚀 AnyContext v{__version__}. (Could not reach update server: {e})"
+                )
+
+        # 25. /update
+        if canonical == "/update" or canonical.startswith("/update ") or canonical.startswith("/update@"):
+            try:
+                from any_context.core.services.update_service import UpdateService
+                from any_context.core.interaction.options_engine import OptionsEngine
+                update_svc = UpdateService()
+                opts_engine = OptionsEngine()
+
+                is_force = "--force" in parts or "-f" in parts
+                is_now = "--now" in parts or "--confirm" in parts
+                target_version = None
+                if canonical.startswith("/update@"):
+                    target_version = canonical.split("@", 1)[1].strip()
+
+                has_up, latest_v = update_svc.check_for_updates()
+                target_tag = target_version or latest_v or f"v{__version__}"
+
+                if not has_up and not target_version and not is_force:
+                    return CommandResult(
+                        success=True,
+                        message=f"🚀 AnyContext v{__version__} is already up to date."
+                    )
+
+                if is_now:
+                    success, msg, updates = update_svc.execute_binary_update(
+                        target_tag=target_tag,
+                        force_background=True,
+                        auto_restart=False,
+                        is_tui=False
+                    )
+                    return CommandResult(
+                        success=success,
+                        message=msg,
+                        action=updates.get("action", "none"),
+                        state_updates=updates
+                    )
+
+                # Trigger interactive options modal
+                return CommandResult(
+                    success=True,
+                    message=f"🔍 Checking for updates... Found {target_tag}.",
+                    action="open_update_modal"
+                )
+            except Exception as e:
+                return CommandResult(
+                    success=False,
+                    message=f"❌ Update check failed: {e}",
+                    error=str(e)
+                )
+
+        # 25. /inspect
+        if canonical == "/inspect":
+            try:
+                from any_context.vector_engine.store import LanceDBStore
+                from any_context.config.app_settings import AppSettings
+                settings = AppSettings.load()
+                db_save_path = settings.context.db_path if settings else "./context_db"
+                lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+                ws_count = lance_store.count_records(workspace_name=ws_name, table_name="workspace_chunks")
+                total_count = lance_store.count_records(table_name="workspace_chunks")
+                return CommandResult(
+                    success=True,
+                    message=f"🔍 Vector Store Inspection for `{ws_name}`:\n  • Workspace Chunks: **{ws_count}**\n  • Total Database Chunks: **{total_count}**\n  • Storage Engine: **LanceDB (Apache Arrow / Rust)**"
+                )
+            except Exception as e:
+                return CommandResult(
+                    success=False,
+                    message=f"⚠️ Could not inspect vector store: {e}"
+                )
+
+        # 26. /density
+        if canonical == "/density":
+            level = parts[1] if len(parts) > 1 else "comfortable"
+            return CommandResult(
+                success=True,
+                message=f"🎨 UI Density set to: **{level}**"
+            )
+
+        # 27. /history
+        if canonical == "/history":
+            return CommandResult(
+                success=True,
+                message="📜 Conversation history is active."
+            )
+
+        # 28. /menu
+        if canonical == "/menu":
+            return CommandResult(
+                success=True,
+                message="💡 Opening interactive configuration menu.",
+                action="open_config_modal"
+            )
+
+        # 29. /logs
+        if canonical in ["/logs", "/log"]:
+            limit = 30
+            if len(parts) > 1 and parts[1].isdigit():
+                limit = int(parts[1])
+            storage = ObservabilityStorage()
+            logs = storage.get_recent_logs(limit=limit)
+            return CommandResult(
+                success=True,
+                message=format_recent_logs(logs, limit=limit)
+            )
+
+        # 30. /diagnostics or /diag or /health
+        if canonical in ["/diagnostics", "/diag", "/health"]:
+            report = collect_diagnostic_report()
+            return CommandResult(
+                success=True,
+                message=format_diagnostic_report(report)
+            )
+
+        # 31. /spans or /perf
+        if canonical in ["/spans", "/perf"]:
+            limit = 30
+            if len(parts) > 1 and parts[1].isdigit():
+                limit = int(parts[1])
+            storage = ObservabilityStorage()
+            spans = storage.get_recent_spans(limit=limit)
+            return CommandResult(
+                success=True,
+                message=format_recent_spans(spans, limit=limit)
+            )
+
+        return CommandResult(
+            success=False,
+            message=f"❌ Unknown command `{cmd_token}`. Type `/help` to view all available commands.",
+            error="unknown_command"
+        )
 
     # -------------------------------------------------------------------------
+
     # Command Handlers
     # -------------------------------------------------------------------------
 

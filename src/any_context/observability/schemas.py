@@ -39,14 +39,16 @@ class MetricEvent(BaseModel):
 
 
 class TraceSpan(BaseModel):
-    """Execution span for async task profiling and LLM reasoning pipeline analysis."""
+    """Execution span for async task profiling, latency tracking, and pipeline analysis."""
     span_id: str
     parent_id: Optional[str] = None
     name: str
+    status: str = "ok"  # "ok" or "error"
     start_time: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     end_time: Optional[str] = None
     duration_ms: Optional[float] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
 
 
 class DiagnosticReport(BaseModel):
@@ -67,4 +69,6 @@ class DiagnosticReport(BaseModel):
     onboarding_completed: bool = False
     active_model: str = "unknown"
     active_provider: str = "unknown"
+    latency_summary: List[Dict[str, Any]] = Field(default_factory=list)
     recent_errors: List[LogEvent] = Field(default_factory=list)
+

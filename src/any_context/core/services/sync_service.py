@@ -4,11 +4,8 @@ Pure domain logic: decoupled from terminal UI, CLI formatters, HTTP, and RPC tra
 """
 
 from typing import Dict, Any, Optional
-from any_context.ingestion.local_folder_ingestor import (
-    BackgroundSyncManager,
-    check_workspace_changes,
-    run_index_folder
-)
+from any_context.observability import obs
+from any_context.ingestion.orchestrator import BackgroundSyncManager, check_workspace_changes
 
 
 class SyncService:
@@ -17,16 +14,18 @@ class SyncService:
     def __init__(self):
         self.bg_mgr = BackgroundSyncManager()
 
+
     def start_sync(self, workspace: str = "Default", force_full: bool = False) -> Dict[str, Any]:
         """Dispatches an asynchronous background synchronization job for the workspace."""
         ws_name = (workspace or "Default").strip()
-        self.bg_mgr.start_background_sync(workspace_name=ws_name, force_full=force_full, verbose=False)
-        return {
-            "started": True,
-            "workspace": ws_name,
-            "force_full": force_full,
-            "message": f"Background synchronization started for workspace '{ws_name}'."
-        }
+        with obs.span("sync:start_sync", workspace=ws_name, force_full=force_full):
+            self.bg_mgr.start_background_sync(workspace_name=ws_name, force_full=force_full, verbose=False)
+            return {
+                "started": True,
+                "workspace": ws_name,
+                "force_full": force_full,
+                "message": f"Background synchronization started for workspace '{ws_name}'."
+            }
 
     def get_sync_status(self, workspace: str = "Default") -> Dict[str, Any]:
         """Returns the current background sync progress and status string."""
@@ -43,4 +42,7 @@ class SyncService:
     def check_changes(self, workspace: str = "Default") -> Dict[str, Any]:
         """Checks for diffs between disk files/web sources and the cached index."""
         ws_name = (workspace or "Default").strip()
-        return check_workspace_changes(workspace_name=ws_name)
+        with obs.span("sync:check_changes", workspace=ws_name):
+            from any_context.ingestion.orchestrator import check_workspace_changes
+            return check_workspace_changes(workspace_name=ws_name)
+
