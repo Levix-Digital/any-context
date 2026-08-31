@@ -7,7 +7,37 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.66): Validação de Fast-Path Instantâneo de Flags (`actx -v`) e Inicialização Desacoplada de Rede
+### 📌 Cenário 1 (v0.28.67): Validação de Modelo Padrão de Fábrica `gpt-4o-mini` para Todo Novo Workspace e Isolamento entre Espaços
+
+- **Objetivo**: Comprovar que todo novo workspace criado (seja no primeiro boot, via `/switch`, REST API ou MCP Server) inicia estritamente com o modelo de IA `gpt-4o-mini`, e que trocar o modelo no Workspace A não contamina o Workspace B recém-criado.
+- **Pré-requisito**: Versão `v0.28.67` ou superior.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🤖 Iniciar o Chat e Verificar Modelo no Workspace Atual:**
+   ```powershell
+   actx
+   ```
+   - Observar na telemetria de boot ou na barra inferior que o modelo ativo é `gpt-4o-mini`.
+
+2. **🔄 Alterar o Modelo no Workspace Atual:**
+   - No chat do AnyContext, digitar:
+     ```powershell
+     /model gpt-4o
+     ```
+     - Comprovar que o modelo muda para `gpt-4o`.
+
+3. **🆕 Criar um Novo Workspace e Validar que Permanece em `gpt-4o-mini`:**
+   - No chat, digitar:
+     ```powershell
+     /switch TesteNovoWorkspace
+     ```
+     - Comprovar que o novo workspace `TesteNovoWorkspace` é criado e o modelo ativo exibido na barra inferior é rigorosamente `gpt-4o-mini` (sem contaminar com o `gpt-4o` do workspace anterior).
+
+---
+
+### 📌 Cenário 2 (v0.28.66): Validação de Fast-Path Instantâneo de Flags (`actx -v`) e Inicialização Desacoplada de Rede
+
 
 - **Objetivo**: Comprovar que a flag de versão `actx -v` / `actx --version` responde de forma imediata em sub-milissegundos (< 5ms) sem inicializar bancos de dados, e que o startup do chat interativo não sofre nenhum travamento por chamadas síncronas de rede do verificador de atualizações.
 - **Pré-requisito**: Versão `v0.28.66` ou superior.

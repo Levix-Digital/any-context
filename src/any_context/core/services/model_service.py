@@ -21,8 +21,15 @@ class ModelService:
     def __init__(self, store: Optional[ConfigDBStore] = None):
         self.store = store or ConfigDBStore()
 
-    def get_current_model(self) -> str:
-        """Returns the currently active inference model."""
+    def get_current_model(self, workspace_name: Optional[str] = None) -> str:
+        """Returns the currently active inference model for a workspace, strictly defaulting to 'gpt-4o-mini'."""
+        if workspace_name and workspace_name.strip():
+            try:
+                ws_model = self.store.get_workspace_model(workspace_name.strip())
+                if ws_model:
+                    return normalize_model_id(ws_model)
+            except Exception:
+                pass
         try:
             settings = self.store.get_app_settings()
             if settings and settings.models and settings.models.inference_model:
@@ -31,8 +38,8 @@ class ModelService:
             pass
         return "gpt-4o-mini"
 
-    def set_model(self, model_name: str) -> Dict[str, Any]:
-        """Validates and switches the active AI model."""
+    def set_model(self, model_name: str, workspace_name: Optional[str] = None) -> Dict[str, Any]:
+        """Validates and switches the active AI model globally and for the workspace."""
         clean_model = normalize_model_id(model_name.strip())
         if not clean_model:
             raise ValueError("Model name cannot be empty.")
@@ -45,6 +52,9 @@ class ModelService:
         settings.models.inference_model = clean_model
         self.store.update_model_settings(settings.models)
 
+        if workspace_name and workspace_name.strip():
+            self.store.set_workspace_model(workspace_name.strip(), clean_model)
+
         # Check API key status for feedback
         has_key, provider, _ = validate_model_key_availability(clean_model)
 
@@ -54,6 +64,7 @@ class ModelService:
             "has_key": has_key,
             "message": f"Active model set to '{clean_model}' (Provider: {provider}, Key Configured: {has_key})."
         }
+
 
     def list_models(self) -> List[Dict[str, Any]]:
         """Returns the full catalog of models with provider and availability status."""
