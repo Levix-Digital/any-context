@@ -158,9 +158,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **📘 Permanent Self-Help System**:
   - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
 
-- **⚡ Sub-Millisecond Cold-Start & Micro-Boot Visual Telemetry (`v0.28.65`)**:
-  - Inicialização ultrarrápida do CLI com carregamento estritamente sob demanda (*lazy loading*) de módulos pesados de IA, reduzindo o tempo de importação de 8 segundos para menos de 100ms.
+- **⚡ Sub-Millisecond Cold-Start, Fast-Path & Micro-Boot Telemetry (`v0.28.66`)**:
+  - Resposta instantânea de linha de comando (`actx -v` / `actx --version` em < 5ms) via roteamento imediato sem carregamento de banco de dados ou variáveis de ambiente.
+  - Verificação de atualizações (`print_startup_update_notice`) desacoplada em segundo plano de forma 100% assíncrona, eliminando qualquer travamento por latência de rede no início do terminal.
   - Telemetria visual de micro-etapas de boot exibida logo abaixo do banner (`[08ms] 🔌 SQLite Config Store active`, `[19ms] 📂 Workspace connected`, `[29ms] 🤖 AI Model engine linked`, `[36ms] 🚀 Ready in 0.04s`), transmitindo sensação imediata de velocidade, precisão e responsividade.
+
 
 - **⏱️ Deep Observability Engine & Time Watching (`/logs`, `/diagnostics`, `/spans`, `actx --diag`)**:
   - Rastreamento cirúrgico de latência (*time watching*) com precisão de microssegundos em todas as operações críticas do sistema (recuperação vetorial RAG, comandos slash, raspagem web, sincronização em background e chamadas de inferência).

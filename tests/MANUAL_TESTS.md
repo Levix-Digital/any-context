@@ -7,7 +7,29 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.65): Validação de Startup Instantâneo (< 100ms), Telemetria Visual de Boot e Time Watching de Observabilidade (`actx --diag`, `/logs`, `/diagnostics`, `/spans`)
+### 📌 Cenário 1 (v0.28.66): Validação de Fast-Path Instantâneo de Flags (`actx -v`) e Inicialização Desacoplada de Rede
+
+- **Objetivo**: Comprovar que a flag de versão `actx -v` / `actx --version` responde de forma imediata em sub-milissegundos (< 5ms) sem inicializar bancos de dados, e que o startup do chat interativo não sofre nenhum travamento por chamadas síncronas de rede do verificador de atualizações.
+- **Pré-requisito**: Versão `v0.28.66` ou superior.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **⚡ Testar Fast-Path de Versão Imediato:**
+   ```powershell
+   actx -v
+   ```
+   - Validar que a linha `AnyContext (actx) v0.28.66 - Levix Digital` aparece instantaneamente no terminal sem qualquer delay perceptível.
+
+2. **🚀 Testar Startup sem Bloqueio de Rede:**
+   ```powershell
+   actx
+   ```
+   - Validar que o chat abre imediatamente com o banner e a telemetria de boot, sem travar na checagem de atualizações.
+
+---
+
+### 📌 Cenário 2 (v0.28.65): Validação de Startup Instantâneo (< 100ms), Telemetria Visual de Boot e Time Watching de Observabilidade (`actx --diag`, `/logs`, `/diagnostics`, `/spans`)
+
 
 - **Objetivo**: Comprovar que a inicialização do AnyContext ocorre de forma quase instantânea com carregamento lazy, exibindo a telemetria visual de micro-etapas de boot (`Engine Startup Telemetry`) com tempos em milissegundos logo abaixo do banner, e que o módulo de observabilidade (*time watching*) registra a latência de todas as operações críticas e disponibiliza relatórios de diagnóstico detalhados.
 - **Pré-requisito**: Versão `v0.28.65` ou superior.

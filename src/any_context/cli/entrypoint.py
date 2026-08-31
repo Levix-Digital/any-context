@@ -35,9 +35,15 @@ def _patch_prompt_toolkit_for_git_bash():
 
 def entrypoint():
     """
-    High-speed CLI entrypoint. Prints signature ASCII banner in milliseconds
+    High-speed CLI entrypoint. Fast-paths non-interactive flags in < 1ms
     before loading interactive UI, configuration, or RAG components.
     """
+    # 0. Instant fast-path for version check (sub-1ms response)
+    if "-v" in sys.argv or "--version" in sys.argv:
+        from any_context import __version__
+        print(f"AnyContext (actx) v{__version__} - Levix Digital")
+        sys.exit(0)
+
     # 1. Force UTF-8 on Windows terminal while preserving TTY handles
     if hasattr(sys.stdout, "reconfigure"):
         try:
@@ -56,17 +62,16 @@ def entrypoint():
         except Exception:
             pass
 
-    # 2. Patch prompt_toolkit for Git Bash / MinGW compatibility
-    _patch_prompt_toolkit_for_git_bash()
-
-    # 3. Print banner IMMEDIATELY before importing anything heavy (suppressed for TUI, MCP, RPC, API, Diagnostics)
+    # 2. Print banner IMMEDIATELY before importing anything heavy (suppressed for TUI, MCP, RPC, API, Diagnostics)
     non_interactive_flags = {"--help", "-h", "--version", "-v", "--mcp", "--rpc", "--tui", "--server", "serve", "api", "--diagnostics", "--diag", "--logs"}
     if not any(arg.lower() in non_interactive_flags for arg in sys.argv[1:]):
+        # Patch prompt_toolkit for Git Bash / MinGW compatibility
+        _patch_prompt_toolkit_for_git_bash()
         from any_context.cli.banner import print_banner, clear_terminal
         clear_terminal()
         print_banner()
 
-    # 4. Load environment variables (.env) for LangSmith tracing, licenses, and API keys
+    # 3. Load environment variables (.env) for LangSmith tracing, licenses, and API keys
     try:
         from any_context.core.utils import load_env
         load_env()
@@ -76,13 +81,9 @@ def entrypoint():
     from any_context.observability import obs, collect_diagnostic_report, format_diagnostic_report, format_recent_logs
     obs.debug("CLI:BOOT", "AnyContext entrypoint invoked", {"argv": sys.argv})
 
-    # 5. Fast-path dispatch for non-interactive flags (sub-10ms response, avoids loading unused modules)
-    if "-v" in sys.argv or "--version" in sys.argv:
-        from any_context import __version__
-        print(f"AnyContext (actx) v{__version__} - Levix Digital")
-        sys.exit(0)
-
+    # 4. Fast-path dispatch for non-interactive flags (sub-10ms response, avoids loading unused modules)
     if "--diagnostics" in sys.argv or "--diag" in sys.argv:
+
         report = collect_diagnostic_report()
         print(format_diagnostic_report(report))
         sys.exit(0)
