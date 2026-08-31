@@ -18,18 +18,19 @@ from any_context.commands.result import CommandResult
 class TestCommandDispatcher(unittest.TestCase):
 
     def test_01_canonical_registry_completeness(self):
-        """Validates that all 29 slash commands are properly registered."""
-        self.assertEqual(len(COMMANDS_REGISTRY), 29)
+        """Validates that all 31 slash commands are properly registered."""
+        self.assertEqual(len(COMMANDS_REGISTRY), 31)
         expected_names = [
             "/switch", "/model", "/mode", "/web-search", "/sync", "/sources",
             "/folder", "/web", "/transfer", "/link", "/unlink", "/shared",
             "/rename", "/config", "/key", "/models", "/billing", "/reset-memory",
             "/clear", "/paste", "/help", "/version", "/check-update", "/update", "/inspect",
-            "/density", "/history", "/menu", "/exit"
+            "/density", "/history", "/menu", "/logs", "/diagnostics", "/exit"
         ]
         registered_names = [c.name for c in COMMANDS_REGISTRY]
         for name in expected_names:
             self.assertIn(name, registered_names, f"Command {name} must be in COMMANDS_REGISTRY")
+
 
     def test_02_alias_resolution(self):
         """Validates alias resolution."""

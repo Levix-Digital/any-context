@@ -27,6 +27,14 @@ class ObservabilityStorage:
             return cls._instance
 
     def __init__(self, db_path: Optional[str] = None):
+        if db_path and getattr(self, "db_path", None) != db_path:
+            self.close()
+            self.db_path = db_path
+            self._local = threading.local()
+            self._init_tables()
+            self._initialized = True
+            return
+
         if getattr(self, "_initialized", False):
             return
 
@@ -40,6 +48,7 @@ class ObservabilityStorage:
         self._local = threading.local()
         self._init_tables()
         self._initialized = True
+
 
     def _get_connection(self) -> sqlite3.Connection:
         if not hasattr(self._local, "conn") or self._local.conn is None:
@@ -85,13 +94,21 @@ class ObservabilityStorage:
                         span_id TEXT NOT NULL,
                         parent_id TEXT,
                         name TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'ok',
                         start_time TEXT NOT NULL,
                         end_time TEXT,
                         duration_ms REAL,
                         metadata TEXT
                     );
                 """)
+                # Soft schema migration if status column is missing
+                try:
+                    conn.execute("ALTER TABLE trace_spans ADD COLUMN status TEXT NOT NULL DEFAULT 'ok';")
+                except Exception:
+                    pass
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_trace_spans_id ON trace_spans(span_id);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_trace_spans_name ON trace_spans(name);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_trace_spans_ts ON trace_spans(start_time);")
         except Exception:
             pass
 
@@ -190,8 +207,107 @@ class ObservabilityStorage:
         except Exception:
             pass
 
+    def insert_span(self, span: TraceSpan):
+        """Inserts a completed execution trace span into SQLite."""
+        try:
+            conn = self._get_connection()
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO trace_spans (span_id, parent_id, name, status, start_time, end_time, duration_ms, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        span.span_id,
+                        span.parent_id,
+                        span.name,
+                        getattr(span, "status", "ok") or "ok",
+                        span.start_time,
+                        span.end_time,
+                        span.duration_ms,
+                        json.dumps(span.metadata, ensure_ascii=False) if span.metadata else None,
+                    ),
+                )
+        except Exception:
+            pass
+
+    def get_recent_spans(
+        self,
+        limit: int = 50,
+        name: Optional[str] = None
+    ) -> List[TraceSpan]:
+        """Retrieves recent execution trace spans sorted chronologically."""
+        try:
+            conn = self._get_connection()
+            query = "SELECT span_id, parent_id, name, status, start_time, end_time, duration_ms, metadata FROM trace_spans"
+            params: List[Any] = []
+            if name:
+                query += " WHERE name = ?"
+                params.append(name)
+
+            query += " ORDER BY id DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            results = []
+            for row in reversed(rows):
+                meta = {}
+                if row[7]:
+                    try:
+                        meta = json.loads(row[7])
+                    except Exception:
+                        pass
+                results.append(
+                    TraceSpan(
+                        span_id=row[0],
+                        parent_id=row[1],
+                        name=row[2],
+                        status=row[3] or "ok",
+                        start_time=row[4],
+                        end_time=row[5],
+                        duration_ms=row[6],
+                        metadata=meta,
+                    )
+                )
+            return results
+        except Exception:
+            return []
+
+    def get_latency_summary(self, limit: int = 200) -> List[Dict[str, Any]]:
+        """Calculates aggregated latency statistics (min, max, avg, count) for recent operations."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT name, COUNT(*), MIN(duration_ms), MAX(duration_ms), AVG(duration_ms)
+                FROM (
+                    SELECT name, duration_ms FROM trace_spans WHERE duration_ms IS NOT NULL ORDER BY id DESC LIMIT ?
+                )
+                GROUP BY name
+                ORDER BY AVG(duration_ms) DESC
+                """,
+                (limit,)
+            )
+            rows = cursor.fetchall()
+            return [
+                {
+                    "name": r[0],
+                    "count": r[1],
+                    "min_ms": round(r[2], 2) if r[2] is not None else 0.0,
+                    "max_ms": round(r[3], 2) if r[3] is not None else 0.0,
+                    "avg_ms": round(r[4], 2) if r[4] is not None else 0.0,
+                }
+                for r in rows
+            ]
+        except Exception:
+            return []
+
     def prune_old_logs(self, max_entries: int = 5000):
-        """Keeps the system_logs table capped to prevent unbounded database growth."""
+        """Keeps the system_logs and trace_spans tables capped to prevent unbounded database growth."""
         try:
             conn = self._get_connection()
             with conn:
@@ -203,14 +319,32 @@ class ObservabilityStorage:
                     """,
                     (max_entries,),
                 )
+                conn.execute(
+                    """
+                    DELETE FROM trace_spans WHERE id NOT IN (
+                        SELECT id FROM trace_spans ORDER BY id DESC LIMIT ?
+                    )
+                    """,
+                    (max_entries,),
+                )
+                conn.execute(
+                    """
+                    DELETE FROM system_metrics WHERE id NOT IN (
+                        SELECT id FROM system_metrics ORDER BY id DESC LIMIT ?
+                    )
+                    """,
+                    (max_entries,),
+                )
         except Exception:
             pass
 
     def close(self):
         """Closes thread-local database connection safely."""
-        if hasattr(self._local, "conn") and self._local.conn is not None:
+        if hasattr(self, "_local") and hasattr(self._local, "conn") and self._local.conn is not None:
             try:
                 self._local.conn.close()
             except Exception:
                 pass
             self._local.conn = None
+
+

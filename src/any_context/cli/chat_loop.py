@@ -1,16 +1,20 @@
 import os
 import sys
+import time
 import uuid
 from typing import Optional, List, Dict, Any
+
 import questionary
 from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
 from any_context.cli.config_menu import show_config_menu
-from any_context.cli.banner import print_banner
+from any_context.cli.banner import print_banner, print_boot_telemetry
 from any_context.cli.updater import print_startup_update_notice, check_for_updates, run_self_update
 from any_context.cli.spinner import Spinner
 from any_context.help import handle_command_help_interception
 from any_context import __version__
 from any_context.config.db_store import ConfigDBStore
+from any_context.observability import obs
+
 
 
 from any_context.cli.history import safe_prompt_input
@@ -287,9 +291,54 @@ def create_bottom_toolbar_renderer(
 
 
 def run_chat_loop(active_workspace: str = "Default"):
+    t_boot_start = time.perf_counter()
+    milestones = []
+
     active_workspace = (active_workspace or "Default").strip()
     if not active_workspace:
         active_workspace = "Default"
+
+    with obs.span("cli:boot", workspace=active_workspace):
+        from any_context.config.app_settings import AppSettings
+        from any_context.config.db_store import ConfigDBStore
+        store = ConfigDBStore()
+        t_db = time.perf_counter()
+        milestones.append(((t_db - t_boot_start) * 1000, "🔌 SQLite Configuration Store active"))
+
+        settings = AppSettings.load()
+        current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
+        provider = settings.models.model_provider if (settings and settings.models and settings.models.model_provider) else "openai"
+        t_model = time.perf_counter()
+        milestones.append(((t_model - t_boot_start) * 1000, f"🤖 AI Model engine linked (\033[1m{current_model}\033[0m - {provider.upper()})"))
+
+        t_ws = time.perf_counter()
+        milestones.append(((t_ws - t_boot_start) * 1000, f"📂 Workspace connected (\033[93m{active_workspace}\033[0m)"))
+
+        from any_context.ingestion.orchestrator import check_workspace_changes, BackgroundSyncManager
+        diff = check_workspace_changes(active_workspace)
+        if diff.get("is_virgin"):
+            from any_context.ingestion.local_folder_ingestor import run_index_folder
+            t_idx = time.perf_counter()
+            milestones.append(((t_idx - t_boot_start) * 1000, "📦 New workspace detected (Indexing...)"))
+            print_boot_telemetry(milestones)
+            with Spinner(f"Indexing new workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
+                run_index_folder(workspace_name=active_workspace, verbose=False)
+        elif diff.get("is_up_to_date"):
+            t_ctx = time.perf_counter()
+            milestones.append(((t_ctx - t_boot_start) * 1000, f"📦 Context state verified (Up to date - {diff.get('total_disk_files', 0)} files)"))
+            t_ready = time.perf_counter()
+            total_sec = t_ready - t_boot_start
+            milestones.append(((t_ready - t_boot_start) * 1000, f"🚀 AnyContext ready in \033[92m{total_sec:.2f}s\033[0m"))
+            print_boot_telemetry(milestones)
+        else:
+            t_ctx = time.perf_counter()
+            milestones.append(((t_ctx - t_boot_start) * 1000, f"📦 Context updates available ({diff.get('summary', '')})"))
+            t_ready = time.perf_counter()
+            total_sec = t_ready - t_boot_start
+            milestones.append(((t_ready - t_boot_start) * 1000, f"🚀 AnyContext ready in \033[92m{total_sec:.2f}s\033[0m (Auto-syncing background)"))
+            print_boot_telemetry(milestones)
+            bg_mgr = BackgroundSyncManager()
+            bg_mgr.start_background_sync(active_workspace, verbose=False)
 
     thread_id = f"chat_{uuid.uuid4()}"
     config = {
@@ -300,29 +349,12 @@ def run_chat_loop(active_workspace: str = "Default"):
         "recursion_limit": 50
     }
 
-    from any_context.ingestion.local_folder_ingestor import check_workspace_changes, run_index_folder, BackgroundSyncManager
-    diff = check_workspace_changes(active_workspace)
-    if diff.get("is_virgin"):
-        with Spinner(f"Indexing new workspace '{active_workspace}'...", done_message=f"Workspace '{active_workspace}' ready"):
-            run_index_folder(workspace_name=active_workspace, verbose=False)
-    elif diff.get("is_up_to_date"):
-        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready (Up to date)\n")
-    else:
-        safe_stdout_write(f"✔ Workspace '\033[93m{active_workspace}\033[0m' ready\n")
-        safe_stdout_write(f"\033[90m📦 Context update available ({diff.get('summary', '')}). Auto-syncing in background...\033[0m\n")
-        bg_mgr = BackgroundSyncManager()
-        bg_mgr.start_background_sync(active_workspace, verbose=False)
-
-    from any_context.config.app_settings import AppSettings
-    from any_context.config.db_store import ConfigDBStore
-    store = ConfigDBStore()
-    settings = AppSettings.load()
-    current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
     current_grounding_mode = store.get_grounding_mode(workspace_name=active_workspace)
 
-    safe_stdout_write("\n┌" + "─" * 72 + "┐\n")
+    safe_stdout_write("┌" + "─" * 72 + "┐\n")
     safe_stdout_write("│ 💬 Chat started! Type '/' for command palette or '/exit' to quit.      │\n")
     safe_stdout_write("└" + "─" * 72 + "┘\n\n")
+
 
     agent_instance = None
     active_workspace_for_agent = None

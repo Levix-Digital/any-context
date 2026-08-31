@@ -15,10 +15,7 @@ from typing import List, Dict, Any, Optional, Callable
 from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
 from any_context.core.utils import get_api_key
-from any_context.tools.search_tools import configure_embedding_model
-from any_context.vector_engine.store import LanceDBStore
-from any_context.vector_engine.indexer import ParallelIndexer
-from any_context.vector_engine.models import IngestionConfig
+from any_context.observability import obs
 from any_context.ingestion.orchestrator import (
     safe_print,
     clear_context_vector_db,
@@ -26,8 +23,7 @@ from any_context.ingestion.orchestrator import (
     format_sync_status_box,
     BackgroundSyncManager
 )
-from llama_index.core import SimpleDirectoryReader, Document
-from langchain.tools import tool
+
 
 SUPPORTED_EXTENSIONS = {
     # Documents & Text
@@ -92,51 +88,59 @@ def run_index_folder(
 
     store = ConfigDBStore()
     target_ws_name = workspace_name or (current_settings.workspaces[0].name if current_settings.workspaces else "Default")
-    db_save_path = current_settings.context.db_path if (current_settings and current_settings.context) else "./context_db"
-    lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
 
-    if verbose:
-        safe_print(f"\n[Ingestion Pipeline: {target_ws_name}]")
-        safe_print(f"  • Storage: LanceDB Columnar Vector Store ({db_save_path}/lancedb)")
+    with obs.span("ingestion:local_folder", workspace=target_ws_name, force_full=force_full):
+        db_save_path = current_settings.context.db_path if (current_settings and current_settings.context) else "./context_db"
+        from any_context.vector_engine.store import LanceDBStore
+        lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
 
-    # 1. Fast SQLite Stat Cache Diff Check
-    if workspace_name and not force_full:
-        diff = check_workspace_changes(target_ws_name)
-        if diff["is_up_to_date"]:
-            if verbose:
-                safe_print(f"  • Stat Check: 100% up to date ({diff['total_disk_files']} files, 0 changes)")
-                safe_print("✔ Ingestion completed successfully (0 changes)!\n")
-            return {"status": "up_to_date", "total_files": diff["total_disk_files"], "changes": diff}
+        if verbose:
+            safe_print(f"\n[Ingestion Pipeline: {target_ws_name}]")
+            safe_print(f"  • Storage: LanceDB Columnar Vector Store ({db_save_path}/lancedb)")
 
-        # Zero-cost Renamed/Moved Files Metadata Repointing ($0.00)
-        if diff["renamed_files"]:
-            try:
-                for old_p, new_p in diff["renamed_files"]:
-                    store.rename_cached_file_path(target_ws_name, old_p, new_p)
-                    lance_store.delete_by_file(old_p, workspace_name=target_ws_name)
+        # 1. Fast SQLite Stat Cache Diff Check
+        if workspace_name and not force_full:
+            diff = check_workspace_changes(target_ws_name)
+            if diff["is_up_to_date"]:
                 if verbose:
-                    safe_print(f"  • Renamed: {len(diff['renamed_files'])} files repointed with zero-cost ($0.00)")
-            except Exception:
-                pass
+                    safe_print(f"  • Stat Check: 100% up to date ({diff['total_disk_files']} files, 0 changes)")
+                    safe_print("✔ Ingestion completed successfully (0 changes)!\n")
+                return {"status": "up_to_date", "total_files": diff["total_disk_files"], "changes": diff}
 
-        # Purge Deleted Files from LanceDB & SQLite cache
-        if diff["deleted_files"]:
-            try:
-                for dfp in diff["deleted_files"]:
-                    lance_store.delete_by_file(dfp, workspace_name=target_ws_name)
-            except Exception:
-                pass
-            store.remove_workspace_files_cache(target_ws_name, diff["deleted_files"])
-            if verbose:
-                safe_print(f"  • Deleted: {len(diff['deleted_files'])} files purged")
+            # Zero-cost Renamed/Moved Files Metadata Repointing ($0.00)
+            if diff["renamed_files"]:
+                try:
+                    for old_p, new_p in diff["renamed_files"]:
+                        store.rename_cached_file_path(target_ws_name, old_p, new_p)
+                        lance_store.delete_by_file(old_p, workspace_name=target_ws_name)
+                    if verbose:
+                        safe_print(f"  • Renamed: {len(diff['renamed_files'])} files repointed with zero-cost ($0.00)")
+                except Exception:
+                    pass
 
-        # If only deletions and renames occurred, return early
-        if not diff["new_files"] and not diff["modified_files"]:
-            if verbose:
-                safe_print("✔ Ingestion completed successfully!\n")
-            return {"status": "updated", "changes": diff}
+            # Purge Deleted Files from LanceDB & SQLite cache
+            if diff["deleted_files"]:
+                try:
+                    for dfp in diff["deleted_files"]:
+                        lance_store.delete_by_file(dfp, workspace_name=target_ws_name)
+                except Exception:
+                    pass
+                store.remove_workspace_files_cache(target_ws_name, diff["deleted_files"])
+                if verbose:
+                    safe_print(f"  • Deleted: {len(diff['deleted_files'])} files purged")
 
-    configure_embedding_model()
+            # If only deletions and renames occurred, return early
+            if not diff["new_files"] and not diff["modified_files"]:
+                if verbose:
+                    safe_print("✔ Ingestion completed successfully!\n")
+                return {"status": "updated", "changes": diff}
+
+        from any_context.tools.search_tools import configure_embedding_model
+        from llama_index.core import SimpleDirectoryReader
+        from any_context.vector_engine.indexer import ParallelIndexer
+        from any_context.vector_engine.models import IngestionConfig
+        configure_embedding_model()
+
 
     chunk_size = current_settings.context.chunk_size if (current_settings and current_settings.context) else 1024
     chunk_overlap = current_settings.context.chunk_overlap if (current_settings and current_settings.context) else 200
@@ -282,13 +286,13 @@ def run_index_folder(
     }
 
 
-@tool()
 def index_folder(workspace_name: str = None, verbose: bool = False):
     """
     Index documents in the vector database incrementally across all configured workspaces,
     or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
     """
     return run_index_folder(workspace_name=workspace_name, verbose=verbose)
+
 
 
 if __name__ == "__main__":

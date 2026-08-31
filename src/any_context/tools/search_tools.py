@@ -2,9 +2,7 @@ import os
 from typing import List, Any, Dict, Optional
 from any_context.config.app_settings import AppSettings
 from any_context.core.utils import get_api_key
-from llama_index.core import Settings, VectorStoreIndex
-from llama_index.core.vector_stores import ExactMatchFilter, MetadataFilters
-from llama_index.embeddings.openai import OpenAIEmbedding
+from any_context.observability import obs
 from langchain.tools import tool
 
 def safe_print(msg: str):
@@ -32,6 +30,9 @@ def configure_embedding_model():
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("llama_index").setLevel(logging.WARNING)
+
+    from llama_index.core import Settings
+    from llama_index.embeddings.openai import OpenAIEmbedding
 
     settings = AppSettings.load()
     emb_model = settings.models.embedding_model if settings else "text-embedding-3-small"
@@ -76,10 +77,6 @@ def configure_embedding_model():
         Settings.embed_model = embed_m
         return embed_m
 
-
-
-# Initial setup
-configure_embedding_model()
 
 def _diversify_nodes(raw_nodes: List[Any], target_top_k: int, max_per_source: int = 3) -> List[Any]:
     """
@@ -162,82 +159,83 @@ def _execute_search_context(
     Core search logic powered exclusively by LanceDB columnar parallel vector retriever.
     Eliminates ChromaDB completely.
     """
-    configure_embedding_model()
-    settings = AppSettings.load()
-    session_db_path = settings.session.db_path if settings else "./memory"
-    folder_db_path = settings.context.db_path if settings else "./context_db"
+    with obs.span("rag:retrieval", workspace=workspace or "Default", search_session_memory=search_session_memory, query=prompt_text[:50]):
+        configure_embedding_model()
+        settings = AppSettings.load()
+        session_db_path = settings.session.db_path if settings else "./memory"
+        folder_db_path = settings.context.db_path if settings else "./context_db"
 
-    configured_top_k = settings.context.top_k if (settings and settings.context) else 40
-    candidate_pool_size = settings.context.candidate_pool_size if (settings and settings.context) else 100
-    max_per_source = settings.context.max_chunks_per_source if (settings and settings.context) else 3
+        configured_top_k = settings.context.top_k if (settings and settings.context) else 40
+        candidate_pool_size = settings.context.candidate_pool_size if (settings and settings.context) else 100
+        max_per_source = settings.context.max_chunks_per_source if (settings and settings.context) else 3
 
-    from any_context.vector_engine.store import LanceDBStore
-    from any_context.vector_engine.retriever import ParallelRetriever
-    from any_context.vector_engine.models import RetrievalConfig
-    from any_context.config.db_store import ConfigDBStore
+        from any_context.vector_engine.store import LanceDBStore
+        from any_context.vector_engine.retriever import ParallelRetriever
+        from any_context.vector_engine.models import RetrievalConfig
+        from any_context.config.db_store import ConfigDBStore
 
-    if search_session_memory:
-        target_db_path = os.path.join(session_db_path, "lancedb")
-        table_name = "session_memory"
-        effective_top_k = 8
-        candidate_k = 16
-        min_score = 0.35
-    else:
-        target_db_path = os.path.join(folder_db_path, "lancedb")
-        table_name = "workspace_chunks"
-        effective_top_k = max(top_k, configured_top_k) if top_k else configured_top_k
-        candidate_k = max(candidate_pool_size, effective_top_k * 2)
-        min_score = 0.40
-
-    lance_store = LanceDBStore.get_instance(db_path=target_db_path)
-    total_records = lance_store.count_records(table_name=table_name)
-    if total_records == 0:
         if search_session_memory:
-            return "No long-term session memory summaries found in database yet."
-        return "No documents found in vector database."
+            target_db_path = os.path.join(session_db_path, "lancedb")
+            table_name = "session_memory"
+            effective_top_k = 8
+            candidate_k = 16
+            min_score = 0.35
+        else:
+            target_db_path = os.path.join(folder_db_path, "lancedb")
+            table_name = "workspace_chunks"
+            effective_top_k = max(top_k, configured_top_k) if top_k else configured_top_k
+            candidate_k = max(candidate_pool_size, effective_top_k * 2)
+            min_score = 0.40
 
-    config_store = ConfigDBStore()
-    target_workspaces = [workspace] if workspace else ["Default"]
+        lance_store = LanceDBStore.get_instance(db_path=target_db_path)
+        total_records = lance_store.count_records(table_name=table_name)
+        if total_records == 0:
+            if search_session_memory:
+                return "No long-term session memory summaries found in database yet."
+            return "No documents found in vector database."
 
-    shared_links = config_store.get_workspace_shared_links(workspace) if workspace else []
-    linked_identifiers = [l["source_identifier"] for l in shared_links]
+        config_store = ConfigDBStore()
+        target_workspaces = [workspace] if workspace else ["Default"]
 
-    retrieval_config = RetrievalConfig(
-        candidate_pool_k=candidate_k,
-        target_top_k=effective_top_k,
-        min_similarity_score=min_score,
-        max_chunks_per_source=max_per_source,
-        max_density_chars=45000
-    )
+        shared_links = config_store.get_workspace_shared_links(workspace) if workspace else []
+        linked_identifiers = [l["source_identifier"] for l in shared_links]
 
-    parallel_retriever = ParallelRetriever(store=lance_store)
-    lance_results = parallel_retriever.search(
-        query=prompt_text,
-        workspace=workspace,
-        target_workspaces=target_workspaces,
-        linked_sources=linked_identifiers,
-        config=retrieval_config,
-        table_name=table_name
-    )
+        retrieval_config = RetrievalConfig(
+            candidate_pool_k=candidate_k,
+            target_top_k=effective_top_k,
+            min_similarity_score=min_score,
+            max_chunks_per_source=max_per_source,
+            max_density_chars=45000
+        )
 
-    if not lance_results:
-        if search_session_memory:
-            return f"No session memory records found for query '{prompt_text}' in workspace '{workspace}'." if workspace else "No session memory records found."
-        return f"No relevant documents found for query '{prompt_text}' in workspace '{workspace}'. (Search executed across {total_records} indexed chunks)." if workspace else f"No relevant documents found for query '{prompt_text}'."
+        parallel_retriever = ParallelRetriever(store=lance_store)
+        lance_results = parallel_retriever.search(
+            query=prompt_text,
+            workspace=workspace,
+            target_workspaces=target_workspaces,
+            linked_sources=linked_identifiers,
+            config=retrieval_config,
+            table_name=table_name
+        )
 
-    results_list = []
-    for i, sc in enumerate(lance_results):
-        header_parts = [f"Source: {sc.file_name}", f"Workspace: {sc.workspace}"]
-        if sc.last_modified:
-            header_parts.append(f"Last Modified: {sc.last_modified}")
-        if sc.content_type:
-            header_parts.append(f"Type: {sc.content_type}")
-        if sc.keywords:
-            header_parts.append(f"Keywords: {sc.keywords}")
-        header_str = " | ".join(header_parts)
-        results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {sc.file_path}\nContent:\n{sc.text}")
+        if not lance_results:
+            if search_session_memory:
+                return f"No session memory records found for query '{prompt_text}' in workspace '{workspace}'." if workspace else "No session memory records found."
+            return f"No relevant documents found for query '{prompt_text}' in workspace '{workspace}'. (Search executed across {total_records} indexed chunks)." if workspace else f"No relevant documents found for query '{prompt_text}'."
 
-    return "\n\n".join(results_list)
+        results_list = []
+        for i, sc in enumerate(lance_results):
+            header_parts = [f"Source: {sc.file_name}", f"Workspace: {sc.workspace}"]
+            if sc.last_modified:
+                header_parts.append(f"Last Modified: {sc.last_modified}")
+            if sc.content_type:
+                header_parts.append(f"Type: {sc.content_type}")
+            if sc.keywords:
+                header_parts.append(f"Keywords: {sc.keywords}")
+            header_str = " | ".join(header_parts)
+            results_list.append(f"--- [Document Chunk {i+1} | {header_str}] ---\nPath: {sc.file_path}\nContent:\n{sc.text}")
+
+        return "\n\n".join(results_list)
 
 
 @tool()
@@ -255,19 +253,20 @@ def add_web_source(url: str, workspace: str = None, polling_interval_hours: int 
     Returns:
         str: Success confirmation or error message.
     """
-    from any_context.ingestion.web_crawler import discover_site_urls, crawl_and_index_urls
     target_ws = workspace or "Default"
-    
-    disc = discover_site_urls(url)
-    target_urls = disc.get("section_urls") or [url]
-    if len(target_urls) > max_pages:
-        target_urls = target_urls[:max_pages]
+    with obs.span("ingestion:add_web_source", url=url, workspace=target_ws):
+        from any_context.ingestion.web_crawler import discover_site_urls, crawl_and_index_urls
+        disc = discover_site_urls(url)
+        target_urls = disc.get("section_urls") or [url]
+        if len(target_urls) > max_pages:
+            target_urls = target_urls[:max_pages]
 
-    res = crawl_and_index_urls(workspace_name=target_ws, urls=target_urls, max_workers=8)
-    if res.get("status") == "success":
-        return f"✅ Successfully crawled and indexed {res.get('indexed_count', len(target_urls))} web pages ({res.get('total_chars', 0):,} characters) for '{disc.get('title')}' ({url}) into workspace '{target_ws}'."
-    else:
-        return f"ℹ️ Ingested {res.get('indexed_count', 0)} web pages into workspace '{target_ws}'."
+        res = crawl_and_index_urls(workspace_name=target_ws, urls=target_urls, max_workers=8)
+        if res.get("status") == "success":
+            return f"✅ Successfully crawled and indexed {res.get('indexed_count', len(target_urls))} web pages ({res.get('total_chars', 0):,} characters) for '{disc.get('title')}' ({url}) into workspace '{target_ws}'."
+        else:
+            return f"ℹ️ Ingested {res.get('indexed_count', 0)} web pages into workspace '{target_ws}'."
+
 
 
 @tool()

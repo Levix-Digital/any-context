@@ -243,6 +243,22 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
         aliases=["/palette"]
     ),
     CommandMeta(
+        name="/logs",
+        args="[limit]",
+        description="Display recent system observability and execution logs",
+        category="System",
+        direct_execution=True,
+        aliases=["/log"]
+    ),
+    CommandMeta(
+        name="/diagnostics",
+        args="",
+        description="Inspect system health, Bun runtime, database, and latency metrics",
+        category="System",
+        direct_execution=True,
+        aliases=["/diag", "/perf", "/health"]
+    ),
+    CommandMeta(
         name="/exit",
         args="",
         description="Save session memory and exit",
@@ -251,6 +267,7 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
         aliases=["/quit", "/q"]
     )
 ]
+
 
 
 def find_command_meta(token: str) -> Optional[CommandMeta]:
