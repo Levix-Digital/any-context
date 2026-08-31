@@ -7,7 +7,39 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.67): Validação de Modelo Padrão de Fábrica `gpt-4o-mini` para Todo Novo Workspace e Isolamento entre Espaços
+### 📌 Cenário 1 (v0.28.68): Validação de Progresso em Tempo Real do Web Crawler e Notificação de Conclusão
+
+- **Objetivo**: Comprovar que, ao adicionar uma fonte web ou sincronizar um portal em segundo plano, a barra inferior exibe a animação/barra de progresso do crawler (`⚡ Crawling [████░░░░] 50% (15/30 pages)`) em vez do badge prematuro `✔ Up to date`, e que ao finalizar o crawling uma notificação de sistema é exibida informando o total de páginas indexadas.
+- **Pré-requisito**: Versão `v0.28.68` ou superior.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🌐 Adicionar Fonte Web no Chat (CLI ou OpenTUI):**
+   ```powershell
+   actx
+   ```
+   - No chat interativo, digitar:
+     ```powershell
+     /web --add https://docs.python.org/3/tutorial/
+     ```
+   - Observar a resposta imediata informando o início do crawler em segundo plano.
+
+2. **⚡ Observar Barra de Status Durante o Crawling:**
+   - Observar o rodapé/barra de status inferior:
+     - Deve exibir `⚡ Crawling [crawling...]` ou `⚡ Crawling [████░░░░] ... (X/Y pages)`.
+     - **Critério de Aceitação:** Não deve exibir `✔ Up to date` enquanto o crawler estiver em execução.
+
+3. **🔔 Validar Notificação de Sistema ao Finalizar:**
+   - Aguardar o término do crawler.
+   - Validar que a notificação de sistema aparece com o sumário:
+     `✅ System Notification:`
+     `✔ Workspace '...' synchronization completed (X web page(s) crawled and indexed).`
+   - Validar que após a conclusão a barra inferior transiciona para `✔ Up to date`.
+
+---
+
+### 📌 Cenário 2 (v0.28.67): Validação de Modelo Padrão de Fábrica `gpt-4o-mini` para Todo Novo Workspace e Isolamento entre Espaços
+
 
 - **Objetivo**: Comprovar que todo novo workspace criado (seja no primeiro boot, via `/switch`, REST API ou MCP Server) inicia estritamente com o modelo de IA `gpt-4o-mini`, e que trocar o modelo no Workspace A não contamina o Workspace B recém-criado.
 - **Pré-requisito**: Versão `v0.28.67` ou superior.

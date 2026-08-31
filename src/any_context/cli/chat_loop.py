@@ -364,11 +364,21 @@ def run_chat_loop(active_workspace: str = "Default"):
 
     while True:
         try:
+            # Flush any background crawler / sync completion notifications
+            try:
+                from any_context.ingestion.local_folder_ingestor import BackgroundSyncManager
+                bg_mgr = BackgroundSyncManager()
+                pending_notifs = bg_mgr.pop_notifications(active_workspace)
+                for notif in pending_notifs:
+                    safe_stdout_write(f"\n\033[92m✅ System Notification:\033[0m\n{notif['message']}\n\n")
+            except Exception:
+                pass
+
             # Dynamically refresh settings in case changed during past turn
             store = ConfigDBStore()
             settings = AppSettings.load()
             if settings and settings.models and settings.models.inference_model:
-                current_model = settings.models.inference_model
+                current_model = store.get_workspace_model(active_workspace) or settings.models.inference_model
             current_grounding_mode = store.get_grounding_mode(workspace_name=active_workspace)
 
             toolbar_fn = create_bottom_toolbar_renderer(
@@ -376,6 +386,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                 model_name=current_model,
                 grounding_mode=current_grounding_mode
             )
+
 
             raw_input = safe_prompt_input(
                 "\n\033[96m👤 You:\033[0m ",

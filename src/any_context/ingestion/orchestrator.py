@@ -243,7 +243,26 @@ class BackgroundSyncManager:
                 cls._instance = super(BackgroundSyncManager, cls).__new__(cls)
                 cls._instance._active_jobs = {}
                 cls._instance._progress = {}
+                cls._instance._notifications = {}
+                cls._instance._completion_listeners = []
             return cls._instance
+
+    def register_completion_listener(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        """Registers a global listener called when any background sync/crawl job finishes."""
+        with self._lock:
+            if callback not in self._completion_listeners:
+                self._completion_listeners.append(callback)
+
+    def pop_notifications(self, workspace_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Pops and returns pending completion notifications for a workspace or all."""
+        with self._lock:
+            if workspace_name:
+                clean_ws = workspace_name.strip()
+                return self._notifications.pop(clean_ws, [])
+            all_notifs = []
+            for ws in list(self._notifications.keys()):
+                all_notifs.extend(self._notifications.pop(ws, []))
+            return all_notifs
 
     def is_syncing(self, workspace_name: str) -> bool:
         clean_ws = (workspace_name or "Default").strip()
@@ -285,7 +304,7 @@ class BackgroundSyncManager:
     def format_progress_bar(self, workspace_name: str, width: int = 8) -> str:
         """
         Formats a compact Unicode block progress bar:
-        [████░░░░] 50% (15/30 files) or [scanning...]
+        [████░░░░] 50% (15/30 files) or [████░░░░] 50% (15/30 pages) or [crawling...]
         """
         clean_ws = (workspace_name or "Default").strip()
         prog = self.get_progress(clean_ws)
@@ -295,6 +314,8 @@ class BackgroundSyncManager:
         stage = prog.get("stage", "files")
 
         if total <= 0:
+            if stage in ["pages", "web", "crawling"]:
+                return "[crawling...]"
             if stage == "scanning":
                 return "[scanning...]"
             return "[calculating...]"
@@ -302,7 +323,7 @@ class BackgroundSyncManager:
         fill = int(round(width * (current / total))) if total > 0 else 0
         fill = min(width, max(0, fill))
         bar = "█" * fill + "░" * (width - fill)
-        stage_suffix = f" {stage}" if stage in ["files", "pages", "drives"] else ""
+        stage_suffix = f" {stage}" if stage in ["files", "pages", "drives", "web"] else ""
         return f"[{bar}] {int(pct)}% ({current}/{total}{stage_suffix})"
 
     def get_sync_status(self, workspace_name: str) -> Dict[str, Any]:
@@ -361,6 +382,38 @@ class BackgroundSyncManager:
                     is_all=is_all,
                     progress_callback=_prog_cb
                 )
+                
+                # Format completion summary
+                folder_res = res.get("folder_results", {}).get(clean_ws, {}) if isinstance(res, dict) else {}
+                web_res = res.get("web_results", {}).get(clean_ws, {}) if isinstance(res, dict) else {}
+                indexed_files = folder_res.get("indexed_files", 0) if isinstance(folder_res, dict) else 0
+                total_web_pages = 0
+                if isinstance(web_res, dict) and "synced" in web_res:
+                    for item in web_res["synced"]:
+                        r = item.get("result", {})
+                        if isinstance(r, dict):
+                            total_web_pages += r.get("indexed_count", r.get("char_count", 1 if r.get("status") == "success" else 0))
+
+                summary_parts = []
+                if indexed_files > 0:
+                    summary_parts.append(f"{indexed_files} local file(s) indexed")
+                if total_web_pages > 0:
+                    summary_parts.append(f"{total_web_pages} web page(s) crawled and indexed")
+
+                if summary_parts:
+                    summary_str = f"✔ Workspace '{clean_ws}' synchronization completed ({', '.join(summary_parts)})."
+                else:
+                    summary_str = f"✔ Workspace '{clean_ws}' is up to date."
+
+                notif = {
+                    "workspace": clean_ws,
+                    "type": "sync_completed",
+                    "message": summary_str,
+                    "timestamp": time.time(),
+                    "success": True,
+                    "result": res
+                }
+
                 with self._lock:
                     self._active_jobs[clean_ws]["status"] = "completed"
                     self._active_jobs[clean_ws]["result"] = res
@@ -371,15 +424,46 @@ class BackgroundSyncManager:
                         "stage": "done",
                         "item_name": ""
                     }
+                    if clean_ws not in self._notifications:
+                        self._notifications[clean_ws] = []
+                    self._notifications[clean_ws].append(notif)
+                    listeners = list(self._completion_listeners)
+
+                # Dispatch notifications to listeners
+                for listener in listeners:
+                    try:
+                        listener(notif)
+                    except Exception:
+                        pass
+
                 if on_complete:
                     try:
                         on_complete(res)
                     except Exception:
                         pass
             except Exception as e:
+                err_msg = f"❌ Background synchronization failed for '{clean_ws}': {str(e)}"
+                notif = {
+                    "workspace": clean_ws,
+                    "type": "sync_failed",
+                    "message": err_msg,
+                    "timestamp": time.time(),
+                    "success": False,
+                    "error": str(e)
+                }
                 with self._lock:
                     self._active_jobs[clean_ws]["status"] = "failed"
                     self._active_jobs[clean_ws]["error"] = str(e)
+                    if clean_ws not in self._notifications:
+                        self._notifications[clean_ws] = []
+                    self._notifications[clean_ws].append(notif)
+                    listeners = list(self._completion_listeners)
+
+                for listener in listeners:
+                    try:
+                        listener(notif)
+                    except Exception:
+                        pass
 
         t = threading.Thread(target=_worker, daemon=True, name=f"SyncWorker-{clean_ws}")
         with self._lock:
@@ -392,3 +476,4 @@ class BackgroundSyncManager:
             }
         t.start()
         return t
+

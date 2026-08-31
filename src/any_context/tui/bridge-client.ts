@@ -106,6 +106,8 @@ export class BridgeClient {
   };
   public commands: SlashCommandMeta[] = [...DEFAULT_SLASH_COMMANDS];
   public onStateChange?: (state: AnyContextState) => void;
+  public onNotification?: (message: string, level: string) => void;
+
 
   constructor(private initialWorkspace: string = "Default") {
     this.state.workspace = initialWorkspace;
@@ -274,6 +276,17 @@ export class BridgeClient {
         this.updateState(msg.state);
         return;
       }
+
+      if (msg.event === "notification" && msg.message) {
+        if (msg.state) {
+          this.updateState(msg.state);
+        }
+        if (this.onNotification) {
+          this.onNotification(msg.message, msg.level || "success");
+        }
+        return;
+      }
+
 
       const reqId = msg.id;
 
