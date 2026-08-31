@@ -228,17 +228,26 @@ def check_for_updates(quiet_if_latest: bool = True) -> Tuple[bool, Optional[str]
 
 def print_startup_update_notice():
     """
-    Fast, non-blocking check printed right below startup banner if an update is available.
+    Non-blocking update checker. Spawns check in a background daemon thread
+    to guarantee zero lag on terminal startup.
     """
-    has_update, latest_tag = check_for_updates(quiet_if_latest=True)
-    if has_update and latest_tag:
-        clean_tag = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
-        yellow = "\033[93m"
-        cyan = "\033[96m"
-        bold = "\033[1m"
-        reset = "\033[0m"
-        safe_print(f"{yellow}💡 Update available! {bold}v{CURRENT_VERSION}{reset}{yellow} → {bold}{clean_tag}{reset}")
-        safe_print(f"{cyan}👉 Run 'actx --update' or type '/update' inside the chat to update automatically.{reset}\n")
+    import threading
+    def _worker():
+        try:
+            has_update, latest_tag = check_for_updates(quiet_if_latest=True)
+            if has_update and latest_tag:
+                clean_tag = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
+                yellow = "\033[93m"
+                cyan = "\033[96m"
+                bold = "\033[1m"
+                reset = "\033[0m"
+                safe_print(f"\n{yellow}💡 Update available! {bold}v{CURRENT_VERSION}{reset}{yellow} → {bold}{clean_tag}{reset}")
+                safe_print(f"{cyan}👉 Run 'actx --update' or type '/update' inside the chat to update automatically.{reset}\n")
+        except Exception:
+            pass
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
 
 
 def find_active_instances() -> List[Dict[str, Any]]:
