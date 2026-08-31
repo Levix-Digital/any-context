@@ -26,6 +26,8 @@ from any_context.core.services import (
     MemoryService,
     BillingService,
 )
+from any_context.config.db_store import ConfigDBStore
+
 
 
 
@@ -44,14 +46,27 @@ def parse_args(command_line: str) -> List[str]:
 class CommandDispatcher:
     """Universal Command Dispatcher mapping slash commands to Core Application Services."""
 
-    def __init__(self):
-        self.workspace_svc = WorkspaceService()
-        self.source_svc = SourceService()
-        self.model_svc = ModelService()
-        self.grounding_svc = GroundingService()
-        self.sync_svc = SyncService()
-        self.memory_svc = MemoryService()
-        self.billing_svc = BillingService()
+    def __init__(
+        self,
+        workspace_svc: Optional[WorkspaceService] = None,
+        source_svc: Optional[SourceService] = None,
+        model_svc: Optional[ModelService] = None,
+        grounding_svc: Optional[GroundingService] = None,
+        sync_svc: Optional[SyncService] = None,
+        memory_svc: Optional[MemoryService] = None,
+        billing_svc: Optional[BillingService] = None,
+        store: Optional[ConfigDBStore] = None,
+    ):
+        s = store or ConfigDBStore()
+        self.workspace_svc = workspace_svc or WorkspaceService(store=s)
+        self.source_svc = source_svc or SourceService(store=s)
+        self.model_svc = model_svc or ModelService(store=s)
+        self.grounding_svc = grounding_svc or GroundingService(store=s)
+        self.sync_svc = sync_svc or SyncService()
+        self.memory_svc = memory_svc or MemoryService()
+        self.billing_svc = billing_svc or BillingService()
+
+
 
     def dispatch(self, command_line: str, active_workspace: str = "Default") -> CommandResult:
         """Parses and executes a slash command, returning a standardized CommandResult."""
@@ -113,7 +128,8 @@ class CommandDispatcher:
 
         # 6. /model
         if canonical == "/model":
-            return self._handle_model(parts)
+            return self._handle_model(parts, ws_name)
+
 
         # 7. /mode or /grounding
         if canonical == "/mode":
@@ -419,30 +435,32 @@ class CommandDispatcher:
         self.sync_svc.start_sync(workspace=target, force_full=False)
 
         action_word = "Created and switched to" if res.get("created") else "Switched to"
+        ws_model = self.model_svc.get_current_model(workspace_name=target)
         return CommandResult(
             success=True,
             message=f"🔄 **{action_word} workspace:** `{target}`",
-            state_updates={"workspace": target},
+            state_updates={"workspace": target, "model": ws_model},
             action="switch_workspace"
         )
 
-    def _handle_model(self, parts: List[str]) -> CommandResult:
+    def _handle_model(self, parts: List[str], ws_name: str) -> CommandResult:
         if len(parts) == 1:
-            curr = self.model_svc.get_current_model()
+            curr = self.model_svc.get_current_model(workspace_name=ws_name)
             return CommandResult(
                 success=True,
-                message=f"🤖 **Active AI Model:** `{curr}`\n\n*Usage:* `/model <name>` (e.g. `/model gpt-4o-mini`, `/model claude-3-5-sonnet`)",
+                message=f"🤖 **Active AI Model for `{ws_name}`:** `{curr}`\n\n*Usage:* `/model <name>` (e.g. `/model gpt-4o-mini`, `/model claude-3-5-sonnet`)",
                 action="open_model_modal"
             )
 
         new_model = parts[1].strip()
-        res = self.model_svc.set_model(new_model)
+        res = self.model_svc.set_model(new_model, workspace_name=ws_name)
         key_status = "✅ API Key Ready" if res["has_key"] else "⚠️ API Key Missing"
         return CommandResult(
             success=True,
-            message=f"🤖 **Inference Model Switched to:** `{res['model']}`\n• Provider: `{res['provider']}` ({key_status})",
+            message=f"🤖 **Inference Model for `{ws_name}` Switched to:** `{res['model']}`\n• Provider: `{res['provider']}` ({key_status})",
             state_updates={"model": res["model"]}
         )
+
 
     def _handle_mode(self, parts: List[str], ws_name: str) -> CommandResult:
         if len(parts) == 1:

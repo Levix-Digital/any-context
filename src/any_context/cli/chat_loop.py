@@ -306,8 +306,9 @@ def run_chat_loop(active_workspace: str = "Default"):
         milestones.append(((t_db - t_boot_start) * 1000, "🔌 SQLite Configuration Store active"))
 
         settings = AppSettings.load()
-        current_model = settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini"
+        current_model = store.get_workspace_model(active_workspace) or "gpt-4o-mini"
         provider = settings.models.model_provider if (settings and settings.models and settings.models.model_provider) else "openai"
+
         t_model = time.perf_counter()
         milestones.append(((t_model - t_boot_start) * 1000, f"🤖 AI Model engine linked (\033[1m{current_model}\033[0m - {provider.upper()})"))
 
@@ -878,8 +879,9 @@ def run_chat_loop(active_workspace: str = "Default"):
                         print(f"\n{err_msg}\n")
                         continue
                     current_model = new_model
+                    store.set_workspace_model(active_workspace, current_model)
                     agent_instance = None
-                    print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m ({prov.upper()}) for this session.\n")
+                    print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m ({prov.upper()}) for workspace '{active_workspace}'.\n")
                     continue
 
                 available_models = get_available_models()
@@ -893,7 +895,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                 choices.append("🔙 Cancel")
 
                 selected = questionary.select(
-                    f"Select Inference Model (Active: {current_model}):",
+                    f"Select Inference Model for '{active_workspace}' (Active: {current_model}):",
                     choices=choices
                 ).ask()
 
@@ -912,16 +914,19 @@ def run_chat_loop(active_workspace: str = "Default"):
                             print(f"\n{err_msg}\n")
                             continue
                         current_model = custom_id.strip()
+                        store.set_workspace_model(active_workspace, current_model)
                         agent_instance = None
-                        print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for this session.\n")
+                        print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for workspace '{active_workspace}'.\n")
                     continue
 
                 if "(" in selected and selected.endswith(")"):
                     extracted_id = selected[selected.rfind("(") + 1 : -1].strip()
                     current_model = extracted_id
+                    store.set_workspace_model(active_workspace, current_model)
                     agent_instance = None
-                    print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for this session.\n")
+                    print(f"\n🔄 Switched active inference model to \033[95m{current_model}\033[0m for workspace '{active_workspace}'.\n")
                 continue
+
 
             elif cmd.startswith("/mode") or cmd.startswith("/answer-mode") or cmd.startswith("/grounding") or cmd.startswith("/am"):
                 parts = parse_command_args(user_input)

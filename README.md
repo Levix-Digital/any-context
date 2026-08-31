@@ -157,8 +157,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Native JSON-RPC stdio implementation for **Claude Desktop**, **Cursor IDE**, and **Antigravity**.
 - **📘 Permanent Self-Help System**:
   - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
+- **🤖 Factory Default Model Isolation (`gpt-4o-mini`) per Workspace (`v0.28.67`)**:
+  - Todo e qualquer novo workspace criado no sistema (seja no primeiro uso, via `/switch`, REST API ou MCP Server) é inicializado rigorosamente com o modelo padrão de fábrica `gpt-4o-mini`.
+  - O modelo configurado em um workspace é isolado e persistido de forma independente, impedindo contaminações indesejadas de modelos mais caros para workspaces recém-criados.
 
-- **⚡ Sub-Millisecond Cold-Start, Fast-Path & Micro-Boot Telemetry (`v0.28.66`)**:
   - Resposta instantânea de linha de comando (`actx -v` / `actx --version` em < 5ms) via roteamento imediato sem carregamento de banco de dados ou variáveis de ambiente.
   - Verificação de atualizações (`print_startup_update_notice`) desacoplada em segundo plano de forma 100% assíncrona, eliminando qualquer travamento por latência de rede no início do terminal.
   - Telemetria visual de micro-etapas de boot exibida logo abaixo do banner (`[08ms] 🔌 SQLite Config Store active`, `[19ms] 📂 Workspace connected`, `[29ms] 🤖 AI Model engine linked`, `[36ms] 🚀 Ready in 0.04s`), transmitindo sensação imediata de velocidade, precisão e responsividade.

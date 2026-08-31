@@ -72,6 +72,8 @@ class WorkspaceSettings(BaseModel):
     grounding_mode: str = Field(default="strict", description="Per-workspace grounding mode: 'strict' (default), 'hybrid', 'proactive'")
     web_search_enabled: bool = Field(default=False, description="Per-workspace web search toggle")
     default_web_engine: str = Field(default="auto", description="Per-workspace search engine preference: 'auto', 'tavily', 'serper', 'duckduckgo'")
+    model: str = Field(default="gpt-4o-mini", description="Per-workspace AI inference model (factory default: gpt-4o-mini)")
+
 
 class SessionSettings(BaseModel):
     db_path: str = Field(default="./memory")

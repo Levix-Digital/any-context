@@ -95,11 +95,12 @@ class ConfigDBStore:
                     paths_json TEXT NOT NULL,
                     grounding_mode TEXT DEFAULT 'strict',
                     web_search_enabled INTEGER DEFAULT 0,
-                    default_web_engine TEXT DEFAULT 'auto'
+                    default_web_engine TEXT DEFAULT 'auto',
+                    model TEXT DEFAULT 'gpt-4o-mini'
                 )
             """)
 
-            # Ensure workspace_id, grounding_mode, web_search_enabled, default_web_engine columns exist for existing tables
+            # Ensure workspace_id, grounding_mode, web_search_enabled, default_web_engine, model columns exist for existing tables
             cursor.execute("PRAGMA table_info(workspaces)")
             ws_cols = [r[1] for r in cursor.fetchall()]
             if "workspace_id" not in ws_cols:
@@ -110,6 +111,8 @@ class ConfigDBStore:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN web_search_enabled INTEGER DEFAULT 0")
             if "default_web_engine" not in ws_cols:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN default_web_engine TEXT DEFAULT 'auto'")
+            if "model" not in ws_cols:
+                cursor.execute("ALTER TABLE workspaces ADD COLUMN model TEXT DEFAULT 'gpt-4o-mini'")
             
             cursor.execute("SELECT id, name, workspace_id FROM workspaces WHERE workspace_id IS NULL OR workspace_id = ''")
             for r in cursor.fetchall():
@@ -122,10 +125,10 @@ class ConfigDBStore:
                     embedding_model TEXT DEFAULT 'text-embedding-3-small',
                     local_embedding_model TEXT,
                     local_openai_embedding_model TEXT,
-                    inference_model TEXT NOT NULL,
-                    summary_model TEXT NOT NULL,
-                    model_provider TEXT NOT NULL,
-                    local_base_url TEXT NOT NULL
+                    inference_model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+                    summary_model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+                    model_provider TEXT NOT NULL DEFAULT 'openai',
+                    local_base_url TEXT NOT NULL DEFAULT 'https://api.openai.com/v1'
                 )
             """)
 
@@ -134,6 +137,14 @@ class ConfigDBStore:
             cols = [r[1] for r in cursor.fetchall()]
             if "embedding_model" not in cols:
                 cursor.execute("ALTER TABLE models ADD COLUMN embedding_model TEXT DEFAULT 'text-embedding-3-small'")
+
+            cursor.execute("SELECT id FROM models WHERE id = 1")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT OR IGNORE INTO models (id, embedding_model, local_embedding_model, local_openai_embedding_model, inference_model, summary_model, model_provider, local_base_url)
+                    VALUES (1, 'text-embedding-3-small', 'text-embedding-3-small', 'text-embedding-3-small', 'gpt-4o-mini', 'gpt-4o-mini', 'openai', 'https://api.openai.com/v1')
+                """)
+
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS context_settings (
@@ -376,17 +387,18 @@ class ConfigDBStore:
                     default_path = os.path.abspath(os.path.join(os.getcwd(), "documents"))
                     os.makedirs(default_path, exist_ok=True)
                     cursor.execute(
-                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
-                        ("ws_default", "Default", json.dumps([default_path]))
+                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model) VALUES (?, ?, ?, ?)",
+                        ("ws_default", "Default", json.dumps([default_path]), "gpt-4o-mini")
                     )
                 # 2. Ensure Shared Sources library workspace
                 cursor.execute("SELECT id FROM workspaces WHERE name = 'Shared Sources' COLLATE NOCASE")
                 if not cursor.fetchone():
                     cursor.execute(
-                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json) VALUES (?, ?, ?)",
-                        ("ws_shared_sources", "Shared Sources", json.dumps([]))
+                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model) VALUES (?, ?, ?, ?)",
+                        ("ws_shared_sources", "Shared Sources", json.dumps([]), "gpt-4o-mini")
                     )
                 conn.commit()
+
             except sqlite3.IntegrityError:
                 pass
 
@@ -433,22 +445,25 @@ class ConfigDBStore:
         paths: List[str],
         workspace_id: Optional[str] = None,
         grounding_mode: str = "strict",
-        web_search_enabled: bool = False
+        web_search_enabled: bool = False,
+        model: str = "gpt-4o-mini"
     ) -> Dict[str, Any]:
-        """Adds or updates a workspace entry with folder paths and an immutable workspace_id."""
+        """Adds or updates a workspace entry with folder paths, immutable workspace_id, and model (factory default: gpt-4o-mini)."""
         clean_name = name.strip()
         clean_paths = [os.path.abspath(p.strip().strip("'\"")) for p in paths if p and p.strip()]
         lname = clean_name.lower()
         ws_id = workspace_id or ("ws_default" if lname == "default" else ("ws_shared_sources" if lname == "shared sources" else f"ws_{uuid.uuid4().hex[:8]}"))
+        clean_model = model.strip() if model and model.strip() else "gpt-4o-mini"
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT workspace_id, paths_json, grounding_mode, web_search_enabled FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_name,))
+            cursor.execute("SELECT workspace_id, paths_json, grounding_mode, web_search_enabled, model FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_name,))
             row = cursor.fetchone()
             if row:
                 existing_ws_id = row["workspace_id"] or ws_id
                 existing_paths = [os.path.abspath(p.strip().strip("'\"")) for p in json.loads(row["paths_json"])]
                 combined = list(dict.fromkeys(existing_paths + clean_paths))
+                existing_model = row["model"] if "model" in row.keys() and row["model"] else clean_model
                 cursor.execute("UPDATE workspaces SET paths_json = ?, workspace_id = ? WHERE id = ?", (json.dumps(combined), existing_ws_id, row["id"] if "id" in row.keys() else 1))
                 conn.commit()
                 return {
@@ -457,10 +472,11 @@ class ConfigDBStore:
                     "name": clean_name,
                     "paths": combined,
                     "grounding_mode": row["grounding_mode"] if "grounding_mode" in row.keys() and row["grounding_mode"] else "strict",
-                    "web_search_enabled": bool(row["web_search_enabled"]) if "web_search_enabled" in row.keys() and row["web_search_enabled"] is not None else False
+                    "web_search_enabled": bool(row["web_search_enabled"]) if "web_search_enabled" in row.keys() and row["web_search_enabled"] is not None else False,
+                    "model": existing_model
                 }
             else:
-                cursor.execute("INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled) VALUES (?, ?, ?, ?, ?)", (ws_id, clean_name, json.dumps(clean_paths), grounding_mode, 1 if web_search_enabled else 0))
+                cursor.execute("INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model) VALUES (?, ?, ?, ?, ?, ?)", (ws_id, clean_name, json.dumps(clean_paths), grounding_mode, 1 if web_search_enabled else 0, clean_model))
                 conn.commit()
                 return {
                     "id": ws_id,
@@ -468,8 +484,31 @@ class ConfigDBStore:
                     "name": clean_name,
                     "paths": clean_paths,
                     "grounding_mode": grounding_mode,
-                    "web_search_enabled": bool(web_search_enabled)
+                    "web_search_enabled": bool(web_search_enabled),
+                    "model": clean_model
                 }
+
+    def get_workspace_model(self, workspace_name: str) -> str:
+        """Returns the configured model for a workspace, strictly defaulting to 'gpt-4o-mini'."""
+        clean_ws = workspace_name.strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT model FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_ws,))
+            row = cursor.fetchone()
+            if row and "model" in row.keys() and row["model"] and row["model"].strip():
+                return row["model"].strip()
+        return "gpt-4o-mini"
+
+    def set_workspace_model(self, workspace_name: str, model_name: str) -> str:
+        """Updates the configured AI model for a workspace."""
+        clean_ws = workspace_name.strip()
+        clean_model = model_name.strip() if model_name and model_name.strip() else "gpt-4o-mini"
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE workspaces SET model = ? WHERE name = ? COLLATE NOCASE", (clean_model, clean_ws))
+            conn.commit()
+        return clean_model
+
 
     def add_folder_to_workspace(self, workspace_name: str, folder_path: str) -> bool:
         """Adds a new folder path to an existing workspace."""
@@ -1360,7 +1399,7 @@ class ConfigDBStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute("SELECT workspace_id, name, grounding_mode, web_search_enabled, default_web_engine FROM workspaces ORDER BY id ASC")
+            cursor.execute("SELECT workspace_id, name, grounding_mode, web_search_enabled, default_web_engine, model FROM workspaces ORDER BY id ASC")
             ws_rows = cursor.fetchall()
             workspaces = []
             for row in ws_rows:
@@ -1370,6 +1409,7 @@ class ConfigDBStore:
                 ws_mode = row["grounding_mode"] if ("grounding_mode" in ws_keys and row["grounding_mode"]) else "strict"
                 ws_web = bool(row["web_search_enabled"]) if ("web_search_enabled" in ws_keys and row["web_search_enabled"] is not None) else False
                 ws_eng = row["default_web_engine"] if ("default_web_engine" in ws_keys and row["default_web_engine"]) else "auto"
+                ws_model = row["model"] if ("model" in ws_keys and row["model"]) else "gpt-4o-mini"
                 ws_detail = self.get_workspace_sources(ws_name)
                 workspaces.append(WorkspaceSettings(
                     id=ws_id,
@@ -1379,7 +1419,8 @@ class ConfigDBStore:
                     total_sources=ws_detail["total_sources"],
                     grounding_mode=ws_mode,
                     web_search_enabled=ws_web,
-                    default_web_engine=ws_eng
+                    default_web_engine=ws_eng,
+                    model=ws_model
                 ))
 
             cursor.execute("SELECT * FROM models WHERE id = 1")
@@ -1469,10 +1510,12 @@ class ConfigDBStore:
             for ws in settings.workspaces:
                 ws_mode = getattr(ws, "grounding_mode", "strict") or "strict"
                 ws_web = 1 if getattr(ws, "web_search_enabled", False) else 0
+                ws_model = getattr(ws, "model", "gpt-4o-mini") or "gpt-4o-mini"
                 cursor.execute(
-                    "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled) VALUES (?, ?, ?, ?, ?)",
-                    (ws.id, ws.name, json.dumps(ws.paths), ws_mode, ws_web)
+                    "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model) VALUES (?, ?, ?, ?, ?, ?)",
+                    (ws.id, ws.name, json.dumps(ws.paths), ws_mode, ws_web, ws_model)
                 )
+
 
             m = settings.models
             cursor.execute("""

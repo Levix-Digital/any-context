@@ -924,3 +924,17 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - Converted `print_startup_update_notice()` into an asynchronous daemon background worker thread (`threading.Thread(target=_worker, daemon=True)`).
 - Completely eliminated synchronous HTTP requests to `https://api.github.com/repos/...` and `gh.exe` subprocess calls during chat startup, eliminating 100% of terminal freezes caused by network lag.
 
+---
+
+## 37. Per-Workspace Model Isolation & Strict Factory Default (`v0.28.67`)
+
+### 🤖 1. Schema Migration & Per-Workspace Model Binding (`db_store.py`)
+- Added `model TEXT DEFAULT 'gpt-4o-mini'` column to the SQLite `workspaces` table.
+- Guaranteed automatic initialization of `id = 1` in `models` table with `gpt-4o-mini` across fresh installs and database migrations.
+- Implemented `get_workspace_model(workspace_name)` and `set_workspace_model(workspace_name, model_name)` in `ConfigDBStore`.
+
+### 🛡️ 2. Isolation & Contamination Prevention (`ModelService` & `CommandDispatcher`)
+- Updated `ModelService.get_current_model(workspace_name)` to resolve the workspace-specific model with a strict fallback to `gpt-4o-mini`.
+- Updated `/switch` in `CommandDispatcher` and CLI chat loop to dynamically bind the active model when switching workspaces, ensuring newly created workspaces are never polluted with previous non-default models.
+
+
