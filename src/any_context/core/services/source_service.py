@@ -91,9 +91,20 @@ class SourceService:
         if not clean_url.startswith("http://") and not clean_url.startswith("https://"):
             clean_url = "https://" + clean_url
 
-        from any_context.ingestion.web_scheduler import WebSchedulerStore
-        web_store = WebSchedulerStore()
-        web_store.add_web_url(workspace_name=ws_name, url=clean_url)
+        try:
+            from any_context.ingestion.web_scheduler import WebSchedulerStore
+            web_store = WebSchedulerStore()
+            web_store.add_web_url(workspace_name=ws_name, url=clean_url)
+        except Exception as err:
+            err_str = str(err).lower()
+            if "decompress" in err_str or "truncated stream" in err_str or "-5" in err_str or "zlib" in err_str:
+                import time
+                time.sleep(0.1)
+                from any_context.ingestion.web_scheduler import WebSchedulerStore
+                web_store = WebSchedulerStore()
+                web_store.add_web_url(workspace_name=ws_name, url=clean_url)
+            else:
+                raise
 
         return {
             "added": True,

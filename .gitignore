@@ -38,4 +38,5 @@ htmlcov/
 
 .ai/
 node_modules/
+brain/
 

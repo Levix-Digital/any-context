@@ -7,7 +7,43 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.71): Validação de Resposta Instantânea do Launcher Shim (`actx -v` / `actx --version`)
+### 📌 Cenário 1 (v0.28.72): Adição Resiliente de Fontes Web com Descompressão Tolerante a Falhas (`/web --add <url>`)
+
+- **Objetivo**: Comprovar que a adição de fontes web complexas (portais com compactação Akamai/Cloudflare como `canada.ca`) é executada com sucesso e auto-cura de interrupções de stream zlib/gzip, sem erros de descompressão truncada (`Error -5`).
+- **Pré-requisito**: Versão `v0.28.72` instalada (`actx -v` exibindo `v0.28.72`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🌐 Adição de Portal Web via CLI ou OpenTUI:**
+   - Inicie o AnyContext ou abra o OpenTUI (`actx --tui`).
+   - Execute o comando:
+     ```
+     /web --add https://www.canada.ca/en/immigration-refugees-citizenship.html
+     ```
+   - **Critério de Aceitação:** O comando deve responder com confirmação positiva:
+     ```
+     ✅ Added web source 'https://www.canada.ca/en/immigration-refugees-citizenship.html' to workspace 'Default'.
+     ⚡ Crawler started in background.
+     ```
+     E NÃO deve exibir `❌ Error adding web source: Error -5 while decompressing data: incomplete or truncated stream`.
+
+2. **📜 Validação de Rastreamento Estruturado de Logs:**
+   - Execute no terminal:
+     ```
+     /logs 10
+     ```
+   - **Critério de Aceitação:** Os logs do sistema devem registrar a execução do comando `/web` com telemetria limpa e sem erros não tratados.
+
+3. **🔍 Listagem de Fontes Web Cadastradas:**
+   - Execute:
+     ```
+     /web --list
+     ```
+   - **Critério de Aceitação:** A URL deve constar na lista de portais cadastrados no workspace ativo.
+
+---
+
+### 📌 Cenário 2 (v0.28.71): Validação de Resposta Instantânea do Launcher Shim (`actx -v` / `actx --version`)
 
 - **Objetivo**: Comprovar que o comando `actx -v` e `actx --version` responde de forma instantânea (< 50ms) imprimindo a versão de maneira simples, limpa e direta (`v0.28.71`), sem carregar módulos pesados ou descompactar o runtime no `%TEMP%`.
 - **Pré-requisito**: Versão `v0.28.71` instalada via `.\scripts\install.ps1` ou `install.sh`.

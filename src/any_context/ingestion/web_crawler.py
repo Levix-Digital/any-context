@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Set, Optional, Tuple
 from html.parser import HTMLParser
 
-from any_context.ingestion.web_ingestor import CleanHTMLTextExtractor, scrape_url
+from any_context.ingestion.web_ingestor import CleanHTMLTextExtractor, scrape_url, resilient_decompress
 from any_context.ingestion.robots_policy import is_url_allowed_by_robots
 
 
@@ -99,6 +99,8 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 if response.status == 200:
                     raw_xml = response.read()
+                    enc = response.headers.get("Content-Encoding") or response.headers.get("content-encoding")
+                    raw_xml = resilient_decompress(raw_xml, encoding=enc)
                     entries = _parse_xml_entries(raw_xml)
                     
                     sub_sitemaps = [l for l, _ in entries if l.endswith(".xml") or l.endswith(".xml.gz") or "sitemap" in l]
@@ -132,7 +134,10 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
                                 sub_req = urllib.request.Request(sub, headers=headers)
                                 with urllib.request.urlopen(sub_req, timeout=timeout) as sub_resp:
                                     if sub_resp.status == 200:
-                                        sub_entries = _parse_xml_entries(sub_resp.read())
+                                        sub_data = sub_resp.read()
+                                        sub_enc = sub_resp.headers.get("Content-Encoding") or sub_resp.headers.get("content-encoding")
+                                        sub_data = resilient_decompress(sub_data, encoding=sub_enc)
+                                        sub_entries = _parse_xml_entries(sub_data)
                                         for sp, slm in sub_entries:
                                             if not sp.endswith(".xml") and not sp.endswith(".xml.gz"):
                                                 discovered_pages.add(sp)

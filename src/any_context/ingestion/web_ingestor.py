@@ -1,12 +1,70 @@
 import json
 import re
 import hashlib
+import gzip
+import zlib
 import urllib.request
 import xml.etree.ElementTree as ET
 import email.utils
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from html.parser import HTMLParser
+
+
+def resilient_decompress(data: bytes, encoding: Optional[str] = None) -> bytes:
+    """
+    Safely decompresses raw bytes from HTTP responses, sitemaps, or archive streams.
+    Handles gzip, deflate, and truncated streams without throwing zlib Error -5 (Z_BUF_ERROR).
+    If the stream is truncated or malformed, it recovers and returns all decoded bytes up to the interruption.
+    """
+    if not data or not isinstance(data, (bytes, bytearray)):
+        return b""
+
+    enc = (encoding or "").lower().strip()
+    is_gzip = "gzip" in enc or data.startswith(b"\x1f\x8b")
+    is_deflate = "deflate" in enc
+
+    if not is_gzip and not is_deflate:
+        # Check magic bytes for gzip or zlib
+        if data.startswith(b"\x1f\x8b"):
+            is_gzip = True
+        elif data.startswith(b"\x78\x9c") or data.startswith(b"\x78\x01") or data.startswith(b"\x78\xda"):
+            is_deflate = True
+        else:
+            return bytes(data)
+
+    # 1. GZIP with standard decompressor
+    if is_gzip:
+        try:
+            return gzip.decompress(data)
+        except Exception:
+            pass
+
+    # 2. Resilient zlib stream decompression (32 + MAX_WBITS auto-detects gzip/zlib headers)
+    try:
+        return zlib.decompress(data, 32 + zlib.MAX_WBITS)
+    except Exception:
+        pass
+
+    # 3. Deflate raw stream (-MAX_WBITS)
+    try:
+        return zlib.decompress(data, -zlib.MAX_WBITS)
+    except Exception:
+        pass
+
+    # 4. Resilient chunk recovery via decompressobj (immune to Error -5 truncated stream)
+    for wbits in [32 + zlib.MAX_WBITS, -zlib.MAX_WBITS, zlib.MAX_WBITS]:
+        try:
+            d = zlib.decompressobj(wbits)
+            decompressed = d.decompress(data)
+            if decompressed:
+                return decompressed
+        except Exception:
+            continue
+
+    # Fallback: return raw bytes if decompression cannot process
+    return bytes(data)
+
 
 class CleanHTMLTextExtractor(HTMLParser):
     """
@@ -287,7 +345,8 @@ def scrape_url(
         }
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AnyContext-WebScraper/1.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AnyContext-WebScraper/1.0",
+        "Accept-Encoding": "gzip, deflate"
     }
     if cached_etag:
         headers["If-None-Match"] = cached_etag
@@ -299,9 +358,11 @@ def scrape_url(
     resp_headers = {}
     try:
         with urllib.request.urlopen(req, timeout=timeout) as response:
-            html_bytes = response.read()
-            html_text = html_bytes.decode("utf-8", errors="ignore")
             resp_headers = dict(response.headers)
+            raw_bytes = response.read()
+            encoding = resp_headers.get("Content-Encoding") or resp_headers.get("content-encoding")
+            html_bytes = resilient_decompress(raw_bytes, encoding=encoding)
+            html_text = html_bytes.decode("utf-8", errors="ignore")
     except urllib.error.HTTPError as e:
         if e.code == 304:
             # 304 Not Modified - Server authoritatively confirms page has not changed since last crawl
