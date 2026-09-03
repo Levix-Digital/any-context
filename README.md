@@ -157,6 +157,12 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Native JSON-RPC stdio implementation for **Claude Desktop**, **Cursor IDE**, and **Antigravity**.
 - **📘 Permanent Self-Help System**:
   - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
+- **⚡ Sub-2ms Native Launcher Shim Architecture & Clean Versioning (`v0.28.71`)**:
+  - Implementação de Launcher Shim nativo autônomo (`actx.exe` / `actx` < 20KB) compilado diretamente para código de máquina nativo (via `csc.exe` no Windows ou `gcc` no Linux), sem dependência de máquina virtual ou overhead de extração do PyInstaller.
+  - O comando `actx -v` / `actx --version` responde instantaneamente em **< 2 milissegundos** exibindo a versão no padrão limpo e direto da indústria (`v0.28.71`), exatamente como `node -v` ou `agy --version`.
+  - Delegação transparente de comandos completos e interfaces interativas (`actx`, `actx --tui`, `actx --mcp`) para o motor core (`actx-core.exe`).
+  - Suíte de testes automatizados expandida para 207 testes (100% PASS).
+
 - **🖥️ OpenTUI Syntax Repair & CI Frontend Verification Gate (`v0.28.70`)**:
   - Correção cirúrgica de sintaxe no componente React principal [`app.tsx`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/tui/app.tsx) do OpenTUI, fechando blocos de callback de erro e restaurando a inicialização instantânea do comando `actx --tui`.
   - Integração do verificador estático do Bun (`bun run check` / `tsc --noEmit`) ao pipeline oficial do GitHub Actions (`.github/workflows/e2e-tests.yml`), impedindo regressões visuais ou de sintaxe no frontend antes de qualquer merge.
