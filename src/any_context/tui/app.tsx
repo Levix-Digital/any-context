@@ -77,6 +77,9 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           role: "system",
           content: `Failed to connect to AnyContext Python backend: ${err.message}`,
         },
+      ]);
+    });
+
     client.onNotification = (message: string, level: string) => {
       setMessages((prev) => [
         ...prev,
