@@ -98,112 +98,98 @@ def collect_diagnostic_report() -> DiagnosticReport:
 
 
 def format_diagnostic_report(report: DiagnosticReport) -> str:
-    """Formats a diagnostic report into a clean, human-readable terminal display."""
-    bun_status = "\033[32m✅ Yes\033[0m" if report.bun_installed else "\033[31m❌ No (required for actx --tui)\033[0m"
-    db_status = "\033[32m✅ Yes\033[0m" if report.database_exists else "\033[31m❌ No\033[0m"
-    onboarding_status = "\033[32m✅ Yes\033[0m" if report.onboarding_completed else "\033[93m⏳ Pending (first-time setup)\033[0m"
+    """Formats a diagnostic report into clean, structured GitHub Flavored Markdown."""
+    bun_status = "✅ Yes" if report.bun_installed else "❌ No (required for actx --tui)"
+    db_status = "✅ Yes" if report.database_exists else "❌ No"
+    onboarding_status = "✅ Yes" if report.onboarding_completed else "⏳ Pending (first-time setup)"
     provider_str = report.active_provider.upper()
 
     lines = [
-        "\n\033[36m=======================================================\033[0m",
-        "\033[1m📊 AnyContext Diagnostics & Health Checkup\033[0m",
-        "\033[36m=======================================================\033[0m",
-        f"  • \033[1mVersion:\033[0m actx v{report.actx_version} (levix.digital)",
-        f"  • \033[1mOperating System:\033[0m {report.os_name} ({report.os_platform})",
-        f"  • \033[1mPython Runtime:\033[0m {report.python_version} (Frozen/Standalone: {report.is_frozen})",
-        f"  • \033[1mExecutable Binary:\033[0m {report.executable_path}",
+        "### 📊 AnyContext Diagnostics & Health Checkup\n",
+        f"• **Version:** actx v{report.actx_version} (levix.digital)",
+        f"• **Operating System:** {report.os_name} ({report.os_platform})",
+        f"• **Python Runtime:** {report.python_version} (Frozen/Standalone: {report.is_frozen})",
+        f"• **Executable Binary:** `{report.executable_path}`",
         "",
-        "  \033[1m⚡ OpenTUI Desktop Runtime (Bun):\033[0m",
-        f"    - Installed: {bun_status}",
-        f"    - Version: {report.bun_version or 'N/A'}",
-        f"    - Binary Path: {report.bun_path or 'Not detected'}",
+        "#### ⚡ OpenTUI Desktop Runtime (Bun)",
+        f"- **Installed:** {bun_status}",
+        f"- **Version:** {report.bun_version or 'N/A'}",
+        f"- **Binary Path:** `{report.bun_path or 'Not detected'}`",
         "",
-        "  \033[1m💾 SQLite Configuration & Settings DB:\033[0m",
-        f"    - Database Path: {report.database_path}",
-        f"    - Exists on Disk: {db_status}",
-        f"    - Size: {report.database_size_bytes:,} bytes",
-        f"    - Onboarding Completed: {onboarding_status}",
-        f"    - Active Provider / Model: {provider_str} / {report.active_model}",
+        "#### 💾 SQLite Configuration & Settings DB",
+        f"- **Database Path:** `{report.database_path}`",
+        f"- **Exists on Disk:** {db_status}",
+        f"- **Size:** {report.database_size_bytes:,} bytes",
+        f"- **Onboarding Completed:** {onboarding_status}",
+        f"- **Active Provider / Model:** {provider_str} / `{report.active_model}`",
     ]
 
     if report.latency_summary:
         lines.append("")
-        lines.append("  \033[1m⏱️ Performance & Latency Metrics (Recent Spans):\033[0m")
+        lines.append("#### ⏱️ Performance & Latency Metrics (Recent Spans)")
         for item in report.latency_summary:
             avg_ms = item["avg_ms"]
-            color = "\033[32m" if avg_ms < 100 else ("\033[93m" if avg_ms < 1000 else "\033[91m")
             lines.append(
-                f"    - \033[1m{item['name']}\033[0m (x{item['count']}): "
-                f"avg {color}{avg_ms:.1f}ms\033[0m "
-                f"\033[90m[min: {item['min_ms']:.1f}ms, max: {item['max_ms']:.1f}ms]\033[0m"
+                f"- `{item['name']}` (x{item['count']}): **avg {avg_ms:.1f}ms** "
+                f"[min: {item['min_ms']:.1f}ms, max: {item['max_ms']:.1f}ms]"
             )
 
-    lines.append("\033[36m=======================================================\033[0m\n")
-
     if report.recent_errors:
-        lines.append("\033[91m⚠️ Recent Error Logs:\033[0m")
-        for err in report.recent_errors:
-            lines.append(f"  [{err.timestamp}] [{err.component}] {err.message}")
-            if err.traceback:
-                lines.append(f"    \033[90m{err.traceback.strip().splitlines()[-1]}\033[0m")
         lines.append("")
+        lines.append("#### ⚠️ Recent Error Logs")
+        for err in report.recent_errors:
+            lines.append(f"- `[{err.timestamp}]` `[{err.component}]` **{err.message}**")
+            if err.traceback:
+                tb_last = err.traceback.strip().splitlines()[-1]
+                lines.append(f"  > *Traceback:* `{tb_last}`")
 
     return "\n".join(lines)
 
 
 def format_recent_logs(logs: List[LogEvent], limit: int = 50) -> str:
-    """Formats recent system logs with ANSI coloring."""
+    """Formats recent system logs into clean, structured Markdown with a fenced code block."""
     if not logs:
-        return "\n\033[90mℹ️ No system logs recorded yet.\033[0m\n"
+        return "ℹ️ *No system logs recorded yet.*"
 
+    count = len(logs)
     lines = [
-        "\n\033[36m=======================================================\033[0m",
-        f"\033[1m📜 AnyContext System Logs (Showing last {len(logs)} entries)\033[0m",
-        "\033[36m=======================================================\033[0m",
+        f"### 📜 AnyContext System Logs (Showing last {count} entries)\n",
+        "```text",
     ]
 
     for log in logs:
-        lvl_color = "\033[32m"
-        if log.level == LogLevel.WARN:
-            lvl_color = "\033[93m"
-        elif log.level in [LogLevel.ERROR, LogLevel.CRITICAL]:
-            lvl_color = "\033[91m"
-        elif log.level == LogLevel.DEBUG:
-            lvl_color = "\033[90m"
-
+        ts = str(log.timestamp).replace("T", " ").split(".")[0]
+        lvl = f"[{log.level.value:<5}]"
+        comp = f"[{log.component}]"
         meta_str = f" {log.metadata}" if log.metadata else ""
-        lines.append(
-            f"  \033[90m{log.timestamp}\033[0m [{lvl_color}{log.level.value:<5}\033[0m] "
-            f"\033[36m[{log.component}]\033[0m {log.message}{meta_str}"
-        )
+        lines.append(f"{ts} {lvl} {comp} {log.message}{meta_str}")
         if log.traceback:
-            lines.append(f"    \033[91m{log.traceback.strip()}\033[0m")
+            for tb_line in log.traceback.strip().splitlines():
+                lines.append(f"    {tb_line}")
 
-    lines.append("\033[36m=======================================================\033[0m\n")
+    lines.append("```")
     return "\n".join(lines)
 
 
 def format_recent_spans(spans: List[Any], limit: int = 50) -> str:
-    """Formats recent execution trace spans with latency metrics."""
+    """Formats recent execution trace spans with latency metrics into clean Markdown."""
     if not spans:
-        return "\n\033[90mℹ️ No latency spans recorded yet.\033[0m\n"
+        return "ℹ️ *No latency spans recorded yet.*"
 
+    count = len(spans)
     lines = [
-        "\n\033[36m=======================================================\033[0m",
-        f"\033[1m⏱️ AnyContext Latency & Performance Spans (Last {len(spans)})\033[0m",
-        "\033[36m=======================================================\033[0m",
+        f"### ⏱️ AnyContext Latency & Performance Spans (Last {count})\n",
+        "```text",
     ]
 
     for s in spans:
         dur = s.duration_ms or 0.0
-        color = "\033[32m" if dur < 100 else ("\033[93m" if dur < 1000 else "\033[91m")
-        status_tag = "\033[32m✔\033[0m" if getattr(s, "status", "ok") == "ok" else "\033[91m✖\033[0m"
-        meta_str = f" \033[90m{s.metadata}\033[0m" if getattr(s, "metadata", None) else ""
-        lines.append(
-            f"  {status_tag} \033[90m{s.start_time}\033[0m \033[1m{s.name:<32}\033[0m "
-            f"{color}{dur:>8.2f} ms\033[0m{meta_str}"
-        )
+        status_tag = "✔" if getattr(s, "status", "ok") == "ok" else "✖"
+        st = str(getattr(s, "start_time", "")).replace("T", " ").split(".")[0]
+        name = getattr(s, "name", "unknown")
+        meta = f" [{s.metadata}]" if getattr(s, "metadata", None) else ""
+        lines.append(f"{status_tag} {st:<19}  {name:<32} {dur:>8.2f} ms{meta}")
 
-    lines.append("\033[36m=======================================================\033[0m\n")
+    lines.append("```")
     return "\n".join(lines)
 

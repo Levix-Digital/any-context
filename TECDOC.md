@@ -1039,6 +1039,42 @@ graph TD
   - 7 specialized unit tests covering uncompressed data, full gzip/deflate, intentionally truncated gzip streams (`Error -5` recovery), `SourceService` retry, and `CommandDispatcher` auto-recovery.
   - Total automated test suite expanded to **248 tests (100% PASS)**.
 
+---
+
+## 43. Clean Markdown Observability, TUI ANSI-Shield & CI Build Hardening (`v0.28.73`)
+
+### 📺 1. Problem Analysis: ANSI Debris & Grid Desync in OpenTUI
+- **Terminal Cell Grid Corruption**: OpenTUI computes terminal coordinate layouts via `@opentui/react` and Zig based on string length. Standard terminal ANSI escape sequences (`\033[36m`, `\033[0m`) occupy 5 bytes in string memory but take **0 visual columns** on the screen.
+- When `/logs` output was rendered as raw ANSI inside `<markdown>`, the text layout cursor became severely desynchronized from the terminal's hardware cursor, causing characters and text fragments (`O`, `U`, `ONBOARDING:STATUS`, etc.) to scatter across random coordinates of the terminal buffer ("sujeira na tela").
+- **Windows Runner `cp1252` Build Failure**: Python scripts (`launcher/build_shim.py`) outputting Unicode emojis (`🔨`, `✅`, `❌`) failed with `UnicodeEncodeError: 'charmap' codec can't encode character` under legacy codepage `cp1252` on GitHub Actions Windows runners.
+- **SQLite Workspace ID Collision Bug**: `db_store.py` omitted `id` in the `SELECT` query of `add_workspace`, causing updates to fallback to `WHERE id = 1` and triggering `sqlite3.IntegrityError: UNIQUE constraint failed: workspaces.workspace_id`.
+
+### 🛡️ 2. Architectural Solution: Dual-Layer Markdown & Sanitization Engine
+```mermaid
+graph TD
+    A["User runs /logs, /spans, or /diagnostics"] --> B["CommandDispatcher / Observability"]
+    B --> C["Clean GFM Markdown Output<br/>(fenced ```text code blocks)"]
+    C --> D["Zero Raw ANSI Escape Codes"]
+    D --> E["OpenTUI Stdio RPC Bridge"]
+    E --> F["stripAnsi() Sanitization Gate"]
+    F --> G["OpenTUI <markdown> Component"]
+    G --> H["Clean, Monospaced Code Block Box (Zero Screen Debris)"]
+```
+- **Clean Markdown Observability ([`diagnostics.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/observability/diagnostics.py))**:
+  - Refactored `format_recent_logs`, `format_recent_spans`, and `format_diagnostic_report` to emit 100% clean GitHub Flavored Markdown with fenced code blocks (` ```text `).
+  - Monospaced rendering inside OpenTUI prevents word-wrapping artifacts and ensures zero control byte leakage.
+- **Frontend ANSI Sanitization Gate ([`chat-message-list.tsx`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/tui/components/chat-message-list.tsx))**:
+  - Implemented `stripAnsi()` stripping ANSI sequences and non-printable control characters before rendering in `<markdown>`, providing defense-in-depth against any external process outputs.
+- **Cross-Platform Build Hardening ([`build_shim.py`](file:///C:/Users/guilh/source/repos/any-context/launcher/build_shim.py) & [`.github/workflows/release.yml`](file:///C:/Users/guilh/source/repos/any-context/.github/workflows/release.yml))**:
+  - Configured `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` and replaced Unicode emojis with ASCII tags (`[*]`, `[OK]`, `[ERROR]`).
+  - Added `PYTHONIOENCODING: utf-8` to GitHub Actions Windows & Linux build jobs.
+- **Workspace Update Query Repair ([`db_store.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/config/db_store.py))**:
+  - Selected `id` in `SELECT id, workspace_id...` and updated `WHERE id = row['id']`, eliminating workspace ID collisions.
+- **Automated Test Coverage ([`tests/unit/observability/test_diagnostics_formatting.py`](file:///C:/Users/guilh/source/repos/any-context/tests/unit/observability/test_diagnostics_formatting.py))**:
+  - 5 tests verifying zero ANSI codes and valid markdown code blocks across all observability formatters.
+  - Automated test suite expanded to **253 tests (100% PASS)**.
+
+
 
 
 

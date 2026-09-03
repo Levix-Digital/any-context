@@ -28,37 +28,46 @@ def find_windows_csharp_compiler():
     return None
 
 
+# Ensure UTF-8 output even in legacy Windows cp1252 CI environments
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
 def build_windows_shim(out_path: str) -> bool:
     csc = find_windows_csharp_compiler()
     if not csc:
-        print("❌ Error: Windows C# compiler (csc.exe) not found.")
+        print("[ERROR] Windows C# compiler (csc.exe) not found.")
         return False
 
     cs_file = os.path.join(LAUNCHER_DIR, "actx_shim.cs")
     cmd = [csc, "/nologo", "/optimize+", "/target:exe", f"/out:{out_path}", cs_file]
-    print(f"🔨 Compiling Windows Launcher Shim: {' '.join(cmd)}")
+    print(f"[*] Compiling Windows Launcher Shim: {' '.join(cmd)}")
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"❌ csc compilation failed:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+        print(f"[ERROR] csc compilation failed:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
         return False
-    print(f"✅ Successfully generated native Windows Launcher Shim: {out_path} ({os.path.getsize(out_path)} bytes)")
+    print(f"[OK] Successfully generated native Windows Launcher Shim: {out_path} ({os.path.getsize(out_path)} bytes)")
     return True
 
 
 def build_linux_shim(out_path: str) -> bool:
     compiler = shutil.which("gcc") or shutil.which("clang") or shutil.which("cc")
     if not compiler:
-        print("❌ Error: C compiler (gcc/clang) not found.")
+        print("[ERROR] C compiler (gcc/clang) not found.")
         return False
 
     c_file = os.path.join(LAUNCHER_DIR, "actx_shim.c")
     cmd = [compiler, "-O3", c_file, "-o", out_path]
-    print(f"🔨 Compiling Linux Launcher Shim: {' '.join(cmd)}")
+    print(f"[*] Compiling Linux Launcher Shim: {' '.join(cmd)}")
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"❌ C compilation failed:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+        print(f"[ERROR] C compilation failed:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
         return False
-    print(f"✅ Successfully generated native Linux Launcher Shim: {out_path} ({os.path.getsize(out_path)} bytes)")
+    print(f"[OK] Successfully generated native Linux Launcher Shim: {out_path} ({os.path.getsize(out_path)} bytes)")
     return True
 
 

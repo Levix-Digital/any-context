@@ -1602,6 +1602,12 @@ def run_chat_loop(active_workspace: str = "Default"):
                     print()
                 continue
 
+            elif cmd == "/logs" or cmd.startswith("/logs ") or cmd in ["/log", "/diagnostics", "/diag", "/health", "/spans", "/perf"]:
+                from any_context.commands.dispatcher import dispatch_command
+                res = dispatch_command(user_input, active_workspace=active_workspace)
+                print(f"\n{res.message}\n")
+                continue
+
             elif cmd.startswith("/"):
                 import difflib
                 known_commands = [
@@ -1613,7 +1619,8 @@ def run_chat_loop(active_workspace: str = "Default"):
                     "/reset-memory", "/reset", "/factory-reset", "/config",
                     "/keys", "/billing", "/plans", "/history", "/clear-history",
                     "/paste", "/multiline", "/mline", "/transfer", "/move-source",
-                    "/sources", "/density", "/web-search", "/websearch", "/search", "/ws"
+                    "/sources", "/density", "/web-search", "/websearch", "/search", "/ws",
+                    "/logs", "/log", "/diagnostics", "/diag", "/health", "/spans", "/perf"
                 ]
                 typed_cmd = user_input.split()[0]
                 matches = difflib.get_close_matches(typed_cmd.lower(), known_commands, n=1, cutoff=0.45)

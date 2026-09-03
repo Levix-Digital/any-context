@@ -27,6 +27,18 @@ const ASCII_BANNER = `  ___               ____ ___  _   _ _____ _____ _  _______
 
 const defaultSyntaxStyle = (SyntaxStyle as any).create ? (SyntaxStyle as any).create() : new (SyntaxStyle as any)();
 
+/**
+ * Strips ANSI escape sequences and non-printable terminal control codes
+ * to prevent OpenTUI layout grid and cell calculation corruption.
+ */
+export function stripAnsi(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
+    .replace(/\x1b\].*?(\x07|\x1b\\)/g, "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, (c) => (c === "\n" || c === "\r" || c === "\t" ? c : ""));
+}
+
 export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
   messages,
   state,
@@ -122,7 +134,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
             >
               <text fg={anyContextTheme.accent}>
                 <b>👤 You: </b>
-                <span fg={anyContextTheme.foreground}><b>{msg.content}</b></span>
+                <span fg={anyContextTheme.foreground}><b>{stripAnsi(msg.content)}</b></span>
               </text>
             </box>
           );
@@ -147,7 +159,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
               <text fg={headerColor}>
                 <b>{headerTitle}:</b>
               </text>
-              <markdown content={msg.content} syntaxStyle={defaultSyntaxStyle} flexShrink={0} />
+              <markdown content={stripAnsi(msg.content)} syntaxStyle={defaultSyntaxStyle} flexShrink={0} />
             </box>
           );
         }
@@ -176,7 +188,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
             ) : null}
 
             {msg.content ? (
-              <markdown content={msg.content} syntaxStyle={defaultSyntaxStyle} flexShrink={0} />
+              <markdown content={stripAnsi(msg.content)} syntaxStyle={defaultSyntaxStyle} flexShrink={0} />
             ) : (
               <text fg={anyContextTheme.foregroundMuted}>Thinking...</text>
             )}

@@ -7,7 +7,40 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.72): Adição Resiliente de Fontes Web com Descompressão Tolerante a Falhas (`/web --add <url>`)
+### 📌 Cenário 1 (v0.28.73): Validação de Renderização Limpa do `/logs` na Interface OpenTUI (`actx --tui`)
+
+- **Objetivo**: Comprovar que o comando `/logs`, `/spans` e `/diagnostics` na interface gráfica OpenTUI (`actx --tui`) renderiza as mensagens de observabilidade em caixas de código Markdown limpas e monospaçadas, sem nenhuma sujeira, caracteres flutuantes ou quebra do grid do terminal.
+- **Pré-requisito**: Versão `v0.28.73` instalada (`actx -v` exibindo `v0.28.73`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🖥️ Inicialização da OpenTUI:**
+   ```powershell
+   actx --tui
+   ```
+
+2. **📜 Execução do Comando de Logs:**
+   - Na barra de input, digite:
+     ```
+     /logs 10
+     ```
+   - Pressione Enter.
+   - **Critério de Aceitação:**
+     - O bloco de logs deve aparecer formatado dentro de uma caixa de código monospaçada limpa (`### 📜 AnyContext System Logs`).
+     - A tela NÃO deve apresentar nenhuma "sujeira", caracteres soltos no fundo preto ou desalinhamento de colunas.
+     - A barra inferior, o prompt `👤 You:` e o scroll continuam perfeitamente intactos e responsivos.
+
+3. **⏱️ Execução do Comando de Performance (`/spans`):**
+   - Digite `/spans 5` e pressione Enter.
+   - **Critério de Aceitação:** As métricas de latência devem ser exibidas em bloco formatado limpo sem erros visuais.
+
+4. **📊 Execução de Diagnóstico (`/diagnostics`):**
+   - Digite `/diagnostics` e pressione Enter.
+   - **Critério de Aceitação:** O relatório de saúde do AnyContext deve ser renderizado em Markdown estruturado.
+
+---
+
+### 📌 Cenário 2 (v0.28.72): Adição Resiliente de Fontes Web com Descompressão Tolerante a Falhas (`/web --add <url>`)
 
 - **Objetivo**: Comprovar que a adição de fontes web complexas (portais com compactação Akamai/Cloudflare como `canada.ca`) é executada com sucesso e auto-cura de interrupções de stream zlib/gzip, sem erros de descompressão truncada (`Error -5`).
 - **Pré-requisito**: Versão `v0.28.72` instalada (`actx -v` exibindo `v0.28.72`).

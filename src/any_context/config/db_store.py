@@ -457,14 +457,14 @@ class ConfigDBStore:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT workspace_id, paths_json, grounding_mode, web_search_enabled, model FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_name,))
+            cursor.execute("SELECT id, workspace_id, paths_json, grounding_mode, web_search_enabled, model FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_name,))
             row = cursor.fetchone()
             if row:
                 existing_ws_id = row["workspace_id"] or ws_id
                 existing_paths = [os.path.abspath(p.strip().strip("'\"")) for p in json.loads(row["paths_json"])]
                 combined = list(dict.fromkeys(existing_paths + clean_paths))
                 existing_model = row["model"] if "model" in row.keys() and row["model"] else clean_model
-                cursor.execute("UPDATE workspaces SET paths_json = ?, workspace_id = ? WHERE id = ?", (json.dumps(combined), existing_ws_id, row["id"] if "id" in row.keys() else 1))
+                cursor.execute("UPDATE workspaces SET paths_json = ?, workspace_id = ? WHERE id = ?", (json.dumps(combined), existing_ws_id, row["id"]))
                 conn.commit()
                 return {
                     "id": existing_ws_id,
