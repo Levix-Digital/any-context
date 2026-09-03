@@ -139,6 +139,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Exclusão segura e interativa de workspaces com listagem do total de fontes e modal de confirmação explícito (`Yes, permanently delete` vs `Cancel` com foco seguro).
   - Proteção de workspaces do sistema (`Default`, `Global`, `Shared Sources`) e fallback automático para `Default`.
 
+- **🌐 Resilient Web Ingestion & Decompression Engine (`v0.28.72`)**:
+  - **Tolerant HTTP Stream Decompression**: Native support for `Content-Encoding: gzip`, `deflate` and `.xml.gz` sitemaps using `zlib.decompressobj(32 + zlib.MAX_WBITS)`. Gracefully handles truncated, partial, or interrupted network streams without failing with low-level `Error -5 incomplete stream`.
+  - **Self-Healing Web Source Addition**: Transparent auto-recovery and retry loops in `SourceService` and `CommandDispatcher` for web portals (including CDNs like Akamai and Cloudflare).
+  - **Structured Command Error Telemetry**: All slash command exceptions and full tracebacks are automatically logged to `system_logs` in `settings.db` and queryable via `/logs`.
+
 - **🩹 RAG Self-Healing Ingestion Engine**:
   - Invalidação automática de cache desatualizado no SQLite caso arquivos físicos existam no disco mas chunks estejam ausentes no LanceDB, garantindo reindexação imediata e respostas precisas com citação de fontes.
 

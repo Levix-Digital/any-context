@@ -86,6 +86,7 @@ class CommandDispatcher:
             try:
                 return self._dispatch_inner(canonical, cmd_token, parts, ws_name)
             except Exception as e:
+                obs.error(f"cmd:{canonical}", f"Unhandled exception executing `{cmd_token}`: {str(e)}", exc=e)
                 return CommandResult(
                     success=False,
                     message=f"⚠️ Error executing `{cmd_token}`: {str(e)}",
@@ -631,18 +632,37 @@ class CommandDispatcher:
                 lines.append("*No web portals added. Use `/web --add <url>` to add one.*")
             return CommandResult(success=True, message="\n".join(lines))
 
+        def _add_source_safely(url_str: str) -> CommandResult:
+            try:
+                res = self.source_svc.add_web(ws_name, url_str)
+                self.sync_svc.start_sync(ws_name, force_full=False)
+                return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Crawler started in background.")
+            except Exception as e:
+                obs.error("cmd:/web", f"Failed to add web source '{url_str}': {str(e)}", exc=e)
+                err_msg = str(e)
+                err_lower = err_msg.lower()
+                if "decompress" in err_lower or "truncated stream" in err_lower or "-5" in err_lower or "zlib" in err_lower:
+                    try:
+                        import time
+                        time.sleep(0.15)
+                        res = self.source_svc.add_web(ws_name, url_str)
+                        self.sync_svc.start_sync(ws_name, force_full=False)
+                        return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Auto-recovered from stream oscillation. Crawler started in background.")
+                    except Exception as retry_err:
+                        obs.error("cmd:/web", f"Retry failed to add web source '{url_str}': {retry_err}", exc=retry_err)
+                        return CommandResult(
+                            success=False,
+                            message=f"❌ Network/decompression stream interrupted while adding web source: {str(retry_err)}. Please verify your connection and try again."
+                        )
+                return CommandResult(success=False, message=f"❌ Error adding web source: {err_msg}")
+
         if "--add" in parts or "-a" in parts:
             idx = next(i for i, p in enumerate(parts) if p in ["--add", "-a"])
             target_parts = parts[idx + 1:]
             if not target_parts:
                 return CommandResult(success=False, message="❌ Specify URL: `/web --add <url>`")
             target_url = " ".join(target_parts).strip().strip("'\"")
-            try:
-                res = self.source_svc.add_web(ws_name, target_url)
-                self.sync_svc.start_sync(ws_name, force_full=False)
-                return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Crawler started in background.")
-            except Exception as e:
-                return CommandResult(success=False, message=f"❌ Error adding web source: {str(e)}")
+            return _add_source_safely(target_url)
 
         if "--remove" in parts or "-r" in parts or "--delete" in parts or "-d" in parts:
             idx = next(i for i, p in enumerate(parts) if p in ["--remove", "-r", "--delete", "-d"])
@@ -654,16 +674,12 @@ class CommandDispatcher:
                 res = self.source_svc.remove_web(ws_name, target_url)
                 return CommandResult(success=True, message=f"🗑️ {res['message']}")
             except Exception as e:
+                obs.error("cmd:/web", f"Failed to remove web source '{target_url}': {str(e)}", exc=e)
                 return CommandResult(success=False, message=f"❌ Error removing web source: {str(e)}")
 
         # Fallback: treat all remaining arguments as URL to add
         target_url = " ".join(parts[1:]).strip().strip("'\"")
-        try:
-            res = self.source_svc.add_web(ws_name, target_url)
-            self.sync_svc.start_sync(ws_name, force_full=False)
-            return CommandResult(success=True, message=f"✅ {res['message']}\n⚡ Crawler started in background.")
-        except Exception as e:
-            return CommandResult(success=False, message=f"❌ Error adding web source: {str(e)}")
+        return _add_source_safely(target_url)
 
     def _handle_transfer(self, parts: List[str]) -> CommandResult:
         if len(parts) < 4:

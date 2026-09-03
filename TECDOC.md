@@ -1009,6 +1009,37 @@ graph TD
   - Validates standalone binary size, instant execution under 300ms, and exact output format matching.
   - Total automated tests expanded to **207 tests (100% PASS)**.
 
+---
+
+## 42. Resilient Web Ingestion, Truncated Stream Recovery & Command Telemetry (`v0.28.72`)
+
+### 🌐 1. Problem Analysis: Zlib Error -5 (Incomplete Stream) on Web Ingestion
+- Modern CDNs (Akamai, Cloudflare, AWS CloudFront) and portals (such as Canada.ca) serve HTTP responses with `Content-Encoding: gzip` or `deflate`, and compressed sitemaps (`.xml.gz`).
+- When network connections drop, transfer encoding finishes abruptly, or streams are cut off, Python's standard `gzip.decompress()` and `zlib.decompress()` raise `zlib.error: Error -5 while decompressing data: incomplete or truncated stream`.
+- Additionally, PyInstaller dynamic module extraction can face transient file contention in `%TEMP%\_MEIxxxxxx`, and `CommandDispatcher` previously discarded exception tracebacks rather than persisting them to `system_logs`.
+
+### 🛡️ 2. Architectural Solution: Resilient Decompression Pipeline (`resilient_decompress`)
+```mermaid
+graph TD
+    A["Web Ingestor / Crawler fetches URL / Sitemap"] --> B["HTTP Response Bytes"]
+    B --> C{"Encoding / Magic Bytes"}
+    C -- "gzip / deflate" --> D["resilient_decompress(data, encoding)"]
+    D --> E["Attempt 1: gzip.decompress(data)"]
+    E -- "EOFError / Truncated" --> F["Attempt 2: zlib.decompress(32 + MAX_WBITS)"]
+    F -- "Error -5" --> G["Attempt 3: zlib.decompressobj(wbits) Chunk Recovery"]
+    G --> H["Gracefully Decoded HTML / XML Content (Zero Crash)"]
+```
+- **Chunk Recovery via `zlib.decompressobj`**:
+  - Unlike `zlib.decompress()` which aborts if the EOF marker is missing, `zlib.decompressobj(32 + zlib.MAX_WBITS)` processes and recovers all valid decompressed content up to the exact byte where the network stream was interrupted.
+- **Self-Healing Web Registration (`SourceService.add_web`)**:
+  - Implements an automated retry loop with exponential jitter for transient decompression errors.
+- **Structured Error Logging (`obs.error`)**:
+  - `CommandDispatcher._handle_web` and `dispatch()` now record the complete exception stack trace to `system_logs` in `settings.db`, enabling instant diagnosis via `/logs`.
+- **Automated Test Coverage (`tests/unit/ingestion/test_resilient_decompression.py`)**:
+  - 7 specialized unit tests covering uncompressed data, full gzip/deflate, intentionally truncated gzip streams (`Error -5` recovery), `SourceService` retry, and `CommandDispatcher` auto-recovery.
+  - Total automated test suite expanded to **248 tests (100% PASS)**.
+
+
 
 
 
