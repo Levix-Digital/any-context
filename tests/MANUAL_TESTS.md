@@ -7,7 +7,37 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.70): Validação de Inicialização Estável da Interface OpenTUI (`actx --tui`)
+### 📌 Cenário 1 (v0.28.71): Validação de Resposta Instantânea do Launcher Shim (`actx -v` / `actx --version`)
+
+- **Objetivo**: Comprovar que o comando `actx -v` e `actx --version` responde de forma instantânea (< 50ms) imprimindo a versão de maneira simples, limpa e direta (`v0.28.71`), sem carregar módulos pesados ou descompactar o runtime no `%TEMP%`.
+- **Pré-requisito**: Versão `v0.28.71` instalada via `.\scripts\install.ps1` ou `install.sh`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **⚡ Execução do Fast-Path de Versão Curta (`-v`):**
+   ```powershell
+   actx -v
+   ```
+   - **Critério de Aceitação:** O retorno deve ser instantâneo (mesma sensação de `node -v`), imprimindo exatamente:
+     ```
+     v0.28.71
+     ```
+
+2. **⚡ Execução do Fast-Path de Versão Longa (`--version`):**
+   ```powershell
+   actx --version
+   ```
+   - **Critério de Aceitação:** Retorno idêntico e instantâneo imprimindo `v0.28.71`.
+
+3. **🚀 Execução Transparente do Chat Interativo:**
+   ```powershell
+   actx
+   ```
+   - **Critério de Aceitação:** O Launcher Shim delega a chamada transparentemente para o `actx-core.exe`, abrindo o chat interativo do AnyContext normalmente. Digite `/exit` para sair.
+
+---
+
+### 📌 Cenário 2 (v0.28.70): Validação de Inicialização Estável da Interface OpenTUI (`actx --tui`)
 
 - **Objetivo**: Comprovar que o comando `actx --tui` abre a interface gráfica interativa do terminal sem nenhum erro de sintaxe do Bun (`Expected "]" but found ";"`) e renderiza o HeaderBar, prompt de entrada e barra de status.
 - **Pré-requisito**: Versão `v0.28.70` instalada (`actx -v` deve exibir `v0.28.70`).

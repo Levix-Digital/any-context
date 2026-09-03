@@ -41,7 +41,7 @@ def entrypoint():
     # 0. Instant fast-path for version check (sub-1ms response)
     if "-v" in sys.argv or "--version" in sys.argv:
         from any_context import __version__
-        print(f"AnyContext (actx) v{__version__} - Levix Digital")
+        print(f"v{__version__}")
         sys.exit(0)
 
     # 1. Force UTF-8 on Windows terminal while preserving TTY handles
