@@ -1119,6 +1119,44 @@ graph TD
   - 6 unit tests verifying session PID collection, active instance filtering, self-termination protection, pending sync queueing, and update modal option schemas.
   - Total automated test suite expanded to **254 tests (100% PASS)**.
 
+---
+
+## 45. Auto-Healing Conversation Sanitizer & OpenAI Tool Call Shield (`v0.28.75`)
+
+### ⚡ 1. Problem Analysis
+- **OpenAI Error 400 Invalid Request**:
+  - In LangGraph checkpoints (`checkpoints.db`), when a streaming turn is interrupted (e.g., user cancellation, quick input, network interruption, or tool abort), an `AIMessage` with `tool_calls` is committed to checkpoint state before the corresponding `ToolMessage` node executes.
+  - Subsequent turns loaded the checkpoint and appended a new `HumanMessage`, creating an invalid sequence: `[AIMessage(tool_calls=[id]), HumanMessage(...)]`.
+  - OpenAI strictly rejects this pattern: `"An assistant message with 'tool_calls' must be followed by tool messages responding to each 'tool_call_id'. The following tool_call_ids did not have response messages: call_..."`.
+  - Because the corrupted state persisted in the SQLite checkpoint thread, every subsequent question failed indefinitely with Error 400.
+
+### 🛡️ 2. Architectural Solution
+```mermaid
+graph TD
+    A["User submits prompt in TUI / CLI / RPC"] --> B["LangGraph loads checkpoint messages from SQLite"]
+    B --> C["ResilientSqliteSaver.get_tuple()"]
+    C --> D["sanitize_conversation_messages(messages)"]
+    D --> E{"Are there orphan tool_calls?"}
+    E -- "Yes (Missing ToolMessage)" --> F["Inject synthetic ToolMessage(content='[Interrupted]', tool_call_id=id)"]
+    E -- "No" --> G["Forward to PruningChatModelWrapper"]
+    F --> G
+    G --> H["_prune_messages_for_llm() Sanity Gate"]
+    H --> I["LLM Provider API Call (100% Schema Valid)"]
+    I -- "If Tool Error in RPC" --> J["_stream_chat auto-heals thread via delete_thread()"]
+```
+
+- **Universal Message Sanitizer ([`agent.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/core/agent.py))**:
+  - Implemented `sanitize_conversation_messages(messages)`.
+  - Scans all assistant messages for `tool_calls`. For each required `tool_call_id`, verifies that an immediate answering `ToolMessage` exists before the next human/assistant turn.
+  - If any tool calls were orphaned by session interruptions, automatically synthesizes compliant `ToolMessage` objects fulfilling the OpenAI API contract.
+  - Integrated into both `_prune_messages_for_llm` and `ResilientSqliteSaver.get_tuple()`.
+- **RPC Checkpoint Auto-Heal ([`rpc_bridge.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/server/rpc_bridge.py))**:
+  - Detects `tool_call_id` and `tool_calls` exceptions in `_stream_chat` and automatically deletes corrupted threads in `checkpoints.db`, preventing permanent user lockouts.
+- **Automated Test Coverage ([`tests/unit/core/test_tool_call_sanitization.py`](file:///C:/Users/guilh/source/repos/any-context/tests/unit/core/test_tool_call_sanitization.py))**:
+  - 4 specialized unit tests covering complete tool call preservation, single orphan auto-injection, multi-call partial orphan completion, and LLM call-time pruning sanitization.
+  - Total automated test suite expanded to **258 tests (100% PASS)**.
+
+
 
 
 

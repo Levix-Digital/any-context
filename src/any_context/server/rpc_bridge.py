@@ -467,8 +467,17 @@ class StdioRPCServer:
             _send_ndjson({"id": req_id, "type": "done", "full_reply": full_reply})
 
         except Exception as e:
-            _send_ndjson({"id": req_id, "type": "error", "message": str(e), "traceback": traceback.format_exc()})
+            err_str = str(e)
+            _send_ndjson({"id": req_id, "type": "error", "message": err_str, "traceback": traceback.format_exc()})
             self.agent_instance = None
+            if "tool_call_id" in err_str or "tool_calls" in err_str:
+                try:
+                    from any_context.core.agent import get_safe_checkpointer
+                    chk = get_safe_checkpointer()
+                    if hasattr(chk, "delete_thread"):
+                        chk.delete_thread(thread_id)
+                except Exception:
+                    pass
 
 
 def run_rpc_server(default_workspace: str = "Default"):
