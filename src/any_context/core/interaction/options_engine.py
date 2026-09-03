@@ -279,24 +279,43 @@ class OptionsEngine:
         else:
             sub = f"🚀 Ready to download and install AnyContext {target_tag}."
 
-        items = [
-            OptionItemSchema(
-                id="background",
-                title="⚡ Update in background (Recommended)",
-                description="Active background sessions continue working undisturbed.",
-                icon="⚡",
-                badge="[Recommended]",
-                is_active=True,
-                metadata={"target_version": target_tag}
-            ),
-            OptionItemSchema(
-                id="close",
-                title="⏹️ Close other instances and update now",
-                description=f"Terminates {count} background process(es) before updating.",
-                icon="⏹️",
-                is_active=False,
-                metadata={"target_version": target_tag}
-            ),
+        items = []
+        if count > 0:
+            items.append(
+                OptionItemSchema(
+                    id="background",
+                    title="⚡ Update in background (Recommended)",
+                    description="Active background sessions continue working undisturbed.",
+                    icon="⚡",
+                    badge="[Recommended]",
+                    is_active=True,
+                    metadata={"target_version": target_tag}
+                )
+            )
+            items.append(
+                OptionItemSchema(
+                    id="close",
+                    title=f"⏹️ Close {count} other instance(s) and update now",
+                    description=f"Terminates other background process(es) before updating.",
+                    icon="⏹️",
+                    is_active=False,
+                    metadata={"target_version": target_tag}
+                )
+            )
+        else:
+            items.append(
+                OptionItemSchema(
+                    id="background",
+                    title="⚡ Update now (Recommended)",
+                    description="Downloads and replaces the binary cleanly in the background.",
+                    icon="⚡",
+                    badge="[Recommended]",
+                    is_active=True,
+                    metadata={"target_version": target_tag}
+                )
+            )
+
+        items.append(
             OptionItemSchema(
                 id="cancel",
                 title="🔙 Cancel update",
@@ -305,7 +324,7 @@ class OptionsEngine:
                 is_active=False,
                 metadata={"target_version": target_tag}
             )
-        ]
+        )
 
         return OptionsGroupSchema(
             type="update",

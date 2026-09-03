@@ -50,6 +50,14 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Zero Database Locks**: Columnar Apache Arrow dataset architecture eliminates SQLite write-lock contentions on Windows.
   - **Live Dataset Inspection (`/inspect` ou `/chunks`)**: Directly inspect live vector records, record counts, and snippet previews for both document context and session memory.
   - **Instant $0.00 Transfers & Renames**: Data source transfers and workspace renames execute on LanceDB datasets in `< 50ms` with zero token expenditure.
+- **🚀 Sub-60ms Native Launcher Shim & Dual-Binary Architecture**:
+  - **Instant Execution**: Native 5.6KB C# launcher (`actx.exe`) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
+  - **Dual-Binary Isolation**: Automatically preserves `actx.exe` (Shim) and delegates heavy commands to `actx-core.exe` (PyInstaller), self-healing automatically on auto-update.
+- **🌐 Resilient Background Web Crawler & Sync Queue**:
+  - **Zero Dropped Jobs**: Eliminates race conditions when adding web sources (`/web --add`) immediately after workspace creation, automatically queuing pending resync passes.
+  - **Prioritized Deep Scraping**: Multi-page documentation portals (e.g. The Rust Book) are recursively scraped and indexed in the background with progress reporting.
+- **🛡️ Session Process Immunology**:
+  - **Terminal Screen Integrity**: `/update` scans process trees to grant complete immunity to the active terminal, launcher, OpenTUI, and RPC processes, preventing prompt leaks and flickering.
 - **🕒 Temporal RAG & Metadata Freshness Engine**:
   - **5-Tier Web Date Resolution**: Automatically extracts publication and update dates via OpenGraph/Schema.org, visible in-page text/footers (`Page details YYYY-MM-DD`, `Date modified:`), URL date patterns (`/2023/06/...`), HTTP `Last-Modified` headers, and crawl timestamps.
   - **Content Classification**: Distinguishes between `Canonical Service / Documentation` (authoritative current rules), `Historical News / Press Release` (past announcements), and `Local Document`.

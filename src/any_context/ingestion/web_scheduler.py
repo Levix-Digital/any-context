@@ -564,6 +564,8 @@ def sync_workspace_web_urls(
     """
     store = WebSchedulerStore()
     urls = store.get_workspace_web_urls(workspace_name)
+    # Prioritize unscraped URLs so newly added web sources are processed immediately
+    urls.sort(key=lambda x: 0 if not x.get("last_scraped_at") else 1)
     results = []
     total_u = len(urls)
     for idx, u in enumerate(urls):

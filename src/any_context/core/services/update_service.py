@@ -8,7 +8,7 @@ import sys
 import json
 import urllib.request
 import subprocess
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, List, Dict, Any, Set
 from any_context import __version__ as CURRENT_VERSION
 
 PRIMARY_REPO = "Levix-Digital/any-context-releases"
@@ -67,6 +67,132 @@ def normalize_version_tag(version_str: str) -> str:
     if not cleaned.startswith("v"):
         cleaned = f"v{cleaned}"
     return cleaned
+
+
+def get_current_session_pids() -> Set[int]:
+    """
+    Returns the comprehensive set of Process IDs belonging to the CURRENT AnyContext session:
+    - Current process PID
+    - Parent PID (os.getppid())
+    - Any PID defined in ACTX_LAUNCHER_PID, ACTX_ROOT_PID, ACTX_TUI_PID
+    - All ancestors walking up the process tree until reaching the interactive terminal shell
+    - All descendants spawned by any session ancestor
+    
+    Guarantees that find_active_instances() and close_active_instances() NEVER identify or kill
+    the active terminal foreground process (Launcher Shim actx.exe, actx-core.exe, bun, or RPC bridge),
+    preventing terminal prompt leak / screen corruption during updates.
+    """
+    session_pids: Set[int] = {os.getpid()}
+
+    for var in ["ACTX_LAUNCHER_PID", "ACTX_ROOT_PID", "ACTX_TUI_PID"]:
+        val = os.environ.get(var)
+        if val and val.isdigit():
+            session_pids.add(int(val))
+
+    if hasattr(os, "getppid"):
+        try:
+            session_pids.add(os.getppid())
+        except Exception:
+            pass
+
+    is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
+
+    if is_windows:
+        import ctypes
+        from ctypes import wintypes
+
+        class PROCESSENTRY32(ctypes.Structure):
+            _fields_ = [
+                ("dwSize", wintypes.DWORD),
+                ("cntUsage", wintypes.DWORD),
+                ("th32ProcessID", wintypes.DWORD),
+                ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+                ("th32ModuleID", wintypes.DWORD),
+                ("cntThreads", wintypes.DWORD),
+                ("th32ParentProcessID", wintypes.DWORD),
+                ("pcPriClassBase", ctypes.c_long),
+                ("dwFlags", wintypes.DWORD),
+                ("szExeFile", ctypes.c_char * 260)
+            ]
+
+        try:
+            kernel32 = ctypes.windll.kernel32
+            hSnapshot = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
+            if hSnapshot and hSnapshot != -1:
+                pe = PROCESSENTRY32()
+                pe.dwSize = ctypes.sizeof(PROCESSENTRY32)
+
+                parent_of = {}
+                children_of = {}
+                exe_of = {}
+
+                if kernel32.Process32First(hSnapshot, ctypes.byref(pe)):
+                    while True:
+                        pid = int(pe.th32ProcessID)
+                        ppid = int(pe.th32ParentProcessID)
+                        exe = pe.szExeFile.decode("utf-8", errors="ignore").lower()
+                        parent_of[pid] = ppid
+                        children_of.setdefault(ppid, []).append(pid)
+                        exe_of[pid] = exe
+                        if not kernel32.Process32Next(hSnapshot, ctypes.byref(pe)):
+                            break
+
+                kernel32.CloseHandle(hSnapshot)
+
+                TERMINAL_SHELLS = {
+                    "explorer.exe", "cmd.exe", "powershell.exe", "pwsh.exe",
+                    "bash.exe", "zsh.exe", "mintty.exe", "windowsterminal.exe",
+                    "conhost.exe", "openconsole.exe", "wsl.exe", "services.exe",
+                    "system", "svchost.exe"
+                }
+
+                # 1. Walk upwards: follow ancestors of session_pids as long as they are not terminal shells
+                to_trace = list(session_pids)
+                actx_family_roots = set(session_pids)
+
+                while to_trace:
+                    p = to_trace.pop()
+                    parent = parent_of.get(p)
+                    if not parent or parent <= 4:
+                        continue
+                    parent_exe = exe_of.get(parent, "")
+                    if parent_exe in TERMINAL_SHELLS:
+                        continue
+                    if parent not in actx_family_roots:
+                        actx_family_roots.add(parent)
+                        to_trace.append(parent)
+
+                session_pids.update(actx_family_roots)
+
+                # 2. Walk downwards from actx family roots
+                to_descend = list(actx_family_roots)
+                descendants = set(actx_family_roots)
+                while to_descend:
+                    curr = to_descend.pop()
+                    for child in children_of.get(curr, []):
+                        child_exe = exe_of.get(child, "")
+                        if child_exe not in TERMINAL_SHELLS and child not in descendants:
+                            descendants.add(child)
+                            to_descend.append(child)
+
+                session_pids.update(descendants)
+        except Exception:
+            pass
+    else:
+        # Unix
+        try:
+            curr = os.getpid()
+            while curr > 1:
+                with open(f"/proc/{curr}/stat", "r") as f:
+                    ppid = int(f.read().split()[3])
+                if ppid <= 1 or ppid == curr or ppid in session_pids:
+                    break
+                session_pids.add(ppid)
+                curr = ppid
+        except Exception:
+            pass
+
+    return session_pids
 
 
 class UpdateService:
@@ -172,17 +298,10 @@ class UpdateService:
     @staticmethod
     def find_active_instances() -> List[Dict[str, Any]]:
         """
-        Detects all running AnyContext processes across the system, excluding current process.
+        Detects all running AnyContext processes across the system, strictly excluding the current session hierarchy.
         """
         instances = []
-        current_pid = os.getpid()
-        ignored_pids = {current_pid}
-        if hasattr(os, "getppid"):
-            try:
-                ignored_pids.add(os.getppid())
-            except Exception:
-                pass
-
+        ignored_pids = get_current_session_pids()
         is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
 
         if is_windows:
@@ -207,7 +326,7 @@ class UpdateService:
                                     continue
 
                                 img_lower = img_name.lower()
-                                if img_lower in ["actx.exe", "anycontext.exe", "any-context.exe", "ac.exe"]:
+                                if img_lower in ["actx.exe", "actx-core.exe", "anycontext.exe", "any-context.exe", "ac.exe"]:
                                     instances.append({
                                         "pid": pid,
                                         "name": img_name,
@@ -235,7 +354,7 @@ class UpdateService:
                             args = parts[2] if len(parts) > 2 else ""
                             args_lower = args.lower()
 
-                            if comm in ["actx", "anycontext", "ac"] or ("python" in comm and "any_context" in args_lower):
+                            if comm in ["actx", "actx-core", "anycontext", "ac"] or ("python" in comm and "any_context" in args_lower):
                                 if any(t in args_lower for t in ["test_", "pytest", "run_all"]):
                                     continue
                                 proc_type = "mcp" if "--mcp" in args_lower else ("server" if ("--serve" in args_lower or "serve" in args_lower) else "cli")
@@ -254,13 +373,15 @@ class UpdateService:
     def close_active_instances(instances: List[Dict[str, Any]]) -> int:
         """
         Gracefully closes or terminates running AnyContext instances.
+        Strictly protects the current session hierarchy against self-termination.
         """
         closed_count = 0
         is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
+        immune_pids = get_current_session_pids()
 
         for inst in instances:
             pid = inst.get("pid")
-            if not pid:
+            if not pid or pid in immune_pids:
                 continue
             try:
                 if is_windows:
@@ -316,21 +437,26 @@ class UpdateService:
 
         if "ACTX_UPDATE_DIR" in os.environ and os.environ["ACTX_UPDATE_DIR"].strip():
             target_dir = os.path.abspath(os.environ["ACTX_UPDATE_DIR"].strip())
-            target_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
         elif getattr(sys, "frozen", False):
-            target_exe = os.path.abspath(sys.executable)
-            target_dir = os.path.dirname(target_exe)
+            target_exe_cur = os.path.abspath(sys.executable)
+            target_dir = os.path.dirname(target_exe_cur)
         else:
             import shutil
             found_which = shutil.which("actx.exe" if is_windows else "actx")
             if found_which:
-                target_exe = os.path.abspath(found_which)
-                target_dir = os.path.dirname(target_exe)
+                target_dir = os.path.dirname(os.path.abspath(found_which))
             else:
                 target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
-                target_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
 
         os.makedirs(target_dir, exist_ok=True)
+        # Dual-binary architecture: actx-core.exe (heavy PyInstaller engine) vs actx.exe (native launcher shim)
+        core_exe = os.path.join(target_dir, "actx-core.exe" if is_windows else "actx-core")
+        shim_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
+        if os.path.exists(core_exe):
+            target_exe = core_exe
+        else:
+            target_exe = shim_exe
+
         temp_download = os.path.join(target_dir, "actx_new.exe" if is_windows else "actx_new")
         old_exe = os.path.join(target_dir, "actx_old.exe" if is_windows else "actx_old")
 
@@ -387,15 +513,34 @@ class UpdateService:
             except Exception:
                 pass
 
-        # 5. Atomic swap
+        # 5. Atomic swap and version registration
+        version_file = os.path.join(target_dir, "version.txt")
+        try:
+            with open(version_file, "w", encoding="utf-8") as vf:
+                vf.write(f"{clean_tag}\n")
+        except Exception:
+            pass
+
         if is_windows:
+            # Self-healing: if actx.exe (shim) was accidentally overwritten with heavy binary (> 1MB), rebuild it
+            if os.path.exists(shim_exe) and os.path.getsize(shim_exe) > 1024 * 1024:
+                try:
+                    from launcher.build_shim import build_windows_shim
+                    build_windows_shim(shim_exe)
+                except Exception:
+                    pass
+
             swap_script = (
                 f"$retries = 0; "
                 f"while ($retries -lt 40) {{ "
                 f"  try {{ "
+                f"    if (Test-Path -LiteralPath '{target_exe}') {{ "
+                f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue "
+                f"    }} "
                 f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
                 f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop "
                 f"    }} "
+                f"    Set-Content -LiteralPath '{version_file}' -Value '{clean_tag}' -Encoding UTF8 -Force -ErrorAction SilentlyContinue; "
                 f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
                 f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
                 f"    }} "

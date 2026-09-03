@@ -216,8 +216,14 @@ export class BridgeClient {
       childEnv.ACTX_SETTINGS_DB = process.env.ACTX_SETTINGS_DB;
     }
     const callerCwd = process.env.ACTX_CALLER_CWD || process.cwd();
-    childEnv.ACTX_CALLER_CWD = callerCwd;
     childEnv.ACTX_FRONTEND = "tui";
+    childEnv.ACTX_TUI_PID = process.pid.toString();
+    if (process.env.ACTX_ROOT_PID) {
+      childEnv.ACTX_ROOT_PID = process.env.ACTX_ROOT_PID;
+    }
+    if (process.env.ACTX_LAUNCHER_PID) {
+      childEnv.ACTX_LAUNCHER_PID = process.env.ACTX_LAUNCHER_PID;
+    }
 
     tuiLog.info("BRIDGE:SPAWN", "Spawning Python backend subprocess", {
       command,
