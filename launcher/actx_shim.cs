@@ -71,6 +71,11 @@ namespace AnyContext.Launcher
                     Arguments = arguments,
                     UseShellExecute = false
                 };
+                try
+                {
+                    psi.EnvironmentVariables["ACTX_LAUNCHER_PID"] = Process.GetCurrentProcess().Id.ToString();
+                }
+                catch {}
 
                 using (Process proc = Process.Start(psi))
                 {

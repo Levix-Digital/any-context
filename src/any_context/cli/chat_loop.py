@@ -1848,6 +1848,8 @@ def launch_opentui(workspace: str = "Default") -> bool:
         env["ACTX_EXECUTABLE"] = sys.executable or "actx"
         env["ACTX_PYTHON_PATH"] = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         env["ACTX_FRONTEND"] = "tui"
+        env["ACTX_ROOT_PID"] = os.environ.get("ACTX_ROOT_PID", str(os.getpid()))
+        env["ACTX_LAUNCHER_PID"] = os.environ.get("ACTX_LAUNCHER_PID", str(os.getpid()))
 
         obs.info("TUI:EXEC", "Spawning OpenTUI process", {
             "bun_bin": bun_bin,

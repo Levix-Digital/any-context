@@ -7,7 +7,60 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.73): Validação de Renderização Limpa do `/logs` na Interface OpenTUI (`actx --tui`)
+### 📌 Cenário 1 (v0.28.74): Validação de Resiliência do Crawler Web, Launcher Shim Dual-Binary e Blindagem de Sessão no `/update`
+
+- **Objetivo**: Comprovar que:
+  1. A adição de um portal de documentação como o Rust Book (`https://doc.rust-lang.org/stable/book/`) realiza o rastreamento recursivo completo em segundo plano mesmo se o workspace tiver acabado de ser criado/alternado, indexando dezenas de páginas e permitindo responder perguntas contextuais no chat.
+  2. O comando `actx -v` responde instantaneamente (< 60ms) via Launcher Shim nativo C# sem sofrer degradação de performance por sobreposição de binários.
+  3. Durante o processo de `/update`, a árvore de processos da sessão ativa é imune ao fechamento forçado, impedindo que o prompt do terminal (`bash.exe` / `cmd.exe`) vaze ou corrompa a tela da interface TUI.
+- **Pré-requisito**: Versão `v0.28.74` instalada (`actx -v` exibindo `v0.28.74`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **⚡ Validação de Latência Instantânea do `actx -v`:**
+   - Abra um terminal e execute:
+     ```powershell
+     actx -v
+     ```
+   - **Critério de Aceitação:** A resposta deve ser imediata (< 100ms), exibindo exatamente `v0.28.74` sem aguardar 6 a 8 segundos.
+
+2. **🌐 Validação de Rastreamento Recursivo de Fontes Web (`/web --add`):**
+   - Inicie a OpenTUI:
+     ```powershell
+     actx --tui
+     ```
+   - Crie e alterne para um novo workspace limpo:
+     ```
+     /switch RustDocs
+     ```
+   - Imediatamente adicione a fonte de documentação:
+     ```
+     /web --add https://doc.rust-lang.org/stable/book/
+     ```
+   - Aguarde a notificação de sincronização ser emitida:
+     ```
+     ✔ Workspace 'RustDocs' synchronization completed (XX web page(s) crawled and indexed).
+     ```
+   - Verifique a lista de fontes:
+     ```
+     /sources
+     ```
+   - **Critério de Aceitação:** A fonte deve registrar múltiplas páginas (ex: `• 40+ pages (https://doc.rust-lang.org/stable/book/)`), e não apenas 1 página.
+
+3. **🤖 Validação de RAG e Recuperação Semântica:**
+   - No chat do workspace `RustDocs`, pergunte:
+     ```
+     Em poucas palavras, o que é o Rust?
+     ```
+   - **Critério de Aceitação:** A IA deve responder com embasamento factual nos documentos do livro de Rust recém-indexados, sem informar que a informação não consta nos documentos.
+
+4. **🛡️ Validação de Blindagem no `/update`:**
+   - Execute o comando `/update`.
+   - **Critério de Aceitação:** Se nenhuma outra janela externa estiver aberta, a interface NÃO deve exibir a opção "Close other instances". Ao prosseguir com a atualização, o terminal Git Bash / PowerShell não deve piscar nem vazar prompt de comando sobre a TUI.
+
+---
+
+### 📌 Cenário 2 (v0.28.73): Validação de Renderização Limpa do `/logs` na Interface OpenTUI (`actx --tui`)
 
 - **Objetivo**: Comprovar que o comando `/logs`, `/spans` e `/diagnostics` na interface gráfica OpenTUI (`actx --tui`) renderiza as mensagens de observabilidade em caixas de código Markdown limpas e monospaçadas, sem nenhuma sujeira, caracteres flutuantes ou quebra do grid do terminal.
 - **Pré-requisito**: Versão `v0.28.73` instalada (`actx -v` exibindo `v0.28.73`).
@@ -40,7 +93,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.72): Adição Resiliente de Fontes Web com Descompressão Tolerante a Falhas (`/web --add <url>`)
+### 📌 Cenário 3 (v0.28.72): Adição Resiliente de Fontes Web com Descompressão Tolerante a Falhas (`/web --add <url>`)
 
 - **Objetivo**: Comprovar que a adição de fontes web complexas (portais com compactação Akamai/Cloudflare como `canada.ca`) é executada com sucesso e auto-cura de interrupções de stream zlib/gzip, sem erros de descompressão truncada (`Error -5`).
 - **Pré-requisito**: Versão `v0.28.72` instalada (`actx -v` exibindo `v0.28.72`).
@@ -76,7 +129,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.71): Validação de Resposta Instantânea do Launcher Shim (`actx -v` / `actx --version`)
+### 📌 Cenário 3 (v0.28.71): Validação de Resposta Instantânea do Launcher Shim (`actx -v` / `actx --version`)
 
 - **Objetivo**: Comprovar que o comando `actx -v` e `actx --version` responde de forma instantânea (< 50ms) imprimindo a versão de maneira simples, limpa e direta (`v0.28.71`), sem carregar módulos pesados ou descompactar o runtime no `%TEMP%`.
 - **Pré-requisito**: Versão `v0.28.71` instalada via `.\scripts\install.ps1` ou `install.sh`.
@@ -106,7 +159,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.70): Validação de Inicialização Estável da Interface OpenTUI (`actx --tui`)
+### 📌 Cenário 3 (v0.28.70): Validação de Inicialização Estável da Interface OpenTUI (`actx --tui`)
 
 - **Objetivo**: Comprovar que o comando `actx --tui` abre a interface gráfica interativa do terminal sem nenhum erro de sintaxe do Bun (`Expected "]" but found ";"`) e renderiza o HeaderBar, prompt de entrada e barra de status.
 - **Pré-requisito**: Versão `v0.28.70` instalada (`actx -v` deve exibir `v0.28.70`).
@@ -131,7 +184,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.69): Validação da Suíte de Testes 100% Nativa e Aprovação no GitHub Actions CI/CD
+### 📌 Cenário 3 (v0.28.69): Validação da Suíte de Testes 100% Nativa e Aprovação no GitHub Actions CI/CD
 
 - **Objetivo**: Comprovar que o AnyContext executa toda a sua suíte de testes de forma 100% autônoma via Python standard library `unittest` sem necessidade de bibliotecas externas (pytest), atingindo 200 testes aprovados localmente e no pipeline de CI/CD do GitHub Actions.
 - **Pré-requisito**: Versão `v0.28.69` ou branch `dev` atualizada.
@@ -156,7 +209,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.68): Validação de Progresso em Tempo Real do Web Crawler e Notificação de Conclusão
+### 📌 Cenário 3 (v0.28.68): Validação de Progresso em Tempo Real do Web Crawler e Notificação de Conclusão
 
 - **Objetivo**: Comprovar que, ao adicionar uma fonte web ou sincronizar um portal em segundo plano, a barra inferior exibe a animação/barra de progresso do crawler (`⚡ Crawling [████░░░░] 50% (15/30 pages)`) em vez do badge prematuro `✔ Up to date`, e que ao finalizar o crawling uma notificação de sistema é exibida informando o total de páginas indexadas.
 - **Pré-requisito**: Versão `v0.28.68` ou superior.
@@ -187,7 +240,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.67): Validação de Modelo Padrão de Fábrica `gpt-4o-mini` para Todo Novo Workspace e Isolamento entre Espaços
+### 📌 Cenário 3 (v0.28.67): Validação de Modelo Padrão de Fábrica `gpt-4o-mini` para Todo Novo Workspace e Isolamento entre Espaços
 
 
 - **Objetivo**: Comprovar que todo novo workspace criado (seja no primeiro boot, via `/switch`, REST API ou MCP Server) inicia estritamente com o modelo de IA `gpt-4o-mini`, e que trocar o modelo no Workspace A não contamina o Workspace B recém-criado.
@@ -217,7 +270,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.66): Validação de Fast-Path Instantâneo de Flags (`actx -v`) e Inicialização Desacoplada de Rede
+### 📌 Cenário 3 (v0.28.66): Validação de Fast-Path Instantâneo de Flags (`actx -v`) e Inicialização Desacoplada de Rede
 
 
 - **Objetivo**: Comprovar que a flag de versão `actx -v` / `actx --version` responde de forma imediata em sub-milissegundos (< 5ms) sem inicializar bancos de dados, e que o startup do chat interativo não sofre nenhum travamento por chamadas síncronas de rede do verificador de atualizações.
@@ -239,7 +292,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.65): Validação de Startup Instantâneo (< 100ms), Telemetria Visual de Boot e Time Watching de Observabilidade (`actx --diag`, `/logs`, `/diagnostics`, `/spans`)
+### 📌 Cenário 3 (v0.28.65): Validação de Startup Instantâneo (< 100ms), Telemetria Visual de Boot e Time Watching de Observabilidade (`actx --diag`, `/logs`, `/diagnostics`, `/spans`)
 
 
 - **Objetivo**: Comprovar que a inicialização do AnyContext ocorre de forma quase instantânea com carregamento lazy, exibindo a telemetria visual de micro-etapas de boot (`Engine Startup Telemetry`) com tempos em milissegundos logo abaixo do banner, e que o módulo de observabilidade (*time watching*) registra a latência de todas as operações críticas e disponibiliza relatórios de diagnóstico detalhados.
@@ -288,7 +341,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.64): Validação de Integridade do Modelo Limpo de 2 Camadas (Sem Workspace Global e com Isolamento Estrito de RAG)
+### 📌 Cenário 3 (v0.28.64): Validação de Integridade do Modelo Limpo de 2 Camadas (Sem Workspace Global e com Isolamento Estrito de RAG)
 
 
 - **Objetivo**: Comprovar que a remoção do workspace `Global` unificou a arquitetura em um modelo de 2 camadas limpo (`Workspaces de Projeto` + `Shared Sources` vinculável sob demanda via `/link`), garantindo que apenas `Default` e `Shared Sources` sejam protegidos pelo sistema e que o RAG nunca puxe dados não-linkados de outros escopos.
@@ -330,7 +383,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.63): Validação de Remoção Interativa de Fontes (`/menu` ➔ Workspaces ➔ Delete Source)
+### 📌 Cenário 3 (v0.28.63): Validação de Remoção Interativa de Fontes (`/menu` ➔ Workspaces ➔ Delete Source)
 
 - **Objetivo**: Comprovar que o menu hierárquico `/menu` navega com profundidade total até a seleção e remoção de fontes individuais (pastas locais e URLs web) de um workspace, abrindo a lista de fontes ativas, exibindo modal de confirmação explícito e executando a remoção no SQLite e no LanceDB sem fechar o terminal.
 - **Pré-requisito**: Versão `v0.28.63` ou superior.
@@ -370,7 +423,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.51): Validação de Desinstalação Robusta, Resolução Canônica de Paths (`%LOCALAPPDATA%\AnyContext`) e Reset Seguro de Modelos (`gpt-4o-mini` / `openai`)
+### 📌 Cenário 3 (v0.28.51): Validação de Desinstalação Robusta, Resolução Canônica de Paths (`%LOCALAPPDATA%\AnyContext`) e Reset Seguro de Modelos (`gpt-4o-mini` / `openai`)
 
 - **Objetivo**: Comprovar que o AnyContext opera unicamente sobre o diretório de dados canônico (`%LOCALAPPDATA%\AnyContext`), sem ressuscitar arquivos legados em `~\config\settings.db` ou no diretório de trabalho, e que o script de desinstalação (`uninstall.ps1` / `uninstall.sh`) remove diretórios canônicos, purga legados e desinstala resquícios de pacotes no ambiente Python (`pip uninstall`).
 - **Pré-requisito**: Versão `v0.28.51` ou superior instalada.
@@ -407,7 +460,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.37): Validação de Inicialização Standalone do PyInstaller (`actx --tui` e `actx --rpc`) sem Colisão de DLL
+### 📌 Cenário 3 (v0.28.37): Validação de Inicialização Standalone do PyInstaller (`actx --tui` e `actx --rpc`) sem Colisão de DLL
 
 - **Objetivo**: Comprovar que o binário standalone compilado (`actx.exe`) inicializa o frontend OpenTUI (`actx --tui`) e dispara o backend de RPC (`actx --rpc`) sem erro de colisão de DLL do NumPy (`cannot load module more than once per process`) devido à higienização de caminhos `_MEI` no `PATH`.
 - **Pré-requisito**: Binário standalone compilado ou ambiente na versão `v0.28.37`.
@@ -427,7 +480,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.36): Auto-Restart do `/update` com Preservação do Diretório de Trabalho
+### 📌 Cenário 3 (v0.28.36): Auto-Restart do `/update` com Preservação do Diretório de Trabalho
 
 - **Objetivo**: Comprovar que ao atualizar via `/update`, a aplicação é reiniciada automaticamente preservando o diretório de trabalho original do usuário (`-WorkingDirectory`) em vez de abrir em `C:\Windows\System32`.
 - **Pré-requisito**: Versão `v0.28.36` ou superior.
@@ -446,7 +499,7 @@
 
 ---
 
-### 📌 Cenário 3 (v0.28.33): Normalização Canônica de Modelos de IA (`/model`)
+### 📌 Cenário 4 (v0.28.33): Normalização Canônica de Modelos de IA (`/model`)
 
 - **Objetivo**: Comprovar que ao selecionar modelos no modal `/model` (ex: `GPT-4o Mini (Universal - Fast & Efficient)`), o ID canônico técnico (`gpt-4o-mini`) é gravado no SQLite e enviado para as APIs sem gerar erro `400: invalid model ID`.
 - **Pré-requisito**: Versão `v0.28.33` ou superior.
@@ -463,7 +516,7 @@
 
 ---
 
-### 📌 Cenário 4 (v0.28.32): Exclusão Interativa de Workspaces com Confirmação de Segurança
+### 📌 Cenário 5 (v0.28.32): Exclusão Interativa de Workspaces com Confirmação de Segurança
 
 - **Objetivo**: Comprovar que a opção `Delete Workspace` no menu `/menu` lista todos os workspaces customizados e abre um modal de confirmação explícito antes de qualquer remoção, impedindo deleções acidentais e revertendo para `Default` se o workspace ativo for excluído.
 - **Pré-requisito**: Versão `v0.28.32` ou superior.
@@ -483,7 +536,7 @@
 
 ---
 
-### 📌 Cenário 5 (v0.28.17): Atualização Interativa (`/update`) com Modal de Instâncias e Auto-Restart Automático (TUI & CLI)
+### 📌 Cenário 6 (v0.28.17): Atualização Interativa (`/update`) com Modal de Instâncias e Auto-Restart Automático (TUI & CLI)
 
 - **Objetivo**: Comprovar que ao digitar `/update` dentro do chat da TUI (`actx --tui`) ou no CLI (`actx`), o AnyContext detecta a versão mais recente e as instâncias ativas, abre o modal de opções interativo (`<InteractiveModal>`) com as 3 opções (`⚡ Update in background`, `⏹️ Close other instances`, `🔙 Cancel`), baixa o binário e realiza a substituição atômica com **reinício automático da aplicação** sem necessidade de intervenção externa.
 - **Pré-requisito**: Binário ou ambiente na versão `v0.28.17`.
@@ -508,7 +561,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.16): Validação de Diretórios Nativos do SO e Criptografia em Repouso AES-GCM-256
+### 📌 Cenário 3 (v0.28.16): Validação de Diretórios Nativos do SO e Criptografia em Repouso AES-GCM-256
 
 - **Objetivo**: Comprovar que o AnyContext armazena todos os bancos de dados em diretórios nativos do sistema operacional (`%LOCALAPPDATA%\AnyContext\` no Windows), migra dados legados sem perda, cifra os textos dos chunks em disco com AES-GCM-256 amarrado ao hardware e entrega respostas RAG descriptografadas em tempo real com performance máxima tanto no CLI quanto na TUI.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.16`.
@@ -538,7 +591,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.0): Seletor Modal do `/mode` no OpenTUI (Strict, Hybrid, Proactive)
+### 📌 Cenário 3 (v0.28.0): Seletor Modal do `/mode` no OpenTUI (Strict, Hybrid, Proactive)
 
 - **Objetivo**: Comprovar que o comando `/mode` (sem argumentos) abre um modal de seleção interativo estilizado (`<InteractiveModal>`) na TUI, listando as 3 estratégias de grounding (`Strict`, `Hybrid`, `Proactive`), destacando o modo ativo atual com o badge `[Active]`, navegável por setas `[↑/↓]`, selecionável com `[Enter/Tab]` e cancelável com `[Esc]`, atualizando a barra de status inferior imediatamente.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.0` com Bun instalado.
@@ -569,7 +622,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.0): Menu Hierárquico Completo `/menu` e `/config` no OpenTUI (11 Categorias)
+### 📌 Cenário 3 (v0.28.0): Menu Hierárquico Completo `/menu` e `/config` no OpenTUI (11 Categorias)
 
 - **Objetivo**: Comprovar que `/menu` e `/config` abrem o modal de configuração hierárquica completa na TUI, replicando exatamente as 11 categorias de sistema do CLI, permitindo navegação em submenus com Breadcrumbs (`⚙️ Configuration ➔ 📂 Workspaces`), execução de toggles/ações e retorno de nível com `[Esc]`.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.0` com Bun instalado.
@@ -599,7 +652,7 @@
 
 ---
 
-### 📌 Cenário 3 (v0.28.0): Scrollbar, Rolagem por Teclado (`PageUp`/`PageDown`) e Respostas de Streaming sem Faixa Vazia
+### 📌 Cenário 4 (v0.28.0): Scrollbar, Rolagem por Teclado (`PageUp`/`PageDown`) e Respostas de Streaming sem Faixa Vazia
 
 - **Objetivo**: Comprovar que a área de chat ocupa 100% da altura útil sem faixa vazia na metade inferior, as respostas da IA fluem mantendo a última linha sempre visível durante o streaming, e o histórico de mensagens pode ser rolado suavemente via teclado (`PageUp`, `PageDown`, `Ctrl+Up/Down`, `Home`, `End`).
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.0` com Bun instalado.
@@ -622,7 +675,7 @@
 
 ---
 
-### 📌 Cenário 4 (v0.28.0): Verificação de Margem Limpa e Ausência de Sobreposição nas Legendas Inferiores
+### 📌 Cenário 5 (v0.28.0): Verificação de Margem Limpa e Ausência de Sobreposição nas Legendas Inferiores
 
 - **Objetivo**: Comprovar que o texto de rodapé `💡 [↑/↓] Navigate • [Enter] Select • [Esc] Close` dentro dos modais e do Slash Palette possui espaçamento vertical limpo e nunca renderiza por cima da borda inferior da caixa.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.28.0` com Bun instalado.
@@ -636,7 +689,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.27.6): Validação de Header Dinâmico (Full Glory vs Compact) e Scrollbox Desacoplado
+### 📌 Cenário 2 (v0.27.6): Validação de Header Dinâmico (Full Glory vs Compact) e Scrollbox Desacoplado
 
 - **Objetivo**: Comprovar que o cabeçalho ASCII é renderizado no topo fora do `<scrollbox>`, exibindo a arte completa e plano dinâmico (`⭐ Pro Plan`) no início (0 mensagens), retraindo-se automaticamente para uma Top Bar compacta e limpa de 1 linha durante o diálogo (1+ mensagens), restaurando o modo completo ao executar `/clear`, com 100% de estabilidade e zero gaps no scroll de conversas.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.6` com Bun instalado.
@@ -664,7 +717,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.27.5): Validação de Arte ASCII Completa, Menu Interativo Modal (/menu) e Flags (--on / --off)
+### 📌 Cenário 2 (v0.27.5): Validação de Arte ASCII Completa, Menu Interativo Modal (/menu) e Flags (--on / --off)
 
 - **Objetivo**: Comprovar a restauração da arte ASCII clássica com badge dinâmico do plano de assinatura ativo (`⭐ Pro Plan`), o funcionamento do Menu Interativo Modal acionado por `/menu` com seleção por setas `[↑/↓]` e ativação com `[Enter/Tab]`, e o suporte completo a flags com `--` no autocomplete e no dispatcher (`/web-search --on`, `/web-search --off`).
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.5` com Bun instalado.
@@ -693,7 +746,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.27.4): Validação de Chat Streaming, Cópia Nativa de Texto, /menu e Ausência de Gap Vertical
+### 📌 Cenário 2 (v0.27.4): Validação de Chat Streaming, Cópia Nativa de Texto, /menu e Ausência de Gap Vertical
 
 - **Objetivo**: Comprovar que o streaming de inferência do agente de IA responde a perguntas sobre fontes indexadas sem erros de assinatura, a seleção e cópia com o mouse de qualquer resposta do chat funciona nativamente no terminal, o comando `/menu` abre diretamente o Slash Command Palette flutuante, a área de diálogo do chat ocupa toda a tela sem gaps verticais e comandos operacionais (`/update`, `/check-update`, `/inspect`, `/density`) estão presentes no catálogo.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.4` com Bun instalado.
@@ -725,7 +778,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.27.3): Validação de Layout do Slash Command Palette, Scoring por Prefixo e Indicador de Sync
+### 📌 Cenário 2 (v0.27.3): Validação de Layout do Slash Command Palette, Scoring por Prefixo e Indicador de Sync
 
 - **Objetivo**: Comprovar a separação visual nítida do rodapé de instruções no Slash Command Palette (sem sobreposição com o último comando), a pontuação por relevância garantindo que `/source` selecione `/sources` e `/sources --all` em vez de `/sync`, e a exibição do badge verde `✔ Up to date` na barra inferior após sincronização.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.3` com Bun instalado.
@@ -753,7 +806,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.27.2): Validação de Paridade Hexagonal Absoluta (CLI & TUI) e Encerramento Limpo (/exit)
+### 📌 Cenário 2 (v0.27.2): Validação de Paridade Hexagonal Absoluta (CLI & TUI) e Encerramento Limpo (/exit)
 
 - **Objetivo**: Comprovar a paridade absoluta de base de dados (`settings.db`), modelo ativo (`gpt-4o-mini`), plano de assinatura (`Pro Plan`), fontes indexadas (`Walmart.ca`) e catálogo universal de 23 comandos entre a CLI e a OpenTUI (`actx --tui`), além de validar o encerramento suave e limpo no `/exit` sem tela piscando.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.2` com Bun instalado.
@@ -786,7 +839,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.27.1): Validação de Inicialização Direta da OpenTUI no Bun e Fallback para Community Edition
+### 📌 Cenário 2 (v0.27.1): Validação de Inicialização Direta da OpenTUI no Bun e Fallback para Community Edition
 
 - **Objetivo**: Comprovar a inicialização imediata da interface OpenTUI (`actx --tui`) no Bun sem nenhum erro de sintaxe ES Module (`SyntaxError: export 'SlashCommandMeta' not found`), e verificar a exibição correta do badge `🌿 Community Edition` por padrão (ou a licença ativa configurada no SQLite).
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.27.1` com Bun instalado.
@@ -816,7 +869,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.27.0): Validação do Desacoplamento Hexagonal & Universal Command Adapter (CLI & TUI)
+### 📌 Cenário 2 (v0.27.0): Validação do Desacoplamento Hexagonal & Universal Command Adapter (CLI & TUI)
 
 - **Objetivo**: Comprovar a paridade absoluta e a execução universal de todos os 23 Slash Commands entre o Terminal CLI e a OpenTUI (`actx --tui`) através dos Core Application Services (`src/any_context/core/services/`), garantindo a supressão do banner duplicado da CLI na inicialização da TUI.
 - **Pré-requisito**: Código atualizado para a versão `v0.27.0` com Bun instalado.
@@ -852,7 +905,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.26.8): Validação de Inicialização Standalone da TUI sem Erro de Bootloader
+### 📌 Cenário 2 (v0.26.8): Validação de Inicialização Standalone da TUI sem Erro de Bootloader
 
 - **Objetivo**: Comprovar a inicialização autônoma da interface OpenTUI (`actx --tui`) executando a partir do binário compilado PyInstaller (`actx.exe`), garantindo a ausência do erro `Security validation failure: parent process has different executable!`.
 - **Pré-requisito**: Binário compilado atualizado para a versão `v0.26.8` e Bun instalado.
@@ -876,7 +929,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.26.7): Validação de Input Ativo, Background Transparente e Dock de Status na TUI
+### 📌 Cenário 2 (v0.26.7): Validação de Input Ativo, Background Transparente e Dock de Status na TUI
 
 - **Objetivo**: Comprovar a interface reativa OpenTUI (`actx --tui`) com background transparente nativo do terminal, buffer de input com captura em tempo real (incluindo ativação automática da Command Palette ao teclar `/`), e visibilidade permanente do dock inferior de status de 1 linha.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.7` e Bun instalado.
@@ -913,7 +966,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.26.6): OpenTUI com Paridade Estética e Visual com a CLI UI
+### 📌 Cenário 2 (v0.26.6): OpenTUI com Paridade Estética e Visual com a CLI UI
 
 - **Objetivo**: Comprovar a interface reativa OpenTUI (`actx --tui`) reformulada com paridade visual completa com a CLI UI: renderização no scroll do clássico Banner ASCII Art (`ANYCONTEXT`), metadados de versão/edição (`🌿 Community Edition`), box de boas-vindas, prompt `👤 You:`, respostas `🤖 AI [modelo]:`, tickers ricos de status e dock inferior unificado em 1 linha.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.6` e Bun instalado.
@@ -955,7 +1008,7 @@
 
 ---
 
-### 📌 Cenário 1 (v0.26.5): OpenTUI Desktop Frontend no Padrão Arquitetural Oficial do Cline
+### 📌 Cenário 2 (v0.26.5): OpenTUI Desktop Frontend no Padrão Arquitetural Oficial do Cline
 
 - **Objetivo**: Comprovar a interface OpenTUI reconstruída segundo o esqueleto oficial do Cline CLI (`apps/cli/src/tui/`), com `InputBar` (prompt `❯`, textarea multiline), `StatusBar` com pills de Grounding Mode, `ChatMessageList` com Markdown nativo e `AutocompleteDropdown` flutuante para comandos `/`.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.26.5` e Bun instalado.
@@ -997,7 +1050,7 @@
 ---
 
 
-### 📌 Cenário 1 (v0.25.1): CLI Nativa Consolidada & Execução de Batch/One-Shot
+### 📌 Cenário 2 (v0.25.1): CLI Nativa Consolidada & Execução de Batch/One-Shot
 
 - **Objetivo**: Comprovar que a CLI executa no terminal nativo sem sequestro de tela, com seleção por mouse e copiar/colar nativos 100% funcionais, suporte a comandos interativos (`/sources`, `/switch`, `/sync`, etc.) e execução direta de prompt via argumentos de linha de comando (`actx "..."`).
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.25.1`.
@@ -1030,7 +1083,7 @@
 ---
 
 
-### 📌 Cenário 1 (v0.25.0): Textual Reactive TUI (Interface Estilo Cline / Claude Code)
+### 📌 Cenário 2 (v0.25.0): Textual Reactive TUI (Interface Estilo Cline / Claude Code)
 
 - **Objetivo**: Comprovar a experiência completa da interface TUI reativa com layout persistente em tela cheia, painel de histórico de chat rolável com Markdown rico e realce de sintaxe, barra de input permanente e status footer dock ancorado na base.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.25.0`.
@@ -1071,7 +1124,7 @@
 ---
 
 
-### 📌 Cenário 1 (v0.24.8): Crescimento Natural de Conversa Top-Down e Preservação de Histórico no Terminal
+### 📌 Cenário 2 (v0.24.8): Crescimento Natural de Conversa Top-Down e Preservação de Histórico no Terminal
 
 - **Objetivo**: Comprovar que a conversa cresce naturalmente de cima para baixo (linha a linha após o banner), sem saltar para o final da tela deixando linhas em branco no 1º turno, e que após as respostas da IA todo o histórico de perguntas e respostas anteriores permanece 100% visível e rolável no buffer do terminal.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.8`.
@@ -1113,7 +1166,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.24.7): Prioridade 0 em Portais Web Registrados e Desempate por Recência Temporal
+### 📌 Cenário 3 (v0.24.7): Prioridade 0 em Portais Web Registrados e Desempate por Recência Temporal
 
 - **Objetivo**: Comprovar que quando um portal web está registrado no workspace e o Web Search está ON, a IA pesquisa no portal registrado primeiro (Prioridade 0) antes de recorrer à web aberta, e aplica a regra de que a fonte mais recente sempre prevalece.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.7`.
@@ -1140,7 +1193,7 @@
 
 ---
 
-### 📌 Cenário 3 (v0.24.6): Painel Fixo de Input & Barra de Status Ancorada no Rodapé (`PinnedBottomDock`)
+### 📌 Cenário 4 (v0.24.6): Painel Fixo de Input & Barra de Status Ancorada no Rodapé (`PinnedBottomDock`)
 
 - **Objetivo**: Comprovar que o divisor horizontal e a barra de status inferior (`bottom_toolbar`) permanecem permanentemente fixos e visíveis na base da tela durante a geração e streaming da IA, enquanto o texto sobe suavemente na área de rolagem superior sem apagar o rodapé.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.6`.
@@ -1166,7 +1219,7 @@
 
 ---
 
-### 📌 Cenário 4 (v0.24.5): Injeção Dinâmica via Strategy Pattern de Grounding & Matriz de Prioridades por Turno
+### 📌 Cenário 5 (v0.24.5): Injeção Dinâmica via Strategy Pattern de Grounding & Matriz de Prioridades por Turno
 
 - **Objetivo**: Comprovar que o AnyContext injeta dinamicamente a matriz de prioridades (0 vs 1) e regras de recência no turno ativo, garantindo 100% de aderência contra *prompt dilution* após múltiplos turnos sem poluir o histórico nem a UI.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.5`.
@@ -1211,7 +1264,7 @@
 
 ---
 
-### 📌 Cenário 5 (v0.24.4): Gating Dinâmico Determinístico no Modo Strict & Bloco Mandatório de Fontes
+### 📌 Cenário 6 (v0.24.4): Gating Dinâmico Determinístico no Modo Strict & Bloco Mandatório de Fontes
 
 - **Objetivo**: Comprovar que no modo `Strict` a IA jamais dispara busca na internet autonomamente na pergunta inicial (com ferramenta dinamicamente restrita), perguntando ao usuário e liberando a busca apenas sob confirmação explícita (`sim`), com rodapé completo de fontes.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.4`.
@@ -1254,7 +1307,7 @@
 
 ---
 
-### 📌 Cenário 6 (v0.24.2): Barra de Progresso Universal de Duas Etapas (`TwoStageProgressRenderer`)
+### 📌 Cenário 7 (v0.24.2): Barra de Progresso Universal de Duas Etapas (`TwoStageProgressRenderer`)
 
 - **Objetivo**: Comprovar que durante a ingestão web e de pastas locais, o terminal exibe animação contínua e atualização fluida em tempo real tanto na **Etapa 1 (Crawling/Coleta)** quanto na **Etapa 2 (Vetorização & IA)**, sem congelar no zero.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.2`.
@@ -1277,7 +1330,7 @@
 
 ---
 
-### 📌 Cenário 7 (v0.24.1): Pureza Hexagonal do Core e Isolamento do Adaptador CLI
+### 📌 Cenário 8 (v0.24.1): Pureza Hexagonal do Core e Isolamento do Adaptador CLI
 
 - **Objetivo**: Comprovar que o Core Domain do AnyContext opera de forma 100% agnóstica a UI (sem vazamentos de ANSI ou questionários no Core), enquanto o adaptador CLI ([`formatters.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/cli/formatters.py)) renderiza perfeitamente os cards de status, planos de preços e relatórios de crawling.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.1`.
@@ -1308,7 +1361,7 @@
 
 ---
 
-### 📌 Cenário 8 (v0.24.0): Desacoplamento Arquitetural & Orquestrador de Ingestão Multi-Fonte
+### 📌 Cenário 9 (v0.24.0): Desacoplamento Arquitetural & Orquestrador de Ingestão Multi-Fonte
 
 - **Objetivo**: Comprovar a estabilidade do orquestrador multi-fonte desacoplado ([`orchestrator.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/ingestion/orchestrator.py)) durante a inspeção e sincronização concorrente de pastas locais, portais web e drives na nuvem.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.24.0`.
@@ -1339,7 +1392,7 @@
 
 ---
 
-### 📌 Cenário 9 (v0.23.1): Auto-Consciência e Auto-Bootstrap Permanente do Sistema (Help & README Global)
+### 📌 Cenário 10 (v0.23.1): Auto-Consciência e Auto-Bootstrap Permanente do Sistema (Help & README Global)
 
 - **Objetivo**: Comprovar que em qualquer workspace (inclusive workspaces 100% vazios ou contendo apenas páginas web), a IA responde imediatamente perguntas sobre comandos do AnyContext (ex: `/transfer`, `/switch`, `/sync`, `/web`, `/link`, `/config`) citando a sintaxe, opções e parâmetros exatos da documentação do sistema indexada em `Global`.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.23.1`.
@@ -1369,7 +1422,7 @@
 
 ---
 
-### 📌 Cenário 10 (v0.23.0): Sincronização Web de Alta Velocidade com HTTP 304, Sitemap Diff & Embeddings Paralelos
+### 📌 Cenário 11 (v0.23.0): Sincronização Web de Alta Velocidade com HTTP 304, Sitemap Diff & Embeddings Paralelos
 
 - **Objetivo**: Validar que a sincronização de portais web massivos (> 2.000 páginas) ocorre em alta velocidade usando HTTP Conditional GET (`304 Not Modified`), pre-filtragem por sitemap `<lastmod>` e paralelização concorrente de embeddings no `ParallelIndexer` com retry anti-429.
 - **Pré-requisito**: Binário ou ambiente atualizado para a versão `v0.23.0` com portal web indexado.

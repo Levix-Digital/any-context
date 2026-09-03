@@ -253,18 +253,12 @@ def print_startup_update_notice():
 def find_active_instances() -> List[Dict[str, Any]]:
     """
     Scans for other running AnyContext processes (CLI sessions, MCP servers, REST servers)
-    excluding the current process PID and parent PID.
+    strictly excluding the current session hierarchy.
     Returns a list of dictionaries: [{'pid': int, 'name': str, 'title': str, 'type': str}]
     """
+    from any_context.core.services.update_service import get_current_session_pids
     instances = []
-    current_pid = os.getpid()
-    ignored_pids = {current_pid}
-    if hasattr(os, "getppid"):
-        try:
-            ignored_pids.add(os.getppid())
-        except Exception:
-            pass
-
+    ignored_pids = get_current_session_pids()
     is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
 
     if is_windows:
@@ -289,7 +283,7 @@ def find_active_instances() -> List[Dict[str, Any]]:
                                 continue
 
                             img_lower = img_name.lower()
-                            if img_lower in ["actx.exe", "anycontext.exe", "any-context.exe", "ac.exe"]:
+                            if img_lower in ["actx.exe", "actx-core.exe", "anycontext.exe", "any-context.exe", "ac.exe"]:
                                 instances.append({
                                     "pid": pid,
                                     "name": img_name,
@@ -318,7 +312,7 @@ def find_active_instances() -> List[Dict[str, Any]]:
                         args = parts[2] if len(parts) > 2 else ""
                         args_lower = args.lower()
 
-                        if comm in ["actx", "anycontext", "ac"] or ("python" in comm and "any_context" in args_lower):
+                        if comm in ["actx", "actx-core", "anycontext", "ac"] or ("python" in comm and "any_context" in args_lower):
                             if any(t in args_lower for t in ["test_", "pytest", "run_all"]):
                                 continue
                             proc_type = "mcp" if "--mcp" in args_lower else ("server" if ("--serve" in args_lower or "serve" in args_lower) else "cli")
@@ -336,15 +330,17 @@ def find_active_instances() -> List[Dict[str, Any]]:
 
 def close_active_instances(instances: List[Dict[str, Any]]) -> int:
     """
-    Gracefully closes or terminates the specified running AnyContext instances.
-    Returns number of successfully terminated instances.
+    Terminates the specified running AnyContext instances cross-platform.
+    Strictly immune to terminating any processes belonging to the current session hierarchy.
     """
+    from any_context.core.services.update_service import get_current_session_pids
     closed_count = 0
     is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
+    immune_pids = get_current_session_pids()
 
     for inst in instances:
         pid = inst.get("pid")
-        if not pid:
+        if not pid or pid in immune_pids:
             continue
         try:
             if is_windows:
@@ -500,15 +496,25 @@ def run_self_update(
     # Determine target executable location
     if "ACTX_UPDATE_DIR" in os.environ and os.environ["ACTX_UPDATE_DIR"].strip():
         target_dir = os.path.abspath(os.environ["ACTX_UPDATE_DIR"].strip())
-        target_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
     elif getattr(sys, "frozen", False):
-        target_exe = os.path.abspath(sys.executable)
-        target_dir = os.path.dirname(target_exe)
+        target_exe_cur = os.path.abspath(sys.executable)
+        target_dir = os.path.dirname(target_exe_cur)
     else:
-        target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
-        target_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
+        import shutil
+        found_which = shutil.which("actx.exe" if is_windows else "actx")
+        if found_which:
+            target_dir = os.path.dirname(os.path.abspath(found_which))
+        else:
+            target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
 
     os.makedirs(target_dir, exist_ok=True)
+    core_exe = os.path.join(target_dir, "actx-core.exe" if is_windows else "actx-core")
+    shim_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
+    if os.path.exists(core_exe):
+        target_exe = core_exe
+    else:
+        target_exe = shim_exe
+
     temp_download = os.path.join(target_dir, "actx_new.exe" if is_windows else "actx_new")
     old_exe = os.path.join(target_dir, "actx_old.exe" if is_windows else "actx_old")
 
@@ -618,15 +624,26 @@ def run_self_update(
         except Exception:
             pass
 
+        version_file = os.path.join(target_dir, "version.txt")
+        try:
+            with open(version_file, "w", encoding="utf-8") as vf:
+                vf.write(f"{clean_tag}\n")
+        except Exception:
+            pass
+
         if not replaced:
             # Step B: Fallback to background PowerShell loop if file lock prevented immediate rename
             swap_script = (
                 f"$retries = 0; "
                 f"while ($retries -lt 30) {{ "
                 f"  try {{ "
+                f"    if (Test-Path -LiteralPath '{target_exe}') {{ "
+                f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue "
+                f"    }} "
                 f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
                 f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop "
                 f"    }} "
+                f"    Set-Content -LiteralPath '{version_file}' -Value '{clean_tag}' -Encoding UTF8 -Force -ErrorAction SilentlyContinue; "
                 f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
                 f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
                 f"    }} "

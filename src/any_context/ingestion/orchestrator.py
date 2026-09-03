@@ -245,6 +245,7 @@ class BackgroundSyncManager:
                 cls._instance._progress = {}
                 cls._instance._notifications = {}
                 cls._instance._completion_listeners = []
+                cls._instance._pending_syncs = set()
             return cls._instance
 
     def register_completion_listener(self, callback: Callable[[Dict[str, Any]], None]) -> None:
@@ -361,6 +362,7 @@ class BackgroundSyncManager:
         clean_ws = (workspace_name or "Default").strip()
         with self._lock:
             if clean_ws in self._active_jobs and self._active_jobs[clean_ws]["thread"].is_alive():
+                self._pending_syncs.add(clean_ws)
                 return self._active_jobs[clean_ws]["thread"]
 
         self.update_progress(clean_ws, current=0, total=0, stage="scanning")
@@ -372,16 +374,23 @@ class BackgroundSyncManager:
                 def _prog_cb(curr: int, tot: int, stg: str = "files", itm: str = ""):
                     self.update_progress(clean_ws, current=curr, total=tot, stage=stg, item_name=itm)
 
-                res = run_unified_sync(
-                    workspace_name=clean_ws if not is_all else None,
-                    sync_folders=sync_folders,
-                    sync_web=sync_web,
-                    sync_drives=sync_drives,
-                    force_full=force_full,
-                    verbose=verbose,
-                    is_all=is_all,
-                    progress_callback=_prog_cb
-                )
+                while True:
+                    res = run_unified_sync(
+                        workspace_name=clean_ws if not is_all else None,
+                        sync_folders=sync_folders,
+                        sync_web=sync_web,
+                        sync_drives=sync_drives,
+                        force_full=force_full,
+                        verbose=verbose,
+                        is_all=is_all,
+                        progress_callback=_prog_cb
+                    )
+
+                    with self._lock:
+                        if clean_ws in self._pending_syncs:
+                            self._pending_syncs.remove(clean_ws)
+                            continue
+                        break
                 
                 # Format completion summary
                 folder_res = res.get("folder_results", {}).get(clean_ws, {}) if isinstance(res, dict) else {}

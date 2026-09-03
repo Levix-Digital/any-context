@@ -1074,6 +1074,52 @@ graph TD
   - 5 tests verifying zero ANSI codes and valid markdown code blocks across all observability formatters.
   - Automated test suite expanded to **253 tests (100% PASS)**.
 
+---
+
+## 44. Dual-Binary Architecture, Session Process Immunology & Resilient Sync Queue (`v0.28.74`)
+
+### ⚡ 1. Problem Analysis
+1. **Sub-60ms `actx -v` Degraded to 6-8s**:
+   - In `update_service.py` and `updater.py`, updates replaced `actx.exe` with the downloaded 248MB PyInstaller bundle instead of `actx-core.exe`. This overwrote the ultra-fast 5.6KB C# Launcher Shim, forcing Windows to decompress 248MB of Python binaries into `%TEMP%/_MEI...` on every version query.
+2. **Terminal Prompt Leakage During Updates (`update-bug.jpg`)**:
+   - `find_active_instances()` and `close_active_instances()` only excluded `current_pid` and `os.getppid()`. When the user selected "Close other instances and update now", `taskkill` terminated the foreground `actx.exe` Launcher Shim. This caused the parent shell (`bash.exe` / `powershell.exe`) to resume foreground control and print its blinking command prompt directly over OpenTUI.
+3. **Dropped Background Crawl on `/web --add`**:
+   - When switching workspaces (`/switch TestWorkspace`), an initial scan thread was launched. When the user immediately added a documentation portal (`/web --add`), `BackgroundSyncManager.start_background_sync()` silently discarded the request because a thread was already running. The un-crawled source retained `page_count: 1` and `last_scraped_at: None`, leaving LanceDB empty and resulting in RAG failure.
+
+### 🛡️ 2. Architectural Solution
+```mermaid
+graph TD
+    A["User runs /update"] --> B["UpdateService.find_active_instances()"]
+    B --> C["get_current_session_pids()<br/>(CreateToolhelp32Snapshot / /proc)"]
+    C --> D["Immune Set: Terminal Shell, Shim actx.exe, actx-core, Bun, RPC"]
+    D --> E["Active External Sessions Detected (count)"]
+    E -- "count == 0" --> F["Show only: Update now & Cancel"]
+    E -- "count > 0" --> G["Show: Background Update & Close External Sessions"]
+    G --> H["close_active_instances() ignores Immune Set"]
+    H --> I["Download 248MB PyInstaller Engine -> actx-core.exe"]
+    I --> J["Preserve / Recompile 5.6KB C# Shim -> actx.exe"]
+    J --> K["Write version.txt atomically"]
+```
+
+- **Dual-Binary Isolation & Self-Healing ([`update_service.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/core/services/update_service.py) & [`updater.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/cli/updater.py))**:
+  - Distinguishes between `actx-core.exe` (the heavy PyInstaller binary) and `actx.exe` (the native 5.6KB C# Launcher Shim).
+  - Preserves `actx.exe` and downloads the engine directly to `actx-core.exe`.
+  - Atomically writes `clean_tag` to `version.txt`.
+  - Self-Healing: If `actx.exe` is > 1MB, automatically recompiles the 5.6KB C# shim via `build_windows_shim()`.
+- **Session Process Immunology (`get_current_session_pids`)**:
+  - Traverses the process hierarchy using `CreateToolhelp32Snapshot` on Windows and `/proc` on Unix.
+  - Stops cleanly at interactive shell boundaries (`bash.exe`, `cmd.exe`, `powershell.exe`, `mintty.exe`, `windowsterminal.exe`).
+  - Completely protects the active session tree from self-termination, preventing terminal prompt leakage.
+- **Resilient Background Sync Queue ([`orchestrator.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/ingestion/orchestrator.py))**:
+  - Maintains `_pending_syncs: Set[str]`.
+  - If a sync is requested while a job is in-flight, marks the workspace as pending.
+  - In `_worker()`, loops while `workspace in _pending_syncs`, ensuring that newly added web sources or folders are NEVER silently dropped.
+  - In [`web_scheduler.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/ingestion/web_scheduler.py), sorts unscraped URLs (`last_scraped_at IS NULL`) first for immediate processing.
+- **Automated Test Coverage ([`tests/unit/core/test_process_lineage_and_sync_queue.py`](file:///C:/Users/guilh/source/repos/any-context/tests/unit/core/test_process_lineage_and_sync_queue.py))**:
+  - 6 unit tests verifying session PID collection, active instance filtering, self-termination protection, pending sync queueing, and update modal option schemas.
+  - Total automated test suite expanded to **254 tests (100% PASS)**.
+
+
 
 
 
