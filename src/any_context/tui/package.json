@@ -6,7 +6,8 @@
   "main": "index.tsx",
   "scripts": {
     "start": "bun run index.tsx",
-    "dev": "bun run --watch index.tsx"
+    "dev": "bun run --watch index.tsx",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
     "@opentui/core": "^0.5.8",

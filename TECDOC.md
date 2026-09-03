@@ -967,6 +967,21 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - Added `pip install pytest` in `.github/workflows/e2e-tests.yml` as a redundant defense-in-depth safety guardrail.
 - Automated test coverage expanded to **200 fully passing tests** across all 5 architectural tiers.
 
+---
+
+## 40. OpenTUI Syntax Repair & Frontend Static Verification Gate (`v0.28.70`)
+
+### 🖥️ 1. React Component AST Repair (`app.tsx`)
+- Resolved unclosed `.catch((err) => ...)` callback and `setMessages` state updater at line 80 in `src/any_context/tui/app.tsx`.
+- Guaranteed clean delimiter matching and zero AST parse errors under the Bun TypeScript engine.
+- Added `"check": "tsc --noEmit"` to `src/any_context/tui/package.json` for deterministic type and syntax checks.
+
+### 🛡️ 2. CI/CD Frontend Verification Gate (`e2e-tests.yml` & `test_tui_syntax.py`)
+- Integrated `oven-sh/setup-bun@v2` into `.github/workflows/e2e-tests.yml`, executing `bun install && bun run check` prior to running backend tests.
+- Introduced `tests/unit/cli/test_tui_syntax.py` validating that OpenTUI core files exist, balanced bracket and parenthesis trees are maintained, and live Bun compilation succeeds when Bun is present.
+- Total automated tests expanded to **203 tests (100% PASS)**.
+
+
 
 
 

@@ -157,6 +157,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Native JSON-RPC stdio implementation for **Claude Desktop**, **Cursor IDE**, and **Antigravity**.
 - **📘 Permanent Self-Help System**:
   - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
+- **🖥️ OpenTUI Syntax Repair & CI Frontend Verification Gate (`v0.28.70`)**:
+  - Correção cirúrgica de sintaxe no componente React principal [`app.tsx`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/tui/app.tsx) do OpenTUI, fechando blocos de callback de erro e restaurando a inicialização instantânea do comando `actx --tui`.
+  - Integração do verificador estático do Bun (`bun run check` / `tsc --noEmit`) ao pipeline oficial do GitHub Actions (`.github/workflows/e2e-tests.yml`), impedindo regressões visuais ou de sintaxe no frontend antes de qualquer merge.
+  - Adição de teste unitário automatizado (`test_tui_syntax.py`) elevando a suíte para 203 testes 100% aprovados.
+
 - **🛡️ 100% Native Standard Test Suite & CI/CD Pipeline Hardening (`v0.28.69`)**:
   - Eliminação de dependências externas de teste em ambiente de execução: migração e padronização integral dos testes unitários para `unittest.TestCase` nativo do Python (com zero dependências do `pytest` para execução).
   - Resolução definitiva de erros de importação no GitHub Actions CI/CD (`ModuleNotFoundError: No module named 'pytest'`).

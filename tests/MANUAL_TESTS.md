@@ -7,7 +7,32 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.69): Validação da Suíte de Testes 100% Nativa e Aprovação no GitHub Actions CI/CD
+### 📌 Cenário 1 (v0.28.70): Validação de Inicialização Estável da Interface OpenTUI (`actx --tui`)
+
+- **Objetivo**: Comprovar que o comando `actx --tui` abre a interface gráfica interativa do terminal sem nenhum erro de sintaxe do Bun (`Expected "]" but found ";"`) e renderiza o HeaderBar, prompt de entrada e barra de status.
+- **Pré-requisito**: Versão `v0.28.70` instalada (`actx -v` deve exibir `v0.28.70`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🖥️ Inicialização da Interface OpenTUI:**
+   ```powershell
+   actx --tui
+   ```
+   - **Critério de Aceitação:** A interface visual deve abrir imediatamente sem exibir exceções do Bun.
+   - Deve exibir a barra superior (HeaderBar), a área de conversação com o status de sincronização e a barra de input na parte inferior.
+
+2. **⌨️ Envio de Mensagem ou Comando Slash:**
+   - Na barra de input, digitar:
+     ```powershell
+     /help
+     ```
+   - Pressionar Enter.
+   - **Critério de Aceitação:** A lista de comandos ou a mensagem deve ser processada e exibida na tela.
+   - Pressionar `Esc` ou digitar `/exit` para sair limpo do terminal.
+
+---
+
+### 📌 Cenário 2 (v0.28.69): Validação da Suíte de Testes 100% Nativa e Aprovação no GitHub Actions CI/CD
 
 - **Objetivo**: Comprovar que o AnyContext executa toda a sua suíte de testes de forma 100% autônoma via Python standard library `unittest` sem necessidade de bibliotecas externas (pytest), atingindo 200 testes aprovados localmente e no pipeline de CI/CD do GitHub Actions.
 - **Pré-requisito**: Versão `v0.28.69` ou branch `dev` atualizada.
