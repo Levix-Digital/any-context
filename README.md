@@ -139,6 +139,12 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Exclusão segura e interativa de workspaces com listagem do total de fontes e modal de confirmação explícito (`Yes, permanently delete` vs `Cancel` com foco seguro).
   - Proteção de workspaces do sistema (`Default`, `Global`, `Shared Sources`) e fallback automático para `Default`.
 
+- **🧹 Clean Markdown Observability & TUI ANSI-Shield Engine (`v0.28.73`)**:
+  - **Zero Terminal Buffer Corruption**: Refactored `/logs`, `/spans`, and `/diagnostics` to emit 100% clean GitHub Flavored Markdown with monospaced fenced code blocks (` ```text `), permanently eliminating raw ANSI escape sequences (`\033[...]`) that caused cell positioning corruption and scattered characters in OpenTUI.
+  - **OpenTUI Frontend ANSI Sanitization**: Implemented `stripAnsi()` across user, system, and assistant messages, rendering immune against control characters from external processes.
+  - **Cross-Platform CI/CD Build Hardening**: Hardened `launcher/build_shim.py` with `UTF-8` reconfiguration and ASCII status indicators, eliminating `UnicodeEncodeError` under Windows runner `cp1252` environments.
+  - **Multi-Interface Parity**: Integrated `/logs`, `/spans`, and `/diagnostics` directly into CLI interactive chat loop dispatching.
+
 - **🌐 Resilient Web Ingestion & Decompression Engine (`v0.28.72`)**:
   - **Tolerant HTTP Stream Decompression**: Native support for `Content-Encoding: gzip`, `deflate` and `.xml.gz` sitemaps using `zlib.decompressobj(32 + zlib.MAX_WBITS)`. Gracefully handles truncated, partial, or interrupted network streams without failing with low-level `Error -5 incomplete stream`.
   - **Self-Healing Web Source Addition**: Transparent auto-recovery and retry loops in `SourceService` and `CommandDispatcher` for web portals (including CDNs like Akamai and Cloudflare).
