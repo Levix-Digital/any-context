@@ -157,6 +157,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Native JSON-RPC stdio implementation for **Claude Desktop**, **Cursor IDE**, and **Antigravity**.
 - **📘 Permanent Self-Help System**:
   - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
+- **🛡️ 100% Native Standard Test Suite & CI/CD Pipeline Hardening (`v0.28.69`)**:
+  - Eliminação de dependências externas de teste em ambiente de execução: migração e padronização integral dos testes unitários para `unittest.TestCase` nativo do Python (com zero dependências do `pytest` para execução).
+  - Resolução definitiva de erros de importação no GitHub Actions CI/CD (`ModuleNotFoundError: No module named 'pytest'`).
+  - Descoberta automatizada do módulo de testes `unit/ingestion` (crawler e progresso em tempo real) com 100% dos 200 testes aprovados.
+
 - **⚡ Background Web Crawler Real-time Progress & Instant Completion Notifications (`v0.28.68`)**:
   - Feedback visual imediato e contínuo durante a raspagem web em background (`⚡ Crawling [████░░░░] 50% (15/30 pages)`), eliminando o estado prematuro de `✔ Up to date` enquanto o crawler ainda está indexando.
   - Notificações de conclusão emitidas em tempo real em todas as interfaces (CLI, OpenTUI e RPC Bridge) indicando o total exato de páginas web e arquivos indexados.

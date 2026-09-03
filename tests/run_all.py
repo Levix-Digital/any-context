@@ -31,10 +31,11 @@ def main():
     unit_core_dir = os.path.join(tests_dir, "unit", "core")
     unit_cli_dir = os.path.join(tests_dir, "unit", "cli")
     unit_server_dir = os.path.join(tests_dir, "unit", "server")
+    unit_ingestion_dir = os.path.join(tests_dir, "unit", "ingestion")
     e2e_dir = os.path.join(tests_dir, "e2e")
 
     safe_print("\n" + "=" * 80)
-    safe_print(">> AnyContext Master Test Suite (Core Unit + CLI UI Unit + Server Unit + E2E)")
+    safe_print(">> AnyContext Master Test Suite (Core Unit + CLI UI Unit + Server Unit + Ingestion Unit + E2E)")
     safe_print("=" * 80)
 
     loader = unittest.TestLoader()
@@ -55,7 +56,12 @@ def main():
         discovered_server = loader.discover(start_dir=unit_server_dir, top_level_dir=repo_root, pattern="test_*.py")
         suite.addTests(discovered_server)
 
-    # 4. Discover E2E Server & Protocol Tests
+    # 4. Discover Ingestion Unit Tests
+    if os.path.exists(unit_ingestion_dir):
+        discovered_ingestion = loader.discover(start_dir=unit_ingestion_dir, top_level_dir=repo_root, pattern="test_*.py")
+        suite.addTests(discovered_ingestion)
+
+    # 5. Discover E2E Server & Protocol Tests
     if os.path.exists(e2e_dir):
         discovered_e2e = loader.discover(start_dir=e2e_dir, top_level_dir=repo_root, pattern="test_*.py")
         suite.addTests(discovered_e2e)
