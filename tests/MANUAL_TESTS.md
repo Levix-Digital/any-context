@@ -7,7 +7,32 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.68): Validação de Progresso em Tempo Real do Web Crawler e Notificação de Conclusão
+### 📌 Cenário 1 (v0.28.69): Validação da Suíte de Testes 100% Nativa e Aprovação no GitHub Actions CI/CD
+
+- **Objetivo**: Comprovar que o AnyContext executa toda a sua suíte de testes de forma 100% autônoma via Python standard library `unittest` sem necessidade de bibliotecas externas (pytest), atingindo 200 testes aprovados localmente e no pipeline de CI/CD do GitHub Actions.
+- **Pré-requisito**: Versão `v0.28.69` ou branch `dev` atualizada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🧪 Execução Isolada do Teste de Modelo Padrão por Workspace:**
+   ```powershell
+   python -m unittest tests.unit.core.test_workspace_default_model
+   ```
+   - **Critério de Aceitação:** O comando deve rodar os 3 testes unitários e finalizar com `OK` (Ran 3 tests).
+
+2. **🚀 Execução da Suíte Master Modular de Testes:**
+   ```powershell
+   python tests/run_all_e2e.py
+   ```
+   - **Critério de Aceitação:** Todos os 200 testes (Core, CLI UI, Server, Ingestion e E2E) devem ser descobertos e aprovados com a mensagem `ALL 200 TESTS PASSED SUCCESSFULLY!`.
+
+3. **☁️ Validação do Workflow no GitHub Actions:**
+   - Acessar a aba **Actions** no repositório GitHub (`Levix-Digital/any-context`).
+   - Validar que a execução do workflow **End-to-End (E2E) Modular Test Suite** para o push da versão `v0.28.69` finaliza com status verde (Checkmark ✔️) sem nenhum erro de `ModuleNotFoundError: No module named 'pytest'`.
+
+---
+
+### 📌 Cenário 2 (v0.28.68): Validação de Progresso em Tempo Real do Web Crawler e Notificação de Conclusão
 
 - **Objetivo**: Comprovar que, ao adicionar uma fonte web ou sincronizar um portal em segundo plano, a barra inferior exibe a animação/barra de progresso do crawler (`⚡ Crawling [████░░░░] 50% (15/30 pages)`) em vez do badge prematuro `✔ Up to date`, e que ao finalizar o crawling uma notificação de sistema é exibida informando o total de páginas indexadas.
 - **Pré-requisito**: Versão `v0.28.68` ou superior.
