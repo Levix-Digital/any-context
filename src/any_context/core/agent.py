@@ -33,6 +33,67 @@ def _prune_historical_tool_messages(messages):
     return messages
 
 
+def sanitize_conversation_messages(messages):
+    """
+    Ensures that every assistant message with tool_calls is followed by matching ToolMessages.
+    If an interrupted turn left orphan tool_calls without ToolMessages, injects synthetic
+    ToolMessages so that OpenAI / Anthropic / Gemini API contracts are strictly satisfied.
+    """
+    if not isinstance(messages, list):
+        return messages
+
+    sanitized = []
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+        sanitized.append(msg)
+
+        tool_calls = getattr(msg, "tool_calls", None)
+        m_type = getattr(msg, "type", msg.__class__.__name__)
+
+        # If this is an assistant/AI message with tool calls
+        if (m_type in ["ai", "AIMessage", "assistant"] or hasattr(msg, "tool_calls")) and tool_calls:
+            required_call_ids = []
+            for tc in tool_calls:
+                cid = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                if cid:
+                    required_call_ids.append(cid)
+
+            # Scan immediately following messages for tool messages responding to these IDs
+            j = i + 1
+            answered_call_ids = set()
+            while j < len(messages):
+                next_msg = messages[j]
+                next_type = getattr(next_msg, "type", next_msg.__class__.__name__)
+                next_tool_id = getattr(next_msg, "tool_call_id", None)
+
+                if next_type in ["tool", "ToolMessage"] or next_tool_id:
+                    if next_tool_id:
+                        answered_call_ids.add(next_tool_id)
+                    sanitized.append(next_msg)
+                    j += 1
+                else:
+                    # Encountered human or next AI message before completing tool calls
+                    break
+
+            # For any missing tool_call_id, inject a synthetic ToolMessage to satisfy LLM API schema
+            for req_id in required_call_ids:
+                if req_id not in answered_call_ids:
+                    from langchain_core.messages import ToolMessage
+                    synthetic_tool = ToolMessage(
+                        content="[Context retrieval was interrupted or cancelled in prior turn]",
+                        tool_call_id=req_id,
+                        name="search_db"
+                    )
+                    sanitized.append(synthetic_tool)
+
+            i = j
+        else:
+            i += 1
+
+    return sanitized
+
+
 def _prune_messages_for_llm(
     messages,
     max_current_turn_chars=40000,
@@ -135,7 +196,7 @@ def _prune_messages_for_llm(
         else:
             pruned.append(msg)
 
-    return pruned
+    return sanitize_conversation_messages(pruned)
 
 
 def _is_web_search_authorized_by_prompt(prompt: str) -> bool:
@@ -317,6 +378,7 @@ class ResilientSqliteSaver(SqliteSaver):
                 msgs = tup.checkpoint.get("channel_values", {}).get("messages")
                 if msgs:
                     _prune_historical_tool_messages(msgs)
+                    tup.checkpoint["channel_values"]["messages"] = sanitize_conversation_messages(msgs)
             return tup
         except Exception:
             try:

@@ -58,6 +58,8 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Prioritized Deep Scraping**: Multi-page documentation portals (e.g. The Rust Book) are recursively scraped and indexed in the background with progress reporting.
 - **🛡️ Session Process Immunology**:
   - **Terminal Screen Integrity**: `/update` scans process trees to grant complete immunity to the active terminal, launcher, OpenTUI, and RPC processes, preventing prompt leaks and flickering.
+- **🛡️ Auto-Healing Conversation Sanitizer & OpenAI Tool Call Shield**:
+  - **Zero Error 400 Invalid Request**: Interrupted session turns or tool cancellations automatically synthesize compliant response messages for orphan tool calls, eliminating permanent SQLite checkpoint corruption.
 - **🕒 Temporal RAG & Metadata Freshness Engine**:
   - **5-Tier Web Date Resolution**: Automatically extracts publication and update dates via OpenGraph/Schema.org, visible in-page text/footers (`Page details YYYY-MM-DD`, `Date modified:`), URL date patterns (`/2023/06/...`), HTTP `Last-Modified` headers, and crawl timestamps.
   - **Content Classification**: Distinguishes between `Canonical Service / Documentation` (authoritative current rules), `Historical News / Press Release` (past announcements), and `Local Document`.
