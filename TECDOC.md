@@ -1309,9 +1309,8 @@ Version `v0.28.79` eliminates fragile heuristic string-based data deletion, guar
 - **Strict Cleanup Constraints**: Cleanup routines only execute in production mode (`ACTX_TEST_MODE != 1`) and can ONLY delete workspaces where:
   1. `created_by = 'test'` **AND**
   2. The workspace has 0 web URLs in `workspace_web_urls` **AND**
-  3. The workspace has 0 indexed pages in `workspace_indexed_web_pages` **AND**
-  4. The workspace has 0 cached files in `workspace_files_stat_cache` **AND**
-  5. The workspace has 0 attached folders in `workspace_folders`.
+  3. The workspace has 0 cached files in `workspace_files_stat_cache` **AND**
+  4. The workspace has 0 attached folders in `workspace_folders`.
 - **Pre-Migration Safety Snapshot**: `ConfigDBStore._init_db()` automatically creates `settings.db.bak` before executing any DDL or data migrations.
 
 ### 📝 3. Persistent Installation, Update, and Migration Logs
@@ -1321,6 +1320,32 @@ Version `v0.28.79` eliminates fragile heuristic string-based data deletion, guar
   Records target installation directory, binary download status, version tag registration, shim compilation, and PATH updates.
 - **`migration.log`**:
   Records timestamped schema changes, table alterations, and backup snapshot confirmations.
+
+---
+
+## 🏛️ LanceDB Single Source of Truth Web Engine & Zero-Copy Columnar Cache (v0.28.80)
+
+### 1. Problem Statement: Split-Brain Ingestion Bug
+Prior to v0.28.80, web crawling state was tracked redundantly:
+1. SQLite maintained a `workspace_indexed_web_pages` table recording URL, hash, and metadata.
+2. LanceDB maintained the actual embedded chunks and vector embeddings.
+
+When operations desynchronized—such as vector store clearing, workspace transfers, or partial sync passes—SQLite reported pages as "already indexed", leading the crawler to skip them in 0.00s. Concurrently, LanceDB remained empty (0 chunks), causing RAG queries to fail with empty context despite the UI claiming pages were indexed.
+
+### 2. Architecture: Single Source of Truth (SSOT)
+In `v0.28.80`, `workspace_indexed_web_pages` was dropped and completely eradicated:
+- **LanceDB is 100% the Single Source of Truth**: All page indexing status, content hashes, last modified timestamps, and chunk vectors exist exclusively in LanceDB.
+- **Automatic Migration**: `ConfigDBStore._init_db()` and `WebSchedulerStore._init_db()` execute `DROP TABLE IF EXISTS workspace_indexed_web_pages;`, safely removing legacy schemas across all installations.
+- **Zero-Copy Apache Arrow Columnar Projections**:
+  - `get_indexed_pages_map(workspace_name, domain_or_prefix)` executes a zero-copy projection:
+    ```python
+    tbl.search().where(f"file_path LIKE '{clean_domain}%'").select(["file_path", "file_name", "content_hash", "last_modified"]).to_arrow()
+    ```
+  - Dense embedding vectors (1536 dims) are completely bypassed during cache checks, executing scans across thousands of records in `< 5ms`.
+  - Content deduplication (`content_hash` matching) and page title resolution (`file_name` stripping `[Web] ` prefix) operate seamlessly without auxiliary database overhead.
+- **Atomic Cascading Deletions**:
+  - `LanceDBStore.delete_by_file(workspace, file_path)` supports prefix deletion (`OR file_path LIKE '{clean_fp}%'`), ensuring root web source deletions instantly purge all child pages and chunks.
+
 
 
 

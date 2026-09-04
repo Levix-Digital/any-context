@@ -175,9 +175,28 @@ class TestHighSpeedWebSync(unittest.TestCase):
                 "http_last_modified": None
             }
 
+        def _mock_index(documents, workspace_name="BatchWS", **kwargs):
+            records = []
+            for doc in documents:
+                records.append({
+                    "id": f"chunk_{doc.doc_id}",
+                    "vector": [0.01] * 1536,
+                    "text": doc.text,
+                    "file_name": doc.metadata.get("file_name", ""),
+                    "file_path": doc.metadata.get("file_path", ""),
+                    "workspace": workspace_name,
+                    "last_modified": doc.metadata.get("scraped_at", ""),
+                    "content_type": "Web Documentation",
+                    "document_summary": "",
+                    "keywords": "",
+                    "content_hash": doc.metadata.get("content_hash", "")
+                })
+            self.lance_store.upsert_records(records)
+            return {"status": "success", "indexed_chunks": len(records)}
+
         with patch("any_context.ingestion.web_crawler.scrape_url", side_effect=mock_scrape):
             with patch("any_context.ingestion.web_scheduler.WebSchedulerStore", return_value=self.store):
-                with patch("any_context.vector_engine.indexer.ParallelIndexer.index_documents", return_value={"status": "success"}):
+                with patch("any_context.vector_engine.indexer.ParallelIndexer.index_documents", side_effect=_mock_index):
                     progress_updates = []
                     def _prog(curr, tot, idxed, skp, u, t):
                         progress_updates.append((curr, tot, idxed, skp))
@@ -196,7 +215,7 @@ class TestHighSpeedWebSync(unittest.TestCase):
                     self.assertEqual(res["indexed_count"], 6)
                     self.assertEqual(res["total_distinct_indexed"], 6)
 
-                    # Verify that all 6 distinct pages were written to SQLite
+                    # Verify that all 6 distinct pages were written to LanceDB
                     indexed_map = self.store.get_indexed_pages_map("BatchWS", domain_or_prefix="example.com")
                     self.assertEqual(len(indexed_map), 6)
                     for u in urls:
@@ -207,12 +226,12 @@ class TestHighSpeedWebSync(unittest.TestCase):
                     self.assertGreater(len(progress_updates), 0)
                     self.assertEqual(progress_updates[-1][0], 6)
                     self.assertEqual(progress_updates[-1][1], 6)
-                    print("  [OK] Streaming mini-batch incremental persistence verified with 100% SQLite durability!")
+                    print("  [OK] Streaming mini-batch incremental persistence verified with 100% LanceDB durability!")
 
     def test_06_streaming_minibatch_error_isolation_and_partial_recovery(self):
         """
         Tests that if an error occurs during a batch, previously indexed batches remain
-        fully preserved in SQLite and LanceDB (no all-or-nothing rollback or data loss).
+        fully preserved in LanceDB (no all-or-nothing rollback or data loss).
         """
         print("\n>>> [UNIT] Testing Batch Error Isolation & Partial Recovery...")
         from any_context.ingestion.web_crawler import crawl_and_index_urls
@@ -233,9 +252,28 @@ class TestHighSpeedWebSync(unittest.TestCase):
                 "http_last_modified": None
             }
 
+        def _mock_index_iso(documents, workspace_name="IsolationWS", **kwargs):
+            records = []
+            for doc in documents:
+                records.append({
+                    "id": f"chunk_{doc.doc_id}",
+                    "vector": [0.01] * 1536,
+                    "text": doc.text,
+                    "file_name": doc.metadata.get("file_name", ""),
+                    "file_path": doc.metadata.get("file_path", ""),
+                    "workspace": workspace_name,
+                    "last_modified": doc.metadata.get("scraped_at", ""),
+                    "content_type": "Web Documentation",
+                    "document_summary": "",
+                    "keywords": "",
+                    "content_hash": doc.metadata.get("content_hash", "")
+                })
+            self.lance_store.upsert_records(records)
+            return {"status": "success", "indexed_chunks": len(records)}
+
         with patch("any_context.ingestion.web_crawler.scrape_url", side_effect=mock_scrape):
             with patch("any_context.ingestion.web_scheduler.WebSchedulerStore", return_value=self.store):
-                with patch("any_context.vector_engine.indexer.ParallelIndexer.index_documents", return_value={"status": "success"}):
+                with patch("any_context.vector_engine.indexer.ParallelIndexer.index_documents", side_effect=_mock_index_iso):
                     res = crawl_and_index_urls(
                         workspace_name="IsolationWS",
                         urls=urls,
@@ -249,7 +287,7 @@ class TestHighSpeedWebSync(unittest.TestCase):
                     self.assertEqual(res["indexed_count"], 3)
                     self.assertEqual(res["errors"], 1)
 
-                    # Verify that the 3 valid pages were safely recorded in SQLite despite page_3 failing
+                    # Verify that the 3 valid pages were safely recorded in LanceDB despite page_3 failing
                     indexed_map = self.store.get_indexed_pages_map("IsolationWS", domain_or_prefix="isolated-test.org")
                     self.assertEqual(len(indexed_map), 3)
                     self.assertIn("https://isolated-test.org/page_0", indexed_map)

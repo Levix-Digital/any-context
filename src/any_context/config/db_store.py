@@ -149,6 +149,8 @@ class ConfigDBStore:
                 ws_auto_id = "ws_default" if r["name"].strip().lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}"
                 cursor.execute("UPDATE workspaces SET workspace_id = ? WHERE id = ?", (ws_auto_id, r["id"]))
 
+            # Drop legacy workspace_indexed_web_pages table (LanceDB is Single Source of Truth)
+            cursor.execute("DROP TABLE IF EXISTS workspace_indexed_web_pages;")
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS models (
@@ -447,8 +449,6 @@ class ConfigDBStore:
                     not_in_clauses = []
                     if "workspace_web_urls" in existing_tables:
                         not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_web_urls)")
-                    if "workspace_indexed_web_pages" in existing_tables:
-                        not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_indexed_web_pages)")
                     if "workspace_files_stat_cache" in existing_tables:
                         not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_files_stat_cache)")
                     if "workspace_folders" in existing_tables:
@@ -683,10 +683,6 @@ class ConfigDBStore:
             except sqlite3.OperationalError:
                 pass
             try:
-                cursor.execute("DELETE FROM workspace_indexed_web_pages WHERE workspace_name = ?", (clean_ws,))
-            except sqlite3.OperationalError:
-                pass
-            try:
                 cursor.execute("DELETE FROM workspace_cloud_drives WHERE workspace_name = ?", (clean_ws,))
             except sqlite3.OperationalError:
                 pass
@@ -892,8 +888,8 @@ class ConfigDBStore:
         """
         Renames a workspace from old_name to new_name atomically across SQLite and ChromaDB in < 50ms ($0.00 cost).
         1. Validates guardrails (existence, non-empty, collision check).
-        2. Updates SQLite tables: workspaces, workspace_folders, workspace_user_permissions, workspace_share_invites, workspace_web_urls, workspace_indexed_web_pages.
-        3. Updates ChromaDB vector metadata ('workspace': new_name) for document and session collections.
+        2. Updates SQLite tables: workspaces, workspace_folders, workspace_user_permissions, workspace_share_invites, workspace_web_urls.
+        3. Updates LanceDB vector metadata ('workspace': new_name) for document and session collections.
         """
         old_ws = (old_name or "").strip()
         new_ws = (new_name or "").strip()
@@ -956,12 +952,6 @@ class ConfigDBStore:
             # Update workspace_web_urls (if table exists)
             try:
                 cursor.execute("UPDATE workspace_web_urls SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
-            except sqlite3.OperationalError:
-                pass
-
-            # Update workspace_indexed_web_pages (if table exists)
-            try:
-                cursor.execute("UPDATE workspace_indexed_web_pages SET workspace_name = ? WHERE workspace_name = ? OR workspace_name = ?", (new_ws, actual_old_name, old_ws))
             except sqlite3.OperationalError:
                 pass
 

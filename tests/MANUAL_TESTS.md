@@ -7,7 +7,54 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.79): Imunidade de Workspaces por Proveniência (created_by), Snapshots de Pré-Migração e Logs Persistentes
+### 📌 Cenário 1 (v0.28.80): LanceDB Single Source of Truth para Fontes Web, Resync Rápido e Eliminação de Split-Brain
+
+- **Objetivo**: Comprovar que na release `v0.28.80`:
+  1. O banco de dados vetorial LanceDB é 100% a única fonte de verdade (Single Source of Truth) para o estado de páginas web indexadas, contagens e metadados.
+  2. A tabela redundante `workspace_indexed_web_pages` do SQLite foi completamente removida e descartada via migração automática (`DROP TABLE IF EXISTS`).
+  3. O bug de Split-Brain (onde o SQLite reportava páginas indexadas enquanto o LanceDB estava vazio, impedindo o crawler de ingerir os vetores) foi definitivamente erradicado.
+  4. O re-sync de páginas já indexadas ocorre em sub-10ms utilizando projeções colunares zero-copy do Apache Arrow (`select(['file_path', 'content_hash', 'last_modified'])`), sem carregar nem deserializar vetores de embedding.
+  5. As respostas do RAG utilizam os chunks reais indexados no LanceDB, citando fontes legítimas e precisas.
+- **Pré-requisito**: Versão `v0.28.80` instalada (`actx -v` exibindo `v0.28.80`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🗑️ Validação da Remoção da Tabela SQLite Legada:**
+   - Abra um terminal e confirme que a tabela `workspace_indexed_web_pages` não existe mais no SQLite:
+     ```powershell
+     python -c "import sqlite3, os; conn = sqlite3.connect(os.path.expandvars(r'%LOCALAPPDATA%\AnyContext\config\settings.db')); print('Existe:', bool(conn.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='workspace_indexed_web_pages'\").fetchone()))"
+     ```
+   - **Critério de Aceitação:** O comando imprime `Existe: False`.
+
+2. **⚡ Validação da Leitura de Páginas Indexadas Direto do LanceDB (Zero-Copy Columnar Scan):**
+   - Execute a inspeção das páginas indexadas pelo LanceDB:
+     ```powershell
+     python -c "from any_context.vector_engine.store import LanceDBStore; lance = LanceDBStore(); print('Páginas indexadas no LanceDB:', len(lance.get_indexed_pages_map('TestWorkspace')))"
+     ```
+   - **Critério de Aceitação:** O retorno lista com precisão todas as páginas registradas (ex: 44 para o Rust Book) diretamente da tabela vetorial, em menos de 10 milissegundos.
+
+3. **🔄 Validação de Resync com Custo $0 (Skip Inteligente via Content Hash):**
+   - Inicie a TUI ou execute o sync no workspace `TestWorkspace`:
+     ```bash
+     actx --tui
+     ```
+     No chat ou via comando `/sync`:
+     ```bash
+     /switch TestWorkspace
+     /sync
+     ```
+   - **Critério de Aceitação:** O crawler detecta que as 44 páginas já estão indexadas e inalteradas no LanceDB, pulando todas em ~0.00s sem gerar novos embeddings nem custos de tokens ($0.00).
+
+4. **🎯 Validação de RAG e Citações com Grounding Preciso:**
+   - Faça uma pergunta técnica baseada na fonte indexada (ex: Rust Book):
+     ```text
+     O que é Rust e me dê um código mínimo de exemplo
+     ```
+   - **Critério de Aceitação:** O assistente responde com precisão conceitual e citações explícitas às fontes indexadas no LanceDB (ex: `[Fonte: https://doc.rust-lang.org/book/...]`), comprovando que a desincronização de split-brain foi totalmente superada.
+
+---
+
+### 📌 Cenário 2 (v0.28.79): Imunidade de Workspaces por Proveniência (created_by), Snapshots de Pré-Migração e Logs Persistentes
 
 - **Objetivo**: Comprovar que a release `v0.28.79`:
   1. O workspace do usuário (ex: `TestWorkspace` ou qualquer outro nome) e todas as suas fontes, páginas web indexadas e vetores permanecem 100% intactos após a atualização.

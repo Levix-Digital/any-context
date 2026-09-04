@@ -115,13 +115,10 @@ def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
         try:
             from any_context.vector_engine.store import LanceDBStore
             lance = LanceDBStore.get_instance()
-            tbl = lance.get_table("workspace_chunks")
-            if tbl:
-                df = tbl.to_pandas()
-                ws_chunks = len(df[df["workspace"] == clean_ws]) if "workspace" in df.columns else 0
-                if ws_chunks == 0:
-                    is_virgin = True
-                    cached_files = {}
+            ws_chunks = lance.count_records(clean_ws)
+            if ws_chunks == 0:
+                is_virgin = True
+                cached_files = {}
         except Exception:
             pass
 
