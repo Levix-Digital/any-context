@@ -7,7 +7,46 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.81): Blindagem Hermética de Testes e Imunidade da Base Vetorial de Produção
+### 📌 Cenário 1 (v0.28.82): Normalização Automática de Redirecionamento Canônico HTTP (Trailing Slash) e Crawling Completo de Portais Web
+
+- **Objetivo**: Comprovar que na release `v0.28.82`:
+  1. A adição ou sincronização de portais de documentação sem a barra final (ex: `https://doc.rust-lang.org/stable/book`) detecta dinamicamente o redirecionamento canônico HTTP (`301 Moved Permanently` -> `.../stable/book/`).
+  2. O crawler utiliza a URL efetiva pós-redirect como `base_url` para o `HTMLLinkExtractor`, garantindo que links relativos (como `ch01-00-getting-started.html`) resolvam corretamente para o subdiretório `/stable/book/...` em vez de truncar para `/stable/...` (o que causava HTTP 404 e indexação de apenas 1 página no Linux/WSL).
+  3. No Linux/WSL e no Windows, a sincronização do workspace indexa todas as 44 páginas da documentação no LanceDB.
+  4. A conciliação no SQLite (`workspace_web_urls`) atualiza o registro semente com a contagem total de páginas (44 páginas) e data de varredura sem criar duplicatas no banco de dados.
+  5. Perguntas feitas no chat sobre tópicos da documentação (ex: *"O que são variáveis mutáveis?"*) respondem com precisão e citam as fontes legítimas indexadas.
+- **Pré-requisito**: Versão `v0.28.82` instalada (`actx -v` exibindo `v0.28.82`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🌐 Sincronização Completa do Portal Web (Linux/WSL ou Windows):**
+   - No terminal, execute a sincronização do workspace `RustDoc` (ou adicione a URL sem barra final em um novo workspace):
+     ```bash
+     actx /sync
+     ```
+   - **Critério de Aceitação:** O crawler executa a descoberta, identifica as páginas filhas da seção e realiza o download e indexação vetorial completa. A contagem de páginas salvas atinge 44 páginas.
+
+2. **🔍 Verificação da Quantidade de Páginas e Chunks no LanceDB:**
+   - Inspecione a contagem de páginas e chunks indexados:
+     ```bash
+     python -c "from any_context.vector_engine.store import LanceDBStore; lance = LanceDBStore(); print('Total de chunks:', lance.count_records('RustDoc'))"
+     ```
+   - **Critério de Aceitação:** O total de chunks é superior a 1.000 (ex: ~1.148 chunks correspondentes aos 44 capítulos), comprovando que todas as páginas filhas foram descarregadas e vetorizadas.
+
+3. **💬 Validação de Pergunta e Citação em Linguagem Natural:**
+   - Abra a CLI interativa no workspace `RustDoc`:
+     ```bash
+     actx --tui
+     ```
+   - Envie a seguinte pergunta:
+     ```text
+     O que são variáveis mutáveis em Rust?
+     ```
+   - **Critério de Aceitação:** O assistente responde explicando o conceito de mutabilidade em Rust (ex: uso da palavra-chave `mut`, imutabilidade por padrão), citando explicitamente o capítulo correspondente (*Chapter 3 - Variables and Mutability*).
+
+---
+
+### 📌 Cenário 2 (v0.28.81): Blindagem Hermética de Testes e Imunidade da Base Vetorial de Produção
 
 - **Objetivo**: Comprovar que na release `v0.28.81`:
   1. A execução de qualquer suíte de testes automatizados (`python tests/run_all.py` ou unit tests) opera sob sandbox estrito e nunca apaga, contamina ou purga a base vetorial real do usuário (`%LOCALAPPDATA%\AnyContext\data\context_db\lancedb`).

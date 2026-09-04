@@ -56,6 +56,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🌐 LanceDB Single Source of Truth Web Engine & Resilient Crawler**:
   - **Zero Split-Brain Desynchronization**: Eradicated legacy secondary SQLite cache tables. LanceDB is the 100% single source of truth for both web page caching, hashes, and vector chunks.
   - **Sub-5ms Zero-Copy Cache Scans**: Apache Arrow columnar projections (`select(['file_path', 'content_hash', 'last_modified'])`) verify page modifications instantly without deserializing dense embedding vectors.
+  - **Automatic Canonical Redirect & Trailing Slash Normalization**: Automatically detects canonical HTTP 301/302 redirects when registering portals without trailing slashes (e.g. `/stable/book` -> `/stable/book/`), ensuring relative chapter links (`ch01-...html`) resolve to the proper subpath instead of truncating parent directories. Fully resilient across Linux, WSL, and Windows.
   - **Prioritized Deep Scraping & $0 Resync**: Multi-page documentation portals (e.g. The Rust Book) are recursively scraped and indexed in the background with progress reporting and instant $0.00 zero-token re-sync skips.
   - **Zero Dropped Jobs**: Eliminates race conditions when adding web sources (`/web --add`) immediately after workspace creation, automatically queuing pending resync passes.
 - **🛡️ Hermetic Vector Sandboxing & Production Data Immunity**:

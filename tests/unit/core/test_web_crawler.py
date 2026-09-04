@@ -299,5 +299,78 @@ class Test02WebCrawlerScheduler(unittest.TestCase):
 
         safe_stdout_write("  [OK] Programmatic crawl_website and format_sync_status_box exports verified!\n")
 
+    def test_09_http_redirect_trailing_slash_resolution(self):
+        """TC-2.11: Verifies HTTP 301 trailing slash redirect resolution and relative link expansion."""
+        safe_stdout_write(">>> [MOD 2 / TC-2.11] Testing HTTP Redirect Trailing Slash Link Resolution...\n")
+        from unittest.mock import patch, MagicMock
+        from any_context.ingestion.web_crawler import discover_site_urls
+        from any_context.ingestion.web_scheduler import WebSchedulerStore
+
+        start_no_slash = "https://mock-book.example.org/stable/book"
+        redirected_with_slash = "https://mock-book.example.org/stable/book/"
+
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>The Mock Book</title></head>
+        <body>
+            <nav>
+                <a href="ch01-00-getting-started.html">Chapter 1</a>
+                <a href="ch02-00-guessing-game-tutorial.html">Chapter 2</a>
+                <a href="/other-section/page.html">Outside Section</a>
+            </nav>
+        </body>
+        </html>
+        """
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = html_content.encode("utf-8")
+        mock_resp.geturl.return_value = redirected_with_slash
+        mock_resp.headers = {}
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = None
+
+        with patch("urllib.request.urlopen", return_value=mock_resp), \
+             patch("any_context.ingestion.web_crawler.is_url_allowed_by_robots", return_value=True), \
+             patch("any_context.ingestion.web_crawler.fetch_sitemap_urls", return_value=([], {})):
+
+            disc = discover_site_urls(start_no_slash)
+
+            self.assertEqual(disc["effective_url"], redirected_with_slash)
+            self.assertEqual(disc["section_prefix"], "/stable/book")
+            
+            # Critical check: Relative links must resolve under /stable/book/ and NOT /stable/
+            expected_ch1 = "https://mock-book.example.org/stable/book/ch01-00-getting-started.html"
+            expected_ch2 = "https://mock-book.example.org/stable/book/ch02-00-guessing-game-tutorial.html"
+            truncated_ch1 = "https://mock-book.example.org/stable/ch01-00-getting-started.html"
+
+            self.assertIn(expected_ch1, disc["section_urls"], "Relative link ch01 must resolve under /stable/book/")
+            self.assertIn(expected_ch2, disc["section_urls"], "Relative link ch02 must resolve under /stable/book/")
+            self.assertNotIn(truncated_ch1, disc["section_urls"], "Link must NOT truncate parent folder")
+
+        # Reconcile in SQLite: verify flexible matching prevents duplicate records
+        store = WebSchedulerStore()
+        ws_test = "E2E_Slash_Test"
+        try:
+            self.store.add_workspace(ws_test, [])
+            store.add_web_url(ws_test, start_no_slash, title="Seed without slash")
+
+            # Crawler updates with trailing slash
+            res = store.add_or_update_root_web_source(
+                workspace_name=ws_test,
+                root_url=redirected_with_slash,
+                title="Consolidated Book",
+                page_count=44
+            )
+
+            urls = store.get_workspace_web_urls(ws_test)
+            self.assertEqual(len(urls), 1, "Must update existing seed source instead of creating duplicate")
+            self.assertEqual(urls[0]["page_count"], 44)
+            self.assertEqual(urls[0]["title"], "Consolidated Book")
+        finally:
+            self.store.remove_workspace(ws_test)
+
+        safe_stdout_write("  [OK] HTTP Redirect trailing slash and flexible SQLite reconciliation verified!\n")
+
 if __name__ == "__main__":
     unittest.main()

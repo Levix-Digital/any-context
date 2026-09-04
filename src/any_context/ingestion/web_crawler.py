@@ -179,21 +179,24 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
     headers = {"User-Agent": "AnyContext-WebCrawler/1.0 (+https://levix-digital.github.io/any-context-releases/)"}
     page_title = start_url
     initial_links: Set[str] = set()
+    effective_url = start_url
 
     # 1. Fetch start page
     try:
         req = urllib.request.Request(start_url, headers=headers)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
+            effective_url = resp.geturl() or start_url
             html = resp.read().decode("utf-8", errors="ignore")
             title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
             if title_match:
                 page_title = title_match.group(1).strip()
-            link_extractor = HTMLLinkExtractor(base_url=start_url)
+            link_extractor = HTMLLinkExtractor(base_url=effective_url)
             link_extractor.feed(html)
             initial_links = link_extractor.links
     except Exception as e:
         return {
             "start_url": start_url,
+            "effective_url": effective_url,
             "domain": domain,
             "title": page_title,
             "section_urls": [start_url],
@@ -204,10 +207,25 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
             "error": str(e)
         }
 
-    # 2. Check sitemap
-    sitemap_urls, sitemap_lastmods = fetch_sitemap_urls(start_url, max_urls=max_discovery, timeout=timeout)
+    # Recompute semantic section prefix and domain if redirected (e.g. canonical trailing slash 301)
+    if effective_url != start_url:
+        parsed_effective = urllib.parse.urlparse(effective_url)
+        domain = parsed_effective.netloc.lower()
+        clean_path = parsed_effective.path
+        if clean_path.endswith((".html", ".htm", ".php", ".asp", ".aspx")):
+            clean_path = clean_path.rsplit(".", 1)[0]
+        path_segments = [seg for seg in clean_path.split("/") if seg]
+        section_prefix = "/" + "/".join(path_segments) if path_segments else "/"
+        key_terms = [seg.lower() for seg in path_segments if len(seg) > 2]
 
-    all_domain_urls: Set[str] = {start_url}
+    # 2. Check sitemap
+    sitemap_urls, sitemap_lastmods = fetch_sitemap_urls(effective_url, max_urls=max_discovery, timeout=timeout)
+    if not sitemap_urls and effective_url != start_url:
+        fb_urls, fb_lastmods = fetch_sitemap_urls(start_url, max_urls=max_discovery, timeout=timeout)
+        sitemap_urls.extend(fb_urls)
+        sitemap_lastmods.update(fb_lastmods)
+
+    all_domain_urls: Set[str] = {start_url, effective_url}
     all_domain_urls.update(sitemap_urls)
 
     for link in initial_links:
@@ -217,13 +235,14 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
 
     # 3. Fast BFS expansion on top discovered pages if sitemap is small or absent
     if len(all_domain_urls) < 300:
-        sample_urls = [u for u in list(all_domain_urls) if u != start_url][:20]
+        sample_urls = [u for u in list(all_domain_urls) if u not in (start_url, effective_url)][:20]
         for sub_u in sample_urls:
             try:
                 sub_req = urllib.request.Request(sub_u, headers=headers)
                 with urllib.request.urlopen(sub_req, timeout=3) as sub_resp:
+                    sub_effective = sub_resp.geturl() or sub_u
                     sub_html = sub_resp.read().decode("utf-8", errors="ignore")
-                    sub_extractor = HTMLLinkExtractor(base_url=sub_u)
+                    sub_extractor = HTMLLinkExtractor(base_url=sub_effective)
                     sub_extractor.feed(sub_html)
                     for lk in sub_extractor.links:
                         if urllib.parse.urlparse(lk).netloc.lower() == domain:
@@ -236,9 +255,9 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
     # RFC 9309 Compliance: Filter out any URLs disallowed by robots.txt
     all_domain_urls = {u for u in all_domain_urls if is_url_allowed_by_robots(u)}
 
-    # Rank all discovered URLs by semantic proximity and relevance to start_url
+    # Rank all discovered URLs by semantic proximity and relevance to start_url / effective_url
     def _rank_url(u: str) -> tuple:
-        if u == start_url:
+        if u in (start_url, effective_url):
             return (10000, 0)
         p = urllib.parse.urlparse(u)
         path = p.path.lower()
@@ -267,16 +286,17 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
 
     for u in ranked_domain_urls:
         p = urllib.parse.urlparse(u).path.lower()
-        if p.startswith(clean_section_prefix + "/") or p == clean_section_prefix or p == (clean_section_prefix + ".html") or u == start_url:
+        if p.startswith(clean_section_prefix + "/") or p == clean_section_prefix or p == (clean_section_prefix + ".html") or u in (start_url, effective_url):
             section_urls.append(u)
         elif any(term in p for term in key_terms if len(term) >= 5):
             section_urls.append(u)
 
     if not section_urls:
-        section_urls = [start_url]
+        section_urls = [effective_url] if effective_url else [start_url]
 
     return {
         "start_url": start_url,
+        "effective_url": effective_url,
         "domain": domain,
         "title": page_title,
         "section_prefix": section_prefix,
@@ -574,10 +594,11 @@ def crawl_website(
     Discovers internal links/sitemaps and crawls them automatically into LanceDB.
     """
     disc = discover_site_urls(start_url)
+    effective_url = disc.get("effective_url") or start_url
     if scope == "section":
-        target_urls = disc.get("section_urls") or [start_url]
+        target_urls = disc.get("section_urls") or [effective_url]
     else:
-        target_urls = disc.get("domain_urls") or disc.get("section_urls") or [start_url]
+        target_urls = disc.get("domain_urls") or disc.get("section_urls") or [effective_url]
 
     if max_pages and len(target_urls) > max_pages:
         target_urls = target_urls[:max_pages]
@@ -585,8 +606,8 @@ def crawl_website(
     return crawl_and_index_urls(
         workspace_name=workspace_name,
         urls=target_urls,
-        root_url=start_url,
-        root_title=disc.get("title") or start_url,
+        root_url=effective_url,
+        root_title=disc.get("title") or effective_url,
         scope=scope,
         force_refresh=force_rescrape,
         max_workers=max_workers,

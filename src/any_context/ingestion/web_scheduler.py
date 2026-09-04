@@ -104,15 +104,17 @@ class WebSchedulerStore:
     ) -> Dict[str, Any]:
         import uuid
         now_str = datetime.utcnow().isoformat()
+        alt_root = root_url.rstrip("/") if root_url.endswith("/") else f"{root_url}/"
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id FROM workspace_web_urls WHERE workspace_name = ? AND url = ?",
-                (workspace_name, root_url)
+                "SELECT id, url FROM workspace_web_urls WHERE workspace_name = ? AND (url = ? OR url = ? OR root_url = ? OR root_url = ?)",
+                (workspace_name, root_url, alt_root, root_url, alt_root)
             )
             row = cursor.fetchone()
             if row:
                 url_id = row[0]
+                matched_url = row[1]
                 cursor.execute("""
                     UPDATE workspace_web_urls
                     SET title = ?, page_count = ?, scope = ?, last_scraped_at = ?
@@ -120,6 +122,7 @@ class WebSchedulerStore:
                 """, (title, page_count, scope, now_str, url_id))
             else:
                 url_id = f"web_{uuid.uuid4().hex[:8]}"
+                matched_url = root_url
                 cursor.execute("""
                     INSERT INTO workspace_web_urls (id, workspace_name, url, title, page_count, root_url, scope, polling_interval_hours, last_scraped_at, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -128,14 +131,14 @@ class WebSchedulerStore:
             # Clean up any legacy sub-urls that might have been recorded as individual rows under this domain/prefix
             cursor.execute("""
                 DELETE FROM workspace_web_urls
-                WHERE workspace_name = ? AND url != ? AND (root_url = ? OR url LIKE ?)
-            """, (workspace_name, root_url, root_url, f"{root_url.rstrip('/')}/%"))
+                WHERE workspace_name = ? AND url != ? AND url != ? AND (root_url = ? OR root_url = ? OR url LIKE ?)
+            """, (workspace_name, root_url, alt_root, root_url, alt_root, f"{root_url.rstrip('/')}/%"))
 
             conn.commit()
         return {
             "id": url_id,
             "workspace_name": workspace_name,
-            "url": root_url,
+            "url": matched_url,
             "title": title,
             "page_count": page_count,
             "scope": scope,
