@@ -7,7 +7,61 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.82): Normalização Automática de Redirecionamento Canônico HTTP (Trailing Slash) e Crawling Completo de Portais Web
+### 📌 Cenário 1 (v0.28.83): Atualização com Fechamento Seguro de Todas as Sessões, Teardown Limpo de Terminal e Prevenção de Prompt Fantasma
+
+- **Objetivo**: Comprovar que na release `v0.28.83`:
+  1. No comando `/update` (ou `/update@<versão>`), a opção de encerramento fecha com segurança **todas** as instâncias AnyContext ativas no sistema operacional.
+  2. O download do novo binário é realizado e validado **antes** do encerramento de qualquer sessão, prevenindo fechamento indevido caso haja falha de rede.
+  3. No OpenTUI, o encerramento realiza o teardown completo do terminal (`renderer.destroy()`, desativação de Raw Mode, restauração do buffer canônico de entrada e cursor visível).
+  4. O terminal não apresenta colisão visual ("TUI fantasma" com prompt vazado sobre a interface gráfica).
+  5. Ao encerrar a sessão de update, o controle retorna 100% responsivo para o shell com a mensagem informativa orientando o usuário a executar `actx`.
+  6. Comandos e atalhos de terminal (Enter, Ctrl+C, digitação normal) permanecem 100% funcionais imediatamente após a saída do update.
+- **Pré-requisito**: Versão `v0.28.83` instalada (`actx -v` exibindo `v0.28.83`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Início de Sessão Interativa e Abertura do Modal de Update:**
+   - Inicie o AnyContext na interface OpenTUI:
+     ```bash
+     actx --tui
+     ```
+   - No prompt de chat, digite `/update`:
+     ```text
+     /update
+     ```
+   - **Critério de Aceitação:** O modal de opções de atualização é exibido com o título e opções atualizadas:
+     - `⚡ Update in background (Recommended)`
+     - `⏹️ Close all AnyContext sessions and update now`
+     - `🔙 Cancel update`
+
+2. **⏹️ Execução de Update com Fechamento de Sessões:**
+   - Selecione a opção `⏹️ Close all AnyContext sessions and update now` e pressione `[Enter]`.
+   - **Critério de Aceitação:**
+     - O download do binário é concluído e verificado.
+     - A interface exibe: `🎉 AnyContext updated! Closing session and returning to terminal...`.
+     - O OpenTUI faz o teardown completo do console e fecha suavemente em menos de 1 segundo.
+     - O terminal volta para o prompt do seu shell (Git Bash, PowerShell ou Zsh) de forma totalmente limpa.
+     - É exibida a mensagem final:
+       ```text
+       🎉 AnyContext foi atualizado com sucesso para v0.28.83!
+       👉 Execute 'actx' para iniciar a nova versão.
+       ```
+
+3. **⌨️ Validação da Responsividade do Terminal (Eliminação do Freeze / Raw Mode Lock):**
+   - No prompt do shell imediatamente após a saída, digite comandos normais:
+     ```bash
+     echo "teste de terminal responsivo"
+     actx -v
+     ```
+   - Teste também pressionar `Ctrl+C` no prompt.
+   - **Critério de Aceitação:**
+     - O terminal ecoa os caracteres normalmente.
+     - `actx -v` responde exibindo a versão atualizada instantaneamente (< 10ms).
+     - O terminal responde a `Ctrl+C` e a novas linhas sem travar, confirmando que o modo Raw foi desativado e o modo canônico foi 100% restaurado.
+
+---
+
+### 📌 Cenário 2 (v0.28.82): Normalização Automática de Redirecionamento Canônico HTTP (Trailing Slash) e Crawling Completo de Portais Web
 
 - **Objetivo**: Comprovar que na release `v0.28.82`:
   1. A adição ou sincronização de portais de documentação sem a barra final (ex: `https://doc.rust-lang.org/stable/book`) detecta dinamicamente o redirecionamento canônico HTTP (`301 Moved Permanently` -> `.../stable/book/`).

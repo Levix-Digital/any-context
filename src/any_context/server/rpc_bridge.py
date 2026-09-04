@@ -393,7 +393,7 @@ class StdioRPCServer:
                 elif opt_type == "retrieval_density":
                     res = opts_engine.set_retrieval_density_preset(preset=val)
                 elif opt_type == "update":
-                    res = opts_engine.execute_update_option(option_id=val, is_tui=True)
+                    res = opts_engine.execute_update_option(option_id=val, is_tui=True, metadata=params.get("metadata"))
                 elif opt_type in ["delete_workspace", "ws_delete", "confirm_delete_workspace", "confirm_delete_ws"]:
                     res = opts_engine.execute_delete_workspace_option(option_id=val, current_workspace=ws)
                 elif opt_type in ["delete_source", "ws_delete_source", "sources_delete", "confirm_delete_source", "confirm_delete_src"]:

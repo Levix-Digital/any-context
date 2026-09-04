@@ -425,13 +425,7 @@ class UpdateService:
 
         clean_tag = target_tag if target_tag.startswith("v") else f"v{target_tag}"
 
-        # 2. Handle active instances
-        active_instances = self.find_active_instances()
-        closed_count = 0
-        if active_instances and auto_close_instances:
-            closed_count = self.close_active_instances(active_instances)
-
-        # 3. Determine paths and assets
+        # 2. Determine paths and assets
         is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
         target_asset = "actx-windows-x86_64.exe" if is_windows else "actx-linux-x86_64"
 
@@ -466,7 +460,7 @@ class UpdateService:
             except Exception:
                 pass
 
-        # 4. Download asset from GitHub
+        # 3. Download asset from GitHub (Verified before terminating any active sessions)
         downloaded = False
         for repo in [self.primary_repo, self.fallback_repo]:
             try:
@@ -513,6 +507,13 @@ class UpdateService:
             except Exception:
                 pass
 
+        # 4. Handle active instances once download is guaranteed
+        closed_count = 0
+        if auto_close_instances:
+            active_instances = self.find_active_instances()
+            if active_instances:
+                closed_count = self.close_active_instances(active_instances)
+
         # 5. Atomic swap and version registration
         version_file = os.path.join(target_dir, "version.txt")
         try:
@@ -520,6 +521,17 @@ class UpdateService:
                 vf.write(f"{clean_tag}\n")
         except Exception:
             pass
+
+        # Save notice file for clean console exit notification
+        if auto_close_instances:
+            import tempfile
+            root_pid = os.environ.get("ACTX_ROOT_PID", str(os.getpid()))
+            notice_file = os.path.join(tempfile.gettempdir(), f"actx_update_notice_{root_pid}.txt")
+            try:
+                with open(notice_file, "w", encoding="utf-8") as nf:
+                    nf.write(clean_tag)
+            except Exception:
+                pass
 
         if is_windows:
             # Self-healing: if actx.exe (shim) is missing or was accidentally overwritten with heavy binary (> 1MB), rebuild it
@@ -593,8 +605,12 @@ class UpdateService:
             except Exception:
                 pass
 
-            msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 The new version will take effect the next time you launch 'actx' or 'actx --tui'."
-            return True, msg, {"action": "none", "version": clean_tag}
+            if auto_close_instances:
+                msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 Closing all active sessions. Run 'actx' or 'actx --tui' to start the updated version."
+                return True, msg, {"action": "exit_update", "version": clean_tag, "closed_count": closed_count}
+            else:
+                msg = f"🎉 Successfully updated AnyContext to {clean_tag} in background!\n👉 The new version will take effect the next time you launch 'actx' or 'actx --tui'."
+                return True, msg, {"action": "none", "version": clean_tag}
 
         else:
             # Unix / macOS
@@ -603,5 +619,9 @@ class UpdateService:
             except Exception as e:
                 return False, f"❌ Failed to replace binary: {e}", {}
 
-            msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 The new version will take effect the next time you launch 'actx' or 'actx --tui'."
-            return True, msg, {"action": "none", "version": clean_tag}
+            if auto_close_instances:
+                msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 Closing all active sessions. Run 'actx' or 'actx --tui' to start the updated version."
+                return True, msg, {"action": "exit_update", "version": clean_tag, "closed_count": closed_count}
+            else:
+                msg = f"🎉 Successfully updated AnyContext to {clean_tag} in background!\n👉 The new version will take effect the next time you launch 'actx' or 'actx --tui'."
+                return True, msg, {"action": "none", "version": clean_tag}

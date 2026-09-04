@@ -1431,6 +1431,80 @@ sequenceDiagram
      ```
    - This prevents duplicate entries in `workspace_web_urls`, reconciles the existing seed record regardless of trailing slash variation, and cleanly updates `page_count` and `last_scraped_at`.
 
+---
+
+## 27. Resilient Interactive Update Architecture: Clean Session Teardown & Terminal State Immunology (v0.28.83)
+
+### 1. Problem Statement & Root Cause
+In previous versions (v0.28.80 - v0.28.82), selecting *"Close other instances and update now"* during an interactive update (`/update`) attempted to kill other background sessions while keeping the current OpenTUI interface running. In Windows environments (specifically MinTTY / Git Bash and ConHost), process tree termination or handle disconnections caused the parent shell (`bash.exe`) to detect early foreground completion, prematurely printing the interactive shell prompt (`user@host MINGW64 ~ $`) directly into the active console buffer.
+
+Concurrently:
+1. The OpenTUI frontend (`bun.exe`) remained running as an orphaned process, creating a "phantom TUI" overlaid on top of the shell prompt.
+2. OpenTUI operates the console in **Raw Mode** (unbuffered input, echo disabled, keystroke capture). When the session was terminated or exited without clean teardown, the terminal remained locked in Raw Mode with broken event loops, causing subsequent input to be ignored and rendering `Ctrl+C` and `Enter` completely unresponsive.
+
+### 2. Architectural Blueprint & Teardown Lifecycle
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User in OpenTUI
+    participant TUI as app.tsx (OpenTUI Frontend)
+    participant Bridge as rpc_bridge.py (JSON-RPC)
+    participant Svc as update_service.py (Update Engine)
+    participant GH as GitHub Releases API
+    participant Shell as Terminal Shell (Git Bash / ConHost)
+
+    User->>TUI: Execute /update
+    TUI->>Bridge: getOptions("update")
+    Bridge->>TUI: OptionsGroup [Update in background, Close all sessions & update]
+    User->>TUI: Select "Close all AnyContext sessions and update now"
+    TUI->>Bridge: setOption("update", "close")
+    Bridge->>Svc: execute_binary_update(auto_close_instances=True)
+    
+    rect rgb(235, 245, 255)
+        Note over Svc,GH: Step 1: Pre-Closure Download & Verification
+        Svc->>GH: Download target asset to actx_new.exe
+        GH-->>Svc: Asset verified (size > 0 bytes)
+    end
+
+    rect rgb(255, 245, 235)
+        Note over Svc: Step 2: Sibling Instance Termination
+        Svc->>Svc: close_active_instances(active_instances)
+        Svc->>Svc: Write update notice file to temp directory
+        Svc->>Svc: Trigger asynchronous atomic swap script
+        Svc-->>Bridge: return (True, msg, {action: "exit_update", version: clean_tag})
+    end
+
+    Bridge-->>TUI: JSON-RPC response with action="exit_update"
+    
+    rect rgb(235, 255, 235)
+        Note over TUI,Shell: Step 3: Clean Terminal Teardown
+        TUI->>TUI: Display closing notification (800ms)
+        TUI->>TUI: client.stop()
+        TUI->>Shell: renderer.destroy() (Disable Raw Mode, restore Cooked Mode, show cursor)
+        TUI->>Shell: process.exit(0)
+    end
+
+    Note over Shell: Step 4: Clean Console Output & Shell Prompt Return
+    Shell-->>User: Prints: "AnyContext foi atualizado com sucesso para vX.Y.Z! Execute 'actx' para iniciar."
+    Shell-->>User: Fully responsive shell prompt with active echo and standard signals
+```
+
+### 3. Key Technical Invariants
+
+1. **Pre-Closure Download Guarantee (`update_service.py` & `updater.py`)**:
+   - The target binary (`actx_new.exe` or `actx_new`) is downloaded and validated before any process termination is performed. If the network times out or GitHub is unreachable, zero processes are killed, and the current session reports the error cleanly.
+2. **Deterministic Terminal Teardown (`app.tsx` & `index.tsx`)**:
+   - `client.setOption` intercepts `res.action === "exit_update"`.
+   - The client connection is gracefully closed via `client.stop()`.
+   - The CLI renderer calls `renderer.destroy()`, issuing ANSI escape sequences to leave the alternate screen buffer (`\x1b[?1049l`), re-enable cursor visibility (`\x1b[?25h`), and restore the terminal's standard canonical cooked mode.
+3. **Parent Process Clean Handoff (`chat_loop.py`)**:
+   - Upon completion of `bun run index.tsx`, `launch_opentui()` inspects temporary update notice files (`actx_update_notice_{root_pid}.txt`).
+   - If present, it prints a clean success notice directing the user to run `actx`, cleans up the marker, and returns `True`, allowing `entrypoint.py` to exit with code 0.
+4. **Zero Ghost TUIs & Raw Mode Lock Elimination**:
+   - Eliminates terminal prompt leaks, ghost overlays, and unresponsive blinking cursors across Git Bash, Windows Terminal, MinTTY, PowerShell, and Unix shells.
+
+
 
 
 

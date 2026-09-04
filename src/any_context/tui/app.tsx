@@ -442,6 +442,31 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
                   openDeleteWorkspaceModal(false);
                   return;
                 }
+                const isExitUpdate =
+                  res.action === "exit_update" ||
+                  (res.state_updates as any)?.action === "exit_update";
+                if (isExitUpdate || res.action === "exit") {
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: `sys_${Date.now()}`,
+                      role: "system",
+                      content:
+                        res.message ||
+                        "🎉 AnyContext updated! Closing session and returning to terminal...",
+                    },
+                  ]);
+                  setTimeout(() => {
+                    client.stop();
+                    if (onExit) {
+                      onExit();
+                    } else {
+                      process.exit(0);
+                    }
+                  }, 800);
+                  return;
+                }
+
                 setMessages((prev) => [
                   ...prev,
                   {
