@@ -66,6 +66,25 @@ class OnboardingService:
             if api_key and api_key != "lm-studio":
                 has_key = True
 
+        stored_api_key = self.store.get_api_key(provider)
+        # Check if ANY provider has a stored API key in SQLite
+        any_stored_key = False
+        try:
+            with self.store._get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT api_key FROM api_keys WHERE length(api_key) > 3 LIMIT 1")
+                if cur.fetchone():
+                    any_stored_key = True
+        except Exception:
+            pass
+
+        # If user configured any API key in SQLite in a prior version or current session:
+        # auto-heal onboarding completion flag so it is permanently remembered.
+        if stored_api_key or any_stored_key:
+            if not onboarding_completed:
+                self.store.set_onboarding_completed(True)
+                onboarding_completed = True
+
         needs_onboarding = False
         stage = "ready"
 
@@ -82,6 +101,7 @@ class OnboardingService:
             "stage": stage,
             "provider": provider,
             "has_key": has_key,
+            "any_stored_key": any_stored_key,
             "is_local": is_local,
             "onboarding_completed": onboarding_completed
         })

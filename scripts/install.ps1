@@ -57,11 +57,14 @@ if (-not $Downloaded) {
 Write-Host "✅ Engine downloaded: $CoreExePath" -ForegroundColor Green
 
 # 3. Setup Version Cache File
-$VersionTag = "0.28.71"
+$VersionTag = "0.28.76"
 try {
     if (Get-Command gh -ErrorAction SilentlyContinue) {
         $ghTag = (gh release view --repo $Repo --json tagName -q .tagName 2>$null)
         if ($ghTag) { $VersionTag = $ghTag.TrimStart('v') }
+    } else {
+        $apiTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers @{"User-Agent"="AnyContext-Installer"} -TimeoutSec 5 -ErrorAction SilentlyContinue).tag_name
+        if ($apiTag) { $VersionTag = $apiTag.TrimStart('v') }
     }
 } catch {}
 Set-Content -Path $VersionFilePath -Value $VersionTag -Encoding UTF8

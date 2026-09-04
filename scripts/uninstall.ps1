@@ -17,16 +17,7 @@ Write-Host "`n❓ Do you want to PRESERVE your configured Workspaces and Vector 
 $KeepAns = Read-Host
 
 if ($KeepAns -match "^[Yy]$" -or [string]::IsNullOrEmpty($KeepAns)) {
-    Write-Host "📂 Preserving Workspaces, Vector Database & History for future installations..." -ForegroundColor Green
-    Write-Host "🧹 Resetting Model Settings & API Keys to OpenAI factory defaults..." -ForegroundColor Yellow
-    
-    # Reset models in canonical DB if present
-    $CanonicalSettingsDb = Join-Path $CanonicalDataDir "config\settings.db"
-    if (Test-Path $CanonicalSettingsDb) {
-        try {
-            python -c "import sqlite3; con = sqlite3.connect(r'$CanonicalSettingsDb'); con.execute(\"UPDATE models SET inference_model = 'gpt-4o-mini', summary_model = 'gpt-4o-mini', model_provider = 'openai', local_base_url = 'https://api.openai.com/v1', embedding_model = 'text-embedding-3-small' WHERE id = 1\"); con.commit(); con.close()" 2>$null
-        } catch {}
-    }
+    Write-Host "📂 Preserving Workspaces, Models, API Keys, Onboarding Status & Vector History for future installations..." -ForegroundColor Green
 } else {
     Write-Host "🧹 Performing 100% Clean Uninstall (Wiping all Workspaces, Databases & Configs)..." -ForegroundColor Red
     $DataPaths = @(

@@ -60,6 +60,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Terminal Screen Integrity**: `/update` scans process trees to grant complete immunity to the active terminal, launcher, OpenTUI, and RPC processes, preventing prompt leaks and flickering.
 - **🛡️ Auto-Healing Conversation Sanitizer & OpenAI Tool Call Shield**:
   - **Zero Error 400 Invalid Request**: Interrupted session turns or tool cancellations automatically synthesize compliant response messages for orphan tool calls, eliminating permanent SQLite checkpoint corruption.
+- **🔐 Persistent Configuration & Seamless Cross-Version Retention**:
+  - **Zero Repeated Onboarding**: Upgrading AnyContext (`actx --update` or installer) automatically retains all configured workspaces, custom AI models, and API keys. The onboarding modal is never triggered if an active API key or provider is already configured.
+  - **Triple-Layer Persistence Immunity**: Configuration state is anchored across `system_config` table, `context_settings` table, and SQLite `api_keys` store with automatic self-healing.
+  - **Preserved Uninstallation**: Uninstalling with data preservation keeps your workspaces, vector database, configured models, and API keys 100% intact for future installations.
 - **🕒 Temporal RAG & Metadata Freshness Engine**:
   - **5-Tier Web Date Resolution**: Automatically extracts publication and update dates via OpenGraph/Schema.org, visible in-page text/footers (`Page details YYYY-MM-DD`, `Date modified:`), URL date patterns (`/2023/06/...`), HTTP `Last-Modified` headers, and crawl timestamps.
   - **Content Classification**: Distinguishes between `Canonical Service / Documentation` (authoritative current rules), `Historical News / Press Release` (past announcements), and `Local Document`.

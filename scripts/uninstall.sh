@@ -28,13 +28,7 @@ printf "\n\033[33m❓ Do you want to PRESERVE your configured Workspaces and Vec
 read KEEP_WS
 
 if [ -z "$KEEP_WS" ] || echo "$KEEP_WS" | grep -qE "^[Yy]$"; then
-    printf "\033[32m📂 Preserving Workspaces, Vector Database & History for future installations...\033[0m\n"
-    printf "\033[33m🧹 Resetting Model Settings & API Keys to OpenAI factory defaults...\033[0m\n"
-    CANONICAL_SETTINGS="$CANONICAL_DATA_DIR/config/settings.db"
-    if [ -f "$CANONICAL_SETTINGS" ]; then
-        python3 -c "import sqlite3; con = sqlite3.connect(r'$CANONICAL_SETTINGS'); con.execute(\"UPDATE models SET inference_model = 'gpt-4o-mini', summary_model = 'gpt-4o-mini', model_provider = 'openai', local_base_url = 'https://api.openai.com/v1', embedding_model = 'text-embedding-3-small' WHERE id = 1\"); con.commit(); con.close()" 2>/dev/null || \
-        python -c "import sqlite3; con = sqlite3.connect(r'$CANONICAL_SETTINGS'); con.execute(\"UPDATE models SET inference_model = 'gpt-4o-mini', summary_model = 'gpt-4o-mini', model_provider = 'openai', local_base_url = 'https://api.openai.com/v1', embedding_model = 'text-embedding-3-small' WHERE id = 1\"); con.commit(); con.close()" 2>/dev/null || true
-    fi
+    printf "\033[32m📂 Preserving Workspaces, Models, API Keys, Onboarding Status & Vector History for future installations...\033[0m\n"
 else
     printf "\033[31m🧹 Performing 100%% Clean Uninstall (Wiping all Workspaces, Databases & Configs)...\033[0m\n"
     rm -rf "$CANONICAL_DATA_DIR" 2>/dev/null || true
