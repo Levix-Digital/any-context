@@ -52,10 +52,17 @@ class ConfigDBStore:
         if db_path:
             self.db_path = db_path
             ConfigDBStore._instance = self
-        elif ConfigDBStore._instance and getattr(ConfigDBStore._instance, "db_path", None):
+        elif (
+            ConfigDBStore._instance
+            and getattr(ConfigDBStore._instance, "db_path", None)
+            and os.path.exists(os.path.dirname(ConfigDBStore._instance.db_path))
+        ):
             self.db_path = ConfigDBStore._instance.db_path
         else:
             self.db_path = self.find_db_file("settings.db")
+        parent_dir = os.path.dirname(self.db_path)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
         self._init_db()
         self.ensure_default_workspace()
 
@@ -77,6 +84,9 @@ class ConfigDBStore:
         return canonical
 
     def _get_connection(self) -> sqlite3.Connection:
+        parent_dir = os.path.dirname(self.db_path)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
         from any_context.config.database import DatabaseManager
         return DatabaseManager(self.db_path).get_connection()
 

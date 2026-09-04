@@ -29,6 +29,10 @@ class TestDatabaseManager(unittest.TestCase):
 
     def tearDown(self):
         DatabaseManager.close_all()
+        ConfigDBStore._instance = None
+        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
+            import shutil
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_01_singleton_per_path(self):
         """Validates that DatabaseManager returns singleton instances keyed by normalized path."""

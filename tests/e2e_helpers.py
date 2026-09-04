@@ -58,6 +58,15 @@ def create_isolated_test_env(prefix: str = "anycontext_test") -> Dict[str, Any]:
 
 def cleanup_isolated_test_env(env: Dict[str, Any]):
     """Cleans up temporary directory and databases safely."""
+    try:
+        from any_context.config.database import DatabaseManager
+        from any_context.config.db_store import ConfigDBStore
+        DatabaseManager.close_all()
+        settings_db = env.get("settings_db")
+        if ConfigDBStore._instance and (settings_db is None or ConfigDBStore._instance.db_path == settings_db):
+            ConfigDBStore._instance = None
+    except Exception:
+        pass
     temp_dir = env.get("temp_dir")
     if temp_dir and os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
