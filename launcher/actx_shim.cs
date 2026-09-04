@@ -6,7 +6,7 @@ namespace AnyContext.Launcher
 {
     class Program
     {
-        private const string FALLBACK_VERSION = "v0.28.76";
+        private const string FALLBACK_VERSION = "v0.28.78";
 
         static int Main(string[] args)
         {

@@ -7,7 +7,60 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.77): Inicialização Nativa Git Bash, Handshake Instantâneo, Paridade de Comandos e UI Burra
+### 📌 Cenário 1 (v0.28.78): Modelo Padrão de Fábrica (GPT-4o Mini), Auto-Expurgo de Workspaces de Teste e Sandbox de Isolamento
+
+- **Objetivo**: Comprovar que a release `v0.28.78`:
+  1. A interface OpenTUI (`actx --tui`) e a CLI iniciam rigorosamente com `🤖 GPT-4o Mini` no workspace `Default` (`📂 Default │ 🤖 GPT-4o Mini │ 🛡️ Strict │ 🌐 Search: OFF │ 💡 /menu │ ✔ Up to date`), eliminando em 100% qualquer contaminação acidental do Claude Sonnet.
+  2. Nenhum workspace residual de testes passados (`RpcUnitTestWS`, `NewRPCWS`, `Unit_Dispatch_WS`, `TestWorkspace`, `E2E_Empty_Workspace`) permanece visível na lista de workspaces do usuário.
+  3. A execução da suíte de testes locais não contamina, modifica ou adiciona qualquer dado ao banco canônico do usuário (`%LOCALAPPDATA%\AnyContext\config\settings.db`), operando sob sandbox temporário hermético (`ACTX_SETTINGS_DB`).
+  4. A troca de modelo via `/model` ou RPC é persistida e isolada por workspace com autoridade do Core via `ModelService`.
+- **Pré-requisito**: Versão `v0.28.78` instalada (`actx -v` exibindo `v0.28.78`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🤖 Validação do Modelo Padrão de Fábrica na Barra de Status:**
+   - Abra um terminal e inicie a TUI:
+     ```bash
+     actx --tui
+     ```
+   - **Critério de Aceitação:** A barra inferior exibe imediatamente:
+     `📂 Default  │  🤖 GPT-4o Mini  │  🛡️ Strict  │  🌐 Search: OFF  │  💡 /menu  │  ✔ Up to date`
+     O modelo ativo exibido deve ser **GPT-4o Mini** e o modo de grounding deve ser **Strict**.
+
+2. **🧹 Validação de Purga Automática de Workspaces Residuais de Teste:**
+   - No chat da TUI, digite o comando para listar workspaces:
+     ```bash
+     /switch
+     ```
+   - **Critério de Aceitação:** O modal exibe apenas o workspace `Default` (e workspaces reais criados pelo próprio usuário). Nenhum workspace de teste antigo (`RpcUnitTestWS`, `NewRPCWS`, `Unit_Dispatch_WS`, `TestWorkspace`, `E2E_Empty_Workspace`) está presente. Pressione `[Esc]` para fechar o modal.
+
+3. **🔄 Validação de Troca de Modelo Isolada por Workspace:**
+   - Crie um novo workspace ou use um workspace secundário:
+     ```bash
+     /workspace add ProjetoBeta
+     /switch ProjetoBeta
+     ```
+   - Altere o modelo neste workspace para outro provedor configurado ou modelo local:
+     ```bash
+     /model deepseek-chat
+     ```
+   - Retorne para o workspace padrão:
+     ```bash
+     /switch Default
+     ```
+   - **Critério de Aceitação:** O workspace `Default` permanece ativo com `🤖 GPT-4o Mini`, enquanto `ProjetoBeta` mantém seu modelo `🤖 DeepSeek V3`.
+
+4. **🛡️ Validação de Imunidade da Base de Dados contra Testes:**
+   - Em outro terminal, execute a suíte de testes automatizados:
+     ```bash
+     python tests/run_all.py
+     ```
+   - Após a conclusão bem-sucedida dos testes, volte para a TUI ou abra um novo terminal com `actx --tui`:
+   - **Critério de Aceitação:** O workspace `Default` continua intacto com `🤖 GPT-4o Mini`, nenhum workspace fantasma foi adicionado à lista e as configurações de grounding continuam inalteradas.
+
+---
+
+### 📌 Cenário 2 (v0.28.77): Inicialização Nativa Git Bash, Handshake Instantâneo, Paridade de Comandos e UI Burra
 
 - **Objetivo**: Comprovar que a release `v0.28.77`:
   1. O comando `actx -v` e `actx --tui` funcionam no Git Bash (`MINGW64`) e PowerShell sem erros de `No such file or directory`.
