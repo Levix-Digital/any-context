@@ -14,6 +14,8 @@ import {
   filterSlashCommands,
   isDirectExecutionCommand,
   MAX_PALETTE_ITEMS,
+  SlashCommandMeta,
+  DEFAULT_SLASH_COMMANDS,
 } from "./commands";
 import { tuiLog } from "./logger";
 
@@ -650,7 +652,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           !commands.some(
             (c) =>
               c.command.toLowerCase() === raw.toLowerCase() ||
-              (c.aliases && c.aliases.some((a) => a.toLowerCase() === raw.toLowerCase()))
+              (c.aliases && c.aliases.some((a: string) => a.toLowerCase() === raw.toLowerCase()))
           ))
       ) {
         if (displayCount > 0) {
