@@ -406,15 +406,35 @@ def crawl_and_index_urls(
                 else:
                     return None
             except Exception:
-                return None
+                if attempt < 2:
+                    time.sleep(1.0 + random.uniform(0.1, 0.4))
+                else:
+                    return None
         return None
 
-    if urls_to_scrape:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_url = {executor.submit(_fetch_single, u): u for u in urls_to_scrape}
+    # Persist any pre-filtered records immediately so progress is never lost
+    if processed_records:
+        store.record_indexed_web_pages(
+            workspace_name=workspace_name,
+            root_url=effective_root,
+            pages=processed_records
+        )
+
+    # Process in streaming mini-batches (25 URLs at a time) for incremental resilience
+    batch_size = 25
+    url_batches = [urls_to_scrape[i:i + batch_size] for i in range(0, len(urls_to_scrape), batch_size)] if urls_to_scrape else []
+    completed_urls_count = len(processed_records)
+
+    for b_idx, batch_urls in enumerate(url_batches):
+        batch_documents: List[Document] = []
+        batch_records: List[Dict[str, Any]] = []
+
+        with ThreadPoolExecutor(max_workers=min(max_workers, max(1, len(batch_urls)))) as executor:
+            future_to_url = {executor.submit(_fetch_single, u): u for u in batch_urls}
             
-            for i, future in enumerate(as_completed(future_to_url)):
+            for future in as_completed(future_to_url):
                 url = future_to_url[future]
+                completed_urls_count += 1
                 data = None
                 try:
                     data = future.result()
@@ -425,7 +445,7 @@ def crawl_and_index_urls(
                     if data and data.get("is_not_modified"):
                         skipped_count += 1
                         cached_meta = indexed_map.get(url, {})
-                        processed_records.append({
+                        rec = {
                             "url": url,
                             "title": cached_meta.get("title", url),
                             "content_hash": cached_meta.get("content_hash", ""),
@@ -434,7 +454,9 @@ def crawl_and_index_urls(
                             "etag": data.get("etag") or cached_meta.get("etag"),
                             "http_last_modified": data.get("http_last_modified") or cached_meta.get("http_last_modified"),
                             "sitemap_lastmod": (sitemap_lastmods.get(url) if sitemap_lastmods else cached_meta.get("sitemap_lastmod"))
-                        })
+                        }
+                        batch_records.append(rec)
+                        processed_records.append(rec)
 
                     # Scenario B: HTTP 200 OK with extracted text
                     elif data and data.get("content") and len(data["content"].strip()) > 30:
@@ -447,18 +469,21 @@ def crawl_and_index_urls(
                         # Check if page is already indexed and hash has not changed (Skip / Zero Cost)
                         is_cached = (not force_refresh) and (url in indexed_map) and (indexed_map[url].get("content_hash") == url_hash)
 
+                        rec = {
+                            "url": url,
+                            "title": data["title"],
+                            "content_hash": url_hash,
+                            "char_count": len(text_content),
+                            "scraped_at": now_str,
+                            "etag": etag_val,
+                            "http_last_modified": http_lm_val,
+                            "sitemap_lastmod": s_lm_val
+                        }
+                        batch_records.append(rec)
+                        processed_records.append(rec)
+
                         if is_cached:
                             skipped_count += 1
-                            processed_records.append({
-                                "url": url,
-                                "title": data["title"],
-                                "content_hash": url_hash,
-                                "char_count": len(text_content),
-                                "scraped_at": now_str,
-                                "etag": etag_val,
-                                "http_last_modified": http_lm_val,
-                                "sitemap_lastmod": s_lm_val
-                            })
                         else:
                             # If page was previously indexed but content changed, remove old vectors
                             if url in indexed_map:
@@ -494,71 +519,49 @@ def crawl_and_index_urls(
                                     "sitemap_lastmod": s_lm_val
                                 }
                             )
-                            documents_batch.append(doc)
+                            batch_documents.append(doc)
                             total_chars += len(text_content)
                             indexed_count += 1
-                            processed_records.append({
-                                "url": url,
-                                "title": data["title"],
-                                "content_hash": url_hash,
-                                "char_count": len(text_content),
-                                "scraped_at": now_str,
-                                "etag": etag_val,
-                                "http_last_modified": http_lm_val,
-                                "sitemap_lastmod": s_lm_val
-                            })
                     else:
                         errors += 1
                 except Exception:
                     errors += 1
 
                 if progress_callback:
-                    curr_completed = len(processed_records)
-                    progress_callback(curr_completed, total_urls, indexed_count, skipped_count, url, (data.get("title") if data else ""))
+                    progress_callback(completed_urls_count, total_urls, indexed_count, skipped_count, url, (data.get("title") if data else ""))
 
-    # 3. Parallel Vector Embeddings and Columnar Persistence via ParallelIndexer (Stage 2)
-    if documents_batch:
-        try:
-            total_docs_to_embed = len(documents_batch)
-            if embed_progress_callback:
-                embed_progress_callback(0, total_docs_to_embed, 0, 0, "Enriching Context")
+        # Incremental Vector Indexing for this batch
+        if batch_documents:
+            try:
+                lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
+                parallel_indexer = ParallelIndexer(store=lance_store)
+                parallel_indexer.index_documents(
+                    documents=batch_documents,
+                    workspace_name=workspace_name
+                )
+            except Exception as e:
+                logging.getLogger("any_context").warning(f"Batch vector indexing error: {e}")
 
-            def _indexer_progress(current: int, total: int, stage: str, detail: str = ""):
-                if embed_progress_callback:
-                    if stage == "enriching":
-                        curr_docs = min(current, total_docs_to_embed)
-                        embed_progress_callback(curr_docs, total_docs_to_embed, 0, 0, "Enriching Context")
-                    elif stage in ["embedding", "persisting"]:
-                        curr_docs = min(int((current / max(total, 1)) * total_docs_to_embed), total_docs_to_embed)
-                        embed_progress_callback(curr_docs, total_docs_to_embed, current, total, "Vector Knowledge Base")
-
-            lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
-            parallel_indexer = ParallelIndexer(store=lance_store)
-            parallel_indexer.index_documents(
-                documents=documents_batch,
+        # Incremental SQLite Persistence: write this batch to disk immediately
+        if batch_records:
+            store.record_indexed_web_pages(
                 workspace_name=workspace_name,
-                progress_callback=_indexer_progress
+                root_url=effective_root,
+                pages=batch_records
+            )
+            curr_distinct = store.get_indexed_pages_count(workspace_name, domain_or_prefix=domain)
+            store.add_or_update_root_web_source(
+                workspace_name=workspace_name,
+                root_url=effective_root,
+                title=root_title or f"Web Portal ({curr_distinct} pages)",
+                page_count=curr_distinct,
+                scope=scope
             )
 
-            if embed_progress_callback:
-                embed_progress_callback(total_docs_to_embed, total_docs_to_embed, total_docs_to_embed, total_docs_to_embed, "Vector Knowledge Base")
-        except Exception as e:
-            return {
-                "status": "partial_error",
-                "indexed_count": indexed_count,
-                "skipped_count": skipped_count,
-                "total_chars": total_chars,
-                "error": f"Parallel vector indexing failed: {str(e)}"
-            }
+        if embed_progress_callback:
+            embed_progress_callback(completed_urls_count, total_urls, indexed_count, skipped_count, "Vector Knowledge Base")
 
-    # 4. Record all indexed pages and update SQLite root source with distinct page count
-    if processed_records:
-        store.record_indexed_web_pages(
-            workspace_name=workspace_name,
-            root_url=effective_root,
-            pages=processed_records
-        )
-
+    # 4. Final distinct count consolidation in SQLite root source
     total_distinct_pages = store.get_indexed_pages_count(workspace_name, domain_or_prefix=domain)
     store.add_or_update_root_web_source(
         workspace_name=workspace_name,

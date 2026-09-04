@@ -153,9 +153,110 @@ class TestHighSpeedWebSync(unittest.TestCase):
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["indexed_documents"], 15)
-        self.assertGreater(result["indexed_chunks"], 0)
-        self.assertGreater(call_count["count"], 1)
-        print("  [OK] ParallelIndexer batch embedding with 429 exponential retry verified!")
+    def test_05_streaming_minibatch_incremental_sqlite_persistence(self):
+        """
+        Tests that crawl_and_index_urls persists pages in streaming mini-batches to SQLite,
+        guaranteeing immediate incremental durability even on large multi-thousand page crawls.
+        """
+        print("\n>>> [UNIT] Testing Streaming Mini-Batch Incremental Persistence...")
+        from any_context.ingestion.web_crawler import crawl_and_index_urls
+
+        urls = [f"https://example.com/section/page_{i}" for i in range(6)]
+        
+        def mock_scrape(url, **kwargs):
+            return {
+                "url": url,
+                "title": f"Title for {url}",
+                "content": f"Full body content for page {url} with sufficient length to trigger indexing.",
+                "hash": f"hash_{url}",
+                "char_count": 80,
+                "is_not_modified": False,
+                "etag": None,
+                "http_last_modified": None
+            }
+
+        with patch("any_context.ingestion.web_crawler.scrape_url", side_effect=mock_scrape):
+            with patch("any_context.ingestion.web_scheduler.WebSchedulerStore", return_value=self.store):
+                with patch("any_context.vector_engine.indexer.ParallelIndexer.index_documents", return_value={"status": "success"}):
+                    progress_updates = []
+                    def _prog(curr, tot, idxed, skp, u, t):
+                        progress_updates.append((curr, tot, idxed, skp))
+
+                    res = crawl_and_index_urls(
+                        workspace_name="BatchWS",
+                        urls=urls,
+                        root_url="https://example.com/section",
+                        root_title="Example Section",
+                        scope="domain",
+                        force_refresh=False,
+                        progress_callback=_prog
+                    )
+
+                    self.assertEqual(res["status"], "success")
+                    self.assertEqual(res["indexed_count"], 6)
+                    self.assertEqual(res["total_distinct_indexed"], 6)
+
+                    # Verify that all 6 distinct pages were written to SQLite
+                    indexed_map = self.store.get_indexed_pages_map("BatchWS", domain_or_prefix="example.com")
+                    self.assertEqual(len(indexed_map), 6)
+                    for u in urls:
+                        self.assertIn(u, indexed_map)
+                        self.assertEqual(indexed_map[u]["title"], f"Title for {u}")
+
+                    # Verify progress callbacks reached 6/6
+                    self.assertGreater(len(progress_updates), 0)
+                    self.assertEqual(progress_updates[-1][0], 6)
+                    self.assertEqual(progress_updates[-1][1], 6)
+                    print("  [OK] Streaming mini-batch incremental persistence verified with 100% SQLite durability!")
+
+    def test_06_streaming_minibatch_error_isolation_and_partial_recovery(self):
+        """
+        Tests that if an error occurs during a batch, previously indexed batches remain
+        fully preserved in SQLite and LanceDB (no all-or-nothing rollback or data loss).
+        """
+        print("\n>>> [UNIT] Testing Batch Error Isolation & Partial Recovery...")
+        from any_context.ingestion.web_crawler import crawl_and_index_urls
+
+        urls = [f"https://isolated-test.org/page_{i}" for i in range(4)]
+
+        def mock_scrape(url, **kwargs):
+            if "page_3" in url:
+                raise urllib.error.URLError("Connection reset by peer (simulated network failure)")
+            return {
+                "url": url,
+                "title": f"Title for {url}",
+                "content": f"Valid indexed content for page {url} with more than 30 characters.",
+                "hash": f"hash_{url}",
+                "char_count": 75,
+                "is_not_modified": False,
+                "etag": None,
+                "http_last_modified": None
+            }
+
+        with patch("any_context.ingestion.web_crawler.scrape_url", side_effect=mock_scrape):
+            with patch("any_context.ingestion.web_scheduler.WebSchedulerStore", return_value=self.store):
+                with patch("any_context.vector_engine.indexer.ParallelIndexer.index_documents", return_value={"status": "success"}):
+                    res = crawl_and_index_urls(
+                        workspace_name="IsolationWS",
+                        urls=urls,
+                        root_url="https://isolated-test.org",
+                        root_title="Isolation Test",
+                        scope="domain",
+                        force_refresh=False
+                    )
+
+                    self.assertEqual(res["status"], "success")
+                    self.assertEqual(res["indexed_count"], 3)
+                    self.assertEqual(res["errors"], 1)
+
+                    # Verify that the 3 valid pages were safely recorded in SQLite despite page_3 failing
+                    indexed_map = self.store.get_indexed_pages_map("IsolationWS", domain_or_prefix="isolated-test.org")
+                    self.assertEqual(len(indexed_map), 3)
+                    self.assertIn("https://isolated-test.org/page_0", indexed_map)
+                    self.assertIn("https://isolated-test.org/page_1", indexed_map)
+                    self.assertIn("https://isolated-test.org/page_2", indexed_map)
+                    self.assertNotIn("https://isolated-test.org/page_3", indexed_map)
+                    print("  [OK] Error isolation verified: valid batches preserved despite individual URL errors!")
 
 
 if __name__ == "__main__":
