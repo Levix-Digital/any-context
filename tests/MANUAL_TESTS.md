@@ -7,7 +7,57 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.78): Modelo Padrão de Fábrica (GPT-4o Mini), Auto-Expurgo de Workspaces de Teste e Sandbox de Isolamento
+### 📌 Cenário 1 (v0.28.79): Imunidade de Workspaces por Proveniência (created_by), Snapshots de Pré-Migração e Logs Persistentes
+
+- **Objetivo**: Comprovar que a release `v0.28.79`:
+  1. O workspace do usuário (ex: `TestWorkspace` ou qualquer outro nome) e todas as suas fontes, páginas web indexadas e vetores permanecem 100% intactos após a atualização.
+  2. A autoria de workspaces é rastreada na coluna `created_by` (`'user'` para workspaces manuais, `'system'` para `Default` e `Shared Sources`, e `'test'` para fixtures de teste).
+  3. Workspaces criados pelo usuário (`created_by = 'user'`) possuem imunidade absoluta contra qualquer rotina automática de limpeza ou migração, independente do seu nome.
+  4. Um snapshot de segurança da base de dados (`settings.db.bak`) é gerado automaticamente antes de qualquer alteração estrutural no SQLite.
+  5. Os eventos do ciclo de vida de atualização, instalação e migração são persistidos de forma estruturada em `%LOCALAPPDATA%\AnyContext\logs\` (`install.log`, `update.log` e `migration.log`).
+- **Pré-requisito**: Versão `v0.28.79` instalada (`actx -v` exibindo `v0.28.79`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📂 Validação de Imunidade e Integridade do Workspace do Usuário:**
+   - Abra a TUI:
+     ```bash
+     actx --tui
+     ```
+   - Liste os workspaces com `/switch` ou verifique as fontes ativas:
+     ```bash
+     /switch
+     ```
+   - **Critério de Aceitação:** O workspace `TestWorkspace` (ou qualquer workspace criado pelo usuário) está presente na lista com todas as suas fontes indexadas (ex: 44 páginas da documentação do Rust Book) e vetores operacionais.
+
+2. **🏷️ Validação de Proveniência (`created_by`) no Banco de Dados:**
+   - Abra um terminal e consulte a proveniência dos workspaces via SQLite:
+     ```powershell
+     python -c "import sqlite3, os; conn = sqlite3.connect(os.path.expandvars(r'%LOCALAPPDATA%\AnyContext\config\settings.db')); print(conn.execute('SELECT name, created_by FROM workspaces').fetchall())"
+     ```
+   - **Critério de Aceitação:** Os workspaces `Default` e `Shared Sources` exibem `system`, enquanto `TestWorkspace` e workspaces criados pelo usuário exibem `user`.
+
+3. **🛡️ Validação do Snapshot de Pré-Migração (`settings.db.bak`):**
+   - Verifique o diretório de configuração do AnyContext:
+     ```powershell
+     Test-Path "$env:LOCALAPPDATA\AnyContext\config\settings.db.bak"
+     ```
+   - **Critério de Aceitação:** O arquivo `settings.db.bak` existe como uma cópia de segurança íntegra pré-migração.
+
+4. **📝 Validação dos Logs Persistentes (`update.log`, `install.log`, `migration.log`):**
+   - Inspecione a pasta de logs:
+     ```powershell
+     Get-ChildItem "$env:LOCALAPPDATA\AnyContext\logs"
+     ```
+   - Verifique os registros gravados:
+     ```powershell
+     Get-Content "$env:LOCALAPPDATA\AnyContext\logs\migration.log" -Tail 10
+     ```
+   - **Critério de Aceitação:** Os arquivos de log registram com timestamp detalhado cada operação realizada (migração de schema, snapshot e histórico de atualizações).
+
+---
+
+### 📌 Cenário 2 (v0.28.78): Modelo Padrão de Fábrica (GPT-4o Mini), Auto-Expurgo de Workspaces de Teste e Sandbox de Isolamento
 
 - **Objetivo**: Comprovar que a release `v0.28.78`:
   1. A interface OpenTUI (`actx --tui`) e a CLI iniciam rigorosamente com `🤖 GPT-4o Mini` no workspace `Default` (`📂 Default │ 🤖 GPT-4o Mini │ 🛡️ Strict │ 🌐 Search: OFF │ 💡 /menu │ ✔ Up to date`), eliminando em 100% qualquer contaminação acidental do Claude Sonnet.

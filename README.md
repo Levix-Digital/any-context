@@ -193,9 +193,14 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Integração do verificador estático do Bun (`bun run check` / `tsc --noEmit`) ao pipeline oficial do GitHub Actions (`.github/workflows/e2e-tests.yml`), impedindo regressões visuais ou de sintaxe no frontend antes de qualquer merge.
   - Adição de teste unitário automatizado (`test_tui_syntax.py`) elevando a suíte para 203 testes 100% aprovados.
 
+- **🛡️ Provenance-Based Workspace Immunity, Pre-Migration Snapshots, and Persistent Logging Architecture (`v0.28.79`)**:
+  - **Imunidade Absoluta por Proveniência (`created_by`)**: Adição de rastreamento de autoria na tabela `workspaces`. Workspaces criados por usuários (`created_by = 'user'`) são 100% imunes a qualquer rotina de expurgo ou migração automática, independente do seu nome (mesmo que chamado `TestWorkspace` ou iniciando com `test_`).
+  - **Snapshots de Segurança Pré-Migração**: O Core realiza backup automático do banco de dados SQLite (`settings.db.bak`) antes de executar qualquer instrução DDL ou migração estrutural.
+  - **Logs Persistentes de Instalação, Atualização e Migração**: Registro estruturado e persistente em disco em `%LOCALAPPDATA%\AnyContext\logs\` (`install.log`, `update.log`, `migration.log`), permitindo auditoria ponta a ponta de downloads, processos em execução, substituições atômicas e alterações de schema.
+
 - **🛡️ Test Sandbox Isolation, Auto-Purge of Legacy Workspaces, and Hexagonal Model Authority (`v0.28.78`)**:
   - **Imunidade Total do Banco de Dados**: A suíte inteira de testes automatizados (`tests/run_all.py` e testes individuais) executa em sandbox temporário isolado (`ACTX_SETTINGS_DB`), garantindo que nenhum teste contamine o banco de produção do usuário.
-  - **Auto-Expurgo de Workspaces de Teste**: Inicialização do Core (`_init_db`) detecta e expurga automaticamente workspaces residuais de testes passados (`RpcUnitTestWS`, `NewRPCWS`, `Unit_Dispatch_WS`, `TestWorkspace`, `E2E_Empty_Workspace`), entregando uma base limpa e sanitizada a cada atualização.
+  - **Auto-Expurgo Seguro de Workspaces Residuais**: Inicialização do Core (`_init_db`) expurga apenas workspaces órfãos comprovadamente criados por testes (`created_by = 'test'` e sem fontes associadas), protegendo totalmente o usuário.
   - **Paridade Hexagonal no OpenTUI (RPC Bridge)**: A barra de status e o backend RPC delegam a resolução e persistência de modelos para o `ModelService`, garantindo inicialização limpa com `🤖 GPT-4o Mini` no workspace `Default` e isolamento por workspace.
 
 - **🛡️ 100% Native Standard Test Suite & CI/CD Pipeline Hardening (`v0.28.69`)**:

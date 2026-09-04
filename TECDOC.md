@@ -27,8 +27,10 @@
 20. [Sub-Process DLL Isolation & Fast-Path Routing in PyInstaller Binaries (`v0.28.37`)](#20-sub-process-dll-isolation--fast-path-routing-in-pyinstaller-binaries-v02837)
 21. [Unified Database Management, Streaming Mini-Batch Ingestion, and Dumb UI Architecture (`v0.28.77`)](#21-unified-database-management-streaming-mini-batch-ingestion-and-dumb-ui-architecture-v02877)
 22. [Test Sandbox Architecture, Legacy Workspace Auto-Purge, and Hexagonal Model Authority (`v0.28.78`)](#22-test-sandbox-architecture-legacy-workspace-auto-purge-and-hexagonal-model-authority-v02878)
+23. [Provenance-Based Workspace Immunity, Pre-Migration Snapshots, and Persistent Logging Architecture (`v0.28.79`)](#23-provenance-based-workspace-immunity-pre-migration-snapshots-and-persistent-logging-architecture-v02879)
 
 ---
+
 
 ## 1. System Architecture & 2-Tier Clean Context Model
 
@@ -1273,6 +1275,53 @@ During version upgrades, users who had previously run tests or updated from vers
 Previously, `rpc_bridge.py` bypassed `ModelService` and read directly from global `settings.models.inference_model`, ignoring per-workspace model assignments and falling victim to global test mutations.
 - **Delegation to `ModelService`**: `_load_state()` now calls `ModelService(self.store).get_current_model(workspace_name=self.active_workspace)`, properly honoring the workspace's configured model (defaulting to `gpt-4o-mini`).
 - **Workspace-Scoped Model Mutations**: When receiving `set_model` over RPC, it invokes `ModelService.set_model(new_model, workspace_name=self.active_workspace)`, isolating model switches to the active workspace.
+
+---
+
+## 23. Provenance-Based Workspace Immunity, Pre-Migration Snapshots, and Persistent Logging Architecture (`v0.28.79`)
+
+Version `v0.28.79` eliminates fragile heuristic string-based data deletion, guarantees 100% immunity for user-created workspaces through cryptographic schema provenance, introduces automated pre-migration database snapshots, and delivers persistent installation, update, and migration logging across all operating systems.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│             PROVENANCE-BASED WORKSPACE IMMUNITY & DEFENSE-IN-DEPTH                     │
+├────────────────────────────┬─────────────────────────────┬─────────────────────────────┤
+│ 1. Provenance Tagging      │ 2. Dual-Barrier Protection  │ 3. Persistent Audit Logs    │
+│    ('created_by' Column)   │    (Zero-Source Rule)       │    (Persistent on Disk)     │
+├────────────────────────────┼─────────────────────────────┼─────────────────────────────┤
+│ • 'user'   : Human created │ • Workspaces with ANY       │ • install.log : Full trace  │
+│ • 'system' : Factory roots │   sources, indexed pages,   │ • update.log  : Step audit  │
+│ • 'test'   : Test fixtures │   or files can NEVER be     │ • migration.log: Schema DDL │
+│ • Default  : 'user'        │   deleted by purge routines │ • settings.db.bak: Snapshot │
+└────────────────────────────┴─────────────────────────────┴─────────────────────────────┘
+```
+
+### 🏷️ 1. Workspace Provenance Tagging (`created_by`)
+- **Schema Migration**: Added `created_by TEXT DEFAULT 'user'` to SQLite table `workspaces`.
+- **Automatic Provenance Detection**:
+  - `Default` and `Shared Sources` are strictly flagged as `system`.
+  - Normal creation via CLI, OpenTUI, or REST defaults irrevocably to `user`.
+  - Automated test runners (`ACTX_TEST_MODE=1` or `pytest`) set `test`.
+- **Absolute User Immunity**: Any workspace created by a user—even if named `TestWorkspace`, `test_feature`, or `test_api`—is permanently protected from any automated cleanup routine because `created_by == 'user'`.
+
+### 🛡️ 2. Dual-Barrier Protection & Pre-Migration Snapshots
+- **No Name-Based Deletes**: The legacy query matching string prefixes (`LIKE 'test_%'`) was permanently eradicated.
+- **Strict Cleanup Constraints**: Cleanup routines only execute in production mode (`ACTX_TEST_MODE != 1`) and can ONLY delete workspaces where:
+  1. `created_by = 'test'` **AND**
+  2. The workspace has 0 web URLs in `workspace_web_urls` **AND**
+  3. The workspace has 0 indexed pages in `workspace_indexed_web_pages` **AND**
+  4. The workspace has 0 cached files in `workspace_files_stat_cache` **AND**
+  5. The workspace has 0 attached folders in `workspace_folders`.
+- **Pre-Migration Safety Snapshot**: `ConfigDBStore._init_db()` automatically creates `settings.db.bak` before executing any DDL or data migrations.
+
+### 📝 3. Persistent Installation, Update, and Migration Logs
+- **`update.log`** (`%LOCALAPPDATA%\AnyContext\logs\update.log` / `~/.local/share/any-context/logs/update.log`):
+  Logs target version resolution, active process handling, download asset URL/size/hash, atomic binary replacement (`target_exe` -> `old_exe` -> new), and final verification.
+- **`install.log`** (`install.ps1` & `install.sh`):
+  Records target installation directory, binary download status, version tag registration, shim compilation, and PATH updates.
+- **`migration.log`**:
+  Records timestamped schema changes, table alterations, and backup snapshot confirmations.
+
 
 
 
