@@ -18,7 +18,6 @@ for _log_name in ["llama_index", "chromadb", "httpx", "httpcore", "urllib3", "op
 
 from any_context import __version__
 from any_context.config.db_store import ConfigDBStore
-from any_context.commands.registry import COMMANDS_REGISTRY
 
 
 def _send_ndjson(data: Dict[str, Any]):
@@ -147,6 +146,7 @@ class StdioRPCServer:
 
     def list_commands(self) -> list:
         """Returns metadata for all 23 available slash commands for the OpenTUI palette."""
+        from any_context.commands.registry import COMMANDS_REGISTRY
         return [
             {
                 "command": c.name,
@@ -168,7 +168,11 @@ class StdioRPCServer:
         obs.debug("RPC:RECV", f"Received method '{method}' (id={req_id})", {"id": req_id, "method": method, "params": params})
 
         try:
-            if method == "get_state":
+            if method == "ping":
+                _send_ndjson({"id": req_id, "result": {"pong": True, "version": __version__}})
+                obs.debug("RPC:RESP", f"Sent ping response (id={req_id})", {"pong": True})
+
+            elif method == "get_state":
                 state = self.get_state()
                 _send_ndjson({"id": req_id, "result": state})
                 obs.debug("RPC:RESP", f"Sent get_state response (id={req_id})", {"needs_onboarding": state.get("needs_onboarding")})

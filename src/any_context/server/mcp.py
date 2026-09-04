@@ -697,23 +697,6 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 else:
                     result_text = f"Error: Security token '{t_id}' not found."
 
-            elif tool_name == "create_workspace_share_invite":
-                from any_context.workspace_sharing import WorkspaceSharingStore
-                ws_name = arguments.get("workspace_name", "")
-                acc_lvl = arguments.get("access_level", "viewer")
-                max_u = arguments.get("max_uses", 1)
-                store = WorkspaceSharingStore()
-                invite = store.create_share_invite(workspace_name=ws_name, access_level=acc_lvl, created_by_email="mcp@system", max_uses=max_u)
-                result_text = json.dumps(invite.dict(), indent=2)
-
-            elif tool_name == "accept_workspace_share_invite":
-                from any_context.workspace_sharing import WorkspaceSharingStore
-                inv_code = arguments.get("invite_code", "")
-                u_email = arguments.get("user_email", "")
-                store = WorkspaceSharingStore()
-                perm = store.accept_share_invite(invite_code=inv_code, user_email=u_email)
-                result_text = json.dumps(perm.dict(), indent=2)
-
             elif tool_name == "get_subscription_status":
                 from any_context.billing import BillingManager
                 mgr = BillingManager()
