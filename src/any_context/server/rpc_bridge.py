@@ -192,7 +192,7 @@ class StdioRPCServer:
             elif method == "execute_command":
                 from any_context.commands.dispatcher import dispatch_command
                 cmd_line = params.get("command", "")
-                result = dispatch_command(cmd_line, active_workspace=self.active_workspace)
+                result = dispatch_command(cmd_line, active_workspace=self.active_workspace, store=self.store)
                 if result.state_updates:
                     if "workspace" in result.state_updates:
                         self.active_workspace = result.state_updates["workspace"]
@@ -202,8 +202,8 @@ class StdioRPCServer:
                         self._grounding_mode = result.state_updates["grounding_mode"]
                     if "web_search_enabled" in result.state_updates:
                         self._web_search_enabled = result.state_updates["web_search_enabled"]
-                    if "model" in result.state_updates or "workspace" in result.state_updates or "grounding_mode" in result.state_updates:
-                        self.agent_instance = None
+                    # Invalidate agent instance immediately on any state update to prevent stale configuration cache
+                    self.agent_instance = None
                     self._load_state()
 
                 _send_ndjson({
@@ -439,13 +439,20 @@ class StdioRPCServer:
                 }
             }
 
-            if self.agent_instance is None:
+            current_sig = (
+                self.active_workspace,
+                self._current_model,
+                self._grounding_mode,
+                bool(self._web_search_enabled)
+            )
+            if self.agent_instance is None or getattr(self, "_agent_sig", None) != current_sig:
                 self.agent_instance = create_anycontext_agent(
                     active_workspace=self.active_workspace,
                     model_override=self._current_model,
                     grounding_mode=self._grounding_mode,
                     web_search_enabled=self._web_search_enabled
                 )
+                self._agent_sig = current_sig
 
             full_reply = ""
             for token, metadata in self.agent_instance.stream(

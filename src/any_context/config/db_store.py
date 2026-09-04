@@ -1727,6 +1727,13 @@ class ConfigDBStore:
                 """, (clean_mode, clean_mode))
             elif workspace_name:
                 cursor.execute("UPDATE workspaces SET grounding_mode = ? WHERE LOWER(name) = LOWER(?)", (clean_mode, workspace_name.strip()))
+                if cursor.rowcount == 0:
+                    import uuid
+                    ws_id = f"ws_{uuid.uuid4().hex[:8]}"
+                    cursor.execute(
+                        "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (ws_id, workspace_name.strip(), "[]", clean_mode, 0, "gpt-4o-mini", "user")
+                    )
             else:
                 cursor.execute("""
                     INSERT INTO context_settings (id, db_path, collection_name, grounding_mode)
@@ -1778,6 +1785,13 @@ class ConfigDBStore:
                 """, (val, val))
             elif workspace_name:
                 cursor.execute("UPDATE workspaces SET web_search_enabled = ? WHERE LOWER(name) = LOWER(?)", (val, workspace_name.strip()))
+                if cursor.rowcount == 0:
+                    import uuid
+                    ws_id = f"ws_{uuid.uuid4().hex[:8]}"
+                    cursor.execute(
+                        "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (ws_id, workspace_name.strip(), "[]", "strict", val, "gpt-4o-mini", "user")
+                    )
             else:
                 cursor.execute("""
                     INSERT INTO context_settings (id, db_path, collection_name, web_search_enabled)
