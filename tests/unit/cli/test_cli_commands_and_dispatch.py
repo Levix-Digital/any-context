@@ -318,7 +318,9 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
             "/exit"
         ]
         with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
-            run_chat_loop(active_workspace="Default")
+            with patch("any_context.ingestion.unified_sync.run_unified_sync") as mock_unified_sync:
+                run_chat_loop(active_workspace="Default")
+                self.assertTrue(mock_unified_sync.called)
         safe_stdout_write("  [OK] /sync CLI command dispatch and flags verified!\n")
 
     def test_16_standard_flags_across_all_commands(self):
@@ -462,6 +464,67 @@ class TestCLICommandsAndDispatch(unittest.TestCase):
             self.assertIn("[█████░░░] 60% (6/10 files)", rendered_syncing)
 
         safe_stdout_write("  [OK] Bottom toolbar progress micro-bar render verified!\n")
+
+    def test_21_sync_flags_isolation_and_force_mapping(self):
+        """Validates that /sync -f activates force_full across all sources and does NOT trigger folder-only mode."""
+        safe_stdout_write(">>> [CLI UNIT] Testing /sync Flag Isolation and -f Force Mapping...\n")
+        mock_inputs = [
+            "/sync -f",
+            "/sync --force",
+            "/sync --folder",
+            "/sync --folder -f",
+            "/sync --web -f",
+            "/exit"
+        ]
+
+        calls = []
+
+        def mock_start(workspace_name, sync_folders=True, sync_web=True, sync_drives=True, force_full=False, **kwargs):
+            calls.append({
+                "ws": workspace_name,
+                "folders": sync_folders,
+                "web": sync_web,
+                "drives": sync_drives,
+                "force": force_full
+            })
+
+        with patch("any_context.cli.chat_loop.safe_prompt_input", side_effect=mock_inputs):
+            with patch("any_context.ingestion.local_folder_ingestor.BackgroundSyncManager.start_background_sync", side_effect=mock_start):
+                run_chat_loop(active_workspace="Default")
+
+        self.assertEqual(len(calls), 5, "Expected 5 calls to start_background_sync")
+
+        # Call 1: /sync -f -> Full force sync across ALL sources (folders, web, drives)
+        self.assertTrue(calls[0]["force"], "/sync -f must have force=True")
+        self.assertTrue(calls[0]["folders"], "/sync -f must include folders")
+        self.assertTrue(calls[0]["web"], "/sync -f must include web sources (not skipped by -f)")
+        self.assertTrue(calls[0]["drives"], "/sync -f must include drives")
+
+        # Call 2: /sync --force -> Full force sync across ALL sources
+        self.assertTrue(calls[1]["force"], "/sync --force must have force=True")
+        self.assertTrue(calls[1]["folders"], "/sync --force must include folders")
+        self.assertTrue(calls[1]["web"], "/sync --force must include web")
+        self.assertTrue(calls[1]["drives"], "/sync --force must include drives")
+
+        # Call 3: /sync --folder -> Only folders, incremental
+        self.assertFalse(calls[2]["force"], "/sync --folder must be incremental")
+        self.assertTrue(calls[2]["folders"], "/sync --folder must include folders")
+        self.assertFalse(calls[2]["web"], "/sync --folder must exclude web")
+        self.assertFalse(calls[2]["drives"], "/sync --folder must exclude drives")
+
+        # Call 4: /sync --folder -f -> Only folders, force full
+        self.assertTrue(calls[3]["force"], "/sync --folder -f must be force=True")
+        self.assertTrue(calls[3]["folders"], "/sync --folder -f must include folders")
+        self.assertFalse(calls[3]["web"], "/sync --folder -f must exclude web")
+        self.assertFalse(calls[3]["drives"], "/sync --folder -f must exclude drives")
+
+        # Call 5: /sync --web -f -> Only web, force full
+        self.assertTrue(calls[4]["force"], "/sync --web -f must be force=True")
+        self.assertFalse(calls[4]["folders"], "/sync --web -f must exclude folders")
+        self.assertTrue(calls[4]["web"], "/sync --web -f must include web")
+        self.assertFalse(calls[4]["drives"], "/sync --web -f must exclude drives")
+
+        safe_stdout_write("  [OK] /sync -f, --force, --folder flag isolation verified successfully!\n")
 
 if __name__ == "__main__":
     unittest.main()

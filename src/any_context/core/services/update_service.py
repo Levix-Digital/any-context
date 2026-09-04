@@ -522,13 +522,46 @@ class UpdateService:
             pass
 
         if is_windows:
-            # Self-healing: if actx.exe (shim) was accidentally overwritten with heavy binary (> 1MB), rebuild it
-            if os.path.exists(shim_exe) and os.path.getsize(shim_exe) > 1024 * 1024:
+            # Self-healing: if actx.exe (shim) is missing or was accidentally overwritten with heavy binary (> 1MB), rebuild it
+            if not os.path.exists(shim_exe) or os.path.getsize(shim_exe) > 1024 * 1024:
                 try:
                     from launcher.build_shim import build_windows_shim
                     build_windows_shim(shim_exe)
                 except Exception:
                     pass
+
+            # Ensure Git Bash / MSYS2 wrapper 'actx' is deployed
+            bash_shim = os.path.join(target_dir, "actx")
+            bash_content = (
+                "#!/usr/bin/env sh\n"
+                "BIN_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n"
+                "if [ \"$1\" = \"-v\" ] || [ \"$1\" = \"--version\" ]; then\n"
+                "    if [ -f \"$BIN_DIR/version.txt\" ]; then\n"
+                "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n')\"\n"
+                "        case \"$V\" in\n"
+                "            v*) echo \"$V\" ;;\n"
+                "            *) echo \"v$V\" ;;\n"
+                "        esac\n"
+                "    else\n"
+                f"        echo \"{clean_tag}\"\n"
+                "    fi\n"
+                "    exit 0\n"
+                "fi\n"
+                "\n"
+                "if [ -f \"$BIN_DIR/actx-core.exe\" ]; then\n"
+                "    exec \"$BIN_DIR/actx-core.exe\" \"$@\"\n"
+                "elif [ -f \"$BIN_DIR/actx.exe\" ]; then\n"
+                "    exec \"$BIN_DIR/actx.exe\" \"$@\"\n"
+                "elif [ -f \"$BIN_DIR/actx-core\" ]; then\n"
+                "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
+                "fi\n"
+            )
+            try:
+                with open(bash_shim, "w", encoding="utf-8", newline="\n") as bf:
+                    bf.write(bash_content)
+            except Exception:
+                pass
+
 
             swap_script = (
                 f"$retries = 0; "
