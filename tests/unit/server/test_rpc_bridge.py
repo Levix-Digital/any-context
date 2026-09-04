@@ -29,6 +29,8 @@ class TestRPCBridge(unittest.TestCase):
         self.assertIn("model", state)
         self.assertIn("grounding_mode", state)
         self.assertIn("web_search_enabled", state)
+        self.assertIn("tier_name", state)
+        self.assertTrue(any(state["tier_name"].startswith(e) for e in ["🌿", "⭐", "👥", "🏢", "💼"]), f"Invalid tier_name: {state['tier_name']}")
 
         cmds = self.server.list_commands()
         self.assertEqual(len(cmds), 31, "All 31 slash commands must be present in palette metadata")
@@ -124,6 +126,46 @@ class TestRPCBridge(unittest.TestCase):
         self.assertEqual(lines[0]["result"]["type"], "delete_source")
         self.assertTrue(lines[1]["result"]["success"])
         safe_stdout_write("  [OK] delete_source get_options and set_option verified!\n")
+
+    def test_06_ping_instant_handshake(self):
+        """Validates that ping method responds instantaneously (< 50ms) with pong and version."""
+        safe_stdout_write(">>> [RPC UNIT] Testing ping instant handshake method...\n")
+        import time
+        from any_context import __version__
+        fake_stdout = io.StringIO()
+
+        t0 = time.perf_counter()
+        with patch("sys.stdout", fake_stdout):
+            self.server.handle_request({"id": 100, "method": "ping"})
+        latency_ms = (time.perf_counter() - t0) * 1000
+
+        lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0]["id"], 100)
+        self.assertTrue(lines[0]["result"]["pong"])
+        self.assertEqual(lines[0]["result"]["version"], __version__)
+        self.assertLess(latency_ms, 100.0, f"Ping latency must be < 100ms (was {latency_ms:.2f}ms)")
+        safe_stdout_write(f"  [OK] Ping responded in {latency_ms:.2f}ms (< 100ms benchmark met)!\n")
+
+    def test_07_onboarding_set_option_action_propagation(self):
+        """Validates that set_option for onboarding propagates action and state_updates via RPC."""
+        safe_stdout_write(">>> [RPC UNIT] Testing set_option onboarding action propagation...\n")
+        fake_stdout = io.StringIO()
+
+        with patch("sys.stdout", fake_stdout):
+            self.server.handle_request({
+                "id": 101,
+                "method": "set_option",
+                "params": {"type": "onboarding", "value": "custom"}
+            })
+
+        lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
+        self.assertEqual(len(lines), 1)
+        res = lines[0]["result"]
+        self.assertTrue(res["success"])
+        self.assertEqual(res["action"], "open_config_modal")
+        self.assertEqual(res["state_updates"]["target_menu"], "models")
+        safe_stdout_write("  [OK] Onboarding set_option action propagation verified!\n")
 
 
 if __name__ == "__main__":

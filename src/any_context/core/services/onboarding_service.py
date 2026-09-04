@@ -30,6 +30,7 @@ class OnboardingResult(BaseModel):
     message: str = ""
     error: Optional[str] = None
     state_updates: Dict[str, Any] = Field(default_factory=dict)
+    action: Optional[str] = None
 
 
 class OnboardingService:
@@ -113,7 +114,12 @@ class OnboardingService:
                 description="Fastest reasoning and embeddings with official gpt-4o-mini & text-embedding-3-small.",
                 icon="⚡",
                 badge="Recommended",
-                is_active=(provider == "openai")
+                is_active=(provider == "openai" and not is_local),
+                metadata={
+                    "action": "prefill_input",
+                    "prefill": "/key openai ",
+                    "message": "🔑 **OpenAI Setup**: Please paste your OpenAI API Key after `/key openai ` below and press [Enter] to complete setup."
+                }
             ),
             OptionItemSchema(
                 id="local_offline",
@@ -121,7 +127,10 @@ class OnboardingService:
                 description="Runs completely offline on your own machine without sending data to external clouds.",
                 icon="🏠",
                 badge="Offline",
-                is_active=is_local
+                is_active=is_local,
+                metadata={
+                    "action": "set_option"
+                }
             ),
             OptionItemSchema(
                 id="custom",
@@ -129,7 +138,10 @@ class OnboardingService:
                 description="Connect to Anthropic, Gemini, DeepSeek, Groq, OpenRouter, or a custom API gateway.",
                 icon="🛠️",
                 badge="Advanced",
-                is_active=False
+                is_active=False,
+                metadata={
+                    "action": "set_option"
+                }
             )
         ]
 
@@ -221,6 +233,7 @@ class OnboardingService:
             self.store.set_onboarding_completed(True)
             return OnboardingResult(
                 success=True,
+                action="refresh",
                 message="✅ Local Offline Server configured successfully!",
                 state_updates={
                     "model": settings.models.inference_model if settings and settings.models else "local-model",
@@ -234,9 +247,11 @@ class OnboardingService:
             self.store.set_onboarding_completed(True)
             return OnboardingResult(
                 success=True,
+                action="open_config_modal",
                 message="🛠️ Custom setup selected. Please configure your models and keys in /menu.",
                 state_updates={
                     "action": "open_config_modal",
+                    "target_menu": "models",
                     "needs_onboarding": False
                 }
             )

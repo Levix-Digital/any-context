@@ -128,6 +128,36 @@ class TestOnboardingService(unittest.TestCase):
         self.assertIsNone(self.store.get_system_config("nonexistent_key"))
         self.assertEqual(self.store.get_system_config("nonexistent_key", "default_val"), "default_val")
 
+    def test_09_onboarding_declarative_metadata_and_actions(self):
+        """Validates that OnboardingService provides declarative UI metadata and action directives."""
+        status = self.svc.check_status()
+        self.assertTrue(status.needs_onboarding)
+
+        # 1. Option metadata provides UI directives (Single Source of Truth)
+        openai_opt = status.options_group.items[0]
+        self.assertEqual(openai_opt.id, "openai")
+        self.assertEqual(openai_opt.metadata.get("action"), "prefill_input")
+        self.assertEqual(openai_opt.metadata.get("prefill"), "/key openai ")
+        self.assertIn("OpenAI", openai_opt.metadata.get("message", ""))
+
+        offline_opt = status.options_group.items[1]
+        self.assertEqual(offline_opt.id, "local_offline")
+        self.assertEqual(offline_opt.metadata.get("action"), "set_option")
+
+        custom_opt = status.options_group.items[2]
+        self.assertEqual(custom_opt.id, "custom")
+        self.assertEqual(custom_opt.metadata.get("action"), "set_option")
+
+        # 2. complete_onboarding action returns
+        custom_res = self.svc.complete_onboarding("custom")
+        self.assertTrue(custom_res.success)
+        self.assertEqual(custom_res.action, "open_config_modal")
+        self.assertEqual(custom_res.state_updates.get("target_menu"), "models")
+
+        offline_res = self.svc.complete_onboarding("local_offline")
+        self.assertTrue(offline_res.success)
+        self.assertEqual(offline_res.action, "refresh")
+
 
 if __name__ == "__main__":
     unittest.main()
