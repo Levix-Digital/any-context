@@ -388,7 +388,7 @@ def prompt_multi_instance_decision(active_instances: List[Dict[str, Any]]) -> st
                 value="background"
             ),
             questionary.Choice(
-                title="⏹️ Close other instances and update now (Terminates running background processes)",
+                title="⏹️ Close all AnyContext sessions and update now (Terminates all active sessions and exits cleanly to terminal)",
                 value="close"
             ),
             questionary.Choice(
@@ -406,7 +406,7 @@ def prompt_multi_instance_decision(active_instances: List[Dict[str, Any]]) -> st
         return choice
     except Exception:
         try:
-            sys.stdout.write("Choose [1] Update in background (Default), [2] Close instances, [3] Cancel: ")
+            sys.stdout.write("Choose [1] Update in background (Default), [2] Close all sessions, [3] Cancel: ")
             sys.stdout.flush()
             ans = input().strip()
             if ans == "2":
@@ -505,10 +505,8 @@ def run_self_update(
             log_update_event("Update cancelled by user during active session prompt", level="INFO")
             return
         elif decision == "close":
-            safe_print("⏹️ Closing active AnyContext sessions...")
-            closed_cnt = close_active_instances(active_instances)
-            safe_print(f"✅ Closed {closed_cnt} active session(s).\n")
-            log_update_event(f"Closed {closed_cnt} active session(s)")
+            safe_print("⏹️ Preparing to update and close all active sessions...\n")
+            log_update_event("User selected close all sessions and update now")
         else:
             safe_print("⚡ Proceeding with background update (active sessions will remain undisturbed)...\n")
             log_update_event("Proceeding with background update (instances kept running)")
@@ -610,6 +608,13 @@ def run_self_update(
         return
 
     log_update_event(f"Asset downloaded successfully: {temp_download} ({os.path.getsize(temp_download)} bytes)")
+
+    # Terminate active sessions once download is verified
+    if decision == "close" and active_instances:
+        safe_print("⏹️ Closing active AnyContext sessions...")
+        closed_cnt = close_active_instances(active_instances)
+        safe_print(f"✅ Closed {closed_cnt} active session(s).\n")
+        log_update_event(f"Closed {closed_cnt} active session(s)")
 
     # Set executable permissions on Unix
     if not is_windows:
@@ -734,14 +739,23 @@ def run_self_update(
 
         log_update_event(f"Update to {clean_tag} completed successfully (Windows).")
         safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
-
-        safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
+        if decision == "close":
+            safe_print(f"👉 Closing session. Run 'actx' or 'actx --tui' to start the updated version.\n")
+            if is_interactive_chat:
+                sys.exit(0)
+        else:
+            safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
     else:
         try:
             os.replace(temp_download, target_exe)
             log_update_event(f"Update to {clean_tag} completed successfully (Unix).")
             safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
-            safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
+            if decision == "close":
+                safe_print(f"👉 Closing session. Run 'actx' or 'actx --tui' to start the updated version.\n")
+                if is_interactive_chat:
+                    sys.exit(0)
+            else:
+                safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
         except Exception as e:
             log_update_event(f"Unix binary move failed: {e}", level="ERROR")
             safe_print(f"⚠️ Saved new binary to: {temp_download}. Please move it to {target_exe} with sudo/chmod.")

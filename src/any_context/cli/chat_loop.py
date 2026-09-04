@@ -1860,6 +1860,21 @@ def launch_opentui(workspace: str = "Default") -> bool:
 
         res = subprocess.run([bun_bin, "run", tui_index, workspace], cwd=os.path.dirname(tui_index), env=env)
         obs.info("TUI:EXIT", f"OpenTUI process exited with code {res.returncode}", {"returncode": res.returncode})
+
+        # Check if an update exit was completed cleanly
+        import tempfile
+        root_pid = os.environ.get("ACTX_ROOT_PID", str(os.getpid()))
+        notice_file = os.path.join(tempfile.gettempdir(), f"actx_update_notice_{root_pid}.txt")
+        if os.path.exists(notice_file):
+            try:
+                with open(notice_file, "r", encoding="utf-8") as nf:
+                    updated_ver = nf.read().strip()
+                os.remove(notice_file)
+                print(f"\n🎉 AnyContext foi atualizado com sucesso para {updated_ver}!")
+                print("👉 Execute 'actx' para iniciar a nova versão.\n")
+            except Exception:
+                pass
+
         return res.returncode == 0
     except Exception as e:
         obs.error("TUI:CRASH", f"Exception running OpenTUI: {e}", exc=e)

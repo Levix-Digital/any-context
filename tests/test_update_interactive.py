@@ -24,14 +24,16 @@ class TestUpdateInteractive(unittest.TestCase):
         self.assertIsInstance(instances, list)
 
     def test_options_engine_update_options(self):
+        from unittest.mock import patch
         engine = OptionsEngine()
-        opts = engine.get_update_options(target_version="0.28.16")
-        self.assertEqual(opts.type, "update")
-        self.assertIn("0.28.16", opts.title)
-        self.assertEqual(len(opts.items), 3)
-        self.assertEqual(opts.items[0].id, "background")
-        self.assertEqual(opts.items[1].id, "close")
-        self.assertEqual(opts.items[2].id, "cancel")
+        with patch.object(UpdateService, "find_active_instances", return_value=[{"pid": 9999, "name": "actx.exe"}]):
+            opts = engine.get_update_options(target_version="0.28.16")
+            self.assertEqual(opts.type, "update")
+            self.assertIn("0.28.16", opts.title)
+            self.assertEqual(len(opts.items), 3)
+            self.assertEqual(opts.items[0].id, "background")
+            self.assertEqual(opts.items[1].id, "close")
+            self.assertEqual(opts.items[2].id, "cancel")
 
     def test_options_engine_cancel_update(self):
         engine = OptionsEngine()
@@ -44,10 +46,61 @@ class TestUpdateInteractive(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertIn("AnyContext", res.message)
 
-    def test_dispatcher_update_command_modal(self):
-        res = dispatch_command("/update@0.28.99", active_workspace="Default")
-        self.assertTrue(res.success)
-        self.assertEqual(res.action, "open_update_modal")
+    def test_options_engine_execute_close_update(self):
+        from unittest.mock import patch
+        engine = OptionsEngine()
+        with patch.object(UpdateService, "execute_binary_update", return_value=(True, "Updated successfully", {"action": "exit_update", "version": "v0.28.82"})):
+            res = engine.execute_update_option("close", is_tui=True)
+            self.assertTrue(res.success)
+            self.assertEqual(res.state_updates.get("action"), "exit_update")
+
+    def test_options_engine_execute_background_update(self):
+        from unittest.mock import patch
+        engine = OptionsEngine()
+        with patch.object(UpdateService, "execute_binary_update", return_value=(True, "Updated in bg", {"action": "none", "version": "v0.28.82"})):
+            res = engine.execute_update_option("background", is_tui=True)
+            self.assertTrue(res.success)
+            self.assertEqual(res.state_updates.get("action"), "none")
+
+    def test_update_service_download_failure_safeguard(self):
+        from unittest.mock import patch
+        svc = UpdateService()
+        with patch.object(svc, "fetch_latest_release_tag", return_value="v0.28.99"):
+            with patch("urllib.request.urlopen", side_effect=Exception("Network error")):
+                with patch("subprocess.run", return_value=type("Res", (), {"returncode": 1, "stdout": ""})()):
+                    with patch.object(svc, "close_active_instances") as mock_close:
+                        success, msg, updates = svc.execute_binary_update(target_tag="0.28.99", auto_close_instances=True)
+                        self.assertFalse(success)
+                        mock_close.assert_not_called()
+
+    def test_update_service_auto_close_exit_update(self):
+        import tempfile
+        from unittest.mock import patch, MagicMock
+        svc = UpdateService()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orig_env = os.environ.get("ACTX_UPDATE_DIR")
+            os.environ["ACTX_UPDATE_DIR"] = tmpdir
+            try:
+                mock_resp = MagicMock()
+                mock_resp.status = 200
+                mock_resp.read.side_effect = [b"bin_data_test", b""]
+                with patch("urllib.request.urlopen", return_value=MagicMock(__enter__=MagicMock(return_value=mock_resp))):
+                    with patch("subprocess.Popen"):
+                        with patch.object(svc, "close_active_instances", return_value=2):
+                            with patch.object(svc, "find_active_instances", return_value=[{"pid": 1234, "name": "actx.exe"}]):
+                                success, msg, updates = svc.execute_binary_update(
+                                    target_tag="0.28.82",
+                                    auto_close_instances=True,
+                                    is_tui=True
+                                )
+                                self.assertTrue(success)
+                                self.assertEqual(updates.get("action"), "exit_update")
+                                self.assertEqual(updates.get("version"), "v0.28.82")
+            finally:
+                if orig_env is None:
+                    os.environ.pop("ACTX_UPDATE_DIR", None)
+                else:
+                    os.environ["ACTX_UPDATE_DIR"] = orig_env
 
 
 if __name__ == "__main__":

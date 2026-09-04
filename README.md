@@ -61,8 +61,8 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Zero Dropped Jobs**: Eliminates race conditions when adding web sources (`/web --add`) immediately after workspace creation, automatically queuing pending resync passes.
 - **🛡️ Hermetic Vector Sandboxing & Production Data Immunity**:
   - **Zero Vector Contamination**: Automated test runners execute under strict, multi-tier isolation (`ACTX_SETTINGS_DB`, `ACTX_CONTEXT_DB`, `ACTX_MEMORY_DB`) ensuring user workspace vectors, LanceDB stores, and session memory are 100% immune to test purges.
-- **🛡️ Session Process Immunology**:
-  - **Terminal Screen Integrity**: `/update` scans process trees to grant complete immunity to the active terminal, launcher, OpenTUI, and RPC processes, preventing prompt leaks and flickering.
+- **🛡️ Session Process Immunology & Clean Terminal Teardown**:
+  - **Terminal Screen Integrity & Zero Ghost TUIs**: In `/update` or `actx --update`, requesting to close active sessions terminates all AnyContext instances safely only after download verification, completely tears down the OpenTUI console renderer (restoring canonical cooked mode, cursor visibility, and terminal echo), and exits cleanly to the shell, eliminating desynchronized prompt leaks, ghost TUIs, and frozen cursor locks.
 - **🛡️ Auto-Healing Conversation Sanitizer & OpenAI Tool Call Shield**:
   - **Zero Error 400 Invalid Request**: Interrupted session turns or tool cancellations automatically synthesize compliant response messages for orphan tool calls, eliminating permanent SQLite checkpoint corruption.
 - **🔐 Persistent Configuration & Seamless Cross-Version Retention**:

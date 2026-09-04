@@ -72,6 +72,12 @@ def main():
         discovered_lifecycle = loader.discover(start_dir=tests_dir, top_level_dir=repo_root, pattern="test_e2e_full_lifecycle.py")
         suite.addTests(discovered_lifecycle)
 
+    # 5. Add interactive update tests
+    update_interactive_path = os.path.join(tests_dir, "test_update_interactive.py")
+    if os.path.exists(update_interactive_path):
+        discovered_update = loader.discover(start_dir=tests_dir, top_level_dir=repo_root, pattern="test_update_interactive.py")
+        suite.addTests(discovered_update)
+
     total_tests = suite.countTestCases()
     safe_print(f"Discovered {total_tests} automated test cases across Core, CLI, and E2E layers.\n")
 

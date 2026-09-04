@@ -274,18 +274,14 @@ class OptionsEngine:
         active_instances = update_svc.find_active_instances()
         count = len(active_instances)
 
-        if count > 0:
-            sub = f"ℹ️ Detected {count} other active AnyContext session(s). How would you like to update?"
-        else:
-            sub = f"🚀 Ready to download and install AnyContext {target_tag}."
-
         items = []
         if count > 0:
+            sub = f"ℹ️ Detected {count} other active AnyContext session(s). How would you like to update?"
             items.append(
                 OptionItemSchema(
                     id="background",
                     title="⚡ Update in background (Recommended)",
-                    description="Active background sessions continue working undisturbed.",
+                    description="Active sessions continue undisturbed; applies on your next launch.",
                     icon="⚡",
                     badge="[Recommended]",
                     is_active=True,
@@ -295,14 +291,15 @@ class OptionsEngine:
             items.append(
                 OptionItemSchema(
                     id="close",
-                    title=f"⏹️ Close {count} other instance(s) and update now",
-                    description=f"Terminates other background process(es) before updating.",
+                    title="⏹️ Close all AnyContext sessions and update now",
+                    description=f"Terminates all active sessions and exits cleanly to terminal with {target_tag}.",
                     icon="⏹️",
                     is_active=False,
                     metadata={"target_version": target_tag}
                 )
             )
         else:
+            sub = f"🚀 Ready to download and install AnyContext {target_tag}."
             items.append(
                 OptionItemSchema(
                     id="background",
@@ -334,8 +331,8 @@ class OptionsEngine:
             items=items
         )
 
-    def execute_update_option(self, option_id: str, is_tui: bool = False) -> MenuActionResult:
-        """Executes the chosen update action without abrupt auto-restart."""
+    def execute_update_option(self, option_id: str, is_tui: bool = False, metadata: Optional[Dict[str, Any]] = None) -> MenuActionResult:
+        """Executes the chosen update action with clean terminal teardown on full closure."""
         from any_context.core.services.update_service import UpdateService
         update_svc = UpdateService()
 
@@ -347,8 +344,10 @@ class OptionsEngine:
                 state_updates={"action": "none"}
             )
 
+        target_tag = (metadata or {}).get("target_version")
         auto_close = (clean_id == "close")
         success, msg, updates = update_svc.execute_binary_update(
+            target_tag=target_tag,
             auto_close_instances=auto_close,
             force_background=not auto_close,
             auto_restart=False,
