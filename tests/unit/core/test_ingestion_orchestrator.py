@@ -99,9 +99,11 @@ class TestIngestionOrchestrator(unittest.TestCase):
         Tests that clear_context_vector_db safely purges LanceDB tables and SQLite caches.
         """
         print("\n>>> [UNIT] Testing clear_context_vector_db...")
-        # Should execute cleanly without errors
-        clear_context_vector_db(verbose=False)
-        print("  [OK] clear_context_vector_db completed safely!")
+        test_ctx_dir = os.path.join(self.temp_dir, "test_context_db")
+        os.makedirs(test_ctx_dir, exist_ok=True)
+        with patch.dict(os.environ, {"ACTX_CONTEXT_DB": test_ctx_dir, "ACTX_TEST_MODE": "1"}):
+            clear_context_vector_db(verbose=False)
+        print("  [OK] clear_context_vector_db completed safely in isolated sandbox!")
 
     def test_04_backward_compatibility_reexports(self):
         """

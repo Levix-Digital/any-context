@@ -27,8 +27,17 @@ def clear_context_vector_db(verbose: bool = False):
     when embedding models are changed or when full reset is requested.
     """
     try:
+        from any_context.config.paths import get_app_data_root
         current_settings = AppSettings.load()
         db_path = current_settings.context.db_path if current_settings and current_settings.context else "./context_db"
+
+        # Hard safety barrier: Never purge production vector database during test runs
+        if os.getenv("ACTX_TEST_MODE") == "1":
+            prod_dir = os.path.abspath(os.path.join(get_app_data_root(), "data", "context_db"))
+            if os.path.abspath(db_path).lower() == prod_dir.lower():
+                if verbose:
+                    safe_print("│ ├─ 🛡️ Safety Guard: Skipping production vector purge during test mode")
+                return
 
         # 1. Clear SQLite stat cache
         store = ConfigDBStore()

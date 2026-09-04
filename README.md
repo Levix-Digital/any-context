@@ -58,6 +58,8 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Sub-5ms Zero-Copy Cache Scans**: Apache Arrow columnar projections (`select(['file_path', 'content_hash', 'last_modified'])`) verify page modifications instantly without deserializing dense embedding vectors.
   - **Prioritized Deep Scraping & $0 Resync**: Multi-page documentation portals (e.g. The Rust Book) are recursively scraped and indexed in the background with progress reporting and instant $0.00 zero-token re-sync skips.
   - **Zero Dropped Jobs**: Eliminates race conditions when adding web sources (`/web --add`) immediately after workspace creation, automatically queuing pending resync passes.
+- **🛡️ Hermetic Vector Sandboxing & Production Data Immunity**:
+  - **Zero Vector Contamination**: Automated test runners execute under strict, multi-tier isolation (`ACTX_SETTINGS_DB`, `ACTX_CONTEXT_DB`, `ACTX_MEMORY_DB`) ensuring user workspace vectors, LanceDB stores, and session memory are 100% immune to test purges.
 - **🛡️ Session Process Immunology**:
   - **Terminal Screen Integrity**: `/update` scans process trees to grant complete immunity to the active terminal, launcher, OpenTUI, and RPC processes, preventing prompt leaks and flickering.
 - **🛡️ Auto-Healing Conversation Sanitizer & OpenAI Tool Call Shield**:

@@ -1346,6 +1346,26 @@ In `v0.28.80`, `workspace_indexed_web_pages` was dropped and completely eradicat
 - **Atomic Cascading Deletions**:
   - `LanceDBStore.delete_by_file(workspace, file_path)` supports prefix deletion (`OR file_path LIKE '{clean_fp}%'`), ensuring root web source deletions instantly purge all child pages and chunks.
 
+---
+
+## 🛡️ Hermetic Vector Storage Sandboxing & Production Data Immunity (v0.28.81)
+
+### 1. Problem Statement: Accidental Production Vector Purging
+Prior to v0.28.81, while the master test runner (`tests/run_all.py`) sandboxed the SQLite database using `ACTX_SETTINGS_DB`, vector storage paths (`ACTX_CONTEXT_DB` and `ACTX_MEMORY_DB`) were not explicitly set. Consequently:
+1. Calls to `get_default_vector_db_path()` and `get_default_session_db_path()` defaulted to the production `%LOCALAPPDATA%\AnyContext\data\` directory.
+2. When unit tests (such as `test_03_clear_context_vector_db_maintenance`) executed `clear_context_vector_db()`, the function connected to the user's real production LanceDB directory and invoked `lance_store.delete_all_records()`, wiping all indexed workspace chunks.
+
+### 2. Architecture: Multi-Tier Production Immunity
+In `v0.28.81`, a triple-tier protection architecture was deployed:
+1. **Runner-Level Sandboxing (`tests/run_all.py`)**:
+   - Explicitly creates `context_db` and `memory` directories inside the ephemeral `temp_sandbox_dir`.
+   - Exports `ACTX_CONTEXT_DB` and `ACTX_MEMORY_DB` for the duration of the test suite and cleans them up in `finally`.
+2. **Canonical Paths Protection Barrier (`paths.py`)**:
+   - If `ACTX_TEST_MODE == "1"` and no explicit sandbox variable is provided, `get_default_vector_db_path()` and `get_default_session_db_path()` automatically divert to ephemeral system temporary directories (`tempfile.gettempdir() / "actx_test_*"`), strictly forbidding any resolution to `%LOCALAPPDATA%`.
+3. **Core Function Execution Shield (`orchestrator.py`)**:
+   - `clear_context_vector_db()` verifies if the resolved database path matches the production application data root. If `ACTX_TEST_MODE == "1"` and the target path points to production, the purge is immediately aborted.
+
+
 
 
 
