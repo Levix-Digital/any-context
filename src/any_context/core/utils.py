@@ -167,6 +167,16 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
         else:
             prompt += "- When searching the knowledge base (search_session_memory=False), specify the `workspace` argument in `search_db` if a specific workspace topic is mentioned.\n"
 
+        # Universal Temporal Recency Rule (Applicable across all modes and sources)
+        prompt += (
+            "\n\n### ⏱️ UNIVERSAL TEMPORAL RECENCY RULE (MANDATORY TIE-BREAKER FOR SAME-PRIORITY SOURCES):\n"
+            "- Whenever multiple sources within the same priority tier contain overlapping, differing, or evolving information "
+            "(e.g., local files vs. registered web portals, or live web search results vs. model pre-trained knowledge):\n"
+            "  **THE MOST RECENT SOURCE ALWAYS PREVAILS AND SUPERSEDES OLDER DATA.**\n"
+            "- If real-time web search or a newly updated document contains newer facts, dates, prices, versions, or regulations "
+            "than an older document, prioritize the latest information and explicitly note the date/version discrepancy to the user.\n"
+        )
+
         # Inject Web Search Engine Directives
         if web_search_enabled:
             prompt += f"\n\n### 🌐 LIVE WEB SEARCH ENGINE: ACTIVE (ENABLED FOR WORKSPACE '{active_workspace or 'Current'}')\n"
@@ -221,8 +231,22 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
             prompt += (
                 "\n### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL & ZERO PARAMETRIC ANSWERS)\n"
                 "- **ZERO SPECULATION / ZERO HALLUCINATION / ZERO PARAMETRIC MEMORY:** You are STRICTLY FORBIDDEN from using your pre-trained internal memory or parametric weights to answer, invent, assume, or provide unverified facts (e.g. citing laws from other countries, unindexed regulations, or outside facts). If a fact is not in the workspace documents, you MUST declare its absence.\n"
-                "- **FACTUAL ABSENCE PROTOCOL:** If the information is not found in the workspace files, you MUST state:\n"
-                "  '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
+            )
+            if web_search_enabled:
+                prompt += (
+                    "- **FACTUAL ABSENCE & WEB SEARCH PERMISSION PROTOCOL (MANDATORY):** If the information is not found in the workspace files:\n"
+                    "  1. DO NOT guess, invent, or assume outside facts.\n"
+                    "  2. DO NOT call `live_web_search` autonomously.\n"
+                    "  3. You MUST STOP and explicitly ASK the user:\n"
+                    "     *\"⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\"*\n"
+                    "  4. ONLY when the user replies confirming (e.g. 'sim', 'pode buscar', 'ok', 'faça isso') are you authorized to invoke `live_web_search`.\n"
+                )
+            else:
+                prompt += (
+                    "- **FACTUAL ABSENCE PROTOCOL:** If the information is not found in the workspace files, you MUST state:\n"
+                    "  '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
+                )
+            prompt += (
                 "- **MANDATORY SOURCE CITATIONS:** You MUST explicitly cite the exact file names, page numbers, or URLs where every piece of information was found.\n"
                 "- **MANDATORY CITATION FOOTER:** At the end of every answer that uses workspace documents, you MUST append:\n"
                 "  `---\n  📄 **Fontes Consultadas no Workspace:**\n  - [Nome do Arquivo / URL]`\n"

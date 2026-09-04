@@ -63,27 +63,54 @@ class TestGroundingModes(unittest.TestCase):
         safe_stdout_write("  [OK] Unknown grounding mode safely fell back to 'strict'!\n")
 
     def test_04_system_prompt_directives_injection(self):
-        """Validates that get_system_prompt injects the correct directive for each mode."""
-        safe_stdout_write(">>> [CORE UNIT] Testing System Prompt Directives Injection...\n")
-        # Strict mode
-        strict_prompt = get_system_prompt(active_workspace="LegalTest", grounding_mode="strict")
-        self.assertIn("ACTIVE GROUNDING MODE: STRICT", strict_prompt)
-        self.assertIn("ZERO SPECULATION / ZERO HALLUCINATION", strict_prompt)
-        self.assertIn("FACTUAL ABSENCE PROTOCOL", strict_prompt)
+        """Validates that get_system_prompt injects the correct directive for each mode and web search state."""
+        safe_stdout_write(">>> [CORE UNIT] Testing System Prompt Directives Injection & Priority Matrix...\n")
+        # Universal Temporal Recency Rule must always be present
+        base_prompt = get_system_prompt(active_workspace="LegalTest", grounding_mode="strict", web_search_enabled=False)
+        self.assertIn("UNIVERSAL TEMPORAL RECENCY RULE (MANDATORY TIE-BREAKER FOR SAME-PRIORITY SOURCES)", base_prompt)
+        self.assertIn("THE MOST RECENT SOURCE ALWAYS PREVAILS AND SUPERSEDES OLDER DATA", base_prompt)
 
-        # Proactive mode
-        pro_prompt = get_system_prompt(active_workspace="ResearchTest", grounding_mode="proactive")
-        self.assertIn("ACTIVE GROUNDING MODE: PROACTIVE", pro_prompt)
-        self.assertIn("FORWARD-LOOKING INSIGHTS", pro_prompt)
-        self.assertIn("WEB SOURCE RECOMMENDATIONS", pro_prompt)
+        # 1. Strict + Web OFF
+        strict_off = get_system_prompt(active_workspace="LegalTest", grounding_mode="strict", web_search_enabled=False)
+        self.assertIn("ACTIVE GROUNDING MODE: STRICT", strict_off)
+        self.assertIn("ZERO SPECULATION / ZERO HALLUCINATION", strict_off)
+        self.assertIn("LIVE WEB SEARCH: DISABLED", strict_off)
+        self.assertIn("⚠️ Essa informação não consta nos documentos deste workspace.", strict_off)
+        self.assertNotIn("Deseja que eu faça uma busca na internet", strict_off)
 
-        # Hybrid mode (default)
-        hyb_prompt = get_system_prompt(active_workspace="DefaultTest", grounding_mode="hybrid")
-        self.assertIn("ACTIVE GROUNDING MODE: HYBRID", hyb_prompt)
-        self.assertIn("DUAL-LAYER STRUCTURE", hyb_prompt)
-        self.assertIn("Sugestões / Conhecimento Geral do Modelo", hyb_prompt)
+        # 2. Strict + Web ON
+        strict_on = get_system_prompt(active_workspace="LegalTest", grounding_mode="strict", web_search_enabled=True)
+        self.assertIn("ACTIVE GROUNDING MODE: STRICT", strict_on)
+        self.assertIn("LIVE WEB SEARCH ENGINE: ACTIVE", strict_on)
+        self.assertIn("FACTUAL ABSENCE & WEB SEARCH PERMISSION PROTOCOL (MANDATORY)", strict_on)
+        self.assertIn("⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?", strict_on)
 
-        safe_stdout_write("  [OK] System prompt correctly injects unique behavioral directives per mode!\n")
+        # 3. Hybrid + Web OFF
+        hyb_off = get_system_prompt(active_workspace="DefaultTest", grounding_mode="hybrid", web_search_enabled=False)
+        self.assertIn("ACTIVE GROUNDING MODE: HYBRID", hyb_off)
+        self.assertIn("DUAL-LAYER STRUCTURE", hyb_off)
+        self.assertIn("LIVE WEB SEARCH: DISABLED", hyb_off)
+        self.assertIn("Sugestões / Conhecimento Geral do Modelo", hyb_off)
+
+        # 4. Hybrid + Web ON
+        hyb_on = get_system_prompt(active_workspace="DefaultTest", grounding_mode="hybrid", web_search_enabled=True)
+        self.assertIn("ACTIVE GROUNDING MODE: HYBRID", hyb_on)
+        self.assertIn("LIVE WEB SEARCH ENGINE: ACTIVE", hyb_on)
+        self.assertIn("HYBRID DUAL-LAYER PROTOCOL FOR WEB SEARCH (AUTONOMOUS EXECUTION)", hyb_on)
+
+        # 5. Proactive + Web OFF
+        pro_off = get_system_prompt(active_workspace="ResearchTest", grounding_mode="proactive", web_search_enabled=False)
+        self.assertIn("ACTIVE GROUNDING MODE: PROACTIVE", pro_off)
+        self.assertIn("FORWARD-LOOKING INSIGHTS", pro_off)
+        self.assertIn("LIVE WEB SEARCH: DISABLED", pro_off)
+
+        # 6. Proactive + Web ON
+        pro_on = get_system_prompt(active_workspace="ResearchTest", grounding_mode="proactive", web_search_enabled=True)
+        self.assertIn("ACTIVE GROUNDING MODE: PROACTIVE", pro_on)
+        self.assertIn("LIVE WEB SEARCH ENGINE: ACTIVE", pro_on)
+        self.assertIn("PROACTIVE PROTOCOL FOR WEB SEARCH (AUTONOMOUS & COMPREHENSIVE)", pro_on)
+
+        safe_stdout_write("  [OK] System prompt correctly injects unique behavioral directives per mode and web search state!\n")
 
     def test_05_grounding_strategies_formatting_and_recency_matrix(self):
         """Validates that GroundingStrategy implementations produce exact priority matrices and recency directives."""
@@ -108,35 +135,36 @@ class TestGroundingModes(unittest.TestCase):
         self.assertIn("Priority 0: VectorDB ONLY", strict_off)
         self.assertIn("Parametric Memory: FORBIDDEN", strict_off)
         self.assertIn("Web Search: DISABLED", strict_off)
-        self.assertIn("RECENCY RULE", strict_off)
+        self.assertIn("RECENCY RULE (SAME PRIORITY)", strict_off)
 
         strict_on = format_turn_grounding_header("LegalDoc", "strict", web_search_enabled=True)
         self.assertIn("Web Search: PERMISSION-GATED", strict_on)
         self.assertIn("NEVER call live_web_search autonomously", strict_on)
-        self.assertIn("RECENCY RULE", strict_on)
+        self.assertIn("Deseja que eu faça uma busca na internet sobre \"[tópico]\"?", strict_on)
+        self.assertIn("RECENCY RULE (SAME PRIORITY)", strict_on)
 
         # Hybrid Strategy (Web OFF / Web ON)
         hyb_off = format_turn_grounding_header("DevDoc", "hybrid", web_search_enabled=False)
         self.assertIn("GROUNDING: HYBRID", hyb_off)
         self.assertIn("Priority 0: VectorDB", hyb_off)
         self.assertIn("Priority 1: Parametric Memory", hyb_off)
-        self.assertIn("RECENCY RULE", hyb_off)
+        self.assertIn("RECENCY RULE (SAME PRIORITY)", hyb_off)
 
         hyb_on = format_turn_grounding_header("DevDoc", "hybrid", web_search_enabled=True)
         self.assertIn("Priority 0: VectorDB", hyb_on)
         self.assertIn("Priority 1: Open Web & Parametric", hyb_on)
-        self.assertIn("RECENCY RULE", hyb_on)
+        self.assertIn("RECENCY RULE (SAME PRIORITY)", hyb_on)
 
         # Proactive Strategy (Web OFF / Web ON)
         pro_off = format_turn_grounding_header("StratDoc", "proactive", web_search_enabled=False)
         self.assertIn("GROUNDING: PROACTIVE", pro_off)
         self.assertIn("All Sources Priority 0", pro_off)
-        self.assertIn("RECENCY RULE", pro_off)
+        self.assertIn("RECENCY RULE (SAME PRIORITY)", pro_off)
 
         pro_on = format_turn_grounding_header("StratDoc", "proactive", web_search_enabled=True)
         self.assertIn("All Sources Priority 0", pro_on)
         self.assertIn("Total real-time fusion", pro_on)
-        self.assertIn("RECENCY RULE", pro_on)
+        self.assertIn("RECENCY RULE (SAME PRIORITY)", pro_on)
 
         safe_stdout_write("  [OK] Strategy pattern formats precise, token-efficient priority matrices with universal recency rules!\n")
 
@@ -202,15 +230,42 @@ class TestGroundingModes(unittest.TestCase):
             hyb_portal = format_turn_grounding_header("CanadaWS", "hybrid", web_search_enabled=True)
             self.assertIn("Priority 0: VectorDB & Registered Portals (canada.ca)", hyb_portal)
             self.assertIn("query registered workspace portal (canada.ca) FIRST", hyb_portal)
-            self.assertIn("RECENCY RULE: If information is found in multiple sources, the most recent source always prevails", hyb_portal)
+            self.assertIn("RECENCY RULE (SAME PRIORITY)", hyb_portal)
 
             # Strict with registered portal
             strict_portal = format_turn_grounding_header("CanadaWS", "strict", web_search_enabled=True)
             self.assertIn("Priority 0: VectorDB & Registered Portals (canada.ca)", strict_portal)
             self.assertIn("query registered portal (canada.ca) FIRST before open web", strict_portal)
-            self.assertIn("RECENCY RULE", strict_portal)
+            self.assertIn("RECENCY RULE (SAME PRIORITY)", strict_portal)
 
         safe_stdout_write("  [OK] Registered workspace portals mapped to Priority 0 with universal recency rules!\n")
+
+    def test_09_rpc_bridge_agent_invalidation_on_web_search_toggle(self):
+        """Validates that rpc_bridge invalidates cached agent_instance when web_search_enabled is toggled."""
+        safe_stdout_write(">>> [CORE UNIT] Testing RPC Bridge Agent Invalidation on Web Search Toggle...\n")
+        from unittest.mock import MagicMock
+        from any_context.server.rpc_bridge import StdioRPCServer
+
+        server = StdioRPCServer(default_workspace="TestWS")
+        # Mock agent instance
+        dummy_agent = MagicMock()
+        server.agent_instance = dummy_agent
+        server._agent_sig = ("TestWS", "gpt-4o-mini", "strict", False)
+        server._web_search_enabled = False
+
+        # Execute /web-search on
+        server.handle_request({
+            "id": 100,
+            "method": "execute_command",
+            "params": {"command": "/web-search on"}
+        })
+
+        # agent_instance MUST be invalidated to None
+        self.assertIsNone(server.agent_instance)
+        self.assertTrue(server._web_search_enabled)
+
+        safe_stdout_write("  [OK] RPC Bridge safely invalidates agent instance on web_search_enabled toggle!\n")
+
 
 if __name__ == "__main__":
     unittest.main()

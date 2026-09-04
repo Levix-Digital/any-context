@@ -3,6 +3,7 @@ Command Dispatcher - Universal parser and executor for AnyContext slash commands
 Translates user command lines into Core Service calls and returns structured CommandResult.
 """
 
+import os
 import shlex
 from typing import List, Dict, Any, Optional
 
@@ -58,6 +59,7 @@ class CommandDispatcher:
         store: Optional[ConfigDBStore] = None,
     ):
         s = store or ConfigDBStore()
+        self.store = s
         self.workspace_svc = workspace_svc or WorkspaceService(store=s)
         self.source_svc = source_svc or SourceService(store=s)
         self.model_svc = model_svc or ModelService(store=s)
@@ -782,6 +784,16 @@ class CommandDispatcher:
 _dispatcher = CommandDispatcher()
 
 
-def dispatch_command(command_line: str, active_workspace: str = "Default") -> CommandResult:
+def dispatch_command(
+    command_line: str,
+    active_workspace: str = "Default",
+    store: Optional[ConfigDBStore] = None
+) -> CommandResult:
     """Dispatches a command line string to the universal command engine."""
+    if store is not None:
+        return CommandDispatcher(store=store).dispatch(command_line, active_workspace=active_workspace)
+    global _dispatcher
+    curr_env = os.environ.get("ACTX_SETTINGS_DB")
+    if curr_env and os.path.abspath(curr_env) != os.path.abspath(_dispatcher.store.db_path):
+        _dispatcher = CommandDispatcher()
     return _dispatcher.dispatch(command_line, active_workspace=active_workspace)

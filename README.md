@@ -347,15 +347,23 @@ Para garantir que um documento gigante de 500 páginas não monopolize todas as 
 | **⚖️ Balanced** *(Padrão)* | 100 candidatos | 20 chunks | ~10.000 a 15.000 tokens | **Equilíbrio perfeito:** alta precisão factual sem ruído (o padrão ideal). |
 | **🔬 Deep Research** | 150 candidatos | 40 chunks | ~30.000 a 40.000 tokens | **Auditoria pesada:** comparar cláusulas de 10 contratos ou analisar dossiês complexos. |
 
-### 🛡️ Modos de Grounding & Matriz Dinâmica de Prioridades (`/mode`)
+### 🛡️ Modos de Grounding, Busca Web & Matriz Dinâmica de Prioridades (`/mode` & `/web-search`)
 
-O AnyContext adota uma arquitetura determinística de **Injeção de Estratégias por Turno (*Strategy Pattern*)** que protege o agente contra *prompt dilution* (degradação de foco em conversas longas). Cada turno de conversa recebe dinamicamente um cabeçalho ultracompacto (~35-45 tokens) contendo a matriz exata de precedência de fontes, priorização de portais web registrados e a **Regra Universal de Recência Temporal (*Most Recent Always Wins*)**:
+O AnyContext adota uma arquitetura determinística de **Injeção de Estratégias por Turno (*Strategy Pattern*)** que protege o agente contra *prompt dilution* (degradação de foco em conversas longas). Cada turno de conversa recebe dinamicamente um cabeçalho ultracompacto (~35-45 tokens) contendo a matriz exata de precedência de fontes, priorização de portais web registrados e a **Regra Universal de Recência Temporal (*Universal Temporal Recency Rule*)**:
 
-| Modo de Grounding | 1. VectorDB (Docs Locais) | 2. Portais Web do Workspace | 3. Web Aberta Global | 4. Memória do Modelo | Regra de Resolução & Comportamento do Turno |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **🛡️ Strict** *(Auditoria / Jurídico)* | **Prioridade 0** | **Prioridade 0 (Ao Vivo)** *(Sob confirmação)* | **Prioridade 1** *(Fallback)* | **❌ Proibida** *(Zero alucinação)* | Responde 100% pelos docs locais. Se ausente, consulta o usuário e pesquisa no portal web registrado primeiro. **A fonte mais recente sempre vence**. |
-| **⚖️ Hybrid** *(Equilibrado / Padrão)* | **Prioridade 0** | **Prioridade 0 (Ao Vivo)** *(Autônomo)* | **Prioridade 1** | **Prioridade 1** *(Rotulado)* | Fatos do workspace primeiro. Para dados ao vivo, pesquisa no portal do workspace primeiro (`target_domain`). **A fonte mais recente sempre vence**. |
-| **🚀 Proactive** *(Pesquisa & Estratégia)* | **Prioridade 0** | **Prioridade 0 (Ao Vivo)** | **Prioridade 0** | **Prioridade 0** | **Fusão total em tempo real**. A informação mais recente sempre prevalece. Antecipa riscos e recomenda links para indexação. |
+> **⏱️ Regra Universal de Recência Temporal (Critério de Desempate):**
+> Quando múltiplas fontes coexistem dentro do **mesmo nível de prioridade** (ex: um documento do VectorDB e um portal web registrado no Tier 0; ou a busca na web aberta e o conhecimento paramétrico no Tier 1; ou todos os canais fundidos no modo Proativo), **a fonte com timestamp/data mais recente SEMPRE prevalece como a verdade factual**, sobrepondo dados legados ou desatualizados.
+
+#### 📊 Matriz de Prioridades 3 × 2 (Grounding 3 × Web 2 = 6 Estados)
+
+| Modo | Web Search | Precedência de Fontes | Protocolo de Ausência & Regra de Recência no Mesmo Tier |
+| :--- | :---: | :--- | :--- |
+| **🛡️ Strict** *(Auditoria / Jurídico)* | **OFF** | • **Prioridade 0:** VectorDB exclusivo.<br>• **Proibida:** Memória Paramétrica (0% alucinação).<br>• **Desativada:** Busca Web. | Responde 100% pelos docs locais. Se houver divergência entre arquivos: **o mais recente prevalece**.<br>**Ausência:** Declara estritamente: `⚠️ Essa informação não consta nos documentos deste workspace.` |
+| **🛡️ Strict** *(Auditoria / Jurídico)* | **ON** | • **Prioridade 0:** VectorDB.<br>• **Prioridade 1 (Gated):** Portais Registrados e Web Aberta.<br>• **Proibida:** Memória Paramétrica (0% alucinação). | **Gate de Permissão Obrigatório:** O agente é proibido de buscar na web de forma autônoma no turno inicial. Se o dado não constar nos arquivos locais, para e pergunta:<br>`⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?`<br>*Apenas após o 'sim' explícito a busca web é realizada.* Entre fontes no mesmo tier, **a mais recente sempre prevalece**. |
+| **⚖️ Hybrid** *(Equilibrado / Padrão)* | **OFF** | • **Prioridade 0:** VectorDB (Docs locais primeiro).<br>• **Prioridade 1:** Conhecimento Geral do Modelo.<br>• **Desativada:** Busca Web. | Fatos do workspace têm primazia. Resposta em duas camadas estruturadas: `### 📂 Informações do Workspace` e `### 💡 Sugestões / Conhecimento Geral do Modelo`. Arquivo mais recente prevalece no Tier 0. |
+| **⚖️ Hybrid** *(Equilibrado / Padrão)* | **ON** | • **Prioridade 0:** VectorDB & Portais Web Registrados do Workspace.<br>• **Prioridade 1:** Busca na Web Aberta & Conhecimento Geral do Modelo. | Busca na web executada **autonomamente** se o workspace estiver incompleto. Prioriza portais registrados (`target_domain`) antes da web global. No Tier 0 ou Tier 1, **a informação mais recente sempre prevalece**. |
+| **🚀 Proactive** *(Pesquisa & Estratégia)* | **OFF** | • **Prioridade 0:** VectorDB & Conhecimento Estratégico do Modelo.<br>• **Desativada:** Busca Web. | Fusão de documentos locais com antecipação de riscos, próximos passos e visão estratégica. A norma ou dado mais recente prevalece. |
+| **🚀 Proactive** *(Pesquisa & Estratégia)* | **ON** | • **Prioridade 0 (Fusão Total em Tempo Real):** VectorDB + Portais Web + Web Search ao Vivo + Raciocínio Proativo. | Execução autônoma e contínua de RAG + Web. **Total fusão temporal:** a fonte com data mais recente em qualquer canal prevalece. Sugere ativamente novas URLs autoritativas com `/web add <url>`. |
 
 ### 🖥️ Painel Fixo de Input & Barra de Status Ancorada no Rodapé (`v0.24.6`)
 

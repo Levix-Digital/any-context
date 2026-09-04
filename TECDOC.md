@@ -1504,6 +1504,51 @@ sequenceDiagram
 4. **Zero Ghost TUIs & Raw Mode Lock Elimination**:
    - Eliminates terminal prompt leaks, ghost overlays, and unresponsive blinking cursors across Git Bash, Windows Terminal, MinTTY, PowerShell, and Unix shells.
 
+---
+
+## 🛡️ Grounding Strategies, Live Web Search Priority Matrix & Universal Temporal Recency
+
+### 1. Architectural Overview & Design Pattern
+
+AnyContext decouples AI behavioral boundaries from underlying models using the **Strategy Pattern** (`any_context.core.grounding_strategies`):
+- `GroundingStrategy` (Abstract Strategy Interface)
+- `StrictGroundingStrategy` (Audit & Legal: 100% factual, zero parametric memory, permission-gated web)
+- `HybridGroundingStrategy` (Balanced: dual-layer workspace facts + labeled parametric memory + autonomous web)
+- `ProactiveGroundingStrategy` (Research & Strategy: total real-time fusion across all channels)
+
+### 2. The 6-State Priority Matrix
+
+| State | Mode | Web Search | Source Precedence | Behavior & Absence Protocol |
+| :--- | :--- | :---: | :--- | :--- |
+| **1** | **Strict** | **OFF** | • Priority 0: VectorDB ONLY<br>• Forbidden: Parametric Memory<br>• Disabled: Web Search | 0% hallucination. On absence: `⚠️ Essa informação não consta nos documentos deste workspace.` |
+| **2** | **Strict** | **ON** | • Priority 0: VectorDB<br>• Priority 1: Registered Portals & Web (Gated)<br>• Forbidden: Parametric Memory | Permission-gated: on missing local facts, model asks: `⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?` |
+| **3** | **Hybrid** | **OFF** | • Priority 0: VectorDB<br>• Priority 1: Parametric Memory (Labeled)<br>• Disabled: Web Search | Dual-layer response: `### 📂 Informações do Workspace` + `### 💡 Sugestões / Conhecimento Geral do Modelo`. |
+| **4** | **Hybrid** | **ON** | • Priority 0: VectorDB & Registered Web Portals<br>• Priority 1: Open Web Search & Parametric Memory | Autonomous web search if local context incomplete: `### 📂 Informações do Workspace` + `### 🌐 Informações Complementares da Web`. |
+| **5** | **Proactive** | **OFF** | • Priority 0: VectorDB & Strategic Model Knowledge<br>• Disabled: Web Search | Proactive synthesis, risk anticipation, next-step recommendations without web. |
+| **6** | **Proactive** | **ON** | • Priority 0: VectorDB + Registered Portals + Real-time Web Search + Proactive Reasoning | Total real-time fusion. Autonomous continuous web discovery. Recommends authoritative URLs with `/web add <url>`. |
+
+### 3. Universal Temporal Recency Rule (Tie-Breaker for Same-Priority Sources)
+
+When multiple sources share the **same priority tier** (e.g. VectorDB vs Registered Portals in Tier 0, or Open Web vs Parametric Memory in Tier 1, or All Sources in Proactive mode):
+- **Universal Rule:** The source with the most recent publication date, file modification time (`mtime`), or real-time web retrieval timestamp **ALWAYS PREVAILS** and supersedes older or legacy facts.
+- The model is instructed to explicitly highlight date/version discrepancies to the user rather than harmonizing on outdated statements.
+
+### 4. Dynamic Agent Lifecycle & Cache Invalidation Guarantee (`rpc_bridge.py`)
+
+To eliminate stale runtime configuration caching:
+1. **Dynamic Signature Verification**:
+   ```python
+   current_sig = (self.active_workspace, self._current_model, self._grounding_mode, bool(self._web_search_enabled))
+   if self.agent_instance is None or getattr(self, "_agent_sig", None) != current_sig:
+       self.agent_instance = create_anycontext_agent(...)
+       self._agent_sig = current_sig
+   ```
+2. **State Updates Invalidation**:
+   In `execute_command`, `set_option`, `execute_menu_action`, `set_web_search`, `set_mode`, `switch_workspace`, any modification to `state_updates` immediately executes `self.agent_instance = None`.
+3. **Database Auto-Creation Invariant (`ConfigDBStore`)**:
+   `set_grounding_mode` and `set_web_search_status` check `cursor.rowcount == 0` and auto-insert workspace records if an ad-hoc workspace is referenced, guaranteeing immediate persistence across transport layers.
+
+
 
 
 
