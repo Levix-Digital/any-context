@@ -89,14 +89,35 @@ export interface StreamCallbacks {
   onError: (error: string) => void;
 }
 
+export function getInitialVersion(): string {
+  const repoRoot = path.resolve(__dirname, "..", "..", "..");
+  const candidates = [
+    path.join(repoRoot, "version.txt"),
+    path.join(process.env.LOCALAPPDATA || "", "actx", "bin", "version.txt"),
+    path.join(process.env.HOME || process.env.USERPROFILE || "", ".local", "bin", "version.txt"),
+  ];
+  for (const cand of candidates) {
+    try {
+      if (fs.existsSync(cand)) {
+        const raw = fs.readFileSync(cand, "utf-8").trim();
+        if (raw) {
+          return raw.startsWith("v") ? raw.slice(1) : raw;
+        }
+      }
+    } catch {}
+  }
+  return "0.28.76";
+}
+
 export class BridgeClient {
   private process: ChildProcess | null = null;
   private reqIdCounter = 0;
   private pendingRequests = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   private activeStreams = new Map<number, StreamCallbacks>();
   public state: AnyContextState = {
-    version: "0.28.63",
+    version: getInitialVersion(),
     workspace: "Default",
+    tier_name: "🌿 Community Edition",
     model: "...",
     model_display: "...",
     grounding_mode: "strict",
@@ -107,6 +128,7 @@ export class BridgeClient {
   public commands: SlashCommandMeta[] = [...DEFAULT_SLASH_COMMANDS];
   public onStateChange?: (state: AnyContextState) => void;
   public onNotification?: (message: string, level: string) => void;
+  public onCommandsLoaded?: (commands: SlashCommandMeta[]) => void;
 
 
   constructor(private initialWorkspace: string = "Default") {
@@ -136,13 +158,19 @@ export class BridgeClient {
     } else {
       const envExec = process.env.ACTX_EXECUTABLE || "";
       if (envExec && fs.existsSync(envExec)) {
-        if (envExec.toLowerCase().endsWith("actx.exe") || envExec.toLowerCase().endsWith("actx")) {
+        const lower = envExec.toLowerCase();
+        if (
+          lower.endsWith("actx.exe") ||
+          lower.endsWith("actx") ||
+          lower.endsWith("actx-core.exe") ||
+          lower.endsWith("actx-core")
+        ) {
           command = envExec;
           args = ["--rpc", this.initialWorkspace];
         } else if (
-          envExec.toLowerCase().endsWith("python.exe") ||
-          envExec.toLowerCase().endsWith("python3") ||
-          envExec.toLowerCase().endsWith("python")
+          lower.endsWith("python.exe") ||
+          lower.endsWith("python3") ||
+          lower.endsWith("python")
         ) {
           command = envExec;
           args = ["-u", "-m", "any_context.server.rpc_bridge", this.initialWorkspace];
@@ -151,6 +179,9 @@ export class BridgeClient {
 
       if (!command) {
         const localActx = path.join(process.env.LOCALAPPDATA || "", "actx", "bin", "actx.exe");
+        const localCoreActx = path.join(process.env.LOCALAPPDATA || "", "actx", "bin", "actx-core.exe");
+        const userHomeActx = path.join(process.env.HOME || process.env.USERPROFILE || "", ".local", "bin", "actx");
+        const userHomeCoreActx = path.join(process.env.HOME || process.env.USERPROFILE || "", ".local", "bin", "actx-core");
         const pythonScriptsActx = path.join(
           process.env.LOCALAPPDATA || "",
           "Programs",
@@ -159,16 +190,21 @@ export class BridgeClient {
           "Scripts",
           "actx.exe"
         );
-        const userHomeActx = path.join(process.env.HOME || process.env.USERPROFILE || "", ".local", "bin", "actx");
 
         if (fs.existsSync(localActx)) {
           command = localActx;
           args = ["--rpc", this.initialWorkspace];
-        } else if (fs.existsSync(pythonScriptsActx)) {
-          command = pythonScriptsActx;
+        } else if (fs.existsSync(localCoreActx)) {
+          command = localCoreActx;
           args = ["--rpc", this.initialWorkspace];
         } else if (fs.existsSync(userHomeActx)) {
           command = userHomeActx;
+          args = ["--rpc", this.initialWorkspace];
+        } else if (fs.existsSync(userHomeCoreActx)) {
+          command = userHomeCoreActx;
+          args = ["--rpc", this.initialWorkspace];
+        } else if (fs.existsSync(pythonScriptsActx)) {
+          command = pythonScriptsActx;
           args = ["--rpc", this.initialWorkspace];
         } else {
           command = process.platform === "win32" ? "python" : "python3";
@@ -176,6 +212,7 @@ export class BridgeClient {
         }
       }
     }
+
 
     const isPyiVar = (k: string): boolean => {
       const lk = k.toLowerCase();
@@ -343,6 +380,10 @@ export class BridgeClient {
     });
   }
 
+  public async ping(): Promise<{ pong: boolean; version: string }> {
+    return this.sendRequest<{ pong: boolean; version: string }>("ping");
+  }
+
   public async refreshState(): Promise<AnyContextState> {
     try {
       const state = await this.sendRequest<AnyContextState>("get_state");
@@ -356,10 +397,15 @@ export class BridgeClient {
   public async fetchCommands(): Promise<SlashCommandMeta[]> {
     try {
       const cmds = await this.sendRequest<SlashCommandMeta[]>("list_commands");
-      this.commands = cmds || [];
+      if (cmds && Array.isArray(cmds) && cmds.length > 0) {
+        this.commands = cmds;
+        if (this.onCommandsLoaded) {
+          this.onCommandsLoaded(this.commands);
+        }
+      }
       return this.commands;
     } catch {
-      return [];
+      return this.commands;
     }
   }
 
