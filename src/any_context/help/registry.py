@@ -443,39 +443,6 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         ]
     ),
 
-    "share": HelpPage(
-        command="🤝 Workspace Sharing",
-        aliases=["share", "sharing", "invite", "join-workspace", "collaboration"],
-        title="🤝 Google Drive-Style Workspace Collaboration & Sharing",
-        description=(
-            "Workspace Sharing allows workspace owners to share an existing workspace with team collaborators. "
-            "Collaborators gain access to the agent's AI RAG context and knowledge base for that project. "
-            "Folder visibility is transparent (all indexed folder paths are visible with ownership tags), but edit/delete "
-            "permissions remain strictly locked to the user who physically added each folder!"
-        ),
-        syntax=(
-            "REST API   : POST /v1/workspaces/share/invite   OR   POST /v1/workspaces/share/accept\n"
-            "  In Chat    : /config -> '🤝 Workspace Sharing & Collaboration'\n"
-            "  View Help  : actx --share --help   OR   /share --help   OR   /share -h"
-        ),
-        parameters=[
-            "👁️ Viewer Role : Can query AI chat & search vector DB. Cannot add or delete folders.",
-            "✏️ Editor Role : Can query AI chat & search vector DB + add their own local folders to the workspace.",
-            "👑 Owner Role  : Full control over workspace folders and collaborator permissions.",
-            "--help, -h     : Display this detailed help page for workspace sharing."
-        ],
-        examples=[
-            "In Chat: /config  ->  Select '🤝 Workspace Sharing & Collaboration'",
-            "POST /v1/workspaces/share/invite  ->  {'workspace_name': 'Migration', 'access_level': 'editor'}",
-            "POST /v1/workspaces/share/accept  ->  {'invite_code': 'SHARE-MIGR-1234', 'user_email': 'amanda@advocacia.com'}",
-            "In Chat: /share -h"
-        ],
-        tips=[
-            "All collaborators can see the full list of workspace folders, tagged as '[👑 Your Folder]' or '[🔒 Read-Only (Added by Amanda)]'.",
-            "No user can modify or open local disk files belonging to another user!"
-        ]
-    ),
-
     "serve": HelpPage(
         command="--serve",
         aliases=["serve", "server", "-s"],

@@ -24,17 +24,17 @@ class WebSchedulerStore:
     """
     def __init__(self, db_path: Optional[str] = None):
         if db_path:
-            self.db_path = db_path
-        elif ConfigDBStore._instance and getattr(ConfigDBStore._instance, "db_path", None):
-            self.db_path = ConfigDBStore._instance.db_path
+            self.db_path = os.path.abspath(db_path)
         else:
             self.db_path = ConfigDBStore.find_db_file("settings.db")
+        parent_dir = os.path.dirname(self.db_path)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
         self._init_db()
 
     def _get_connection(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+        from any_context.config.database import DatabaseManager
+        return DatabaseManager(self.db_path).get_connection()
 
     def _init_db(self):
         with self._get_connection() as conn:

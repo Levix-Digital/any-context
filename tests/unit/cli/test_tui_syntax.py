@@ -60,6 +60,34 @@ class TestTUISyntax(unittest.TestCase):
             f"Bun build check failed for app.tsx:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )
 
+    def test_04_default_commands_parity_with_registry(self):
+        """Verifies commands.ts DEFAULT_SLASH_COMMANDS matches Python COMMANDS_REGISTRY with no duplicates."""
+        from any_context.commands.registry import COMMANDS_REGISTRY
+
+        commands_ts = os.path.join(self.tui_dir, "commands.ts")
+        with open(commands_ts, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        import re
+        # Find all `command: "/xyz"` in DEFAULT_SLASH_COMMANDS
+        matches = re.findall(r'command:\s*"([^"]+)"', content)
+        self.assertEqual(len(matches), 31, f"Expected 31 commands in commands.ts, found {len(matches)}")
+        self.assertEqual(len(matches), len(set(matches)), f"Found duplicate command names in commands.ts: {matches}")
+
+        registry_names = [c.name for c in COMMANDS_REGISTRY]
+        self.assertEqual(matches, registry_names, "commands.ts commands must exactly match COMMANDS_REGISTRY in order and name")
+
+    def test_05_header_bar_renders_tier_directly_without_regex(self):
+        """Validates that header-bar.tsx adheres to Dumb UI by directly rendering tier_name from Core without regex."""
+        header_bar_tsx = os.path.join(self.tui_dir, "components", "header-bar.tsx")
+        with open(header_bar_tsx, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Must not contain regex stripping emojis or guessing icons with includes
+        self.assertNotIn("rawTier.replace", content, "header-bar.tsx must not strip emojis using regex")
+        self.assertNotIn("rawTier.includes", content, "header-bar.tsx must not guess tier emojis using includes")
+        self.assertIn("state?.tier_name", content, "header-bar.tsx must render tier_name directly from state")
+
 
 if __name__ == "__main__":
     unittest.main()

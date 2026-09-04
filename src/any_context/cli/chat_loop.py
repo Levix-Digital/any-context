@@ -806,12 +806,12 @@ def run_chat_loop(active_workspace: str = "Default"):
             elif cmd in ["/sync", "/resync", "/index"] or cmd.startswith("/sync ") or cmd.startswith("/index "):
                 parts = parse_command_args(user_input)
                 is_verbose = "--verbose" in parts or "-v" in parts
-                is_full = "--full" in parts or "--force" in parts
+                is_full = "--full" in parts or "--force" in parts or "-f" in parts
                 is_status = "--status" in parts or "-s" in parts or "status" in parts
                 is_all = "--all" in parts or "-a" in parts or "all" in parts
                 is_bg = "--bg" in parts or "--background" in parts
 
-                is_folder_only = "--folder" in parts or "--folders" in parts or "-f" in parts
+                is_folder_only = "--folder" in parts or "--folders" in parts
                 is_web_only = "--web" in parts or "-w" in parts or "--urls" in parts
                 is_drive_only = "--drive" in parts or "--drives" in parts or "--cloud" in parts
 
@@ -1267,7 +1267,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                 is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
                 is_add = "--add" in parts or "-a" in parts or "add" in parts
                 is_remove = "--remove" in parts or "-r" in parts or "remove" in parts or "rm" in parts or "delete" in parts
-                is_full = "--full" in parts or "--force" in parts
+                is_full = "--full" in parts or "--force" in parts or "-f" in parts
 
                 from any_context.config.db_store import ConfigDBStore
                 store = ConfigDBStore()
@@ -1338,7 +1338,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                 is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
                 is_add = "--add" in parts or "-a" in parts or "add" in parts
                 is_remove = "--remove" in parts or "-r" in parts or "remove" in parts or "delete" in parts
-                is_full = "--full" in parts or "--force" in parts
+                is_full = "--full" in parts or "--force" in parts or "-f" in parts
 
                 from any_context.config.db_store import ConfigDBStore
                 store = ConfigDBStore()
@@ -1391,7 +1391,7 @@ def run_chat_loop(active_workspace: str = "Default"):
                 is_sync = "--sync" in parts or "-s" in parts or "sync" in parts or "resync" in parts
                 is_add = "--add" in parts or "-a" in parts or "add" in parts
                 is_remove = "--remove" in parts or "-r" in parts or "remove" in parts or "delete" in parts or "rm" in parts
-                is_full = "--full" in parts or "--force" in parts
+                is_full = "--full" in parts or "--force" in parts or "-f" in parts
 
                 from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_chromadb
                 web_store = WebSchedulerStore()

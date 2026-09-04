@@ -39,6 +39,13 @@ class TestUnifiedSyncArchitecture(unittest.TestCase):
         self.web_store.add_web_url("TestWS", "https://example.com/docs")
 
     def tearDown(self):
+        try:
+            from any_context.config.database import DatabaseManager
+            DatabaseManager.close_all()
+            ConfigDBStore._instance = None
+            WebSchedulerStore._instance = None
+        except Exception:
+            pass
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     @patch("any_context.ingestion.unified_sync.run_index_folder")

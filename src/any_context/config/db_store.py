@@ -50,12 +50,12 @@ class ConfigDBStore:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path:
-            self.db_path = db_path
-            ConfigDBStore._instance = self
-        elif ConfigDBStore._instance and getattr(ConfigDBStore._instance, "db_path", None):
-            self.db_path = ConfigDBStore._instance.db_path
+            self.db_path = os.path.abspath(db_path)
         else:
             self.db_path = self.find_db_file("settings.db")
+        parent_dir = os.path.dirname(self.db_path)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
         self._init_db()
         self.ensure_default_workspace()
 
@@ -77,10 +77,11 @@ class ConfigDBStore:
         return canonical
 
     def _get_connection(self) -> sqlite3.Connection:
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        return conn
+        parent_dir = os.path.dirname(self.db_path)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
+        from any_context.config.database import DatabaseManager
+        return DatabaseManager(self.db_path).get_connection()
 
     def _init_db(self):
         """Creates configuration and security tables if they do not exist"""
@@ -1401,6 +1402,10 @@ class ConfigDBStore:
             ws_names = [r["name"] for r in rows]
 
         return [self.get_workspace_sources(ws_name) for ws_name in ws_names]
+
+    def list_all_workspace_sources(self) -> List[Dict[str, Any]]:
+        """Alias for list_workspaces_detailed for backward compatibility."""
+        return self.list_workspaces_detailed()
 
     def _resolve_storage_path(self, raw_path: Optional[str], default_relative: str) -> str:
         """

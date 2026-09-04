@@ -1,4 +1,5 @@
 import re
+import threading
 import urllib.parse
 import urllib.request
 from typing import Dict, List, Tuple, Optional
@@ -99,22 +100,26 @@ class RobotsPolicyManager:
     protecting users and organizations from compliance risks and unauthorized scraping liabilities.
     """
     _instance: Optional["RobotsPolicyManager"] = None
+    _lock = threading.Lock()
 
     def __init__(self, user_agent: str = "AnyContext-WebScraper/1.0"):
         self.user_agent = user_agent
         self._parsers: Dict[str, RobotsFileParser] = {}
+        self._parser_lock = threading.Lock()
 
     @classmethod
     def get_instance(cls) -> "RobotsPolicyManager":
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = cls()
+            return cls._instance
 
     def get_parser_for_url(self, url: str, timeout: int = 5) -> RobotsFileParser:
         parsed = urllib.parse.urlparse(url)
         origin = f"{parsed.scheme}://{parsed.netloc}"
-        if origin in self._parsers:
-            return self._parsers[origin]
+        with self._parser_lock:
+            if origin in self._parsers:
+                return self._parsers[origin]
 
         robots_url = f"{origin}/robots.txt"
         rp = RobotsFileParser()
@@ -127,7 +132,8 @@ class RobotsPolicyManager:
             # If robots.txt returns 404 or is unavailable, RFC 9309 defaults to permissive
             pass
 
-        self._parsers[origin] = rp
+        with self._parser_lock:
+            self._parsers[origin] = rp
         return rp
 
     def is_allowed(self, url: str) -> bool:

@@ -1,5 +1,6 @@
 import React from "react";
 import type { AnyContextState } from "../bridge-client";
+import { getInitialVersion } from "../bridge-client";
 import { anyContextTheme } from "../themes";
 
 interface HeaderBarProps {
@@ -13,11 +14,8 @@ export const HeaderBar = ({ state, hasMessages }: HeaderBarProps): any => {
     return null;
   }
 
-  const versionStr = state?.version || "0.28.59";
-  const rawTier = state?.tier_name || "Community Edition";
-  const cleanTier = rawTier.replace(/^[^\w\s]+/, "").trim();
-  const tierIcon = rawTier.includes("Enterprise") ? "🏢" : rawTier.includes("Pro") ? "⭐" : "🌿";
-  const displayTier = `${tierIcon} ${cleanTier}`;
+  const versionStr = state?.version || getInitialVersion();
+  const displayTier = state?.tier_name || "🌿 Community Edition";
   const wsName = state?.workspace || "Default";
 
   return (

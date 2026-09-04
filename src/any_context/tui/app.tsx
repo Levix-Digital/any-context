@@ -14,6 +14,8 @@ import {
   filterSlashCommands,
   isDirectExecutionCommand,
   MAX_PALETTE_ITEMS,
+  SlashCommandMeta,
+  DEFAULT_SLASH_COMMANDS,
 } from "./commands";
 import { tuiLog } from "./logger";
 
@@ -43,10 +45,20 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [draftInput, setDraftInput] = useState<string>("");
+  const [commands, setCommands] = useState<SlashCommandMeta[]>(
+    client.commands.length > 0 ? client.commands : DEFAULT_SLASH_COMMANDS
+  );
   const scrollBoxRef = useRef<any>(null);
 
   useEffect(() => {
     tuiLog.info("APP:MOUNT", "App component mounted", { initialWorkspace });
+    client.onCommandsLoaded = (loadedCommands) => {
+      tuiLog.info("APP:COMMANDS_LOADED", "Slash commands dynamically loaded from Core", {
+        count: loadedCommands.length,
+      });
+      setCommands(loadedCommands);
+    };
+
     client.onStateChange = (newState) => {
       tuiLog.info("APP:STATE_CHANGE", "client.onStateChange triggered", {
         workspace: newState.workspace,
@@ -375,50 +387,45 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         if (modalMode === "options" && modalOptionsGroup) {
           const selectedOption: OptionItemSchema = modalOptionsGroup.items[modalIndex];
           if (selectedOption) {
-            if (modalOptionsGroup.type === "onboarding") {
-              setModalOpen(false);
-              if (selectedOption.id === "openai") {
-                setInputValue("/key openai ");
+            setModalOpen(false);
+
+            // Declarative client-side action from Option metadata (Single Source of Truth)
+            const optMeta = selectedOption.metadata || {};
+            if (optMeta.action === "prefill_input" && optMeta.prefill) {
+              setInputValue(optMeta.prefill);
+              if (optMeta.message || optMeta.instruction) {
                 setMessages((prev) => [
                   ...prev,
                   {
                     id: `sys_${Date.now()}`,
                     role: "system",
-                    content: "🔑 **OpenAI Setup**: Please paste your OpenAI API Key after `/key openai ` below and press [Enter] to complete setup.",
+                    content: optMeta.message || optMeta.instruction,
                   },
                 ]);
-                return;
-              } else if (selectedOption.id === "custom") {
-                openConfigModal("models", false);
-                return;
-              } else if (selectedOption.id === "local_offline") {
-                client
-                  .completeOnboarding("local_offline")
-                  .then((res) => {
-                    setMessages((prev) => [
-                      ...prev,
-                      {
-                        id: `sys_${Date.now()}`,
-                        role: "system",
-                        content: res.message || "✅ Local Offline Server (LM Studio / Ollama) configured successfully!",
-                      },
-                    ]);
-                    client.refreshState();
-                  })
-                  .catch((err) => {
-                    setMessages((prev) => [
-                      ...prev,
-                      { id: `err_${Date.now()}`, role: "system", content: `❌ Error setting local offline mode: ${err.message}` },
-                    ]);
-                  });
-                return;
               }
+              return;
             }
 
-            setModalOpen(false);
+            // Generic backend option dispatch
             client
               .setOption(modalOptionsGroup.type, selectedOption.id, undefined, false, selectedOption.metadata)
               .then((res) => {
+                if (res.action === "open_config_modal") {
+                  const targetMenu = (res.state_updates as any)?.target_menu || "main";
+                  openConfigModal(targetMenu, false);
+                  client.refreshState();
+                  return;
+                }
+                if (res.action === "prefill_input" && res.state_updates && (res.state_updates as any).prefill) {
+                  setInputValue((res.state_updates as any).prefill);
+                  if (res.message) {
+                    setMessages((prev) => [
+                      ...prev,
+                      { id: `sys_${Date.now()}`, role: "system", content: res.message },
+                    ]);
+                  }
+                  return;
+                }
                 if (res.action === "open_confirm_delete_workspace_modal" && res.state_updates && (res.state_updates as any).target_workspace) {
                   openConfirmDeleteWorkspaceModal((res.state_updates as any).target_workspace);
                   return;
@@ -509,7 +516,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
 
     // 3. PALETTE navigation
     if (paletteOpen) {
-      const filtered = filterSlashCommands(client.commands, inputValue);
+      const filtered = filterSlashCommands(commands, inputValue);
       const displayCount = Math.min(filtered.length, MAX_PALETTE_ITEMS);
 
       if (event.name === "up" && displayCount > 0) {
@@ -636,10 +643,18 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
     setDraftInput("");
 
     if (paletteOpen) {
-      const filtered = filterSlashCommands(client.commands, raw);
+      const filtered = filterSlashCommands(commands, raw);
       const displayCount = Math.min(filtered.length, MAX_PALETTE_ITEMS);
 
-      if (raw === "/" || (!raw.includes(" ") && !client.commands.some((c) => c.command.toLowerCase() === raw.toLowerCase()))) {
+      if (
+        raw === "/" ||
+        (!raw.includes(" ") &&
+          !commands.some(
+            (c) =>
+              c.command.toLowerCase() === raw.toLowerCase() ||
+              (c.aliases && c.aliases.some((a: string) => a.toLowerCase() === raw.toLowerCase()))
+          ))
+      ) {
         if (displayCount > 0) {
           const safeIdx = Math.min(paletteIndex, displayCount - 1);
           const selectedCmd = filtered[safeIdx];
@@ -861,7 +876,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       modalOptionsGroup={modalOptionsGroup}
       modalMenuTree={modalMenuTree}
       modalIndex={modalIndex}
-      commands={client.commands}
+      commands={commands}
       isGenerating={isGenerating}
       isBackendReady={isBackendReady}
       onInputChange={handleInputChange}

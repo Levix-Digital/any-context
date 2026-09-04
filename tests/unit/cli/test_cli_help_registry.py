@@ -19,7 +19,7 @@ class TestCLIHelpRegistry(unittest.TestCase):
         safe_stdout_write("\n>>> [CLI UNIT] Testing Help Engine & Command Registry...\n")
         expected_commands = [
             "switch", "sync", "model", "api-keys", "web", "ocr",
-            "billing", "update", "config", "auth", "share",
+            "billing", "update", "config", "auth",
             "serve", "mcp", "reset-memory", "clear", "factory-reset", "history", "paste", "transfer",
             "density", "rename", "sources", "mode"
         ]

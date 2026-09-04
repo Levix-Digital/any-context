@@ -51,10 +51,8 @@ class ObservabilityStorage:
 
 
     def _get_connection(self) -> sqlite3.Connection:
-        if not hasattr(self._local, "conn") or self._local.conn is None:
-            self._local.conn = sqlite3.connect(self.db_path, timeout=10.0)
-            self._local.conn.execute("PRAGMA journal_mode=WAL;")
-        return self._local.conn
+        from any_context.config.database import DatabaseManager
+        return DatabaseManager(self.db_path).get_connection()
 
     def _init_tables(self):
         """Initializes observability tables if they do not exist."""
@@ -340,6 +338,11 @@ class ObservabilityStorage:
 
     def close(self):
         """Closes thread-local database connection safely."""
+        try:
+            from any_context.config.database import DatabaseManager
+            DatabaseManager(self.db_path).close()
+        except Exception:
+            pass
         if hasattr(self, "_local") and hasattr(self._local, "conn") and self._local.conn is not None:
             try:
                 self._local.conn.close()
