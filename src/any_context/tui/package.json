@@ -1,6 +1,6 @@
 {
   "name": "any-context-tui",
-  "version": "0.28.80",
+  "version": "0.28.81",
   "description": "AnyContext Reactive Terminal User Interface built with OpenTUI and React",
   "type": "module",
   "main": "index.tsx",

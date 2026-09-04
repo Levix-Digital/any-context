@@ -7,7 +7,46 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.80): LanceDB Single Source of Truth para Fontes Web, Resync Rápido e Eliminação de Split-Brain
+### 📌 Cenário 1 (v0.28.81): Blindagem Hermética de Testes e Imunidade da Base Vetorial de Produção
+
+- **Objetivo**: Comprovar que na release `v0.28.81`:
+  1. A execução de qualquer suíte de testes automatizados (`python tests/run_all.py` ou unit tests) opera sob sandbox estrito e nunca apaga, contamina ou purga a base vetorial real do usuário (`%LOCALAPPDATA%\AnyContext\data\context_db\lancedb`).
+  2. As variáveis `ACTX_CONTEXT_DB` e `ACTX_MEMORY_DB` isolam completamente os dados de contexto e memória durante a execução dos testes.
+  3. A função `clear_context_vector_db()` possui trava de segurança nativa que aborta imediatamente caso detecte ambiente de testes tentando limpar a pasta de produção.
+  4. Workspaces existentes com fontes web ou pastas (ex: `RustBook` com 44 páginas do Rust Book) mantêm todos os seus vetores intactos após qualquer execução de testes ou atualização do sistema.
+  5. Consultas de RAG respondem perfeitamente com citações legítimas das fontes indexadas.
+- **Pré-requisito**: Versão `v0.28.81` instalada (`actx -v` exibindo `v0.28.81`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🛡️ Validação da Integridade e Imunidade dos Chunks de Produção:**
+   - Abra um terminal e consulte a contagem de chunks vetoriais do workspace `RustBook`:
+     ```powershell
+     python -c "from any_context.vector_engine.store import LanceDBStore; lance = LanceDBStore(); print('Chunks no RustBook:', lance.count_records('RustBook'))"
+     ```
+   - **Critério de Aceitação:** O comando exibe `Chunks no RustBook: 1148` (ou o número de chunks das suas fontes), comprovando que os vetores estão 100% preservados.
+
+2. **🧪 Validação da Execução de Testes com Sandbox Hermético:**
+   - Execute o teste unitário de imunidade de produção:
+     ```powershell
+     python -m unittest tests/unit/core/test_production_immunity.py
+     ```
+   - **Critério de Aceitação:** Todos os 3 testes passam com sucesso (`OK`), confirmando que qualquer tentativa de acessar `%LOCALAPPDATA%` em modo de teste é bloqueada e desviada para diretórios temporários.
+
+3. **💬 Validação de Pergunta e Citação em Linguagem Natural:**
+   - Inicie a TUI ou CLI no workspace `RustBook`:
+     ```bash
+     actx --tui
+     ```
+   - Pergunte:
+     ```text
+     Me fale um pouco sobre o que é Rust e me dê um código mínimo de exemplo
+     ```
+   - **Critério de Aceitação:** O assistente responde com precisão técnica e cita as fontes oficiais consultadas (ex: `The Rust Programming Language`, `Hello, World!`).
+
+---
+
+### 📌 Cenário 2 (v0.28.80): LanceDB Single Source of Truth para Fontes Web, Resync Rápido e Eliminação de Split-Brain
 
 - **Objetivo**: Comprovar que na release `v0.28.80`:
   1. O banco de dados vetorial LanceDB é 100% a única fonte de verdade (Single Source of Truth) para o estado de páginas web indexadas, contagens e metadados.

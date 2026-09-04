@@ -55,6 +55,13 @@ def get_default_vector_db_path() -> str:
         os.makedirs(p, exist_ok=True)
         return p
 
+    if os.getenv("ACTX_TEST_MODE") == "1":
+        # Hard safety barrier: automated tests must never touch the user's production vector database
+        import tempfile
+        p = os.path.abspath(os.path.join(tempfile.gettempdir(), "actx_test_context_db"))
+        os.makedirs(p, exist_ok=True)
+        return p
+
     data_dir = os.path.join(get_app_data_root(), "data")
     target = os.path.join(data_dir, "context_db")
     os.makedirs(target, exist_ok=True)
@@ -66,6 +73,13 @@ def get_default_session_db_path() -> str:
     env_mem = os.getenv("ACTX_MEMORY_DB")
     if env_mem and env_mem.strip():
         p = os.path.abspath(env_mem.strip())
+        os.makedirs(p, exist_ok=True)
+        return p
+
+    if os.getenv("ACTX_TEST_MODE") == "1":
+        # Hard safety barrier: automated tests must never touch the user's production memory database
+        import tempfile
+        p = os.path.abspath(os.path.join(tempfile.gettempdir(), "actx_test_session_db"))
         os.makedirs(p, exist_ok=True)
         return p
 

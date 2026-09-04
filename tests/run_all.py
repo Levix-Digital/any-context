@@ -80,9 +80,19 @@ def main():
 
     temp_sandbox_dir = tempfile.mkdtemp(prefix="actx_test_sandbox_")
     test_db_path = os.path.join(temp_sandbox_dir, "test_settings.db")
+    test_context_dir = os.path.join(temp_sandbox_dir, "context_db")
+    test_memory_dir = os.path.join(temp_sandbox_dir, "memory")
+    os.makedirs(test_context_dir, exist_ok=True)
+    os.makedirs(test_memory_dir, exist_ok=True)
+
     orig_env_db = os.environ.get("ACTX_SETTINGS_DB")
+    orig_env_ctx = os.environ.get("ACTX_CONTEXT_DB")
+    orig_env_mem = os.environ.get("ACTX_MEMORY_DB")
     orig_test_mode = os.environ.get("ACTX_TEST_MODE")
+
     os.environ["ACTX_SETTINGS_DB"] = test_db_path
+    os.environ["ACTX_CONTEXT_DB"] = test_context_dir
+    os.environ["ACTX_MEMORY_DB"] = test_memory_dir
     os.environ["ACTX_TEST_MODE"] = "1"
 
     try:
@@ -105,6 +115,14 @@ def main():
             os.environ["ACTX_SETTINGS_DB"] = orig_env_db
         else:
             os.environ.pop("ACTX_SETTINGS_DB", None)
+        if orig_env_ctx is not None:
+            os.environ["ACTX_CONTEXT_DB"] = orig_env_ctx
+        else:
+            os.environ.pop("ACTX_CONTEXT_DB", None)
+        if orig_env_mem is not None:
+            os.environ["ACTX_MEMORY_DB"] = orig_env_mem
+        else:
+            os.environ.pop("ACTX_MEMORY_DB", None)
         if orig_test_mode is not None:
             os.environ["ACTX_TEST_MODE"] = orig_test_mode
         else:
