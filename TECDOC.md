@@ -26,6 +26,7 @@
 19. [Canonical Model ID Normalization & Settings Persistence Engine (`v0.28.33`)](#19-canonical-model-id-normalization--settings-persistence-engine-v02833)
 20. [Sub-Process DLL Isolation & Fast-Path Routing in PyInstaller Binaries (`v0.28.37`)](#20-sub-process-dll-isolation--fast-path-routing-in-pyinstaller-binaries-v02837)
 21. [Unified Database Management, Streaming Mini-Batch Ingestion, and Dumb UI Architecture (`v0.28.77`)](#21-unified-database-management-streaming-mini-batch-ingestion-and-dumb-ui-architecture-v02877)
+22. [Test Sandbox Architecture, Legacy Workspace Auto-Purge, and Hexagonal Model Authority (`v0.28.78`)](#22-test-sandbox-architecture-legacy-workspace-auto-purge-and-hexagonal-model-authority-v02878)
 
 ---
 
@@ -1234,6 +1235,45 @@ The OpenTUI frontend ([`src/any_context/tui/`](file:///C:/Users/guilh/source/rep
 - **Declarative Onboarding Metadata**: Eliminated hardcoded provider branches (`if (id === 'openai')`) in `app.tsx`. The Core emits declarative `OptionItemSchema` with action directives (`prefill_input`, `set_option`, etc.).
 - **Direct Tier Display**: Eliminated client-side regex stripping and emoji guessing in `header-bar.tsx`. The frontend directly renders `state.tier_name` formatted by Core.
 - **Instant Handshake (<15ms)**: Deferment of heavy ML imports in `server/__init__.py` drops RPC spawn latency from 2.8s to ~200ms with sub-15ms ping responses.
+
+---
+
+## 22. Test Sandbox Architecture, Legacy Workspace Auto-Purge, and Hexagonal Model Authority (`v0.28.78`)
+
+Release `v0.28.78` hardens data isolation across tests and production, guarantees persistent per-workspace model binding in the RPC bridge, and introduces automatic schema migrations to purge legacy test leftovers.
+
+### 🛡️ 1. Global Ephemeral Test DB Sandbox (`ACTX_SETTINGS_DB`)
+To eliminate cross-contamination where running unit tests (`test_rpc_bridge.py`, `test_cli_commands_and_dispatch.py`, `test_e2e_full_lifecycle.py`) mutated the user's live `%LOCALAPPDATA%\AnyContext\config\settings.db` file:
+- **Sandbox Orchestration in `tests/run_all.py`**: The test runner automatically provisions an isolated temporary directory via `tempfile.mkdtemp(prefix="actx_test_sandbox_")` and exports `ACTX_SETTINGS_DB = os.path.join(temp_dir, "test_settings.db")`.
+- **Zero Production Pollution**: Any call to `ConfigDBStore()`, `StdioRPCServer()`, or `DatabaseManager()` automatically resolves to the ephemeral sandbox without touching real user configurations, workspaces, or API keys.
+- **Atomic Cleanup**: The temporary sandbox is completely unlinked and removed upon test suite completion in a `finally` block.
+
+```mermaid
+sequenceDiagram
+    participant Runner as tests/run_all.py
+    participant Env as Environment (ACTX_SETTINGS_DB)
+    participant Tests as Unit & E2E Tests
+    participant Sandbox as Ephemeral Temp SQLite
+    participant ProdDB as %LOCALAPPDATA%\settings.db
+
+    Runner->>Env: os.environ["ACTX_SETTINGS_DB"] = temp/test_settings.db
+    Tests->>Sandbox: Execute tests, switch models, create workspaces
+    Note over ProdDB: 100% Isolated & Untouched
+    Runner->>Env: Reset / Pop ACTX_SETTINGS_DB
+    Runner->>Sandbox: rmtree(temp_dir)
+```
+
+### 🧹 2. Automatic Legacy Test Workspace Auto-Purge (`_init_db`)
+During version upgrades, users who had previously run tests or updated from versions where test suites polluted the database retained orphaned test workspaces (`RpcUnitTestWS`, `NewRPCWS`, `Unit_Dispatch_WS`, `TestWorkspace`, `E2E_Empty_Workspace`):
+- **Migration Flag (`legacy_test_workspaces_purged`)**: Checked once against SQLite table `system_config`.
+- **Targeted Purge**: Executes `DELETE FROM workspaces WHERE name IN ('RpcUnitTestWS', 'NewRPCWS', 'Unit_Dispatch_WS', 'TestWorkspace', 'E2E_Empty_Workspace') OR name LIKE 'test_%' OR name LIKE 'E2E_%'`.
+- **User Safety**: Preserves all legitimate user workspaces and factory defaults (`Default`, `Shared Sources`).
+
+### 🏛️ 3. Hexagonal Model Authority in RPC Bridge (`rpc_bridge.py`)
+Previously, `rpc_bridge.py` bypassed `ModelService` and read directly from global `settings.models.inference_model`, ignoring per-workspace model assignments and falling victim to global test mutations.
+- **Delegation to `ModelService`**: `_load_state()` now calls `ModelService(self.store).get_current_model(workspace_name=self.active_workspace)`, properly honoring the workspace's configured model (defaulting to `gpt-4o-mini`).
+- **Workspace-Scoped Model Mutations**: When receiving `set_model` over RPC, it invokes `ModelService.set_model(new_model, workspace_name=self.active_workspace)`, isolating model switches to the active workspace.
+
 
 
 

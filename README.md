@@ -193,6 +193,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Integração do verificador estático do Bun (`bun run check` / `tsc --noEmit`) ao pipeline oficial do GitHub Actions (`.github/workflows/e2e-tests.yml`), impedindo regressões visuais ou de sintaxe no frontend antes de qualquer merge.
   - Adição de teste unitário automatizado (`test_tui_syntax.py`) elevando a suíte para 203 testes 100% aprovados.
 
+- **🛡️ Test Sandbox Isolation, Auto-Purge of Legacy Workspaces, and Hexagonal Model Authority (`v0.28.78`)**:
+  - **Imunidade Total do Banco de Dados**: A suíte inteira de testes automatizados (`tests/run_all.py` e testes individuais) executa em sandbox temporário isolado (`ACTX_SETTINGS_DB`), garantindo que nenhum teste contamine o banco de produção do usuário.
+  - **Auto-Expurgo de Workspaces de Teste**: Inicialização do Core (`_init_db`) detecta e expurga automaticamente workspaces residuais de testes passados (`RpcUnitTestWS`, `NewRPCWS`, `Unit_Dispatch_WS`, `TestWorkspace`, `E2E_Empty_Workspace`), entregando uma base limpa e sanitizada a cada atualização.
+  - **Paridade Hexagonal no OpenTUI (RPC Bridge)**: A barra de status e o backend RPC delegam a resolução e persistência de modelos para o `ModelService`, garantindo inicialização limpa com `🤖 GPT-4o Mini` no workspace `Default` e isolamento por workspace.
+
 - **🛡️ 100% Native Standard Test Suite & CI/CD Pipeline Hardening (`v0.28.69`)**:
   - Eliminação de dependências externas de teste em ambiente de execução: migração e padronização integral dos testes unitários para `unittest.TestCase` nativo do Python (com zero dependências do `pytest` para execução).
   - Resolução definitiva de erros de importação no GitHub Actions CI/CD (`ModuleNotFoundError: No module named 'pytest'`).

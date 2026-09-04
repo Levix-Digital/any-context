@@ -75,20 +75,38 @@ def main():
     total_tests = suite.countTestCases()
     safe_print(f"Discovered {total_tests} automated test cases across Core, CLI, and E2E layers.\n")
 
-    start_time = time.time()
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-    elapsed = time.time() - start_time
+    import tempfile
+    import shutil
 
-    safe_print("\n" + "=" * 80)
-    if result.wasSuccessful():
-        safe_print(f"ALL {result.testsRun} TESTS PASSED SUCCESSFULLY in {elapsed:.2f}s!")
-        safe_print("=" * 80 + "\n")
-        sys.exit(0)
-    else:
-        safe_print(f"TEST SUITE FAILED: {len(result.failures)} failures, {len(result.errors)} errors in {elapsed:.2f}s")
-        safe_print("=" * 80 + "\n")
-        sys.exit(1)
+    temp_sandbox_dir = tempfile.mkdtemp(prefix="actx_test_sandbox_")
+    test_db_path = os.path.join(temp_sandbox_dir, "test_settings.db")
+    orig_env_db = os.environ.get("ACTX_SETTINGS_DB")
+    os.environ["ACTX_SETTINGS_DB"] = test_db_path
+
+    try:
+        start_time = time.time()
+        runner = unittest.TextTestRunner(verbosity=2)
+        result = runner.run(suite)
+        elapsed = time.time() - start_time
+
+        safe_print("\n" + "=" * 80)
+        if result.wasSuccessful():
+            safe_print(f"ALL {result.testsRun} TESTS PASSED SUCCESSFULLY in {elapsed:.2f}s!")
+            safe_print("=" * 80 + "\n")
+            sys.exit(0)
+        else:
+            safe_print(f"TEST SUITE FAILED: {len(result.failures)} failures, {len(result.errors)} errors in {elapsed:.2f}s")
+            safe_print("=" * 80 + "\n")
+            sys.exit(1)
+    finally:
+        if orig_env_db is not None:
+            os.environ["ACTX_SETTINGS_DB"] = orig_env_db
+        else:
+            os.environ.pop("ACTX_SETTINGS_DB", None)
+        try:
+            shutil.rmtree(temp_sandbox_dir, ignore_errors=True)
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     main()

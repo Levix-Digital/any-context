@@ -18,6 +18,24 @@ class TestRPCBridge(unittest.TestCase):
     Unit Test Suite: Validates Stdio RPC Bridge Server (NDJSON Protocol - v0.26.0).
     """
 
+    @classmethod
+    def setUpClass(cls):
+        import tempfile
+        cls.temp_dir = tempfile.mkdtemp(prefix="actx_test_rpc_")
+        cls.db_path = os.path.join(cls.temp_dir, "test_settings.db")
+        cls._orig_db = os.environ.get("ACTX_SETTINGS_DB")
+        os.environ["ACTX_SETTINGS_DB"] = cls.db_path
+
+    @classmethod
+    def tearDownClass(cls):
+        import shutil
+        if cls._orig_db is not None:
+            os.environ["ACTX_SETTINGS_DB"] = cls._orig_db
+        else:
+            os.environ.pop("ACTX_SETTINGS_DB", None)
+        if hasattr(cls, "temp_dir") and os.path.exists(cls.temp_dir):
+            shutil.rmtree(cls.temp_dir, ignore_errors=True)
+
     def setUp(self):
         self.server = StdioRPCServer(default_workspace="RpcUnitTestWS")
 

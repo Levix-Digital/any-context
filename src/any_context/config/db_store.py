@@ -405,6 +405,20 @@ class ConfigDBStore:
             except sqlite3.OperationalError:
                 pass
 
+            # Purge legacy/test leftover workspaces once across database upgrades
+            try:
+                cursor.execute("SELECT value FROM system_config WHERE key = 'legacy_test_workspaces_purged'")
+                if not cursor.fetchone():
+                    cursor.execute("""
+                        DELETE FROM workspaces 
+                        WHERE name IN ('RpcUnitTestWS', 'NewRPCWS', 'Unit_Dispatch_WS', 'TestWorkspace', 'E2E_Empty_Workspace')
+                           OR name LIKE 'test_%' 
+                           OR name LIKE 'E2E_%'
+                    """)
+                    cursor.execute("INSERT OR REPLACE INTO system_config (key, value) VALUES ('legacy_test_workspaces_purged', 'true')")
+            except sqlite3.OperationalError:
+                pass
+
             conn.commit()
     def reset_model_settings_to_default(self):
         """Resets model settings and API keys to factory defaults while preserving workspaces and user data."""
