@@ -28,6 +28,9 @@
 21. [Unified Database Management, Streaming Mini-Batch Ingestion, and Dumb UI Architecture (`v0.28.77`)](#21-unified-database-management-streaming-mini-batch-ingestion-and-dumb-ui-architecture-v02877)
 22. [Test Sandbox Architecture, Legacy Workspace Auto-Purge, and Hexagonal Model Authority (`v0.28.78`)](#22-test-sandbox-architecture-legacy-workspace-auto-purge-and-hexagonal-model-authority-v02878)
 23. [Provenance-Based Workspace Immunity, Pre-Migration Snapshots, and Persistent Logging Architecture (`v0.28.79`)](#23-provenance-based-workspace-immunity-pre-migration-snapshots-and-persistent-logging-architecture-v02879)
+24. [LanceDB Single Source of Truth Web Engine & Zero-Copy Columnar Cache (`v0.28.80`)](#lancedb-single-source-of-truth-web-engine--zero-copy-columnar-cache-v02880)
+25. [Hermetic Vector Storage Sandboxing & Production Data Immunity (`v0.28.81`)](#hermetic-vector-storage-sandboxing--production-data-immunity-v02881)
+26. [Canonical HTTP Redirect Trailing Slash Resolution & Relative Link RFC 3986 Integrity (`v0.28.82`)](#canonical-http-redirect-trailing-slash-resolution--relative-link-rfc-3986-integrity-v02882)
 
 ---
 
@@ -238,6 +241,9 @@ AnyContext includes a built-in, concurrent web ingestion engine designed for hig
 6. **Multi-Page Portal Re-Crawling on `/web --sync`**:
    - `sync_workspace_web_urls` inspects whether a web source has multiple indexed pages (`page_count > 1` or crawler root).
    - For multi-page portals, it executes the full crawler pipeline (`crawl_website`) across all sub-pages with support for `force_rescrape`, guaranteeing that all portal chunks are populated in LanceDB.
+7. **Canonical HTTP Redirect Resolution & RFC 3986 Relative Link Integrity (`v0.28.82`)**:
+   - **RFC 3986 Pitfall**: When a seed URL lacks a trailing slash (e.g. `https://doc.rust-lang.org/stable/book`), standard web servers return `HTTP 301 Moved Permanently` to `https://doc.rust-lang.org/stable/book/`. If a crawler parses HTML links using the initial un-redirected URL as `base_url`, `urllib.parse.urljoin` treats `book` as a file rather than a directory, incorrectly resolving relative paths like `ch01.html` to `/stable/ch01.html` (HTTP 404), truncating crawling to just the root landing page.
+   - **Runtime Dynamic Base Resolution**: `discover_site_urls` captures the effective post-redirect URL (`resp.geturl()`) and assigns it directly as `base_url` for `HTMLLinkExtractor`. It recalculates `section_prefix` and `domain` dynamically, adds both seed URLs to the discovery domain set, propagates redirected URLs during BFS expansions (`sub_resp.geturl()`), and reconciles against SQLite with flexible trailing slash lookups `(url = ? OR url = ? OR root_url = ? OR root_url = ?)`.
 
 ---
 
@@ -1364,6 +1370,67 @@ In `v0.28.81`, a triple-tier protection architecture was deployed:
    - If `ACTX_TEST_MODE == "1"` and no explicit sandbox variable is provided, `get_default_vector_db_path()` and `get_default_session_db_path()` automatically divert to ephemeral system temporary directories (`tempfile.gettempdir() / "actx_test_*"`), strictly forbidding any resolution to `%LOCALAPPDATA%`.
 3. **Core Function Execution Shield (`orchestrator.py`)**:
    - `clear_context_vector_db()` verifies if the resolved database path matches the production application data root. If `ACTX_TEST_MODE == "1"` and the target path points to production, the purge is immediately aborted.
+
+---
+
+## 🌐 Canonical HTTP Redirect Trailing Slash Resolution & Relative Link RFC 3986 Integrity (v0.28.82)
+
+### 1. Problem Statement: Truncated Crawling on Redirected Root URLs
+When users register technical documentation portals, the provided seed URL often lacks an explicit trailing slash:
+```text
+https://doc.rust-lang.org/stable/book
+```
+Modern web servers issue an `HTTP 301 Moved Permanently` (or 302/307/308) redirect pointing to the canonical directory:
+```text
+https://doc.rust-lang.org/stable/book/
+```
+
+Under RFC 3986 (Uniform Resource Identifier: Generic Syntax, Section 5.4 Reference Resolution), resolving a relative link against a base URI depends critically on whether the base URI path terminates with a slash:
+- With base `https://doc.rust-lang.org/stable/book`:
+  `urljoin(base, "ch01-00-getting-started.html")` produces `https://doc.rust-lang.org/stable/ch01-00-getting-started.html` (cutting off the `/book/` parent directory and causing HTTP 404).
+- With base `https://doc.rust-lang.org/stable/book/`:
+  `urljoin(base, "ch01-00-getting-started.html")` produces `https://doc.rust-lang.org/stable/book/ch01-00-getting-started.html` (correctly resolving all chapters).
+
+Prior to v0.28.82, `HTMLLinkExtractor` was initialized with the raw, un-redirected `start_url`. On Linux/WSL environments where seed URLs omitted the trailing slash, all relative chapter links resolved to invalid paths, resulting in only 1 page indexed out of 44.
+
+### 2. Architecture: Dynamic Runtime Resolution & Zero-Mutation Reconciliation
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CLI as Presentation (CLI / REST / MCP)
+    participant Crawler as web_crawler.py
+    participant Extractor as HTMLLinkExtractor
+    participant Web as Target Server (HTTP)
+    participant SQLite as settings.db (workspace_web_urls)
+    participant Lance as LanceDB (workspace_chunks)
+
+    CLI->>Crawler: crawl_website(start_url=".../stable/book")
+    Crawler->>Web: HTTP GET ".../stable/book"
+    Web-->>Crawler: 301 Redirect -> ".../stable/book/" (resp.geturl())
+    Note over Crawler,Extractor: Capture effective_url = resp.geturl()<br/>Base URL updated with trailing slash
+    Crawler->>Extractor: feed(html, base_url=effective_url)
+    Extractor-->>Crawler: Links resolved accurately (/stable/book/ch01...)
+    Crawler->>Lance: Parallel Vector Ingestion (44 pages)
+    Crawler->>SQLite: add_or_update_root_web_source(root_url=effective_url)
+    Note over SQLite: Flexible query matches both with/without slash<br/>Updates page_count=44 without creating duplicate
+```
+
+### 3. Engineering Implementation Details
+1. **Dynamic Effective Base URL (`web_crawler.py`)**:
+   - `urllib.request.urlopen` automatically follows HTTP redirects. Calling `resp.geturl()` retrieves the canonical destination URI.
+   - `HTMLLinkExtractor(base_url=effective_url)` guarantees that `urllib.parse.urljoin` resolves intra-book relative links accurately.
+   - If `effective_url != start_url`, `section_prefix`, `domain`, and `key_terms` are dynamically re-derived from `effective_url`.
+   - Both `start_url` and `effective_url` are retained in `all_domain_urls` to avoid re-fetching the landing page.
+   - BFS link expansion employs `sub_resp.geturl()` as `base_url` for every discovered sub-page.
+2. **Zero-Mutation Configuration Reconciliation (`web_scheduler.py`)**:
+   - To preserve the user's original input while reflecting true multi-page status, `add_or_update_root_web_source` evaluates:
+     ```sql
+     SELECT id, url FROM workspace_web_urls 
+     WHERE workspace_name = ? AND (url = ? OR url = ? OR root_url = ? OR root_url = ?)
+     ```
+   - This prevents duplicate entries in `workspace_web_urls`, reconciles the existing seed record regardless of trailing slash variation, and cleanly updates `page_count` and `last_scraped_at`.
+
 
 
 
