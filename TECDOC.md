@@ -25,6 +25,7 @@
 18. [Interactive Workspace Deletion with Mandatory Confirmation Protocol (`v0.28.32`)](#18-interactive-workspace-deletion-with-mandatory-confirmation-protocol-v02832)
 19. [Canonical Model ID Normalization & Settings Persistence Engine (`v0.28.33`)](#19-canonical-model-id-normalization--settings-persistence-engine-v02833)
 20. [Sub-Process DLL Isolation & Fast-Path Routing in PyInstaller Binaries (`v0.28.37`)](#20-sub-process-dll-isolation--fast-path-routing-in-pyinstaller-binaries-v02837)
+21. [Unified Database Management, Streaming Mini-Batch Ingestion, and Dumb UI Architecture (`v0.28.77`)](#21-unified-database-management-streaming-mini-batch-ingestion-and-dumb-ui-architecture-v02877)
 
 ---
 
@@ -1199,6 +1200,40 @@ graph TD
 - **Automated Test Coverage ([`tests/unit/core/test_onboarding_service.py`](file:///C:/Users/guilh/source/repos/any-context/tests/unit/core/test_onboarding_service.py))**:
   - Expanded test suite to 8 comprehensive unit tests covering first-time onboarding, OpenAI provider completion, local offline servers, factory reset clearing, preservation across `save_app_settings()`, preservation across `update_context_settings()`, auto-healing from existing SQLite keys, and `system_config` table isolation.
   - Total automated test suite expanded to **262 tests (100% PASS)**.
+
+---
+
+## 21. Unified Database Management, Streaming Mini-Batch Ingestion, and Dumb UI Architecture (`v0.28.77`)
+
+Release `v0.28.77` resolves core architectural fragmentation, unifies database lifecycle management, prevents crawler stalls across high-volume portals, and enforces strict "Dumb UI" separation between Core and presentation adapters.
+
+### 🏛️ 1. Unified SQLite Connection Manager (`DatabaseManager`)
+To eliminate uncoordinated concurrent connections to `settings.db` that caused database locks on Windows, all stores now obtain SQLite connections through the `DatabaseManager` singleton:
+- **Central Connection Pooling & PRAGMA Enforcement**: Automatically configures `PRAGMA journal_mode = WAL`, `PRAGMA busy_timeout = 30000`, `PRAGMA foreign_keys = ON`, and `PRAGMA synchronous = NORMAL`.
+- **Automatic Retry with Exponential Backoff**: Transient `sqlite3.OperationalError: database is locked` exceptions are intercepted and retried transparently up to 3 times.
+- **Architectural Cleanup**: Purgou o pacote legado e órfão `workspace_sharing/`, centralizando compartilhamento e transferências de fontes diretamente em `ConfigDBStore`.
+
+```mermaid
+graph TD
+    A["ConfigDBStore"] --> CM["DatabaseManager (Singleton)"]
+    B["WebSchedulerStore"] --> CM
+    C["BillingStore"] --> CM
+    D["ObservabilityStorage"] --> CM
+    CM --> DB[("settings.db (WAL Mode, 30s Timeout)")]
+```
+
+### ⚡ 2. Streaming Mini-Batch Web Crawler Ingestion
+To eliminate memory bloat and timeouts when crawling extensive documentation portals (e.g. 2,500+ URLs):
+- **Mini-Batch Streaming (`batch_size = 25`)**: The crawler streams scraped pages in mini-batches of 25 URLs, immediately persisting metadata and vector chunks to SQLite and LanceDB before continuing.
+- **Domain Concurrency & Rate Limiting**: Enforces compliant per-domain token bucket rate limiting to prevent HTTP 429 and connection drops.
+- **Flag Conflict Decoupling**: Dispatches `-f` strictly to `--force` (`is_full`), eliminating ambiguity with `--folder`.
+
+### 🖥️ 3. Strict "Dumb UI" Separation in OpenTUI
+The OpenTUI frontend ([`src/any_context/tui/`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/tui)) was refactored to eliminate client-side business logic and redundant state duplication:
+- **Canonical Command Catalog Parity**: Purged duplicated `/sources`, `/sync`, and `/web-search` entries from `DEFAULT_SLASH_COMMANDS`, aligning exactly with the Core's 31 canonical commands in `COMMANDS_REGISTRY`. The TUI loads commands dynamically via RPC `list_commands`.
+- **Declarative Onboarding Metadata**: Eliminated hardcoded provider branches (`if (id === 'openai')`) in `app.tsx`. The Core emits declarative `OptionItemSchema` with action directives (`prefill_input`, `set_option`, etc.).
+- **Direct Tier Display**: Eliminated client-side regex stripping and emoji guessing in `header-bar.tsx`. The frontend directly renders `state.tier_name` formatted by Core.
+- **Instant Handshake (<15ms)**: Deferment of heavy ML imports in `server/__init__.py` drops RPC spawn latency from 2.8s to ~200ms with sub-15ms ping responses.
 
 
 

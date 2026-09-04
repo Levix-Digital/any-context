@@ -7,7 +7,46 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.76): Persistência Integral de Configurações, Chaves de API e Imunidade de Onboarding Entre Versões
+### 📌 Cenário 1 (v0.28.77): Inicialização Nativa Git Bash, Handshake Instantâneo, Paridade de Comandos e UI Burra
+
+- **Objetivo**: Comprovar que a release `v0.28.77`:
+  1. O comando `actx -v` e `actx --tui` funcionam no Git Bash (`MINGW64`) e PowerShell sem erros de `No such file or directory`.
+  2. O handshake do RPC bridge responde em menos de 100ms via `ping` com a versão `0.28.77` dinâmica.
+  3. A paleta de comandos slash exibe os 31 comandos canônicos sincronizados dinamicamente do Core, sem duplicatas ou avisos de chaves no React.
+  4. O Onboarding não possui bifurcações manuais no TypeScript e respeita metadados declarativos enviados pelo Core.
+  5. A Header Bar renderiza o Tier ativo (`🌿 Community Edition`, `👥 Team Edition`, etc.) diretamente sem filtros ou substituições via regex.
+- **Pré-requisito**: Versão `v0.28.77` instalada (`actx -v` exibindo `v0.28.77`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🖥️ Verificação do Launcher Nativo no Git Bash & PowerShell:**
+   - Abra um terminal Git Bash e execute:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna instantaneamente `AnyContext v0.28.77 (actx)` sem qualquer erro de caminho de arquivo.
+
+2. **⚡ Verificação da Inicialização da TUI e Handshake Instantâneo:**
+   - No terminal, inicie a interface:
+     ```bash
+     actx --tui
+     ```
+   - **Critério de Aceitação:** A interface TUI abre com o banner exibindo `v0.28.77`. A barra superior (Header Bar) exibe `🌿 Community Edition` (ou o plano ativo) sem distorção no emoji.
+
+3. **📚 Verificação da Paleta de Comandos Dinâmica e Sem Duplicatas:**
+   - Dentro da TUI, digite `/` no prompt de chat:
+   - **Critério de Aceitação:** A paleta de autocompletar exibe exatamente os comandos canônicos disponíveis. Não há duplicação de `/sources` ou `/sync`, e a navegação `[↑/↓]` e seleção `[Tab]` operam com fluidez.
+
+4. **🔄 Verificação do Streaming do Web Crawler com Mini-Batches:**
+   - Execute a sincronização forçada de uma documentação com muitas páginas:
+     ```
+     /sync --force
+     ```
+   - **Critério de Aceitação:** O crawler faz streaming em lotes de 25 páginas, gravando o progresso de forma atômica no banco sem travar a aplicação.
+
+---
+
+### 📌 Cenário 2 (v0.28.76): Persistência Integral de Configurações, Chaves de API e Imunidade de Onboarding Entre Versões
 
 - **Objetivo**: Comprovar que ao atualizar o AnyContext para uma nova versão (`actx --update` ou nova instalação de binário):
   1. Todas as configurações do usuário (Workspaces, modelos configurados, grounding mode, web search, e chaves de API) são integralmente preservadas na base canônica `%LOCALAPPDATA%\AnyContext\config\settings.db`.
