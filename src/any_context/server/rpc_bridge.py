@@ -78,10 +78,9 @@ class StdioRPCServer:
     def _load_state(self):
         """Loads workspace settings and active configuration from SQLite."""
         try:
-            settings = self.store.get_app_settings()
-            if settings and settings.models and settings.models.inference_model:
-                from any_context.core.models_catalog import normalize_model_id
-                self._current_model = normalize_model_id(settings.models.inference_model)
+            from any_context.core.services.model_service import ModelService
+            model_svc = ModelService(store=self.store)
+            self._current_model = model_svc.get_current_model(workspace_name=self.active_workspace)
             self._grounding_mode = self.store.get_grounding_mode(workspace_name=self.active_workspace) or "strict"
             self._web_search_enabled = self.store.get_web_search_status(workspace_name=self.active_workspace) or False
         except Exception:
@@ -225,15 +224,13 @@ class StdioRPCServer:
             elif method == "set_model":
                 new_model = params.get("model", "").strip()
                 if new_model:
-                    self._current_model = new_model
                     try:
-                        settings = self.store.get_app_settings()
-                        if settings and settings.models:
-                            models = settings.models
-                            models.inference_model = new_model
-                            self.store.update_model_settings(models)
+                        from any_context.core.services.model_service import ModelService
+                        model_svc = ModelService(store=self.store)
+                        res = model_svc.set_model(new_model, workspace_name=self.active_workspace)
+                        self._current_model = res["model"]
                     except Exception:
-                        pass
+                        self._current_model = new_model
                     self.agent_instance = None
                 _send_ndjson({"id": req_id, "result": self.get_state()})
 

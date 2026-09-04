@@ -71,6 +71,10 @@ class AnyContextE2ETestSuite(unittest.TestCase):
         with open(cls.sub_tech_file, "w", encoding="utf-8") as f:
             f.write("service_name,port,protocol,auth\nIngestionWorker,8001,gRPC,mTLS\nAPIServer,8000,HTTP/REST,BearerToken\n")
 
+        cls._orig_db = os.environ.get("ACTX_SETTINGS_DB")
+        cls.test_settings_db = os.path.join(cls.test_dir, "e2e_settings.db")
+        os.environ["ACTX_SETTINGS_DB"] = cls.test_settings_db
+
         from any_context.config.app_settings import ContextSettings
         cls.db_dir = os.path.join(cls.test_dir, "context_db")
         cls.store = ConfigDBStore()
@@ -116,6 +120,11 @@ class AnyContextE2ETestSuite(unittest.TestCase):
             # Restore original context settings
             if hasattr(cls, "orig_settings") and cls.orig_settings and cls.orig_settings.context:
                 cls.store.update_context_settings(cls.orig_settings.context)
+
+            if hasattr(cls, "_orig_db") and cls._orig_db is not None:
+                os.environ["ACTX_SETTINGS_DB"] = cls._orig_db
+            else:
+                os.environ.pop("ACTX_SETTINGS_DB", None)
 
             # Remove test directory
             shutil.rmtree(cls.test_dir, ignore_errors=True)
