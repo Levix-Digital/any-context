@@ -73,3 +73,32 @@ def get_default_session_db_path() -> str:
     target = os.path.join(data_dir, "memory")
     os.makedirs(target, exist_ok=True)
     return os.path.abspath(target)
+
+
+def get_logs_dir() -> str:
+    """Returns the canonical directory for application, update, install, and migration logs."""
+    env_logs = os.getenv("ACTX_LOGS_DIR")
+    if env_logs and env_logs.strip():
+        p = os.path.abspath(env_logs.strip())
+        os.makedirs(p, exist_ok=True)
+        return p
+
+    logs_dir = os.path.join(get_app_data_root(), "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    return os.path.abspath(logs_dir)
+
+
+def get_install_log_path() -> str:
+    """Returns the canonical path for installer logs (install.log)."""
+    return os.path.join(get_logs_dir(), "install.log")
+
+
+def get_update_log_path() -> str:
+    """Returns the canonical path for update logs (update.log)."""
+    return os.path.join(get_logs_dir(), "update.log")
+
+
+def get_migration_log_path() -> str:
+    """Returns the canonical path for database migration logs (migration.log)."""
+    return os.path.join(get_logs_dir(), "migration.log")
+

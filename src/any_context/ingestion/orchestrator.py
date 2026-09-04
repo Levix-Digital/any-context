@@ -254,6 +254,12 @@ class BackgroundSyncManager:
             if callback not in self._completion_listeners:
                 self._completion_listeners.append(callback)
 
+    def unregister_completion_listener(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        """Unregisters a global completion listener."""
+        with self._lock:
+            if callback in self._completion_listeners:
+                self._completion_listeners.remove(callback)
+
     def pop_notifications(self, workspace_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """Pops and returns pending completion notifications for a workspace or all."""
         with self._lock:

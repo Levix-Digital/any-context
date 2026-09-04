@@ -39,6 +39,10 @@ class TestRPCBridge(unittest.TestCase):
     def setUp(self):
         self.server = StdioRPCServer(default_workspace="RpcUnitTestWS")
 
+    def tearDown(self):
+        if hasattr(self, "server") and hasattr(self.server, "close"):
+            self.server.close()
+
     def test_01_get_state_and_list_commands(self):
         """Validates that get_state and list_commands return accurate structure and all 29 commands."""
         safe_stdout_write("\n>>> [RPC UNIT] Testing get_state and list_commands...\n")
@@ -81,11 +85,12 @@ class TestRPCBridge(unittest.TestCase):
             self.server.handle_request({"id": 4, "method": "set_web_search", "params": {"enabled": True}})
 
         lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
-        self.assertEqual(len(lines), 4)
-        self.assertEqual(lines[0]["result"]["workspace"], "NewRPCWS")
-        self.assertEqual(lines[1]["result"]["model"], "claude-sonnet-4-5-20250929")
-        self.assertEqual(lines[2]["result"]["grounding_mode"], "hybrid")
-        self.assertTrue(lines[3]["result"]["web_search_enabled"])
+        res_lines = [l for l in lines if l.get("id") in (1, 2, 3, 4)]
+        self.assertEqual(len(res_lines), 4)
+        self.assertEqual(res_lines[0]["result"]["workspace"], "NewRPCWS")
+        self.assertEqual(res_lines[1]["result"]["model"], "claude-sonnet-4-5-20250929")
+        self.assertEqual(res_lines[2]["result"]["grounding_mode"], "hybrid")
+        self.assertTrue(res_lines[3]["result"]["web_search_enabled"])
         safe_stdout_write("  [OK] Mutation requests executed and confirmed in state!\n")
 
     def test_03_handle_request_chat_streaming(self):
@@ -123,9 +128,10 @@ class TestRPCBridge(unittest.TestCase):
             self.server.handle_request({"id": 99, "method": "non_existent_method"})
 
         lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
-        self.assertEqual(len(lines), 1)
-        self.assertIn("error", lines[0])
-        self.assertEqual(lines[0]["error"]["code"], -32601)
+        res_lines = [l for l in lines if l.get("id") == 99]
+        self.assertEqual(len(res_lines), 1)
+        self.assertIn("error", res_lines[0])
+        self.assertEqual(res_lines[0]["error"]["code"], -32601)
         safe_stdout_write("  [OK] Error code -32601 returned on unknown method!\n")
 
     def test_05_get_and_set_delete_source_options(self):
@@ -140,9 +146,10 @@ class TestRPCBridge(unittest.TestCase):
             self.server.handle_request({"id": 51, "method": "set_option", "params": {"type": "delete_source", "value": "cancel_delete_source"}})
 
         lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
-        self.assertEqual(len(lines), 2)
-        self.assertEqual(lines[0]["result"]["type"], "delete_source")
-        self.assertTrue(lines[1]["result"]["success"])
+        res_lines = [l for l in lines if l.get("id") in (50, 51)]
+        self.assertEqual(len(res_lines), 2)
+        self.assertEqual(res_lines[0]["result"]["type"], "delete_source")
+        self.assertTrue(res_lines[1]["result"]["success"])
         safe_stdout_write("  [OK] delete_source get_options and set_option verified!\n")
 
     def test_06_ping_instant_handshake(self):
@@ -158,10 +165,11 @@ class TestRPCBridge(unittest.TestCase):
         latency_ms = (time.perf_counter() - t0) * 1000
 
         lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
-        self.assertEqual(len(lines), 1)
-        self.assertEqual(lines[0]["id"], 100)
-        self.assertTrue(lines[0]["result"]["pong"])
-        self.assertEqual(lines[0]["result"]["version"], __version__)
+        res_lines = [l for l in lines if l.get("id") == 100]
+        self.assertEqual(len(res_lines), 1)
+        self.assertEqual(res_lines[0]["id"], 100)
+        self.assertTrue(res_lines[0]["result"]["pong"])
+        self.assertEqual(res_lines[0]["result"]["version"], __version__)
         self.assertLess(latency_ms, 100.0, f"Ping latency must be < 100ms (was {latency_ms:.2f}ms)")
         safe_stdout_write(f"  [OK] Ping responded in {latency_ms:.2f}ms (< 100ms benchmark met)!\n")
 
@@ -178,8 +186,9 @@ class TestRPCBridge(unittest.TestCase):
             })
 
         lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
-        self.assertEqual(len(lines), 1)
-        res = lines[0]["result"]
+        res_lines = [l for l in lines if l.get("id") == 101]
+        self.assertEqual(len(res_lines), 1)
+        res = res_lines[0]["result"]
         self.assertTrue(res["success"])
         self.assertEqual(res["action"], "open_config_modal")
         self.assertEqual(res["state_updates"]["target_menu"], "models")

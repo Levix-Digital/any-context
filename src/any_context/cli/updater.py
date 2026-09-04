@@ -23,6 +23,20 @@ def safe_print(msg: str):
         print(msg.encode("ascii", errors="ignore").decode("ascii"))
 
 
+def log_update_event(msg: str, level: str = "INFO"):
+    """Writes persistent timestamped audit records to update.log."""
+    try:
+        from any_context.config.paths import get_update_log_path
+        log_path = get_update_log_path()
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] [{level}] {msg}\n")
+    except Exception:
+        pass
+
+
+
 def normalize_version_tag(version_str: str) -> str:
     """
     Normalizes version strings like '@0.15.2', '0.15.2', 'v0.15.2', '@latest' -> 'v0.15.2' or 'latest'.
@@ -417,6 +431,7 @@ def run_self_update(
     and graceful handling of multiple active instances).
     """
     clean_stale_update_files()
+    log_update_event(f"run_self_update initiated: current={CURRENT_VERSION}, target_requested={target_version}, force={force}")
     
     if target_version:
         norm = normalize_version_tag(target_version)
@@ -425,6 +440,7 @@ def run_self_update(
             latest_tag = fetch_latest_release_tag()
             if not latest_tag:
                 safe_print("\n⚠️ Could not fetch latest release from GitHub.\n")
+                log_update_event("Could not fetch latest release from GitHub", level="ERROR")
                 return
             target_tag = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
         else:
@@ -433,14 +449,18 @@ def run_self_update(
         safe_print(f"\n🔍 Checking for AnyContext updates...")
         has_update, latest_tag = check_for_updates(quiet_if_latest=False)
         if not latest_tag:
+            log_update_event("Update check could not resolve latest release tag", level="WARN")
             return
         if not has_update and not force:
+            log_update_event(f"System is already up to date at v{CURRENT_VERSION}")
             return
         target_tag = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
 
     clean_tag = target_tag if target_tag.startswith("v") else f"v{target_tag}"
+    log_update_event(f"Target release determined: {clean_tag} (current: v{CURRENT_VERSION})")
     cur_tuple = parse_version_tuple(CURRENT_VERSION)
     target_tuple = parse_version_tuple(clean_tag)
+
 
     if cur_tuple == target_tuple and not force:
         safe_print(f"\nℹ️ You are already running AnyContext \033[1m\033[92mv{CURRENT_VERSION}\033[0m.")
@@ -482,13 +502,16 @@ def run_self_update(
 
         if decision == "cancel":
             safe_print("\n⚠️ Update cancelled by user.\n")
+            log_update_event("Update cancelled by user during active session prompt", level="INFO")
             return
         elif decision == "close":
             safe_print("⏹️ Closing active AnyContext sessions...")
             closed_cnt = close_active_instances(active_instances)
             safe_print(f"✅ Closed {closed_cnt} active session(s).\n")
+            log_update_event(f"Closed {closed_cnt} active session(s)")
         else:
             safe_print("⚡ Proceeding with background update (active sessions will remain undisturbed)...\n")
+            log_update_event("Proceeding with background update (instances kept running)")
 
     is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
     target_asset = "actx-windows-x86_64.exe" if is_windows else "actx-linux-x86_64"
@@ -517,6 +540,8 @@ def run_self_update(
 
     temp_download = os.path.join(target_dir, "actx_new.exe" if is_windows else "actx_new")
     old_exe = os.path.join(target_dir, "actx_old.exe" if is_windows else "actx_old")
+    log_update_event(f"Target paths resolved: target_exe={target_exe}, temp_download={temp_download}")
+
 
     if os.path.exists(temp_download):
         try:
@@ -579,9 +604,12 @@ def run_self_update(
                 pass
 
     if not downloaded or not os.path.exists(temp_download) or os.path.getsize(temp_download) == 0:
+        log_update_event(f"Failed to download update asset '{target_asset}' for release {clean_tag}", level="ERROR")
         safe_print(f"\n❌ Failed to download update asset '{target_asset}' for release {clean_tag}.")
         safe_print(f"💡 Please check your internet connection or run manual install: https://github.com/{PRIMARY_REPO}/releases\n")
         return
+
+    log_update_event(f"Asset downloaded successfully: {temp_download} ({os.path.getsize(temp_download)} bytes)")
 
     # Set executable permissions on Unix
     if not is_windows:
@@ -606,6 +634,8 @@ def run_self_update(
                 os.rename(target_exe, old_exe)
             shutil.move(temp_download, target_exe)
             replaced = True
+            log_update_event(f"Atomic replacement succeeded (direct rename to {target_exe})")
+
 
             # Also sync Python313/Scripts/actx.exe if present on this system
             alt_script_exe = os.path.join(
@@ -702,13 +732,17 @@ def run_self_update(
             except Exception:
                 pass
 
+        log_update_event(f"Update to {clean_tag} completed successfully (Windows).")
         safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
 
         safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
     else:
         try:
             os.replace(temp_download, target_exe)
+            log_update_event(f"Update to {clean_tag} completed successfully (Unix).")
             safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
             safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
         except Exception as e:
+            log_update_event(f"Unix binary move failed: {e}", level="ERROR")
             safe_print(f"⚠️ Saved new binary to: {temp_download}. Please move it to {target_exe} with sudo/chmod.")
+

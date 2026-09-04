@@ -5,6 +5,8 @@ import sqlite3
 import hashlib
 import secrets
 import uuid
+import shutil
+import time
 from typing import Optional, List, Dict, Any
 from any_context.config.app_settings import (
     AppSettings,
@@ -18,11 +20,24 @@ from any_context.config.app_settings import (
     MemorySettings
 )
 
+def _log_migration(msg: str, level: str = "INFO"):
+    """Writes persistent timestamped audit records to migration.log."""
+    try:
+        from any_context.config.paths import get_migration_log_path
+        log_path = get_migration_log_path()
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] [{level}] {msg}\n")
+    except Exception:
+        pass
+
 def safe_print(msg: str):
     try:
         print(msg)
     except UnicodeEncodeError:
         print(msg.encode("ascii", errors="ignore").decode("ascii"))
+
 
 def hash_password(password: str, salt: Optional[str] = None) -> str:
     """Hashes a password using PBKDF2 with SHA-256 and a random salt."""
@@ -84,7 +99,16 @@ class ConfigDBStore:
         return DatabaseManager(self.db_path).get_connection()
 
     def _init_db(self):
-        """Creates configuration and security tables if they do not exist"""
+        """Creates configuration and security tables if they do not exist, backing up database before migrations."""
+        # Safety backup of existing database before applying schema migrations
+        try:
+            if os.path.exists(self.db_path) and os.path.getsize(self.db_path) > 0:
+                bak_path = f"{self.db_path}.bak"
+                shutil.copy2(self.db_path, bak_path)
+                _log_migration(f"Pre-migration backup snapshot refreshed: {bak_path}")
+        except Exception as e:
+            _log_migration(f"Pre-migration backup snapshot warning: {e}", level="WARN")
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
@@ -97,11 +121,12 @@ class ConfigDBStore:
                     grounding_mode TEXT DEFAULT 'strict',
                     web_search_enabled INTEGER DEFAULT 0,
                     default_web_engine TEXT DEFAULT 'auto',
-                    model TEXT DEFAULT 'gpt-4o-mini'
+                    model TEXT DEFAULT 'gpt-4o-mini',
+                    created_by TEXT DEFAULT 'user'
                 )
             """)
 
-            # Ensure workspace_id, grounding_mode, web_search_enabled, default_web_engine, model columns exist for existing tables
+            # Ensure workspace_id, grounding_mode, web_search_enabled, default_web_engine, model, created_by columns exist for existing tables
             cursor.execute("PRAGMA table_info(workspaces)")
             ws_cols = [r[1] for r in cursor.fetchall()]
             if "workspace_id" not in ws_cols:
@@ -114,11 +139,16 @@ class ConfigDBStore:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN default_web_engine TEXT DEFAULT 'auto'")
             if "model" not in ws_cols:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN model TEXT DEFAULT 'gpt-4o-mini'")
+            if "created_by" not in ws_cols:
+                cursor.execute("ALTER TABLE workspaces ADD COLUMN created_by TEXT DEFAULT 'user'")
+                cursor.execute("UPDATE workspaces SET created_by = 'system' WHERE name IN ('Default', 'Shared Sources')")
+                _log_migration("Added column 'created_by' (default: 'user') and backfilled 'system' for Default and Shared Sources")
             
             cursor.execute("SELECT id, name, workspace_id FROM workspaces WHERE workspace_id IS NULL OR workspace_id = ''")
             for r in cursor.fetchall():
                 ws_auto_id = "ws_default" if r["name"].strip().lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}"
                 cursor.execute("UPDATE workspaces SET workspace_id = ? WHERE id = ?", (ws_auto_id, r["id"]))
+
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS models (
@@ -405,19 +435,35 @@ class ConfigDBStore:
             except sqlite3.OperationalError:
                 pass
 
-            # Purge legacy/test leftover workspaces once across database upgrades
-            try:
-                cursor.execute("SELECT value FROM system_config WHERE key = 'legacy_test_workspaces_purged'")
-                if not cursor.fetchone():
-                    cursor.execute("""
-                        DELETE FROM workspaces 
-                        WHERE name IN ('RpcUnitTestWS', 'NewRPCWS', 'Unit_Dispatch_WS', 'TestWorkspace', 'E2E_Empty_Workspace')
-                           OR name LIKE 'test_%' 
-                           OR name LIKE 'E2E_%'
-                    """)
-                    cursor.execute("INSERT OR REPLACE INTO system_config (key, value) VALUES ('legacy_test_workspaces_purged', 'true')")
-            except sqlite3.OperationalError:
-                pass
+            # Safe cleanup: Purge ONLY workspaces explicitly tagged with created_by = 'test'
+            # AND strictly ensure they have zero sources, zero indexed pages, and zero files!
+            # Workspaces with created_by = 'user' or 'system' can NEVER be deleted.
+            # Only executed in user/production mode to prevent deleting active test fixtures during test runs.
+            if os.environ.get("ACTX_TEST_MODE") != "1":
+                try:
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                    existing_tables = {r[0] for r in cursor.fetchall()}
+
+                    not_in_clauses = []
+                    if "workspace_web_urls" in existing_tables:
+                        not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_web_urls)")
+                    if "workspace_indexed_web_pages" in existing_tables:
+                        not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_indexed_web_pages)")
+                    if "workspace_files_stat_cache" in existing_tables:
+                        not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_files_stat_cache)")
+                    if "workspace_folders" in existing_tables:
+                        not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_folders)")
+
+                    cond = " AND ".join(not_in_clauses)
+                    query = f"DELETE FROM workspaces WHERE created_by = 'test' AND {cond}" if cond else "DELETE FROM workspaces WHERE created_by = 'test'"
+                    cursor.execute(query)
+                    if cursor.rowcount > 0:
+                        _log_migration(f"Safe test workspace cleanup executed: purged {cursor.rowcount} ephemeral test workspace(s)")
+                except Exception as e:
+                    _log_migration(f"Cleanup query notice: {e}", level="WARN")
+
+
+
 
             conn.commit()
     def reset_model_settings_to_default(self):
@@ -440,17 +486,18 @@ class ConfigDBStore:
                     default_path = os.path.abspath(os.path.join(os.getcwd(), "documents"))
                     os.makedirs(default_path, exist_ok=True)
                     cursor.execute(
-                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model) VALUES (?, ?, ?, ?)",
-                        ("ws_default", "Default", json.dumps([default_path]), "gpt-4o-mini")
+                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model, created_by) VALUES (?, ?, ?, ?, ?)",
+                        ("ws_default", "Default", json.dumps([default_path]), "gpt-4o-mini", "system")
                     )
                 # 2. Ensure Shared Sources library workspace
                 cursor.execute("SELECT id FROM workspaces WHERE name = 'Shared Sources' COLLATE NOCASE")
                 if not cursor.fetchone():
                     cursor.execute(
-                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model) VALUES (?, ?, ?, ?)",
-                        ("ws_shared_sources", "Shared Sources", json.dumps([]), "gpt-4o-mini")
+                        "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model, created_by) VALUES (?, ?, ?, ?, ?)",
+                        ("ws_shared_sources", "Shared Sources", json.dumps([]), "gpt-4o-mini", "system")
                     )
                 conn.commit()
+
 
             except sqlite3.IntegrityError:
                 pass
@@ -461,12 +508,12 @@ class ConfigDBStore:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, workspace_id, name, paths_json FROM workspaces WHERE workspace_id = ? OR name = ? COLLATE NOCASE",
+                "SELECT id, workspace_id, name, paths_json, created_by FROM workspaces WHERE workspace_id = ? OR name = ? COLLATE NOCASE",
                 (clean, clean)
             )
             row = cursor.fetchone()
             if not row and clean.startswith("ws_") and clean[3:].isdigit():
-                cursor.execute("SELECT id, workspace_id, name, paths_json FROM workspaces WHERE id = ?", (int(clean[3:]),))
+                cursor.execute("SELECT id, workspace_id, name, paths_json, created_by FROM workspaces WHERE id = ?", (int(clean[3:]),))
                 row = cursor.fetchone()
 
             if row:
@@ -480,8 +527,10 @@ class ConfigDBStore:
                     "id": row["id"],
                     "workspace_id": ws_id,
                     "name": row["name"],
-                    "paths": json.loads(row["paths_json"]) if row["paths_json"] else []
+                    "paths": json.loads(row["paths_json"]) if row["paths_json"] else [],
+                    "created_by": row["created_by"] if ("created_by" in row.keys() and row["created_by"]) else "user"
                 }
+
             return None
 
     def is_empty(self) -> bool:
@@ -499,24 +548,37 @@ class ConfigDBStore:
         workspace_id: Optional[str] = None,
         grounding_mode: str = "strict",
         web_search_enabled: bool = False,
-        model: str = "gpt-4o-mini"
+        model: str = "gpt-4o-mini",
+        created_by: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Adds or updates a workspace entry with folder paths, immutable workspace_id, and model (factory default: gpt-4o-mini)."""
+        """Adds or updates a workspace entry with folder paths, immutable workspace_id, provenance tag ('user'|'system'|'test'), and model."""
         clean_name = name.strip()
         clean_paths = [os.path.abspath(p.strip().strip("'\"")) for p in paths if p and p.strip()]
         lname = clean_name.lower()
         ws_id = workspace_id or ("ws_default" if lname == "default" else ("ws_shared_sources" if lname == "shared sources" else f"ws_{uuid.uuid4().hex[:8]}"))
         clean_model = model.strip() if model and model.strip() else "gpt-4o-mini"
 
+        # Provenance resolution
+        if not created_by:
+            if os.environ.get("ACTX_TEST_MODE") == "1" or "pytest" in sys.modules:
+                creator = "test"
+            elif lname in ["default", "shared sources"]:
+                creator = "system"
+            else:
+                creator = "user"
+        else:
+            creator = created_by.strip().lower()
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, workspace_id, paths_json, grounding_mode, web_search_enabled, model FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_name,))
+            cursor.execute("SELECT id, workspace_id, paths_json, grounding_mode, web_search_enabled, model, created_by FROM workspaces WHERE name = ? COLLATE NOCASE", (clean_name,))
             row = cursor.fetchone()
             if row:
                 existing_ws_id = row["workspace_id"] or ws_id
                 existing_paths = [os.path.abspath(p.strip().strip("'\"")) for p in json.loads(row["paths_json"])]
                 combined = list(dict.fromkeys(existing_paths + clean_paths))
                 existing_model = row["model"] if "model" in row.keys() and row["model"] else clean_model
+                existing_creator = row["created_by"] if "created_by" in row.keys() and row["created_by"] else creator
                 cursor.execute("UPDATE workspaces SET paths_json = ?, workspace_id = ? WHERE id = ?", (json.dumps(combined), existing_ws_id, row["id"]))
                 conn.commit()
                 return {
@@ -526,10 +588,14 @@ class ConfigDBStore:
                     "paths": combined,
                     "grounding_mode": row["grounding_mode"] if "grounding_mode" in row.keys() and row["grounding_mode"] else "strict",
                     "web_search_enabled": bool(row["web_search_enabled"]) if "web_search_enabled" in row.keys() and row["web_search_enabled"] is not None else False,
-                    "model": existing_model
+                    "model": existing_model,
+                    "created_by": existing_creator
                 }
             else:
-                cursor.execute("INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model) VALUES (?, ?, ?, ?, ?, ?)", (ws_id, clean_name, json.dumps(clean_paths), grounding_mode, 1 if web_search_enabled else 0, clean_model))
+                cursor.execute(
+                    "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (ws_id, clean_name, json.dumps(clean_paths), grounding_mode, 1 if web_search_enabled else 0, clean_model, creator)
+                )
                 conn.commit()
                 return {
                     "id": ws_id,
@@ -538,8 +604,10 @@ class ConfigDBStore:
                     "paths": clean_paths,
                     "grounding_mode": grounding_mode,
                     "web_search_enabled": bool(web_search_enabled),
-                    "model": clean_model
+                    "model": clean_model,
+                    "created_by": creator
                 }
+
 
     def get_workspace_model(self, workspace_name: str) -> str:
         """Returns the configured model for a workspace, strictly defaulting to 'gpt-4o-mini'."""
