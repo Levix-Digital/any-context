@@ -50,14 +50,7 @@ class ConfigDBStore:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path:
-            self.db_path = db_path
-            ConfigDBStore._instance = self
-        elif (
-            ConfigDBStore._instance
-            and getattr(ConfigDBStore._instance, "db_path", None)
-            and os.path.exists(os.path.dirname(ConfigDBStore._instance.db_path))
-        ):
-            self.db_path = ConfigDBStore._instance.db_path
+            self.db_path = os.path.abspath(db_path)
         else:
             self.db_path = self.find_db_file("settings.db")
         parent_dir = os.path.dirname(self.db_path)

@@ -24,11 +24,12 @@ class WebSchedulerStore:
     """
     def __init__(self, db_path: Optional[str] = None):
         if db_path:
-            self.db_path = db_path
-        elif ConfigDBStore._instance and getattr(ConfigDBStore._instance, "db_path", None):
-            self.db_path = ConfigDBStore._instance.db_path
+            self.db_path = os.path.abspath(db_path)
         else:
             self.db_path = ConfigDBStore.find_db_file("settings.db")
+        parent_dir = os.path.dirname(self.db_path)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
         self._init_db()
 
     def _get_connection(self):
