@@ -16,6 +16,7 @@ class ContextSettings(BaseModel):
     grounding_mode: str = Field(default="strict", description="AI Grounding & Answer Mode: 'strict' (default), 'hybrid', 'proactive'")
     web_search_enabled: bool = Field(default=False, description="Default/Global Web Search Toggle")
     default_web_engine: str = Field(default="auto", description="Default Web Search Engine: 'auto', 'tavily', 'serper', 'duckduckgo'")
+    onboarding_completed: bool = Field(default=False, description="Whether first-time setup has been completed")
 
     def apply_preset(self, preset_name: str):
         p = preset_name.lower().strip()

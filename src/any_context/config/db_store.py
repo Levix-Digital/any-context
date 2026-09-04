@@ -366,6 +366,44 @@ class ConfigDBStore:
                         pass
             except sqlite3.OperationalError:
                 pass
+
+            # Create system_config table for persistent key-value configuration
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS system_config (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """)
+
+            # Backfill onboarding_completed in system_config if api_keys exist or context_settings completed
+            try:
+                cursor.execute("SELECT value FROM system_config WHERE key = 'onboarding_completed'")
+                sc_row = cursor.fetchone()
+                if not sc_row:
+                    has_keys = False
+                    try:
+                        cursor.execute("SELECT COUNT(*) FROM api_keys WHERE length(api_key) > 3")
+                        has_keys = cursor.fetchone()[0] > 0
+                    except sqlite3.OperationalError:
+                        pass
+
+                    cs_completed = False
+                    try:
+                        cursor.execute("SELECT onboarding_completed FROM context_settings WHERE id = 1")
+                        cs_r = cursor.fetchone()
+                        cs_completed = bool(cs_r[0]) if cs_r and cs_r[0] else False
+                    except sqlite3.OperationalError:
+                        pass
+
+                    if has_keys or cs_completed:
+                        cursor.execute("INSERT OR REPLACE INTO system_config (key, value) VALUES ('onboarding_completed', 'true')")
+                        try:
+                            cursor.execute("UPDATE context_settings SET onboarding_completed = 1 WHERE id = 1")
+                        except sqlite3.OperationalError:
+                            pass
+            except sqlite3.OperationalError:
+                pass
+
             conn.commit()
     def reset_model_settings_to_default(self):
         """Resets model settings and API keys to factory defaults while preserving workspaces and user data."""
@@ -1458,6 +1496,7 @@ class ConfigDBStore:
                 c_mode = c_row["grounding_mode"] if ("grounding_mode" in c_keys and c_row["grounding_mode"]) else "strict"
                 c_web = bool(c_row["web_search_enabled"]) if ("web_search_enabled" in c_keys and c_row["web_search_enabled"] is not None) else False
                 c_eng = c_row["default_web_engine"] if ("default_web_engine" in c_keys and c_row["default_web_engine"]) else "auto"
+                c_onboarding = bool(c_row["onboarding_completed"]) if ("onboarding_completed" in c_keys and c_row["onboarding_completed"] is not None) else False
                 context = ContextSettings(
                     db_path=self._resolve_storage_path(c_row["db_path"], "./context_db"),
                     collection_name=c_row["collection_name"],
@@ -1469,7 +1508,8 @@ class ConfigDBStore:
                     retrieval_preset=c_preset,
                     grounding_mode=c_mode,
                     web_search_enabled=c_web,
-                    default_web_engine=c_eng
+                    default_web_engine=c_eng,
+                    onboarding_completed=c_onboarding
                 )
             else:
                 context = ContextSettings(db_path=self._resolve_storage_path(None, "./context_db"))
@@ -1502,20 +1542,25 @@ class ConfigDBStore:
             )
 
     def save_app_settings(self, settings: AppSettings):
-        """Saves or updates full AppSettings into SQLite"""
+        """Saves or updates full AppSettings into SQLite preserving workspaces and onboarding state"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
-            cursor.execute("DELETE FROM workspaces")
-            for ws in settings.workspaces:
-                ws_mode = getattr(ws, "grounding_mode", "strict") or "strict"
-                ws_web = 1 if getattr(ws, "web_search_enabled", False) else 0
-                ws_model = getattr(ws, "model", "gpt-4o-mini") or "gpt-4o-mini"
-                cursor.execute(
-                    "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model) VALUES (?, ?, ?, ?, ?, ?)",
-                    (ws.id, ws.name, json.dumps(ws.paths), ws_mode, ws_web, ws_model)
-                )
-
+            if settings.workspaces:
+                for ws in settings.workspaces:
+                    ws_mode = getattr(ws, "grounding_mode", "strict") or "strict"
+                    ws_web = 1 if getattr(ws, "web_search_enabled", False) else 0
+                    ws_model = getattr(ws, "model", "gpt-4o-mini") or "gpt-4o-mini"
+                    ws_auto_id = ws.id or ("ws_default" if ws.name.strip().lower() == "default" else f"ws_{uuid.uuid4().hex[:8]}")
+                    cursor.execute("""
+                        INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(name) DO UPDATE SET
+                            paths_json = excluded.paths_json,
+                            grounding_mode = excluded.grounding_mode,
+                            web_search_enabled = excluded.web_search_enabled,
+                            model = excluded.model
+                    """, (ws_auto_id, ws.name, json.dumps(ws.paths), ws_mode, ws_web, ws_model))
 
             m = settings.models
             cursor.execute("""
@@ -1525,10 +1570,12 @@ class ConfigDBStore:
 
             c = settings.context
             c_web = 1 if getattr(c, "web_search_enabled", False) else 0
+            c_eng = getattr(c, "default_web_engine", "auto") or "auto"
+            c_onboarding = 1 if (getattr(c, "onboarding_completed", False) or self.get_onboarding_completed()) else 0
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled)
-                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap, c.top_k, c.candidate_pool_size, c.max_chunks_per_source, c.retrieval_preset, c.grounding_mode, c_web))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap, c.top_k, c.candidate_pool_size, c.max_chunks_per_source, c.retrieval_preset, c.grounding_mode, c_web, c_eng, c_onboarding))
 
             s = settings.session
             cursor.execute("INSERT OR REPLACE INTO session_settings (id, db_path, collection_name) VALUES (1, ?, ?)", (s.db_path, s.collection_name))
@@ -1542,14 +1589,16 @@ class ConfigDBStore:
             conn.commit()
 
     def update_context_settings(self, context: ContextSettings):
-        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap, retrieval parameters, grounding_mode, web_search_enabled)"""
+        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap, retrieval parameters, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed)"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             c_web = 1 if getattr(context, "web_search_enabled", False) else 0
+            c_eng = getattr(context, "default_web_engine", "auto") or "auto"
+            c_onboarding = 1 if (getattr(context, "onboarding_completed", False) or self.get_onboarding_completed()) else 0
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled)
-                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap, context.top_k, context.candidate_pool_size, context.max_chunks_per_source, context.retrieval_preset, context.grounding_mode, c_web))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap, context.top_k, context.candidate_pool_size, context.max_chunks_per_source, context.retrieval_preset, context.grounding_mode, c_web, c_eng, c_onboarding))
             conn.commit()
 
     def get_grounding_mode(self, workspace_name: Optional[str] = None) -> str:
@@ -2085,32 +2134,97 @@ class ConfigDBStore:
 
         return True
 
+    def get_system_config(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Retrieves a persistent configuration value from system_config table."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT value FROM system_config WHERE key = ?", (key.strip(),))
+                row = cursor.fetchone()
+                return row[0] if row else default
+        except Exception:
+            return default
+
+    def set_system_config(self, key: str, value: str) -> bool:
+        """Stores or updates a persistent configuration value in system_config table."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT OR REPLACE INTO system_config (key, value) VALUES (?, ?)",
+                    (key.strip(), str(value))
+                )
+                conn.commit()
+                return True
+        except Exception:
+            return False
+
     def get_onboarding_completed(self) -> bool:
         """
-        Returns True if first-time onboarding has been completed, False otherwise.
+        Returns True if first-time onboarding has been completed, verified across:
+        1. system_config table ('onboarding_completed' = 'true')
+        2. context_settings table (onboarding_completed = 1)
+        3. Stored API keys in api_keys table (any non-empty key exists)
         """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT onboarding_completed FROM context_settings WHERE id = 1")
-                row = cursor.fetchone()
-                if row is not None and row[0] is not None:
-                    return bool(row[0])
+                # 1. Check system_config table
+                try:
+                    cursor.execute("SELECT value FROM system_config WHERE key = 'onboarding_completed'")
+                    row = cursor.fetchone()
+                    if row and str(row[0]).strip().lower() in ("true", "1", "yes"):
+                        return True
+                except sqlite3.OperationalError:
+                    pass
+
+                # 2. Check context_settings table
+                try:
+                    cursor.execute("SELECT onboarding_completed FROM context_settings WHERE id = 1")
+                    row = cursor.fetchone()
+                    if row is not None and row[0]:
+                        return True
+                except sqlite3.OperationalError:
+                    pass
+
+                # 3. Check api_keys table for any existing configured provider key
+                try:
+                    cursor.execute("SELECT api_key FROM api_keys WHERE length(api_key) > 3 LIMIT 1")
+                    if cursor.fetchone():
+                        # Auto-heal persistent flags
+                        try:
+                            cursor.execute("INSERT OR REPLACE INTO system_config (key, value) VALUES ('onboarding_completed', 'true')")
+                            cursor.execute("UPDATE context_settings SET onboarding_completed = 1 WHERE id = 1")
+                            conn.commit()
+                        except Exception:
+                            pass
+                        return True
+                except sqlite3.OperationalError:
+                    pass
         except Exception:
             pass
         return False
 
     def set_onboarding_completed(self, completed: bool = True) -> bool:
         """
-        Sets the onboarding_completed flag in context_settings.
+        Persistently sets the onboarding_completed flag across both system_config and context_settings.
         """
+        val_int = 1 if completed else 0
+        val_str = "true" if completed else "false"
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "UPDATE context_settings SET onboarding_completed = ? WHERE id = 1",
-                    (1 if completed else 0,)
+                    (val_int,)
                 )
+                try:
+                    cursor.execute(
+                        "INSERT OR REPLACE INTO system_config (key, value) VALUES ('onboarding_completed', ?)",
+                        (val_str,)
+                    )
+                except sqlite3.OperationalError:
+                    pass
                 conn.commit()
                 return True
         except Exception:
@@ -2145,6 +2259,10 @@ class ConfigDBStore:
             cursor.execute("DELETE FROM users")
             cursor.execute("DELETE FROM access_tokens")
             cursor.execute("DELETE FROM workspace_permissions")
+            try:
+                cursor.execute("DELETE FROM system_config")
+            except sqlite3.OperationalError:
+                pass
             conn.commit()
 
         import shutil

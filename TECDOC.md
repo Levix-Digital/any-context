@@ -1156,6 +1156,51 @@ graph TD
   - 4 specialized unit tests covering complete tool call preservation, single orphan auto-injection, multi-call partial orphan completion, and LLM call-time pruning sanitization.
   - Total automated test suite expanded to **258 tests (100% PASS)**.
 
+---
+
+## 46. Persistent Configuration Architecture & Cross-Version Immunity (`v0.28.76`)
+
+### ⚡ 1. Problem Analysis
+- **Onboarding Lost Across New Versions / Updates**:
+  - Whenever AnyContext was updated to a new version or reinstalled, users were repeatedly prompted to complete onboarding and enter their API keys again.
+  - Root causes identified across the storage engine:
+    1. **SQLite `INSERT OR REPLACE` Wipe**: In [`db_store.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/config/db_store.py), `save_app_settings()` and `update_context_settings()` used `INSERT OR REPLACE INTO context_settings` without specifying `onboarding_completed`. Under SQLite semantics, replacing a row deletes the record and re-inserts with column defaults (`onboarding_completed = 0`), silently wiping onboarding status whenever settings or presets were updated.
+    2. **Missing Field in Schema**: [`ContextSettings`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/config/app_settings.py) lacked the `onboarding_completed` field in its Pydantic model, preventing memory-to-disk roundtrip fidelity.
+    3. **Unchecked Fresh Detection**: [`OnboardingService.check_status()`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/core/services/onboarding_service.py) evaluated `if not onboarding_completed:` before inspecting existing keys in `api_keys`. Even when a user had valid keys stored from prior versions, they were forced into first-time onboarding.
+    4. **Destructive Uninstall Reset**: [`uninstall.ps1`](file:///C:/Users/guilh/source/repos/any-context/scripts/uninstall.ps1) and [`uninstall.sh`](file:///C:/Users/guilh/source/repos/any-context/scripts/uninstall.sh) reset models and wiped custom configuration even when the user explicitly selected "Y" to preserve their data.
+
+### 🛡️ 2. Architectural Solution & Triple-Layer Immunity
+```mermaid
+graph TD
+    A["AnyContext Start (v0.28.76+)"] --> B["OnboardingService.check_status()"]
+    B --> C{"Check Layer 1: system_config table"}
+    C -- "key 'onboarding_completed' == true" --> G["Ready (Zero Prompting)"]
+    C -- "Not found" --> D{"Check Layer 2: context_settings.onboarding_completed"}
+    D -- "value == 1" --> G
+    D -- "0 or null" --> E{"Check Layer 3: api_keys table / Active Provider"}
+    E -- "Stored API key exists in SQLite" --> F["Auto-Heal: Write true to system_config & context_settings"]
+    F --> G
+    E -- "No keys in SQLite and not local" --> H{"Truly Fresh Machine?"}
+    H -- "Yes" --> I["Open First-Time Onboarding Modal"]
+    H -- "Active Provider missing key" --> J["Open Missing Key Setup Modal"]
+```
+
+- **Dedicated `system_config` Table ([`db_store.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/config/db_store.py))**:
+  - Created isolated `system_config (key TEXT PRIMARY KEY, value TEXT NOT NULL)` key-value table in SQLite.
+  - System-level flags (e.g. `onboarding_completed`) are decoupled from retrieval and context settings, remaining 100% immune to preset swaps, chunk size updates, or context migrations.
+- **SQLite Upsert & Preservation**:
+  - Replaced `DELETE FROM workspaces` in `save_app_settings()` with safe SQLite upsert (`ON CONFLICT(name) DO UPDATE`).
+  - Explicitly preserved `default_web_engine` and `onboarding_completed` in all `INSERT OR REPLACE INTO context_settings` statements.
+- **Auto-Healing Onboarding Service ([`onboarding_service.py`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/core/services/onboarding_service.py))**:
+  - `check_status()` verifies stored keys in SQLite (`api_keys` table) and active provider configurations.
+  - Automatically heals `onboarding_completed = True` in both `system_config` and `context_settings` if existing keys are detected from a previous installation.
+- **Preserved Uninstaller Scripts ([`uninstall.ps1`](file:///C:/Users/guilh/source/repos/any-context/scripts/uninstall.ps1) & [`uninstall.sh`](file:///C:/Users/guilh/source/repos/any-context/scripts/uninstall.sh))**:
+  - Preserves all model settings, workspaces, API keys, and onboarding statuses when the user chooses data preservation.
+- **Automated Test Coverage ([`tests/unit/core/test_onboarding_service.py`](file:///C:/Users/guilh/source/repos/any-context/tests/unit/core/test_onboarding_service.py))**:
+  - Expanded test suite to 8 comprehensive unit tests covering first-time onboarding, OpenAI provider completion, local offline servers, factory reset clearing, preservation across `save_app_settings()`, preservation across `update_context_settings()`, auto-healing from existing SQLite keys, and `system_config` table isolation.
+  - Total automated test suite expanded to **262 tests (100% PASS)**.
+
+
 
 
 

@@ -75,6 +75,59 @@ class TestOnboardingService(unittest.TestCase):
         self.assertTrue(status.needs_onboarding)
         self.assertEqual(status.stage, "first_time")
 
+    def test_05_onboarding_persists_across_save_app_settings(self):
+        """Validates that save_app_settings does not wipe onboarding_completed or workspaces."""
+        self.svc.complete_onboarding("openai", api_key="sk-test-persist-123")
+        self.assertTrue(self.store.get_onboarding_completed())
+
+        settings = self.store.get_app_settings()
+        self.assertTrue(settings.context.onboarding_completed)
+
+        # Trigger full save
+        self.store.save_app_settings(settings)
+        self.assertTrue(self.store.get_onboarding_completed())
+        
+        updated_settings = self.store.get_app_settings()
+        self.assertTrue(updated_settings.context.onboarding_completed)
+
+    def test_06_onboarding_persists_across_update_context_settings(self):
+        """Validates that update_context_settings does not wipe onboarding_completed."""
+        self.svc.complete_onboarding("openai", api_key="sk-test-persist-123")
+        self.assertTrue(self.store.get_onboarding_completed())
+
+        settings = self.store.get_app_settings()
+        settings.context.chunk_size = 2048
+        self.store.update_context_settings(settings.context)
+
+        self.assertTrue(self.store.get_onboarding_completed())
+        updated_settings = self.store.get_app_settings()
+        self.assertEqual(updated_settings.context.chunk_size, 2048)
+        self.assertTrue(updated_settings.context.onboarding_completed)
+
+    def test_07_existing_api_key_auto_heals_and_bypasses_onboarding(self):
+        """Validates that an existing API key in SQLite auto-heals onboarding status without prompting."""
+        # Directly insert API key simulate prior version upgrade
+        self.store.set_api_key("openai", "sk-prior-version-key-999")
+        
+        # Explicitly set context_settings.onboarding_completed = 0
+        with self.store._get_connection() as conn:
+            conn.execute("UPDATE context_settings SET onboarding_completed = 0 WHERE id = 1")
+            conn.execute("DELETE FROM system_config WHERE key = 'onboarding_completed'")
+            conn.commit()
+
+        # check_status should detect key, auto-heal to True, and NOT require onboarding
+        status = self.svc.check_status()
+        self.assertFalse(status.needs_onboarding)
+        self.assertEqual(status.stage, "ready")
+        self.assertTrue(self.store.get_onboarding_completed())
+
+    def test_08_system_config_table_isolation(self):
+        """Validates get_system_config and set_system_config key-value isolation."""
+        self.store.set_system_config("app_theme", "dracula")
+        self.assertEqual(self.store.get_system_config("app_theme"), "dracula")
+        self.assertIsNone(self.store.get_system_config("nonexistent_key"))
+        self.assertEqual(self.store.get_system_config("nonexistent_key", "default_val"), "default_val")
+
 
 if __name__ == "__main__":
     unittest.main()
