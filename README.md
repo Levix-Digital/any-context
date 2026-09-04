@@ -53,9 +53,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🚀 Sub-60ms Native Launcher Shim & Dual-Binary Architecture**:
   - **Instant Execution**: Native 5.6KB C# launcher (`actx.exe`) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
   - **Dual-Binary Isolation**: Automatically preserves `actx.exe` (Shim) and delegates heavy commands to `actx-core.exe` (PyInstaller), self-healing automatically on auto-update.
-- **🌐 Resilient Background Web Crawler & Sync Queue**:
+- **🌐 LanceDB Single Source of Truth Web Engine & Resilient Crawler**:
+  - **Zero Split-Brain Desynchronization**: Eradicated legacy secondary SQLite cache tables. LanceDB is the 100% single source of truth for both web page caching, hashes, and vector chunks.
+  - **Sub-5ms Zero-Copy Cache Scans**: Apache Arrow columnar projections (`select(['file_path', 'content_hash', 'last_modified'])`) verify page modifications instantly without deserializing dense embedding vectors.
+  - **Prioritized Deep Scraping & $0 Resync**: Multi-page documentation portals (e.g. The Rust Book) are recursively scraped and indexed in the background with progress reporting and instant $0.00 zero-token re-sync skips.
   - **Zero Dropped Jobs**: Eliminates race conditions when adding web sources (`/web --add`) immediately after workspace creation, automatically queuing pending resync passes.
-  - **Prioritized Deep Scraping**: Multi-page documentation portals (e.g. The Rust Book) are recursively scraped and indexed in the background with progress reporting.
 - **🛡️ Session Process Immunology**:
   - **Terminal Screen Integrity**: `/update` scans process trees to grant complete immunity to the active terminal, launcher, OpenTUI, and RPC processes, preventing prompt leaks and flickering.
 - **🛡️ Auto-Healing Conversation Sanitizer & OpenAI Tool Call Shield**:

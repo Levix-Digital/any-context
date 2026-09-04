@@ -332,16 +332,9 @@ def crawl_and_index_urls(
     from any_context.vector_engine.store import LanceDBStore
     from llama_index.core import Document
 
-    settings = AppSettings.load()
-    db_path = settings.context.db_path if settings else "./context_db"
-    collection_name = settings.context.collection_name if settings else "context_docs"
-
-    os.makedirs(db_path, exist_ok=True)
-    db = chromadb.PersistentClient(path=db_path)
-    chroma_collection = db.get_or_create_collection(collection_name)
-    configure_embedding_model()
-
     store = WebSchedulerStore()
+    lance_store = store._get_lance_store() if hasattr(store, "_get_lance_store") else LanceDBStore.get_instance()
+    configure_embedding_model()
     total_urls = len(urls)
     indexed_count = 0
     skipped_count = 0
@@ -412,14 +405,6 @@ def crawl_and_index_urls(
                     return None
         return None
 
-    # Persist any pre-filtered records immediately so progress is never lost
-    if processed_records:
-        store.record_indexed_web_pages(
-            workspace_name=workspace_name,
-            root_url=effective_root,
-            pages=processed_records
-        )
-
     # Process in streaming mini-batches (25 URLs at a time) for incremental resilience
     batch_size = 25
     url_batches = [urls_to_scrape[i:i + batch_size] for i in range(0, len(urls_to_scrape), batch_size)] if urls_to_scrape else []
@@ -488,11 +473,6 @@ def crawl_and_index_urls(
                             # If page was previously indexed but content changed, remove old vectors
                             if url in indexed_map:
                                 try:
-                                    chroma_collection.delete(where={"$and": [{"workspace": workspace_name}, {"url": url}]})
-                                except Exception:
-                                    pass
-                                try:
-                                    lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
                                     lance_store.delete_by_file(url, workspace_name=workspace_name)
                                 except Exception:
                                     pass
@@ -533,7 +513,6 @@ def crawl_and_index_urls(
         # Incremental Vector Indexing for this batch
         if batch_documents:
             try:
-                lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
                 parallel_indexer = ParallelIndexer(store=lance_store)
                 parallel_indexer.index_documents(
                     documents=batch_documents,
@@ -542,13 +521,8 @@ def crawl_and_index_urls(
             except Exception as e:
                 logging.getLogger("any_context").warning(f"Batch vector indexing error: {e}")
 
-        # Incremental SQLite Persistence: write this batch to disk immediately
+        # Incremental Root Web Source Update in SQLite
         if batch_records:
-            store.record_indexed_web_pages(
-                workspace_name=workspace_name,
-                root_url=effective_root,
-                pages=batch_records
-            )
             curr_distinct = store.get_indexed_pages_count(workspace_name, domain_or_prefix=domain)
             store.add_or_update_root_web_source(
                 workspace_name=workspace_name,

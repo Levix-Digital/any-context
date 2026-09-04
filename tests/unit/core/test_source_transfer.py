@@ -122,16 +122,8 @@ class TestSourceTransfer(unittest.TestCase):
         safe_stdout_write(">>> [CORE UNIT] Testing Web Source Transfer...\n")
         test_url = "https://example.com/docs"
         
-        # 1. Setup web source & pages in SQLite
+        # 1. Setup web source in SQLite
         self.web_store.add_web_url(workspace_name=self.source_ws, url=test_url, title="Example Docs")
-        self.web_store.record_indexed_web_pages(
-            workspace_name=self.source_ws,
-            root_url=test_url,
-            pages=[
-                {"url": "https://example.com/docs/page1", "title": "Page 1", "content_hash": "hash1", "char_count": 100},
-                {"url": "https://example.com/docs/page2", "title": "Page 2", "content_hash": "hash2", "char_count": 200}
-            ]
-        )
 
         # Setup mock vector chunk in ChromaDB
         settings = self.store.get_app_settings()

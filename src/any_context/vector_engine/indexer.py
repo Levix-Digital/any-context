@@ -130,7 +130,7 @@ class ParallelIndexer:
                     "content_type": node.metadata.get("content_type", "Local Document"),
                     "document_summary": node.metadata.get("document_summary", ""),
                     "keywords": node.metadata.get("keywords", ""),
-                    "content_hash": hashlib.sha256(node.text.encode("utf-8")).hexdigest()
+                    "content_hash": node.metadata.get("content_hash") or hashlib.sha256(node.text.encode("utf-8")).hexdigest()
                 })
 
         if not raw_chunks:

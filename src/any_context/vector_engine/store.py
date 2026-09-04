@@ -247,17 +247,17 @@ class LanceDBStore:
                 pass
 
     def delete_by_file(self, file_path: str, workspace_name: Optional[str] = None, table_name: str = "workspace_chunks"):
-        """Purges all chunks for a specific file path or URL with proper path normalization."""
+        """Purges all chunks for a specific file path or URL with proper path normalization and prefix support."""
         if not self._has_table(table_name):
             return
         with self._table_lock:
             try:
                 table = self._db.open_table(table_name)
                 clean_fp = self._norm_path(file_path).replace("'", "''")
-                where_clause = f"file_path = '{clean_fp}'"
+                where_clause = f"(file_path = '{clean_fp}' OR file_path LIKE '{clean_fp}/%' OR file_path LIKE '{clean_fp}%')"
                 if workspace_name:
                     clean_ws = workspace_name.replace("'", "''")
-                    where_clause += f" AND workspace = '{clean_ws}'"
+                    where_clause = f"workspace = '{clean_ws}' AND ({where_clause})"
                 table.delete(where_clause)
             except Exception:
                 pass
@@ -313,14 +313,73 @@ class LanceDBStore:
                 return 0
 
     def count_records(self, workspace_name: Optional[str] = None, table_name: str = "workspace_chunks") -> int:
-        """Returns total record count in table or scoped to workspace."""
+        """Returns total record count in table or scoped to workspace using zero-copy projection."""
         if not self._has_table(table_name):
             return 0
         try:
             table = self._db.open_table(table_name)
             if workspace_name:
                 clean_ws = workspace_name.replace("'", "''")
-                return len(table.search().where(f"workspace = '{clean_ws}'").limit(100000).to_list())
+                return len(table.search().where(f"workspace = '{clean_ws}'").select(["id"]).limit(100000).to_arrow())
             return table.count_rows()
         except Exception:
             return 0
+
+    def get_indexed_pages_map(
+        self,
+        workspace_name: str,
+        domain_or_prefix: Optional[str] = None,
+        table_name: str = "workspace_chunks"
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Returns a dictionary mapping url -> {url, title, content_hash, last_modified}
+        for all web documentation pages indexed in this workspace.
+        Uses high-speed zero-copy columnar projection on LanceDB without loading vectors or full texts.
+        """
+        if not self._has_table(table_name):
+            return {}
+        try:
+            table = self._db.open_table(table_name)
+            clean_ws = workspace_name.replace("'", "''")
+            where_clauses = [f"workspace = '{clean_ws}'", "content_type = 'Web Documentation'"]
+            if domain_or_prefix:
+                clean_dom = domain_or_prefix.replace("'", "''")
+                where_clauses.append(f"file_path LIKE '%{clean_dom}%'")
+
+            where_str = " AND ".join(where_clauses)
+            arrow_tbl = table.search().where(where_str).select(["file_path", "file_name", "content_hash", "last_modified"]).limit(100000).to_arrow()
+            if arrow_tbl.num_rows == 0:
+                return {}
+
+            url_col = arrow_tbl.column("file_path").to_pylist()
+            name_col = arrow_tbl.column("file_name").to_pylist()
+            hash_col = arrow_tbl.column("content_hash").to_pylist() if "content_hash" in arrow_tbl.column_names else [""] * len(url_col)
+            lm_col = arrow_tbl.column("last_modified").to_pylist() if "last_modified" in arrow_tbl.column_names else [""] * len(url_col)
+
+            pages_map: Dict[str, Dict[str, Any]] = {}
+            for u, n, h, lm in zip(url_col, name_col, hash_col, lm_col):
+                if u and u not in pages_map:
+                    clean_title = n[6:].strip() if (n and n.startswith("[Web] ")) else (n or "")
+                    pages_map[u] = {
+                        "url": u,
+                        "title": clean_title,
+                        "content_hash": h or "",
+                        "char_count": 0,
+                        "scraped_at": lm or "",
+                        "last_modified": lm or "",
+                        "root_url": u
+                    }
+            return pages_map
+        except Exception:
+            return {}
+
+    def get_indexed_pages_count(
+        self,
+        workspace_name: str,
+        domain_or_prefix: Optional[str] = None,
+        table_name: str = "workspace_chunks"
+    ) -> int:
+        """
+        Returns total count of distinct web pages indexed for this workspace.
+        """
+        return len(self.get_indexed_pages_map(workspace_name, domain_or_prefix=domain_or_prefix, table_name=table_name))
