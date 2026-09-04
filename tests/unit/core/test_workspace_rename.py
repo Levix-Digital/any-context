@@ -10,7 +10,6 @@ if repo_root not in sys.path:
 
 from any_context.config.db_store import ConfigDBStore
 from any_context.ingestion.web_scheduler import WebSchedulerStore
-from any_context.workspace_sharing.store import WorkspaceSharingStore
 from tests.e2e_helpers import safe_stdout_write
 
 class TestWorkspaceRename(unittest.TestCase):
@@ -29,7 +28,6 @@ class TestWorkspaceRename(unittest.TestCase):
         self.db_path = os.path.join(self.temp_dir, "test_settings.db")
         self.store = ConfigDBStore(db_path=self.db_path)
         self.web_store = WebSchedulerStore(db_path=self.db_path)
-        self.sharing_store = WorkspaceSharingStore(db_path=self.db_path)
 
         self.old_ws = "OldWorkspaceName"
         self.new_ws = "NewWorkspaceName"
@@ -43,7 +41,6 @@ class TestWorkspaceRename(unittest.TestCase):
             title="Canada Immigration",
             page_count=10
         )
-        self.sharing_store.grant_direct_permission(self.old_ws, "lawyer@firm.com", "editor", "admin@firm.com")
 
     def tearDown(self):
         try:
@@ -78,13 +75,6 @@ class TestWorkspaceRename(unittest.TestCase):
         self.assertEqual(len(old_urls), 0)
         self.assertEqual(len(new_urls), 1)
         self.assertEqual(new_urls[0]["url"], "https://canada.ca/immigration")
-
-        # 4. Verify RBAC permissions updated
-        old_perms = self.sharing_store.get_workspace_permissions(self.old_ws)
-        new_perms = self.sharing_store.get_workspace_permissions(self.new_ws)
-        self.assertEqual(len(old_perms), 0)
-        self.assertEqual(len(new_perms), 1)
-        self.assertEqual(new_perms[0].user_email, "lawyer@firm.com")
 
         safe_stdout_write("  [OK] SQLite tables atomic rename verified!\n")
 

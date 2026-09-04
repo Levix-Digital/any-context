@@ -43,12 +43,12 @@ def extract_text_from_image(image_path: str) -> Dict[str, Any]:
 
 def index_image_file_to_chromadb(workspace_name: str, image_path: str) -> bool:
     """
-    Extracts text from an image file and indexes it into ChromaDB if the active plan tier supports OCR.
-    Enforces feature gates via BillingManager.
+    Extracts text from an image file and indexes it into the workspace vector store (LanceDB)
+    if the active plan tier supports OCR. Enforces feature gates via BillingManager.
     """
     b_mgr = BillingManager()
     if not b_mgr.can_use_ocr():
-        print(f"⚠️ Billing Gate: Image & Scanned PDF OCR requires 'Starter', 'Pro', 'Team', or 'Enterprise' tier.")
+        print("⚠️ Billing Gate: Image & Scanned PDF OCR requires 'Starter', 'Pro', 'Team', or 'Enterprise' tier.")
         return False
 
     try:
@@ -56,16 +56,27 @@ def index_image_file_to_chromadb(workspace_name: str, image_path: str) -> bool:
         if not data["content"]:
             return False
 
-        from any_context.memory.store import MemoryVectorStore
         from llama_index.core import Document
+        from any_context.vector_engine.store import LanceDBStore
+        from any_context.vector_engine.indexer import ParallelIndexer, IngestionConfig
+        from any_context.config.app_settings import AppSettings
 
-        m_store = MemoryVectorStore(workspace_name=workspace_name)
+        settings = AppSettings.load()
+        db_path = settings.database.db_path if settings and settings.database else "./context_db"
+        lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_path, "lancedb"))
+        indexer = ParallelIndexer(store=lance_store)
+
         doc = Document(
             text=f"Image Document: {data['filename']}\nFilePath: {data['file_path']}\n\n{data['content']}",
-            metadata={"source": data["file_path"], "type": "image_ocr", "filename": data["filename"]}
+            metadata={"source": data["file_path"], "type": "image_ocr", "filename": data["filename"], "file_path": data["file_path"]}
         )
-        m_store.add_documents([doc])
+        cfg = IngestionConfig(chunk_size=512, chunk_overlap=50, max_workers=1)
+        indexer.index_documents(documents=[doc], workspace_name=workspace_name, config=cfg)
         return True
     except Exception as e:
         print(f"❌ Error indexing image file '{image_path}': {e}")
         return False
+
+
+# Backward-compatible alias
+index_image_file = index_image_file_to_chromadb

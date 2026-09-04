@@ -135,26 +135,34 @@ class SourceService:
 
     def transfer_source(self, from_ws: str, to_ws: str, item: str) -> Dict[str, Any]:
         """Transfers a source from one workspace to another with instant vector remapping."""
-        from any_context.workspace_sharing.transfer_engine import transfer_source_between_workspaces
-        result = transfer_source_between_workspaces(
-            from_workspace=from_ws.strip(),
-            to_workspace=to_ws.strip(),
-            source_identifier=item.strip(),
-            store=self.store
-        )
-        return result
+        clean_from = from_ws.strip()
+        clean_to = to_ws.strip()
+        clean_item = item.strip()
+        if clean_item.lower().startswith("http://") or clean_item.lower().startswith("https://"):
+            from any_context.ingestion.web_scheduler import WebSchedulerStore
+            web_store = WebSchedulerStore()
+            return web_store.transfer_web_source(source_ws=clean_from, target_ws=clean_to, url_or_root=clean_item)
+        else:
+            return self.store.transfer_local_folder_source(source_ws=clean_from, target_ws=clean_to, folder_path=clean_item)
 
-    def link_source(self, source_identifier: str, target_workspace: str) -> Dict[str, Any]:
-        """Links a source to the Shared Sources repository."""
-        from any_context.workspace_sharing.shared_manager import link_source_to_workspace
-        return link_source_to_workspace(source_identifier, target_workspace, store=self.store)
+    def link_source(self, source_identifier: str, target_workspace: str = "Default") -> Dict[str, Any]:
+        """Links a folder source to target workspace."""
+        clean_source = source_identifier.strip()
+        clean_ws = target_workspace.strip()
+        return self.add_folder(clean_ws, clean_source)
 
-    def unlink_source(self, source_identifier: str, target_workspace: str) -> Dict[str, Any]:
-        """Unlinks a shared source from a workspace."""
-        from any_context.workspace_sharing.shared_manager import unlink_source_from_workspace
-        return unlink_source_from_workspace(source_identifier, target_workspace, store=self.store)
+    def unlink_source(self, source_identifier: str, target_workspace: str = "Default") -> Dict[str, Any]:
+        """Unlinks a folder source from workspace."""
+        clean_source = source_identifier.strip()
+        clean_ws = target_workspace.strip()
+        return self.remove_folder(clean_ws, clean_source)
 
     def list_shared_sources(self) -> List[Dict[str, Any]]:
-        """Lists all shared reusable sources."""
-        from any_context.workspace_sharing.shared_manager import list_all_shared_sources
-        return list_all_shared_sources(store=self.store)
+        """Lists shared sources in the Shared Sources workspace."""
+        shared_ws = self.list_sources("Shared Sources")
+        results = []
+        for f in shared_ws.get("folders", []):
+            results.append({"identifier": f, "source_type": "folder"})
+        for w in shared_ws.get("web_sources", []):
+            results.append({"identifier": w.get("url") or w.get("root_url", ""), "source_type": "web"})
+        return results
