@@ -81,7 +81,9 @@ def main():
     temp_sandbox_dir = tempfile.mkdtemp(prefix="actx_test_sandbox_")
     test_db_path = os.path.join(temp_sandbox_dir, "test_settings.db")
     orig_env_db = os.environ.get("ACTX_SETTINGS_DB")
+    orig_test_mode = os.environ.get("ACTX_TEST_MODE")
     os.environ["ACTX_SETTINGS_DB"] = test_db_path
+    os.environ["ACTX_TEST_MODE"] = "1"
 
     try:
         start_time = time.time()
@@ -103,10 +105,15 @@ def main():
             os.environ["ACTX_SETTINGS_DB"] = orig_env_db
         else:
             os.environ.pop("ACTX_SETTINGS_DB", None)
+        if orig_test_mode is not None:
+            os.environ["ACTX_TEST_MODE"] = orig_test_mode
+        else:
+            os.environ.pop("ACTX_TEST_MODE", None)
         try:
             shutil.rmtree(temp_sandbox_dir, ignore_errors=True)
         except Exception:
             pass
+
 
 if __name__ == "__main__":
     main()

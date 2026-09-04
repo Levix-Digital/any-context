@@ -15,6 +15,26 @@ $VersionFilePath = Join-Path $InstallDir "version.txt"
 $AssetName = "actx-windows-x86_64.exe"
 $DownloadUrl = "https://github.com/$Repo/releases/latest/download/$AssetName"
 
+$LogsDir = Join-Path (Join-Path $env:LOCALAPPDATA "AnyContext") "logs"
+if (-not (Test-Path -Path $LogsDir)) {
+    New-Item -ItemType Directory -Path $LogsDir -Force | Out-Null
+}
+$InstallLogFile = Join-Path $LogsDir "install.log"
+
+function Log-Install {
+    param(
+        [string]$Message,
+        [string]$Level = "INFO"
+    )
+    $Timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $LogEntry = "[$Timestamp] [$Level] $Message"
+    try {
+        Add-Content -Path $InstallLogFile -Value $LogEntry -Encoding UTF8 -ErrorAction SilentlyContinue
+    } catch {}
+}
+
+Log-Install "Installer initiated. Target dir: $InstallDir, Repo: $Repo"
+
 Write-Host "`n🚀 Installing AnyContext (actx)..." -ForegroundColor Cyan
 
 # 1. Create target bin directory if not exists
@@ -24,6 +44,8 @@ if (-not (Test-Path -Path $InstallDir)) {
 
 # 2. Download Core executable (Try gh CLI first for private repos, fallback to Invoke-WebRequest)
 Write-Host "⬇️ Downloading latest $AssetName from GitHub..." -ForegroundColor Yellow
+Log-Install "Downloading $AssetName from GitHub"
+
 
 $Downloaded = $false
 
@@ -55,9 +77,10 @@ if (-not $Downloaded) {
 }
 
 Write-Host "✅ Engine downloaded: $CoreExePath" -ForegroundColor Green
+Log-Install "Engine downloaded successfully to $CoreExePath"
 
 # 3. Setup Version Cache File
-$VersionTag = "0.28.76"
+$VersionTag = "0.28.79"
 try {
     if (Get-Command gh -ErrorAction SilentlyContinue) {
         $ghTag = (gh release view --repo $Repo --json tagName -q .tagName 2>$null)
@@ -69,6 +92,8 @@ try {
 } catch {}
 Set-Content -Path $VersionFilePath -Value $VersionTag -Encoding UTF8
 Write-Host "✅ Version registered: v$VersionTag" -ForegroundColor Gray
+Log-Install "Version registered: v$VersionTag"
+
 
 # 4. Compile or Deploy Ultra-Fast Native Launcher Shim (actx.exe < 2ms)
 Write-Host "⚡ Configuring ultra-fast native Launcher Shim (actx.exe)..." -ForegroundColor Gray
@@ -201,3 +226,5 @@ Write-Host "🎉 AnyContext (actx) installed successfully!" -ForegroundColor Gre
 Write-Host "👉 Open a new terminal window and type: actx" -ForegroundColor White
 Write-Host "👉 To launch the OpenTUI desktop interface, type: actx --tui" -ForegroundColor White
 Write-Host "=======================================================\n" -ForegroundColor Cyan
+Log-Install "Installation completed successfully. Version: v$VersionTag"
+

@@ -74,6 +74,14 @@ class StdioRPCServer:
         except Exception:
             pass
 
+    def close(self):
+        """Releases resources and unregisters background listeners."""
+        try:
+            if hasattr(self, "bg_mgr") and hasattr(self, "_on_background_job_complete"):
+                self.bg_mgr.unregister_completion_listener(self._on_background_job_complete)
+        except Exception:
+            pass
+
 
     def _load_state(self):
         """Loads workspace settings and active configuration from SQLite."""

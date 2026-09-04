@@ -37,32 +37,80 @@ class TestDBStoreSanitization(unittest.TestCase):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_01_purge_legacy_test_workspaces_on_init(self):
-        """Validates that test-named workspaces are automatically purged during _init_db."""
-        safe_stdout_write("\n>>> [SANITIZATION UNIT] Testing Auto-Purge of Test Workspaces...\n")
-        # Artificially insert test workspaces into the SQLite database and remove purge flag to simulate upgrade
+        """Validates that only created_by='test' workspaces with 0 sources are purged, preserving user workspaces even if named 'TestWorkspace'."""
+        safe_stdout_write("\n>>> [SANITIZATION UNIT] Testing Provenance-Aware Workspace Preservation...\n")
+        # Artificially insert workspaces into the SQLite database with different provenance tags
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM system_config WHERE key = 'legacy_test_workspaces_purged'")
-            cursor.execute("INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model) VALUES ('ws_rpc', 'RpcUnitTestWS', '[]', 'gpt-4o-mini')")
-            cursor.execute("INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model) VALUES ('ws_new', 'NewRPCWS', '[]', 'gpt-4o-mini')")
-            cursor.execute("INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model) VALUES ('ws_e2e', 'E2E_Empty_Workspace', '[]', 'gpt-4o-mini')")
-            cursor.execute("INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model) VALUES ('ws_user', 'MyPersonalVault', '[]', 'gpt-4o-mini')")
+            # 1. Ephemeral test workspace with no sources (should be purged)
+            cursor.execute("INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model, created_by) VALUES ('ws_rpc', 'RpcUnitTestWS', '[]', 'gpt-4o-mini', 'test')")
+            # 2. User workspace explicitly named 'TestWorkspace' (MUST BE PRESERVED)
+            cursor.execute("INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model, created_by) VALUES ('ws_tw', 'TestWorkspace', '[]', 'gpt-4o-mini', 'user')")
+            # 3. User workspace starting with 'test_' (MUST BE PRESERVED)
+            cursor.execute("INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model, created_by) VALUES ('ws_sub', 'test_my_feature', '[]', 'gpt-4o-mini', 'user')")
+            # 4. Another user workspace (MUST BE PRESERVED)
+            cursor.execute("INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model, created_by) VALUES ('ws_user', 'MyPersonalVault', '[]', 'gpt-4o-mini', 'user')")
+            # 5. Test workspace that has an associated source URL (double protection: MUST BE PRESERVED)
+            cursor.execute("INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json, model, created_by) VALUES ('ws_test_with_src', 'TestWithSource', '[]', 'gpt-4o-mini', 'test')")
+            cursor.execute("INSERT OR IGNORE INTO workspace_web_urls (id, workspace_name, url) VALUES ('web_test_1', 'TestWithSource', 'https://example.com')")
             conn.commit()
 
-        # Re-initialize DB store (simulating an app restart or upgrade)
-        reloaded_store = ConfigDBStore(db_path=self.db_path)
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM workspaces")
-            names = [r[0] for r in cursor.fetchall()]
+        # Re-initialize DB store simulating an app restart or upgrade in production mode (ACTX_TEST_MODE not set)
+        orig_test_mode = os.environ.pop("ACTX_TEST_MODE", None)
+        try:
+            reloaded_store = ConfigDBStore(db_path=self.db_path)
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT name, created_by FROM workspaces")
+                rows = dict(cursor.fetchall())
+        finally:
+            if orig_test_mode is not None:
+                os.environ["ACTX_TEST_MODE"] = orig_test_mode
 
-        self.assertNotIn("RpcUnitTestWS", names)
-        self.assertNotIn("NewRPCWS", names)
-        self.assertNotIn("E2E_Empty_Workspace", names)
-        self.assertIn("Default", names)
-        self.assertIn("Shared Sources", names)
-        self.assertIn("MyPersonalVault", names)
-        safe_stdout_write("  [OK] Legacy test workspaces purged and user workspaces safely preserved!\n")
+
+        self.assertNotIn("RpcUnitTestWS", rows)
+        self.assertIn("TestWorkspace", rows)
+        self.assertEqual(rows["TestWorkspace"], "user")
+        self.assertIn("test_my_feature", rows)
+        self.assertEqual(rows["test_my_feature"], "user")
+        self.assertIn("MyPersonalVault", rows)
+        self.assertEqual(rows["MyPersonalVault"], "user")
+        self.assertIn("TestWithSource", rows)
+        self.assertIn("Default", rows)
+        self.assertEqual(rows["Default"], "system")
+        self.assertIn("Shared Sources", rows)
+        self.assertEqual(rows["Shared Sources"], "system")
+        safe_stdout_write("  [OK] Provenance tracking verified: user workspaces 100% immune to purge!\n")
+
+    def test_03_installer_and_update_logging_paths(self):
+        """Validates that log paths for install, update, and migrations are resolved and writable."""
+        safe_stdout_write(">>> [SANITIZATION UNIT] Testing Installer and Update Log Paths...\n")
+        from any_context.config.paths import get_install_log_path, get_update_log_path, get_migration_log_path
+        from any_context.cli.updater import log_update_event
+        from any_context.config.db_store import _log_migration
+
+        inst_path = get_install_log_path()
+        upd_path = get_update_log_path()
+        mig_path = get_migration_log_path()
+
+        self.assertTrue(inst_path.endswith("install.log"))
+        self.assertTrue(upd_path.endswith("update.log"))
+        self.assertTrue(mig_path.endswith("migration.log"))
+
+        # Test writing log events
+        log_update_event("Unit test update log event")
+        _log_migration("Unit test migration log event")
+
+        self.assertTrue(os.path.exists(upd_path))
+        self.assertTrue(os.path.exists(mig_path))
+        with open(upd_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            self.assertIn("Unit test update log event", content)
+        with open(mig_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            self.assertIn("Unit test migration log event", content)
+        safe_stdout_write("  [OK] Persistent log paths verified and operational!\n")
+
 
     def test_02_rpc_bridge_workspace_model_parity(self):
         """Validates that StdioRPCServer returns the model configured for the active workspace."""
