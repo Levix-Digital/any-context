@@ -427,7 +427,11 @@ class UpdateService:
 
         # 2. Determine paths and assets
         is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
-        target_asset = "actx-windows-x86_64.exe" if is_windows else "actx-linux-x86_64"
+        asset_candidates = (
+            ["actx-windows-x86_64.zip", "actx-windows-x86_64.exe"]
+            if is_windows
+            else ["actx-linux-x86_64.tar.gz", "actx-linux-x86_64"]
+        )
 
         if "ACTX_UPDATE_DIR" in os.environ and os.environ["ACTX_UPDATE_DIR"].strip():
             target_dir = os.path.abspath(os.environ["ACTX_UPDATE_DIR"].strip())
@@ -443,7 +447,7 @@ class UpdateService:
                 target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
 
         os.makedirs(target_dir, exist_ok=True)
-        # Dual-binary architecture: actx-core.exe (heavy PyInstaller engine) vs actx.exe (native launcher shim)
+        # Dual-binary architecture: actx-core.exe (heavy engine) vs actx.exe (native launcher shim)
         core_exe = os.path.join(target_dir, "actx-core.exe" if is_windows else "actx-core")
         shim_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
         if os.path.exists(core_exe):
@@ -451,57 +455,99 @@ class UpdateService:
         else:
             target_exe = shim_exe
 
-        temp_download = os.path.join(target_dir, "actx_new.exe" if is_windows else "actx_new")
         old_exe = os.path.join(target_dir, "actx_old.exe" if is_windows else "actx_old")
-
-        if os.path.exists(temp_download):
-            try:
-                os.remove(temp_download)
-            except Exception:
-                pass
+        internal_dir = os.path.join(target_dir, "_internal")
+        old_internal_dir = os.path.join(target_dir, "_internal_old")
+        staging_dir = os.path.join(target_dir, "actx_staging")
 
         # 3. Download asset from GitHub (Verified before terminating any active sessions)
         downloaded = False
-        for repo in [self.primary_repo, self.fallback_repo]:
-            try:
-                url = f"https://github.com/{repo}/releases/download/{clean_tag}/{target_asset}"
-                req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-UpdateService"})
-                with urllib.request.urlopen(req, timeout=120) as response:
-                    if response.status == 200:
-                        with open(temp_download, "wb") as f:
-                            while True:
-                                chunk = response.read(1024 * 512)
-                                if not chunk:
-                                    break
-                                f.write(chunk)
-                        downloaded = True
-                        break
-            except Exception:
-                pass
+        downloaded_asset = None
+        temp_download = ""
 
-        if not downloaded:
-            for repo in [self.primary_repo, self.fallback_repo]:
+        for asset_candidate in asset_candidates:
+            ext = ".zip" if asset_candidate.endswith(".zip") else (".tar.gz" if asset_candidate.endswith(".tar.gz") else (".exe" if is_windows else ""))
+            curr_temp = os.path.join(target_dir, f"actx_new{ext}")
+            if os.path.exists(curr_temp):
                 try:
-                    res = subprocess.run(
-                        ["gh", "release", "download", clean_tag, "--repo", repo, "--pattern", target_asset, "--dir", target_dir, "--clobber"],
-                        capture_output=True,
-                        text=True,
-                        timeout=120
-                    )
-                    downloaded_file = os.path.join(target_dir, target_asset)
-                    if res.returncode == 0 and os.path.exists(downloaded_file):
-                        if os.path.exists(temp_download):
-                            os.remove(temp_download)
-                        os.rename(downloaded_file, temp_download)
-                        downloaded = True
-                        break
+                    if os.path.isdir(curr_temp):
+                        import shutil
+                        shutil.rmtree(curr_temp, ignore_errors=True)
+                    else:
+                        os.remove(curr_temp)
                 except Exception:
                     pass
 
-        if not downloaded or not os.path.exists(temp_download) or os.path.getsize(temp_download) == 0:
-            return False, f"❌ Failed to download update asset '{target_asset}' for release {clean_tag}.", {}
+            for repo in [self.primary_repo, self.fallback_repo]:
+                try:
+                    url = f"https://github.com/{repo}/releases/download/{clean_tag}/{asset_candidate}"
+                    req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-UpdateService"})
+                    with urllib.request.urlopen(req, timeout=120) as response:
+                        if response.status == 200:
+                            with open(curr_temp, "wb") as f:
+                                while True:
+                                    chunk = response.read(1024 * 512)
+                                    if not chunk:
+                                        break
+                                    f.write(chunk)
+                            if os.path.exists(curr_temp) and os.path.getsize(curr_temp) > 0:
+                                downloaded = True
+                                downloaded_asset = asset_candidate
+                                temp_download = curr_temp
+                                break
+                except Exception:
+                    pass
+            if downloaded:
+                break
 
-        if not is_windows:
+            if not downloaded:
+                for repo in [self.primary_repo, self.fallback_repo]:
+                    try:
+                        res = subprocess.run(
+                            ["gh", "release", "download", clean_tag, "--repo", repo, "--pattern", asset_candidate, "--dir", target_dir, "--clobber"],
+                            capture_output=True,
+                            text=True,
+                            timeout=120
+                        )
+                        downloaded_file = os.path.join(target_dir, asset_candidate)
+                        if res.returncode == 0 and os.path.exists(downloaded_file):
+                            if os.path.exists(curr_temp):
+                                try: os.remove(curr_temp)
+                                except Exception: pass
+                            os.rename(downloaded_file, curr_temp)
+                            downloaded = True
+                            downloaded_asset = asset_candidate
+                            temp_download = curr_temp
+                            break
+                    except Exception:
+                        pass
+            if downloaded:
+                break
+
+        if not downloaded or not os.path.exists(temp_download) or os.path.getsize(temp_download) == 0:
+            return False, f"❌ Failed to download update asset for release {clean_tag}.", {}
+
+        is_archive = bool(downloaded_asset and (downloaded_asset.endswith(".zip") or downloaded_asset.endswith((".tar.gz", ".tgz"))))
+
+        # Unpack archive into staging directory if applicable
+        if is_archive:
+            import shutil
+            if os.path.exists(staging_dir):
+                shutil.rmtree(staging_dir, ignore_errors=True)
+            os.makedirs(staging_dir, exist_ok=True)
+            try:
+                if downloaded_asset.endswith(".zip"):
+                    import zipfile
+                    with zipfile.ZipFile(temp_download, "r") as zf:
+                        zf.extractall(staging_dir)
+                else:
+                    import tarfile
+                    with tarfile.open(temp_download, "r:gz") as tf:
+                        tf.extractall(staging_dir)
+            except Exception as e:
+                return False, f"❌ Failed to extract update archive '{downloaded_asset}': {e}", {}
+
+        if not is_windows and not is_archive:
             try:
                 os.chmod(temp_download, 0o755)
             except Exception:
@@ -549,11 +595,8 @@ class UpdateService:
                 "BIN_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n"
                 "if [ \"$1\" = \"-v\" ] || [ \"$1\" = \"--version\" ]; then\n"
                 "    if [ -f \"$BIN_DIR/version.txt\" ]; then\n"
-                "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n')\"\n"
-                "        case \"$V\" in\n"
-                "            v*) echo \"$V\" ;;\n"
-                "            *) echo \"v$V\" ;;\n"
-                "        esac\n"
+                "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n"
+                "        echo \"$V\"\n"
                 "    else\n"
                 f"        echo \"{clean_tag}\"\n"
                 "    fi\n"
@@ -574,7 +617,6 @@ class UpdateService:
             except Exception:
                 pass
 
-
             swap_script = (
                 f"$retries = 0; "
                 f"while ($retries -lt 40) {{ "
@@ -582,12 +624,28 @@ class UpdateService:
                 f"    if (Test-Path -LiteralPath '{target_exe}') {{ "
                 f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue "
                 f"    }} "
-                f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
+                f"    if (Test-Path -LiteralPath '{internal_dir}') {{ "
+                f"      Move-Item -LiteralPath '{internal_dir}' -Destination '{old_internal_dir}' -Force -ErrorAction SilentlyContinue "
+                f"    }} "
+                f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
+                f"      Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {{ "
+                f"        Move-Item -LiteralPath $_.FullName -Destination '{target_dir}' -Force -ErrorAction Stop "
+                f"      }} "
+                f"    }} elseif (Test-Path -LiteralPath '{temp_download}') {{ "
                 f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop "
                 f"    }} "
-                f"    Set-Content -LiteralPath '{version_file}' -Value '{clean_tag}' -Encoding UTF8 -Force -ErrorAction SilentlyContinue; "
+                f"    [System.IO.File]::WriteAllText('{version_file}', '{clean_tag}', (New-Object System.Text.UTF8Encoding $False)); "
                 f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
                 f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
+                f"    }} "
+                f"    if (Test-Path -LiteralPath '{old_internal_dir}') {{ "
+                f"      Remove-Item -LiteralPath '{old_internal_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
+                f"    }} "
+                f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
+                f"      Remove-Item -LiteralPath '{staging_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
+                f"    }} "
+                f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
+                f"      Remove-Item -LiteralPath '{temp_download}' -Force -ErrorAction SilentlyContinue "
                 f"    }} "
                 f"    break "
                 f"  }} catch {{ "
@@ -615,8 +673,72 @@ class UpdateService:
 
         else:
             # Unix / macOS
+            import shutil
             try:
-                os.replace(temp_download, target_exe)
+                if is_archive and os.path.exists(staging_dir):
+                    staging_internal = os.path.join(staging_dir, "_internal")
+                    if os.path.exists(staging_internal):
+                        if os.path.exists(internal_dir):
+                            if os.path.exists(old_internal_dir):
+                                shutil.rmtree(old_internal_dir, ignore_errors=True)
+                            os.rename(internal_dir, old_internal_dir)
+                        shutil.move(staging_internal, internal_dir)
+                        if os.path.exists(old_internal_dir):
+                            shutil.rmtree(old_internal_dir, ignore_errors=True)
+
+                    staging_core = os.path.join(staging_dir, "actx-core")
+                    if os.path.exists(staging_core):
+                        os.replace(staging_core, target_exe)
+                    else:
+                        for f in os.listdir(staging_dir):
+                            src_f = os.path.join(staging_dir, f)
+                            dst_f = os.path.join(target_dir, f)
+                            if os.path.isfile(src_f):
+                                os.replace(src_f, dst_f)
+                                try:
+                                    os.chmod(dst_f, 0o755)
+                                except Exception:
+                                    pass
+
+                    try:
+                        os.chmod(target_exe, 0o755)
+                    except Exception:
+                        pass
+                    shutil.rmtree(staging_dir, ignore_errors=True)
+                    if os.path.exists(temp_download):
+                        os.remove(temp_download)
+                else:
+                    os.replace(temp_download, target_exe)
+                    try:
+                        os.chmod(target_exe, 0o755)
+                    except Exception:
+                        pass
+
+                # Ensure Unix launcher shim 'actx' is deployed
+                unix_shim = os.path.join(target_dir, "actx")
+                unix_shim_content = (
+                    "#!/usr/bin/env sh\n"
+                    "BIN_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n"
+                    "if [ \"$1\" = \"-v\" ] || [ \"$1\" = \"--version\" ]; then\n"
+                    "    if [ -f \"$BIN_DIR/version.txt\" ]; then\n"
+                    "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n"
+                    "        echo \"$V\"\n"
+                    "    else\n"
+                    f"        echo \"{clean_tag}\"\n"
+                    "    fi\n"
+                    "    exit 0\n"
+                    "fi\n"
+                    "\n"
+                    "if [ -f \"$BIN_DIR/actx-core\" ]; then\n"
+                    "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
+                    "fi\n"
+                )
+                try:
+                    with open(unix_shim, "w", encoding="utf-8", newline="\n") as uf:
+                        uf.write(unix_shim_content)
+                    os.chmod(unix_shim, 0o755)
+                except Exception:
+                    pass
             except Exception as e:
                 return False, f"❌ Failed to replace binary: {e}", {}
 

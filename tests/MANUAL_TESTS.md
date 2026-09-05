@@ -7,6 +7,65 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.28.88): Validação de Inicialização Sub-Segundo (--onedir) e Normalização de Versão sem BOM no Git Bash/PowerShell
+
+- **Objetivo**: Comprovar que na release `v0.28.88`:
+  1. O tempo de inicialização a frio do runtime Python (`⚡ Python Core runtime linked`) cai de ~2.8s para `< 0.2s`, eliminando a descompressão repetitiva de 250MB em `%TEMP%` graças à arquitetura `--onedir` com runtime pré-extraído em `%LOCALAPPDATA%\actx\bin\_internal`.
+  2. O comando `actx -v` executado no Git Bash / MSYS2, CMD e PowerShell exibe exatamente `v0.28.88` com apenas um `v` na frente, comprovando a erradicação do UTF-8 BOM (`\xef\xbb\xbf`) e a higienização em todas as camadas de shim (C#, C e wrapper Bash).
+  3. O instalador (`install.ps1` e `install.sh`) e o atualizador interativo (`/update` e `actx --update`) descarregam o pacote distribuído (`.zip` no Windows, `.tar.gz` no Linux), realizam a extração atômica via `actx_staging/` e atualizam `_internal/` e binários sem locks de arquivo.
+- **Pré-requisito**: Versão `v0.28.88` instalada (`actx -v` exibindo `v0.28.88`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🔍 Validação de Versão sem Duplo 'v' no Git Bash e PowerShell:**
+   - Abrir o terminal **Git Bash** (MinTTY / MINGW64) e digitar:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:** A saída no terminal deve ser estritamente:
+     ```text
+     v0.28.88
+     ```
+     (Não deve exibir `vv0.28.88` sob hipótese alguma).
+   - Repetir a consulta no PowerShell ou CMD do Windows:
+     ```powershell
+     actx -v
+     ```
+   - **Critério de Aceitação:** Exibe idêntico `v0.28.88`.
+
+2. **⚡ Validação da Telemetria de Inicialização Instantânea (Sub-Segundo):**
+   - No terminal, iniciar uma sessão do AnyContext:
+     ```bash
+     actx
+     ```
+   - Ou na interface desktop OpenTUI:
+     ```bash
+     actx --tui
+     ```
+   - Observar a árvore inicial `┌─ ⚡ Engine Startup Telemetry`:
+     ```text
+       ┌─ ⚡ Engine Startup Telemetry
+       │ ├─ [ 48.3ms] ⚡ Python Core runtime linked
+       │ ├─ [ 12.1ms] 🔌 SQLite Configuration Store active
+       │ ├─ [ 82.2ms] 🤖 AI Model engine linked (gpt-4o-mini - OPENAI)
+       │ ├─ [ 82.2ms] 📂 Workspace connected (Default)
+       │ ├─ [152.8ms] 📦 Context state verified (Up to date - 3 files)
+       │ └─ [152.8ms] 🚀 AnyContext ready in 0.15s
+     ```
+   - **Critério de Aceitação:**
+     - O primeiro marco `⚡ Python Core runtime linked` conclui em **menos de 200ms** (comparado aos 2.77s - 3.20s anteriores com `--onefile`).
+     - A inicialização total do AnyContext ocorre em fração de segundo (`< 0.5s`).
+
+3. **📁 Validação da Estrutura de Arquivos em Disco (`_internal/`):**
+   - Verificar no PowerShell o diretório de instalação do AnyContext:
+     ```powershell
+     Test-Path "$env:LOCALAPPDATA\actx\bin\_internal"
+     Get-Item "$env:LOCALAPPDATA\actx\bin\actx-core.exe"
+     ```
+   - **Critério de Aceitação:** O diretório `_internal` existe no disco, contendo as bibliotecas e dependências Python pré-extraídas, permitindo que o sistema operacional as carregue diretamente sem sobrecarregar o diretório `%TEMP%`.
+
+---
+
 ### 📌 Cenário 1 (v0.28.87): Validação do Diálogo Interativo Unificado de Atualização (/update) com Tríade Consistente e Encerramento Limpo
 
 - **Objetivo**: Comprovar que na release `v0.28.87`:

@@ -88,6 +88,8 @@ class TestUpdateInteractive(unittest.TestCase):
                         mock_close.assert_not_called()
 
     def test_update_service_auto_close_exit_update(self):
+        import io
+        import zipfile
         import tempfile
         from unittest.mock import patch, MagicMock
         svc = UpdateService()
@@ -95,9 +97,15 @@ class TestUpdateInteractive(unittest.TestCase):
             orig_env = os.environ.get("ACTX_UPDATE_DIR")
             os.environ["ACTX_UPDATE_DIR"] = tmpdir
             try:
+                zip_buf = io.BytesIO()
+                with zipfile.ZipFile(zip_buf, "w") as zf:
+                    zf.writestr("actx-core.exe", b"test_core_binary")
+                    zf.writestr("_internal/test.dll", b"test_dll")
+                valid_zip = zip_buf.getvalue()
+
                 mock_resp = MagicMock()
                 mock_resp.status = 200
-                mock_resp.read.side_effect = [b"bin_data_test", b""]
+                mock_resp.read.side_effect = [valid_zip, b""]
                 with patch("urllib.request.urlopen", return_value=MagicMock(__enter__=MagicMock(return_value=mock_resp))):
                     with patch("subprocess.Popen"):
                         with patch.object(svc, "close_active_instances", return_value=2):
@@ -110,6 +118,41 @@ class TestUpdateInteractive(unittest.TestCase):
                                 self.assertTrue(success)
                                 self.assertEqual(updates.get("action"), "exit_update")
                                 self.assertEqual(updates.get("version"), "v0.28.82")
+            finally:
+                if orig_env is None:
+                    os.environ.pop("ACTX_UPDATE_DIR", None)
+                else:
+                    os.environ["ACTX_UPDATE_DIR"] = orig_env
+
+    def test_update_service_fallback_to_single_binary(self):
+        import tempfile
+        from unittest.mock import patch, MagicMock
+        svc = UpdateService()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orig_env = os.environ.get("ACTX_UPDATE_DIR")
+            os.environ["ACTX_UPDATE_DIR"] = tmpdir
+            try:
+                # First call (archive) raises 404, second call (single binary) succeeds
+                mock_resp = MagicMock()
+                mock_resp.status = 200
+                mock_resp.read.side_effect = [b"fallback_bin_data", b""]
+
+                def side_effect(req, *args, **kwargs):
+                    url = req.full_url if hasattr(req, "full_url") else str(req)
+                    if url.endswith(".zip") or url.endswith(".tar.gz"):
+                        raise Exception("404 Not Found")
+                    m = MagicMock()
+                    m.__enter__.return_value = mock_resp
+                    return m
+
+                with patch("urllib.request.urlopen", side_effect=side_effect):
+                    with patch("subprocess.Popen"):
+                        success, msg, updates = svc.execute_binary_update(
+                            target_tag="0.28.82",
+                            auto_close_instances=False
+                        )
+                        self.assertTrue(success)
+                        self.assertIn("v0.28.82", msg)
             finally:
                 if orig_env is None:
                     os.environ.pop("ACTX_UPDATE_DIR", None)

@@ -22,10 +22,14 @@ namespace AnyContext.Launcher
                 {
                     try
                     {
-                        string content = File.ReadAllText(versionFile).Trim();
+                        string content = File.ReadAllText(versionFile).Trim().TrimStart('\uFEFF').Trim();
                         if (!string.IsNullOrEmpty(content))
                         {
-                            version = content.StartsWith("v") ? content : "v" + content;
+                            while (content.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                            {
+                                content = content.Substring(1);
+                            }
+                            version = "v" + content.Trim();
                         }
                     }
                     catch

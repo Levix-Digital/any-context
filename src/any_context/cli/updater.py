@@ -512,7 +512,11 @@ def run_self_update(
             log_update_event("Proceeding with background update (instances kept running)")
 
     is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
-    target_asset = "actx-windows-x86_64.exe" if is_windows else "actx-linux-x86_64"
+    asset_candidates = (
+        ["actx-windows-x86_64.zip", "actx-windows-x86_64.exe"]
+        if is_windows
+        else ["actx-linux-x86_64.tar.gz", "actx-linux-x86_64"]
+    )
 
     # Determine target executable location
     if "ACTX_UPDATE_DIR" in os.environ and os.environ["ACTX_UPDATE_DIR"].strip():
@@ -536,78 +540,119 @@ def run_self_update(
     else:
         target_exe = shim_exe
 
-    temp_download = os.path.join(target_dir, "actx_new.exe" if is_windows else "actx_new")
     old_exe = os.path.join(target_dir, "actx_old.exe" if is_windows else "actx_old")
-    log_update_event(f"Target paths resolved: target_exe={target_exe}, temp_download={temp_download}")
-
-
-    if os.path.exists(temp_download):
-        try:
-            os.remove(temp_download)
-        except Exception:
-            pass
+    internal_dir = os.path.join(target_dir, "_internal")
+    old_internal_dir = os.path.join(target_dir, "_internal_old")
+    staging_dir = os.path.join(target_dir, "actx_staging")
 
     downloaded = False
+    downloaded_asset = None
+    temp_download = ""
 
-    # 1. Direct HTTP release download with real-time stream progress
-    safe_print(f"⬇️ Downloading '{target_asset}' from GitHub Release {clean_tag}...")
-    for repo in [PRIMARY_REPO, FALLBACK_REPO]:
-        try:
-            url = f"https://github.com/{repo}/releases/download/{clean_tag}/{target_asset}"
-            req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-CLI"})
-            with urllib.request.urlopen(req, timeout=120) as response:
-                if response.status == 200:
-                    total_size = int(response.headers.get("Content-Length", 0))
-                    downloaded_bytes = 0
-                    chunk_size = 1024 * 512  # 512 KB chunks
-
-                    with open(temp_download, "wb") as f:
-                        while True:
-                            chunk = response.read(chunk_size)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                            downloaded_bytes += len(chunk)
-                            if total_size > 0:
-                                pct = int((downloaded_bytes / total_size) * 100)
-                                mb_done = downloaded_bytes / (1024 * 1024)
-                                mb_total = total_size / (1024 * 1024)
-                                sys.stdout.write(f"\r  [Download] {mb_done:.1f} MB / {mb_total:.1f} MB ({pct}%)")
-                                sys.stdout.flush()
-
-                    sys.stdout.write("\n")
-                    downloaded = True
-                    break
-        except Exception:
-            pass
-
-    # 2. Fallback to gh CLI download (for private repositories)
-    if not downloaded:
-        for repo in [PRIMARY_REPO, FALLBACK_REPO]:
+    for asset_candidate in asset_candidates:
+        ext = ".zip" if asset_candidate.endswith(".zip") else (".tar.gz" if asset_candidate.endswith(".tar.gz") else (".exe" if is_windows else ""))
+        curr_temp = os.path.join(target_dir, f"actx_new{ext}")
+        if os.path.exists(curr_temp):
             try:
-                res = subprocess.run(
-                    ["gh", "release", "download", clean_tag, "--repo", repo, "--pattern", target_asset, "--dir", target_dir, "--clobber"],
-                    capture_output=True,
-                    text=True,
-                    timeout=120
-                )
-                downloaded_file = os.path.join(target_dir, target_asset)
-                if res.returncode == 0 and os.path.exists(downloaded_file):
-                    if os.path.exists(temp_download):
-                        os.remove(temp_download)
-                    os.rename(downloaded_file, temp_download)
-                    downloaded = True
-                    break
+                if os.path.isdir(curr_temp):
+                    import shutil
+                    shutil.rmtree(curr_temp, ignore_errors=True)
+                else:
+                    os.remove(curr_temp)
             except Exception:
                 pass
 
+        # 1. Direct HTTP release download with real-time stream progress
+        safe_print(f"⬇️ Downloading '{asset_candidate}' from GitHub Release {clean_tag}...")
+        for repo in [PRIMARY_REPO, FALLBACK_REPO]:
+            try:
+                url = f"https://github.com/{repo}/releases/download/{clean_tag}/{asset_candidate}"
+                req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-CLI"})
+                with urllib.request.urlopen(req, timeout=120) as response:
+                    if response.status == 200:
+                        total_size = int(response.headers.get("Content-Length", 0))
+                        downloaded_bytes = 0
+                        chunk_size = 1024 * 512  # 512 KB chunks
+
+                        with open(curr_temp, "wb") as f:
+                            while True:
+                                chunk = response.read(chunk_size)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                                downloaded_bytes += len(chunk)
+                                if total_size > 0:
+                                    pct = int((downloaded_bytes / total_size) * 100)
+                                    mb_done = downloaded_bytes / (1024 * 1024)
+                                    mb_total = total_size / (1024 * 1024)
+                                    sys.stdout.write(f"\r  [Download] {mb_done:.1f} MB / {mb_total:.1f} MB ({pct}%)")
+                                    sys.stdout.flush()
+
+                        sys.stdout.write("\n")
+                        if os.path.exists(curr_temp) and os.path.getsize(curr_temp) > 0:
+                            downloaded = True
+                            downloaded_asset = asset_candidate
+                            temp_download = curr_temp
+                            break
+            except Exception:
+                pass
+        if downloaded:
+            break
+
+        # 2. Fallback to gh CLI download (for private repositories)
+        if not downloaded:
+            for repo in [PRIMARY_REPO, FALLBACK_REPO]:
+                try:
+                    res = subprocess.run(
+                        ["gh", "release", "download", clean_tag, "--repo", repo, "--pattern", asset_candidate, "--dir", target_dir, "--clobber"],
+                        capture_output=True,
+                        text=True,
+                        timeout=120
+                    )
+                    downloaded_file = os.path.join(target_dir, asset_candidate)
+                    if res.returncode == 0 and os.path.exists(downloaded_file):
+                        if os.path.exists(curr_temp):
+                            try: os.remove(curr_temp)
+                            except Exception: pass
+                        os.rename(downloaded_file, curr_temp)
+                        downloaded = True
+                        downloaded_asset = asset_candidate
+                        temp_download = curr_temp
+                        break
+                except Exception:
+                    pass
+        if downloaded:
+            break
+
     if not downloaded or not os.path.exists(temp_download) or os.path.getsize(temp_download) == 0:
-        log_update_event(f"Failed to download update asset '{target_asset}' for release {clean_tag}", level="ERROR")
-        safe_print(f"\n❌ Failed to download update asset '{target_asset}' for release {clean_tag}.")
+        log_update_event(f"Failed to download update asset for release {clean_tag}", level="ERROR")
+        safe_print(f"\n❌ Failed to download update asset for release {clean_tag}.")
         safe_print(f"💡 Please check your internet connection or run manual install: https://github.com/{PRIMARY_REPO}/releases\n")
         return
 
     log_update_event(f"Asset downloaded successfully: {temp_download} ({os.path.getsize(temp_download)} bytes)")
+
+    is_archive = bool(downloaded_asset and (downloaded_asset.endswith(".zip") or downloaded_asset.endswith((".tar.gz", ".tgz"))))
+
+    # Unpack archive into staging directory if applicable
+    if is_archive:
+        import shutil
+        if os.path.exists(staging_dir):
+            shutil.rmtree(staging_dir, ignore_errors=True)
+        os.makedirs(staging_dir, exist_ok=True)
+        try:
+            if downloaded_asset.endswith(".zip"):
+                import zipfile
+                with zipfile.ZipFile(temp_download, "r") as zf:
+                    zf.extractall(staging_dir)
+            else:
+                import tarfile
+                with tarfile.open(temp_download, "r:gz") as tf:
+                    tf.extractall(staging_dir)
+        except Exception as e:
+            log_update_event(f"Failed to extract update archive '{downloaded_asset}': {e}", level="ERROR")
+            safe_print(f"\n❌ Failed to extract update archive '{downloaded_asset}': {e}\n")
+            return
 
     # Terminate active sessions once download is verified
     if decision == "close" and active_instances:
@@ -616,31 +661,59 @@ def run_self_update(
         safe_print(f"✅ Closed {closed_cnt} active session(s).\n")
         log_update_event(f"Closed {closed_cnt} active session(s)")
 
-    # Set executable permissions on Unix
-    if not is_windows:
-        try:
-            os.chmod(temp_download, 0o755)
-        except Exception:
-            pass
-
     # 3. Perform atomic replacement
     import shutil
     replaced = False
 
-    if is_windows:
-        # Step A: Perform immediate atomic rename of running target_exe -> old_exe and move temp_download -> target_exe
-        try:
-            if os.path.exists(old_exe):
-                try:
-                    os.remove(old_exe)
-                except Exception:
-                    pass
-            if os.path.exists(target_exe):
-                os.rename(target_exe, old_exe)
-            shutil.move(temp_download, target_exe)
-            replaced = True
-            log_update_event(f"Atomic replacement succeeded (direct rename to {target_exe})")
+    version_file = os.path.join(target_dir, "version.txt")
+    try:
+        with open(version_file, "w", encoding="utf-8") as vf:
+            vf.write(f"{clean_tag}\n")
+    except Exception:
+        pass
 
+    if is_windows:
+        # Step A: Perform immediate atomic swap
+        try:
+            if is_archive and os.path.exists(staging_dir):
+                if os.path.exists(internal_dir):
+                    if os.path.exists(old_internal_dir):
+                        try: shutil.rmtree(old_internal_dir, ignore_errors=True)
+                        except Exception: pass
+                    os.rename(internal_dir, old_internal_dir)
+                for item in os.listdir(staging_dir):
+                    src_p = os.path.join(staging_dir, item)
+                    dst_p = os.path.join(target_dir, item)
+                    if os.path.exists(dst_p):
+                        if os.path.isdir(dst_p):
+                            shutil.rmtree(dst_p, ignore_errors=True)
+                        else:
+                            try: os.remove(dst_p)
+                            except Exception: pass
+                    shutil.move(src_p, dst_p)
+                replaced = True
+                log_update_event(f"Atomic replacement succeeded (extracted archive to {target_dir})")
+                if os.path.exists(old_internal_dir):
+                    try: shutil.rmtree(old_internal_dir, ignore_errors=True)
+                    except Exception: pass
+                if os.path.exists(staging_dir):
+                    try: shutil.rmtree(staging_dir, ignore_errors=True)
+                    except Exception: pass
+                if os.path.exists(temp_download):
+                    try: os.remove(temp_download)
+                    except Exception: pass
+            else:
+                if os.path.exists(old_exe):
+                    try: os.remove(old_exe)
+                    except Exception: pass
+                if os.path.exists(target_exe):
+                    os.rename(target_exe, old_exe)
+                shutil.move(temp_download, target_exe)
+                replaced = True
+                log_update_event(f"Atomic replacement succeeded (direct rename to {target_exe})")
+                if os.path.exists(old_exe):
+                    try: os.remove(old_exe)
+                    except Exception: pass
 
             # Also sync Python313/Scripts/actx.exe if present on this system
             alt_script_exe = os.path.join(
@@ -659,68 +732,73 @@ def run_self_update(
         except Exception:
             pass
 
-        version_file = os.path.join(target_dir, "version.txt")
-        try:
-            with open(version_file, "w", encoding="utf-8") as vf:
-                vf.write(f"{clean_tag}\n")
-        except Exception:
-            pass
-
         # Deploy native shim actx.exe and bash shim actx if missing or oversized
-        if is_windows:
-            if not os.path.exists(shim_exe) or os.path.getsize(shim_exe) > 1024 * 1024:
-                try:
-                    from launcher.build_shim import build_windows_shim
-                    build_windows_shim(shim_exe)
-                except Exception:
-                    pass
-
-            bash_shim = os.path.join(target_dir, "actx")
-            bash_content = (
-                "#!/usr/bin/env sh\n"
-                "BIN_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n"
-                "if [ \"$1\" = \"-v\" ] || [ \"$1\" = \"--version\" ]; then\n"
-                "    if [ -f \"$BIN_DIR/version.txt\" ]; then\n"
-                "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n')\"\n"
-                "        case \"$V\" in\n"
-                "            v*) echo \"$V\" ;;\n"
-                "            *) echo \"v$V\" ;;\n"
-                "        esac\n"
-                "    else\n"
-                f"        echo \"{clean_tag}\"\n"
-                "    fi\n"
-                "    exit 0\n"
-                "fi\n"
-                "\n"
-                "if [ -f \"$BIN_DIR/actx-core.exe\" ]; then\n"
-                "    exec \"$BIN_DIR/actx-core.exe\" \"$@\"\n"
-                "elif [ -f \"$BIN_DIR/actx.exe\" ]; then\n"
-                "    exec \"$BIN_DIR/actx.exe\" \"$@\"\n"
-                "elif [ -f \"$BIN_DIR/actx-core\" ]; then\n"
-                "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
-                "fi\n"
-            )
+        if not os.path.exists(shim_exe) or os.path.getsize(shim_exe) > 1024 * 1024:
             try:
-                with open(bash_shim, "w", encoding="utf-8", newline="\n") as bf:
-                    bf.write(bash_content)
+                from launcher.build_shim import build_windows_shim
+                build_windows_shim(shim_exe)
             except Exception:
                 pass
+
+        bash_shim = os.path.join(target_dir, "actx")
+        bash_content = (
+            "#!/usr/bin/env sh\n"
+            "BIN_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n"
+            "if [ \"$1\" = \"-v\" ] || [ \"$1\" = \"--version\" ]; then\n"
+            "    if [ -f \"$BIN_DIR/version.txt\" ]; then\n"
+            "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n"
+            "        echo \"$V\"\n"
+            "    else\n"
+            f"        echo \"{clean_tag}\"\n"
+            "    fi\n"
+            "    exit 0\n"
+            "fi\n"
+            "\n"
+            "if [ -f \"$BIN_DIR/actx-core.exe\" ]; then\n"
+            "    exec \"$BIN_DIR/actx-core.exe\" \"$@\"\n"
+            "elif [ -f \"$BIN_DIR/actx.exe\" ]; then\n"
+            "    exec \"$BIN_DIR/actx.exe\" \"$@\"\n"
+            "elif [ -f \"$BIN_DIR/actx-core\" ]; then\n"
+            "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
+            "fi\n"
+        )
+        try:
+            with open(bash_shim, "w", encoding="utf-8", newline="\n") as bf:
+                bf.write(bash_content)
+        except Exception:
+            pass
 
         if not replaced:
             # Step B: Fallback to background PowerShell loop if file lock prevented immediate rename
             swap_script = (
                 f"$retries = 0; "
-                f"while ($retries -lt 30) {{ "
+                f"while ($retries -lt 40) {{ "
                 f"  try {{ "
                 f"    if (Test-Path -LiteralPath '{target_exe}') {{ "
                 f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue "
                 f"    }} "
-                f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
+                f"    if (Test-Path -LiteralPath '{internal_dir}') {{ "
+                f"      Move-Item -LiteralPath '{internal_dir}' -Destination '{old_internal_dir}' -Force -ErrorAction SilentlyContinue "
+                f"    }} "
+                f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
+                f"      Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {{ "
+                f"        Move-Item -LiteralPath $_.FullName -Destination '{target_dir}' -Force -ErrorAction Stop "
+                f"      }} "
+                f"    }} elseif (Test-Path -LiteralPath '{temp_download}') {{ "
                 f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop "
                 f"    }} "
-                f"    Set-Content -LiteralPath '{version_file}' -Value '{clean_tag}' -Encoding UTF8 -Force -ErrorAction SilentlyContinue; "
+                f"    [System.IO.File]::WriteAllText('{version_file}', '{clean_tag}', (New-Object System.Text.UTF8Encoding $False)); "
                 f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
                 f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
+                f"    }} "
+                f"    if (Test-Path -LiteralPath '{old_internal_dir}') {{ "
+                f"      Remove-Item -LiteralPath '{old_internal_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
+                f"    }} "
+                f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
+                f"      Remove-Item -LiteralPath '{staging_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
+                f"    }} "
+                f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
+                f"      Remove-Item -LiteralPath '{temp_download}' -Force -ErrorAction SilentlyContinue "
                 f"    }} "
                 f"    break "
                 f"  }} catch {{ "
@@ -746,8 +824,72 @@ def run_self_update(
         else:
             safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
     else:
+        # Unix / macOS
         try:
-            os.replace(temp_download, target_exe)
+            if is_archive and os.path.exists(staging_dir):
+                staging_internal = os.path.join(staging_dir, "_internal")
+                if os.path.exists(staging_internal):
+                    if os.path.exists(internal_dir):
+                        if os.path.exists(old_internal_dir):
+                            shutil.rmtree(old_internal_dir, ignore_errors=True)
+                        os.rename(internal_dir, old_internal_dir)
+                    shutil.move(staging_internal, internal_dir)
+                    if os.path.exists(old_internal_dir):
+                        shutil.rmtree(old_internal_dir, ignore_errors=True)
+
+                staging_core = os.path.join(staging_dir, "actx-core")
+                if os.path.exists(staging_core):
+                    os.replace(staging_core, target_exe)
+                else:
+                    for f in os.listdir(staging_dir):
+                        src_f = os.path.join(staging_dir, f)
+                        dst_f = os.path.join(target_dir, f)
+                        if os.path.isfile(src_f):
+                            os.replace(src_f, dst_f)
+                            try:
+                                os.chmod(dst_f, 0o755)
+                            except Exception:
+                                pass
+
+                try:
+                    os.chmod(target_exe, 0o755)
+                except Exception:
+                    pass
+                shutil.rmtree(staging_dir, ignore_errors=True)
+                if os.path.exists(temp_download):
+                    os.remove(temp_download)
+            else:
+                os.replace(temp_download, target_exe)
+                try:
+                    os.chmod(target_exe, 0o755)
+                except Exception:
+                    pass
+
+            unix_shim = os.path.join(target_dir, "actx")
+            unix_shim_content = (
+                "#!/usr/bin/env sh\n"
+                "BIN_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n"
+                "if [ \"$1\" = \"-v\" ] || [ \"$1\" = \"--version\" ]; then\n"
+                "    if [ -f \"$BIN_DIR/version.txt\" ]; then\n"
+                "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n"
+                "        echo \"$V\"\n"
+                "    else\n"
+                f"        echo \"{clean_tag}\"\n"
+                "    fi\n"
+                "    exit 0\n"
+                "fi\n"
+                "\n"
+                "if [ -f \"$BIN_DIR/actx-core\" ]; then\n"
+                "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
+                "fi\n"
+            )
+            try:
+                with open(unix_shim, "w", encoding="utf-8", newline="\n") as uf:
+                    uf.write(unix_shim_content)
+                os.chmod(unix_shim, 0o755)
+            except Exception:
+                pass
+
             log_update_event(f"Update to {clean_tag} completed successfully (Unix).")
             safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
             if decision == "close":
@@ -757,6 +899,6 @@ def run_self_update(
             else:
                 safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
         except Exception as e:
-            log_update_event(f"Unix binary move failed: {e}", level="ERROR")
-            safe_print(f"⚠️ Saved new binary to: {temp_download}. Please move it to {target_exe} with sudo/chmod.")
+            log_update_event(f"Unix replacement failed: {e}", level="ERROR")
+            safe_print(f"⚠️ Replacement failed: {e}. Saved new file to: {temp_download}.")
 

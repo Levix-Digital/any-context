@@ -21,11 +21,14 @@ int main(int argc, char *argv[]) {
                 char buf[64];
                 if (fgets(buf, sizeof(buf), f)) {
                     buf[strcspn(buf, "\r\n")] = 0;
-                    if (buf[0] == 'v') {
-                        puts(buf);
-                    } else {
-                        printf("v%s\n", buf);
+                    char *p = buf;
+                    if ((unsigned char)p[0] == 0xEF && (unsigned char)p[1] == 0xBB && (unsigned char)p[2] == 0xBF) {
+                        p += 3;
                     }
+                    while (*p == 'v' || *p == 'V') {
+                        p++;
+                    }
+                    printf("v%s\n", p);
                     fclose(f);
                     return 0;
                 }

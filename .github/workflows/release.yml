@@ -63,16 +63,29 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
         run: |
-          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
+          # 1. Build sub-second cold boot distribution (--onedir)
+          pyinstaller --clean --onedir --paths src --collect-all any_context --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
+          python launcher/build_shim.py --out dist/actx-core/actx.exe
           python launcher/build_shim.py --out dist/actx.exe
+          python -c "content = '''#!/usr/bin/env sh\nBIN_DIR=\"\$(CDPATH= cd -- \"\$(dirname -- \"\$0\")\" && pwd)\"\nif [ \"\$1\" = \"-v\" ] || [ \"\$1\" = \"--version\" ]; then\n    if [ -f \"\$BIN_DIR/version.txt\" ]; then\n        V=\"\$(cat \"\$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n        echo \"\$V\"\n    else\n        echo \"${{ github.ref_name }}\"\n    fi\n    exit 0\nfi\n\nif [ -f \"\$BIN_DIR/actx-core.exe\" ]; then\n    exec \"\$BIN_DIR/actx-core.exe\" \"\$@\"\nelif [ -f \"\$BIN_DIR/actx.exe\" ]; then\n    exec \"\$BIN_DIR/actx.exe\" \"\$@\"\nelif [ -f \"\$BIN_DIR/actx-core\" ]; then\n    exec \"\$BIN_DIR/actx-core\" \"\$@\"\nfi\n'''; open('dist/actx-core/actx', 'w', encoding='utf-8', newline='\n').write(content); open('dist/actx', 'w', encoding='utf-8', newline='\n').write(content)"
+          powershell -Command "Compress-Archive -Path 'dist/actx-core/*' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
+
+          # 2. Build legacy standalone fallback binary (--onefile) for backwards compatibility
+          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
 
       - name: Build with PyInstaller (Linux)
         if: runner.os == 'Linux'
         env:
           PYTHONIOENCODING: utf-8
         run: |
-          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
+          # 1. Build sub-second cold boot distribution (--onedir)
+          pyinstaller --clean --onedir --paths src --collect-all any_context --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
+          python launcher/build_shim.py --out dist/actx-core/actx
           python launcher/build_shim.py --out dist/actx
+          tar -czf dist/actx-linux-x86_64.tar.gz -C dist/actx-core .
+
+          # 2. Build legacy standalone fallback binary (--onefile) for backwards compatibility
+          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
@@ -112,7 +125,9 @@ jobs:
         with:
           repository: Levix-Digital/any-context-releases
           files: |
+            dist/actx-linux-x86_64.tar.gz
             dist/actx-linux-x86_64
+            dist/actx-windows-x86_64.zip
             dist/actx-windows-x86_64.exe
             dist/actx
             dist/actx.exe
