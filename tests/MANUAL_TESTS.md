@@ -7,7 +7,69 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.29.0): Validação de Abas Virtuais de Workspace, Isolamento de Chat, Higiene Visual do `/clear` e Persistência no LanceDB
+### 📌 Cenário 1 (v0.29.1): Validação de Contagem de Páginas e Fontes como Autoridade do LanceDB e Silêncio no `/switch`
+
+- **Objetivo**: Comprovar que na release `v0.29.1`:
+  1. O **LanceDB é a autoridade definitiva e única (Single Source of Truth)** para o inventário de qualquer workspace (páginas web, arquivos de pastas locais, cloud drives e chunks vetoriais), eliminando qualquer discrepância causada por contadores estáticos no SQLite.
+  2. O portal de imigração do Canadá (`https://www.canada.ca/en/immigration-refugees-citizenship.html`), que antes exibia incorretamente apenas "15 pages" devido ao filtro restritivo de `content_type = 'Web Documentation'`, agora reflete dinamicamente a contagem real de 2.500+ páginas indexadas no LanceDB (reconhecendo `Canonical Service / Documentation` e `Historical News / Press Release`), eliminando o desperdício de tokens por tentativas de re-crawl.
+  3. Ao listar fontes com `/sources` ou `/sources -a`, cada pasta local exibe dinamicamente a contagem real de arquivos indexados (`• 📁 <caminho> • X file(s) indexed`) diretamente do LanceDB.
+  4. A troca de workspaces via `/switch <nome>` ou abertura do modal `/switch` é **100% silenciosa (zero-noise)**, sem imprimir qualquer mensagem de sistema ou banner informativo na área de conversa, mantendo o viewport do chat limpo e imersivo.
+- **Pré-requisito**: Versão `v0.29.1` instalada (`actx -v` exibindo `v0.29.1`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Inicialização e Verificação de Versão:**
+   - No terminal, verificar a versão instalada:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:**
+     - O comando responde instantaneamente (< 50ms) exibindo: `v0.29.1`.
+
+2. **🌐 Verificação da Contagem Real de Páginas Web via `/sources`:**
+   - Abrir o AnyContext no workspace `Default`:
+     ```bash
+     actx
+     ```
+   - Digitar `/sources` e pressionar Enter.
+   - **Critério de Aceitação:**
+     - Na linha correspondente à fonte web do Canadá (`Immigration, Refugees and Citizenship Canada`), a contagem de páginas exibe o valor real apurado diretamente do LanceDB (ex: `• 2514 pages` ou similar, e **NÃO** mais o antigo "15 pages").
+     - O total de páginas no rodapé do inventário reflete o somatório real das páginas indexadas.
+
+3. **📁 Verificação da Contagem Dinâmica de Arquivos Locais por Pasta:**
+   - No mesmo comando `/sources` (ou adicionando uma pasta se necessário via `/add <pasta>`):
+   - **Critério de Aceitação:**
+     - Para cada pasta local listada sob `Folders:`, é exibida a indicação de arquivos indexados, no formato:
+       `• 📁 <caminho_da_pasta> • X file(s) indexed`
+     - O número `X` corresponde aos arquivos reais com chunks registrados no LanceDB.
+
+4. **🔇 Verificação de Troca de Workspace 100% Silenciosa (`/switch` Zero-Noise):**
+   - No prompt do OpenTUI, digitar e executar:
+     ```text
+     /switch
+     ```
+   - **Critério de Aceitação:**
+     - O modal de seleção de workspaces é aberto na tela sem que nenhuma mensagem textual (`💡 System Info: Workspaces...`) seja impressa ou adicionada ao histórico do chat.
+   - Pressionar `Esc` para fechar o modal.
+   - Digitar e executar:
+     ```text
+     /switch Default
+     ```
+   - **Critério de Aceitação:**
+     - A troca ocorre instantaneamente sem injetar nenhuma mensagem no chat. O histórico da conversa permanece puramente com os diálogos do usuário e do assistente.
+
+5. **🔄 Verificação de Re-Sync Inteligente sem Desperdício de Tokens (`/sync`):**
+   - Executar `/sync` no workspace `Default`:
+     ```text
+     /sync
+     ```
+   - **Critério de Aceitação:**
+     - O crawler identifica via projeção colunar do LanceDB que as 2.500+ páginas já estão indexadas e com hashes idênticos.
+     - A sincronização conclui com `$0.00 zero tokens` gastos para as páginas já existentes, sem tentar rebaixar ou reprocessar o portal desnecessariamente.
+
+---
+
+### 📌 Cenário 2 (v0.29.0): Validação de Abas Virtuais de Workspace, Isolamento de Chat, Higiene Visual do `/clear` e Persistência no LanceDB
 
 - **Objetivo**: Comprovar que na release `v0.29.0`:
   1. O OpenTUI e a Stdio RPC Bridge isolam os buffers de mensagens por workspace na mesma sessão: ao trocar de workspace via `/switch <nome>` ou via modal, a tela exibe estritamente o histórico de conversa daquele workspace.

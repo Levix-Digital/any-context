@@ -273,8 +273,8 @@ class StdioRPCServer:
                     self.agent_instance = None
                     self._load_state()
 
-                # Add system output message to workspace view buffer if applicable
-                if result.message and result.action not in ["clear", "exit"]:
+                # Add system output message to workspace view buffer if applicable (suppressed on switch/modal/clear/exit)
+                if result.message and result.action not in ["clear", "exit", "switch_workspace", "open_switch_modal"]:
                     sys_msg = {
                         "id": f"msg_sys_{int(time.time() * 1000)}_{uuid.uuid4().hex[:4]}",
                         "role": "system",

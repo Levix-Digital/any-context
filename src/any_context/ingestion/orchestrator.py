@@ -83,7 +83,10 @@ def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
     web_sources = ws_sources.get("web_sources", [])
     cloud_drives = ws_sources.get("cloud_drives", [])
     unified_sources = ws_sources.get("sources", [])
-    total_web_pages = sum(w.get("page_count", 1) or 1 for w in web_sources)
+    from any_context.vector_engine.store import LanceDBStore
+    lance = LanceDBStore.get_instance()
+    inv_summary = lance.get_workspace_inventory_summary(clean_ws)
+    total_web_pages = inv_summary.get("total_web_pages", 0) or sum(w.get("page_count", 1) or 1 for w in web_sources)
 
     # Also merge folders from AppSettings if present
     try:

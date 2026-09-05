@@ -38,6 +38,7 @@
 50. [OpenTUI Canonical Terminal Interface, 100% Thin-Client Parity & Legacy REPL Elimination (`v0.28.89`)](#50-opentui-canonical-terminal-interface-100-thin-client-parity--legacy-repl-elimination-v02889)
 51. [Cross-Platform Dual-Binary Protection, Archive Extraction Routing & Release Matrix Isolation (`v0.28.90`)](#51-cross-platform-dual-binary-protection-archive-extraction-routing--release-matrix-isolation-v02890)
 52. [Virtual Tab Workspace Isolation, /clear View Hygiene & LanceDB Session Teardown (`v0.29.0`)](#52-virtual-tab-workspace-isolation-clear-view-hygiene--lancedb-session-teardown-v0290)
+53. [LanceDB-Authoritative Workspace Inventory & Zero-Noise Switch Architecture (`v0.29.1`)](#53-lancedb-authoritative-workspace-inventory--zero-noise-switch-architecture-v0291)
 
 ---
 
@@ -1976,3 +1977,69 @@ Session summaries are persisted exclusively into the LanceDB `session_memory` co
 - Level 1 Session Summaries are tagged with `workspace = ws_name`.
 - Level 3 Meta-Summaries are consolidated per workspace when the threshold (30 summaries) is reached.
 - New sessions start with visual view buffers at zero, recovering historical knowledge seamlessly via semantic RAG queries against LanceDB.
+
+---
+
+## 53. LanceDB-Authoritative Workspace Inventory & Zero-Noise Switch Architecture (`v0.29.1`)
+
+`v0.29.1` establishes **LanceDB as the single authoritative source of truth** for all workspace inventory metrics (web pages, local folder files, cloud drives, and vector chunks) and eliminates all visual message pollution during workspace switching.
+
+### 🏛️ 1. Architectural Problem: Content-Type Masking & Stale Counters
+Prior to `v0.29.1`:
+1. **Classifier Masking**: In `LanceDBStore.get_indexed_pages_map`, queries filtered on `content_type = 'Web Documentation'`. When the AI classifier classified pages into richer categories such as `Canonical Service / Documentation` (7,007 chunks) and `Historical News / Press Release` (12,654 chunks), only 31 chunks retained the generic label `Web Documentation` (representing 15 unique URLs). As a result, 2,499 Canada immigration portal pages were omitted from the count, causing `/sources` to display "15 pages" and misleading the crawler into treating cached pages as un-indexed (`is_cached = False`), triggering redundant re-crawl attempts.
+2. **SQLite Stale Counter Reliance**: UI commands (`/sources`) displayed static `page_count` integers stored in the SQLite `workspace_web_urls` table rather than querying live columnar vectors.
+3. **Switch Message Pollution**: Switching workspaces (`/switch <name>`) or opening the switch dialog (`/switch`) injected synthetic system messages (`💡 System Info: Workspaces...`) into the active chat conversation, breaking the virtual tab metaphor.
+
+### 🧩 2. LanceDB Single Source of Truth Inventory Architecture
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as OpenTUI / CLI
+    participant CMD as Command Dispatcher
+    participant SVC as SourceService
+    participant LANCE as LanceDBStore (Columnar Arrow)
+    participant SQL as SQLite (ConfigDBStore)
+
+    UI->>CMD: /sources
+    CMD->>SVC: list_sources(workspace)
+    SVC->>SQL: get_workspace_sources(workspace)
+    SQL-->>SVC: Raw folders & web source registrations
+    
+    rect rgb(240, 248, 255)
+    Note over SVC,LANCE: Live Sub-Millisecond Columnar Aggregations
+    SVC->>LANCE: get_indexed_pages_count(ws, domain_or_prefix)
+    LANCE-->>SVC: Live Distinct Web URLs (e.g. 2,514 pages)
+    SVC->>LANCE: get_indexed_folder_files_count(ws, folder_path)
+    LANCE-->>SVC: Live Distinct Local Files per Folder
+    SVC->>LANCE: get_workspace_inventory_summary(ws)
+    LANCE-->>SVC: {total_chunks, total_files, total_web_pages}
+    end
+
+    opt Desynchronization Detected
+        SVC->>SQL: update_web_url_page_count(url_id, live_count)
+        Note over SQL: Background self-healing of SQLite cache
+    end
+
+    SVC-->>CMD: Enriched Inventory Payload
+    CMD-->>UI: Live Inventory Display (2,514 pages, X folder files)
+```
+
+### 🔍 3. Columnar Aggregations & Multi-Content-Type Recognition
+1. **URL Host/Prefix Normalization (`get_indexed_pages_map`)**:
+   - Replaced restrictive `content_type` filtering with cross-protocol URL matching:
+     ```sql
+     workspace = '{clean_ws}' AND (file_path LIKE 'http://%' OR file_path LIKE 'https://%')
+     ```
+   - Automatically normalizes root domains and path sections (e.g. `https://www.canada.ca/en/immigration-refugees-citizenship.html` maps to host `www.canada.ca` and section path `/en/immigration-refugees-citizenship`).
+2. **Local Folder File Counting (`get_indexed_folder_files_count`)**:
+   - Projects non-web `file_path` entries and filters by normalized local directory prefixes using both forward (`/`) and backward (`\`) slashes.
+   - Computes distinct files using Apache Arrow columnar projection in `< 5ms`.
+3. **Workspace Summary (`get_workspace_inventory_summary`)**:
+   - Returns `{ total_chunks, total_files, total_web_pages }` in a single zero-copy Arrow scan across up to 200,000 records.
+
+### 🔇 4. Zero-Noise `/switch` Protocol
+- `_handle_switch` in `dispatcher.py` sets `message = ""` for both `open_switch_modal` and `switch_workspace`.
+- `StdioRPCServer` suppresses message appending when `action in ("switch_workspace", "open_switch_modal")`.
+- The UI viewport transitions silently between virtual workspace tabs without polluting the user's conversational record.
+

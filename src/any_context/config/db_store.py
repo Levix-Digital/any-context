@@ -1315,6 +1315,20 @@ class ConfigDBStore:
             "linked_sources": linked_sources
         }
 
+    def update_web_url_page_count(self, url_id: str, page_count: int) -> bool:
+        """Updates the page_count cache for a web URL in workspace_web_urls."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE workspace_web_urls SET page_count = ? WHERE id = ? OR url = ? OR root_url = ?",
+                    (int(page_count), str(url_id), str(url_id), str(url_id))
+                )
+                conn.commit()
+                return True
+        except Exception:
+            return False
+
     def link_shared_source_to_workspace(
         self,
         workspace_name: str,

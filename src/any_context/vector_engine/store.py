@@ -339,11 +339,26 @@ class LanceDBStore:
         if not self._has_table(table_name):
             return {}
         try:
+            import urllib.parse
             table = self._db.open_table(table_name)
             clean_ws = workspace_name.replace("'", "''")
-            where_clauses = [f"workspace = '{clean_ws}'", "content_type = 'Web Documentation'"]
+            where_clauses = [
+                f"workspace = '{clean_ws}'",
+                "(file_path LIKE 'http://%' OR file_path LIKE 'https://%')"
+            ]
             if domain_or_prefix:
-                clean_dom = domain_or_prefix.replace("'", "''")
+                raw_dom = domain_or_prefix.strip()
+                if raw_dom.startswith("http://") or raw_dom.startswith("https://"):
+                    parsed = urllib.parse.urlparse(raw_dom)
+                    host = parsed.netloc.lower()
+                    path = parsed.path
+                    if path and ("." in os.path.basename(path)):
+                        path = os.path.dirname(path)
+                    path = path.rstrip("/")
+                    clean_dom = f"{host}{path}" if path else host
+                else:
+                    clean_dom = raw_dom
+                clean_dom = clean_dom.replace("'", "''")
                 where_clauses.append(f"file_path LIKE '%{clean_dom}%'")
 
             where_str = " AND ".join(where_clauses)
@@ -383,3 +398,67 @@ class LanceDBStore:
         Returns total count of distinct web pages indexed for this workspace.
         """
         return len(self.get_indexed_pages_map(workspace_name, domain_or_prefix=domain_or_prefix, table_name=table_name))
+
+    def get_indexed_folder_files_count(
+        self,
+        workspace_name: str,
+        folder_path: Optional[str] = None,
+        table_name: str = "workspace_chunks"
+    ) -> int:
+        """
+        Returns the count of distinct non-web local files indexed in this workspace.
+        Optionally filtered to files located within folder_path.
+        """
+        if not self._has_table(table_name):
+            return 0
+        try:
+            table = self._db.open_table(table_name)
+            clean_ws = workspace_name.replace("'", "''")
+            where_clauses = [
+                f"workspace = '{clean_ws}'",
+                "NOT (file_path LIKE 'http://%' OR file_path LIKE 'https://%')"
+            ]
+            if folder_path:
+                norm_p = os.path.abspath(folder_path.strip().strip("'\""))
+                norm_p_fwd = norm_p.replace("\\", "/").replace("'", "''")
+                norm_p_bck = norm_p.replace("'", "''")
+                where_clauses.append(f"(file_path LIKE '{norm_p_fwd}%' OR file_path LIKE '{norm_p_bck}%')")
+
+            where_str = " AND ".join(where_clauses)
+            arrow_tbl = table.search().where(where_str).select(["file_path"]).limit(100000).to_arrow()
+            if arrow_tbl.num_rows == 0:
+                return 0
+            distinct_files = set(arrow_tbl.column("file_path").to_pylist())
+            return len(distinct_files)
+        except Exception:
+            return 0
+
+    def get_workspace_inventory_summary(
+        self,
+        workspace_name: str,
+        table_name: str = "workspace_chunks"
+    ) -> Dict[str, Any]:
+        """
+        Retrieves the full telemetry inventory for a workspace directly from LanceDB:
+        total chunks, distinct local files count, distinct web pages count.
+        """
+        if not self._has_table(table_name):
+            return {"total_chunks": 0, "total_files": 0, "total_web_pages": 0}
+        try:
+            table = self._db.open_table(table_name)
+            clean_ws = workspace_name.replace("'", "''")
+            where_str = f"workspace = '{clean_ws}'"
+            arrow_tbl = table.search().where(where_str).select(["file_path"]).limit(200000).to_arrow()
+            if arrow_tbl.num_rows == 0:
+                return {"total_chunks": 0, "total_files": 0, "total_web_pages": 0}
+            file_paths = arrow_tbl.column("file_path").to_pylist()
+            total_chunks = len(file_paths)
+            web_urls = set(p for p in file_paths if p and (p.startswith("http://") or p.startswith("https://")))
+            local_files = set(p for p in file_paths if p and not (p.startswith("http://") or p.startswith("https://")))
+            return {
+                "total_chunks": total_chunks,
+                "total_files": len(local_files),
+                "total_web_pages": len(web_urls)
+            }
+        except Exception:
+            return {"total_chunks": 0, "total_files": 0, "total_web_pages": 0}
