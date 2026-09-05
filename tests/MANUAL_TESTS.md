@@ -7,7 +7,61 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.86): Telemetria de Inicialização em Tempo Real na TUI com Efeito Cascata Suave (Abordagem B) e Paridade com Terminal CLI
+### 📌 Cenário 1 (v0.28.87): Validação do Diálogo Interativo Unificado de Atualização (/update) com Tríade Consistente e Encerramento Limpo
+
+- **Objetivo**: Comprovar que na release `v0.28.87`:
+  1. O comando `/update` no OpenTUI Desktop (`actx --tui` ou `actx`) e no Terminal CLI apresenta **sempre as 3 opções universais**, sem suprimir a opção de fechar a sessão quando apenas 1 instância estiver em execução.
+  2. Com apenas a sessão atual em primeiro plano (`count == 0`), a opção de encerramento exibe o título adaptado no singular:
+     `⏹️ Close session and update now`
+     E descrição:
+     `Terminates this session and exits cleanly to terminal with vX.Y.Z.`
+  3. A opção de atualização em segundo plano exibe com transparência:
+     `⚡ Update in background (Recommended)`
+     `Active session(s) continue undisturbed; applies on your next launch.`
+  4. A opção de cancelamento `🔙 Cancel update` aborta o processo e retorna ao chat imediatamente.
+  5. Ao escolher a opção `⏹️ Close session and update now`:
+     - O sistema realiza o download do binário atômico.
+     - Notifica o encerramento da sessão com a contagem regressiva de 800ms.
+     - Restaura o terminal para o modo canônico (cooked mode), limpa buffers e devolve o prompt do sistema operacional pronto para executar `actx` na nova versão.
+- **Pré-requisito**: Versão `v0.28.87` instalada (`actx -v` exibindo `v0.28.87`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Abertura do AnyContext e Disparo do `/update`:**
+   - No terminal, inicie o AnyContext:
+     ```bash
+     actx
+     ```
+   - No campo de entrada de mensagens (`👤 You:`), digite o comando e pressione `Enter`:
+     ```text
+     /update
+     ```
+   - **Critérios de Aceitação:**
+     - Uma janela modal de seleção interativa é renderizada no centro da tela.
+     - O cabeçalho exibe: `🚀 AnyContext Update Available: v0.28.87 → ...` ou a versão detectada.
+     - São listadas **exatamente 3 opções**:
+       1. `⚡ Update in background (Recommended)  [Recommended]`  
+          `Active session(s) continue undisturbed; applies on your next launch.`
+       2. `⏹️ Close session and update now` (ou `Close all AnyContext sessions and update now` se houver outros processos)  
+          `Terminates this session and exits cleanly to terminal with vX.Y.Z.`
+       3. `🔙 Cancel update`  
+          `Aborts the update process and returns to chat.`
+     - A navegação pelas opções funciona suavemente via setas `↑` e `↓`.
+
+2. **🔙 Teste de Cancelamento:**
+   - Com as setas, selecione a opção `🔙 Cancel update` e pressione `Enter`.
+   - **Critérios de Aceitação:**
+     - O modal fecha instantaneamente.
+     - Uma mensagem informativa surge no chat indicando que a atualização foi cancelada pelo usuário.
+     - O prompt `👤 You:` permanece 100% responsivo para novos comandos.
+
+3. **⏹️ Teste de Fechamento Limpo (Opcional quando houver nova versão disponível):**
+   - Ao executar `/update` e escolher `⏹️ Close session and update now`, confirme que a aplicação exibe a mensagem de finalização, encerra o TUI em 800ms e retorna ao prompt do terminal sem artefatos visuais ou travamentos de cursor.
+   - Digite `/exit` para finalizar o teste.
+
+---
+
+### 📌 Cenário 2 (v0.28.86): Telemetria de Inicialização em Tempo Real na TUI com Efeito Cascata Suave (Abordagem B) e Paridade com Terminal CLI
 
 - **Objetivo**: Comprovar que na release `v0.28.86`:
   1. Abertura do AnyContext na interface interativa TUI (`actx` ou `actx --tui`) exibe **imediatamente desde o primeiro milissegundo** a árvore `┌─ ⚡ Engine Startup Telemetry` com animação de spinner braille (`⠋`, `⠙`, `⠹`, etc.).
@@ -53,7 +107,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.85): Validação de Imunidade Absoluta do Banco de Produção, Barreira de Segurança e Cascade Purge de Workspaces de Teste
+### 📌 Cenário 3 (v0.28.85): Validação de Imunidade Absoluta do Banco de Produção, Barreira de Segurança e Cascade Purge de Workspaces de Teste
 
 - **Objetivo**: Comprovar que na release `v0.28.85`:
   1. A execução de testes unitários diretamente (ex: `python -m unittest tests/unit/core/test_workspace_sources.py` ou `test_grounding_modes.py`) NUNCA polui o banco de produção do usuário (`%LOCALAPPDATA%\AnyContext\config\settings.db`).
@@ -95,7 +149,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.28.83): Atualização com Fechamento Seguro de Todas as Sessões, Teardown Limpo de Terminal e Prevenção de Prompt Fantasma
+### 📌 Cenário 4 (v0.28.83): Atualização com Fechamento Seguro de Todas as Sessões, Teardown Limpo de Terminal e Prevenção de Prompt Fantasma
 
 - **Objetivo**: Comprovar que na release `v0.28.83`:
   1. No comando `/update` (ou `/update@<versão>`), a opção de encerramento fecha com segurança **todas** as instâncias AnyContext ativas no sistema operacional.

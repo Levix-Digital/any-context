@@ -180,9 +180,12 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - Sincronização mestre unificada em todas as fontes (pastas locais, portais web, cloud drives) com modo verbose estruturado para auditoria completa (`/sync --verbose`).
 - **🎯 Typo-Resilient Slash Command Interception**:
   - Mistyped commands (e.g. `/check-updaete`, `/swich`, `/modeel`, `/sinc`) are caught by the intelligent fuzzy matcher and suggest the correct command without wasting AI tokens.
-- **🔄 Interactive Multi-Instance Aware Self-Updater & Auto-Restart (`/update` & `/check-update`)**:
-  - Detects GitHub releases with cache-busting and prompts: `? Would you like to download and install vX.Y.Z now? [Y/n]`.
-  - **Multi-Instance Intelligence & Preserved Working Directory**: Substituição atômica com reinicialização automática assíncrona preservando o diretório de trabalho do projeto do usuário (`-WorkingDirectory`).
+- **🔄 Universal 3-Option Interactive Self-Updater & Clean Teardown (`/update` & `/check-update`)**:
+  - **Unified Cross-Platform Experience**: Disparar `/update` no OpenTUI Desktop ou CLI apresenta de forma consistente e transparente as mesmas 3 opções tanto no Windows quanto no Linux e macOS:
+    1. `⚡ Update in background (Recommended)`: Baixa a atualização atomicamente em segundo plano enquanto a sessão atual continua operando normalmente; a nova versão assume no próximo lançamento.
+    2. `⏹️ Close session(s) and update now`: Baixa o binário, encerra a sessão ativa (ou todas as sessões se houver múltiplos terminais ou instâncias MCP em execução) e realiza o teardown gracioso do terminal em 800ms, deixando o usuário pronto no terminal para executar `actx` já na nova versão.
+    3. `🔙 Cancel update`: Aborta o processo de atualização de forma segura e retorna imediatamente à conversa.
+  - **Multi-Instance Intelligence & Clean Terminal Teardown**: Substituição atômica de binários com proteção absoluta do estado do terminal (restauração de cooked mode, cursor visível e prompt desimpedido).
 - **🌐 REST API Server Mode (`actx --serve`)**:
   - High-performance FastAPI server with interactive Swagger UI at `http://127.0.0.1:8000/docs`.
 - **🔌 Model Context Protocol (MCP) Server (`actx --mcp`)**:

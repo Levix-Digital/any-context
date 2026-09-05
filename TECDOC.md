@@ -1508,6 +1508,21 @@ sequenceDiagram
 4. **Zero Ghost TUIs & Raw Mode Lock Elimination**:
    - Eliminates terminal prompt leaks, ghost overlays, and unresponsive blinking cursors across Git Bash, Windows Terminal, MinTTY, PowerShell, and Unix shells.
 
+### 4. Cross-Platform Unified 3-Option Dialog & Universal Session Teardown (v0.28.87)
+
+In earlier iterations (v0.28.80 - v0.28.86), `OptionsEngine.get_update_options()` bifurcated dialog options based on detected sibling processes (`count = len(update_svc.find_active_instances())`):
+- When `count == 0`: rendered a 2-option menu (`"Update now"` with `id="background"`, and `"Cancel"`). The label `"Update now"` was deceptive because it returned `action: "none"`, keeping the user trapped in the old in-RAM session without offering a direct path to close the session and start using the new version immediately.
+- When `count > 0`: rendered a 3-option menu (`"Update in background"`, `"Close all AnyContext sessions and update now"`, and `"Cancel"`). This appeared frequently in Linux/WSL environments due to background MCP daemons or sibling shells, producing an inconsistent user experience compared to Windows.
+
+#### Unification Architecture Matrix
+`OptionsEngine.get_update_options()` now guarantees absolute cross-platform parity by consistently presenting the complete 3-option triad across Windows, Linux, and macOS:
+
+| Option ID | Title (`count == 0`) | Title (`count > 0`) | Action Returned | Lifecycle Behavior |
+| :--- | :--- | :--- | :--- | :--- |
+| **`background`** | `⚡ Update in background (Recommended)` | `⚡ Update in background (Recommended)` | `action: "none"` | Downloads/replaces binary atomically; active session continues running; applies on next launch. |
+| **`close`** | `⏹️ Close session and update now` | `⏹️ Close all AnyContext sessions and update now` | `action: "exit_update"` | Downloads binary, closes sibling instances (if any), displays exit notification, destroys OpenTUI/CLI raw mode, and exits cleanly to terminal in 800ms. |
+| **`cancel`** | `🔙 Cancel update` | `🔙 Cancel update` | `action: "none"` | Aborts update workflow safely and returns focus immediately to active chat. |
+
 ---
 
 ## 🛡️ Grounding Strategies, Live Web Search Priority Matrix & Universal Temporal Recency
