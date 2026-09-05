@@ -113,7 +113,7 @@ export function getInitialVersion(): string {
       }
     } catch {}
   }
-  return "0.28.76";
+  return "";
 }
 
 export class BridgeClient {

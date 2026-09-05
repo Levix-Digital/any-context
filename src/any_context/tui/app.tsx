@@ -781,37 +781,6 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       return;
     }
 
-    if (cmd === "/mode" && parts.length === 1) {
-      await openModeModal();
-      return;
-    }
-
-    if (cmd === "/switch" && parts.length === 1) {
-      await openSwitchModal();
-      return;
-    }
-
-    if ((cmd === "/model" || cmd === "/models" || cmd === "/m") && parts.length === 1) {
-      await openModelModal();
-      return;
-    }
-
-    if ((cmd === "/update" || cmd.startsWith("/update@")) && parts.length === 1) {
-      await openUpdateModal(cmd.includes("@") ? cmd.split("@")[1] : undefined);
-      return;
-    }
-
-    if (cmd === "/menu" || cmd === "/config" || cmd === "/settings") {
-      await openConfigModal("main");
-      return;
-    }
-
-    if (cmd === "/onboarding" || cmd === "/setup") {
-      hasTriggeredOnboardingRef.current = false;
-      await openOnboardingModal();
-      return;
-    }
-
     try {
       const res = await client.executeCommand(cmdText);
       if (res) {
@@ -849,11 +818,17 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
           return;
         }
         if (res.action === "open_update_modal") {
-          await openUpdateModal();
+          const targetVer = (res.state_updates as any)?.target_version;
+          await openUpdateModal(targetVer);
           return;
         }
         if (res.action === "open_config_modal" || res.action === "menu") {
           await openConfigModal("main");
+          return;
+        }
+        if (res.action === "open_onboarding_modal") {
+          hasTriggeredOnboardingRef.current = false;
+          await openOnboardingModal();
           return;
         }
         const isRestart = res.action === "restart" || Boolean(res.state_updates && (res.state_updates as any).action === "restart");

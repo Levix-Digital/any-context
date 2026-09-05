@@ -259,6 +259,14 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
         aliases=["/diag", "/perf", "/health"]
     ),
     CommandMeta(
+        name="/onboarding",
+        args="",
+        description="Launch first-time AI onboarding and API key setup wizard",
+        category="System",
+        direct_execution=True,
+        aliases=["/setup"]
+    ),
+    CommandMeta(
         name="/exit",
         args="",
         description="Save session memory and exit",
@@ -273,7 +281,10 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
 def find_command_meta(token: str) -> Optional[CommandMeta]:
     """Finds command metadata by name or alias."""
     clean = token.strip().lower()
+    base = clean.split("@")[0] if "@" in clean else clean
     for meta in COMMANDS_REGISTRY:
         if meta.name.lower() == clean or clean in [a.lower() for a in meta.aliases]:
+            return meta
+        if "@" in clean and (meta.name.lower() == base or base in [a.lower() for a in meta.aliases]):
             return meta
     return None

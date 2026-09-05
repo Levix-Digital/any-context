@@ -55,7 +55,7 @@ class TestRPCBridge(unittest.TestCase):
         self.assertTrue(any(state["tier_name"].startswith(e) for e in ["🌿", "⭐", "👥", "🏢", "💼"]), f"Invalid tier_name: {state['tier_name']}")
 
         cmds = self.server.list_commands()
-        self.assertEqual(len(cmds), 31, "All 31 slash commands must be present in palette metadata")
+        self.assertEqual(len(cmds), 32, "All 32 slash commands must be present in palette metadata")
         slash_names = [c["command"] for c in cmds]
         self.assertIn("/switch", slash_names)
         self.assertIn("/model", slash_names)
@@ -66,7 +66,8 @@ class TestRPCBridge(unittest.TestCase):
         self.assertIn("/menu", slash_names)
         self.assertIn("/logs", slash_names)
         self.assertIn("/diagnostics", slash_names)
-        safe_stdout_write("  [OK] State and 31-command catalog verified!\n")
+        self.assertIn("/onboarding", slash_names)
+        safe_stdout_write("  [OK] State and 32-command catalog verified!\n")
 
 
     def test_02_handle_request_mutations(self):
