@@ -62,10 +62,8 @@ def entrypoint():
         except Exception:
             pass
 
-    # 2. Print banner IMMEDIATELY before importing anything heavy (suppressed for TUI, MCP, RPC, API, Diagnostics)
-    non_interactive_flags = {"--help", "-h", "--version", "-v", "--mcp", "--rpc", "--tui", "--server", "serve", "api", "--diagnostics", "--diag", "--logs"}
-    if not any(arg.lower() in non_interactive_flags for arg in sys.argv[1:]):
-        # Patch prompt_toolkit for Git Bash / MinGW compatibility
+    # 2. Print banner only when legacy CLI mode is explicitly requested
+    if "--cli" in sys.argv:
         _patch_prompt_toolkit_for_git_bash()
         from any_context.cli.banner import print_banner, clear_terminal
         clear_terminal()
@@ -83,7 +81,6 @@ def entrypoint():
 
     # 4. Fast-path dispatch for non-interactive flags (sub-10ms response, avoids loading unused modules)
     if "--diagnostics" in sys.argv or "--diag" in sys.argv:
-
         report = collect_diagnostic_report()
         print(format_diagnostic_report(report))
         sys.exit(0)
@@ -98,21 +95,6 @@ def entrypoint():
         logs = storage.get_recent_logs(limit=limit)
         print(format_recent_logs(logs, limit=limit))
         sys.exit(0)
-
-    if "--tui" in sys.argv:
-        obs.info("CLI:DISPATCH", "Dispatching to OpenTUI", {"argv": sys.argv})
-        from any_context.cli.chat_loop import launch_opentui
-        ws = "Default"
-        for i, a in enumerate(sys.argv):
-            if a in ["-w", "--workspace"] and i + 1 < len(sys.argv):
-                ws = sys.argv[i + 1]
-            elif not a.startswith("-") and a != sys.argv[0] and a != "--tui":
-                ws = a
-        launched = launch_opentui(ws)
-        if launched:
-            sys.exit(0)
-        else:
-            sys.exit(1)
 
     if "--rpc" in sys.argv:
         obs.info("CLI:DISPATCH", "Dispatching to Stdio RPC Server", {"argv": sys.argv})
@@ -132,16 +114,110 @@ def entrypoint():
         start_mcp_server()
         sys.exit(0)
 
-    # 6. Configure logging silencers
-    import logging
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("openai").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("llama_index").setLevel(logging.WARNING)
-    logging.getLogger("transformers").setLevel(logging.ERROR)
+    # 5. Resolve active workspace from arguments
+    ws = "Default"
+    for i, a in enumerate(sys.argv):
+        if a in ["-w", "--workspace"] and i + 1 < len(sys.argv):
+            ws = sys.argv[i + 1]
+        elif not a.startswith("-") and a != sys.argv[0] and a not in ["--tui", "--cli"]:
+            ws = a
 
-    # 7. Now load chat loop and execute
+    # 6. Check for direct one-shot prompt (e.g. actx "my question" or actx -p "question" or piped stdin)
+    p_flag_idx = -1
+    for flag in ["-p", "--prompt", "-q", "--query"]:
+        if flag in sys.argv:
+            p_flag_idx = sys.argv.index(flag)
+            break
+
+    direct_prompt = None
+    if p_flag_idx != -1 and p_flag_idx + 1 < len(sys.argv):
+        direct_prompt = sys.argv[p_flag_idx + 1].strip()
+    elif not any(arg.lower() in ["--help", "-h", "--version", "-v", "--update", "-u", "--mcp", "--server", "serve", "api", "--tui", "--cli"] for arg in sys.argv[1:]):
+        filtered_args = []
+        skip_next = False
+        for a in sys.argv[1:]:
+            if skip_next:
+                skip_next = False
+                continue
+            if a in ["-w", "--workspace"]:
+                skip_next = True
+                continue
+            if not a.startswith("-"):
+                filtered_args.append(a)
+        if filtered_args:
+            direct_prompt = " ".join(filtered_args).strip()
+
+    if not direct_prompt and not sys.stdin.isatty():
+        try:
+            piped = sys.stdin.read().strip()
+            if piped:
+                direct_prompt = piped
+        except Exception:
+            pass
+
+    if direct_prompt:
+        from any_context.core.agent import create_anycontext_agent
+        from any_context.config.db_store import ConfigDBStore
+        store = ConfigDBStore()
+        settings = store.get_app_settings()
+        model = settings.models.inference_model if settings and settings.models else "gpt-4o-mini"
+        mode = store.get_grounding_mode(workspace_name=ws) or "strict"
+        search_enabled = store.get_web_search_status(workspace_name=ws) or False
+
+        agent = create_anycontext_agent(
+            model_name=model,
+            workspace_name=ws,
+            grounding_mode=mode,
+            web_search_enabled=search_enabled
+        )
+        config = {
+            "configurable": {
+                "thread_id": f"batch_{ws}",
+                "active_workspace": ws,
+                "grounding_mode": mode,
+                "web_search_enabled": search_enabled
+            }
+        }
+        for token, meta in agent.stream({"messages": [direct_prompt]}, stream_mode="messages", config=config):
+            if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"] and token.content:
+                if isinstance(token.content, str):
+                    sys.stdout.write(token.content)
+                    sys.stdout.flush()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        sys.exit(0)
+
+    # 7. Explicit legacy CLI fallback requested via --cli
+    if "--cli" in sys.argv:
+        import logging
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        logging.getLogger("openai").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("llama_index").setLevel(logging.WARNING)
+        logging.getLogger("transformers").setLevel(logging.ERROR)
+        try:
+            from any_context.cli.chat_loop import main_cli
+            main_cli()
+        except (KeyboardInterrupt, EOFError):
+            print("\n\n👋 AnyContext closed.\n")
+            sys.exit(0)
+        except Exception as e:
+            print(f"\n❌ Unexpected error starting AnyContext: {e}\n")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+        sys.exit(0)
+
+    # 8. DEFAULT USER EXPERIENCE: OpenTUI Interactive Terminal
+    from any_context.cli.tui_launcher import launch_opentui
+    obs.info("CLI:DISPATCH", "Defaulting to OpenTUI interface", {"workspace": ws})
+    launched = launch_opentui(ws)
+    if launched:
+        sys.exit(0)
+
+    # If Bun is not available, fall back gracefully to legacy CLI with a helpful tip
+    print("⚠️ Falling back to basic CLI interface...")
     try:
         from any_context.cli.chat_loop import main_cli
         main_cli()
@@ -150,8 +226,6 @@ def entrypoint():
         sys.exit(0)
     except Exception as e:
         print(f"\n❌ Unexpected error starting AnyContext: {e}\n")
-        import traceback
-        traceback.print_exc()
         sys.exit(1)
 
 
