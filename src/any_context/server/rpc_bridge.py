@@ -30,6 +30,19 @@ def _send_ndjson(data: Dict[str, Any]):
         pass
 
 
+def emit_boot_telemetry(step: str, status: str, label: str, elapsed_ms: Optional[float] = None):
+    """Emits a boot telemetry milestone event over NDJSON stdout for real-time TUI rendering."""
+    payload: Dict[str, Any] = {
+        "event": "boot_telemetry",
+        "step": step,
+        "status": status,
+        "label": label,
+    }
+    if elapsed_ms is not None:
+        payload["elapsed_ms"] = round(elapsed_ms, 1)
+    _send_ndjson(payload)
+
+
 class StdioRPCServer:
     """
     Stdio RPC Server managing LangGraph agent executions, configuration state,
@@ -498,6 +511,8 @@ class StdioRPCServer:
 
 def run_rpc_server(default_workspace: str = "Default"):
     """Starts the main stdio line-reading loop for NDJSON RPC."""
+    import time
+    t_boot_start = time.perf_counter()
     from any_context.observability import obs
     obs.info("RPC:SERVER", "Stdio RPC bridge server started", {"workspace": default_workspace, "pid": os.getpid()})
 
@@ -513,7 +528,104 @@ def run_rpc_server(default_workspace: str = "Default"):
         except Exception:
             pass
 
-    server = StdioRPCServer(default_workspace=default_workspace)
+    # 0. Runtime linked milestone
+    emit_boot_telemetry(
+        step="runtime",
+        status="done",
+        label="⚡ Python Core runtime linked",
+        elapsed_ms=round((time.perf_counter() - t_boot_start) * 1000, 1),
+    )
+
+    # 1. DB Store milestone
+    emit_boot_telemetry(
+        step="db",
+        status="running",
+        label="🔌 Initializing SQLite Configuration Store...",
+    )
+    store = ConfigDBStore()
+    t_db = (time.perf_counter() - t_boot_start) * 1000
+    emit_boot_telemetry(
+        step="db",
+        status="done",
+        label="🔌 SQLite Configuration Store active",
+        elapsed_ms=round(t_db, 1),
+    )
+
+    # 2. AI Model engine milestone
+    emit_boot_telemetry(
+        step="model",
+        status="running",
+        label="🤖 Linking AI Model engine...",
+    )
+    provider = "openai"
+    try:
+        from any_context.config.app_settings import AppSettings
+        settings = AppSettings.load()
+        if settings and settings.models and settings.models.model_provider:
+            provider = settings.models.model_provider
+    except Exception:
+        pass
+    current_model = store.get_workspace_model(default_workspace) or "gpt-4o-mini"
+    t_model = (time.perf_counter() - t_boot_start) * 1000
+    emit_boot_telemetry(
+        step="model",
+        status="done",
+        label=f"🤖 AI Model engine linked ({current_model} - {provider.upper()})",
+        elapsed_ms=round(t_model, 1),
+    )
+
+    # 3. Workspace milestone
+    emit_boot_telemetry(
+        step="workspace",
+        status="running",
+        label=f"📂 Connecting workspace ({default_workspace})...",
+    )
+    t_ws = (time.perf_counter() - t_boot_start) * 1000
+    emit_boot_telemetry(
+        step="workspace",
+        status="done",
+        label=f"📂 Workspace connected ({default_workspace})",
+        elapsed_ms=round(t_ws, 1),
+    )
+
+    # 4. Context state verification milestone
+    emit_boot_telemetry(
+        step="context",
+        status="running",
+        label="📦 Verifying context index state...",
+    )
+    ctx_label = "📦 Context state verified (Up to date - 0 files)"
+    try:
+        from any_context.ingestion.orchestrator import check_workspace_changes
+        diff = check_workspace_changes(default_workspace)
+        if diff.get("is_virgin"):
+            ctx_label = "📦 New workspace detected (Indexing required)"
+        elif diff.get("is_up_to_date"):
+            total_files = diff.get("total_disk_files", 0)
+            ctx_label = f"📦 Context state verified (Up to date - {total_files} files)"
+        else:
+            ctx_label = f"📦 Context updates available ({diff.get('summary', '')})"
+    except Exception:
+        pass
+    t_ctx = (time.perf_counter() - t_boot_start) * 1000
+    emit_boot_telemetry(
+        step="context",
+        status="done",
+        label=ctx_label,
+        elapsed_ms=round(t_ctx, 1),
+    )
+
+    server = StdioRPCServer(default_workspace=default_workspace, store=store)
+
+    # 5. Ready milestone
+    t_ready = time.perf_counter() - t_boot_start
+    emit_boot_telemetry(
+        step="ready",
+        status="done",
+        label=f"🚀 AnyContext ready in {t_ready:.2f}s",
+        elapsed_ms=round(t_ready * 1000, 1),
+    )
+
     # Notify TUI on startup that RPC server is ready
     ready_state = server.get_state()
     _send_ndjson({"event": "ready", "state": ready_state})

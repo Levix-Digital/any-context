@@ -7,7 +7,53 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.85): Validação de Imunidade Absoluta do Banco de Produção, Barreira de Segurança e Cascade Purge de Workspaces de Teste
+### 📌 Cenário 1 (v0.28.86): Telemetria de Inicialização em Tempo Real na TUI com Efeito Cascata Suave (Abordagem B) e Paridade com Terminal CLI
+
+- **Objetivo**: Comprovar que na release `v0.28.86`:
+  1. Abertura do AnyContext na interface interativa TUI (`actx` ou `actx --tui`) exibe **imediatamente desde o primeiro milissegundo** a árvore `┌─ ⚡ Engine Startup Telemetry` com animação de spinner braille (`⠋`, `⠙`, `⠹`, etc.).
+  2. A caixa estática amarela de espera (`⏳ Initializing AnyContext AI Core...`) foi **completamente eliminada**.
+  3. Cada subsistema (Runtime Python, SQLite Store, Motor de Modelo de IA, Conexão do Workspace e Verificação do Índice Vetorial) progride visualmente com efeito cascata fluido (~70ms de cadência mínima visual - Abordagem B), estampando o tempo real medido em milissegundos (`[ 42.0ms]`, `[ 64.7ms]`, etc.).
+  4. Ao finalizar a inicialização, a última linha `└─ [ X.XXs ] 🚀 AnyContext ready in X.XXs` fecha a árvore com destaque verde e o card `💬 Chat started! Type '/' for quick commands...` surge imediatamente abaixo.
+  5. A árvore de telemetria concluída permanece elegantemente fixada no topo do histórico de mensagens da conversa (atingindo 100% de paridade estética com o banner do Terminal CLI).
+  6. O prompt `👤 You:` torna-se 100% responsivo para digitação e comandos slash (`/`).
+- **Pré-requisito**: Versão `v0.28.86` instalada (`actx -v` exibindo `v0.28.86`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Inicialização da TUI e Observação do Boot:**
+   - No terminal (PowerShell ou Windows Terminal), inicie o AnyContext:
+     ```bash
+     actx
+     ```
+   - **Critérios de Aceitação:**
+     - A tela abre imediatamente. Em vez de uma caixa amarela estática, surge logo abaixo do banner ASCII a árvore:
+       ```text
+         ┌─ ⚡ Engine Startup Telemetry
+         │ ├─ [ ⠋ ] ⚡ Initializing Python Core runtime & dependencies...
+       ```
+     - O spinner braille gira ativamente enquanto o processo filho em segundo plano carrega as bibliotecas de IA.
+     - Assim que o motor conecta, a árvore desce em cascata suave, exibindo cada subsistema em verde com seus milissegundos:
+       ```text
+         ┌─ ⚡ Engine Startup Telemetry
+         │ ├─ [  3.20s] ⚡ Python Core runtime linked
+         │ ├─ [ 42.0ms] 🔌 SQLite Configuration Store active
+         │ ├─ [ 64.7ms] 🤖 AI Model engine linked (gpt-4o-mini - OPENAI)
+         │ ├─ [ 64.8ms] 📂 Workspace connected (Default)
+         │ ├─ [134.1ms] 📦 Context state verified (Up to date - 3 files)
+         │ └─ [  3.50s] 🚀 AnyContext ready in 3.50s
+       ```
+
+2. **💬 Confirmação de Prontidão e Persistência no Chat:**
+   - Observe a área logo abaixo da telemetria.
+   - **Critérios de Aceitação:**
+     - O box arredondado `💬 Chat started! Type '/' for quick commands...` aparece logo abaixo da telemetria de inicialização.
+     - A árvore de telemetria **não desaparece**: ela permanece no topo da lista de mensagens como histórico de inicialização do motor.
+     - O prompt `👤 You:` está ativo e com cursor piscando, pronto para receber perguntas ou comandos como `/switch`, `/model`, `/sync` e `/menu`.
+     - Digite `/exit` para sair limpo.
+
+---
+
+### 📌 Cenário 2 (v0.28.85): Validação de Imunidade Absoluta do Banco de Produção, Barreira de Segurança e Cascade Purge de Workspaces de Teste
 
 - **Objetivo**: Comprovar que na release `v0.28.85`:
   1. A execução de testes unitários diretamente (ex: `python -m unittest tests/unit/core/test_workspace_sources.py` ou `test_grounding_modes.py`) NUNCA polui o banco de produção do usuário (`%LOCALAPPDATA%\AnyContext\config\settings.db`).

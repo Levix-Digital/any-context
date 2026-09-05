@@ -440,7 +440,7 @@ class ConfigDBStore:
             # Safe cascade cleanup: Purge ALL workspaces explicitly tagged with created_by = 'test'
             # and any lingering ephemeral test fixtures (Unit_Dispatch_WS, TestWS, RpcUnitTestWS, NewRPCWS).
             # Workspaces with created_by = 'user' or 'system' can NEVER be deleted.
-            # Only executed in production mode (or when ACTX_TEST_MODE is not 1) to prevent deleting active fixtures during test runs.
+            # Only executed in production mode (when ACTX_TEST_MODE != "1") to prevent deleting active fixtures during test runs.
             if os.environ.get("ACTX_TEST_MODE") != "1":
                 try:
                     cursor.execute("""

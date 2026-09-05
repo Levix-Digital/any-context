@@ -3,6 +3,7 @@ import { useKeyboard } from "@opentui/react";
 import { BridgeClient } from "./bridge-client";
 import type {
   AnyContextState,
+  BootTelemetryStep,
   MenuTreeSchema,
   MenuItemSchema,
   OptionsGroupSchema,
@@ -27,6 +28,7 @@ interface AppProps {
 export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => {
   const [client] = useState(() => new BridgeClient(initialWorkspace));
   const [state, setState] = useState<AnyContextState>(client.state);
+  const [bootTelemetrySteps, setBootTelemetrySteps] = useState<BootTelemetryStep[]>(client.bootTelemetrySteps);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -52,6 +54,10 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
 
   useEffect(() => {
     tuiLog.info("APP:MOUNT", "App component mounted", { initialWorkspace });
+    client.onBootTelemetry = (_step, allSteps) => {
+      setBootTelemetrySteps([...allSteps]);
+    };
+
     client.onCommandsLoaded = (loadedCommands) => {
       tuiLog.info("APP:COMMANDS_LOADED", "Slash commands dynamically loaded from Core", {
         count: loadedCommands.length,
@@ -904,6 +910,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
       commands={commands}
       isGenerating={isGenerating}
       isBackendReady={isBackendReady}
+      bootTelemetrySteps={bootTelemetrySteps}
       onInputChange={handleInputChange}
       onSubmit={(text?: string) => handleSubmit(text)}
       scrollBoxRef={scrollBoxRef}

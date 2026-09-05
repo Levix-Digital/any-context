@@ -1,6 +1,7 @@
 import React from "react";
 import type {
   AnyContextState,
+  BootTelemetryStep,
   SlashCommandMeta,
   MenuTreeSchema,
   OptionsGroupSchema,
@@ -27,6 +28,7 @@ interface ChatViewProps {
   commands: SlashCommandMeta[];
   isGenerating: boolean;
   isBackendReady?: boolean;
+  bootTelemetrySteps?: BootTelemetryStep[];
   onInputChange: (val: string) => void;
   onSubmit: (text?: string) => void;
   scrollBoxRef?: any;
@@ -46,6 +48,7 @@ export const ChatView = ({
   commands,
   isGenerating,
   isBackendReady = true,
+  bootTelemetrySteps,
   onInputChange,
   onSubmit,
   scrollBoxRef,
@@ -56,7 +59,13 @@ export const ChatView = ({
       <HeaderBar state={state} hasMessages={messages.length > 0} />
 
       {/* Main Chat Message View with 100% full-screen flex layout */}
-      <ChatMessageList ref={scrollBoxRef} messages={messages} state={state} isBackendReady={isBackendReady} />
+      <ChatMessageList
+        ref={scrollBoxRef}
+        messages={messages}
+        state={state}
+        isBackendReady={isBackendReady}
+        bootTelemetrySteps={bootTelemetrySteps}
+      />
 
       {/* Unified Interactive Modal (Options list or Hierarchical Config Menu) */}
       <InteractiveModal

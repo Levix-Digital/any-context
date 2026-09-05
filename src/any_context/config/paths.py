@@ -34,6 +34,15 @@ def get_app_data_root() -> str:
     return os.path.abspath(target)
 
 
+def is_test_environment() -> bool:
+    """Returns True if running under pytest, unittest test runner, or explicit test mode."""
+    return bool(
+        os.getenv("ACTX_TEST_MODE") == "1"
+        or "pytest" in sys.modules
+        or ("unittest" in sys.modules and any("test" in arg.lower() for arg in sys.argv))
+    )
+
+
 def get_default_config_db_path() -> str:
     """Returns the canonical path for settings.db in the OS config directory."""
     env_db = os.getenv("ACTX_SETTINGS_DB")
@@ -42,12 +51,7 @@ def get_default_config_db_path() -> str:
         os.makedirs(os.path.dirname(p), exist_ok=True)
         return p
 
-    is_test_env = (
-        os.getenv("ACTX_TEST_MODE") == "1"
-        or "pytest" in sys.modules
-        or ("unittest" in sys.modules and any("test" in arg.lower() for arg in sys.argv))
-    )
-    if is_test_env:
+    if is_test_environment():
         # Hard safety barrier: automated tests must never touch the user's production config database
         import tempfile
         p = os.path.abspath(os.path.join(tempfile.gettempdir(), "actx_test_config", "settings.db"))
