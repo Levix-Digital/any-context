@@ -7,7 +7,73 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.29.1): Validação de Contagem de Páginas e Fontes como Autoridade do LanceDB e Silêncio no `/switch`
+### 📌 Cenário 1 (v0.29.2): Validação de Expurgo Imediato de Arquivos Deletados, Purge-Before-Embed e Idempotência do `/sync --force`
+
+- **Objetivo**: Comprovar que na release `v0.29.2`:
+  1. Ao excluir qualquer arquivo local do disco e disparar `/sync`, o arquivo e todos os seus chunks vetoriais são **imediatamente e atomicamente expurgados do LanceDB** e do cache SQLite, eliminando completamente registros "fantasmas" e impedindo que o assistente responda a perguntas usando arquivos apagados.
+  2. Ao descompactar arquivos `.zip` para subpastas (como `all_results/`) e excluir os arquivos `.zip` ou arquivos originais indesejados, a heurística de renomeação não confunde mais arquivos em pastas diferentes como renomeação, garantindo que o arquivo excluído seja de fato apagado do LanceDB.
+  3. Ao modificar um arquivo existente no disco e executar `/sync`, o mecanismo **Purge-Before-Embed** expurga os chunks legados do LanceDB antes de vetorizar o novo conteúdo, mantendo a proporção estritamente 1-para-1 e evitando a duplicação ou inflação de chunks ($0.00 custo, zero desperdício de tokens).
+  4. Ao executar `/sync --force`, o workspace passa por um expurgo atômico prévio de documentos locais (`delete_local_documents_by_workspace`) e limpeza de cache de stats, resultando em uma indexação limpa, 100% idempotente e com zero duplicações.
+  5. A normalização de caminhos com barras normais (`_norm_path`) assegura que instruções `WHERE file_path = ...` no LanceDB DataFusion SQL funcionem com 100% de sucesso no Windows, sem falhas de escape de barras invertidas (`\`).
+- **Pré-requisito**: Versão `v0.29.2` instalada (`actx -v` exibindo `v0.29.2`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Inicialização e Verificação de Versão:**
+   - No terminal, verificar a versão instalada:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:**
+     - O comando responde instantaneamente (< 50ms) exibindo: `v0.29.2`.
+
+2. **📁 Criação de Workspace de Teste e Indexação Inicial:**
+   - Abrir o AnyContext:
+     ```bash
+     actx
+     ```
+   - Criar um workspace de teste temporário:
+     ```text
+     /switch TesteSyncLifecycle
+     ```
+   - Criar uma pasta local com 2 arquivos de teste (ex: `doc_ativo.txt` e `doc_para_apagar.txt` com conteúdos distintos como `Código Alpha-100: Status Ativo` e `Código Beta-200: Dados Confidenciais de 1 de Setembro`).
+   - Adicionar a pasta:
+     ```text
+     /add <caminho_da_pasta>
+     ```
+   - Sincronizar:
+     ```text
+     /sync
+     ```
+   - **Critério de Aceitação:**
+     - Ambos os arquivos são indexados com sucesso no LanceDB.
+     - Ao perguntar: `"Qual é o status do Código Beta-200?"`, o assistente responde citando `doc_para_apagar.txt`.
+
+3. **🗑️ Exclusão do Arquivo no Disco e Verificação de Expurgo Imediato:**
+   - No explorador de arquivos ou terminal externo, apagar fisicamente o arquivo `doc_para_apagar.txt`.
+   - No AnyContext, executar a sincronização:
+     ```text
+     /sync
+     ```
+   - Fazer a mesma pergunta:
+     ```text
+     Qual é o status do Código Beta-200?
+     ```
+   - **Critério de Aceitação:**
+     - O assistente **NÃO** cita nem recupera mais informações do arquivo `doc_para_apagar.txt`, afirmando que não localizou informações sobre o Código Beta-200 no contexto.
+     - Ao executar `/chunks` ou `/inspect`, o arquivo apagado não possui nenhum chunk no LanceDB.
+
+4. **🔄 Teste de Idempotência e Zero-Duplicação com `/sync --force`:**
+   - Executar `/sync --force` duas vezes consecutivas no workspace:
+     ```text
+     /sync --force
+     ```
+   - **Critério de Aceitação:**
+     - O total de chunks no LanceDB permanece rigorosamente o mesmo antes e depois da execução forçada, comprovando ausência de inflação ou duplicação de chunks.
+
+---
+
+### 📌 Cenário 2 (v0.29.1): Validação de Contagem de Páginas e Fontes como Autoridade do LanceDB e Silêncio no `/switch`
 
 - **Objetivo**: Comprovar que na release `v0.29.1`:
   1. O **LanceDB é a autoridade definitiva e única (Single Source of Truth)** para o inventário de qualquer workspace (páginas web, arquivos de pastas locais, cloud drives e chunks vetoriais), eliminando qualquer discrepância causada por contadores estáticos no SQLite.
@@ -69,7 +135,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.29.0): Validação de Abas Virtuais de Workspace, Isolamento de Chat, Higiene Visual do `/clear` e Persistência no LanceDB
+### 📌 Cenário 3 (v0.29.0): Validação de Abas Virtuais de Workspace, Isolamento de Chat, Higiene Visual do `/clear` e Persistência no LanceDB
 
 - **Objetivo**: Comprovar que na release `v0.29.0`:
   1. O OpenTUI e a Stdio RPC Bridge isolam os buffers de mensagens por workspace na mesma sessão: ao trocar de workspace via `/switch <nome>` ou via modal, a tela exibe estritamente o histórico de conversa daquele workspace.

@@ -2043,3 +2043,99 @@ sequenceDiagram
 - `StdioRPCServer` suppresses message appending when `action in ("switch_workspace", "open_switch_modal")`.
 - The UI viewport transitions silently between virtual workspace tabs without polluting the user's conversational record.
 
+---
+
+## 54. Transactional Indexing Lifecycle, Instant Deletion Purge, and Zero-Ghost Guarantee (`v0.29.2`)
+
+`v0.29.2` resolves critical data persistence and consistency issues during incremental and full indexing across all source types (local folders, web portals, and cloud drives). It guarantees that deleted files are instantly expurgated from LanceDB, prevents chunk duplication on file modifications, and enforces atomic idempotency during forced syncs.
+
+### 🏛️ 1. Root Cause Analysis: The Ghost Chunk Lifecycle
+
+```mermaid
+graph TD
+    A[File Deleted on Disk] --> B[check_workspace_changes detects deleted file]
+    B --> C{Old Workflow}
+    C -->|Flaw 1: Blind Append| D[run_index_folder re-embedded all files without purge]
+    C -->|Flaw 2: Windows Backslash Escape| E[table.delete with Windows path failed silently in DataFusion SQL]
+    C -->|Flaw 3: False Rename Heuristic| F[Unzipped files in subfolders detected as renames of deleted files]
+    D --> G[Duplicates accumulated: 4,527 chunks for 143 files]
+    E --> H[Deleted file remained in LanceDB indefinitely]
+    F --> I[Deleted file path pointed to new extracted file]
+    G & H & I --> J[AI answers using stale / deleted file data]
+```
+
+1. **Silent Windows SQL Escape Failure in DataFusion / LanceDB**:
+   - Deletion statements in LanceDB: `table.delete(f"file_path = '{file_path}'")`.
+   - On Windows, paths contain backslashes (`\`). DataFusion SQL parses `\` as an escape character (`\t` = tab, `\U` = unicode). Unescaped backslashes caused SQL parse syntax errors that were silently caught and swallowed by broad `try/except: pass` blocks, leaving deleted records untouched in LanceDB.
+2. **Blind Full Re-Ingest without Prior Purge (Chunk Bloat)**:
+   - When any file in a folder changed, `run_index_folder` loaded and chunked all files, appending new chunks to LanceDB with newly generated UUIDs instead of replacing existing chunks. In `IKEAShipments`, this resulted in 4,527 chunks for 143 files (a 3x-9x duplicate ratio).
+3. **Overly Permissive Rename Heuristic**:
+   - `check_workspace_changes` matched any single deleted file with any single new file of identical size or extension, causing archives deleted after extraction into subdirectories (`all_results/`) to be treated as file renames.
+4. **Lossy Concurrency in `BackgroundSyncManager`**:
+   - When a forced sync was queued while a previous sync was finishing, the `force_full` flag was dropped.
+
+### 🛡️ 2. Architectural Redesign & Guaranteed Lifecycles
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CLI as OpenTUI / CLI (/sync)
+    participant BSM as BackgroundSyncManager
+    participant LFI as LocalFolderIngestor
+    participant LANCE as LanceDBStore
+    participant SQL as SQLite Cache
+
+    CLI->>BSM: trigger_sync(workspace, force_full)
+    BSM->>LFI: run_index_folder(workspace, force_full)
+    
+    alt Mode A: force_full == True
+        rect rgb(255, 240, 240)
+        Note over LFI,LANCE: Atomic Full Purge Before Ingestion
+        LFI->>LANCE: delete_local_documents_by_workspace(ws)
+        LFI->>SQL: clear_workspace_files_cache(ws)
+        end
+        LFI->>LFI: Discover all files on disk
+    else Mode B: force_full == False (Incremental)
+        LFI->>LFI: check_workspace_changes(ws)
+        rect rgb(255, 245, 230)
+        Note over LFI,LANCE: Instant Deletion Purge (At-Once)
+        loop Each deleted_file
+            LFI->>LANCE: delete_by_file(fp, ws)
+            LFI->>SQL: delete_cached_file(fp)
+        end
+        end
+        rect rgb(240, 255, 240)
+        Note over LFI,LANCE: Purge-Before-Embed
+        loop Each modified_file
+            LFI->>LANCE: delete_by_file(fp, ws)
+        end
+        end
+        LFI->>LFI: Target strictly new_files + modified_files
+    end
+
+    LFI->>LANCE: ParallelIndexer.index_documents(target_files)
+    LFI->>SQL: upsert_workspace_files_cache(target_files)
+    LFI-->>CLI: Sync complete (zero duplicates, zero ghosts)
+```
+
+### 🧩 3. Key Components & Implementation Details
+
+1. **Cross-Platform SQL Path Normalization (`LanceDBStore._norm_path`)**:
+   - LanceDB paths are consistently normalized using forward slashes (`/`).
+   - `delete_by_file` automatically normalizes any incoming path or URL via `_norm_path`, generating:
+     ```sql
+     workspace = '{clean_ws}' AND (file_path = '{clean_fp}' OR file_path LIKE '{clean_dir}/%')
+     ```
+   - Immune to Windows backslash syntax errors in DataFusion SQL.
+2. **Instant Deletion Purge (At-Once)**:
+   - In `run_index_folder`, `diff["deleted_files"]` are purged from both LanceDB and SQLite cache before any embedding or parsing starts.
+3. **Purge-Before-Embed Deduplication**:
+   - For all `diff["modified_files"]`, old chunks are expurgated from LanceDB prior to vectorization, maintaining a strictly 1-to-1 relationship between file content and vector chunks.
+4. **Atomic Force-Full Guarantee**:
+   - `/sync --force` executes `lance_store.delete_local_documents_by_workspace` and `store.clear_workspace_files_cache`, guaranteeing a 100% clean rebuild with zero ghost chunks and zero duplicates.
+5. **Strict Rename Guardrails**:
+   - A rename is only recognized if the file has the exact same basename across directories, or the exact same directory, extension, and byte size. Extracts into subdirectories are treated strictly as deletion of the archive and addition of new extracted files.
+6. **Universal Applicability**:
+   - Identical principles are enforced across local folders, web crawlers (`web_crawler.py`), web schedulers (`web_scheduler.py`), and cloud drives.
+
+

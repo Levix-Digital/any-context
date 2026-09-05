@@ -230,7 +230,7 @@ class LanceDBStore:
             try:
                 table = self._db.open_table(table_name)
                 clean_ws = workspace_name.replace("'", "''")
-                table.delete(f"workspace = '{clean_ws}' AND content_type = 'Local Document'")
+                table.delete(f"workspace = '{clean_ws}' AND (content_type = 'Local Document' OR content_type IS NULL OR content_type != 'Web Documentation')")
             except Exception:
                 pass
 
@@ -254,7 +254,8 @@ class LanceDBStore:
             try:
                 table = self._db.open_table(table_name)
                 clean_fp = self._norm_path(file_path).replace("'", "''")
-                where_clause = f"(file_path = '{clean_fp}' OR file_path LIKE '{clean_fp}/%' OR file_path LIKE '{clean_fp}%')"
+                clean_dir = clean_fp.rstrip("/")
+                where_clause = f"(file_path = '{clean_fp}' OR file_path LIKE '{clean_dir}/%')"
                 if workspace_name:
                     clean_ws = workspace_name.replace("'", "''")
                     where_clause = f"workspace = '{clean_ws}' AND ({where_clause})"

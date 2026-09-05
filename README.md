@@ -58,6 +58,12 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🖥️ Default Reactive Terminal UI (OpenTUI)**:
   - **Zero Flag Friction**: Launching `actx` opens the reactive OpenTUI interface directly without requiring `--tui`.
   - **100% Thin Client Architecture**: Complete separation of concerns between presentation and business logic. All commands, RAG queries, and configuration mutations run through the unified Core Command Dispatcher over Stdio RPC, ensuring 100% architectural parity with the upcoming Tauri Desktop interface.
+- **🔄 Transactional Indexing Lifecycle, Instant Deletion Purge & Zero-Ghost Guarantee (`v0.29.2`)**:
+  - **Instant Deletion Purge (At-Once)**: Deleted files are expurgated immediately from LanceDB upon `/sync` or background sync, permanently eliminating "ghost" records and preventing AI answers from stale, deleted files.
+  - **Purge-Before-Embed Deduplication**: Modified files have their outdated chunks atomic-purged from LanceDB prior to embedding, keeping chunk counts 100% clean and preventing duplicate accumulation ($0.00 cost, zero token waste).
+  - **Atomic Force Full Re-indexing (`/sync --force`)**: Atomically purges existing document chunks and clears file cache, ensuring clean, idempotent vector rebuilds across all sources (local folders, web portals, cloud drives).
+  - **Cross-Platform SQL Path Normalization**: Hardened LanceDB SQL where clauses with cross-platform forward-slash normalization (`/`), resolving silent DataFusion SQL escape failures on Windows paths with backslashes.
+  - **Strict Rename Guardrails**: Prevents archive extraction and subdirectory unzipping from triggering false rename heuristics.
 - **📑 Virtual Tab Workspace Isolation & View Hygiene (`v0.29.0`)**:
   - **Tabbed Chat Isolation**: Switching workspaces (`/switch`) immediately swaps the visible chat viewport to that workspace's dedicated conversation buffer while preserving other workspaces' conversations intact in memory.
   - **Visual Hygiene Without Induced Amnesia**: The `/clear` (or `/cls`) command clears only the active workspace's visual screen buffer (restoring the signature ASCII Full Glory Banner) while keeping 100% of conversation turns preserved in the session accumulator.

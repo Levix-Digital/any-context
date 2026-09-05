@@ -80,13 +80,13 @@ def run_index_folder(
     if progress_callback:
         progress_callback(0, 0, "scanning", "")
 
-    current_settings = AppSettings.load()
+    store = ConfigDBStore()
+    current_settings = store.get_app_settings()
     if not current_settings or not current_settings.workspaces:
         if verbose:
             safe_print("❌ Error: No workspaces configured in settings.")
         return {"status": "error", "error": "No workspaces configured."}
 
-    store = ConfigDBStore()
     target_ws_name = workspace_name or (current_settings.workspaces[0].name if current_settings.workspaces else "Default")
 
     with obs.span("ingestion:local_folder", workspace=target_ws_name, force_full=force_full):
@@ -98,17 +98,69 @@ def run_index_folder(
             safe_print(f"\n[Ingestion Pipeline: {target_ws_name}]")
             safe_print(f"  • Storage: LanceDB Columnar Vector Store ({db_save_path}/lancedb)")
 
-        # 1. Fast SQLite Stat Cache Diff Check
-        if workspace_name and not force_full:
+        workspaces_to_process = [
+            ws for ws in current_settings.workspaces
+            if not workspace_name or ws.name == workspace_name
+        ]
+
+        if not workspaces_to_process:
+            return {"status": "empty", "total_files": 0, "indexed_files": 0}
+
+        # -------------------------------------------------------------
+        # Mode A: FORCE FULL REINDEX (/sync --force)
+        # -------------------------------------------------------------
+        if force_full:
+            if verbose:
+                safe_print(f"  • Force Full: Purging existing local document chunks for '{target_ws_name}'...")
+            for ws in workspaces_to_process:
+                try:
+                    lance_store.delete_local_documents_by_workspace(ws.name)
+                except Exception:
+                    pass
+                try:
+                    store.clear_workspace_files_cache(ws.name)
+                except Exception:
+                    pass
+
+            files_to_index = []
+            for ws in workspaces_to_process:
+                for folder_path in ws.paths:
+                    if os.path.exists(folder_path):
+                        files_to_index.extend(discover_workspace_files(folder_path))
+
+            if not files_to_index:
+                if verbose:
+                    safe_print("❌ No valid documents found across configured paths.\n")
+                return {"status": "empty", "total_files": 0, "indexed_files": 0}
+
+            diff_summary = {
+                "is_up_to_date": False,
+                "new_files": files_to_index,
+                "modified_files": [],
+                "deleted_files": [],
+                "renamed_files": [],
+                "total_disk_files": len(files_to_index)
+            }
+
+        # -------------------------------------------------------------
+        # Mode B: INCREMENTAL SYNC (/sync)
+        # -------------------------------------------------------------
+        else:
             diff = check_workspace_changes(target_ws_name)
+            diff_summary = diff
             if diff["is_up_to_date"]:
                 if verbose:
                     safe_print(f"  • Stat Check: 100% up to date ({diff['total_disk_files']} files, 0 changes)")
                     safe_print("✔ Ingestion completed successfully (0 changes)!\n")
-                return {"status": "up_to_date", "total_files": diff["total_disk_files"], "changes": diff}
+                return {
+                    "status": "up_to_date",
+                    "total_files": diff["total_disk_files"],
+                    "indexed_files": 0,
+                    "changes": diff
+                }
 
-            # Zero-cost Renamed/Moved Files Metadata Repointing ($0.00)
-            if diff["renamed_files"]:
+            # 1. Zero-cost Renamed/Moved Files Metadata Repointing ($0.00)
+            if diff.get("renamed_files"):
                 try:
                     for old_p, new_p in diff["renamed_files"]:
                         store.rename_cached_file_path(target_ws_name, old_p, new_p)
@@ -118,8 +170,8 @@ def run_index_folder(
                 except Exception:
                     pass
 
-            # Purge Deleted Files from LanceDB & SQLite cache
-            if diff["deleted_files"]:
+            # 2. Purge Deleted Files from LanceDB & SQLite cache ATOMICALLY & IMMEDIATELY
+            if diff.get("deleted_files"):
                 try:
                     for dfp in diff["deleted_files"]:
                         lance_store.delete_by_file(dfp, workspace_name=target_ws_name)
@@ -129,11 +181,24 @@ def run_index_folder(
                 if verbose:
                     safe_print(f"  • Deleted: {len(diff['deleted_files'])} files purged")
 
-            # If only deletions and renames occurred, return early
-            if not diff["new_files"] and not diff["modified_files"]:
+            # 3. Purge Chunks of Modified Files before re-indexing (Purge-Before-Embed)
+            if diff.get("modified_files"):
+                try:
+                    for mfp in diff["modified_files"]:
+                        lance_store.delete_by_file(mfp, workspace_name=target_ws_name)
+                except Exception:
+                    pass
+
+            files_to_index = diff.get("new_files", []) + diff.get("modified_files", [])
+            if not files_to_index:
                 if verbose:
                     safe_print("✔ Ingestion completed successfully!\n")
-                return {"status": "updated", "changes": diff}
+                return {
+                    "status": "updated",
+                    "total_files": diff.get("total_disk_files", 0),
+                    "indexed_files": 0,
+                    "changes": diff
+                }
 
         from any_context.tools.search_tools import configure_embedding_model
         from llama_index.core import SimpleDirectoryReader
@@ -141,45 +206,46 @@ def run_index_folder(
         from any_context.vector_engine.models import IngestionConfig
         configure_embedding_model()
 
-
     chunk_size = current_settings.context.chunk_size if (current_settings and current_settings.context) else 1024
     chunk_overlap = current_settings.context.chunk_overlap if (current_settings and current_settings.context) else 200
 
     all_documents = []
-    total_discovered_files = 0
-    scanned_file_samples = []
-    workspaces_to_process = []
-    all_processed_files_for_cache = []
+    total_files = len(files_to_index)
+    if progress_callback:
+        progress_callback(1, total_files, "files", os.path.basename(files_to_index[0]))
 
-    for ws in current_settings.workspaces:
-        if workspace_name and ws.name != workspace_name:
-            continue
-        workspaces_to_process.append(ws)
-
-        ws_file_paths = []
-        for folder_path in ws.paths:
-            if not os.path.exists(folder_path):
-                if verbose:
-                    safe_print(f"│ ├─ ⚠️ Directory missing: {folder_path}")
+    try:
+        reader = SimpleDirectoryReader(input_files=files_to_index)
+        docs = reader.load_data()
+        for idx, d in enumerate(docs):
+            d.metadata["workspace"] = target_ws_name
+            if "file_path" in d.metadata:
+                fp = d.metadata["file_path"]
+                d.id_ = fp
+                try:
+                    mtime = os.path.getmtime(fp)
+                    ctime = os.path.getctime(fp)
+                    d.metadata["last_modified_date"] = time.strftime("%Y-%m-%d", time.localtime(mtime))
+                    d.metadata["creation_date"] = time.strftime("%Y-%m-%d", time.localtime(ctime))
+                    d.metadata["content_type"] = "Local Document"
+                    d.metadata["date_confidence"] = "filesystem_timestamp"
+                except Exception:
+                    pass
+            if progress_callback and idx % 5 == 0:
+                progress_callback(min(idx + 1, total_files), total_files, "files", d.metadata.get("file_name", ""))
+        all_documents.extend(docs)
+    except Exception:
+        # Fallback: file-by-file loading if a batch contains a corrupted or locked file
+        for f_idx, single_file in enumerate(files_to_index):
+            if not os.path.exists(single_file):
                 continue
-
-            discovered_files = discover_workspace_files(folder_path)
-            ws_file_paths.extend(discovered_files)
-            total_discovered_files += len(discovered_files)
-            scanned_file_samples.extend(discovered_files[:4])
-
-        all_processed_files_for_cache.extend(ws_file_paths)
-
-        # Load discovered files safely
-        if ws_file_paths:
-            total_ws_files = len(ws_file_paths)
             if progress_callback:
-                progress_callback(1, total_ws_files, "files", os.path.basename(ws_file_paths[0]))
+                progress_callback(f_idx + 1, total_files, "files", os.path.basename(single_file))
             try:
-                reader = SimpleDirectoryReader(input_files=ws_file_paths)
-                docs = reader.load_data()
-                for idx, d in enumerate(docs):
-                    d.metadata["workspace"] = ws.name
+                single_reader = SimpleDirectoryReader(input_files=[single_file])
+                s_docs = single_reader.load_data()
+                for d in s_docs:
+                    d.metadata["workspace"] = target_ws_name
                     if "file_path" in d.metadata:
                         fp = d.metadata["file_path"]
                         d.id_ = fp
@@ -190,59 +256,26 @@ def run_index_folder(
                             d.metadata["creation_date"] = time.strftime("%Y-%m-%d", time.localtime(ctime))
                             d.metadata["content_type"] = "Local Document"
                             d.metadata["date_confidence"] = "filesystem_timestamp"
+                            d.metadata["source"] = fp
                         except Exception:
                             pass
-                    if progress_callback and idx % 5 == 0:
-                        progress_callback(min(idx + 1, total_ws_files), total_ws_files, "files", d.metadata.get("file_name", ""))
-                all_documents.extend(docs)
-            except Exception:
-                # Fallback: file-by-file loading if a batch contains a corrupted or locked file
-                for f_idx, single_file in enumerate(ws_file_paths):
-                    if progress_callback:
-                        progress_callback(f_idx + 1, total_ws_files, "files", os.path.basename(single_file))
-                    try:
-                        single_reader = SimpleDirectoryReader(input_files=[single_file])
-                        s_docs = single_reader.load_data()
-                        for d in s_docs:
-                            d.metadata["workspace"] = ws.name
-                            if "file_path" in d.metadata:
-                                fp = d.metadata["file_path"]
-                                d.id_ = fp
-                                try:
-                                    mtime = os.path.getmtime(fp)
-                                    ctime = os.path.getctime(fp)
-                                    d.metadata["last_modified_date"] = time.strftime("%Y-%m-%d", time.localtime(mtime))
-                                    d.metadata["creation_date"] = time.strftime("%Y-%m-%d", time.localtime(ctime))
-                                    d.metadata["content_type"] = "Local Document"
-                                    d.metadata["date_confidence"] = "filesystem_timestamp"
-                                    d.metadata["source"] = fp
-                                except Exception:
-                                    pass
-                        all_documents.extend(s_docs)
-                    except Exception:
-                        pass
-            if progress_callback:
-                progress_callback(total_ws_files, total_ws_files, "files", "")
-
-    if verbose:
-        safe_print(f"  • Discovery: {total_discovered_files} files scanned across configured paths")
-        for sample in scanned_file_samples[:3]:
-            safe_print(f"    - {os.path.basename(sample)}")
-        if total_discovered_files > 3:
-            safe_print(f"    - ... (+ {total_discovered_files - 3} more files)")
-        safe_print(f"  • Chunks: {len(all_documents)} document nodes parsed")
-        embed_label = current_settings.models.embedding_model if (current_settings and current_settings.models) else "text-embedding-3-small"
-        safe_print(f"  • Embeddings: {embed_label} (incremental check)")
-
-    if not all_documents:
-        for ws in workspaces_to_process:
-            try:
-                lance_store.delete_local_documents_by_workspace(ws.name)
+                all_documents.extend(s_docs)
             except Exception:
                 pass
+
+    if progress_callback:
+        progress_callback(total_files, total_files, "files", "")
+
+    if not all_documents:
         if verbose:
-            safe_print("❌ No valid documents found across any workspace.\n")
-        return {"status": "empty", "total_files": 0}
+            safe_print("❌ No valid documents could be parsed across target files.\n")
+        return {
+            "status": "empty",
+            "total_files": len(files_to_index),
+            "indexed_files": 0,
+            "chunks_count": 0,
+            "changes": diff_summary
+        }
 
     # Vectorize and Index via ParallelIndexer into LanceDBStore
     indexer = ParallelIndexer(store=lance_store)
@@ -254,9 +287,9 @@ def run_index_folder(
         progress_callback=progress_callback
     )
 
-    # Batch upsert file stat records into SQLite cache
+    # Batch upsert file stat records into SQLite cache strictly for indexed files
     cache_records = []
-    for fp in all_processed_files_for_cache:
+    for fp in files_to_index:
         if os.path.exists(fp):
             try:
                 st = os.stat(fp)
@@ -270,10 +303,8 @@ def run_index_folder(
             except Exception:
                 pass
 
-    for ws in workspaces_to_process:
-        ws_recs = [r for r in cache_records if any(r["file_path"].startswith(os.path.abspath(p)) for p in ws.paths if os.path.exists(p))]
-        if ws_recs:
-            store.upsert_workspace_files_cache(ws.name, ws_recs)
+    if cache_records:
+        store.upsert_workspace_files_cache(target_ws_name, cache_records)
 
     if verbose:
         safe_print(f"  • Vectorized: {idx_res.get('indexed_chunks', len(all_documents))} chunks indexed in LanceDB")
@@ -281,8 +312,10 @@ def run_index_folder(
 
     return {
         "status": "completed",
-        "total_files": total_discovered_files,
-        "chunks_count": idx_res.get("indexed_chunks", len(all_documents))
+        "total_files": diff_summary.get("total_disk_files", len(files_to_index)),
+        "indexed_files": len(files_to_index),
+        "chunks_count": idx_res.get("indexed_chunks", len(all_documents)),
+        "changes": diff_summary
     }
 
 

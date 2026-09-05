@@ -159,16 +159,21 @@ def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
         del_size = cached_files[del_f]["file_size"]
         del_base = os.path.basename(del_f)
         del_ext = os.path.splitext(del_f)[1].lower()
+        del_dir = os.path.dirname(del_f)
         for new_f in list(remaining_new):
             new_size = disk_files[new_f]["file_size"]
             new_base = os.path.basename(new_f)
             new_ext = os.path.splitext(new_f)[1].lower()
+            new_dir = os.path.dirname(new_f)
 
             is_match = False
-            if del_size == new_size:
+            # Strict rename/move match:
+            # 1. Moved file: exact same filename and non-zero size across paths
+            # 2. Renamed file: exact same directory, same extension, and exact same non-zero size
+            if del_size == new_size and del_size > 0:
                 if del_base == new_base:
                     is_match = True
-                elif del_ext == new_ext and (os.path.dirname(del_f) == os.path.dirname(new_f) or len(deleted_files) == 1 or len(new_files) == 1):
+                elif del_ext == new_ext and del_dir == new_dir:
                     is_match = True
 
             if is_match:
@@ -378,6 +383,10 @@ class BackgroundSyncManager:
         with self._lock:
             if clean_ws in self._active_jobs and self._active_jobs[clean_ws]["thread"].is_alive():
                 self._pending_syncs.add(clean_ws)
+                if force_full:
+                    if not hasattr(self, "_pending_force"):
+                        self._pending_force = set()
+                    self._pending_force.add(clean_ws)
                 return self._active_jobs[clean_ws]["thread"]
 
         self.update_progress(clean_ws, current=0, total=0, stage="scanning")
@@ -389,13 +398,14 @@ class BackgroundSyncManager:
                 def _prog_cb(curr: int, tot: int, stg: str = "files", itm: str = ""):
                     self.update_progress(clean_ws, current=curr, total=tot, stage=stg, item_name=itm)
 
+                current_force = force_full
                 while True:
                     res = run_unified_sync(
                         workspace_name=clean_ws if not is_all else None,
                         sync_folders=sync_folders,
                         sync_web=sync_web,
                         sync_drives=sync_drives,
-                        force_full=force_full,
+                        force_full=current_force,
                         verbose=verbose,
                         is_all=is_all,
                         progress_callback=_prog_cb
@@ -404,6 +414,10 @@ class BackgroundSyncManager:
                     with self._lock:
                         if clean_ws in self._pending_syncs:
                             self._pending_syncs.remove(clean_ws)
+                            pending_force_set = getattr(self, "_pending_force", set())
+                            current_force = clean_ws in pending_force_set
+                            if clean_ws in pending_force_set:
+                                pending_force_set.remove(clean_ws)
                             continue
                         break
                 

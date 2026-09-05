@@ -371,6 +371,22 @@ def crawl_and_index_urls(
     # Load existing indexed pages map for incremental comparison
     indexed_map = store.get_indexed_pages_map(workspace_name, domain_or_prefix=domain)
 
+    # Atomic purge: on force_refresh wipe portal chunks; on incremental purge pages removed from site
+    if force_refresh:
+        try:
+            lance_store.delete_by_file(effective_root, workspace_name=workspace_name)
+            clean_root = effective_root.rstrip("/")
+            lance_store.delete_by_file(f"{clean_root}/", workspace_name=workspace_name)
+        except Exception:
+            pass
+    elif indexed_map:
+        deleted_pages = [u for u in indexed_map.keys() if u not in urls]
+        for dp in deleted_pages:
+            try:
+                lance_store.delete_by_file(dp, workspace_name=workspace_name)
+            except Exception:
+                pass
+
     # 1. Sitemap <lastmod> In-Memory Pre-Filtering
     urls_to_scrape: List[str] = []
     if sitemap_lastmods and not force_refresh:
