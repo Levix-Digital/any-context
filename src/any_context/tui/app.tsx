@@ -473,14 +473,22 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
                   return;
                 }
 
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    id: `sys_${Date.now()}`,
-                    role: "system",
-                    content: res.message || `Set ${modalOptionsGroup.type} to ${selectedOption.title}`,
-                  },
-                ]);
+                if (modalOptionsGroup.type === "workspace") {
+                  if (res.chat_history) {
+                    setMessages(res.chat_history);
+                  } else {
+                    client.getChatHistory().then((hist) => setMessages(hist));
+                  }
+                } else {
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: `sys_${Date.now()}`,
+                      role: "system",
+                      content: res.message || `Set ${modalOptionsGroup.type} to ${selectedOption.title}`,
+                    },
+                  ]);
+                }
                 client.refreshState();
               })
               .catch((err) => {
@@ -763,7 +771,7 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
 
   const handleSlashCommand = async (cmdText: string) => {
     tuiLog.info("APP:SLASH_COMMAND", `Executing slash command '${cmdText}'`);
-    const parts = cmdText.split(" ");
+    const parts = cmdText.trim().split(" ");
     const cmd = parts[0].toLowerCase();
 
     if (cmd === "/exit" || cmd === "/quit" || cmd === "/q") {
@@ -778,6 +786,9 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
 
     if (cmd === "/clear" || cmd === "/cls") {
       setMessages([]);
+      try {
+        await client.executeCommand(cmdText);
+      } catch (_) {}
       return;
     }
 
@@ -795,6 +806,15 @@ export const App = ({ initialWorkspace = "Default", onExit }: AppProps): any => 
         }
         if (res.action === "clear") {
           setMessages([]);
+          return;
+        }
+        if (res.state_updates && (res.state_updates as any).workspace) {
+          if (res.chat_history) {
+            setMessages(res.chat_history);
+          } else {
+            const hist = await client.getChatHistory((res.state_updates as any).workspace);
+            setMessages(hist);
+          }
           return;
         }
         if (res.action === "open_mode_modal") {

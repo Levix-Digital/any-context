@@ -44,6 +44,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "curl -X POST 'http://127.0.0.1:8000/v1/workspaces?name=Mercado'"
         ],
         tips=[
+            "Workspaces act like virtual tabs: switching workspaces swaps the chat view to that workspace's dedicated conversation buffer while preserving previous workspaces' chats intact in memory.",
             "Workspaces can be 100% web-based: create an empty workspace and use '/web --add <url>' to index entire documentation portals.",
             "Workspaces keep your files and projects completely separate, preventing information from one client or project from mixing with another.",
             "You can manage folders inside a workspace anytime using the '/config' -> '📂 Workspaces & Folders' menu."
@@ -57,7 +58,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
         description=(
             "The /sync (or /index) command performs ultra-fast, intelligent synchronization of all configured folders in the active workspace. "
             "It uses a sub-30ms SQLite filesystem stat cache (mtime and size) to bypass unchanged files with zero disk reads, "
-            "performs zero-cost metadata repointing ($0.00) for renamed or moved files, purges deleted disk files from the ChromaDB vector database, "
+            "performs zero-cost metadata repointing ($0.00) for renamed or moved files, purges deleted disk files from the LanceDB vector database, "
             "and ingests only new or modified documents without blocking your chat session."
         ),
         syntax=(
@@ -566,7 +567,7 @@ HELP_REGISTRY: Dict[str, HelpPage] = {
             "In Chat: /clear -h"
         ],
         tips=[
-            "Use /clear anytime during long multi-turn sessions to keep your workspace view pristine without losing session context."
+            "Use /clear anytime during long multi-turn sessions to refresh your screen. /clear is strictly visual hygiene: your entire conversation is preserved in the session accumulator and consolidated into LanceDB upon exit."
         ]
     ),
 

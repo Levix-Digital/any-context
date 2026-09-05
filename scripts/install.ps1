@@ -157,7 +157,7 @@ Write-Host "[OK] Engine configured: $CoreExePath" -ForegroundColor Green
 Log-Install "Engine configured successfully at $CoreExePath"
 
 # 3. Setup Version Cache File (BOM-free UTF-8)
-$VersionTag = "0.28.90"
+$VersionTag = "0.28.91"
 try {
     if (Get-Command gh -ErrorAction SilentlyContinue) {
         $ghTag = (gh release view --repo $Repo --json tagName -q .tagName 2>$null)

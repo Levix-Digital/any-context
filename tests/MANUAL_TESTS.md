@@ -7,6 +7,96 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.28.91): Validação de Abas Virtuais de Workspace, Isolamento de Chat, Higiene Visual do `/clear` e Persistência no LanceDB
+
+- **Objetivo**: Comprovar que na release `v0.28.91`:
+  1. O OpenTUI e a Stdio RPC Bridge isolam os buffers de mensagens por workspace na mesma sessão: ao trocar de workspace via `/switch <nome>` ou via modal, a tela exibe estritamente o histórico de conversa daquele workspace.
+  2. Ao retornar a um workspace visitado anteriormente, seu histórico de mensagens é restaurado 100% intacto, comportando-se exatamente como uma troca de abas.
+  3. A barra de status inferior (`StatusBar`) preserva e reflete instantaneamente o modelo de IA, modo de grounding, status de busca web e telemetria de sincronização específicos daquele workspace.
+  4. O cabeçalho dinâmico (`HeaderBar`) alterna com precisão: exibe o banner **Full Glory ASCII** quando um workspace não possui mensagens na sessão atual (ou após `/clear`), e recolhe para a **Compact Top Bar** de 1 linha assim que a conversa se inicia.
+  5. O comando `/clear` (ou `/cls`) realiza estritamente a higiene visual da tela (View Buffer) sem induzir amnésia: todo o histórico de mensagens trocadas é preservado no Session Accumulator do Core.
+  6. Ao encerrar a sessão via `/exit`, o servidor RPC aciona o `MemoryManager` para cada workspace que teve mensagens na sessão (`dirty_workspaces`), sumarizando os blocos conversacionais (Nível 1) e persistindo exclusivamente na tabela `session_memory` do **LanceDB**.
+- **Pré-requisito**: Versão `v0.28.91` instalada (`actx -v` exibindo `v0.28.91`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Início de Sessão Limpa e Verificação Inicial:**
+   - Abrir o terminal interativo:
+     ```bash
+     actx
+     ```
+   - **Critério de Aceitação:**
+     - O OpenTUI inicializa com a tela visualmente limpa e o banner ASCII **Full Glory** em destaque no workspace `Default`.
+     - A barra de status indica `📂 Default`.
+
+2. **💬 Conversação no Workspace Inicial (`Default`):**
+   - Enviar uma pergunta inicial no chat:
+     ```text
+     Olá, estamos iniciando o teste de abas virtuais do AnyContext!
+     ```
+   - Aguardar a resposta do assistente.
+   - **Critério de Aceitação:**
+     - A resposta é gerada em streaming normalmente.
+     - O banner ASCII recolhe automaticamente para a **Compact Top Bar** de 1 linha (`🚀 AnyContext (actx) v0.28.91 │ Levix Digital │ ...`).
+
+3. **🔄 Criação e Troca para Novo Workspace (`/switch TesteAbas`):**
+   - Na linha de comando do OpenTUI, digitar e pressionar Enter:
+     ```text
+     /switch TesteAbas
+     ```
+   - **Critério de Aceitação:**
+     - A tela de chat do `Default` é imediatamente recolhida e substituída pela tela limpa do workspace `TesteAbas`.
+     - O banner volta ao modo **Full Glory ASCII**, pois `TesteAbas` ainda não tem mensagens nesta sessão.
+     - A barra de status inferior atualiza para `📂 TesteAbas`.
+
+4. **💬 Conversação no Segundo Workspace (`TesteAbas`):**
+   - Enviar uma mensagem específica:
+     ```text
+     Esta é uma mensagem exclusiva do workspace TesteAbas sobre arquitetura em Rust.
+     ```
+   - Aguardar a resposta da IA.
+   - **Critério de Aceitação:**
+     - O chat do `TesteAbas` exibe apenas as mensagens deste novo workspace.
+     - O banner recolhe para a Compact Top Bar.
+
+5. **🔙 Retorno ao Workspace Anterior (`/switch Default`):**
+   - Digitar e pressionar Enter:
+     ```text
+     /switch Default
+     ```
+   - **Critério de Aceitação:**
+     - A conversa do `TesteAbas` sai de tela e o chat anterior do `Default` ("Olá, estamos iniciando o teste de abas virtuais...") reaparece instantaneamente e intacto.
+     - A barra de status restaura `📂 Default`.
+
+6. **🧹 Higiene Visual do `/clear` sem Perda de Memória:**
+   - No workspace `Default`, executar:
+     ```text
+     /clear
+     ```
+   - **Critério de Aceitação:**
+     - A tela é limpa e o banner **Full Glory ASCII** é renderizado novamente.
+   - Agora, pergunte imediatamente à IA:
+     ```text
+     Você se lembra do que falamos antes de eu limpar a tela?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo responde confirmando que lembra da conversa inicial sobre o teste de abas virtuais, comprovando que o `/clear` não causou amnésia na sessão.
+
+7. **🚪 Encerramento de Sessão e Persistência no LanceDB:**
+   - Encerrar o OpenTUI:
+     ```text
+     /exit
+     ```
+   - No shell, verificar os logs de diagnóstico:
+     ```bash
+     actx --diagnostics
+     ```
+   - **Critério de Aceitação:**
+     - O terminal é restaurado perfeitamente sem caracteres fantasmas.
+     - Os logs confirmam a consolidação de memória de sessão para os workspaces tocados (`Default` e `TesteAbas`) na base de dados columnar do LanceDB.
+
+---
+
 ### 📌 Cenário 1 (v0.28.90): Blindagem Dual-Binary no Linux/WSL, Prevenção do Destroyer Bug no Update e Isolamento de Artefatos no CI/CD
 
 - **Objetivo**: Comprovar que na release `v0.28.90`:
