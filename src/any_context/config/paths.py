@@ -42,6 +42,18 @@ def get_default_config_db_path() -> str:
         os.makedirs(os.path.dirname(p), exist_ok=True)
         return p
 
+    is_test_env = (
+        os.getenv("ACTX_TEST_MODE") == "1"
+        or "pytest" in sys.modules
+        or ("unittest" in sys.modules and any("test" in arg.lower() for arg in sys.argv))
+    )
+    if is_test_env:
+        # Hard safety barrier: automated tests must never touch the user's production config database
+        import tempfile
+        p = os.path.abspath(os.path.join(tempfile.gettempdir(), "actx_test_config", "settings.db"))
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        return p
+
     config_dir = os.path.join(get_app_data_root(), "config")
     os.makedirs(config_dir, exist_ok=True)
     return os.path.abspath(os.path.join(config_dir, "settings.db"))
@@ -55,7 +67,12 @@ def get_default_vector_db_path() -> str:
         os.makedirs(p, exist_ok=True)
         return p
 
-    if os.getenv("ACTX_TEST_MODE") == "1":
+    is_test_env = (
+        os.getenv("ACTX_TEST_MODE") == "1"
+        or "pytest" in sys.modules
+        or ("unittest" in sys.modules and any("test" in arg.lower() for arg in sys.argv))
+    )
+    if is_test_env:
         # Hard safety barrier: automated tests must never touch the user's production vector database
         import tempfile
         p = os.path.abspath(os.path.join(tempfile.gettempdir(), "actx_test_context_db"))
@@ -76,7 +93,12 @@ def get_default_session_db_path() -> str:
         os.makedirs(p, exist_ok=True)
         return p
 
-    if os.getenv("ACTX_TEST_MODE") == "1":
+    is_test_env = (
+        os.getenv("ACTX_TEST_MODE") == "1"
+        or "pytest" in sys.modules
+        or ("unittest" in sys.modules and any("test" in arg.lower() for arg in sys.argv))
+    )
+    if is_test_env:
         # Hard safety barrier: automated tests must never touch the user's production memory database
         import tempfile
         p = os.path.abspath(os.path.join(tempfile.gettempdir(), "actx_test_session_db"))

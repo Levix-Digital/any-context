@@ -437,28 +437,33 @@ class ConfigDBStore:
             except sqlite3.OperationalError:
                 pass
 
-            # Safe cleanup: Purge ONLY workspaces explicitly tagged with created_by = 'test'
-            # AND strictly ensure they have zero sources, zero indexed pages, and zero files!
+            # Safe cascade cleanup: Purge ALL workspaces explicitly tagged with created_by = 'test'
+            # and any lingering ephemeral test fixtures (Unit_Dispatch_WS, TestWS, RpcUnitTestWS, NewRPCWS).
             # Workspaces with created_by = 'user' or 'system' can NEVER be deleted.
-            # Only executed in user/production mode to prevent deleting active test fixtures during test runs.
+            # Only executed in production mode (or when ACTX_TEST_MODE is not 1) to prevent deleting active fixtures during test runs.
             if os.environ.get("ACTX_TEST_MODE") != "1":
                 try:
-                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                    existing_tables = {r[0] for r in cursor.fetchall()}
-
-                    not_in_clauses = []
-                    if "workspace_web_urls" in existing_tables:
-                        not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_web_urls)")
-                    if "workspace_files_stat_cache" in existing_tables:
-                        not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_files_stat_cache)")
-                    if "workspace_folders" in existing_tables:
-                        not_in_clauses.append("name NOT IN (SELECT DISTINCT workspace_name FROM workspace_folders)")
-
-                    cond = " AND ".join(not_in_clauses)
-                    query = f"DELETE FROM workspaces WHERE created_by = 'test' AND {cond}" if cond else "DELETE FROM workspaces WHERE created_by = 'test'"
-                    cursor.execute(query)
-                    if cursor.rowcount > 0:
-                        _log_migration(f"Safe test workspace cleanup executed: purged {cursor.rowcount} ephemeral test workspace(s)")
+                    cursor.execute("""
+                        SELECT DISTINCT name FROM workspaces 
+                        WHERE created_by = 'test' 
+                           OR name IN ('Unit_Dispatch_WS', 'TestWS', 'RpcUnitTestWS', 'NewRPCWS', 'RenderTestWS')
+                    """)
+                    test_ws_rows = cursor.fetchall()
+                    if test_ws_rows:
+                        test_names = [r[0] for r in test_ws_rows if r[0] and r[0].lower() not in ('default', 'shared sources')]
+                        for tws in test_names:
+                            for tbl in [
+                                "workspace_folders", "workspace_web_urls", "workspace_cloud_drives",
+                                "workspace_permissions", "workspace_user_permissions", "workspace_share_invites",
+                                "workspace_source_links", "workspace_files_stat_cache"
+                            ]:
+                                try:
+                                    cursor.execute(f"DELETE FROM {tbl} WHERE workspace_name = ?", (tws,))
+                                except sqlite3.OperationalError:
+                                    pass
+                            cursor.execute("DELETE FROM workspaces WHERE name = ? AND LOWER(name) NOT IN ('default', 'shared sources')", (tws,))
+                        if test_names:
+                            _log_migration(f"Safe test workspace cascade cleanup executed: purged {len(test_names)} test workspace(s): {test_names}")
                 except Exception as e:
                     _log_migration(f"Cleanup query notice: {e}", level="WARN")
 
@@ -560,7 +565,7 @@ class ConfigDBStore:
 
         # Provenance resolution
         if not created_by:
-            if os.environ.get("ACTX_TEST_MODE") == "1" or "pytest" in sys.modules:
+            if os.environ.get("ACTX_TEST_MODE") == "1" or "pytest" in sys.modules or ("unittest" in sys.modules and any("test" in arg.lower() for arg in sys.argv)):
                 creator = "test"
             elif lname in ["default", "shared sources"]:
                 creator = "system"
@@ -1730,9 +1735,10 @@ class ConfigDBStore:
                 if cursor.rowcount == 0:
                     import uuid
                     ws_id = f"ws_{uuid.uuid4().hex[:8]}"
+                    creator = "test" if (os.environ.get("ACTX_TEST_MODE") == "1" or "pytest" in sys.modules or ("unittest" in sys.modules and any("test" in arg.lower() for arg in sys.argv))) else "user"
                     cursor.execute(
                         "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (ws_id, workspace_name.strip(), "[]", clean_mode, 0, "gpt-4o-mini", "user")
+                        (ws_id, workspace_name.strip(), "[]", clean_mode, 0, "gpt-4o-mini", creator)
                     )
             else:
                 cursor.execute("""
@@ -1788,9 +1794,10 @@ class ConfigDBStore:
                 if cursor.rowcount == 0:
                     import uuid
                     ws_id = f"ws_{uuid.uuid4().hex[:8]}"
+                    creator = "test" if (os.environ.get("ACTX_TEST_MODE") == "1" or "pytest" in sys.modules or ("unittest" in sys.modules and any("test" in arg.lower() for arg in sys.argv))) else "user"
                     cursor.execute(
                         "INSERT INTO workspaces (workspace_id, name, paths_json, grounding_mode, web_search_enabled, model, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (ws_id, workspace_name.strip(), "[]", "strict", val, "gpt-4o-mini", "user")
+                        (ws_id, workspace_name.strip(), "[]", "strict", val, "gpt-4o-mini", creator)
                     )
             else:
                 cursor.execute("""

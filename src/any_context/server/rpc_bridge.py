@@ -36,7 +36,7 @@ class StdioRPCServer:
     slash command catalog, and real-time streaming over stdin/stdout.
     """
 
-    def __init__(self, default_workspace: str = "Default"):
+    def __init__(self, default_workspace: str = "Default", store: Optional[ConfigDBStore] = None):
         caller_cwd = os.getenv("ACTX_CALLER_CWD")
         if caller_cwd and os.path.exists(caller_cwd):
             try:
@@ -44,7 +44,7 @@ class StdioRPCServer:
             except Exception:
                 pass
 
-        self.store = ConfigDBStore()
+        self.store = store or ConfigDBStore()
         self.active_workspace = default_workspace or "Default"
         self.agent_instance = None
         self._current_model = "gpt-4o-mini"

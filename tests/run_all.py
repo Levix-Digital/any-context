@@ -38,49 +38,6 @@ def main():
     safe_print(">> AnyContext Master Test Suite (Core Unit + CLI UI Unit + Server Unit + Ingestion Unit + E2E)")
     safe_print("=" * 80)
 
-    loader = unittest.TestLoader()
-    suite = unittest.TestSuite()
-
-    # 1. Discover Core Unit Tests
-    if os.path.exists(unit_core_dir):
-        discovered_core = loader.discover(start_dir=unit_core_dir, top_level_dir=repo_root, pattern="test_*.py")
-        suite.addTests(discovered_core)
-
-    # 2. Discover CLI / UI Unit Tests
-    if os.path.exists(unit_cli_dir):
-        discovered_cli = loader.discover(start_dir=unit_cli_dir, top_level_dir=repo_root, pattern="test_*.py")
-        suite.addTests(discovered_cli)
-
-    # 3. Discover Server Unit Tests
-    if os.path.exists(unit_server_dir):
-        discovered_server = loader.discover(start_dir=unit_server_dir, top_level_dir=repo_root, pattern="test_*.py")
-        suite.addTests(discovered_server)
-
-    # 4. Discover Ingestion Unit Tests
-    if os.path.exists(unit_ingestion_dir):
-        discovered_ingestion = loader.discover(start_dir=unit_ingestion_dir, top_level_dir=repo_root, pattern="test_*.py")
-        suite.addTests(discovered_ingestion)
-
-    # 5. Discover E2E Server & Protocol Tests
-    if os.path.exists(e2e_dir):
-        discovered_e2e = loader.discover(start_dir=e2e_dir, top_level_dir=repo_root, pattern="test_*.py")
-        suite.addTests(discovered_e2e)
-
-    # 4. Add full lifecycle integration master test
-    full_lifecycle_path = os.path.join(tests_dir, "test_e2e_full_lifecycle.py")
-    if os.path.exists(full_lifecycle_path):
-        discovered_lifecycle = loader.discover(start_dir=tests_dir, top_level_dir=repo_root, pattern="test_e2e_full_lifecycle.py")
-        suite.addTests(discovered_lifecycle)
-
-    # 5. Add interactive update tests
-    update_interactive_path = os.path.join(tests_dir, "test_update_interactive.py")
-    if os.path.exists(update_interactive_path):
-        discovered_update = loader.discover(start_dir=tests_dir, top_level_dir=repo_root, pattern="test_update_interactive.py")
-        suite.addTests(discovered_update)
-
-    total_tests = suite.countTestCases()
-    safe_print(f"Discovered {total_tests} automated test cases across Core, CLI, and E2E layers.\n")
-
     import tempfile
     import shutil
 
@@ -102,6 +59,48 @@ def main():
     os.environ["ACTX_TEST_MODE"] = "1"
 
     try:
+        loader = unittest.TestLoader()
+        suite = unittest.TestSuite()
+
+        # 1. Discover Core Unit Tests
+        if os.path.exists(unit_core_dir):
+            discovered_core = loader.discover(start_dir=unit_core_dir, top_level_dir=repo_root, pattern="test_*.py")
+            suite.addTests(discovered_core)
+
+        # 2. Discover CLI / UI Unit Tests
+        if os.path.exists(unit_cli_dir):
+            discovered_cli = loader.discover(start_dir=unit_cli_dir, top_level_dir=repo_root, pattern="test_*.py")
+            suite.addTests(discovered_cli)
+
+        # 3. Discover Server Unit Tests
+        if os.path.exists(unit_server_dir):
+            discovered_server = loader.discover(start_dir=unit_server_dir, top_level_dir=repo_root, pattern="test_*.py")
+            suite.addTests(discovered_server)
+
+        # 4. Discover Ingestion Unit Tests
+        if os.path.exists(unit_ingestion_dir):
+            discovered_ingestion = loader.discover(start_dir=unit_ingestion_dir, top_level_dir=repo_root, pattern="test_*.py")
+            suite.addTests(discovered_ingestion)
+
+        # 5. Discover E2E Server & Protocol Tests
+        if os.path.exists(e2e_dir):
+            discovered_e2e = loader.discover(start_dir=e2e_dir, top_level_dir=repo_root, pattern="test_*.py")
+            suite.addTests(discovered_e2e)
+
+        # 4. Add full lifecycle integration master test
+        full_lifecycle_path = os.path.join(tests_dir, "test_e2e_full_lifecycle.py")
+        if os.path.exists(full_lifecycle_path):
+            discovered_lifecycle = loader.discover(start_dir=tests_dir, top_level_dir=repo_root, pattern="test_e2e_full_lifecycle.py")
+            suite.addTests(discovered_lifecycle)
+
+        # 5. Add interactive update tests
+        update_interactive_path = os.path.join(tests_dir, "test_update_interactive.py")
+        if os.path.exists(update_interactive_path):
+            discovered_update = loader.discover(start_dir=tests_dir, top_level_dir=repo_root, pattern="test_update_interactive.py")
+            suite.addTests(discovered_update)
+
+        total_tests = suite.countTestCases()
+        safe_print(f"Discovered {total_tests} automated test cases across Core, CLI, and E2E layers.\n")
         start_time = time.time()
         runner = unittest.TextTestRunner(verbosity=2)
         result = runner.run(suite)
