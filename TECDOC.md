@@ -34,6 +34,7 @@
 27. [Session Process Immunology & Clean Terminal Teardown (`v0.28.83`)](#session-process-immunology--clean-terminal-teardown-v02883)
 28. [Grounding Strategies, Live Web Search Priority Matrix & Universal Temporal Recency (`v0.28.84`)](#grounding-strategies-live-web-search-priority-matrix--universal-temporal-recency-v02884)
 29. [Hermetic Triple Sandboxing & Cascade Test Workspace Purge Architecture (`v0.28.85`)](#29-hermetic-triple-sandboxing--cascade-test-workspace-purge-architecture-v02885)
+30. [Progressive Real-Time Engine Startup Telemetry & Visual Parity (`v0.28.86`)](#30-progressive-real-time-engine-startup-telemetry--visual-parity-v02886)
 
 ---
 
@@ -1598,6 +1599,80 @@ When workspaces are auto-created during runtime option updates (`set_grounding_m
 - Otherwise: `created_by = 'user'`
 
 User workspaces (`created_by = 'user'`) and system workspaces (`created_by = 'system'`) are 100% strictly immune to cleanup operations.
+
+---
+
+## 30. Progressive Real-Time Engine Startup Telemetry & Visual Parity (`v0.28.86`)
+
+### 1. Architectural Overview & The Cold-Boot Latency Resolution
+
+While the Terminal CLI initializes within a pre-imported, warm Python runtime (~150ms), the OpenTUI desktop frontend boots nearly instantly (~50ms) and initiates a background Python child process (`python -m any_context.server.rpc_bridge` or `actx-core.exe --rpc`). On Windows, process spawning and loading heavyweight AI libraries (PyTorch, LanceDB, PyArrow, LlamaIndex, ChromaDB, Pydantic) requires between 3.0s and 4.5s.
+
+Previously, OpenTUI displayed a static yellow notice (`⏳ Initializing AnyContext AI Core...`) throughout this entire interval, providing zero feedback on runtime progress.
+
+`v0.28.86` resolves this through **Real-Time Progressive Engine Startup Telemetry**, achieving 100% functional and aesthetic parity with the Terminal CLI banner while providing animated, transparent feedback from millisecond 0:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as OpenTUI (App.tsx / BootTelemetry)
+    participant BC as BridgeClient (bridge-client.ts)
+    participant PY as StdioRPCServer (rpc_bridge.py)
+    participant DB as SQLite (settings.db)
+    participant VEC as Vector Engine (LanceDB)
+
+    Note over UI,BC: Millisecond 0: Frontend mounts
+    BC->>UI: Emit initial 'runtime' step (status: running)
+    UI->>UI: Animate Braille spinner (⠋) at 80ms interval
+    BC->>PY: spawn(python -m any_context.server.rpc_bridge)
+    Note over PY: Python process initializes & imports core packages (~3.2s)
+    PY-->>BC: {"event": "boot_telemetry", "step": "runtime", "status": "done", "label": "⚡ Python Core runtime linked"}
+    BC->>UI: updateBootTelemetryStep('runtime', done, elapsed_ms: 3200ms)
+    
+    PY-->>BC: {"event": "boot_telemetry", "step": "db", "status": "running"}
+    PY->>DB: ConfigDBStore._init_db() & migrations
+    PY-->>BC: {"event": "boot_telemetry", "step": "db", "status": "done", "elapsed_ms": 42ms}
+    
+    PY-->>BC: {"event": "boot_telemetry", "step": "model", "status": "running"}
+    PY->>DB: Resolve workspace model & provider
+    PY-->>BC: {"event": "boot_telemetry", "step": "model", "status": "done", "elapsed_ms": 64ms}
+
+    PY-->>BC: {"event": "boot_telemetry", "step": "workspace", "status": "running"}
+    PY-->>BC: {"event": "boot_telemetry", "step": "workspace", "status": "done", "elapsed_ms": 65ms}
+
+    PY-->>BC: {"event": "boot_telemetry", "step": "context", "status": "running"}
+    PY->>VEC: check_workspace_changes(workspace)
+    PY-->>BC: {"event": "boot_telemetry", "step": "context", "status": "done", "elapsed_ms": 134ms}
+
+    PY-->>BC: {"event": "boot_telemetry", "step": "ready", "status": "done", "elapsed_ms": 3500ms}
+    PY-->>BC: {"event": "ready", "state": {...}}
+    BC->>UI: isBackendReady = true
+    Note over UI: Cascade finishes; tree remains cleanly anchored at top of chat
+```
+
+### 2. Smooth Cascading Cadence Engine (Abordagem B)
+
+To ensure the human eye can comfortably track each milestone rather than having fast micro-steps (< 20ms) flicker instantaneously across a single frame, `BootTelemetry` implements **Abordagem B (Minimum Perceptual Cadence)**:
+- **`MIN_STEP_CADENCE_MS = 70`**: If a subsystem finishes in under 70ms (e.g. SQLite initialization taking 42ms), the visual queue retains the running spinner state for at least 70ms before transitioning to the green checkmark/elapsed time.
+- **Braille Spinner Animation**: Rotates across 10 frames (`⠋`, `⠙`, `⠹`, `⠸`, `⠼`, `⠴`, `⠦`, `⠧`, `⠇`, `⠏`) at an 80ms interval while any step is in `status: "running"`.
+- **Exact Millisecond Accuracy**: Even though the visual transition is paced smoothly at 70ms per sub-step, the tag displays the **exact measured physical time** in milliseconds (`[ 48.2ms]`, `[ 82.5ms]`) received from the Python backend.
+
+### 3. Visual Layout & Terminal Theme Alignment
+
+```text
+  ┌─ ⚡ Engine Startup Telemetry
+  │ ├─ [  3.20s] ⚡ Python Core runtime linked
+  │ ├─ [ 42.0ms] 🔌 SQLite Configuration Store active
+  │ ├─ [ 64.7ms] 🤖 AI Model engine linked (gpt-4o-mini - OPENAI)
+  │ ├─ [ 64.8ms] 📂 Workspace connected (Default)
+  │ ├─ [134.1ms] 📦 Context state verified (Up to date - 3 files)
+  │ └─ [  3.50s] 🚀 AnyContext ready in 3.50s
+```
+
+- **Branch Glyphs**: `┌─`, `│ ├─`, `│ └─` rendered in `foregroundMuted` (`#565f89`).
+- **Timing Badges**: `< 100ms` rendered in `accentSuccess` (Emerald Green `#73daca`), `≥ 100ms` in `accentWarning` (Warm Gold `#e0af68`).
+- **Post-Boot Persistence**: The completed tree remains stationed at the top of the conversation list (just like in the Terminal CLI session), followed by the chat hint prompt (`💬 Chat started! Type '/' for quick commands...`).
+
 
 
 

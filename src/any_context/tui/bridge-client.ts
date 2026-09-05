@@ -18,6 +18,13 @@ export interface AnyContextState {
   onboarding_state?: any;
 }
 
+export interface BootTelemetryStep {
+  id: string;
+  status: "pending" | "running" | "done" | "error";
+  label: string;
+  elapsed_ms?: number;
+}
+
 import { DEFAULT_SLASH_COMMANDS } from "./commands";
 import type { SlashCommandMeta } from "./commands";
 export type { SlashCommandMeta };
@@ -129,13 +136,46 @@ export class BridgeClient {
   public onStateChange?: (state: AnyContextState) => void;
   public onNotification?: (message: string, level: string) => void;
   public onCommandsLoaded?: (commands: SlashCommandMeta[]) => void;
+  public bootTelemetrySteps: BootTelemetryStep[] = [
+    { id: "runtime", status: "pending", label: "⚡ Initializing Python Core runtime & dependencies..." },
+    { id: "db", status: "pending", label: "🔌 Initializing SQLite Configuration Store..." },
+    { id: "model", status: "pending", label: "🤖 Linking AI Model engine..." },
+    { id: "workspace", status: "pending", label: "📂 Connecting workspace..." },
+    { id: "context", status: "pending", label: "📦 Verifying context index state..." },
+    { id: "ready", status: "pending", label: "🚀 AnyContext ready" },
+  ];
+  public onBootTelemetry?: (step: BootTelemetryStep, allSteps: BootTelemetryStep[]) => void;
+  private bootStartTime: number = 0;
 
+  public updateBootTelemetryStep(stepUpdate: Partial<BootTelemetryStep> & { id: string }) {
+    const idx = this.bootTelemetrySteps.findIndex((s) => s.id === stepUpdate.id);
+    if (idx !== -1) {
+      this.bootTelemetrySteps[idx] = { ...this.bootTelemetrySteps[idx], ...stepUpdate };
+    } else {
+      this.bootTelemetrySteps.push({
+        id: stepUpdate.id,
+        status: stepUpdate.status || "done",
+        label: stepUpdate.label || stepUpdate.id,
+        elapsed_ms: stepUpdate.elapsed_ms,
+      });
+    }
+    if (this.onBootTelemetry) {
+      const current = idx !== -1 ? this.bootTelemetrySteps[idx] : this.bootTelemetrySteps[this.bootTelemetrySteps.length - 1];
+      this.onBootTelemetry(current, [...this.bootTelemetrySteps]);
+    }
+  }
 
   constructor(private initialWorkspace: string = "Default") {
     this.state.workspace = initialWorkspace;
   }
 
   public async start(): Promise<void> {
+    this.bootStartTime = Date.now();
+    this.updateBootTelemetryStep({
+      id: "runtime",
+      status: "running",
+      label: "⚡ Initializing Python Core runtime & dependencies...",
+    });
     tuiLog.info("BRIDGE:INIT", "Starting BridgeClient", { initialWorkspace: this.initialWorkspace });
     const repoRoot = path.resolve(__dirname, "..", "..", "..");
     
@@ -315,7 +355,33 @@ export class BridgeClient {
     try {
       const msg = JSON.parse(trimmed);
 
+      if (msg.event === "boot_telemetry") {
+        let elapsed = msg.elapsed_ms;
+        if (msg.step === "runtime" && (elapsed === undefined || elapsed === null)) {
+          elapsed = this.bootStartTime > 0 ? Date.now() - this.bootStartTime : undefined;
+        } else if (msg.step === "runtime" && this.bootStartTime > 0) {
+          const clientMeasured = Date.now() - this.bootStartTime;
+          if (clientMeasured > (elapsed || 0)) {
+            elapsed = clientMeasured;
+          }
+        }
+        this.updateBootTelemetryStep({
+          id: msg.step,
+          status: msg.status || "done",
+          label: msg.label,
+          elapsed_ms: elapsed,
+        });
+        return;
+      }
+
       if (msg.event === "ready" && msg.state) {
+        const totalElapsed = this.bootStartTime > 0 ? Date.now() - this.bootStartTime : undefined;
+        this.updateBootTelemetryStep({
+          id: "ready",
+          status: "done",
+          label: totalElapsed ? `🚀 AnyContext ready in ${(totalElapsed / 1000).toFixed(2)}s` : "🚀 AnyContext ready",
+          elapsed_ms: totalElapsed,
+        });
         this.updateState(msg.state);
         return;
       }

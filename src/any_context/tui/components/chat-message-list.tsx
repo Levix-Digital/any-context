@@ -1,6 +1,7 @@
 import React, { forwardRef } from "react";
 import { SyntaxStyle } from "@opentui/core";
-import { AnyContextState, getInitialVersion } from "../bridge-client";
+import { AnyContextState, BootTelemetryStep, getInitialVersion } from "../bridge-client";
+import { BootTelemetry } from "./boot-telemetry";
 import { anyContextTheme } from "../themes";
 
 export interface ChatMessage {
@@ -16,6 +17,7 @@ interface ChatMessageListProps {
   messages: ChatMessage[];
   state?: AnyContextState;
   isBackendReady?: boolean;
+  bootTelemetrySteps?: BootTelemetryStep[];
 }
 
 const ASCII_BANNER = `  ___               ____ ___  _   _ _____ _____ _  _______ 
@@ -43,6 +45,7 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
   messages,
   state,
   isBackendReady = true,
+  bootTelemetrySteps,
 }, ref): any => {
   return (
     <scrollbox
@@ -70,33 +73,11 @@ export const ChatMessageList = forwardRef<any, ChatMessageListProps>(({
           {"  🔒 100% Local & Offline-First Privacy"}
         </text>
 
-        {!isBackendReady ? (
-          <box
-            borderStyle="rounded"
-            borderColor={anyContextTheme.accentWarning}
-            paddingLeft={1}
-            paddingRight={1}
-            paddingTop={0}
-            paddingBottom={0}
-            marginTop={1}
-            marginBottom={1}
-            flexDirection="column"
-            flexShrink={0}
-          >
-            <text fg={anyContextTheme.accentWarning}>
-              <b>
-                {state?.needs_onboarding
-                  ? "⏳ Initializing AnyContext AI Core & Onboarding Setup..."
-                  : "⏳ Initializing AnyContext AI Core..."}
-              </b>
-            </text>
-            <text fg={anyContextTheme.foregroundMuted}>
-              {state?.needs_onboarding
-                ? "  Preparing local offline settings and loading AI provider catalog..."
-                : "  Connecting to local offline backend and loading workspace settings..."}
-            </text>
-          </box>
-        ) : (
+        {bootTelemetrySteps && bootTelemetrySteps.length > 0 && (
+          <BootTelemetry steps={bootTelemetrySteps} />
+        )}
+
+        {isBackendReady && (
           <box
             borderStyle="rounded"
             borderColor={anyContextTheme.ruleColor}

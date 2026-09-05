@@ -9,7 +9,7 @@ repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", 
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
-from any_context.server.rpc_bridge import StdioRPCServer, _send_ndjson
+from any_context.server.rpc_bridge import StdioRPCServer, _send_ndjson, emit_boot_telemetry
 from tests.e2e_helpers import safe_stdout_write
 
 
@@ -193,6 +193,42 @@ class TestRPCBridge(unittest.TestCase):
         self.assertEqual(res["action"], "open_config_modal")
         self.assertEqual(res["state_updates"]["target_menu"], "models")
         safe_stdout_write("  [OK] Onboarding set_option action propagation verified!\n")
+
+    def test_08_boot_telemetry_emission(self):
+        """Validates emit_boot_telemetry emits properly structured NDJSON payloads."""
+        safe_stdout_write(">>> [RPC UNIT] Testing emit_boot_telemetry event structure...\n")
+        fake_stdout = io.StringIO()
+
+        with patch("sys.stdout", fake_stdout):
+            emit_boot_telemetry(step="runtime", status="done", label="⚡ Python Core runtime linked", elapsed_ms=35.2)
+            emit_boot_telemetry(step="db", status="running", label="🔌 Initializing SQLite Configuration Store...")
+            emit_boot_telemetry(step="db", status="done", label="🔌 SQLite Configuration Store active", elapsed_ms=48.3)
+            emit_boot_telemetry(step="ready", status="done", label="🚀 AnyContext ready in 0.15s", elapsed_ms=152.8)
+
+        lines = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n") if l.strip()]
+        self.assertEqual(len(lines), 4)
+        for line in lines:
+            self.assertEqual(line["event"], "boot_telemetry")
+            self.assertIn("step", line)
+            self.assertIn("status", line)
+            self.assertIn("label", line)
+
+        self.assertEqual(lines[0]["step"], "runtime")
+        self.assertEqual(lines[0]["status"], "done")
+        self.assertEqual(lines[0]["elapsed_ms"], 35.2)
+
+        self.assertEqual(lines[1]["step"], "db")
+        self.assertEqual(lines[1]["status"], "running")
+        self.assertNotIn("elapsed_ms", lines[1])
+
+        self.assertEqual(lines[2]["step"], "db")
+        self.assertEqual(lines[2]["status"], "done")
+        self.assertEqual(lines[2]["elapsed_ms"], 48.3)
+
+        self.assertEqual(lines[3]["step"], "ready")
+        self.assertEqual(lines[3]["status"], "done")
+        self.assertEqual(lines[3]["elapsed_ms"], 152.8)
+        safe_stdout_write("  [OK] emit_boot_telemetry NDJSON payload validation passed!\n")
 
 
 if __name__ == "__main__":
