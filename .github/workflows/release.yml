@@ -107,13 +107,22 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: actx-linux
-          path: dist
+          path: dist-linux
 
       - name: Download Windows Binary
         uses: actions/download-artifact@v4
         with:
           name: actx-windows
-          path: dist
+          path: dist-windows
+
+      - name: Consolidate Release Assets
+        run: |
+          mkdir -p dist
+          # Copy Linux binaries (preserves native Linux ELF actx, actx-linux-x86_64, actx-linux-x86_64.tar.gz)
+          cp -r dist-linux/* dist/
+          # Copy Windows binaries (only .zip and .exe, preventing overwriting dist/actx with Windows git bash wrapper)
+          cp dist-windows/*.zip dist/
+          cp dist-windows/*.exe dist/
 
       - name: Normalize line endings for Unix scripts
         run: |

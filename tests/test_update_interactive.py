@@ -114,6 +114,9 @@ class TestUpdateInteractive(unittest.TestCase):
                         ti2 = tarfile.TarInfo("_internal/test.so")
                         ti2.size = len(b"test_so")
                         tf.addfile(ti2, io.BytesIO(b"test_so"))
+                        ti3 = tarfile.TarInfo("actx")
+                        ti3.size = len(b"\x7fELF_native_shim")
+                        tf.addfile(ti3, io.BytesIO(b"\x7fELF_native_shim"))
                     valid_archive = tar_buf.getvalue()
 
                 mock_resp = MagicMock()
@@ -131,6 +134,9 @@ class TestUpdateInteractive(unittest.TestCase):
                                 self.assertTrue(success)
                                 self.assertEqual(updates.get("action"), "exit_update")
                                 self.assertEqual(updates.get("version"), "v0.28.82")
+                                if not is_win:
+                                    self.assertTrue(os.path.exists(os.path.join(tmpdir, "actx-core")))
+                                    self.assertTrue(os.path.exists(os.path.join(tmpdir, "actx")))
             finally:
                 if orig_env is None:
                     os.environ.pop("ACTX_UPDATE_DIR", None)
