@@ -409,17 +409,7 @@ class CommandDispatcher:
 
     def _handle_switch(self, parts: List[str], current_ws: str) -> CommandResult:
         if len(parts) == 1:
-            workspaces = self.workspace_svc.list_workspaces(active_workspace=current_ws)
-            ws_lines = []
-            for w in workspaces:
-                tag = " `[Active]`" if w["is_active"] else ""
-                ws_lines.append(f"• **{w['name']}**{tag}")
-            msg = (
-                f"### 📂 Workspaces ({len(workspaces)})\n\n"
-                + "\n".join(ws_lines)
-                + "\n\n*Usage:* `/switch <name>` to switch or create | `/switch --delete <name>` to remove."
-            )
-            return CommandResult(success=True, message=msg, action="open_switch_modal")
+            return CommandResult(success=True, message="", action="open_switch_modal")
 
         if "--list" in parts or "-l" in parts:
             workspaces = self.workspace_svc.list_workspaces(active_workspace=current_ws)
@@ -448,11 +438,10 @@ class CommandDispatcher:
         # Trigger background auto-sync check on switch
         self.sync_svc.start_sync(workspace=target, force_full=False)
 
-        action_word = "Created and switched to" if res.get("created") else "Switched to"
         ws_model = self.model_svc.get_current_model(workspace_name=target)
         return CommandResult(
             success=True,
-            message=f"🔄 **{action_word} workspace:** `{target}`",
+            message="",
             state_updates={"workspace": target, "model": ws_model},
             action="switch_workspace"
         )
@@ -541,8 +530,11 @@ class CommandDispatcher:
                 w_name = ws.get("name", "Default")
                 s = self.source_svc.list_sources(w_name)
                 lines.append(f"**Workspace: `{w_name}`** ({s['total_count']} sources)")
+                f_details = {d["path"]: d.get("file_count", 0) for d in s.get("folder_details", [])}
                 for f in s.get("folders", []):
-                    lines.append(f"  • 📁 `{f}`")
+                    f_cnt = f_details.get(f)
+                    f_info = f" • {f_cnt} file{'s' if f_cnt != 1 else ''} indexed" if f_cnt is not None else ""
+                    lines.append(f"  • 📁 `{f}`{f_info}")
                 for w in s.get("web_sources", []):
                     title = w.get("title") or w.get("url", "Web Portal")
                     url = w.get("url") or w.get("root_url", "")
@@ -558,6 +550,7 @@ class CommandDispatcher:
 
         sources = self.source_svc.list_sources(ws_name)
         folders = sources.get("folders", [])
+        folder_details = {d["path"]: d.get("file_count", 0) for d in sources.get("folder_details", [])}
         webs = sources.get("web_sources", [])
         drives = sources.get("cloud_drives", [])
 
@@ -565,7 +558,9 @@ class CommandDispatcher:
         if folders:
             lines.append("**📁 Local Folders:**")
             for f in folders:
-                lines.append(f"• `{f}`")
+                f_cnt = folder_details.get(f)
+                f_info = f" • {f_cnt} file{'s' if f_cnt != 1 else ''} indexed" if f_cnt is not None else ""
+                lines.append(f"• `{f}`{f_info}")
             lines.append("")
 
         if webs:
