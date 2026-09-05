@@ -7,16 +7,16 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.91): Validação de Abas Virtuais de Workspace, Isolamento de Chat, Higiene Visual do `/clear` e Persistência no LanceDB
+### 📌 Cenário 1 (v0.29.0): Validação de Abas Virtuais de Workspace, Isolamento de Chat, Higiene Visual do `/clear` e Persistência no LanceDB
 
-- **Objetivo**: Comprovar que na release `v0.28.91`:
+- **Objetivo**: Comprovar que na release `v0.29.0`:
   1. O OpenTUI e a Stdio RPC Bridge isolam os buffers de mensagens por workspace na mesma sessão: ao trocar de workspace via `/switch <nome>` ou via modal, a tela exibe estritamente o histórico de conversa daquele workspace.
   2. Ao retornar a um workspace visitado anteriormente, seu histórico de mensagens é restaurado 100% intacto, comportando-se exatamente como uma troca de abas.
   3. A barra de status inferior (`StatusBar`) preserva e reflete instantaneamente o modelo de IA, modo de grounding, status de busca web e telemetria de sincronização específicos daquele workspace.
   4. O cabeçalho dinâmico (`HeaderBar`) alterna com precisão: exibe o banner **Full Glory ASCII** quando um workspace não possui mensagens na sessão atual (ou após `/clear`), e recolhe para a **Compact Top Bar** de 1 linha assim que a conversa se inicia.
   5. O comando `/clear` (ou `/cls`) realiza estritamente a higiene visual da tela (View Buffer) sem induzir amnésia: todo o histórico de mensagens trocadas é preservado no Session Accumulator do Core.
   6. Ao encerrar a sessão via `/exit`, o servidor RPC aciona o `MemoryManager` para cada workspace que teve mensagens na sessão (`dirty_workspaces`), sumarizando os blocos conversacionais (Nível 1) e persistindo exclusivamente na tabela `session_memory` do **LanceDB**.
-- **Pré-requisito**: Versão `v0.28.91` instalada (`actx -v` exibindo `v0.28.91`).
+- **Pré-requisito**: Versão `v0.29.0` instalada (`actx -v` exibindo `v0.29.0`).
 
 #### 📋 Passo a Passo de Execução:
 
@@ -37,7 +37,7 @@
    - Aguardar a resposta do assistente.
    - **Critério de Aceitação:**
      - A resposta é gerada em streaming normalmente.
-     - O banner ASCII recolhe automaticamente para a **Compact Top Bar** de 1 linha (`🚀 AnyContext (actx) v0.28.91 │ Levix Digital │ ...`).
+     - O banner ASCII recolhe automaticamente para a **Compact Top Bar** de 1 linha (`🚀 AnyContext (actx) v0.29.0 │ Levix Digital │ ...`).
 
 3. **🔄 Criação e Troca para Novo Workspace (`/switch TesteAbas`):**
    - Na linha de comando do OpenTUI, digitar e pressionar Enter:

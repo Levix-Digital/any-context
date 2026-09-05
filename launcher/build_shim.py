@@ -78,7 +78,7 @@ def get_current_version() -> str:
         from any_context import __version__
         return __version__
     except Exception:
-        return "0.28.91"
+        return "0.29.0"
 
 
 def write_windows_bash_wrapper(out_path: str):

@@ -37,7 +37,7 @@
 30. [Progressive Real-Time Engine Startup Telemetry & Visual Parity (`v0.28.86`)](#30-progressive-real-time-engine-startup-telemetry--visual-parity-v02886)
 50. [OpenTUI Canonical Terminal Interface, 100% Thin-Client Parity & Legacy REPL Elimination (`v0.28.89`)](#50-opentui-canonical-terminal-interface-100-thin-client-parity--legacy-repl-elimination-v02889)
 51. [Cross-Platform Dual-Binary Protection, Archive Extraction Routing & Release Matrix Isolation (`v0.28.90`)](#51-cross-platform-dual-binary-protection-archive-extraction-routing--release-matrix-isolation-v02890)
-52. [Virtual Tab Workspace Isolation, /clear View Hygiene & LanceDB Session Teardown (`v0.28.91`)](#52-virtual-tab-workspace-isolation-clear-view-hygiene--lancedb-session-teardown-v02891)
+52. [Virtual Tab Workspace Isolation, /clear View Hygiene & LanceDB Session Teardown (`v0.29.0`)](#52-virtual-tab-workspace-isolation-clear-view-hygiene--lancedb-session-teardown-v0290)
 
 ---
 
@@ -1915,9 +1915,9 @@ The dual-binary runtime guarantees sub-second startup (< 0.2s) across both Linux
 
 ---
 
-## 52. Virtual Tab Workspace Isolation, `/clear` View Hygiene & LanceDB Session Teardown (`v0.28.91`)
+## 52. Virtual Tab Workspace Isolation, `/clear` View Hygiene & LanceDB Session Teardown (`v0.29.0`)
 
-Starting in `v0.28.91`, AnyContext introduces formal **Virtual Tab Workspace Isolation** with strict separation between ephemeral viewport state (*View Buffer*) and cumulative conversational history (*Session Accumulator*), culminating in deterministic, per-workspace session consolidation into LanceDB upon exit.
+Starting in `v0.29.0`, AnyContext introduces formal **Virtual Tab Workspace Isolation** with strict separation between ephemeral viewport state (*View Buffer*) and cumulative conversational history (*Session Accumulator*), culminating in deterministic, per-workspace session consolidation into LanceDB upon exit.
 
 ### 🏛️ 1. Architectural Motivation: Preventing Induced Amnesia & Context Jumble
 In prior releases:
