@@ -45,15 +45,18 @@ class TestProcessLineageAndSyncQueue(unittest.TestCase):
                 args = call[0][0]
                 self.assertNotIn(str(immune_pid), args, "Self PID should never be passed to taskkill!")
 
-    def test_options_engine_hides_close_option_when_zero_instances(self):
+    def test_options_engine_shows_close_option_when_zero_instances(self):
         engine = OptionsEngine()
         with patch.object(UpdateService, "check_for_updates", return_value=(True, "v0.28.74")), \
              patch.object(UpdateService, "find_active_instances", return_value=[]):
             group = engine.get_update_options(target_version="v0.28.74")
             item_ids = [item.id for item in group.items]
             self.assertIn("background", item_ids)
+            self.assertIn("close", item_ids)
             self.assertIn("cancel", item_ids)
-            self.assertNotIn("close", item_ids, "Close option must be hidden when zero other instances exist")
+            close_item = next(i for i in group.items if i.id == "close")
+            self.assertIn("Close session and update now", close_item.title)
+            self.assertIn("Terminates this session", close_item.description)
 
     def test_options_engine_shows_close_option_when_instances_exist(self):
         engine = OptionsEngine()
@@ -65,6 +68,9 @@ class TestProcessLineageAndSyncQueue(unittest.TestCase):
             self.assertIn("background", item_ids)
             self.assertIn("close", item_ids)
             self.assertIn("cancel", item_ids)
+            close_item = next(i for i in group.items if i.id == "close")
+            self.assertIn("Close all AnyContext sessions and update now", close_item.title)
+            self.assertIn("Terminates all 2 active sessions", close_item.description)
 
     def test_background_sync_manager_pending_queue(self):
         mgr = BackgroundSyncManager()

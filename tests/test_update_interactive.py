@@ -33,6 +33,20 @@ class TestUpdateInteractive(unittest.TestCase):
             self.assertEqual(len(opts.items), 3)
             self.assertEqual(opts.items[0].id, "background")
             self.assertEqual(opts.items[1].id, "close")
+            self.assertIn("Close all AnyContext sessions", opts.items[1].title)
+            self.assertEqual(opts.items[2].id, "cancel")
+
+    def test_options_engine_update_options_zero_instances(self):
+        from unittest.mock import patch
+        engine = OptionsEngine()
+        with patch.object(UpdateService, "find_active_instances", return_value=[]):
+            opts = engine.get_update_options(target_version="0.28.16")
+            self.assertEqual(opts.type, "update")
+            self.assertIn("0.28.16", opts.title)
+            self.assertEqual(len(opts.items), 3)
+            self.assertEqual(opts.items[0].id, "background")
+            self.assertEqual(opts.items[1].id, "close")
+            self.assertIn("Close session and update now", opts.items[1].title)
             self.assertEqual(opts.items[2].id, "cancel")
 
     def test_options_engine_cancel_update(self):

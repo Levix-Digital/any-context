@@ -606,7 +606,8 @@ class UpdateService:
                 pass
 
             if auto_close_instances:
-                msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 Closing all active sessions. Run 'actx' or 'actx --tui' to start the updated version."
+                close_label = "Closing session." if closed_count == 0 else f"Closing all {closed_count + 1} active sessions."
+                msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 {close_label} Run 'actx' or 'actx --tui' to start the updated version."
                 return True, msg, {"action": "exit_update", "version": clean_tag, "closed_count": closed_count}
             else:
                 msg = f"🎉 Successfully updated AnyContext to {clean_tag} in background!\n👉 The new version will take effect the next time you launch 'actx' or 'actx --tui'."
@@ -620,7 +621,8 @@ class UpdateService:
                 return False, f"❌ Failed to replace binary: {e}", {}
 
             if auto_close_instances:
-                msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 Closing all active sessions. Run 'actx' or 'actx --tui' to start the updated version."
+                close_label = "Closing session." if closed_count == 0 else f"Closing all {closed_count + 1} active sessions."
+                msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 {close_label} Run 'actx' or 'actx --tui' to start the updated version."
                 return True, msg, {"action": "exit_update", "version": clean_tag, "closed_count": closed_count}
             else:
                 msg = f"🎉 Successfully updated AnyContext to {clean_tag} in background!\n👉 The new version will take effect the next time you launch 'actx' or 'actx --tui'."

@@ -274,45 +274,33 @@ class OptionsEngine:
         active_instances = update_svc.find_active_instances()
         count = len(active_instances)
 
-        items = []
         if count > 0:
             sub = f"ℹ️ Detected {count} other active AnyContext session(s). How would you like to update?"
-            items.append(
-                OptionItemSchema(
-                    id="background",
-                    title="⚡ Update in background (Recommended)",
-                    description="Active sessions continue undisturbed; applies on your next launch.",
-                    icon="⚡",
-                    badge="[Recommended]",
-                    is_active=True,
-                    metadata={"target_version": target_tag}
-                )
-            )
-            items.append(
-                OptionItemSchema(
-                    id="close",
-                    title="⏹️ Close all AnyContext sessions and update now",
-                    description=f"Terminates all active sessions and exits cleanly to terminal with {target_tag}.",
-                    icon="⏹️",
-                    is_active=False,
-                    metadata={"target_version": target_tag}
-                )
-            )
+            close_title = "⏹️ Close all AnyContext sessions and update now"
+            close_desc = f"Terminates all {count + 1} active sessions and exits cleanly to terminal with {target_tag}."
         else:
             sub = f"🚀 Ready to download and install AnyContext {target_tag}."
-            items.append(
-                OptionItemSchema(
-                    id="background",
-                    title="⚡ Update now (Recommended)",
-                    description="Downloads and replaces the binary cleanly in the background.",
-                    icon="⚡",
-                    badge="[Recommended]",
-                    is_active=True,
-                    metadata={"target_version": target_tag}
-                )
-            )
+            close_title = "⏹️ Close session and update now"
+            close_desc = f"Terminates this session and exits cleanly to terminal with {target_tag}."
 
-        items.append(
+        items = [
+            OptionItemSchema(
+                id="background",
+                title="⚡ Update in background (Recommended)",
+                description="Active sessions continue undisturbed; applies on your next launch.",
+                icon="⚡",
+                badge="[Recommended]",
+                is_active=True,
+                metadata={"target_version": target_tag}
+            ),
+            OptionItemSchema(
+                id="close",
+                title=close_title,
+                description=close_desc,
+                icon="⏹️",
+                is_active=False,
+                metadata={"target_version": target_tag}
+            ),
             OptionItemSchema(
                 id="cancel",
                 title="🔙 Cancel update",
@@ -321,7 +309,7 @@ class OptionsEngine:
                 is_active=False,
                 metadata={"target_version": target_tag}
             )
-        )
+        ]
 
         return OptionsGroupSchema(
             type="update",
