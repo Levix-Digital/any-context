@@ -35,6 +35,8 @@
 28. [Grounding Strategies, Live Web Search Priority Matrix & Universal Temporal Recency (`v0.28.84`)](#grounding-strategies-live-web-search-priority-matrix--universal-temporal-recency-v02884)
 29. [Hermetic Triple Sandboxing & Cascade Test Workspace Purge Architecture (`v0.28.85`)](#29-hermetic-triple-sandboxing--cascade-test-workspace-purge-architecture-v02885)
 30. [Progressive Real-Time Engine Startup Telemetry & Visual Parity (`v0.28.86`)](#30-progressive-real-time-engine-startup-telemetry--visual-parity-v02886)
+50. [OpenTUI Canonical Terminal Interface, 100% Thin-Client Parity & Legacy REPL Elimination (`v0.28.89`)](#50-opentui-canonical-terminal-interface-100-thin-client-parity--legacy-repl-elimination-v02889)
+51. [Cross-Platform Dual-Binary Protection, Archive Extraction Routing & Release Matrix Isolation (`v0.28.90`)](#51-cross-platform-dual-binary-protection-archive-extraction-routing--release-matrix-isolation-v02890)
 
 ---
 
@@ -1846,3 +1848,66 @@ To ensure clean code hygiene, low cognitive overhead, and zero architectural dri
 - Isolated OpenTUI launcher orchestration into `src/any_context/cli/tui_launcher.py`.
 - Modernized command testing in `tests/unit/core/test_command_dispatcher.py` to validate universal command execution and modal actions directly against the Core.
 
+
+---
+
+## 51. Cross-Platform Dual-Binary Protection, Archive Extraction Routing & Release Matrix Isolation (v0.28.90)
+
+### 🔍 1. Root Cause Analysis: The Linux Silent Exit ("The Destroyer Bug")
+In versions transitioning to the sub-second cold boot `--onedir` dual-binary architecture (`actx-core` heavy engine + `actx` native launcher shim), an edge case occurred during update archive extraction on Linux / WSL:
+1. **Unresolved Core Executable**: When upgrading from a single-binary installation (where `~/.local/bin/actx-core` did not yet exist), `target_exe` resolved to `shim_exe` (`~/.local/bin/actx`).
+2. **Destructive File Overwrite**: Extraction of `actx-linux-x86_64.tar.gz` placed the 45MB engine `actx-core` into `target_exe` (`~/.local/bin/actx`). Immediately following extraction, the installer/updater generated the shell shim script `unix_shim = os.path.join(target_dir, "actx")`, opening it with `"w"`. This immediately truncated and erased the 45MB PyInstaller engine, replacing it with a 432-byte bash script.
+3. **Silent Zero Exit**: The resulting wrapper contained:
+   ```bash
+   if [ -f "$BIN_DIR/actx-core" ]; then
+       exec "$BIN_DIR/actx-core" "$@"
+   fi
+   ```
+   Because `actx-core` was destroyed, the `if` check failed silently, executing nothing and exiting with status code 0. Conversely, `actx -v` succeeded because it read `version.txt` before checking for `actx-core`.
+
+### 🏛️ 2. Architectural Solution: Rigorous Dual-Binary Separation on Unix
+Starting in `v0.28.90`, `update_service.py` and `updater.py` enforce strict path immutability for Unix platforms:
+- **`core_exe` Invariance**: `core_exe` is strictly immutable as `os.path.join(target_dir, "actx-core")`. On Unix, `target_exe` for the engine is ALWAYS `core_exe`.
+- **`shim_exe` Invariance**: `shim_exe` is strictly immutable as `os.path.join(target_dir, "actx")`.
+- **Extraction Routing**:
+  - `staging_dir/actx-core` moves strictly to `core_exe` (`target_dir/actx-core`) with `chmod 0o755`.
+  - `staging_dir/actx` moves strictly to `shim_exe` (`target_dir/actx`) with `chmod 0o755`.
+  - `staging_dir/_internal` atomically replaces `target_dir/_internal`.
+
+```mermaid
+graph TD
+    A["actx-linux-x86_64.tar.gz"] -->|Unpack| B["actx_staging/"]
+    B -->|actx-core 45MB| C["~/.local/bin/actx-core chmod 0755"]
+    B -->|actx 16KB native ELF shim| D["~/.local/bin/actx chmod 0755"]
+    B -->|_internal/| E["~/.local/bin/_internal/"]
+    D -->|Magic Bytes Check: \x7fELF| F{"Is Native ELF?"}
+    F -->|Yes| G["Preserve Compiled C Shim (< 2ms)"]
+    F -->|No| H["Deploy Resilient Fallback Bash Script"]
+```
+
+### 🛡️ 3. Native ELF Binary Protection & Error Fallback
+The launcher shim deployment routine now inspects the magic bytes of `shim_exe`:
+- If `shim_exe` begins with `\x7fELF`, it is recognized as the compiled C native binary built by `gcc` in CI. It is preserved without being overwritten.
+- If the binary is absent or non-ELF, a resilient shell wrapper is deployed with explicit diagnostics:
+  ```bash
+  if [ -f "$BIN_DIR/actx-core" ]; then
+      exec "$BIN_DIR/actx-core" "$@"
+  elif [ -f "$BIN_DIR/actx-core.exe" ]; then
+      exec "$BIN_DIR/actx-core.exe" "$@"
+  else
+      echo "❌ AnyContext core engine not found at $BIN_DIR/actx-core" >&2
+      echo "💡 Please run './install.sh' to repair." >&2
+      exit 1
+  fi
+  ```
+
+### 🚀 4. GitHub Actions CI Matrix Release Asset Isolation (`release.yml`)
+In previous releases, downloading `actx-linux` into `dist` followed by `actx-windows` into `dist` caused the Windows Git Bash wrapper script to overwrite the Linux native compiled ELF `dist/actx` on GitHub Releases.
+In `v0.28.90`:
+- Artifacts are downloaded to isolated temporary directories (`dist-linux` and `dist-windows`).
+- A consolidation step copies Linux artifacts (`actx`, `actx-linux-x86_64`, `actx-linux-x86_64.tar.gz`) first.
+- Windows artifacts copy only `.zip` and `.exe` binaries, ensuring `dist/actx` on GitHub Releases remains 100% genuine Linux native ELF executable.
+
+### 🏛️ 5. Re-Affirmation of Architectural Invariant
+> **"Qualquer front-end (seja o OpenTUI via terminal ou o Tauri Desktop via WebView) agora usará exatamente o mesmo fluxo e as mesmas mensagens RPC, sem precisar reescrever nenhuma regra de negócio!"**
+The dual-binary runtime guarantees sub-second startup (< 0.2s) across both Linux and Windows while maintaining complete separation between the presentation layer and the Python Core engine.

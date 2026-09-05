@@ -152,7 +152,7 @@ chmod +x "$CORE_PATH" 2>/dev/null || true
 printf "\033[32m✅ Core engine configured: %s\033[0m\n" "$CORE_PATH"
 
 # 3. Setup Version Cache File
-VERSION_TAG="0.28.89"
+VERSION_TAG="0.28.90"
 if command -v gh >/dev/null 2>&1; then
     GH_TAG="$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null || echo "")"
     if [ -n "$GH_TAG" ]; then
@@ -212,7 +212,14 @@ EOF
     chmod +x "$BASH_SHIM" "$EXE_PATH" 2>/dev/null || true
     printf "\033[32m⚡ Git Bash wrapper deployed: %s\033[0m\n" "$BASH_SHIM"
 else
-    cat << EOF > "$EXE_PATH"
+    IS_NATIVE_ELF=0
+    if [ -f "$EXE_PATH" ]; then
+        if head -c 4 "$EXE_PATH" 2>/dev/null | grep -q 'ELF'; then
+            IS_NATIVE_ELF=1
+        fi
+    fi
+    if [ $IS_NATIVE_ELF -eq 0 ]; then
+        cat << EOF > "$EXE_PATH"
 #!/usr/bin/env sh
 BIN_DIR="\$(CDPATH= cd -- "\$(dirname -- "\$0")" && pwd)"
 if [ "\$1" = "-v" ] || [ "\$1" = "--version" ]; then
@@ -224,8 +231,18 @@ if [ "\$1" = "-v" ] || [ "\$1" = "--version" ]; then
     fi
     exit 0
 fi
-exec "\$BIN_DIR/actx-core" "\$@"
+
+if [ -f "\$BIN_DIR/actx-core" ]; then
+    exec "\$BIN_DIR/actx-core" "\$@"
+elif [ -f "\$BIN_DIR/actx-core.exe" ]; then
+    exec "\$BIN_DIR/actx-core.exe" "\$@"
+else
+    echo "❌ AnyContext core engine not found at \$BIN_DIR/actx-core" >&2
+    echo "💡 Please run './install.sh' to repair." >&2
+    exit 1
+fi
 EOF
+    fi
     chmod +x "$EXE_PATH" 2>/dev/null || true
     printf "\033[32m⚡ Ultra-fast native Launcher Shim deployed: %s\033[0m\n" "$EXE_PATH"
 fi

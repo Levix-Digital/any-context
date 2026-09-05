@@ -7,6 +7,61 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.28.90): Blindagem Dual-Binary no Linux/WSL, Prevenção do Destroyer Bug no Update e Isolamento de Artefatos no CI/CD
+
+- **Objetivo**: Comprovar que na release `v0.28.90`:
+  1. No Linux/WSL, a atualização via `actx --update` ou `/update` preserva rigorosamente o motor central `actx-core` (45MB) em `~/.local/bin/actx-core` e o launcher nativo compilado `actx` (16KB) em `~/.local/bin/actx`, eliminando por completo o "Destroyer Bug" em que o motor era sobrescrito pelo wrapper bash.
+  2. O comando `actx` no Linux/WSL abre diretamente o OpenTUI (ou executa os comandos solicitados) sem jamais sair silenciosamente com código 0.
+  3. O launcher nativo ELF (`actx`) é reconhecido pela assinatura de magic bytes `\x7fELF` e preservado contra sobrescrita com scripts bash.
+  4. Caso o motor `actx-core` esteja ausente no disco, o wrapper bash emite diagnóstico explícito no `stderr` (`❌ AnyContext core engine not found at $BIN_DIR/actx-core`) e encerra com código 1, em vez de sair silenciosamente com 0.
+  5. No GitHub Actions (`release.yml`), os artefatos de Linux e Windows são baixados em pastas temporárias isoladas (`dist-linux` e `dist-windows`), garantindo que o asset de release `actx` publicado no GitHub Releases seja o executável nativo ELF de Linux, sem ser corrompido pelo wrapper de Git Bash do Windows.
+- **Pré-requisito**: Versão `v0.28.90` instalada no Linux/WSL (`actx -v` exibindo `v0.28.90`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🐧 Verificação de Binários Dual-Binary no Linux/WSL:**
+   - No terminal Linux ou WSL (`levi@Home-Desktop`), executar:
+     ```bash
+     ls -la ~/.local/bin/actx*
+     ```
+   - **Critério de Aceitação:**
+     - O arquivo `~/.local/bin/actx-core` existe e possui tamanho > 40MB com permissão de execução (`-rwxr-xr-x`).
+     - O arquivo `~/.local/bin/actx` existe e possui permissão de execução.
+     - A pasta `~/.local/bin/_internal` existe com os pacotes e bibliotecas compartilhadas do Python.
+
+2. **⚡ Execução de Comandos Rápidos e Diagnósticos no Linux:**
+   - No terminal Linux/WSL, executar:
+     ```bash
+     actx -v
+     actx --diagnostics
+     ```
+   - **Critério de Aceitação:**
+     - `actx -v` retorna imediatamente `v0.28.90`.
+     - `actx --diagnostics` imprime o relatório completo de saúde do sistema, indicando SO Linux, Executable Binary `/home/.../.local/bin/actx-core` e Bun runtime detectado com sucesso.
+     - Nenhum comando sai em branco ou silencioso.
+
+3. **🖥️ Execução Interativa do OpenTUI no Linux/WSL:**
+   - No terminal Linux/WSL, digitar:
+     ```bash
+     actx
+     ```
+   - **Critério de Aceitação:**
+     - A interface reativa do OpenTUI abre em tela cheia diretamente no terminal Linux.
+     - Comandos como `/sources`, `/mode` e `/help` respondem normalmente via Stdio RPC Bridge.
+     - Ao sair com `/exit`, a tela é restaurada perfeitamente ao shell.
+
+4. **🔄 Validação do Mecanismo de Atualização Sem Perda de `actx-core`:**
+   - Disparar a verificação de atualização:
+     ```bash
+     actx --update
+     ```
+   - **Critério de Aceitação:**
+     - O serviço de update identifica corretamente a versão mais recente.
+     - Caso force a reinstalação, todos os arquivos dual-binary são roteados adequadamente: `actx-core` para `~/.local/bin/actx-core` e o shim para `~/.local/bin/actx`.
+     - O executável `actx-core` permanece intacto e funcional após o ciclo de atualização.
+
+---
+
 ### 📌 Cenário 1 (v0.28.89): Validação do OpenTUI como Interface Padrão do `actx`, TUI 100% Thin Client via RPC e Remoção do Legado `chat_loop.py`
 
 - **Objetivo**: Comprovar que na release `v0.28.89`:

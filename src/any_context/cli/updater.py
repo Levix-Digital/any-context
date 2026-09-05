@@ -535,10 +535,13 @@ def run_self_update(
     os.makedirs(target_dir, exist_ok=True)
     core_exe = os.path.join(target_dir, "actx-core.exe" if is_windows else "actx-core")
     shim_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
-    if os.path.exists(core_exe):
-        target_exe = core_exe
+    if is_windows:
+        if os.path.exists(core_exe):
+            target_exe = core_exe
+        else:
+            target_exe = shim_exe
     else:
-        target_exe = shim_exe
+        target_exe = core_exe
 
     old_exe = os.path.join(target_dir, "actx_old.exe" if is_windows else "actx_old")
     internal_dir = os.path.join(target_dir, "_internal")
@@ -839,56 +842,87 @@ def run_self_update(
 
                 staging_core = os.path.join(staging_dir, "actx-core")
                 if os.path.exists(staging_core):
-                    os.replace(staging_core, target_exe)
-                else:
-                    for f in os.listdir(staging_dir):
-                        src_f = os.path.join(staging_dir, f)
-                        dst_f = os.path.join(target_dir, f)
-                        if os.path.isfile(src_f):
-                            os.replace(src_f, dst_f)
-                            try:
-                                os.chmod(dst_f, 0o755)
-                            except Exception:
-                                pass
+                    os.replace(staging_core, core_exe)
+                    try:
+                        os.chmod(core_exe, 0o755)
+                    except Exception:
+                        pass
 
-                try:
-                    os.chmod(target_exe, 0o755)
-                except Exception:
-                    pass
+                staging_shim = os.path.join(staging_dir, "actx")
+                if os.path.exists(staging_shim):
+                    os.replace(staging_shim, shim_exe)
+                    try:
+                        os.chmod(shim_exe, 0o755)
+                    except Exception:
+                        pass
+
+                # Move any remaining files from staging_dir to target_dir
+                for f in os.listdir(staging_dir):
+                    src_f = os.path.join(staging_dir, f)
+                    dst_f = os.path.join(target_dir, f)
+                    if os.path.isfile(src_f):
+                        os.replace(src_f, dst_f)
+                        try:
+                            os.chmod(dst_f, 0o755)
+                        except Exception:
+                            pass
+
                 shutil.rmtree(staging_dir, ignore_errors=True)
                 if os.path.exists(temp_download):
                     os.remove(temp_download)
             else:
-                os.replace(temp_download, target_exe)
+                os.replace(temp_download, core_exe)
                 try:
-                    os.chmod(target_exe, 0o755)
+                    os.chmod(core_exe, 0o755)
                 except Exception:
                     pass
 
-            unix_shim = os.path.join(target_dir, "actx")
-            unix_shim_content = (
-                "#!/usr/bin/env sh\n"
-                "BIN_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n"
-                "if [ \"$1\" = \"-v\" ] || [ \"$1\" = \"--version\" ]; then\n"
-                "    if [ -f \"$BIN_DIR/version.txt\" ]; then\n"
-                "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n"
-                "        echo \"$V\"\n"
-                "    else\n"
-                f"        echo \"{clean_tag}\"\n"
-                "    fi\n"
-                "    exit 0\n"
-                "fi\n"
-                "\n"
-                "if [ -f \"$BIN_DIR/actx-core\" ]; then\n"
-                "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
-                "fi\n"
-            )
-            try:
-                with open(unix_shim, "w", encoding="utf-8", newline="\n") as uf:
-                    uf.write(unix_shim_content)
-                os.chmod(unix_shim, 0o755)
-            except Exception:
-                pass
+            # Check if shim_exe exists and is a compiled native ELF binary
+            is_native_elf = False
+            if os.path.exists(shim_exe):
+                try:
+                    with open(shim_exe, "rb") as sf:
+                        magic = sf.read(4)
+                    if magic == b"\x7fELF":
+                        is_native_elf = True
+                        try:
+                            os.chmod(shim_exe, 0o755)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+            # Deploy shell shim script only if native ELF shim is missing or non-binary
+            if not is_native_elf:
+                unix_shim_content = (
+                    "#!/usr/bin/env sh\n"
+                    "BIN_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n"
+                    "if [ \"$1\" = \"-v\" ] || [ \"$1\" = \"--version\" ]; then\n"
+                    "    if [ -f \"$BIN_DIR/version.txt\" ]; then\n"
+                    "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n"
+                    "        echo \"$V\"\n"
+                    "    else\n"
+                    f"        echo \"{clean_tag}\"\n"
+                    "    fi\n"
+                    "    exit 0\n"
+                    "fi\n"
+                    "\n"
+                    "if [ -f \"$BIN_DIR/actx-core\" ]; then\n"
+                    "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
+                    "elif [ -f \"$BIN_DIR/actx-core.exe\" ]; then\n"
+                    "    exec \"$BIN_DIR/actx-core.exe\" \"$@\"\n"
+                    "else\n"
+                    "    echo \"❌ AnyContext core engine not found at $BIN_DIR/actx-core\" >&2\n"
+                    "    echo \"💡 Please run './install.sh' to repair.\" >&2\n"
+                    "    exit 1\n"
+                    "fi\n"
+                )
+                try:
+                    with open(shim_exe, "w", encoding="utf-8", newline="\n") as uf:
+                        uf.write(unix_shim_content)
+                    os.chmod(shim_exe, 0o755)
+                except Exception:
+                    pass
 
             log_update_event(f"Update to {clean_tag} completed successfully (Unix).")
             safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
