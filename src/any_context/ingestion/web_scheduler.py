@@ -409,6 +409,8 @@ def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
         from any_context.vector_engine.store import LanceDBStore
         l_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
         l_store.delete_by_file(url, workspace_name=workspace_name)
+        clean_url = url.rstrip("/")
+        l_store.delete_by_file(f"{clean_url}/", workspace_name=workspace_name)
         return True
     except Exception as e:
         print(f"⚠️ Warning removing web vectors for '{url}': {e}")
