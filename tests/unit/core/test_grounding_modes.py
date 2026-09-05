@@ -20,9 +20,21 @@ class TestGroundingModes(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self.temp_dir.name, "test_settings.db")
+        self._orig_db = os.environ.get("ACTX_SETTINGS_DB")
+        self._orig_test_mode = os.environ.get("ACTX_TEST_MODE")
+        os.environ["ACTX_SETTINGS_DB"] = self.db_path
+        os.environ["ACTX_TEST_MODE"] = "1"
         self.store = ConfigDBStore(db_path=self.db_path)
 
     def tearDown(self):
+        if self._orig_db is not None:
+            os.environ["ACTX_SETTINGS_DB"] = self._orig_db
+        else:
+            os.environ.pop("ACTX_SETTINGS_DB", None)
+        if self._orig_test_mode is not None:
+            os.environ["ACTX_TEST_MODE"] = self._orig_test_mode
+        else:
+            os.environ.pop("ACTX_TEST_MODE", None)
         try:
             self.temp_dir.cleanup()
         except Exception:
@@ -246,7 +258,7 @@ class TestGroundingModes(unittest.TestCase):
         from unittest.mock import MagicMock
         from any_context.server.rpc_bridge import StdioRPCServer
 
-        server = StdioRPCServer(default_workspace="TestWS")
+        server = StdioRPCServer(default_workspace="TestWS", store=self.store)
         # Mock agent instance
         dummy_agent = MagicMock()
         server.agent_instance = dummy_agent

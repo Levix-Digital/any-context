@@ -31,6 +31,9 @@
 24. [LanceDB Single Source of Truth Web Engine & Zero-Copy Columnar Cache (`v0.28.80`)](#lancedb-single-source-of-truth-web-engine--zero-copy-columnar-cache-v02880)
 25. [Hermetic Vector Storage Sandboxing & Production Data Immunity (`v0.28.81`)](#hermetic-vector-storage-sandboxing--production-data-immunity-v02881)
 26. [Canonical HTTP Redirect Trailing Slash Resolution & Relative Link RFC 3986 Integrity (`v0.28.82`)](#canonical-http-redirect-trailing-slash-resolution--relative-link-rfc-3986-integrity-v02882)
+27. [Session Process Immunology & Clean Terminal Teardown (`v0.28.83`)](#session-process-immunology--clean-terminal-teardown-v02883)
+28. [Grounding Strategies, Live Web Search Priority Matrix & Universal Temporal Recency (`v0.28.84`)](#grounding-strategies-live-web-search-priority-matrix--universal-temporal-recency-v02884)
+29. [Hermetic Triple Sandboxing & Cascade Test Workspace Purge Architecture (`v0.28.85`)](#29-hermetic-triple-sandboxing--cascade-test-workspace-purge-architecture-v02885)
 
 ---
 
@@ -1546,7 +1549,55 @@ To eliminate stale runtime configuration caching:
 2. **State Updates Invalidation**:
    In `execute_command`, `set_option`, `execute_menu_action`, `set_web_search`, `set_mode`, `switch_workspace`, any modification to `state_updates` immediately executes `self.agent_instance = None`.
 3. **Database Auto-Creation Invariant (`ConfigDBStore`)**:
-   `set_grounding_mode` and `set_web_search_status` check `cursor.rowcount == 0` and auto-insert workspace records if an ad-hoc workspace is referenced, guaranteeing immediate persistence across transport layers.
+   `set_grounding_mode` and `set_web_search_status` check `cursor.rowcount == 0` and auto-insert workspace records with dynamic provenance resolution, guaranteeing immediate persistence across transport layers.
+
+---
+
+## 29. Hermetic Triple Sandboxing & Cascade Test Workspace Purge Architecture (`v0.28.85`)
+
+### 1. The Triple Safety Barrier (`paths.py`)
+
+To guarantee absolute immunity of production data against automated unit, integration, and E2E test runs, `paths.py` enforces a **Triple Safety Barrier** across all storage subsystems:
+
+```mermaid
+graph TD
+    A["Caller requesting storage path"] --> B{"Is explicit env var set?<br/>(ACTX_SETTINGS_DB, ACTX_CONTEXT_DB, ACTX_MEMORY_DB)"}
+    B -- "Yes" --> C["Use explicit path provided"]
+    B -- "No" --> D{"Is test environment active?<br/>(ACTX_TEST_MODE == '1' or pytest or unittest)"}
+    D -- "Yes (Test Suite)" --> E["🛡️ Sandboxed Temp Directory (%TEMP%/actx_test_*)"]
+    D -- "No (Production)" --> F["💾 Canonical OS AppData (%LOCALAPPDATA%/AnyContext/)"]
+```
+
+1. **Configuration DB (`settings.db`)**: `get_default_config_db_path()` redirects automated test runs to `%TEMP%/actx_test_config/settings.db`.
+2. **Vector DB (LanceDB `context_db`)**: `get_default_vector_db_path()` redirects automated test runs to `%TEMP%/actx_test_context_db`.
+3. **Session Memory DB (LanceDB `memory`)**: `get_default_session_db_path()` redirects automated test runs to `%TEMP%/actx_test_session_db`.
+
+### 2. Multi-Table Cascade Purge for Ephemeral Test Workspaces (`db_store.py`)
+
+Workspaces tagged with `created_by = 'test'` (as well as known legacy test fixtures `Unit_Dispatch_WS`, `TestWS`, `RpcUnitTestWS`, `NewRPCWS`) are recognized as ephemeral test fixtures. Upon production startup (`ACTX_TEST_MODE != "1"`), `ConfigDBStore._init_db()` executes an atomic, multi-table cascade purge:
+
+```sql
+DELETE FROM workspace_folders WHERE workspace_name = ?;
+DELETE FROM workspace_web_urls WHERE workspace_name = ?;
+DELETE FROM workspace_cloud_drives WHERE workspace_name = ?;
+DELETE FROM workspace_permissions WHERE workspace_name = ?;
+DELETE FROM workspace_user_permissions WHERE workspace_name = ?;
+DELETE FROM workspace_share_invites WHERE workspace_name = ?;
+DELETE FROM workspace_source_links WHERE workspace_name = ?;
+DELETE FROM workspace_files_stat_cache WHERE workspace_name = ?;
+DELETE FROM workspaces WHERE name = ? AND LOWER(name) NOT IN ('default', 'shared sources');
+```
+
+This completely eradicates the previous flaw where test workspaces with attached sources or folders were spared from cleanup due to restrictive `NOT IN` queries.
+
+### 3. Dynamic Provenance Resolution
+
+When workspaces are auto-created during runtime option updates (`set_grounding_mode`, `set_web_search_status`, or `add_workspace`), the provenance tag is dynamically assigned:
+- If running under `ACTX_TEST_MODE == "1"`, `pytest`, or `unittest`: `created_by = 'test'`
+- If named `Default` or `Shared Sources`: `created_by = 'system'`
+- Otherwise: `created_by = 'user'`
+
+User workspaces (`created_by = 'user'`) and system workspaces (`created_by = 'system'`) are 100% strictly immune to cleanup operations.
 
 
 

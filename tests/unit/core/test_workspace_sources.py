@@ -22,11 +22,23 @@ class TestWorkspaceSources(unittest.TestCase):
         setup_mock_embeddings_if_needed()
         cls.temp_dir = tempfile.mkdtemp()
         cls.db_path = os.path.join(cls.temp_dir, "test_sources_settings.db")
+        cls._orig_db = os.environ.get("ACTX_SETTINGS_DB")
+        cls._orig_test_mode = os.environ.get("ACTX_TEST_MODE")
+        os.environ["ACTX_SETTINGS_DB"] = cls.db_path
+        os.environ["ACTX_TEST_MODE"] = "1"
         cls.store = ConfigDBStore(db_path=cls.db_path)
         cls.web_store = WebSchedulerStore(db_path=cls.db_path)
 
     @classmethod
     def tearDownClass(cls):
+        if cls._orig_db is not None:
+            os.environ["ACTX_SETTINGS_DB"] = cls._orig_db
+        else:
+            os.environ.pop("ACTX_SETTINGS_DB", None)
+        if cls._orig_test_mode is not None:
+            os.environ["ACTX_TEST_MODE"] = cls._orig_test_mode
+        else:
+            os.environ.pop("ACTX_TEST_MODE", None)
         try:
             shutil.rmtree(cls.temp_dir, ignore_errors=True)
         except Exception:
@@ -371,7 +383,7 @@ class TestWorkspaceSources(unittest.TestCase):
         space_folder = os.path.join(self.temp_dir, "Folder With Spaces")
         os.makedirs(space_folder, exist_ok=True)
 
-        dispatcher = CommandDispatcher()
+        dispatcher = CommandDispatcher(store=self.store)
         res_folder = dispatcher.dispatch(f"/folder --add {space_folder}", active_workspace=ws_test)
         self.assertTrue(res_folder.success, f"Failed adding folder with spaces: {res_folder.message}")
 

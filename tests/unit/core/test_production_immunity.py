@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit tests asserting 100% immunity of the user's production vector database and memory
 against automated test runners (v0.28.81).
 """
@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from any_context.config.paths import (
+    get_default_config_db_path,
     get_default_vector_db_path,
     get_default_session_db_path,
     get_app_data_root
@@ -51,6 +52,24 @@ class TestProductionImmunity(unittest.TestCase):
             self.assertTrue(
                 path.lower().startswith(tempfile.gettempdir().lower()),
                 f"Test mode session path must be in temp directory! Got: {path}"
+            )
+
+    def test_config_db_path_sandbox_safety(self):
+        """Verifies that in test mode without ACTX_SETTINGS_DB, the config db path is isolated to temp."""
+        with patch.dict(os.environ, {"ACTX_TEST_MODE": "1"}, clear=False):
+            if "ACTX_SETTINGS_DB" in os.environ:
+                del os.environ["ACTX_SETTINGS_DB"]
+
+            path = get_default_config_db_path()
+            prod_root = get_app_data_root()
+
+            self.assertFalse(
+                path.lower().startswith(prod_root.lower()),
+                f"Test mode config db path must NEVER point to production AppData! Got: {path}"
+            )
+            self.assertTrue(
+                path.lower().startswith(tempfile.gettempdir().lower()),
+                f"Test mode config db path must be in temp directory! Got: {path}"
             )
 
     def test_clear_context_vector_db_prod_shield(self):

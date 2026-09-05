@@ -7,7 +7,49 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.83): Atualização com Fechamento Seguro de Todas as Sessões, Teardown Limpo de Terminal e Prevenção de Prompt Fantasma
+### 📌 Cenário 1 (v0.28.85): Validação de Imunidade Absoluta do Banco de Produção, Barreira de Segurança e Cascade Purge de Workspaces de Teste
+
+- **Objetivo**: Comprovar que na release `v0.28.85`:
+  1. A execução de testes unitários diretamente (ex: `python -m unittest tests/unit/core/test_workspace_sources.py` ou `test_grounding_modes.py`) NUNCA polui o banco de produção do usuário (`%LOCALAPPDATA%\AnyContext\config\settings.db`).
+  2. Qualquer workspace residual de testes passados (`Unit_Dispatch_WS`, `TestWS`, `RpcUnitTestWS`, `NewRPCWS`, `RenderTestWS`) é automaticamente purgado em cascata na inicialização em modo de produção (incluindo todas as tabelas filhas `workspace_web_urls`, `workspace_folders`, etc.).
+  3. Workspaces criados pelo usuário (`created_by = 'user'`) e do sistema (`Default`, `Shared Sources`) são 100% imunes a qualquer limpeza.
+  4. Na interface TUI ou CLI, o modal de troca de workspaces exibe apenas os workspaces reais do usuário e do sistema, sem nenhum workspace fantasma ou temporário de testes.
+- **Pré-requisito**: Versão `v0.28.85` instalada (`actx -v` exibindo `v0.28.85`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Execução Direta de Testes Unitários de Fontes e Despacho:**
+   - Execute o teste unitário que manipulava pastas temporárias e portais web:
+     ```bash
+     python -m unittest tests/unit/core/test_workspace_sources.py
+     python -m unittest tests/unit/core/test_grounding_modes.py
+     ```
+   - **Critério de Aceitação:** Ambos os testes passam com `OK`. A barreira de segurança em `paths.py` e o isolamento de `ACTX_SETTINGS_DB` garantem que o banco de produção nunca seja tocado.
+
+2. **🔍 Auditoria Forense no Banco de Produção do Usuário:**
+   - No terminal (PowerShell ou Bash), execute a checagem rápida de integridade do banco:
+     ```bash
+     python -c "import sqlite3, os; db = os.path.expandvars(r'%LOCALAPPDATA%\AnyContext\config\settings.db'); conn = sqlite3.connect(db); print([r[1] for r in conn.cursor().execute('SELECT id, name, created_by FROM workspaces').fetchall()])"
+     ```
+   - **Critério de Aceitação:** A lista de workspaces exibe estritamente `['Default', 'Shared Sources', ...]` (e workspaces reais criados por você, como `RustBook`). Workspaces de teste como `Unit_Dispatch_WS` e `TestWS` **não existem**.
+
+3. **🖥️ Verificação Visual na Interface OpenTUI (`/switch`):**
+   - Inicie o AnyContext na interface interativa:
+     ```bash
+     actx --tui
+     ```
+   - Digite `/switch` e pressione `[Enter]` para abrir o modal de workspaces:
+     ```text
+     /switch
+     ```
+   - **Critério de Aceitação:**
+     - O modal lista apenas `Default`, `Shared Sources` e os workspaces criados pelo usuário.
+     - Nenhum workspace com pastas temporárias em `Temp/tmpxjkelzz9` ou `Unit_Dispatch_WS` ou `TestWS` aparece na lista.
+     - Pressione `[Esc]` para fechar o modal.
+
+---
+
+### 📌 Cenário 2 (v0.28.83): Atualização com Fechamento Seguro de Todas as Sessões, Teardown Limpo de Terminal e Prevenção de Prompt Fantasma
 
 - **Objetivo**: Comprovar que na release `v0.28.83`:
   1. No comando `/update` (ou `/update@<versão>`), a opção de encerramento fecha com segurança **todas** as instâncias AnyContext ativas no sistema operacional.
