@@ -31,6 +31,21 @@ CORE_PATH="$INSTALL_DIR/$CORE_NAME"
 EXE_PATH="$INSTALL_DIR/$EXE_NAME"
 VERSION_FILE="$INSTALL_DIR/version.txt"
 
+if [ "$IS_WINDOWS" -eq 1 ]; then
+    LOG_DIR="$HOME/AppData/Local/AnyContext/logs"
+else
+    LOG_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/any-context/logs"
+fi
+mkdir -p "$LOG_DIR"
+INSTALL_LOG="$LOG_DIR/install.log"
+
+log_install() {
+    ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date)"
+    printf "[%s] [%s] %s\n" "$ts" "${2:-INFO}" "$1" >> "$INSTALL_LOG" 2>/dev/null || true
+}
+
+log_install "Installer initiated. OS: $OS_TYPE, InstallDir: $INSTALL_DIR, Repo: $REPO"
+
 printf "\n\033[36m🚀 Installing AnyContext (actx)...\033[0m\n"
 
 # 1. Ensure target directory exists
@@ -38,6 +53,7 @@ mkdir -p "$INSTALL_DIR"
 
 # 2. Download Core distribution archive or standalone fallback binary
 printf "\033[33m⬇️ Downloading latest AnyContext from GitHub...\033[0m\n"
+log_install "Downloading AnyContext ($ARCHIVE_NAME or $FALLBACK_NAME) from GitHub"
 
 DOWNLOAD_SUCCESS=0
 
@@ -49,6 +65,8 @@ if command -v gh >/dev/null 2>&1; then
             if [ "$IS_WINDOWS" -eq 1 ]; then
                 if command -v unzip >/dev/null 2>&1; then
                     unzip -o -q "$INSTALL_DIR/$ARCHIVE_NAME" -d "$INSTALL_DIR" 2>/dev/null || true
+                elif command -v tar >/dev/null 2>&1; then
+                    tar -xf "$INSTALL_DIR/$ARCHIVE_NAME" -C "$INSTALL_DIR" 2>/dev/null || true
                 else
                     powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath '$INSTALL_DIR/$ARCHIVE_NAME' -DestinationPath '$INSTALL_DIR' -Force" 2>/dev/null || true
                 fi
@@ -69,6 +87,8 @@ if [ $DOWNLOAD_SUCCESS -eq 0 ]; then
             if [ "$IS_WINDOWS" -eq 1 ]; then
                 if command -v unzip >/dev/null 2>&1; then
                     unzip -o -q "$TEMP_ARCHIVE" -d "$INSTALL_DIR" 2>/dev/null || true
+                elif command -v tar >/dev/null 2>&1; then
+                    tar -xf "$TEMP_ARCHIVE" -C "$INSTALL_DIR" 2>/dev/null || true
                 else
                     powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath '$TEMP_ARCHIVE' -DestinationPath '$INSTALL_DIR' -Force" 2>/dev/null || true
                 fi
@@ -83,6 +103,8 @@ if [ $DOWNLOAD_SUCCESS -eq 0 ]; then
             if [ "$IS_WINDOWS" -eq 1 ]; then
                 if command -v unzip >/dev/null 2>&1; then
                     unzip -o -q "$TEMP_ARCHIVE" -d "$INSTALL_DIR" 2>/dev/null || true
+                elif command -v tar >/dev/null 2>&1; then
+                    tar -xf "$TEMP_ARCHIVE" -C "$INSTALL_DIR" 2>/dev/null || true
                 else
                     powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath '$TEMP_ARCHIVE' -DestinationPath '$INSTALL_DIR' -Force" 2>/dev/null || true
                 fi
@@ -271,3 +293,5 @@ printf "\033[32m🎉 AnyContext (actx) installed successfully!\033[0m\n"
 printf "👉 Open a new terminal window and type \033[1mactx\033[0m to launch the assistant.\n"
 printf "👉 To launch the OpenTUI desktop interface, type \033[1mactx --tui\033[0m.\n"
 printf "\033[36m=======================================================\033[0m\n\n"
+log_install "Installation completed successfully. Version: v$VERSION_TAG"
+

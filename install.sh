@@ -65,6 +65,8 @@ if command -v gh >/dev/null 2>&1; then
             if [ "$IS_WINDOWS" -eq 1 ]; then
                 if command -v unzip >/dev/null 2>&1; then
                     unzip -o -q "$INSTALL_DIR/$ARCHIVE_NAME" -d "$INSTALL_DIR" 2>/dev/null || true
+                elif command -v tar >/dev/null 2>&1; then
+                    tar -xf "$INSTALL_DIR/$ARCHIVE_NAME" -C "$INSTALL_DIR" 2>/dev/null || true
                 else
                     powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath '$INSTALL_DIR/$ARCHIVE_NAME' -DestinationPath '$INSTALL_DIR' -Force" 2>/dev/null || true
                 fi
@@ -85,6 +87,8 @@ if [ $DOWNLOAD_SUCCESS -eq 0 ]; then
             if [ "$IS_WINDOWS" -eq 1 ]; then
                 if command -v unzip >/dev/null 2>&1; then
                     unzip -o -q "$TEMP_ARCHIVE" -d "$INSTALL_DIR" 2>/dev/null || true
+                elif command -v tar >/dev/null 2>&1; then
+                    tar -xf "$TEMP_ARCHIVE" -C "$INSTALL_DIR" 2>/dev/null || true
                 else
                     powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath '$TEMP_ARCHIVE' -DestinationPath '$INSTALL_DIR' -Force" 2>/dev/null || true
                 fi
@@ -99,6 +103,8 @@ if [ $DOWNLOAD_SUCCESS -eq 0 ]; then
             if [ "$IS_WINDOWS" -eq 1 ]; then
                 if command -v unzip >/dev/null 2>&1; then
                     unzip -o -q "$TEMP_ARCHIVE" -d "$INSTALL_DIR" 2>/dev/null || true
+                elif command -v tar >/dev/null 2>&1; then
+                    tar -xf "$TEMP_ARCHIVE" -C "$INSTALL_DIR" 2>/dev/null || true
                 else
                     powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath '$TEMP_ARCHIVE' -DestinationPath '$INSTALL_DIR' -Force" 2>/dev/null || true
                 fi
