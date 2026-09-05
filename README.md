@@ -58,6 +58,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🖥️ Default Reactive Terminal UI (OpenTUI)**:
   - **Zero Flag Friction**: Launching `actx` opens the reactive OpenTUI interface directly without requiring `--tui`.
   - **100% Thin Client Architecture**: Complete separation of concerns between presentation and business logic. All commands, RAG queries, and configuration mutations run through the unified Core Command Dispatcher over Stdio RPC, ensuring 100% architectural parity with the upcoming Tauri Desktop interface.
+- **📑 Virtual Tab Workspace Isolation & View Hygiene (`v0.29.0`)**:
+  - **Tabbed Chat Isolation**: Switching workspaces (`/switch`) immediately swaps the visible chat viewport to that workspace's dedicated conversation buffer while preserving other workspaces' conversations intact in memory.
+  - **Visual Hygiene Without Induced Amnesia**: The `/clear` (or `/cls`) command clears only the active workspace's visual screen buffer (restoring the signature ASCII Full Glory Banner) while keeping 100% of conversation turns preserved in the session accumulator.
+  - **Isolated LanceDB Teardown**: Upon session exit (`/exit`), all touched workspaces are automatically summarized (Level 1) and consolidated (Level 3) into their respective records in the LanceDB `session_memory` dataset.
 - **🌐 LanceDB Single Source of Truth Web Engine & Resilient Crawler**:
   - **Zero Split-Brain Desynchronization**: Eradicated legacy secondary SQLite cache tables. LanceDB is the 100% single source of truth for both web page caching, hashes, and vector chunks.
   - **Sub-5ms Zero-Copy Cache Scans**: Apache Arrow columnar projections (`select(['file_path', 'content_hash', 'last_modified'])`) verify page modifications instantly without deserializing dense embedding vectors.

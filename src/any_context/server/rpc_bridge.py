@@ -10,7 +10,10 @@ import io
 import json
 import logging
 import traceback
-from typing import Dict, Any, Optional
+import time
+import datetime
+import uuid
+from typing import Dict, Any, Optional, List, Set
 
 # Suppress noisy library loggers to prevent stdout/stderr contamination in RPC bridge mode
 for _log_name in ["llama_index", "chromadb", "httpx", "httpcore", "urllib3", "openai", "tenacity"]:
@@ -63,6 +66,9 @@ class StdioRPCServer:
         self._current_model = "gpt-4o-mini"
         self._grounding_mode = "strict"
         self._web_search_enabled = False
+        self._workspace_view_buffers: Dict[str, List[Dict[str, Any]]] = {}
+        self._workspace_session_accumulators: Dict[str, List[Dict[str, Any]]] = {}
+        self._dirty_workspaces: Set[str] = set()
         self._load_state()
 
         try:
@@ -86,6 +92,49 @@ class StdioRPCServer:
             })
         except Exception:
             pass
+
+    def _add_workspace_message(self, workspace: str, message: Dict[str, Any], display_only: bool = False):
+        """Appends a message to the workspace view buffer and optionally to the session accumulator."""
+        ws = workspace or self.active_workspace
+        if ws not in self._workspace_view_buffers:
+            self._workspace_view_buffers[ws] = []
+        if ws not in self._workspace_session_accumulators:
+            self._workspace_session_accumulators[ws] = []
+
+        self._workspace_view_buffers[ws].append(message)
+        if not display_only:
+            self._workspace_session_accumulators[ws].append(message)
+            self._dirty_workspaces.add(ws)
+
+    def get_chat_history(self, workspace: Optional[str] = None) -> list:
+        """Returns the view buffer of active session messages for the given workspace."""
+        ws = workspace or self.active_workspace
+        return list(self._workspace_view_buffers.get(ws, []))
+
+    def clear_workspace_view(self, workspace: Optional[str] = None):
+        """Clears visual view buffer for the given workspace while keeping session accumulator intact."""
+        ws = workspace or self.active_workspace
+        self._workspace_view_buffers[ws] = []
+
+    def shutdown(self):
+        """Gracefully shuts down the RPC server and persists dirty workspace sessions to LanceDB."""
+        from any_context.observability import obs
+        obs.info("RPC:SHUTDOWN", "Shutting down RPC server and consolidating dirty workspaces into LanceDB", {
+            "dirty_workspaces": list(self._dirty_workspaces)
+        })
+        try:
+            from any_context.memory.manager import MemoryManager
+            mem_mgr = MemoryManager()
+            for ws in list(self._dirty_workspaces):
+                accumulator = self._workspace_session_accumulators.get(ws, [])
+                if accumulator:
+                    try:
+                        mem_mgr.process_session_messages(messages=accumulator, workspace=ws)
+                    except Exception as e:
+                        obs.error("RPC:SHUTDOWN_MEM_ERR", f"Failed to persist memory for workspace '{ws}': {e}", exc=e)
+            self._dirty_workspaces.clear()
+        except Exception as e:
+            obs.error("RPC:SHUTDOWN_ERR", f"Error during RPC shutdown: {e}", exc=e)
 
     def close(self):
         """Releases resources and unregisters background listeners."""
@@ -206,6 +255,11 @@ class StdioRPCServer:
                 from any_context.commands.dispatcher import dispatch_command
                 cmd_line = params.get("command", "")
                 result = dispatch_command(cmd_line, active_workspace=self.active_workspace, store=self.store)
+                
+                # If /clear or /cls, clear ONLY the visual view buffer for this workspace (session accumulator remains intact)
+                if result.action == "clear" or cmd_line.strip().lower() in ["/clear", "/cls"]:
+                    self.clear_workspace_view(self.active_workspace)
+
                 if result.state_updates:
                     if "workspace" in result.state_updates:
                         self.active_workspace = result.state_updates["workspace"]
@@ -219,6 +273,19 @@ class StdioRPCServer:
                     self.agent_instance = None
                     self._load_state()
 
+                # Add system output message to workspace view buffer if applicable
+                if result.message and result.action not in ["clear", "exit"]:
+                    sys_msg = {
+                        "id": f"msg_sys_{int(time.time() * 1000)}_{uuid.uuid4().hex[:4]}",
+                        "role": "system",
+                        "content": result.message,
+                        "timestamp": datetime.datetime.utcnow().isoformat()
+                    }
+                    self._add_workspace_message(self.active_workspace, sys_msg, display_only=True)
+
+                if result.action == "exit":
+                    self.shutdown()
+
                 _send_ndjson({
                     "id": req_id,
                     "result": {
@@ -226,7 +293,8 @@ class StdioRPCServer:
                         "message": result.message,
                         "action": result.action,
                         "error": result.error,
-                        "state": self.get_state()
+                        "state": self.get_state(),
+                        "chat_history": self.get_chat_history(self.active_workspace)
                     }
                 })
 
@@ -240,7 +308,26 @@ class StdioRPCServer:
                         pass
                 self.agent_instance = None
                 self._load_state()
-                _send_ndjson({"id": req_id, "result": self.get_state()})
+                state_dict = self.get_state()
+                state_dict["chat_history"] = self.get_chat_history(target_ws)
+                _send_ndjson({
+                    "id": req_id,
+                    "result": state_dict
+                })
+
+            elif method == "get_chat_history":
+                target_ws = params.get("workspace") or self.active_workspace
+                _send_ndjson({
+                    "id": req_id,
+                    "result": {
+                        "workspace": target_ws,
+                        "chat_history": self.get_chat_history(target_ws)
+                    }
+                })
+
+            elif method == "shutdown":
+                self.shutdown()
+                _send_ndjson({"id": req_id, "result": {"shutdown": True}})
 
             elif method == "set_model":
                 new_model = params.get("model", "").strip()
@@ -424,7 +511,9 @@ class StdioRPCServer:
                     self.agent_instance = None
                     self._load_state()
 
-                _send_ndjson({"id": req_id, "result": res.model_dump()})
+                res_dict = res.model_dump()
+                res_dict["chat_history"] = self.get_chat_history(self.active_workspace)
+                _send_ndjson({"id": req_id, "result": res_dict})
 
             elif method == "chat":
                 prompt_text = params.get("message", "")
@@ -440,6 +529,15 @@ class StdioRPCServer:
     def _stream_chat(self, req_id: Any, prompt_text: str):
         """Streams LangGraph agent tokens and tool execution tickers in real-time."""
         from any_context.core.agent import create_anycontext_agent
+
+        # Record user message in workspace view buffer and session accumulator
+        user_msg = {
+            "id": f"msg_user_{int(time.time() * 1000)}_{uuid.uuid4().hex[:4]}",
+            "role": "user",
+            "content": prompt_text,
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+        self._add_workspace_message(self.active_workspace, user_msg, display_only=False)
 
         try:
             thread_id = f"rpc_session_{self.active_workspace}"
@@ -492,6 +590,17 @@ class StdioRPCServer:
                     else:
                         ticker = "📚 Reading indexed context documents..."
                     _send_ndjson({"id": req_id, "type": "ticker", "content": ticker})
+
+            # Record assistant reply in workspace view buffer and session accumulator
+            if full_reply:
+                ai_msg = {
+                    "id": f"msg_ai_{int(time.time() * 1000)}_{uuid.uuid4().hex[:4]}",
+                    "role": "assistant",
+                    "content": full_reply,
+                    "model": self._current_model,
+                    "timestamp": datetime.datetime.utcnow().isoformat()
+                }
+                self._add_workspace_message(self.active_workspace, ai_msg, display_only=False)
 
             _send_ndjson({"id": req_id, "type": "done", "full_reply": full_reply})
 
@@ -631,26 +740,30 @@ def run_rpc_server(default_workspace: str = "Default"):
     _send_ndjson({"event": "ready", "state": ready_state})
     obs.info("RPC:READY", "Emitted ready event to OpenTUI", {"needs_onboarding": ready_state.get("needs_onboarding")})
 
-    while True:
-        try:
-            line = sys.stdin.readline()
-            if not line:
-                obs.info("RPC:EOF", "Stdin reached EOF. Shutting down RPC bridge server.")
+    try:
+        while True:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    obs.info("RPC:EOF", "Stdin reached EOF. Shutting down RPC bridge server.")
+                    break
+                clean_line = line.strip()
+                if not clean_line:
+                    continue
+                payload = json.loads(clean_line)
+                server.handle_request(payload)
+            except json.JSONDecodeError as e:
+                obs.error("RPC:JSON_ERROR", f"Failed to decode JSON payload: {e}", exc=e)
+                _send_ndjson({"error": {"code": -32700, "message": f"Parse error: {e}"}})
+            except (KeyboardInterrupt, EOFError):
+                obs.info("RPC:EXIT", "Received interrupt/EOF signal")
                 break
-            clean_line = line.strip()
-            if not clean_line:
-                continue
-            payload = json.loads(clean_line)
-            server.handle_request(payload)
-        except json.JSONDecodeError as e:
-            obs.error("RPC:JSON_ERROR", f"Failed to decode JSON payload: {e}", exc=e)
-            _send_ndjson({"error": {"code": -32700, "message": f"Parse error: {e}"}})
-        except (KeyboardInterrupt, EOFError):
-            obs.info("RPC:EXIT", "Received interrupt/EOF signal")
-            break
-        except Exception as e:
-            obs.error("RPC:LOOP_ERROR", f"Unexpected error in RPC loop: {e}", exc=e)
-            _send_ndjson({"error": {"code": -32000, "message": str(e)}})
+            except Exception as e:
+                obs.error("RPC:LOOP_ERROR", f"Unexpected error in RPC loop: {e}", exc=e)
+                _send_ndjson({"error": {"code": -32000, "message": str(e)}})
+    finally:
+        server.shutdown()
+        server.close()
 
 
 if __name__ == "__main__":

@@ -36,6 +36,7 @@ export interface CommandExecutionResult {
   error?: string;
   state: AnyContextState;
   state_updates?: Record<string, any>;
+  chat_history?: any[];
 }
 
 export interface OptionItemSchema {
@@ -87,6 +88,7 @@ export interface MenuActionResult {
   state_updates?: Record<string, any>;
   next_menu_id?: string;
   action?: string;
+  chat_history?: any[];
 }
 
 export interface StreamCallbacks {
@@ -475,10 +477,23 @@ export class BridgeClient {
     }
   }
 
-  public async switchWorkspace(workspaceName: string): Promise<AnyContextState> {
-    const state = await this.sendRequest<AnyContextState>("switch_workspace", { workspace: workspaceName });
-    this.updateState(state);
-    return state;
+  public async switchWorkspace(workspaceName: string): Promise<AnyContextState & { chat_history?: any[] }> {
+    const res = await this.sendRequest<AnyContextState & { chat_history?: any[] }>("switch_workspace", { workspace: workspaceName });
+    if (res) {
+      this.updateState(res);
+    }
+    return res;
+  }
+
+  public async getChatHistory(workspace?: string): Promise<any[]> {
+    try {
+      const res = await this.sendRequest<{ workspace: string; chat_history: any[] }>("get_chat_history", {
+        workspace: workspace || this.state.workspace
+      });
+      return res?.chat_history || [];
+    } catch {
+      return [];
+    }
   }
 
   public async setModel(modelName: string): Promise<AnyContextState> {
@@ -622,7 +637,15 @@ export class BridgeClient {
 
   public stop() {
     if (this.process) {
-      this.process.kill();
+      try {
+        if (this.process.stdin && this.process.stdin.writable) {
+          const payload = JSON.stringify({ id: ++this.reqIdCounter, method: "shutdown", params: {} }) + "\n";
+          this.process.stdin.write(payload);
+        }
+      } catch (_) {}
+      try {
+        this.process.kill();
+      } catch (_) {}
       this.process = null;
     }
   }

@@ -231,6 +231,80 @@ class TestRPCBridge(unittest.TestCase):
         self.assertEqual(lines[3]["elapsed_ms"], 152.8)
         safe_stdout_write("  [OK] emit_boot_telemetry NDJSON payload validation passed!\n")
 
+    def test_09_workspace_chat_isolation_and_clear_hygiene(self):
+        """Validates that chat messages are isolated per workspace, /clear only wipes visual buffer, and accumulator persists."""
+        safe_stdout_write(">>> [RPC UNIT] Testing workspace chat buffer isolation and /clear hygiene...\n")
+        fake_stdout = io.StringIO()
+
+        with patch("sys.stdout", fake_stdout):
+            # 1. Switch to WS_Alpha and simulate user & AI messages
+            self.server.handle_request({
+                "id": 201,
+                "method": "switch_workspace",
+                "params": {"workspace": "WS_Alpha"}
+            })
+            self.server._add_workspace_message("WS_Alpha", {"id": "m1", "role": "user", "content": "Hello Alpha"})
+            self.server._add_workspace_message("WS_Alpha", {"id": "m2", "role": "assistant", "content": "Alpha Reply"})
+
+            # 2. Switch to WS_Beta and simulate user & AI messages
+            self.server.handle_request({
+                "id": 202,
+                "method": "switch_workspace",
+                "params": {"workspace": "WS_Beta"}
+            })
+            self.server._add_workspace_message("WS_Beta", {"id": "m3", "role": "user", "content": "Hello Beta"})
+
+            # 3. Check chat history via get_chat_history method for both
+            hist_alpha = self.server.get_chat_history("WS_Alpha")
+            hist_beta = self.server.get_chat_history("WS_Beta")
+
+            self.assertEqual(len(hist_alpha), 2)
+            self.assertEqual(hist_alpha[0]["content"], "Hello Alpha")
+            self.assertEqual(len(hist_beta), 1)
+            self.assertEqual(hist_beta[0]["content"], "Hello Beta")
+
+            # 4. Run /clear on WS_Beta
+            self.server.handle_request({
+                "id": 203,
+                "method": "execute_command",
+                "params": {"command": "/clear"}
+            })
+
+            # 5. Verify WS_Beta view buffer is empty, but session accumulator is preserved
+            self.assertEqual(len(self.server.get_chat_history("WS_Beta")), 0)
+            self.assertEqual(len(self.server._workspace_session_accumulators["WS_Beta"]), 1)
+            self.assertEqual(self.server._workspace_session_accumulators["WS_Beta"][0]["content"], "Hello Beta")
+
+            # 6. Verify WS_Alpha is completely untouched
+            self.assertEqual(len(self.server.get_chat_history("WS_Alpha")), 2)
+            self.assertEqual(len(self.server._workspace_session_accumulators["WS_Alpha"]), 2)
+
+        safe_stdout_write("  [OK] Multi-workspace chat isolation and /clear hygiene verified!\n")
+
+    def test_10_shutdown_dirty_workspaces_lancedb_consolidation(self):
+        """Validates that shutdown() processes dirty workspaces and consolidates session memory into LanceDB."""
+        safe_stdout_write(">>> [RPC UNIT] Testing shutdown() memory consolidation for dirty workspaces...\n")
+
+        self.server._dirty_workspaces.add("WS_Dirty")
+        self.server._workspace_session_accumulators["WS_Dirty"] = [
+            {"id": "m10", "role": "user", "content": "Discuss architecture"},
+            {"id": "m11", "role": "assistant", "content": "Architecture agreed"}
+        ]
+
+        with patch("any_context.memory.manager.MemoryManager") as mock_mgr_cls:
+            mock_mgr = MagicMock()
+            mock_mgr_cls.return_value = mock_mgr
+
+            self.server.shutdown()
+
+            mock_mgr.process_session_messages.assert_called_once()
+            call_kwargs = mock_mgr.process_session_messages.call_args[1]
+            self.assertEqual(call_kwargs["workspace"], "WS_Dirty")
+            self.assertEqual(len(call_kwargs["messages"]), 2)
+            self.assertEqual(len(self.server._dirty_workspaces), 0)
+
+        safe_stdout_write("  [OK] shutdown() dirty workspace consolidation verified!\n")
+
 
 if __name__ == "__main__":
     unittest.main()

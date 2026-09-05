@@ -37,6 +37,7 @@
 30. [Progressive Real-Time Engine Startup Telemetry & Visual Parity (`v0.28.86`)](#30-progressive-real-time-engine-startup-telemetry--visual-parity-v02886)
 50. [OpenTUI Canonical Terminal Interface, 100% Thin-Client Parity & Legacy REPL Elimination (`v0.28.89`)](#50-opentui-canonical-terminal-interface-100-thin-client-parity--legacy-repl-elimination-v02889)
 51. [Cross-Platform Dual-Binary Protection, Archive Extraction Routing & Release Matrix Isolation (`v0.28.90`)](#51-cross-platform-dual-binary-protection-archive-extraction-routing--release-matrix-isolation-v02890)
+52. [Virtual Tab Workspace Isolation, /clear View Hygiene & LanceDB Session Teardown (`v0.29.0`)](#52-virtual-tab-workspace-isolation-clear-view-hygiene--lancedb-session-teardown-v0290)
 
 ---
 
@@ -1911,3 +1912,67 @@ In `v0.28.90`:
 ### 🏛️ 5. Re-Affirmation of Architectural Invariant
 > **"Qualquer front-end (seja o OpenTUI via terminal ou o Tauri Desktop via WebView) agora usará exatamente o mesmo fluxo e as mesmas mensagens RPC, sem precisar reescrever nenhuma regra de negócio!"**
 The dual-binary runtime guarantees sub-second startup (< 0.2s) across both Linux and Windows while maintaining complete separation between the presentation layer and the Python Core engine.
+
+---
+
+## 52. Virtual Tab Workspace Isolation, `/clear` View Hygiene & LanceDB Session Teardown (`v0.29.0`)
+
+Starting in `v0.29.0`, AnyContext introduces formal **Virtual Tab Workspace Isolation** with strict separation between ephemeral viewport state (*View Buffer*) and cumulative conversational history (*Session Accumulator*), culminating in deterministic, per-workspace session consolidation into LanceDB upon exit.
+
+### 🏛️ 1. Architectural Motivation: Preventing Induced Amnesia & Context Jumble
+In prior releases:
+1. **Chat Screen Monolith**: The terminal UI maintained a single flat message array. Switching workspaces (e.g. from `Default` to `Engineering`) appended new messages to the same scrollbox, causing visual context bleed between unrelated projects.
+2. **Visual Hygiene vs. Amnesia**: Typing `/clear` or `/cls` wiped the UI array without distinguishing between viewport cleanliness and conversational memory.
+3. **Session Teardown Fragmentation**: Long-term hierarchical memory (Level 1 Session Summaries & Level 3 Meta-Summaries) lacked dirty-set tracking to atomically summarize each workspace touched during a multi-turn session into its dedicated LanceDB dataset.
+
+### 🧩 2. Formal Separation: View Buffer vs. Session Accumulator
+AnyContext formalizes two distinct state layers inside the Core Stdio RPC Bridge (`StdioRPCServer` in `rpc_bridge.py`):
+
+```mermaid
+graph TD
+    subgraph "SESSÃO ATIVA (Python Core Stdio RPC Bridge)"
+        A["Entrada do Usuário (Prompt / Slash Command)"] --> B{"Tipo de Ação?"}
+        
+        B -->|Chat Turn| C["_workspace_view_buffers[ws] (Viewport)"]
+        B -->|Chat Turn| D["_workspace_session_accumulators[ws] (Memória)"]
+        B -->|Chat Turn| E["_dirty_workspaces.add(ws)"]
+        
+        B -->|/clear| F["_workspace_view_buffers[ws] = []"]
+        F --> G["Tela Limpa & Banner Full Glory Restaurado"]
+        
+        B -->|/switch TargetWS| H["Restaura _workspace_view_buffers[TargetWS]"]
+        H --> I["Carrega Modelo, Modo & Search de TargetWS"]
+    end
+
+    subgraph "TEARDOWN DE ENCERRAMENTO (/exit ou EOF)"
+        J["server.shutdown()"] --> K["Itera sobre _dirty_workspaces"]
+        K --> L["Para cada WS com mensagens:"]
+        L --> M["MemoryManager.process_session_messages()"]
+        M --> N[("LanceDB: session_memory<br/>(Level 1 Summary com tag workspace)")]
+        N --> O["Meta-Summarizer Level 3 Trigger"]
+    end
+
+    D -.->|Preservado Integralmente| J
+```
+
+- **`_workspace_view_buffers: Dict[str, List[Dict[str, Any]]]` (View Buffer)**:
+  - Tracks the visual message history currently rendered on screen for each workspace.
+  - Reset to empty (`[]`) upon `/clear`, immediately redrawing the signature ASCII **Full Glory Banner**.
+- **`_workspace_session_accumulators: Dict[str, List[Dict[str, Any]]]` (Session Accumulator)**:
+  - Indelible, cumulative store of all user and assistant turns exchanged across the entire lifetime of the active process.
+  - **Immune to `/clear`**: Visual cleaning never induces memory loss. If the user clears the screen and asks questions about prior topics, the model retains full context.
+- **`_dirty_workspaces: Set[str]`**:
+  - Dynamically registers only workspaces where user messages were exchanged, preventing empty summaries or unnecessary LLM tokens for visited but unprompted workspaces.
+
+### 🖥️ 3. Universal RPC Protocol Contract
+AnyContext exposes workspace chat isolation to all presentation adapters (OpenTUI, Tauri Desktop, REST):
+- **`switch_workspace`**: Returns the active workspace's state and its dedicated `chat_history: List[ChatMessage]`.
+- **`get_chat_history`**: RPC method accepting `{ "workspace": "<name>" }` and returning the active session view buffer.
+- **`execute_command`**: Returns `chat_history` alongside `state_updates`, allowing instantaneous tab rehydration on `/switch <name>`.
+- **`shutdown`**: Deterministically invokes `server.shutdown()`, consolidating all dirty workspaces before closing standard I/O channels.
+
+### 💾 4. 100% LanceDB Session Memory Persistence
+Session summaries are persisted exclusively into the LanceDB `session_memory` columnar dataset (`MemoryStore` in `src/any_context/memory/store.py`):
+- Level 1 Session Summaries are tagged with `workspace = ws_name`.
+- Level 3 Meta-Summaries are consolidated per workspace when the threshold (30 summaries) is reached.
+- New sessions start with visual view buffers at zero, recovering historical knowledge seamlessly via semantic RAG queries against LanceDB.

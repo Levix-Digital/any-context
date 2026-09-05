@@ -19,9 +19,51 @@ class MemoryManager:
         self.store = MemoryStore(settings=self.settings)
         self.compressor = MemoryCompressor(settings=self.settings)
 
+    def process_session_messages(self, messages: list, workspace: Optional[str] = None, thread_id: Optional[str] = None):
+        """
+        Processes a raw list of session messages (from Session Accumulator or Checkpointer),
+        generates Level-1 Session Summary, persists to LanceDB, and checks Level-3 threshold.
+        """
+        if not messages:
+            return
+
+        formatted_chat = ""
+        for msg in messages:
+            if isinstance(msg, dict):
+                role = "USER" if msg.get("role") in ["user", "human"] else ("ASSISTANT" if msg.get("role") in ["ai", "assistant"] else None)
+                content = msg.get("content", "")
+                if role and content:
+                    formatted_chat += f"{role}: {content}\n"
+            elif hasattr(msg, "type") and msg.type in ["human", "ai"]:
+                role = "USER" if msg.type == "human" else "ASSISTANT"
+                formatted_chat += f"{role}: {msg.content}\n"
+
+        if not formatted_chat.strip():
+            return
+
+        try:
+            # 1. Level-1 Summarization: Generate Session Memory Chunk
+            summary = self.compressor.summarize_chat_block(formatted_chat)
+            if not summary or not summary.strip():
+                return
+
+            # Save to LanceDB Store
+            entry = MemoryEntry(
+                content=summary,
+                level=MemoryLevel.SESSION_SUMMARY,
+                workspace=workspace or "global",
+                thread_id=thread_id or f"session_{workspace or 'global'}"
+            )
+            self.store.save_memory_entry(entry)
+
+            # 2. Level-3 Check: Trigger Meta-Summarization if threshold reached
+            self.run_meta_summarizer_if_needed(workspace=workspace or "global")
+        except Exception:
+            pass
+
     def process_session_background(self, thread_id: str, workspace: Optional[str] = None):
         """
-        Level-1 & Level-2: Extract history from SQLite, summarize Level-1, and perform Level-2 rolling window
+        Level-1 & Level-2: Extract history from SQLite checkpoints, summarize Level-1, and perform Level-2 rolling window
         """
         db_dir = os.path.abspath(self.settings.session.db_path if self.settings and self.settings.session else "./memory")
         os.makedirs(db_dir, exist_ok=True)
@@ -47,34 +89,9 @@ class MemoryManager:
             if not messages:
                 return
 
-            # Format chat history for LLM
-            formatted_chat = ""
-            for msg in messages:
-                if hasattr(msg, "type") and msg.type in ["human", "ai"]:
-                    role = "USER" if msg.type == "human" else "ASSISTANT"
-                    formatted_chat += f"{role}: {msg.content}\n"
+            self.process_session_messages(messages, workspace=workspace, thread_id=thread_id)
 
-            if not formatted_chat.strip():
-                return
-
-            # 1. Level-1 Summarization: Generate Session Memory Chunk
-            print(f"\n🧠 [Hierarchical Memory - Level 1] Generating session summary block...")
-            summary = self.compressor.summarize_chat_block(formatted_chat)
-
-            # Save to ChromaDB Store
-            entry = MemoryEntry(
-                content=summary,
-                level=MemoryLevel.SESSION_SUMMARY,
-                workspace=workspace or "global",
-                thread_id=thread_id
-            )
-            self.store.save_memory_entry(entry)
-            print(f"✅ [Hierarchical Memory - Level 1] Level-1 Summary saved to vector store!")
-
-            # 2. Level-3 Check: Trigger Meta-Summarization if threshold reached
-            self.run_meta_summarizer_if_needed(workspace=workspace or "global")
-
-        except Exception as e:
+        except Exception:
             pass
         finally:
             if conn:
