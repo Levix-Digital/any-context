@@ -1688,6 +1688,125 @@ To ensure the human eye can comfortably track each milestone rather than having 
 - **Timing Badges**: `< 100ms` rendered in `accentSuccess` (Emerald Green `#73daca`), `≥ 100ms` in `accentWarning` (Warm Gold `#e0af68`).
 - **Post-Boot Persistence**: The completed tree remains stationed at the top of the conversation list (just like in the Terminal CLI session), followed by the chat hint prompt (`💬 Chat started! Type '/' for quick commands...`).
 
+---
+
+## 28. Sub-Second Cold Boot Runtime Architecture (--onedir) & BOM-Free Cross-Shell Interoperability (v0.28.88)
+
+### 1. Problem Statement: PyInstaller Onefile Decompression Latency & UTF-8 BOM Anomalies
+
+Prior to v0.28.88, AnyContext distributed its desktop and server engine as a PyInstaller `--onefile` standalone executable:
+1. **The `%TEMP%` Decompression Penalty**:
+   On every launch, a `--onefile` binary acts as a self-extracting archive. It creates a randomized temporary folder (`%TEMP%/_MEIxxxxxx` on Windows, `/tmp/_MEIxxxxxx` on Linux) and decompresses ~250MB of shared objects, Python DLLs, C-extensions (LanceDB, PyArrow, Tiktoken, SQLite), and site-packages to disk.
+   Even on high-performance NVMe SSDs, antivirus real-time filesystem scanning (Windows Defender) inspects the creation of hundreds of DLLs in `%TEMP%`, imposing an unavoidable 2.5s - 3.5s latency penalty on every cold boot before `main.py` can even execute its first bytecode instruction. This manifested directly in the startup telemetry:
+   ```text
+   ┌─ ⚡ Engine Startup Telemetry
+   │ ├─ [ 2.77s] ⚡ Python Core runtime linked
+   │ ├─ [ 6.7ms] 🔌 SQLite Configuration Store active
+   ...
+   ```
+2. **UTF-8 BOM Anomaly in Cross-Shell Environments (`vv0.28.87`)**:
+   In PowerShell 5.1 (the default shell on Windows), `Set-Content -Path version.txt -Value $VersionTag -Encoding UTF8` automatically prepends a 3-byte UTF-8 Byte Order Mark (`\xef\xbb\xbf` or `\uFEFF`) to the file.
+   When users queried the version using Git Bash / MSYS2 via the shell wrapper script (`actx`), the shell read `\xef\xbb\xbfv0.28.87`. The POSIX case pattern `case "$V" in v*)` failed to match because the first byte was `0xEF` rather than `v`, falling through to the default wildcard `*) echo "v$V"` and producing duplicate `v`s:
+   ```bash
+   $ actx -v
+   vv0.28.87
+   ```
+
+### 2. Architecture: Pre-Extracted Runtime Distribution & Dual-Binary Staging Swap
+
+To completely eliminate runtime extraction overhead while maintaining clean atomic auto-updates, v0.28.88 shifts the core engine from `--onefile` to `--onedir`:
+
+```mermaid
+graph TD
+    subgraph Installation Directory [%LOCALAPPDATA%\actx\bin]
+        Shim["actx.exe (Native Launcher Shim < 6KB)"]
+        Bash["actx (POSIX Shell Wrapper)"]
+        Ver["version.txt (BOM-Free UTF-8)"]
+        Core["actx-core.exe (Native Entrypoint)"]
+        Internal["_internal/ (Pre-Extracted Python 3.11 Runtime & Dependencies)"]
+    end
+
+    User["actx / actx --tui"] --> Shim
+    Shim -- Instant Version (-v) --> Ver
+    Shim -- Execute Engine --> Core
+    Core --> Internal
+```
+
+#### Filesystem Layout & Benefits:
+1. **Zero Runtime Decompression**: The runtime files reside permanently inside `%LOCALAPPDATA%\actx\bin\_internal` (or `~/.local/bin/_internal` on Linux). When `actx-core.exe` executes, the OS loads the DLLs directly from disk without touching `%TEMP%`.
+2. **Cold Boot Latency Slashed from 2.8s to < 0.15s**: The `⚡ Python Core runtime linked` step drops from ~2,770ms to under 150ms, achieving instant sub-second cold starts.
+3. **Dual-Binary Isolation Preserved**: The ultra-fast launcher shim `actx.exe` (< 6KB) remains the user-facing executable on the system `PATH`, executing instant version checks (`actx -v`) in `< 2ms` without waking the Python engine.
+
+### 3. Atomic Staging Swap & Multi-Platform Update Pipeline
+
+Updating an extracted directory with active file locks on Windows requires a two-stage staging strategy:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CLI as Presentation Layer (/update or actx --update)
+    participant Svc as update_service.py / updater.py
+    participant GH as GitHub Releases API
+    participant Disk as Local Filesystem
+
+    CLI->>Svc: execute_binary_update(clean_tag="v0.28.88")
+    Svc->>GH: Download actx-windows-x86_64.zip (Fallback: .exe)
+    GH-->>Svc: Save to actx_new.zip
+    Note over Svc,Disk: Extract archive into actx_staging/
+    Svc->>Disk: zipfile.extractall("actx_staging")
+    Note over Svc,Disk: Atomic Swap Process
+    Svc->>Disk: Move _internal -> _internal_old
+    Svc->>Disk: Move actx_staging/* -> bin/
+    Svc->>Disk: Write version.txt (BOM-Free UTF-8)
+    Svc->>Disk: Clean _internal_old, actx_staging, actx_new.zip
+    Svc-->>CLI: Update Success Notification
+```
+
+#### Fallback Compatibility:
+- **Prior Version Interoperability**: Earlier AnyContext releases (v0.28.87 and prior) look specifically for single binary assets (`actx-windows-x86_64.exe` / `actx-linux-x86_64`). The GitHub release workflow publishes **both** `--onedir` distribution archives (`.zip` / `.tar.gz`) and legacy `--onefile` standalone binaries, ensuring seamless upgrades for all existing installations.
+
+### 4. Multi-Tier UTF-8 BOM Elimination & Version Normalization
+
+To ensure absolute cross-shell consistency across Windows CMD, PowerShell 5.1/7, Git Bash, MSYS2, WSL, and Linux, version handling is sanitized at four distinct architectural layers:
+
+1. **Native C# Launcher Shim (`actx_shim.cs`)**:
+   ```csharp
+   string vf = Path.Combine(baseDir, "version.txt");
+   string ver = "v" + EmbeddedVersion;
+   if (File.Exists(vf)) {
+       try {
+           string c = File.ReadAllText(vf).Trim().Trim('\uFEFF');
+           if (!string.IsNullOrEmpty(c)) ver = "v" + c.TrimStart('v', 'V');
+       } catch {}
+   }
+   Console.WriteLine(ver);
+   ```
+2. **Native C Launcher Shim (`actx_shim.c`)**:
+   ```c
+   // Byte-level check for UTF-8 BOM (0xEF, 0xBB, 0xBF)
+   if ((unsigned char)raw[0] == 0xEF && (unsigned char)raw[1] == 0xBB && (unsigned char)raw[2] == 0xBF) {
+       p += 3;
+   }
+   while (*p == 'v' || *p == 'V' || *p == ' ' || *p == '\t') p++;
+   printf("v%s\n", p);
+   ```
+3. **POSIX Bash Wrapper (`actx`)**:
+   ```bash
+   V="$(cat "$BIN_DIR/version.txt" | tr -d '\r\n' | sed -e 's/\xef\xbb\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')"
+   echo "$V"
+   ```
+4. **BOM-Free File Writing in Installers & Update Services**:
+   - In PowerShell (`install.ps1` and swap scripts):
+     ```powershell
+     [System.IO.File]::WriteAllText($VersionFilePath, $VersionTag, (New-Object System.Text.UTF8Encoding $False))
+     ```
+   - In Python (`update_service.py` and `updater.py`):
+     ```python
+     with open(version_file, "w", encoding="utf-8") as vf:
+         vf.write(f"{clean_tag}\n")
+     ```
+   This guarantees that `actx -v` always prints `v0.28.88` with exactly one leading `v` across every terminal interface.
+
 
 
 

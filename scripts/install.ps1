@@ -22,42 +22,75 @@ if (-not (Test-Path -Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
-# 2. Download Core executable (Try gh CLI first for private repos, fallback to Invoke-WebRequest)
-Write-Host "⬇️ Downloading latest $AssetName from GitHub..." -ForegroundColor Yellow
-
+# 2. Download Core executable or distribution archive
+$ArchiveName = "actx-windows-x86_64.zip"
+$FallbackName = "actx-windows-x86_64.exe"
 $Downloaded = $false
 
+Write-Host "⬇️ Downloading latest AnyContext from GitHub..." -ForegroundColor Yellow
+
+# Try archive (.zip) first for sub-second cold boot
 if (Get-Command gh -ErrorAction SilentlyContinue) {
     try {
         Write-Host "⚡ Using GitHub CLI (gh) for authenticated download..." -ForegroundColor Gray
-        gh release download --repo $Repo --pattern $AssetName --dir $InstallDir --clobber
-        $TempPath = Join-Path $InstallDir $AssetName
-        if (Test-Path $TempPath) {
-            Move-Item -Path $TempPath -Destination $CoreExePath -Force
+        gh release download --repo $Repo --pattern $ArchiveName --dir $InstallDir --clobber
+        $TempZip = Join-Path $InstallDir $ArchiveName
+        if (Test-Path $TempZip) {
+            Write-Host "📦 Extracting package contents..." -ForegroundColor Gray
+            Expand-Archive -LiteralPath $TempZip -DestinationPath $InstallDir -Force
+            Remove-Item -LiteralPath $TempZip -Force -ErrorAction SilentlyContinue
             $Downloaded = $true
         }
-    } catch {
-        # Fallback to direct web request
+    } catch {}
+}
+
+if (-not $Downloaded) {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $ZipUrl = "https://github.com/$Repo/releases/latest/download/$ArchiveName"
+        $TempZip = Join-Path $InstallDir $ArchiveName
+        Invoke-WebRequest -Uri $ZipUrl -OutFile $TempZip -UseBasicParsing
+        if ((Test-Path $TempZip) -and (Get-Item $TempZip).Length -gt 0) {
+            Write-Host "📦 Extracting package contents..." -ForegroundColor Gray
+            Expand-Archive -LiteralPath $TempZip -DestinationPath $InstallDir -Force
+            Remove-Item -LiteralPath $TempZip -Force -ErrorAction SilentlyContinue
+            $Downloaded = $true
+        }
+    } catch {}
+}
+
+# Fallback to single binary if archive was not found
+if (-not $Downloaded) {
+    if (Get-Command gh -ErrorAction SilentlyContinue) {
+        try {
+            gh release download --repo $Repo --pattern $FallbackName --dir $InstallDir --clobber
+            $TempPath = Join-Path $InstallDir $FallbackName
+            if (Test-Path $TempPath) {
+                Move-Item -Path $TempPath -Destination $CoreExePath -Force
+                $Downloaded = $true
+            }
+        } catch {}
     }
 }
 
 if (-not $Downloaded) {
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $DownloadUrl -OutFile $CoreExePath -UseBasicParsing
+        $ExeUrl = "https://github.com/$Repo/releases/latest/download/$FallbackName"
+        Invoke-WebRequest -Uri $ExeUrl -OutFile $CoreExePath -UseBasicParsing
         $Downloaded = $true
     } catch {
-        Write-Host "❌ Error: Release asset '$AssetName' is not available yet." -ForegroundColor Red
+        Write-Host "❌ Error: Release asset is not available yet." -ForegroundColor Red
         Write-Host "⏳ GitHub Actions might still be compiling the latest release binary (~2-3 mins)." -ForegroundColor Yellow
         Write-Host "💡 Please wait 1-2 minutes and re-run '.\install.ps1' or log in via 'gh auth login'." -ForegroundColor Yellow
         exit 1
     }
 }
 
-Write-Host "✅ Engine downloaded: $CoreExePath" -ForegroundColor Green
+Write-Host "✅ Engine configured: $CoreExePath" -ForegroundColor Green
 
-# 3. Setup Version Cache File
-$VersionTag = "0.28.76"
+# 3. Setup Version Cache File (BOM-free UTF-8)
+$VersionTag = "0.28.88"
 try {
     if (Get-Command gh -ErrorAction SilentlyContinue) {
         $ghTag = (gh release view --repo $Repo --json tagName -q .tagName 2>$null)
@@ -67,7 +100,7 @@ try {
         if ($apiTag) { $VersionTag = $apiTag.TrimStart('v') }
     }
 } catch {}
-Set-Content -Path $VersionFilePath -Value $VersionTag -Encoding UTF8
+[System.IO.File]::WriteAllText($VersionFilePath, $VersionTag, (New-Object System.Text.UTF8Encoding $False))
 Write-Host "✅ Version registered: v$VersionTag" -ForegroundColor Gray
 
 # 4. Compile or Deploy Ultra-Fast Native Launcher Shim (actx.exe < 2ms)
@@ -96,7 +129,10 @@ namespace AnyContext.Launcher
                 string vf = Path.Combine(baseDir, "version.txt");
                 string ver = "v$VersionTag";
                 if (File.Exists(vf)) {
-                    try { string c = File.ReadAllText(vf).Trim(); if (!string.IsNullOrEmpty(c)) ver = c.StartsWith("v") ? c : "v" + c; } catch {}
+                    try {
+                        string c = File.ReadAllText(vf).Trim().Trim('\uFEFF');
+                        if (!string.IsNullOrEmpty(c)) ver = "v" + c.TrimStart('v', 'V');
+                    } catch {}
                 }
                 Console.WriteLine(ver);
                 return 0;
@@ -125,7 +161,7 @@ namespace AnyContext.Launcher
 }
 "@
     $TempCs = [System.IO.Path]::GetTempFileName() + ".cs"
-    Set-Content -Path $TempCs -Value $ShimSrc -Encoding UTF8
+    [System.IO.File]::WriteAllText($TempCs, $ShimSrc, (New-Object System.Text.UTF8Encoding $False))
     try {
         & $CscPath /nologo /optimize+ /target:exe /out:"$ShimExePath" "$TempCs" | Out-Null
         if (Test-Path $ShimExePath) {
@@ -137,36 +173,35 @@ namespace AnyContext.Launcher
 }
 
 if (-not $ShimCompiled) {
-    Copy-Item -Path $CoreExePath -Destination $ShimExePath -Force
+    if (-not (Test-Path $ShimExePath)) {
+        Copy-Item -Path $CoreExePath -Destination $ShimExePath -Force
+    }
 }
 
 # Deploy Git Bash / MSYS2 / Cygwin shell wrapper 'actx'
 $BashShimPath = Join-Path $InstallDir "actx"
-$BashShimContent = @'
+$BashShimContent = @"
 #!/usr/bin/env sh
-BIN_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-if [ "$1" = "-v" ] || [ "$1" = "--version" ]; then
-    if [ -f "$BIN_DIR/version.txt" ]; then
-        V="$(cat "$BIN_DIR/version.txt" | tr -d '\r\n')"
-        case "$V" in
-            v*) echo "$V" ;;
-            *) echo "v$V" ;;
-        esac
+BIN_DIR="`$(CDPATH= cd -- "`$(dirname -- "`$0")" && pwd)"
+if [ "`$1" = "-v" ] || [ "`$1" = "--version" ]; then
+    if [ -f "`$BIN_DIR/version.txt" ]; then
+        V="`$(cat "`$BIN_DIR/version.txt" | tr -d '\r\n' | sed -e 's/\xef\xbb\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')"
+        echo "`$V"
     else
-        echo "v0.28.76"
+        echo "v$VersionTag"
     fi
     exit 0
 fi
 
-if [ -f "$BIN_DIR/actx-core.exe" ]; then
-    exec "$BIN_DIR/actx-core.exe" "$@"
-elif [ -f "$BIN_DIR/actx.exe" ]; then
-    exec "$BIN_DIR/actx.exe" "$@"
-elif [ -f "$BIN_DIR/actx-core" ]; then
-    exec "$BIN_DIR/actx-core" "$@"
+if [ -f "`$BIN_DIR/actx-core.exe" ]; then
+    exec "`$BIN_DIR/actx-core.exe" "`$@"
+elif [ -f "`$BIN_DIR/actx.exe" ]; then
+    exec "`$BIN_DIR/actx.exe" "`$@"
+elif [ -f "`$BIN_DIR/actx-core" ]; then
+    exec "`$BIN_DIR/actx-core" "`$@"
 fi
-'@
-[System.IO.File]::WriteAllText($BashShimPath, $BashShimContent -replace "`r`n", "`n")
+"@
+[System.IO.File]::WriteAllText($BashShimPath, ($BashShimContent -replace "`r`n", "`n"), (New-Object System.Text.UTF8Encoding $False))
 Write-Host "✅ Git Bash wrapper deployed: $BashShimPath" -ForegroundColor Gray
 
 

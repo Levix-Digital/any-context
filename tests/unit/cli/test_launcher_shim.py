@@ -86,6 +86,26 @@ class TestLauncherShim(unittest.TestCase):
         output = res.stdout.strip()
         self.assertTrue(output.startswith("v0.28."))
 
+    def test_05_version_with_utf8_bom(self):
+        """Validates that version.txt containing a UTF-8 BOM yields clean 'v0.28.88' without duplicate 'vv'."""
+        version_file = os.path.join(self.temp_dir, "version.txt")
+        with open(version_file, "wb") as f:
+            f.write(b"\xef\xbb\xbfv0.28.88\r\n")
+
+        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+        self.assertEqual(res.stdout.strip(), "v0.28.88")
+
+    def test_06_version_with_utf8_bom_without_leading_v(self):
+        """Validates that version.txt with UTF-8 BOM and no 'v' prefix yields clean 'v0.28.88'."""
+        version_file = os.path.join(self.temp_dir, "version.txt")
+        with open(version_file, "wb") as f:
+            f.write(b"\xef\xbb\xbf0.28.88\r\n")
+
+        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+        self.assertEqual(res.stdout.strip(), "v0.28.88")
+
 
 if __name__ == "__main__":
     unittest.main()

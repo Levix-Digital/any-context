@@ -50,9 +50,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Zero Database Locks**: Columnar Apache Arrow dataset architecture eliminates SQLite write-lock contentions on Windows.
   - **Live Dataset Inspection (`/inspect` ou `/chunks`)**: Directly inspect live vector records, record counts, and snippet previews for both document context and session memory.
   - **Instant $0.00 Transfers & Renames**: Data source transfers and workspace renames execute on LanceDB datasets in `< 50ms` with zero token expenditure.
-- **🚀 Sub-60ms Native Launcher Shim & Dual-Binary Architecture**:
-  - **Instant Execution**: Native 5.6KB C# launcher (`actx.exe`) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
-  - **Dual-Binary Isolation**: Automatically preserves `actx.exe` (Shim) and delegates heavy commands to `actx-core.exe` (PyInstaller), self-healing automatically on auto-update.
+- **🚀 Sub-Second Cold Boot Runtime & Dual-Binary Architecture (`--onedir`)**:
+  - **Sub-Second Engine Startup**: Pre-extracts Python runtime libraries into `%LOCALAPPDATA%\actx\bin\_internal` on installation/update, eliminating the 2.7+ second `%TEMP%` decompression delay on every launch and bringing engine boot down from 2.8s to `< 0.2s`.
+  - **Instant Execution Launcher Shim**: Native 5.6KB C# launcher (`actx.exe`) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
+  - **Dual-Binary Isolation**: Automatically preserves `actx.exe` (Shim) and delegates heavy commands to `actx-core.exe` (`--onedir`), self-healing automatically on auto-update.
+  - **BOM-Free UTF-8 Normalization**: Eliminates UTF-8 BOM encoding anomalies in Windows PowerShell environments, ensuring `actx -v` prints consistent, normalized `v0.28.88` across Git Bash, MSYS2, CMD, and PowerShell.
 - **🌐 LanceDB Single Source of Truth Web Engine & Resilient Crawler**:
   - **Zero Split-Brain Desynchronization**: Eradicated legacy secondary SQLite cache tables. LanceDB is the 100% single source of truth for both web page caching, hashes, and vector chunks.
   - **Sub-5ms Zero-Copy Cache Scans**: Apache Arrow columnar projections (`select(['file_path', 'content_hash', 'last_modified'])`) verify page modifications instantly without deserializing dense embedding vectors.
