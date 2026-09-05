@@ -16,6 +16,7 @@ jobs:
     name: Build Binary on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -67,7 +68,6 @@ jobs:
           pyinstaller --clean --onedir --paths src --collect-all any_context --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
           python launcher/build_shim.py --out dist/actx-core/actx.exe
           python launcher/build_shim.py --out dist/actx.exe
-          python -c "content = '''#!/usr/bin/env sh\nBIN_DIR=\"\$(CDPATH= cd -- \"\$(dirname -- \"\$0\")\" && pwd)\"\nif [ \"\$1\" = \"-v\" ] || [ \"\$1\" = \"--version\" ]; then\n    if [ -f \"\$BIN_DIR/version.txt\" ]; then\n        V=\"\$(cat \"\$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n        echo \"\$V\"\n    else\n        echo \"${{ github.ref_name }}\"\n    fi\n    exit 0\nfi\n\nif [ -f \"\$BIN_DIR/actx-core.exe\" ]; then\n    exec \"\$BIN_DIR/actx-core.exe\" \"\$@\"\nelif [ -f \"\$BIN_DIR/actx.exe\" ]; then\n    exec \"\$BIN_DIR/actx.exe\" \"\$@\"\nelif [ -f \"\$BIN_DIR/actx-core\" ]; then\n    exec \"\$BIN_DIR/actx-core\" \"\$@\"\nfi\n'''; open('dist/actx-core/actx', 'w', encoding='utf-8', newline='\n').write(content); open('dist/actx', 'w', encoding='utf-8', newline='\n').write(content)"
           powershell -Command "Compress-Archive -Path 'dist/actx-core/*' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
 
           # 2. Build legacy standalone fallback binary (--onefile) for backwards compatibility

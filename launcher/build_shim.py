@@ -71,6 +71,35 @@ def build_linux_shim(out_path: str) -> bool:
     return True
 
 
+def write_windows_bash_wrapper(out_path: str):
+    """Generates Git Bash / MSYS2 wrapper script 'actx' alongside actx.exe."""
+    target_bash = os.path.join(os.path.dirname(os.path.abspath(out_path)), "actx")
+    content = (
+        "#!/usr/bin/env sh\n"
+        "BIN_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n"
+        "if [ \"$1\" = \"-v\" ] || [ \"$1\" = \"--version\" ]; then\n"
+        "    if [ -f \"$BIN_DIR/version.txt\" ]; then\n"
+        "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n"
+        "        echo \"$V\"\n"
+        "    else\n"
+        "        echo \"v0.28.88\"\n"
+        "    fi\n"
+        "    exit 0\n"
+        "fi\n"
+        "\n"
+        "if [ -f \"$BIN_DIR/actx-core.exe\" ]; then\n"
+        "    exec \"$BIN_DIR/actx-core.exe\" \"$@\"\n"
+        "elif [ -f \"$BIN_DIR/actx.exe\" ]; then\n"
+        "    exec \"$BIN_DIR/actx.exe\" \"$@\"\n"
+        "elif [ -f \"$BIN_DIR/actx-core\" ]; then\n"
+        "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
+        "fi\n"
+    )
+    with open(target_bash, "w", encoding="utf-8", newline="\n") as f:
+        f.write(content)
+    print(f"[OK] Successfully generated Git Bash wrapper: {target_bash}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Build AnyContext Native Launcher Shim")
     parser.add_argument("--out", type=str, default=None, help="Output file path for the binary")
@@ -82,7 +111,13 @@ def main():
 
     os.makedirs(os.path.dirname(os.path.abspath(out_file)), exist_ok=True)
 
-    success = build_windows_shim(out_file) if is_windows else build_linux_shim(out_file)
+    if is_windows:
+        success = build_windows_shim(out_file)
+        if success:
+            write_windows_bash_wrapper(out_file)
+    else:
+        success = build_linux_shim(out_file)
+
     if not success:
         sys.exit(1)
 
