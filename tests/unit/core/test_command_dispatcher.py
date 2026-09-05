@@ -103,6 +103,54 @@ class TestCommandDispatcher(unittest.TestCase):
         self.assertEqual(res.action, "open_update_modal")
         self.assertEqual(res.state_updates.get("target_version"), "0.28.85")
 
+    def test_09_dispatch_modal_actions(self):
+        """Validates that commands without args return their respective open modal actions."""
+        res_mode = dispatch_command("/mode")
+        self.assertTrue(res_mode.success)
+        self.assertEqual(res_mode.action, "open_mode_modal")
+
+        res_switch = dispatch_command("/switch")
+        self.assertTrue(res_switch.success)
+        self.assertEqual(res_switch.action, "open_switch_modal")
+
+        res_model = dispatch_command("/model")
+        self.assertTrue(res_model.success)
+        self.assertEqual(res_model.action, "open_model_modal")
+
+        res_config = dispatch_command("/config")
+        self.assertTrue(res_config.success)
+        self.assertEqual(res_config.action, "open_config_modal")
+
+        res_menu = dispatch_command("/menu")
+        self.assertTrue(res_menu.success)
+        self.assertEqual(res_menu.action, "open_config_modal")
+
+    def test_10_dispatch_mode_values(self):
+        """Validates /mode command with explicit values."""
+        res_strict = dispatch_command("/mode strict")
+        self.assertTrue(res_strict.success)
+        self.assertEqual(res_strict.state_updates.get("grounding_mode"), "strict")
+
+        res_hybrid = dispatch_command("/mode hybrid")
+        self.assertTrue(res_hybrid.success)
+        self.assertEqual(res_hybrid.state_updates.get("grounding_mode"), "hybrid")
+
+    def test_11_dispatch_web_search(self):
+        """Validates /web-search toggle values."""
+        res_on = dispatch_command("/web-search on")
+        self.assertTrue(res_on.success)
+        self.assertEqual(res_on.state_updates.get("web_search_enabled"), True)
+
+        res_off = dispatch_command("/web-search off")
+        self.assertTrue(res_off.success)
+        self.assertEqual(res_off.state_updates.get("web_search_enabled"), False)
+
+    def test_12_dispatch_paste(self):
+        """Validates /paste action."""
+        res = dispatch_command("/paste")
+        self.assertTrue(res.success)
+        self.assertEqual(res.action, "paste_mode")
+
 
 if __name__ == "__main__":
     unittest.main()

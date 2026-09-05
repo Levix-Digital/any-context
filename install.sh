@@ -152,7 +152,7 @@ chmod +x "$CORE_PATH" 2>/dev/null || true
 printf "\033[32m✅ Core engine configured: %s\033[0m\n" "$CORE_PATH"
 
 # 3. Setup Version Cache File
-VERSION_TAG="0.28.88"
+VERSION_TAG="0.28.89"
 if command -v gh >/dev/null 2>&1; then
     GH_TAG="$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null || echo "")"
     if [ -n "$GH_TAG" ]; then

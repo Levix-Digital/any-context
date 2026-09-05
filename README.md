@@ -136,7 +136,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Local Offline (Free & Private)**: `local-model` via LM Studio or Ollama (`http://localhost:1234/v1`).
 - **🎉 Zero-Friction First-Time Onboarding & Surface Parity**:
   - Automatically detects fresh installations or factory resets (`actx --factory-reset`).
-  - Launches an interactive setup wizard across both OpenTUI Desktop (`actx --tui`) and CLI (`actx`).
+  - Launches an interactive setup wizard across OpenTUI (`actx`) and headless environments.
   - One-click configuration for **OpenAI Cloud** (`gpt-4o-mini` & `text-embedding-3-small`), **Local Offline Server** (LM Studio / Ollama at $0.00), or **Custom Provider Gateway**.
 - **📋 Multi-line & Long-Prompt Input Engine**:
   - **Direct Bracketed Paste (`Ctrl+V`)**: Seamlessly paste multi-line contract clauses, meeting transcripts, or large code snippets without premature command submission.
@@ -147,16 +147,17 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🔄 Instant Zero-Cost Source Transfer (`/transfer` & `/config`)**:
   - Move folders and web portals between workspaces in sub-50ms with **$0.00 in embedding API costs**.
   - Dynamically updates vector metadata tags in ChromaDB and SQLite without re-indexing or re-crawling.
-- **🖥️ OpenTUI Reactive Desktop Interface (`actx --tui`)**:
-  - TUI reativa desenvolvida com **OpenTUI (`@opentui/core` + `@opentui/react`)** e Zig/React: chat rolável fluido com **paridade estética e visual completa com a CLI UI**, herança de background transparente nativo do terminal, Banner ASCII Art clássico, identificadores `👤 You:` e `🤖 AI [modelo]:`, e barra de status inferior de 1 linha.
+- **🖥️ OpenTUI Canonical Terminal Interface (`actx`)**:
+  - OpenTUI é a **interface padrão interativa** ao executar `actx` no terminal, desenvolvida com **OpenTUI (`@opentui/core` + `@opentui/react`)** e Zig/React: chat rolável fluido, herança de background transparente nativo do terminal, Banner ASCII Art clássico, identificadores `👤 You:` e `🤖 AI [modelo]:`, e barra de status inferior de 1 linha.
+  - **100% Thin Client & Paridade Hexagonal com Futuro Tauri Desktop**: Todo comando de barra e prompt passa diretamente pelo motor central de despacho em Python via RPC Bridge (`client.executeCommand`). Nenhuma regra de negócio fica presa no front-end, garantindo que o OpenTUI e o futuro app Desktop Desktop Tauri compartilhem rigorosamente as mesmas mensagens e comportamento.
   - **Frozen Full-Screen Scroll Engine**: Rolagem nativa fluida em tela cheia com **rodinha do mouse**, teclas `PgUp` / `PgDn`, `Shift + ↑` / `↓` e auto-scroll reativo em streaming.
-  - **⚡ Real-Time Progressive Engine Startup Telemetry**: Substituição completa de telas de espera estáticas por uma árvore progressiva de telemetria de boot (`┌─ ⚡ Engine Startup Telemetry`) com animação de spinner braille em tempo real e cadência perceptual em cascata suave (Abordagem B). Acompanha o spawn do runtime Python, conexão com SQLite, vinculação do modelo de IA, conexão do workspace e verificação do índice vetorial, fixando os tempos exatos em milissegundos no topo da conversa para paridade visual absoluta com o Terminal CLI.
-  - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os 23 comandos internos.
-  - **Zero-Port Stdio RPC Bridge & Sub-Process DLL Isolation**: Comunicação local em sub-milissegundo com o backend AnyContext via NDJSON, sem portas de rede ou avisos de firewall, com isolamento total de variáveis de bootloader (`_MEIPASS`, `PATH`) para execução perfeita em binários compilados sem colisões de DLL em C (`multiarray.pyd`).
-- **⚡ Native Developer CLI & One-Shot Prompt Engine**:
-  - Direct terminal execution without alternate screen buffer locks: 100% native mouse selection and copy/paste support.
-  - One-shot execution for scripts & automation: `actx "sua pergunta aqui"` or `actx -p "..."`.
-  - All 23 Slash Commands with rich interactive menus (`/sources`, `/switch`, `/sync`, `/config`, `/help`, `/mode`, `/web-search`).
+  - **⚡ Real-Time Progressive Engine Startup Telemetry**: Árvore progressiva de telemetria de boot (`┌─ ⚡ Engine Startup Telemetry`) com animação de spinner braille em tempo real e cadência perceptual em cascata suave. Acompanha o spawn do runtime Python, conexão com SQLite, vinculação do modelo de IA, conexão do workspace e verificação do índice vetorial.
+  - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os 32 comandos internos canônicos.
+  - **Zero-Port Stdio RPC Bridge & Sub-Process DLL Isolation**: Comunicação local em sub-milissegundo com o backend AnyContext via NDJSON, sem portas de rede ou avisos de firewall, com isolamento total de variáveis de bootloader (`_MEIPASS`, `PATH`).
+- **⚡ Headless Developer CLI & One-Shot Prompt Engine**:
+  - One-shot execution para scripts, cronjobs & automação: `actx "sua pergunta aqui"` ou `actx -p "..."`.
+  - Suporte completo a pipes Unix/PowerShell: `cat document.txt | actx "resuma os pontos principais"`.
+  - Flags de alta performance: `actx -v` (< 50ms via launcher shim), `actx --rpc`, `actx --mcp`, `actx --diagnostics`, `actx --logs`.
 
 - **🗑️ Interactive Workspace Deletion with Safety Confirmation (`/menu` & `/switch --delete`)**:
   - Exclusão segura e interativa de workspaces com listagem do total de fontes e modal de confirmação explícito (`Yes, permanently delete` vs `Cancel` com foco seguro).

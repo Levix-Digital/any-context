@@ -184,7 +184,7 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
         description="Display interactive help documentation",
         category="Help",
         direct_execution=True,
-        aliases=["/menu", "/commands", "/slash"]
+        aliases=["/commands", "/slash"]
     ),
     CommandMeta(
         name="/version",

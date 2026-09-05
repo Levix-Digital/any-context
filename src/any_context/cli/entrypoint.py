@@ -187,46 +187,13 @@ def entrypoint():
         sys.stdout.flush()
         sys.exit(0)
 
-    # 7. Explicit legacy CLI fallback requested via --cli
-    if "--cli" in sys.argv:
-        import logging
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("httpcore").setLevel(logging.WARNING)
-        logging.getLogger("openai").setLevel(logging.WARNING)
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
-        logging.getLogger("llama_index").setLevel(logging.WARNING)
-        logging.getLogger("transformers").setLevel(logging.ERROR)
-        try:
-            from any_context.cli.chat_loop import main_cli
-            main_cli()
-        except (KeyboardInterrupt, EOFError):
-            print("\n\n👋 AnyContext closed.\n")
-            sys.exit(0)
-        except Exception as e:
-            print(f"\n❌ Unexpected error starting AnyContext: {e}\n")
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
-        sys.exit(0)
-
-    # 8. DEFAULT USER EXPERIENCE: OpenTUI Interactive Terminal
+    # 7. DEFAULT USER EXPERIENCE: OpenTUI Interactive Terminal
     from any_context.cli.tui_launcher import launch_opentui
     obs.info("CLI:DISPATCH", "Defaulting to OpenTUI interface", {"workspace": ws})
     launched = launch_opentui(ws)
     if launched:
         sys.exit(0)
-
-    # If Bun is not available, fall back gracefully to legacy CLI with a helpful tip
-    print("⚠️ Falling back to basic CLI interface...")
-    try:
-        from any_context.cli.chat_loop import main_cli
-        main_cli()
-    except (KeyboardInterrupt, EOFError):
-        print("\n\n👋 AnyContext closed.\n")
-        sys.exit(0)
-    except Exception as e:
-        print(f"\n❌ Unexpected error starting AnyContext: {e}\n")
-        sys.exit(1)
+    sys.exit(1)
 
 
 if __name__ == "__main__":
