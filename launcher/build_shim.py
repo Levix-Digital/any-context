@@ -71,6 +71,16 @@ def build_linux_shim(out_path: str) -> bool:
     return True
 
 
+def get_current_version() -> str:
+    try:
+        if REPO_ROOT not in sys.path:
+            sys.path.insert(0, REPO_ROOT)
+        from any_context import __version__
+        return __version__
+    except Exception:
+        return "0.28.89"
+
+
 def write_windows_bash_wrapper(out_path: str):
     """Generates Git Bash / MSYS2 wrapper script 'actx' alongside actx.exe."""
     target_bash = os.path.join(os.path.dirname(os.path.abspath(out_path)), "actx")
@@ -82,7 +92,7 @@ def write_windows_bash_wrapper(out_path: str):
         "        V=\"$(cat \"$BIN_DIR/version.txt\" | tr -d '\\r\\n' | sed -e 's/\\xef\\xbb\\xbf//g' -e 's/^[vV]*//' | sed 's/^/v/')\"\n"
         "        echo \"$V\"\n"
         "    else\n"
-        "        echo \"v0.28.88\"\n"
+        f"        echo \"v{get_current_version()}\"\n"
         "    fi\n"
         "    exit 0\n"
         "fi\n"

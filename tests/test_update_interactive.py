@@ -97,15 +97,28 @@ class TestUpdateInteractive(unittest.TestCase):
             orig_env = os.environ.get("ACTX_UPDATE_DIR")
             os.environ["ACTX_UPDATE_DIR"] = tmpdir
             try:
-                zip_buf = io.BytesIO()
-                with zipfile.ZipFile(zip_buf, "w") as zf:
-                    zf.writestr("actx-core.exe", b"test_core_binary")
-                    zf.writestr("_internal/test.dll", b"test_dll")
-                valid_zip = zip_buf.getvalue()
+                is_win = sys.platform.startswith("win")
+                if is_win:
+                    zip_buf = io.BytesIO()
+                    with zipfile.ZipFile(zip_buf, "w") as zf:
+                        zf.writestr("actx-core.exe", b"test_core_binary")
+                        zf.writestr("_internal/test.dll", b"test_dll")
+                    valid_archive = zip_buf.getvalue()
+                else:
+                    import tarfile
+                    tar_buf = io.BytesIO()
+                    with tarfile.open(fileobj=tar_buf, mode="w:gz") as tf:
+                        ti1 = tarfile.TarInfo("actx-core")
+                        ti1.size = len(b"test_core_binary")
+                        tf.addfile(ti1, io.BytesIO(b"test_core_binary"))
+                        ti2 = tarfile.TarInfo("_internal/test.so")
+                        ti2.size = len(b"test_so")
+                        tf.addfile(ti2, io.BytesIO(b"test_so"))
+                    valid_archive = tar_buf.getvalue()
 
                 mock_resp = MagicMock()
                 mock_resp.status = 200
-                mock_resp.read.side_effect = [valid_zip, b""]
+                mock_resp.read.side_effect = [valid_archive, b""]
                 with patch("urllib.request.urlopen", return_value=MagicMock(__enter__=MagicMock(return_value=mock_resp))):
                     with patch("subprocess.Popen"):
                         with patch.object(svc, "close_active_instances", return_value=2):

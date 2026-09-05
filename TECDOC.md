@@ -291,7 +291,7 @@ To eliminate duplicate progress bar and spinner implementations across data sour
   - **Natural Scroll Flow & ASCII Art Banner (`src/any_context/tui/components/chat-message-list.tsx`)**: Eliminates rigid header boxes; mounts the signature ASCII Art banner, edition badge (`🌿 Community Edition`), and welcome frame directly into the virtualized scroll view.
   - **Active Input Buffer Synchronization (`src/any_context/tui/components/input-bar.tsx`)**: Utilizes `useRef<TextareaRenderable>` with real-time `plainText` extraction during `onContentChange` and `onSubmit`, ensuring bi-directional state synchronization with Slash Command Palette completions.
   - **Unified 1-Line Footer Dock with Elastic Flex Layout (`src/any_context/tui/components/status-bar.tsx`)**: Implements `flexShrink={0}` and `minHeight={2}` (1 border line + 1 text row), preventing vertical box collapse in tight terminal viewports.
-  - **PyInstaller Bootloader Environment Isolation (`src/any_context/cli/chat_loop.py` & `src/any_context/tui/bridge-client.ts`)**: Case-insensitively scrubs all `_mei*` and `pyi_*` variables (`_MEIPASS2`, `PYI_PARENT_PID`), preventing security validation aborts when spawning `actx --rpc` from `bun.exe`.
+  - **PyInstaller Bootloader Environment Isolation (`src/any_context/cli/tui_launcher.py` & `src/any_context/tui/bridge-client.ts`)**: Case-insensitively scrubs all `_mei*` and `pyi_*` variables (`_MEIPASS2`, `PYI_PARENT_PID`), preventing security validation aborts when spawning `actx --rpc` from `bun.exe`.
   - **Slash Command Palette Overlay (`src/any_context/tui/components/autocomplete-dropdown.tsx`)**: Floating popover dialog triggered automatically upon typing `/`, featuring real-time fuzzy filtering, keyboard navigation (`↑`/`↓`), and tab completion across all 23 internal slash commands.
   - **Zero-Network-Port Stdio RPC Bridge (`src/any_context/server/rpc_bridge.py`)**: Sub-millisecond (<1ms) communication over OS pipes using Newline-Delimited JSON (NDJSON), eliminating port conflicts, firewall popups, and zombie processes.
   - **Dual Architecture Parity**: Headless developer CLI (`actx "..."`, pipes `cat | actx`) and interactive shell in `src/any_context/cli/` remain fully preserved and available.
@@ -780,7 +780,7 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - Added `oven-sh/setup-bun@v2` and `bun install --production` in `src/any_context/tui` on the GitHub Actions runners.
 - Ensures all production dependencies (`@opentui/core`, `@opentui/react`, `react`) are physically collected by PyInstaller into standalone distribution assets.
 
-### 🌐 2. Cross-Platform Bun Path Resolution (`chat_loop.py`)
+### 🌐 2. Cross-Platform Bun Path Resolution (`tui_launcher.py`)
 - Evaluates candidate paths on Windows (`~/.bun/bin/bun.exe`, `%USERPROFILE%/.bun/bin/bun.exe`) and Linux/macOS (`~/.bun/bin/bun`, `/usr/local/bin/bun`, `/usr/bin/bun`).
 - Emits explicit diagnostic guidance instead of silent fallbacks to the standard CLI.
 
@@ -788,7 +788,7 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 
 ## 26. WSL Host Binary Isolation & Script LF Enforcement (`v0.28.56`)
 
-### 🛡️ 1. WSL Windows Host Binary Filtering (`chat_loop.py`)
+### 🛡️ 1. WSL Windows Host Binary Filtering (`tui_launcher.py`)
 - On Linux and WSL environments, `launch_opentui` strictly ignores Windows host executables (`.exe` in `/mnt/c/`), prioritizing Linux native Bun (`~/.bun/bin/bun`).
 - Injects Bun binary directory into `PATH` for spawned OpenTUI processes.
 
@@ -827,8 +827,8 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 ## 29. PyInstaller Child Process Isolation & RPC Security Patch (`v0.28.59`)
 
 ### 🛡️ 1. Elimination of `[PYI-16540:ERROR]` Security Validation Failure
-- **Root Cause**: When PyInstaller onefile standalone binary `actx.exe` launches `bun` (`chat_loop.py`), child processes inherited internal PyInstaller environment variables (`_PYI_PARENT_PROCESS_COOKIE`, `_PYI_APPLICATION_HOME_DIR`, `_PYI_ARCHIVE_FILE`, `_MEIPASS2`). When `bun` subsequently invoked `actx.exe --rpc`, PyInstaller's C bootloader compared the parent process binary (`bun.exe`) with the cookie and aborted with code 255.
-- **Resolution**: Implemented comprehensive environment sanitization in both Python (`chat_loop.py`) and TypeScript (`bridge-client.ts`) filtering all keys matching `_mei*`, `_pyi*`, `pyi*`, `*meipass*`, and `*pyinstaller*`.
+- **Root Cause**: When PyInstaller onefile standalone binary `actx.exe` launches `bun` (`tui_launcher.py`), child processes inherited internal PyInstaller environment variables (`_PYI_PARENT_PROCESS_COOKIE`, `_PYI_APPLICATION_HOME_DIR`, `_PYI_ARCHIVE_FILE`, `_MEIPASS2`). When `bun` subsequently invoked `actx.exe --rpc`, PyInstaller's C bootloader compared the parent process binary (`bun.exe`) with the cookie and aborted with code 255.
+- **Resolution**: Implemented comprehensive environment sanitization in both Python (`tui_launcher.py`) and TypeScript (`bridge-client.ts`) filtering all keys matching `_mei*`, `_pyi*`, `pyi*`, `*meipass*`, and `*pyinstaller*`.
 - **Result**: Enables clean standalone sub-process execution for the Stdio RPC Bridge across all parent orchestrators.
 
 ---
@@ -959,10 +959,10 @@ AnyContext enforces universal lifecycle onboarding state management across all c
 - Extended `BackgroundSyncManager` progress formatting to natively support `stage="pages"` and `stage="crawling"`, rendering dynamic progress bars (`⚡ Crawling [████░░░░] 50% (15/30 pages)`).
 - Prevented premature display of `✔ Up to date` while the background web crawler or indexer is actively processing.
 
-### 🔔 2. Multi-Interface Completion Notifications (`orchestrator.py`, `rpc_bridge.py`, `chat_loop.py`, `bridge-client.ts`, `app.tsx`)
+### 🔔 2. Multi-Interface Completion Notifications (`orchestrator.py`, `rpc_bridge.py`, `tui_launcher.py`, `bridge-client.ts`, `app.tsx`)
 - Added thread-safe completion event dispatching and notification queues (`BackgroundSyncManager.register_completion_listener` and `pop_notifications`).
 - The RPC Bridge (`rpc_bridge.py`) pushes live `{"event": "notification"}` NDJSON messages to the OpenTUI client upon crawl completion.
-- The CLI chat loop flushes pending background sync notifications before prompting user input, giving full visibility into crawled pages and indexed files.
+- Background sync notifications provide full visibility into crawled pages and indexed files in real time.
 
 ---
 
@@ -1502,7 +1502,7 @@ sequenceDiagram
    - `client.setOption` intercepts `res.action === "exit_update"`.
    - The client connection is gracefully closed via `client.stop()`.
    - The CLI renderer calls `renderer.destroy()`, issuing ANSI escape sequences to leave the alternate screen buffer (`\x1b[?1049l`), re-enable cursor visibility (`\x1b[?25h`), and restore the terminal's standard canonical cooked mode.
-3. **Parent Process Clean Handoff (`chat_loop.py`)**:
+3. **Parent Process Clean Handoff (`tui_launcher.py`)**:
    - Upon completion of `bun run index.tsx`, `launch_opentui()` inspects temporary update notice files (`actx_update_notice_{root_pid}.txt`).
    - If present, it prints a clean success notice directing the user to run `actx`, cleans up the marker, and returns `True`, allowing `entrypoint.py` to exit with code 0.
 4. **Zero Ghost TUIs & Raw Mode Lock Elimination**:
@@ -1807,21 +1807,42 @@ To ensure absolute cross-shell consistency across Windows CMD, PowerShell 5.1/7,
      ```
    This guarantees that `actx -v` always prints `v0.28.88` with exactly one leading `v` across every terminal interface.
 
+---
 
+## 50. OpenTUI Canonical Terminal Interface, 100% Thin-Client Parity & Legacy REPL Elimination (v0.28.89)
 
+### 🏛️ 1. The Core Architectural Invariant
+> **"Qualquer front-end (seja o OpenTUI via terminal ou o Tauri Desktop via WebView) agora usará exatamente o mesmo fluxo e as mesmas mensagens RPC, sem precisar reescrever nenhuma regra de negócio!"**
 
+Starting in `v0.28.89`, AnyContext establishes complete Hexagonal architectural purity:
+1. **The Python Core is the Single Source of Truth**: All business logic, command argument parsing, session switching, vector sync, AI agent orchestration, and modal triggers reside exclusively in `src/any_context/commands/dispatcher.py` and application services.
+2. **Front-ends are 100% "Dumb" Presentation Adapters (Thin Clients)**: Neither OpenTUI nor the upcoming Tauri Desktop application maintain independent state machines or duplicate business logic. Every user action (whether plain conversational prompts or slash commands) passes through `client.executeCommand(cmdText)` and is evaluated by the Python Core.
+3. **Identical RPC Payloads Across All Surfaces**: The Python Core emits declarative action results (`open_onboarding_modal`, `open_mode_modal`, `open_switch_modal`, `open_model_modal`, `open_config_modal`, `open_update_modal`, `clear`, `exit`, etc.) with `state_updates` payloads. Every front-end simply mirrors these directives.
 
+```mermaid
+graph TD
+    User["User Keystroke / Prompt"] --> FE["Thin Client Frontend (OpenTUI / Tauri)"]
+    FE -->|"execute_command(text)" (NDJSON)| RPC["Stdio RPC Bridge (rpc_bridge.py)"]
+    RPC --> Disp["Universal CommandDispatcher (dispatcher.py)"]
+    Disp --> Services["Application Core Services (Config, Grounding, Models, Sync, Update)"]
+    Services --> DB[("Canonical settings.db & LanceDB")]
+    Disp -->|"CommandResult {action, state_updates, message}"| RPC
+    RPC -->|"CommandResult JSON"| FE
+    FE --> Modal["Declarative Modal / Message Render"]
+```
 
+### 🖥️ 2. OpenTUI Promoted to Default Interactive Terminal Interface (`actx`)
+- Typing `actx` with no arguments in an interactive terminal now immediately launches OpenTUI (`launch_opentui()`), eliminating previous requirement of `--tui`.
+- Cold-boot transition is instantaneous and clean: no ANSI banner flicker or redundant screen clears occur before OpenTUI mounts.
+- Headless automation workflows remain 100% intact:
+  - `actx "one-shot question"` or `actx -p "..."`: runs direct streaming agent response and exits cleanly.
+  - Piped standard input (`cat file.txt | actx "summarize"`): streams response to stdout and exits.
+  - Ultra-fast diagnostics and health checks (`actx -v`, `actx --rpc`, `actx --mcp`, `actx --diagnostics`, `actx --logs`) bypass TUI startup entirely.
 
-
-
-
-
-
-
-
-
-
-
-
+### ✂️ 3. Surgical Elimination of Legacy `chat_loop.py`
+To ensure clean code hygiene, low cognitive overhead, and zero architectural drift prior to public release:
+- Completely removed `src/any_context/cli/chat_loop.py` (~1,850 lines of legacy ANSI REPL code).
+- Extracted reusable console output utilities (`safe_stdout_write`, `format_session_error`) into `src/any_context/cli/utils.py`.
+- Isolated OpenTUI launcher orchestration into `src/any_context/cli/tui_launcher.py`.
+- Modernized command testing in `tests/unit/core/test_command_dispatcher.py` to validate universal command execution and modal actions directly against the Core.
 

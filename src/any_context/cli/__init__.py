@@ -3,9 +3,15 @@ AnyContext CLI Package
 """
 
 def __getattr__(name: str):
-    if name in ["run_chat_loop", "main", "main_cli"]:
-        from any_context.cli.chat_loop import run_chat_loop, main, main_cli
-        mapping = {"run_chat_loop": run_chat_loop, "main": main, "main_cli": main_cli}
+    if name == "launch_opentui":
+        from any_context.cli.tui_launcher import launch_opentui
+        return launch_opentui
+    elif name in ["main", "main_cli", "entrypoint"]:
+        from any_context.cli.entrypoint import entrypoint
+        return entrypoint
+    elif name in ["safe_stdout_write", "format_session_error"]:
+        from any_context.cli.utils import safe_stdout_write, format_session_error
+        mapping = {"safe_stdout_write": safe_stdout_write, "format_session_error": format_session_error}
         return mapping[name]
     elif name in ["show_workspace_menu", "get_active_workspace"]:
         from any_context.cli.workspace_selector import show_workspace_menu, get_active_workspace
@@ -24,9 +30,12 @@ def __getattr__(name: str):
 
 
 __all__ = [
-    "run_chat_loop",
+    "launch_opentui",
+    "entrypoint",
     "main",
     "main_cli",
+    "safe_stdout_write",
+    "format_session_error",
     "show_workspace_menu",
     "get_active_workspace",
     "Spinner",
@@ -35,5 +44,5 @@ __all__ = [
     "format_pricing_plans_cli",
     "run_interactive_web_crawler",
     "display_help_page",
-    "show_interactive_help_menu"
+    "show_interactive_help_menu",
 ]

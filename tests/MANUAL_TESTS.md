@@ -7,7 +7,69 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.28.88): Validação de Inicialização Sub-Segundo (--onedir) e Normalização de Versão sem BOM no Git Bash/PowerShell
+### 📌 Cenário 1 (v0.28.89): Validação do OpenTUI como Interface Padrão do `actx`, TUI 100% Thin Client via RPC e Remoção do Legado `chat_loop.py`
+
+- **Objetivo**: Comprovar que na release `v0.28.89`:
+  1. O comando `actx` disparado no terminal interativo abre imediatamente o **OpenTUI** como interface padrão oficial sem necessidade de passar a flag `--tui`.
+  2. O arranque é limpo e contínuo: não há double clears, flashes de banner ANSI antigo ou atrasos antes da renderização reativa do OpenTUI.
+  3. O front-end OpenTUI funciona como um cliente 100% "burro" (Thin Client): todo comando executado (`/mode`, `/switch`, `/model`, `/update`, `/menu`, `/onboarding`, etc.) é despachado diretamente ao Python Core via RPC Bridge (`client.executeCommand`), retornando ações declarativas para abertura de modais com os mesmos payloads e comportamento que serão consumidos pelo futuro Tauri Desktop.
+  4. Execuções headless (`actx "pergunta"`, `actx -p "..."`, stdin pipes `cat doc.txt | actx "resuma"`, `actx -v`, `actx --rpc`, `actx --diagnostics`) continuam ultrarrápidas em sub-segundo sem instanciar o Bun ou a TUI.
+  5. O arquivo legado `chat_loop.py` foi 100% removido do repositório com zero regressões no sistema e todas as utilidades necessárias migradas para `src/any_context/cli/utils.py`.
+- **Pré-requisito**: Versão `v0.28.89` instalada (`actx -v` exibindo `v0.28.89`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🖥️ Inicialização Padrão Direta do OpenTUI (`actx`):**
+   - No terminal (PowerShell, CMD, Windows Terminal ou Bash), digitar simplesmente:
+     ```bash
+     actx
+     ```
+   - **Critério de Aceitação:**
+     - O OpenTUI inicializa diretamente em tela cheia com sua barra de status inferior de 1 linha, banner ASCII Art clássico e árvore de telemetria progressiva (`┌─ ⚡ Engine Startup Telemetry`).
+     - Nenhum banner ANSI duplicado ou tela preta piscando antes do OpenTUI.
+     - Não foi necessário digitar `--tui`.
+
+2. **⚡ Validação da Arquitetura Thin Client (RPC Despacho de Modais):**
+   - Dentro do OpenTUI, digitar e pressionar Enter para cada um dos seguintes comandos:
+     - `/mode`: O modal interativo de seleção de Grounding Mode deve abrir imediatamente.
+     - `/switch`: O modal interativo de troca/criação de workspaces deve abrir.
+     - `/model`: O modal de seleção de provedores e modelos deve abrir.
+     - `/menu`: O modal interativo de configuração deve abrir.
+     - `/onboarding`: O modal wizard de setup inicial deve abrir.
+   - **Critério de Aceitação:**
+     - Todos os modais abrem com resposta instantânea.
+     - Ao inspecionar os logs (`actx --logs`), comprovar que os eventos foram recebidos e processados pelo `CommandDispatcher` no Python Core, retornando ações declarativas (`open_mode_modal`, `open_switch_modal`, etc.) para o front-end.
+
+3. **🤖 Validação de Paridade de Mensagens Conversacionais:**
+   - Enviar uma mensagem conversacional qualquer (ex: `"Qual a versão do AnyContext?"`).
+   - **Critério de Aceitação:**
+     - O agente LangGraph processa a mensagem via Stdio RPC Bridge com streaming reativo em tempo real token por token no OpenTUI.
+
+4. **⚡ Validação de Execução Headless e Unix Pipes:**
+   - Sair do OpenTUI digitando `/exit` ou pressionando `Ctrl+C`.
+   - Testar o comando one-shot no terminal:
+     ```bash
+     actx "Diga apenas: 'Headless OK'"
+     ```
+   - **Critério de Aceitação:**
+     - A resposta é impressa diretamente no stdout do terminal sem abrir o OpenTUI.
+   - Testar pipe de entrada:
+     ```bash
+     echo "Linha de teste para sumário" | actx "Quantas linhas existem neste texto?"
+     ```
+   - **Critério de Aceitação:**
+     - O streaming responde no stdout e finaliza com código 0.
+
+5. **🔍 Validação de Versão e Ausência do `chat_loop.py`:**
+   - Verificar versão:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:** Exibe estritamente `v0.28.89` em `< 50ms`.
+
+---
+
+### 📌 Cenário 2 (v0.28.88): Validação de Inicialização Sub-Segundo (--onedir) e Normalização de Versão sem BOM no Git Bash/PowerShell
 
 - **Objetivo**: Comprovar que na release `v0.28.88`:
   1. O tempo de inicialização a frio do runtime Python (`⚡ Python Core runtime linked`) cai de ~2.8s para `< 0.2s`, eliminando a descompressão repetitiva de 250MB em `%TEMP%` graças à arquitetura `--onedir` com runtime pré-extraído em `%LOCALAPPDATA%\actx\bin\_internal`.

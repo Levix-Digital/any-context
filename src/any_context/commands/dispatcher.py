@@ -238,8 +238,10 @@ class CommandDispatcher:
                 is_force = "--force" in parts or "-f" in parts
                 is_now = "--now" in parts or "--confirm" in parts
                 target_version = None
-                if canonical.startswith("/update@"):
-                    target_version = canonical.split("@", 1)[1].strip()
+                if "@" in cmd_token:
+                    target_version = cmd_token.split("@", 1)[1].strip()
+                elif len(parts) > 1 and not parts[1].startswith("-"):
+                    target_version = parts[1].strip().lstrip("@")
 
                 has_up, latest_v = update_svc.check_for_updates()
                 target_tag = target_version or latest_v or f"v{__version__}"
@@ -268,7 +270,8 @@ class CommandDispatcher:
                 return CommandResult(
                     success=True,
                     message=f"🔍 Checking for updates... Found {target_tag}.",
-                    action="open_update_modal"
+                    action="open_update_modal",
+                    state_updates={"target_version": target_version} if target_version else {}
                 )
             except Exception as e:
                 return CommandResult(
@@ -350,6 +353,14 @@ class CommandDispatcher:
             return CommandResult(
                 success=True,
                 message=format_recent_spans(spans, limit=limit)
+            )
+
+        # 32. /onboarding or /setup
+        if canonical in ["/onboarding", "/setup"]:
+            return CommandResult(
+                success=True,
+                message="🚀 Launching first-time AI onboarding setup wizard...",
+                action="open_onboarding_modal"
             )
 
         return CommandResult(
