@@ -535,17 +535,34 @@ class UpdateService:
             if os.path.exists(staging_dir):
                 shutil.rmtree(staging_dir, ignore_errors=True)
             os.makedirs(staging_dir, exist_ok=True)
-            try:
-                if downloaded_asset.endswith(".zip"):
+            extracted = False
+            extract_err = None
+            if downloaded_asset.endswith(".zip"):
+                try:
                     import zipfile
                     with zipfile.ZipFile(temp_download, "r") as zf:
                         zf.extractall(staging_dir)
-                else:
+                    extracted = True
+                except Exception as e:
+                    extract_err = e
+            else:
+                try:
                     import tarfile
                     with tarfile.open(temp_download, "r:gz") as tf:
                         tf.extractall(staging_dir)
-            except Exception as e:
-                return False, f"❌ Failed to extract update archive '{downloaded_asset}': {e}", {}
+                    extracted = True
+                except Exception as e:
+                    extract_err = e
+                    # Fallback to zipfile in case of archive header variation
+                    try:
+                        import zipfile
+                        with zipfile.ZipFile(temp_download, "r") as zf:
+                            zf.extractall(staging_dir)
+                        extracted = True
+                    except Exception:
+                        pass
+            if not extracted:
+                return False, f"❌ Failed to extract update archive '{downloaded_asset}': {extract_err}", {}
 
         if not is_windows and not is_archive:
             try:
