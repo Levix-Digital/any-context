@@ -29,6 +29,9 @@ class TestUnifiedSyncArchitecture(unittest.TestCase):
         with open(os.path.join(self.folder_a, "sample.md"), "w", encoding="utf-8") as f:
             f.write("# Sample Doc\nSome test content.")
 
+        self._orig_db = os.environ.get("ACTX_SETTINGS_DB")
+        os.environ["ACTX_SETTINGS_DB"] = self.sqlite_db
+
         self.store = ConfigDBStore(db_path=self.sqlite_db)
         ConfigDBStore._instance = self.store
 
@@ -44,6 +47,10 @@ class TestUnifiedSyncArchitecture(unittest.TestCase):
             DatabaseManager.close_all()
             ConfigDBStore._instance = None
             WebSchedulerStore._instance = None
+            if self._orig_db:
+                os.environ["ACTX_SETTINGS_DB"] = self._orig_db
+            else:
+                os.environ.pop("ACTX_SETTINGS_DB", None)
         except Exception:
             pass
         shutil.rmtree(self.test_dir, ignore_errors=True)

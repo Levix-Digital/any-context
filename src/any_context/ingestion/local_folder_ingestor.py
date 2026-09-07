@@ -191,6 +191,15 @@ def run_index_folder(
 
             files_to_index = diff.get("new_files", []) + diff.get("modified_files", [])
             if not files_to_index:
+                try:
+                    store.record_sync_ledger(
+                        workspace_name=target_ws_name,
+                        deleted_sources=diff.get("deleted_files", []),
+                        added_sources=diff.get("new_files", []),
+                        modified_sources=diff.get("modified_files", [])
+                    )
+                except Exception:
+                    pass
                 if verbose:
                     safe_print("✔ Ingestion completed successfully!\n")
                 return {
@@ -306,9 +315,15 @@ def run_index_folder(
     if cache_records:
         store.upsert_workspace_files_cache(target_ws_name, cache_records)
 
-    if verbose:
-        safe_print(f"  • Vectorized: {idx_res.get('indexed_chunks', len(all_documents))} chunks indexed in LanceDB")
-        safe_print("✔ Ingestion completed successfully!\n")
+    try:
+        store.record_sync_ledger(
+            workspace_name=target_ws_name,
+            deleted_sources=diff_summary.get("deleted_files", []),
+            added_sources=diff_summary.get("new_files", []),
+            modified_sources=diff_summary.get("modified_files", [])
+        )
+    except Exception:
+        pass
 
     return {
         "status": "completed",

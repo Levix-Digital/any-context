@@ -40,3 +40,4 @@ htmlcov/
 node_modules/
 brain/
 
+.clinerules

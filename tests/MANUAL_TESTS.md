@@ -7,7 +7,66 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.29.2): Validação de Expurgo Imediato de Arquivos Deletados, Purge-Before-Embed e Idempotência do `/sync --force`
+### 📌 Cenário 1 (v0.29.3): Validação de Não-Citação de Arquivos Deletados no Histórico Contínuo e Detecção Sub-30ms na Troca de Abas
+
+- **Objetivo**: Comprovar que na release `v0.29.3`:
+  1. O assistente mantém **100% da memória de conversação de longo prazo contínua** entre reinicializações do `actx`, sem qualquer reset forçado de threads ou perda de contexto histórico.
+  2. Ao apagar um arquivo do disco e executar `/sync` ou `/sync --force`, o `workspace_sync_ledger` registra a mutação no SQLite e injeta diretivas de consistência factual negativas no System Prompt (`CRITICAL FACTUAL CONSISTENCY ON DELETED FILES`), proibindo terminantemente o agente de citar ou utilizar arquivos expurgados como fontes ativas.
+  3. Ao continuar conversando na mesma thread em que o assistente previamente havia citado os arquivos apagados, o mecanismo de higienização de histórico em tempo de execução (`_strip_historical_citation_footers` em `_prune_messages_for_llm`) remove o rodapé `📄 Fontes Consultadas` das mensagens históricas do assistente, impedindo que a atenção do LLM copie e cole caminhos de arquivos obsoletos.
+  4. Na troca de abas de workspaces (`/switch <nome>`), o sistema executa verificação de mudanças em disco em tempo recorde (< 30ms via stat cache) e, caso detecte adições ou exclusões não sincronizadas, sinaliza na StatusBar (`🟡 X deleted • /sync`), sem consumir CPU, RAM ou rodar polling contínuo em segundo plano.
+- **Pré-requisito**: Versão `v0.29.3` instalada (`actx -v` exibindo `v0.29.3`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Inicialização e Verificação de Versão:**
+   - No terminal, verificar a versão instalada:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:**
+     - O comando responde instantaneamente (< 50ms) exibindo: `v0.29.3`.
+
+2. **💬 Verificação do Histórico Contínuo e Não-Citação de Arquivos Deletados:**
+   - Abrir o AnyContext no workspace com histórico ativo onde arquivos foram apagados (ex: `IKEAShipments`):
+     ```bash
+     actx
+     ```
+   - Se necessário, selecionar o workspace:
+     ```text
+     /switch IKEAShipments
+     ```
+   - Fazer uma pergunta sobre os arquivos apagados (ex: `I.CMR_ONE_PICKUP.pdf` ou `CMR with one pickup Report.pdf`):
+     ```text
+     Você ainda tem os dados do checklist de remessa do I.CMR_ONE_PICKUP?
+     ```
+   - **Critério de Aceitação:**
+     - O assistente declara explicitamente que o arquivo foi removido/apagado do workspace ou que a informação não consta nos documentos do workspace.
+     - O assistente **NÃO** inclui os arquivos deletados na seção de rodapé `📄 Fontes Consultadas no Workspace`.
+     - Toda a memória de perguntas e respostas anteriores permanece intacta na sessão.
+
+3. **🟡 Verificação de Detecção Sub-30ms na Troca de Abas (Zero Polling):**
+   - No disco, apagar ou adicionar um arquivo qualquer na pasta monitorada pelo workspace.
+   - No AnyContext, trocar de aba ou alternar de workspace:
+     ```text
+     /switch Default
+     /switch IKEAShipments
+     ```
+   - Observar a StatusBar no topo/rodapé da interface.
+   - **Critério de Aceitação:**
+     - A transição é imediata (< 30ms) sem lag.
+     - A StatusBar exibe o indicador em amarelo `🟡 X deleted • /sync` (ou `🟡 X new • /sync`).
+     - Nenhum loop de polling de 30s é executado em background; a checagem ocorre estrita e exclusivamente no evento de troca de aba.
+   - Executar `/sync`:
+     ```text
+     /sync
+     ```
+   - **Critério de Aceitação:**
+     - A sincronização conclui com sucesso.
+     - O status retorna para `Up to date`.
+
+---
+
+### 📌 Cenário 2 (v0.29.2): Validação de Expurgo Imediato de Arquivos Deletados, Purge-Before-Embed e Idempotência do `/sync --force`
 
 - **Objetivo**: Comprovar que na release `v0.29.2`:
   1. Ao excluir qualquer arquivo local do disco e disparar `/sync`, o arquivo e todos os seus chunks vetoriais são **imediatamente e atomicamente expurgados do LanceDB** e do cache SQLite, eliminando completamente registros "fantasmas" e impedindo que o assistente responda a perguntas usando arquivos apagados.

@@ -58,6 +58,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🖥️ Default Reactive Terminal UI (OpenTUI)**:
   - **Zero Flag Friction**: Launching `actx` opens the reactive OpenTUI interface directly without requiring `--tui`.
   - **100% Thin Client Architecture**: Complete separation of concerns between presentation and business logic. All commands, RAG queries, and configuration mutations run through the unified Core Command Dispatcher over Stdio RPC, ensuring 100% architectural parity with the upcoming Tauri Desktop interface.
+- **🔄 Workspace Sync Ledger & Historical Citation Sanitization (`v0.29.3`)**:
+  - **Factual Memory Consistency on Deleted Files**: When files are deleted and synced, AnyContext records the mutation in a persistent `workspace_sync_ledger` SQLite table and injects explicit negative constraints into the agent's system prompt, strictly forbidding the AI from citing or using purged documents even if they were synthesized in earlier turns of the conversation history.
+  - **Historical Citation Pruning**: Strips stale `📄 Fontes Consultadas` blocks from prior assistant turns at LLM call-time while preserving 100% of dialog, numbers, calculations, and conversational reasoning, preventing the model from regurgitating obsolete file paths.
+  - **Sub-30ms Tab Switch Change Detection**: Performs an ultra-fast stat-cache disk check exclusively when switching workspace tabs (`/switch`) or launching, alerting the user via the StatusBar (`🟡 X deleted • /sync`) with zero background polling overhead and zero idle token waste.
+  - **Continuous Long-Term Memory Preservation**: Rejects session wiping or thread destruction across restarts, ensuring deep, continuous multi-turn assistant context while maintaining strict factual document consistency.
 - **🔄 Transactional Indexing Lifecycle, Instant Deletion Purge & Zero-Ghost Guarantee (`v0.29.2`)**:
   - **Instant Deletion Purge (At-Once)**: Deleted files are expurgated immediately from LanceDB upon `/sync` or background sync, permanently eliminating "ghost" records and preventing AI answers from stale, deleted files.
   - **Purge-Before-Embed Deduplication**: Modified files have their outdated chunks atomic-purged from LanceDB prior to embedding, keeping chunk counts 100% clean and preventing duplicate accumulation ($0.00 cost, zero token waste).

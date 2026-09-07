@@ -121,7 +121,13 @@ def find_agent_prompt_file(filename: str = "AGENT.md") -> str:
             return os.path.abspath(candidate)
     return None
 
-def get_system_prompt(path: str = None, active_workspace: str = None, grounding_mode: str = None, web_search_enabled: bool = None):
+def get_system_prompt(
+    path: str = None,
+    active_workspace: str = None,
+    grounding_mode: str = None,
+    web_search_enabled: bool = None,
+    store = None
+):
     target_path = path if (path and os.path.exists(path)) else find_agent_prompt_file("AGENT.md")
     prompt = ""
     if target_path and os.path.exists(target_path):
@@ -140,7 +146,7 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
 
     try:
         from any_context.config.db_store import ConfigDBStore
-        store = ConfigDBStore()
+        store = store or ConfigDBStore()
         settings = store.get_app_settings()
         if settings and settings.workspaces:
             workspaces_str = ", ".join([f"'{ws.name}'" for ws in settings.workspaces])
@@ -269,6 +275,30 @@ def get_system_prompt(path: str = None, active_workspace: str = None, grounding_
                 "- **PARAMETRIC MEMORY TRANSPARENCY RULE:** If you supplement the answer with your pre-trained model knowledge, you MUST explicitly disclose its origin to the user using phrases such as:\n"
                 "  *\"De acordo com meus conhecimentos gerais...\"* or *\"Com base no conhecimento geral do modelo (não verificado nos documentos)...\"*\n"
             )
+
+        # Inject Workspace Sync Ledger (Deletions & Additions Awareness)
+        try:
+            store = store or ConfigDBStore()
+            ledger = store.get_sync_ledger(active_workspace or "Default")
+            if ledger and (ledger.get("deleted_sources") or ledger.get("added_sources")):
+                ledger_section = "\n\n### 🔄 WORKSPACE SYNC LEDGER (RECENT MUTATIONS):\n"
+                if ledger.get("last_sync_timestamp"):
+                    ledger_section += f"- Last Synchronization: {ledger['last_sync_timestamp']}\n"
+                if ledger.get("deleted_sources"):
+                    del_files = [os.path.basename(p) for p in ledger["deleted_sources"][:15]]
+                    ledger_section += f"- 🗑️ Recently Deleted Sources: {', '.join(del_files)}\n"
+                    ledger_section += (
+                        "  ⚠️ CRITICAL FACTUAL CONSISTENCY ON DELETED FILES: The files listed above were EXCLUDED/PURGED from the workspace.\n"
+                        "  Even if these files or their data were mentioned, answered, or synthesized in earlier turns of this conversation history,\n"
+                        "  you are STRICTLY FORBIDDEN from citing them as active sources or answering as if their contents are present in the workspace.\n"
+                        "  If the user asks about them, state explicitly that they were removed/deleted from the workspace.\n"
+                    )
+                if ledger.get("added_sources"):
+                    add_files = [os.path.basename(p) for p in ledger["added_sources"][:15]]
+                    ledger_section += f"- 📁 Recently Added/Updated Sources: {', '.join(add_files)}\n"
+                prompt += ledger_section
+        except Exception:
+            pass
 
     except Exception as e:
         print(f"⚠️ Warning: Could not configure system prompt directives: {e}")

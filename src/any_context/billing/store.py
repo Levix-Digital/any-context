@@ -1,6 +1,6 @@
 import sqlite3
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from any_context.config.db_store import ConfigDBStore
 from any_context.billing.models import SubscriptionStatus
 from any_context.billing.registry import get_plan_by_id
@@ -39,7 +39,7 @@ class BillingStore:
 
             cursor.execute("SELECT COUNT(*) FROM subscription_license")
             if cursor.fetchone()[0] == 0:
-                now_str = datetime.utcnow().isoformat()
+                now_str = datetime.now(timezone.utc).isoformat()
                 cursor.execute("""
                     INSERT INTO subscription_license (id, tier_id, license_key, activated_at, extra_seats_purchased)
                     VALUES (1, 'community', 'COMMUNITY-OPEN-LICENSE', ?, 0)
