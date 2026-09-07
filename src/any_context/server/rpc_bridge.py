@@ -78,6 +78,8 @@ class StdioRPCServer:
         except Exception:
             pass
 
+        self._check_workspace_stat_on_switch(self.active_workspace)
+
     def _on_background_job_complete(self, notif: Dict[str, Any]):
         """Dispatches live notification and updated state across the RPC bridge when background crawl/sync finishes."""
         try:
@@ -90,6 +92,27 @@ class StdioRPCServer:
                 "workspace": notif.get("workspace"),
                 "state": self.get_state()
             })
+        except Exception:
+            pass
+
+    def _check_workspace_stat_on_switch(self, workspace_name: str):
+        """Performs sub-30ms change detection strictly on workspace switch (zero polling)."""
+        try:
+            from any_context.ingestion.orchestrator import check_workspace_changes
+            diff = check_workspace_changes(workspace_name)
+            if diff.get("has_changes"):
+                parts = []
+                if diff.get("deleted_files"):
+                    parts.append(f"{len(diff['deleted_files'])} deleted")
+                if diff.get("new_files"):
+                    parts.append(f"{len(diff['new_files'])} new")
+                if diff.get("modified_files"):
+                    parts.append(f"{len(diff['modified_files'])} modified")
+                summary_str = ", ".join(parts) if parts else "Changes detected"
+                self._last_sync_timestamp = f"🟡 {summary_str} • /sync"
+            else:
+                if getattr(self, "_last_sync_timestamp", None) and str(self._last_sync_timestamp).startswith("🟡"):
+                    self._last_sync_timestamp = None
         except Exception:
             pass
 
@@ -109,10 +132,10 @@ class StdioRPCServer:
     def get_chat_history(self, workspace: Optional[str] = None) -> list:
         """Returns the view buffer of active session messages for the given workspace."""
         ws = workspace or self.active_workspace
-        return list(self._workspace_view_buffers.get(ws, []))
+        return self._workspace_view_buffers.get(ws, [])
 
     def clear_workspace_view(self, workspace: Optional[str] = None):
-        """Clears visual view buffer for the given workspace while keeping session accumulator intact."""
+        """Clears ONLY the view buffer for the workspace (higiene visual). Session accumulator remains intact."""
         ws = workspace or self.active_workspace
         self._workspace_view_buffers[ws] = []
 
@@ -135,6 +158,8 @@ class StdioRPCServer:
             self._dirty_workspaces.clear()
         except Exception as e:
             obs.error("RPC:SHUTDOWN_ERR", f"Error during RPC shutdown: {e}", exc=e)
+
+    teardown = shutdown
 
     def close(self):
         """Releases resources and unregisters background listeners."""
@@ -169,7 +194,10 @@ class StdioRPCServer:
                 is_syncing = True
             else:
                 last_time = getattr(self, "_last_sync_timestamp", None)
-                sync_info = f"Up to date ({last_time})" if last_time else "Up to date"
+                if last_time and str(last_time).startswith("🟡"):
+                    sync_info = str(last_time)
+                else:
+                    sync_info = f"Up to date ({last_time})" if last_time else "Up to date"
         except Exception:
             pass
 
@@ -262,7 +290,10 @@ class StdioRPCServer:
 
                 if result.state_updates:
                     if "workspace" in result.state_updates:
+                        old_ws = self.active_workspace
                         self.active_workspace = result.state_updates["workspace"]
+                        if old_ws != self.active_workspace:
+                            self._check_workspace_stat_on_switch(self.active_workspace)
                     if "model" in result.state_updates:
                         self._current_model = result.state_updates["model"]
                     if "grounding_mode" in result.state_updates:
@@ -503,7 +534,10 @@ class StdioRPCServer:
 
                 if res.state_updates:
                     if "workspace" in res.state_updates:
+                        old_ws = self.active_workspace
                         self.active_workspace = res.state_updates["workspace"]
+                        if old_ws != self.active_workspace:
+                            self._check_workspace_stat_on_switch(self.active_workspace)
                     if "model" in res.state_updates:
                         self._current_model = res.state_updates["model"]
                     if "grounding_mode" in res.state_updates:

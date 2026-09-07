@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import sqlite3
 
@@ -13,6 +14,21 @@ from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.core.utils import get_system_prompt, get_api_key
 from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
+
+
+def _strip_historical_citation_footers(text: str) -> str:
+    """
+    Strips raw workspace/web citation footers from historical assistant messages.
+    Preserves all dialog, analysis, calculation, and conversational context while preventing
+    the LLM from copy-pasting obsolete file path citations from prior turns.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+
+    pattern = r"(?:\n+---\s*)?\n*(?:###\s*)?(?:[📄🌐☁️]\s*)?\*?\*?(?:Fontes Consultadas|Sources Consulted)[\s\S]*$"
+    cleaned = re.sub(pattern, "", text, flags=re.IGNORECASE)
+    return cleaned.rstrip()
+
 
 def _prune_historical_tool_messages(messages):
     """
@@ -147,6 +163,7 @@ def _prune_messages_for_llm(
         m_type = getattr(msg, "type", "")
         is_human = (m_type == "human" or msg.__class__.__name__ == "HumanMessage")
         is_tool = (m_type in ["tool", "ToolMessage"] or hasattr(msg, "tool_call_id"))
+        is_ai = (m_type in ["ai", "AIMessage", "assistant"] or msg.__class__.__name__ in ["AIMessage", "AIMessageChunk"])
 
         if is_human and idx == last_human_idx and turn_header:
             # Active turn HumanMessage: inject concise dynamic grounding strategy header
@@ -182,6 +199,23 @@ def _prune_messages_for_llm(
             # Historical tool from a prior turn: compact to English marker
             cloned = msg.model_copy() if hasattr(msg, "model_copy") else msg
             cloned.content = "[Prior workspace context retrieved and synthesized in conversation history]"
+            pruned.append(cloned)
+        elif is_ai and idx < last_human_idx:
+            # Historical assistant message: strip citation footers to prevent obsolete file path anchoring
+            cloned = msg.model_copy() if hasattr(msg, "model_copy") else msg
+            raw_content = getattr(cloned, "content", "")
+            if isinstance(raw_content, str):
+                cloned.content = _strip_historical_citation_footers(raw_content)
+            elif isinstance(raw_content, list):
+                new_parts = []
+                for part in raw_content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        new_parts.append({**part, "text": _strip_historical_citation_footers(part.get("text", ""))})
+                    elif isinstance(part, str):
+                        new_parts.append(_strip_historical_citation_footers(part))
+                    else:
+                        new_parts.append(part)
+                cloned.content = new_parts
             pruned.append(cloned)
         elif is_tool and idx in current_turn_tool_indices:
             # Current turn tool: preserve topics within proportional budget!

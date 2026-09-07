@@ -254,6 +254,16 @@ class ConfigDBStore:
             """)
 
             cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_sync_ledger (
+                    workspace TEXT PRIMARY KEY,
+                    last_sync_timestamp TEXT NOT NULL,
+                    deleted_sources_json TEXT NOT NULL,
+                    added_sources_json TEXT NOT NULL,
+                    modified_sources_json TEXT NOT NULL
+                )
+            """)
+
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id TEXT UNIQUE NOT NULL,
@@ -887,6 +897,72 @@ class ConfigDBStore:
                 cursor.execute("DELETE FROM workspace_files_stat_cache WHERE workspace_name = ?", (workspace_name.strip(),))
             else:
                 cursor.execute("DELETE FROM workspace_files_stat_cache")
+            conn.commit()
+
+    def record_sync_ledger(
+        self,
+        workspace_name: str,
+        deleted_sources: Optional[List[str]] = None,
+        added_sources: Optional[List[str]] = None,
+        modified_sources: Optional[List[str]] = None
+    ):
+        """Records the latest sync mutation diff in workspace_sync_ledger."""
+        clean_ws = (workspace_name or "Default").strip()
+        from datetime import datetime, timezone
+        now_str = datetime.now(timezone.utc).isoformat()
+        del_json = json.dumps(deleted_sources or [])
+        add_json = json.dumps(added_sources or [])
+        mod_json = json.dumps(modified_sources or [])
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO workspace_sync_ledger (workspace, last_sync_timestamp, deleted_sources_json, added_sources_json, modified_sources_json)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(workspace) DO UPDATE SET
+                    last_sync_timestamp = excluded.last_sync_timestamp,
+                    deleted_sources_json = excluded.deleted_sources_json,
+                    added_sources_json = excluded.added_sources_json,
+                    modified_sources_json = excluded.modified_sources_json
+                """,
+                (clean_ws, now_str, del_json, add_json, mod_json)
+            )
+            conn.commit()
+
+    def get_sync_ledger(self, workspace_name: str) -> Dict[str, Any]:
+        """Retrieves the latest sync mutation diff for a workspace."""
+        clean_ws = (workspace_name or "Default").strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT last_sync_timestamp, deleted_sources_json, added_sources_json, modified_sources_json FROM workspace_sync_ledger WHERE workspace = ?",
+                (clean_ws,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return {
+                    "workspace": clean_ws,
+                    "last_sync_timestamp": None,
+                    "deleted_sources": [],
+                    "added_sources": [],
+                    "modified_sources": []
+                }
+            return {
+                "workspace": clean_ws,
+                "last_sync_timestamp": row["last_sync_timestamp"],
+                "deleted_sources": json.loads(row["deleted_sources_json"] or "[]"),
+                "added_sources": json.loads(row["added_sources_json"] or "[]"),
+                "modified_sources": json.loads(row["modified_sources_json"] or "[]")
+            }
+
+    def clear_sync_ledger(self, workspace_name: Optional[str] = None):
+        """Clears the sync ledger for a workspace or all."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if workspace_name:
+                cursor.execute("DELETE FROM workspace_sync_ledger WHERE workspace = ?", (workspace_name.strip(),))
+            else:
+                cursor.execute("DELETE FROM workspace_sync_ledger")
             conn.commit()
 
     def rename_workspace(self, old_name: str, new_name: str) -> Dict[str, Any]:

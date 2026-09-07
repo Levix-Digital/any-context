@@ -2,7 +2,7 @@ import os
 import sqlite3
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
 import chromadb
@@ -81,7 +81,7 @@ class WebSchedulerStore:
                 return e
 
         url_id = f"web_{uuid.uuid4().hex[:8]}"
-        now_str = datetime.utcnow().isoformat()
+        now_str = datetime.now(timezone.utc).isoformat()
         clean_scope = scope or "domain"
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -103,7 +103,7 @@ class WebSchedulerStore:
         polling_interval_hours: int = 24
     ) -> Dict[str, Any]:
         import uuid
-        now_str = datetime.utcnow().isoformat()
+        now_str = datetime.now(timezone.utc).isoformat()
         alt_root = root_url.rstrip("/") if root_url.endswith("/") else f"{root_url}/"
         with self._get_connection() as conn:
             cursor = conn.cursor()
