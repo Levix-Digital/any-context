@@ -58,8 +58,8 @@ export const StatusBar = ({ state }: StatusBarProps): any => {
         ) : state.sync_info ? (
           <>
             <text fg={anyContextTheme.ruleColor}> │ </text>
-            <text fg={anyContextTheme.accentSuccess}>
-              <b>✔ {state.sync_info}</b>
+            <text fg={state.sync_info.startsWith("🟡") ? anyContextTheme.accentWarning : anyContextTheme.accentSuccess}>
+              <b>{state.sync_info.startsWith("🟡") ? state.sync_info : `✔ ${state.sync_info}`}</b>
             </text>
           </>
         ) : null}

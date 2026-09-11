@@ -7,7 +7,75 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.29.3): Validação de Não-Citação de Arquivos Deletados no Histórico Contínuo e Detecção Sub-30ms na Troca de Abas
+### 📌 Cenário 1 (v0.29.4): Validação de Recuperação Híbrida Temporal, Preservação de Proveniência de Fontes no Histórico e Alerta Instantâneo de Deleção na StatusBar
+
+- **Objetivo**: Comprovar que na release `v0.29.4`:
+  1. Perguntas contendo datas específicas (ex: *"No dia 1 de setembro de 2026, quantos Shipments tivemos registrados?"* ou `2026-09-01`) acionam o **Temporal Hybrid Retrieval**, resgatando com prioridade máxima (score 0.95) e citando com exatidão os arquivos da data solicitada (ex: `015-TSO-*.pdf` de `2026/09/01`), sem misturar ou citar incorretamente relatórios genéricos antigos (de Jan–Jul).
+  2. O rodapé `📄 Fontes Consultadas:` é gerado com consistência e confiabilidade pela IA (inclusive no modelo `gpt-4o-mini`), em conformidade com as diretivas explícitas de turn grounding.
+  3. Ao fazer perguntas de acompanhamento sobre a proveniência dos dados (ex: *"Qual arquivo foi a fonte dessa informação?"*), o assistente preserva o rodapé de fontes ativas do turno imediatamente anterior no histórico e responde com precisão citando os nomes dos arquivos consultados, sem acionar falsa recusa de Modo Estrito.
+  4. Ao excluir ou adicionar um arquivo no disco, a StatusBar do OpenTUI atualiza imediatamente exibindo o indicador em amarelo `🟡 X deleted • /sync` ou `🟡 X new • /sync` (sem prefixo `✔` verde de up-to-date), tanto ao alternar abas (`/switch`) quanto ao interagir ou executar comandos, com zero consumo contínuo de background polling.
+  5. Ao rodar `/sync`, a sincronização unificada expurga a mutação e a StatusBar retorna ao badge verde `✔ Up to date`.
+- **Pré-requisito**: Versão `v0.29.4` instalada (`actx -v` exibindo `v0.29.4`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Inicialização e Verificação de Versão:**
+   - No terminal, verificar a versão instalada:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:**
+     - O comando responde instantaneamente (< 50ms) exibindo: `v0.29.4`.
+
+2. **🎯 Teste de Recuperação Híbrida Temporal (Data Específica vs Dados Antigos):**
+   - Abrir o AnyContext no workspace de remessas/checklists (ex: `IKEAShipments`):
+     ```bash
+     actx
+     ```
+   - Fazer uma pergunta contendo data explícita:
+     ```text
+     No dia 1 de setembro de 2026, quantos Shipments tivemos registrados?
+     ```
+   - **Critério de Aceitação:**
+     - O assistente responde identificando os 4 shipments do dia 01/09/2026 (`015-TSO-26P1EC200774`, `015-TSO-26P3EC200775`, `ECIS115087`, `ECIS115156`).
+     - O assistente **NÃO** cita relatórios CMR antigos de janeiro, março, abril ou julho de 2026.
+     - A resposta conclui obrigatoriamente com o rodapé:
+       ```text
+       📄 Fontes Consultadas:
+       - 015-TSO-26P1EC200774.pdf (Última Modificação: 2026-09-01)
+       - 015-TSO-26P3EC200775.pdf (Última Modificação: 2026-09-01)
+       ...
+       ```
+
+3. **💬 Teste de Preservação de Proveniência de Fontes em Perguntas de Acompanhamento:**
+   - Imediatamente após a resposta anterior, perguntar na mesma conversa:
+     ```text
+     Qual arquivo foi a fonte dessa informação?
+     ```
+   - **Critério de Aceitação:**
+     - O assistente identifica e lista os arquivos corretos consultados no turno anterior (ex: `015-TSO-26P1EC200774.pdf`, etc.).
+     - O assistente **NÃO** responde com a mensagem de recusa *"⚠️ Essa informação não consta nos documentos deste workspace"*.
+
+4. **🟡 Teste de Alerta de Deleção na StatusBar (Amarelo sem ✔ Verde):**
+   - No explorador de arquivos ou terminal, apagar temporariamente um arquivo de teste na pasta do workspace (ex: `test_delete.txt`).
+   - No AnyContext, alternar de workspace ou executar um comando rápido:
+     ```text
+     /switch
+     ```
+   - Observar a StatusBar na parte inferior da tela.
+   - **Critério de Aceitação:**
+     - A StatusBar exibe em destaque amarelo: `🟡 1 deleted • /sync`.
+     - O ícone verde `✔` **NÃO** aparece sobreposto com a pendência amarela.
+   - Executar `/sync`:
+     ```text
+     /sync
+     ```
+   - **Critério de Aceitação:**
+     - A sincronização roda rapidamente e a StatusBar volta a exibir o badge verde: `✔ Up to date`.
+
+---
+
+### 📌 Cenário 2 (v0.29.3): Validação de Não-Citação de Arquivos Deletados no Histórico Contínuo e Detecção Sub-30ms na Troca de Abas
 
 - **Objetivo**: Comprovar que na release `v0.29.3`:
   1. O assistente mantém **100% da memória de conversação de longo prazo contínua** entre reinicializações do `actx`, sem qualquer reset forçado de threads ou perda de contexto histórico.

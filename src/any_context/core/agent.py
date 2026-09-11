@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import sqlite3
+from typing import Optional, List, Dict, Any, Set
 
 from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
@@ -16,12 +17,61 @@ from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
 
 
+def _filter_citation_footer(text: str, deleted_basenames: Optional[set] = None, is_immediate_prior: bool = False) -> str:
+    """
+    Intelligently filters citation footers from historical assistant messages:
+    1. For the immediate prior assistant message, preserves the active citation footer intact
+       (purging only records matching deleted_basenames) so follow-up provenance questions work.
+    2. For older historical messages (>1 turn ago), condenses the footer to a compact footnote
+       preserving file names while saving token budget.
+    3. If all cited files were deleted from disk, strips the footer entirely.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+
+    del_set = deleted_basenames or set()
+    pattern = r"((?:\n+---\s*)?\n*(?:###\s*)?(?:[📄🌐☁️]\s*)?\*?\*?(?:Fontes Consultadas|Sources Consulted)[\s\S]*$)"
+    match = re.search(pattern, text, flags=re.IGNORECASE)
+    if not match:
+        return text
+
+    footer_text = match.group(1)
+    body_text = text[:match.start()].rstrip()
+
+    lines = footer_text.splitlines()
+    header_line = "📄 Fontes Consultadas:"
+    source_lines = []
+    for line in lines:
+        clean_line = line.strip()
+        if not clean_line or clean_line.startswith("---") or clean_line.startswith("###"):
+            continue
+        if re.search(r"(?:Fontes Consultadas|Sources Consulted)", clean_line, flags=re.IGNORECASE):
+            header_line = clean_line
+            continue
+        is_deleted = any(del_b.lower() in clean_line.lower() for del_b in del_set)
+        if not is_deleted:
+            source_lines.append(clean_line)
+
+    if not source_lines:
+        return body_text
+
+    if is_immediate_prior:
+        clean_footer = "\n" + header_line + "\n" + "\n".join(source_lines)
+        return f"{body_text}\n\n{clean_footer.strip()}"
+    else:
+        basenames = []
+        for sl in source_lines:
+            sl_clean = re.sub(r"^[-\s*•]+", "", sl)
+            sl_clean = re.sub(r"\s*\(.*?\)", "", sl_clean).strip()
+            if sl_clean:
+                basenames.append(sl_clean)
+        if basenames:
+            return f"{body_text}\n\n📄 Fontes Consultadas: {', '.join(basenames)}"
+        return body_text
+
+
 def _strip_historical_citation_footers(text: str) -> str:
-    """
-    Strips raw workspace/web citation footers from historical assistant messages.
-    Preserves all dialog, analysis, calculation, and conversational context while preventing
-    the LLM from copy-pasting obsolete file path citations from prior turns.
-    """
+    """Strips raw workspace/web citation footers completely from historical assistant messages."""
     if not isinstance(text, str) or not text:
         return text
 
@@ -151,6 +201,26 @@ def _prune_messages_for_llm(
     num_current_tools = len(current_turn_tool_indices)
     per_tool_char_budget = max(4000, max_current_turn_chars // max(1, num_current_tools))
 
+    # Retrieve workspace sync ledger deleted sources to filter expurgated files from citations
+    deleted_basenames = set()
+    try:
+        store = ConfigDBStore()
+        ledger = store.get_sync_ledger(active_workspace or "Default")
+        if ledger and ledger.get("deleted_sources"):
+            deleted_basenames = {os.path.basename(p).lower() for p in ledger["deleted_sources"]}
+    except Exception:
+        pass
+
+    # Find the index of the immediately preceding assistant message (turn N-1)
+    last_ai_idx_before_human = -1
+    if last_human_idx != -1:
+        for i in range(last_human_idx - 1, -1, -1):
+            m = messages[i]
+            m_t = getattr(m, "type", "")
+            if m_t in ["ai", "AIMessage", "assistant"] or m.__class__.__name__ in ["AIMessage", "AIMessageChunk"]:
+                last_ai_idx_before_human = i
+                break
+
     # Prepare turn grounding header if mode is supplied
     turn_header = None
     if grounding_mode:
@@ -201,18 +271,19 @@ def _prune_messages_for_llm(
             cloned.content = "[Prior workspace context retrieved and synthesized in conversation history]"
             pruned.append(cloned)
         elif is_ai and idx < last_human_idx:
-            # Historical assistant message: strip citation footers to prevent obsolete file path anchoring
+            # Historical assistant message: filter citation footers, preserving active sources for immediate prior turn
             cloned = msg.model_copy() if hasattr(msg, "model_copy") else msg
             raw_content = getattr(cloned, "content", "")
+            is_immediate = (idx == last_ai_idx_before_human)
             if isinstance(raw_content, str):
-                cloned.content = _strip_historical_citation_footers(raw_content)
+                cloned.content = _filter_citation_footer(raw_content, deleted_basenames=deleted_basenames, is_immediate_prior=is_immediate)
             elif isinstance(raw_content, list):
                 new_parts = []
                 for part in raw_content:
                     if isinstance(part, dict) and part.get("type") == "text":
-                        new_parts.append({**part, "text": _strip_historical_citation_footers(part.get("text", ""))})
+                        new_parts.append({**part, "text": _filter_citation_footer(part.get("text", ""), deleted_basenames=deleted_basenames, is_immediate_prior=is_immediate)})
                     elif isinstance(part, str):
-                        new_parts.append(_strip_historical_citation_footers(part))
+                        new_parts.append(_filter_citation_footer(part, deleted_basenames=deleted_basenames, is_immediate_prior=is_immediate))
                     else:
                         new_parts.append(part)
                 cloned.content = new_parts

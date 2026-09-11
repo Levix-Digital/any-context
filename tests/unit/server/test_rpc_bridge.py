@@ -305,6 +305,49 @@ class TestRPCBridge(unittest.TestCase):
 
         safe_stdout_write("  [OK] shutdown() dirty workspace consolidation verified!\n")
 
+    def test_11_stat_change_detection_on_switch_and_state(self):
+        """Validates that workspace changes trigger 🟡 X deleted/new indicator in get_state and switch_workspace."""
+        safe_stdout_write(">>> [RPC UNIT] Testing stat change detection in RPC Bridge...\n")
+        with patch("any_context.ingestion.orchestrator.check_workspace_changes") as mock_check:
+            mock_check.return_value = {
+                "has_changes": True,
+                "deleted_files": ["/path/deleted.pdf"],
+                "new_files": [],
+                "modified_files": []
+            }
+            # 1. Calling _check_workspace_stat_on_switch directly
+            self.server._check_workspace_stat_on_switch("RpcUnitTestWS")
+            state = self.server.get_state()
+            self.assertEqual(state["sync_info"], "🟡 1 deleted • /sync")
+
+            # 2. Test switch_workspace triggers stat check
+            mock_check.return_value = {
+                "has_changes": True,
+                "deleted_files": [],
+                "new_files": ["/path/new1.pdf", "/path/new2.pdf"],
+                "modified_files": []
+            }
+            with patch("any_context.server.rpc_bridge._send_ndjson"):
+                self.server.handle_request({
+                    "id": 999,
+                    "method": "switch_workspace",
+                    "params": {"workspace": "TargetWS"}
+                })
+                self.assertIn("🟡 2 new • /sync", self.server.get_state()["sync_info"])
+
+            # 3. When up to date, resets yellow indicator
+            mock_check.return_value = {
+                "has_changes": False,
+                "deleted_files": [],
+                "new_files": [],
+                "modified_files": []
+            }
+            self.server._check_workspace_stat_on_switch("TargetWS")
+            state_up = self.server.get_state()
+            self.assertFalse(state_up["sync_info"].startswith("🟡"))
+
+        safe_stdout_write("  [OK] Stat change detection in RPC bridge verified!\n")
+
 
 if __name__ == "__main__":
     unittest.main()

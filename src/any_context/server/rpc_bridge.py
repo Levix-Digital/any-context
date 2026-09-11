@@ -78,6 +78,7 @@ class StdioRPCServer:
         except Exception:
             pass
 
+        self._last_stat_check_time = 0.0
         self._check_workspace_stat_on_switch(self.active_workspace)
 
     def _on_background_job_complete(self, notif: Dict[str, Any]):
@@ -96,8 +97,10 @@ class StdioRPCServer:
             pass
 
     def _check_workspace_stat_on_switch(self, workspace_name: str):
-        """Performs sub-30ms change detection strictly on workspace switch (zero polling)."""
+        """Performs sub-30ms change detection strictly on workspace switch and interactive triggers (zero continuous polling)."""
         try:
+            import time
+            self._last_stat_check_time = time.time()
             from any_context.ingestion.orchestrator import check_workspace_changes
             diff = check_workspace_changes(workspace_name)
             if diff.get("has_changes"):
@@ -115,6 +118,14 @@ class StdioRPCServer:
                     self._last_sync_timestamp = None
         except Exception:
             pass
+
+    def _check_workspace_stat_debounced(self, workspace_name: str, min_interval_seconds: float = 2.0):
+        """Debounced sub-30ms change detection during interactive user operations without idle background polling loops."""
+        import time
+        now = time.time()
+        if now - getattr(self, "_last_stat_check_time", 0.0) >= min_interval_seconds:
+            self._check_workspace_stat_on_switch(workspace_name)
+
 
     def _add_workspace_message(self, workspace: str, message: Dict[str, Any], display_only: bool = False):
         """Appends a message to the workspace view buffer and optionally to the session accumulator."""
@@ -184,6 +195,7 @@ class StdioRPCServer:
     def get_state(self) -> Dict[str, Any]:
         """Returns the current runtime state."""
         self._load_state()
+        self._check_workspace_stat_debounced(self.active_workspace, min_interval_seconds=2.0)
         sync_info = "Up to date"
         is_syncing = False
         try:
@@ -339,6 +351,7 @@ class StdioRPCServer:
                         pass
                 self.agent_instance = None
                 self._load_state()
+                self._check_workspace_stat_on_switch(target_ws)
                 state_dict = self.get_state()
                 state_dict["chat_history"] = self.get_chat_history(target_ws)
                 _send_ndjson({
@@ -534,10 +547,8 @@ class StdioRPCServer:
 
                 if res.state_updates:
                     if "workspace" in res.state_updates:
-                        old_ws = self.active_workspace
                         self.active_workspace = res.state_updates["workspace"]
-                        if old_ws != self.active_workspace:
-                            self._check_workspace_stat_on_switch(self.active_workspace)
+                        self._check_workspace_stat_on_switch(self.active_workspace)
                     if "model" in res.state_updates:
                         self._current_model = res.state_updates["model"]
                     if "grounding_mode" in res.state_updates:
@@ -562,6 +573,7 @@ class StdioRPCServer:
 
     def _stream_chat(self, req_id: Any, prompt_text: str):
         """Streams LangGraph agent tokens and tool execution tickers in real-time."""
+        self._check_workspace_stat_debounced(self.active_workspace, min_interval_seconds=1.0)
         from any_context.core.agent import create_anycontext_agent
 
         # Record user message in workspace view buffer and session accumulator

@@ -2296,5 +2296,58 @@ def _check_workspace_stat_on_switch(self, workspace_name: str):
 - **Performance**: Completes in `< 30ms` by reading cached filesystem stats from SQLite without loading or parsing documents.
 - **Zero Polling**: Runs exclusively on user tab-switch actions, completely eliminating background timers.
 
+---
+
+## 23. Temporal Hybrid Retrieval & Provenance Preservation (`v0.29.4`)
+
+### 23.1 The Problem: Semantic Dilution in Dense Vector Retrieval
+Dense vector embeddings map text into semantic vector spaces where cosine similarity measures overall thematic proximity. When a user asks a highly specific temporal query (e.g., *"No dia 1 de setembro de 2026, quantos Shipments tivemos registrados?"*), dense embedding models often score broad, multi-page reports with dozens of domain keywords (e.g. older CMR reports with freight terms) at ~0.51, while concise, 1-page daily checklists for the exact date score ~0.45. Consequently, the correct documents are excluded from the Top-K candidate pool.
+
+### 23.2 Architecture: Dual Dense-Vector + Lexical Path Scan
+AnyContext v0.29.4 introduces **Temporal Hybrid Retrieval** directly inside `ParallelRetriever`:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as User Query
+    participant Ret as ParallelRetriever
+    participant Extract as extract_temporal_clauses
+    participant Lance as LanceDB (Columnar Arrow)
+    participant Dense as OpenAI / LlamaIndex Vector
+    participant Filter as RelevanceFilter
+
+    User->>Ret: "No dia 1 de setembro de 2026..."
+    Ret->>Extract: Parse query
+    Extract-->>Ret: Clauses: ["file_path LIKE '%2026/09/01%'", "file_path LIKE '%2026-09-01%'"]
+    
+    par Concurrent Execution
+        Ret->>Lance: search_metadata(where_clause, limit=50) (<25ms)
+        Lance-->>Ret: 16 Chunks from 09/01 (Boosted Score: 0.95)
+    and
+        Ret->>Dense: Embed & search_vector(limit=100) (~150ms)
+        Dense-->>Ret: 100 Dense Candidates (Scores ~0.45-0.51)
+    end
+
+    Ret->>Ret: Merge candidates by chunk_id & max(score)
+    Ret->>Filter: filter_and_balance(raw_candidates)
+    Filter-->>User: Top-K calibrated chunks (09/01 checklists front & center)
+```
+
+### 23.3 Mathematical Scoring & Calibration
+For chunks matching deterministic temporal clauses:
+$$S_{\text{temporal}}(c) = \max(S_{\text{dense}}(c), 0.95)$$
+Where:
+- $S_{\text{dense}}(c) \in [0, 1]$ is the normalized cosine similarity distance: $\frac{1}{1 + \max(0, \text{dist})}$.
+- Exact date matches are boosted to $0.95$, guaranteeing inclusion in the top candidate pool ahead of generic historical documents.
+- `RelevanceFilter.apply_source_diversification` ensures multiple shipments/checklists for the day are fairly distributed across the context window.
+
+### 23.4 Conversational Citation Provenance Lifecycle
+In v0.29.3, historical assistant messages were pruned of all citation footers to prevent obsolete file path anchoring. In v0.29.4, `_filter_citation_footer` introduces fine-grained provenance tracking:
+1. **Immediate Prior Turn ($N-1$)**: Preserves active sources in full (e.g., `- 015-TSO-26P1EC200774.pdf (Última Modificação: 2026-09-01)`), purging only files present in `workspace_sync_ledger.deleted_sources`. This enables the model to accurately answer follow-up questions such as *"Qual arquivo foi a fonte dessa informação?"*.
+2. **Older Historical Turns ($< N-1$)**: Condenses to compact footnotes (`📄 Fontes Consultadas: file1.pdf, file2.pdf`), preventing token bloating while maintaining conversation memory.
+3. **Mandatory Turn Header Directive**: All grounding strategies inject:
+   `"- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date."`
+
+
 
 
