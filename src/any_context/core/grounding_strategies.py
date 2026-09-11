@@ -63,13 +63,15 @@ class StrictGroundingStrategy(GroundingStrategy):
                 "- If information is missing locally: you MUST respond EXACTLY with: '⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre \"[tópico]\"?' and STOP. Do NOT guess or invent facts.\n"
                 f"{dom_inst}"
                 "- NEVER call live_web_search autonomously without explicit confirmation.\n"
-                "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data."
+                "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
+                "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."
             )
         return (
             f"[GROUNDING: STRICT | Priority 0: VectorDB ONLY | Parametric Memory: FORBIDDEN | Web Search: DISABLED | Workspace: '{ws}']\n"
             "- Answer strictly and exclusively from retrieved workspace documents. Zero speculation or outside facts.\n"
             "- If information is missing locally: declare '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
-            "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data."
+            "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
+            "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."
         )
 
 
@@ -94,13 +96,15 @@ class HybridGroundingStrategy(GroundingStrategy):
                 "- Present local workspace facts first. If missing or complementary, use web search autonomously.\n"
                 f"{dom_inst}"
                 "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
-                "- Clearly differentiate workspace facts ('### 📂 Informações do Workspace') from web/general knowledge ('### 🌐 Informações Complementares da Web')."
+                "- Clearly differentiate workspace facts ('### 📂 Informações do Workspace') from web/general knowledge ('### 🌐 Informações Complementares da Web').\n"
+                "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."
             )
         return (
             f"[GROUNDING: HYBRID | Priority 0: VectorDB | Priority 1: Parametric Memory (Labeled) | Web Search: DISABLED | Workspace: '{ws}']\n"
             "- Present local workspace facts first. Complement with labeled model knowledge ('De acordo com meus conhecimentos gerais...').\n"
             "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
-            "- Clearly separate workspace facts from general model knowledge."
+            "- Clearly separate workspace facts from general model knowledge.\n"
+            "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."
         )
 
 
@@ -124,12 +128,14 @@ class ProactiveGroundingStrategy(GroundingStrategy):
                 "- Total real-time fusion of workspace files, registered web portals, live web intelligence, and strategic domain knowledge.\n"
                 f"{dom_inst}"
                 "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
-                "- Highlight temporal discrepancies, anticipate risks, provide actionable next steps, and suggest authoritative URLs to index."
+                "- Highlight temporal discrepancies, anticipate risks, provide actionable next steps, and suggest authoritative URLs to index.\n"
+                "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."
             )
         return (
             f"[GROUNDING: PROACTIVE | All Sources Priority 0 (VectorDB + Parametric) | Forward-Looking | Web Search: DISABLED | Workspace: '{ws}']\n"
             "- Fuse workspace files and strategic domain knowledge. Anticipate risks and recommend forward-looking next steps.\n"
-            "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data."
+            "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
+            "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."
         )
 
 

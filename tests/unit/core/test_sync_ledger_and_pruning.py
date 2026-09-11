@@ -118,8 +118,16 @@ class TestSyncLedgerAndPruning(unittest.TestCase):
         self.assertEqual(_strip_historical_citation_footers(msg_without_footer), msg_without_footer)
 
     def test_03_prune_messages_for_llm_strips_prior_citations(self):
-        """Validates that _prune_messages_for_llm sanitizes historical AIMessages but preserves dialogue and latest turn."""
+        """Validates that _prune_messages_for_llm sanitizes expurgated deleted files from citations while preserving active provenance."""
         safe_stdout_write("\n>>> [PRUNING] Testing message pruning pipeline...\n")
+
+        # Record deleted file in TestWS ledger
+        self.store.record_sync_ledger(
+            workspace_name="TestWS",
+            deleted_sources=["/path/to/deleted_doc.pdf"],
+            added_sources=[],
+            modified_sources=[]
+        )
 
         hist_ai_text = (
             "A taxa de entrega foi confirmada no documento antigo.\n\n"
@@ -132,14 +140,29 @@ class TestSyncLedgerAndPruning(unittest.TestCase):
             HumanMessage(content="E qual é a taxa atualizada hoje?")
         ]
 
-        pruned = _prune_messages_for_llm(messages)
+        pruned = _prune_messages_for_llm(messages, active_workspace="TestWS")
         self.assertEqual(len(pruned), 3)
 
-        # The historical AIMessage should have its citation footer removed
+        # The historical AIMessage should have its citation footer removed because deleted_doc.pdf was purged
         pruned_ai_content = pruned[1].content
         self.assertIn("A taxa de entrega foi confirmada no documento antigo.", pruned_ai_content)
         self.assertNotIn("📄 Fontes Consultadas", pruned_ai_content)
         self.assertNotIn("deleted_doc.pdf", pruned_ai_content)
+
+        # Active file on immediate prior turn MUST be preserved so follow-up provenance works
+        active_ai_text = (
+            "A taxa de entrega foi confirmada no documento ativo.\n\n"
+            "📄 Fontes Consultadas:\n"
+            "- active_report.pdf (Última Modificação: 2026-09-01)"
+        )
+        messages_active = [
+            HumanMessage(content="Qual era a taxa de entrega?"),
+            AIMessage(content=active_ai_text),
+            HumanMessage(content="Qual arquivo foi a fonte dessa informação?")
+        ]
+        pruned_active = _prune_messages_for_llm(messages_active, active_workspace="TestWS")
+        self.assertIn("active_report.pdf", pruned_active[1].content)
+        self.assertIn("📄 Fontes Consultadas", pruned_active[1].content)
 
     def test_04_system_prompt_includes_ledger_directive(self):
         """Validates that get_system_prompt injects deleted sources warning when ledger has deletions."""

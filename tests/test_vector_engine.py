@@ -124,6 +124,44 @@ class TestLanceDBStore(unittest.TestCase):
         self.store.delete_by_workspace("IT_Dept")
         self.assertEqual(self.store.count_records(), 1)
 
+    def test_search_metadata(self):
+        records = [
+            {
+                "id": "chunk_date_1",
+                "vector": [0.1, 0.2, 0.3, 0.4],
+                "text": "Shipment checklist 1.",
+                "file_name": "015-TSO-1.pdf",
+                "file_path": "C:/docs/2026/09/01/all_results/015-TSO-1.pdf",
+                "workspace": "IKEA",
+                "last_modified": "2026-09-01",
+                "content_type": "Local Document",
+                "document_summary": "Checklist 1",
+                "keywords": "shipment, 2026-09-01",
+                "content_hash": "hash_d1"
+            },
+            {
+                "id": "chunk_date_2",
+                "vector": [0.1, 0.2, 0.3, 0.4],
+                "text": "Old report from January.",
+                "file_name": "CMR_Jan.pdf",
+                "file_path": "C:/docs/2026/01/15/CMR_Jan.pdf",
+                "workspace": "IKEA",
+                "last_modified": "2026-01-15",
+                "content_type": "Local Document",
+                "document_summary": "CMR report",
+                "keywords": "cmr, shipment",
+                "content_hash": "hash_d2"
+            }
+        ]
+        self.store.upsert_records(records, dim=4)
+        results = self.store.search_metadata(
+            where_clause="file_path LIKE '%2026/09/01%'",
+            workspace="IKEA"
+        )
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].file_name, "015-TSO-1.pdf")
+        self.assertGreaterEqual(results[0].score, 0.9)
+
 
 if __name__ == "__main__":
     unittest.main()
