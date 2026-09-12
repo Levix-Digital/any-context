@@ -1,10 +1,16 @@
 pub mod cpp;
 pub mod csharp;
+pub mod dart;
 pub mod go;
 pub mod java;
+pub mod kotlin;
+pub mod lua;
+pub mod php;
 pub mod python;
+pub mod ruby;
 pub mod rust;
 pub mod splitter;
+pub mod swift;
 pub mod traits;
 pub mod typescript;
 
@@ -22,6 +28,12 @@ pub struct ASTCodeChunker {
     go_parser: go::GoASTParser,
     rust_parser: rust::RustASTParser,
     cpp_parser: cpp::CppASTParser,
+    kotlin_parser: kotlin::KotlinASTParser,
+    swift_parser: swift::SwiftASTParser,
+    ruby_parser: ruby::RubyASTParser,
+    php_parser: php::PhpASTParser,
+    lua_parser: lua::LuaASTParser,
+    dart_parser: dart::DartASTParser,
     max_chunk_chars: usize,
 }
 
@@ -35,6 +47,12 @@ impl ASTCodeChunker {
             go_parser: go::GoASTParser::new(),
             rust_parser: rust::RustASTParser::new(),
             cpp_parser: cpp::CppASTParser::new(),
+            kotlin_parser: kotlin::KotlinASTParser::new(),
+            swift_parser: swift::SwiftASTParser::new(),
+            ruby_parser: ruby::RubyASTParser::new(),
+            php_parser: php::PhpASTParser::new(),
+            lua_parser: lua::LuaASTParser::new(),
+            dart_parser: dart::DartASTParser::new(),
             max_chunk_chars,
         }
     }
@@ -49,6 +67,12 @@ impl ASTCodeChunker {
                 | "go"
                 | "rs"
                 | "c" | "h" | "cpp" | "hpp" | "cc" | "cxx" | "c++" | "hh" | "hxx"
+                | "kt" | "kts"
+                | "swift"
+                | "rb"
+                | "php" | "phtml"
+                | "lua"
+                | "dart"
         )
     }
 }
@@ -72,6 +96,12 @@ impl Chunker for ASTCodeChunker {
             "c" | "h" | "cpp" | "hpp" | "cc" | "cxx" | "c++" | "hh" | "hxx" => {
                 self.cpp_parser.parse_chunks(file_path, content, self.max_chunk_chars)
             }
+            "kt" | "kts" => self.kotlin_parser.parse_chunks(file_path, content, self.max_chunk_chars),
+            "swift" => self.swift_parser.parse_chunks(file_path, content, self.max_chunk_chars),
+            "rb" => self.ruby_parser.parse_chunks(file_path, content, self.max_chunk_chars),
+            "php" | "phtml" => self.php_parser.parse_chunks(file_path, content, self.max_chunk_chars),
+            "lua" => self.lua_parser.parse_chunks(file_path, content, self.max_chunk_chars),
+            "dart" => self.dart_parser.parse_chunks(file_path, content, self.max_chunk_chars),
             _ => Err(format!("Unsupported code extension for AST parsing: .{}", ext)),
         }
     }

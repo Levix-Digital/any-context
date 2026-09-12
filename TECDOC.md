@@ -2515,19 +2515,46 @@ In `v0.30.5`, AnyContext extends its ingestion catalog to support API contracts,
 5. **Semantic Metadata Classification in LanceDB**:
    - Ingested chunks are stamped with explicit semantic `content_type` values (`Protocol Buffer Schema`, `GraphQL Schema`, `Terraform / IaC`, `Container Definition`, `Go Module Definition`), enhancing retrieval relevance and citation accuracy.
 
-### 24.7 Strategic Roadmap
+### 24.7 Scripting & Mobile AST Ecosystems: Kotlin, Swift, Ruby, PHP, Lua & Dart (`v0.30.6`)
+In `v0.30.6`, AnyContext elevates its native Rust code intelligence engine to 14 total language ecosystems by introducing AST-aware parsing for the premier mobile, scripting, and web back-end languages:
+
+1. **Integrated Grammars & Tree-sitter ABI Harmonization**:
+   - **Kotlin (`tree-sitter-kotlin-ng 1.1.0`)**: Resolves legacy crate link conflicts and provides comprehensive parsing for `.kt` and `.kts` (Gradle Kotlin scripts). Deconstructs `class_declaration`, `object_declaration`, `companion_object`, functions, properties, and KDoc comments (`/** ... */`).
+   - **Swift (`tree-sitter-swift 0.6.0`)**: Parses `.swift` files across iOS, macOS, and server environments. Accurately distinguishes `class`, `struct`, `actor`, `enum`, `protocol`, and `extension` declarations, extracting methods and doc comments (`/// ...`).
+   - **Ruby (`tree-sitter-ruby 0.23.1`)**: Native parsing for `.rb` files. Supports `class`, `module`, `singleton_class` (`class << self`), standalone `method`, and class-level `singleton_method` (`def self.method`), with `#` comment association.
+   - **PHP (`tree-sitter-php 0.23.11`)**: Full grammar support for modern PHP (`.php`, `.phtml`). Deconstructs `class_declaration`, `interface_declaration`, `trait_declaration`, `enum_declaration`, `method_declaration`, and standalone functions, associating PHPDoc annotations (`/** ... */`).
+   - **Lua (`tree-sitter-lua 0.2.0`)**: Prototype- and function-level AST parsing for `.lua`. Identifies global functions (`function foo()`), module table methods (`function M:method()`, `function M.method()`), local functions (`local function foo()`), and function assignments (`M.handler = function()`), with `--` comment attribution.
+   - **Dart (`tree-sitter-dart 0.0.4`)**: Native Flutter and Dart client parsing for `.dart`. Handles `class_definition`, `enum_declaration`, `mixin_declaration`, `extension_declaration`, `class_member_definition`, top-level functions, and Dart doc comments (`/// ...`).
+
+2. **Standardized Context Symbol Breadcrumbs**:
+   - Kotlin: `// Context: UserService.kt > class UserService > fun findById [lines 40-55]`
+   - Swift: `// Context: OrderItem.swift > struct OrderItem > func calculateTax [lines 25-38]`
+   - Ruby: `// Context: user.rb > class UserAccount > def full_name [lines 15-28]`
+   - PHP: `// Context: OrderService.php > class OrderService > function createOrder [lines 30-45]`
+   - Lua: `// Context: score.lua > function M:calculate_score [lines 10-22]`
+   - Dart: `// Context: app_widget.dart > class AppWidget > method build [lines 20-35]`
+
+3. **Intelligent Large-Container Deconstruction & Boundary Safety**:
+   - Classes, structs, traits, and modules exceeding `max_chunk_chars` emit an Overview chunk containing signatures, doc comments, annotations, and member declarations, followed by discrete chunks for each method.
+   - All 6 new parsers route chunk generation through `splitter::split_oversized_code`, guaranteeing strict adherence to token limits across all embedding providers.
+
+4. **LanceDB Content Taxonomy**:
+   - Ingested chunks are automatically cataloged with semantic types: `Kotlin Source Code`, `Swift Source Code`, `Ruby Source Code`, `PHP Source Code`, `Lua Source Code`, and `Dart Source Code`.
+
+### 24.8 Strategic Roadmap
 1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3. [DONE]
 2. **Marco 2.1 (`v0.30.1`)**: ASTCodeChunker (Tree-sitter) Python Pilot. [DONE]
 3. **Marco 2.2 (`v0.30.2`)**: ASTCodeChunker for Enterprise Languages (TypeScript/JavaScript, Java, C#). [DONE]
 4. **Marco 2.3 (`v0.30.3`)**: ASTCodeChunker for Systems Languages (Go, Rust, C/C++). [DONE]
 5. **v0.30.4**: Ingestion Shield (3-Tier Hierarchical AST Splitter + Dynamic Token Limits). [DONE]
 6. **v0.30.5**: Universal API Schemas, Cloud/IaC & Project Manifests Ingestion. [DONE]
-7. **v0.30.6**: ASTCodeChunker for Scripting & Mobile Languages (Kotlin, Swift, Ruby, PHP, Lua, Dart). [NEXT]
+7. **v0.30.6**: ASTCodeChunker for Scripting & Mobile Languages (Kotlin, Swift, Ruby, PHP, Lua, Dart). [DONE]
 8. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML.
 9. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
 10. **Marco 5**: PDFLayoutChunker with OCR detection gate.
 11. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
 12. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
+
 
 
 

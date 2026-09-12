@@ -1,6 +1,6 @@
 [package]
 name = "any-context-core-rs"
-version = "0.30.5"
+version = "0.30.6"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "High-performance Rust core engine for AnyContext (Ingestion Router, AST/Markdown chunkers, and RRF retrieval)"
@@ -23,6 +23,12 @@ tree-sitter-go = "0.23.4"
 tree-sitter-rust = "0.23.2"
 tree-sitter-c = "0.23.4"
 tree-sitter-cpp = "0.23.4"
+tree-sitter-kotlin-ng = "1.1.0"
+tree-sitter-swift = "0.6.0"
+tree-sitter-ruby = "0.23.1"
+tree-sitter-php = "0.23.11"
+tree-sitter-lua = "0.2.0"
+tree-sitter-dart = "0.0.4"
 
 [features]
 default = []

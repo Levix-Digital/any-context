@@ -145,6 +145,18 @@ class ParallelIndexer:
                         content_type_str = "C Source Code"
                     elif ct == "cpp" or fp.lower().endswith((".cpp", ".hpp", ".cc", ".cxx", ".c++", ".hh", ".hxx")):
                         content_type_str = "C++ Source Code"
+                    elif ct == "kotlin" or fp.lower().endswith((".kt", ".kts")):
+                        content_type_str = "Kotlin Source Code"
+                    elif ct == "swift" or fp.lower().endswith(".swift"):
+                        content_type_str = "Swift Source Code"
+                    elif ct == "ruby" or fp.lower().endswith(".rb"):
+                        content_type_str = "Ruby Source Code"
+                    elif ct == "php" or fp.lower().endswith((".php", ".phtml")):
+                        content_type_str = "PHP Source Code"
+                    elif ct == "lua" or fp.lower().endswith(".lua"):
+                        content_type_str = "Lua Source Code"
+                    elif ct == "dart" or fp.lower().endswith(".dart"):
+                        content_type_str = "Dart Source Code"
                     elif ct == "markdown" or fp.lower().endswith((".md", ".markdown", ".rst", ".mdown")):
                         content_type_str = "Markdown Document"
                     else:

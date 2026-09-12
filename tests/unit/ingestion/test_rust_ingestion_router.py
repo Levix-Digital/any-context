@@ -31,6 +31,14 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(self.router.supports_file("include/header.h"))
         self.assertTrue(self.router.supports_file("engine.cpp"))
         self.assertTrue(self.router.supports_file("include/engine.hpp"))
+        self.assertTrue(self.router.supports_file("MainActivity.kt"))
+        self.assertTrue(self.router.supports_file("build.gradle.kts"))
+        self.assertTrue(self.router.supports_file("AppCoordinator.swift"))
+        self.assertTrue(self.router.supports_file("models/user.rb"))
+        self.assertTrue(self.router.supports_file("index.php"))
+        self.assertTrue(self.router.supports_file("view.phtml"))
+        self.assertTrue(self.router.supports_file("init.lua"))
+        self.assertTrue(self.router.supports_file("main.dart"))
         self.assertFalse(self.router.supports_file("report.pdf"))
         self.assertFalse(self.router.supports_file("data.xlsx"))
 
@@ -292,6 +300,92 @@ class TestRustIngestionRouter(unittest.TestCase):
         custom_settings = AppSettings()
         custom_settings.models.max_embed_tokens = 4096
         self.assertEqual(get_embedding_token_limit(settings=custom_settings), 4096)
+
+    def test_kotlin_ast_chunking(self):
+        code = (
+            "package com.example.service\n\n"
+            "class UserService(private val repo: UserRepository) {\n"
+            "    fun findById(id: Long): User? {\n"
+            "        return repo.findById(id)\n"
+            "    }\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("UserService.kt", code)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("class UserService" in c["text"] for c in chunks))
+        self.assertEqual(chunks[-1]["content_type"], "kotlin")
+
+    def test_swift_ast_chunking(self):
+        code = (
+            "import Foundation\n\n"
+            "struct OrderItem: Codable {\n"
+            "    let id: UUID\n"
+            "    let title: String\n\n"
+            "    func calculateTax(rate: Double) -> Double {\n"
+            "        return 10.0 * rate\n"
+            "    }\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("OrderItem.swift", code)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("struct OrderItem" in c["text"] for c in chunks))
+        self.assertEqual(chunks[-1]["content_type"], "swift")
+
+    def test_ruby_ast_chunking(self):
+        code = (
+            "class BillingAccount < ApplicationRecord\n"
+            "  def total_spent\n"
+            "    orders.sum(&:amount)\n"
+            "  end\n"
+            "end\n"
+        )
+        chunks = self.router.chunk_text("billing_account.rb", code)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("class BillingAccount" in c["text"] for c in chunks))
+        self.assertEqual(chunks[-1]["content_type"], "ruby")
+
+    def test_php_ast_chunking(self):
+        code = (
+            "<?php\n\n"
+            "namespace App\\Services;\n\n"
+            "class OrderService {\n"
+            "    public function createOrder(): int {\n"
+            "        return 42;\n"
+            "    }\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("OrderService.php", code)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("class OrderService" in c["text"] for c in chunks))
+        self.assertEqual(chunks[-1]["content_type"], "php")
+
+    def test_lua_ast_chunking(self):
+        code = (
+            "local M = {}\n\n"
+            "function M:calculate_score(points)\n"
+            "    return points * 1.5\n"
+            "end\n\n"
+            "return M\n"
+        )
+        chunks = self.router.chunk_text("score.lua", code)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("function M:calculate_score" in c["text"] for c in chunks))
+        self.assertEqual(chunks[-1]["content_type"], "lua")
+
+    def test_dart_ast_chunking(self):
+        code = (
+            "import 'package:flutter/material.dart';\n\n"
+            "class AppWidget extends StatelessWidget {\n"
+            "  @override\n"
+            "  Widget build(BuildContext context) {\n"
+            "    return Container();\n"
+            "  }\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("app_widget.dart", code)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("class AppWidget" in c["text"] for c in chunks))
+        self.assertEqual(chunks[-1]["content_type"], "dart")
 
 
 if __name__ == "__main__":
