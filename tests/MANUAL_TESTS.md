@@ -7,7 +7,69 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.1): Validação do Parser AST de Código-Fonte Python (tree-sitter) e Fatiamento de Classes e Funções
+### 📌 Cenário 1 (v0.30.2): Validação da Expansão Multi-Linguagem do Parser AST de Código-Fonte (TypeScript, JavaScript, Java e C# com tree-sitter)
+
+- **Objetivo**: Comprovar que na release `v0.30.2`:
+  1. O `IngestionRouter` detecta automaticamente arquivos de código nas principais linguagens empresariais e web: **TypeScript & JavaScript** (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`), **Java** (`.java`) e **C#** (`.cs`), além de Python (`.py`, `.pyw`, `.pyi`).
+  2. A decomposição em chunks é 100% orientada à AST via gramáticas oficiais `tree-sitter`, preservando fronteiras semânticas de:
+     - Componentes React/TSX e funções (`export const App: React.FC = ...`, `export function ...`, `const handler = () => ...`).
+     - Classes, interfaces, records, enums e métodos em Java e C#.
+     - Anotações e decoradores (`@Service`, `@Override`, `@Autowired`, `[ApiController]`, `[HttpGet]`).
+     - Comentários de documentação (JSDoc `/** ... */`, Javadoc `/** ... */`, XML Doc `/// <summary>`).
+  3. Cada chunk recebe breadcrumbs semânticos (`// Context: file > class > method [lines X-Y]`) e tipo de conteúdo específico (`TypeScript Source Code`, `JavaScript Source Code`, `Java Source Code`, `C# Source Code`).
+  4. Validação dos arquivos de teste em `tests/documents/python_tests/` e das perguntas sugeridas de RAG.
+- **Pré-requisito**: Versão `v0.30.2` instalada (`actx -v` exibindo `v0.30.2`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Verificação de Versão e Suporte Multi-Linguagem no Core Rust:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     actx -v
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(); print({ext: r.supports_file('f.' + ext) for ext in ['py', 'ts', 'tsx', 'js', 'jsx', 'java', 'cs']})"
+     ```
+   - **Critério de Aceitação:** Exibe `v0.30.2` e um dicionário onde todas as extensões (`py`, `ts`, `tsx`, `js`, `jsx`, `java`, `cs`) possuem valor `True`.
+
+2. **⚛️ Teste de Fatiamento AST TypeScript / TSX (React):**
+   - Executar o comando Python de teste de chunking:
+     ```bash
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(); chunks = r.chunk_text('App.tsx', 'export const UserCard = ({ name }: { name: string }) => { return <div>{name}</div>; };\n\nexport function formatUser(name: string): string {\n  return name.trim();\n}'); [print(c.text + '\n') for c in chunks]"
+     ```
+   - **Critério de Aceitação:** São gerados chunks com breadcrumbs semânticos:
+     - `// Context: App.tsx > const UserCard [lines 1-1]`
+     - `// Context: App.tsx > function formatUser [lines 3-5]`
+     - A palavra `export` permanece vinculada à declaração sem criar gaps avulsos.
+
+3. **☕ Teste de Fatiamento AST Java (Spring Boot):**
+   - Executar o comando Python de teste de chunking Java:
+     ```bash
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(); chunks = r.chunk_text('UserService.java', 'package com.app.service;\n\n@Service\npublic class UserService {\n    @Autowired\n    private UserRepository repo;\n\n    public User findById(Long id) {\n        return repo.findById(id).orElse(null);\n    }\n}'); [print(c.text + '\n') for c in chunks]"
+     ```
+   - **Critério de Aceitação:** Chunks contêm `// Context: UserService.java > class UserService` e `content_type: java`, com anotações `@Service` e `@Autowired` preservadas.
+
+4. **🔷 Teste de Fatiamento AST C# (ASP.NET Core):**
+   - Executar o comando Python de teste de chunking C#:
+     ```bash
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(); chunks = r.chunk_text('OrdersController.cs', 'namespace App.Controllers;\n\n[ApiController]\npublic class OrdersController : ControllerBase {\n    [HttpGet]\n    public IActionResult GetAll() => Ok();\n}'); [print(c.text + '\n') for c in chunks]"
+     ```
+   - **Critério de Aceitação:** Chunks contêm `// Context: OrdersController.cs > class OrdersController`, com atributos `[ApiController]` e `[HttpGet]` preservados.
+
+5. **🧪 Validação das Perguntas Sugeridas de Teste em Python (`tests/documents/python_tests/`):**
+   - Consultar o roteiro de perguntas em `tests/documents/python_tests/PERGUNTAS_SUGERIDAS.md`.
+   - Adicionar a pasta como fonte local no AnyContext:
+     ```bash
+     actx
+     /sources
+     ```
+   - Adicionar o caminho `tests/documents/python_tests` e rodar `/sync`.
+   - Executar as perguntas sugeridas no chat, por exemplo:
+     - *"Quais métodos de pagamento estão implementados e qual o tempo de expiração padrão do QR Code do PIX?"*
+     - *"Como funciona o decorador retry_on_failure e quantas tentativas o método process_credit_card executa?"*
+   - **Critério de Aceitação:** O AnyContext responde com exatidão factual (PIX = 3600 segundos; credit card = 2 tentativas), citando os arquivos corretos no bloco `📄 Fontes Consultadas:`.
+
+---
+
+### 📌 Cenário 2 (v0.30.1): Validação do Parser AST de Código-Fonte Python (tree-sitter) e Fatiamento de Classes e Funções
 
 - **Objetivo**: Comprovar que na release `v0.30.1`:
   1. O `IngestionRouter` detecta automaticamente arquivos de código Python (`.py`, `.pyw`, `.pyi`) e delega para o `ASTCodeChunker` nativo em Rust (`tree-sitter-python`).

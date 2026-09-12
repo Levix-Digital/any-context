@@ -19,8 +19,67 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(self.router.supports_file("main.py"))
         self.assertTrue(self.router.supports_file("src/utils.pyw"))
         self.assertTrue(self.router.supports_file("stubs.pyi"))
+        self.assertTrue(self.router.supports_file("src/index.ts"))
+        self.assertTrue(self.router.supports_file("src/App.tsx"))
+        self.assertTrue(self.router.supports_file("server.js"))
+        self.assertTrue(self.router.supports_file("components/Widget.jsx"))
+        self.assertTrue(self.router.supports_file("UserService.java"))
+        self.assertTrue(self.router.supports_file("OrderController.cs"))
         self.assertFalse(self.router.supports_file("report.pdf"))
         self.assertFalse(self.router.supports_file("data.xlsx"))
+
+    def test_typescript_ast_chunking(self):
+        code = (
+            "import React from 'react';\n\n"
+            "export interface UserProps {\n"
+            "  name: string;\n"
+            "  role: string;\n"
+            "}\n\n"
+            "export const UserCard: React.FC<UserProps> = ({ name, role }) => {\n"
+            "  return <div>{name} ({role})</div>;\n"
+            "};\n\n"
+            "export function formatUserName(user: UserProps): string {\n"
+            "  return user.name.toUpperCase();\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("components/UserCard.tsx", code)
+        self.assertGreaterEqual(len(chunks), 2)
+        self.assertTrue(any("const UserCard" in c["text"] for c in chunks))
+        self.assertTrue(any("function formatUserName" in c["text"] for c in chunks))
+
+    def test_java_ast_chunking(self):
+        code = (
+            "package com.example.shop;\n\n"
+            "import org.springframework.stereotype.Service;\n\n"
+            "/** Order processing service. */\n"
+            "@Service\n"
+            "public class OrderService {\n"
+            "    public Order findById(Long id) {\n"
+            "        return new Order(id);\n"
+            "    }\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("OrderService.java", code)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("class OrderService" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "java")
+
+    def test_csharp_ast_chunking(self):
+        code = (
+            "namespace Api.Controllers;\n\n"
+            "using Microsoft.AspNetCore.Mvc;\n\n"
+            "[ApiController]\n"
+            "[Route(\"api/[controller]\")]\n"
+            "public class ProductsController : ControllerBase\n"
+            "{\n"
+            "    [HttpGet]\n"
+            "    public IActionResult List() => Ok();\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("ProductsController.cs", code)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("class ProductsController" in c["text"] for c in chunks))
+        self.assertEqual(chunks[-1]["content_type"], "csharp")
 
     def test_python_ast_functions_and_classes(self):
         code = (

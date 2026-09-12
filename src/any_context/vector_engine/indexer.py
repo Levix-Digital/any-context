@@ -129,6 +129,14 @@ class ParallelIndexer:
                     ct = rc.get("content_type")
                     if ct == "python" or fp.lower().endswith((".py", ".pyw", ".pyi")):
                         content_type_str = "Python Source Code"
+                    elif ct == "typescript" or fp.lower().endswith((".ts", ".tsx")):
+                        content_type_str = "TypeScript Source Code"
+                    elif ct == "javascript" or fp.lower().endswith((".js", ".jsx", ".mjs", ".cjs")):
+                        content_type_str = "JavaScript Source Code"
+                    elif ct == "java" or fp.lower().endswith(".java"):
+                        content_type_str = "Java Source Code"
+                    elif ct == "csharp" or fp.lower().endswith(".cs"):
+                        content_type_str = "C# Source Code"
                     elif ct == "markdown" or fp.lower().endswith((".md", ".markdown", ".rst", ".mdown")):
                         content_type_str = "Markdown Document"
                     else:

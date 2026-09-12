@@ -2406,32 +2406,51 @@ Unlike naive fixed-window sentence splitters that fracture headings, lists, and 
 3. **Fenced Code Block Protection**: Code blocks containing `#` (e.g. Python comments) are isolated as code literals, completely preventing false heading detections.
 4. **Paragraph Boundary Preservation**: When a single section exceeds `max_chunk_chars` (default 1800 chars), splitting occurs strictly along double newlines (`\n\n`), preventing partial words or fractured code.
 
-### 24.4 AST-Aware Code Chunking (`ASTCodeChunker` & `tree-sitter`) (`v0.30.1`)
-In `v0.30.1`, `IngestionRouter` introduces the `ASTCodeChunker` utilizing `tree-sitter` for syntactic code-level chunking, starting with the Python pilot (`tree-sitter-python`):
-1. **Concrete Syntax Tree Traversal**:
-   - `function_definition`: Free functions and methods.
-   - `class_definition`: Classes, inheritance hierarchies, and class bodies.
-   - `decorated_definition`: Captures all decorators (`@property`, `@staticmethod`, `@classmethod`, `@app.get`) spanning to the end of the decorated function or class.
-2. **Context Symbol Breadcrumbs**:
-   - Every chunk is stamped with authoritative symbol breadcrumbs:
-     `// Context: {file_name} > class {ClassName} > def {method_name} [lines {start}-{end}]`
-     `header_path`: `class {ClassName} > def {method_name}`
-3. **Docstring & Signature Preservation**:
-   - Docstrings (`"""..."""`) and immediate doc comments are kept strictly bound to the function/class header, providing maximum semantic grounding to LLMs.
+### 24.4 Multi-Language AST Code Chunking (`ASTCodeChunker` & `tree-sitter`) (`v0.30.2`)
+In `v0.30.2` (Marco 2.2), `ASTCodeChunker` expands beyond the Python pilot to provide native AST-aware decomposition for the dominant enterprise and web application ecosystems:
+1. **Modular Architecture & Trait Abstraction (`traits.rs`)**:
+   Every language implements the unified `LanguageASTParser` trait:
+   ```rust
+   pub trait LanguageASTParser: Send + Sync {
+       fn parse_chunks(&self, file_path: &str, content: &str, max_chunk_chars: usize) -> Result<Vec<ChunkPayload>, String>;
+   }
+   ```
+2. **Language Parsers & Syntax Tree Mappings**:
+   - **TypeScript & JavaScript (`typescript.rs`)**:
+     - Uses `tree-sitter-typescript` with dual grammar dispatch: `LANGUAGE_TYPESCRIPT` for `.ts`, `.js`, `.mjs`, `.cjs` and `LANGUAGE_TSX` for `.tsx`, `.jsx`.
+     - Deconstructs `function_declaration`, `generator_function_declaration`, `class_declaration`, `interface_declaration`, `type_alias_declaration`, `enum_declaration`, and `lexical_declaration` (e.g. `const MyComponent: React.FC = () => ...`).
+     - Transparently unwraps `export_statement` nodes without detaching the `export` keyword or fragmenting it into a gap chunk.
+   - **Java (`java.rs`)**:
+     - Uses `tree-sitter-java` to parse enterprise Spring Boot, Quarkus, and standard Java codebases (`.java`).
+     - Extracts `class_declaration`, `interface_declaration`, `record_declaration`, and `enum_declaration`.
+     - Traverses `class_body` to extract individual `method_declaration` and `constructor_declaration` nodes.
+     - Preserves `@Override`, `@Service`, `@Autowired`, `@Entity` annotations and Javadoc blocks (`/** ... */`) intact within their respective chunks.
+   - **C# (`csharp.rs`)**:
+     - Uses `tree-sitter-c-sharp` (`=0.23.1`) to parse ASP.NET Core and .NET codebases (`.cs`).
+     - Recursively inspects both `namespace_declaration` (`namespace Foo { ... }`) and modern `file_scoped_namespace_declaration` (`namespace Foo;`).
+     - Extracts `class_declaration`, `struct_declaration`, `record_declaration`, `interface_declaration`, and `enum_declaration`.
+     - Captures `method_declaration`, `constructor_declaration`, and `property_declaration`.
+     - Preserves attributes `[...]` (`[ApiController]`, `[HttpGet]`) and XML documentation comments (`/// <summary>`) bound to the declaration.
+   - **Python (`python.rs`)**:
+     - Uses `tree-sitter-python` for `.py`, `.pyw`, `.pyi`, extracting `function_definition`, `class_definition`, `decorated_definition` (`@decorator`), and docstrings.
+3. **Standardized Context Symbol Breadcrumbs**:
+   - TypeScript: `// Context: UserCard.tsx > const UserCard [lines 10-25]`
+   - Java: `// Context: UserService.java > class UserService > method findById [lines 40-58]`
+   - C#: `// Context: OrdersController.cs > class OrdersController > method GetById [lines 25-38]`
+   - Python: `// Context: invoice.py > class InvoiceService > def create_invoice [lines 38-42]`
 4. **Intelligent Large-Class Splitting**:
-   - If a class fits within `max_chunk_chars`, it is preserved as an atomic chunk.
-   - If a class exceeds `max_chunk_chars`, the class definition, docstring, and class attributes form an "Overview" chunk (`class {Name} (Overview)`), while each internal method is emitted as an independent, well-scoped chunk.
-5. **AST Integrity**:
-   - Inner logic (e.g. `for` loops, `try/except` blocks, `match/case`) is never arbitrarily bisected across chunk boundaries.
+   - For classes/structs exceeding `max_chunk_chars`, the parser emits an Overview chunk containing the class signature, attributes/fields, annotations, and comments (`class {Name} (Overview)`), followed by discrete chunks for each method/constructor/property.
 
 ### 24.5 Strategic Roadmap
 1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3. [DONE]
-2. **Marco 2 (`v0.30.1`+)**: ASTCodeChunker (Tree-sitter) for programming languages (Python pilot in `v0.30.1`; next: TypeScript, Java, C#, Rust, Go, C/C++).
-3. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML.
-4. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
-5. **Marco 5**: PDFLayoutChunker with OCR detection gate.
-6. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
-7. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
+2. **Marco 2.1 (`v0.30.1`)**: ASTCodeChunker (Tree-sitter) Python Pilot. [DONE]
+3. **Marco 2.2 (`v0.30.2`)**: ASTCodeChunker for Enterprise Languages (TypeScript/JavaScript, Java, C#). [DONE]
+4. **Marco 2.3**: ASTCodeChunker for Systems Languages (Go, Rust, C/C++). [NEXT]
+5. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML.
+6. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
+7. **Marco 5**: PDFLayoutChunker with OCR detection gate.
+8. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
+9. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
 
 
 
