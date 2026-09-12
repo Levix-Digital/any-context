@@ -11,6 +11,7 @@ env/
 /session_history/
 /documents/
 /tests/documents/
+/tests/sandbox_repos/
 *.sqlite3
 *.db
 
