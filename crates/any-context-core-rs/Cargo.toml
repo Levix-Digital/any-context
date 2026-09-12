@@ -1,6 +1,6 @@
 [package]
 name = "any-context-core-rs"
-version = "0.30.6"
+version = "0.30.7"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "High-performance Rust core engine for AnyContext (Ingestion Router, AST/Markdown chunkers, and RRF retrieval)"
@@ -14,6 +14,8 @@ pyo3 = { version = "0.22", features = ["extension-module"] }
 pulldown-cmark = { version = "0.11", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.9"
+quick-xml = "0.37"
 tree-sitter = "0.24"
 tree-sitter-python = "0.23"
 tree-sitter-typescript = "0.23.2"

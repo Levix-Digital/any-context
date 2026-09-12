@@ -2541,7 +2541,53 @@ In `v0.30.6`, AnyContext elevates its native Rust code intelligence engine to 14
 4. **LanceDB Content Taxonomy**:
    - Ingested chunks are automatically cataloged with semantic types: `Kotlin Source Code`, `Swift Source Code`, `Ruby Source Code`, `PHP Source Code`, `Lua Source Code`, and `Dart Source Code`.
 
-### 24.8 Strategic Roadmap
+### 24.8 Universal Structured Data Chunker: XML, JSON/JSONL & YAML (`v0.30.7` - Marco 3)
+In `v0.30.7` (Marco 3), AnyContext delivers the native Rust **`StructuredDataChunker`** in `any-context-core-rs`, providing high-speed, structurally intact vectorization for general data interchange and configuration formats:
+
+```mermaid
+graph TD
+    IR["IngestionRouter (Rust)"] --> SDC["StructuredDataChunker"]
+    SDC --> |".xml"| XC["XmlChunker (quick-xml)"]
+    SDC --> |".json, .jsonl, .ndjson"| JC["JsonChunker (serde_json)"]
+    SDC --> |".yaml, .yml"| YC["YamlChunker (serde_yaml)"]
+    XC --> |"Breadcrumbs + Closing Tags"| SOC["splitter::split_oversized_code"]
+    JC --> |"Key-Path / Window Grouping"| SOC
+    YC --> |"Multi-Doc --- + Resource Labels"| SOC
+    SOC --> CP["Vec<ChunkPayload>"]
+```
+
+1. **Strict Global Product Policy**:
+   - AnyContext is an uncompromisingly **Global Product**. The core engine is 100% universal, domain-agnostic, and format-neutral.
+   - It contains strictly **zero country-specific implementations** (no Brazilian tax/fiscal XML models such as NF-e, NFC-e, CT-e, MDF-e, 44-digit access keys, or country-specific tax rules).
+   - All structured files are parsed purely according to their standard syntactic grammar specifications (W3C XML, ECMA-404 JSON, YAML 1.2).
+
+2. **Universal XML Chunker (`xml.rs` via `quick-xml 0.37`)**:
+   - **Streaming Tag Hierarchy Traversal**: Employs an event-driven parser to trace open tags, maintaining an exact breadcrumb stack: `// Context: pom.xml > project > dependencies > dependency`.
+   - **Syntactic Closure Guarantees**: Unlike naive line splitters that fragment opening tags and leave unclosed elements, `XmlChunker` constructs complete, well-formed XML element spans `[start_byte..end_byte]` from `<tag>` to `</tag>`.
+   - **Hierarchical Sibling Grouping**: Small repeating siblings (e.g. `<item>`, `<dependency>`, `<record>`, `<row>`) are greedily accumulated into cohesive chunks up to `max_chunk_chars`, eliminating chunk fragmentation.
+   - **Oversized Leaf Deconstruction & Resilient Fallback**: Giant text/CDATA leaves are routed through `split_oversized_code`. If malformed XML syntax is encountered, the chunker gracefully falls back to line-based splitting with zero panics.
+
+3. **Universal JSON & JSONL Chunker (`json.rs` via `serde_json 1.0`)**:
+   - **Dual Format Processing**: Transparently branches between line-delimited JSON (`.jsonl`, `.ndjson`) and standard `.json`.
+   - **JSON Lines Windowing**: Streams lines into windowed batches with authoritative line-span context headers (`// Context: audit.jsonl > lines 1..25`), splitting individual oversized lines via `split_oversized_code`.
+   - **Array & Object Hierarchical Decomposition**:
+     - *Arrays (`Value::Array`)*: Groups consecutive formatted items into valid JSON array slices (`[\n  item1,\n  item2\n]`) with breadcrumbs: `// Context: data.json > root > items [0..9]`.
+     - *Objects (`Value::Object`)*: Groups sibling key-value pairs into cohesive JSON objects (`{\n  "key1": ...,\n  "key2": ...\n}`) with key list headers (`// Context: package.json > root > {dependencies, devDependencies}`).
+     - Deeply nested oversized objects and arrays recurse one level deeper before falling back to character window boundaries.
+
+4. **Universal YAML Chunker (`yaml.rs` via `serde_yaml 0.9`)**:
+   - **Multi-Document Stream Splitting**: Identifies document delimiters (`---`) across Kubernetes manifests, cloud deployment templates, and multi-service configurations.
+   - **Automated Resource Label Extraction**: Scans document metadata for `kind:` and `name:` fields, generating rich contextual breadcrumbs (e.g. `// Context: cluster.yaml > Deployment: api-server` and `// Context: cluster.yaml > Service: api-gateway`).
+   - **Mapping and Sequence Chunking**: Deconstructs mapping keys and sequence items into formatted YAML blocks while preserving hierarchy and indentation.
+
+5. **LanceDB Content Taxonomy & Router Integration**:
+   - Ingested chunks are automatically cataloged with explicit semantic types:
+     - XML: `XML Structured Document`
+     - JSON / JSONL: `JSON Structured Data`
+     - YAML: `YAML Configuration`
+   - Registered in `IngestionRouter.supports_file()` and `chunk_text()` in Rust and Python.
+
+### 24.9 Strategic Roadmap
 1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3. [DONE]
 2. **Marco 2.1 (`v0.30.1`)**: ASTCodeChunker (Tree-sitter) Python Pilot. [DONE]
 3. **Marco 2.2 (`v0.30.2`)**: ASTCodeChunker for Enterprise Languages (TypeScript/JavaScript, Java, C#). [DONE]
@@ -2549,7 +2595,7 @@ In `v0.30.6`, AnyContext elevates its native Rust code intelligence engine to 14
 5. **v0.30.4**: Ingestion Shield (3-Tier Hierarchical AST Splitter + Dynamic Token Limits). [DONE]
 6. **v0.30.5**: Universal API Schemas, Cloud/IaC & Project Manifests Ingestion. [DONE]
 7. **v0.30.6**: ASTCodeChunker for Scripting & Mobile Languages (Kotlin, Swift, Ruby, PHP, Lua, Dart). [DONE]
-8. **Marco 3**: Universal StructuredDataChunker in Rust for XML, JSON, and YAML with hierarchical path breadcrumbs (Global-first architecture: zero country-specific implementations).
+8. **Marco 3 (`v0.30.7`)**: Universal StructuredDataChunker in Rust for XML, JSON, and YAML with hierarchical path breadcrumbs (Global-first architecture: zero country-specific implementations). [DONE]
 9. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
 10. **Marco 5**: PDFLayoutChunker with OCR detection gate.
 11. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.

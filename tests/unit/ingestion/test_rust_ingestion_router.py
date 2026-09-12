@@ -39,6 +39,12 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(self.router.supports_file("view.phtml"))
         self.assertTrue(self.router.supports_file("init.lua"))
         self.assertTrue(self.router.supports_file("main.dart"))
+        self.assertTrue(self.router.supports_file("pom.xml"))
+        self.assertTrue(self.router.supports_file("package.json"))
+        self.assertTrue(self.router.supports_file("events.jsonl"))
+        self.assertTrue(self.router.supports_file("records.ndjson"))
+        self.assertTrue(self.router.supports_file("docker-compose.yml"))
+        self.assertTrue(self.router.supports_file("manifest.yaml"))
         self.assertFalse(self.router.supports_file("report.pdf"))
         self.assertFalse(self.router.supports_file("data.xlsx"))
 
@@ -386,6 +392,91 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertGreaterEqual(len(chunks), 1)
         self.assertTrue(any("class AppWidget" in c["text"] for c in chunks))
         self.assertEqual(chunks[-1]["content_type"], "dart")
+
+    def test_xml_chunking(self):
+        xml = (
+            "<project>\n"
+            "  <modelVersion>4.0.0</modelVersion>\n"
+            "  <groupId>com.example</groupId>\n"
+            "  <artifactId>demo-app</artifactId>\n"
+            "  <version>1.0.0</version>\n"
+            "  <dependencies>\n"
+            "    <dependency>\n"
+            "      <groupId>org.slf4j</groupId>\n"
+            "      <artifactId>slf4j-api</artifactId>\n"
+            "      <version>2.0.0</version>\n"
+            "    </dependency>\n"
+            "  </dependencies>\n"
+            "</project>\n"
+        )
+        chunks = self.router.chunk_text("pom.xml", xml)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("pom.xml > project" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "xml")
+
+    def test_json_chunking(self):
+        json_str = (
+            "{\n"
+            "  \"name\": \"any-context\",\n"
+            "  \"version\": \"0.30.7\",\n"
+            "  \"description\": \"Universal Context Engine\",\n"
+            "  \"author\": \"Levix Digital\"\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("package.json", json_str)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("package.json > root" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "json")
+
+    def test_jsonl_chunking(self):
+        jsonl_str = (
+            "{\"id\": 1, \"event\": \"login\", \"user\": \"alice\"}\n"
+            "{\"id\": 2, \"event\": \"purchase\", \"amount\": 99.5}\n"
+            "{\"id\": 3, \"event\": \"logout\", \"user\": \"alice\"}\n"
+        )
+        chunks = self.router.chunk_text("audit.jsonl", jsonl_str)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("audit.jsonl > lines" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "json")
+
+    def test_yaml_chunking(self):
+        yaml_str = (
+            "version: '3.8'\n"
+            "services:\n"
+            "  postgres:\n"
+            "    image: postgres:15-alpine\n"
+            "    ports:\n"
+            "      - '5432:5432'\n"
+            "    environment:\n"
+            "      POSTGRES_DB: appdb\n"
+        )
+        chunks = self.router.chunk_text("docker-compose.yml", yaml_str)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("docker-compose.yml" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "yaml")
+
+    def test_yaml_multidoc_chunking(self):
+        yaml_str = (
+            "apiVersion: v1\n"
+            "kind: ConfigMap\n"
+            "metadata:\n"
+            "  name: app-config\n"
+            "data:\n"
+            "  APP_ENV: production\n"
+            "---\n"
+            "apiVersion: apps/v1\n"
+            "kind: Deployment\n"
+            "metadata:\n"
+            "  name: api-server\n"
+            "spec:\n"
+            "  replicas: 2\n"
+        )
+        chunks = self.router.chunk_text("k8s-manifest.yaml", yaml_str)
+        self.assertEqual(len(chunks), 2)
+        self.assertTrue(any("ConfigMap: app-config" in c["text"] for c in chunks))
+        self.assertTrue(any("Deployment: api-server" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "yaml")
+        self.assertEqual(chunks[1]["content_type"], "yaml")
 
 
 if __name__ == "__main__":

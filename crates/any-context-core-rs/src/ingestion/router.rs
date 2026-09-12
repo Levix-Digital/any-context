@@ -2,6 +2,7 @@ use std::path::Path;
 use pyo3::prelude::*;
 use crate::ingestion::chunkers::code::ASTCodeChunker;
 use crate::ingestion::chunkers::markdown::MarkdownHeaderChunker;
+use crate::ingestion::chunkers::structured::StructuredDataChunker;
 use crate::ingestion::traits::Chunker;
 use crate::models::ChunkPayload;
 
@@ -10,6 +11,7 @@ use crate::models::ChunkPayload;
 pub struct IngestionRouter {
     pub markdown_chunker: MarkdownHeaderChunker,
     pub code_chunker: ASTCodeChunker,
+    pub structured_chunker: StructuredDataChunker,
 }
 
 #[pymethods]
@@ -20,6 +22,7 @@ impl IngestionRouter {
         Self {
             markdown_chunker: MarkdownHeaderChunker::new(max_chunk_chars, overlap_chars),
             code_chunker: ASTCodeChunker::new(max_chunk_chars),
+            structured_chunker: StructuredDataChunker::new(max_chunk_chars),
         }
     }
 
@@ -27,7 +30,9 @@ impl IngestionRouter {
     pub fn supports_file(&self, file_path: &str) -> bool {
         let p = Path::new(file_path);
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-        matches!(ext.as_str(), "md" | "markdown" | "rst" | "mdown") || self.code_chunker.supports_extension(&ext)
+        matches!(ext.as_str(), "md" | "markdown" | "rst" | "mdown")
+            || self.code_chunker.supports_extension(&ext)
+            || self.structured_chunker.supports_extension(&ext)
     }
 
     /// Chunks document content using the specialized parser matching the file extension.
@@ -41,6 +46,10 @@ impl IngestionRouter {
         } else if self.code_chunker.supports_extension(&ext) {
             self.code_chunker.chunk(file_path, content).map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!("Code AST chunker error: {}", e))
+            })
+        } else if self.structured_chunker.supports_extension(&ext) {
+            self.structured_chunker.chunk(file_path, content).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Structured data chunker error: {}", e))
             })
         } else {
             Ok(Vec::new())
@@ -90,6 +99,12 @@ mod tests {
         assert!(router.supports_file("template.phtml"));
         assert!(router.supports_file("init.lua"));
         assert!(router.supports_file("main.dart"));
+        assert!(router.supports_file("pom.xml"));
+        assert!(router.supports_file("package.json"));
+        assert!(router.supports_file("events.jsonl"));
+        assert!(router.supports_file("records.ndjson"));
+        assert!(router.supports_file("docker-compose.yml"));
+        assert!(router.supports_file("manifest.yaml"));
         assert!(!router.supports_file("report.pdf"));
         assert!(!router.supports_file("data.xlsx"));
     }
@@ -233,5 +248,49 @@ mod tests {
         let chunks = router.chunk_text("main.dart", code).expect("Chunking failed");
         assert!(!chunks.is_empty());
         assert!(chunks.iter().any(|c| c.text.contains("// Context: main.dart > class MyApp")));
+    }
+
+    #[test]
+    fn test_router_chunk_xml() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let xml = "<project><modelVersion>4.0.0</modelVersion><groupId>com.mycompany</groupId></project>";
+        let chunks = router.chunk_text("pom.xml", xml).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "xml");
+        assert!(chunks[0].text.contains("// Context: pom.xml > project"));
+    }
+
+    #[test]
+    fn test_router_chunk_json() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let json = r#"{"name": "any-context", "version": "0.30.7", "private": true}"#;
+        let chunks = router.chunk_text("package.json", json).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "json");
+        assert!(chunks[0].text.contains("// Context: package.json > root"));
+    }
+
+    #[test]
+    fn test_router_chunk_jsonl() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let jsonl = "{\"id\": 1, \"event\": \"start\"}\n{\"id\": 2, \"event\": \"stop\"}\n";
+        let chunks = router.chunk_text("logs.jsonl", jsonl).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "json");
+        assert!(chunks[0].text.contains("// Context: logs.jsonl > lines"));
+    }
+
+    #[test]
+    fn test_router_chunk_yaml() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let yaml = "version: '3.8'\nservices:\n  redis:\n    image: redis:alpine\n";
+        let chunks = router.chunk_text("docker-compose.yml", yaml).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "yaml");
+        assert!(chunks[0].text.contains("// Context: docker-compose.yml"));
     }
 }
