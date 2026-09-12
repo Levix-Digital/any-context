@@ -24,6 +24,63 @@ def safe_stdout_write(msg: str):
         except Exception:
             pass
 
+
+MODEL_MAX_EMBEDDING_TOKENS: Dict[str, int] = {
+    # OpenAI
+    "text-embedding-3-small": 8191,
+    "text-embedding-3-large": 8191,
+    "text-embedding-ada-002": 8191,
+    # Google / Vertex
+    "text-embedding-004": 2048,
+    # Nomic / Ollama
+    "nomic-embed-text": 2048,
+    # HuggingFace / MiniLM / BGE
+    "all-minilm-l6-v2": 512,
+    "bge-small-en-v1.5": 512,
+    "bge-base-en-v1.5": 512,
+    # Default fallback
+    "default": 2048
+}
+
+
+def get_embedding_token_limit(model_name: Optional[str] = None, settings: Optional[AppSettings] = None) -> int:
+    """
+    Returns the maximum allowable token limit for document chunks sent to the active embedding model.
+    Prioritizes:
+    1. Explicit override in AppSettings.models.max_embed_tokens
+    2. Model's native context_window property on Settings.embed_model
+    3. MODEL_MAX_EMBEDDING_TOKENS dictionary by model name
+    4. Safe default (2048 tokens)
+    """
+    if settings is None:
+        try:
+            settings = AppSettings.load()
+        except Exception:
+            pass
+
+    if settings and settings.models and settings.models.max_embed_tokens:
+        return settings.models.max_embed_tokens
+
+    m_name = (model_name or (settings.models.embedding_model if settings and settings.models else "")).lower().strip()
+
+    try:
+        from llama_index.core import Settings
+        active_model = getattr(Settings, "_embed_model", None)
+        if active_model is not None:
+            for attr in ["context_window", "max_length"]:
+                val = getattr(active_model, attr, None)
+                if isinstance(val, int) and val > 0:
+                    return val
+    except Exception:
+        pass
+
+    for key, limit in MODEL_MAX_EMBEDDING_TOKENS.items():
+        if key in m_name:
+            return limit
+
+    return MODEL_MAX_EMBEDDING_TOKENS["default"]
+
+
 def configure_embedding_model():
     import logging
     logging.getLogger("httpx").setLevel(logging.WARNING)

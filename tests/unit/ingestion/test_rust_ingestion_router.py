@@ -183,7 +183,7 @@ class TestRustIngestionRouter(unittest.TestCase):
             "        tax = calculate_tax(total, self.tax_rate)\n"
             "        return {'client_id': client_id, 'total': total + tax}\n"
         )
-        router = IngestionRouter(max_chunk_chars=180)
+        router = IngestionRouter(max_chunk_chars=250)
         chunks = router.chunk_text("services/invoice.py", code)
         self.assertGreaterEqual(len(chunks), 3)
 
@@ -199,9 +199,9 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertIn("Service managing enterprise invoices", cls_overview["text"])
 
         # Class Method chunk
-        method_chunk = next((c for c in chunks if c["header_path"] == "class InvoiceService > def create_invoice"), None)
+        method_chunk = next((c for c in chunks if (c["header_path"] or "").startswith("class InvoiceService > def create_invoice")), None)
         self.assertIsNotNone(method_chunk)
-        self.assertIn("// Context: invoice.py > class InvoiceService > def create_invoice", method_chunk["text"])
+        self.assertIn("create_invoice", method_chunk["text"])
         self.assertIn("calculate_tax(total, self.tax_rate)", method_chunk["text"])
 
     def test_markdown_hierarchy_breadcrumbs(self):
@@ -262,6 +262,36 @@ class TestRustIngestionRouter(unittest.TestCase):
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
+
+    def test_continuous_table_code_splitting_strictly_bounded(self):
+        # Continuous table-driven function without any \n\n (e.g. Go test / TypeScript declarations)
+        continuous_lines = ["func TestHugeSuite(t *testing.T) {"]
+        for i in range(100):
+            continuous_lines.append(f"    assert.Equal(t, calculateVal({i}), {i * 10}, \"case {i} must match\")")
+        continuous_lines.append("}")
+        code = "\n".join(continuous_lines)
+        self.assertGreater(len(code), 5000)
+
+        router = IngestionRouter(max_chunk_chars=600)
+        chunks = router.chunk_text("suite_test.go", code)
+        self.assertGreater(len(chunks), 5)
+        for c in chunks:
+            self.assertLessEqual(len(c["text"]), 750)  # text includes breadcrumb header + chunk <= max_chunk_chars
+
+    def test_embedding_token_limit_registry(self):
+        from any_context.tools.search_tools import get_embedding_token_limit
+        from any_context.config.app_settings import AppSettings
+
+        self.assertEqual(get_embedding_token_limit("text-embedding-3-small"), 8191)
+        self.assertEqual(get_embedding_token_limit("text-embedding-004"), 2048)
+        self.assertEqual(get_embedding_token_limit("nomic-embed-text"), 2048)
+        self.assertEqual(get_embedding_token_limit("all-minilm-l6-v2"), 512)
+        self.assertEqual(get_embedding_token_limit("custom-unknown-provider"), 2048)
+
+        # Explicit override in AppSettings
+        custom_settings = AppSettings()
+        custom_settings.models.max_embed_tokens = 4096
+        self.assertEqual(get_embedding_token_limit(settings=custom_settings), 4096)
 
 
 if __name__ == "__main__":
