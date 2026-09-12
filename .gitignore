@@ -9,6 +9,7 @@ env/
 /memory/
 /chroma_db/
 /session_history/
+/documents/
 *.sqlite3
 *.db
 

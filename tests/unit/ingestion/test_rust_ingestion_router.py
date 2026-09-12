@@ -16,9 +16,50 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(self.router.supports_file("/docs/architecture.markdown"))
         self.assertTrue(self.router.supports_file("spec.rst"))
         self.assertTrue(self.router.supports_file("guide.mdown"))
-        self.assertFalse(self.router.supports_file("main.py"))
+        self.assertTrue(self.router.supports_file("main.py"))
+        self.assertTrue(self.router.supports_file("src/utils.pyw"))
+        self.assertTrue(self.router.supports_file("stubs.pyi"))
         self.assertFalse(self.router.supports_file("report.pdf"))
         self.assertFalse(self.router.supports_file("data.xlsx"))
+
+    def test_python_ast_functions_and_classes(self):
+        code = (
+            "import os\n"
+            "import sys\n\n"
+            "def calculate_tax(amount: float, rate: float) -> float:\n"
+            "    \"\"\"Calculate total tax for invoice.\"\"\"\n"
+            "    return amount * rate\n\n"
+            "class InvoiceService:\n"
+            "    \"\"\"Service managing enterprise invoices.\"\"\"\n"
+            "    tax_rate: float = 0.18\n\n"
+            "    @classmethod\n"
+            "    def default_service(cls):\n"
+            "        return cls()\n\n"
+            "    def create_invoice(self, client_id: str, items: list) -> dict:\n"
+            "        total = sum(i['price'] for i in items)\n"
+            "        tax = calculate_tax(total, self.tax_rate)\n"
+            "        return {'client_id': client_id, 'total': total + tax}\n"
+        )
+        router = IngestionRouter(max_chunk_chars=180)
+        chunks = router.chunk_text("services/invoice.py", code)
+        self.assertGreaterEqual(len(chunks), 3)
+
+        # Free function chunk
+        fn_chunk = next((c for c in chunks if c["header_path"] == "def calculate_tax"), None)
+        self.assertIsNotNone(fn_chunk)
+        self.assertIn("// Context: invoice.py > def calculate_tax", fn_chunk["text"])
+        self.assertIn("Calculate total tax for invoice", fn_chunk["text"])
+
+        # Class Overview chunk
+        cls_overview = next((c for c in chunks if "InvoiceService (Overview)" in (c["header_path"] or "")), None)
+        self.assertIsNotNone(cls_overview)
+        self.assertIn("Service managing enterprise invoices", cls_overview["text"])
+
+        # Class Method chunk
+        method_chunk = next((c for c in chunks if c["header_path"] == "class InvoiceService > def create_invoice"), None)
+        self.assertIsNotNone(method_chunk)
+        self.assertIn("// Context: invoice.py > class InvoiceService > def create_invoice", method_chunk["text"])
+        self.assertIn("calculate_tax(total, self.tax_rate)", method_chunk["text"])
 
     def test_markdown_hierarchy_breadcrumbs(self):
         content = (

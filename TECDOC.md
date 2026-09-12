@@ -2406,9 +2406,27 @@ Unlike naive fixed-window sentence splitters that fracture headings, lists, and 
 3. **Fenced Code Block Protection**: Code blocks containing `#` (e.g. Python comments) are isolated as code literals, completely preventing false heading detections.
 4. **Paragraph Boundary Preservation**: When a single section exceeds `max_chunk_chars` (default 1800 chars), splitting occurs strictly along double newlines (`\n\n`), preventing partial words or fractured code.
 
-### 24.4 Strategic Roadmap
-1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3.
-2. **Marco 2**: ASTCodeChunker (Tree-sitter) for programming languages.
+### 24.4 AST-Aware Code Chunking (`ASTCodeChunker` & `tree-sitter`) (`v0.30.1`)
+In `v0.30.1`, `IngestionRouter` introduces the `ASTCodeChunker` utilizing `tree-sitter` for syntactic code-level chunking, starting with the Python pilot (`tree-sitter-python`):
+1. **Concrete Syntax Tree Traversal**:
+   - `function_definition`: Free functions and methods.
+   - `class_definition`: Classes, inheritance hierarchies, and class bodies.
+   - `decorated_definition`: Captures all decorators (`@property`, `@staticmethod`, `@classmethod`, `@app.get`) spanning to the end of the decorated function or class.
+2. **Context Symbol Breadcrumbs**:
+   - Every chunk is stamped with authoritative symbol breadcrumbs:
+     `// Context: {file_name} > class {ClassName} > def {method_name} [lines {start}-{end}]`
+     `header_path`: `class {ClassName} > def {method_name}`
+3. **Docstring & Signature Preservation**:
+   - Docstrings (`"""..."""`) and immediate doc comments are kept strictly bound to the function/class header, providing maximum semantic grounding to LLMs.
+4. **Intelligent Large-Class Splitting**:
+   - If a class fits within `max_chunk_chars`, it is preserved as an atomic chunk.
+   - If a class exceeds `max_chunk_chars`, the class definition, docstring, and class attributes form an "Overview" chunk (`class {Name} (Overview)`), while each internal method is emitted as an independent, well-scoped chunk.
+5. **AST Integrity**:
+   - Inner logic (e.g. `for` loops, `try/except` blocks, `match/case`) is never arbitrarily bisected across chunk boundaries.
+
+### 24.5 Strategic Roadmap
+1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3. [DONE]
+2. **Marco 2 (`v0.30.1`+)**: ASTCodeChunker (Tree-sitter) for programming languages (Python pilot in `v0.30.1`; next: TypeScript, Java, C#, Rust, Go, C/C++).
 3. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML.
 4. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
 5. **Marco 5**: PDFLayoutChunker with OCR detection gate.

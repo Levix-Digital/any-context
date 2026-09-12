@@ -126,6 +126,14 @@ class ParallelIndexer:
             if router.supports_file(fp):
                 rust_chunks = router.chunk_text(fp, doc.text)
                 for rc in rust_chunks:
+                    ct = rc.get("content_type")
+                    if ct == "python" or fp.lower().endswith((".py", ".pyw", ".pyi")):
+                        content_type_str = "Python Source Code"
+                    elif ct == "markdown" or fp.lower().endswith((".md", ".markdown", ".rst", ".mdown")):
+                        content_type_str = "Markdown Document"
+                    else:
+                        content_type_str = doc.metadata.get("content_type", "Document")
+
                     raw_chunks.append({
                         "id": f"{node_ws}_{hashlib.sha256(rc['text'].encode('utf-8')).hexdigest()[:20]}",
                         "text": rc["text"],
@@ -133,7 +141,7 @@ class ParallelIndexer:
                         "file_path": fp,
                         "workspace": node_ws,
                         "last_modified": doc.metadata.get("last_modified_date") or doc.metadata.get("last_modified") or "",
-                        "content_type": "Markdown Document",
+                        "content_type": content_type_str,
                         "document_summary": doc.metadata.get("document_summary", ""),
                         "keywords": doc.metadata.get("keywords", ""),
                         "content_hash": hashlib.sha256(rc["text"].encode("utf-8")).hexdigest()
