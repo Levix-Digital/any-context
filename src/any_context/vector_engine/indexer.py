@@ -159,6 +159,12 @@ class ParallelIndexer:
                         content_type_str = "Dart Source Code"
                     elif ct == "markdown" or fp.lower().endswith((".md", ".markdown", ".rst", ".mdown")):
                         content_type_str = "Markdown Document"
+                    elif ct == "xml" or fp.lower().endswith(".xml"):
+                        content_type_str = "XML Structured Document"
+                    elif ct in ("json", "jsonl") or fp.lower().endswith((".json", ".jsonl", ".ndjson")):
+                        content_type_str = "JSON Structured Data"
+                    elif ct in ("yaml", "yml") or fp.lower().endswith((".yaml", ".yml")):
+                        content_type_str = "YAML Configuration"
                     else:
                         content_type_str = doc.metadata.get("content_type", "Document")
 

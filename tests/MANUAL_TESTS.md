@@ -7,7 +7,45 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.6 Scripting & Mobile AST Ecosystems): Ingestão, AST Chunking e Breadcrumbs para Kotlin, Swift, Ruby, PHP, Lua e Dart
+### 📌 Cenário 1 (v0.30.7 Universal Structured Data Chunker): Ingestão, Parsing Estruturado e Breadcrumbs Hierárquicos para XML, JSON, JSONL e YAML
+
+- **Objetivo**: Comprovar que na versão `v0.30.7`:
+  1. O motor nativo em Rust (`any-context-core-rs`) integra o novo `StructuredDataChunker` universal, acelerando nativamente o parsing de **XML** (`.xml`), **JSON** (`.json`), **JSON Lines** (`.jsonl`, `.ndjson`) e **YAML** (`.yaml`, `.yml`).
+  2. **XML Universal**: O parser identifica tags pai-filho, preserva o fechamento sintático dos nós XML e gera breadcrumbs hierárquicos precisos (`// Context: <arquivo>.xml > root > parent > item`). Elementos gigantescos são quebrados graciosamente via `split_oversized_code`, e arquivos malformados contam com fallback resiliente sem pânico.
+  3. **JSON Estruturado & JSONL**: O parser JSON decompõe arrays em fatias e objetos em agrupamentos de chaves com formatação legível para embeddings (`// Context: <arquivo>.json > root > {key1, key2}`). Arquivos `.jsonl` agrupam registros por janela de linhas (`// Context: <arquivo>.jsonl > lines X..Y`).
+  4. **YAML Multi-Documento**: O parser YAML detecta delimitadores `---`, extrai rótulos de recursos (ex: `Deployment: api`, `Service: web`), agrupa mapeamentos e sequências e emite chunks semânticos autocontidos.
+  5. **Política Estrita de Produto Global**: O motor é 100% agnóstico e universal, sem nenhuma regra, heurística ou formatação específica de país (zero XML fiscal brasileiro).
+  6. O indexador (`indexer.py`) cataloga os chunks com seus respectivos `content_type`s semânticos: `XML Structured Document`, `JSON Structured Data` e `YAML Configuration`.
+- **Pré-requisito**: Versão `v0.30.7` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Teste Rápido de Parsing Estruturado Nativo via CLI/Python:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "import json; from any_context.ingestion.router import IngestionRouter; r = IngestionRouter(); tests = [('pom.xml', '<project><name>Demo</name></project>'), ('config.json', json.dumps({'app': 'AnyContext'})), ('events.jsonl', json.dumps({'id': 1}) + '\n' + json.dumps({'id': 2})), ('k8s.yaml', 'apiVersion: v1\nkind: Service\nmetadata:\n  name: web-svc\n---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web-dep\n')]; [print(fn, '->', len(r.chunk_text(fn, c)), 'chunks | type:', r.chunk_text(fn, c)[0].get('content_type'), '| header:', r.chunk_text(fn, c)[0].get('header_path')) for fn, c in tests]"
+     ```
+   - **Critério de Aceitação:** Todas as 4 estruturas retornam chunks estruturados nativos:
+     - `pom.xml` -> tipo `xml` com header `pom.xml > project`.
+     - `config.json` -> tipo `json` com header `config.json > root`.
+     - `events.jsonl` -> tipo `json` com header `events.jsonl > lines 1..2`.
+     - `k8s.yaml` -> 2 chunks tipo `yaml` com headers `k8s.yaml > doc 1 (Service: web-svc)` e `k8s.yaml > doc 2 (Deployment: web-dep)`.
+
+2. **🏛️ Validação de Suporte e Extensões no Router:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "from any_context.ingestion.router import IngestionRouter; r = IngestionRouter(); exts = ['data.xml', 'app.json', 'audit.jsonl', 'stream.ndjson', 'docker-compose.yml', 'manifest.yaml']; missing = [f for f in exts if not r.supports_file(f)]; assert not missing, f'Nao suportadas: {missing}'; print('✅ Todas as extensões estruturadas (.xml, .json, .jsonl, .ndjson, .yaml, .yml) são suportadas pelo IngestionRouter nativo')"
+     ```
+   - **Critério de Aceitação:** Imprime `✅ Todas as extensões estruturadas (.xml, .json, .jsonl, .ndjson, .yaml, .yml) são suportadas pelo IngestionRouter nativo`.
+
+3. **💬 Validação de Consulta no Chat com Citação de Arquivo Estruturado:**
+   - Abra o AnyContext (`actx`), adicione uma pasta contendo arquivos XML, JSON ou YAML (ex: `tests/sandbox_repos/microservices-demo`) e sincronize via `/sync`.
+   - Pergunte sobre as dependências declaradas em um arquivo XML ou sobre os serviços configurados em um YAML/JSON.
+   - **Critério de Aceitação:** O AnyContext responde exibindo o breadcrumb hierárquico preciso (ex: `// Context: ... > project > dependencies` ou `// Context: ... > Deployment: ...`).
+
+---
+
+### 📌 Cenário 2 (v0.30.6 Scripting & Mobile AST Ecosystems): Ingestão, AST Chunking e Breadcrumbs para Kotlin, Swift, Ruby, PHP, Lua e Dart
 
 - **Objetivo**: Comprovar que na versão `v0.30.6`:
   1. O motor nativo em Rust (`any-context-core-rs`) integra gramáticas tree-sitter dedicadas para 6 linguagens de Scripting e Mobile: **Kotlin** (`.kt`, `.kts`), **Swift** (`.swift`), **Ruby** (`.rb`), **PHP** (`.php`, `.phtml`), **Lua** (`.lua`) e **Dart** (`.dart`).
