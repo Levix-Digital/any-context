@@ -45,6 +45,7 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(self.router.supports_file("records.ndjson"))
         self.assertTrue(self.router.supports_file("docker-compose.yml"))
         self.assertTrue(self.router.supports_file("manifest.yaml"))
+        self.assertTrue(self.router.supports_file("Cargo.toml"))
         self.assertFalse(self.router.supports_file("report.pdf"))
         self.assertFalse(self.router.supports_file("data.xlsx"))
 
@@ -477,6 +478,27 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(any("Deployment: api-server" in c["text"] for c in chunks))
         self.assertEqual(chunks[0]["content_type"], "yaml")
         self.assertEqual(chunks[1]["content_type"], "yaml")
+
+    def test_toml_chunking(self):
+        toml_str = (
+            "[package]\n"
+            "name = \"any-context\"\n"
+            "version = \"0.30.8\"\n\n"
+            "[dependencies]\n"
+            "quick-xml = \"0.37\"\n"
+            "serde_json = \"1.0\"\n"
+            "toml = \"0.8\"\n\n"
+            "[[bin]]\n"
+            "name = \"actx\"\n"
+            "path = \"src/main.rs\"\n"
+        )
+        router = IngestionRouter(max_chunk_chars=80)
+        chunks = router.chunk_text("Cargo.toml", toml_str)
+        self.assertGreaterEqual(len(chunks), 2)
+        self.assertTrue(any("[package]" in c["text"] for c in chunks))
+        self.assertTrue(any("[dependencies]" in c["text"] for c in chunks))
+        self.assertTrue(any("[[bin]]: actx" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "toml")
 
 
 if __name__ == "__main__":

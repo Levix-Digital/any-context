@@ -7,7 +7,42 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.7 Universal Structured Data Chunker): Ingestão, Parsing Estruturado e Breadcrumbs Hierárquicos para XML, JSON, JSONL e YAML
+### 📌 Cenário 1 (v0.30.8 Universal TOML Chunker): Ingestão, Parsing de Tabelas e Breadcrumbs Hierárquicos para TOML
+
+- **Objetivo**: Comprovar que na versão `v0.30.8`:
+  1. O motor nativo em Rust (`any-context-core-rs`) integra o novo `TomlChunker` no `StructuredDataChunker` universal, acelerando nativamente o parsing e chunking de manifestos e configurações **TOML** (`.toml`), tais como `Cargo.toml`, `pyproject.toml`, `ruff.toml`, etc.
+  2. **Extração de Cabeçalhos e Seções TOML**: O parser identifica tabelas simples (`[package]`), subtabelas (`[tool.ruff.lint]`) e arrays de tabelas (`[[bin]]`), extraindo nomes de recursos quando presentes (ex: `[[bin]]: actx`).
+  3. **Agrupamento Semântico e Breadcrumbs Precisos**: Seções pequenas permanecem coesas, enquanto tabelas volumosas de dependências/chaves são agrupadas de forma gulosa respeitando `max_chunk_chars`, gerando breadcrumbs ricos (`// Context: <arquivo>.toml > [section]`).
+  4. **Resiliência e Fallback sem Pânico**: Documentos TOML inválidos, incompletos ou contendo sintaxe templated/interpolada utilizam fallback resiliente via `split_oversized_code`, sem nunca entrar em pânico.
+  5. **Indexação LanceDB**: O indexador (`indexer.py`) cataloga os chunks TOML com o `content_type` semântico `TOML Configuration`.
+- **Pré-requisito**: Versão `v0.30.8` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Teste Rápido de Parsing de TOML Nativo via CLI/Python:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "from any_context.ingestion.router import IngestionRouter; r = IngestionRouter(max_chunk_chars=80); toml_code = '[package]\nname = \'any-context\'\nversion = \'0.30.8\'\n\n[dependencies]\ntoml = \'0.8\'\nserde = \'1.0\'\n'; chunks = r.chunk_text('Cargo.toml', toml_code); print('Chunks gerados:', len(chunks)); [print('  -', c['header_path'], '|', c['content_type']) for c in chunks]"
+     ```
+   - **Critério de Aceitação:** Retorna 2 chunks identificando as seções:
+     - `Cargo.toml > [package]` | `toml`
+     - `Cargo.toml > [dependencies]` | `toml`
+
+2. **🏛️ Validação de Suporte no IngestionRouter e LocalFolderIngestor:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "from any_context.ingestion.router import IngestionRouter; from any_context.ingestion.local_folder_ingestor import SUPPORTED_EXTENSIONS; r = IngestionRouter(); assert r.supports_file('Cargo.toml'), 'TOML não suportado no router'; assert '.toml' in SUPPORTED_EXTENSIONS, '.toml não está no SUPPORTED_EXTENSIONS'; print('✅ Arquivos .toml são 100% suportados no IngestionRouter nativo e no SUPPORTED_EXTENSIONS')"
+     ```
+   - **Critério de Aceitação:** Imprime `✅ Arquivos .toml são 100% suportados no IngestionRouter nativo e no SUPPORTED_EXTENSIONS`.
+
+3. **💬 Validação de Consulta no Chat com Citação de Seção TOML:**
+   - Abra o AnyContext (`actx`), adicione uma pasta contendo `Cargo.toml` ou `pyproject.toml` e sincronize via `/sync`.
+   - Pergunte sobre as dependências declaradas no arquivo TOML.
+   - **Critério de Aceitação:** O AnyContext responde exibindo o breadcrumb hierárquico preciso (ex: `// Context: Cargo.toml > [dependencies]`).
+
+---
+
+### 📌 Cenário 2 (v0.30.7 Universal Structured Data Chunker): Ingestão, Parsing Estruturado e Breadcrumbs Hierárquicos para XML, JSON, JSONL e YAML
 
 - **Objetivo**: Comprovar que na versão `v0.30.7`:
   1. O motor nativo em Rust (`any-context-core-rs`) integra o novo `StructuredDataChunker` universal, acelerando nativamente o parsing de **XML** (`.xml`), **JSON** (`.json`), **JSON Lines** (`.jsonl`, `.ndjson`) e **YAML** (`.yaml`, `.yml`).

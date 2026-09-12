@@ -2541,8 +2541,8 @@ In `v0.30.6`, AnyContext elevates its native Rust code intelligence engine to 14
 4. **LanceDB Content Taxonomy**:
    - Ingested chunks are automatically cataloged with semantic types: `Kotlin Source Code`, `Swift Source Code`, `Ruby Source Code`, `PHP Source Code`, `Lua Source Code`, and `Dart Source Code`.
 
-### 24.8 Universal Structured Data Chunker: XML, JSON/JSONL & YAML (`v0.30.7` - Marco 3)
-In `v0.30.7` (Marco 3), AnyContext delivers the native Rust **`StructuredDataChunker`** in `any-context-core-rs`, providing high-speed, structurally intact vectorization for general data interchange and configuration formats:
+### 24.8 Universal Structured Data Chunker: XML, JSON/JSONL, YAML & TOML (`v0.30.8` - Marco 3)
+In `v0.30.7` and `v0.30.8` (Marco 3), AnyContext delivers the native Rust **`StructuredDataChunker`** in `any-context-core-rs`, providing high-speed, structurally intact vectorization for general data interchange and configuration formats:
 
 ```mermaid
 graph TD
@@ -2550,16 +2550,18 @@ graph TD
     SDC --> |".xml"| XC["XmlChunker (quick-xml)"]
     SDC --> |".json, .jsonl, .ndjson"| JC["JsonChunker (serde_json)"]
     SDC --> |".yaml, .yml"| YC["YamlChunker (serde_yaml)"]
+    SDC --> |".toml"| TC["TomlChunker (toml)"]
     XC --> |"Breadcrumbs + Closing Tags"| SOC["splitter::split_oversized_code"]
     JC --> |"Key-Path / Window Grouping"| SOC
     YC --> |"Multi-Doc --- + Resource Labels"| SOC
+    TC --> |"Table Scope + Greedy KV Groups"| SOC
     SOC --> CP["Vec<ChunkPayload>"]
 ```
 
 1. **Strict Global Product Policy**:
    - AnyContext is an uncompromisingly **Global Product**. The core engine is 100% universal, domain-agnostic, and format-neutral.
    - It contains strictly **zero country-specific implementations** (no Brazilian tax/fiscal XML models such as NF-e, NFC-e, CT-e, MDF-e, 44-digit access keys, or country-specific tax rules).
-   - All structured files are parsed purely according to their standard syntactic grammar specifications (W3C XML, ECMA-404 JSON, YAML 1.2).
+   - All structured files are parsed purely according to their standard syntactic grammar specifications (W3C XML, ECMA-404 JSON, YAML 1.2, TOML v1.0).
 
 2. **Universal XML Chunker (`xml.rs` via `quick-xml 0.37`)**:
    - **Streaming Tag Hierarchy Traversal**: Employs an event-driven parser to trace open tags, maintaining an exact breadcrumb stack: `// Context: pom.xml > project > dependencies > dependency`.
@@ -2580,11 +2582,17 @@ graph TD
    - **Automated Resource Label Extraction**: Scans document metadata for `kind:` and `name:` fields, generating rich contextual breadcrumbs (e.g. `// Context: cluster.yaml > Deployment: api-server` and `// Context: cluster.yaml > Service: api-gateway`).
    - **Mapping and Sequence Chunking**: Deconstructs mapping keys and sequence items into formatted YAML blocks while preserving hierarchy and indentation.
 
-5. **LanceDB Content Taxonomy & Router Integration**:
+5. **Universal TOML Chunker (`toml.rs` via `toml 0.8`)**:
+   - **Table and Array-of-Tables Identification**: Parses standard TOML tables (`[section]`, `[nested.table]`) and arrays of tables (`[[array]]`), capturing resource names (e.g. `[[bin]]: actx`).
+   - **Greedy Key-Value Pair Grouping**: For large sections with numerous key-value entries (such as `[dependencies]` or `[project.optional-dependencies]`), groups items greedily up to `max_chunk_chars`, injecting table headers into each chunk slice (`// Context: Cargo.toml > [dependencies]`).
+   - **Resilient Fallback**: Malformed or template-interpolated TOML documents gracefully fall back to line/delimiter splitting via `split_oversized_code` without panic.
+
+6. **LanceDB Content Taxonomy & Router Integration**:
    - Ingested chunks are automatically cataloged with explicit semantic types:
      - XML: `XML Structured Document`
      - JSON / JSONL: `JSON Structured Data`
      - YAML: `YAML Configuration`
+     - TOML: `TOML Configuration`
    - Registered in `IngestionRouter.supports_file()` and `chunk_text()` in Rust and Python.
 
 ### 24.9 Strategic Roadmap
@@ -2595,7 +2603,7 @@ graph TD
 5. **v0.30.4**: Ingestion Shield (3-Tier Hierarchical AST Splitter + Dynamic Token Limits). [DONE]
 6. **v0.30.5**: Universal API Schemas, Cloud/IaC & Project Manifests Ingestion. [DONE]
 7. **v0.30.6**: ASTCodeChunker for Scripting & Mobile Languages (Kotlin, Swift, Ruby, PHP, Lua, Dart). [DONE]
-8. **Marco 3 (`v0.30.7`)**: Universal StructuredDataChunker in Rust for XML, JSON, and YAML with hierarchical path breadcrumbs (Global-first architecture: zero country-specific implementations). [DONE]
+8. **Marco 3 (`v0.30.7` / `v0.30.8`)**: Universal StructuredDataChunker in Rust for XML, JSON, YAML, and TOML with hierarchical path breadcrumbs (Global-first architecture: zero country-specific implementations). [DONE]
 9. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
 10. **Marco 5**: PDFLayoutChunker with OCR detection gate.
 11. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
