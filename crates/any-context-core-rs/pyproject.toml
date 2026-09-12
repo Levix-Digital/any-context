@@ -4,5 +4,5 @@ build-backend = "maturin"
 
 [project]
 name = "any_context_core_rs"
-version = "0.30.4"
+version = "0.30.5"
 requires-python = ">=3.10"
