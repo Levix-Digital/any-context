@@ -300,6 +300,67 @@ if (Test-Path "$env:USERPROFILE\.bun\bin\bun.exe") {
     }
 }
 
+# 6. Check/Ensure Native Tesseract OCR is available for Smart Cascade (Marco 5)
+$TessInstalled = (Get-Command tesseract -ErrorAction SilentlyContinue) -ne $null `
+    -or (Test-Path "C:\Program Files\Tesseract-OCR\tesseract.exe") `
+    -or (Test-Path "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe") `
+    -or (Test-Path "$InstallDir\tesseract\tesseract.exe")
+
+if (-not $TessInstalled) {
+    Write-Host "[*] Tesseract OCR not detected. Transparently provisioning native OCR engine..." -ForegroundColor Yellow
+    Log-Install "Tesseract OCR not detected. Attempting transparent installation."
+    $TessSuccess = $false
+    $TessTargetDir = Join-Path $InstallDir "tesseract"
+    $TessDataDir = Join-Path $TessTargetDir "tessdata"
+
+    # Strategy 1: Transparent Portable Zero-Elevation Download (takes ~2 seconds, zero UAC)
+    try {
+        if (-not (Test-Path $TessDataDir)) {
+            New-Item -ItemType Directory -Path $TessDataDir -Force | Out-Null
+        }
+        $tessExePath = Join-Path $TessTargetDir "tesseract.exe"
+        $engDataPath = Join-Path $TessDataDir "eng.traineddata"
+        $porDataPath = Join-Path $TessDataDir "por.traineddata"
+
+        if (-not (Test-Path $tessExePath)) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/zstrathe/tesseract_portable_windows/main/tesseract.exe" -OutFile $tessExePath -UseBasicParsing
+        }
+        if (-not (Test-Path $engDataPath)) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/zstrathe/tesseract_portable_windows/main/tessdata/eng.traineddata" -OutFile $engDataPath -UseBasicParsing
+        }
+        if (-not (Test-Path $porDataPath)) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/por.traineddata" -OutFile $porDataPath -UseBasicParsing
+        }
+
+        if (Test-Path $tessExePath) {
+            $TessSuccess = $true
+            Write-Host "[OK] Portable Native Tesseract OCR provisioned successfully!" -ForegroundColor Green
+            Log-Install "Portable Tesseract OCR provisioned in $tessExePath"
+        }
+    } catch {}
+
+    # Strategy 2: Fallback to winget if portable download failed
+    if (-not $TessSuccess -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+        try {
+            Write-Host "[*] Installing Tesseract OCR via Windows Package Manager (winget)..." -ForegroundColor Gray
+            & winget install --id UB-Mannheim.TesseractOCR --silent --accept-package-agreements --accept-source-agreements --force | Out-Null
+            if ((Test-Path "C:\Program Files\Tesseract-OCR\tesseract.exe") -or (Get-Command tesseract -ErrorAction SilentlyContinue)) {
+                $TessSuccess = $true
+                Write-Host "[OK] Native Tesseract OCR engine installed successfully via winget!" -ForegroundColor Green
+                Log-Install "Tesseract OCR successfully installed via winget"
+            }
+        } catch {}
+    }
+
+    if (-not $TessSuccess) {
+        Write-Host "[!] Note: Tesseract OCR auto-provisioning deferred. You can install it anytime with '/ocr install' inside AnyContext." -ForegroundColor Gray
+        Log-Install "Tesseract OCR installation deferred to /ocr install"
+    }
+} else {
+    Write-Host "[OK] Native Tesseract OCR engine detected." -ForegroundColor Gray
+    Log-Install "Tesseract OCR already detected on system."
+}
+
 Write-Host "`n=======================================================" -ForegroundColor Cyan
 Write-Host "AnyContext (actx) installed successfully!" -ForegroundColor Green
 Write-Host "Open a new terminal window and type: actx" -ForegroundColor White

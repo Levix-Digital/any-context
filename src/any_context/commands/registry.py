@@ -276,8 +276,8 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
     ),
     CommandMeta(
         name="/ocr",
-        args="[status|<path>]",
-        description="Check native OCR engine status or run OCR on a document",
+        args="[status|install|<path>]",
+        description="Check status, auto-provision, or run native OCR on a document",
         category="Sources",
         direct_execution=True,
         aliases=["/scan"]

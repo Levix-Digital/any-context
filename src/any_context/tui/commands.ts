@@ -40,7 +40,7 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommandMeta[] = [
   { command: "/diagnostics", args: "", description: "Inspect system health, Bun runtime, database, and latency metrics", category: "System", direct_execution: true, aliases: ["/diag", "/perf", "/health"] },
   { command: "/onboarding", args: "", description: "Launch first-time AI onboarding and API key setup wizard", category: "System", direct_execution: true, aliases: ["/setup"] },
   { command: "/vision", args: "[on|off|status]", description: "Toggle or check Vision LLM multimodal description for visual diagrams", category: "AI Grounding", direct_execution: true, aliases: ["/vis"] },
-  { command: "/ocr", args: "[status|<path>]", description: "Check native OCR engine status or run OCR on a document", category: "Sources", direct_execution: true, aliases: ["/scan"] },
+  { command: "/ocr", args: "[status|install|<path>]", description: "Check status, auto-provision, or run native OCR on a document", category: "Sources", direct_execution: true, aliases: ["/scan"] },
   { command: "/exit", args: "", description: "Save session memory and exit", category: "System", direct_execution: true, aliases: ["/quit", "/q"] }
 ];
 
