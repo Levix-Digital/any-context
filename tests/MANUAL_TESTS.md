@@ -7,7 +7,45 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.29.4): Validação de Recuperação Híbrida Temporal, Preservação de Proveniência de Fontes no Histórico e Alerta Instantâneo de Deleção na StatusBar
+### 📌 Cenário 1 (v0.29.5): Validação de Desacoplamento de Palavras-Chave no Enriquecedor Semântico e Busca Temporal Limpa
+
+- **Objetivo**: Comprovar que na release `v0.29.5`:
+  1. O `ContextualEnricher` gera envelopes semânticos (`SemanticEnvelope`) e palavras-chave de domínio (`keywords`) exclusivamente a partir do conteúdo textual e títulos dos documentos, sem acoplamento a convenções arbitrárias de nomes de diretórios (como `/YYYY/MM/DD/`).
+  2. Documentos indexados em qualquer estrutura de diretórios mantêm representação vetorial limpa, imune à distorção de palavras-chave.
+  3. A busca temporal (`extract_temporal_clauses` + `store.search_metadata`) continua funcionando com precisão absoluta através de filtros de metadados no LanceDB em tempo de execução de query, quando solicitada explicitamente pelo usuário.
+- **Pré-requisito**: Versão `v0.29.5` instalada (`actx -v` exibindo `v0.29.5`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Verificação de Versão:**
+   - No terminal:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:** Exibe instantaneamente `v0.29.5`.
+
+2. **📄 Validação de Envelopes Semânticos sem Poluição de Pastas:**
+   - Ingerir ou sincronizar um arquivo localizado em pasta qualquer (ex: `/relatorios/2026/09/01/documento.txt`):
+     ```bash
+     actx
+     /sync
+     ```
+   - Inspecionar os metadados dos chunks via comando ou tool:
+     ```bash
+     /inspect
+     ```
+   - **Critério de Aceitação:** As palavras-chave (`Keywords`) do cabeçalho semântico refletem os termos relevantes do texto (ex: finanças, logística, auditoria) e **não** contêm datas forçadas por regex do caminho das pastas.
+
+3. **🎯 Validação de Busca Temporal Preservada:**
+   - Consultar por uma data específica no chat:
+     ```text
+     Quais relatórios foram modificados em 2026-09-01?
+     ```
+   - **Critério de Aceitação:** O retriever localiza os documentos correspondentes via `search_metadata` do LanceDB e retorna as fontes corretas no rodapé `📄 Fontes Consultadas`.
+
+---
+
+### 📌 Cenário 2 (v0.29.4): Validação de Recuperação Híbrida Temporal, Preservação de Proveniência de Fontes no Histórico e Alerta Instantâneo de Deleção na StatusBar
 
 - **Objetivo**: Comprovar que na release `v0.29.4`:
   1. Perguntas contendo datas específicas (ex: *"No dia 1 de setembro de 2026, quantos Shipments tivemos registrados?"* ou `2026-09-01`) acionam o **Temporal Hybrid Retrieval**, resgatando com prioridade máxima (score 0.95) e citando com exatidão os arquivos da data solicitada (ex: `015-TSO-*.pdf` de `2026/09/01`), sem misturar ou citar incorretamente relatórios genéricos antigos (de Jan–Jul).
