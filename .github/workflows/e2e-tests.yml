@@ -36,7 +36,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest maturin
+          cd crates/any-context-core-rs
+          maturin develop
+          cd ../..
           pip install -e .
           cd src/any_context/tui
           bun install

@@ -114,24 +114,46 @@ class ParallelIndexer:
                     fn = doc.metadata.get("file_name") or os.path.basename(str(doc.metadata.get("file_path", "")))
                     progress_callback(completed_enrich, total_docs, "enriching", str(fn))
 
-        # 2. Chunking
+        # 2. Chunking (Polymorphic Ingestion Router)
+        from any_context.ingestion.router import IngestionRouter
+        router = IngestionRouter()
+
         raw_chunks = []
         for doc, _ in enriched_results:
-            nodes = splitter.get_nodes_from_documents([doc])
-            for node in nodes:
-                node_ws = node.metadata.get("workspace") or getattr(doc, "metadata", {}).get("workspace") or workspace_name
-                raw_chunks.append({
-                    "id": f"{node_ws}_{hashlib.sha256(node.text.encode('utf-8')).hexdigest()[:20]}",
-                    "text": node.text,
-                    "file_name": node.metadata.get("file_name", "Unknown"),
-                    "file_path": node.metadata.get("file_path", ""),
-                    "workspace": node_ws,
-                    "last_modified": node.metadata.get("last_modified_date") or node.metadata.get("last_modified") or "",
-                    "content_type": node.metadata.get("content_type", "Local Document"),
-                    "document_summary": node.metadata.get("document_summary", ""),
-                    "keywords": node.metadata.get("keywords", ""),
-                    "content_hash": node.metadata.get("content_hash") or hashlib.sha256(node.text.encode("utf-8")).hexdigest()
-                })
+            fp = str(doc.metadata.get("file_path") or getattr(doc, "id_", getattr(doc, "doc_id", "")))
+            node_ws = doc.metadata.get("workspace") or getattr(doc, "metadata", {}).get("workspace") or workspace_name
+
+            if router.supports_file(fp):
+                rust_chunks = router.chunk_text(fp, doc.text)
+                for rc in rust_chunks:
+                    raw_chunks.append({
+                        "id": f"{node_ws}_{hashlib.sha256(rc['text'].encode('utf-8')).hexdigest()[:20]}",
+                        "text": rc["text"],
+                        "file_name": rc.get("file_name") or doc.metadata.get("file_name", "Unknown"),
+                        "file_path": fp,
+                        "workspace": node_ws,
+                        "last_modified": doc.metadata.get("last_modified_date") or doc.metadata.get("last_modified") or "",
+                        "content_type": "Markdown Document",
+                        "document_summary": doc.metadata.get("document_summary", ""),
+                        "keywords": doc.metadata.get("keywords", ""),
+                        "content_hash": hashlib.sha256(rc["text"].encode("utf-8")).hexdigest()
+                    })
+            else:
+                nodes = splitter.get_nodes_from_documents([doc])
+                for node in nodes:
+                    node_chunk_ws = node.metadata.get("workspace") or getattr(doc, "metadata", {}).get("workspace") or workspace_name
+                    raw_chunks.append({
+                        "id": f"{node_chunk_ws}_{hashlib.sha256(node.text.encode('utf-8')).hexdigest()[:20]}",
+                        "text": node.text,
+                        "file_name": node.metadata.get("file_name", "Unknown"),
+                        "file_path": node.metadata.get("file_path", ""),
+                        "workspace": node_chunk_ws,
+                        "last_modified": node.metadata.get("last_modified_date") or node.metadata.get("last_modified") or "",
+                        "content_type": node.metadata.get("content_type", "Local Document"),
+                        "document_summary": node.metadata.get("document_summary", ""),
+                        "keywords": node.metadata.get("keywords", ""),
+                        "content_hash": node.metadata.get("content_hash") or hashlib.sha256(node.text.encode("utf-8")).hexdigest()
+                    })
 
         if not raw_chunks:
             return {"status": "empty", "indexed_chunks": 0}

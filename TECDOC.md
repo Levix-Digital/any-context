@@ -2354,6 +2354,68 @@ In v0.29.3, historical assistant messages were pruned of all citation footers to
 - **Independence from Directory Hierarchies**: Document chunks and vector embeddings are never polluted or constrained by hardcoded folder naming patterns (e.g. `/YYYY/MM/DD/`).
 - **Query-Time Temporal Separation**: Temporal anchoring is evaluated dynamically at query time via `ParallelRetriever` and LanceDB columnar metadata filters (`file_path LIKE`, `last_modified LIKE`), ensuring complete architectural decoupling between document representation and temporal retrieval.
 
+---
+
+## 24. Native Rust Core Engine (`any-context-core-rs`) & Polymorphic Ingestion Router (`v0.30.0`)
+
+### 24.1 Architecture: The Strangler Fig Migration Pattern
+AnyContext v0.30.0 marks the commencement of the complete migration of the core engine to **Rust**, starting with the ingestion and retrieval subsystems. Following the **Strangler Fig Pattern**, a dedicated native crate (`crates/any-context-core-rs`) is embedded within the project and exposed to Python via **PyO3 FFI bindings**:
+
+```mermaid
+graph TD
+    A[Workspace Sources: Local Folders / Cloud Drives / Web Portals] --> B[Ingestion Pipeline]
+    B --> C["any_context_core_rs::IngestionRouter (Rust)"]
+    
+    subgraph "Native Rust Core (crates/any-context-core-rs)"
+        C --> D{Format Detection by MIME / Extension}
+        D -- ".md, .rst, .markdown" --> E["MarkdownHeaderChunker (pulldown-cmark)"]
+        D -- "Code (.py, .ts, .rs, .go)" --> F["ASTCodeChunker (tree-sitter) [Upcoming]"]
+        D -- "Fiscal Data (.xml, .json)" --> G["StructuredDataChunker (quick-xml) [Upcoming]"]
+        D -- "Spreadsheets (.xlsx, .csv)" --> H["TabularChunker (calamine) [Upcoming]"]
+        D -- "Complex Docs (.pdf, scans)" --> I["PDFLayout & OCR Gate [Upcoming]"]
+        
+        E --> J["Vec&lt;ChunkPayload&gt; (Native Memory)"]
+    end
+    
+    J --> K["PyO3 Extension Interface (.pyd / .so)"]
+    K --> L["ParallelIndexer (Concurrent Batch Embeddings)"]
+    L --> M["LanceDBStore (Apache Arrow Columnar Dataset)"]
+```
+
+### 24.2 Polymorphic Ingestion Router (`router.rs`)
+The `IngestionRouter` serves as a source-agnostic factory and dispatcher:
+- **Universal Contract (`traits.rs`)**:
+  ```rust
+  pub trait Chunker: Send + Sync {
+      fn chunk(&self, file_path: &str, content: &str) -> Result<Vec<ChunkPayload>, String>;
+  }
+  ```
+- **Source Agnosticism**: Operates identically whether content originates from local disk crawls (`os.walk`), cloud drives (Google Drive, OneDrive), or web scrapers.
+- **Zero Python Overhead**: Parsing, lexical analysis, line offset calculation, and payload allocation occur entirely in native C/Rust memory without triggering Python garbage collection or GIL contention.
+
+### 24.3 Hierarchical Markdown Chunking (`markdown.rs`)
+Unlike naive fixed-window sentence splitters that fracture headings, lists, and code blocks at arbitrary character offsets, `MarkdownHeaderChunker` processes the markdown event stream using `pulldown-cmark`:
+1. **Heading Hierarchy Tracking**: Maintains an active stack of header levels ($h_1 \dots h_6$). When a heading terminates, the full breadcrumb is formed:
+   $$\text{HeaderPath} = \text{"\# Title > \#\# Subtitle > \#\#\# Sub-section"}$$
+2. **Context Header Injection**: Chunks are framed with an authoritative breadcrumb:
+   ```markdown
+   // Context: # System Architecture > ## Storage Engine
+   ---
+   LanceDB provides columnar storage with Apache Arrow...
+   ```
+3. **Fenced Code Block Protection**: Code blocks containing `#` (e.g. Python comments) are isolated as code literals, completely preventing false heading detections.
+4. **Paragraph Boundary Preservation**: When a single section exceeds `max_chunk_chars` (default 1800 chars), splitting occurs strictly along double newlines (`\n\n`), preventing partial words or fractured code.
+
+### 24.4 Strategic Roadmap
+1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3.
+2. **Marco 2**: ASTCodeChunker (Tree-sitter) for programming languages.
+3. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML.
+4. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
+5. **Marco 5**: PDFLayoutChunker with OCR detection gate.
+6. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
+7. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
+
+
 
 
 
