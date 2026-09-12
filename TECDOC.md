@@ -2549,7 +2549,7 @@ In `v0.30.6`, AnyContext elevates its native Rust code intelligence engine to 14
 5. **v0.30.4**: Ingestion Shield (3-Tier Hierarchical AST Splitter + Dynamic Token Limits). [DONE]
 6. **v0.30.5**: Universal API Schemas, Cloud/IaC & Project Manifests Ingestion. [DONE]
 7. **v0.30.6**: ASTCodeChunker for Scripting & Mobile Languages (Kotlin, Swift, Ruby, PHP, Lua, Dart). [DONE]
-8. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML.
+8. **Marco 3**: Universal StructuredDataChunker in Rust for XML, JSON, and YAML with hierarchical path breadcrumbs (Global-first architecture: zero country-specific implementations).
 9. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
 10. **Marco 5**: PDFLayoutChunker with OCR detection gate.
 11. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
