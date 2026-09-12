@@ -29,7 +29,7 @@ SUPPORTED_EXTENSIONS = {
     # Documents & Text
     ".pdf", ".docx", ".doc", ".txt", ".md", ".rst", ".rtf", ".odt", ".pages", ".epub", ".eml", ".msg",
     # Data & Spreadsheets
-    ".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".ods",
+    ".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".ods", ".ofx",
     # Presentations
     ".pptx", ".ppt", ".key",
     # Code & Tech
@@ -244,8 +244,19 @@ def run_index_folder(
     if progress_callback:
         progress_callback(1, total_files, "files", os.path.basename(files_to_index[0]))
 
+    class _NativeSpreadsheetReader:
+        def load_data(self, file_path, extra_info=None):
+            from llama_index.core import Document
+            return [Document(text="", metadata={"file_path": str(file_path)})]
+
+    spreadsheet_extractors = {
+        ".xlsx": _NativeSpreadsheetReader(),
+        ".xls": _NativeSpreadsheetReader(),
+        ".ods": _NativeSpreadsheetReader(),
+    }
+
     try:
-        reader = SimpleDirectoryReader(input_files=files_to_index)
+        reader = SimpleDirectoryReader(input_files=files_to_index, file_extractor=spreadsheet_extractors)
         docs = reader.load_data()
         for idx, d in enumerate(docs):
             d.metadata["workspace"] = target_ws_name
@@ -272,7 +283,7 @@ def run_index_folder(
             if progress_callback:
                 progress_callback(f_idx + 1, total_files, "files", os.path.basename(single_file))
             try:
-                single_reader = SimpleDirectoryReader(input_files=[single_file])
+                single_reader = SimpleDirectoryReader(input_files=[single_file], file_extractor=spreadsheet_extractors)
                 s_docs = single_reader.load_data()
                 for d in s_docs:
                     d.metadata["workspace"] = target_ws_name

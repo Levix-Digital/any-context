@@ -7,7 +7,47 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.8 Universal TOML Chunker): Ingestão, Parsing de Tabelas e Breadcrumbs Hierárquicos para TOML
+### 📌 Cenário 1 (v0.30.9 Universal Tabular & Financial Chunker): Ingestão, Parsing e Propagação de Cabeçalhos para CSV, TSV, Planilhas Excel (.xlsx, .xls), ODS e Extratos Bancários OFX
+
+- **Objetivo**: Comprovar que na versão `v0.30.9`:
+  1. O motor nativo em Rust (`any-context-core-rs`) integra o novo `TabularChunker` universal, acelerando nativamente o parsing e chunking de formatos tabulares delimitados (**`.csv`**, **`.tsv`**), planilhas de múltiplos formatos (**`.xlsx`**, **`.xls`**, **`.ods`** via `calamine`) e extratos financeiros globais (**`.ofx`**).
+  2. **Propagação de Cabeçalhos e Formatação Markdown**: O parser tabular detecta delimitadores automaticamente (vírgula, tab, ponto-e-vírgula), extrai a linha de cabeçalho e a replica em todas as fatias de chunking, convertendo os dados em tabelas Markdown perfeitamente alinhadas para os LLMs.
+  3. **Suporte Nativo a Planilhas Multi-Abas sem Dependência do OpenPyXL**: Planilhas Excel e OpenDocument são lidas e deconstruídas diretamente pelo motor nativo compilado em Rust, iterando sobre todas as abas e preservando a semântica de células (datas, números, fórmulas calculadas).
+  4. **Parsing de Extratos Financeiros Globais (OFX 1.x e 2.x)**: O parser financeiro extrai metadados da conta (`BANKID`, `ACCTID`, `ACCTTYPE`, `CURDEF`, saldos e períodos) e decompõe transações bancárias (`<STMTTRN>`) em tabelas legíveis (`| Date | Type | Amount | ID | Description / Memo |`).
+  5. **Política de Produto Global**: O módulo financeiro é estritamente internacional e agnóstico de jurisdição ou regras fiscais locais.
+  6. **Breadcrumbs Hierárquicos**: Emissão padronizada de breadcrumbs ricos:
+     - CSV/TSV: `// Context: <arquivo>.csv > [Header1, Header2] > rows X..Y`
+     - Planilhas: `// Context: <arquivo>.xlsx > Sheet: "<Nome>" > [Header1, Header2] > rows X..Y`
+     - Extratos: `// Context: <arquivo>.ofx > Bank: <ID> | Acct: <ID> > transactions X..Y`
+  7. **Indexação LanceDB**: O indexador (`indexer.py`) cataloga os chunks com as taxonomias: `CSV / Delimited Data`, `Excel Spreadsheet`, `OpenDocument Spreadsheet` e `OFX Financial Statement`.
+- **Pré-requisito**: Versão `v0.30.9` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Teste Rápido de Parsing Tabular e Financeiro via CLI/Python:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "from any_context.ingestion.router import IngestionRouter; r = IngestionRouter(max_chunk_chars=120); csv_code = 'id,name,role\n1,Alice,Admin\n2,Bob,User\n3,Charlie,Dev\n'; c_csv = r.chunk_text('users.csv', csv_code); ofx_data = '<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKACCTFROM><BANKID>001<ACCTID>12345<ACCTTYPE>CHECKING</BANKACCTFROM><BANKTRANLIST><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260901<TRNAMT>-150.00<FITID>TX101<MEMO>Office Supplies</STMTTRN></BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>'; c_ofx = r.chunk_text('statement.ofx', ofx_data); print('CSV:', len(c_csv), 'chunk ->', c_csv[0]['header_path'], '|', c_csv[0]['content_type']); print('OFX:', len(c_ofx), 'chunk ->', c_ofx[0]['header_path'], '|', c_ofx[0]['content_type'])"
+     ```
+   - **Critério de Aceitação:** Retorna chunks tabulares e financeiros nativos:
+     - `CSV: 1 chunk -> users.csv > [id, name, role] > rows 1..3 | csv`
+     - `OFX: 1 chunk -> statement.ofx > Bank: 001 | Acct: 12345 > transactions 1..1 | ofx`
+
+2. **🏛️ Validação de Suporte Completo no IngestionRouter e LocalFolderIngestor:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "from any_context.ingestion.router import IngestionRouter; from any_context.ingestion.local_folder_ingestor import SUPPORTED_EXTENSIONS; r = IngestionRouter(); exts = ['.csv', '.tsv', '.xlsx', '.xls', '.ods', '.ofx']; missing_router = [e for e in exts if not r.supports_file('test' + e)]; missing_sup = [e for e in exts if e not in SUPPORTED_EXTENSIONS]; assert not missing_router, f'Router faltando: {missing_router}'; assert not missing_sup, f'SUPPORTED faltando: {missing_sup}'; print('✅ Todas as extensões tabulares e financeiras (.csv, .tsv, .xlsx, .xls, .ods, .ofx) são 100% suportadas!')"
+     ```
+   - **Critério de Aceitação:** Imprime `✅ Todas as extensões tabulares e financeiras (.csv, .tsv, .xlsx, .xls, .ods, .ofx) são 100% suportadas!`.
+
+3. **💬 Validação de Consulta no Chat com Citação de Linhas e Colunas Tabulares:**
+   - Abra o AnyContext (`actx`), adicione uma pasta contendo planilhas `.xlsx`, `.ods`, arquivos `.csv` ou extratos `.ofx`, e sincronize via `/sync`.
+   - Pergunte sobre valores específicos, lançamentos financeiros ou dados tabulares.
+   - **Critério de Aceitação:** O AnyContext responde com alta fidelidade citando o breadcrumb exato da aba, cabeçalho e intervalo de linhas (ex: `// Context: relatorio.xlsx > Sheet: "Vendas" > [Data, Valor] > rows 1..25`).
+
+---
+
+### 📌 Cenário 2 (v0.30.8 Universal TOML Chunker): Ingestão, Parsing de Tabelas e Breadcrumbs Hierárquicos para TOML
 
 - **Objetivo**: Comprovar que na versão `v0.30.8`:
   1. O motor nativo em Rust (`any-context-core-rs`) integra o novo `TomlChunker` no `StructuredDataChunker` universal, acelerando nativamente o parsing e chunking de manifestos e configurações **TOML** (`.toml`), tais como `Cargo.toml`, `pyproject.toml`, `ruff.toml`, etc.
