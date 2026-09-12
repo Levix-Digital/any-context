@@ -34,18 +34,16 @@ impl IngestionRouter {
     pub fn chunk_text(&self, file_path: &str, content: &str) -> PyResult<Vec<ChunkPayload>> {
         let p = Path::new(file_path);
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-        match ext.as_str() {
-            "md" | "markdown" | "rst" | "mdown" => {
-                self.markdown_chunker.chunk(file_path, content).map_err(|e| {
-                    pyo3::exceptions::PyRuntimeError::new_err(format!("Markdown chunker error: {}", e))
-                })
-            }
-            "py" | "pyw" | "pyi" => {
-                self.code_chunker.chunk(file_path, content).map_err(|e| {
-                    pyo3::exceptions::PyRuntimeError::new_err(format!("Code AST chunker error: {}", e))
-                })
-            }
-            _ => Ok(Vec::new()),
+        if matches!(ext.as_str(), "md" | "markdown" | "rst" | "mdown") {
+            self.markdown_chunker.chunk(file_path, content).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Markdown chunker error: {}", e))
+            })
+        } else if self.code_chunker.supports_extension(&ext) {
+            self.code_chunker.chunk(file_path, content).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Code AST chunker error: {}", e))
+            })
+        } else {
+            Ok(Vec::new())
         }
     }
 
@@ -64,6 +62,7 @@ mod tests {
 
     #[test]
     fn test_router_supports_files() {
+        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         assert!(router.supports_file("README.md"));
         assert!(router.supports_file("docs/architecture.markdown"));
@@ -71,12 +70,19 @@ mod tests {
         assert!(router.supports_file("main.py"));
         assert!(router.supports_file("src/utils.pyw"));
         assert!(router.supports_file("stubs.pyi"));
+        assert!(router.supports_file("src/index.ts"));
+        assert!(router.supports_file("src/App.tsx"));
+        assert!(router.supports_file("server.js"));
+        assert!(router.supports_file("component.jsx"));
+        assert!(router.supports_file("UserService.java"));
+        assert!(router.supports_file("OrderController.cs"));
         assert!(!router.supports_file("report.pdf"));
         assert!(!router.supports_file("data.xlsx"));
     }
 
     #[test]
     fn test_router_chunk_text() {
+        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let md = "# Title\nParagraph content.";
         let chunks = router.chunk_text("test.md", md).expect("Chunking failed");
@@ -86,11 +92,42 @@ mod tests {
 
     #[test]
     fn test_router_chunk_python_code() {
+        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "def hello():\n    print('world')\n";
         let chunks = router.chunk_text("script.py", code).expect("Chunking failed");
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].header_path.as_deref(), Some("def hello"));
         assert!(chunks[0].text.contains("// Context: script.py > def hello"));
+    }
+
+    #[test]
+    fn test_router_chunk_typescript() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "export function calculateTotal(items: number[]): number {\n  return items.reduce((a, b) => a + b, 0);\n}\n";
+        let chunks = router.chunk_text("math.ts", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: math.ts > function calculateTotal")));
+    }
+
+    #[test]
+    fn test_router_chunk_java() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n}\n";
+        let chunks = router.chunk_text("Calculator.java", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: Calculator.java > class Calculator")));
+    }
+
+    #[test]
+    fn test_router_chunk_csharp() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "namespace MyStore;\npublic class OrderProcessor {\n    public void Process() {}\n}\n";
+        let chunks = router.chunk_text("OrderProcessor.cs", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: OrderProcessor.cs > class OrderProcessor")));
     }
 }
