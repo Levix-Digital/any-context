@@ -76,6 +76,12 @@ mod tests {
         assert!(router.supports_file("component.jsx"));
         assert!(router.supports_file("UserService.java"));
         assert!(router.supports_file("OrderController.cs"));
+        assert!(router.supports_file("main.go"));
+        assert!(router.supports_file("src/lib.rs"));
+        assert!(router.supports_file("kernel.c"));
+        assert!(router.supports_file("header.h"));
+        assert!(router.supports_file("engine.cpp"));
+        assert!(router.supports_file("include/engine.hpp"));
         assert!(!router.supports_file("report.pdf"));
         assert!(!router.supports_file("data.xlsx"));
     }
@@ -129,5 +135,35 @@ mod tests {
         let chunks = router.chunk_text("OrderProcessor.cs", code).expect("Chunking failed");
         assert!(!chunks.is_empty());
         assert!(chunks.iter().any(|c| c.text.contains("// Context: OrderProcessor.cs > class OrderProcessor")));
+    }
+
+    #[test]
+    fn test_router_chunk_go() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "package main\n\nfunc RunApp() error {\n    return nil\n}\n";
+        let chunks = router.chunk_text("main.go", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: main.go > function RunApp")));
+    }
+
+    #[test]
+    fn test_router_chunk_rust() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "pub fn execute_task() -> bool {\n    true\n}\n";
+        let chunks = router.chunk_text("task.rs", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: task.rs > fn execute_task")));
+    }
+
+    #[test]
+    fn test_router_chunk_cpp() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "#include <iostream>\n\nclass Engine {\npublic:\n    void start();\n};\n";
+        let chunks = router.chunk_text("Engine.cpp", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: Engine.cpp > class Engine")));
     }
 }
