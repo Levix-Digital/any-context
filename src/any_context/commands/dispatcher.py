@@ -826,27 +826,161 @@ class CommandDispatcher:
             )
         )
 
-    def _handle_ocr(self, parts: List[str]) -> CommandResult:
+    def _find_tesseract_path(self) -> Optional[str]:
         import shutil
-        tess_path = shutil.which("tesseract") or ("C:\\Program Files\\Tesseract-OCR\\tesseract.exe" if os.path.exists("C:\\Program Files\\Tesseract-OCR\\tesseract.exe") else None)
-        if len(parts) > 1 and os.path.isfile(parts[1]):
-            target = parts[1]
-            from any_context.ingestion.router import IngestionRouter
-            router = IngestionRouter()
-            if not router.supports_file(target):
-                return CommandResult(success=False, message=f"❌ Unsupported format for OCR/Cascade: `{target}`")
-            chunks = router.chunk_file(target)
+        import os
+        candidates = [
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "actx", "bin", "tesseract", "tesseract.exe"),
+            shutil.which("tesseract"),
+            "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+            "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
+            os.path.expanduser("~/.local/share/actx/bin/tesseract"),
+            "/usr/bin/tesseract",
+            "/usr/local/bin/tesseract",
+            "/opt/homebrew/bin/tesseract",
+        ]
+        for c in candidates:
+            if c and os.path.exists(c):
+                return os.path.abspath(c)
+        return None
+
+    def _install_tesseract(self) -> CommandResult:
+        import platform
+        import shutil
+        import subprocess
+
+        existing = self._find_tesseract_path()
+        if existing:
             return CommandResult(
                 success=True,
-                message=(
-                    f"📷 **Smart Cascade Ingestion Result for `{os.path.basename(target)}`**:\n"
-                    f"• Generated Chunks: **{len(chunks)}**\n"
-                    f"• Content Type: `{chunks[0].get('content_type') if chunks else 'empty'}`\n"
-                    f"• Context Header: `{chunks[0].get('header_path') if chunks else 'none'}`"
-                )
+                message=f"✅ Native Tesseract OCR is already installed and active at `{existing}`!"
             )
 
-        tess_status = f"🟢 Available (`{tess_path}`)" if tess_path else "⚪ Not detected on PATH (Graceful fallback active)"
+        system = platform.system().lower()
+        if "windows" in system:
+            # Step 1: Attempt portable, zero-elevation standalone setup
+            try:
+                import urllib.request
+                target_dir = os.path.join(os.environ.get("LOCALAPPDATA", ""), "actx", "bin", "tesseract")
+                data_dir = os.path.join(target_dir, "tessdata")
+                os.makedirs(data_dir, exist_ok=True)
+
+                tess_exe = os.path.join(target_dir, "tesseract.exe")
+                eng_data = os.path.join(data_dir, "eng.traineddata")
+                por_data = os.path.join(data_dir, "por.traineddata")
+
+                if not os.path.exists(tess_exe):
+                    urllib.request.urlretrieve(
+                        "https://raw.githubusercontent.com/zstrathe/tesseract_portable_windows/main/tesseract.exe",
+                        tess_exe
+                    )
+                if not os.path.exists(eng_data):
+                    urllib.request.urlretrieve(
+                        "https://raw.githubusercontent.com/zstrathe/tesseract_portable_windows/main/tessdata/eng.traineddata",
+                        eng_data
+                    )
+                if not os.path.exists(por_data):
+                    urllib.request.urlretrieve(
+                        "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/por.traineddata",
+                        por_data
+                    )
+
+                if os.path.exists(tess_exe):
+                    return CommandResult(
+                        success=True,
+                        message=f"🎉 **Portable Tesseract OCR successfully provisioned!**\n• Engine Location: `{tess_exe}`\n• Languages: `eng`, `por` (tessdata)\n• Zero Administrator privileges required\n• Smart Cascade Tier 2 (Native OCR) is now 100% active."
+                    )
+            except Exception:
+                pass
+
+            # Step 2: Fallback to winget if portable direct download is blocked
+            winget_path = shutil.which("winget")
+            if winget_path:
+                try:
+                    proc = subprocess.run(
+                        [winget_path, "install", "--id", "UB-Mannheim.TesseractOCR", "--silent", "--accept-package-agreements", "--accept-source-agreements"],
+                        capture_output=True,
+                        text=True,
+                        timeout=180
+                    )
+                    new_path = self._find_tesseract_path()
+                    if new_path:
+                        return CommandResult(
+                            success=True,
+                            message=f"🎉 **Tesseract OCR successfully installed!**\n• Engine Location: `{new_path}`\n• Smart Cascade Tier 2 (Native OCR) is now fully active."
+                        )
+                    if proc.returncode != 0 and "requires admin" in proc.stderr.lower():
+                        return CommandResult(
+                            success=False,
+                            message="⚠️ Administrator elevation required to install Tesseract. Please run in an elevated terminal:\n`winget install UB-Mannheim.TesseractOCR`"
+                        )
+                except Exception as e:
+                    return CommandResult(
+                        success=False,
+                        message=f"❌ Error during winget installation: {e}\nYou can install manually with: `winget install UB-Mannheim.TesseractOCR`"
+                    )
+            return CommandResult(
+                success=False,
+                message="⚠️ `winget` not found on this system. Please download and run the installer from: https://github.com/UB-Mannheim/tesseract/wiki"
+            )
+        elif "linux" in system:
+            apt = shutil.which("apt-get")
+            if apt:
+                try:
+                    subprocess.run(["sudo", "apt-get", "update", "-qq"], timeout=60)
+                    subprocess.run(["sudo", "apt-get", "install", "-y", "-qq", "tesseract-ocr", "tesseract-ocr-eng", "tesseract-ocr-por"], timeout=180)
+                    new_path = self._find_tesseract_path()
+                    if new_path:
+                        return CommandResult(
+                            success=True,
+                            message=f"🎉 **Tesseract OCR successfully installed!**\n• Engine Location: `{new_path}`"
+                        )
+                except Exception as e:
+                    return CommandResult(success=False, message=f"❌ Error during apt-get install: {e}")
+            return CommandResult(
+                success=False,
+                message="⚠️ Please install Tesseract using your package manager:\n`sudo apt install tesseract-ocr` or `sudo dnf install tesseract`"
+            )
+        elif "darwin" in system:
+            brew = shutil.which("brew")
+            if brew:
+                try:
+                    subprocess.run([brew, "install", "tesseract", "tesseract-lang"], timeout=180)
+                    new_path = self._find_tesseract_path()
+                    if new_path:
+                        return CommandResult(success=True, message=f"🎉 **Tesseract OCR installed!**\n• Engine: `{new_path}`")
+                except Exception as e:
+                    return CommandResult(success=False, message=f"❌ Error during brew install: {e}")
+            return CommandResult(success=False, message="⚠️ Please install Tesseract via Homebrew: `brew install tesseract`")
+
+        return CommandResult(success=False, message=f"Unsupported OS for automated OCR install: {system}")
+
+    def _handle_ocr(self, parts: List[str]) -> CommandResult:
+        tess_path = self._find_tesseract_path()
+        if len(parts) > 1:
+            sub = parts[1].lower()
+            if sub in ["install", "setup", "--install"]:
+                return self._install_tesseract()
+            if sub != "status":
+                target = parts[1]
+                if not os.path.isfile(target):
+                    return CommandResult(success=False, message=f"❌ File not found: `{target}`")
+                from any_context.ingestion.router import IngestionRouter
+                router = IngestionRouter()
+                if not router.supports_file(target):
+                    return CommandResult(success=False, message=f"❌ Unsupported format for OCR/Cascade: `{target}`")
+                chunks = router.chunk_file(target)
+                return CommandResult(
+                    success=True,
+                    message=(
+                        f"📷 **Smart Cascade Ingestion Result for `{os.path.basename(target)}`**:\n"
+                        f"• Generated Chunks: **{len(chunks)}**\n"
+                        f"• Content Type: `{chunks[0].get('content_type') if chunks else 'empty'}`\n"
+                        f"• Context Header: `{chunks[0].get('header_path') if chunks else 'none'}`"
+                    )
+                )
+
+        tess_status = f"🟢 Available (`{tess_path}`)" if tess_path else "⚪ Not detected (Graceful fallback active • run `/ocr install` to auto-provision)"
         return CommandResult(
             success=True,
             message=(
@@ -854,7 +988,7 @@ class CommandDispatcher:
                 f"• Native Tesseract Engine: {tess_status}\n"
                 f"• Native PDF Engine: 🟢 Active (Rust lopdf)\n"
                 f"• Native Image Engine: 🟢 Active (Rust image crate: PNG, JPEG, WebP)\n"
-                f"• Usage: `/ocr <path/to/file>` to test extraction"
+                f"• Usage: `/ocr <path/to/file>` to test extraction or `/ocr install` to auto-provision"
             )
         )
 

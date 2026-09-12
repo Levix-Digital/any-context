@@ -139,27 +139,23 @@ impl ImageChunker {
         }])
     }
 
-    /// Invokes native OCR binary (Tesseract) directly from the operating system.
+    /// Invokes native OCR binary (Tesseract) directly from the operating system or portable bundle.
     fn run_native_ocr(&self, file_path: &str) -> Option<String> {
-        let candidates = [
-            "tesseract",
-            "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
-            "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
-            "/usr/bin/tesseract",
-            "/usr/local/bin/tesseract",
-        ];
+        let candidates = resolve_tesseract_candidates();
 
-        for &bin in &candidates {
+        for (bin, tessdata_prefix) in &candidates {
             // First try with bilingual por+eng
-            if let Ok(output) = std::process::Command::new(bin)
-                .arg(file_path)
+            let mut cmd = std::process::Command::new(bin);
+            cmd.arg(file_path)
                 .arg("stdout")
                 .arg("-l")
                 .arg("por+eng")
                 .arg("--oem")
-                .arg("1")
-                .output()
-            {
+                .arg("1");
+            if let Some(ref prefix) = tessdata_prefix {
+                cmd.env("TESSDATA_PREFIX", prefix);
+            }
+            if let Ok(output) = cmd.output() {
                 if output.status.success() {
                     let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
                     if !text.is_empty() {
@@ -169,11 +165,12 @@ impl ImageChunker {
             }
 
             // Fallback try with default language
-            if let Ok(output) = std::process::Command::new(bin)
-                .arg(file_path)
-                .arg("stdout")
-                .output()
-            {
+            let mut cmd_fallback = std::process::Command::new(bin);
+            cmd_fallback.arg(file_path).arg("stdout");
+            if let Some(ref prefix) = tessdata_prefix {
+                cmd_fallback.env("TESSDATA_PREFIX", prefix);
+            }
+            if let Ok(output) = cmd_fallback.output() {
                 if output.status.success() {
                     let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
                     if !text.is_empty() {
@@ -185,6 +182,78 @@ impl ImageChunker {
 
         None
     }
+}
+
+/// Resolves potential locations of the Tesseract binary, prioritizing portable local installs.
+fn resolve_tesseract_candidates() -> Vec<(String, Option<String>)> {
+    let mut list = Vec::new();
+
+    // 1. Check %LOCALAPPDATA%\actx\bin\tesseract\tesseract.exe
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let p = std::path::PathBuf::from(&local_app_data)
+            .join("actx")
+            .join("bin")
+            .join("tesseract")
+            .join("tesseract.exe");
+        if p.exists() {
+            let tessdata = p.parent().unwrap().join("tessdata");
+            let prefix = if tessdata.exists() {
+                Some(tessdata.to_string_lossy().to_string())
+            } else {
+                None
+            };
+            list.push((p.to_string_lossy().to_string(), prefix));
+        }
+    }
+
+    // 2. Check relative to current running executable
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            let p1 = parent.join("tesseract").join("tesseract.exe");
+            if p1.exists() {
+                let tessdata = p1.parent().unwrap().join("tessdata");
+                let prefix = if tessdata.exists() {
+                    Some(tessdata.to_string_lossy().to_string())
+                } else {
+                    None
+                };
+                list.push((p1.to_string_lossy().to_string(), prefix));
+            }
+            let p2 = parent.join("_internal").join("tesseract").join("tesseract.exe");
+            if p2.exists() {
+                let tessdata = p2.parent().unwrap().join("tessdata");
+                let prefix = if tessdata.exists() {
+                    Some(tessdata.to_string_lossy().to_string())
+                } else {
+                    None
+                };
+                list.push((p2.to_string_lossy().to_string(), prefix));
+            }
+        }
+    }
+
+    // 3. Check ~/.local/share/actx/bin/tesseract on Linux/macOS
+    if let Ok(home) = std::env::var("HOME") {
+        let p = std::path::PathBuf::from(&home)
+            .join(".local")
+            .join("share")
+            .join("actx")
+            .join("bin")
+            .join("tesseract");
+        if p.exists() {
+            list.push((p.to_string_lossy().to_string(), None));
+        }
+    }
+
+    // 4. System PATH and standard system installations
+    list.push(("tesseract".to_string(), None));
+    list.push(("C:\\Program Files\\Tesseract-OCR\\tesseract.exe".to_string(), None));
+    list.push(("C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe".to_string(), None));
+    list.push(("/usr/bin/tesseract".to_string(), None));
+    list.push(("/usr/local/bin/tesseract".to_string(), None));
+    list.push(("/opt/homebrew/bin/tesseract".to_string(), None));
+
+    list
 }
 
 #[cfg(test)]

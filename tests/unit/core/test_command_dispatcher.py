@@ -154,6 +154,39 @@ class TestCommandDispatcher(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertEqual(res.action, "paste_mode")
 
+    def test_13_dispatch_vision_and_ocr(self):
+        """Validates /vision and /ocr command dispatching."""
+        res_vis_status = dispatch_command("/vision status")
+        self.assertTrue(res_vis_status.success)
+        self.assertIn("Vision LLM Status", res_vis_status.message)
+
+        res_vis_on = dispatch_command("/vision on")
+        self.assertTrue(res_vis_on.success)
+        self.assertIn("enabled", res_vis_on.message.lower())
+
+        res_vis_off = dispatch_command("/vision off")
+        self.assertTrue(res_vis_off.success)
+        self.assertIn("disabled", res_vis_off.message.lower())
+
+        res_ocr_status = dispatch_command("/ocr status")
+        self.assertTrue(res_ocr_status.success)
+        self.assertIn("Smart Cascade OCR Status", res_ocr_status.message)
+
+        # /ocr without args defaults to status
+        res_ocr_default = dispatch_command("/ocr")
+        self.assertTrue(res_ocr_default.success)
+        self.assertIn("Smart Cascade OCR Status", res_ocr_default.message)
+
+    def test_14_dispatch_ocr_install(self):
+        """Validates /ocr install dispatching."""
+        from unittest.mock import patch
+        from any_context.commands.dispatcher import CommandResult
+        with patch.object(CommandDispatcher, "_install_tesseract", return_value=CommandResult(success=True, message="mock installed")):
+            res = dispatch_command("/ocr install")
+            self.assertTrue(res.success)
+            self.assertEqual(res.message, "mock installed")
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -2669,6 +2669,14 @@ graph TD
 3. **Tier 2: Native OS OCR Gate for Scans & Images (`image.rs` via `image 0.25` & OS Tesseract)**:
    - **Pure Rust Image Decoding**: Decodes PNG, JPEG, and WebP metadata (dimensions, aspect ratio, color type) directly in Rust via `image::load_from_memory`.
    - **Zero-Python Process Dispatch**: Invokes the native operating system `tesseract` binary via `std::process::Command` with temporary TIFF/PNG files, capturing stdout directly.
+   - **Zero-Elevation Portable Auto-Provisioning**:
+     - Resolves candidate paths with prioritized user-space portability:
+       1. `%LOCALAPPDATA%\actx\bin\tesseract\tesseract.exe` (Windows) / `~/.local/share/actx/bin/tesseract` (Linux/macOS)
+       2. Executable-relative subdirectories (`tesseract/tesseract.exe`, `_internal/tesseract/tesseract.exe`)
+       3. Global PATH (`tesseract`)
+       4. Common system installation paths (`C:\Program Files\Tesseract-OCR\tesseract.exe`, `/usr/bin/tesseract`, `/usr/local/bin/tesseract`, `/opt/homebrew/bin/tesseract`)
+     - **Dynamic `TESSDATA_PREFIX` Propagation**: Automatically inspects `tessdata/` adjacent to the resolved binary and injects `TESSDATA_PREFIX` into `std::process::Command`, guaranteeing that isolated portable deployments function seamlessly without requiring global environment variables or machine reboots.
+     - **Transparent Installer Integration**: `scripts/install.ps1` and `scripts/install.sh` automatically provision the portable engine and required traineddata (`eng`, `por`) in user space with zero UAC elevation prompts, preventing installation failure when executed by support personnel without administrator privileges.
    - **OCR Density Gate**: If extracted OCR text $\ge 30$ characters, generates searchable document chunks cataloged as `PDF Scanned Document (OCR)` or `Image Document (OCR Scan)`.
    - **Fallback Escalation**: If Tesseract is missing from the host OS or OCR produces $< 30$ characters (diagrams, flowcharts, architecture diagrams, UI mockups), the system automatically escalates to Tier 3.
 
@@ -2683,7 +2691,10 @@ graph TD
 
 5. **Diagnostic & Control Slash Commands**:
    - `/vision [on|off|status]`: Inspects or toggles the multimodal Vision LLM grounding flag in `app_settings.py` (`enable_vision_llm`).
-   - `/ocr [status|<path>]`: Audita a disponibilidade do binário do Tesseract no sistema operacional (`tesseract --version`) ou testa a extração direta em arquivos.
+   - `/ocr [status|install|<path>]`:
+     - `status`: Audits the availability, binary path, and health of the native Tesseract engine.
+     - `install` / `setup`: Provisions portable 64-bit standalone Tesseract with traineddata directly into `%LOCALAPPDATA%\actx\bin\tesseract` with zero elevation/UAC prompts, or falls back to system package managers (`winget`, `apt-get`, `brew`).
+     - `<path>`: Executes an immediate test extraction using the native Smart Cascade on any supported image or PDF file.
 
 6. **LanceDB Content Taxonomy & Router Integration**:
    - `IngestionRouter` accepts `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp` in `supports_file()`, `chunk_file()`, and `chunk_bytes()`.

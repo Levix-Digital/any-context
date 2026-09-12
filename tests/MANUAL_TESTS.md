@@ -7,18 +7,19 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.10 Native Rust Smart Cascade for PDF & Images): Ingestão em Cascata Inteligente para PDFs e Imagens (Nível 1 Layout lopdf, Nível 2 OCR Nativo Tesseract e Nível 3 Vision LLM Hook)
+### 📌 Cenário 1 (v0.30.10 Native Rust Smart Cascade for PDF & Images): Ingestão em Cascata Inteligente para PDFs e Imagens (Nível 1 Layout lopdf, Nível 2 OCR Nativo Tesseract com Auto-Provisionamento Portátil Zero-Elevação e Nível 3 Vision LLM Hook)
 
 - **Objetivo**: Comprovar que na versão `v0.30.10`:
   1. O motor nativo em Rust (`any-context-core-rs`) implementa a **Cascata Inteligente** em 3 níveis estritamente em Rust compilado e binários nativos do SO, substituindo 100% de dependências legadas Python (`pypdf`, `pdfplumber`, `pymupdf`, `pytesseract`).
   2. **Nível 1 (Layout Vetorial / lopdf)**: Decompõe PDFs página a página diretamente em Rust via `lopdf 0.45`, extrai fluxos de texto de layout, avalia o gate de densidade de texto ($\ge 50$ caracteres). Gera fatias limpas com breadcrumbs: `// Context: <arquivo>.pdf > Page <N> > rows X..Y`. Páginas escaneadas ou puramente visuais ($< 50$ chars) acionam automaticamente o Nível 2.
-  3. **Nível 2 (Gate OCR para Scans e Imagens / Rust + OS Tesseract)**: Decodifica metadados de imagens (`.png`, `.jpg`, `.jpeg`, `.webp`) em Rust (`image 0.25`) e invoca diretamente o binário `tesseract` nativo do SO via `std::process::Command` com zero overhead Python. Se texto OCR $\ge 30$ caracteres, emite chunks de alta resolução sob as taxonomias `PDF Scanned Document (OCR)` ou `Image Document (OCR Scan)`.
-  4. **Nível 3 (Vision LLM Hook / Fallback Estruturado)**: Se o OCR não detectar texto textual ou estiver ausente, emite uma especificação visual estruturada (`[Visual Diagram: ... | Resolution: WxH | Aspect: ...]`) sob a taxonomia `Visual Diagram / Image (Vision AI)`. Permite enriquecimento multimodal dinâmico quando `/vision on` estiver ativo ou fallback imediato offline.
-  5. **Comandos Canônicos de Controle e Diagnóstico**:
+  3. **Nível 2 (Gate OCR para Scans e Imagens / Rust + OS Tesseract com Provisionamento Portátil)**: Decodifica metadados de imagens (`.png`, `.jpg`, `.jpeg`, `.webp`) em Rust (`image 0.25`) e invoca diretamente o binário `tesseract` nativo do SO via `std::process::Command` com zero overhead Python. Se texto OCR $\ge 30$ caracteres, emite chunks de alta resolução sob as taxonomias `PDF Scanned Document (OCR)` ou `Image Document (OCR Scan)`.
+  4. **Auto-Provisionamento Portátil Zero-Elevação**: Quando o Tesseract não estiver no sistema, o AnyContext permite auto-provisioná-lo de forma 100% transparente e portátil em espaço de usuário (`%LOCALAPPDATA%\actx\bin\tesseract\`) com zero prompts UAC de administrador, injetando `TESSDATA_PREFIX` dinamicamente no motor Rust. Integrado nativamente no instalador (`install.ps1`, `install.sh`) e via comando `/ocr install`.
+  5. **Nível 3 (Vision LLM Hook / Fallback Estruturado)**: Se o OCR não detectar texto textual ou estiver ausente, emite uma especificação visual estruturada (`[Visual Diagram: ... | Resolution: WxH | Aspect: ...]`) sob a taxonomia `Visual Diagram / Image (Vision AI)`. Permite enriquecimento multimodal dinâmico quando `/vision on` estiver ativo ou fallback imediato offline.
+  6. **Comandos Canônicos de Controle e Diagnóstico**:
      - `/vision [on|off|status]`: Inspeciona ou alterna o hook de modelos multimodais de visão para diagramas e imagens.
-     - `/ocr [status|<path>]`: Audita a disponibilidade do binário do Tesseract no sistema operacional ou testa a extração direta em arquivos.
-  6. **Zero Dependências Pesadas em Python**: Ingestão de PDF e imagens é roteada diretamente para o binário compilado Rust em `IngestionRouter.chunk_file()` e `SimpleDirectoryReader` com leitor `_NativePassThroughReader`.
-  7. **Taxonomia LanceDB**: Classifica no banco vetorial como `PDF Document (Digital Layout)`, `PDF Scanned Document (OCR)`, `Image Document (OCR Scan)` e `Visual Diagram / Image (Vision AI)`.
+     - `/ocr [status|install|<path>]`: Audita a disponibilidade do binário do Tesseract no sistema operacional, auto-provisiona o motor portátil ou testa a extração direta em arquivos.
+  7. **Zero Dependências Pesadas em Python**: Ingestão de PDF e imagens é roteada diretamente para o binário compilado Rust em `IngestionRouter.chunk_file()` e `SimpleDirectoryReader` com leitor `_NativePassThroughReader`.
+  8. **Taxonomia LanceDB**: Classifica no banco vetorial como `PDF Document (Digital Layout)`, `PDF Scanned Document (OCR)`, `Image Document (OCR Scan)` e `Visual Diagram / Image (Vision AI)`.
 - **Pré-requisito**: Versão `v0.30.10` instalada.
 
 #### 📋 Passo a Passo de Execução:
@@ -39,16 +40,33 @@
      /vision status
      ```
    - **Critério de Aceitação:**
-     - `/ocr status` informa se o binário nativo Tesseract está presente no PATH do sistema operacional e pronto para OCR de nível 2.
+     - `/ocr status` informa se o binário nativo Tesseract está presente ou se o fallback gracioso está ativo com dica para `/ocr install`.
      - `/vision status` reporta o estado do hook multimodal (`desativado` por padrão).
      - `/vision on` ativa o hook e confirma persistência no estado da aplicação.
 
-3. **💬 Validação de Ingestão de PDF Digital com Breadcrumbs por Página no AnyContext:**
+3. **📦 Validação do Auto-Provisionamento Portátil Zero-Elevação (`/ocr install`):**
+   - Execute no terminal interativo ou CLI:
+     ```text
+     /ocr install
+     ```
+   - Verifique a mensagem de sucesso informando que o Tesseract portátil estático (com `eng` e `por` traineddata) foi provisionado em `%LOCALAPPDATA%\actx\bin\tesseract\tesseract.exe`.
+   - Execute `/ocr status` novamente.
+   - **Critério de Aceitação:** `/ocr status` reporta `• Native Tesseract Engine: 🟢 Available (<caminho_localappdata>\actx\bin\tesseract\tesseract.exe)`.
+
+4. **🖼️ Validação de Extração OCR Direta em Arquivo (`/ocr <path>`):**
+   - Execute no CLI:
+     ```text
+     /ocr ocr_test.png
+     ```
+   - **Critério de Aceitação:** Exibe resumo da extração com chunks gerados, taxonomia `Image Document (OCR Scan)` e cabeçalho de contexto correto.
+
+5. **💬 Validação de Ingestão de PDF Digital com Breadcrumbs por Página no AnyContext:**
    - Adicione uma pasta com documentos PDF à workspace e execute `/sync`.
    - Inspecione os chunks gerados via `/inspect`.
    - **Critério de Aceitação:** Os chunks de PDF exibem a taxonomia `PDF Document (Digital Layout)` e breadcrumbs de página precisos (ex: `// Context: contrato.pdf > Page 1 > rows 1..15`).
 
 ---
+
 
 ### 📌 Cenário 2 (v0.30.9 Universal Tabular & Financial Chunker): Ingestão, Parsing e Propagação de Cabeçalhos para CSV, TSV, Planilhas Excel (.xlsx, .xls), ODS e Extratos Bancários OFX
 

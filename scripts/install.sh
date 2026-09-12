@@ -305,6 +305,34 @@ if [ "$IS_WINDOWS" -eq 0 ]; then
     fi
 fi
 
+# 6. Check/Ensure Native Tesseract OCR is available for Smart Cascade (Marco 5)
+if ! command -v tesseract >/dev/null 2>&1 && [ ! -f "$INSTALL_DIR/tesseract" ]; then
+    printf "\033[33m📷 Tesseract OCR not detected. Transparently provisioning native OCR engine...\033[0m\n"
+    TESS_SUCCESS=0
+    if command -v apt-get >/dev/null 2>&1 && [ "$(id -u)" -eq 0 ]; then
+        apt-get update -qq && apt-get install -y -qq tesseract-ocr tesseract-ocr-eng tesseract-ocr-por >/dev/null 2>&1 && TESS_SUCCESS=1 || true
+    elif command -v apt-get >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
+        sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-eng tesseract-ocr-por >/dev/null 2>&1 && TESS_SUCCESS=1 || true
+    elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y -q tesseract tesseract-langpack-eng tesseract-langpack-por >/dev/null 2>&1 && TESS_SUCCESS=1 || true
+    elif command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S --noconfirm tesseract tesseract-data-eng tesseract-data-por >/dev/null 2>&1 && TESS_SUCCESS=1 || true
+    elif command -v brew >/dev/null 2>&1; then
+        brew install tesseract tesseract-lang >/dev/null 2>&1 && TESS_SUCCESS=1 || true
+    fi
+
+    if [ "$TESS_SUCCESS" -eq 1 ] || command -v tesseract >/dev/null 2>&1; then
+        printf "\033[32m[OK] Native Tesseract OCR engine installed successfully!\033[0m\n"
+        log_install "Tesseract OCR successfully installed via system package manager"
+    else
+        printf "\033[90m💡 Note: Tesseract OCR auto-provisioning deferred. You can install it anytime with '/ocr install' inside AnyContext.\033[0m\n"
+        log_install "Tesseract OCR installation deferred to /ocr install"
+    fi
+else
+    printf "\033[90m[OK] Native Tesseract OCR engine detected.\033[0m\n"
+    log_install "Tesseract OCR already detected on system."
+fi
+
 printf "\n\033[36m=======================================================\033[0m\n"
 printf "\033[32m🎉 AnyContext (actx) installed successfully!\033[0m\n"
 printf "👉 Open a new terminal window and type \033[1mactx\033[0m to launch the assistant.\n"
