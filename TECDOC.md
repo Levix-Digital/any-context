@@ -2460,16 +2460,47 @@ In `v0.30.3` (Marco 2.3), `ASTCodeChunker` expands beyond enterprise application
 4. **Intelligent Large-Class Splitting**:
    - For classes/structs/impls exceeding `max_chunk_chars`, the parser emits an Overview chunk containing the signature, attributes/fields, annotations, and comments (`class {Name} (Overview)`), followed by discrete chunks for each method/constructor/property.
 
-### 24.5 Strategic Roadmap
+### 24.5 Ingestion Shield: 3-Tier Hierarchical AST Code Splitting & Dynamic Embedding Token Ceilings (`v0.30.4`)
+In `v0.30.4`, AnyContext introduces the **Ingestion Shield**, an end-to-end 4-layer defense system that guarantees zero token overflow errors (`400 Invalid 'input': maximum input length is 8192 tokens`) during ingestion and indexing of massive, minified, or dense source files:
+
+1. **3-Tier Hierarchical Code Splitter (`splitter.rs`) in Rust Core Engine**:
+   - Integrated into all 7 AST language parsers (`go.rs`, `rust.rs`, `cpp.rs`, `typescript.rs`, `python.rs`, `java.rs`, `csharp.rs`).
+   - Replaces naive paragraph splitting with a deterministic 3-tier algorithm that strictly guarantees `chunk.len() <= max_chunk_chars`:
+     - **Tier 1 (Paragraphs `\n\n`)**: Splits clean semantic code blocks at double line breaks.
+     - **Tier 2 (Line-by-Line `\n`)**: If a single block exceeds `max_chunk_chars` without double newlines (e.g. large table-driven tests, continuous struct initializations, or long switch cases), lines are accumulated one by one until the character limit is reached.
+     - **Tier 3 (Character Window Fallback)**: If a single line exceeds `max_chunk_chars` (e.g. minified code, continuous base64 literals, or inline single-line mocks), it is sliced using UTF-8 character boundary-safe sub-windows.
+   - Context breadcrumbs (`// Context: ...`) and line spans are dynamically recalculated for every sub-slice.
+
+2. **Ingestion Filtering & Build Artifact Exclusion (`local_folder_ingestor.py`)**:
+   - Expanded `IGNORED_DIRS` to automatically reject non-source build and distribution folders: `dist`, `build`, `out`, `target`, `vendor`, `node_modules`, `coverage`, `.turbo`, `.next`, `.nuxt`.
+   - Pattern-based rejection of minified bundles and maps: `*.min.js`, `*.min.css`, `*.bundle.js`, `*.map`.
+   - Eliminates useless minified vendor libraries from polluting the embedding space while dramatically accelerating indexing throughput.
+
+3. **Dynamic Model Embedding Token Ceiling Registry (`app_settings.py` & `search_tools.py`)**:
+   - Introduced `max_embed_tokens: Optional[int]` in `ModelSettings`.
+   - Comprehensive model provider limits catalog (`MODEL_MAX_EMBEDDING_TOKENS`):
+     - `text-embedding-3-small` / `text-embedding-3-large` (OpenAI): 8,191 tokens
+     - `text-embedding-ada-002` (OpenAI): 8,191 tokens
+     - `gemini-embedding-001` / `text-embedding-004` (Google Gemini): 2,048 tokens
+     - `all-minilm-l6-v2` / `bge-small-en-v1.5`: 512 tokens
+     - Default fallback for unknown embedding models: 2,048 tokens
+   - Zero configuration required from the user: the ceiling is resolved dynamically at runtime based on the configured embedding model name or explicit user override.
+
+4. **Fail-Safe Indexing Barrier (`indexer.py`)**:
+   - `ParallelIndexer` validates each chunk's estimated token count against a safety ceiling (95% of model limit) prior to calling the embedding API.
+   - Any outlier chunk that exceeds the threshold is safely and cleanly truncated, ensuring that transient API batch failures never abort background synchronization.
+
+### 24.6 Strategic Roadmap
 1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3. [DONE]
 2. **Marco 2.1 (`v0.30.1`)**: ASTCodeChunker (Tree-sitter) Python Pilot. [DONE]
 3. **Marco 2.2 (`v0.30.2`)**: ASTCodeChunker for Enterprise Languages (TypeScript/JavaScript, Java, C#). [DONE]
 4. **Marco 2.3 (`v0.30.3`)**: ASTCodeChunker for Systems Languages (Go, Rust, C/C++). [DONE]
-5. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML. [NEXT]
-6. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
-7. **Marco 5**: PDFLayoutChunker with OCR detection gate.
-8. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
-9. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
+5. **v0.30.4**: Ingestion Shield (3-Tier Hierarchical AST Splitter + Dynamic Token Limits). [DONE]
+6. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML. [NEXT]
+7. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
+8. **Marco 5**: PDFLayoutChunker with OCR detection gate.
+9. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
+10. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
 
 
 

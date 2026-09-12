@@ -41,14 +41,15 @@ SUPPORTED_EXTENSIONS = {
 
 IGNORED_DIRS = {
     ".git", ".svn", "node_modules", "__pycache__", ".venv", "venv", "env",
-    ".vs", ".idea", ".vscode", "$recycle.bin", ".tmp"
+    ".vs", ".idea", ".vscode", "$recycle.bin", ".tmp",
+    "dist", "build", "out", "target", ".next", ".nuxt", ".turbo", "vendor", "coverage", ".terraform"
 }
 
 
 def discover_workspace_files(root_folder: str) -> List[str]:
     """
     Recursively crawls all subfolders starting from root_folder using os.walk.
-    Finds ALL supported files, handling case-insensitive extensions and ignoring lock/temp files.
+    Finds ALL supported files, handling case-insensitive extensions and ignoring lock/temp/build files.
     """
     valid_file_paths = []
     for root, dirs, files in os.walk(root_folder):
@@ -57,6 +58,15 @@ def discover_workspace_files(root_folder: str) -> List[str]:
         for file_name in files:
             if file_name.startswith("~$") or file_name.startswith("._"):
                 continue  # Skip Microsoft Office temporary lock files & macOS metadata files
+
+            fn_lower = file_name.lower()
+            if (
+                fn_lower.endswith(".min.js")
+                or fn_lower.endswith(".min.css")
+                or fn_lower.endswith(".bundle.js")
+                or fn_lower.endswith("-min.js")
+            ):
+                continue  # Skip minified and bundled distribution assets
 
             ext = os.path.splitext(file_name)[1].lower()
             if ext in SUPPORTED_EXTENSIONS:

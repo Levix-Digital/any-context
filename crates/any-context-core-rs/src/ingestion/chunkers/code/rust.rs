@@ -90,74 +90,30 @@ impl RustASTParser {
         chunks: &mut Vec<ChunkPayload>,
         max_chunk_chars: usize,
     ) {
-        if code.len() <= max_chunk_chars {
-            self.emit_single_chunk(
-                file_path,
-                file_name,
-                header_path,
-                breadcrumb_label,
-                code,
-                start_line,
-                end_line,
-                chunks,
-            );
-            return;
-        }
+        let parts = crate::ingestion::chunkers::code::splitter::split_oversized_code(code, max_chunk_chars);
+        let total_parts = parts.len();
 
-        let paragraphs: Vec<&str> = code.split("\n\n").collect();
-        let mut current_block = String::new();
-        let mut part_idx = 1;
-        let mut current_start_line = start_line;
-
-        for p in paragraphs {
-            if current_block.len() + p.len() + 2 > max_chunk_chars && !current_block.is_empty() {
-                let current_end_line =
-                    current_start_line + current_block.lines().count().saturating_sub(1);
-                let part_breadcrumb = format!("{} (Part {})", breadcrumb_label, part_idx);
-                let part_header = format!("{} (Part {})", header_path, part_idx);
-
-                self.emit_single_chunk(
-                    file_path,
-                    file_name,
-                    &part_header,
-                    &part_breadcrumb,
-                    current_block.trim(),
-                    current_start_line,
-                    current_end_line,
-                    chunks,
-                );
-
-                current_start_line = current_end_line + 1;
-                part_idx += 1;
-                current_block.clear();
-            }
-
-            if !current_block.is_empty() {
-                current_block.push_str("\n\n");
-            }
-            current_block.push_str(p);
-        }
-
-        if !current_block.is_empty() {
-            let part_breadcrumb = if part_idx > 1 {
-                format!("{} (Part {})", breadcrumb_label, part_idx)
+        for (idx, part) in parts.into_iter().enumerate() {
+            let (part_breadcrumb, part_header) = if total_parts > 1 {
+                (
+                    format!("{} (Part {})", breadcrumb_label, idx + 1),
+                    format!("{} (Part {})", header_path, idx + 1),
+                )
             } else {
-                breadcrumb_label.to_string()
+                (breadcrumb_label.to_string(), header_path.to_string())
             };
-            let part_header = if part_idx > 1 {
-                format!("{} (Part {})", header_path, part_idx)
-            } else {
-                header_path.to_string()
-            };
+
+            let part_start = start_line + part.start_line_offset;
+            let part_end = (start_line + part.end_line_offset).min(end_line).max(part_start);
 
             self.emit_single_chunk(
                 file_path,
                 file_name,
                 &part_header,
                 &part_breadcrumb,
-                current_block.trim(),
-                current_start_line,
-                end_line,
+                &part.text,
+                part_start,
+                part_end,
                 chunks,
             );
         }

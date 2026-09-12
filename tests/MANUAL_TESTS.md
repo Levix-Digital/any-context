@@ -7,7 +7,45 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.3): Validação da Expansão Multi-Linguagem do Parser AST de Código-Fonte para Linguagens de Sistemas (Go, Rust e C/C++ com tree-sitter)
+### 📌 Cenário 1 (v0.30.4 Ingestion Shield): Fatiamento Hierárquico Estrito e Proteção contra Estouro de Tokens no Embedding (PocketBase e Repositórios Complexos)
+
+- **Objetivo**: Comprovar que:
+  1. O `ASTCodeChunker` em Rust utiliza fatiamento hierárquico estrito de 3 camadas (`\n\n` -> `\n` -> janela de caracteres segura), garantindo que funções gigantescas contínuas (como tabelas de testes Go de 70k caracteres ou arquivos `.d.ts` de 250k caracteres) nunca excedam `max_chunk_chars`.
+  2. O `local_folder_ingestor.py` ignora automaticamente diretórios de build (`dist`, `build`, `out`, `target`, `vendor`) e ativos minificados (`*.min.js`, `*.min.css`).
+  3. O `get_embedding_token_limit` identifica dinamicamente o teto de tokens do modelo ativo (OpenAI = 8.191, Gemini/Nomic = 2.048, MiniLM = 512) ou honra `max_embed_tokens` configurado.
+  4. O `ParallelIndexer` aplica disjuntor fail-safe impedindo qualquer erro HTTP 400 por estouro de tokens da OpenAI.
+  5. A indexação do repositório real `pocketbase` (726 arquivos) conclui com 100% de sucesso.
+- **Pré-requisito**: Versão `v0.30.4` instalada com o novo Core Rust.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Teste de Fatiamento Estrito em Código Contínuo sem `\n\n`:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(max_chunk_chars=600); code = 'func Test(t *testing.T) {\n' + '\n'.join([f'    assert.Equal(t, {i}, {i})' for i in range(100)]) + '\n}'; chunks = r.chunk_text('t.go', code); print(f'Total chunks: {len(chunks)}, Max len: {max(len(c.text) for c in chunks)}')"
+     ```
+   - **Critério de Aceitação:** Gera múltiplos chunks (> 5) e nenhum excede 750 caracteres (incluindo breadcrumbs).
+
+2. **🛡️ Teste de Limites de Tokens no Registro de Modelos:**
+   - Executar:
+     ```bash
+     python -c "from any_context.tools.search_tools import get_embedding_token_limit; print({m: get_embedding_token_limit(m) for m in ['text-embedding-3-small', 'text-embedding-004', 'all-minilm-l6-v2', 'default']})"
+     ```
+   - **Critério de Aceitação:** Retorna `{'text-embedding-3-small': 8191, 'text-embedding-004': 2048, 'all-minilm-l6-v2': 512, 'default': 2048}`.
+
+3. **🏛️ Sincronização Real do PocketBase sem Erro de 8192 Tokens:**
+   - No terminal ou no TUI:
+     ```bash
+     actx
+     /sources
+     # Adicionar tests/sandbox_repos/pocketbase
+     /sync
+     ```
+   - **Critério de Aceitação:** A sincronização conclui com sucesso (status verde, 100% completado), sem erros de limite de tokens da OpenAI.
+
+---
+
+### 📌 Cenário 2 (v0.30.3): Validação da Expansão Multi-Linguagem do Parser AST de Código-Fonte para Linguagens de Sistemas (Go, Rust e C/C++ com tree-sitter)
 
 - **Objetivo**: Comprovar que na release `v0.30.3`:
   1. O `IngestionRouter` detecta automaticamente arquivos de código em linguagens de sistemas: **Go** (`.go`), **Rust** (`.rs`), **C** (`.c`, `.h`) e **C++** (`.cpp`, `.hpp`, `.cc`, `.cxx`), além de TypeScript/JS, Java, C# e Python.

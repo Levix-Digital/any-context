@@ -86,6 +86,10 @@ class ModelSettings(BaseModel):
     summary_model: str = Field(default="gpt-4o-mini")
     model_provider: str = Field(default="openai")
     local_base_url: str = Field(default="https://api.openai.com/v1")
+    max_embed_tokens: Optional[int] = Field(
+        default=None,
+        description="Maximum token ceiling per chunk for embedding. If None, auto-detected from the active model."
+    )
 
     # Retrocompatibility properties for legacy code / DB rows
     @property
