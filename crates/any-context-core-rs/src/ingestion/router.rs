@@ -105,6 +105,7 @@ mod tests {
         assert!(router.supports_file("records.ndjson"));
         assert!(router.supports_file("docker-compose.yml"));
         assert!(router.supports_file("manifest.yaml"));
+        assert!(router.supports_file("Cargo.toml"));
         assert!(!router.supports_file("report.pdf"));
         assert!(!router.supports_file("data.xlsx"));
     }
@@ -292,5 +293,16 @@ mod tests {
         assert!(!chunks.is_empty());
         assert_eq!(chunks[0].content_type, "yaml");
         assert!(chunks[0].text.contains("// Context: docker-compose.yml"));
+    }
+
+    #[test]
+    fn test_router_chunk_toml() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let toml = "[package]\nname = \"any-context\"\nversion = \"0.30.8\"\n";
+        let chunks = router.chunk_text("Cargo.toml", toml).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "toml");
+        assert!(chunks[0].text.contains("// Context: Cargo.toml > root"));
     }
 }

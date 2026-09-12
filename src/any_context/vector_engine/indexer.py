@@ -165,6 +165,8 @@ class ParallelIndexer:
                         content_type_str = "JSON Structured Data"
                     elif ct in ("yaml", "yml") or fp.lower().endswith((".yaml", ".yml")):
                         content_type_str = "YAML Configuration"
+                    elif ct == "toml" or fp.lower().endswith(".toml"):
+                        content_type_str = "TOML Configuration"
                     else:
                         content_type_str = doc.metadata.get("content_type", "Document")
 
