@@ -7,7 +7,47 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.4 Ingestion Shield): Fatiamento Hierárquico Estrito e Proteção contra Estouro de Tokens no Embedding (PocketBase e Repositórios Complexos)
+### 📌 Cenário 1 (v0.30.5 Schemas, Cloud/IaC & Project Manifests): Ingestão e Indexação de Contratos de API (.proto, GraphQL), Terraform, Dockerfile e Manifestos de Dependências
+
+- **Objetivo**: Comprovar que na versão `v0.30.5`:
+  1. O crawler de pastas locais (`local_folder_ingestor.py`) descobre e indexa com sucesso arquivos de schemas de API: **`.proto`** (Protocol Buffers / gRPC), **`.graphql`**, **`.gql`** (GraphQL), **`.thrift`** (Thrift IDL).
+  2. O crawler descobre arquivos de nuvem e Infraestrutura como Código (IaC): **`.tf`**, **`.tfvars`**, **`.hcl`** (Terraform / HashiCorp), **`.bicep`** (Azure Bicep).
+  3. O crawler descobre arquivos especiais de container e automação sem extensão: **`Dockerfile`**, **`Containerfile`**, **`Jenkinsfile`**, **`Makefile`**, **`Procfile`**.
+  4. O crawler descobre manifestos de build e dependências: **`go.mod`**, **`go.sum`**, **`.gradle`**, **`.properties`**, e documentação **`.rst`**.
+  5. A pasta `protos/` do repositório benchmark `microservices-demo` passa a indexar 2 arquivos (`demo.proto` e `health.proto`) em vez de 0.
+  6. Ao perguntar sobre a definição original do contrato gRPC do `CheckoutService`, o modelo cita diretamente `demo.proto`.
+- **Pré-requisito**: Versão `v0.30.5` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Teste Rápido de Descoberta via CLI/Python:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "from any_context.ingestion.local_folder_ingestor import discover_workspace_files; files = discover_workspace_files(r'tests/sandbox_repos/microservices-demo/protos'); print(f'Arquivos descobertos: {len(files)} -> {[f.replace(\"\\\\\", \"/\").split(\"/\")[-1] for f in files]}')"
+     ```
+   - **Critério de Aceitação:** Retorna 2 arquivos: `['demo.proto', 'health.proto']`.
+
+2. **🏛️ Sincronização do Workspace `MicroservicesDemoProject`:**
+   - Abra o AnyContext:
+     ```bash
+     actx
+     /sources
+     ```
+   - Execute a sincronização:
+     ```bash
+     /sync
+     /sources
+     ```
+   - **Critério de Aceitação:** A pasta `tests/sandbox_repos/microservices-demo/protos` agora exibe `• 2 files indexed` (antes exibia `0 files indexed`).
+
+3. **💬 Validação de Pergunta Arquitetural com Citação de Schema:**
+   - No chat do workspace `MicroservicesDemoProject`, envie a seguinte pergunta:
+     > *"Onde o contrato do CheckoutService e a mensagem PlaceOrderRequest estão definidos originalmente nos schemas protobuf e quais são os campos de PlaceOrderRequest?"*
+   - **Critério de Aceitação:** O assistente responde com precisão citando explicitamente o arquivo `demo.proto` (na pasta `protos/`) como fonte consultada, listando campos como `user_id`, `user_currency`, `address`, `email`, `credit_card`.
+
+---
+
+### 📌 Cenário 2 (v0.30.4 Ingestion Shield): Fatiamento Hierárquico Estrito e Proteção contra Estouro de Tokens no Embedding (PocketBase e Repositórios Complexos)
 
 - **Objetivo**: Comprovar que:
   1. O `ASTCodeChunker` em Rust utiliza fatiamento hierárquico estrito de 3 camadas (`\n\n` -> `\n` -> janela de caracteres segura), garantindo que funções gigantescas contínuas (como tabelas de testes Go de 70k caracteres ou arquivos `.d.ts` de 250k caracteres) nunca excedam `max_chunk_chars`.
@@ -45,7 +85,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.30.3): Validação da Expansão Multi-Linguagem do Parser AST de Código-Fonte para Linguagens de Sistemas (Go, Rust e C/C++ com tree-sitter)
+### 📌 Cenário 3 (v0.30.3): Validação da Expansão Multi-Linguagem do Parser AST de Código-Fonte para Linguagens de Sistemas (Go, Rust e C/C++ com tree-sitter)
 
 - **Objetivo**: Comprovar que na release `v0.30.3`:
   1. O `IngestionRouter` detecta automaticamente arquivos de código em linguagens de sistemas: **Go** (`.go`), **Rust** (`.rs`), **C** (`.c`, `.h`) e **C++** (`.cpp`, `.hpp`, `.cc`, `.cxx`), além de TypeScript/JS, Java, C# e Python.

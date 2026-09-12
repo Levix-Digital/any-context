@@ -27,7 +27,7 @@ from any_context.ingestion.orchestrator import (
 
 SUPPORTED_EXTENSIONS = {
     # Documents & Text
-    ".pdf", ".docx", ".doc", ".txt", ".md", ".rtf", ".odt", ".pages", ".epub", ".eml", ".msg",
+    ".pdf", ".docx", ".doc", ".txt", ".md", ".rst", ".rtf", ".odt", ".pages", ".epub", ".eml", ".msg",
     # Data & Spreadsheets
     ".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".ods",
     # Presentations
@@ -35,8 +35,18 @@ SUPPORTED_EXTENSIONS = {
     # Code & Tech
     ".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".htm", ".css", ".xml", ".yaml", ".yml", ".toml", ".sql",
     ".c", ".cpp", ".cs", ".java", ".go", ".rs", ".sh", ".ps1", ".bat", ".cmd",
+    # API Schemas & Contracts
+    ".proto", ".graphql", ".gql", ".thrift",
+    # Cloud & Infrastructure as Code (IaC)
+    ".tf", ".tfvars", ".hcl", ".bicep",
+    # Build & Dependency Manifests
+    ".mod", ".sum", ".gradle", ".properties",
     # Images
     ".png", ".jpg", ".jpeg", ".webp"
+}
+
+SUPPORTED_FILENAMES = {
+    "dockerfile", "containerfile", "jenkinsfile", "makefile", "procfile"
 }
 
 IGNORED_DIRS = {
@@ -69,7 +79,7 @@ def discover_workspace_files(root_folder: str) -> List[str]:
                 continue  # Skip minified and bundled distribution assets
 
             ext = os.path.splitext(file_name)[1].lower()
-            if ext in SUPPORTED_EXTENSIONS:
+            if ext in SUPPORTED_EXTENSIONS or fn_lower in SUPPORTED_FILENAMES:
                 full_path = os.path.abspath(os.path.join(root, file_name))
                 valid_file_paths.append(full_path)
 

@@ -164,18 +164,49 @@ class ParallelIndexer:
                     })
             else:
                 nodes = splitter.get_nodes_from_documents([doc])
+                fp_lower = fp.lower()
+                fn_lower = os.path.basename(fp_lower)
+                if fp_lower.endswith(".proto"):
+                    content_type_str = "Protocol Buffer Schema"
+                elif fp_lower.endswith((".graphql", ".gql")):
+                    content_type_str = "GraphQL Schema"
+                elif fp_lower.endswith(".thrift"):
+                    content_type_str = "Thrift IDL Schema"
+                elif fp_lower.endswith((".tf", ".tfvars", ".hcl")):
+                    content_type_str = "Terraform / IaC"
+                elif fp_lower.endswith(".bicep"):
+                    content_type_str = "Azure Bicep IaC"
+                elif fn_lower in ("dockerfile", "containerfile") or fp_lower.endswith((".dockerfile", ".containerfile")):
+                    content_type_str = "Container Definition"
+                elif fn_lower in ("jenkinsfile", "makefile", "procfile") or fp_lower.endswith((".jenkinsfile", ".makefile")):
+                    content_type_str = "Build / CI Automation"
+                elif fp_lower.endswith((".mod", ".sum")):
+                    content_type_str = "Go Module Definition"
+                elif fp_lower.endswith(".gradle"):
+                    content_type_str = "Gradle Build Script"
+                elif fp_lower.endswith(".properties"):
+                    content_type_str = "Properties Configuration"
+                elif fp_lower.endswith(".sql"):
+                    content_type_str = "SQL Script"
+                elif fp_lower.endswith((".sh", ".bash", ".ps1", ".bat", ".cmd")):
+                    content_type_str = "Shell Script"
+                elif fp_lower.endswith((".xml", ".json", ".jsonl", ".yaml", ".yml", ".toml")):
+                    content_type_str = "Structured Data / Config"
+                else:
+                    content_type_str = doc.metadata.get("content_type", "Local Document")
+
                 for node in nodes:
                     node_chunk_ws = node.metadata.get("workspace") or getattr(doc, "metadata", {}).get("workspace") or workspace_name
                     raw_chunks.append({
                         "id": f"{node_chunk_ws}_{hashlib.sha256(node.text.encode('utf-8')).hexdigest()[:20]}",
                         "text": node.text,
                         "file_name": node.metadata.get("file_name", "Unknown"),
-                        "file_path": node.metadata.get("file_path", ""),
+                        "file_path": node.metadata.get("file_path", "") or fp,
                         "workspace": node_chunk_ws,
-                        "last_modified": node.metadata.get("last_modified_date") or node.metadata.get("last_modified") or "",
-                        "content_type": node.metadata.get("content_type", "Local Document"),
-                        "document_summary": node.metadata.get("document_summary", ""),
-                        "keywords": node.metadata.get("keywords", ""),
+                        "last_modified": doc.metadata.get("last_modified_date") or doc.metadata.get("last_modified") or "",
+                        "content_type": content_type_str,
+                        "document_summary": doc.metadata.get("document_summary", ""),
+                        "keywords": doc.metadata.get("keywords", ""),
                         "content_hash": node.metadata.get("content_hash") or hashlib.sha256(node.text.encode("utf-8")).hexdigest()
                     })
 

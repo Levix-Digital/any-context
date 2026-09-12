@@ -2490,17 +2490,44 @@ In `v0.30.4`, AnyContext introduces the **Ingestion Shield**, an end-to-end 4-la
    - `ParallelIndexer` validates each chunk's estimated token count against a safety ceiling (95% of model limit) prior to calling the embedding API.
    - Any outlier chunk that exceeds the threshold is safely and cleanly truncated, ensuring that transient API batch failures never abort background synchronization.
 
-### 24.6 Strategic Roadmap
+### 24.6 API Schemas, Cloud/IaC & Extensionless Manifests Ingestion (`v0.30.5`)
+In `v0.30.5`, AnyContext extends its ingestion catalog to support API contracts, cloud infrastructure as code, and container/build manifests commonly found in microservices and cloud-native architectures:
+
+1. **API Contracts and Schemas**:
+   - **Protocol Buffers (`.proto`)**: Enables complete cross-service contract discovery (e.g. gRPC service definitions, RPC methods, request/response messages) in polyglot microservice repositories.
+   - **GraphQL (`.graphql`, `.gql`)**: Schemas, type definitions, queries, and mutations.
+   - **Apache Thrift (`.thrift`)**: RPC interface definitions and structs.
+
+2. **Cloud Infrastructure as Code (IaC)**:
+   - **Terraform / HashiCorp (`.tf`, `.tfvars`, `.hcl`)**: Infrastructure configurations, modules, resources, and variable definitions.
+   - **Azure Bicep (`.bicep`)**: Declarative cloud deployment templates.
+
+3. **Extensionless Automation & Container Files (`SUPPORTED_FILENAMES`)**:
+   - Solves the silent bypass bug where files lacking an extension (such as `Dockerfile`, `Containerfile`, `Jenkinsfile`, `Makefile`, `Procfile`) were ignored by standard extension checks.
+   - Evaluated via `ext in SUPPORTED_EXTENSIONS or fn_lower in SUPPORTED_FILENAMES`.
+
+4. **Project & Dependency Manifests**:
+   - **Go Modules (`go.mod`, `go.sum`)**: Dependency resolution and package declarations.
+   - **Gradle (`.gradle`)**: Java/Kotlin build scripts.
+   - **Properties (`.properties`)**: Application and environment property key-value configurations.
+   - **Documentation (`.rst`)**: reStructuredText technical documentation processed via the Rust `MarkdownHeaderChunker`.
+
+5. **Semantic Metadata Classification in LanceDB**:
+   - Ingested chunks are stamped with explicit semantic `content_type` values (`Protocol Buffer Schema`, `GraphQL Schema`, `Terraform / IaC`, `Container Definition`, `Go Module Definition`), enhancing retrieval relevance and citation accuracy.
+
+### 24.7 Strategic Roadmap
 1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3. [DONE]
 2. **Marco 2.1 (`v0.30.1`)**: ASTCodeChunker (Tree-sitter) Python Pilot. [DONE]
 3. **Marco 2.2 (`v0.30.2`)**: ASTCodeChunker for Enterprise Languages (TypeScript/JavaScript, Java, C#). [DONE]
 4. **Marco 2.3 (`v0.30.3`)**: ASTCodeChunker for Systems Languages (Go, Rust, C/C++). [DONE]
 5. **v0.30.4**: Ingestion Shield (3-Tier Hierarchical AST Splitter + Dynamic Token Limits). [DONE]
-6. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML. [NEXT]
-7. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
-8. **Marco 5**: PDFLayoutChunker with OCR detection gate.
-9. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
-10. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
+6. **v0.30.5**: Universal API Schemas, Cloud/IaC & Project Manifests Ingestion. [DONE]
+7. **v0.30.6**: ASTCodeChunker for Scripting & Mobile Languages (Kotlin, Swift, Ruby, PHP, Lua, Dart). [NEXT]
+8. **Marco 3**: StructuredDataChunker for NF-e/CT-e XMLs and JSON/YAML.
+9. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
+10. **Marco 5**: PDFLayoutChunker with OCR detection gate.
+11. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
+12. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
 
 
 
