@@ -29,6 +29,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
@@ -37,9 +40,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest maturin
-          cd crates/any-context-core-rs
-          maturin develop
-          cd ../..
+          pip install ./crates/any-context-core-rs
           pip install -e .
           cd src/any_context/tui
           bun install
