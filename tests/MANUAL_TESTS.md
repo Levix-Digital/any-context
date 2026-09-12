@@ -7,7 +7,66 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.0): Validação do Motor Nativo em Rust (PyO3) e Roteador Polimórfico de Ingestão com Chunking Hierárquico de Markdown
+### 📌 Cenário 1 (v0.30.1): Validação do Parser AST de Código-Fonte Python (tree-sitter) e Fatiamento de Classes e Funções
+
+- **Objetivo**: Comprovar que na release `v0.30.1`:
+  1. O `IngestionRouter` detecta automaticamente arquivos de código Python (`.py`, `.pyw`, `.pyi`) e delega para o `ASTCodeChunker` nativo em Rust (`tree-sitter-python`).
+  2. Funções livres, classes e métodos decorados (`@property`, `@classmethod`, `@app.get`, etc.) são extraídos estritamente ao longo de suas fronteiras sintáticas reais, sem nunca quebrar no meio de loops, blocos `try/except` ou assinaturas.
+  3. Cada chunk de código recebe metadados estruturados e breadcrumbs textuais ricos (`// Context: path/file.py > class ClassName > def method_name [lines X-Y]`), preservando docstrings e comentários de documentação.
+  4. Classes com métodos que excedem o tamanho máximo de chunk são fatiadas de forma inteligente (Overview da classe + métodos individuais).
+  5. Workspaces contendo bases de código Python são sincronizados (`/sync`) com precisão semântica e busca instantânea de símbolos e implementações.
+- **Pré-requisito**: Versão `v0.30.1` instalada (`actx -v` exibindo `v0.30.1`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Verificação de Versão e Suporte a Código Python:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     actx -v
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(); print('Python support:', r.supports_file('test.py'))"
+     ```
+   - **Critério de Aceitação:** Exibe `v0.30.1` e `Python support: True`.
+
+2. **🐍 Teste de Fatiamento AST com Classes e Decoradores:**
+   - Criar ou verificar um arquivo Python com classe e funções (ex: `src/auth_service.py`):
+     ```python
+     class AuthService:
+         """Enterprise authentication and token validation service."""
+         token_ttl_seconds: int = 900
+
+         @classmethod
+         def build(cls):
+             return cls()
+
+         def verify_token(self, token: str) -> bool:
+             """Verifica assinatura criptográfica do token."""
+             if not token:
+                 return False
+             return len(token) > 10
+     ```
+   - Sincronizar o workspace:
+     ```bash
+     actx
+     /sync
+     ```
+   - **Critério de Aceitação:** O arquivo é ingerido com `content_type: Python Source Code`.
+   - Inspecionar os chunks (`/inspect`):
+     - Os chunks exibem breadcrumbs como:
+       `// Context: auth_service.py > class AuthService > def verify_token [lines ...]`
+     - O decorador `@classmethod` permanece vinculado ao método `build`.
+
+3. **🎯 Teste de Pergunta sobre Função / Classe:**
+   - No chat do AnyContext:
+     ```text
+     Como funciona a validação de token no AuthService?
+     ```
+   - **Critério de Aceitação:**
+     - O assistente responde citando o método `verify_token` e sua docstring.
+     - O rodapé de fontes cita o arquivo `.py` com precisão.
+
+---
+
+### 📌 Cenário 2 (v0.30.0): Validação do Motor Nativo em Rust (PyO3) e Roteador Polimórfico de Ingestão com Chunking Hierárquico de Markdown
 
 - **Objetivo**: Comprovar que na release `v0.30.0`:
   1. O módulo nativo compilado em Rust `any_context_core_rs` (PyO3) inicializa e opera com sucesso no AnyContext.

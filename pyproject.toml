@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.30.0"
+version = "0.30.1"
 description = "Universal AI context and dynamic long-term memory engine"
 
 
