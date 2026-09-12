@@ -7,7 +7,7 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.3 Ingestion Shield): Fatiamento Hierárquico Estrito e Proteção contra Estouro de Tokens no Embedding (PocketBase e Repositórios Complexos)
+### 📌 Cenário 1 (v0.30.4 Ingestion Shield): Fatiamento Hierárquico Estrito e Proteção contra Estouro de Tokens no Embedding (PocketBase e Repositórios Complexos)
 
 - **Objetivo**: Comprovar que:
   1. O `ASTCodeChunker` em Rust utiliza fatiamento hierárquico estrito de 3 camadas (`\n\n` -> `\n` -> janela de caracteres segura), garantindo que funções gigantescas contínuas (como tabelas de testes Go de 70k caracteres ou arquivos `.d.ts` de 250k caracteres) nunca excedam `max_chunk_chars`.
@@ -15,7 +15,7 @@
   3. O `get_embedding_token_limit` identifica dinamicamente o teto de tokens do modelo ativo (OpenAI = 8.191, Gemini/Nomic = 2.048, MiniLM = 512) ou honra `max_embed_tokens` configurado.
   4. O `ParallelIndexer` aplica disjuntor fail-safe impedindo qualquer erro HTTP 400 por estouro de tokens da OpenAI.
   5. A indexação do repositório real `pocketbase` (726 arquivos) conclui com 100% de sucesso.
-- **Pré-requisito**: Versão `v0.30.3` instalada com o novo Core Rust.
+- **Pré-requisito**: Versão `v0.30.4` instalada com o novo Core Rust.
 
 #### 📋 Passo a Passo de Execução:
 
