@@ -55,7 +55,7 @@ class TestRPCBridge(unittest.TestCase):
         self.assertTrue(any(state["tier_name"].startswith(e) for e in ["🌿", "⭐", "👥", "🏢", "💼"]), f"Invalid tier_name: {state['tier_name']}")
 
         cmds = self.server.list_commands()
-        self.assertEqual(len(cmds), 32, "All 32 slash commands must be present in palette metadata")
+        self.assertEqual(len(cmds), 34, "All 34 slash commands must be present in palette metadata")
         slash_names = [c["command"] for c in cmds]
         self.assertIn("/switch", slash_names)
         self.assertIn("/model", slash_names)

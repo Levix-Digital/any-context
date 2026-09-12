@@ -2637,7 +2637,64 @@ graph TD
      - OFX: `OFX Financial Statement`
    - Registered in `IngestionRouter.supports_file()`, `chunk_text()`, `chunk_file()`, and `chunk_bytes()`.
 
-### 24.11 Strategic Roadmap
+### 24.11 Native Rust Smart Cascade for PDF & Scanned Images: lopdf, OCR Gate & Vision LLM Hook (`v0.30.10` - Marco 5)
+In `v0.30.10` (Marco 5), AnyContext integrates the **Cascata Inteligente** for complex PDFs and images directly in native Rust (`any-context-core-rs`), completely replacing legacy, memory-heavy Python parsing/OCR stacks (`pypdf`, `pdfplumber`, `pymupdf`, `pytesseract`):
+
+```mermaid
+graph TD
+    IR["IngestionRouter (Rust)"] --> |".pdf"| PC["PdfChunker (lopdf 0.45)"]
+    IR --> |".png, .jpg, .jpeg, .webp"| IC["ImageChunker (image 0.25)"]
+    PC --> |"Page Text Stream >= 50 chars"| DL["Tier 1: Digital Layout Chunk"]
+    PC --> |"Scanned Page (< 50 chars / XObject)"| OG["Tier 2: Gate OCR (Native OS Tesseract)"]
+    IC --> OG
+    OG --> |"OCR Text >= 30 chars"| OC["Tier 2: OCR Scan Chunk"]
+    OG --> |"Text < 30 chars / No OCR / Diagram"| VL["Tier 3: Vision LLM Hook / Structured Visual Fallback"]
+    DL --> SOC["splitter::split_oversized_code"]
+    OC --> SOC
+    VL --> CP["Vec<ChunkPayload>"]
+    SOC --> CP
+```
+
+1. **Strict 100% Native Rust Architecture**:
+   - Zero Python dependencies for PDF/image ingestion.
+   - Core extraction is compiled into native machine code via PyO3, executing in sub-millisecond speeds.
+   - Eliminates Python memory bloat, native thread contention, and Python Global Interpreter Lock (GIL) friction during batch folder ingestion.
+
+2. **Tier 1: Native Vector/Layout Text Extraction (`pdf.rs` via `lopdf 0.45`)**:
+   - **Page-by-Page Deconstruction**: Extracts text streams for every page directly using `lopdf::Document`.
+   - **Text Density Gate**: Evaluates page text length against a strict 50-character gate ($\ge 50$ chars). If sufficient digital text is found, generates structured layout chunks with authoritative page breadcrumbs (`// Context: <file>.pdf > Page <N> > rows X..Y`).
+   - **Scanned Page Identification**: Pages with $< 50$ characters or containing visual XObjects are tagged as scanned pages and automatically escalated to Tier 2 OCR.
+   - **Deterministic Slicing**: Oversized pages exceeding `max_chunk_chars` are sliced cleanly using `splitter::split_oversized_code`.
+
+3. **Tier 2: Native OS OCR Gate for Scans & Images (`image.rs` via `image 0.25` & OS Tesseract)**:
+   - **Pure Rust Image Decoding**: Decodes PNG, JPEG, and WebP metadata (dimensions, aspect ratio, color type) directly in Rust via `image::load_from_memory`.
+   - **Zero-Python Process Dispatch**: Invokes the native operating system `tesseract` binary via `std::process::Command` with temporary TIFF/PNG files, capturing stdout directly.
+   - **OCR Density Gate**: If extracted OCR text $\ge 30$ characters, generates searchable document chunks cataloged as `PDF Scanned Document (OCR)` or `Image Document (OCR Scan)`.
+   - **Fallback Escalation**: If Tesseract is missing from the host OS or OCR produces $< 30$ characters (diagrams, flowcharts, architecture diagrams, UI mockups), the system automatically escalates to Tier 3.
+
+4. **Tier 3: Vision LLM Hook & Structured Visual Fallback**:
+   - For purely visual assets, emits a structured Markdown specification:
+     ```markdown
+     [Visual Diagram: architecture_diagram.png | Resolution: 1920x1080 | Aspect: 16:9 | Mode: Vision LLM Grounding]
+     ```
+   - Cataloged under taxonomy `Visual Diagram / Image (Vision AI)`.
+   - **Multimodal AI Grounding**: When `/vision on` is enabled, allows the conversational agent to invoke vision-capable models (e.g., `gemini-1.5-pro`, `gpt-4o`) to generate deep multimodal textual summaries.
+   - **Offline Stability**: When vision models are disabled or offline, the structured visual specification provides deterministic retrieval based on filename, aspect ratio, and resolution.
+
+5. **Diagnostic & Control Slash Commands**:
+   - `/vision [on|off|status]`: Inspects or toggles the multimodal Vision LLM grounding flag in `app_settings.py` (`enable_vision_llm`).
+   - `/ocr [status|<path>]`: Audita a disponibilidade do binário do Tesseract no sistema operacional (`tesseract --version`) ou testa a extração direta em arquivos.
+
+6. **LanceDB Content Taxonomy & Router Integration**:
+   - `IngestionRouter` accepts `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp` in `supports_file()`, `chunk_file()`, and `chunk_bytes()`.
+   - `SimpleDirectoryReader` uses `_NativePassThroughReader` to skip Python readers and pass files straight to `IngestionRouter`.
+   - Chunks are cataloged with granular semantic types:
+     - `PDF Document (Digital Layout)`
+     - `PDF Scanned Document (OCR)`
+     - `Image Document (OCR Scan)`
+     - `Visual Diagram / Image (Vision AI)`
+
+### 24.12 Strategic Roadmap
 1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3. [DONE]
 2. **Marco 2.1 (`v0.30.1`)**: ASTCodeChunker (Tree-sitter) Python Pilot. [DONE]
 3. **Marco 2.2 (`v0.30.2`)**: ASTCodeChunker for Enterprise Languages (TypeScript/JavaScript, Java, C#). [DONE]
@@ -2647,7 +2704,7 @@ graph TD
 7. **v0.30.6**: ASTCodeChunker for Scripting & Mobile Languages (Kotlin, Swift, Ruby, PHP, Lua, Dart). [DONE]
 8. **Marco 3 (`v0.30.7` / `v0.30.8`)**: Universal StructuredDataChunker in Rust for XML, JSON, YAML, and TOML with hierarchical path breadcrumbs (Global-first architecture: zero country-specific implementations). [DONE]
 9. **Marco 4 (`v0.30.9`)**: TabularChunker in Rust for CSV, TSV, Excel (.xlsx, .xls), ODS, and OFX with header propagation and multi-sheet isolation. [DONE]
-10. **Marco 5**: PDFLayoutChunker with OCR detection gate.
+10. **Marco 5 (`v0.30.10`)**: Native Rust Smart Cascade for PDF & Scanned Images (lopdf Layout, OS Tesseract OCR Gate & Vision LLM Hook). [DONE]
 11. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
 12. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
 

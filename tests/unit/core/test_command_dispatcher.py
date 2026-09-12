@@ -18,14 +18,15 @@ from any_context.commands.result import CommandResult
 class TestCommandDispatcher(unittest.TestCase):
 
     def test_01_canonical_registry_completeness(self):
-        """Validates that all 32 slash commands are properly registered."""
-        self.assertEqual(len(COMMANDS_REGISTRY), 32)
+        """Validates that all 34 slash commands are properly registered."""
+        self.assertEqual(len(COMMANDS_REGISTRY), 34)
         expected_names = [
             "/switch", "/model", "/mode", "/web-search", "/sync", "/sources",
             "/folder", "/web", "/transfer", "/link", "/unlink", "/shared",
             "/rename", "/config", "/key", "/models", "/billing", "/reset-memory",
             "/clear", "/paste", "/help", "/version", "/check-update", "/update", "/inspect",
-            "/density", "/history", "/menu", "/logs", "/diagnostics", "/onboarding", "/exit"
+            "/density", "/history", "/menu", "/logs", "/diagnostics", "/onboarding",
+            "/vision", "/ocr", "/exit"
         ]
         registered_names = [c.name for c in COMMANDS_REGISTRY]
         for name in expected_names:
@@ -42,6 +43,8 @@ class TestCommandDispatcher(unittest.TestCase):
         self.assertEqual(find_command_meta("/v").name, "/version")
         self.assertEqual(find_command_meta("/q").name, "/exit")
         self.assertEqual(find_command_meta("/setup").name, "/onboarding")
+        self.assertEqual(find_command_meta("/vis").name, "/vision")
+        self.assertEqual(find_command_meta("/scan").name, "/ocr")
         self.assertEqual(find_command_meta("/update@0.28.85").name, "/update")
 
     def test_03_dispatch_version_and_clear_and_exit(self):

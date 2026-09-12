@@ -71,7 +71,7 @@ class TestTUISyntax(unittest.TestCase):
         import re
         # Find all `command: "/xyz"` in DEFAULT_SLASH_COMMANDS
         matches = re.findall(r'command:\s*"([^"]+)"', content)
-        self.assertEqual(len(matches), 32, f"Expected 32 commands in commands.ts, found {len(matches)}")
+        self.assertEqual(len(matches), 34, f"Expected 34 commands in commands.ts, found {len(matches)}")
         self.assertEqual(len(matches), len(set(matches)), f"Found duplicate command names in commands.ts: {matches}")
 
         registry_names = [c.name for c in COMMANDS_REGISTRY]
