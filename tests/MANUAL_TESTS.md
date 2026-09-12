@@ -7,7 +7,76 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.2): Validação da Expansão Multi-Linguagem do Parser AST de Código-Fonte (TypeScript, JavaScript, Java e C# com tree-sitter)
+### 📌 Cenário 1 (v0.30.3): Validação da Expansão Multi-Linguagem do Parser AST de Código-Fonte para Linguagens de Sistemas (Go, Rust e C/C++ com tree-sitter)
+
+- **Objetivo**: Comprovar que na release `v0.30.3`:
+  1. O `IngestionRouter` detecta automaticamente arquivos de código em linguagens de sistemas: **Go** (`.go`), **Rust** (`.rs`), **C** (`.c`, `.h`) e **C++** (`.cpp`, `.hpp`, `.cc`, `.cxx`), além de TypeScript/JS, Java, C# e Python.
+  2. A decomposição em chunks é 100% orientada à AST via gramáticas oficiais `tree-sitter`, preservando fronteiras semânticas de:
+     - **Go**: Structs, interfaces, funções, métodos com receptor explícito (`func (s *Server) Start()`), comentários de documentação.
+     - **Rust**: Structs, enums, traits, funções, blocos `impl Type` e `impl Trait for Type`, métodos internos decompostos com Overview, comentários `///` e `//!`.
+     - **C/C++**: Classes, structs, namespaces recursivos (`namespace A > class B`), templates (`template<typename T> class Queue`), funções e diretivas de pré-processador (`#include`, `#define`).
+  3. Cada chunk recebe breadcrumbs semânticos (`// Context: file > class > method [lines X-Y]`) e tipo de conteúdo específico (`Go Source Code`, `Rust Source Code`, `C Source Code`, `C++ Source Code`).
+  4. Validação dos arquivos de teste e perguntas sugeridas em:
+     - `tests/documents/go_tests/` (`PERGUNTAS_SUGERIDAS.md`)
+     - `tests/documents/rust_tests/` (`PERGUNTAS_SUGERIDAS.md`)
+     - `tests/documents/cpp_tests/` (`PERGUNTAS_SUGERIDAS.md`)
+- **Pré-requisito**: Versão `v0.30.3` instalada (`actx -v` exibindo `v0.30.3`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Verificação de Suporte Multi-Linguagem Completo no Core Rust:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     actx -v
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(); print({ext: r.supports_file('f.' + ext) for ext in ['go', 'rs', 'c', 'h', 'cpp', 'hpp', 'py', 'ts', 'java', 'cs']})"
+     ```
+   - **Critério de Aceitação:** Exibe `v0.30.3` e um dicionário onde todas as 10 extensões possuem valor `True`.
+
+2. **🐹 Teste de Fatiamento AST Go (Golang):**
+   - Executar o comando Python de teste de chunking Go:
+     ```bash
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(); chunks = r.chunk_text('server.go', 'package main\n\ntype Server struct { Port int }\n\nfunc (s *Server) Start() error { return nil }\n\nfunc NewServer() *Server { return &Server{Port: 8080} }'); [print(c.text + '\n') for c in chunks]"
+     ```
+   - **Critério de Aceitação:** São gerados chunks com breadcrumbs semânticos:
+     - `// Context: server.go > struct Server`
+     - `// Context: server.go > method (s *Server) Start`
+     - `// Context: server.go > function NewServer`
+     - `content_type: go`.
+
+3. **🦀 Teste de Fatiamento AST Rust:**
+   - Executar o comando Python de teste de chunking Rust:
+     ```bash
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(); chunks = r.chunk_text('engine.rs', 'pub struct Order { id: u64 }\n\nimpl Order {\n    pub fn new(id: u64) -> Self { Self { id } }\n}\n\npub fn match_orders() -> bool { true }'); [print(c.text + '\n') for c in chunks]"
+     ```
+   - **Critério de Aceitação:** Chunks contêm `// Context: engine.rs > struct Order`, `// Context: engine.rs > impl Order` e `// Context: engine.rs > fn match_orders` com `content_type: rust`.
+
+4. **⚡ Teste de Fatiamento AST C e C++:**
+   - Executar o comando Python de teste de chunking C/C++:
+     ```bash
+     python -c "import any_context_core_rs; r = any_context_core_rs.IngestionRouter(); chunks = r.chunk_text('main.cpp', '#include <iostream>\n\nnamespace core {\n    class Worker {\n    public:\n        void run();\n    };\n}\n\nint main() { return 0; }'); [print(c.text + '\n') for c in chunks]"
+     ```
+   - **Critério de Aceitação:** Chunks contêm `// Context: main.cpp > namespace core > class Worker` e `// Context: main.cpp > function main` com `content_type: cpp`.
+
+5. **🧪 Validação das Perguntas Sugeridas de Teste em Go, Rust e C/C++:**
+   - Consultar os roteiros de perguntas em:
+     - `tests/documents/go_tests/PERGUNTAS_SUGERIDAS.md`
+     - `tests/documents/rust_tests/PERGUNTAS_SUGERIDAS.md`
+     - `tests/documents/cpp_tests/PERGUNTAS_SUGERIDAS.md`
+   - Adicionar uma das pastas como fonte local no AnyContext:
+     ```bash
+     actx
+     /sources
+     ```
+   - Adicionar o caminho correspondente e rodar `/sync`.
+   - Fazer perguntas como:
+     - *"Como funciona a recomposição de fichas no método Allow do struct TokenBucket em Go?"*
+     - *"Quais validações o construtor Order::new realiza no motor em Rust?"*
+     - *"Como funciona a alocação e liberação de blocos na classe FixedMemoryPool em C++?"*
+   - **Critério de Aceitação:** O AnyContext responde com exatidão factual técnica, citando os arquivos fontes correspondentes.
+
+---
+
+### 📌 Cenário 2 (v0.30.2): Validação da Expansão Multi-Linguagem do Parser AST de Código-Fonte (TypeScript, JavaScript, Java e C# com tree-sitter)
 
 - **Objetivo**: Comprovar que na release `v0.30.2`:
   1. O `IngestionRouter` detecta automaticamente arquivos de código nas principais linguagens empresariais e web: **TypeScript & JavaScript** (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`), **Java** (`.java`) e **C#** (`.cs`), além de Python (`.py`, `.pyw`, `.pyi`).

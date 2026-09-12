@@ -1,6 +1,9 @@
+pub mod cpp;
 pub mod csharp;
+pub mod go;
 pub mod java;
 pub mod python;
+pub mod rust;
 pub mod traits;
 pub mod typescript;
 
@@ -15,6 +18,9 @@ pub struct ASTCodeChunker {
     typescript_parser: typescript::TypeScriptASTParser,
     java_parser: java::JavaASTParser,
     csharp_parser: csharp::CSharpASTParser,
+    go_parser: go::GoASTParser,
+    rust_parser: rust::RustASTParser,
+    cpp_parser: cpp::CppASTParser,
     max_chunk_chars: usize,
 }
 
@@ -25,6 +31,9 @@ impl ASTCodeChunker {
             typescript_parser: typescript::TypeScriptASTParser::new(),
             java_parser: java::JavaASTParser::new(),
             csharp_parser: csharp::CSharpASTParser::new(),
+            go_parser: go::GoASTParser::new(),
+            rust_parser: rust::RustASTParser::new(),
+            cpp_parser: cpp::CppASTParser::new(),
             max_chunk_chars,
         }
     }
@@ -36,6 +45,9 @@ impl ASTCodeChunker {
                 | "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
                 | "java"
                 | "cs"
+                | "go"
+                | "rs"
+                | "c" | "h" | "cpp" | "hpp" | "cc" | "cxx" | "c++" | "hh" | "hxx"
         )
     }
 }
@@ -54,6 +66,11 @@ impl Chunker for ASTCodeChunker {
             }
             "java" => self.java_parser.parse_chunks(file_path, content, self.max_chunk_chars),
             "cs" => self.csharp_parser.parse_chunks(file_path, content, self.max_chunk_chars),
+            "go" => self.go_parser.parse_chunks(file_path, content, self.max_chunk_chars),
+            "rs" => self.rust_parser.parse_chunks(file_path, content, self.max_chunk_chars),
+            "c" | "h" | "cpp" | "hpp" | "cc" | "cxx" | "c++" | "hh" | "hxx" => {
+                self.cpp_parser.parse_chunks(file_path, content, self.max_chunk_chars)
+            }
             _ => Err(format!("Unsupported code extension for AST parsing: .{}", ext)),
         }
     }

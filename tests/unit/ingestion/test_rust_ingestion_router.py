@@ -25,6 +25,12 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(self.router.supports_file("components/Widget.jsx"))
         self.assertTrue(self.router.supports_file("UserService.java"))
         self.assertTrue(self.router.supports_file("OrderController.cs"))
+        self.assertTrue(self.router.supports_file("main.go"))
+        self.assertTrue(self.router.supports_file("src/lib.rs"))
+        self.assertTrue(self.router.supports_file("kernel.c"))
+        self.assertTrue(self.router.supports_file("include/header.h"))
+        self.assertTrue(self.router.supports_file("engine.cpp"))
+        self.assertTrue(self.router.supports_file("include/engine.hpp"))
         self.assertFalse(self.router.supports_file("report.pdf"))
         self.assertFalse(self.router.supports_file("data.xlsx"))
 
@@ -80,6 +86,84 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertGreaterEqual(len(chunks), 1)
         self.assertTrue(any("class ProductsController" in c["text"] for c in chunks))
         self.assertEqual(chunks[-1]["content_type"], "csharp")
+
+    def test_go_ast_chunking(self):
+        code = (
+            "package main\n\n"
+            "import \"fmt\"\n\n"
+            "type Config struct {\n"
+            "    Port int\n"
+            "}\n\n"
+            "func (c *Config) Addr() string {\n"
+            "    return fmt.Sprintf(\":%d\", c.Port)\n"
+            "}\n\n"
+            "func StartServer(cfg *Config) error {\n"
+            "    return nil\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("server.go", code)
+        self.assertGreaterEqual(len(chunks), 3)
+        self.assertTrue(any("struct Config" in c["text"] for c in chunks))
+        self.assertTrue(any("method (c *Config) Addr" in c["text"] for c in chunks))
+        self.assertTrue(any("function StartServer" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "go")
+
+    def test_rust_ast_chunking(self):
+        code = (
+            "pub struct Router {\n"
+            "    routes: Vec<String>,\n"
+            "}\n\n"
+            "impl Router {\n"
+            "    pub fn new() -> Self {\n"
+            "        Self { routes: Vec::new() }\n"
+            "    }\n"
+            "}\n\n"
+            "pub fn init_router() -> Router {\n"
+            "    Router::new()\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("router.rs", code)
+        self.assertGreaterEqual(len(chunks), 2)
+        self.assertTrue(any("struct Router" in c["text"] for c in chunks))
+        self.assertTrue(any("impl Router" in c["text"] for c in chunks))
+        self.assertTrue(any("fn init_router" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "rust")
+
+    def test_cpp_ast_chunking(self):
+        code = (
+            "#include <iostream>\n\n"
+            "namespace core {\n"
+            "    class App {\n"
+            "    public:\n"
+            "        void start();\n"
+            "    };\n"
+            "}\n\n"
+            "int main() {\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("main.cpp", code)
+        self.assertGreaterEqual(len(chunks), 2)
+        self.assertTrue(any("namespace core > class App" in c["text"] for c in chunks))
+        self.assertTrue(any("function main" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "cpp")
+
+    def test_c_ast_chunking(self):
+        code = (
+            "#include <stdio.h>\n\n"
+            "struct Buffer {\n"
+            "    char* data;\n"
+            "    size_t len;\n"
+            "};\n\n"
+            "int write_buffer(struct Buffer* buf, const char* msg) {\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        chunks = self.router.chunk_text("buffer.c", code)
+        self.assertGreaterEqual(len(chunks), 2)
+        self.assertTrue(any("struct Buffer" in c["text"] for c in chunks))
+        self.assertTrue(any("function write_buffer" in c["text"] for c in chunks))
+        self.assertEqual(chunks[0]["content_type"], "c")
 
     def test_python_ast_functions_and_classes(self):
         code = (

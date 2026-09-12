@@ -137,6 +137,14 @@ class ParallelIndexer:
                         content_type_str = "Java Source Code"
                     elif ct == "csharp" or fp.lower().endswith(".cs"):
                         content_type_str = "C# Source Code"
+                    elif ct == "go" or fp.lower().endswith(".go"):
+                        content_type_str = "Go Source Code"
+                    elif ct == "rust" or fp.lower().endswith(".rs"):
+                        content_type_str = "Rust Source Code"
+                    elif ct == "c" or fp.lower().endswith((".c", ".h")):
+                        content_type_str = "C Source Code"
+                    elif ct == "cpp" or fp.lower().endswith((".cpp", ".hpp", ".cc", ".cxx", ".c++", ".hh", ".hxx")):
+                        content_type_str = "C++ Source Code"
                     elif ct == "markdown" or fp.lower().endswith((".md", ".markdown", ".rst", ".mdown")):
                         content_type_str = "Markdown Document"
                     else:
