@@ -183,8 +183,8 @@ class ContextualEnricher:
         if len(summary) > 450:
             summary = summary[:447] + "..."
 
-        # 3. Extract Top-N Keywords using frequency and domain heuristics with path date signals
-        keywords = self._extract_top_keywords(clean_text, doc_title, file_path=file_path)
+        # 3. Extract Top-N Keywords using frequency and domain heuristics
+        keywords = self._extract_top_keywords(clean_text, doc_title)
 
         envelope = SemanticEnvelope(
             summary=summary,
@@ -198,8 +198,8 @@ class ContextualEnricher:
         self.save_envelope(envelope)
         return envelope
 
-    def _extract_top_keywords(self, text: str, title: str, file_path: Optional[str] = None, top_n: int = 7) -> List[str]:
-        """Extracts top domain keywords by frequency, length, title significance, and directory date patterns."""
+    def _extract_top_keywords(self, text: str, title: str, top_n: int = 7) -> List[str]:
+        """Extracts top domain keywords by frequency, length, and title significance."""
         STOP_WORDS = {
             "a", "o", "as", "os", "um", "uma", "uns", "umas", "de", "do", "da", "dos", "das",
             "em", "no", "na", "nos", "nas", "por", "pelo", "pela", "pelos", "pelas", "para",
@@ -210,14 +210,6 @@ class ContextualEnricher:
             "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do",
             "does", "did", "can", "could", "should", "would", "may", "might", "must", "will"
         }
-
-        temporal_kws = []
-        if file_path:
-            norm_fp = file_path.replace("\\", "/")
-            date_match = re.search(r"/(20\d{2})/(0[1-9]|1[0-2])/(0[1-9]|[12]\d|3[01])/", norm_fp)
-            if date_match:
-                y, m, d = date_match.groups()
-                temporal_kws.extend([f"{y}-{m}-{d}", f"{d}/{m}/{y}"])
 
         # Tokenize words >= 4 chars with unicode support
         words = re.findall(r"(?u)\b[a-zA-Z\u00C0-\u00FF]{4,}\b", text.lower())
@@ -234,11 +226,6 @@ class ContextualEnricher:
 
         sorted_kw = sorted(freq.items(), key=lambda item: item[1], reverse=True)
         top_kw = [k for k, _ in sorted_kw[:top_n]]
-
-        # Prepend extracted temporal signals
-        for tk in reversed(temporal_kws):
-            if tk not in top_kw:
-                top_kw.insert(0, tk)
 
         # Ensure title terms are represented
         for tw in title_words:

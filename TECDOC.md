@@ -2348,6 +2348,13 @@ In v0.29.3, historical assistant messages were pruned of all citation footers to
 3. **Mandatory Turn Header Directive**: All grounding strategies inject:
    `"- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date."`
 
+### 23.5 Domain Keyword Decoupling in Contextual Enrichment (`v0.29.5`)
+`ContextualEnricher` adheres strictly to content-driven semantic enrichment:
+- **Pure Textual Domain Extraction**: `_extract_top_keywords(text, title)` derives Top-N keywords strictly from document body frequencies, title tokens, and universal stop-word pruning.
+- **Independence from Directory Hierarchies**: Document chunks and vector embeddings are never polluted or constrained by hardcoded folder naming patterns (e.g. `/YYYY/MM/DD/`).
+- **Query-Time Temporal Separation**: Temporal anchoring is evaluated dynamically at query time via `ParallelRetriever` and LanceDB columnar metadata filters (`file_path LIKE`, `last_modified LIKE`), ensuring complete architectural decoupling between document representation and temporal retrieval.
+
+
 
 
 
