@@ -4,6 +4,8 @@ use crate::ingestion::chunkers::code::ASTCodeChunker;
 use crate::ingestion::chunkers::markdown::MarkdownHeaderChunker;
 use crate::ingestion::chunkers::structured::StructuredDataChunker;
 use crate::ingestion::chunkers::tabular::TabularChunker;
+use crate::ingestion::chunkers::pdf::PdfChunker;
+use crate::ingestion::chunkers::image::ImageChunker;
 use crate::ingestion::traits::Chunker;
 use crate::models::ChunkPayload;
 
@@ -14,6 +16,8 @@ pub struct IngestionRouter {
     pub code_chunker: ASTCodeChunker,
     pub structured_chunker: StructuredDataChunker,
     pub tabular_chunker: TabularChunker,
+    pub pdf_chunker: PdfChunker,
+    pub image_chunker: ImageChunker,
 }
 
 #[pymethods]
@@ -26,6 +30,8 @@ impl IngestionRouter {
             code_chunker: ASTCodeChunker::new(max_chunk_chars),
             structured_chunker: StructuredDataChunker::new(max_chunk_chars),
             tabular_chunker: TabularChunker::new(max_chunk_chars),
+            pdf_chunker: PdfChunker::new(max_chunk_chars),
+            image_chunker: ImageChunker::new(max_chunk_chars),
         }
     }
 
@@ -37,6 +43,8 @@ impl IngestionRouter {
             || self.code_chunker.supports_extension(&ext)
             || self.structured_chunker.supports_extension(&ext)
             || self.tabular_chunker.supports_extension(&ext)
+            || self.pdf_chunker.supports_extension(&ext)
+            || self.image_chunker.supports_extension(&ext)
     }
 
     /// Chunks document content using the specialized parser matching the file extension.
@@ -59,13 +67,17 @@ impl IngestionRouter {
             self.tabular_chunker.chunk(file_path, content).map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!("Tabular chunker error: {}", e))
             })
+        } else if self.pdf_chunker.supports_extension(&ext) {
+            self.pdf_chunker.chunk(file_path, content).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("PDF chunker error: {}", e))
+            })
         } else {
             Ok(Vec::new())
         }
     }
 
     /// Reads and chunks a file directly from the filesystem in high-speed native Rust.
-    /// Handles binary spreadsheet files (.xlsx, .xls, .ods) directly via calamine.
+    /// Handles binary spreadsheet files (.xlsx, .xls, .ods), PDFs (.pdf), and images (.png, .jpg, .webp).
     pub fn chunk_file(&self, file_path: &str) -> PyResult<Vec<ChunkPayload>> {
         let p = Path::new(file_path);
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
@@ -73,6 +85,14 @@ impl IngestionRouter {
         if self.tabular_chunker.supports_extension(&ext) && matches!(ext.as_str(), "xlsx" | "xls" | "ods") {
             self.tabular_chunker.chunk_file(file_path).map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!("Tabular Excel chunker error: {}", e))
+            })
+        } else if self.pdf_chunker.supports_extension(&ext) {
+            self.pdf_chunker.chunk_file(file_path).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("PDF chunker error: {}", e))
+            })
+        } else if self.image_chunker.supports_extension(&ext) {
+            self.image_chunker.chunk_file(file_path).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Image chunker error: {}", e))
             })
         } else {
             let content = std::fs::read_to_string(file_path).map_err(|e| {
@@ -82,7 +102,7 @@ impl IngestionRouter {
         }
     }
 
-    /// Chunks raw byte content (useful for binary workbooks or in-memory streams).
+    /// Chunks raw byte content (useful for binary workbooks, PDFs, images, or in-memory streams).
     pub fn chunk_bytes(&self, file_path: &str, bytes: &[u8]) -> PyResult<Vec<ChunkPayload>> {
         let p = Path::new(file_path);
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
@@ -90,6 +110,14 @@ impl IngestionRouter {
         if matches!(ext.as_str(), "xlsx" | "xls" | "ods") {
             self.tabular_chunker.excel_chunker.chunk_bytes(file_path, bytes).map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!("Tabular Excel bytes error: {}", e))
+            })
+        } else if self.pdf_chunker.supports_extension(&ext) {
+            self.pdf_chunker.chunk_bytes(file_path, bytes).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("PDF bytes error: {}", e))
+            })
+        } else if self.image_chunker.supports_extension(&ext) {
+            self.image_chunker.chunk_bytes(file_path, bytes).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Image bytes error: {}", e))
             })
         } else {
             let content = String::from_utf8_lossy(bytes);
@@ -145,8 +173,10 @@ mod tests {
         assert!(router.supports_file("legacy.xls"));
         assert!(router.supports_file("budget.ods"));
         assert!(router.supports_file("statement.ofx"));
-        assert!(!router.supports_file("report.pdf"));
-        assert!(!router.supports_file("image.png"));
+        assert!(router.supports_file("report.pdf"));
+        assert!(router.supports_file("image.png"));
+        assert!(!router.supports_file("binary.bin"));
+        assert!(!router.supports_file("unknown.xyz"));
     }
 
     #[test]
@@ -376,5 +406,37 @@ mod tests {
         assert!(!chunks.is_empty());
         assert_eq!(chunks[0].content_type, "ofx");
         assert!(chunks[0].text.contains("Bank: 001 | Acct: 123"));
+    }
+
+    #[test]
+    fn test_router_supports_pdf_and_images() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        assert!(router.supports_file("report.pdf"));
+        assert!(router.supports_file("diagram.png"));
+        assert!(router.supports_file("photo.jpg"));
+        assert!(router.supports_file("photo.jpeg"));
+        assert!(router.supports_file("chart.webp"));
+    }
+
+    #[test]
+    fn test_router_chunk_pdf_text() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let pdf_text = "Chapter 1: Native Rust Core Architecture\nThis document describes the high-performance engine.";
+        let chunks = router.chunk_text("manual.pdf", pdf_text).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "pdf");
+        assert!(chunks[0].text.contains("// Context: manual.pdf > Content"));
+    }
+
+    #[test]
+    fn test_router_chunk_image_bytes() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let chunks = router.chunk_bytes("architecture.png", b"fake image bytes").expect("Chunking failed");
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].content_type, "visual_diagram");
+        assert!(chunks[0].text.contains("Visual Image & Diagram Specification"));
     }
 }

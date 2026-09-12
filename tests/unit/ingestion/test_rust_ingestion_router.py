@@ -52,7 +52,9 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(self.router.supports_file("legacy.xls"))
         self.assertTrue(self.router.supports_file("budget.ods"))
         self.assertTrue(self.router.supports_file("statement.ofx"))
-        self.assertFalse(self.router.supports_file("report.pdf"))
+        self.assertTrue(self.router.supports_file("report.pdf"))
+        self.assertTrue(self.router.supports_file("image.png"))
+        self.assertFalse(self.router.supports_file("binary.bin"))
 
     def test_typescript_ast_chunking(self):
         code = (
@@ -601,6 +603,27 @@ class TestRustIngestionRouter(unittest.TestCase):
         finally:
             if os.path.exists(f_path):
                 os.remove(f_path)
+
+    def test_pdf_support_and_text_chunking(self):
+        self.assertTrue(self.router.supports_file("architecture.pdf"))
+        self.assertTrue(self.router.supports_file("report.PDF"))
+
+        text = "Chapter 1: System Design\nThis chapter introduces the native Rust Core of AnyContext."
+        chunks = self.router.chunk_text("manual.pdf", text)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertEqual(chunks[0]["content_type"], "pdf")
+        self.assertIn("manual.pdf > Content", chunks[0]["header_path"])
+        self.assertIn("System Design", chunks[0]["text"])
+
+    def test_image_support_and_visual_chunking(self):
+        for ext in ["png", "jpg", "jpeg", "webp", "PNG", "JPG"]:
+            self.assertTrue(self.router.supports_file(f"diagram.{ext}"))
+
+        chunks = self.router.chunk_bytes("system_architecture.png", b"fake image buffer")
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0]["content_type"], "visual_diagram")
+        self.assertIn("system_architecture.png > Visual Diagram", chunks[0]["header_path"])
+        self.assertIn("Visual Image & Diagram Specification", chunks[0]["text"])
 
 
 if __name__ == "__main__":

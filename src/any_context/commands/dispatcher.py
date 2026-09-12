@@ -363,6 +363,14 @@ class CommandDispatcher:
                 action="open_onboarding_modal"
             )
 
+        # 33. /vision
+        if canonical in ["/vision", "/vis"]:
+            return self._handle_vision(parts)
+
+        # 34. /ocr or /scan
+        if canonical in ["/ocr", "/scan"]:
+            return self._handle_ocr(parts)
+
         return CommandResult(
             success=False,
             message=f"❌ Unknown command `{cmd_token}`. Type `/help` to view all available commands.",
@@ -784,6 +792,71 @@ class CommandDispatcher:
     def _handle_reset_memory(self, ws_name: str) -> CommandResult:
         res = self.memory_svc.reset_memory(ws_name)
         return CommandResult(success=True, message=f"🧠 {res['message']}")
+
+    def _handle_vision(self, parts: List[str]) -> CommandResult:
+        settings = self.store.get_app_settings()
+        if len(parts) > 1:
+            arg = parts[1].lower().strip().lstrip("-")
+            if arg in ["on", "enable", "true", "1"]:
+                if settings and settings.context:
+                    settings.context.enable_vision_llm = True
+                    self.store.save_app_settings(settings)
+                return CommandResult(
+                    success=True,
+                    message="👁️ **Vision LLM Multimodal Ingestion: ENABLED**\nComplex visual diagrams, architecture charts and UI mockups will be described by Vision models during ingestion."
+                )
+            elif arg in ["off", "disable", "false", "0"]:
+                if settings and settings.context:
+                    settings.context.enable_vision_llm = False
+                    self.store.save_app_settings(settings)
+                return CommandResult(
+                    success=True,
+                    message="👁️ **Vision LLM Multimodal Ingestion: DISABLED**\nVisual diagrams and images will be indexed using native Rust structural metadata."
+                )
+        # Status query
+        is_on = bool(settings and settings.context and settings.context.enable_vision_llm)
+        status_str = "🟢 **ENABLED**" if is_on else "⚪ **DISABLED** (Using Native Rust Metadata Fallback)"
+        return CommandResult(
+            success=True,
+            message=(
+                f"👁️ **Vision LLM Status (Nível 3 da Cascata Inteligente)**\n"
+                f"• Multimodal Vision Hook: {status_str}\n"
+                f"• To toggle: `/vision on` or `/vision off`\n"
+                f"• Supported Multimodal Providers: OpenAI (gpt-4o, gpt-4o-mini), Google Gemini, Claude"
+            )
+        )
+
+    def _handle_ocr(self, parts: List[str]) -> CommandResult:
+        import shutil
+        tess_path = shutil.which("tesseract") or ("C:\\Program Files\\Tesseract-OCR\\tesseract.exe" if os.path.exists("C:\\Program Files\\Tesseract-OCR\\tesseract.exe") else None)
+        if len(parts) > 1 and os.path.isfile(parts[1]):
+            target = parts[1]
+            from any_context.ingestion.router import IngestionRouter
+            router = IngestionRouter()
+            if not router.supports_file(target):
+                return CommandResult(success=False, message=f"❌ Unsupported format for OCR/Cascade: `{target}`")
+            chunks = router.chunk_file(target)
+            return CommandResult(
+                success=True,
+                message=(
+                    f"📷 **Smart Cascade Ingestion Result for `{os.path.basename(target)}`**:\n"
+                    f"• Generated Chunks: **{len(chunks)}**\n"
+                    f"• Content Type: `{chunks[0].get('content_type') if chunks else 'empty'}`\n"
+                    f"• Context Header: `{chunks[0].get('header_path') if chunks else 'none'}`"
+                )
+            )
+
+        tess_status = f"🟢 Available (`{tess_path}`)" if tess_path else "⚪ Not detected on PATH (Graceful fallback active)"
+        return CommandResult(
+            success=True,
+            message=(
+                f"📷 **Smart Cascade OCR Status (Nível 2 da Cascata)**\n"
+                f"• Native Tesseract Engine: {tess_status}\n"
+                f"• Native PDF Engine: 🟢 Active (Rust lopdf)\n"
+                f"• Native Image Engine: 🟢 Active (Rust image crate: PNG, JPEG, WebP)\n"
+                f"• Usage: `/ocr <path/to/file>` to test extraction"
+            )
+        )
 
 
 # Global dispatcher singleton

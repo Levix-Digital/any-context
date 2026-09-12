@@ -79,6 +79,26 @@ class IngestionRouter:
             content = f.read()
         return self._fallback_markdown_chunk(file_path, content)
 
+    def chunk_bytes(self, file_path: str, bytes_data: bytes) -> List[Dict[str, Any]]:
+        if self._rust_router and hasattr(self._rust_router, "chunk_bytes"):
+            chunks = self._rust_router.chunk_bytes(file_path, bytes_data)
+            return [
+                {
+                    "id": c.id,
+                    "text": c.text,
+                    "file_name": c.file_name,
+                    "file_path": c.file_path,
+                    "header_path": c.header_path,
+                    "start_line": c.start_line,
+                    "end_line": c.end_line,
+                    "content_type": c.content_type,
+                    "chunk_index": c.chunk_index
+                }
+                for c in chunks
+            ]
+        text_content = bytes_data.decode("utf-8", errors="replace")
+        return self.chunk_text(file_path, text_content)
+
     def _fallback_markdown_chunk(self, file_path: str, content: str) -> List[Dict[str, Any]]:
         """Pure-Python fallback when native Rust extension is not compiled."""
         clean = content.trim() if hasattr(content, "trim") else content.strip()

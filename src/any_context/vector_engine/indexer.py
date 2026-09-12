@@ -125,7 +125,7 @@ class ParallelIndexer:
 
             if router.supports_file(fp):
                 fp_lower = fp.lower()
-                if fp_lower.endswith((".xlsx", ".xls", ".ods")):
+                if fp_lower.endswith((".xlsx", ".xls", ".ods", ".pdf", ".png", ".jpg", ".jpeg", ".webp")):
                     rust_chunks = router.chunk_file(fp)
                 else:
                     rust_chunks = router.chunk_text(fp, doc.text)
@@ -179,6 +179,14 @@ class ParallelIndexer:
                         content_type_str = "OpenDocument Spreadsheet"
                     elif ct == "ofx" or fp.lower().endswith(".ofx"):
                         content_type_str = "OFX Financial Statement"
+                    elif ct == "pdf" or fp.lower().endswith(".pdf"):
+                        content_type_str = "PDF Document (Digital Layout)"
+                    elif ct == "pdf_scan":
+                        content_type_str = "PDF Scanned Document (OCR)"
+                    elif ct == "image_ocr":
+                        content_type_str = "Image Document (OCR Scan)"
+                    elif ct == "visual_diagram":
+                        content_type_str = "Visual Diagram / Image (Vision AI)"
                     else:
                         content_type_str = doc.metadata.get("content_type", "Document")
 

@@ -267,6 +267,22 @@ COMMANDS_REGISTRY: List[CommandMeta] = [
         aliases=["/setup"]
     ),
     CommandMeta(
+        name="/vision",
+        args="[on|off|status]",
+        description="Toggle or check Vision LLM multimodal description for visual diagrams",
+        category="AI Grounding",
+        direct_execution=True,
+        aliases=["/vis"]
+    ),
+    CommandMeta(
+        name="/ocr",
+        args="[status|<path>]",
+        description="Check native OCR engine status or run OCR on a document",
+        category="Sources",
+        direct_execution=True,
+        aliases=["/scan"]
+    ),
+    CommandMeta(
         name="/exit",
         args="",
         description="Save session memory and exit",

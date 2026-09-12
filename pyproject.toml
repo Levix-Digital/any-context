@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.30.9"
+version = "0.30.10"
 description = "Universal local memory, context orchestrator, and real-time knowledge base for AI agents"
 
 
