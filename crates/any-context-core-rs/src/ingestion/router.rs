@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use crate::ingestion::chunkers::code::ASTCodeChunker;
 use crate::ingestion::chunkers::markdown::MarkdownHeaderChunker;
 use crate::ingestion::chunkers::structured::StructuredDataChunker;
+use crate::ingestion::chunkers::tabular::TabularChunker;
 use crate::ingestion::traits::Chunker;
 use crate::models::ChunkPayload;
 
@@ -12,6 +13,7 @@ pub struct IngestionRouter {
     pub markdown_chunker: MarkdownHeaderChunker,
     pub code_chunker: ASTCodeChunker,
     pub structured_chunker: StructuredDataChunker,
+    pub tabular_chunker: TabularChunker,
 }
 
 #[pymethods]
@@ -23,6 +25,7 @@ impl IngestionRouter {
             markdown_chunker: MarkdownHeaderChunker::new(max_chunk_chars, overlap_chars),
             code_chunker: ASTCodeChunker::new(max_chunk_chars),
             structured_chunker: StructuredDataChunker::new(max_chunk_chars),
+            tabular_chunker: TabularChunker::new(max_chunk_chars),
         }
     }
 
@@ -33,6 +36,7 @@ impl IngestionRouter {
         matches!(ext.as_str(), "md" | "markdown" | "rst" | "mdown")
             || self.code_chunker.supports_extension(&ext)
             || self.structured_chunker.supports_extension(&ext)
+            || self.tabular_chunker.supports_extension(&ext)
     }
 
     /// Chunks document content using the specialized parser matching the file extension.
@@ -51,17 +55,46 @@ impl IngestionRouter {
             self.structured_chunker.chunk(file_path, content).map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!("Structured data chunker error: {}", e))
             })
+        } else if self.tabular_chunker.supports_extension(&ext) {
+            self.tabular_chunker.chunk(file_path, content).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Tabular chunker error: {}", e))
+            })
         } else {
             Ok(Vec::new())
         }
     }
 
     /// Reads and chunks a file directly from the filesystem in high-speed native Rust.
+    /// Handles binary spreadsheet files (.xlsx, .xls, .ods) directly via calamine.
     pub fn chunk_file(&self, file_path: &str) -> PyResult<Vec<ChunkPayload>> {
-        let content = std::fs::read_to_string(file_path).map_err(|e| {
-            pyo3::exceptions::PyIOError::new_err(format!("Failed to read file '{}': {}", file_path, e))
-        })?;
-        self.chunk_text(file_path, &content)
+        let p = Path::new(file_path);
+        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+
+        if self.tabular_chunker.supports_extension(&ext) && matches!(ext.as_str(), "xlsx" | "xls" | "ods") {
+            self.tabular_chunker.chunk_file(file_path).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Tabular Excel chunker error: {}", e))
+            })
+        } else {
+            let content = std::fs::read_to_string(file_path).map_err(|e| {
+                pyo3::exceptions::PyIOError::new_err(format!("Failed to read file '{}': {}", file_path, e))
+            })?;
+            self.chunk_text(file_path, &content)
+        }
+    }
+
+    /// Chunks raw byte content (useful for binary workbooks or in-memory streams).
+    pub fn chunk_bytes(&self, file_path: &str, bytes: &[u8]) -> PyResult<Vec<ChunkPayload>> {
+        let p = Path::new(file_path);
+        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+
+        if matches!(ext.as_str(), "xlsx" | "xls" | "ods") {
+            self.tabular_chunker.excel_chunker.chunk_bytes(file_path, bytes).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Tabular Excel bytes error: {}", e))
+            })
+        } else {
+            let content = String::from_utf8_lossy(bytes);
+            self.chunk_text(file_path, &content)
+        }
     }
 }
 
@@ -106,8 +139,14 @@ mod tests {
         assert!(router.supports_file("docker-compose.yml"));
         assert!(router.supports_file("manifest.yaml"));
         assert!(router.supports_file("Cargo.toml"));
+        assert!(router.supports_file("data.csv"));
+        assert!(router.supports_file("catalog.tsv"));
+        assert!(router.supports_file("financials.xlsx"));
+        assert!(router.supports_file("legacy.xls"));
+        assert!(router.supports_file("budget.ods"));
+        assert!(router.supports_file("statement.ofx"));
         assert!(!router.supports_file("report.pdf"));
-        assert!(!router.supports_file("data.xlsx"));
+        assert!(!router.supports_file("image.png"));
     }
 
     #[test]
@@ -304,5 +343,38 @@ mod tests {
         assert!(!chunks.is_empty());
         assert_eq!(chunks[0].content_type, "toml");
         assert!(chunks[0].text.contains("// Context: Cargo.toml > root"));
+    }
+
+    #[test]
+    fn test_router_chunk_csv() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let csv = "Col1,Col2\nVal1,Val2\n";
+        let chunks = router.chunk_text("test.csv", csv).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "csv");
+        assert!(chunks[0].text.contains("| Col1 | Col2 |"));
+    }
+
+    #[test]
+    fn test_router_chunk_tsv() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let tsv = "ID\tProduct\n1\tBook\n";
+        let chunks = router.chunk_text("test.tsv", tsv).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "tsv");
+        assert!(chunks[0].text.contains("| ID | Product |"));
+    }
+
+    #[test]
+    fn test_router_chunk_ofx() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let ofx = "<OFX><BANKID>001<ACCTID>123<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260901<TRNAMT>-50.00<MEMO>Dinner</STMTTRN></OFX>";
+        let chunks = router.chunk_text("extrato.ofx", ofx).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "ofx");
+        assert!(chunks[0].text.contains("Bank: 001 | Acct: 123"));
     }
 }

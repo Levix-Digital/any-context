@@ -46,8 +46,13 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(self.router.supports_file("docker-compose.yml"))
         self.assertTrue(self.router.supports_file("manifest.yaml"))
         self.assertTrue(self.router.supports_file("Cargo.toml"))
+        self.assertTrue(self.router.supports_file("data.csv"))
+        self.assertTrue(self.router.supports_file("catalog.tsv"))
+        self.assertTrue(self.router.supports_file("data.xlsx"))
+        self.assertTrue(self.router.supports_file("legacy.xls"))
+        self.assertTrue(self.router.supports_file("budget.ods"))
+        self.assertTrue(self.router.supports_file("statement.ofx"))
         self.assertFalse(self.router.supports_file("report.pdf"))
-        self.assertFalse(self.router.supports_file("data.xlsx"))
 
     def test_typescript_ast_chunking(self):
         code = (
@@ -499,6 +504,103 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertTrue(any("[dependencies]" in c["text"] for c in chunks))
         self.assertTrue(any("[[bin]]: actx" in c["text"] for c in chunks))
         self.assertEqual(chunks[0]["content_type"], "toml")
+
+    def test_csv_chunking_with_header_propagation(self):
+        csv_str = "ID,Name,Salary,Department\n" + "\n".join(
+            f"{i},Employee_{i},{50000 + i * 1000},Engineering" for i in range(1, 40)
+        )
+        router = IngestionRouter(max_chunk_chars=200)
+        chunks = router.chunk_text("employees.csv", csv_str)
+        self.assertGreater(len(chunks), 1)
+        for c in chunks:
+            self.assertEqual(c["content_type"], "csv")
+            self.assertIn("| ID | Name | Salary | Department |", c["text"])
+            self.assertIn("[ID, Name, Salary, Department]", c["header_path"])
+
+    def test_tsv_chunking(self):
+        tsv_str = "ProductID\tDescription\tUnitPrice\n101\tMechanical Keyboard\t129.99\n102\tWireless Mouse\t49.99\n"
+        chunks = self.router.chunk_text("inventory.tsv", tsv_str)
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0]["content_type"], "tsv")
+        self.assertIn("[ProductID, Description, UnitPrice]", chunks[0]["header_path"])
+        self.assertIn("| 101 | Mechanical Keyboard | 129.99 |", chunks[0]["text"])
+
+    def test_ofx_financial_chunking(self):
+        ofx_str = (
+            "OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\n\n"
+            "<OFX>\n<BANKMSGSRSV1><STMTTRNRS><STMTRS>\n"
+            "<BANKID>001\n<ACCTID>12345-6\n<CURDEF>USD\n"
+            "<LEDGERBAL><BALAMT>15420.50</LEDGERBAL>\n"
+            "<BANKTRANLIST>\n"
+            "<STMTTRN>\n<TRNTYPE>DEBIT\n<DTPOSTED>20260901\n<TRNAMT>-150.00\n<FITID>TX001\n<MEMO>Office Supplies\n</STMTTRN>\n"
+            "<STMTTRN>\n<TRNTYPE>CREDIT\n<DTPOSTED>20260905\n<TRNAMT>4200.00\n<FITID>TX002\n<MEMO>Consulting Fee\n</STMTTRN>\n"
+            "</BANKTRANLIST>\n"
+            "</STMTRS></STMTTRNRS></BANKMSGSRSV1>\n</OFX>\n"
+        )
+        chunks = self.router.chunk_text("statement.ofx", ofx_str)
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0]["content_type"], "ofx")
+        self.assertIn("Bank: 001 | Acct: 12345-6", chunks[0]["header_path"])
+        self.assertIn("| 2026-09-01 | DEBIT | -150.00 | TX001 | Office Supplies |", chunks[0]["text"])
+        self.assertIn("| 2026-09-05 | CREDIT | 4200.00 | TX002 | Consulting Fee |", chunks[0]["text"])
+
+    def test_xlsx_chunking(self):
+        import io
+        import tempfile
+        import zipfile
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
+                        '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+                        '  <Default Extension="xml" ContentType="application/xml"/>\n'
+                        '  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\n'
+                        '  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\n'
+                        '</Types>')
+            zf.writestr("_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+                        '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>\n'
+                        '</Relationships>')
+            zf.writestr("xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+                        '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>\n'
+                        '</Relationships>')
+            zf.writestr("xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n'
+                        '  <sheets>\n'
+                        '    <sheet name="Finance" sheetId="1" r:id="rId1"/>\n'
+                        '  </sheets>\n'
+                        '</workbook>')
+            zf.writestr("xl/worksheets/sheet1.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n'
+                        '  <sheetData>\n'
+                        '    <row r="1">\n'
+                        '      <c r="A1" t="inlineStr"><is><t>Category</t></is></c>\n'
+                        '      <c r="B1" t="inlineStr"><is><t>Budget</t></is></c>\n'
+                        '    </row>\n'
+                        '    <row r="2">\n'
+                        '      <c r="A2" t="inlineStr"><is><t>Cloud</t></is></c>\n'
+                        '      <c r="B2"><v>5000</v></c>\n'
+                        '    </row>\n'
+                        '  </sheetData>\n'
+                        '</worksheet>')
+
+        data = buf.getvalue()
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+            f.write(data)
+            f_path = f.name
+
+        try:
+            chunks = self.router.chunk_file(f_path)
+            self.assertEqual(len(chunks), 1)
+            self.assertEqual(chunks[0]["content_type"], "excel")
+            self.assertIn('Sheet: "Finance"', chunks[0]["header_path"])
+            self.assertIn("[Category, Budget]", chunks[0]["header_path"])
+            self.assertIn("| Cloud | 5000 |", chunks[0]["text"])
+        finally:
+            if os.path.exists(f_path):
+                os.remove(f_path)
 
 
 if __name__ == "__main__":

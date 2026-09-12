@@ -124,7 +124,11 @@ class ParallelIndexer:
             node_ws = doc.metadata.get("workspace") or getattr(doc, "metadata", {}).get("workspace") or workspace_name
 
             if router.supports_file(fp):
-                rust_chunks = router.chunk_text(fp, doc.text)
+                fp_lower = fp.lower()
+                if fp_lower.endswith((".xlsx", ".xls", ".ods")):
+                    rust_chunks = router.chunk_file(fp)
+                else:
+                    rust_chunks = router.chunk_text(fp, doc.text)
                 for rc in rust_chunks:
                     ct = rc.get("content_type")
                     if ct == "python" or fp.lower().endswith((".py", ".pyw", ".pyi")):
@@ -167,6 +171,14 @@ class ParallelIndexer:
                         content_type_str = "YAML Configuration"
                     elif ct == "toml" or fp.lower().endswith(".toml"):
                         content_type_str = "TOML Configuration"
+                    elif ct in ("csv", "tsv") or fp.lower().endswith((".csv", ".tsv")):
+                        content_type_str = "CSV / Delimited Data"
+                    elif ct == "excel" or fp.lower().endswith((".xlsx", ".xls")):
+                        content_type_str = "Excel Spreadsheet"
+                    elif ct == "ods" or fp.lower().endswith(".ods"):
+                        content_type_str = "OpenDocument Spreadsheet"
+                    elif ct == "ofx" or fp.lower().endswith(".ofx"):
+                        content_type_str = "OFX Financial Statement"
                     else:
                         content_type_str = doc.metadata.get("content_type", "Document")
 
@@ -210,8 +222,8 @@ class ParallelIndexer:
                     content_type_str = "SQL Script"
                 elif fp_lower.endswith((".sh", ".bash", ".ps1", ".bat", ".cmd")):
                     content_type_str = "Shell Script"
-                elif fp_lower.endswith((".xml", ".json", ".jsonl", ".yaml", ".yml", ".toml")):
-                    content_type_str = "Structured Data / Config"
+                elif fp_lower.endswith((".xml", ".json", ".jsonl", ".yaml", ".yml", ".toml", ".csv", ".tsv", ".ofx")):
+                    content_type_str = "Structured / Tabular Data"
                 else:
                     content_type_str = doc.metadata.get("content_type", "Local Document")
 

@@ -2595,7 +2595,49 @@ graph TD
      - TOML: `TOML Configuration`
    - Registered in `IngestionRouter.supports_file()` and `chunk_text()` in Rust and Python.
 
-### 24.9 Strategic Roadmap
+### 24.10 Universal Tabular & Financial Chunker: CSV, TSV, Excel, ODS & OFX (`v0.30.9` - Marco 4)
+In `v0.30.9` (Marco 4), AnyContext introduces the native Rust **`TabularChunker`** within `any-context-core-rs`, establishing high-performance, SIMD-accelerated tabular data chunking and financial transaction ingestion:
+
+```mermaid
+graph TD
+    IR["IngestionRouter (Rust)"] --> TC["TabularChunker"]
+    TC --> |".csv, .tsv"| CC["CsvChunker (csv 1.3)"]
+    TC --> |".xlsx, .xls, .ods"| EC["ExcelChunker (calamine 0.26)"]
+    TC --> |".ofx"| OC["OfxChunker (SGML & XML)"]
+    CC --> |"Header Propagation + Row Windows"| SOC["splitter::split_oversized_code"]
+    EC --> |"Multi-Sheet + Header Propagation"| SOC
+    OC --> |"Account Header + STMTTRN Table"| SOC
+    SOC --> CP["Vec<ChunkPayload>"]
+```
+
+1. **Strict Global Product Architecture**:
+   - 100% universal, domain-agnostic, and neutral across international boundaries.
+   - Zero country-specific constraints, tax forms, or national banking locks.
+
+2. **Universal CSV & TSV Chunker (`csv.rs` via `csv 1.3`)**:
+   - **Delimited Stream Parsing & Auto-Detection**: Inspects initial byte stream to distinguish comma (`,`), tab (`\t`), or semicolon (`;`) separators with RFC 4180 quote compliance.
+   - **Deterministic Header Propagation**: Injects original table column schemas (`[Col1, Col2, Col3]`) and line spans (`// Context: <file> > [headers] > rows X..Y`) into every sliced chunk, preventing semantic dilution across large datasets (5,000+ rows).
+   - **Markdown Table Serialization**: Serializes chunks into standard Markdown table format, enabling superior LLM semantic understanding and vector embedding quality.
+
+3. **Universal Spreadsheet Chunker (`excel.rs` via `calamine 0.26`)**:
+   - **Multi-Format Ingestion**: Natively processes modern `.xlsx` (OpenXML), legacy binary `.xls` (BIFF8/OLE2), and OpenDocument `.ods` spreadsheets.
+   - **Multi-Sheet Deconstruction**: Iterates over all workbook sheets (`range.rows()`), extracting headers per sheet and generating independent chunk scopes: `// Context: <file> > Sheet: "<name>" > [<headers>] > rows X..Y`.
+   - **Zero Python Overhead**: Reads directly from disk via native C/Rust, eliminating heavy external Python dependencies (`openpyxl`, `pandas`) and executing in sub-millisecond speeds.
+
+4. **Universal OFX Financial Statement Chunker (`ofx.rs`)**:
+   - **Dual Specification Support**: Seamlessly parses both OFX 1.x (SGML unclosed tag structure) and OFX 2.x (pure XML standard).
+   - **Account Descriptor Extraction**: Captures Bank ID (`BANKID`), Account ID (`ACCTID`), Account Type (`ACCTTYPE`), Currency (`CURDEF`), Date Range (`DTSTART`..`DTEND`), and Ledger Balance (`BALAMT`).
+   - **Structured Transaction Windows**: Converts `<STMTTRN>` tags into normalized transaction tables (`| Date | Type | Amount | ID | Description / Memo |`), grouping transactions into chunks up to `max_chunk_chars`.
+
+5. **LanceDB Content Taxonomy & Router Integration**:
+   - Ingested chunks are cataloged with explicit semantic types:
+     - CSV / TSV: `CSV / Delimited Data`
+     - Excel (.xlsx, .xls): `Excel Spreadsheet`
+     - OpenDocument (.ods): `OpenDocument Spreadsheet`
+     - OFX: `OFX Financial Statement`
+   - Registered in `IngestionRouter.supports_file()`, `chunk_text()`, `chunk_file()`, and `chunk_bytes()`.
+
+### 24.11 Strategic Roadmap
 1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3. [DONE]
 2. **Marco 2.1 (`v0.30.1`)**: ASTCodeChunker (Tree-sitter) Python Pilot. [DONE]
 3. **Marco 2.2 (`v0.30.2`)**: ASTCodeChunker for Enterprise Languages (TypeScript/JavaScript, Java, C#). [DONE]
@@ -2604,7 +2646,7 @@ graph TD
 6. **v0.30.5**: Universal API Schemas, Cloud/IaC & Project Manifests Ingestion. [DONE]
 7. **v0.30.6**: ASTCodeChunker for Scripting & Mobile Languages (Kotlin, Swift, Ruby, PHP, Lua, Dart). [DONE]
 8. **Marco 3 (`v0.30.7` / `v0.30.8`)**: Universal StructuredDataChunker in Rust for XML, JSON, YAML, and TOML with hierarchical path breadcrumbs (Global-first architecture: zero country-specific implementations). [DONE]
-9. **Marco 4**: TabularChunker for Excel/CSV with header propagation.
+9. **Marco 4 (`v0.30.9`)**: TabularChunker in Rust for CSV, TSV, Excel (.xlsx, .xls), ODS, and OFX with header propagation and multi-sheet isolation. [DONE]
 10. **Marco 5**: PDFLayoutChunker with OCR detection gate.
 11. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
 12. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
