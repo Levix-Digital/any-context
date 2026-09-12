@@ -55,6 +55,15 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Instant Execution Launcher Shim**: Native launcher (`actx.exe` on Windows, compiled C ELF `actx` on Linux) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
   - **Cross-Platform Dual-Binary Immunity (v0.28.90)**: Rigorously routes `actx-core` as the dedicated Python engine and preserves native ELF/C# launcher shims (`actx`), eliminating the silent exit bug and preventing update archive extractions from ever clobbering the core binary on Linux/WSL.
   - **BOM-Free UTF-8 Normalization**: Eliminates UTF-8 BOM encoding anomalies in Windows PowerShell environments, ensuring `actx -v` prints consistent, normalized `v0.28.90` across Git Bash, MSYS2, CMD, Linux shells, and PowerShell.
+- **📱 Scripting & Mobile AST Ecosystems: Kotlin, Swift, Ruby, PHP, Lua & Dart (`v0.30.6`)**:
+  - **14 Native AST Language Ecosystems**: Expands AnyContext's Rust AST code engine (`any-context-core-rs` via `tree-sitter`) from 8 to 14 language ecosystems, covering the world's most widely used mobile, scripting, and web back-end stacks.
+  - **Kotlin (`.kt`, `.kts`)**: Complete AST decomposition of classes, objects, companion objects, member functions, properties, and Gradle build logic (`build.gradle.kts`), preserving KDoc documentation comments.
+  - **Swift (`.swift`)**: Native iOS, macOS, and server Swift parsing distinguishing `class`, `struct`, `actor`, `enum`, `protocol`, and `extension` declarations, capturing method bodies and `///` doc comments.
+  - **Ruby (`.rb`)**: AST intelligence for Rails and Ruby scripts, parsing `class`, `module`, `singleton_class` (`class << self`), instance methods, and class methods (`def self.method`).
+  - **PHP (`.php`, `.phtml`)**: Native support for modern PHP classes, interfaces, traits, enums, methods, functions, and PHPDoc annotations (`/** ... */`).
+  - **Lua (`.lua`)**: Prototype- and function-level parsing for Neovim configs, game scripts, and Nginx Lua, detecting global functions, module methods (`function M:method()`), local functions, and function assignments.
+  - **Dart (`.dart`)**: Native Flutter client parsing for classes, widgets, enums, mixins, extensions, class member methods, and top-level functions with doc comment associations.
+  - **Standardized Context Symbol Breadcrumbs**: Injects rich semantic headers (`// Context: <file> > <class/struct> > <method> [lines X-Y]`) across all 6 languages, powering pinpoint accuracy during AI code navigation and refactoring.
 - **🌐 Universal API Schemas, Cloud/IaC & Project Manifests Ingestion (`v0.30.5`)**:
   - **API Contracts & Schemas**: Native discovery and vector indexing for Protocol Buffers (`.proto` / gRPC), GraphQL schemas (`.graphql`, `.gql`), and Apache Thrift (`.thrift`), enabling architectural understanding across cross-service microservice boundaries.
   - **Cloud & Infrastructure as Code (IaC)**: Full support for Terraform (`.tf`, `.tfvars`), HashiCorp HCL (`.hcl`), and Azure Bicep (`.bicep`).

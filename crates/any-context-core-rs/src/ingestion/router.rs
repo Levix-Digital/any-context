@@ -82,6 +82,14 @@ mod tests {
         assert!(router.supports_file("header.h"));
         assert!(router.supports_file("engine.cpp"));
         assert!(router.supports_file("include/engine.hpp"));
+        assert!(router.supports_file("MainActivity.kt"));
+        assert!(router.supports_file("build.gradle.kts"));
+        assert!(router.supports_file("AppCoordinator.swift"));
+        assert!(router.supports_file("model.rb"));
+        assert!(router.supports_file("index.php"));
+        assert!(router.supports_file("template.phtml"));
+        assert!(router.supports_file("init.lua"));
+        assert!(router.supports_file("main.dart"));
         assert!(!router.supports_file("report.pdf"));
         assert!(!router.supports_file("data.xlsx"));
     }
@@ -165,5 +173,65 @@ mod tests {
         let chunks = router.chunk_text("Engine.cpp", code).expect("Chunking failed");
         assert!(!chunks.is_empty());
         assert!(chunks.iter().any(|c| c.text.contains("// Context: Engine.cpp > class Engine")));
+    }
+
+    #[test]
+    fn test_router_chunk_kotlin() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "package com.example\n\nclass MainActivity {\n    fun onCreate() {\n        println(\"Created\")\n    }\n}\n";
+        let chunks = router.chunk_text("MainActivity.kt", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: MainActivity.kt > class MainActivity")));
+    }
+
+    #[test]
+    fn test_router_chunk_swift() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "import Foundation\n\nclass AppCoordinator {\n    func start() {\n        print(\"Started\")\n    }\n}\n";
+        let chunks = router.chunk_text("AppCoordinator.swift", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: AppCoordinator.swift > class AppCoordinator")));
+    }
+
+    #[test]
+    fn test_router_chunk_ruby() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "class User\n  def full_name\n    \"#{first_name} #{last_name}\"\n  end\nend\n";
+        let chunks = router.chunk_text("user.rb", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: user.rb > class User")));
+    }
+
+    #[test]
+    fn test_router_chunk_php() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "<?php\n\nclass OrderService {\n    public function createOrder(): int {\n        return 123;\n    }\n}\n";
+        let chunks = router.chunk_text("OrderService.php", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: OrderService.php > class OrderService")));
+    }
+
+    #[test]
+    fn test_router_chunk_lua() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "local M = {}\n\nfunction M.greet(name)\n    return \"Hello, \" .. name\nend\n\nreturn M\n";
+        let chunks = router.chunk_text("init.lua", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: init.lua > function M.greet")));
+    }
+
+    #[test]
+    fn test_router_chunk_dart() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let code = "import 'package:flutter/material.dart';\n\nclass MyApp extends StatelessWidget {\n  Widget build(BuildContext context) {\n    return Container();\n  }\n}\n";
+        let chunks = router.chunk_text("main.dart", code).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().any(|c| c.text.contains("// Context: main.dart > class MyApp")));
     }
 }

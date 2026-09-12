@@ -35,6 +35,7 @@ SUPPORTED_EXTENSIONS = {
     # Code & Tech
     ".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".htm", ".css", ".xml", ".yaml", ".yml", ".toml", ".sql",
     ".c", ".cpp", ".cs", ".java", ".go", ".rs", ".sh", ".ps1", ".bat", ".cmd",
+    ".kt", ".kts", ".swift", ".rb", ".php", ".phtml", ".lua", ".dart",
     # API Schemas & Contracts
     ".proto", ".graphql", ".gql", ".thrift",
     # Cloud & Infrastructure as Code (IaC)

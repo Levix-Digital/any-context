@@ -7,7 +7,40 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.5 Schemas, Cloud/IaC & Project Manifests): Ingestão e Indexação de Contratos de API (.proto, GraphQL), Terraform, Dockerfile e Manifestos de Dependências
+### 📌 Cenário 1 (v0.30.6 Scripting & Mobile AST Ecosystems): Ingestão, AST Chunking e Breadcrumbs para Kotlin, Swift, Ruby, PHP, Lua e Dart
+
+- **Objetivo**: Comprovar que na versão `v0.30.6`:
+  1. O motor nativo em Rust (`any-context-core-rs`) integra gramáticas tree-sitter dedicadas para 6 linguagens de Scripting e Mobile: **Kotlin** (`.kt`, `.kts`), **Swift** (`.swift`), **Ruby** (`.rb`), **PHP** (`.php`, `.phtml`), **Lua** (`.lua`) e **Dart** (`.dart`).
+  2. Cada linguagem realiza AST parsing estruturado, gerando chunks semânticos com breadcrumbs padronizados (`// Context: <arquivo> > <escopo> [lines X-Y]`) e isolando classes, métodos, closures, funções e imports/preâmbulos.
+  3. Classes gigantescas sofrem decomposição estruturada (Overview + métodos individuais), enquanto classes normais e funções são mantidas coesas, sempre respeitando `split_oversized_code`.
+  4. O Python Ingestor (`local_folder_ingestor.py`) e o indexador LanceDB (`indexer.py`) mapeiam e catalogam cada linguagem com seus respectivos `content_type`s semânticos.
+  5. Sincronização e consultas no AnyContext (`actx`) recuperam trechos de código dessas linguagens com precisão cirúrgica de linha e símbolo.
+- **Pré-requisito**: Versão `v0.30.6` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Teste Rápido de AST Parsing Nativo via CLI/Python:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "from any_context.ingestion.router import IngestionRouter; r = IngestionRouter(); tests = [('Service.kt', 'package com.app\n\nclass UserService {\n  fun findById(id: Long): User? = null\n}\n'), ('Item.swift', 'import Foundation\n\nstruct OrderItem: Codable {\n  func calcTax() -> Double = 0.0\n}\n'), ('user.rb', 'class User < ApplicationRecord\n  def full_name\n    \"#{first} #{last}\"\n  end\nend\n'), ('Order.php', '<?php\nclass OrderService {\n  public function getOrder(): int { return 1; }\n}\n'), ('init.lua', 'local M = {}\nfunction M:greet(name)\n  return \"hi \" .. name\nend\nreturn M\n'), ('main.dart', 'import \"flutter/material.dart\";\nclass AppWidget extends StatelessWidget {\n  Widget build() => Container();\n}\n')]; [print(f'{fn} -> {len(r.chunk_text(fn, code))} chunks, type: {r.chunk_text(fn, code)[-1][\"content_type\"]}, header: {r.chunk_text(fn, code)[-1][\"header_path\"]}') for fn, code in tests]"
+     ```
+   - **Critério de Aceitação:** Todas as 6 linguagens retornam chunks estruturados com seus respectivos tipos (`kotlin`, `swift`, `ruby`, `php`, `lua`, `dart`) e cabeçalhos semânticos (`class UserService`, `struct OrderItem`, `class User`, `class OrderService`, `function M:greet`, `class AppWidget`).
+
+2. **🏛️ Descoberta e Catalogação pelo Ingestor Local:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "from any_context.ingestion.local_folder_ingestor import SUPPORTED_EXTENSIONS; exts = ['.kt', '.kts', '.swift', '.rb', '.php', '.phtml', '.lua', '.dart']; missing = [e for e in exts if e not in SUPPORTED_EXTENSIONS]; assert not missing, f'Extensões ausentes: {missing}'; print('✅ Todas as 8 extensões estão registradas no SUPPORTED_EXTENSIONS')"
+     ```
+   - **Critério de Aceitação:** Imprime `✅ Todas as 8 extensões estão registradas no SUPPORTED_EXTENSIONS`.
+
+3. **💬 Validação de Consulta no Chat com Citação de Símbolo:**
+   - Abra o AnyContext (`actx`), adicione uma pasta contendo código em Kotlin, Swift, Ruby, PHP, Lua ou Dart e sincronize via `/sync`.
+   - Faça uma pergunta sobre uma função ou classe de um desses arquivos.
+   - **Critério de Aceitação:** O AnyContext responde exibindo o breadcrumb exato do símbolo (`// Context: ... > class ... > method ... [lines ...]`).
+
+---
+
+### 📌 Cenário 2 (v0.30.5 Schemas, Cloud/IaC & Project Manifests): Ingestão e Indexação de Contratos de API (.proto, GraphQL), Terraform, Dockerfile e Manifestos de Dependências
 
 - **Objetivo**: Comprovar que na versão `v0.30.5`:
   1. O crawler de pastas locais (`local_folder_ingestor.py`) descobre e indexa com sucesso arquivos de schemas de API: **`.proto`** (Protocol Buffers / gRPC), **`.graphql`**, **`.gql`** (GraphQL), **`.thrift`** (Thrift IDL).
@@ -47,7 +80,7 @@
 
 ---
 
-### 📌 Cenário 2 (v0.30.4 Ingestion Shield): Fatiamento Hierárquico Estrito e Proteção contra Estouro de Tokens no Embedding (PocketBase e Repositórios Complexos)
+### 📌 Cenário 3 (v0.30.4 Ingestion Shield): Fatiamento Hierárquico Estrito e Proteção contra Estouro de Tokens no Embedding (PocketBase e Repositórios Complexos)
 
 - **Objetivo**: Comprovar que:
   1. O `ASTCodeChunker` em Rust utiliza fatiamento hierárquico estrito de 3 camadas (`\n\n` -> `\n` -> janela de caracteres segura), garantindo que funções gigantescas contínuas (como tabelas de testes Go de 70k caracteres ou arquivos `.d.ts` de 250k caracteres) nunca excedam `max_chunk_chars`.
