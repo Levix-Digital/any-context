@@ -7,7 +7,67 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.29.5): Validação de Desacoplamento de Palavras-Chave no Enriquecedor Semântico e Busca Temporal Limpa
+### 📌 Cenário 1 (v0.30.0): Validação do Motor Nativo em Rust (PyO3) e Roteador Polimórfico de Ingestão com Chunking Hierárquico de Markdown
+
+- **Objetivo**: Comprovar que na release `v0.30.0`:
+  1. O módulo nativo compilado em Rust `any_context_core_rs` (PyO3) inicializa e opera com sucesso no AnyContext.
+  2. O `IngestionRouter` identifica documentos Markdown (`.md`, `.markdown`) e aciona o `MarkdownHeaderChunker` nativo em Rust.
+  3. A hierarquia de cabeçalhos (`#`, `##`, `###`) é rigorosamente preservada nos chunks gerados com breadcrumbs contextuais (`// Context: # ... > ## ...`), delimitando parágrafos semanticamente e mantendo imunidade a comentários `#` dentro de blocos de código (` ``` `).
+  4. Workspaces contendo arquivos Markdown (tanto de pastas locais, web scrapes, ou cloud drives) são sincronizados (`/sync`) com alto desempenho via motor Rust, com chunks enriquecidos e indexados perfeitamente no LanceDB.
+  5. Perguntas sobre seções específicas dos documentos Markdown retornam respostas precisas com proveniência e breadcrumbs de contexto.
+- **Pré-requisito**: Versão `v0.30.0` instalada (`actx -v` exibindo `v0.30.0`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🚀 Verificação de Versão e Presença da Extensão Nativa:**
+   - No terminal:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:** Exibe instantaneamente `v0.30.0`.
+   - No Python interativo ou via script:
+     ```python
+     import any_context_core_rs
+     print(any_context_core_rs.__name__)
+     ```
+   - **Critério de Aceitação:** O módulo nativo importa sem erros de DLL ou símbolos indefinidos.
+
+2. **📄 Teste de Ingestão e Chunking Hierárquico em Rust:**
+   - Criar ou verificar um arquivo Markdown hierárquico no workspace (ex: `docs/arquitetura.md`) com a estrutura:
+     ```markdown
+     # Sistema Principal
+     Visão geral do sistema.
+
+     ## Módulo de Ingestão
+     Explicação detalhada do módulo de ingestão.
+     ```python
+     # Isto é um comentário Python, não um heading
+     x = 10
+     ```
+
+     ### Roteador Polimórfico
+     Regras de roteamento de arquivos.
+     ```
+   - Executar a sincronização no AnyContext:
+     ```bash
+     actx
+     /sync
+     ```
+   - **Critério de Aceitação:** A sincronização conclui com sucesso, roteando o arquivo `.md` pelo motor nativo Rust sem exceções no terminal ou nos logs (`actx --diag` ou `/logs`).
+
+3. **🎯 Teste de Validação de Contexto e Recuperação Semântica:**
+   - Realizar uma consulta sobre um sub-tópico específico:
+     ```text
+     Como funciona o Roteador Polimórfico no Módulo de Ingestão?
+     ```
+   - **Critério de Aceitação:**
+     - O assistente responde referenciando com precisão o conteúdo do tópico sob a hierarquia `# Sistema Principal > ## Módulo de Ingestão > ### Roteador Polimórfico`.
+     - O bloco de código Python com `# Isto é um comentário` não foi fatiado erroneamente como um novo título de seção.
+     - A resposta inclui a citação da fonte no rodapé `📄 Fontes Consultadas`.
+
+---
+
+### 📌 Cenário 2 (v0.29.5): Validação de Desacoplamento de Palavras-Chave no Enriquecedor Semântico e Busca Temporal Limpa
 
 - **Objetivo**: Comprovar que na release `v0.29.5`:
   1. O `ContextualEnricher` gera envelopes semânticos (`SemanticEnvelope`) e palavras-chave de domínio (`keywords`) exclusivamente a partir do conteúdo textual e títulos dos documentos, sem acoplamento a convenções arbitrárias de nomes de diretórios (como `/YYYY/MM/DD/`).

@@ -20,6 +20,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+target/
 *.spec
 
 # Arquivos de IDE e SO
