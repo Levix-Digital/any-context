@@ -200,6 +200,20 @@ class TestCommandDispatcher(unittest.TestCase):
             self.assertTrue(res.success)
             self.assertEqual(res.message, "mock installed")
 
+    def test_15_dispatch_inspect(self):
+        """Validates /inspect and alias /chunks with taxonomy breakdown and sample chunks."""
+        # Empty workspace inspection
+        res_empty = dispatch_command("/inspect", "TestWorkspaceEmpty")
+        self.assertTrue(res_empty.success)
+        self.assertIn("Vector Store Inspection", res_empty.message)
+        self.assertIn("TestWorkspaceEmpty", res_empty.message)
+        self.assertIn("No chunks found in this workspace yet", res_empty.message)
+
+        # Inspection with limit and alias /chunks
+        res_alias = dispatch_command("/chunks 5", "TestWorkspaceEmpty")
+        self.assertTrue(res_alias.success)
+        self.assertIn("Vector Store Inspection", res_alias.message)
+
 
 if __name__ == "__main__":
     unittest.main()

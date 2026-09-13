@@ -1515,6 +1515,12 @@ sequenceDiagram
    - Evaluates `is_virtualenv_dir()` on candidates resolved via `shutil.which("actx.exe")`.
    - If the active `actx` binary resides inside a Python virtual environment (`.venv`, `Scripts/python.exe`, `pyvenv.cfg`, `site-packages`), the updater strictly rejects targeting the virtual environment.
    - Automatically redirects the update to the canonical OS user binary directory (`%LOCALAPPDATA%\actx\bin` on Windows or `~/.local/bin` on Unix/macOS), guaranteeing that developer virtualenvs with editable package installs (`pip install -e .`) are never corrupted by standalone PyInstaller compiled binaries.
+6. **Vector Store Inspection, Taxonomy Breakdown & Context Breadcrumbs (`/inspect`) (v0.30.14)**:
+   - Executed universally via `CommandDispatcher._handle_inspect()`, providing interface parity across Terminal CLI and OpenTUI (via Stdio RPC Bridge).
+   - Executes zero-copy PyArrow columnar projection on LanceDB (`select(["content_type"])`) in < 10ms for instant taxonomy distribution aggregation across up to 50,000 workspace chunks.
+   - Selectively decrypts hardware-bound AES-GCM-256 records on-the-fly only for sampled rows ($K$ chunks, default 3, max 25), preserving privacy and sub-millisecond responsiveness.
+   - Extracts and displays contextual breadcrumbs (`// Context: file.pdf > Page X`) and text previews.
+   - Automatically detects legacy chunks (`Local Document`) indexed prior to v0.30.10 and issues proactive guidance to run `/sync --force` for full re-indexing with the native Rust Smart Cascade.
 
 ### 4. Cross-Platform Unified 3-Option Dialog & Universal Session Teardown (v0.28.87)
 
