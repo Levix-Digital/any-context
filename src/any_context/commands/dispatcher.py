@@ -282,23 +282,7 @@ class CommandDispatcher:
 
         # 25. /inspect
         if canonical == "/inspect":
-            try:
-                from any_context.vector_engine.store import LanceDBStore
-                from any_context.config.app_settings import AppSettings
-                settings = AppSettings.load()
-                db_save_path = settings.context.db_path if settings else "./context_db"
-                lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
-                ws_count = lance_store.count_records(workspace_name=ws_name, table_name="workspace_chunks")
-                total_count = lance_store.count_records(table_name="workspace_chunks")
-                return CommandResult(
-                    success=True,
-                    message=f"🔍 Vector Store Inspection for `{ws_name}`:\n  • Workspace Chunks: **{ws_count}**\n  • Total Database Chunks: **{total_count}**\n  • Storage Engine: **LanceDB (Apache Arrow / Rust)**"
-                )
-            except Exception as e:
-                return CommandResult(
-                    success=False,
-                    message=f"⚠️ Could not inspect vector store: {e}"
-                )
+            return self._handle_inspect(parts, ws_name)
 
         # 26. /density
         if canonical == "/density":
@@ -989,6 +973,101 @@ class CommandDispatcher:
                 f"• Usage: `/ocr <path/to/file>` to test extraction or `/ocr install` to auto-provision"
             )
         )
+
+    def _handle_inspect(self, parts: List[str], ws_name: str) -> CommandResult:
+        """Inspects vector database chunks, taxonomy breakdown, and breadcrumb metadata."""
+        try:
+            import collections
+            from any_context.vector_engine.store import LanceDBStore
+            from any_context.config.app_settings import AppSettings
+            from any_context.core.security_engine import SecurityEngine
+
+            settings = AppSettings.load()
+            db_save_path = settings.context.db_path if settings else "./context_db"
+            lance_store = LanceDBStore.get_instance(db_path=os.path.join(db_save_path, "lancedb"))
+            tbl = lance_store.get_table("workspace_chunks")
+            sec = SecurityEngine.get_instance()
+
+            ws_count = lance_store.count_records(workspace_name=ws_name, table_name="workspace_chunks")
+            total_count = lance_store.count_records(table_name="workspace_chunks")
+
+            # Parse optional arguments: limit or filter query
+            limit = 3
+            filter_query = None
+            if len(parts) > 1:
+                arg = parts[1].strip()
+                if arg.isdigit():
+                    limit = min(max(1, int(arg)), 25)
+                else:
+                    filter_query = arg
+                    if len(parts) > 2 and parts[2].strip().isdigit():
+                        limit = min(max(1, int(parts[2].strip())), 25)
+
+            lines = [
+                f"🔍 **Vector Store Inspection for `{ws_name}`**:",
+                f"• Workspace Chunks: **{ws_count}**",
+                f"• Total Database Chunks: **{total_count}**",
+                f"• Storage Engine: **LanceDB (Apache Arrow / Rust)**",
+            ]
+
+            if ws_count == 0:
+                lines.append("")
+                lines.append("*(No chunks found in this workspace yet. Run `/sync` or `/folder <path>` to ingest files.)*")
+                return CommandResult(success=True, message="\n".join(lines))
+
+            clean_ws = ws_name.replace("'", "''")
+            arrow_tbl = tbl.search().where(f"workspace = '{clean_ws}'").select(["content_type"]).limit(50000).to_arrow()
+            cts = arrow_tbl.column("content_type").to_pylist() if arrow_tbl.num_rows > 0 else []
+            counter = collections.Counter(cts)
+
+            if counter:
+                lines.append("")
+                lines.append("📊 **Chunk Taxonomy Breakdown:**")
+                for ct_name, cnt in counter.most_common(10):
+                    lines.append(f"  • `{ct_name}`: **{cnt}** chunk{'s' if cnt != 1 else ''}")
+
+            where_clauses = [f"workspace = '{clean_ws}'"]
+            if filter_query:
+                clean_fq = filter_query.replace("'", "''")
+                where_clauses.append(f"(content_type LIKE '%{clean_fq}%' OR file_name LIKE '%{clean_fq}%' OR file_path LIKE '%{clean_fq}%')")
+
+            raw_samples = tbl.search().where(" AND ".join(where_clauses)).limit(limit).to_list()
+            if raw_samples:
+                filter_info = f" (filtered by '{filter_query}')" if filter_query else ""
+                lines.append("")
+                lines.append(f"📋 **Sample Chunks{filter_info} (showing {len(raw_samples)}):**")
+                for idx, r in enumerate(raw_samples):
+                    dec = sec.decrypt_record(r)
+                    fn = dec.get("file_name", "Unknown")
+                    ct = dec.get("content_type", "Unknown")
+                    raw_text = dec.get("text", "").strip()
+
+                    first_line = raw_text.splitlines()[0] if raw_text else ""
+                    breadcrumb = first_line if first_line.startswith(("// Context:", "# Context:", "[Context:")) else "N/A"
+
+                    body_lines = raw_text.splitlines()[1:] if first_line.startswith(("// Context:", "# Context:", "[Context:")) else raw_text.splitlines()
+                    body_preview = " ".join(" ".join(body_lines).split())[:120]
+                    if not body_preview:
+                        body_preview = raw_text[:120]
+
+                    lines.append(f"  **[{idx + 1}] 📄 `{fn}`**")
+                    lines.append(f"    • Taxonomy: `{ct}`")
+                    lines.append(f"    • Breadcrumb: `{breadcrumb}`")
+                    lines.append(f"    • Preview: *\"{body_preview}...\"*")
+            elif filter_query:
+                lines.append("")
+                lines.append(f"⚠️ No chunks matched filter query `{filter_query}`.")
+
+            if "Local Document" in counter:
+                lines.append("")
+                lines.append("💡 **Tip:** Older chunks with `Local Document` were indexed prior to v0.30.10. Run `/sync --force` to re-index all files with the new native Rust Smart Cascade and page breadcrumbs.")
+
+            return CommandResult(success=True, message="\n".join(lines))
+        except Exception as e:
+            return CommandResult(
+                success=False,
+                message=f"⚠️ Could not inspect vector store: {e}"
+            )
 
 
 # Global dispatcher singleton

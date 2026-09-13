@@ -7,7 +7,42 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.13 Anti-Virtualenv Binary Target Safeguard & SQLite Vision Persistence): Proteção Anti-Virtualenv do Updater e Persistência do Hook Vision
+### 📌 Cenário 1 (v0.30.14 Vector Store Inspection & Taxonomy Breakdown): Inspeção Interativa de Chunks, Taxonomia LanceDB e Breadcrumbs de Contexto via `/inspect`
+
+- **Objetivo**: Comprovar que na versão `v0.30.14`:
+  1. O comando `/inspect` (e seus aliases `/chunks` e `/lance`) realiza a projeção colunar em tempo real no LanceDB via Apache Arrow (`select(["content_type"])`), exibindo o breakdown completo das taxonomias dos chunks no workspace (`PDF Document (Digital Layout)`, `Markdown Document`, `Local Document`, etc.).
+  2. O comando `/inspect` exibe amostras detalhadas dos chunks com metadados ricos: nome do arquivo, taxonomia, breadcrumbs de contexto (`// Context: arquivo.pdf > Page X`) e preview do texto extraído.
+  3. Suporta limites e filtros opcionais via parâmetros: `/inspect 5`, `/chunks 10`, `/inspect pdf`.
+  4. Identifica automaticamente se a workspace contém chunks legados (`Local Document`) indexados antes da v0.30.10 e emite orientação proativa para execução de `/sync --force`.
+- **Pré-requisito**: Versão `v0.30.14` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🔄 Reindexação Forçada com a Cascata Rust (se workspace pré-existente):**
+   - Na TUI (`actx`) ou terminal:
+     ```text
+     /sync --force
+     ```
+   - **Critério de Aceitação:** O processo reindexa os arquivos da workspace através da nova Cascata Inteligente nativa em Rust.
+
+2. **🔍 Validação do `/inspect` com Breakdown de Taxonomia e Amostras:**
+   - Execute:
+     ```text
+     /inspect
+     ```
+   - **Critério de Aceitação:** Exibe o total de chunks do workspace e da base, a seção `📊 Chunk Taxonomy Breakdown` com a contagem por tipo (ex: `PDF Document (Digital Layout)`), e a seção `📋 Sample Chunks` com nome do arquivo, taxonomia, breadcrumb (ex: `// Context: ... > Page 1`) e preview.
+
+3. **🔎 Validação de Filtros e Limites do `/inspect`:**
+   - Execute:
+     ```text
+     /inspect pdf
+     /chunks 2
+     ```
+   - **Critério de Aceitação:** O primeiro comando filtra chunks contendo `pdf` e o segundo limita a amostragem a 2 chunks.
+
+---
+
+### 📌 Cenário 2 (v0.30.13 Anti-Virtualenv Binary Target Safeguard & SQLite Vision Persistence): Proteção Anti-Virtualenv do Updater e Persistência do Hook Vision
 
 - **Objetivo**: Comprovar que na versão `v0.30.13`:
   1. O subsistema de atualização (`update_service.py`, `cli/updater.py`, `config/paths.py`) implementa a salvaguarda **Anti-Virtualenv**, impedindo que updates de binários autônomos (`.zip`, `.exe`, `.tar.gz`) sobrescrevam ou corrompam diretórios de ambientes virtuais (`.venv`, `Scripts`, `pyvenv.cfg`, `site-packages`).
@@ -97,9 +132,9 @@
    - **Critério de Aceitação:** Exibe resumo da extração com chunks gerados, taxonomia `Image Document (OCR Scan)` e cabeçalho de contexto correto.
 
 5. **💬 Validação de Ingestão de PDF Digital com Breadcrumbs por Página no AnyContext:**
-   - Adicione uma pasta com documentos PDF à workspace e execute `/sync`.
-   - Inspecione os chunks gerados via `/inspect`.
-   - **Critério de Aceitação:** Os chunks de PDF exibem a taxonomia `PDF Document (Digital Layout)` e breadcrumbs de página precisos (ex: `// Context: contrato.pdf > Page 1 > rows 1..15`).
+   - Adicione uma pasta com documentos PDF à workspace e execute `/sync` (ou `/sync --force` caso a workspace já contenha arquivos indexados previamente em versões anteriores).
+   - Inspecione os chunks gerados via `/inspect` (ou `/inspect pdf`, `/chunks 5`).
+   - **Critério de Aceitação:** Os chunks de PDF exibem a taxonomia `PDF Document (Digital Layout)` e breadcrumbs de página precisos (ex: `// Context: contrato.pdf > Page 1`).
 
 ---
 
