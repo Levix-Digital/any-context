@@ -149,7 +149,6 @@ def _diversify_nodes(raw_nodes: List[Any], target_top_k: int, max_per_source: in
 
     for node in raw_nodes:
         meta = getattr(node, "metadata", {}) or {}
-        # Clean source identifier: root_url for web pages, file_path for local documents
         source_id = meta.get("root_url") or meta.get("file_path") or meta.get("source") or meta.get("file_name") or "unknown_source"
         source_groups[source_id].append(node)
 
@@ -353,7 +352,7 @@ def list_web_sources(workspace: str = None) -> str:
 @tool()
 def remove_web_source(url_or_id: str, workspace: str = None) -> str:
     """
-    Removes a web URL from a workspace's scraping schedule and purges its indexed vectors from ChromaDB.
+    Removes a web URL from a workspace's scraping schedule and purges its indexed vectors from LanceDB.
 
     Args:
         url_or_id (str): The URL or ID of the web source to remove.
@@ -362,7 +361,7 @@ def remove_web_source(url_or_id: str, workspace: str = None) -> str:
     Returns:
         str: Confirmation message.
     """
-    from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_chromadb
+    from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_lancedb
     store = WebSchedulerStore()
     target_ws = workspace or "Default"
     
@@ -373,5 +372,5 @@ def remove_web_source(url_or_id: str, workspace: str = None) -> str:
         return f"Web source '{url_or_id}' not found in workspace '{target_ws}'."
     
     store.delete_web_url(matched["id"], workspace_name=target_ws)
-    remove_web_url_from_chromadb(workspace_name=target_ws, url=matched["url"])
+    remove_web_url_from_lancedb(workspace_name=target_ws, url=matched["url"])
     return f"🗑️ Successfully removed web source '{matched['url']}' and purged its indexed vectors from workspace '{target_ws}'."

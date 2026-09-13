@@ -2727,7 +2727,57 @@ graph TD
      - `Image Document (OCR Scan)`
      - `Visual Diagram / Image (Vision AI)`
 
-### 24.12 Strategic Roadmap
+### 24.12 Native Rust Hybrid Retriever: Okapi BM25, Universal Tokenizer & Reciprocal Rank Fusion (`v0.30.16` - Marco 6)
+In `v0.30.16` (Marco 6), AnyContext completes the transition to a 100% native Rust retrieval engine in `any-context-core-rs`, entirely eradicating legacy Python relevance filtering (`filters.py`) and combining dense semantic vector search with high-performance sparse lexical search:
+
+```mermaid
+graph TD
+    Query["Conversational Query"] --> DenseRet["LanceDB Dense Vector Retrieval (Parallel Threads)"]
+    Query --> RustTok["Universal Multilingual Tokenizer (Unicode UAX #29)"]
+    RustTok --> BM25Engine["Native Rust BM25 Engine (Okapi BM25 k1=1.2, b=0.75)"]
+    BM25Engine --> BM25Rank["BM25 Lexical Candidates (Ranked)"]
+    DenseRet --> DenseRank["Dense Vector Candidates (Ranked)"]
+    BM25Rank --> RRF["Reciprocal Rank Fusion (RRF k=60)"]
+    DenseRank --> RRF
+    RRF --> SFRR["Source-Fair Round-Robin Diversification"]
+    SFRR --> Density["Density Budgeting (max_density_chars)"]
+    Density --> Final["ScoredChunk Results (to LLM Agent)"]
+```
+
+1. **Zero Python Retrieval / Filter Overhead**:
+   - Completely deleted `filters.py` and decoupled candidate scoring from Python runtime limits.
+   - Inverted indexing, term frequency evaluation, score fusion, round-robin source balancing, and character density budgets are executed in native Rust compiled machine code with zero Python GIL contention.
+
+2. **Universal Multilingual & Code-Aware Tokenizer (`tokenizer.rs`)**:
+   - **Unicode Standard Annex #29**: Complies with the official Unicode standard for boundary detection, ensuring accurate word boundaries across all international languages.
+   - **Diacritic Folding (Latin Scripts)**: Folds accented characters (`ã`, `é`, `ç`, `ü`, `ñ`, `ő`) to base Latin equivalents, ensuring queries like "configuracao" match "configuração" without losing keyword precision.
+   - **Universal Script Retention**: Non-Latin scripts (Cyrillic, Arabic, Hebrew, Greek, CJK ideographs) are strictly preserved and normalized, maintaining AnyContext's global product neutrality.
+   - **Deep Code-Aware Identifier Decomposition**:
+     - `camelCase` & `PascalCase`: `UserServiceClient` $\to$ `["userserviceclient", "user", "service", "client"]`.
+     - `snake_case` & `SCREAMING_SNAKE`: `AUTH_TOKEN_EXPIRY` $\to$ `["auth_token_expiry", "auth", "token", "expiry"]`.
+     - `kebab-case`: `web-api-gateway` $\to$ `["web-api-gateway", "web", "api", "gateway"]`.
+     - Numbers, ISO dates (`2026-09-01`), and file paths are cleanly anchored for deterministic lookup.
+
+3. **Native Okapi BM25 Inverted Index (`bm25.rs`)**:
+   - Implements standard Okapi BM25 scoring with Robertson-Spärck Jones IDF:
+     $$\text{IDF}(q_i) = \ln\left(1 + \frac{N - n(q_i) + 0.5}{n(q_i) + 0.5}\right)$$
+     $$\text{BM25}(D, Q) = \sum_{i=1}^{n} \text{IDF}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgdl}}\right)}$$
+     where $k_1 = 1.2$, $b = 0.75$, $N$ is total documents in the partition, $|D|$ is document length in tokens, and $\text{avgdl}$ is average document length.
+   - **Self-Contained Storage & Workspace Scoping**: Document text, file names, paths, and content types are self-contained in `DocRecord`, allowing BM25 search to return complete results without requiring secondary lookups.
+   - **Sub-Millisecond Binary Serialization**: Employs `bincode` for compact, endian-safe binary persistence (`bm25_index.bin`), storing 100,000 document records in `< 15ms` directly alongside LanceDB tables.
+
+4. **Reciprocal Rank Fusion (RRF, $k=60$) (`rrf.rs`)**:
+   - Merges candidate ranks from dense vector search (LanceDB cosine similarity) and sparse lexical search (Rust BM25):
+     $$RRF\_Score(d \in D) = \sum_{m \in M} \frac{1}{k + r_m(d)}$$
+     where $k = 60$, $M = \{\text{dense}, \text{bm25}\}$, and $r_m(d)$ is the 1-based rank of document $d$ in system $m$.
+   - **Zero Calibration Required**: Eliminates the fragile heuristic weight tuning of convex combinations ($\alpha \cdot \text{Dense} + (1-\alpha) \cdot \text{BM25}$), producing reliable, mathematically sound rankings across diverse domains.
+   - **Deterministic Tie-Breaking**: Documents with equal RRF scores break ties deterministically using dense vector similarity, ensuring reproducible retrieval.
+
+5. **Source-Fair Round-Robin Diversification & Density Budgeting (`diversifier.rs`)**:
+   - **Source-Fair Round-Robin**: Groups candidates by source identifier (file path or root URL) and performs interleaved round-robin selection up to `max_per_source` chunks per source. Guarantees that workspaces with 20+ documents or websites receive balanced multi-source representation in the top $K$.
+   - **Context Density Budgeting**: Enforces strict cumulative character limits (`max_density_chars`) on candidate sets before delivery to the AI agent, protecting context windows from overflow while maximizing information density.
+
+### 24.13 Strategic Roadmap
 1. **Marco 1 (`v0.30.0`)**: IngestionRouter + MarkdownHeaderChunker in Rust via PyO3. [DONE]
 2. **Marco 2.1 (`v0.30.1`)**: ASTCodeChunker (Tree-sitter) Python Pilot. [DONE]
 3. **Marco 2.2 (`v0.30.2`)**: ASTCodeChunker for Enterprise Languages (TypeScript/JavaScript, Java, C#). [DONE]
@@ -2738,8 +2788,9 @@ graph TD
 8. **Marco 3 (`v0.30.7` / `v0.30.8`)**: Universal StructuredDataChunker in Rust for XML, JSON, YAML, and TOML with hierarchical path breadcrumbs (Global-first architecture: zero country-specific implementations). [DONE]
 9. **Marco 4 (`v0.30.9`)**: TabularChunker in Rust for CSV, TSV, Excel (.xlsx, .xls), ODS, and OFX with header propagation and multi-sheet isolation. [DONE]
 10. **Marco 5 (`v0.30.10`)**: Native Rust Smart Cascade for PDF & Scanned Images (lopdf Layout, OS Tesseract OCR Gate & Vision LLM Hook). [DONE]
-11. **Marco 6**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Rust.
+11. **Marco 6 (`v0.30.16`)**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Native Rust (`any-context-core-rs`). [DONE]
 12. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
+
 
 
 

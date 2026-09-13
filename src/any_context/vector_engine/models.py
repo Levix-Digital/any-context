@@ -34,6 +34,8 @@ class RetrievalConfig:
     min_similarity_score: float = 0.50
     max_chunks_per_source: int = 3
     max_density_chars: int = 40000
+    rrf_k: int = 60
+    use_hybrid: bool = True
 
     @classmethod
     def from_preset(cls, preset_name: Optional[str] = "balanced") -> "RetrievalConfig":

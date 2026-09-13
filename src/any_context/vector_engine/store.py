@@ -50,12 +50,44 @@ class LanceDBStore:
                 cls._instances[target_path] = cls(db_path=target_path)
             return cls._instances[target_path]
 
+    def get_bm25_path(self, table_name: str = "workspace_chunks") -> str:
+        """Returns the isolated file path for the persisted Rust BM25 index."""
+        prefix = f"bm25_{table_name}.bin" if table_name != "workspace_chunks" else "bm25_index.bin"
+        return os.path.join(self._db_path, prefix)
+
+    def get_hybrid_engine(self, table_name: str = "workspace_chunks") -> Any:
+        """Returns a HybridRetrieverEngine loaded from the persisted BM25 index on disk."""
+        import any_context_core_rs
+        engine = any_context_core_rs.HybridRetrieverEngine()
+        bm25_p = self.get_bm25_path(table_name=table_name)
+        if os.path.exists(bm25_p):
+            try:
+                engine.load_bm25_from_file(bm25_p)
+            except Exception:
+                pass
+        return engine
+
+    def save_hybrid_engine(self, engine: Any, table_name: str = "workspace_chunks"):
+        """Saves the HybridRetrieverEngine to the persisted BM25 index on disk."""
+        bm25_p = self.get_bm25_path(table_name=table_name)
+        try:
+            os.makedirs(os.path.dirname(bm25_p), exist_ok=True)
+            engine.save_bm25_to_file(bm25_p)
+        except Exception:
+            pass
+
     def delete_all_records(self, table_name: str = "workspace_chunks"):
-        """Drops and purges the entire table."""
+        """Drops and purges the entire table and associated BM25 index."""
         with self._table_lock:
             try:
                 if self._has_table(table_name):
                     self._db.drop_table(table_name)
+                bm25_p = self.get_bm25_path(table_name=table_name)
+                if os.path.exists(bm25_p):
+                    try:
+                        os.remove(bm25_p)
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
@@ -132,6 +164,14 @@ class LanceDBStore:
                 table = self._db.open_table(table_name)
 
             table.add(prepared_records)
+
+        # Synchronize plaintext records into Rust BM25 index
+        try:
+            engine = self.get_hybrid_engine(table_name=table_name)
+            engine.add_chunks_batch(records)
+            self.save_hybrid_engine(engine, table_name=table_name)
+        except Exception:
+            pass
 
     def search_vector(
         self,
@@ -280,6 +320,12 @@ class LanceDBStore:
                 table.delete(f"workspace = '{clean_ws}'")
             except Exception:
                 pass
+            try:
+                engine = self.get_hybrid_engine(table_name=table_name)
+                engine.remove_by_workspace(workspace_name)
+                self.save_hybrid_engine(engine, table_name=table_name)
+            except Exception:
+                pass
 
     def delete_local_documents_by_workspace(self, workspace_name: str, table_name: str = "workspace_chunks"):
         """Purges only local document chunks associated with a specific workspace, preserving web sources."""
@@ -304,6 +350,12 @@ class LanceDBStore:
                 table.delete(f"id = '{clean_id}'")
             except Exception:
                 pass
+            try:
+                engine = self.get_hybrid_engine(table_name=table_name)
+                engine.remove_by_id(chunk_id)
+                self.save_hybrid_engine(engine, table_name=table_name)
+            except Exception:
+                pass
 
     def delete_by_file(self, file_path: str, workspace_name: Optional[str] = None, table_name: str = "workspace_chunks"):
         """Purges all chunks for a specific file path or URL with proper path normalization and prefix support."""
@@ -319,6 +371,12 @@ class LanceDBStore:
                     clean_ws = workspace_name.replace("'", "''")
                     where_clause = f"workspace = '{clean_ws}' AND ({where_clause})"
                 table.delete(where_clause)
+            except Exception:
+                pass
+            try:
+                engine = self.get_hybrid_engine(table_name=table_name)
+                engine.remove_by_file(file_path)
+                self.save_hybrid_engine(engine, table_name=table_name)
             except Exception:
                 pass
 

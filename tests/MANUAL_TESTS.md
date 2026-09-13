@@ -7,7 +7,53 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.15 100% Native Rust Ingestion & Universal Text/Script/Web Chunker): Validação de Ingestão Nativa em Rust de Scripts (.sql/.sh), Arquivos de Configuração (.env), Dockerfile e URLs Web
+### 📌 Cenário 1 (v0.30.16 Native Rust Ingestion Router & Hybrid Retriever): Validação de BM25 Lexical Search, Reciprocal Rank Fusion (RRF k=60) e Diversificação Source-Fair 100% Rust
+
+- **Objetivo**: Comprovar que na versão `v0.30.16`:
+  1. O motor de recuperação híbrida opera 100% em Rust nativo (`any-context-core-rs`), eliminando completamente o legado em Python (`filters.py`) e integrando busca vetorial densa LanceDB com busca léxica esparsa Okapi BM25 ($k_1 = 1.2, b = 0.75$) e tokenizador universal multilíngue e ciente de código (Unicode UAX #29).
+  2. A fusão de rankings utiliza Reciprocal Rank Fusion (RRF com constante padrão $k=60$), eliminando necessidade de calibração manual de pesos e unificando scores de vetores densos e BM25 de maneira matematicamente justa.
+  3. A diversificação Source-Fair Round-Robin e o controle orçamentário de densidade (Density Budgeting) são executados diretamente em Rust, garantindo equidade de fontes sem estourar o limite de caracteres do contexto do LLM (`max_density_chars`).
+  4. O índice BM25 é persistido de forma compacta e endian-safe via serialização binária (`bm25_index.bin`) junto à base LanceDB da workspace, suportando sincronização e recarga automática instantânea.
+- **Pré-requisito**: Versão `v0.30.16` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📁 Preparação de Arquivos na Workspace:**
+   - Certifique-se de que a workspace contém documentos variados, incluindo código com identificadores `camelCase` / `snake_case` (ex: `UserServiceClient`, `AUTH_TOKEN_EXPIRY`), arquivos de configuração e documentações com palavras-chave raras ou específicas.
+   - Execute a sincronização:
+     ```text
+     /sync --force
+     ```
+   - **Critério de Aceitação:** A sincronização conclui com êxito. O arquivo binário `bm25_index.bin` é gerado na pasta da workspace no LanceDB (`%LOCALAPPDATA%\actx\context_db\<workspace>\` ou similar).
+
+2. **🔍 Teste de Busca Léxica Exata (Okapi BM25):**
+   - Realize uma consulta por identificadores exatos que a busca puramente semântica/vetorial costuma diluir:
+     ```text
+     Onde está definido UserServiceClient e qual seu comportamento?
+     ```
+   - **Critério de Aceitação:** O retriever localiza exatamente os chunks contendo o termo exato `UserServiceClient`, combinando o score léxico alto do BM25 com a similaridade semântica através do RRF.
+
+3. **⚖️ Teste de Diversificação Source-Fair Round-Robin:**
+   - Em uma workspace com múltiplos arquivos ou websites sincronizados (ex: mais de 5 arquivos), faça uma pergunta de tema amplo:
+     ```text
+     Quais são os principais módulos e funcionalidades documentados?
+     ```
+   - **Critério de Aceitação:** As fontes citadas na resposta e nos chunks recuperados são distribuídas equitativamente entre múltiplos arquivos/URLs (nenhum documento monopoliza todos os slots).
+
+4. **🔄 Validação de Persistência e Sincronização Incremental:**
+   - Crie um novo arquivo `teste_bm25.txt` contendo um termo exclusivo como `XYZ_TERMO_UNICO_12345`.
+   - Execute `/sync`.
+   - Consulte pelo termo:
+     ```text
+     O que significa XYZ_TERMO_UNICO_12345?
+     ```
+   - **Critério de Aceitação:** O chunk recém-criado é imediatamente encontrado pelo BM25 e retornado no topo do RRF.
+   - Apague o arquivo `teste_bm25.txt` e rode `/sync`.
+   - Consulte novamente: o termo não deve mais aparecer nos resultados.
+
+---
+
+### 📌 Cenário 2 (v0.30.15 100% Native Rust Ingestion & Universal Text/Script/Web Chunker): Validação de Ingestão Nativa em Rust de Scripts (.sql/.sh), Arquivos de Configuração (.env), Dockerfile e URLs Web
 
 - **Objetivo**: Comprovar que na versão `v0.30.15`:
   1. A ingestão é 100% nativa em Rust (`any-context-core-rs`), eliminando completamente o fallback em Python (`SentenceSplitter` do LlamaIndex) e rotinas legadas.
