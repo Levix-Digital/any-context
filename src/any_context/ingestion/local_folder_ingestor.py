@@ -27,27 +27,28 @@ from any_context.ingestion.orchestrator import (
 
 SUPPORTED_EXTENSIONS = {
     # Documents & Text
-    ".pdf", ".docx", ".doc", ".txt", ".md", ".rst", ".rtf", ".odt", ".pages", ".epub", ".eml", ".msg",
+    ".pdf", ".docx", ".doc", ".txt", ".text", ".md", ".rst", ".rtf", ".odt", ".pages", ".epub", ".eml", ".msg", ".log",
     # Data & Spreadsheets
     ".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".ods", ".ofx",
     # Presentations
     ".pptx", ".ppt", ".key",
     # Code & Tech
     ".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".htm", ".css", ".xml", ".yaml", ".yml", ".toml", ".sql",
-    ".c", ".cpp", ".cs", ".java", ".go", ".rs", ".sh", ".ps1", ".bat", ".cmd",
+    ".c", ".cpp", ".cs", ".java", ".go", ".rs", ".sh", ".bash", ".ps1", ".bat", ".cmd",
     ".kt", ".kts", ".swift", ".rb", ".php", ".phtml", ".lua", ".dart",
     # API Schemas & Contracts
     ".proto", ".graphql", ".gql", ".thrift",
-    # Cloud & Infrastructure as Code (IaC)
+    # Cloud, Configurations & IaC
+    ".env", ".ini", ".cfg", ".conf", ".properties",
     ".tf", ".tfvars", ".hcl", ".bicep",
     # Build & Dependency Manifests
-    ".mod", ".sum", ".gradle", ".properties",
+    ".mod", ".sum", ".gradle",
     # Images
     ".png", ".jpg", ".jpeg", ".webp"
 }
 
 SUPPORTED_FILENAMES = {
-    "dockerfile", "containerfile", "jenkinsfile", "makefile", "procfile"
+    "dockerfile", "containerfile", "jenkinsfile", "makefile", "procfile", ".env"
 }
 
 IGNORED_DIRS = {
@@ -80,7 +81,7 @@ def discover_workspace_files(root_folder: str) -> List[str]:
                 continue  # Skip minified and bundled distribution assets
 
             ext = os.path.splitext(file_name)[1].lower()
-            if ext in SUPPORTED_EXTENSIONS or fn_lower in SUPPORTED_FILENAMES:
+            if ext in SUPPORTED_EXTENSIONS or fn_lower in SUPPORTED_FILENAMES or fn_lower.startswith(".env."):
                 full_path = os.path.abspath(os.path.join(root, file_name))
                 valid_file_paths.append(full_path)
 

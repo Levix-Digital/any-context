@@ -1258,11 +1258,11 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         if not b_mgr.can_use_ocr():
             raise HTTPException(status_code=403, detail="Access Denied: Image & Scanned PDF OCR requires 'Starter', 'Pro', 'Team', or 'Enterprise' plan tier.")
 
-        from any_context.ingestion.image_ocr_ingestor import extract_text_from_image, index_image_file_to_chromadb
+        from any_context.ingestion.router import IngestionRouter
         try:
-            indexed = index_image_file_to_chromadb(workspace_name=workspace_name, image_path=image_path)
-            data = extract_text_from_image(image_path)
-            return {"status": "success", "indexed": indexed, "ocr_data": data}
+            router = IngestionRouter()
+            chunks = router.chunk_file(image_path)
+            return {"status": "success", "indexed": True, "ocr_data": {"chunks": chunks, "count": len(chunks)}}
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error parsing image OCR: {str(e)}")
 

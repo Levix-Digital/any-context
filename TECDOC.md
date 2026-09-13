@@ -1521,6 +1521,18 @@ sequenceDiagram
    - Selectively decrypts hardware-bound AES-GCM-256 records on-the-fly only for sampled rows ($K$ chunks, default 3, max 25), preserving privacy and sub-millisecond responsiveness.
    - Extracts and displays contextual breadcrumbs (`// Context: file.pdf > Page X`) and text previews.
    - Automatically detects legacy chunks (`Local Document`) indexed prior to v0.30.10 and issues proactive guidance to run `/sync --force` for full re-indexing with the native Rust Smart Cascade.
+7. **100% Native Rust Ingestion & Universal Text/Script/Web Chunker (v0.30.15)**:
+   - **Extinção Total de Código Legado em Python**: Remoção completa do `SentenceSplitter` do LlamaIndex em `indexer.py`, deleção de `image_ocr_ingestor.py` e eliminação de rotinas regex puras de fallback em `router.py`. 100% dos documentos e páginas web são fatiados exclusivamente em Rust.
+   - **Novo `TextChunker` Nativo em Rust** (`crates/any-context-core-rs/src/ingestion/chunkers/text.rs`): Motor de alta performance para fatiamento semântico por quebras de linha e blocos lógicos com respeito estrito a `max_chunk_chars` e `overlap_chars`.
+   - **Matriz de Extensões Estrita (Zero Sobreposição)**:
+     - Documentos de texto: `.txt`, `.text`, `.log` (`Plain Text Document`)
+     - Scripts de banco de dados: `.sql` (`SQL Script`)
+     - Scripts de terminal e automação: `.sh`, `.bash`, `.ps1`, `.bat`, `.cmd` (`Shell Script`)
+     - Configurações chave-valor e dot-files: `.env`, `.env.*`, `.ini`, `.cfg`, `.conf`, `.properties` (`Configuration / Env`)
+     - Manifestos de container e automação: `Dockerfile`, `Makefile` (`Container / Build Definition`)
+     - Documentação e páginas Web: URLs `http://*`, `https://*` e arquivos `.html`, `.htm` (`Web Documentation`)
+   - **Roteamento Web 100% Rust**: URLs com títulos e subtítulos Markdown (`# `) são despachadas para o `MarkdownHeaderChunker`, preservando hierarquia de tópicos. Conteúdo em texto corrido é processado pelo `TextChunker` com breadcrumbs contextuais `// Context: <url> > Section (lines X..Y)`.
+   - **Desempenho & Confiabilidade**: Elimina contenção de GIL durante fatiamento paralelo e assegura que nenhum documento caia em fallbacks não testados.
 
 ### 4. Cross-Platform Unified 3-Option Dialog & Universal Session Teardown (v0.28.87)
 

@@ -7,7 +7,52 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.14 Vector Store Inspection & Taxonomy Breakdown): Inspeção Interativa de Chunks, Taxonomia LanceDB e Breadcrumbs de Contexto via `/inspect`
+### 📌 Cenário 1 (v0.30.15 100% Native Rust Ingestion & Universal Text/Script/Web Chunker): Validação de Ingestão Nativa em Rust de Scripts (.sql/.sh), Arquivos de Configuração (.env), Dockerfile e URLs Web
+
+- **Objetivo**: Comprovar que na versão `v0.30.15`:
+  1. A ingestão é 100% nativa em Rust (`any-context-core-rs`), eliminando completamente o fallback em Python (`SentenceSplitter` do LlamaIndex) e rotinas legadas.
+  2. Scripts de banco de dados (`.sql`), scripts de terminal (`.sh`, `.bash`, `.ps1`, `.bat`), configurações (`.env`, `.ini`, `.cfg`, `.properties`), e manifestos de container/build (`Dockerfile`, `Makefile`) são indexados nativamente em Rust com taxonomias precisas e breadcrumbs de linhas (`// Context: <arquivo> > lines X..Y`).
+  3. Páginas web adicionadas via `/sources add web <url>` são fatiadas nativamente em Rust (`MarkdownHeaderChunker` se houver cabeçalhos ou `TextChunker` com taxonomia `Web Documentation`).
+  4. O comando `/inspect` exibe as novas taxonomias LanceDB: `SQL Script`, `Shell Script`, `Configuration / Env`, `Container / Build Definition`, `Web Documentation`.
+- **Pré-requisito**: Versão `v0.30.15` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📁 Preparação de Arquivos de Teste na Workspace:**
+   - Adicione ou crie na pasta da workspace:
+     - Um arquivo `schema.sql` com instruções SQL.
+     - Um script `deploy.sh` com comandos shell.
+     - Um arquivo `.env` com configurações chave=valor (`DATABASE_URL=postgres://...`).
+     - Um arquivo `Dockerfile` com instruções de container (`FROM alpine:latest`).
+   - Adicione uma documentação web via TUI ou CLI:
+     ```text
+     /sources add web https://raw.githubusercontent.com/Levix-Digital/any-context/main/README.md
+     ```
+
+2. **⚡ Sincronização e Indexação 100% Rust:**
+   - Execute:
+     ```text
+     /sync --force
+     ```
+   - **Critério de Aceitação:** A sincronização conclui em alta velocidade sem nenhum log de `SentenceSplitter` ou fallback Python. Todos os arquivos e a URL são ingeridos pelo motor Rust.
+
+3. **🔍 Inspeção de Taxonomias via `/inspect`:**
+   - Execute:
+     ```text
+     /inspect
+     ```
+   - **Critério de Aceitação:**
+     - O breakdown de taxonomias (`📊 Chunk Taxonomy Breakdown`) lista explicitamente:
+       - `SQL Script`
+       - `Shell Script`
+       - `Configuration / Env`
+       - `Container / Build Definition`
+       - `Web Documentation`
+     - As amostras exibem breadcrumbs estruturados como `// Context: schema.sql > lines 1..15` e `// Context: https://... > Section`.
+
+---
+
+### 📌 Cenário 2 (v0.30.14 Vector Store Inspection & Taxonomy Breakdown): Inspeção Interativa de Chunks, Taxonomia LanceDB e Breadcrumbs de Contexto via `/inspect`
 
 - **Objetivo**: Comprovar que na versão `v0.30.14`:
   1. O comando `/inspect` (e seus aliases `/chunks` e `/lance`) realiza a projeção colunar em tempo real no LanceDB via Apache Arrow (`select(["content_type"])`), exibindo o breakdown completo das taxonomias dos chunks no workspace (`PDF Document (Digital Layout)`, `Markdown Document`, `Local Document`, etc.).

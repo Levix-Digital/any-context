@@ -6,6 +6,7 @@ use crate::ingestion::chunkers::structured::StructuredDataChunker;
 use crate::ingestion::chunkers::tabular::TabularChunker;
 use crate::ingestion::chunkers::pdf::PdfChunker;
 use crate::ingestion::chunkers::image::ImageChunker;
+use crate::ingestion::chunkers::text::TextChunker;
 use crate::ingestion::traits::Chunker;
 use crate::models::ChunkPayload;
 
@@ -18,6 +19,7 @@ pub struct IngestionRouter {
     pub tabular_chunker: TabularChunker,
     pub pdf_chunker: PdfChunker,
     pub image_chunker: ImageChunker,
+    pub text_chunker: TextChunker,
 }
 
 #[pymethods]
@@ -32,25 +34,48 @@ impl IngestionRouter {
             tabular_chunker: TabularChunker::new(max_chunk_chars),
             pdf_chunker: PdfChunker::new(max_chunk_chars),
             image_chunker: ImageChunker::new(max_chunk_chars),
+            text_chunker: TextChunker::new(max_chunk_chars, overlap_chars),
         }
     }
 
     /// Determines whether the given file path or extension has a specialized Rust chunker available.
     pub fn supports_file(&self, file_path: &str) -> bool {
+        if self.text_chunker.is_web_url(file_path) {
+            return true;
+        }
+
         let p = Path::new(file_path);
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        let file_name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
         matches!(ext.as_str(), "md" | "markdown" | "rst" | "mdown")
             || self.code_chunker.supports_extension(&ext)
             || self.structured_chunker.supports_extension(&ext)
             || self.tabular_chunker.supports_extension(&ext)
             || self.pdf_chunker.supports_extension(&ext)
             || self.image_chunker.supports_extension(&ext)
+            || self.text_chunker.supports_extension(&ext)
+            || self.text_chunker.supports_filename(file_name)
     }
 
     /// Chunks document content using the specialized parser matching the file extension.
     pub fn chunk_text(&self, file_path: &str, content: &str) -> PyResult<Vec<ChunkPayload>> {
+        if self.text_chunker.is_web_url(file_path) {
+            if content.lines().any(|l| l.trim_start().starts_with('#')) {
+                return self.markdown_chunker.chunk(file_path, content).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(format!("Markdown web chunker error: {}", e))
+                });
+            } else {
+                return self.text_chunker.chunk(file_path, content).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(format!("Text web chunker error: {}", e))
+                });
+            }
+        }
+
         let p = Path::new(file_path);
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        let file_name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
         if matches!(ext.as_str(), "md" | "markdown" | "rst" | "mdown") {
             self.markdown_chunker.chunk(file_path, content).map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!("Markdown chunker error: {}", e))
@@ -71,8 +96,14 @@ impl IngestionRouter {
             self.pdf_chunker.chunk(file_path, content).map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!("PDF chunker error: {}", e))
             })
+        } else if self.text_chunker.supports_extension(&ext) || self.text_chunker.supports_filename(file_name) {
+            self.text_chunker.chunk(file_path, content).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Text chunker error: {}", e))
+            })
         } else {
-            Ok(Vec::new())
+            self.text_chunker.chunk(file_path, content).map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Universal text chunker error: {}", e))
+            })
         }
     }
 
@@ -438,5 +469,42 @@ mod tests {
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].content_type, "visual_diagram");
         assert!(chunks[0].text.contains("Visual Image & Diagram Specification"));
+    }
+
+    #[test]
+    fn test_router_supports_text_scripts_and_web() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        assert!(router.supports_file("notes.txt"));
+        assert!(router.supports_file("server.log"));
+        assert!(router.supports_file("schema.sql"));
+        assert!(router.supports_file("build.sh"));
+        assert!(router.supports_file("deploy.bash"));
+        assert!(router.supports_file("setup.ps1"));
+        assert!(router.supports_file("start.bat"));
+        assert!(router.supports_file("run.cmd"));
+        assert!(router.supports_file(".env"));
+        assert!(router.supports_file("config.ini"));
+        assert!(router.supports_file("app.properties"));
+        assert!(router.supports_file("Dockerfile"));
+        assert!(router.supports_file("Makefile"));
+        assert!(router.supports_file("https://example.com/docs"));
+        assert!(router.supports_file("http://localhost:3000/api"));
+    }
+
+    #[test]
+    fn test_router_chunk_sql_and_web() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        let sql = "CREATE TABLE users (id INT PRIMARY KEY, name TEXT);\nINSERT INTO users VALUES (1, 'Admin');\n";
+        let chunks = router.chunk_text("migrations.sql", sql).expect("Chunking failed");
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks[0].content_type, "sql");
+        assert!(chunks[0].text.contains("// Context: migrations.sql > lines"));
+
+        let web_content = "# API Overview\nThis is the REST API documentation.";
+        let web_chunks = router.chunk_text("https://api.acme.org/docs", web_content).expect("Chunking failed");
+        assert!(!web_chunks.is_empty());
+        assert_eq!(web_chunks[0].content_type, "markdown");
     }
 }
