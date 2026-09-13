@@ -336,7 +336,6 @@ def crawl_and_index_urls(
     import hashlib
     import urllib.parse
     import urllib.error
-    import chromadb
 
     # Suppress verbose HTTP/OpenAI retry logs in terminal
     logging.getLogger("httpx").setLevel(logging.WARNING)

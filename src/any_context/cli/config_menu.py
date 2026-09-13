@@ -453,7 +453,7 @@ def _transfer_workspace_source(store: ConfigDBStore):
 
 def _manage_workspace_web_urls(workspace_name: Optional[str] = None, store: Optional[ConfigDBStore] = None):
     """Interactive management of Web URLs and Documentation Site Ingestors for a Workspace."""
-    from any_context.ingestion.web_scheduler import WebSchedulerStore, sync_workspace_web_urls, remove_web_url_from_chromadb
+    from any_context.ingestion.web_scheduler import WebSchedulerStore, sync_workspace_web_urls, remove_web_url_from_lancedb
     from any_context.cli.formatters import run_interactive_web_crawler
 
     # Handle polymorphic call if first argument was passed as store
@@ -525,7 +525,7 @@ def _manage_workspace_web_urls(workspace_name: Optional[str] = None, store: Opti
             if selected_choice and not selected_choice.startswith("🔙"):
                 target_url = selected_choice.split(" ")[0]
                 web_store.delete_web_url_by_url(target_ws, target_url)
-                remove_web_url_from_chromadb(target_ws, target_url)
+                remove_web_url_from_lancedb(target_ws, target_url)
                 print(f"🗑️ Removed '{target_url}' and purged all associated indexed vectors from workspace '{target_ws}'.\n")
 
 def _manage_models(store: ConfigDBStore):

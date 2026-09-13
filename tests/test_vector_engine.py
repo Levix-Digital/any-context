@@ -4,9 +4,9 @@ import tempfile
 import shutil
 
 from any_context.vector_engine.models import ScoredChunk, RetrievalConfig, IngestionConfig
-from any_context.vector_engine.filters import RelevanceFilter
 from any_context.vector_engine.store import LanceDBStore
 from any_context.vector_engine.enricher import ContextualEnricher, SemanticEnvelope
+import any_context_core_rs
 
 
 class TestVectorEngineModelsAndFilters(unittest.TestCase):
@@ -15,46 +15,48 @@ class TestVectorEngineModelsAndFilters(unittest.TestCase):
         self.assertEqual(turbo.candidate_pool_k, 50)
         self.assertEqual(turbo.target_top_k, 10)
         self.assertEqual(turbo.max_chunks_per_source, 2)
+        self.assertEqual(turbo.rrf_k, 60)
 
         balanced = RetrievalConfig.from_preset("balanced")
         self.assertEqual(balanced.candidate_pool_k, 100)
         self.assertEqual(balanced.target_top_k, 20)
         self.assertEqual(balanced.max_chunks_per_source, 3)
+        self.assertEqual(balanced.rrf_k, 60)
 
         deep = RetrievalConfig.from_preset("deep_research")
         self.assertEqual(deep.candidate_pool_k, 150)
         self.assertEqual(deep.target_top_k, 40)
         self.assertEqual(deep.max_chunks_per_source, 5)
+        self.assertEqual(deep.rrf_k, 60)
 
-    def test_relevance_filter_thresholding(self):
-        chunks = [
-            ScoredChunk(text="High quality match", file_name="f1.pdf", file_path="/f1.pdf", workspace="W1", score=0.85),
-            ScoredChunk(text="Medium match", file_name="f2.pdf", file_path="/f2.pdf", workspace="W1", score=0.60),
-            ScoredChunk(text="Irrelevant noise", file_name="f3.pdf", file_path="/f3.pdf", workspace="W1", score=0.25)
-        ]
+    def test_rust_hybrid_engine_bm25_and_diversification(self):
+        engine = any_context_core_rs.HybridRetrieverEngine()
 
-        filtered = RelevanceFilter.apply_threshold(chunks, min_score=0.50)
-        self.assertEqual(len(filtered), 2)
-        self.assertEqual(filtered[0].file_name, "f1.pdf")
-        self.assertEqual(filtered[1].file_name, "f2.pdf")
-
-    def test_relevance_filter_source_diversification(self):
         # Monopolizing source A with 5 chunks, source B with 2 chunks, source C with 1 chunk
-        chunks = [
-            ScoredChunk(text="A1", file_name="A.pdf", file_path="/A.pdf", workspace="W1", score=0.95),
-            ScoredChunk(text="A2", file_name="A.pdf", file_path="/A.pdf", workspace="W1", score=0.94),
-            ScoredChunk(text="A3", file_name="A.pdf", file_path="/A.pdf", workspace="W1", score=0.93),
-            ScoredChunk(text="A4", file_name="A.pdf", file_path="/A.pdf", workspace="W1", score=0.92),
-            ScoredChunk(text="A5", file_name="A.pdf", file_path="/A.pdf", workspace="W1", score=0.91),
-            ScoredChunk(text="B1", file_name="B.pdf", file_path="/B.pdf", workspace="W1", score=0.89),
-            ScoredChunk(text="B2", file_name="B.pdf", file_path="/B.pdf", workspace="W1", score=0.88),
-            ScoredChunk(text="C1", file_name="C.pdf", file_path="/C.pdf", workspace="W1", score=0.85),
+        dense_results = [
+            {"id": "A1", "score": 0.95, "file_name": "A.pdf", "file_path": "/A.pdf", "text": "A1", "workspace": "W1", "content_type": "PDF"},
+            {"id": "A2", "score": 0.94, "file_name": "A.pdf", "file_path": "/A.pdf", "text": "A2", "workspace": "W1", "content_type": "PDF"},
+            {"id": "A3", "score": 0.93, "file_name": "A.pdf", "file_path": "/A.pdf", "text": "A3", "workspace": "W1", "content_type": "PDF"},
+            {"id": "A4", "score": 0.92, "file_name": "A.pdf", "file_path": "/A.pdf", "text": "A4", "workspace": "W1", "content_type": "PDF"},
+            {"id": "A5", "score": 0.91, "file_name": "A.pdf", "file_path": "/A.pdf", "text": "A5", "workspace": "W1", "content_type": "PDF"},
+            {"id": "B1", "score": 0.89, "file_name": "B.pdf", "file_path": "/B.pdf", "text": "B1", "workspace": "W1", "content_type": "PDF"},
+            {"id": "B2", "score": 0.88, "file_name": "B.pdf", "file_path": "/B.pdf", "text": "B2", "workspace": "W1", "content_type": "PDF"},
+            {"id": "C1", "score": 0.85, "file_name": "C.pdf", "file_path": "/C.pdf", "text": "C1", "workspace": "W1", "content_type": "PDF"},
         ]
 
-        diversified = RelevanceFilter.apply_source_diversification(chunks, max_per_source=2, target_k=5)
+        diversified = engine.fuse_and_diversify(
+            dense_results=dense_results,
+            query="test",
+            workspace="W1",
+            candidate_pool_k=10,
+            target_top_k=5,
+            max_per_source=2,
+            max_density_chars=40000,
+            rrf_k=60
+        )
         # Should pick A1, B1, C1 (pass 1), then A2, B2 (pass 2) -> total 5 items
         self.assertEqual(len(diversified), 5)
-        files = [c.file_name for c in diversified]
+        files = [c["file_name"] for c in diversified]
         self.assertEqual(files, ["A.pdf", "B.pdf", "C.pdf", "A.pdf", "B.pdf"])
 
 

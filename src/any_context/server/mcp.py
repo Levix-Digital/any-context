@@ -724,11 +724,11 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 result_text = json.dumps(res, indent=2)
 
             elif tool_name == "add_workspace_web_url":
-                from any_context.ingestion.web_scheduler import index_web_url_to_chromadb
+                from any_context.ingestion.web_scheduler import index_web_url_to_lancedb
                 ws_target = arguments.get("workspace", "Default")
                 url_target = arguments.get("url", "")
                 poll_int = arguments.get("polling_interval_hours", 24)
-                res = index_web_url_to_chromadb(workspace_name=ws_target, url=url_target, force=True)
+                res = index_web_url_to_lancedb(workspace_name=ws_target, url=url_target, force=True)
                 result_text = json.dumps(res, indent=2)
 
             elif tool_name == "list_workspace_web_urls":
@@ -739,7 +739,7 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 result_text = json.dumps({"workspace": ws_target, "web_urls": urls}, indent=2)
 
             elif tool_name == "remove_workspace_web_url":
-                from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_chromadb
+                from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_lancedb
                 ws_target = arguments.get("workspace", "Default")
                 url_or_id = arguments.get("url_or_id", "")
                 store = WebSchedulerStore()
@@ -747,7 +747,7 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 matched = next((u for u in urls if u["id"] == url_or_id or u["url"] == url_or_id), None)
                 if matched:
                     store.delete_web_url(matched["id"], workspace_name=ws_target)
-                    remove_web_url_from_chromadb(workspace_name=ws_target, url=matched["url"])
+                    remove_web_url_from_lancedb(workspace_name=ws_target, url=matched["url"])
                     result_text = json.dumps({"status": "success", "message": f"Web URL '{matched['url']}' removed."}, indent=2)
                 else:
                     result_text = json.dumps({"status": "error", "message": "Web URL not found in workspace."}, indent=2)

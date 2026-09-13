@@ -304,9 +304,9 @@ class WebSchedulerStore:
 
 
 
-def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
+def index_web_url_to_lancedb(workspace_name: str, url: str, url_id: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
     """
-    Scrapes a web URL, computes SHA-256 hash, and indexes content into ChromaDB if updated.
+    Scrapes a web URL, computes SHA-256 hash, and indexes content into LanceDB if updated.
     Enforces feature gates via BillingManager and stores into the active workspace context_docs collection.
     """
     b_mgr = BillingManager()
@@ -393,7 +393,11 @@ def index_web_url_to_chromadb(workspace_name: str, url: str, url_id: Optional[st
         return {"status": "error", "message": err_msg}
 
 
-def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
+# Backward compatibility alias
+index_web_url_to_chromadb = index_web_url_to_lancedb
+
+
+def remove_web_url_from_lancedb(workspace_name: str, url: str) -> bool:
     """
     Deletes vectors associated with a specific web URL or root source URL in a workspace from LanceDB.
     """
@@ -409,6 +413,10 @@ def remove_web_url_from_chromadb(workspace_name: str, url: str) -> bool:
     except Exception as e:
         print(f"⚠️ Warning removing web vectors for '{url}': {e}")
         return False
+
+
+# Backward compatibility alias
+remove_web_url_from_chromadb = remove_web_url_from_lancedb
 
 
 def sync_workspace_web_urls(

@@ -1,16 +1,16 @@
 """
-Parallel Vector Retriever (Fase 2).
-Provides concurrent multi-source vector retrieval across active workspace,
-Global, and Shared Sources, strictly decoupled via Dependency Injection of RetrievalConfig.
+Parallel Vector & BM25 Hybrid Retriever with Reciprocal Rank Fusion (Marco 6).
+Provides concurrent multi-source dense vector search across LanceDB partitions,
+sparse Okapi BM25 keyword search in native Rust, and unified RRF fusion with
+source-fair diversification and density budgeting.
 """
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from any_context.vector_engine.models import ScoredChunk, RetrievalConfig
 from any_context.vector_engine.store import LanceDBStore
-from any_context.vector_engine.filters import RelevanceFilter
 
 
 MONTH_MAP = {
@@ -96,8 +96,9 @@ def extract_temporal_clauses(query: str) -> List[str]:
 
 class ParallelRetriever:
     """
-    High-performance parallel vector and temporal hybrid search engine.
-    Encapsulates LanceDB multi-partition scanning, lexical date anchoring, and returns calibrated ScoredChunk contracts.
+    High-performance parallel hybrid retriever powered 100% by native Rust (any-context-core-rs).
+    Orchestrates concurrent LanceDB vector searches, native Rust BM25 lexical retrieval,
+    and Reciprocal Rank Fusion (RRF) with Source-Fair Round-Robin and Density Budgeting.
     """
 
     def __init__(self, store: Optional[LanceDBStore] = None):
@@ -123,8 +124,9 @@ class ParallelRetriever:
         table_name: str = "workspace_chunks"
     ) -> List[ScoredChunk]:
         """
-        Executes parallel multi-source vector retrieval with Temporal Hybrid Lexical boosting,
-        applying decoupled RelevanceFilter (Thresholding -> Round-Robin -> Density Budgeting).
+        Executes parallel multi-source vector retrieval and native Rust BM25 search,
+        fusing candidates with Reciprocal Rank Fusion (RRF) and applying Source-Fair
+        Round-Robin diversification and Density Budgeting in native Rust.
         """
         cfg = config or RetrievalConfig.from_preset("balanced")
         query_vector = self._get_query_embedding(query)
@@ -142,9 +144,9 @@ class ParallelRetriever:
         if not targets:
             targets.append(("Default", cfg.candidate_pool_k))
 
-        raw_candidates_map: dict = {}
+        raw_candidates_map: Dict[str, ScoredChunk] = {}
 
-        # 1. Temporal Hybrid Lexical Search: if temporal date signals exist, search LanceDB metadata first
+        # 0. Temporal Hybrid Lexical Search: if temporal date signals exist, search LanceDB metadata first
         temporal_clauses = extract_temporal_clauses(query)
         if temporal_clauses:
             where_or = " OR ".join(temporal_clauses)
@@ -163,7 +165,7 @@ class ParallelRetriever:
                 except Exception:
                     pass
 
-        # 2. Concurrent dense vector searches across CPU threads in Rust
+        # 1. Concurrent dense vector searches across CPU threads in LanceDB
         max_workers = min(len(targets) + (1 if linked_sources else 0), os.cpu_count() or 4)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_target = {
@@ -197,11 +199,56 @@ class ParallelRetriever:
                 except Exception:
                     pass
 
-        raw_candidates = list(raw_candidates_map.values())
+        raw_dense_candidates = list(raw_candidates_map.values())
+        raw_dense_candidates.sort(key=lambda c: c.score, reverse=True)
 
-        # Sort raw candidates by calibrated score descending
-        raw_candidates.sort(key=lambda c: c.score, reverse=True)
+        # 2. Native Rust Hybrid Retrieval with Reciprocal Rank Fusion (RRF)
+        engine = self._store.get_hybrid_engine(table_name=table_name)
 
-        # Apply decoupled RelevanceFilter (Thresholding -> Round-Robin -> Density Budgeting)
-        return RelevanceFilter.filter_and_balance(raw_candidates, config=cfg)
+        dense_dicts = [
+            {
+                "id": sc.chunk_id or f"{sc.file_path}::{sc.text[:60]}",
+                "score": sc.score,
+                "text": sc.text,
+                "file_name": sc.file_name,
+                "file_path": sc.file_path,
+                "workspace": sc.workspace,
+                "content_type": sc.content_type or "Local Document"
+            }
+            for sc in raw_dense_candidates
+        ]
 
+        target_ws = workspace if workspace != "Default" else None
+
+        fused_raw = engine.fuse_and_diversify(
+            dense_results=dense_dicts,
+            query=query,
+            workspace=target_ws,
+            candidate_pool_k=cfg.candidate_pool_k,
+            target_top_k=cfg.target_top_k,
+            max_per_source=cfg.max_chunks_per_source,
+            max_density_chars=cfg.max_density_chars,
+            rrf_k=getattr(cfg, "rrf_k", 60)
+        )
+
+        final_chunks: List[ScoredChunk] = []
+        for r in fused_raw:
+            final_chunks.append(
+                ScoredChunk(
+                    text=r["text"],
+                    file_name=r["file_name"],
+                    file_path=r["file_path"],
+                    workspace=r["workspace"],
+                    score=r["score"],
+                    content_type=r.get("content_type", "Local Document"),
+                    chunk_id=r["id"],
+                    metadata={
+                        "file_name": r["file_name"],
+                        "file_path": r["file_path"],
+                        "workspace": r["workspace"],
+                        "content_type": r.get("content_type", "Local Document")
+                    }
+                )
+            )
+
+        return final_chunks
