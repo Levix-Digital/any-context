@@ -794,27 +794,24 @@ class CommandDispatcher:
         return CommandResult(success=True, message=f"🧠 {res['message']}")
 
     def _handle_vision(self, parts: List[str]) -> CommandResult:
-        settings = self.store.get_app_settings()
         if len(parts) > 1:
             arg = parts[1].lower().strip().lstrip("-")
             if arg in ["on", "enable", "true", "1"]:
-                if settings and settings.context:
-                    settings.context.enable_vision_llm = True
-                    self.store.save_app_settings(settings)
+                self.store.set_vision_llm_status(True)
                 return CommandResult(
                     success=True,
-                    message="👁️ **Vision LLM Multimodal Ingestion: ENABLED**\nComplex visual diagrams, architecture charts and UI mockups will be described by Vision models during ingestion."
+                    message="👁️ **Vision LLM Multimodal Ingestion: ENABLED**\nComplex visual diagrams, architecture charts and UI mockups will be described by Vision models during ingestion.",
+                    state_updates={"enable_vision_llm": True}
                 )
             elif arg in ["off", "disable", "false", "0"]:
-                if settings and settings.context:
-                    settings.context.enable_vision_llm = False
-                    self.store.save_app_settings(settings)
+                self.store.set_vision_llm_status(False)
                 return CommandResult(
                     success=True,
-                    message="👁️ **Vision LLM Multimodal Ingestion: DISABLED**\nVisual diagrams and images will be indexed using native Rust structural metadata."
+                    message="👁️ **Vision LLM Multimodal Ingestion: DISABLED**\nVisual diagrams and images will be indexed using native Rust structural metadata.",
+                    state_updates={"enable_vision_llm": False}
                 )
         # Status query
-        is_on = bool(settings and settings.context and settings.context.enable_vision_llm)
+        is_on = self.store.get_vision_llm_status()
         status_str = "🟢 **ENABLED**" if is_on else "⚪ **DISABLED** (Using Native Rust Metadata Fallback)"
         return CommandResult(
             success=True,
@@ -823,7 +820,8 @@ class CommandDispatcher:
                 f"• Multimodal Vision Hook: {status_str}\n"
                 f"• To toggle: `/vision on` or `/vision off`\n"
                 f"• Supported Multimodal Providers: OpenAI (gpt-4o, gpt-4o-mini), Google Gemini, Claude"
-            )
+            ),
+            state_updates={"enable_vision_llm": is_on}
         )
 
     def _find_tesseract_path(self) -> Optional[str]:

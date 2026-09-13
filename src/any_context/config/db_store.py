@@ -193,7 +193,8 @@ class ConfigDBStore:
                     grounding_mode TEXT DEFAULT 'strict',
                     web_search_enabled INTEGER DEFAULT 0,
                     default_web_engine TEXT DEFAULT 'auto',
-                    onboarding_completed INTEGER DEFAULT 0
+                    onboarding_completed INTEGER DEFAULT 0,
+                    enable_vision_llm INTEGER DEFAULT 0
                 )
             """)
             cursor.execute("PRAGMA table_info(context_settings)")
@@ -218,14 +219,16 @@ class ConfigDBStore:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN default_web_engine TEXT DEFAULT 'auto'")
             if "onboarding_completed" not in ctx_cols:
                 cursor.execute("ALTER TABLE context_settings ADD COLUMN onboarding_completed INTEGER DEFAULT 0")
+            if "enable_vision_llm" not in ctx_cols:
+                cursor.execute("ALTER TABLE context_settings ADD COLUMN enable_vision_llm INTEGER DEFAULT 0")
 
             cursor.execute("SELECT id FROM context_settings WHERE id = 1")
             if not cursor.fetchone():
                 cursor.execute("""
                     INSERT INTO context_settings (
                         id, db_path, collection_name, chunk_size, chunk_overlap,
-                        top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed
-                    ) VALUES (1, './chroma_db', 'documents', 1024, 200, 40, 100, 3, 'balanced', 'strict', 0, 'auto', 0)
+                        top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed, enable_vision_llm
+                    ) VALUES (1, './chroma_db', 'documents', 1024, 200, 40, 100, 3, 'balanced', 'strict', 0, 'auto', 0, 0)
                 """)
 
             cursor.execute("""
@@ -1669,6 +1672,7 @@ class ConfigDBStore:
                 c_web = bool(c_row["web_search_enabled"]) if ("web_search_enabled" in c_keys and c_row["web_search_enabled"] is not None) else False
                 c_eng = c_row["default_web_engine"] if ("default_web_engine" in c_keys and c_row["default_web_engine"]) else "auto"
                 c_onboarding = bool(c_row["onboarding_completed"]) if ("onboarding_completed" in c_keys and c_row["onboarding_completed"] is not None) else False
+                c_vision = bool(c_row["enable_vision_llm"]) if ("enable_vision_llm" in c_keys and c_row["enable_vision_llm"] is not None) else False
                 context = ContextSettings(
                     db_path=self._resolve_storage_path(c_row["db_path"], "./context_db"),
                     collection_name=c_row["collection_name"],
@@ -1681,7 +1685,8 @@ class ConfigDBStore:
                     grounding_mode=c_mode,
                     web_search_enabled=c_web,
                     default_web_engine=c_eng,
-                    onboarding_completed=c_onboarding
+                    onboarding_completed=c_onboarding,
+                    enable_vision_llm=c_vision
                 )
             else:
                 context = ContextSettings(db_path=self._resolve_storage_path(None, "./context_db"))
@@ -1744,10 +1749,11 @@ class ConfigDBStore:
             c_web = 1 if getattr(c, "web_search_enabled", False) else 0
             c_eng = getattr(c, "default_web_engine", "auto") or "auto"
             c_onboarding = 1 if (getattr(c, "onboarding_completed", False) or self.get_onboarding_completed()) else 0
+            c_vision = 1 if getattr(c, "enable_vision_llm", False) else 0
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed)
-                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap, c.top_k, c.candidate_pool_size, c.max_chunks_per_source, c.retrieval_preset, c.grounding_mode, c_web, c_eng, c_onboarding))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed, enable_vision_llm)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (c.db_path, c.collection_name, c.chunk_size, c.chunk_overlap, c.top_k, c.candidate_pool_size, c.max_chunks_per_source, c.retrieval_preset, c.grounding_mode, c_web, c_eng, c_onboarding, c_vision))
 
             s = settings.session
             cursor.execute("INSERT OR REPLACE INTO session_settings (id, db_path, collection_name) VALUES (1, ?, ?)", (s.db_path, s.collection_name))
@@ -1761,17 +1767,41 @@ class ConfigDBStore:
             conn.commit()
 
     def update_context_settings(self, context: ContextSettings):
-        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap, retrieval parameters, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed)"""
+        """Updates context settings (db_path, collection_name, chunk_size, chunk_overlap, retrieval parameters, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed, enable_vision_llm)"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             c_web = 1 if getattr(context, "web_search_enabled", False) else 0
             c_eng = getattr(context, "default_web_engine", "auto") or "auto"
             c_onboarding = 1 if (getattr(context, "onboarding_completed", False) or self.get_onboarding_completed()) else 0
+            c_vision = 1 if getattr(context, "enable_vision_llm", False) else 0
             cursor.execute("""
-                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed)
-                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap, context.top_k, context.candidate_pool_size, context.max_chunks_per_source, context.retrieval_preset, context.grounding_mode, c_web, c_eng, c_onboarding))
+                INSERT OR REPLACE INTO context_settings (id, db_path, collection_name, chunk_size, chunk_overlap, top_k, candidate_pool_size, max_chunks_per_source, retrieval_preset, grounding_mode, web_search_enabled, default_web_engine, onboarding_completed, enable_vision_llm)
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (context.db_path, context.collection_name, context.chunk_size, context.chunk_overlap, context.top_k, context.candidate_pool_size, context.max_chunks_per_source, context.retrieval_preset, context.grounding_mode, c_web, c_eng, c_onboarding, c_vision))
             conn.commit()
+
+    def get_vision_llm_status(self) -> bool:
+        """Returns whether Vision LLM multimodal ingestion hook is enabled."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT enable_vision_llm FROM context_settings WHERE id = 1")
+            row = cursor.fetchone()
+            if row and "enable_vision_llm" in row.keys() and row["enable_vision_llm"] is not None:
+                return bool(row["enable_vision_llm"])
+        return False
+
+    def set_vision_llm_status(self, enabled: bool) -> bool:
+        """Persists the Vision LLM multimodal hook toggle state."""
+        val = 1 if enabled else 0
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO context_settings (id, db_path, collection_name, enable_vision_llm)
+                VALUES (1, './chroma_db', 'documents', ?)
+                ON CONFLICT(id) DO UPDATE SET enable_vision_llm = ?
+            """, (val, val))
+            conn.commit()
+        return bool(enabled)
 
     def get_grounding_mode(self, workspace_name: Optional[str] = None) -> str:
         """

@@ -155,7 +155,7 @@ class TestCommandDispatcher(unittest.TestCase):
         self.assertEqual(res.action, "paste_mode")
 
     def test_13_dispatch_vision_and_ocr(self):
-        """Validates /vision and /ocr command dispatching."""
+        """Validates /vision and /ocr command dispatching and persistent state updates."""
         res_vis_status = dispatch_command("/vision status")
         self.assertTrue(res_vis_status.success)
         self.assertIn("Vision LLM Status", res_vis_status.message)
@@ -163,10 +163,24 @@ class TestCommandDispatcher(unittest.TestCase):
         res_vis_on = dispatch_command("/vision on")
         self.assertTrue(res_vis_on.success)
         self.assertIn("enabled", res_vis_on.message.lower())
+        self.assertEqual(res_vis_on.state_updates.get("enable_vision_llm"), True)
+
+        # Check persistence on subsequent status command
+        res_vis_status_after_on = dispatch_command("/vision status")
+        self.assertTrue(res_vis_status_after_on.success)
+        self.assertIn("ENABLED", res_vis_status_after_on.message)
+        self.assertEqual(res_vis_status_after_on.state_updates.get("enable_vision_llm"), True)
 
         res_vis_off = dispatch_command("/vision off")
         self.assertTrue(res_vis_off.success)
         self.assertIn("disabled", res_vis_off.message.lower())
+        self.assertEqual(res_vis_off.state_updates.get("enable_vision_llm"), False)
+
+        # Check persistence on subsequent status command
+        res_vis_status_after_off = dispatch_command("/vision status")
+        self.assertTrue(res_vis_status_after_off.success)
+        self.assertIn("DISABLED", res_vis_status_after_off.message)
+        self.assertEqual(res_vis_status_after_off.state_updates.get("enable_vision_llm"), False)
 
         res_ocr_status = dispatch_command("/ocr status")
         self.assertTrue(res_ocr_status.success)
