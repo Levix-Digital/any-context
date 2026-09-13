@@ -4,3 +4,4 @@ pub mod structured;
 pub mod tabular;
 pub mod pdf;
 pub mod image;
+pub mod text;

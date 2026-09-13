@@ -5,18 +5,12 @@ import time
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
-import chromadb
 from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
 from any_context.ingestion.web_ingestor import scrape_url
 from any_context.billing import BillingManager
 from any_context.tools.search_tools import configure_embedding_model
-
-from llama_index.core import Settings, Document
-from llama_index.core.ingestion import IngestionPipeline, DocstoreStrategy
-from llama_index.core.storage.docstore import SimpleDocumentStore
-from llama_index.core.node_parser import SentenceSplitter
-from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.core import Document
 
 class WebSchedulerStore:
     """

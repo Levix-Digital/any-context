@@ -56,7 +56,7 @@ class IngestionRouter:
                 }
                 for c in chunks
             ]
-        return self._fallback_markdown_chunk(file_path, content)
+        raise RuntimeError("any_context_core_rs native library is required for text chunking.")
 
     def chunk_file(self, file_path: str) -> List[Dict[str, Any]]:
         if self._rust_router:
@@ -75,9 +75,7 @@ class IngestionRouter:
                 }
                 for c in chunks
             ]
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
-        return self._fallback_markdown_chunk(file_path, content)
+        raise RuntimeError("any_context_core_rs native library is required for file chunking.")
 
     def chunk_bytes(self, file_path: str, bytes_data: bytes) -> List[Dict[str, Any]]:
         if self._rust_router and hasattr(self._rust_router, "chunk_bytes"):
@@ -96,38 +94,4 @@ class IngestionRouter:
                 }
                 for c in chunks
             ]
-        text_content = bytes_data.decode("utf-8", errors="replace")
-        return self.chunk_text(file_path, text_content)
-
-    def _fallback_markdown_chunk(self, file_path: str, content: str) -> List[Dict[str, Any]]:
-        """Pure-Python fallback when native Rust extension is not compiled."""
-        clean = content.trim() if hasattr(content, "trim") else content.strip()
-        if not clean:
-            return []
-
-        file_name = os.path.basename(file_path) or "unknown.md"
-        sections = re.split(r"(?m)(?=^#{1,6}\s+)", clean)
-        chunks = []
-
-        for idx, sec in enumerate(sections):
-            sec_clean = sec.strip()
-            if not sec_clean:
-                continue
-
-            header_match = re.match(r"^(#{1,6})\s+(.+)$", sec_clean, re.MULTILINE)
-            header_path = header_match.group(0) if header_match else None
-            text = f"// Context: {header_path}\n---\n{sec_clean}" if header_path else sec_clean
-
-            chunks.append({
-                "id": f"{file_name}_{idx}",
-                "text": text,
-                "file_name": file_name,
-                "file_path": file_path,
-                "header_path": header_path,
-                "start_line": 1,
-                "end_line": len(sec_clean.splitlines()),
-                "content_type": "markdown",
-                "chunk_index": idx
-            })
-
-        return chunks
+        raise RuntimeError("any_context_core_rs native library is required for byte chunking.")
