@@ -18,11 +18,8 @@ FALLBACK_REPO = "Levix-Digital/any-context"
 def clean_stale_update_files():
     """Silently cleans up any temporary or old backup binaries left from previous updates."""
     try:
-        is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
-        if getattr(sys, "frozen", False):
-            target_dir = os.path.dirname(os.path.abspath(sys.executable))
-        else:
-            target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
+        from any_context.config.paths import resolve_binary_target_dir
+        target_dir = resolve_binary_target_dir()
 
         if os.path.exists(target_dir):
             for fname in ["actx_old.exe", "actx_new.exe", "actx_old", "actx_new"]:
@@ -433,18 +430,8 @@ class UpdateService:
             else ["actx-linux-x86_64.tar.gz", "actx-linux-x86_64"]
         )
 
-        if "ACTX_UPDATE_DIR" in os.environ and os.environ["ACTX_UPDATE_DIR"].strip():
-            target_dir = os.path.abspath(os.environ["ACTX_UPDATE_DIR"].strip())
-        elif getattr(sys, "frozen", False):
-            target_exe_cur = os.path.abspath(sys.executable)
-            target_dir = os.path.dirname(target_exe_cur)
-        else:
-            import shutil
-            found_which = shutil.which("actx.exe" if is_windows else "actx")
-            if found_which:
-                target_dir = os.path.dirname(os.path.abspath(found_which))
-            else:
-                target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
+        from any_context.config.paths import resolve_binary_target_dir
+        target_dir = resolve_binary_target_dir(is_windows)
 
         os.makedirs(target_dir, exist_ok=True)
         # Dual-binary architecture: actx-core.exe (heavy engine) vs actx.exe (native launcher shim)

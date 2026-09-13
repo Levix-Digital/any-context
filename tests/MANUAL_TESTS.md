@@ -7,7 +7,42 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.10 Native Rust Smart Cascade for PDF & Images): Ingestão em Cascata Inteligente para PDFs e Imagens (Nível 1 Layout lopdf, Nível 2 OCR Nativo Tesseract com Auto-Provisionamento Portátil Zero-Elevação e Nível 3 Vision LLM Hook)
+### 📌 Cenário 1 (v0.30.13 Anti-Virtualenv Binary Target Safeguard & SQLite Vision Persistence): Proteção Anti-Virtualenv do Updater e Persistência do Hook Vision
+
+- **Objetivo**: Comprovar que na versão `v0.30.13`:
+  1. O subsistema de atualização (`update_service.py`, `cli/updater.py`, `config/paths.py`) implementa a salvaguarda **Anti-Virtualenv**, impedindo que updates de binários autônomos (`.zip`, `.exe`, `.tar.gz`) sobrescrevam ou corrompam diretórios de ambientes virtuais (`.venv`, `Scripts`, `pyvenv.cfg`, `site-packages`).
+  2. A resolução de diretório de destino (`resolve_binary_target_dir`) rejeita qualquer candidato associado a virtualenvs e redireciona a instalação de binários autônomos exclusivamente para a pasta canônica do usuário (`%LOCALAPPDATA%\actx\bin` no Windows ou `~/.local/bin` no Unix/macOS).
+  3. O estado do hook multimodal `/vision on` e `/vision off` é gravado de forma atômica e definitiva na tabela `context_settings` do SQLite, sincronizando em tempo real com o runtime do OpenTUI e CLI sem perda de estado entre comandos.
+- **Pré-requisito**: Versão `v0.30.13` instalada ou código atualizado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🛡️ Validação da Salvaguarda Anti-Virtualenv via Python:**
+   - No terminal com o virtualenv ativado:
+     ```bash
+     python -c "from any_context.config.paths import is_virtualenv_dir, resolve_binary_target_dir; print('Venv detectado:', is_virtualenv_dir('.venv/Scripts')); print('Target resolvido:', resolve_binary_target_dir())"
+     ```
+   - **Critério de Aceitação:** Imprime `Venv detectado: True` e o diretório de destino resolvido aponta para a pasta canônica do usuário (`%LOCALAPPDATA%\actx\bin` ou `~/.local/bin`), e nunca para `.venv`.
+
+2. **👁️ Validação da Persistência de `/vision on` no Banco SQLite:**
+   - No terminal interativo ou na TUI (`actx`):
+     ```text
+     /vision status
+     /vision on
+     /vision status
+     ```
+   - **Critério de Aceitação:** O segundo `/vision status` reporta `• Multimodal Vision Hook: 🟢 ENABLED`.
+
+3. **🚀 Validação de Integridade do Executável `actx`:**
+   - Execute:
+     ```bash
+     actx --version
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.13` com sucesso, sem qualquer erro de carregamento de DLLs ou bibliotecas.
+
+---
+
+### 📌 Cenário 2 (v0.30.10 Native Rust Smart Cascade for PDF & Images): Ingestão em Cascata Inteligente para PDFs e Imagens (Nível 1 Layout lopdf, Nível 2 OCR Nativo Tesseract com Auto-Provisionamento Portátil Zero-Elevação e Nível 3 Vision LLM Hook)
 
 - **Objetivo**: Comprovar que na versão `v0.30.10`:
   1. O motor nativo em Rust (`any-context-core-rs`) implementa a **Cascata Inteligente** em 3 níveis estritamente em Rust compilado e binários nativos do SO, substituindo 100% de dependências legadas Python (`pypdf`, `pdfplumber`, `pymupdf`, `pytesseract`).

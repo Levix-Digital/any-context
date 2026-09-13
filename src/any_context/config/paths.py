@@ -142,3 +142,64 @@ def get_migration_log_path() -> str:
     """Returns the canonical path for database migration logs (migration.log)."""
     return os.path.join(get_logs_dir(), "migration.log")
 
+
+def get_canonical_bin_dir() -> str:
+    """
+    Returns the canonical standalone binary directory.
+    - Windows: %LOCALAPPDATA%\\actx\\bin (or ~/AppData/Local/actx/bin)
+    - Linux / macOS: ~/.local/bin
+    """
+    if sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", "")):
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~/AppData/Local")
+        target = os.path.join(base, "actx", "bin")
+    else:
+        target = os.path.expanduser("~/.local/bin")
+    os.makedirs(target, exist_ok=True)
+    return os.path.abspath(target)
+
+
+def is_virtualenv_dir(path: Optional[str]) -> bool:
+    """Returns True if the given directory is part of a Python virtual environment."""
+    if not path or not os.path.exists(path):
+        return False
+    check_dir = os.path.abspath(path)
+    parent_dir = os.path.dirname(check_dir)
+    return (
+        os.path.exists(os.path.join(check_dir, "python.exe"))
+        or os.path.exists(os.path.join(check_dir, "python"))
+        or os.path.exists(os.path.join(check_dir, "pyvenv.cfg"))
+        or os.path.exists(os.path.join(parent_dir, "pyvenv.cfg"))
+        or "site-packages" in check_dir.lower()
+        or ".venv" in check_dir.lower()
+    )
+
+
+def resolve_binary_target_dir(is_windows: Optional[bool] = None) -> str:
+    """
+    Resolves the canonical target directory for standalone binary releases.
+    Safeguard: Never targets a virtual environment (.venv, Scripts, bin/python).
+    """
+    if "ACTX_UPDATE_DIR" in os.environ and os.environ["ACTX_UPDATE_DIR"].strip():
+        target = os.path.abspath(os.environ["ACTX_UPDATE_DIR"].strip())
+        os.makedirs(target, exist_ok=True)
+        return target
+
+    if getattr(sys, "frozen", False):
+        target = os.path.dirname(os.path.abspath(sys.executable))
+        os.makedirs(target, exist_ok=True)
+        return target
+
+    if is_windows is None:
+        is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
+
+    import shutil
+    found_which = shutil.which("actx.exe" if is_windows else "actx")
+    candidate_dir = os.path.dirname(os.path.abspath(found_which)) if found_which else None
+
+    if candidate_dir and not is_virtualenv_dir(candidate_dir):
+        os.makedirs(candidate_dir, exist_ok=True)
+        return candidate_dir
+
+    return get_canonical_bin_dir()
+
+
