@@ -518,19 +518,8 @@ def run_self_update(
         else ["actx-linux-x86_64.tar.gz", "actx-linux-x86_64"]
     )
 
-    # Determine target executable location
-    if "ACTX_UPDATE_DIR" in os.environ and os.environ["ACTX_UPDATE_DIR"].strip():
-        target_dir = os.path.abspath(os.environ["ACTX_UPDATE_DIR"].strip())
-    elif getattr(sys, "frozen", False):
-        target_exe_cur = os.path.abspath(sys.executable)
-        target_dir = os.path.dirname(target_exe_cur)
-    else:
-        import shutil
-        found_which = shutil.which("actx.exe" if is_windows else "actx")
-        if found_which:
-            target_dir = os.path.dirname(os.path.abspath(found_which))
-        else:
-            target_dir = os.path.expanduser("~/AppData/Local/actx/bin" if is_windows else "~/.local/bin")
+    from any_context.config.paths import resolve_binary_target_dir
+    target_dir = resolve_binary_target_dir(is_windows)
 
     os.makedirs(target_dir, exist_ok=True)
     core_exe = os.path.join(target_dir, "actx-core.exe" if is_windows else "actx-core")

@@ -1511,6 +1511,10 @@ sequenceDiagram
    - If present, it prints a clean success notice directing the user to run `actx`, cleans up the marker, and returns `True`, allowing `entrypoint.py` to exit with code 0.
 4. **Zero Ghost TUIs & Raw Mode Lock Elimination**:
    - Eliminates terminal prompt leaks, ghost overlays, and unresponsive blinking cursors across Git Bash, Windows Terminal, MinTTY, PowerShell, and Unix shells.
+5. **Anti-Virtualenv Binary Target Safeguard (`paths.py`, `update_service.py`, `updater.py`) (v0.30.13)**:
+   - Evaluates `is_virtualenv_dir()` on candidates resolved via `shutil.which("actx.exe")`.
+   - If the active `actx` binary resides inside a Python virtual environment (`.venv`, `Scripts/python.exe`, `pyvenv.cfg`, `site-packages`), the updater strictly rejects targeting the virtual environment.
+   - Automatically redirects the update to the canonical OS user binary directory (`%LOCALAPPDATA%\actx\bin` on Windows or `~/.local/bin` on Unix/macOS), guaranteeing that developer virtualenvs with editable package installs (`pip install -e .`) are never corrupted by standalone PyInstaller compiled binaries.
 
 ### 4. Cross-Platform Unified 3-Option Dialog & Universal Session Teardown (v0.28.87)
 
