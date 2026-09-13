@@ -2690,7 +2690,7 @@ graph TD
    - **Offline Stability**: When vision models are disabled or offline, the structured visual specification provides deterministic retrieval based on filename, aspect ratio, and resolution.
 
 5. **Diagnostic & Control Slash Commands**:
-   - `/vision [on|off|status]`: Inspects or toggles the multimodal Vision LLM grounding flag in `app_settings.py` (`enable_vision_llm`).
+   - `/vision [on|off|status]`: Inspects or toggles the multimodal Vision LLM grounding flag in `app_settings.py` and SQLite `context_settings` (`enable_vision_llm`) with atomic state updates.
    - `/ocr [status|install|<path>]`:
      - `status`: Audits the availability, binary path, and health of the native Tesseract engine.
      - `install` / `setup`: Provisions portable 64-bit standalone Tesseract with traineddata directly into `%LOCALAPPDATA%\actx\bin\tesseract` with zero elevation/UAC prompts, or falls back to system package managers (`winget`, `apt-get`, `brew`).

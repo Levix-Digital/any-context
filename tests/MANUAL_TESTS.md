@@ -41,8 +41,9 @@
      ```
    - **Critério de Aceitação:**
      - `/ocr status` informa se o binário nativo Tesseract está presente ou se o fallback gracioso está ativo com dica para `/ocr install`.
-     - `/vision status` reporta o estado do hook multimodal (`desativado` por padrão).
-     - `/vision on` ativa o hook e confirma persistência no estado da aplicação.
+     - `/vision status` reporta o estado do hook multimodal (`⚪ DISABLED` por padrão).
+     - `/vision on` ativa o hook e confirma persistência no estado da aplicação (`👁️ Vision LLM Multimodal Ingestion: ENABLED`).
+     - O segundo `/vision status` confirma a persistência no banco SQLite exibindo `• Multimodal Vision Hook: 🟢 ENABLED`.
 
 3. **📦 Validação do Auto-Provisionamento Portátil Zero-Elevação (`/ocr install`):**
    - Execute no terminal interativo ou CLI:
