@@ -7,7 +7,58 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.17 CLI Entrypoint Fast-Path & Real-Time Terminal/TUI Update Progress): Validação de Atualização Direta via CLI e Barra de Progresso em Tempo Real no OpenTUI
+### 📌 Cenário 1 (v0.30.18 Native Rust 2D Spatial PDF Ingestion & Universal Layout Reconstruction): Validação de Reconstrução de Layout Espacial 2D, Separação de Colunas e Formatos Complexos (CMR/Faturas) em Markdown Nativo
+
+- **Objetivo**: Comprovar que na versão `v0.30.18`:
+  1. Documentos PDF complexos, tabulares e formulários assimétricos (como o documento internacional de transporte CMR em `IKEAShipments`) são ingeridos diretamente pelo motor nativo em Rust (`any-context-core-rs`), preservando as coordenadas $(X, Y)$ através de transformações afins completas ($CTM \times T_m$).
+  2. A concatenação cega de fluxo é 100% eliminada: entidades dispostas lado a lado na mesma linha (ex: Consignee `IKEA CALGARY` no Box 2 e Carrier `BISON TRANSPORT INC.` no Box 16) não são unidas em uma string contínua, mas separadas e estruturadas em linhas de tabela Markdown nativas (`| IKEA CALGARY | BISON TRANSPORT INC. |`).
+  3. Tabelas de itens, pacotes e pesos são convertidas em tabelas Markdown estruturadas (`| Col 1 | Col 2 | ... |`), permitindo que tanto a busca léxica BM25 quanto a busca vetorial densa LanceDB recuperem números de remessa, pesos, volumes e destinatários com precisão absoluta.
+  4. O algoritmo é 100% agnóstico e opera sem regras manuais, templates ou palavras-chave fixas.
+- **Pré-requisito**: Versão `v0.30.18` instalada e workspace com documentos PDF (ex: `IKEAShipments`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.18`.
+
+2. **🔄 Sincronização e Re-ingestão de PDFs Complexos:**
+   - Abra a workspace contendo PDFs complexos ou aponte para a pasta `IKEAShipments`:
+     ```text
+     actx
+     ```
+   - No prompt do chat, force a re-sincronização para processar os PDFs com o novo motor 2D:
+     ```text
+     /sync --force
+     ```
+   - **Critério de Aceitação:** A sincronização conclui com 100% de sucesso, indexando os PDFs diretamente pelo motor Rust sem erros.
+
+3. **🔍 Inspeção de Chunks Estruturados (`/inspect`):**
+   - No prompt do chat, inspecione os chunks gerados para um PDF complexo (ex: `CMR for Single Pickup Report.pdf`):
+     ```text
+     /inspect
+     ```
+   - Filtre ou navegue até os chunks do arquivo CMR.
+   - **Critério de Aceitação:**
+     - O texto do chunk não contém palavras coladas como `IKEA CALGARYBISON TRANSPORT INC.`.
+     - Os campos paralelos aparecem separados por pipes de tabela Markdown:
+       `| Destinataire (nom, adresse, pays) | Transporteur (nom, adresse, pays) |`
+       `| IKEA CALGARY | BISON TRANSPORT INC. |`
+     - As colunas de mercadorias (`Packstücke`, `Verpackung`, `Bezeichnung des Gutes`, `Bruttogewicht`) formam uma tabela Markdown limpa.
+
+4. **💬 Teste de Pergunta e Resposta no Chat (Zero Alucinação de Entidades Cruzadas):**
+   - No chat do AnyContext, faça perguntas específicas sobre o destinatário e o transportador:
+     ```text
+     Quem é o Consignee (destinatário) e quem é o Carrier (transportador) no CMR do shipment 015-TSO-S10000443570?
+     ```
+   - **Critério de Aceitação:** O modelo responde com precisão milimétrica que o Consignee é **IKEA CALGARY** (em Calgary, Canadá) e o Carrier é **BISON TRANSPORT INC.** (em Winnipeg, Canadá), citando o trecho tabular exato sem confundir as duas empresas.
+
+---
+
+### 📌 Cenário 2 (v0.30.17 CLI Entrypoint Fast-Path & Real-Time Terminal/TUI Update Progress): Validação de Atualização Direta via CLI e Barra de Progresso em Tempo Real no OpenTUI
 
 - **Objetivo**: Comprovar que na versão `v0.30.17`:
   1. O comando `actx --update` (bem como `-u`, `--check-update`, `--releases`, `--rollback`, `--update@<tag>`) executado fora da aplicação intercepta diretamente via fast-path no `entrypoint.py` e executa o atualizador de terminal (`run_self_update`), sem abrir a interface OpenTUI, exibindo barra de download em tempo real em MB e percentual.

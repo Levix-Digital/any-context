@@ -40,6 +40,7 @@
 52. [Virtual Tab Workspace Isolation, /clear View Hygiene & LanceDB Session Teardown (`v0.29.0`)](#52-virtual-tab-workspace-isolation-clear-view-hygiene--lancedb-session-teardown-v0290)
 53. [LanceDB-Authoritative Workspace Inventory & Zero-Noise Switch Architecture (`v0.29.1`)](#53-lancedb-authoritative-workspace-inventory--zero-noise-switch-architecture-v0291)
 54. [CLI Entrypoint Fast-Path & Real-Time Terminal/TUI Update Progress Architecture (`v0.30.17`)](#54-cli-entrypoint-fast-path--real-time-terminaltui-update-progress-architecture-v03017)
+55. [Native Rust 2D Spatial PDF Ingestion & Universal Layout Reconstruction (`v0.30.18`)](#55-native-rust-2d-spatial-pdf-ingestion--universal-layout-reconstruction-v03018)
 
 ---
 
@@ -2848,11 +2849,107 @@ In OpenTUI, the Python RPC backend (`rpc_bridge.py`) runs an event loop processi
 - **OpenTUI Status Bar (`status-bar.tsx`)**: Renders a dedicated badge:
   `{state.is_updating ? <b>📥 Updating {state.update_info}</b> : ...}`
   reactively updating every second as chunk buffers are transferred.
+---
 
+## 55. Native Rust 2D Spatial PDF Ingestion & Universal Layout Reconstruction (`v0.30.18`)
 
+### 1. Problem Statement: Naive Stream Concatenation vs Asymmetric 2D Forms
+Standard PDF text extraction libraries (such as naive `lopdf::Document::extract_text`, `pypdf`, or `pdfminer` stream readers) process text operators sequentially in the order they appear inside the PDF uncompressed content streams (`/Contents`).
+In modern enterprise documents—especially complex logistics documents (like the **international CMR consignment note**), CAD printouts, customs declarations, and asymmetric transport manifests—visual columns are rarely sequential in the underlying byte stream. Furthermore, PDF text positioning operators (`cm`, `Tm`, `Td`, `TD`, `T*`) are often invoked without whitespace delimiters between distinct spatial regions.
 
+For example, on line $Y=714.44$, a CMR document places:
+- Consignee Box 2: `(IKEA CALGARY) Tj` at $X=39.60$
+- Carrier Box 16: `(BISON TRANSPORT INC.) Tj` at $X=290.35$
 
+A naive stream extractor discards coordinate matrices and concatenates the two spans into `"IKEA CALGARYBISON TRANSPORT INC."`, permanently corrupting semantic embeddings and preventing LLMs from distinguishing between the sender, receiver, and carrier.
 
+### 2. Architecture & Pipeline
+
+```mermaid
+flowchart TD
+    PDF["Input PDF File / Buffer"] --> Load["lopdf::Document::load_mem"]
+    Load --> PageIter["Iterate Pages (Page ID)"]
+    PageIter --> EncMap["Resolve Font Encodings (get_page_fonts)"]
+    PageIter --> Streams["Decompress Page Stream + Form XObjects"]
+    
+    Streams --> OpScanner["Operation Scanner (BT, cm, Tf, Tm, Td, TD, T*, Tj, TJ, ET)"]
+    OpScanner --> Affine["2D Affine Matrix Multiplication (CTM x Tm)"]
+    Affine --> SpanGen["Generate TextSpan { x, y, width, font_size, text }"]
+    
+    SpanGen --> BodyFont["Compute Dominant Body Font Size (Char-Weighted Mode)"]
+    SpanGen --> LineBand["Dynamic Line Banding: Y ± (font_size * 0.45).max(2.5)"]
+    LineBand --> SortY["Sort Lines Descending by Y (Top-to-Bottom)"]
+    
+    SortY --> ColCluster["Horizontal Cell Clustering: Gap >= 1.5 * font_size"]
+    ColCluster --> MarkdownProj{"Project Line Type"}
+    
+    MarkdownProj -->|Cells > 1| TableRow["Markdown Table: | Col 1 | Col 2 | ... |"]
+    MarkdownProj -->|Cell == 1 & sz >= 1.8 * body| H1["# Document Title"]
+    MarkdownProj -->|Cell == 1 & sz >= 1.35 * body| H2["## Section Header"]
+    MarkdownProj -->|Cell == 1 & sz ~= body| Para["Standard Paragraph Line"]
+    
+    TableRow --> CleanMD["Consolidated Structured Markdown"]
+    H1 --> CleanMD
+    H2 --> CleanMD
+    Para --> CleanMD
+    
+    CleanMD --> Splitter["Recursive Chunk Slicer (Breadcrumbs: // Context: file > Page N)"]
+    Splitter --> LanceDB["LanceDB Vector Engine + Okapi BM25 Index"]
+```
+
+### 3. Mathematical Formulation of 2D Spatial Extraction
+
+#### 3.1 3x3 Affine Transformation Matrices
+In the PDF 32000-1 specification, coordinates are transformed from glyph text space through the text matrix $T_m$ and the Current Transformation Matrix $CTM$:
+
+$$\begin{pmatrix} x_{page} & y_{page} & 1 \end{pmatrix} = \begin{pmatrix} 0 & 0 & 1 \end{pmatrix} \times T_m \times CTM$$
+
+Given affine matrices in PDF 6-element representation $[a, b, c, d, e, f]$:
+
+$$M = \begin{pmatrix} a & b & 0 \\ c & d & 0 \\ e & f & 1 \end{pmatrix}$$
+
+The composition of a local transformation matrix $M_1$ with parent matrix $M_2$ is computed natively in Rust with zero heap allocation:
+
+$$\begin{aligned}
+a &= m_{1,0} \cdot m_{2,0} + m_{1,1} \cdot m_{2,2} \\
+b &= m_{1,0} \cdot m_{2,1} + m_{1,1} \cdot m_{2,3} \\
+c &= m_{1,2} \cdot m_{2,0} + m_{1,3} \cdot m_{2,2} \\
+d &= m_{1,2} \cdot m_{2,1} + m_{1,3} \cdot m_{2,3} \\
+e &= m_{1,4} \cdot m_{2,0} + m_{1,5} \cdot m_{2,2} + m_{2,4} \\
+f &= m_{1,4} \cdot m_{2,1} + m_{1,5} \cdot m_{2,3} + m_{2,5}
+\end{aligned}$$
+
+#### 3.2 Dynamic Vertical Line Banding
+Because slight kerning or rounding differences can shift characters vertically by fractions of a point, spans are clustered into visual lines using dynamic font-size-scaled tolerance:
+
+$$\text{tolerance} = \max\left(sz \times 0.45, \; 2.5\text{ pt}\right)$$
+
+Two spans $S_1$ and $S_2$ belong to the same physical visual line if $|Y_1 - Y_2| \le \text{tolerance}$.
+
+#### 3.3 Horizontal Gap Classification (Word Merge vs Column Boundary)
+Within each visual line, spans are sorted ascending by $X$. The bounding box width is approximated conservatively for proportional/condensed fonts:
+
+$$W_{span} \approx \text{len}(\text{text}) \times sz \times 0.42$$
+
+The spatial gap to the subsequent span $S_{next}$ is:
+
+$$\Delta X = X_{next} - (X_{curr} + W_{curr})$$
+
+- **Intra-Cell Word Merge**: If $-0.5 \times sz \le \Delta X \le 1.5 \times sz$, the spans form part of the same text run. A single space is inserted if $\Delta X > 0.25 \times sz$.
+- **Inter-Cell Column Boundary**: If $\Delta X > 1.5 \times sz$, the spans belong to separate columns, instantiating a new `TextCell`.
+
+#### 3.4 Dominant Body Font Size Weighting
+To eliminate sample-size skew on pages with large title banners, the body text font size is computed as the **character-weighted mode**:
+
+$$sz_{body} = \arg\max_{sz} \sum_{S \in \text{spans}, sz(S) = sz} \text{char\_count}(S)$$
+
+Lines with a single cell are projected to Markdown headings based on this baseline:
+- $sz \ge 1.8 \times sz_{body} \implies \text{H1 } (\#)$
+- $sz \ge 1.35 \times sz_{body} \implies \text{H2 } (\#\#)$
+- Otherwise $\implies$ Standard paragraph text.
+
+### 4. Zero-Template Domain-Agnostic Guarantee
+The 2D spatial layout algorithm contains strictly zero hardcoded field names, regular expressions, or templates for CMR, IKEA, or transport forms. It functions on purely geometric principles ($X, Y$ positions, bounding box clustering, and character proportions), allowing it to universally reconstruct invoices, financial balance sheets, immigration forms, technical specifications, and academic articles with identical mathematical rigor.
 
 
 
