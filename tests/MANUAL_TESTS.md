@@ -7,7 +7,66 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.16 Native Rust Ingestion Router & Hybrid Retriever): Validação de BM25 Lexical Search, Reciprocal Rank Fusion (RRF k=60) e Diversificação Source-Fair 100% Rust
+### 📌 Cenário 1 (v0.30.17 CLI Entrypoint Fast-Path & Real-Time Terminal/TUI Update Progress): Validação de Atualização Direta via CLI e Barra de Progresso em Tempo Real no OpenTUI
+
+- **Objetivo**: Comprovar que na versão `v0.30.17`:
+  1. O comando `actx --update` (bem como `-u`, `--check-update`, `--releases`, `--rollback`, `--update@<tag>`) executado fora da aplicação intercepta diretamente via fast-path no `entrypoint.py` e executa o atualizador de terminal (`run_self_update`), sem abrir a interface OpenTUI, exibindo barra de download em tempo real em MB e percentual.
+  2. Flags de conveniência de versão e ajuda (`actx -v`, `actx --version`, `actx --help`) executam diretamente no terminal em menos de 50ms, sem carregar o OpenTUI.
+  3. Dentro do OpenTUI, a execução do comando `/update` e a seleção de atualização em segundo plano não bloqueia o chat nem congela o loop RPC; o status bar exibe uma barra de progresso reativa (`📥 Updating [====    ] X.X MB / Y.Y MB (Z%)`), atualizada dinamicamente a cada segundo até a conclusão do download.
+  4. A API REST (`GET /v1/system/update/status`) e a ponte RPC (`get_state`) reportam a telemetria do `UpdateProgressTracker` com paridade total.
+- **Pré-requisito**: Versão `v0.30.17` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **⚡ Teste de Fast-Path CLI fora da Aplicação (Terminal Puro):**
+   - Feche o OpenTUI se estiver aberto.
+   - No terminal (PowerShell, Command Prompt ou Bash), execute:
+     ```text
+     actx -v
+     actx --version
+     ```
+   - **Critério de Aceitação:** A versão atual (`v0.30.17`) é impressa imediatamente no terminal em `< 50ms`, sem qualquer tentativa de carregar o OpenTUI.
+   - Em seguida, execute:
+     ```text
+     actx --check-update
+     ```
+   - **Critério de Aceitação:** O verificador de releases busca o GitHub e imprime as informações diretamente no terminal, sem abrir o OpenTUI.
+
+2. **📥 Teste de Atualização Standalone via CLI (`actx --update`):**
+   - No terminal, execute:
+     ```text
+     actx --update
+     ```
+   - **Critério de Aceitação:** O processo roda inteiramente no terminal. Ao iniciar o download do pacote de release, o terminal exibe a barra de progresso dinâmica em tempo real (ex: `[====================] 48.1 MB / 48.1 MB (100%)`). A aplicação OpenTUI NÃO é aberta.
+
+3. **🖥️ Teste de Atualização Assíncrona no OpenTUI (`/update`):**
+   - Abra o AnyContext no terminal:
+     ```text
+     actx
+     ```
+   - No prompt do chat, digite:
+     ```text
+     /update
+     ```
+   - Quando o modal de opções abrir, selecione a opção recomendada:
+     `⚡ Update in background (Recommended)`
+   - **Critério de Aceitação:**
+     - O modal fecha e o chat permanece 100% responsivo (você pode continuar digitando mensagens e interagindo sem congelamentos).
+     - A barra de status inferior imediatamente exibe o badge de progresso:
+       `📥 Updating [====    ] 12.3 MB / 48.1 MB (26%)`
+     - A porcentagem e os megabytes baixados atualizam-se a cada segundo.
+     - Ao concluir, o badge de progresso desativa-se suavemente e o status bar volta ao estado normal.
+
+4. **🌐 Teste de Telemetria via API REST (`GET /v1/system/update/status`):**
+   - Em um terminal com `actx --serve` ativo ou durante a execução do servidor, faça uma requisição:
+     ```text
+     curl http://localhost:8000/v1/system/update/status
+     ```
+   - **Critério de Aceitação:** O endpoint retorna JSON estruturado com os campos `is_updating`, `stage`, `downloaded_bytes`, `total_bytes`, `percent` e `update_info`.
+
+---
+
+### 📌 Cenário 2 (v0.30.16 Native Rust Ingestion Router & Hybrid Retriever): Validação de BM25 Lexical Search, Reciprocal Rank Fusion (RRF k=60) e Diversificação Source-Fair 100% Rust
 
 - **Objetivo**: Comprovar que na versão `v0.30.16`:
   1. O motor de recuperação híbrida opera 100% em Rust nativo (`any-context-core-rs`), eliminando completamente o legado em Python (`filters.py`) e integrando busca vetorial densa LanceDB com busca léxica esparsa Okapi BM25 ($k_1 = 1.2, b = 0.75$) e tokenizador universal multilíngue e ciente de código (Unicode UAX #29).

@@ -13,6 +13,8 @@ export interface AnyContextState {
   web_search_enabled: boolean;
   sync_info: string;
   is_syncing: boolean;
+  is_updating?: boolean;
+  update_info?: string;
   tier_name?: string;
   needs_onboarding?: boolean;
   onboarding_state?: any;
@@ -133,6 +135,8 @@ export class BridgeClient {
     web_search_enabled: false,
     sync_info: "",
     is_syncing: false,
+    is_updating: false,
+    update_info: "",
   };
   public commands: SlashCommandMeta[] = [...DEFAULT_SLASH_COMMANDS];
   public onStateChange?: (state: AnyContextState) => void;

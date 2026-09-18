@@ -48,7 +48,14 @@ export const StatusBar = ({ state }: StatusBarProps): any => {
         <text fg={anyContextTheme.accentWarning}>
           <b>💡 /menu</b>
         </text>
-        {state.is_syncing ? (
+        {state.is_updating ? (
+          <>
+            <text fg={anyContextTheme.ruleColor}> │ </text>
+            <text fg={anyContextTheme.accentWarning}>
+              <b>📥 Updating {state.update_info}</b>
+            </text>
+          </>
+        ) : state.is_syncing ? (
           <>
             <text fg={anyContextTheme.ruleColor}> │ </text>
             <text fg={anyContextTheme.accentWarning}>

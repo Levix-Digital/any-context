@@ -330,6 +330,17 @@ class TokenResponse(BaseModel):
     created_at: str
 
 
+class SystemUpdateStatusDTO(BaseModel):
+    is_updating: bool
+    stage: str
+    downloaded_bytes: int
+    total_bytes: int
+    percent: int
+    update_info: str
+    target_tag: str
+    error: Optional[str] = None
+
+
 # --- Security Dependency ---
 
 
@@ -1313,6 +1324,13 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
             return engine.set_retrieval_density_preset(preset=value)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown option type '{option_type}'.")
+
+    @app.get("/v1/system/update/status", response_model=SystemUpdateStatusDTO, tags=["System & Updates"])
+    def get_system_update_status_endpoint(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+        """Returns the real-time background update download and installation progress."""
+        from any_context.core.services.update_service import UpdateProgressTracker
+        tracker = UpdateProgressTracker.get_instance()
+        return SystemUpdateStatusDTO(**tracker.get_status_dict())
 
     return app
 

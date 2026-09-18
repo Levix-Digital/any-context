@@ -334,6 +334,27 @@ class OptionsEngine:
 
         target_tag = (metadata or {}).get("target_version")
         auto_close = (clean_id == "close")
+
+        if is_tui and not auto_close:
+            import threading
+            t = threading.Thread(
+                target=update_svc.execute_binary_update,
+                kwargs={
+                    "target_tag": target_tag,
+                    "auto_close_instances": False,
+                    "force_background": True,
+                    "auto_restart": False,
+                    "is_tui": is_tui
+                },
+                daemon=True
+            )
+            t.start()
+            return MenuActionResult(
+                success=True,
+                message=f"📥 Atualização para {target_tag or 'versão mais recente'} iniciada em segundo plano. Acompanhe o progresso na barra de status.",
+                state_updates={"action": "none"}
+            )
+
         success, msg, updates = update_svc.execute_binary_update(
             target_tag=target_tag,
             auto_close_instances=auto_close,

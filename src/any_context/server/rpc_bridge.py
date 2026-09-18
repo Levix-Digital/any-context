@@ -239,6 +239,11 @@ class StdioRPCServer:
         onboarding_svc = OnboardingService(store=self.store)
         ob_state = onboarding_svc.check_status()
 
+        from any_context.core.services.update_service import UpdateProgressTracker
+        update_tracker = UpdateProgressTracker.get_instance()
+        is_updating = update_tracker.is_updating
+        update_info = update_tracker.update_info
+
         return {
             "version": __version__,
             "workspace": self.active_workspace,
@@ -248,6 +253,8 @@ class StdioRPCServer:
             "web_search_enabled": self._web_search_enabled,
             "sync_info": sync_info,
             "is_syncing": is_syncing,
+            "is_updating": is_updating,
+            "update_info": update_info,
             "tier_name": tier_name,
             "needs_onboarding": ob_state.needs_onboarding,
             "onboarding_state": ob_state.model_dump()
