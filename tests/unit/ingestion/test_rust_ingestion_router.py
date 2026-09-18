@@ -615,6 +615,19 @@ class TestRustIngestionRouter(unittest.TestCase):
         self.assertIn("manual.pdf > Content", chunks[0]["header_path"])
         self.assertIn("System Design", chunks[0]["text"])
 
+    def test_pdf_2d_spatial_layout_cmr(self):
+        cmr_path = r"C:\Users\guilh\OneDrive\Documents\Documentos\Outros\Shipment Checklist\2026\01\01\CMR for Single Pickup Report.pdf"
+        if os.path.exists(cmr_path):
+            chunks = self.router.chunk_file(cmr_path)
+            self.assertGreaterEqual(len(chunks), 1)
+            chunk_text = chunks[0]["text"]
+            # Must not be concatenated without separation
+            self.assertNotIn("IKEA CALGARYBISON TRANSPORT INC.", chunk_text)
+            self.assertIn("IKEA CALGARY", chunk_text)
+            self.assertIn("BISON TRANSPORT INC.", chunk_text)
+            # Reconstructed as markdown table row
+            self.assertIn("| IKEA CALGARY | BISON TRANSPORT INC. |", chunk_text)
+
     def test_image_support_and_visual_chunking(self):
         for ext in ["png", "jpg", "jpeg", "webp", "PNG", "JPG"]:
             self.assertTrue(self.router.supports_file(f"diagram.{ext}"))

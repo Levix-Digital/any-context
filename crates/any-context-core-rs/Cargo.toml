@@ -1,6 +1,6 @@
 [package]
 name = "any-context-core-rs"
-version = "0.30.17"
+version = "0.30.18"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "High-performance Rust core engine for AnyContext (Ingestion Router, AST/Markdown chunkers, and RRF retrieval)"
