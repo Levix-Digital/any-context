@@ -32,7 +32,7 @@ impl IngestionRouter {
             code_chunker: ASTCodeChunker::new(max_chunk_chars),
             structured_chunker: StructuredDataChunker::new(max_chunk_chars),
             tabular_chunker: TabularChunker::new(max_chunk_chars),
-            pdf_chunker: PdfChunker::new(max_chunk_chars),
+            pdf_chunker: PdfChunker::new(max_chunk_chars.max(8000)),
             image_chunker: ImageChunker::new(max_chunk_chars),
             text_chunker: TextChunker::new(max_chunk_chars, overlap_chars),
         }

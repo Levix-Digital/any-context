@@ -7,7 +7,64 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.18 Native Rust 2D Spatial PDF Ingestion & Universal Layout Reconstruction): Validação de Reconstrução de Layout Espacial 2D, Separação de Colunas e Formatos Complexos (CMR/Faturas) em Markdown Nativo
+### 📌 Cenário 1 (v0.30.19 Temporal Query Expansion, Filename Grounding & Atomic Page PDF Chunking): Validação de RAG Temporal, Grounding de Documentos Explícitos e Integridade de Páginas de Formulários em PDFs
+
+- **Objetivo**: Comprovar que na versão `v0.30.19`:
+  1. A consulta conversacional com datas em linguagem natural (ex: *"3 de Setembro de 2026"*, *"September 3"*, *"03/09"*) é automaticamente expandida para termos canônicos ISO e brasileiros (`2026-09-03`, `2026/09/03`, `03/09/2026`, `09/03`), permitindo que a busca léxica BM25 recupere arquivos e metadados datados com exatidão máxima.
+  2. Menções explícitas a arquivos no prompt (ex: `I.CMR_ONE_PICKUP.pdf` ou `extraction_summary.csv`), combinadas com datas da query, são detectadas via regex, filtradas no LanceDB e ancoradas (*grounding*) com pontuação máxima ($1.0$), garantindo slots prioritários nos Top-K chunks entregues ao contexto da LLM.
+  3. Páginas de formulários e relatórios em PDF complexos (como CMRs de ~6.000 caracteres por página) são preservadas integralmente de ponta a ponta (limite atômico de 8.000 caracteres por página), garantindo que remetente, destinatário, mercadorias e transportador permaneçam no mesmo chunk sem fragmentação artificial.
+- **Pré-requisito**: Versão `v0.30.19` instalada e workspace com documentos PDF e CSV datados (ex: `IKEAShipments`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.19`.
+
+2. **🔄 Sincronização e Re-ingestão com Chunking Atômico:**
+   - Abra a workspace `IKEAShipments`:
+     ```text
+     actx
+     ```
+   - No chat do AnyContext, execute a sincronização forçada para garantir o particionamento atômico das páginas:
+     ```text
+     /sync --force
+     ```
+   - **Critério de Aceitação:** A sincronização conclui com sucesso, gerando chunks atômicos por página para arquivos como `I.CMR_ONE_PICKUP.pdf` (5 páginas = 5 chunks íntegros).
+
+3. **🗓️ Teste de Recuperação com Expansão Temporal (Query Expansion):**
+   - No prompt do chat, pergunte usando data por extenso em português:
+     ```text
+     Quais remessas e documentos foram registrados em 3 de Setembro de 2026?
+     ```
+   - **Critério de Aceitação:**
+     - O motor RAG recupera imediatamente arquivos com a data no caminho ou metadados (como `extraction_summary.csv` e `09/03/I.CMR_ONE_PICKUP.pdf`).
+     - O modelo lista com precisão as remessas e detalhes do dia 03/09/2026 sem declarar que não encontrou informações.
+
+4. **🎯 Teste de Grounding e Boost de Nome de Arquivo Específico:**
+   - No chat, pergunte referenciando um documento específico e uma data:
+     ```text
+     O que diz o arquivo I.CMR_ONE_PICKUP.pdf do dia 02/09?
+     ```
+   - **Critério de Aceitação:**
+     - O retriever detecta a menção direta ao arquivo `I.CMR_ONE_PICKUP.pdf` e a data `02/09`.
+     - Os chunks do arquivo correspondente recebem score $1.0$ e são injetados no topo do contexto.
+     - A LLM responde com os dados exatos daquele documento específico (consignee, carrier, peso, pacotes).
+
+5. **🔍 Inspeção de Integridade Atômica de Páginas via `/inspect`:**
+   - No chat, execute:
+     ```text
+     /inspect
+     ```
+   - Navegue até os chunks de `I.CMR_ONE_PICKUP.pdf`.
+   - **Critério de Aceitação:** Cada chunk corresponde a uma página inteira completa (~6.000 caracteres), contendo cabeçalho, corpo e rodapé da página sem cortes de meio de tabela ou divisão em `part 1` / `part 2`.
+
+---
+
+### 📌 Cenário 2 (v0.30.18 Native Rust 2D Spatial PDF Ingestion & Universal Layout Reconstruction): Validação de Reconstrução de Layout Espacial 2D, Separação de Colunas e Formatos Complexos (CMR/Faturas) em Markdown Nativo
 
 - **Objetivo**: Comprovar que na versão `v0.30.18`:
   1. Documentos PDF complexos, tabulares e formulários assimétricos (como o documento internacional de transporte CMR em `IKEAShipments`) são ingeridos diretamente pelo motor nativo em Rust (`any-context-core-rs`), preservando as coordenadas $(X, Y)$ através de transformações afins completas ($CTM \times T_m$).

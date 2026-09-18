@@ -94,6 +94,79 @@ def extract_temporal_clauses(query: str) -> List[str]:
     return list(dict.fromkeys(clauses))
 
 
+def expand_query_temporal(query: str) -> str:
+    """
+    Expands conversational queries containing dates in Portuguese, English, or localized
+    formats with standardized date tokens (YYYY-MM-DD, YYYY/MM/DD, DD/MM/YYYY, MM/DD)
+    so BM25 keyword matching directly matches filenames, paths, and delimited rows.
+    """
+    expanded_tokens = []
+    q = query.lower()
+
+    # 1. ISO format: YYYY-MM-DD or YYYY/MM/DD
+    iso_matches = re.findall(r"\b(20\d{2})[-/](0[1-9]|1[0-2])[-/](0[1-9]|[12]\d|3[01])\b", q)
+    for y, m, d in iso_matches:
+        expanded_tokens.extend([f"{y}-{m}-{d}", f"{y}/{m}/{d}", f"{d}/{m}/{y}", f"{m}/{d}"])
+
+    # 2. Brazilian / European format: DD/MM/YYYY or DD-MM-YYYY
+    br_matches = re.findall(r"\b(0[1-9]|[12]\d|3[01])[-/](0[1-9]|1[0-2])[-/](20\d{2})\b", q)
+    for d, m, y in br_matches:
+        expanded_tokens.extend([f"{y}-{m}-{d}", f"{y}/{m}/{d}", f"{d}/{m}/{y}", f"{m}/{d}"])
+
+    # 3. Natural language (Portuguese / English)
+    months_pattern = "|".join(sorted(MONTH_MAP.keys(), key=len, reverse=True))
+
+    # Pattern A: Day-Month-Year (e.g., "3 de setembro de 2026", "3 de setembro")
+    nl_pattern_dmy = rf"\b(?:(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:de\s+)?)?({months_pattern})(?:\s+(?:de\s+|,)?\s*(20\d{{2}}))?\b"
+    for m_day, m_month_name, m_year in re.findall(nl_pattern_dmy, q):
+        mm = MONTH_MAP.get(m_month_name)
+        if not mm:
+            continue
+        if m_day:
+            dd = f"{int(m_day):02d}"
+            if m_year:
+                expanded_tokens.extend([f"{m_year}-{mm}-{dd}", f"{m_year}/{mm}/{dd}", f"{dd}/{mm}/{m_year}", f"{mm}/{dd}"])
+            else:
+                expanded_tokens.extend([f"{mm}-{dd}", f"{mm}/{dd}", f"{dd}/{mm}"])
+        elif m_year:
+            expanded_tokens.extend([f"{m_year}-{mm}", f"{m_year}/{mm}"])
+
+    # Pattern B: Month-Day-Year (US English, e.g., "September 3, 2026")
+    nl_pattern_mdy = rf"\b({months_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s+(20\d{{2}}))?\b"
+    for m_month_name, m_day, m_year in re.findall(nl_pattern_mdy, q):
+        mm = MONTH_MAP.get(m_month_name)
+        if not mm:
+            continue
+        dd = f"{int(m_day):02d}"
+        if m_year:
+            expanded_tokens.extend([f"{m_year}-{mm}-{dd}", f"{m_year}/{mm}/{dd}", f"{dd}/{mm}/{m_year}", f"{mm}/{dd}"])
+        else:
+            expanded_tokens.extend([f"{mm}-{dd}", f"{mm}/{dd}", f"{dd}/{mm}"])
+
+    if not expanded_tokens:
+        return query
+
+    unique_tokens = list(dict.fromkeys(expanded_tokens))
+    return f"{query} {' '.join(unique_tokens)}"
+
+
+def extract_filename_mentions(query: str) -> List[str]:
+    """
+    Extracts explicit file names or extensions mentioned directly in the user prompt
+    (e.g., 'I.CMR_ONE_PICKUP.pdf', 'extraction_summary.csv', 'report.docx').
+    """
+    pattern = r"\b([a-zA-Z0-9_\-\.]+\.(?:pdf|csv|xlsx|xls|json|xml|docx|txt|md|log|tsv))\b"
+    matches = re.findall(pattern, query, flags=re.IGNORECASE)
+    seen = set()
+    filenames = []
+    for m in matches:
+        m_lower = m.lower()
+        if m_lower not in seen:
+            seen.add(m_lower)
+            filenames.append(m)
+    return filenames
+
+
 class ParallelRetriever:
     """
     High-performance parallel hybrid retriever powered 100% by native Rust (any-context-core-rs).
@@ -145,9 +218,46 @@ class ParallelRetriever:
             targets.append(("Default", cfg.candidate_pool_k))
 
         raw_candidates_map: Dict[str, ScoredChunk] = {}
+        guaranteed_file_cids: List[str] = []
 
-        # 0. Temporal Hybrid Lexical Search: if temporal date signals exist, search LanceDB metadata first
+        # 0A. Filename Grounding / Boost: if user explicitly references specific document files
+        filenames = extract_filename_mentions(query)
         temporal_clauses = extract_temporal_clauses(query)
+
+        if filenames:
+            for fn in filenames:
+                fn_clean = fn.replace("'", "''")
+                fn_clause = f"(file_name LIKE '%{fn_clean}%' OR file_path LIKE '%{fn_clean}%')"
+                # If query also has temporal filter, combine with AND for precise intersection
+                combined_where = f"({fn_clause}) AND ({' OR '.join(temporal_clauses)})" if temporal_clauses else fn_clause
+
+                for ws_name, limit in targets:
+                    try:
+                        fn_matches = self._store.search_metadata(
+                            where_clause=combined_where,
+                            limit=limit,
+                            workspace=ws_name if ws_name != "Default" else None,
+                            table_name=table_name
+                        )
+                        # Fallback to filename alone if combined intersection yielded no chunks
+                        if not fn_matches and temporal_clauses:
+                            fn_matches = self._store.search_metadata(
+                                where_clause=fn_clause,
+                                limit=limit,
+                                workspace=ws_name if ws_name != "Default" else None,
+                                table_name=table_name
+                            )
+
+                        for sc in fn_matches:
+                            sc.score = 1.0  # Max score boost for explicitly requested document
+                            cid = sc.chunk_id or f"{sc.file_path}::{sc.text[:80]}"
+                            raw_candidates_map[cid] = sc
+                            if cid not in guaranteed_file_cids:
+                                guaranteed_file_cids.append(cid)
+                    except Exception:
+                        pass
+
+        # 0B. Temporal Hybrid Lexical Search: if temporal date signals exist, search LanceDB metadata
         if temporal_clauses:
             where_or = " OR ".join(temporal_clauses)
             for ws_name, limit in targets:
@@ -159,9 +269,12 @@ class ParallelRetriever:
                         table_name=table_name
                     )
                     for sc in temporal_matches:
-                        sc.score = 0.95
                         cid = sc.chunk_id or f"{sc.file_path}::{sc.text[:80]}"
-                        raw_candidates_map[cid] = sc
+                        if cid not in raw_candidates_map:
+                            sc.score = 0.95
+                            raw_candidates_map[cid] = sc
+                        else:
+                            raw_candidates_map[cid].score = max(raw_candidates_map[cid].score, 0.95)
                 except Exception:
                     pass
 
@@ -219,20 +332,39 @@ class ParallelRetriever:
         ]
 
         target_ws = workspace if workspace != "Default" else None
+        expanded_query = expand_query_temporal(query)
+
+        effective_max_per_source = cfg.max_chunks_per_source
+        if filenames:
+            effective_max_per_source = max(cfg.max_chunks_per_source, 10)
 
         fused_raw = engine.fuse_and_diversify(
             dense_results=dense_dicts,
-            query=query,
+            query=expanded_query,
             workspace=target_ws,
             candidate_pool_k=cfg.candidate_pool_k,
             target_top_k=cfg.target_top_k,
-            max_per_source=cfg.max_chunks_per_source,
+            max_per_source=effective_max_per_source,
             max_density_chars=cfg.max_density_chars,
             rrf_k=getattr(cfg, "rrf_k", 60)
         )
 
         final_chunks: List[ScoredChunk] = []
+        seen_cids = set()
+
+        # Prioritize explicitly requested file chunks in the top slots
+        if guaranteed_file_cids:
+            for cid in guaranteed_file_cids:
+                sc = raw_candidates_map.get(cid)
+                if sc and cid not in seen_cids:
+                    final_chunks.append(sc)
+                    seen_cids.add(cid)
+
         for r in fused_raw:
+            cid = r["id"]
+            if cid in seen_cids:
+                continue
+            seen_cids.add(cid)
             final_chunks.append(
                 ScoredChunk(
                     text=r["text"],
@@ -251,4 +383,4 @@ class ParallelRetriever:
                 )
             )
 
-        return final_chunks
+        return final_chunks[:cfg.target_top_k]
