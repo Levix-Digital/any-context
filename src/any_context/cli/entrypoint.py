@@ -39,9 +39,9 @@ def entrypoint():
     before loading interactive UI, configuration, or RAG components.
     """
     # 0. Instant fast-path for version check (sub-1ms response)
-    if "-v" in sys.argv or "--version" in sys.argv:
+    if "-v" in sys.argv or "--version" in sys.argv or "-V" in sys.argv:
         from any_context import __version__
-        print(f"v{__version__}")
+        print(f"AnyContext (actx) v{__version__} - Levix Digital")
         sys.exit(0)
 
     # 1. Force UTF-8 on Windows terminal while preserving TTY handles
@@ -80,6 +80,49 @@ def entrypoint():
     obs.debug("CLI:BOOT", "AnyContext entrypoint invoked", {"argv": sys.argv})
 
     # 4. Fast-path dispatch for non-interactive flags (sub-10ms response, avoids loading unused modules)
+    if any(arg in ["--version", "-v", "-V"] for arg in sys.argv[1:]):
+        from any_context import __version__
+        print(f"AnyContext (actx) v{__version__} - Levix Digital")
+        sys.exit(0)
+
+    if any(arg in ["--help", "-h"] for arg in sys.argv[1:]):
+        cli_str = " ".join(sys.argv[1:])
+        from any_context.help import handle_command_help_interception
+        if handle_command_help_interception(cli_str):
+            sys.exit(0)
+        from any_context.help.manager import display_help_page
+        from any_context.help.registry import get_help_page
+        page = get_help_page("commands")
+        if page:
+            display_help_page(page)
+        else:
+            print("Run 'actx' to launch the interactive terminal or 'actx --help <command>' for specific command help.")
+        sys.exit(0)
+
+    has_cli_mgmt_flag = any(
+        arg in ["--update", "-u", "--check-update", "--releases", "--list-releases", "--rollback", "--config", "-c", "--keys", "--billing", "--reset-models", "--factory-reset"]
+        or arg.startswith("--update@") or arg.startswith("-u@")
+        for arg in sys.argv[1:]
+    )
+    if has_cli_mgmt_flag:
+        obs.info("CLI:DISPATCH", "Dispatching to CLI workspace/management selector", {"argv": sys.argv})
+        from any_context.cli.workspace_selector import get_active_workspace
+        get_active_workspace()
+        sys.exit(0)
+
+    if any(arg in ["--serve", "--server", "serve", "api"] for arg in sys.argv[1:]):
+        obs.info("CLI:DISPATCH", "Dispatching to REST API Server", {"argv": sys.argv})
+        from any_context.server.api import start_api_server
+        port = 8000
+        host = "127.0.0.1"
+        for i, a in enumerate(sys.argv):
+            if a == "--port" and i + 1 < len(sys.argv) and sys.argv[i + 1].isdigit():
+                port = int(sys.argv[i + 1])
+            elif a == "--host" and i + 1 < len(sys.argv):
+                host = sys.argv[i + 1]
+        start_api_server(host=host, port=port)
+        sys.exit(0)
+
     if "--diagnostics" in sys.argv or "--diag" in sys.argv:
         report = collect_diagnostic_report()
         print(format_diagnostic_report(report))

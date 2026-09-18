@@ -8,11 +8,109 @@ import sys
 import json
 import urllib.request
 import subprocess
+import threading
 from typing import Optional, Tuple, List, Dict, Any, Set
 from any_context import __version__ as CURRENT_VERSION
 
 PRIMARY_REPO = "Levix-Digital/any-context-releases"
 FALLBACK_REPO = "Levix-Digital/any-context"
+
+
+class UpdateProgressTracker:
+    """Thread-safe singleton tracking background update download and installation progress."""
+    _instance = None
+    _lock = threading.Lock()
+
+    def __init__(self):
+        self.is_updating: bool = False
+        self.stage: str = "idle"  # "idle", "downloading", "extracting", "installing", "completed", "failed"
+        self.downloaded_bytes: int = 0
+        self.total_bytes: int = 0
+        self.percent: int = 0
+        self.update_info: str = ""
+        self.target_tag: str = ""
+        self.error: Optional[str] = None
+
+    @classmethod
+    def get_instance(cls) -> "UpdateProgressTracker":
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
+        return cls._instance
+
+    def set_starting(self, target_tag: str):
+        with self._lock:
+            self.is_updating = True
+            self.stage = "downloading"
+            self.downloaded_bytes = 0
+            self.total_bytes = 0
+            self.percent = 0
+            self.target_tag = target_tag
+            self.update_info = f"Starting {target_tag}..."
+            self.error = None
+
+    def update_download(self, downloaded: int, total: int):
+        with self._lock:
+            self.downloaded_bytes = downloaded
+            self.total_bytes = total
+            if total > 0:
+                self.percent = min(100, max(0, int((downloaded / total) * 100)))
+                mb_done = downloaded / (1024 * 1024)
+                mb_total = total / (1024 * 1024)
+                filled = int(8 * downloaded / total)
+                bar = "=" * filled + " " * (8 - filled)
+                self.update_info = f"[{bar}] {mb_done:.1f}/{mb_total:.1f}MB ({self.percent}%)"
+            else:
+                mb_done = downloaded / (1024 * 1024)
+                self.update_info = f"{mb_done:.1f}MB"
+
+    def set_extracting(self):
+        with self._lock:
+            self.stage = "extracting"
+            self.update_info = "Extracting files..."
+
+    def set_installing(self):
+        with self._lock:
+            self.stage = "installing"
+            self.update_info = "Installing update..."
+
+    def set_completed(self, message: str = "Ready to restart"):
+        with self._lock:
+            self.is_updating = False
+            self.stage = "completed"
+            self.update_info = message
+
+    def set_failed(self, error: str):
+        with self._lock:
+            self.is_updating = False
+            self.stage = "failed"
+            self.error = error
+            self.update_info = f"Failed: {error}"
+
+    def reset(self):
+        with self._lock:
+            self.is_updating = False
+            self.stage = "idle"
+            self.downloaded_bytes = 0
+            self.total_bytes = 0
+            self.percent = 0
+            self.update_info = ""
+            self.target_tag = ""
+            self.error = None
+
+    def get_status_dict(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "is_updating": self.is_updating,
+                "stage": self.stage,
+                "downloaded_bytes": self.downloaded_bytes,
+                "total_bytes": self.total_bytes,
+                "percent": self.percent,
+                "update_info": self.update_info,
+                "target_tag": self.target_tag,
+                "error": self.error,
+            }
 
 
 def clean_stale_update_files():
@@ -421,6 +519,8 @@ class UpdateService:
             target_tag = latest
 
         clean_tag = target_tag if target_tag.startswith("v") else f"v{target_tag}"
+        tracker = UpdateProgressTracker.get_instance()
+        tracker.set_starting(clean_tag)
 
         # 2. Determine paths and assets
         is_windows = sys.platform == "win32" or ("MINGW" in os.environ.get("MSYSTEM", ""))
@@ -474,12 +574,17 @@ class UpdateService:
                     req = urllib.request.Request(url, headers={"User-Agent": "AnyContext-UpdateService"})
                     with urllib.request.urlopen(req, timeout=120) as response:
                         if response.status == 200:
+                            total_size = int(response.headers.get("Content-Length", 0))
+                            downloaded_bytes = 0
+                            chunk_size = 1024 * 256
                             with open(curr_temp, "wb") as f:
                                 while True:
-                                    chunk = response.read(1024 * 512)
+                                    chunk = response.read(chunk_size)
                                     if not chunk:
                                         break
                                     f.write(chunk)
+                                    downloaded_bytes += len(chunk)
+                                    tracker.update_download(downloaded_bytes, total_size)
                             if os.path.exists(curr_temp) and os.path.getsize(curr_temp) > 0:
                                 downloaded = True
                                 downloaded_asset = asset_candidate
@@ -515,12 +620,14 @@ class UpdateService:
                 break
 
         if not downloaded or not os.path.exists(temp_download) or os.path.getsize(temp_download) == 0:
+            tracker.set_failed(f"Failed to download update asset for release {clean_tag}.")
             return False, f"❌ Failed to download update asset for release {clean_tag}.", {}
 
         is_archive = bool(downloaded_asset and (downloaded_asset.endswith(".zip") or downloaded_asset.endswith((".tar.gz", ".tgz"))))
 
         # Unpack archive into staging directory if applicable
         if is_archive:
+            tracker.set_extracting()
             import shutil
             if os.path.exists(staging_dir):
                 shutil.rmtree(staging_dir, ignore_errors=True)
@@ -568,6 +675,7 @@ class UpdateService:
                 closed_count = self.close_active_instances(active_instances)
 
         # 5. Atomic swap and version registration
+        tracker.set_installing()
         version_file = os.path.join(target_dir, "version.txt")
         try:
             with open(version_file, "w", encoding="utf-8") as vf:
@@ -670,6 +778,7 @@ class UpdateService:
             except Exception:
                 pass
 
+            tracker.set_completed(f"Updated to {clean_tag}")
             if auto_close_instances:
                 close_label = "Closing session." if closed_count == 0 else f"Closing all {closed_count + 1} active sessions."
                 msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 {close_label} Run 'actx' or 'actx --tui' to start the updated version."
@@ -777,8 +886,10 @@ class UpdateService:
                     except Exception:
                         pass
             except Exception as e:
+                tracker.set_failed(str(e))
                 return False, f"❌ Failed to replace binary: {e}", {}
 
+            tracker.set_completed(f"Updated to {clean_tag}")
             if auto_close_instances:
                 close_label = "Closing session." if closed_count == 0 else f"Closing all {closed_count + 1} active sessions."
                 msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 {close_label} Run 'actx' or 'actx --tui' to start the updated version."

@@ -54,6 +54,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Sub-Second Engine Startup**: Pre-extracts Python runtime libraries into `%LOCALAPPDATA%\actx\bin\_internal` (Windows) or `~/.local/bin/_internal` (Linux) on installation/update, eliminating the 2.7+ second decompression delay on every launch and bringing engine boot down from 2.8s to `< 0.2s`.
   - **Instant Execution Launcher Shim**: Native launcher (`actx.exe` on Windows, compiled C ELF `actx` on Linux) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
   - **Cross-Platform Dual-Binary Immunity (v0.28.90)**: Rigorously routes `actx-core` as the dedicated Python engine and preserves native ELF/C# launcher shims (`actx`), eliminating the silent exit bug and preventing update archive extractions from ever clobbering the core binary on Linux/WSL.
+- **🔄 Non-Blocking Self-Update & CLI/TUI Progress Parity (`v0.30.17`)**:
+  - **CLI Fast-Path Execution**: Running `actx --update` (as well as `--check-update`, `--releases`, `--rollback`, `--update@<tag>`) outside the application directly executes the CLI updater in the terminal with live download progress in MB and percentages, bypassing OpenTUI launch entirely.
+  - **OpenTUI Real-Time Progress Bar**: In-app updates (`/update`) execute asynchronously on a background worker thread, displaying a live progress badge in the StatusBar (`📥 Updating [====    ] 22.4 MB / 48.1 MB (46%)`) without freezing the user interface or RPC bridge loop.
+  - **Universal Update Telemetry (REST & RPC Parity)**: Exposes real-time update metrics across the RPC bridge (`get_state`) and the REST API (`GET /v1/system/update/status`).
 - **🔍 100% Native Rust Hybrid Retriever: Okapi BM25, Universal Tokenizer & Reciprocal Rank Fusion (`v0.30.16` - Marco 6)**:
   - **Zero Python Retrieval Fallback**: Completely eliminated legacy Python retrieval filters (`filters.py`) and zombie dependencies. 100% of BM25 tokenization, inverted indexing, lexical scoring, rank fusion, multi-source diversification, and density budgeting are executed natively in compiled Rust (`any-context-core-rs`).
   - **Native Okapi BM25 Engine**: Full-text inverted index in native Rust with industry-standard BM25 parameters ($k_1 = 1.2, b = 0.75$), self-contained document text, and sub-millisecond binary serialization (`bm25_index.bin`) persisted alongside the workspace's LanceDB dataset.
@@ -246,6 +250,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - One-shot execution para scripts, cronjobs & automação: `actx "sua pergunta aqui"` ou `actx -p "..."`.
   - Suporte completo a pipes Unix/PowerShell: `cat document.txt | actx "resuma os pontos principais"`.
   - Flags de alta performance: `actx -v` (< 50ms via launcher shim), `actx --rpc`, `actx --mcp`, `actx --diagnostics`, `actx --logs`.
+  - Flags de atualização direta: `actx --update` (atualização direta com barra de progresso no terminal), `actx --check-update`, `actx --releases`, `actx --rollback`.
 
 - **🗑️ Interactive Workspace Deletion with Safety Confirmation (`/menu` & `/switch --delete`)**:
   - Exclusão segura e interativa de workspaces com listagem do total de fontes e modal de confirmação explícito (`Yes, permanently delete` vs `Cancel` com foco seguro).

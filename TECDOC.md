@@ -39,6 +39,7 @@
 51. [Cross-Platform Dual-Binary Protection, Archive Extraction Routing & Release Matrix Isolation (`v0.28.90`)](#51-cross-platform-dual-binary-protection-archive-extraction-routing--release-matrix-isolation-v02890)
 52. [Virtual Tab Workspace Isolation, /clear View Hygiene & LanceDB Session Teardown (`v0.29.0`)](#52-virtual-tab-workspace-isolation-clear-view-hygiene--lancedb-session-teardown-v0290)
 53. [LanceDB-Authoritative Workspace Inventory & Zero-Noise Switch Architecture (`v0.29.1`)](#53-lancedb-authoritative-workspace-inventory--zero-noise-switch-architecture-v0291)
+54. [CLI Entrypoint Fast-Path & Real-Time Terminal/TUI Update Progress Architecture (`v0.30.17`)](#54-cli-entrypoint-fast-path--real-time-terminaltui-update-progress-architecture-v03017)
 
 ---
 
@@ -2790,6 +2791,64 @@ graph TD
 10. **Marco 5 (`v0.30.10`)**: Native Rust Smart Cascade for PDF & Scanned Images (lopdf Layout, OS Tesseract OCR Gate & Vision LLM Hook). [DONE]
 11. **Marco 6 (`v0.30.16`)**: BM25 Full-Text Indexing & Reciprocal Rank Fusion (RRF) in Native Rust (`any-context-core-rs`). [DONE]
 12. **Marco 7**: Native Rust refactor of `LanceDBStore` and `ParallelIndexer` using the `lancedb` and `arrow` Rust crates.
+
+---
+
+## 54. CLI Entrypoint Fast-Path & Real-Time Terminal/TUI Update Progress Architecture (`v0.30.17`)
+
+Starting in `v0.30.17`, AnyContext resolves a long-standing UX divergence between CLI standalone executions and the OpenTUI graphical interface during self-updates:
+
+```mermaid
+graph TD
+    CLI["CLI Command: actx --update / actx -v / actx --check-update"] --> FastPath["entrypoint.py Fast-Path Interceptor"]
+    FastPath -->|Is Update Flag?| TermUpdater["CLI run_self_update (sys.stdout Real-Time Progress Bar)"]
+    FastPath -->|Is Help/Version?| FastPrint["Direct Help / Version Output (< 50ms)"]
+    FastPath -->|No Fast-Path Flags| OpenTUI["Launch OpenTUI Thin-Client Interface"]
+    
+    OpenTUI -->|User runs /update| OptEngine["OptionsEngine.execute_update_option"]
+    OptEngine -->|Background Choice| BgThread["Daemon Background Worker Thread"]
+    BgThread --> UpdateSvc["UpdateService.execute_binary_update"]
+    UpdateSvc --> Tracker["UpdateProgressTracker (Thread-Safe Singleton)"]
+    Tracker -->|is_updating, update_info| RPCBridge["rpc_bridge.py (get_state)"]
+    RPCBridge -->|Polling 1s| TUIStatusBar["OpenTUI StatusBar (📥 Updating [====    ] 22.4 MB / 48.1 MB)"]
+    Tracker -->|REST API| RestAPI["GET /v1/system/update/status"]
+```
+
+### 1. CLI Entrypoint Fast-Path Interception (`entrypoint.py`)
+Previously, `pyproject.toml` mapped the console script `actx` to `entrypoint.py:main`, which unconditionally forwarded execution to `launch_opentui(ws)`. This caused command-line flags such as `actx --update`, `actx --check-update`, and `actx --version` to launch the full graphical OpenTUI interface instead of performing direct terminal operations.
+
+`entrypoint.py` now implements high-precedence fast-path dispatching before OpenTUI initialization:
+1. **Version / Help Fast-Path**: `--version`, `-v`, `-V`, `--help`, `-h` print metadata and exit cleanly without spinning up the TUI or RPC bridges.
+2. **Server / API Mode**: `--serve`, `serve`, `--server`, `api` invoke the FastAPI server runtime.
+3. **Standalone Terminal Updater Dispatch**: Detects update-related flags:
+   - `--update`, `-u`, `--update@*`, `-u@*`
+   - `--check-update`, `-c`
+   - `--releases`, `--list`, `-l`
+   - `--rollback`, `-r`
+   Routes directly to `workspace_selector.get_active_workspace()`, which invokes `run_self_update(ws)` in the terminal with interactive prompts and ANSI/ASCII download progress bars.
+
+### 2. Thread-Safe `UpdateProgressTracker` Singleton (`update_service.py`)
+Tracks the real-time lifecycle of the self-update engine:
+- **States**: `idle`, `checking`, `downloading`, `extracting`, `installing`, `completed`, `failed`.
+- **Metrics**: `downloaded_bytes`, `total_bytes`, `percent` (0 to 100), and `error`.
+- **Rendered Progress String**: Generates consistent progress bar representations:
+  `[====    ] 22.4 MB / 48.1 MB (46%)`
+- **Hooked into Binary Stream**: Download loops via `urllib.request.urlopen` read in chunks of 256 KB, streaming byte offsets to `tracker.update_download_progress()`.
+
+### 3. Non-Blocking TUI Asynchronous Dispatch (`options_engine.py`)
+In OpenTUI, the Python RPC backend (`rpc_bridge.py`) runs an event loop processing stdin requests synchronously. If binary downloads were executed synchronously, the bridge would lock up, preventing the TUI client from receiving state updates.
+
+- When `/update` is triggered in OpenTUI with background execution (`clean_id == "background"`), `execute_update_option` spawns `update_svc.execute_binary_update` in a daemon background worker thread.
+- Returns immediately with `action: "none"` and instructions directing the user to observe the status bar.
+- If the user explicitly selects `close` ("Close session and update now"), the updater runs synchronously, safely tearing down active sessions and returning `action: "exit_update"`.
+
+### 4. RPC Bridge & REST API Surface Parity
+- **RPC Bridge (`rpc_bridge.py`)**: `get_state()` queries `UpdateProgressTracker.get_instance().get_status()` and injects `is_updating` (boolean) and `update_info` (formatted string) into every state poll.
+- **REST API (`api.py`)**: Exposes `GET /v1/system/update/status` returning `SystemUpdateStatusDTO` with full telemetry (`is_updating`, `stage`, `downloaded_bytes`, `total_bytes`, `percent`, `update_info`, `error`).
+- **OpenTUI Status Bar (`status-bar.tsx`)**: Renders a dedicated badge:
+  `{state.is_updating ? <b>📥 Updating {state.update_info}</b> : ...}`
+  reactively updating every second as chunk buffers are transferred.
+
 
 
 
