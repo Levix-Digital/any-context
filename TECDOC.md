@@ -41,6 +41,7 @@
 53. [LanceDB-Authoritative Workspace Inventory & Zero-Noise Switch Architecture (`v0.29.1`)](#53-lancedb-authoritative-workspace-inventory--zero-noise-switch-architecture-v0291)
 54. [CLI Entrypoint Fast-Path & Real-Time Terminal/TUI Update Progress Architecture (`v0.30.17`)](#54-cli-entrypoint-fast-path--real-time-terminaltui-update-progress-architecture-v03017)
 55. [Native Rust 2D Spatial PDF Ingestion & Universal Layout Reconstruction (`v0.30.18`)](#55-native-rust-2d-spatial-pdf-ingestion--universal-layout-reconstruction-v03018)
+56. [RAG Retrieval Enhancements: Query Expansion, Filename Grounding & Atomic Page Chunking (`v0.30.19`)](#56-rag-retrieval-enhancements-query-expansion-filename-grounding--atomic-page-chunking-v03019)
 
 ---
 
@@ -2950,6 +2951,56 @@ Lines with a single cell are projected to Markdown headings based on this baseli
 
 ### 4. Zero-Template Domain-Agnostic Guarantee
 The 2D spatial layout algorithm contains strictly zero hardcoded field names, regular expressions, or templates for CMR, IKEA, or transport forms. It functions on purely geometric principles ($X, Y$ positions, bounding box clustering, and character proportions), allowing it to universally reconstruct invoices, financial balance sheets, immigration forms, technical specifications, and academic articles with identical mathematical rigor.
+
+---
+
+## 56. RAG Retrieval Enhancements: Query Expansion, Filename Grounding & Atomic Page Chunking (`v0.30.19`)
+
+### 1. Architectural Overview & Motivation
+During real-world benchmarking on dense logistical workspaces (`IKEAShipments`), two critical retrieval failure modes were observed:
+1. **Linguistic Date Mismatch (Semantic Dilution)**: Conversational queries formulated in natural language (e.g., *"Quais são os agendamentos para 3 de Setembro de 2026?"*) produced zero BM25 lexical matches against tabular files formatted in ISO 8601 (`2026-09-03`). Dense vector embeddings diluted the specific date tokens, allowing spurious matches (such as `"Page 3"` in unrelated PDFs) to crowd the Top-K.
+2. **Sub-Page Chunker Fragmentation**: A hard limit of 1,800 characters split single-page forms (such as CMRs and single-page invoices) into 4 to 7 fragmented slices (`part 1`, `part 2`, etc.). Consequently, the top header (Sender) was separated from the middle grid (Consignee/Carrier), forcing the LLM in `strict` grounding mode to report missing fields.
+3. **Absence of Filename Grounding**: When a user explicitly referenced a filename (e.g., `I.CMR_ONE_PICKUP.pdf`), the retriever treated the file name as a generic text token rather than a deterministic retrieval directive.
+
+Version `v0.30.19` resolves all three issues through a three-layer enhancement:
+
+```mermaid
+graph TD
+    A["User Query<br/>(e.g., 'No CMR de 02/09/2026 I.CMR_ONE_PICKUP.pdf...')"] --> B["extract_filename_mentions() & extract_temporal_clauses()"]
+    B --> C{"Filename Mentioned?"}
+    C -- "Yes" --> D["Deterministic Metadata Search & 1.0 Max Boost<br/>(Intersection of Filename + Date)"]
+    C -- "No" --> E["Standard Target Pool"]
+    A --> F["expand_query_temporal()<br/>(Maps '3 de Setembro' -> '2026-09-03', '03/09/2026', etc.)"]
+    F --> G["Native Rust BM25 Lexical Search (any-context-core-rs)"]
+    D --> H["Reciprocal Rank Fusion (RRF) & Source Diversification"]
+    E --> H
+    G --> H
+    H --> I["Guaranteed Grounding Slot Priority -> Top-K Context"]
+```
+
+### 2. Temporal Query Expansion (`expand_query_temporal`)
+The query expansion engine dynamically synthesizes canonical lexical tokens for all detected temporal expressions without modifying the semantic intent:
+- **Portuguese / British (Day-Month-Year)**: `r"\b(?:(\d{1,2})\s+(?:de\s+)?)?({months})\s*(?:de\s+)?(20\d{2})?\b"`
+- **US English (Month-Day-Year)**: `r"\b({months})\s+(\d{1,2})(?:,?\s+(20\d{2}))?\b"`
+- **ISO & Brazilian Formats**: `YYYY-MM-DD`, `YYYY/MM/DD`, `DD/MM/YYYY`.
+
+Tokens generated:
+$$\text{Tokens} = \left\{ \text{YYYY-MM-DD}, \; \text{YYYY/MM/DD}, \; \text{DD/MM/YYYY}, \; \text{MM/DD} \right\}$$
+
+These normalized tokens are appended directly to the sparse BM25 query string, guaranteeing high BM25 term frequency scores against filenames, file paths, and CSV/delimited rows.
+
+### 3. Filename Grounding & Deterministic Priority Boost
+When a user cites a specific document name (matching `\b[\w\.-]+\.(pdf|csv|xlsx|json|xml|docx|txt|md)\b`):
+1. **LanceDB Metadata Intersection**:
+   $$\text{WHERE } (\text{file\_name LIKE } '\%F\%' \lor \text{file\_path LIKE } '\%F\%') \land (\text{file\_path LIKE } '\%Y/M/D\%')$$
+2. **Score Boosting & Reservation**:
+   Matched chunks receive an explicit priority score of $1.0$, are injected into the candidate pool, and have slots guaranteed in `final_chunks` regardless of competing generic documents.
+
+### 4. Atomic Page Chunking in Native Rust (`any-context-core-rs`)
+In `crates/any-context-core-rs/src/ingestion/router.rs` and `pdf.rs`, the per-page chunk budget for PDFs is expanded to **8,000 characters**:
+- Single-page forms, bills of lading, and tabular invoices (typically 2,500 to 6,500 characters including Markdown layout) remain as **single atomic chunks** (`Page 1`, `Page 2`), eliminating split boundaries between Box 1 (Sender) and Box 16 (Carrier).
+- Only extremely oversized pages ($> 8,000$ characters) undergo secondary splitting.
+
 
 
 

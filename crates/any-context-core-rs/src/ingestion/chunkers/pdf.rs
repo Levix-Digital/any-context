@@ -430,7 +430,7 @@ pub struct PdfChunker {
 
 impl Default for PdfChunker {
     fn default() -> Self {
-        Self::new(1800)
+        Self::new(8000)
     }
 }
 
@@ -714,6 +714,25 @@ mod tests {
             assert!(text.contains("BISON TRANSPORT INC."));
             // They should be in a table row together separated by pipe:
             assert!(text.contains("| IKEA CALGARY | BISON TRANSPORT INC. |"));
+        }
+    }
+
+    #[test]
+    fn test_pdf_atomic_page_preservation() {
+        let chunker = PdfChunker::new(8000);
+        let path = r#"C:\Users\guilh\OneDrive\Documents\Documentos\Outros\Shipment Checklist\2026\09\02\I.CMR_ONE_PICKUP.pdf"#;
+        if let Ok(bytes) = std::fs::read(path) {
+            let chunks = chunker.chunk_bytes(path, &bytes).unwrap();
+            assert!(!chunks.is_empty());
+            // Page 1 must not be fragmented into part 1, part 2
+            let first_chunk = &chunks[0];
+            let header = first_chunk.header_path.as_deref().unwrap_or("");
+            assert!(header.contains("Page 1"), "Header should refer to Page 1: {}", header);
+            assert!(!header.contains("part 1"), "Page 1 should be atomic, not split into parts: {}", header);
+            // Must contain both sender and carrier
+            assert!(first_chunk.text.contains("SL SOURCE LOGISTICS LAREDO"));
+            assert!(first_chunk.text.contains("IKEA CALGARY"));
+            assert!(first_chunk.text.contains("BISON TRANSPORT INC."));
         }
     }
 }
