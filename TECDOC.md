@@ -262,21 +262,26 @@ AnyContext includes a built-in, concurrent web ingestion engine designed for hig
 
 ## 5. 3-Level Structured Long-Term Memory Architecture
 
-AnyContext implements a hierarchical 3-level memory system powered exclusively by LanceDB table `session_memory.lance`:
+AnyContext implements an automated 3-level hierarchical memory architecture combining short-term transactional state with persistent columnar vector storage:
 
-### 🧠 Level 1: Structured 5-Dimension Session Summary
-Extracted automatically upon `/exit` or `/q` across 5 clear dimensions:
-1. 👤 **User Directives & Preferences**: Explicit rules, workflows, coding conventions.
-2. 🏗️ **Technical Architecture & Key Decisions**: Architecture choices, parameters, schemas.
-3. 📁 **Files, Code Symbols & Databases**: Files modified, functions created, database tables.
-4. 📌 **Critical Context & Problem Resolution**: Root-cause diagnoses, bug fixes, operational insights.
-5. 🚀 **Pending Tasks & Next Steps**: Roadmap milestones and open action items.
+### 🧠 Level 1: Active Session Rolling Window (Short-Term / SQLite `checkpoints.db`)
+- **Strict 15-Turn Cap (`MAX_ACTIVE_SESSION_TURNS = 15`)**: Checkpoint state retains strictly the last 15 conversational turns (~30 messages) in `checkpoints.db`.
+- **Inference Sliding Window (`max_history_messages = 10`)**: At LLM call-time, `_prune_messages_for_llm` slices history to the most recent 10 messages (~5 completed turns) aligned cleanly on a `HumanMessage` turn boundary, eliminating in-context echo chambers and transformer attention collapse.
+- **Automated Silent Rollover**: When active turns exceed 15, older completed turns are sliced and dispatched asynchronously to Level 2 in a daemon background worker with zero chat interruption and zero UI noise.
 
-### 🧠 Level 2: Active Rolling Window
-Retains recent conversation messages in SQLite state for immediate context continuity.
+### 🧠 Level 2: Structured 5-Dimension Session Summary (Medium-Term / LanceDB `session_memory.lance`)
+- Extracted automatically upon 15-turn rollover or session close across 5 comprehensive dimensions:
+  1. 👤 **User Directives & Preferences**: Explicit rules, workflows, coding conventions.
+  2. 🏗️ **Technical Architecture & Key Decisions**: Architecture choices, parameters, schemas.
+  3. 📁 **Files, Code Symbols & Databases**: Files modified, functions created, database tables.
+  4. 📌 **Critical Context & Problem Resolution**: Root-cause diagnoses, bug fixes, operational insights.
+  5. 🚀 **Pending Tasks & Next Steps**: Roadmap milestones and open action items.
+- Persisted with `level = MemoryLevel.SESSION_SUMMARY` in `session_memory.lance` under the active workspace namespace.
 
-### 🧠 Level 3: Consolidated Meta-Summarization
-Consolidates older memory vectors into high-level indices using 1024-token expanded chunks (`chunk_size=1024`, `chunk_overlap=200`) stored in LanceDB.
+### 🧠 Level 3: Consolidated Meta-Summarization (Long-Term / LanceDB `session_memory.lance`)
+- **Automatic Threshold Trigger ($N \ge 30$)**: When a workspace accumulates 30 session summaries, the oldest batch (15 entries) is compressed into a single authoritative Meta-Summary.
+- **Hierarchical Indexing**: Preserves core architectural constants, user profiles, and resolved bugs using 1024-token expanded chunks (`chunk_size=1024`, `chunk_overlap=200`) stored under `level = MemoryLevel.META_SUMMARY`.
+
 
 ---
 
@@ -3117,3 +3122,65 @@ The `/clear` command in `src/any_context/commands/dispatcher.py` and `rpc_bridge
 `src/any_context/core/grounding_strategies.py` and `src/any_context/core/utils.py` are harmonized:
 - **Total Topical Absence**: When a subject is completely missing from all workspace documents, declare factual absence (`⚠️ Essa informação não consta...`).
 - **Broad / Underspecified Queries**: When relevant records exist but the query lacks specific constraints (e.g., date, carrier, route), the model is instructed to invoke the `clarification-dialogue` skill, summarizing available records and proactively asking guiding questions.
+
+---
+
+## 59. 3-Level Hierarchical Memory Cascade, 15-Turn SQLite Session Rollover & Inference Sliding Window (`v0.30.22`)
+
+### 1. Architectural Overview & Root Cause Diagnosis: The Attention Attractor Echo Chamber
+During extensive testing on long-running workspaces (e.g. `IKEAShipments`), a critical conversational breakdown was diagnosed:
+- **Empirical Evidence from Logs (`tui_debug.log` & `checkpoints.db`)**: The session thread (`rpc_session_IKEAShipments`) had accumulated **222 messages (56 turns)** without any rolling purge mechanism.
+- **The In-Context Echo Chamber (Attention Collapse)**: Over those 56 turns, early failed queries had resulted in 21 assistant responses containing the disclaimer `"⚠️ Essa informação não consta nos documentos deste workspace..."`. Because `_prune_messages_for_llm` had no sliding window over prior turns, all 222 messages were injected into `gpt-4o-mini` on every turn. In modern transformer architectures, high-frequency identical negative responses act as an **attention attractor (sink)**: the self-attention weights disproportionately focus on repeating the familiar negative boilerplate, completely ignoring fresh `ToolMessage` payloads even when containing 72KB+ of high-scoring chunks (`Score: 1.0`).
+- **Empirical Validation**:
+  - Full history (222 messages / 56 turns): **Fails 100%** (echoes negative response).
+  - Truncated to 50 messages: **Fails**.
+  - Sliding window of 10-12 messages (~5 turns): **Succeeds 100%** — immediately generates the full CMR table for 02/09/2026 (Consignee IKEA Calgary, 49 pkgs, 6759 kg, BISON, trailer 5382).
+
+```mermaid
+flowchart TD
+    A["Active User Interaction<br/>(Terminal CLI / OpenTUI / REST / MCP)"] --> B["ResilientSqliteSaver.get_tuple(config)"]
+    B --> C{"Active Session Turns > 15?<br/>(len(human_indices) > 15)"}
+    
+    C -- "No (<= 15 turns)" --> D["Retain All Turns in checkpoints.db"]
+    C -- "Yes (> 15 turns)" --> E["Slice History at Turn Boundary:<br/>cutoff = human_indices[-15]"]
+    
+    E --> F["Retained SQLite Session<br/>(Last 15 turns ~ 30 messages)"]
+    E --> G["Older Completed Turns<br/>(msgs[:cutoff])"]
+    
+    G --> H["Daemon Background Worker<br/>(100% Silent, Non-blocking)"]
+    H --> I["MemoryCompressor.summarize_chat_block()<br/>(5-Dimension Structured Summary)"]
+    I --> J["LanceDB: session_memory.lance<br/>(level = SESSION_SUMMARY)"]
+    
+    J --> K{"Total Summaries in Workspace >= 30?"}
+    K -- "Yes" --> L["Level 3: Meta-Summarizer<br/>(Compress 15 oldest into 1 Meta-Summary)"]
+    K -- "No" --> M["End Cascade"]
+    
+    F --> N["_prune_messages_for_llm(max_history_messages=10)"]
+    N --> O["Sliding Window on Clean Turn Boundary<br/>(Last 10 msgs ~ 5 turns + Active Turn)"]
+    O --> P["LLM Inference Call (gpt-4o-mini)<br/>(Clean Transformer Attention, Zero Echo)"]
+```
+
+### 2. Level 1: Active Session Rolling Window in SQLite (`MAX_ACTIVE_SESSION_TURNS = 15`)
+- **Strict Turn Ceiling**: `ResilientSqliteSaver` scans for all `HumanMessage` occurrences in `tup.checkpoint["channel_values"]["messages"]`.
+- **Atomic Boundary Slicing**: When $\text{count}(\text{HumanMessage}) > 15$, it calculates:
+  $$\text{cutoff\_idx} = \text{human\_indices}[-15]$$
+  - $\text{retained\_msgs} = \text{msgs}[\text{cutoff\_idx}:]$ (retained in SQLite for immediate continuity).
+  - $\text{older\_msgs} = \text{msgs}[:\text{cutoff\_idx}]$ (dispatched to background cascade).
+- **Concurrency Protection**: Dispatched via `_dispatch_background_summarization` guarded by a thread lock (`_summarizing_lock`) and active thread registry (`_active_summarizing_threads`), guaranteeing that simultaneous calls for the same thread never spawn duplicate summarization workers.
+- **100% Silent Daemon Execution**: The worker thread runs in daemon mode, silently handling all exceptions with zero terminal noise, zero stdout/stderr pollution, and zero chat latency.
+
+### 3. Level 2 & Level 3: LanceDB Vector Summarization & Meta-Compression
+- **Grounding Header Stripping**: `MemoryManager.process_session_messages` strips runtime injected prompt wrappers (e.g. `[GROUNDING: STRICT ...]`) and excludes raw tool chunk dumps, delivering a clean `USER:` / `ASSISTANT:` transcript to `MemoryCompressor`.
+- **5-Dimension Structured Extraction**: Extracts User Directives, Technical Architecture, Files/Symbols, Critical Context, and Pending Tasks.
+- **Level 3 Meta-Consolidation**: When `session_memory.lance` reaches 30 session summaries, the oldest batch (15 entries) is compressed into a single Meta-Summary (`MemoryLevel.META_SUMMARY`), maintaining bounded vector store size while preserving permanent institutional knowledge.
+
+### 4. Inference Sliding Window (`_prune_messages_for_llm`)
+To prevent in-context pollution during inference without discarding SQLite continuity:
+- **Parameter**: `max_history_messages: int = 10` (~5 turns).
+- **Clean Turn Boundary Alignment**:
+  $$\text{target\_start} = \max(0, \text{last\_human\_idx} - \text{max\_history\_messages})$$
+  $$\text{window\_start\_idx} = \min \{ i \in \text{prior\_human\_indices} \mid i \ge \text{target\_start} \}$$
+  The sliding window always starts on a `HumanMessage`, ensuring that the model never receives orphan assistant replies or dangling tool messages.
+- **Active Turn Integrity**: The active turn ($\ge \text{last\_human\_idx}$) receives dynamic grounding headers on the active `HumanMessage` and full character budget on active `ToolMessage` payloads.
+- **Schema Sanitization**: `sanitize_conversation_messages` ensures all tool call IDs strictly adhere to OpenAI, Anthropic, and Gemini API schemas.
+

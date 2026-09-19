@@ -32,11 +32,17 @@ class MemoryManager:
             if isinstance(msg, dict):
                 role = "USER" if msg.get("role") in ["user", "human"] else ("ASSISTANT" if msg.get("role") in ["ai", "assistant"] else None)
                 content = msg.get("content", "")
-                if role and content:
-                    formatted_chat += f"{role}: {content}\n"
+                if isinstance(content, str) and "[GROUNDING:" in content and "\n\n" in content:
+                    content = content.split("\n\n", 1)[1]
+                if role and content and str(content).strip():
+                    formatted_chat += f"{role}: {str(content).strip()}\n"
             elif hasattr(msg, "type") and msg.type in ["human", "ai"]:
                 role = "USER" if msg.type == "human" else "ASSISTANT"
-                formatted_chat += f"{role}: {msg.content}\n"
+                content = getattr(msg, "content", "")
+                if isinstance(content, str) and "[GROUNDING:" in content and "\n\n" in content:
+                    content = content.split("\n\n", 1)[1]
+                if role and content and str(content).strip():
+                    formatted_chat += f"{role}: {str(content).strip()}\n"
 
         if not formatted_chat.strip():
             return
@@ -109,7 +115,10 @@ class MemoryManager:
 
         entries = self.store.get_entries_by_level(MemoryLevel.SESSION_SUMMARY, workspace=workspace)
         if len(entries) >= threshold:
-            print(f"\n⚡ [Hierarchical Memory - Level 3] Threshold of {threshold} summaries reached for workspace '{workspace}'. Compressing older entries...")
+            from any_context.observability import obs
+            obs.info("MEMORY:LEVEL3_TRIGGERED", f"Threshold of {threshold} summaries reached for workspace '{workspace}'. Compressing older entries...", {
+                "workspace": workspace, "threshold": threshold, "batch_size": batch_size
+            })
             
             # Select oldest batch
             oldest_batch = entries[:batch_size]
@@ -129,7 +138,9 @@ class MemoryManager:
 
             # Delete individual Level-1 entries that were merged
             self.store.delete_entries_by_ids(batch_ids)
-            print(f"🎉 [Hierarchical Memory - Level 3] Compressed {len(batch_ids)} session summaries into 1 Meta-Summary!")
+            obs.info("MEMORY:LEVEL3_COMPLETE", f"Compressed {len(batch_ids)} session summaries into 1 Meta-Summary!", {
+                "workspace": workspace, "compressed_count": len(batch_ids)
+            })
 
     def reset_memory(self, workspace: Optional[str] = None) -> int:
         """
