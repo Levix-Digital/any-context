@@ -65,6 +65,7 @@ class StrictGroundingStrategy(GroundingStrategy):
                 f"{dom_inst}"
                 "- NEVER call live_web_search autonomously without explicit confirmation.\n"
                 "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
+                "- EPISTEMIC FRESHNESS: Past absence statements in history reflect only earlier queries. Never assume absence from past turns; always search and ground from current workspace chunks.\n"
                 "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."
             )
         return (
@@ -73,6 +74,7 @@ class StrictGroundingStrategy(GroundingStrategy):
             "- If the topic is completely absent from workspace documents: declare '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
             "- If the query is broad, underspecified, or ambiguous, or if multiple records exist in workspace: follow the active clarification-dialogue skill — act as a collaborative partner, present what is available, and ask guiding clarification questions.\n"
             "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
+            "- EPISTEMIC FRESHNESS: Past absence statements in history reflect only earlier queries. Never assume absence from past turns; always search and ground from current workspace chunks.\n"
             "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."
         )
 

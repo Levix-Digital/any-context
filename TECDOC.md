@@ -3184,3 +3184,69 @@ To prevent in-context pollution during inference without discarding SQLite conti
 - **Active Turn Integrity**: The active turn ($\ge \text{last\_human\_idx}$) receives dynamic grounding headers on the active `HumanMessage` and full character budget on active `ToolMessage` payloads.
 - **Schema Sanitization**: `sanitize_conversation_messages` ensures all tool call IDs strictly adhere to OpenAI, Anthropic, and Gemini API schemas.
 
+---
+
+## 60. Epistemic State Machine & Dual-Layer Negative Echo Elimination (`v0.30.23`)
+
+### 1. Root Cause Analysis: Self-Consistency Bias & Attention Sinks
+In autoregressive transformer architectures ($P(w_t \mid w_{<t})$), conversational agents are trained to maintain logical self-consistency across turns. When a historical assistant turn contains a declarative statement of absence:
+$$\text{AIMessage}_{t-1} = \text{"⚠️ Essa informação não consta nos documentos deste workspace."}$$
+the self-attention weights $\alpha_{i,j} = \text{softmax}\left(\frac{Q_i K_j^T}{\sqrt{d_k}}\right)$ assign disproportionate probability mass to tokens that affirm absence when a semantically similar query is evaluated at turn $t$.
+
+This causes two distinct failure modes:
+1. **Tool Invalidation (Step 1)**: The model presumes that calling `search_db` is futile because absence was already established, short-circuiting directly into repeating the negative disclaimer without executing tools.
+2. **Contextual Dismissal (Step 2)**: Even if `search_db` is executed and retrieves high-scoring chunks (e.g. 49KB of delivery records), the model experiences cognitive dissonance between its prior claim and the fresh data, producing evasive summaries (*"as informações não estão claras..."*) or falling back to absence disclaimers.
+
+```mermaid
+stateDiagram-v2
+    [*] --> ActiveTurn: User Submits Query
+    ActiveTurn --> ToolExecution: Model Invokes search_db
+    
+    state TurnClassification {
+        ToolExecution --> FactualEvaluation: search_db Returns Chunks
+        FactualEvaluation --> GROUNDED_FACTUAL: Chunks Non-Empty & Citations Present
+        FactualEvaluation --> FACTUAL_ABSENCE: Chunks Empty / Zero Workspace Matches
+        ActiveTurn --> CLARIFICATION: Underspecified Query (clarification-dialogue)
+        ActiveTurn --> CONVERSATIONAL: Chit-Chat / Direct Response
+    }
+    
+    GROUNDED_FACTUAL --> CheckpointStore: Tag additional_kwargs["epistemic_state"]
+    FACTUAL_ABSENCE --> CheckpointStore: Tag additional_kwargs["epistemic_state"]
+    CLARIFICATION --> CheckpointStore: Tag additional_kwargs["epistemic_state"]
+    CONVERSATIONAL --> CheckpointStore: Tag additional_kwargs["epistemic_state"]
+    
+    state InferencePruning {
+        CheckpointStore --> Pruner: Next Query Arrives (Turn t+1)
+        Pruner --> FilterAbsence: Prior Turns (i < last_human_idx)
+        FilterAbsence --> OmitFromPayload: state == FACTUAL_ABSENCE
+        FilterAbsence --> RetainInPayload: state in [GROUNDED_FACTUAL, CLARIFICATION, CONVERSATIONAL]
+        OmitFromPayload --> CleanAttention: Forward to LLM (Zero Bias, Clean Attention)
+        RetainInPayload --> CleanAttention
+    }
+```
+
+### 2. Layer 1: Typed Epistemic State Machine (`src/any_context/core/epistemic.py`)
+Each completed assistant turn is classified into a typed enumeration:
+```python
+class EpistemicState(str, Enum):
+    GROUNDED_FACTUAL = "grounded_factual"   # Chunks retrieved and substantive factual answer produced with sources
+    FACTUAL_ABSENCE  = "factual_absence"    # Tool returned 0 docs or model produced legitimate absence declaration
+    CLARIFICATION    = "clarification"      # Model asked for clarification (clarification-dialogue skill)
+    CONVERSATIONAL   = "conversational"     # Chit-chat, greetings, direct conversational dialogue
+```
+
+#### Invariant for Historical Turns ($i < \text{last\_human\_idx}$):
+$$\forall m \in \text{messages}[0 \dots \text{last\_human\_idx}-1]: \; \text{is\_ai}(m) \land \left( m.\text{epistemic\_state} = \text{FACTUAL\_ABSENCE} \lor \text{is\_pure\_negative\_disclaimer}(m) \right) \implies m \notin \text{payload}$$
+
+- **SQLite Preservation**: In `checkpoints.db`, all records remain 100% untouched and visible to the user in their active UI session.
+- **Inference Hygiene**: In `_prune_messages_for_llm`, pure absence disclaimers from prior turns are purged from the LLM prompt payload.
+- **Consecutive Question Deduplication**: When repeated failed queries generated identical consecutive `HumanMessage` turns, the trailing unanswered duplicate in history is collapsed, presenting a single clean question to the model.
+- **Legacy Fallback Safety Net**: If older checkpoint records lack `additional_kwargs["epistemic_state"]`, `is_pure_negative_disclaimer()` inspects the text in runtime, preserving rich tables while purging bare negative disclaimers.
+
+### 3. Layer 2: Temporal Epistemic Independence Directive
+In `src/any_context/core/utils.py` and `src/any_context/core/grounding_strategies.py`:
+- System prompt and dynamic turn headers inject the **Temporal Epistemic Independence Directive**:
+  > *"TEMPORAL EPISTEMIC INDEPENDENCE: The workspace documents are dynamic and can be added, updated, or re-indexed at any time. Past absence disclaimers in earlier turns reflect solely the outcome of historical queries at that point in time. NEVER assume an entity or document is absent based on prior absence statements in the conversation history. ALWAYS evaluate current queries and retrieved chunks with 100% cognitive freshness and invoke `search_db` independently."*
+- Ensures that even in ambiguous follow-up turns, the transformer self-attention is explicitly authorized to override past denials with current retrieved workspace documents.
+
+

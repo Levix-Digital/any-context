@@ -7,7 +7,59 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.22 Hierarchical Memory Cascade, 15-Turn SQLite Session Rollover, Inference Sliding Window & Silent Background Meta-Summarization): Validação da Cascata de Memória de 3 Níveis, Limite de 15 Turnos no SQLite, Janela Deslizante de Inferência e Resolução do Efeito Eco In-Context
+### 📌 Cenário 1 (v0.30.23 Epistemic State Machine, Dual-Layer Negative Echo Elimination & Deduplication): Validação da Máquina de Estados Epistêmica, Independência Temporal e Eliminação de Viés de Negação Passada
+
+- **Objetivo**: Comprovar que na versão `v0.30.23`:
+  1. A **Máquina de Estados Epistêmica** categoriza formalmente cada resposta da IA (`EpistemicState`: `GROUNDED_FACTUAL`, `FACTUAL_ABSENCE`, `CLARIFICATION`, `CONVERSATIONAL`) carimbando `additional_kwargs["epistemic_state"]`.
+  2. **Higiene Epistêmica em Runtime**: Em turnos posteriores, disclaimers de ausência legítima passada (`⚠️ Essa informação não consta...`) são filtrados do payload enviado à LLM, preservando 100% o histórico visual do SQLite na tela, mas garantindo que o cérebro do modelo fique livre de atratores negativos.
+  3. **Diretriz de Independência Epistêmica**: O System Prompt e o cabeçalho de Grounding instruem o Transformer a avaliar novas consultas com independência cognitiva total, sem inferir ausência com base em negações de turnos anteriores.
+  4. **Deduplicação de Perguntas Humanas Consecutivas**: Caso o usuário repita a mesma pergunta no chat por causa de erros passados, a fila histórica é desduplicada para manter o diálogo natural.
+- **Pré-requisito**: Versão `v0.30.23` instalada e workspace `IKEAShipments`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.23`.
+
+2. **🧪 Provocação de Negação Legítima (Turno 1):**
+   - Inicie o chat no workspace `IKEAShipments`:
+     ```text
+     actx
+     ```
+   - No chat, faça uma pergunta sobre um documento sabidamente inexistente:
+     ```text
+     O que diz o relatório financeiro de 2029?
+     ```
+   - **Critério de Aceitação:** O modelo responde com a negação legítima:
+     `⚠️ Essa informação não consta nos documentos deste workspace.`
+
+3. **🎯 Prova de Independência Epistêmica sem Envenenamento (Turno 2):**
+   - No **mesmo chat** (sem rodar `/clear`), faça a pergunta sobre entregas existentes:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo **ignora completamente a negação anterior** e não entra em curto-circuito.
+     - O modelo executa a busca (`search_db`), recupera os documentos (`IKEA Shipment Checklist CAEN v2.11.pdf`, `I.CMR_ONE_PICKUP.pdf`, `015-TSO-*`) e sintetiza o panorama estruturado das entregas da IKEA.
+     - Aplica a skill `clarification-dialogue` perguntando se o usuário busca um período ou documento específico.
+     - Exibe no rodapé o bloco `📄 Fontes Consultadas:` com os arquivos consultados.
+
+4. **🔄 Repetição Imediata da Mesma Pergunta (Turno 3):**
+   - No mesmo chat, envie novamente:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - A resposta permanece fundamentada, factual e colaborativa.
+     - Não ocorre nenhuma regressão para `⚠️ Essa informação não consta... Nenhuma fonte disponível`.
+
+---
+
+### 📌 Cenário 2 (v0.30.22 Hierarchical Memory Cascade, 15-Turn SQLite Session Rollover, Inference Sliding Window & Silent Background Meta-Summarization): Validação da Cascata de Memória de 3 Níveis, Limite de 15 Turnos no SQLite, Janela Deslizante de Inferência e Resolução do Efeito Eco In-Context
 
 - **Objetivo**: Comprovar que na versão `v0.30.22`:
   1. A janela deslizante de inferência (`_prune_messages_for_llm(max_history_messages=10)`) reduz conversas longas aos últimos 10 mensagens (~5 turnos completos) alinhados estritamente na fronteira de um `HumanMessage`, eliminando o "atrator de atenção" (efeito eco) onde dezenas de respostas negativas anteriores forçavam o modelo a alucinar ausência (`⚠️ Essa informação não consta...`).
