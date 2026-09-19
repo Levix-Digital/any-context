@@ -91,6 +91,34 @@ def extract_temporal_clauses(query: str) -> List[str]:
         yy = m_year if m_year else None
         _add_clauses(yy, mm, dd)
 
+    # 4. Short numeric dates without year: DD/MM or MM/DD (e.g., '02/09', '2/9', '02-09', '28/05')
+    short_pattern = r"(?<!\d[-/])\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])\b(?!\s*[-/]\s*\d)"
+    for d1, d2 in re.findall(short_pattern, q):
+        val1 = int(d1)
+        val2 = int(d2)
+        pad1 = f"{val1:02d}"
+        pad2 = f"{val2:02d}"
+        if val1 > 12:
+            # val1 must be day, val2 is month
+            clauses.append(f"file_path LIKE '%/{pad2}/{pad1}/%'")
+            clauses.append(f"file_path LIKE '%/{pad2}/{pad1}%'")
+            clauses.append(f"file_path LIKE '%{pad2}-{pad1}%'")
+            clauses.append(f"file_path LIKE '%{pad1}-{pad2}%'")
+        elif val2 > 12:
+            # val2 must be day, val1 is month
+            clauses.append(f"file_path LIKE '%/{pad1}/{pad2}/%'")
+            clauses.append(f"file_path LIKE '%/{pad1}/{pad2}%'")
+            clauses.append(f"file_path LIKE '%{pad1}-{pad2}%'")
+            clauses.append(f"file_path LIKE '%{pad2}-{pad1}%'")
+        else:
+            # Both <= 12: support both DD/MM (Brazilian/European default) and MM/DD (US)
+            clauses.append(f"file_path LIKE '%/{pad2}/{pad1}/%'")
+            clauses.append(f"file_path LIKE '%/{pad2}/{pad1}%'")
+            clauses.append(f"file_path LIKE '%/{pad1}/{pad2}/%'")
+            clauses.append(f"file_path LIKE '%/{pad1}/{pad2}%'")
+            clauses.append(f"file_path LIKE '%{pad2}-{pad1}%'")
+            clauses.append(f"file_path LIKE '%{pad1}-{pad2}%'")
+
     return list(dict.fromkeys(clauses))
 
 
@@ -142,6 +170,15 @@ def expand_query_temporal(query: str) -> str:
             expanded_tokens.extend([f"{m_year}-{mm}-{dd}", f"{m_year}/{mm}/{dd}", f"{dd}/{mm}/{m_year}", f"{mm}/{dd}"])
         else:
             expanded_tokens.extend([f"{mm}-{dd}", f"{mm}/{dd}", f"{dd}/{mm}"])
+
+    # 4. Short numeric dates without year: DD/MM or MM/DD (e.g., '02/09', '2/9', '02-09', '28/05')
+    short_pattern = r"(?<!\d[-/])\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])\b(?!\s*[-/]\s*\d)"
+    for d1, d2 in re.findall(short_pattern, q):
+        val1 = int(d1)
+        val2 = int(d2)
+        pad1 = f"{val1:02d}"
+        pad2 = f"{val2:02d}"
+        expanded_tokens.extend([f"{pad1}/{pad2}", f"{pad2}/{pad1}", f"{pad1}-{pad2}", f"{pad2}-{pad1}"])
 
     if not expanded_tokens:
         return query

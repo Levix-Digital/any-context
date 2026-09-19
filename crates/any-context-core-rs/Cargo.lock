@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "any-context-core-rs"
-version = "0.30.19"
+version = "0.30.20"
 dependencies = [
  "bincode",
  "calamine",
