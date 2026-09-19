@@ -991,17 +991,19 @@ class CommandDispatcher:
             ws_count = lance_store.count_records(workspace_name=ws_name, table_name="workspace_chunks")
             total_count = lance_store.count_records(table_name="workspace_chunks")
 
-            # Parse optional arguments: limit or filter query
+            # Parse optional arguments: limit, filter query, and --full flag
+            show_full = any(p.lower() in ["--full", "-f"] for p in parts)
+            clean_parts = [p for p in parts if p.lower() not in ["--full", "-f"]]
             limit = 3
             filter_query = None
-            if len(parts) > 1:
-                arg = parts[1].strip()
+            if len(clean_parts) > 1:
+                arg = clean_parts[1].strip()
                 if arg.isdigit():
                     limit = min(max(1, int(arg)), 25)
                 else:
                     filter_query = arg
-                    if len(parts) > 2 and parts[2].strip().isdigit():
-                        limit = min(max(1, int(parts[2].strip())), 25)
+                    if len(clean_parts) > 2 and clean_parts[2].strip().isdigit():
+                        limit = min(max(1, int(clean_parts[2].strip())), 25)
 
             lines = [
                 f"🔍 **Vector Store Inspection for `{ws_name}`**:",
@@ -1053,7 +1055,15 @@ class CommandDispatcher:
                     lines.append(f"  **[{idx + 1}] 📄 `{fn}`**")
                     lines.append(f"    • Taxonomy: `{ct}`")
                     lines.append(f"    • Breadcrumb: `{breadcrumb}`")
-                    lines.append(f"    • Preview: *\"{body_preview}...\"*")
+                    lines.append(f"    • Size: **{len(raw_text):,}** characters")
+                    if show_full:
+                        lines.append(f"    • Full Content:\n```text\n{raw_text}\n```")
+                    else:
+                        lines.append(f"    • Preview: *\"{body_preview}...\"*")
+
+                if not show_full:
+                    lines.append("")
+                    lines.append("💡 *Tip: Run `/inspect <filter> --full` to display the complete, non-truncated content of any chunk.*")
             elif filter_query:
                 lines.append("")
                 lines.append(f"⚠️ No chunks matched filter query `{filter_query}`.")

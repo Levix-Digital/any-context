@@ -300,6 +300,16 @@ def get_system_prompt(
         except Exception:
             pass
 
+        # Inject Modular Skills
+        try:
+            from any_context.skills.registry import SkillRegistry
+            registry = SkillRegistry.get_instance()
+            skills_text = registry.format_skills_for_system_prompt()
+            if skills_text:
+                prompt += f"\n\n{skills_text}"
+        except Exception:
+            pass
+
     except Exception as e:
         print(f"⚠️ Warning: Could not configure system prompt directives: {e}")
 

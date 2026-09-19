@@ -42,6 +42,7 @@
 54. [CLI Entrypoint Fast-Path & Real-Time Terminal/TUI Update Progress Architecture (`v0.30.17`)](#54-cli-entrypoint-fast-path--real-time-terminaltui-update-progress-architecture-v03017)
 55. [Native Rust 2D Spatial PDF Ingestion & Universal Layout Reconstruction (`v0.30.18`)](#55-native-rust-2d-spatial-pdf-ingestion--universal-layout-reconstruction-v03018)
 56. [RAG Retrieval Enhancements: Query Expansion, Filename Grounding & Atomic Page Chunking (`v0.30.19`)](#56-rag-retrieval-enhancements-query-expansion-filename-grounding--atomic-page-chunking-v03019)
+57. [Short Numeric Date Grounding, Hermetic BM25 Purge, Full Chunk Inspection & Modular Agent Skills (`v0.30.20`)](#57-short-numeric-date-grounding-hermetic-bm25-purge-full-chunk-inspection--modular-agent-skills-v03020)
 
 ---
 
@@ -3001,7 +3002,68 @@ In `crates/any-context-core-rs/src/ingestion/router.rs` and `pdf.rs`, the per-pa
 - Single-page forms, bills of lading, and tabular invoices (typically 2,500 to 6,500 characters including Markdown layout) remain as **single atomic chunks** (`Page 1`, `Page 2`), eliminating split boundaries between Box 1 (Sender) and Box 16 (Carrier).
 - Only extremely oversized pages ($> 8,000$ characters) undergo secondary splitting.
 
+---
 
+## 57. Short Numeric Date Grounding, Hermetic BM25 Purge, Full Chunk Inspection & Modular Agent Skills (`v0.30.20`)
 
+### 1. Architectural Overview & Motivation
+During user acceptance testing on version `v0.30.19`, three behavioral and retrieval gaps were identified in production workflows:
+1. **Year-Omitted Date Ambiguity & Grounding Failure**:
+   Users frequently formulate questions using short date formats without specifying a 4-digit calendar year (e.g., *"O que diz o arquivo I.CMR_ONE_PICKUP.pdf do dia 02/09?"*). Because previous temporal regex engines strictly required a 4-digit year (`20\d{2}`), short queries like `02/09` yielded zero temporal clauses. The retriever fell back to unconstrained semantic similarity, matching unrelated dates (e.g., `28/05/2026`) and failing deterministic grounding.
+2. **Stale Index Accumulation in Native Rust BM25**:
+   When workspaces were re-synchronized via `/sync --force`, `LanceDBStore.delete_local_documents_by_workspace()` deleted rows from the columnar LanceDB table, but did not notify the native Rust BM25 engine (`bm25_index.bin`). Over repeated synchronizations, thousands of stale, deleted chunks persisted in the binary BM25 inverted index, polluting lexical query scoring with ghost entries.
+3. **Chunk Inspection Opacity**:
+   The diagnostic `/inspect` command truncated chunk previews to 120 characters, preventing engineers and users from visually verifying whether multi-thousand-character atomic PDF pages (~6,000 characters) were preserved intact.
+4. **Agent Overconfidence & Silent Hallucinations**:
+   When users provided vague, underspecified prompts, the agent made silent arbitrary assumptions (such as guessing an unmentioned year) rather than engaging in proactive clarification dialogue. Furthermore, the system prompt was monolithic, making specialized agent behaviors difficult to extend and test.
 
+Version `v0.30.20` delivers a comprehensive architectural resolution across all four dimensions.
 
+```mermaid
+graph TD
+    A["User Query<br/>(e.g., 'O que diz I.CMR_ONE_PICKUP.pdf do dia 02/09?')"] --> B["extract_temporal_clauses() & expand_query_temporal()"]
+    B --> C["Short Date Engine: Regex with Negative Lookarounds<br/>(?<!\\d[-/])\\b(DD)[-/](MM)\\b(?!\\s*[-/]\\s*\\d)"]
+    C --> D["Year-Agnostic SQL Path Filters<br/>file_path LIKE '%/09/02/%' OR file_path LIKE '%/09/02%'"]
+    C --> E["BM25 Query Expansion Tokens<br/>'02/09', '09/02', '02-09', '09-02'"]
+    D --> F["LanceDB Deterministic Metadata Grounding (Score 1.0)"]
+    E --> G["Hermetic Clean Rust BM25 Inverted Index (any-context-core-rs)"]
+    F --> H["Reciprocal Rank Fusion (RRF k=60)"]
+    G --> H
+    H --> I["Top-K Candidate Window"]
+    I --> J["Modular SkillRegistry Injected Agent<br/>(clarification-dialogue SKILL.md)"]
+    J --> K["Transparent Grounded Response or Proactive Clarification Dialogue"]
+```
+
+### 2. Year-Agnostic Short Numeric Date Engine
+The temporal extraction pipeline in `src/any_context/vector_engine/retriever.py` is extended with a non-capturing boundary regex:
+$$\text{Pattern} = \verb|(?<!\d[-/])\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])\b(?!\s*[-/]\s*\d)|$$
+
+#### Resolution Mechanics:
+- **Negative Lookbehind & Lookahead**: Prevents collisions with full dates (`2026-09-02` or `02/09/2026`).
+- **Brazilian / European vs. US Disambiguation**:
+  - If $d_1 > 12$: $d_1$ is unambiguously the day and $d_2$ is the month.
+  - If $d_2 > 12$: $d_2$ is unambiguously the day and $d_1$ is the month.
+  - If both $d_1, d_2 \le 12$: Generates bidirectional clauses covering both Brazilian (`DD/MM`) and US (`MM/DD`) folder path conventions:
+    $$\text{Clauses} = \left\{ \verb|file_path LIKE '%/{mm}/{dd}/%'|, \; \verb|file_path LIKE '%/{mm}/{dd}%'|, \; \verb|file_path LIKE '%/{dd}/{mm}/%'|, \; \verb|file_path LIKE '%/{dd}/{mm}%'| \right\}$$
+- **Query Expansion**: Injects normalized representations (`02/09`, `09/02`, `02-09`, `09-02`) directly into the BM25 query string, matching folder names and CSV cells regardless of punctuation.
+
+### 3. Hermetic BM25 Co-Lifecycle & Workspace Purge
+To prevent ghost index accumulation, `src/any_context/vector_engine/store.py` (`LanceDBStore.delete_local_documents_by_workspace`) now enforces atomic co-lifecycle management between LanceDB and compiled Rust BM25:
+1. `engine = self.get_hybrid_engine(table_name=table_name)`
+2. `engine.remove_by_workspace(workspace_name)`
+3. If surviving records exist in LanceDB for that workspace (e.g., `Web Documentation`), they are decrypted and re-indexed into the engine.
+4. `self.save_hybrid_engine(engine, table_name=table_name)` persists the sanitized `bm25_index.bin`.
+
+### 4. Full-Content Chunk Inspection (`/inspect --full`)
+The `/inspect` command in `src/any_context/commands/dispatcher.py` is upgraded to support full diagnostics:
+- **Metrics Display**: Reports the exact length in characters for every chunk (`Size: 5,972 characters`).
+- **`--full` (`-f`) Flag**: Bypasses the 120-character preview truncation and displays the complete chunk body formatted in a fenced code block, enabling inspection of 2D spatial tables and atomic multi-page layouts.
+
+### 5. Modular Skills Architecture (`SkillRegistry`)
+To transition from a monolithic `AGENT.md` to an extensible multi-skill system, `src/any_context/skills/` introduces:
+- **`Skill` Dataclass**: Parses `SKILL.md` documents containing YAML frontmatter (`name`, `description`) and detailed behavioral directives.
+- **`SkillRegistry` (Singleton)**: Dynamically scans builtin and workspace skill directories, compiling active capabilities into the agent's system prompt (`get_system_prompt()`).
+- **Official Skill: `clarification-dialogue`**:
+  - **Absolute Prohibition of Silent Assumptions**: Prohibits the LLM from making unverified assumptions regarding missing dates, carrier identities, or document versions.
+  - **Collaborative Human-Partner Posture**: Directs the agent to act as a senior research partner, asking clear, concise clarifying questions when queries are ambiguous or multiple candidates exist in the workspace.
+  - **Transparent Scope Disclosure**: Mandates stating the inferred scope upfront when answering unambiguous single-match queries (e.g., *"Considerando o registro localizado em 02/09/2026 (único ano registrado para essa data no workspace)..."*).

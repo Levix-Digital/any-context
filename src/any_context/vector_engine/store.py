@@ -338,6 +338,29 @@ class LanceDBStore:
                 table.delete(f"workspace = '{clean_ws}' AND (content_type = 'Local Document' OR content_type IS NULL OR content_type != 'Web Documentation')")
             except Exception:
                 pass
+            try:
+                engine = self.get_hybrid_engine(table_name=table_name)
+                engine.remove_by_workspace(workspace_name)
+                # If there are surviving records (e.g. Web Documentation), re-index them into BM25
+                if self._has_table(table_name):
+                    table = self._db.open_table(table_name)
+                    clean_ws = workspace_name.replace("'", "''")
+                    surviving = table.search().where(f"workspace = '{clean_ws}'").limit(10000).to_list()
+                    from any_context.core.security_engine import SecurityEngine
+                    sec = SecurityEngine.get_instance()
+                    for s in surviving:
+                        dec = sec.decrypt_record(s)
+                        engine.add_chunk(
+                            id=dec.get("id", ""),
+                            text=dec.get("text", ""),
+                            file_name=dec.get("file_name", ""),
+                            file_path=dec.get("file_path", ""),
+                            workspace=dec.get("workspace", workspace_name),
+                            content_type=dec.get("content_type", "Local Document")
+                        )
+                self.save_hybrid_engine(engine, table_name=table_name)
+            except Exception:
+                pass
 
     def delete_by_id(self, chunk_id: str, table_name: str = "workspace_chunks"):
         """Purges a single chunk by ID."""
