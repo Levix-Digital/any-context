@@ -243,14 +243,16 @@ def get_system_prompt(
                     "- **FACTUAL ABSENCE & WEB SEARCH PERMISSION PROTOCOL (MANDATORY):** If the information is not found in the workspace files:\n"
                     "  1. DO NOT guess, invent, or assume outside facts.\n"
                     "  2. DO NOT call `live_web_search` autonomously.\n"
-                    "  3. You MUST STOP and explicitly ASK the user:\n"
+                    "  3. If the topic is completely absent locally, you MUST STOP and explicitly ASK the user:\n"
                     "     *\"⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\"*\n"
-                    "  4. ONLY when the user replies confirming (e.g. 'sim', 'pode buscar', 'ok', 'faça isso') are you authorized to invoke `live_web_search`.\n"
+                    "  4. If the query is broad, underspecified, or has multiple candidates in workspace documents, follow the active `clarification-dialogue` skill.\n"
+                    "  5. ONLY when the user replies confirming (e.g. 'sim', 'pode buscar', 'ok', 'faça isso') are you authorized to invoke `live_web_search`.\n"
                 )
             else:
                 prompt += (
-                    "- **FACTUAL ABSENCE PROTOCOL:** If the information is not found in the workspace files, you MUST state:\n"
-                    "  '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
+                    "- **FACTUAL ABSENCE & CLARIFICATION PROTOCOL:**\n"
+                    "  1. If the requested topic is completely absent from all workspace documents, you MUST state: '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
+                    "  2. If the user's query is broad, vague, or missing key parameters, or if multiple records exist in the workspace documents: DO NOT declare total absence. Instead, follow the active `clarification-dialogue` skill: act as a collaborative partner, summarize what exists in the workspace, and ask guiding clarification questions.\n"
                 )
             prompt += (
                 "- **MANDATORY SOURCE CITATIONS:** You MUST explicitly cite the exact file names, page numbers, or URLs where every piece of information was found.\n"

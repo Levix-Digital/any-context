@@ -89,12 +89,26 @@ def _prune_historical_tool_messages(messages):
     if not isinstance(messages, list) or len(messages) <= 2:
         return messages
 
-    for msg in messages:
-        m_type = getattr(msg, "type", "")
-        if m_type in ["tool", "ToolMessage"] or hasattr(msg, "tool_call_id"):
-            c_str = str(getattr(msg, "content", ""))
-            if len(c_str) > 300:
-                setattr(msg, "content", "[Prior workspace context retrieved and synthesized in conversation history]")
+    # 1. Identify the demarcation of the active/current turn (latest HumanMessage)
+    last_human_idx = -1
+    for idx in range(len(messages) - 1, -1, -1):
+        m = messages[idx]
+        m_type = getattr(m, "type", "")
+        if m_type == "human" or m.__class__.__name__ == "HumanMessage":
+            last_human_idx = idx
+            break
+
+    # 2. Strictly prune ONLY ToolMessages that belong to PRIOR turns (idx < last_human_idx).
+    # ToolMessages belonging to the current turn (idx > last_human_idx) MUST REMAIN 100% INTACT
+    # with their retrieved document chunks so that the model can answer the user's question!
+    if last_human_idx != -1:
+        for idx in range(last_human_idx):
+            msg = messages[idx]
+            m_type = getattr(msg, "type", "")
+            if m_type in ["tool", "ToolMessage"] or hasattr(msg, "tool_call_id"):
+                c_str = str(getattr(msg, "content", ""))
+                if len(c_str) > 300:
+                    setattr(msg, "content", "[Prior workspace context retrieved and synthesized in conversation history]")
     return messages
 
 

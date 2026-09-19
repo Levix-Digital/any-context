@@ -60,7 +60,8 @@ class StrictGroundingStrategy(GroundingStrategy):
             return (
                 f"[GROUNDING: STRICT | Priority 0: VectorDB{dom_clause} | Parametric Memory: FORBIDDEN | Web Search: PERMISSION-GATED | Workspace: '{ws}']\n"
                 "- Answer strictly and exclusively from retrieved workspace documents. Zero speculation or outside facts.\n"
-                "- If information is missing locally: you MUST respond EXACTLY with: '⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre \"[tópico]\"?' and STOP. Do NOT guess or invent facts.\n"
+                "- If the topic is completely absent locally: you MUST respond EXACTLY with: '⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre \"[tópico]\"?' and STOP. Do NOT guess or invent facts.\n"
+                "- If the query is broad, underspecified, or ambiguous, or if multiple records exist in workspace: follow the active clarification-dialogue skill — act as a collaborative partner, present what is available, and ask guiding clarification questions.\n"
                 f"{dom_inst}"
                 "- NEVER call live_web_search autonomously without explicit confirmation.\n"
                 "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
@@ -69,7 +70,8 @@ class StrictGroundingStrategy(GroundingStrategy):
         return (
             f"[GROUNDING: STRICT | Priority 0: VectorDB ONLY | Parametric Memory: FORBIDDEN | Web Search: DISABLED | Workspace: '{ws}']\n"
             "- Answer strictly and exclusively from retrieved workspace documents. Zero speculation or outside facts.\n"
-            "- If information is missing locally: declare '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
+            "- If the topic is completely absent from workspace documents: declare '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
+            "- If the query is broad, underspecified, or ambiguous, or if multiple records exist in workspace: follow the active clarification-dialogue skill — act as a collaborative partner, present what is available, and ask guiding clarification questions.\n"
             "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
             "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."
         )

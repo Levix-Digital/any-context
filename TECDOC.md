@@ -43,6 +43,7 @@
 55. [Native Rust 2D Spatial PDF Ingestion & Universal Layout Reconstruction (`v0.30.18`)](#55-native-rust-2d-spatial-pdf-ingestion--universal-layout-reconstruction-v03018)
 56. [RAG Retrieval Enhancements: Query Expansion, Filename Grounding & Atomic Page Chunking (`v0.30.19`)](#56-rag-retrieval-enhancements-query-expansion-filename-grounding--atomic-page-chunking-v03019)
 57. [Short Numeric Date Grounding, Hermetic BM25 Purge, Full Chunk Inspection & Modular Agent Skills (`v0.30.20`)](#57-short-numeric-date-grounding-hermetic-bm25-purge-full-chunk-inspection--modular-agent-skills-v03020)
+58. [Multi-Turn Checkpoint Tool Demarcation, Zero-Drop Retrieval & Clarification Grounding (`v0.30.21`)](#58-multi-turn-checkpoint-tool-demarcation-zero-drop-retrieval--clarification-grounding-v03021)
 
 ---
 
@@ -3067,3 +3068,52 @@ To transition from a monolithic `AGENT.md` to an extensible multi-skill system, 
   - **Absolute Prohibition of Silent Assumptions**: Prohibits the LLM from making unverified assumptions regarding missing dates, carrier identities, or document versions.
   - **Collaborative Human-Partner Posture**: Directs the agent to act as a senior research partner, asking clear, concise clarifying questions when queries are ambiguous or multiple candidates exist in the workspace.
   - **Transparent Scope Disclosure**: Mandates stating the inferred scope upfront when answering unambiguous single-match queries (e.g., *"Considerando o registro localizado em 02/09/2026 (único ano registrado para essa data no workspace)..."*).
+
+---
+
+## 58. Multi-Turn Checkpoint Tool Demarcation, Zero-Drop Retrieval & Clarification Grounding (`v0.30.21`)
+
+### 1. Architectural Overview & Problem Statement
+During continuous multi-turn benchmarking on `v0.30.20`, a critical conversational state regression was identified:
+- **Zero-Context Wipeout on Turn 2+**: When a conversation grew beyond two messages, LangGraph's checkpoint loader (`ResilientSqliteSaver.get_tuple()`) invoked `_prune_historical_tool_messages()` to reduce token overhead. However, the pruning logic blindly iterated over all messages without determining turn boundaries. Consequently, fresh `ToolMessage` payloads (containing 70,000+ characters of newly retrieved document context) were immediately overwritten with the static placeholder `"[Prior workspace context retrieved and synthesized in conversation history]"`.
+- **Parametric Hallucination vs. Absence Paradox**: Deprived of all document chunks at inference time, the model received an empty tool message. Following strict grounding instructions (`"If information is missing locally: declare '⚠️ Essa informação não consta...'"`), the LLM aborted with false absence declarations even though the vector retriever had successfully retrieved the target documents with Score 1.0.
+- **Strict Grounding Conflict with Clarification Skills**: Unconditional negative absence rules in `grounding_strategies.py` and `utils.py` overrode the collaborative guidance directives of `clarification-dialogue`, preventing the agent from asking clarifying questions on broad or underspecified queries.
+- **Visual Buffer vs. SQLite Persistence Decoupling**: Users require `/clear` to clear only the visual terminal screen without purging conversational memory and checkpoints in SQLite.
+
+Version `v0.30.21` resolves all issues with mathematical turn demarcation.
+
+```mermaid
+graph TD
+    A["Conversation History in checkpoints.db<br/>(100+ turns preserved indefinitely)"] --> B["ResilientSqliteSaver.get_tuple()"]
+    B --> C["_prune_historical_tool_messages()"]
+    C --> D["Scan Backward for last_human_idx<br/>(Demarcates Active Turn vs. Past Turns)"]
+    D --> E{"Message Index < last_human_idx?"}
+    E -- "Yes (Prior Turn)" --> F["Compact Heavy ToolMessage (>300 chars)<br/>to '[Prior workspace context...]'"]
+    E -- "No (Current Turn)" --> G["PRESERVE 100% INTACT<br/>(Full 72,000+ chars delivered to LLM)"]
+    G --> H["Model Execution (gpt-4o-mini)"]
+    H --> I["Harmonized Strict Grounding + clarification-dialogue"]
+    I --> J["Truthful Synthesized Answer or Fluid Clarification Dialogue"]
+```
+
+### 2. Turn Demarcation Algorithm (`last_human_idx`)
+The checkpointer pruning engine in `src/any_context/core/agent.py` implements backward linear scan demarcation:
+$$\text{last\_human\_idx} = \max \left\{ i \mid \text{messages}[i].\text{type} = \text{"human"} \right\}$$
+
+#### Invariants:
+1. **Prior Turns ($i < \text{last\_human\_idx}$)**:
+   $$\forall m \in \text{messages}[0 \dots \text{last\_human\_idx}-1]: \; \text{is\_tool}(m) \land \text{len}(m.\text{content}) > 300 \implies m.\text{content} \leftarrow \text{"[Prior workspace context...]"}$$
+2. **Current Turn ($i \ge \text{last\_human\_idx}$)**:
+   $$\forall m \in \text{messages}[\text{last\_human\_idx} \dots \text{len}]: \; m.\text{content} \text{ remains strictly immutable and unpruned.}$$
+3. **Conversational Integrity**:
+   All `HumanMessage` and `AIMessage` objects across all $N$ turns remain 100% intact, guaranteeing continuous conversational context and long-term memory across arbitrarily deep chat histories.
+
+### 3. Screen-Only `/clear` Isolation
+The `/clear` command in `src/any_context/commands/dispatcher.py` and `rpc_bridge.py` operates exclusively as a presentation-layer buffer reset:
+- Clears the active frontend terminal viewport and scrollback buffer.
+- Does **NOT** delete, truncate, or reset the underlying checkpointer thread in SQLite (`checkpoints.db`).
+- Guarantees seamless continuation of multi-turn dialogues when users clear their screen for visual hygiene.
+
+### 4. Grounding & Skill Harmonization
+`src/any_context/core/grounding_strategies.py` and `src/any_context/core/utils.py` are harmonized:
+- **Total Topical Absence**: When a subject is completely missing from all workspace documents, declare factual absence (`⚠️ Essa informação não consta...`).
+- **Broad / Underspecified Queries**: When relevant records exist but the query lacks specific constraints (e.g., date, carrier, route), the model is instructed to invoke the `clarification-dialogue` skill, summarizing available records and proactively asking guiding questions.
