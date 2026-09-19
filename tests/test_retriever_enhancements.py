@@ -135,3 +135,16 @@ def test_parallel_retriever_filename_boost():
     assert results[0].chunk_id == "cmr_page_1"
     assert results[0].score == 1.0
     assert "BISON TRANSPORT INC." in results[0].text
+
+
+def test_short_numeric_date_clauses():
+    # DD/MM format (e.g. 02/09) without year
+    q = "O que diz o arquivo I.CMR_ONE_PICKUP.pdf do dia 02/09?"
+    clauses = extract_temporal_clauses(q)
+    assert any("/09/02/" in c for c in clauses)
+    assert any("/02/09/" in c for c in clauses)
+
+    # expand query
+    exp = expand_query_temporal(q)
+    assert "02/09" in exp
+    assert "09/02" in exp

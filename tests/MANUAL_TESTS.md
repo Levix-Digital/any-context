@@ -7,7 +7,66 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.19 Temporal Query Expansion, Filename Grounding & Atomic Page PDF Chunking): Validação de RAG Temporal, Grounding de Documentos Explícitos e Integridade de Páginas de Formulários em PDFs
+### 📌 Cenário 1 (v0.30.20 Short Numeric Date Grounding, Hermetic BM25 Purge, Full Chunk Inspection & Clarification Dialogue Skill): Validação de Datas Curtas sem Ano, Expansão Temporal, Purga Limpa do BM25, Inspeção Completa de Chunks e Diálogo de Esclarecimento sem Suposições
+
+- **Objetivo**: Comprovar que na versão `v0.30.20`:
+  1. O comando `/inspect` exibe a contagem exata de caracteres de cada chunk e aceita a flag `--full` (ou `-f`) (ex: `/inspect CMR 1 --full`), renderizando o conteúdo completo sem truncamento para inspecionar páginas atômicas inteiras (> 5.000 caracteres).
+  2. Consultas que mencionam datas numéricas curtas sem ano (ex: `02/09`, `2/9`, `02-09`), combinadas com menção a documento (ex: `I.CMR_ONE_PICKUP.pdf`), são capturadas pelo extrator temporal agnóstico de ano e ancoradas no caminho do arquivo (ex: `2026/09/02/I.CMR_ONE_PICKUP.pdf`), recebendo score 1.0 e prioridade nos Top Chunks da resposta.
+  3. A sincronização forçada (`/sync --force`) purga integralmente os chunks antigos da memória BM25 em Rust (`bm25_index.bin`), mantendo estrita paridade 1:1 com os chunks ativos no LanceDB e eliminando vestígios de índices deletados.
+  4. O agente AI agora incorpora o sistema modular de Skills (`clarification-dialogue`) no System Prompt: em consultas vagas ou abertas, o agente não alucina nem faz suposições silenciosas sobre o ano ou escopo, adotando uma postura colaborativa de parceiro humano que guia o usuário e esclarece o que falta para a melhor resposta.
+- **Pré-requisito**: Versão `v0.30.20` instalada e workspace com documentos PDF e CSV datados (ex: `IKEAShipments`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.20`.
+
+2. **🔄 Sincronização Hermética com Purga do BM25:**
+   - Abra a workspace `IKEAShipments`:
+     ```text
+     actx
+     ```
+   - No prompt do AnyContext, execute a sincronização forçada:
+     ```text
+     /sync --force
+     ```
+   - **Critério de Aceitação:** A sincronização conclui com sucesso, re-indexando de forma limpa o LanceDB e o arquivo binário BM25 (`bm25_index.bin`) sem acumular duplicatas de chunks deletados.
+
+3. **🔍 Inspeção de Chunks Completos via `/inspect --full`:**
+   - No chat do AnyContext, execute o comando de inspeção filtrado pelo documento CMR com a flag `--full`:
+     ```text
+     /inspect CMR 1 --full
+     ```
+   - **Critério de Aceitação:**
+     - O terminal/TUI exibe `Size: 5,9xx characters` (ou valor real correspondente).
+     - Todo o conteúdo da página do formulário CMR é exibido de ponta a ponta em markdown/tabela sem nenhum truncamento aos 120 caracteres.
+
+4. **🎯 Teste de Grounding com Data Curta sem Ano (`02/09`):**
+   - No chat, faça a pergunta especificando a data curta:
+     ```text
+     O que diz o arquivo I.CMR_ONE_PICKUP.pdf do dia 02/09?
+     ```
+   - **Critério de Aceitação:**
+     - O sistema extrai a cláusula de data curta e localiza deterministicamente o documento em `2026/09/02/I.CMR_ONE_PICKUP.pdf`.
+     - O agente não afirma que não encontrou resultados e traz os dados reais da remessa de 02/09/2026 (Consignee IKEA Calgary, peso, pacotes).
+     - De acordo com a skill `clarification-dialogue`, o agente explicita o escopo adotado (ex: *"Considerando o registro localizado em 02/09/2026..."*).
+
+5. **💬 Teste da Skill de Diálogo de Esclarecimento (Clarification Dialogue):**
+   - No chat, faça uma pergunta genérica e vaga:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - O agente NÃO inventa fatos nem assume arbitrariamente uma data ou rota sem avisar.
+     - O agente responde colaborativamente, pontuando que há múltiplos registros e sugerindo refinar por período (ex: setembro/2026), por destinatário (Calgary vs Edmonton) ou por transportadora (BISON).
+
+---
+
+### 📌 Cenário 2 (v0.30.19 Temporal Query Expansion, Filename Grounding & Atomic Page PDF Chunking): Validação de RAG Temporal, Grounding de Documentos Explícitos e Integridade de Páginas de Formulários em PDFs
 
 - **Objetivo**: Comprovar que na versão `v0.30.19`:
   1. A consulta conversacional com datas em linguagem natural (ex: *"3 de Setembro de 2026"*, *"September 3"*, *"03/09"*) é automaticamente expandida para termos canônicos ISO e brasileiros (`2026-09-03`, `2026/09/03`, `03/09/2026`, `09/03`), permitindo que a busca léxica BM25 recupere arquivos e metadados datados com exatidão máxima.
