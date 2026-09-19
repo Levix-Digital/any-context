@@ -7,7 +7,59 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.21 Multi-Turn Tool Context Preservation, Strict Grounding Dialogue Harmonization & Screen-Only /clear): Validação de Preservação de Contexto de Ferramentas em Sessões Longas, Grounding Colaborativo em Consultas Amplas e Isolamento Visual do /clear
+### 📌 Cenário 1 (v0.30.22 Hierarchical Memory Cascade, 15-Turn SQLite Session Rollover, Inference Sliding Window & Silent Background Meta-Summarization): Validação da Cascata de Memória de 3 Níveis, Limite de 15 Turnos no SQLite, Janela Deslizante de Inferência e Resolução do Efeito Eco In-Context
+
+- **Objetivo**: Comprovar que na versão `v0.30.22`:
+  1. A janela deslizante de inferência (`_prune_messages_for_llm(max_history_messages=10)`) reduz conversas longas aos últimos 10 mensagens (~5 turnos completos) alinhados estritamente na fronteira de um `HumanMessage`, eliminando o "atrator de atenção" (efeito eco) onde dezenas de respostas negativas anteriores forçavam o modelo a alucinar ausência (`⚠️ Essa informação não consta...`).
+  2. O `checkpoints.db` no SQLite mantém estritamente o limite de **15 turnos ativos** (`MAX_ACTIVE_SESSION_TURNS = 15`). Ao exceder 15 turnos, as mensagens mais antigas são fatiadas e despachadas para sumarização de médio prazo no LanceDB (`session_memory.lance`).
+  3. A sumarização em background executa de forma **100% silenciosa** em thread daemon, sem qualquer interferência no chat, sem prints no terminal e com proteção de concorrência (`_active_summarizing_threads`).
+  4. O comando `/clear` mantém seu comportamento estritamente visual (limpando o buffer da tela e preservando a continuidade de raciocínio da IA).
+- **Pré-requisito**: Versão `v0.30.22` instalada e workspace com documentos PDF e CSV datados (ex: `IKEAShipments`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.22`.
+
+2. **🎯 Recuperação Precisa de Documento Específico sem Efeito Eco:**
+   - Abra a workspace com histórico acumulado (ex: `IKEAShipments`):
+     ```text
+     actx
+     ```
+   - No chat, faça a pergunta sobre o documento específico e data:
+     ```text
+     O que diz o arquivo I.CMR_ONE_PICKUP.pdf do dia 02/09?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo **não exibe** a mensagem de ausência (`⚠️ Essa informação não consta...`).
+     - O modelo responde com a tabela detalhada do CMR de 02/09/2026 (Consignee IKEA Calgary, 49 pacotes, 6.759 kg, transportadora BISON, etc.).
+
+3. **💬 Consulta Ampla e Diálogo Colaborativo:**
+   - No mesmo chat, faça a pergunta:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo sintetiza colaborativamente as principais entregas identificadas no workspace e propõe filtros de refinamento (por data ou destino).
+
+4. **🔄 Rollover Silencioso de Sessão (> 15 turnos):**
+   - Continue a conversa por múltiplos turnos ou inspecione o banco de checkpoints.
+   - **Critério de Aceitação:**
+     - Nenhuma mensagem ou print de debug de sumarização polui a interface do chat.
+     - A resposta do chat continua fluida e sem congelamentos.
+     - A tabela `session_memory.lance` recebe resumos estruturados das mensagens mais antigas quando a sessão excede 15 turnos.
+
+5. **🧹 Limpeza Visual com Preservação de Contexto (`/clear`):**
+   - Execute `/clear`.
+   - **Critério de Aceitação:** O buffer da tela é limpo, e uma pergunta de continuação (ex: *"Qual era o peso daquela remessa?"*) é respondida perfeitamente usando o contexto recente.
+
+---
+
+### 📌 Cenário 2 (v0.30.21 Multi-Turn Tool Context Preservation, Strict Grounding Dialogue Harmonization & Screen-Only /clear): Validação de Preservação de Contexto de Ferramentas em Sessões Longas, Grounding Colaborativo em Consultas Amplas e Isolamento Visual do /clear
 
 - **Objetivo**: Comprovar que na versão `v0.30.21`:
   1. O podador de histórico de ferramentas (`_prune_historical_tool_messages`) preserva integralmente as saídas de ferramentas (`ToolMessage`) da rodada ativa (`idx > last_human_idx`), garantindo que em conversas longas multi-turn (> 100 mensagens) o modelo receba 100% do contexto recuperado (ex: 72KB+ do arquivo `2026/09/02/I.CMR_ONE_PICKUP.pdf`) e responda com precisão aos dados do documento.
