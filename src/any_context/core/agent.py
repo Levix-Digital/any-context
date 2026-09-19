@@ -2,7 +2,13 @@ import os
 import re
 import uuid
 import sqlite3
+import threading
 from typing import Optional, List, Dict, Any, Set
+
+MAX_ACTIVE_SESSION_TURNS = 15
+_active_summarizing_threads: Set[str] = set()
+_summarizing_lock = threading.Lock()
+
 
 from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
@@ -176,14 +182,15 @@ def sanitize_conversation_messages(messages):
 def _prune_messages_for_llm(
     messages,
     max_current_turn_chars=40000,
+    max_history_messages: int = 10,
     active_workspace: str = None,
     grounding_mode: str = None,
     web_search_enabled: bool = False
 ):
     """
     Prunes raw chunk dumps from prior turns' ToolMessages at LLM call-time,
-    while intelligently consolidating multiple ToolMessages within the current turn
-    so that every researched topic is preserved under a combined safe token budget,
+    enforces a sliding window on prior turns to prevent context pollution and attention echo chambers,
+    intelligently consolidates multiple ToolMessages within the current turn under a safe budget,
     and dynamically injects the active GroundingStrategy header on the active HumanMessage.
     """
     if not messages or not isinstance(messages, list):
@@ -197,7 +204,33 @@ def _prune_messages_for_llm(
             last_human_idx = i
             break
 
-    # 2. Collect current turn ToolMessages
+    # 2. Sliding window for historical messages before the active turn
+    # This prevents the attention attractor / echo chamber where dozens of past turns
+    # degrade transformer attention and cause hallucinated negative responses.
+    if last_human_idx != -1 and max_history_messages and max_history_messages > 0:
+        prior_messages_count = last_human_idx
+        if prior_messages_count > max_history_messages:
+            prior_human_indices = [
+                i for i in range(last_human_idx)
+                if getattr(messages[i], "type", "") in ["human", "user"] or messages[i].__class__.__name__ == "HumanMessage"
+            ]
+            target_start = max(0, last_human_idx - max_history_messages)
+            eligible_starts = [idx for idx in prior_human_indices if idx >= target_start]
+            if eligible_starts:
+                window_start_idx = eligible_starts[0]
+            elif prior_human_indices:
+                window_start_idx = prior_human_indices[-1]
+            else:
+                window_start_idx = target_start
+
+            if window_start_idx > 0:
+                messages = messages[window_start_idx:]
+                last_human_idx -= window_start_idx
+    elif last_human_idx == -1 and max_history_messages and max_history_messages > 0:
+        if len(messages) > max_history_messages:
+            messages = messages[-max_history_messages:]
+
+    # 3. Collect current turn ToolMessages
     current_turn_tool_indices = []
     if last_human_idx != -1:
         for idx in range(last_human_idx + 1, len(messages)):
@@ -487,14 +520,79 @@ class ResilientSqliteSaver(SqliteSaver):
     """
     Auto-healing SqliteSaver that safely recovers from corrupted zlib streams,
     incomplete checkpoint bytes, or database locking errors without crashing the agent,
-    and prunes historical tool message payloads to prevent context overflow.
+    maintains a rolling active session window of 15 turns in SQLite checkpoints,
+    and dispatches older turns silently to LanceDB hierarchical memory.
     """
+    @classmethod
+    def _dispatch_background_summarization(cls, messages: list, workspace: Optional[str] = None, thread_id: Optional[str] = None):
+        if not thread_id or not messages:
+            return
+
+        with _summarizing_lock:
+            if thread_id in _active_summarizing_threads:
+                return
+            _active_summarizing_threads.add(thread_id)
+
+        def _worker():
+            try:
+                from any_context.memory.manager import MemoryManager
+                mgr = MemoryManager()
+                mgr.process_session_messages(messages, workspace=workspace, thread_id=thread_id)
+            except Exception:
+                pass
+            finally:
+                with _summarizing_lock:
+                    _active_summarizing_threads.discard(thread_id)
+
+        t = threading.Thread(target=_worker, daemon=True, name=f"mem-summary-{str(thread_id)[:16]}")
+        t.start()
+
+    def delete_thread(self, thread_id: str):
+        """Safely purges all checkpoint rows for a specific thread_id."""
+        try:
+            if hasattr(self, "conn") and self.conn:
+                cursor = self.conn.cursor()
+                cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+                try:
+                    cursor.execute("DELETE FROM checkpoint_blobs WHERE thread_id = ?", (thread_id,))
+                except Exception:
+                    pass
+                try:
+                    cursor.execute("DELETE FROM checkpoint_writes WHERE thread_id = ?", (thread_id,))
+                except Exception:
+                    pass
+                self.conn.commit()
+        except Exception:
+            pass
+
     def get_tuple(self, config):
         try:
             tup = super().get_tuple(config)
             if tup and hasattr(tup, "checkpoint") and isinstance(tup.checkpoint, dict):
                 msgs = tup.checkpoint.get("channel_values", {}).get("messages")
-                if msgs:
+                if msgs and isinstance(msgs, list):
+                    # 1. Rolling session cascade: maintain strictly MAX_ACTIVE_SESSION_TURNS in checkpoints.db
+                    human_indices = []
+                    for idx, m in enumerate(msgs):
+                        m_type = getattr(m, "type", "")
+                        if m_type in ["human", "user"] or m.__class__.__name__ == "HumanMessage" or (isinstance(m, dict) and m.get("role") in ["user", "human"]):
+                            human_indices.append(idx)
+
+                    if len(human_indices) > MAX_ACTIVE_SESSION_TURNS:
+                        cutoff_idx = human_indices[-MAX_ACTIVE_SESSION_TURNS]
+                        older_msgs = msgs[:cutoff_idx]
+                        msgs = msgs[cutoff_idx:]
+
+                        conf = config.get("configurable", {}) if config else {}
+                        thread_id = conf.get("thread_id")
+                        workspace = conf.get("active_workspace") or conf.get("workspace")
+                        if not workspace and thread_id and thread_id.startswith("rpc_session_"):
+                            workspace = thread_id[len("rpc_session_"):]
+
+                        # Dispatch older turns to LanceDB Level 2/3 silently in daemon background thread
+                        if older_msgs and thread_id:
+                            self._dispatch_background_summarization(older_msgs, workspace=workspace, thread_id=thread_id)
+
                     _prune_historical_tool_messages(msgs)
                     tup.checkpoint["channel_values"]["messages"] = sanitize_conversation_messages(msgs)
             return tup
