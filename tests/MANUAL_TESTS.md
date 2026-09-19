@@ -7,7 +7,58 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.20 Short Numeric Date Grounding, Hermetic BM25 Purge, Full Chunk Inspection & Clarification Dialogue Skill): Validação de Datas Curtas sem Ano, Expansão Temporal, Purga Limpa do BM25, Inspeção Completa de Chunks e Diálogo de Esclarecimento sem Suposições
+### 📌 Cenário 1 (v0.30.21 Multi-Turn Tool Context Preservation, Strict Grounding Dialogue Harmonization & Screen-Only /clear): Validação de Preservação de Contexto de Ferramentas em Sessões Longas, Grounding Colaborativo em Consultas Amplas e Isolamento Visual do /clear
+
+- **Objetivo**: Comprovar que na versão `v0.30.21`:
+  1. O podador de histórico de ferramentas (`_prune_historical_tool_messages`) preserva integralmente as saídas de ferramentas (`ToolMessage`) da rodada ativa (`idx > last_human_idx`), garantindo que em conversas longas multi-turn (> 100 mensagens) o modelo receba 100% do contexto recuperado (ex: 72KB+ do arquivo `2026/09/02/I.CMR_ONE_PICKUP.pdf`) e responda com precisão aos dados do documento.
+  2. As diretrizes de strict grounding foram harmonizadas com a skill `clarification-dialogue`: em consultas amplas com múltiplos registros disponíveis (ex: *"Quais foram as entregas da IKEA?"*), o modelo não encerra prematuramente com aviso de ausência, dialogando ativamente e sugerindo recortes de data ou rotas.
+  3. O comando `/clear` atua exclusivamente no buffer visual da tela (TUI/terminal), preservando 100% dos checkpoints no SQLite (`checkpoints.db`), permitindo continuidade de raciocínio da IA mesmo após o usuário limpar a tela.
+- **Pré-requisito**: Versão `v0.30.21` instalada e workspace com documentos PDF e CSV datados (ex: `IKEAShipments`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.21`.
+
+2. **🎯 Recuperação de Documento em Sessão Multi-Turn:**
+   - Abra a workspace com histórico existente ou em uma sessão interativa continuada:
+     ```text
+     actx
+     ```
+   - No chat, faça a pergunta sobre o documento específico e data:
+     ```text
+     O que diz o arquivo I.CMR_ONE_PICKUP.pdf do dia 02/09?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo não exibe a mensagem de ausência (`⚠️ Essa informação não consta...`).
+     - O modelo responde com a tabela detalhada da remessa de 02/09/2026 (Consignee IKEA Calgary, peso 20.303 kg, 38 pacotes, transportadora BISON, trailer 5382, etc.).
+
+3. **💬 Diálogo Colaborativo de Esclarecimento em Consulta Ampla:**
+   - No mesmo chat, faça a pergunta ampla:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo não alucina nem responde com aviso de ausência.
+     - O modelo responde colaborativamente sintetizando as principais entregas identificadas no workspace e oferecendo filtros de refinamento (ex: datas específicas como 02/09, 03/09, destinos como Calgary ou Edmonton).
+
+4. **🧹 Limpeza Visual de Tela com Preservação de Memória (`/clear`):**
+   - No chat, execute:
+     ```text
+     /clear
+     ```
+   - **Critério de Aceitação:**
+     - O buffer visual da tela é limpo, exibindo uma tela limpa para digitação.
+     - Em seguida, faça uma pergunta que depende do contexto anterior (ex: *"Qual foi o peso total daquela entrega que você mencionou?"*).
+     - O modelo responde recuperando a informação da conversa anterior sem perda de memória no SQLite.
+
+---
+
+### 📌 Cenário 2 (v0.30.20 Short Numeric Date Grounding, Hermetic BM25 Purge, Full Chunk Inspection & Clarification Dialogue Skill): Validação de Datas Curtas sem Ano, Expansão Temporal, Purga Limpa do BM25, Inspeção Completa de Chunks e Diálogo de Esclarecimento sem Suposições
 
 - **Objetivo**: Comprovar que na versão `v0.30.20`:
   1. O comando `/inspect` exibe a contagem exata de caracteres de cada chunk e aceita a flag `--full` (ou `-f`) (ex: `/inspect CMR 1 --full`), renderizando o conteúdo completo sem truncamento para inspecionar páginas atômicas inteiras (> 5.000 caracteres).
