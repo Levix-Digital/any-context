@@ -204,7 +204,61 @@ def _prune_messages_for_llm(
             last_human_idx = i
             break
 
-    # 2. Sliding window for historical messages before the active turn
+    # 2. Epistemic Hygiene: Filter historical turns that ended in FACTUAL_ABSENCE
+    # This completely eliminates Self-Consistency Bias / Attention Echo Chambers
+    # where the LLM's attention is trapped into confirming past negative statements.
+    if last_human_idx != -1 and last_human_idx > 0:
+        from any_context.core.epistemic import EpistemicState, is_pure_negative_disclaimer
+
+        filtered_historical = []
+        i = 0
+        while i < last_human_idx:
+            msg = messages[i]
+            m_type = getattr(msg, "type", "")
+            is_ai = (m_type in ["ai", "AIMessage", "assistant"] or msg.__class__.__name__ in ["AIMessage", "AIMessageChunk"])
+            
+            if is_ai:
+                kwargs = getattr(msg, "additional_kwargs", {}) or {}
+                state = kwargs.get("epistemic_state")
+                c_str = str(getattr(msg, "content", "") or "")
+                
+                is_absence = False
+                if state in [EpistemicState.FACTUAL_ABSENCE.value, EpistemicState.FACTUAL_ABSENCE]:
+                    is_absence = True
+                elif state is None and is_pure_negative_disclaimer(c_str):
+                    is_absence = True
+                    
+                if is_absence:
+                    # Pure absence disclaimer in historical turn: purge from active inference payload
+                    i += 1
+                    continue
+            
+            filtered_historical.append(msg)
+            i += 1
+
+        # Deduplicate consecutive identical HumanMessages in historical context
+        deduped_historical = []
+        for m in filtered_historical:
+            if deduped_historical:
+                prev = deduped_historical[-1]
+                is_prev_human = getattr(prev, "type", "") in ["human", "user"] or prev.__class__.__name__ == "HumanMessage"
+                is_curr_human = getattr(m, "type", "") in ["human", "user"] or m.__class__.__name__ == "HumanMessage"
+                if is_prev_human and is_curr_human and str(getattr(prev, "content", "")).strip() == str(getattr(m, "content", "")).strip():
+                    continue
+            deduped_historical.append(m)
+
+        # If the trailing historical message is an unanswered HumanMessage identical to the active turn, drop it
+        if deduped_historical and last_human_idx < len(messages):
+            active_human = messages[last_human_idx]
+            last_hist = deduped_historical[-1]
+            is_last_human = getattr(last_hist, "type", "") in ["human", "user"] or last_hist.__class__.__name__ == "HumanMessage"
+            if is_last_human and str(getattr(last_hist, "content", "")).strip() == str(getattr(active_human, "content", "")).strip():
+                deduped_historical.pop()
+
+        messages = deduped_historical + messages[last_human_idx:]
+        last_human_idx = len(deduped_historical)
+
+    # 3. Sliding window for historical messages before the active turn
     # This prevents the attention attractor / echo chamber where dozens of past turns
     # degrade transformer attention and cause hallucinated negative responses.
     if last_human_idx != -1 and max_history_messages and max_history_messages > 0:
@@ -430,7 +484,12 @@ class PruningBoundModel:
     def invoke(self, input_val, config=None, **kwargs):
         input_val = self._prune(input_val)
         active_bound = self._select_bound(input_val)
-        return active_bound.invoke(input_val, config=config, **kwargs)
+        res = active_bound.invoke(input_val, config=config, **kwargs)
+        if hasattr(res, "additional_kwargs") and not getattr(res, "tool_calls", None):
+            from any_context.core.epistemic import classify_epistemic_state
+            state = classify_epistemic_state(getattr(res, "content", ""))
+            res.additional_kwargs["epistemic_state"] = state.value
+        return res
 
     def stream(self, input_val, config=None, **kwargs):
         input_val = self._prune(input_val)
@@ -440,7 +499,12 @@ class PruningBoundModel:
     async def ainvoke(self, input_val, config=None, **kwargs):
         input_val = self._prune(input_val)
         active_bound = self._select_bound(input_val)
-        return await active_bound.ainvoke(input_val, config=config, **kwargs)
+        res = await active_bound.ainvoke(input_val, config=config, **kwargs)
+        if hasattr(res, "additional_kwargs") and not getattr(res, "tool_calls", None):
+            from any_context.core.epistemic import classify_epistemic_state
+            state = classify_epistemic_state(getattr(res, "content", ""))
+            res.additional_kwargs["epistemic_state"] = state.value
+        return res
 
     async def astream(self, input_val, config=None, **kwargs):
         input_val = self._prune(input_val)
@@ -592,6 +656,15 @@ class ResilientSqliteSaver(SqliteSaver):
                         # Dispatch older turns to LanceDB Level 2/3 silently in daemon background thread
                         if older_msgs and thread_id:
                             self._dispatch_background_summarization(older_msgs, workspace=workspace, thread_id=thread_id)
+
+                    # Ensure epistemic_state is stamped on loaded AI messages
+                    from any_context.core.epistemic import classify_epistemic_state
+                    for m in msgs:
+                        m_type = getattr(m, "type", "")
+                        if m_type in ["ai", "AIMessage", "assistant"] or m.__class__.__name__ in ["AIMessage", "AIMessageChunk"]:
+                            if hasattr(m, "additional_kwargs") and not getattr(m, "tool_calls", None):
+                                if not m.additional_kwargs.get("epistemic_state"):
+                                    m.additional_kwargs["epistemic_state"] = classify_epistemic_state(getattr(m, "content", "")).value
 
                     _prune_historical_tool_messages(msgs)
                     tup.checkpoint["channel_values"]["messages"] = sanitize_conversation_messages(msgs)

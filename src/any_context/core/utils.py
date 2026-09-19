@@ -255,6 +255,7 @@ def get_system_prompt(
                     "  2. If the user's query is broad, vague, or missing key parameters, or if multiple records exist in the workspace documents: DO NOT declare total absence. Instead, follow the active `clarification-dialogue` skill: act as a collaborative partner, summarize what exists in the workspace, and ask guiding clarification questions.\n"
                 )
             prompt += (
+                "- **TEMPORAL EPISTEMIC INDEPENDENCE:** The workspace documents are dynamic and can be added, updated, or re-indexed at any time. Past absence disclaimers in earlier turns reflect solely the outcome of historical queries at that point in time. NEVER assume an entity or document is absent based on prior absence statements in the conversation history. ALWAYS evaluate current queries and retrieved chunks with 100% cognitive freshness and invoke `search_db` independently.\n"
                 "- **MANDATORY SOURCE CITATIONS:** You MUST explicitly cite the exact file names, page numbers, or URLs where every piece of information was found.\n"
                 "- **MANDATORY CITATION FOOTER:** At the end of every answer that uses workspace documents, you MUST append:\n"
                 "  `---\n  📄 **Fontes Consultadas no Workspace:**\n  - [Nome do Arquivo / URL]`\n"

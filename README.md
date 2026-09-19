@@ -463,6 +463,13 @@ Para garantir que um documento gigante de 500 páginas não monopolize todas as 
 - O histórico da conversa preserva 100% das perguntas do usuário e conclusões da IA (`User` ➔ `AI`), mas intercepta e poda os blocos de texto bruto de buscas passadas (`ToolMessage`) em runtime para `"[Prior workspace context retrieved and synthesized in conversation history]"`.
 - O prompt enviado à LLM se mantém permanentemente entre ~5.000 e 12.000 tokens, eliminando o erro de estouro de 128.000 tokens em conversas de 100+ turnos.
 
+### 6. Higiene Epistêmica de Histórico & Máquina de Estados de Turno (`v0.30.23`)
+- **Eliminação do Viés de Auto-Confirmação Negativa (*Attention Echo Chamber*):**
+  Quando uma busca passada não localizava um arquivo (ex: antes de sincronizar um novo PDF ou por pergunta pontual), a resposta negativa da IA (`⚠️ Essa informação não consta...`) ficava retida no histórico conversacional. Isso induzia a atenção do Transformer a auto-confirmar sua negação passada mesmo após novos arquivos serem indexados.
+- **Defesa em Duas Camadas:**
+  1. **Camada 1 (Máquina de Estados Epistêmica em Runtime):** Cada turno é categorizado formalmente (`EpistemicState`: `GROUNDED_FACTUAL`, `FACTUAL_ABSENCE`, `CLARIFICATION`, `CONVERSATIONAL`). Em turnos posteriores, disclaimers de ausência legítima passada são filtrados do payload enviado à LLM, mantendo o histórico visual 100% íntegro na tela do usuário no SQLite, mas entregando à IA uma mente limpa e livre de viés negativo.
+  2. **Camada 2 (Diretriz de Independência Epistêmica Temporal):** O modelo é instruído no System Prompt e no cabeçalho de Grounding de que o repositório é vivo e dinâmico, garantindo que arquivos recém-adicionados ao workspace sejam imediatamente lidos e respondidos no mesmo chat sem bloqueios.
+
 ### 🎛️ Matriz Dinâmica de Presets de RAG
 
 | Preset | Pool no ChromaDB | Chunks Injetados | Tokens de Contexto | Melhor uso |
