@@ -68,17 +68,16 @@ def entrypoint():
         from any_context.cli.banner import print_banner, clear_terminal
         clear_terminal()
         print_banner()
+        try:
+            from any_context.help.bootstrap import async_ensure_system_knowledge_indexed
+            async_ensure_system_knowledge_indexed()
+        except Exception:
+            pass
 
     # 3. Load environment variables (.env) for LangSmith tracing, licenses, and API keys
     try:
         from any_context.core.utils import load_env
         load_env()
-    except Exception:
-        pass
-
-    try:
-        from any_context.help.bootstrap import async_ensure_system_knowledge_indexed
-        async_ensure_system_knowledge_indexed()
     except Exception:
         pass
 
@@ -205,6 +204,11 @@ def entrypoint():
             pass
 
     if direct_prompt:
+        try:
+            from any_context.help.bootstrap import async_ensure_system_knowledge_indexed
+            async_ensure_system_knowledge_indexed()
+        except Exception:
+            pass
         from any_context.core.agent import create_anycontext_agent
         from any_context.config.db_store import ConfigDBStore
         store = ConfigDBStore()

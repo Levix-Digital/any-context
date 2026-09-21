@@ -91,6 +91,46 @@ class TestSystemKnowledgeBootstrap(unittest.TestCase):
                     self.assertTrue(len(res) > 50)
                     print("  [OK] System Help chunks retrieved across empty workspaces successfully!")
 
+    def test_04_preflight_credential_guard_and_zero_stdout_pollution(self):
+        """
+        Tests that when no API key is available, ensure_system_knowledge_indexed aborts cleanly
+        with False and writes ZERO bytes to sys.stdout or sys.stderr (avoiding TUI visual pollution).
+        """
+        import sys
+        import io
+        print("\n>>> [SECURITY UNIT] Testing Pre-Flight Credential Guard & Zero Stdout Pollution...")
+
+        captured_out = io.StringIO()
+        captured_err = io.StringIO()
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+
+        try:
+            sys.stdout = captured_out
+            sys.stderr = captured_err
+
+            with patch("any_context.core.utils.get_api_key", return_value=None):
+                with patch("any_context.config.app_settings.AppSettings.load") as mock_settings:
+                    mock_app = AppSettings()
+                    mock_app.models.model_provider = "openai"
+                    mock_settings.return_value = mock_app
+                    from llama_index.core import Settings
+                    old_embed = Settings._embed_model
+                    Settings._embed_model = None
+
+                    try:
+                        res = ensure_system_knowledge_indexed(db_path=self.db_path, force=True)
+                    finally:
+                        Settings._embed_model = old_embed
+        finally:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+
+        self.assertFalse(res)
+        self.assertEqual(captured_out.getvalue(), "")
+        self.assertEqual(captured_err.getvalue(), "")
+        print("  [OK] Pre-flight guard returned False cleanly with zero stdout/stderr pollution!")
+
 
 if __name__ == "__main__":
     unittest.main()
