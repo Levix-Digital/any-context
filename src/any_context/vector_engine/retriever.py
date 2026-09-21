@@ -369,6 +369,10 @@ class ParallelRetriever:
         ]
 
         target_ws = workspace if workspace != "Default" else None
+        is_system_query = any(tok in query.lower() for tok in ["/link", "/sync", "/switch", "/menu", "/config", "/keys", "/api-keys", "shared sources", "shared source", "como funciona", "como usar", "ajuda", "help", "comando", "command"])
+        if is_system_query and target_workspaces and "Global" in target_workspaces:
+            target_ws = None
+
         expanded_query = expand_query_temporal(query)
 
         effective_max_per_source = cfg.max_chunks_per_source
@@ -397,9 +401,14 @@ class ParallelRetriever:
                     final_chunks.append(sc)
                     seen_cids.add(cid)
 
+        allowed_workspaces = set(target_workspaces) if target_workspaces else ({workspace} if workspace else set())
+
         for r in fused_raw:
             cid = r["id"]
             if cid in seen_cids:
+                continue
+            r_ws = r.get("workspace", "Default")
+            if allowed_workspaces and r_ws not in allowed_workspaces and r_ws != "Global":
                 continue
             seen_cids.add(cid)
             final_chunks.append(

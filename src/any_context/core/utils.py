@@ -61,41 +61,55 @@ def get_api_key(provider: str = "openai") -> Optional[str]:
         "azure_openai": ["AZURE_OPENAI_API_KEY"],
     }
 
+    resolved_key = None
+
     # 1. Check environment variables
     if p in env_map:
         for var_name in env_map[p]:
             val = os.getenv(var_name)
             if val and val.strip():
-                return val.strip()
+                resolved_key = val.strip()
+                break
     else:
         val = os.getenv(f"{p.upper()}_API_KEY")
         if val and val.strip():
-            return val.strip()
+            resolved_key = val.strip()
 
     # 2. Check SQLite Store
-    try:
-        from any_context.config.db_store import ConfigDBStore
-        store = ConfigDBStore()
-        store_key = store.get_api_key(p)
-        if store_key and store_key.strip():
-            cleaned_key = store_key.strip()
-            if p == "openai" and cleaned_key == "lm-studio":
-                return None
-            return cleaned_key
-        # Check alias if google/gemini
-        if p in ["gemini", "google_genai", "google"]:
-            for alt in ["gemini", "google", "google_genai"]:
-                alt_key = store.get_api_key(alt)
-                if alt_key and alt_key.strip():
-                    return alt_key.strip()
-    except Exception:
-        pass
+    if not resolved_key:
+        try:
+            from any_context.config.db_store import ConfigDBStore
+            store = ConfigDBStore()
+            store_key = store.get_api_key(p)
+            if store_key and store_key.strip():
+                cleaned_key = store_key.strip()
+                if not (p == "openai" and cleaned_key == "lm-studio"):
+                    resolved_key = cleaned_key
+            if not resolved_key and p in ["gemini", "google_genai", "google"]:
+                for alt in ["gemini", "google", "google_genai"]:
+                    alt_key = store.get_api_key(alt)
+                    if alt_key and alt_key.strip():
+                        resolved_key = alt_key.strip()
+                        break
+        except Exception:
+            pass
 
     # 3. Local offline fallback
-    if p in ["local", "lm-studio", "ollama"]:
-        return "lm-studio"
+    if not resolved_key and p in ["local", "lm-studio", "ollama"]:
+        resolved_key = "lm-studio"
 
-    return None
+    # 4. If key is resolved, export to process os.environ for seamless third-party library compatibility
+    if resolved_key and resolved_key not in ["lm-studio", "placeholder", "sk-placeholder"]:
+        if p in env_map:
+            primary_var = env_map[p][0]
+            if not os.getenv(primary_var):
+                os.environ[primary_var] = resolved_key
+        else:
+            var_name = f"{p.upper()}_API_KEY"
+            if not os.getenv(var_name):
+                os.environ[var_name] = resolved_key
+
+    return resolved_key
 
 
 def find_agent_prompt_file(filename: str = "AGENT.md") -> str:

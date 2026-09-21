@@ -29,7 +29,7 @@ class ParallelIndexer:
         from llama_index.core.settings import Settings
         from any_context.tools.search_tools import configure_embedding_model
 
-        if Settings.embed_model is None:
+        if getattr(Settings, "_embed_model", None) is None:
             configure_embedding_model()
 
         return Settings.embed_model.get_text_embedding_batch(texts)

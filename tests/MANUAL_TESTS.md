@@ -7,7 +7,59 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.27 Terminal Stream Isolation, Background Thread Silence & Pre-Flight Embedding Credential Guards): Validação da Inicialização Limpa do OpenTUI, Imunidade contra Falta de Chave de API e Ausência de Corrupção Visual no Banner
+### 📌 Cenário 1 (v0.30.28 Universal Cross-Workspace Knowledge Retrieval, Runtime Credential Export & Unrestricted BM25 Discovery): Validação da Recuperação Universal de Help Global Cross-Workspace (/link, Shared Sources) a partir de Workspaces de Projeto
+
+- **Objetivo**: Comprovar que na versão `v0.30.28`:
+  1. **Recuperação Universal de Help Global em Workspaces de Projeto**: Consultas sobre comandos, documentação e funcionalidades nativas do AnyContext (ex: *"Como funciona o comando /link e para que serve o Shared Sources?"*) executadas a partir de qualquer workspace de projeto (como `IKEAShipments`) recuperam chunks do namespace universal `Global` (`system://help_registry`, `system://readme`) com RRF balanceado e sem penalização de workspace, gerando respostas completas, factuais e sem falsos disclaimers de ausência.
+  2. **Exportação Segura de Credenciais em Runtime (`os.environ`)**: O resolvedor `get_api_key()` sincroniza dinamicamente as chaves extraídas do banco de dados SQLite (`actx_settings.db`) diretamente para as variáveis de ambiente do processo (`os.environ["OPENAI_API_KEY"]`), blindando bibliotecas de terceiros (como LlamaIndex e LangChain) contra falhas silenciosas na inicialização lazy de embeddings.
+  3. **Desvio da Armadilha de Dynamic Property Getter**: A verificação de modelos de embedding configurados em `ParallelIndexer` e `bootstrap.py` consulta diretamente o atributo interno privado (`getattr(Settings, "_embed_model", None)`), impedindo que o getter `Settings.embed_model` acione silenciosamente o resolvedor padrão do LlamaIndex antes da configuração explícita de credenciais.
+  4. **Tolerância Transversal do Motor BM25 Nativo (Rust Core)**: O motor nativo em Rust (`crates/any-context-core-rs/src/retrieval/bm25.rs`) pontua e retorna termos e documentos universais do workspace `Global` (`doc.workspace == "Global"`) conjuntamente com documentos do workspace ativo, garantindo ranking híbrido denso + esparso sem filtragem prematura no nível Rust.
+- **Pré-requisito**: Versão `v0.30.28` instalada e workspace `IKEAShipments` configurado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação da Versão via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.28` em menos de 50ms.
+
+2. **🌐 Consulta ao Help Global a Partir do Workspace de Projeto:**
+   - Inicie o AnyContext no workspace `IKEAShipments`:
+     ```text
+     actx
+     ```
+   - Envie uma pergunta sobre o comando `/link` e Shared Sources:
+     ```text
+     Como funciona o comando /link e para que serve o Shared Sources?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo executa `search_db` e recupera chunks universais do workspace `Global` (`system://help_registry` e/ou `system://readme`).
+     - A IA responde detalhadamente explicando o comando `/link`, sua sintaxe (`/link <folder_path>`), o conceito de Shared Sources (armazenamento único compartilhado indexado apenas uma vez, com vinculação instantânea `< 50ms` e custo $0.00).
+     - **NÃO** exibe o disclaimer `⚠️ Essa informação não consta nos documentos deste workspace.`
+     - A seção `📄 Fontes Consultadas:` cita as fontes do Help do sistema (`system://readme` ou `system://help_registry`).
+
+3. **📦 Continuidade de Consultas ao Workspace de Projeto no Mesmo Chat:**
+   - No mesmo chat, pergunte sobre os documentos locais do projeto:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo busca e recupera chunks do workspace `IKEAShipments`.
+     - Responde de acordo com o protocolo de diálogo (apresentando resumo e oferecendo formatos de visualização ou detalhamento).
+     - Cita como fontes os documentos reais do projeto (`IKEA Shipment Checklist CAEN v2.11.pdf`, `015-TSO-*`).
+
+4. **🚪 Saída Graciosa:**
+   - Digite:
+     ```text
+     /exit
+     ```
+   - **Critério de Aceitação:** Encerramento sem travamentos ou erros.
+
+---
+
+### 📌 Cenário 2 (v0.30.27 Terminal Stream Isolation, Background Thread Silence & Pre-Flight Embedding Credential Guards): Validação da Inicialização Limpa do OpenTUI, Imunidade contra Falta de Chave de API e Ausência de Corrupção Visual no Banner
 
 - **Objetivo**: Comprovar que na versão `v0.30.27`:
   1. **Inicialização 100% Limpa e Íntegra no OpenTUI**: Ao iniciar o AnyContext (`actx`), mesmo em um terminal ou ambiente onde a variável `OPENAI_API_KEY` não esteja presente, o banner ASCII Art e a árvore de telemetria de boot (`┌─ ⚡ Engine Startup Telemetry`) renderizam com alinhamento milimétrico perfeito, sem quebras de linha espúrias, sem asteriscos soltos (`******`) e sem mensagens de erro de embeddings atropelando a tela.
