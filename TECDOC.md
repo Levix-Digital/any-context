@@ -50,6 +50,7 @@
 62. [Robust Anti-Nesting Recursive Self-Updater & Dynamic Stale Lock Protection (`v0.30.25`)](#62-robust-anti-nesting-recursive-self-updater--dynamic-stale-lock-protection-v03025)
 63. [Caller-Aware Output Modulation, Modular Agent Skills & Global Auto-Reindexed System Help (`v0.30.26`)](#63-caller-aware-output-modulation-modular-agent-skills--global-auto-reindexed-system-help-v03026)
 64. [Terminal Stream Isolation, Background Thread Silence & Pre-Flight Embedding Credential Guards (`v0.30.27`)](#64-terminal-stream-isolation-background-thread-silence--pre-flight-embedding-credential-guards-v03027)
+65. [Universal Cross-Workspace Knowledge Retrieval, Runtime Credential Export & Unrestricted BM25 System Discovery (`v0.30.28`)](#65-universal-cross-workspace-knowledge-retrieval-runtime-credential-export--unrestricted-bm25-system-discovery-v03028)
 
 ---
 
@@ -3596,6 +3597,94 @@ except Exception as e:
   - Spawns Bun running `src/any_context/tui/index.tsx`.
   - Does NOT spawn background indexing threads in the parent process.
 - The background system help indexer runs exclusively inside the dedicated backend process (`rpc_bridge.py`), ensuring that the parent terminal handle remains exclusively dedicated to the OpenTUI presentation engine.
+
+---
+
+## 65. Universal Cross-Workspace Knowledge Retrieval, Runtime Credential Export & Unrestricted BM25 System Discovery (`v0.30.28`)
+
+### 1. Problem Statement & Root-Cause Diagnosis
+Prior to `v0.30.28`, two fundamental issues prevented seamless cross-workspace discovery of system commands (such as `/link`, `Shared Sources`, `/sync`, and interactive manual help) when queries originated from within a specific project workspace (e.g. `IKEAShipments`):
+
+1. **Credential Decoupling in Dynamic Getters**:
+   While API keys were stored securely in SQLite (`actx_settings.db`), `get_api_key()` did not propagate the resolved secret to process environment variables (`os.environ["OPENAI_API_KEY"]`). Consequently, during background system bootstrap indexing (`bootstrap.py`), `ParallelIndexer` accessed `Settings.embed_model`. In LlamaIndex, `embed_model` is an active dynamic property whose default resolution getter inspects `os.environ`. Because `os.environ` lacked the key, LlamaIndex raised an uncaught `ValueError: No API key found for OpenAI` prior to calling `configure_embedding_model()`. This aborted system knowledge ingestion silently, leaving LanceDB with 0 chunks in `workspace="Global"`.
+
+2. **Strict Workspace Isolation in Native Rust BM25**:
+   The native Rust BM25 index (`crates/any-context-core-rs/src/retrieval/bm25.rs`) evaluated workspace filters as:
+   $$\text{match}(d, ws) = \begin{cases} \text{true} & \text{if } ws = \emptyset \lor ws = \text{"Default"} \lor d.workspace = ws \\ \text{false} & \text{otherwise} \end{cases}$$
+   When a user was inside `workspace="IKEAShipments"`, any document with `workspace="Global"` was strictly skipped during lexical scoring. Even when `Global` chunks were partially present in dense retrieval, they were crowded out during Reciprocal Rank Fusion (RRF) because local workspace chunks received both dense and sparse score contributions while `Global` chunks received zero sparse score.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as Human User (OpenTUI / CLI)
+    participant Core as Core Agent (search_db)
+    participant Retriever as ParallelRetriever (Python)
+    participant Rust as HybridRetrieverEngine (Rust BM25)
+    participant Lance as LanceDB Columnar Store
+
+    User->>Core: "Como funciona o comando /link e para que serve o Shared Sources?"
+    Core->>Retriever: search(prompt, workspace="IKEAShipments", target_workspaces=["IKEAShipments", "Global"])
+    Retriever->>Lance: search_vector(qv, limit=40, workspace="IKEAShipments")
+    Retriever->>Lance: search_vector(qv, limit=20, workspace="Global")
+    Retriever->>Rust: fuse_and_diversify(dense_results, query, workspace=None)
+    Note over Rust: BM25 ranks both IKEAShipments and Global chunks without workspace exclusion
+    Rust->>Retriever: Fused RRF Top-K Candidates
+    Retriever->>Retriever: Filter by allowed_workspaces (IKEAShipments + Global)
+    Retriever->>Core: Top 1 & 2: system://help_registry, system://readme
+    Core->>User: Formats comprehensive, grounded explanation of /link and Shared Sources
+```
+
+### 2. Runtime Credential Environment Export (`src/any_context/core/utils.py`)
+To immunize all third-party libraries (LlamaIndex, LangChain, OpenAI Python SDK) from dynamic getter failures, `get_api_key()` automatically exports any resolved key from SQLite to `os.environ`:
+```python
+if resolved_key and resolved_key not in ["lm-studio", "placeholder", "sk-placeholder"]:
+    if p in env_map:
+        primary_var = env_map[p][0]
+        if not os.getenv(primary_var):
+            os.environ[primary_var] = resolved_key
+    else:
+        var_name = f"{p.upper()}_API_KEY"
+        if not os.getenv(var_name):
+            os.environ[var_name] = resolved_key
+```
+
+### 3. Safe Introspection & Explicit Embedding Pre-Configuration
+- In `src/any_context/vector_engine/indexer.py`:
+  ```python
+  if getattr(Settings, "_embed_model", None) is None:
+      configure_embedding_model()
+  ```
+- In `src/any_context/help/bootstrap.py`:
+  ```python
+  from any_context.tools.search_tools import configure_embedding_model
+  configure_embedding_model()
+  indexer = ParallelIndexer(store=lance_store)
+  ```
+
+### 4. Unrestricted BM25 System Discovery in Native Rust
+In `crates/any-context-core-rs/src/retrieval/bm25.rs`, the lexical filtering rule is updated to permanently recognize `workspace="Global"` as universal system knowledge:
+```rust
+if let Some(ws) = workspace {
+    if !ws.is_empty() && doc.workspace != ws && doc.workspace != "Global" && ws != "Default" {
+        continue;
+    }
+}
+```
+$$\text{BM25\_Eligible}(d, ws) \iff ws = \emptyset \lor ws = \text{"Default"} \lor d.workspace = ws \lor d.workspace = \text{"Global"}$$
+
+### 5. Multi-Workspace Python Retrieval Filtering (`src/any_context/vector_engine/retriever.py`)
+When a query contains system command terms (`/link`, `/sync`, `shared sources`, `como funciona`, `ajuda`, etc.), `ParallelRetriever` sets `target_ws = None` for BM25 fusion and enforces strict workspace boundaries in Python:
+```python
+allowed_workspaces = set(target_workspaces) if target_workspaces else ({workspace} if workspace else set())
+
+for r in fused_raw:
+    r_ws = r.get("workspace", "Default")
+    if allowed_workspaces and r_ws not in allowed_workspaces and r_ws != "Global":
+        continue
+    final_chunks.append(...)
+```
+This guarantees that unrelated user workspaces (e.g. `TaxReturn`, `RustBook`) are completely excluded, while `Global` chunks and active project chunks compete fairly based on true lexical and semantic relevance.
+
 
 
 

@@ -195,7 +195,7 @@ impl BM25Index {
                     let doc_idx = p.doc_idx;
                     if let Some(doc) = self.docs.get(doc_idx as usize) {
                         if let Some(ws) = workspace {
-                            if !ws.is_empty() && doc.workspace != ws && ws != "Default" {
+                            if !ws.is_empty() && doc.workspace != ws && doc.workspace != "Global" && ws != "Default" {
                                 continue;
                             }
                         }

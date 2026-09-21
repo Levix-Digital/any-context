@@ -186,6 +186,8 @@ def ensure_system_knowledge_indexed(db_path: Optional[str] = None, force: bool =
 
     # 7. Index into LanceDB under workspace='Global'
     try:
+        from any_context.tools.search_tools import configure_embedding_model
+        configure_embedding_model()
         indexer = ParallelIndexer(store=lance_store)
         cfg = IngestionConfig(chunk_size=1024, chunk_overlap=150, max_workers=4)
         indexer.index_documents(documents=docs_to_index, workspace_name="Global", config=cfg)
