@@ -60,9 +60,18 @@ IGNORED_DIRS = {
 
 def discover_workspace_files(root_folder: str) -> List[str]:
     """
-    Recursively crawls all subfolders starting from root_folder using os.walk.
+    Recursively crawls all subfolders starting from root_folder using high-speed
+    native Rust WorkspaceScanner (with pure-Python fallback).
     Finds ALL supported files, handling case-insensitive extensions and ignoring lock/temp/build files.
     """
+    try:
+        import any_context_core_rs
+        scanner = any_context_core_rs.WorkspaceScanner()
+        discovered = scanner.discover_files(root_folder)
+        return [os.path.abspath(p) for p in discovered]
+    except Exception:
+        pass
+
     valid_file_paths = []
     for root, dirs, files in os.walk(root_folder):
         dirs[:] = [d for d in dirs if d.lower() not in IGNORED_DIRS and not d.startswith(".")]
@@ -370,15 +379,6 @@ def run_index_folder(
         "chunks_count": idx_res.get("indexed_chunks", len(all_documents)),
         "changes": diff_summary
     }
-
-
-def index_folder(workspace_name: str = None, verbose: bool = False):
-    """
-    Index documents in the vector database incrementally across all configured workspaces,
-    or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
-    """
-    return run_index_folder(workspace_name=workspace_name, verbose=verbose)
-
 
 
 if __name__ == "__main__":

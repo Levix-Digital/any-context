@@ -7,7 +7,54 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.29 Collaborative Dialogue Supremacy, Dead-End Disclaimer Elimination & Full-Turn Epistemic Purging): Validação da Ativação Proativa do Modo de Diálogo em Perguntas Amplas, Eliminação de Disclaimers Frios e Purgamento Completo de Turnos em Retentativas
+### 📌 Cenário 1 (v0.30.30 Native Rust Workspace File Scanner & High-Performance Differential Sync): Validação da Varredura Ultrarrápida em Rust, Detecção Diferencial (Novo, Modificado, Deletado e Renomeado $0.00) e Limpeza Hexagonal
+
+- **Objetivo**: Comprovar que na versão `v0.30.30`:
+  1. **Varredura Nativa em Rust (`WorkspaceScanner`)**: A descoberta de arquivos do workspace é executada pelo motor nativo compilado em Rust com `walkdir = "2.5"`, garantindo poda antecipada de pastas ignoradas (`.git`, `node_modules`, `target`, `.venv`, etc.), suporte às 50+ extensões e arquivos especiais (`Dockerfile`, `.env.*`), e exclusão de temporários/minificados.
+  2. **Detecção Diferencial Sub-Milissegundo (`scan_and_diff`)**: O cálculo de arquivos novos, modificados, excluídos e renomeados é realizado em Rust contra os registros do SQLite, operando com precisão de mtime (0.001s).
+  3. **Identificação de Renomeação com Custo Zero ($0.00)**: Arquivos movidos entre pastas ou renomeados no mesmo diretório são identificados instantaneamente pelo par `(old_path, new_path)` e repontados sem re-vetorização de embeddings.
+  4. **Arquitetura Hexagonal Limpa**: Ausência de aliases redundantes (`index_folder`), com `run_index_folder` padronizado em todas as superfícies (CLI, OpenTUI, REST API e MCP Server).
+- **Pré-requisito**: Versão `v0.30.30` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão Instantânea via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.30` em menos de 50ms.
+
+2. **⚡ Validação da Varredura Incremental sem Mudanças:**
+   - Abra o terminal no workspace ativo e execute:
+     ```text
+     actx
+     ```
+   - Dentro da sessão interativa, execute o comando de sincronização:
+     ```text
+     /sync
+     ```
+   - **Critério de Aceitação:**
+     - O scanner nativo em Rust varre todos os diretórios em milissegundos.
+     - O relatório exibe `Up to date (0 changes)` sem disparar chamadas de API ou re-fatiamento.
+
+3. **🔄 Validação da Detecção Diferencial em Tempo Real (Novo, Modificado, Renomeado):**
+   - Mantenha o terminal aberto. Em outra janela ou explorador de arquivos na pasta do workspace:
+     - Crie um arquivo novo de teste: `teste_rust.py` com `print("anycontext rust scanner")`.
+     - Modifique um arquivo de texto existente adicionando uma linha.
+     - Renomeie um arquivo existente para `arquivo_antigo_renomeado.ext`.
+   - Volte ao terminal do `actx` e digite:
+     ```text
+     /sync
+     ```
+   - **Critério de Aceitação:**
+     - O console exibe a detecção precisa: `1 new file`, `1 modified file`, `1 renamed file repointed with zero-cost ($0.00)`.
+     - Apenas o arquivo novo e o modificado são re-indexados. O arquivo renomeado tem apenas seus metadados repontados sem custo de tokens.
+
+---
+
+### 📌 Cenário 2 (v0.30.29 Collaborative Dialogue Supremacy, Dead-End Disclaimer Elimination & Full-Turn Epistemic Purging): Validação da Ativação Proativa do Modo de Diálogo em Perguntas Amplas, Eliminação de Disclaimers Frios e Purgamento Completo de Turnos em Retentativas
+
 
 - **Objetivo**: Comprovar que na versão `v0.30.29`:
   1. **Supremacia do Modo de Diálogo (`clarification-dialogue`) em Perguntas Amplas**: Ao fazer perguntas abertas ou sobre múltiplas remessas/documentos (ex: *"Quais foram as entregas da IKEA?"*), o modelo **nunca emite o disclaimer robótico de ausência** (`⚠️ Essa informação não consta...`). Em vez disso, resume os documentos e registros localizados no workspace (romaneios CMR, checklists e TSOs) e faz proativamente 2 a 3 perguntas de alinhamento com opções claras de formato (tabela cronológica, agrupamento por transportadora ou detalhamento de remessa).

@@ -14,7 +14,7 @@ from any_context.config.db_store import ConfigDBStore
 from any_context.core.agent import create_anycontext_agent, saver
 
 from any_context.tools.search_tools import search_db
-from any_context.ingestion.local_folder_ingestor import run_index_folder, index_folder
+from any_context.ingestion.local_folder_ingestor import run_index_folder
 from any_context.memory import MemoryManager
 from any_context.billing import BillingManager, get_all_plans, get_plan_by_id
 

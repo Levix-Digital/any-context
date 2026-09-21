@@ -30,7 +30,6 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from any_context.tools.search_tools import search_db, add_web_source, list_web_sources, remove_web_source
 from any_context.tools.web_search_tool import live_web_search
-from any_context.ingestion.local_folder_ingestor import index_folder
 from any_context.core.utils import get_system_prompt, get_api_key
 from any_context.config.app_settings import AppSettings
 from any_context.config.db_store import ConfigDBStore
@@ -893,7 +892,7 @@ def create_anycontext_agent(
         caller_type=resolved_caller_type
     )
 
-    tools = [search_db, add_web_source, list_web_sources, remove_web_source, index_folder]
+    tools = [search_db, add_web_source, list_web_sources, remove_web_source]
     if web_search_enabled:
         tools.append(live_web_search)
 

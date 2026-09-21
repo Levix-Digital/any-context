@@ -102,24 +102,91 @@ def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
     except Exception:
         pass
 
-    # Discover local disk files
-    from any_context.ingestion.local_folder_ingestor import discover_workspace_files
-    disk_files: Dict[str, Dict[str, Any]] = {}
-    for folder_path in folders:
-        if os.path.exists(folder_path):
-            discovered = discover_workspace_files(folder_path)
-            for f in discovered:
-                try:
-                    st = os.stat(f)
-                    disk_files[f] = {
-                        "file_path": f,
-                        "last_mtime": st.st_mtime,
-                        "file_size": st.st_size
-                    }
-                except Exception:
-                    pass
-
     cached_files = store.get_workspace_files_cache(clean_ws)
+
+    # 1. Native Rust WorkspaceScanner: ultra-fast multi-folder scan & differential change calculation
+    diff_res = None
+    try:
+        import any_context_core_rs
+        scanner = any_context_core_rs.WorkspaceScanner()
+        diff_res = scanner.scan_and_diff(folders, cached_files)
+    except Exception:
+        pass
+
+    if diff_res is not None:
+        disk_files: Dict[str, Dict[str, Any]] = diff_res["disk_files"]
+        new_files = list(diff_res["new_files"])
+        modified_files = list(diff_res["modified_files"])
+        deleted_files = list(diff_res["deleted_files"])
+        renamed_files = list(diff_res["renamed_files"])
+    else:
+        # Fallback pure-Python execution
+        from any_context.ingestion.local_folder_ingestor import discover_workspace_files
+        disk_files: Dict[str, Dict[str, Any]] = {}
+        for folder_path in folders:
+            if os.path.exists(folder_path):
+                discovered = discover_workspace_files(folder_path)
+                for f in discovered:
+                    try:
+                        st = os.stat(f)
+                        disk_files[f] = {
+                            "file_path": f,
+                            "last_mtime": st.st_mtime,
+                            "file_size": st.st_size
+                        }
+                    except Exception:
+                        pass
+
+        new_files = []
+        modified_files = []
+        deleted_files = []
+
+        for fp, d_info in disk_files.items():
+            if fp not in cached_files:
+                new_files.append(fp)
+            else:
+                c_info = cached_files[fp]
+                if abs(c_info["last_mtime"] - d_info["last_mtime"]) > 0.001 or c_info["file_size"] != d_info["file_size"]:
+                    modified_files.append(fp)
+
+        for fp in cached_files.keys():
+            if fp not in disk_files:
+                deleted_files.append(fp)
+
+        # Detect zero-cost renamed/moved files
+        renamed_files = []
+        remaining_new = list(new_files)
+        remaining_deleted = list(deleted_files)
+
+        for del_f in list(deleted_files):
+            del_size = cached_files[del_f]["file_size"]
+            del_base = os.path.basename(del_f)
+            del_ext = os.path.splitext(del_f)[1].lower()
+            del_dir = os.path.dirname(del_f)
+            for new_f in list(remaining_new):
+                new_size = disk_files[new_f]["file_size"]
+                new_base = os.path.basename(new_f)
+                new_ext = os.path.splitext(new_f)[1].lower()
+                new_dir = os.path.dirname(new_f)
+
+                is_match = False
+                if del_size == new_size and del_size > 0:
+                    if del_base == new_base:
+                        is_match = True
+                    elif del_ext == new_ext and del_dir == new_dir:
+                        is_match = True
+
+                if is_match:
+                    renamed_files.append((del_f, new_f))
+                    if del_f in remaining_deleted:
+                        remaining_deleted.remove(del_f)
+                    if new_f in remaining_new:
+                        remaining_new.remove(new_f)
+                    break
+
+        new_files = remaining_new
+        deleted_files = remaining_deleted
+
     is_virgin = len(cached_files) == 0 and len(disk_files) > 0
 
     # Self-healing check: verify if the vector table actually has indexed chunks for this workspace
@@ -131,61 +198,13 @@ def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
             if ws_chunks == 0:
                 is_virgin = True
                 cached_files = {}
+                new_files = list(disk_files.keys())
+                modified_files = []
+                deleted_files = []
+                renamed_files = []
         except Exception:
             pass
 
-    new_files = []
-    modified_files = []
-    deleted_files = []
-
-    for fp, d_info in disk_files.items():
-        if fp not in cached_files:
-            new_files.append(fp)
-        else:
-            c_info = cached_files[fp]
-            if abs(c_info["last_mtime"] - d_info["last_mtime"]) > 0.001 or c_info["file_size"] != d_info["file_size"]:
-                modified_files.append(fp)
-
-    for fp in cached_files.keys():
-        if fp not in disk_files:
-            deleted_files.append(fp)
-
-    # Detect zero-cost renamed/moved files
-    renamed_files = []
-    remaining_new = list(new_files)
-    remaining_deleted = list(deleted_files)
-
-    for del_f in list(deleted_files):
-        del_size = cached_files[del_f]["file_size"]
-        del_base = os.path.basename(del_f)
-        del_ext = os.path.splitext(del_f)[1].lower()
-        del_dir = os.path.dirname(del_f)
-        for new_f in list(remaining_new):
-            new_size = disk_files[new_f]["file_size"]
-            new_base = os.path.basename(new_f)
-            new_ext = os.path.splitext(new_f)[1].lower()
-            new_dir = os.path.dirname(new_f)
-
-            is_match = False
-            # Strict rename/move match:
-            # 1. Moved file: exact same filename and non-zero size across paths
-            # 2. Renamed file: exact same directory, same extension, and exact same non-zero size
-            if del_size == new_size and del_size > 0:
-                if del_base == new_base:
-                    is_match = True
-                elif del_ext == new_ext and del_dir == new_dir:
-                    is_match = True
-
-            if is_match:
-                renamed_files.append((del_f, new_f))
-                if del_f in remaining_deleted:
-                    remaining_deleted.remove(del_f)
-                if new_f in remaining_new:
-                    remaining_new.remove(new_f)
-                break
-
-    new_files = remaining_new
-    deleted_files = remaining_deleted
 
     has_changes = bool(new_files or modified_files or deleted_files or renamed_files)
     is_up_to_date = not has_changes and not is_virgin
