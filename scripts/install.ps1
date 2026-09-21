@@ -101,6 +101,11 @@ if (Get-Command gh -ErrorAction SilentlyContinue) {
         $TempZip = Join-Path $InstallDir $ArchiveName
         if (Test-Path $TempZip) {
             Write-Host "[*] Extracting package contents..." -ForegroundColor Gray
+            Get-ChildItem -Path $InstallDir -Filter "_internal_old*" -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            $staleNested = Join-Path (Join-Path $InstallDir "_internal") "_internal"
+            if (Test-Path $staleNested) {
+                Remove-Item -LiteralPath $staleNested -Recurse -Force -ErrorAction SilentlyContinue
+            }
             if (Extract-Package -ZipPath $TempZip -Destination $InstallDir) {
                 Remove-Item -LiteralPath $TempZip -Force -ErrorAction SilentlyContinue
                 $Downloaded = $true
@@ -117,6 +122,11 @@ if (-not $Downloaded) {
         Invoke-WebRequest -Uri $ZipUrl -OutFile $TempZip -UseBasicParsing
         if ((Test-Path $TempZip) -and (Get-Item $TempZip).Length -gt 0) {
             Write-Host "[*] Extracting package contents..." -ForegroundColor Gray
+            Get-ChildItem -Path $InstallDir -Filter "_internal_old*" -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            $staleNested = Join-Path (Join-Path $InstallDir "_internal") "_internal"
+            if (Test-Path $staleNested) {
+                Remove-Item -LiteralPath $staleNested -Recurse -Force -ErrorAction SilentlyContinue
+            }
             if (Extract-Package -ZipPath $TempZip -Destination $InstallDir) {
                 Remove-Item -LiteralPath $TempZip -Force -ErrorAction SilentlyContinue
                 $Downloaded = $true

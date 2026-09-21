@@ -3312,4 +3312,94 @@ To maintain absolute interface parity across all adapters:
 - **Pydantic v2 `Optional[str]` Strictness**: In Python 3.10+, defining `workspace: str = None` defines type `str` with default `None`. When callers or LLM JSON payloads pass `{"workspace": null}`, Pydantic v2 rejects the value with `ValidationError: Input should be a valid string`. All tool signatures in `search_tools.py` now explicitly annotate `workspace: Optional[str] = None` and `query: Optional[str] = None`.
 - **Universal Parameter Parity (`prompt_text` + `query` alias)**: `search_db` natively accepts either `prompt_text` or `query` interchangeably (`effective_prompt = prompt_text or query or ""`), allowing direct MCP tool calls (`{"query": "..."}`) and standard LangGraph tool calls (`{"prompt_text": "..."}`) to execute identically without argument mapping errors.
 
+---
+
+## 27. Robust Anti-Nesting Recursive Self-Updater Architecture (`v0.30.25`)
+
+### 1. Problem Definition: The PyInstaller Onedir Nesting Trap
+In PyInstaller `--onedir` distributions, the application executable (`actx-core.exe`) is co-located with a runtime directory named `_internal/` containing `python311.dll` and all bundled dependency modules.
+
+During self-update operations (`actx --update`) on Windows NTFS:
+1. When `actx-core.exe` is currently running, Windows places an exclusive file-mapping lock on `_internal\python311.dll`.
+2. Renaming `_internal` to `_internal_old` succeeds on Windows NTFS even with open file handles, but if `_internal_old` already exists from an aborted or previous update, `os.rename(internal_dir, old_internal_dir)` fails immediately with `FileExistsError: [WinError 183] Cannot create a file when that file already exists`.
+3. Standard Python `shutil.move(src, dst)` exhibits a notorious semantic behavior:
+   $$\text{shutil.move}(S, D) \implies \begin{cases}
+   \text{replace } D \text{ with } S & \text{if } D \text{ does not exist} \\
+   \text{move } S \text{ inside } D \implies D/S & \text{if } D \text{ exists and is a directory}
+   \end{cases}$$
+4. Consequently, moving `staging_dir/_internal` to `target_dir/_internal` when `target_dir/_internal` still exists moves `_internal` *inside* `_internal`, producing `target_dir/_internal/_internal/python311.dll`.
+5. Upon next launch, the PyInstaller bootloader attempts to locate `_internal\python311.dll`, fails, and crashes with:
+   ```text
+   [PYI-37152:ERROR] Failed to load Python DLL '...\AppData\Local\actx\bin\_internal\python311.dll'.
+   LoadLibrary: The specified module could not be found.
+   ```
+
+### 2. Architectural Solution: Recursive Directory Merge & Collision-Free Backups
+
+```mermaid
+flowchart TD
+    A["Download Release Archive: actx-windows-x86_64.zip"] --> B["Unpack into staging_dir (actx_staging/)"]
+    B --> C["Generate Unique Backup Path: _internal_old_{timestamp}_{pid}"]
+    C --> D{"Does target_dir/_internal exist?"}
+    D -- Yes --> E["os.rename(internal_dir, unique_old_internal_dir)"]
+    D -- No --> F["Proceed directly to Merge"]
+    E --> F
+    F --> G["Loop through staging_dir items"]
+    G --> H{"Is item a directory (e.g. _internal)?"}
+    H -- Yes --> I["merge_directory_contents(src, dst)"]
+    H -- No --> J["Direct Atomic File Replace: os.replace(src, dst)"]
+    I --> K["Recursive os.walk with File-Level os.replace / Overwrite"]
+    K --> L["shutil.rmtree(src_dir) - Purge empty staging tree"]
+    J --> M["Check overall status"]
+    L --> M
+    M --> N["cleanup_stale_internal_backups(target_dir)"]
+    N --> O["Update version.txt & Launcher Shim"]
+```
+
+### 3. Implementation Details
+
+#### 1. Recursive Directory Merger (`merge_directory_contents`)
+```python
+def merge_directory_contents(src_dir: str, dst_dir: str) -> None:
+    os.makedirs(dst_dir, exist_ok=True)
+    for root, dirs, files in os.walk(src_dir):
+        rel = os.path.relpath(root, src_dir)
+        target_root = os.path.join(dst_dir, rel) if rel != "." else dst_dir
+        os.makedirs(target_root, exist_ok=True)
+        for f in files:
+            s_file = os.path.join(root, f)
+            d_file = os.path.join(target_root, f)
+            if os.path.exists(d_file):
+                try: os.remove(d_file)
+                except Exception: pass
+            try: os.replace(s_file, d_file)
+            except Exception: shutil.move(s_file, d_file)
+    try: shutil.rmtree(src_dir, ignore_errors=True)
+    except Exception: pass
+```
+- **Guaranteed Invariant**: Files from `staging_dir/_internal/` are guaranteed to land at `target_dir/_internal/<relative_path>`. The directory `_internal` can never be nested inside itself.
+
+#### 2. Unique Collision-Free Backup Naming
+- Replaced static `_internal_old` with:
+  $$\text{backup\_dir} = \text{target\_dir} + \text{"/\_internal\_old\_"} + \text{str}(\text{int}(\text{time.time}())) + \text{"\_"} + \text{str}(\text{os.getpid}())$$
+- Eliminates `FileExistsError` (WinError 183) during atomic swaps.
+- Proactive cleanup via `cleanup_stale_internal_backups(target_dir)` at update initialization and completion removes previous backup directories once file locks are relinquished by exited processes.
+
+#### 3. Hardened Asynchronous PowerShell Fallback (Step B)
+If immediate swap cannot take place synchronously due to active locks, the background PowerShell watcher script now uses container-aware item copying:
+```powershell
+Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {
+    $destItem = Join-Path '{target_dir}' $_.Name;
+    if ($_.PSIsContainer) {
+        if (-not (Test-Path -LiteralPath $destItem)) { New-Item -ItemType Directory -Path $destItem -Force | Out-Null };
+        Copy-Item -Path (Join-Path $_.FullName '*') -Destination $destItem -Recurse -Force -ErrorAction Stop;
+        Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue;
+    } else {
+        Move-Item -LiteralPath $_.FullName -Destination $destItem -Force -ErrorAction Stop;
+    }
+}
+```
+This guarantees that the PowerShell fallback process also respects the anti-nesting invariant.
+
+
 
