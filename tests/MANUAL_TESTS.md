@@ -7,7 +7,52 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.26 Caller-Aware Output Modulation, Modular Agent Skills & Global Auto-Reindexed System Help): Validação da Modulação por Chamador, Diálogo Colaborativo vs MCP Direto e Help Global Trans-Workspace
+### 📌 Cenário 1 (v0.30.27 Terminal Stream Isolation, Background Thread Silence & Pre-Flight Embedding Credential Guards): Validação da Inicialização Limpa do OpenTUI, Imunidade contra Falta de Chave de API e Ausência de Corrupção Visual no Banner
+
+- **Objetivo**: Comprovar que na versão `v0.30.27`:
+  1. **Inicialização 100% Limpa e Íntegra no OpenTUI**: Ao iniciar o AnyContext (`actx`), mesmo em um terminal ou ambiente onde a variável `OPENAI_API_KEY` não esteja presente, o banner ASCII Art e a árvore de telemetria de boot (`┌─ ⚡ Engine Startup Telemetry`) renderizam com alinhamento milimétrico perfeito, sem quebras de linha espúrias, sem asteriscos soltos (`******`) e sem mensagens de erro de embeddings atropelando a tela.
+  2. **Silenciamento Absoluto de Background Threads**: O worker de indexação do Help Global em segundo plano não escreve nenhum caractere para `sys.stdout` nem para `sys.stderr`. Qualquer exceção interna é canalizada estritamente para o banco SQLite de observabilidade (`obs.debug`).
+  3. **Pre-Flight Credential Guard**: A rotina de auto-indexação no LanceDB detecta a ausência de chave de API antes de instanciar o modelo de vetorização, abortando de forma graciosa e silenciosa (`return False`), aguardando que o usuário configure a chave (via `/config` ou `.env`).
+  4. **Desacoplamento do Launcher CLI**: O processo pai (`entrypoint.py`) ao disparar a interface OpenTUI não executa threads concorrentes de indexação, delegando todo o ciclo de background unicamente ao backend do RPC Bridge (`rpc_bridge.py`).
+- **Pré-requisito**: Versão `v0.30.27` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação da Versão via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.27` em menos de 50ms.
+
+2. **🚀 Abertura do OpenTUI sem Variável OPENAI_API_KEY:**
+   - Em uma nova sessão de terminal (ou onde `OPENAI_API_KEY` não esteja exportada no shell), execute:
+     ```text
+     actx
+     ```
+   - **Critério de Aceitação:**
+     - A interface OpenTUI inicializa diretamente em tela cheia com sua estética impecável.
+     - O banner ASCII `AnyContext` e o cabeçalho `Community Edition` / `Pro Plan` carregam 100% íntegros.
+     - A árvore `┌─ ⚡ Engine Startup Telemetry` exibe seus 6 passos limpos e alinhados, sem texto sobreposto (`nceDB:`, `******`, `Could not find API key`).
+     - A caixa de status `💬 Chat started!` e a dica `📜 Scroll Hint` aparecem com suas bordas perfeitas e sem caracteres corrompidos na margem esquerda (`C`, `W s`, `* *`).
+
+3. **🧹 Teste de Limpeza de Tela (`/clear`):**
+   - Dentro do chat, digite:
+     ```text
+     /clear
+     ```
+   - **Critério de Aceitação:** A tela é limpa instantaneamente e o banner Full Glory reaparece 100% limpo, sem fragmentos residuais.
+
+4. **🚪 Saída Graciosa:**
+   - Digite:
+     ```text
+     /exit
+     ```
+   - **Critério de Aceitação:** O terminal é restaurado perfeitamente sem erros ou stack traces no encerramento.
+
+---
+
+### 📌 Cenário 2 (v0.30.26 Caller-Aware Output Modulation, Modular Agent Skills & Global Auto-Reindexed System Help): Validação da Modulação por Chamador, Diálogo Colaborativo vs MCP Direto e Help Global Trans-Workspace
 
 - **Objetivo**: Comprovar que na versão `v0.30.26`:
   1. **Modulação de Saída Consciente do Chamador (`caller_type`)**:

@@ -147,14 +147,36 @@ def ensure_system_knowledge_indexed(db_path: Optional[str] = None, force: bool =
         except Exception:
             pass
 
+    # 4. Pre-flight credential check: if cloud embedding provider is configured but API key is missing or placeholder,
+    # skip indexing silently to avoid throwing exceptions and polluting stdout/stderr.
+    from any_context.core.utils import get_api_key, load_env
+    from any_context.observability import obs
+    load_env()
+    model_provider = settings.models.model_provider if settings and settings.models else "openai"
+    api_key = get_api_key(provider=model_provider)
+    is_local_provider = model_provider in ["local", "lm-studio", "ollama"]
+    if not is_local_provider:
+        from llama_index.core import Settings
+        existing_embed = getattr(Settings, "_embed_model", None)
+        is_mock_env = (
+            (existing_embed is not None and "mock" in type(existing_embed).__name__.lower())
+            or (api_key is not None and (api_key.startswith("mock_") or "test" in api_key.lower() or "mock" in api_key.lower()))
+        )
+        if not api_key and not is_mock_env:
+            obs.debug("HELP:BOOTSTRAP_SKIP", "Skipping system help vector indexing: no API key configured yet.")
+            return False
+        if api_key in ["placeholder", "sk-placeholder", "lm-studio"] and not is_mock_env:
+            obs.debug("HELP:BOOTSTRAP_SKIP", "Skipping system help vector indexing: placeholder API key.")
+            return False
+
     lance_store = LanceDBStore.get_instance(db_path=lance_dir)
 
-    # 4. Stamp composite hash on all docs
+    # 5. Stamp composite hash on all docs
     for doc in docs_to_index:
         doc.metadata["content_hash"] = composite_hash
         doc.metadata["version"] = __version__
 
-    # 5. Remove any older Global system help chunks before inserting updated ones
+    # 6. Remove any older Global system help chunks before inserting updated ones
     try:
         if lance_store._has_table("workspace_chunks"):
             lance_store.delete_by_file("system://help_registry", workspace_name="Global")
@@ -162,13 +184,13 @@ def ensure_system_knowledge_indexed(db_path: Optional[str] = None, force: bool =
     except Exception:
         pass
 
-    # 6. Index into LanceDB under workspace='Global'
+    # 7. Index into LanceDB under workspace='Global'
     try:
         indexer = ParallelIndexer(store=lance_store)
         cfg = IngestionConfig(chunk_size=1024, chunk_overlap=150, max_workers=4)
         indexer.index_documents(documents=docs_to_index, workspace_name="Global", config=cfg)
 
-        # 7. Write atomic cache marker
+        # 8. Write atomic cache marker
         try:
             with open(metadata_cache_path, "w", encoding="utf-8") as f:
                 json.dump({"version": __version__, "hash": composite_hash, "updated_at": time.time()}, f)
@@ -178,7 +200,7 @@ def ensure_system_knowledge_indexed(db_path: Optional[str] = None, force: bool =
         return True
     except Exception as e:
         if "interpreter shutdown" not in str(e).lower():
-            print(f"⚠️ Warning: Could not bootstrap system knowledge into LanceDB: {e}")
+            obs.debug("HELP:BOOTSTRAP_ERROR", f"Could not bootstrap system knowledge into LanceDB: {e}")
         return False
 
 
