@@ -2377,6 +2377,17 @@ class ConfigDBStore:
         except Exception:
             return False
 
+    def get_active_workspace(self, default: str = "Default") -> str:
+        """Retrieves the currently active workspace from system_config table."""
+        val = self.get_system_config("active_workspace", default=default)
+        return val.strip() if val and val.strip() else default
+
+    def set_active_workspace(self, workspace_name: str) -> bool:
+        """Persists the currently active workspace in system_config table."""
+        if not workspace_name or not str(workspace_name).strip():
+            return False
+        return self.set_system_config("active_workspace", str(workspace_name).strip())
+
     def get_onboarding_completed(self) -> bool:
         """
         Returns True if first-time onboarding has been completed, verified across:

@@ -44,6 +44,9 @@
 56. [RAG Retrieval Enhancements: Query Expansion, Filename Grounding & Atomic Page Chunking (`v0.30.19`)](#56-rag-retrieval-enhancements-query-expansion-filename-grounding--atomic-page-chunking-v03019)
 57. [Short Numeric Date Grounding, Hermetic BM25 Purge, Full Chunk Inspection & Modular Agent Skills (`v0.30.20`)](#57-short-numeric-date-grounding-hermetic-bm25-purge-full-chunk-inspection--modular-agent-skills-v03020)
 58. [Multi-Turn Checkpoint Tool Demarcation, Zero-Drop Retrieval & Clarification Grounding (`v0.30.21`)](#58-multi-turn-checkpoint-tool-demarcation-zero-drop-retrieval--clarification-grounding-v03021)
+59. [3-Level Hierarchical Memory Cascade, 15-Turn SQLite Session Rollover & Inference Sliding Window (`v0.30.22`)](#59-3-level-hierarchical-memory-cascade-15-turn-sqlite-session-rollover--inference-sliding-window-v03022)
+60. [Epistemic State Machine & Dual-Layer Negative Echo Elimination (`v0.30.23`)](#60-epistemic-state-machine--dual-layer-negative-echo-elimination-v03023)
+61. [Dynamic Active Workspace Resolution, Strict ContextVar Tool Isolation & Pydantic Optional Schema Integrity (`v0.30.24`)](#61-dynamic-active-workspace-resolution-strict-contextvar-tool-isolation--pydantic-optional-schema-integrity-v03024)
 
 ---
 
@@ -3248,5 +3251,65 @@ In `src/any_context/core/utils.py` and `src/any_context/core/grounding_strategie
 - System prompt and dynamic turn headers inject the **Temporal Epistemic Independence Directive**:
   > *"TEMPORAL EPISTEMIC INDEPENDENCE: The workspace documents are dynamic and can be added, updated, or re-indexed at any time. Past absence disclaimers in earlier turns reflect solely the outcome of historical queries at that point in time. NEVER assume an entity or document is absent based on prior absence statements in the conversation history. ALWAYS evaluate current queries and retrieved chunks with 100% cognitive freshness and invoke `search_db` independently."*
 - Ensures that even in ambiguous follow-up turns, the transformer self-attention is explicitly authorized to override past denials with current retrieved workspace documents.
+
+---
+
+## 61. Dynamic Active Workspace Resolution, Strict ContextVar Tool Isolation & Pydantic Optional Schema Integrity (`v0.30.24`)
+
+### 1. Root Cause Analysis & Empirical Discovery (The Silent "Default" Leak)
+In multi-turn conversations on non-default workspaces (e.g. `IKEAShipments`), the LangGraph agent frequently invoked `search_db` omitting the optional `workspace` keyword argument:
+```json
+{
+  "name": "search_db",
+  "args": {
+    "prompt_text": "entregas da IKEA",
+    "search_session_memory": false
+  }
+}
+```
+Prior to `v0.30.24`, `src/any_context/tools/search_tools.py` handled missing workspace parameters via a static fallback:
+```python
+# DEFECTIVE IMPLEMENTATION (v0.30.23 and prior):
+target_workspaces = [workspace] if workspace else ["Default"]
+```
+Because the executing tool function had zero context regarding the caller's active session or thread, `workspace=None` caused the retriever to query `workspace="Default"` instead of the active workspace (`IKEAShipments`). In workspace `Default`, the parallel retriever retrieved unrelated chunks (e.g., Canadian immigration guidelines). The LLM evaluated the retrieved text, correctly observed that it contained no information regarding IKEA shipments, and returned `⚠️ Essa informação não consta nos documentos deste workspace. 📄 Fontes Consultadas: Nenhuma fonte disponível.`
+
+### 2. 4-Tier Dynamic Workspace Resolution Hierarchy
+`v0.30.24` establishes an authoritative 4-tier resolution hierarchy guaranteeing that tool invocations without explicit arguments strictly inherit the caller's active workspace:
+
+```mermaid
+flowchart TD
+    A["Tool Invocation: search_db(prompt_text, workspace=?)"] --> B{"1. Is explicit workspace provided and non-empty?"}
+    B -- Yes --> C["Use Explicit Workspace Target"]
+    B -- No --> D{"2. Is ContextVar _ACTIVE_WORKSPACE_CTX set in execution thread?"}
+    D -- Yes --> E["Use ContextVar Active Workspace"]
+    D -- No --> F{"3. Does ConfigDBStore.get_active_workspace() return a value?"}
+    F -- Yes --> G["Use Stored Active Workspace (settings.db)"]
+    F -- No --> H["4. Fallback to 'Default'"]
+
+    C --> I["LanceDB Parallel Retrieval Across Resolved Workspace"]
+    E --> I
+    G --> I
+    H --> I
+```
+
+#### Mathematical Formulation of Workspace Resolution:
+$$\text{resolved\_ws}(w) = \begin{cases} 
+\text{strip}(w) & \text{if } w \neq \text{None} \land \text{len}(\text{strip}(w)) > 0 \\
+\text{ContextVar}.\text{get}() & \text{else if } \text{ContextVar}.\text{get}() \neq \text{None} \\
+\text{Store}.\text{get\_active\_workspace}() & \text{else if } \text{Store}.\text{get\_active\_workspace}() \neq \text{None} \\
+\text{"Default"} & \text{otherwise}
+\end{cases}$$
+
+### 3. Context Propagation Across Hexagonal Interfaces
+To maintain absolute interface parity across all adapters:
+1. **Stdio RPC Bridge (`server/rpc_bridge.py`)**: `_stream_chat` sets `_ACTIVE_WORKSPACE_CTX` and commits `store.set_active_workspace()` before invoking the LangGraph agent stream.
+2. **Core Agent (`core/agent.py`)**: `PruningBoundModel` wraps `invoke`, `stream`, `ainvoke`, and `astream` inside a `try/finally` block that sets and resets `_ACTIVE_WORKSPACE_CTX(self._active_workspace)`, ensuring tool nodes inherit context during graph execution.
+3. **REST API Server (`server/api.py`)**: Chat endpoints set `set_active_workspace_context(req.workspace)`.
+4. **Model Context Protocol (`server/mcp.py`)**: MCP tools `search_workspace_docs` and `query_anycontext_agent` set `set_active_workspace_context(ws)`.
+
+### 4. Pydantic v2 Type Annotation Integrity & Tool Schema Parity
+- **Pydantic v2 `Optional[str]` Strictness**: In Python 3.10+, defining `workspace: str = None` defines type `str` with default `None`. When callers or LLM JSON payloads pass `{"workspace": null}`, Pydantic v2 rejects the value with `ValidationError: Input should be a valid string`. All tool signatures in `search_tools.py` now explicitly annotate `workspace: Optional[str] = None` and `query: Optional[str] = None`.
+- **Universal Parameter Parity (`prompt_text` + `query` alias)**: `search_db` natively accepts either `prompt_text` or `query` interchangeably (`effective_prompt = prompt_text or query or ""`), allowing direct MCP tool calls (`{"query": "..."}`) and standard LangGraph tool calls (`{"prompt_text": "..."}`) to execute identically without argument mapping errors.
 
 

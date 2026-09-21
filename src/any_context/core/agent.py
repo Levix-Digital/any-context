@@ -482,35 +482,56 @@ class PruningBoundModel:
         return self._bound_no_web
 
     def invoke(self, input_val, config=None, **kwargs):
-        input_val = self._prune(input_val)
-        active_bound = self._select_bound(input_val)
-        res = active_bound.invoke(input_val, config=config, **kwargs)
-        if hasattr(res, "additional_kwargs") and not getattr(res, "tool_calls", None):
-            from any_context.core.epistemic import classify_epistemic_state
-            state = classify_epistemic_state(getattr(res, "content", ""))
-            res.additional_kwargs["epistemic_state"] = state.value
-        return res
+        from any_context.tools.search_tools import set_active_workspace_context, reset_active_workspace_context
+        tok = set_active_workspace_context(self._active_workspace)
+        try:
+            input_val = self._prune(input_val)
+            active_bound = self._select_bound(input_val)
+            res = active_bound.invoke(input_val, config=config, **kwargs)
+            if hasattr(res, "additional_kwargs") and not getattr(res, "tool_calls", None):
+                from any_context.core.epistemic import classify_epistemic_state
+                state = classify_epistemic_state(getattr(res, "content", ""))
+                res.additional_kwargs["epistemic_state"] = state.value
+            return res
+        finally:
+            reset_active_workspace_context(tok)
 
     def stream(self, input_val, config=None, **kwargs):
-        input_val = self._prune(input_val)
-        active_bound = self._select_bound(input_val)
-        return active_bound.stream(input_val, config=config, **kwargs)
+        from any_context.tools.search_tools import set_active_workspace_context, reset_active_workspace_context
+        tok = set_active_workspace_context(self._active_workspace)
+        try:
+            input_val = self._prune(input_val)
+            active_bound = self._select_bound(input_val)
+            for chunk in active_bound.stream(input_val, config=config, **kwargs):
+                yield chunk
+        finally:
+            reset_active_workspace_context(tok)
 
     async def ainvoke(self, input_val, config=None, **kwargs):
-        input_val = self._prune(input_val)
-        active_bound = self._select_bound(input_val)
-        res = await active_bound.ainvoke(input_val, config=config, **kwargs)
-        if hasattr(res, "additional_kwargs") and not getattr(res, "tool_calls", None):
-            from any_context.core.epistemic import classify_epistemic_state
-            state = classify_epistemic_state(getattr(res, "content", ""))
-            res.additional_kwargs["epistemic_state"] = state.value
-        return res
+        from any_context.tools.search_tools import set_active_workspace_context, reset_active_workspace_context
+        tok = set_active_workspace_context(self._active_workspace)
+        try:
+            input_val = self._prune(input_val)
+            active_bound = self._select_bound(input_val)
+            res = await active_bound.ainvoke(input_val, config=config, **kwargs)
+            if hasattr(res, "additional_kwargs") and not getattr(res, "tool_calls", None):
+                from any_context.core.epistemic import classify_epistemic_state
+                state = classify_epistemic_state(getattr(res, "content", ""))
+                res.additional_kwargs["epistemic_state"] = state.value
+            return res
+        finally:
+            reset_active_workspace_context(tok)
 
     async def astream(self, input_val, config=None, **kwargs):
-        input_val = self._prune(input_val)
-        active_bound = self._select_bound(input_val)
-        async for chunk in active_bound.astream(input_val, config=config, **kwargs):
-            yield chunk
+        from any_context.tools.search_tools import set_active_workspace_context, reset_active_workspace_context
+        tok = set_active_workspace_context(self._active_workspace)
+        try:
+            input_val = self._prune(input_val)
+            active_bound = self._select_bound(input_val)
+            async for chunk in active_bound.astream(input_val, config=config, **kwargs):
+                yield chunk
+        finally:
+            reset_active_workspace_context(tok)
 
     def generate_prompt(self, prompts, **kwargs):
         pruned_prompts = []
@@ -746,6 +767,15 @@ def create_anycontext_agent(
 
     # Support flexible alias arguments across all adapters (CLI, TUI, RPC, REST, MCP)
     active_workspace = active_workspace or kwargs.get("workspace_name") or kwargs.get("workspace")
+    if active_workspace:
+        from any_context.tools.search_tools import set_active_workspace_context
+        set_active_workspace_context(active_workspace)
+        try:
+            from any_context.config.db_store import ConfigDBStore
+            ConfigDBStore().set_active_workspace(active_workspace)
+        except Exception:
+            pass
+
     model_override = model_override or kwargs.get("model_name") or kwargs.get("model")
     provider_override = provider_override or kwargs.get("provider") or kwargs.get("model_provider")
 
