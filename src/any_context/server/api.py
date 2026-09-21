@@ -411,6 +411,12 @@ Welcome to the **AnyContext REST API**. This server exposes RAG vector search, i
         redoc_url="/redoc"
     )
 
+    try:
+        from any_context.help.bootstrap import async_ensure_system_knowledge_indexed
+        async_ensure_system_knowledge_indexed()
+    except Exception:
+        pass
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

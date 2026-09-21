@@ -3,11 +3,24 @@ import re
 import uuid
 import sqlite3
 import threading
+import contextvars
 from typing import Optional, List, Dict, Any, Set
 
 MAX_ACTIVE_SESSION_TURNS = 15
 _active_summarizing_threads: Set[str] = set()
 _summarizing_lock = threading.Lock()
+_CALLER_TYPE_CTX: contextvars.ContextVar[str] = contextvars.ContextVar("caller_type", default="human")
+
+
+def set_caller_type_context(caller_type: Optional[str]) -> contextvars.Token:
+    """Sets the caller type context ('human' vs 'mcp') for the current execution thread."""
+    c_val = str(caller_type).strip().lower() if caller_type and str(caller_type).strip() else "human"
+    return _CALLER_TYPE_CTX.set(c_val)
+
+
+def get_caller_type_context() -> str:
+    """Gets the active caller type context."""
+    return _CALLER_TYPE_CTX.get()
 
 
 from langchain.chat_models import init_chat_model
@@ -757,6 +770,7 @@ def create_anycontext_agent(
     provider_override: str = None,
     grounding_mode: str = None,
     web_search_enabled: bool = None,
+    caller_type: str = None,
     **kwargs
 ):
     """
@@ -775,6 +789,9 @@ def create_anycontext_agent(
             ConfigDBStore().set_active_workspace(active_workspace)
         except Exception:
             pass
+
+    resolved_caller_type = str(caller_type or kwargs.get("caller_type") or _CALLER_TYPE_CTX.get() or "human").strip().lower()
+    set_caller_type_context(resolved_caller_type)
 
     model_override = model_override or kwargs.get("model_name") or kwargs.get("model")
     provider_override = provider_override or kwargs.get("provider") or kwargs.get("model_provider")
@@ -850,7 +867,8 @@ def create_anycontext_agent(
     system_prompt = get_system_prompt(
         active_workspace=active_workspace,
         grounding_mode=grounding_mode,
-        web_search_enabled=web_search_enabled
+        web_search_enabled=web_search_enabled,
+        caller_type=resolved_caller_type
     )
 
     tools = [search_db, add_web_source, list_web_sources, remove_web_source, index_folder]

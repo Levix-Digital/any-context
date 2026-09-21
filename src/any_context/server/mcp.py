@@ -560,6 +560,8 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                 msg = arguments.get("message", "")
                 ws = arguments.get("workspace")
                 from any_context.tools.search_tools import set_active_workspace_context
+                from any_context.core.agent import set_caller_type_context, create_anycontext_agent
+                set_caller_type_context("mcp")
                 if ws:
                     set_active_workspace_context(ws)
                 model_req = arguments.get("model")
@@ -571,13 +573,20 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
                         "active_workspace": ws,
                         "model": model_req,
                         "model_override": model_req,
-                        "grounding_mode": grounding_mode
+                        "grounding_mode": grounding_mode,
+                        "caller_type": "mcp"
                     }
                 }
                 
                 try:
+                    mcp_agent = create_anycontext_agent(
+                        active_workspace=ws,
+                        model_override=model_req,
+                        grounding_mode=grounding_mode,
+                        caller_type="mcp"
+                    )
                     full_response = ""
-                    for token, metadata in cli_agent.stream({"messages": [msg]}, stream_mode="messages", config=config):
+                    for token, metadata in mcp_agent.stream({"messages": [msg]}, stream_mode="messages", config=config):
                         if hasattr(token, "type") and token.type in ["ai", "AIMessageChunk", "AIMessage"]:
                             if isinstance(token.content, str) and token.content:
                                 full_response += token.content
@@ -1017,6 +1026,12 @@ def start_mcp_server():
     """
     Launches AnyContext Model Context Protocol (MCP) Server over stdio JSON-RPC 2.0.
     """
+    try:
+        from any_context.help.bootstrap import async_ensure_system_knowledge_indexed
+        async_ensure_system_knowledge_indexed()
+    except Exception:
+        pass
+
     while True:
         try:
             line = sys.stdin.readline()

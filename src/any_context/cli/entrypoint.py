@@ -76,6 +76,12 @@ def entrypoint():
     except Exception:
         pass
 
+    try:
+        from any_context.help.bootstrap import async_ensure_system_knowledge_indexed
+        async_ensure_system_knowledge_indexed()
+    except Exception:
+        pass
+
     from any_context.observability import obs, collect_diagnostic_report, format_diagnostic_report, format_recent_logs
     obs.debug("CLI:BOOT", "AnyContext entrypoint invoked", {"argv": sys.argv})
 

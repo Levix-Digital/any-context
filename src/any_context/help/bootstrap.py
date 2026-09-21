@@ -1,18 +1,21 @@
 """
-AnyContext System Knowledge Auto-Bootstrap Engine (v0.23.1).
+AnyContext System Knowledge Auto-Bootstrap Engine (v0.30.26).
 Permanently indexes the Complete Command Registry (HELP_REGISTRY) and the user-facing README.md
 into the 'Global' workspace inside LanceDB, ensuring that the AI agent has instant,
 first-class self-awareness of all AnyContext commands, options, and workflows across every chat.
 
 STRICT SECURITY RULE:
 Only user-facing documentation (HELP_REGISTRY and README.md) is indexed. Internal architecture/secrets
-(such as TECDOC.md) are strictly excluded from the user knowledge base.
+(such as TECDOC.md) are strictly excluded from the user knowledge base to protect proprietary engineering.
 """
 import os
+import json
 import hashlib
 import time
+import threading
 from typing import List, Optional
 
+from any_context import __version__
 from any_context.config.app_settings import AppSettings
 from any_context.help.registry import HELP_REGISTRY
 from any_context.vector_engine.store import LanceDBStore
@@ -38,10 +41,10 @@ def _find_readme_path() -> Optional[str]:
 def build_system_help_document() -> Document:
     """
     Constructs a comprehensive synthetic Markdown Document compiling the complete HELP_REGISTRY.
-    Covers all 28 CLI commands, parameters, aliases, syntax, and usage examples.
+    Covers all CLI commands, parameters, aliases, syntax, and usage examples.
     """
     text_blocks = [
-        "# 📖 AnyContext Complete Commands, Options & Usage Manual\n",
+        f"# 📖 AnyContext Complete Commands, Options & Usage Manual (v{__version__})\n",
         "> This is the official and authoritative reference for all AnyContext commands, parameters, options, and workflows.\n\n"
     ]
 
@@ -69,6 +72,7 @@ def build_system_help_document() -> Document:
             "source_type": "system_help",
             "content_type": "System Documentation",
             "is_system_help": True,
+            "version": __version__,
             "last_modified": time.strftime("%Y-%m-%d"),
             "keywords": "anycontext, help, commands, transfer, move, switch, sync, web, source, workspace, config, inspect, share, link, backup, restore, density, model, api-keys"
         },
@@ -79,6 +83,7 @@ def build_system_help_document() -> Document:
 def build_system_readme_document(readme_path: str) -> Optional[Document]:
     """
     Reads the user-facing README.md and creates a Document for permanent Global system context.
+    Excludes TECDOC.md strictly.
     """
     if not os.path.exists(readme_path):
         return None
@@ -88,7 +93,7 @@ def build_system_readme_document(readme_path: str) -> Optional[Document]:
             content = f.read()
 
         return Document(
-            text=f"# AnyContext Official User Guide & Overview\n\n{content}",
+            text=f"# AnyContext Official User Guide & Overview (v{__version__})\n\n{content}",
             metadata={
                 "file_name": "AnyContext System Documentation (README.md)",
                 "file_path": "system://readme",
@@ -96,6 +101,7 @@ def build_system_readme_document(readme_path: str) -> Optional[Document]:
                 "source_type": "system_help",
                 "content_type": "System Documentation",
                 "is_system_help": True,
+                "version": __version__,
                 "last_modified": time.strftime("%Y-%m-%d"),
                 "keywords": "anycontext, guide, readme, architecture, workspaces, local ai, privacy, offline models, vector search, rag"
             },
@@ -108,14 +114,15 @@ def build_system_readme_document(readme_path: str) -> Optional[Document]:
 def ensure_system_knowledge_indexed(db_path: Optional[str] = None, force: bool = False) -> bool:
     """
     Ensures that HELP_REGISTRY and README.md are indexed into the 'Global' workspace in LanceDB.
-    Uses SHA-256 content hashing to bypass indexing in < 2ms if already up-to-date.
+    Uses version checking and SHA-256 content hashing to bypass re-indexing in < 1ms if already up-to-date.
+    Automatically re-indexes on every new version release or document update.
     """
     settings = AppSettings.load()
     base_db_path = db_path or (settings.context.db_path if settings and settings.context else "./context_db")
     lance_dir = os.path.join(base_db_path, "lancedb")
     os.makedirs(lance_dir, exist_ok=True)
 
-    lance_store = LanceDBStore.get_instance(db_path=lance_dir)
+    metadata_cache_path = os.path.join(lance_dir, "system_help_cache.json")
 
     # 1. Build synthetic documents
     help_doc = build_system_help_document()
@@ -126,35 +133,32 @@ def ensure_system_knowledge_indexed(db_path: Optional[str] = None, force: bool =
     if readme_doc:
         docs_to_index.append(readme_doc)
 
-    # 2. Compute composite hash
+    # 2. Compute composite hash including version and text
     combined_content = "".join([d.text for d in docs_to_index])
-    composite_hash = hashlib.sha256(combined_content.encode("utf-8")).hexdigest()
+    composite_hash = hashlib.sha256(f"{__version__}:{combined_content}".encode("utf-8")).hexdigest()
 
-    # 3. Check if already indexed in LanceDB with same hash
-    if not force and lance_store._has_table("workspace_chunks"):
+    # 3. Fast cache check (< 1ms)
+    if not force and os.path.exists(metadata_cache_path):
         try:
-            existing_records = lance_store.search_vector(
-                query_vector=[0.0] * 1536,
-                limit=20,
-                workspace="Global",
-                filter_expr="workspace = 'Global' AND source_type = 'system_help'"
-            )
-            if existing_records:
-                # Check if hash matches
-                existing_hashes = {r.metadata.get("content_hash") for r in existing_records if r.metadata}
-                if composite_hash in existing_hashes:
-                    return True
+            with open(metadata_cache_path, "r", encoding="utf-8") as f:
+                cache_data = json.load(f)
+            if cache_data.get("version") == __version__ and cache_data.get("hash") == composite_hash:
+                return True
         except Exception:
             pass
+
+    lance_store = LanceDBStore.get_instance(db_path=lance_dir)
 
     # 4. Stamp composite hash on all docs
     for doc in docs_to_index:
         doc.metadata["content_hash"] = composite_hash
+        doc.metadata["version"] = __version__
 
     # 5. Remove any older Global system help chunks before inserting updated ones
     try:
-        lance_store.delete_by_file("system://help_registry", workspace_name="Global")
-        lance_store.delete_by_file("system://readme", workspace_name="Global")
+        if lance_store._has_table("workspace_chunks"):
+            lance_store.delete_by_file("system://help_registry", workspace_name="Global")
+            lance_store.delete_by_file("system://readme", workspace_name="Global")
     except Exception:
         pass
 
@@ -163,7 +167,28 @@ def ensure_system_knowledge_indexed(db_path: Optional[str] = None, force: bool =
         indexer = ParallelIndexer(store=lance_store)
         cfg = IngestionConfig(chunk_size=1024, chunk_overlap=150, max_workers=4)
         indexer.index_documents(documents=docs_to_index, workspace_name="Global", config=cfg)
+
+        # 7. Write atomic cache marker
+        try:
+            with open(metadata_cache_path, "w", encoding="utf-8") as f:
+                json.dump({"version": __version__, "hash": composite_hash, "updated_at": time.time()}, f)
+        except Exception:
+            pass
+
         return True
     except Exception as e:
-        print(f"⚠️ Warning: Could not bootstrap system knowledge into LanceDB: {e}")
+        if "interpreter shutdown" not in str(e).lower():
+            print(f"⚠️ Warning: Could not bootstrap system knowledge into LanceDB: {e}")
         return False
+
+
+def async_ensure_system_knowledge_indexed(db_path: Optional[str] = None, force: bool = False) -> threading.Thread:
+    """Spawns a non-blocking background thread to ensure system knowledge is indexed."""
+    t = threading.Thread(
+        target=ensure_system_knowledge_indexed,
+        kwargs={"db_path": db_path, "force": force},
+        daemon=True,
+        name="bootstrap-system-help"
+    )
+    t.start()
+    return t

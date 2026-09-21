@@ -126,7 +126,8 @@ def get_system_prompt(
     active_workspace: str = None,
     grounding_mode: str = None,
     web_search_enabled: bool = None,
-    store = None
+    store = None,
+    caller_type: str = "human"
 ):
     target_path = path if (path and os.path.exists(path)) else find_agent_prompt_file("AGENT.md")
     prompt = ""
@@ -143,6 +144,8 @@ def get_system_prompt(
     effective_mode = (grounding_mode or "strict").lower().strip()
     if effective_mode not in ["hybrid", "strict", "proactive"]:
         effective_mode = "strict"
+
+    c_type = (caller_type or "human").strip().lower()
 
     try:
         from any_context.config.db_store import ConfigDBStore
@@ -169,7 +172,10 @@ def get_system_prompt(
             prompt += f"\n\n### 🎯 ACTIVE WORKSPACE & TOOL CALLING CONTEXT\n"
             prompt += f"- You are currently chatting inside active workspace: **'{active_workspace}'**.\n"
             prompt += f"- **WORKSPACE FILTER RULE:** When calling `search_db` to search documents, you MUST pass `workspace='{active_workspace}'` unless the user explicitly requests searching globally.\n"
-            prompt += f"- **SINGLE SEARCH EXECUTION:** Call `search_db` AT MOST ONCE per question. Do NOT repeat or loop calls to `search_db`. Analyze the retrieved document snippets immediately and write a complete, beautifully structured answer.\n"
+            if c_type == "mcp":
+                prompt += f"- **SINGLE SEARCH EXECUTION:** Call `search_db` AT MOST ONCE per question. Do NOT repeat or loop calls to `search_db`. Analyze the retrieved document snippets immediately and provide a dense, direct, structured answer for the calling tool/machine consumer.\n"
+            else:
+                prompt += f"- **SINGLE SEARCH EXECUTION:** Call `search_db` AT MOST ONCE per question. Do NOT repeat or loop calls to `search_db`. Analyze the retrieved document snippets and formulate your response in alignment with active skills: if the query is broad or multi-record, engage in collaborative dialogue and ask how the user prefers the information formatted rather than dumping arbitrary structures.\n"
         else:
             prompt += "- When searching the knowledge base (search_session_memory=False), specify the `workspace` argument in `search_db` if a specific workspace topic is mentioned.\n"
 
@@ -307,7 +313,7 @@ def get_system_prompt(
         try:
             from any_context.skills.registry import SkillRegistry
             registry = SkillRegistry.get_instance()
-            skills_text = registry.format_skills_for_system_prompt()
+            skills_text = registry.format_skills_for_system_prompt(caller_type=c_type)
             if skills_text:
                 prompt += f"\n\n{skills_text}"
         except Exception:

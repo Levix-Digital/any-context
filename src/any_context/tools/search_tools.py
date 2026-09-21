@@ -306,6 +306,8 @@ def _execute_search_context(
 
         config_store = ConfigDBStore()
         target_workspaces = [resolved_workspace]
+        if not search_session_memory and resolved_workspace.lower() != "global":
+            target_workspaces.append("Global")
 
         shared_links = config_store.get_workspace_shared_links(resolved_workspace)
         linked_identifiers = [l["source_identifier"] for l in shared_links]
