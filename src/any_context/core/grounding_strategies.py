@@ -60,8 +60,8 @@ class StrictGroundingStrategy(GroundingStrategy):
             return (
                 f"[GROUNDING: STRICT | Priority 0: VectorDB{dom_clause} | Parametric Memory: FORBIDDEN | Web Search: PERMISSION-GATED | Workspace: '{ws}']\n"
                 "- Answer strictly and exclusively from retrieved workspace documents. Zero speculation or outside facts.\n"
-                "- If the topic is completely absent locally: you MUST respond EXACTLY with: '⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre \"[tópico]\"?' and STOP. Do NOT guess or invent facts.\n"
-                "- If the query is broad, underspecified, or ambiguous, or if multiple records exist in workspace: follow the active clarification-dialogue skill — act as a collaborative partner, present what is available, and ask guiding clarification questions.\n"
+                "- BROAD OR MULTI-RECORD QUERIES: If the user's query is broad, open-ended, or if multiple document records exist in the workspace (e.g. shipments, checklists, invoices, reports), NEVER declare absence. Follow the clarification-dialogue skill: summarize the available document types and proactively ask guiding questions offering concrete format options.\n"
+                "- TOPIC NOT FOUND / ZERO RESULTS: If the requested topic is absent locally, inform the user clearly what was checked, suggest what documents exist in this workspace, and ask: '⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre \"[tópico]\"?' and STOP. Do NOT guess or invent facts.\n"
                 f"{dom_inst}"
                 "- NEVER call live_web_search autonomously without explicit confirmation.\n"
                 "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
@@ -71,8 +71,8 @@ class StrictGroundingStrategy(GroundingStrategy):
         return (
             f"[GROUNDING: STRICT | Priority 0: VectorDB ONLY | Parametric Memory: FORBIDDEN | Web Search: DISABLED | Workspace: '{ws}']\n"
             "- Answer strictly and exclusively from retrieved workspace documents. Zero speculation or outside facts.\n"
-            "- If the topic is completely absent from workspace documents: declare '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
-            "- If the query is broad, underspecified, or ambiguous, or if multiple records exist in workspace: follow the active clarification-dialogue skill — act as a collaborative partner, present what is available, and ask guiding clarification questions.\n"
+            "- BROAD OR MULTI-RECORD QUERIES: If the user's query is broad, open-ended, or if multiple records exist in the workspace (e.g. shipments, checklists, invoices, reports), NEVER declare absence. Follow the clarification-dialogue skill: summarize what was found in the workspace and proactively ask guiding questions proposing concrete format/filter options.\n"
+            "- TOPIC NOT FOUND / ZERO RESULTS: If a specific topic is genuinely absent from workspace documents, state clearly that it was not found, summarize what types of records do exist in this workspace, and ask a constructive guiding question to help the user reframe or locate what they need.\n"
             "- RECENCY RULE (SAME PRIORITY): If multiple sources within the same priority tier contain differing facts, the most recent source ALWAYS prevails and supersedes older data.\n"
             "- EPISTEMIC FRESHNESS: Past absence statements in history reflect only earlier queries. Never assume absence from past turns; always search and ground from current workspace chunks.\n"
             "- MANDATORY CITATION FOOTER: Whenever answering using workspace documents or sources, you MUST conclude your response with '📄 Fontes Consultadas:' explicitly listing each consulted file name and its modification date (e.g. '- filename.pdf (Última Modificação: YYYY-MM-DD)')."

@@ -49,6 +49,20 @@ namespace AnyContext.Launcher
                 coreExe = Path.Combine(baseDir, "actx-core");
             }
 
+            // In case a background updater or self-update swap is finalizing in another process,
+            // retry checking for up to 1500ms before concluding the binary is missing.
+            if (!File.Exists(coreExe))
+            {
+                for (int i = 0; i < 15; i++)
+                {
+                    System.Threading.Thread.Sleep(100);
+                    coreExe = Path.Combine(baseDir, "actx-core.exe");
+                    if (File.Exists(coreExe)) break;
+                    coreExe = Path.Combine(baseDir, "actx-core");
+                    if (File.Exists(coreExe)) break;
+                }
+            }
+
             // Fallback for development environments: try python with entrypoint
             if (!File.Exists(coreExe))
             {
