@@ -17,6 +17,19 @@ pub fn normalize_path(path: &Path) -> String {
     clean
 }
 
+/// Converts a path to an absolute path string without expanding 8.3 short names on Windows.
+pub fn to_absolute_path(path: &Path) -> String {
+    let abs = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        match std::env::current_dir() {
+            Ok(cwd) => cwd.join(path),
+            Err(_) => path.to_path_buf(),
+        }
+    };
+    normalize_path(&abs)
+}
+
 /// Checks if a directory should be skipped from crawling.
 pub fn is_ignored_dir(entry: &DirEntry) -> bool {
     if !entry.file_type().is_dir() {
@@ -219,11 +232,7 @@ impl WorkspaceScanner {
 
         for entry in walker.filter_map(|e| e.ok()) {
             if entry.file_type().is_file() && is_supported_file(entry.path()) {
-                if let Ok(abs) = fs::canonicalize(entry.path()) {
-                    discovered.push(normalize_path(&abs));
-                } else {
-                    discovered.push(normalize_path(entry.path()));
-                }
+                discovered.push(to_absolute_path(entry.path()));
             }
         }
 
@@ -249,11 +258,7 @@ impl WorkspaceScanner {
             let walker = WalkDir::new(root_p).into_iter().filter_entry(|e| !is_ignored_dir(e));
             for entry in walker.filter_map(|e| e.ok()) {
                 if entry.file_type().is_file() && is_supported_file(entry.path()) {
-                    let norm_path = if let Ok(abs) = fs::canonicalize(entry.path()) {
-                        normalize_path(&abs)
-                    } else {
-                        normalize_path(entry.path())
-                    };
+                    let norm_path = to_absolute_path(entry.path());
 
                     if let Ok(meta) = entry.metadata() {
                         let mtime = get_file_mtime(&meta);
