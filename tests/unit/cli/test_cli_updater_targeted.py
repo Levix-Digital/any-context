@@ -81,5 +81,61 @@ class TestTargetedUpdater(unittest.TestCase):
                     os.environ["ACTX_UPDATE_DIR"] = orig_env
         safe_stdout_write("  [OK] Targeted download for release tag verified!\n")
 
+    def test_05_merge_directory_contents_overwrites_without_nesting(self):
+        """Validates that merge_directory_contents merges files without nesting _internal inside _internal."""
+        safe_stdout_write(">>> [UPDATER UNIT] Testing merge_directory_contents...\n")
+        from any_context.cli.updater import merge_directory_contents
+
+        with tempfile.TemporaryDirectory() as tmp_root:
+            target_internal = os.path.join(tmp_root, "bin", "_internal")
+            os.makedirs(target_internal, exist_ok=True)
+            with open(os.path.join(target_internal, "python311.dll"), "w") as f:
+                f.write("old_dll")
+            with open(os.path.join(target_internal, "stale.txt"), "w") as f:
+                f.write("stale_content")
+
+            staging_internal = os.path.join(tmp_root, "staging", "_internal")
+            os.makedirs(os.path.join(staging_internal, "any_context"), exist_ok=True)
+            with open(os.path.join(staging_internal, "python311.dll"), "w") as f:
+                f.write("new_dll")
+            with open(os.path.join(staging_internal, "any_context", "__init__.py"), "w") as f:
+                f.write("pkg_init")
+
+            # Execute merge
+            merge_directory_contents(staging_internal, target_internal)
+
+            # Assertions
+            self.assertTrue(os.path.exists(os.path.join(target_internal, "python311.dll")))
+            with open(os.path.join(target_internal, "python311.dll"), "r") as f:
+                self.assertEqual(f.read(), "new_dll")
+            self.assertTrue(os.path.exists(os.path.join(target_internal, "any_context", "__init__.py")))
+
+            # Critical assertion: NO nested _internal directory
+            nested_internal = os.path.join(target_internal, "_internal")
+            self.assertFalse(os.path.exists(nested_internal), "_internal must NOT be nested inside _internal!")
+            self.assertFalse(os.path.exists(staging_internal), "staging_internal must be cleaned up after merge!")
+            safe_stdout_write("  [OK] merge_directory_contents merges cleanly with zero nesting!\n")
+
+    def test_06_cleanup_stale_internal_backups(self):
+        """Validates that cleanup_stale_internal_backups removes all _internal_old* folders."""
+        safe_stdout_write(">>> [UPDATER UNIT] Testing cleanup_stale_internal_backups...\n")
+        from any_context.cli.updater import cleanup_stale_internal_backups
+
+        with tempfile.TemporaryDirectory() as tmp_root:
+            old_1 = os.path.join(tmp_root, "_internal_old")
+            old_2 = os.path.join(tmp_root, "_internal_old_1726000000_1234")
+            normal_dir = os.path.join(tmp_root, "_internal")
+            os.makedirs(old_1, exist_ok=True)
+            os.makedirs(old_2, exist_ok=True)
+            os.makedirs(normal_dir, exist_ok=True)
+
+            cleanup_stale_internal_backups(tmp_root)
+
+            self.assertFalse(os.path.exists(old_1))
+            self.assertFalse(os.path.exists(old_2))
+            self.assertTrue(os.path.exists(normal_dir))
+            safe_stdout_write("  [OK] cleanup_stale_internal_backups cleans all backup directories!\n")
+
 if __name__ == "__main__":
     unittest.main()
+

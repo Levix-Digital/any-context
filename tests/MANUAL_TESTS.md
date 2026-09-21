@@ -7,7 +7,52 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.24 Dynamic Active Workspace Resolution & Strict Tool Isolation in Multiturn RAG): Validação da Resolução Automática de Workspace Ativo e Eliminação de Fallback Silencioso para "Default"
+### 📌 Cenário 1 (v0.30.25 Robust Anti-Nesting Recursive Self-Updater & Stale Lock Protection): Validação do Self-Update Atômico, Integridade de DLLs e Ausência de Pastas Aninhadas `_internal/_internal`
+
+- **Objetivo**: Comprovar que na versão `v0.30.25`:
+  1. **Integridade Estrutural do Python Runtime**: Durante e após o processo de auto-atualização (`actx --update`), os arquivos da distribuição PyInstaller Onedir residem estritamente no primeiro nível de `%LOCALAPPDATA%\actx\bin\_internal\`, com `python311.dll` no caminho canônico `%LOCALAPPDATA%\actx\bin\_internal\python311.dll`.
+  2. **Eliminação Definitiva de Falha do PyInstaller [PYI-37152:ERROR]**: O comando `actx` e `actx --tui` iniciam instantaneamente sem o erro de `Failed to load Python DLL: The specified module could not be found`.
+  3. **Imunidade a Colisões de Locks do Windows NTFS**: Atualizações sucessivas ou com sessões em segundo plano não colidem com nomes estáticos de backup, gerando nomes únicos `_internal_old_<timestamp>_<pid>` e limpando pastas antigas automaticamente.
+- **Pré-requisito**: Versão `v0.30.25` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação da Versão via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.25` em menos de 50ms.
+
+2. **🔍 Inspeção da Estrutura de Diretórios no Windows:**
+   - No PowerShell, execute:
+     ```powershell
+     Test-Path "$env:LOCALAPPDATA\actx\bin\_internal\python311.dll"
+     Test-Path "$env:LOCALAPPDATA\actx\bin\_internal\_internal"
+     ```
+   - **Critério de Aceitação:**
+     - O primeiro comando retorna `True`.
+     - O segundo comando retorna `False` (comprovando ausência total de pastas aninhadas).
+
+3. **🚀 Execução Limpa do Core Engine e Verificação de Update:**
+   - Execute:
+     ```text
+     actx --check-update
+     ```
+   - **Critério de Aceitação:** O motor Python inicializa e exibe:
+     `✅ You are already running the latest version of AnyContext (v0.30.25).`
+     Zero mensagens de erro ou avisos de DLL ausente.
+
+4. **⚡ Inicialização da Interface Interativa:**
+   - Execute:
+     ```text
+     actx
+     ```
+   - **Critério de Aceitação:** O banner inicial e o prompt interativo carregam perfeitamente sem falhas de DLL. Digite `/exit` para sair.
+
+---
+
+### 📌 Cenário 2 (v0.30.24 Dynamic Active Workspace Resolution & Strict Tool Isolation in Multiturn RAG): Validação da Resolução Automática de Workspace Ativo e Eliminação de Fallback Silencioso para "Default"
 
 - **Objetivo**: Comprovar que na versão `v0.30.24`:
   1. **Resolução Dinâmica de Contexto (`_ACTIVE_WORKSPACE_CTX`)**: Quando o modelo LLM executa a ferramenta vetorial `search_db` omitindo o parâmetro opcional `workspace` (e.g. `args: {'prompt_text': 'entregas da IKEA'}`), a ferramenta **resolve automaticamente o workspace ativo da sessão** (`IKEAShipments`) através do `ContextVar` e do `ConfigDBStore`, eliminando completamente o vazamento cross-workspace para `"Default"`.

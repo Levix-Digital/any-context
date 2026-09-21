@@ -36,6 +36,50 @@ def log_update_event(msg: str, level: str = "INFO"):
         pass
 
 
+def merge_directory_contents(src_dir: str, dst_dir: str) -> None:
+    """
+    Recursively merges files and directories from src_dir into dst_dir,
+    overwriting existing files. Never nests src_dir inside dst_dir.
+    Removes src_dir after merging.
+    """
+    import shutil
+    os.makedirs(dst_dir, exist_ok=True)
+    for root, dirs, files in os.walk(src_dir):
+        rel = os.path.relpath(root, src_dir)
+        target_root = os.path.join(dst_dir, rel) if rel != "." else dst_dir
+        os.makedirs(target_root, exist_ok=True)
+        for f in files:
+            s_file = os.path.join(root, f)
+            d_file = os.path.join(target_root, f)
+            if os.path.exists(d_file):
+                try:
+                    os.remove(d_file)
+                except Exception:
+                    pass
+            try:
+                os.replace(s_file, d_file)
+            except Exception:
+                shutil.move(s_file, d_file)
+    try:
+        shutil.rmtree(src_dir, ignore_errors=True)
+    except Exception:
+        pass
+
+
+def cleanup_stale_internal_backups(target_dir: str) -> None:
+    """Removes any stale _internal_old* backup folders in target_dir."""
+    import shutil
+    try:
+        if os.path.exists(target_dir):
+            for item in os.listdir(target_dir):
+                if item.startswith("_internal_old"):
+                    full_path = os.path.join(target_dir, item)
+                    if os.path.isdir(full_path):
+                        shutil.rmtree(full_path, ignore_errors=True)
+    except Exception:
+        pass
+
+
 
 def normalize_version_tag(version_str: str) -> str:
     """
@@ -522,6 +566,7 @@ def run_self_update(
     target_dir = resolve_binary_target_dir(is_windows)
 
     os.makedirs(target_dir, exist_ok=True)
+    cleanup_stale_internal_backups(target_dir)
     core_exe = os.path.join(target_dir, "actx-core.exe" if is_windows else "actx-core")
     shim_exe = os.path.join(target_dir, "actx.exe" if is_windows else "actx")
     if is_windows:
@@ -534,7 +579,8 @@ def run_self_update(
 
     old_exe = os.path.join(target_dir, "actx_old.exe" if is_windows else "actx_old")
     internal_dir = os.path.join(target_dir, "_internal")
-    old_internal_dir = os.path.join(target_dir, "_internal_old")
+    unique_suffix = f"{int(time.time())}_{os.getpid()}"
+    old_internal_dir = os.path.join(target_dir, f"_internal_old_{unique_suffix}")
     staging_dir = os.path.join(target_dir, "actx_staging")
 
     downloaded = False
@@ -669,25 +715,28 @@ def run_self_update(
         try:
             if is_archive and os.path.exists(staging_dir):
                 if os.path.exists(internal_dir):
-                    if os.path.exists(old_internal_dir):
-                        try: shutil.rmtree(old_internal_dir, ignore_errors=True)
-                        except Exception: pass
-                    os.rename(internal_dir, old_internal_dir)
+                    try:
+                        os.rename(internal_dir, old_internal_dir)
+                    except Exception:
+                        pass
                 for item in os.listdir(staging_dir):
                     src_p = os.path.join(staging_dir, item)
                     dst_p = os.path.join(target_dir, item)
-                    if os.path.exists(dst_p):
-                        if os.path.isdir(dst_p):
-                            shutil.rmtree(dst_p, ignore_errors=True)
-                        else:
-                            try: os.remove(dst_p)
-                            except Exception: pass
-                    shutil.move(src_p, dst_p)
+                    if os.path.isdir(src_p):
+                        merge_directory_contents(src_p, dst_p)
+                    else:
+                        if os.path.exists(dst_p):
+                            try:
+                                os.remove(dst_p)
+                            except Exception:
+                                pass
+                        try:
+                            os.replace(src_p, dst_p)
+                        except Exception:
+                            shutil.move(src_p, dst_p)
                 replaced = True
                 log_update_event(f"Atomic replacement succeeded (extracted archive to {target_dir})")
-                if os.path.exists(old_internal_dir):
-                    try: shutil.rmtree(old_internal_dir, ignore_errors=True)
-                    except Exception: pass
+                cleanup_stale_internal_backups(target_dir)
                 if os.path.exists(staging_dir):
                     try: shutil.rmtree(staging_dir, ignore_errors=True)
                     except Exception: pass
@@ -770,11 +819,20 @@ def run_self_update(
                 f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue "
                 f"    }} "
                 f"    if (Test-Path -LiteralPath '{internal_dir}') {{ "
-                f"      Move-Item -LiteralPath '{internal_dir}' -Destination '{old_internal_dir}' -Force -ErrorAction SilentlyContinue "
+                f"      $rnd = [System.IO.Path]::GetRandomFileName(); "
+                f"      $uniqueOld = Join-Path '{target_dir}' ('_internal_old_' + $rnd); "
+                f"      Move-Item -LiteralPath '{internal_dir}' -Destination $uniqueOld -Force -ErrorAction SilentlyContinue; "
                 f"    }} "
                 f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
                 f"      Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {{ "
-                f"        Move-Item -LiteralPath $_.FullName -Destination '{target_dir}' -Force -ErrorAction Stop "
+                f"        $destItem = Join-Path '{target_dir}' $_.Name; "
+                f"        if ($_.PSIsContainer) {{ "
+                f"          if (-not (Test-Path -LiteralPath $destItem)) {{ New-Item -ItemType Directory -Path $destItem -Force | Out-Null }}; "
+                f"          Copy-Item -Path (Join-Path $_.FullName '*') -Destination $destItem -Recurse -Force -ErrorAction Stop; "
+                f"          Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue; "
+                f"        }} else {{ "
+                f"          Move-Item -LiteralPath $_.FullName -Destination $destItem -Force -ErrorAction Stop; "
+                f"        }} "
                 f"      }} "
                 f"    }} elseif (Test-Path -LiteralPath '{temp_download}') {{ "
                 f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop "
@@ -783,9 +841,9 @@ def run_self_update(
                 f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
                 f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
                 f"    }} "
-                f"    if (Test-Path -LiteralPath '{old_internal_dir}') {{ "
-                f"      Remove-Item -LiteralPath '{old_internal_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
-                f"    }} "
+                f"    Get-ChildItem -LiteralPath '{target_dir}' -Filter '_internal_old*' -Directory -ErrorAction SilentlyContinue | ForEach-Object {{ "
+                f"      Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue "
+                f"    }}; "
                 f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
                 f"      Remove-Item -LiteralPath '{staging_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
                 f"    }} "
@@ -822,12 +880,12 @@ def run_self_update(
                 staging_internal = os.path.join(staging_dir, "_internal")
                 if os.path.exists(staging_internal):
                     if os.path.exists(internal_dir):
-                        if os.path.exists(old_internal_dir):
-                            shutil.rmtree(old_internal_dir, ignore_errors=True)
-                        os.rename(internal_dir, old_internal_dir)
-                    shutil.move(staging_internal, internal_dir)
-                    if os.path.exists(old_internal_dir):
-                        shutil.rmtree(old_internal_dir, ignore_errors=True)
+                        try:
+                            os.rename(internal_dir, old_internal_dir)
+                        except Exception:
+                            pass
+                    merge_directory_contents(staging_internal, internal_dir)
+                    cleanup_stale_internal_backups(target_dir)
 
                 staging_core = os.path.join(staging_dir, "actx-core")
                 if os.path.exists(staging_core):
@@ -849,7 +907,9 @@ def run_self_update(
                 for f in os.listdir(staging_dir):
                     src_f = os.path.join(staging_dir, f)
                     dst_f = os.path.join(target_dir, f)
-                    if os.path.isfile(src_f):
+                    if os.path.isdir(src_f):
+                        merge_directory_contents(src_f, dst_f)
+                    elif os.path.isfile(src_f):
                         os.replace(src_f, dst_f)
                         try:
                             os.chmod(dst_f, 0o755)
@@ -858,7 +918,10 @@ def run_self_update(
 
                 shutil.rmtree(staging_dir, ignore_errors=True)
                 if os.path.exists(temp_download):
-                    os.remove(temp_download)
+                    try: os.remove(temp_download)
+                    except Exception: pass
+                replaced = True
+                log_update_event(f"Atomic replacement succeeded (extracted archive to {target_dir})")
             else:
                 os.replace(temp_download, core_exe)
                 try:
