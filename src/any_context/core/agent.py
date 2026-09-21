@@ -219,35 +219,57 @@ def _prune_messages_for_llm(
 
     # 2. Epistemic Hygiene: Filter historical turns that ended in FACTUAL_ABSENCE
     # This completely eliminates Self-Consistency Bias / Attention Echo Chambers
-    # where the LLM's attention is trapped into confirming past negative statements.
+    # where the LLM's attention is trapped into confirming past negative statements,
+    # and prevents leaving orphan tool_calls that block fresh tool execution on retries.
     if last_human_idx != -1 and last_human_idx > 0:
         from any_context.core.epistemic import EpistemicState, is_pure_negative_disclaimer
 
-        filtered_historical = []
-        i = 0
-        while i < last_human_idx:
-            msg = messages[i]
-            m_type = getattr(msg, "type", "")
-            is_ai = (m_type in ["ai", "AIMessage", "assistant"] or msg.__class__.__name__ in ["AIMessage", "AIMessageChunk"])
-            
-            if is_ai:
-                kwargs = getattr(msg, "additional_kwargs", {}) or {}
+        active_query = str(getattr(messages[last_human_idx], "content", "")).strip().lower()
+        hist = messages[:last_human_idx]
+
+        # Partition historical messages into turn blocks (each starting with a HumanMessage)
+        turns = []
+        curr_turn = []
+        for m in hist:
+            m_type = getattr(m, "type", "")
+            if (m_type in ["human", "user"] or m.__class__.__name__ == "HumanMessage") and curr_turn:
+                turns.append(curr_turn)
+                curr_turn = [m]
+            else:
+                curr_turn.append(m)
+        if curr_turn:
+            turns.append(curr_turn)
+
+        kept_turns = []
+        for turn in turns:
+            final_ai = None
+            for m in reversed(turn):
+                m_t = getattr(m, "type", "")
+                if m_t in ["ai", "assistant"] or m.__class__.__name__ in ["AIMessage", "AIMessageChunk"]:
+                    final_ai = m
+                    break
+
+            is_absence = False
+            if final_ai:
+                kwargs = getattr(final_ai, "additional_kwargs", {}) or {}
                 state = kwargs.get("epistemic_state")
-                c_str = str(getattr(msg, "content", "") or "")
-                
-                is_absence = False
+                c_str = str(getattr(final_ai, "content", "") or "")
                 if state in [EpistemicState.FACTUAL_ABSENCE.value, EpistemicState.FACTUAL_ABSENCE]:
                     is_absence = True
-                elif state is None and is_pure_negative_disclaimer(c_str):
+                elif is_pure_negative_disclaimer(c_str):
                     is_absence = True
-                    
-                if is_absence:
-                    # Pure absence disclaimer in historical turn: purge from active inference payload
-                    i += 1
-                    continue
-            
-            filtered_historical.append(msg)
-            i += 1
+
+            turn_human = turn[0] if turn and (getattr(turn[0], "type", "") in ["human", "user"] or turn[0].__class__.__name__ == "HumanMessage") else None
+            turn_query = str(getattr(turn_human, "content", "")).strip().lower() if turn_human else ""
+
+            # If the entire turn ended in absence OR if it is an identical query to active_query that ended in absence:
+            if is_absence or (turn_query and turn_query == active_query and is_absence):
+                # Purge entire turn (HumanMessage, tool calls, tool results, and absence message)
+                continue
+
+            kept_turns.append(turn)
+
+        filtered_historical = [m for turn in kept_turns for m in turn]
 
         # Deduplicate consecutive identical HumanMessages in historical context
         deduped_historical = []

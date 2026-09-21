@@ -263,16 +263,16 @@ def get_system_prompt(
                     "- **FACTUAL ABSENCE & WEB SEARCH PERMISSION PROTOCOL (MANDATORY):** If the information is not found in the workspace files:\n"
                     "  1. DO NOT guess, invent, or assume outside facts.\n"
                     "  2. DO NOT call `live_web_search` autonomously.\n"
-                    "  3. If the topic is completely absent locally, you MUST STOP and explicitly ASK the user:\n"
+                    "  3. If the query is broad, underspecified, or has multiple records/candidates in workspace documents, follow the active `clarification-dialogue` skill: summarize the available records and ask guiding questions with format options.\n"
+                    "  4. If the topic is genuinely absent locally, inform the user clearly, note what document types exist in the workspace, and explicitly ASK:\n"
                     "     *\"⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\"*\n"
-                    "  4. If the query is broad, underspecified, or has multiple candidates in workspace documents, follow the active `clarification-dialogue` skill.\n"
                     "  5. ONLY when the user replies confirming (e.g. 'sim', 'pode buscar', 'ok', 'faça isso') are you authorized to invoke `live_web_search`.\n"
                 )
             else:
                 prompt += (
-                    "- **FACTUAL ABSENCE & CLARIFICATION PROTOCOL:**\n"
-                    "  1. If the requested topic is completely absent from all workspace documents, you MUST state: '⚠️ Essa informação não consta nos documentos deste workspace.'\n"
-                    "  2. If the user's query is broad, vague, or missing key parameters, or if multiple records exist in the workspace documents: DO NOT declare total absence. Instead, follow the active `clarification-dialogue` skill: act as a collaborative partner, summarize what exists in the workspace, and ask guiding clarification questions.\n"
+                    "- **COLLABORATIVE DIALOGUE & GUIDANCE PROTOCOL (MANDATORY):**\n"
+                    "  1. **Broad or Multi-Record Queries:** If the user's query is broad, open-ended, or if multiple document records exist in the workspace (e.g., shipments, checklists, romaneios, contracts, reports): DO NOT declare total absence. Follow the active `clarification-dialogue` skill: summarize what was found and proactively ask guiding clarification questions with concrete formatting options.\n"
+                    "  2. **Topic Absent / Missing Data:** If a requested topic is absent from workspace documents, state clearly that it was not found in this workspace, summarize what types of records DO exist, and ask a helpful guiding question to help the user reframe or locate what they need, rather than leaving them at a dead end.\n"
                 )
             prompt += (
                 "- **TEMPORAL EPISTEMIC INDEPENDENCE:** The workspace documents are dynamic and can be added, updated, or re-indexed at any time. Past absence disclaimers in earlier turns reflect solely the outcome of historical queries at that point in time. NEVER assume an entity or document is absent based on prior absence statements in the conversation history. ALWAYS evaluate current queries and retrieved chunks with 100% cognitive freshness and invoke `search_db` independently.\n"

@@ -51,6 +51,7 @@
 63. [Caller-Aware Output Modulation, Modular Agent Skills & Global Auto-Reindexed System Help (`v0.30.26`)](#63-caller-aware-output-modulation-modular-agent-skills--global-auto-reindexed-system-help-v03026)
 64. [Terminal Stream Isolation, Background Thread Silence & Pre-Flight Embedding Credential Guards (`v0.30.27`)](#64-terminal-stream-isolation-background-thread-silence--pre-flight-embedding-credential-guards-v03027)
 65. [Universal Cross-Workspace Knowledge Retrieval, Runtime Credential Export & Unrestricted BM25 System Discovery (`v0.30.28`)](#65-universal-cross-workspace-knowledge-retrieval-runtime-credential-export--unrestricted-bm25-system-discovery-v03028)
+66. [Collaborative Dialogue Supremacy, Dead-End Disclaimer Elimination & Full-Turn Epistemic Purging (`v0.30.29`)](#66-collaborative-dialogue-supremacy-dead-end-disclaimer-elimination--full-turn-epistemic-purging-v03029)
 
 ---
 
@@ -3684,6 +3685,95 @@ for r in fused_raw:
     final_chunks.append(...)
 ```
 This guarantees that unrelated user workspaces (e.g. `TaxReturn`, `RustBook`) are completely excluded, while `Global` chunks and active project chunks compete fairly based on true lexical and semantic relevance.
+
+---
+
+## 66. Collaborative Dialogue Supremacy, Dead-End Disclaimer Elimination & Full-Turn Epistemic Purging (`v0.30.29`)
+
+### 66.1 The Problem: Robotic Absence Disclaimers Suppressing Collaborative Dialogue
+In production usage, when users submitted broad, open-ended queries (e.g., *"Quais foram as entregas da IKEA?"*), the AI agent frequently fell back to the rigid disclaimer `⚠️ Essa informação não consta nos documentos deste workspace`, even when dozens of relevant records (`015-TSO-*.pdf`, `CMR *.pdf`) were retrieved by `search_db`. 
+
+Investigation of the prompt hierarchy and SQLite checkpoints revealed three intertwined root causes:
+1. **Instruction Dominance over Skills**: The system prompt repeatedly instructed the model with absolute priority: *"If the topic is absent or snippets do not contain the exact answer, declare '⚠️ Essa informação não consta nos documentos deste workspace.'"* In modern Transformer instruction tuning, negative imperative rules with exact string patterns frequently override subordinate dialogue guidance.
+2. **Dead-End Communication Gap**: When a specific topic was not found, the agent simply halted execution with a dead-end message, failing to provide constructive guidance on what types of documents actually exist in the workspace or how the user might reframe the query.
+3. **Orphan Tool Call Pollution across Multiturn Retries**: The previous epistemic hygiene filter only pruned the text content of the final negative assistant message, leaving behind the `HumanMessage`, the `AIMessage(tool_calls=[...])`, and the `ToolMessage(...)`. When the user repeated the question, the LLM inspected the history, saw that `search_db` had already been executed for that exact query, and—constrained by `SINGLE SEARCH EXECUTION: Call search_db AT MOST ONCE per question`—bypassed retrieval entirely and hallucinated `📄 Fontes Consultadas: - Nenhum documento consultado`.
+4. **Windows NTFS Update File Lock Race Condition**: In `actx_shim.cs`, when a user invoked `actx` within milliseconds of an update (`actx --update`), the background PowerShell swap had moved `actx-core.exe` to `actx_old.exe` and was in the process of moving the new binary. The shim gave up after 0ms, outputting `Error: AnyContext core engine ('actx-core.exe') not found`.
+
+---
+
+### 66.2 Architecture: Subordinated Disclaimers & Proactive Guiding Protocol
+
+```mermaid
+flowchart TD
+    Q["User Query: 'Quais foram as entregas da IKEA?'"] --> Search["search_db(workspace='IKEAShipments')"]
+    Search --> Chunks["Retrieved Chunks (Checklists, CMRs, TSOs)"]
+    Chunks --> Assess{"Query Type & Record Content"}
+    
+    Assess -->|Broad Query / Multi-Record Records| Dialogue["💬 Collaborative Dialogue Mode<br/>(Skill: clarification-dialogue)"]
+    Assess -->|Specific Absent Fact| Guide["🧭 Proactive Guiding Protocol<br/>(State Missing Topic + Summarize Workspace + Ask Guiding Question)"]
+    Assess -->|Exact Answer Found| Answer["📄 Grounded Direct Answer with Citations"]
+
+    Dialogue --> Output1["Summarize Volume/Types of Found Records + Offer 2-3 Formatting Options"]
+    Guide --> Output2["Polite Missing Notice + Guidance on Available Records + Reframe Inquiry"]
+```
+
+#### 1. Dead-End Disclaimer Prohibition (`src/any_context/skills/clarification-dialogue/SKILL.md`)
+Rules 4 and 5 were added to the built-in `clarification-dialogue` skill:
+- **Rule 4 (Prohibition on Broad Queries)**: When `search_db` returns document chunks relating to the requested entity or topic, the model is strictly forbidden from declaring absence. It must summarize the records located and ask guiding clarification questions with 2-3 concrete options (chronological table, carrier grouping, or specific shipment details).
+- **Rule 5 (Constructive Guidance on Missing Data)**: If zero relevant records are found, the model must explain what was verified, summarize the categories of documents that *do* exist in the workspace, and ask a constructive question to help reframe the inquiry.
+
+#### 2. Strict Grounding Strategy Alignment (`src/any_context/core/grounding_strategies.py`)
+Both web-search enabled and offline branches of `StrictGroundingStrategy` were aligned to explicitly distinguish between broad queries and missing facts:
+```python
+"- BROAD OR MULTI-RECORD QUERIES: If the user's query is broad, open-ended, or if multiple document records exist in the workspace (e.g. shipments, checklists, invoices, reports), NEVER declare absence. Follow the clarification-dialogue skill: summarize what was found in the workspace and proactively ask guiding questions proposing concrete format/filter options."
+"- TOPIC NOT FOUND / ZERO RESULTS: If a specific topic is genuinely absent from workspace documents, state clearly that it was not found, summarize what types of records do exist in this workspace, and ask a constructive guiding question to help the user reframe or locate what they need."
+```
+
+#### 3. Full-Turn Epistemic Cycle Purging (`src/any_context/core/agent.py`)
+The epistemic hygiene routine in `_prune_messages_for_llm` was upgraded from message-level filtering to atomic turn-cycle partitioning:
+```python
+# Partition historical messages into complete turn blocks (each starting with a HumanMessage)
+turns = []
+curr_turn = []
+for m in hist:
+    m_type = getattr(m, "type", "")
+    if (m_type in ["human", "user"] or m.__class__.__name__ == "HumanMessage") and curr_turn:
+        turns.append(curr_turn)
+        curr_turn = [m]
+    else:
+        curr_turn.append(m)
+if curr_turn:
+    turns.append(curr_turn)
+
+kept_turns = []
+for turn in turns:
+    ...
+    if is_absence or (turn_query and turn_query == active_query and is_absence):
+        # Purge entire turn (HumanMessage, tool calls, tool results, and absence message)
+        continue
+    kept_turns.append(turn)
+
+filtered_historical = [m for turn in kept_turns for m in turn]
+```
+This ensures that when a turn fails or when a user retries an identical question, no orphan tool call is left in the LLM's active inference window, guaranteeing 100% fresh tool execution on retries.
+
+#### 4. Self-Update Race Condition Immunity (`launcher/actx_shim.cs`)
+Added an active 1500ms retry tolerance loop before declaring that `actx-core.exe` is missing:
+```csharp
+if (!File.Exists(coreExe))
+{
+    for (int i = 0; i < 15; i++)
+    {
+        System.Threading.Thread.Sleep(100);
+        coreExe = Path.Combine(baseDir, "actx-core.exe");
+        if (File.Exists(coreExe)) break;
+        coreExe = Path.Combine(baseDir, "actx-core");
+        if (File.Exists(coreExe)) break;
+    }
+}
+```
+If the user executes `actx` within 200ms of `actx --update`, the launcher shim sleeps briefly and launches the new executable transparently as soon as the swap finishes.
+
 
 
 

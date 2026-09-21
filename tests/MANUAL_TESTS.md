@@ -7,7 +7,66 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.28 Universal Cross-Workspace Knowledge Retrieval, Runtime Credential Export & Unrestricted BM25 Discovery): Validação da Recuperação Universal de Help Global Cross-Workspace (/link, Shared Sources) a partir de Workspaces de Projeto
+### 📌 Cenário 1 (v0.30.29 Collaborative Dialogue Supremacy, Dead-End Disclaimer Elimination & Full-Turn Epistemic Purging): Validação da Ativação Proativa do Modo de Diálogo em Perguntas Amplas, Eliminação de Disclaimers Frios e Purgamento Completo de Turnos em Retentativas
+
+- **Objetivo**: Comprovar que na versão `v0.30.29`:
+  1. **Supremacia do Modo de Diálogo (`clarification-dialogue`) em Perguntas Amplas**: Ao fazer perguntas abertas ou sobre múltiplas remessas/documentos (ex: *"Quais foram as entregas da IKEA?"*), o modelo **nunca emite o disclaimer robótico de ausência** (`⚠️ Essa informação não consta...`). Em vez disso, resume os documentos e registros localizados no workspace (romaneios CMR, checklists e TSOs) e faz proativamente 2 a 3 perguntas de alinhamento com opções claras de formato (tabela cronológica, agrupamento por transportadora ou detalhamento de remessa).
+  2. **Condução Orientadora na Falta de Dados**: Quando um tópico específico não existe nos documentos (ex: *"O que diz o relatório financeiro de 2029?"*), o modelo não apenas informa a ausência, mas resume o que existe no workspace e faz uma pergunta orientadora para ajudar o usuário a redirecionar a busca, sem encerrar em um beco sem saída.
+  3. **Imunidade de Retentativa por Purgamento Atômico de Turno**: Ao repetir uma pergunta no chat após um turno de negação, a rotina `_prune_messages_for_llm` purga o ciclo completo do turno anterior (`HumanMessage`, chamadas de ferramenta e resultados órfãos), garantindo que o modelo execute a busca `search_db` novamente com 100% de frescor e sem alucinar "Nenhum documento consultado".
+  4. **Tolerância a Race Condition no Launcher Shim (`actx_shim.cs`)**: O launcher shim aguarda em loop de retry (até 1.5s) caso o swap de auto-atualização em segundo plano ainda esteja finalizando, eliminando qualquer erro transitório de "AnyContext core engine not found".
+- **Pré-requisito**: Versão `v0.30.29` instalada e workspace `IKEAShipments` configurado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação da Versão via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.29` em menos de 50ms.
+
+2. **💬 Validação do Diálogo Colaborativo em Pergunta Ampla:**
+   - Inicie o AnyContext no workspace `IKEAShipments`:
+     ```text
+     actx
+     ```
+   - Envie a consulta ampla:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo executa `search_db`.
+     - O modelo **NÃO** exibe o disclaimer `⚠️ Essa informação não consta nos documentos deste workspace.`
+     - A resposta confirma a localização dos romaneios, checklists e ordens de transporte da IKEA e **dispara proativamente perguntas orientadoras com opções de formato** (ex: período desejado, agrupamento por transportadora como BISON/RXO, ou tabela consolidada).
+
+3. **🧭 Validação da Condução Orientadora na Ausência de Dados:**
+   - No mesmo chat, pergunte sobre um documento sabidamente inexistente:
+     ```text
+     O que diz o relatório financeiro de 2029?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo informa com clareza que não localizou relatórios financeiros de 2029.
+     - O modelo **NÃO termina em beco sem saída**: resume que o workspace contém documentos operacionais de remessa/transporte e pergunta se o usuário deseja consultar outro período ou documentos de outro workspace.
+
+4. **🔄 Validação de Repetição sem Bloqueio de Ferramenta:**
+   - No mesmo chat, envie novamente:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo executa a ferramenta `search_db` com 100% de frescor cognitivo.
+     - Não repete "Nenhum documento consultado" nem cai em falso negativo.
+
+5. **🚪 Saída Graciosa:**
+   - Digite:
+     ```text
+     /exit
+     ```
+   - **Critério de Aceitação:** Encerramento limpo.
+
+---
+
+### 📌 Cenário 2 (v0.30.28 Universal Cross-Workspace Knowledge Retrieval, Runtime Credential Export & Unrestricted BM25 Discovery): Validação da Recuperação Universal de Help Global Cross-Workspace (/link, Shared Sources) a partir de Workspaces de Projeto
 
 - **Objetivo**: Comprovar que na versão `v0.30.28`:
   1. **Recuperação Universal de Help Global em Workspaces de Projeto**: Consultas sobre comandos, documentação e funcionalidades nativas do AnyContext (ex: *"Como funciona o comando /link e para que serve o Shared Sources?"*) executadas a partir de qualquer workspace de projeto (como `IKEAShipments`) recuperam chunks do namespace universal `Global` (`system://help_registry`, `system://readme`) com RRF balanceado e sem penalização de workspace, gerando respostas completas, factuais e sem falsos disclaimers de ausência.
