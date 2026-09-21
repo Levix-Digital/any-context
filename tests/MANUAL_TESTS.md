@@ -7,7 +7,78 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.25 Robust Anti-Nesting Recursive Self-Updater & Stale Lock Protection): Validação do Self-Update Atômico, Integridade de DLLs e Ausência de Pastas Aninhadas `_internal/_internal`
+### 📌 Cenário 1 (v0.30.26 Caller-Aware Output Modulation, Modular Agent Skills & Global Auto-Reindexed System Help): Validação da Modulação por Chamador, Diálogo Colaborativo vs MCP Direto e Help Global Trans-Workspace
+
+- **Objetivo**: Comprovar que na versão `v0.30.26`:
+  1. **Modulação de Saída Consciente do Chamador (`caller_type`)**:
+     - **Consumidores Humanos (OpenTUI/CLI/RPC)**: Quando uma consulta for ampla, genérica ou comportar múltiplos layouts (ex: *"Quais foram as entregas da IKEA?"*), o modelo **não despeja tabelas monolíticas não solicitadas** nem toma decisões de layout unilaterais. Em vez disso, apresenta um resumo das categorias/remessas encontradas e propõe opções proativas de formato (ex: tabela cronológica, agrupamento por destinatário/transportadora ou ficha detalhada de remessa), aguardando o direcionamento do usuário.
+     - **Agentes Programáticos (MCP Server - `caller_type="mcp"`)**: Ao executar `query_anycontext_agent` via MCP, o modelo desativa perguntas conversacionais e introduções, respondendo de forma 100% direta, factual e condensada, sem exaurir a janela de contexto de agentes a jusante.
+  2. **Help Global e Auto-Reindexação por Versão**:
+     - A partir de qualquer workspace de projeto (ex: `IKEAShipments`), ao perguntar sobre comandos do AnyContext (ex: *"Como funciona o comando /link?"* ou *"Como alternar workspaces?"*), a busca vetorial consulta concorrentemente o namespace interno `Global` (alimentado pelo `HELP_REGISTRY` e `README.md`) e responde com precisão factual sem exigir que o usuário mude de workspace.
+     - O workspace `Global` é 100% invisível na listagem de workspaces (`/switch --list`) e protegido contra exclusão acidental.
+     - Proteção de IP: O arquivo confidencial `TECDOC.md` jamais é indexado no `Global`, garantindo segurança do código e arquitetura.
+  3. **Modularização de Skills (`SkillRegistry`)**:
+     - O `AGENT.md` mantém apenas diretrizes invariantes de identidade, RAG e fontes consultadas.
+     - As skills (`clarification-dialogue`, `mcp-direct-response`, `temporal-grounding`, `panoramic-synthesis`) são carregadas sob demanda e filtradas dinamicamente com base no `caller_type`.
+- **Pré-requisito**: Versão `v0.30.26` instalada e workspace `IKEAShipments` configurado e indexado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação da Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.26` em menos de 50ms.
+
+2. **🌐 Validação do Help Global a Partir de Workspace de Projeto:**
+   - Inicie o AnyContext interativo dentro do workspace `IKEAShipments`:
+     ```text
+     actx
+     ```
+   - Envie uma pergunta sobre um recurso nativo do AnyContext:
+     ```text
+     Como funciona o comando /link e para que serve o Shared Sources?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo executa `search_db` e recupera chunks do namespace protegido `Global`.
+     - Responde com precisão explicando a biblioteca central reutilizável `Shared Sources` e como o comando `/link` vincula fontes em `< 50ms` com custo zero ($0.00).
+     - As fontes citadas em `📄 Fontes Consultadas:` referem-se ao `HELP_REGISTRY` e/ou `README.md` do sistema.
+     - Tudo isso ocorre sem que o usuário precise mudar para o workspace `Default` ou `Global`.
+
+3. **💬 Validação do Protocolo de Diálogo e Alinhamento de Formato (Interface Humana):**
+   - No mesmo chat interativo, envie uma consulta ampla sobre as remessas:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo **NÃO** despeja imediatamente uma tabela arbitrária gigante sem perguntar.
+     - O modelo confirma que encontrou os registros de transporte (checklists, romaneios, relatórios de carga), apresenta um breve resumo e **pergunta proativamente como o usuário deseja visualizar as informações** (ex: tabela cronológica, agrupamento por destinatário/loja, ou detalhes específicos de uma remessa).
+
+4. **🎯 Confirmação e Renderização Conforme Preferência do Usuário:**
+   - Em resposta à pergunta de alinhamento, envie:
+     ```text
+     Prefiro em formato de tabela com data, transportadora, trailer e número de pacotes.
+     ```
+   - **Critério de Aceitação:**
+     - O modelo gera exatamente a tabela solicitada com as colunas pedidas.
+     - As informações batem com os documentos reais indexados no workspace `IKEAShipments`.
+     - O bloco `📄 Fontes Consultadas:` cita os arquivos reais: `IKEA Shipment Checklist CAEN v2.11.pdf`, `015-TSO-*`, etc.
+
+5. **🤖 Validação do Modo Direto MCP (Machine-to-Machine):**
+   - Inicie o servidor MCP em segundo plano ou teste via cliente MCP/script de teste chamando a ferramenta `query_anycontext_agent`:
+     ```json
+     {
+       "query": "Quais foram as entregas da IKEA?",
+       "workspace": "IKEAShipments"
+     }
+     ```
+   - **Critério de Aceitação:**
+     - O retorno é **100% direto e factual**, sem introduções amigáveis ("Olá", "Certamente") e **SEM perguntas de preferência de formato**, entregando diretamente o resumo consolidado das entregas para consumo do agente automatizado.
+
+---
+
+### 📌 Cenário 2 (v0.30.25 Robust Anti-Nesting Recursive Self-Updater & Stale Lock Protection): Validação do Self-Update Atômico, Integridade de DLLs e Ausência de Pastas Aninhadas `_internal/_internal`
 
 - **Objetivo**: Comprovar que na versão `v0.30.25`:
   1. **Integridade Estrutural do Python Runtime**: Durante e após o processo de auto-atualização (`actx --update`), os arquivos da distribuição PyInstaller Onedir residem estritamente no primeiro nível de `%LOCALAPPDATA%\actx\bin\_internal\`, com `python311.dll` no caminho canônico `%LOCALAPPDATA%\actx\bin\_internal\python311.dll`.

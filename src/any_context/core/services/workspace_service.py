@@ -22,6 +22,8 @@ class WorkspaceService:
 
         result = []
         for ws in known:
+            if ws.name.lower() == "global":
+                continue
             result.append({
                 "name": ws.name,
                 "is_active": (ws.name.lower() == active.lower()),
@@ -51,13 +53,13 @@ class WorkspaceService:
 
     def delete_workspace(self, name: str) -> Dict[str, Any]:
         """
-        Deletes a workspace. Protects system workspaces ('Default', 'Shared Sources').
+        Deletes a workspace. Protects system workspaces ('Default', 'Shared Sources', 'Global').
         """
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("Workspace name cannot be empty.")
 
-        protected = ["default", "shared sources"]
+        protected = ["default", "shared sources", "global"]
         if clean_name.lower() in protected:
             raise ValueError(f"Cannot delete protected system workspace '{clean_name}'.")
 

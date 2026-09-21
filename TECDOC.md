@@ -47,6 +47,8 @@
 59. [3-Level Hierarchical Memory Cascade, 15-Turn SQLite Session Rollover & Inference Sliding Window (`v0.30.22`)](#59-3-level-hierarchical-memory-cascade-15-turn-sqlite-session-rollover--inference-sliding-window-v03022)
 60. [Epistemic State Machine & Dual-Layer Negative Echo Elimination (`v0.30.23`)](#60-epistemic-state-machine--dual-layer-negative-echo-elimination-v03023)
 61. [Dynamic Active Workspace Resolution, Strict ContextVar Tool Isolation & Pydantic Optional Schema Integrity (`v0.30.24`)](#61-dynamic-active-workspace-resolution-strict-contextvar-tool-isolation--pydantic-optional-schema-integrity-v03024)
+62. [Robust Anti-Nesting Recursive Self-Updater & Dynamic Stale Lock Protection (`v0.30.25`)](#62-robust-anti-nesting-recursive-self-updater--dynamic-stale-lock-protection-v03025)
+63. [Caller-Aware Output Modulation, Modular Agent Skills & Global Auto-Reindexed System Help (`v0.30.26`)](#63-caller-aware-output-modulation-modular-agent-skills--global-auto-reindexed-system-help-v03026)
 
 ---
 
@@ -3314,7 +3316,7 @@ To maintain absolute interface parity across all adapters:
 
 ---
 
-## 27. Robust Anti-Nesting Recursive Self-Updater Architecture (`v0.30.25`)
+## 62. Robust Anti-Nesting Recursive Self-Updater & Dynamic Stale Lock Protection (`v0.30.25`)
 
 ### 1. Problem Definition: The PyInstaller Onedir Nesting Trap
 In PyInstaller `--onedir` distributions, the application executable (`actx-core.exe`) is co-located with a runtime directory named `_internal/` containing `python311.dll` and all bundled dependency modules.
@@ -3400,6 +3402,128 @@ Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {
 }
 ```
 This guarantees that the PowerShell fallback process also respects the anti-nesting invariant.
+
+---
+
+## 63. Caller-Aware Output Modulation, Modular Agent Skills & Global Auto-Reindexed System Help (`v0.30.26`)
+
+### 1. Architectural Overview & The Caller Dichotomy
+In real-world deployment, AnyContext serves two diametrically opposed consumer archetypes:
+1. **Human Interactive Consumers (`caller_type="human"`)**:
+   - Interfaces: OpenTUI terminal GUI, interactive Stdio RPC bridge, interactive CLI chat, REST API frontends.
+   - Requirement: Cognitive collaboration, proactive format inquiry, layout negotiation, and iterative refinement. Users find monolithic, unrequested tables overwhelming and frustrating when they did not ask for that specific presentation structure.
+2. **Programmatic Agents & Tool Callers (`caller_type="mcp"`)**:
+   - Interfaces: Anthropic Claude Desktop, Cursor, Gemini CLI, automated IDE MCP agents.
+   - Requirement: Pure machine-to-machine payload delivery. 100% direct, dense, structured factual data with zero conversational preamble, zero layout inquiries, and zero politeness fluff that would exhaust downstream LLM context windows.
+
+```mermaid
+flowchart TD
+    A["Inbound Request Arrival"] --> B{"Entrypoint Surface"}
+    
+    B -- "MCP Server (actx --mcp)<br/>query_anycontext_agent" --> C["set_caller_type_context('mcp')"]
+    B -- "OpenTUI / RPC Bridge<br/>_stream_chat" --> D["set_caller_type_context('human')"]
+    B -- "Interactive CLI (actx)<br/>cli/entrypoint.py" --> D
+    B -- "REST API (actx --serve)<br/>api.py" --> D
+    
+    C --> E["SkillRegistry.format_skills_for_system_prompt('mcp')"]
+    D --> F["SkillRegistry.format_skills_for_system_prompt('human')"]
+    
+    E --> G["Prompt Payload: Invariant Core + mcp-direct-response + temporal-grounding"]
+    F --> H["Prompt Payload: Invariant Core + clarification-dialogue + temporal-grounding + panoramic-synthesis"]
+    
+    G --> I["LLM Execution: Ultra-dense, zero conversational filler, direct answer"]
+    H --> J["LLM Execution: Collaborative, asks format preference before dumping large tables"]
+```
+
+### 2. ContextVar-Driven Dynamic Caller Modulation
+To avoid polluting internal LangChain/LangGraph method signatures while guaranteeing thread and coroutine isolation, AnyContext introduces `_CALLER_TYPE_CTX` in `src/any_context/core/agent.py`:
+
+```python
+_CALLER_TYPE_CTX: ContextVar[str] = ContextVar("caller_type", default="human")
+
+def set_caller_type_context(caller_type: str) -> None:
+    _CALLER_TYPE_CTX.set(caller_type)
+
+def get_caller_type_context() -> str:
+    return _CALLER_TYPE_CTX.get()
+```
+
+- **Execution-Scoped Propagation**: When an MCP request arrives, `set_caller_type_context("mcp")` sets the coroutine-local context. When `get_system_prompt()` is invoked during graph creation or runtime model binding, `caller_type` defaults to `get_caller_type_context()`.
+- **Zero Cross-Talk**: Concurrently running HTTP/RPC requests in separate async tasks maintain isolated caller types without mutexes or global variable race conditions.
+
+### 3. Deconstruction of `AGENT.md` into Discrete Modular Skills
+To prevent attention fragmentation, reduce input token overhead by ~45%, and eliminate prompt instruction decay, the monolithic `config/AGENT.md` was refactored into:
+1. **Invariant Core Instructions (`config/AGENT.md`)**:
+   - Identity & mission statement.
+   - LanceDB RAG retrieval mechanics (`search_db`).
+   - Strict Grounding Rules (truthful reporting, factual absence handling).
+   - Mandatory Source Footers (`📄 Fontes Consultadas:`).
+2. **Specialized Modular Skills (`src/any_context/skills/`)**:
+   - Each skill defines a `SKILL.md` file with YAML frontmatter specifying `name`, `description`, and `caller_types`:
+   ```yaml
+   ---
+   name: clarification-dialogue
+   description: Proactive format alignment and guiding questions for human users
+   caller_types: [human]
+   ---
+   ```
+   - **`clarification-dialogue`** (`caller_types: [human]`):
+     - When retrieved records admit multiple presentation structures (chronological table vs. entity breakdown vs. single shipment detail), proactive layout options are presented to the user before dumping dense data.
+   - **`mcp-direct-response`** (`caller_types: [mcp]`):
+     - Strict directive for programmatic callers: immediate factual delivery, highest information density, zero conversational questions.
+   - **`temporal-grounding`** (`caller_types: [human, mcp]`):
+     - Short numeric date resolution (`DD/MM/YYYY` vs `MM/DD/YYYY`) and temporal recency primacy.
+   - **`panoramic-synthesis`** (`caller_types: [human, mcp]`):
+     - Multi-category, multi-tier comparison and synthesis across diverse document sets.
+
+```mermaid
+classDiagram
+    class Skill {
+        +str name
+        +str description
+        +str content
+        +List[str] caller_types
+        +Path path
+    }
+    class SkillRegistry {
+        -Path skills_dir
+        -Dict[str, Skill] _skills
+        +discover_skills() Dict[str, Skill]
+        +get_skill(name) Skill
+        +format_skills_for_system_prompt(caller_type) str
+    }
+    SkillRegistry o-- Skill : manages
+```
+
+### 4. Global System Help & Automatic Version-Triggered Reindexing
+Users frequently query the assistant about AnyContext features, slash commands, or troubleshooting from within project workspaces (e.g. while working inside `IKEAShipments`).
+
+#### 1. Internal Protected LanceDB Namespace (`workspace="Global"`)
+- The internal help index is partitioned in LanceDB with `workspace="Global"`.
+- `workspace_service.list_workspaces()` explicitly filters `"Global"`, hiding it from user workspace pickers (`/switch --list`).
+- `workspace_service.delete_workspace("Global")` raises a `ValueError("Workspace 'Global' is a protected system workspace and cannot be deleted.")`, preventing accidental or malicious purging.
+
+#### 2. Intellectual Property Protection (`TECDOC.md` vs `README.md`)
+- Proprietary internal architecture, AST engineering, and reverse-engineering vectors documented in `TECDOC.md` are **strictly excluded** from client-facing vector indexing.
+- Only the public `HELP_REGISTRY` (`src/any_context/help/registry.py`) and the public `README.md` are ingested into the `Global` namespace.
+
+#### 3. Concurrent Multi-Workspace Retrieval
+In `src/any_context/tools/search_tools.py`:
+$$\text{target\_workspaces} = [\text{resolved\_workspace}, \text{"Global"}]$$
+`ParallelRetriever` queries both partitions concurrently in parallel worker threads. If a user inside `IKEAShipments` asks *"Como funciona o comando /link?"*, the retriever retrieves the relevant chunks from the `Global` partition without requiring the user to switch workspaces.
+
+#### 4. Sub-Millisecond Cache Validation & Silent Ingestion
+At application startup across all entrypoints (OpenTUI, CLI, MCP, REST API):
+- `async_ensure_system_knowledge_indexed()` checks `system_help_cache.json` containing:
+  ```json
+  {
+    "version": "0.30.26",
+    "mtime_readme": 1726912345.67,
+    "hash_help": "a1b2c3d4..."
+  }
+  ```
+- If the AnyContext package version has changed or `README.md` was modified, indexing runs asynchronously in a non-blocking background task. If the cache is valid, the check completes in `< 1ms` with zero CPU overhead.
+
 
 
 

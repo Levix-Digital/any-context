@@ -1,10 +1,10 @@
 """
-Unit and Integration Tests for Permanent System Self-Knowledge Auto-Bootstrap (v0.23.1).
+Unit and Integration Tests for Permanent System Self-Knowledge Auto-Bootstrap (v0.30.26).
 Tests:
   1. ensure_system_knowledge_indexed boots HELP_REGISTRY and README.md into LanceDB 'Global'.
   2. TECDOC.md is strictly excluded from indexed system knowledge.
-  3. Search queries for commands (e.g. transfer source, switch workspace) successfully return Global chunks.
-  4. Instant SHA-256 hash bypass on subsequent calls.
+  3. Search queries for commands (e.g. transfer source, switch workspace) successfully return Global chunks across workspaces.
+  4. User documents in other private workspaces do not leak cross-workspace.
 """
 import os
 import shutil
@@ -60,25 +60,36 @@ class TestSystemKnowledgeBootstrap(unittest.TestCase):
         self.assertNotIn("TECDOC.md", doc.metadata.get("file_name", ""))
         print("  [OK] TECDOC.md is strictly excluded from public system knowledge!")
 
-    def test_03_strict_workspace_isolation_without_global_leak(self):
+    def test_03_ensure_system_knowledge_indexed_and_search_retrieval(self):
         """
-        Tests that searching an empty workspace strictly returns no documents and never leaks unlinked data.
+        Tests that ensure_system_knowledge_indexed writes into LanceDB and search_context retrieves Global help chunks across workspaces.
         """
-        print("\n>>> [UNIT] Testing Strict Workspace Isolation Without Global Leak...")
-        
+        print("\n>>> [UNIT] Testing Auto-Bootstrap & Command Query Retrieval across workspaces...")
+
+        def mock_embed_batch(texts):
+            return [[0.05] * 1536 for _ in texts]
+
         def mock_query_embed(query):
             return [0.05] * 1536
 
-        with patch("any_context.vector_engine.retriever.ParallelRetriever._get_query_embedding", side_effect=mock_query_embed):
-            with patch("any_context.tools.search_tools.configure_embedding_model"):
-                # Search in an empty workspace should return no documents found
-                res = _execute_search_context(
-                    prompt_text="como mover um web source de um workspace para outro",
-                    workspace="EmptyCustomWorkspace"
-                )
+        with patch("any_context.vector_engine.indexer.ParallelIndexer._get_text_embeddings_batch", side_effect=mock_embed_batch):
+            with patch("any_context.vector_engine.retriever.ParallelRetriever._get_query_embedding", side_effect=mock_query_embed):
+                with patch("any_context.tools.search_tools.configure_embedding_model"):
+                    success = ensure_system_knowledge_indexed(db_path=self.db_path, force=True)
+                    self.assertTrue(success)
 
-                self.assertTrue("No documents found in vector database" in res or "No relevant documents found" in res)
-                print("  [OK] Strict workspace isolation verified without global leak!")
+                    records_count = self.lance_store.count_records(table_name="workspace_chunks")
+                    self.assertGreater(records_count, 0)
+
+                    # Test _execute_search_context for commands in an empty custom workspace retrieves Global help chunks
+                    res = _execute_search_context(
+                        prompt_text="como usar o comando /transfer",
+                        workspace="EmptyCustomWorkspace"
+                    )
+
+                    self.assertIn("Workspace: Global", res)
+                    self.assertIn("transfer", res.lower())
+                    print("  [OK] System Help chunks retrieved across empty workspaces successfully!")
 
 
 if __name__ == "__main__":

@@ -81,6 +81,12 @@ class StdioRPCServer:
         self._last_stat_check_time = 0.0
         self._check_workspace_stat_on_switch(self.active_workspace)
 
+        try:
+            from any_context.help.bootstrap import async_ensure_system_knowledge_indexed
+            async_ensure_system_knowledge_indexed()
+        except Exception:
+            pass
+
     def _on_background_job_complete(self, notif: Dict[str, Any]):
         """Dispatches live notification and updated state across the RPC bridge when background crawl/sync finishes."""
         try:
@@ -605,7 +611,8 @@ class StdioRPCServer:
                     "thread_id": thread_id,
                     "active_workspace": self.active_workspace,
                     "grounding_mode": self._grounding_mode,
-                    "web_search_enabled": self._web_search_enabled
+                    "web_search_enabled": self._web_search_enabled,
+                    "caller_type": "human"
                 }
             }
 
@@ -613,14 +620,16 @@ class StdioRPCServer:
                 self.active_workspace,
                 self._current_model,
                 self._grounding_mode,
-                bool(self._web_search_enabled)
+                bool(self._web_search_enabled),
+                "human"
             )
             if self.agent_instance is None or getattr(self, "_agent_sig", None) != current_sig:
                 self.agent_instance = create_anycontext_agent(
                     active_workspace=self.active_workspace,
                     model_override=self._current_model,
                     grounding_mode=self._grounding_mode,
-                    web_search_enabled=self._web_search_enabled
+                    web_search_enabled=self._web_search_enabled,
+                    caller_type="human"
                 )
                 self._agent_sig = current_sig
 
