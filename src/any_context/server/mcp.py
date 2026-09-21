@@ -550,12 +550,18 @@ def dispatch_mcp_request(request: Dict[str, Any]) -> Dict[str, Any]:
             elif tool_name == "search_workspace_docs":
                 query = arguments.get("query", "")
                 ws = arguments.get("workspace")
-                res = search_db.invoke({"query": query, "workspace": ws, "search_session_memory": False})
+                from any_context.tools.search_tools import set_active_workspace_context
+                if ws:
+                    set_active_workspace_context(ws)
+                res = search_db.invoke({"prompt_text": query, "query": query, "workspace": ws, "search_session_memory": False})
                 result_text = str(res)
 
             elif tool_name == "query_anycontext_agent":
                 msg = arguments.get("message", "")
                 ws = arguments.get("workspace")
+                from any_context.tools.search_tools import set_active_workspace_context
+                if ws:
+                    set_active_workspace_context(ws)
                 model_req = arguments.get("model")
                 grounding_mode = arguments.get("grounding_mode") or arguments.get("mode")
                 thread_id = f"mcp_chat_{uuid.uuid4()}"

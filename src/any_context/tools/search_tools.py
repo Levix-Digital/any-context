@@ -1,4 +1,5 @@
 import os
+import contextvars
 from typing import List, Any, Dict, Optional
 from any_context.config.app_settings import AppSettings
 from any_context.core.utils import get_api_key
@@ -182,23 +183,75 @@ def _diversify_nodes(raw_nodes: List[Any], target_top_k: int, max_per_source: in
     return selected_nodes
 
 
+_ACTIVE_WORKSPACE_CTX: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "active_workspace_context", default=None
+)
+
+
+def set_active_workspace_context(workspace: Optional[str]) -> contextvars.Token:
+    """Sets the active workspace for the current execution thread / async context."""
+    return _ACTIVE_WORKSPACE_CTX.set(str(workspace).strip() if workspace and str(workspace).strip() else None)
+
+
+def reset_active_workspace_context(token: contextvars.Token) -> None:
+    """Resets the active workspace context."""
+    try:
+        _ACTIVE_WORKSPACE_CTX.reset(token)
+    except Exception:
+        pass
+
+
+def get_resolved_workspace(workspace: Optional[str] = None) -> str:
+    """
+    Dynamically resolves the target workspace for vector search and management tools:
+    1. Explicit parameter if provided and non-empty.
+    2. Active workspace stored in ContextVar for the current session/thread.
+    3. Persistent active workspace from ConfigDBStore().
+    4. Fallback to 'Default' only if no workspace is configured anywhere.
+    """
+    if workspace and str(workspace).strip():
+        return str(workspace).strip()
+
+    ctx_ws = _ACTIVE_WORKSPACE_CTX.get()
+    if ctx_ws and str(ctx_ws).strip():
+        return str(ctx_ws).strip()
+
+    try:
+        from any_context.config.db_store import ConfigDBStore
+        cfg_ws = ConfigDBStore().get_active_workspace()
+        if cfg_ws and str(cfg_ws).strip():
+            return str(cfg_ws).strip()
+    except Exception:
+        pass
+
+    return "Default"
+
+
 @tool()
-def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int = 40, workspace: str = None) -> str:
+def search_db(
+    prompt_text: str = "",
+    query: Optional[str] = None,
+    search_session_memory: bool = False,
+    top_k: int = 40,
+    workspace: Optional[str] = None
+) -> str:
     """
     Search for relevant information in the vector database based on the provided prompt text.
     Enforces strict workspace isolation and multi-source round-robin diversity across all documents.
 
     Args:
-        prompt_text (str): The text to search for.
+        prompt_text (str): The text to search for (or query).
+        query (str, optional): Alias for prompt_text.
         search_session_memory (bool): Set to True to search the user's past conversations/sessions memory. Set to False to search general workspace documents.
         top_k (int): The number of relevant diversified document chunks to return (default: 40).
-        workspace (str, optional): The specific workspace to filter searches by (enforces strict workspace privacy).
+        workspace (str, optional): The specific workspace to filter searches by (enforces strict workspace privacy). If omitted, automatically searches the active workspace.
 
     Returns:
         str: Relevant document content snippets or memory entries.
     """
+    effective_prompt = prompt_text or query or ""
     return _execute_search_context(
-        prompt_text=prompt_text,
+        prompt_text=effective_prompt,
         workspace=workspace,
         top_k=top_k,
         search_session_memory=search_session_memory
@@ -207,15 +260,16 @@ def search_db(prompt_text: str, search_session_memory: bool = False, top_k: int 
 
 def _execute_search_context(
     prompt_text: str,
-    workspace: str = None,
-    top_k: int = None,
+    workspace: Optional[str] = None,
+    top_k: Optional[int] = None,
     search_session_memory: bool = False
 ) -> str:
     """
     Core search logic powered exclusively by LanceDB columnar parallel vector retriever.
     Eliminates ChromaDB completely.
     """
-    with obs.span("rag:retrieval", workspace=workspace or "Default", search_session_memory=search_session_memory, query=prompt_text[:50]):
+    resolved_workspace = get_resolved_workspace(workspace)
+    with obs.span("rag:retrieval", workspace=resolved_workspace, search_session_memory=search_session_memory, query=prompt_text[:50]):
         configure_embedding_model()
         settings = AppSettings.load()
         session_db_path = settings.session.db_path if settings else "./memory"
@@ -251,9 +305,9 @@ def _execute_search_context(
             return "No documents found in vector database."
 
         config_store = ConfigDBStore()
-        target_workspaces = [workspace] if workspace else ["Default"]
+        target_workspaces = [resolved_workspace]
 
-        shared_links = config_store.get_workspace_shared_links(workspace) if workspace else []
+        shared_links = config_store.get_workspace_shared_links(resolved_workspace)
         linked_identifiers = [l["source_identifier"] for l in shared_links]
 
         retrieval_config = RetrievalConfig(
@@ -267,7 +321,7 @@ def _execute_search_context(
         parallel_retriever = ParallelRetriever(store=lance_store)
         lance_results = parallel_retriever.search(
             query=prompt_text,
-            workspace=workspace,
+            workspace=resolved_workspace,
             target_workspaces=target_workspaces,
             linked_sources=linked_identifiers,
             config=retrieval_config,
@@ -276,8 +330,8 @@ def _execute_search_context(
 
         if not lance_results:
             if search_session_memory:
-                return f"No session memory records found for query '{prompt_text}' in workspace '{workspace}'." if workspace else "No session memory records found."
-            return f"No relevant documents found for query '{prompt_text}' in workspace '{workspace}'. (Search executed across {total_records} indexed chunks)." if workspace else f"No relevant documents found for query '{prompt_text}'."
+                return f"No session memory records found for query '{prompt_text}' in workspace '{resolved_workspace}'."
+            return f"No relevant documents found for query '{prompt_text}' in workspace '{resolved_workspace}'. (Search executed across {total_records} indexed chunks)."
 
         results_list = []
         for i, sc in enumerate(lance_results):
@@ -295,7 +349,7 @@ def _execute_search_context(
 
 
 @tool()
-def add_web_source(url: str, workspace: str = None, polling_interval_hours: int = 24, max_pages: int = 50) -> str:
+def add_web_source(url: str, workspace: Optional[str] = None, polling_interval_hours: int = 24, max_pages: int = 50) -> str:
     """
     Crawls and indexes a website or documentation portal into the vector database for a workspace.
     Automatically discovers and indexes sub-pages within the same section.
@@ -309,7 +363,7 @@ def add_web_source(url: str, workspace: str = None, polling_interval_hours: int 
     Returns:
         str: Success confirmation or error message.
     """
-    target_ws = workspace or "Default"
+    target_ws = get_resolved_workspace(workspace)
     with obs.span("ingestion:add_web_source", url=url, workspace=target_ws):
         from any_context.ingestion.web_crawler import discover_site_urls, crawl_and_index_urls
         disc = discover_site_urls(url)
@@ -326,19 +380,19 @@ def add_web_source(url: str, workspace: str = None, polling_interval_hours: int 
 
 
 @tool()
-def list_web_sources(workspace: str = None) -> str:
+def list_web_sources(workspace: Optional[str] = None) -> str:
     """
     Lists all web URLs and documentation sites configured for scraping and polling in a workspace.
 
     Args:
-        workspace (str, optional): Target workspace name.
+        workspace (str, optional): Target workspace name. If omitted, uses active workspace.
 
     Returns:
         str: Markdown list of configured web sources.
     """
     from any_context.ingestion.web_scheduler import WebSchedulerStore
     store = WebSchedulerStore()
-    target_ws = workspace or "Default"
+    target_ws = get_resolved_workspace(workspace)
     urls = store.get_workspace_web_urls(target_ws)
     if not urls:
         return f"No web sources configured yet for workspace '{target_ws}'."
@@ -350,20 +404,20 @@ def list_web_sources(workspace: str = None) -> str:
 
 
 @tool()
-def remove_web_source(url_or_id: str, workspace: str = None) -> str:
+def remove_web_source(url_or_id: str, workspace: Optional[str] = None) -> str:
     """
     Removes a web URL from a workspace's scraping schedule and purges its indexed vectors from LanceDB.
 
     Args:
         url_or_id (str): The URL or ID of the web source to remove.
-        workspace (str, optional): Target workspace name.
+        workspace (str, optional): Target workspace name. If omitted, uses active workspace.
 
     Returns:
         str: Confirmation message.
     """
     from any_context.ingestion.web_scheduler import WebSchedulerStore, remove_web_url_from_lancedb
     store = WebSchedulerStore()
-    target_ws = workspace or "Default"
+    target_ws = get_resolved_workspace(workspace)
     
     # Check if id or url
     urls = store.get_workspace_web_urls(target_ws)

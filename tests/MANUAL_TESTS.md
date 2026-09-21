@@ -7,7 +7,59 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.23 Epistemic State Machine, Dual-Layer Negative Echo Elimination & Deduplication): Validação da Máquina de Estados Epistêmica, Independência Temporal e Eliminação de Viés de Negação Passada
+### 📌 Cenário 1 (v0.30.24 Dynamic Active Workspace Resolution & Strict Tool Isolation in Multiturn RAG): Validação da Resolução Automática de Workspace Ativo e Eliminação de Fallback Silencioso para "Default"
+
+- **Objetivo**: Comprovar que na versão `v0.30.24`:
+  1. **Resolução Dinâmica de Contexto (`_ACTIVE_WORKSPACE_CTX`)**: Quando o modelo LLM executa a ferramenta vetorial `search_db` omitindo o parâmetro opcional `workspace` (e.g. `args: {'prompt_text': 'entregas da IKEA'}`), a ferramenta **resolve automaticamente o workspace ativo da sessão** (`IKEAShipments`) através do `ContextVar` e do `ConfigDBStore`, eliminando completamente o vazamento cross-workspace para `"Default"`.
+  2. **Isolamento e Grounding Verídico nos Turnos 2 e 3**: Após uma resposta legítima de ausência no Turno 1, ao perguntar no Turno 2 *"Quais foram as entregas da IKEA?"*, a busca no LanceDB recupera exclusivamente documentos do workspace ativo (`IKEA Shipment Checklist CAEN v2.11.pdf`, `015-TSO-*`), permitindo que a IA sintetize as entregas com precisão e liste as fontes reais consultadas, sem cair em falso negativo.
+  3. **Validação Estrita Pydantic v2**: Parâmetros opcionais como `workspace: Optional[str] = None` e `query: Optional[str] = None` aceitam valores nulos sem falhas de validação de esquema.
+  4. **Paridade Universal de Argumentos**: Suporte nativo e transparente a `prompt_text` e `query` em todas as interfaces (CLI, OpenTUI, REST API e MCP Server).
+- **Pré-requisito**: Versão `v0.30.24` instalada e workspace `IKEAShipments` configurado e indexado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.24`.
+
+2. **🧪 Provocação de Negação Legítima (Turno 1):**
+   - Inicie o AnyContext no workspace `IKEAShipments`:
+     ```text
+     actx
+     ```
+   - Envie uma pergunta sobre um documento inexistente:
+     ```text
+     O que diz o relatório financeiro de 2029?
+     ```
+   - **Critério de Aceitação:** O modelo responde com negação legítima:
+     `⚠️ Essa informação não consta nos documentos deste workspace.`
+
+3. **🎯 Validação da Resolução Automática do Workspace Ativo (Turno 2):**
+   - No mesmo chat (sem `/clear`), pergunte:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - O modelo chama `search_db` e resolve dinamicamente o workspace ativo `IKEAShipments`.
+     - O LanceDB retorna os documentos da IKEA (não cai no workspace `Default` nem em documentos de imigração canadense).
+     - O modelo sintetiza o panorama estruturado das entregas da IKEA com base nos checklists e romaneios.
+     - O bloco `📄 Fontes Consultadas:` cita os arquivos reais: `IKEA Shipment Checklist CAEN v2.11.pdf` e/ou `015-TSO-*`.
+
+4. **🔄 Continuidade e Robustez em Repetição (Turno 3):**
+   - No mesmo chat, envie novamente:
+     ```text
+     Quais foram as entregas da IKEA?
+     ```
+   - **Critério de Aceitação:**
+     - A resposta é gerada com base nos dados do workspace `IKEAShipments`.
+     - Permanece citando as fontes corretas e não entra em regressão para "informação não consta".
+
+---
+
+### 📌 Cenário 2 (v0.30.23 Epistemic State Machine, Dual-Layer Negative Echo Elimination & Deduplication): Validação da Máquina de Estados Epistêmica, Independência Temporal e Eliminação de Viés de Negação Passada
 
 - **Objetivo**: Comprovar que na versão `v0.30.23`:
   1. A **Máquina de Estados Epistêmica** categoriza formalmente cada resposta da IA (`EpistemicState`: `GROUNDED_FACTUAL`, `FACTUAL_ABSENCE`, `CLARIFICATION`, `CONVERSATIONAL`) carimbando `additional_kwargs["epistemic_state"]`.

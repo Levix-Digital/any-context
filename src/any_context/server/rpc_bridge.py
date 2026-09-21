@@ -582,6 +582,12 @@ class StdioRPCServer:
         """Streams LangGraph agent tokens and tool execution tickers in real-time."""
         self._check_workspace_stat_debounced(self.active_workspace, min_interval_seconds=1.0)
         from any_context.core.agent import create_anycontext_agent
+        from any_context.tools.search_tools import set_active_workspace_context
+        set_active_workspace_context(self.active_workspace)
+        try:
+            self.store.set_active_workspace(self.active_workspace)
+        except Exception:
+            pass
 
         # Record user message in workspace view buffer and session accumulator
         user_msg = {
