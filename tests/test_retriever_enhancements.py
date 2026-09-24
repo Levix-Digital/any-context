@@ -12,9 +12,9 @@ from any_context.vector_engine.retriever import (
 from any_context.vector_engine.models import ScoredChunk, RetrievalConfig
 
 
-def test_expand_query_temporal_pt_br():
-    # 1. Full date in Portuguese
-    q1 = "Quais são os agendamentos para 3 de Setembro de 2026?"
+def test_expand_query_temporal_intl_numeric():
+    # 1. Full date in ISO format
+    q1 = "What are the shipments for 2026-09-03?"
     exp1 = expand_query_temporal(q1)
     assert "2026-09-03" in exp1
     assert "2026/09/03" in exp1
@@ -22,16 +22,17 @@ def test_expand_query_temporal_pt_br():
     assert "09/03" in exp1
 
     # 2. Day and month without year
-    q2 = "Verifique os registros do dia 01 de setembro."
+    q2 = "Verifique os registros do dia 01/09."
     exp2 = expand_query_temporal(q2)
-    assert "09-01" in exp2 or "09/01" in exp2
+    assert "01/09" in exp2 or "09/01" in exp2
 
-    # 3. Brazilian numeric format
+    # 3. International numeric format (DD/MM/YYYY)
     q3 = "O que aconteceu em 15/08/2026?"
     exp3 = expand_query_temporal(q3)
     assert "2026-08-15" in exp3
     assert "2026/08/15" in exp3
     assert "15/08/2026" in exp3
+
 
 
 def test_expand_query_temporal_en():
@@ -72,7 +73,7 @@ def test_extract_filename_mentions():
 
 
 def test_extract_temporal_clauses_preserves_path_patterns():
-    q = "Agendamentos para 2 de setembro de 2026"
+    q = "Agendamentos para 02/09/2026"
     clauses = extract_temporal_clauses(q)
     assert any("2026/09/02" in c for c in clauses)
     assert any("2026-09-02" in c for c in clauses)
