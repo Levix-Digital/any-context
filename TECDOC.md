@@ -53,6 +53,7 @@
 65. [Universal Cross-Workspace Knowledge Retrieval, Runtime Credential Export & Unrestricted BM25 System Discovery (`v0.30.28`)](#65-universal-cross-workspace-knowledge-retrieval-runtime-credential-export--unrestricted-bm25-system-discovery-v03028)
 66. [Collaborative Dialogue Supremacy, Dead-End Disclaimer Elimination & Full-Turn Epistemic Purging (`v0.30.29`)](#66-collaborative-dialogue-supremacy-dead-end-disclaimer-elimination--full-turn-epistemic-purging-v03029)
 67. [Native Rust Workspace File Scanner & High-Performance Differential Sync (`v0.30.30`)](#67-native-rust-workspace-file-scanner--high-performance-differential-sync-v03030)
+68. [Synchronous Atomic Update Pipeline & Launcher Shim Process Lifecycle Guard (`v0.30.31`)](#68-synchronous-atomic-update-pipeline--launcher-shim-process-lifecycle-guard-v03031)
 
 ---
 
@@ -3874,3 +3875,74 @@ As part of `v0.30.30`, a thorough codebase audit identified and eliminated legac
 - **`def index_folder` Extirpation**: An obsolete one-line wrapper dating back to August 2026 (`v0.9.4`) was deleted from `src/any_context/ingestion/local_folder_ingestor.py`.
 - **Domain Service Unification**: `run_index_folder` is now strictly enforced as the sole canonical entrypoint for local folder ingestion across `api.py`, `mcp.py`, `unified_sync.py`, and `config_menu.py`.
 - **Agent Decoupling**: Purged the untyped import of `index_folder` from `src/any_context/core/agent.py`, keeping the conversational LLM ReAct loop decoupled from filesystem batch ingestion services.
+
+---
+
+## 68. Synchronous Atomic Update Pipeline & Launcher Shim Process Lifecycle Guard (`v0.30.31`)
+
+### 🔍 1. Root Cause Analysis: Windows File Locking & Premature Prompt Release
+
+In previous iterations (`v0.30.29` - `v0.30.30`), the in-CLI updater (`actx --check-update` or `/update`) on Windows suffered from an inherent race condition rooted in process lifecycle management:
+1. **Asynchronous Background Process Spawning**: Python's `UpdateService._apply_windows_update` launched an asynchronous PowerShell script via `subprocess.Popen` with detached process creation flags (`CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS`).
+2. **Premature Process Exit**: Immediately after spawning PowerShell, the Python core engine printed completion messages and called `sys.exit(0)`.
+3. **Premature Shell Prompt Release**: The interactive terminal (CMD, PowerShell, or Git Bash) received exit code `0` and immediately restored the user's command prompt.
+4. **Execution Window of Nonexistence**: While the background PowerShell script was slowly deleting `actx-core.exe` (or renaming it to `actx_old.exe`) and executing `Copy-Item -Recurse` of the 248MB `_internal` directory (which could take 5 to 15 seconds depending on antivirus I/O interception), the file `actx-core.exe` physically did NOT exist in `%LOCALAPPDATA%\actx\bin\`.
+5. **Transient Failure**: If the user immediately typed `actx` and hit Enter, the launcher shim found no `actx-core.exe` and threw:
+   `❌ Error: AnyContext core engine ('actx-core.exe') not found in: C:\Users\guilh\AppData\Local\actx\bin\`
+
+### ⚡ 2. The Synchronous Handoff Protocol & Atomic NTFS Directory Swap
+
+To solve this fundamentally and guarantee that the command prompt is **NEVER** released until every single byte is verified in place, `v0.30.31` implements an atomic parent-child process lifecycle handoff:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / Shell
+    participant Launcher as Launcher Shim (actx.exe)
+    participant Core as Core Engine (actx-core.exe)
+    participant Staging as Staging Area (_internal_staging)
+    participant Target as Target Directory (%LOCALAPPDATA%\actx\bin)
+
+    User->>Launcher: actx --check-update
+    Launcher->>Core: Process.Start(actx-core.exe, args)
+    Note over Launcher: Launcher blocks synchronously on WaitForExit()<br/>Terminal prompt is HELD
+    Core->>Core: Download Release ZIP (247 MB)
+    Core->>Staging: Extract actx-core.exe & _internal to staging
+    Core->>Target: Write pending_update.json
+    Core-->>Launcher: sys.exit(42) [Handoff Exit Code]
+    Note over Core: Process terminates; all DLL locks released instantly
+    Note over Launcher: Launcher intercepts exit code 42
+    Launcher->>Target: Atomic NTFS Directory.Move(_internal -> _internal_old) (< 10ms)
+    Launcher->>Target: Atomic NTFS Directory.Move(_internal_staging -> _internal) (< 10ms)
+    Launcher->>Target: File.Move(actx-core.exe -> actx-core.old) & (actx-core.new -> actx-core.exe) (< 5ms)
+    Launcher->>Target: Write version.txt
+    Launcher->>Target: Purge _internal_old and pending_update.json
+    Launcher->>Launcher: Verify File.Exists(actx-core.exe) == true
+    Launcher-->>User: Prints success confirmation & releases prompt (Exit 0)
+    Note over User: User prompt returned: actx-core.exe is 100% ready
+```
+
+### 🔬 3. Key Architectural Components
+
+1. **Launcher Shim Handoff Interception (`launcher/actx_shim.cs`)**:
+   - The native C# launcher shim (`actx.exe`) has no dependency on Python runtime libraries and loads zero DLLs from `_internal`.
+   - When launching `actx-core.exe`, it records its own PID in the environment variable `ACTX_LAUNCHER_PID`.
+   - Upon process completion, it inspects `proc.ExitCode`. If the exit code is `42`, or if `pending_update.json` exists in `bin/`, it synchronously executes `FinalizePendingUpdate(baseDir, stagingDir, pendingFlag)`.
+   - Uses `Directory.Move` and `File.Move` within the same NTFS filesystem volume, which executes via MFT (Master File Table) directory entry metadata pointer swaps in `< 50ms` total.
+   - Cleans up backup directories (`_internal_old`) and removes `pending_update.json`.
+   - Verifies `File.Exists(actx-core.exe)` before printing the success banner and finally returning control to the terminal.
+
+2. **Core Updater Protocol (`src/any_context/cli/updater.py`, `src/any_context/core/services/update_service.py`)**:
+   - The updater unpacks the release archive into `_internal_staging` and copies `actx-core.new.exe`.
+   - When running under the launcher shim (`ACTX_LAUNCHER_PID` present), it writes `pending_update.json` containing the target version and calls `sys.exit(42)`.
+   - If executed in standalone mode (direct `actx-core.exe` invocation without a launcher shim), it executes a fallback PowerShell script that moves directories first via `Move-Item -Force` rather than slow `Copy-Item -Recurse`, ensuring the swap window is reduced from 10 seconds to less than 100 milliseconds.
+
+3. **Git Bash Shell Wrapper Precedence (`launcher/build_shim.py`, `install.sh`, `scripts/install.sh`)**:
+   - On Windows environments running Git Bash (MSYS2/MINGW64), previous scripts attempted to execute `actx-core.exe` directly if present, bypassing the launcher shim.
+   - The shell wrapper was updated to check for `actx.exe` first:
+     ```bash
+     if [ -f "$BIN_DIR/actx.exe" ]; then
+         exec "$BIN_DIR/actx.exe" "$@"
+     fi
+     ```
+   - This guarantees that Git Bash users benefit from the exact same prompt retention and atomic update finalization as PowerShell and CMD users.

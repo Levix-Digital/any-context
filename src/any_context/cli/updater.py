@@ -711,69 +711,7 @@ def run_self_update(
         pass
 
     if is_windows:
-        # Step A: Perform immediate atomic swap
-        try:
-            if is_archive and os.path.exists(staging_dir):
-                if os.path.exists(internal_dir):
-                    try:
-                        os.rename(internal_dir, old_internal_dir)
-                    except Exception:
-                        pass
-                for item in os.listdir(staging_dir):
-                    src_p = os.path.join(staging_dir, item)
-                    dst_p = os.path.join(target_dir, item)
-                    if os.path.isdir(src_p):
-                        merge_directory_contents(src_p, dst_p)
-                    else:
-                        if os.path.exists(dst_p):
-                            try:
-                                os.remove(dst_p)
-                            except Exception:
-                                pass
-                        try:
-                            os.replace(src_p, dst_p)
-                        except Exception:
-                            shutil.move(src_p, dst_p)
-                replaced = True
-                log_update_event(f"Atomic replacement succeeded (extracted archive to {target_dir})")
-                cleanup_stale_internal_backups(target_dir)
-                if os.path.exists(staging_dir):
-                    try: shutil.rmtree(staging_dir, ignore_errors=True)
-                    except Exception: pass
-                if os.path.exists(temp_download):
-                    try: os.remove(temp_download)
-                    except Exception: pass
-            else:
-                if os.path.exists(old_exe):
-                    try: os.remove(old_exe)
-                    except Exception: pass
-                if os.path.exists(target_exe):
-                    os.rename(target_exe, old_exe)
-                shutil.move(temp_download, target_exe)
-                replaced = True
-                log_update_event(f"Atomic replacement succeeded (direct rename to {target_exe})")
-                if os.path.exists(old_exe):
-                    try: os.remove(old_exe)
-                    except Exception: pass
-
-            # Also sync Python313/Scripts/actx.exe if present on this system
-            alt_script_exe = os.path.join(
-                os.environ.get("LOCALAPPDATA", ""),
-                "Programs",
-                "Python",
-                "Python313",
-                "Scripts",
-                "actx.exe"
-            )
-            if os.path.exists(alt_script_exe) and os.path.abspath(alt_script_exe) != os.path.abspath(target_exe):
-                try:
-                    shutil.copy2(target_exe, alt_script_exe)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-        # Deploy native shim actx.exe and bash shim actx if missing or oversized
+        # Deploy native shim actx.exe and bash shim actx first
         if not os.path.exists(shim_exe) or os.path.getsize(shim_exe) > 1024 * 1024:
             try:
                 from launcher.build_shim import build_windows_shim
@@ -795,10 +733,10 @@ def run_self_update(
             "    exit 0\n"
             "fi\n"
             "\n"
-            "if [ -f \"$BIN_DIR/actx-core.exe\" ]; then\n"
-            "    exec \"$BIN_DIR/actx-core.exe\" \"$@\"\n"
-            "elif [ -f \"$BIN_DIR/actx.exe\" ]; then\n"
+            "if [ -f \"$BIN_DIR/actx.exe\" ]; then\n"
             "    exec \"$BIN_DIR/actx.exe\" \"$@\"\n"
+            "elif [ -f \"$BIN_DIR/actx-core.exe\" ]; then\n"
+            "    exec \"$BIN_DIR/actx-core.exe\" \"$@\"\n"
             "elif [ -f \"$BIN_DIR/actx-core\" ]; then\n"
             "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
             "fi\n"
@@ -809,63 +747,90 @@ def run_self_update(
         except Exception:
             pass
 
-        if not replaced:
-            # Step B: Fallback to background PowerShell loop if file lock prevented immediate rename
-            swap_script = (
-                f"$retries = 0; "
-                f"while ($retries -lt 40) {{ "
-                f"  try {{ "
-                f"    if (Test-Path -LiteralPath '{target_exe}') {{ "
-                f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue "
-                f"    }} "
-                f"    if (Test-Path -LiteralPath '{internal_dir}') {{ "
-                f"      $rnd = [System.IO.Path]::GetRandomFileName(); "
-                f"      $uniqueOld = Join-Path '{target_dir}' ('_internal_old_' + $rnd); "
-                f"      Move-Item -LiteralPath '{internal_dir}' -Destination $uniqueOld -Force -ErrorAction SilentlyContinue; "
-                f"    }} "
-                f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
-                f"      Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {{ "
-                f"        $destItem = Join-Path '{target_dir}' $_.Name; "
-                f"        if ($_.PSIsContainer) {{ "
-                f"          if (-not (Test-Path -LiteralPath $destItem)) {{ New-Item -ItemType Directory -Path $destItem -Force | Out-Null }}; "
-                f"          Copy-Item -Path (Join-Path $_.FullName '*') -Destination $destItem -Recurse -Force -ErrorAction Stop; "
-                f"          Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue; "
-                f"        }} else {{ "
-                f"          Move-Item -LiteralPath $_.FullName -Destination $destItem -Force -ErrorAction Stop; "
-                f"        }} "
-                f"      }} "
-                f"    }} elseif (Test-Path -LiteralPath '{temp_download}') {{ "
-                f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop "
-                f"    }} "
-                f"    [System.IO.File]::WriteAllText('{version_file}', '{clean_tag}', (New-Object System.Text.UTF8Encoding $False)); "
-                f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
-                f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
-                f"    }} "
-                f"    Get-ChildItem -LiteralPath '{target_dir}' -Filter '_internal_old*' -Directory -ErrorAction SilentlyContinue | ForEach-Object {{ "
-                f"      Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue "
-                f"    }}; "
-                f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
-                f"      Remove-Item -LiteralPath '{staging_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
-                f"    }} "
-                f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
-                f"      Remove-Item -LiteralPath '{temp_download}' -Force -ErrorAction SilentlyContinue "
-                f"    }} "
-                f"    break "
-                f"  }} catch {{ "
-                f"    Start-Sleep -Milliseconds 400; "
-                f"    $retries++ "
-                f"  }} "
-                f"}};"
-            )
-            try:
-                subprocess.Popen(
-                    ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", swap_script],
-                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
-                )
-            except Exception:
-                pass
+        # Write pending_update.json into staging directory for synchronous atomic finalization
+        pending_flag = os.path.join(staging_dir, "pending_update.json")
+        pending_data = {
+            "version": clean_tag,
+            "target_dir": target_dir,
+            "staging_dir": staging_dir,
+            "temp_download": temp_download,
+        }
+        try:
+            with open(pending_flag, "w", encoding="utf-8") as pf:
+                import json
+                json.dump(pending_data, pf, indent=2)
+        except Exception:
+            pass
 
-        log_update_event(f"Update to {clean_tag} completed successfully (Windows).")
+        # Check if parent launcher shim is active (retaining the user's terminal prompt)
+        has_launcher = bool(os.environ.get("ACTX_LAUNCHER_PID"))
+        if has_launcher:
+            safe_print("\n📦 Finalizing installation (atomic swap)...")
+            log_update_event(f"Handing off atomic swap to parent launcher shim for {clean_tag}")
+            sys.exit(42)
+
+        # Standalone execution fallback (when actx-core was invoked directly without launcher shim)
+        if os.path.exists(shim_exe):
+            res = subprocess.run([shim_exe, "--finalize-update"], capture_output=False)
+            if res.returncode == 0:
+                log_update_event(f"Update to {clean_tag} finalized successfully via launcher shim.")
+                return
+
+        # Atomic PowerShell fallback if shim was not available
+        swap_script = (
+            f"$retries = 0; "
+            f"while ($retries -lt 40) {{ "
+            f"  try {{ "
+            f"    if (Test-Path -LiteralPath '{internal_dir}') {{ "
+            f"      $rnd = [System.IO.Path]::GetRandomFileName(); "
+            f"      $uniqueOld = Join-Path '{target_dir}' ('_internal_old_' + $rnd); "
+            f"      Move-Item -LiteralPath '{internal_dir}' -Destination $uniqueOld -Force -ErrorAction Stop; "
+            f"    }} "
+            f"    $stagingInternal = Join-Path '{staging_dir}' '_internal'; "
+            f"    if (Test-Path -LiteralPath $stagingInternal) {{ "
+            f"      Move-Item -LiteralPath $stagingInternal -Destination '{internal_dir}' -Force -ErrorAction Stop; "
+            f"    }} "
+            f"    if (Test-Path -LiteralPath '{target_exe}') {{ "
+            f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue; "
+            f"    }} "
+            f"    $stagingCore = Join-Path '{staging_dir}' (Split-Path '{target_exe}' -Leaf); "
+            f"    if (Test-Path -LiteralPath $stagingCore) {{ "
+            f"      Move-Item -LiteralPath $stagingCore -Destination '{target_exe}' -Force -ErrorAction Stop; "
+            f"    }} "
+            f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
+            f"      Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {{ "
+            f"        Move-Item -LiteralPath $_.FullName -Destination '{target_dir}' -Force -ErrorAction SilentlyContinue; "
+            f"      }} "
+            f"    }} "
+            f"    [System.IO.File]::WriteAllText('{version_file}', '{clean_tag}', (New-Object System.Text.UTF8Encoding $False)); "
+            f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
+            f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
+            f"    }} "
+            f"    Get-ChildItem -LiteralPath '{target_dir}' -Filter '_internal_old*' -Directory -ErrorAction SilentlyContinue | ForEach-Object {{ "
+            f"      Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue "
+            f"    }}; "
+            f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
+            f"      Remove-Item -LiteralPath '{staging_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
+            f"    }} "
+            f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
+            f"      Remove-Item -LiteralPath '{temp_download}' -Force -ErrorAction SilentlyContinue "
+            f"    }} "
+            f"    break "
+            f"  }} catch {{ "
+            f"    Start-Sleep -Milliseconds 200; "
+            f"    $retries++ "
+            f"  }} "
+            f"}};"
+        )
+        try:
+            subprocess.Popen(
+                ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", swap_script],
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+            )
+        except Exception:
+            pass
+
+        log_update_event(f"Update to {clean_tag} completed successfully (Windows fallback).")
         safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
         if decision == "close":
             safe_print(f"👉 Closing session. Run 'actx' or 'actx --tui' to start the updated version.\n")

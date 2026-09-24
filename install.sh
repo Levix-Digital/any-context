@@ -201,10 +201,10 @@ if [ "\$1" = "-v" ] || [ "\$1" = "--version" ]; then
     exit 0
 fi
 
-if [ -f "\$BIN_DIR/actx-core.exe" ]; then
-    exec "\$BIN_DIR/actx-core.exe" "\$@"
-elif [ -f "\$BIN_DIR/actx.exe" ]; then
+if [ -f "\$BIN_DIR/actx.exe" ]; then
     exec "\$BIN_DIR/actx.exe" "\$@"
+elif [ -f "\$BIN_DIR/actx-core.exe" ]; then
+    exec "\$BIN_DIR/actx-core.exe" "\$@"
 elif [ -f "\$BIN_DIR/actx-core" ]; then
     exec "\$BIN_DIR/actx-core" "\$@"
 fi
