@@ -16,6 +16,6 @@ fn any_context_core_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()>
     m.add_class::<IngestionRouter>()?;
     m.add_class::<WorkspaceScanner>()?;
     m.add_class::<HybridRetrieverEngine>()?;
-    m.add("__version__", "0.30.30")?;
+    m.add("__version__", "0.30.31")?;
     Ok(())
 }

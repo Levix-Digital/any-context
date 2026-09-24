@@ -7,7 +7,41 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.30 Native Rust Workspace File Scanner & High-Performance Differential Sync): Validação da Varredura Ultrarrápida em Rust, Detecção Diferencial (Novo, Modificado, Deletado e Renomeado $0.00) e Limpeza Hexagonal
+### 📌 Cenário 1 (v0.30.31 Synchronous Atomic Update Pipeline & Launcher Shim Process Lifecycle Guard): Validação da Retenção de Prompt, Swap Atômico NTFS (< 50ms) e Eliminação Definitiva do Erro 'core engine not found'
+
+- **Objetivo**: Comprovar que na versão `v0.30.31`:
+  1. **Retenção Síncrona do Prompt**: Ao executar `actx --check-update` ou `actx --update` (ou `/update` no chat), o launcher nativo (`actx.exe` ou `actx`) retém o cursor do terminal bloqueado sem liberar o prompt para o usuário até que o download, descompactação, swap de pastas (`_internal`) e verificação do executável (`actx-core.exe`) estejam 100% concluídos.
+  2. **Swap Atômico de Diretórios via MFT NTFS (< 50ms)**: A substituição dos 250MB do `_internal` e do executável `actx-core.exe` é realizada por movimentação direta de ponteiros de diretório no sistema de arquivos (`Directory.Move`), sem travamentos de DLL por processos em execução e sem o delay de 10 segundos da cópia recursiva de arquivos.
+  3. **Zero Erro 'Core Engine Not Found'**: Ao chamar `actx` imediatamente após o término do updater, o motor é iniciado instantaneamente sem erros de binário ausente.
+  4. **Paridade em Todos os Terminais**: O wrapper do Git Bash (`actx`) executa com prioridade o shim pai compilado (`actx.exe`), garantindo a mesma retenção de prompt no Git Bash (MINGW64), PowerShell e CMD.
+- **Pré-requisito**: Versão `v0.30.31` instalada ou simulação de atualização.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão Instantânea via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.31` em menos de 50ms.
+
+2. **🔄 Validação da Retenção de Prompt e Execução Imediata:**
+   - Execute no terminal (CMD, PowerShell ou Git Bash):
+     ```text
+     actx --check-update
+     ```
+   - **Critério de Aceitação:**
+     - O terminal permanece bloqueado durante todo o ciclo de verificação/atualização.
+     - O prompt só é devolvido ao usuário após a mensagem de finalização e confirmação de integridade.
+     - Execute imediatamente na sequência:
+       ```text
+       actx
+       ```
+     - **Critério de Aceitação:** O AnyContext inicia imediatamente (sub-segundo), sem qualquer mensagem de erro do tipo `❌ Error: AnyContext core engine ('actx-core.exe') not found`.
+
+---
+
+### 📌 Cenário 2 (v0.30.30 Native Rust Workspace File Scanner & High-Performance Differential Sync): Validação da Varredura Ultrarrápida em Rust, Detecção Diferencial (Novo, Modificado, Deletado e Renomeado $0.00) e Limpeza Hexagonal
 
 - **Objetivo**: Comprovar que na versão `v0.30.30`:
   1. **Varredura Nativa em Rust (`WorkspaceScanner`)**: A descoberta de arquivos do workspace é executada pelo motor nativo compilado em Rust com `walkdir = "2.5"`, garantindo poda antecipada de pastas ignoradas (`.git`, `node_modules`, `target`, `.venv`, etc.), suporte às 50+ extensões e arquivos especiais (`Dockerfile`, `.env.*`), e exclusão de temporários/minificados.

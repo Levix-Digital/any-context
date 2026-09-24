@@ -718,10 +718,10 @@ class UpdateService:
                 "    exit 0\n"
                 "fi\n"
                 "\n"
-                "if [ -f \"$BIN_DIR/actx-core.exe\" ]; then\n"
-                "    exec \"$BIN_DIR/actx-core.exe\" \"$@\"\n"
-                "elif [ -f \"$BIN_DIR/actx.exe\" ]; then\n"
+                "if [ -f \"$BIN_DIR/actx.exe\" ]; then\n"
                 "    exec \"$BIN_DIR/actx.exe\" \"$@\"\n"
+                "elif [ -f \"$BIN_DIR/actx-core.exe\" ]; then\n"
+                "    exec \"$BIN_DIR/actx-core.exe\" \"$@\"\n"
                 "elif [ -f \"$BIN_DIR/actx-core\" ]; then\n"
                 "    exec \"$BIN_DIR/actx-core\" \"$@\"\n"
                 "fi\n"
@@ -732,53 +732,64 @@ class UpdateService:
             except Exception:
                 pass
 
+            # Write pending_update.json into staging directory for synchronous launcher finalization
+            pending_flag = os.path.join(staging_dir, "pending_update.json")
+            pending_data = {
+                "version": clean_tag,
+                "target_dir": target_dir,
+                "staging_dir": staging_dir,
+                "temp_download": temp_download,
+            }
+            try:
+                with open(pending_flag, "w", encoding="utf-8") as pf:
+                    json.dump(pending_data, pf, indent=2)
+            except Exception:
+                pass
+
             swap_script = (
                 f"$retries = 0; "
                 f"while ($retries -lt 40) {{ "
                 f"  try {{ "
-                f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
-                f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
+                f"    if (Test-Path -LiteralPath '{internal_dir}') {{ "
+                f"      $rnd = [System.IO.Path]::GetRandomFileName(); "
+                f"      $uniqueOld = Join-Path '{target_dir}' ('_internal_old_' + $rnd); "
+                f"      Move-Item -LiteralPath '{internal_dir}' -Destination $uniqueOld -Force -ErrorAction Stop; "
                 f"    }} "
-                f"    if (Test-Path -LiteralPath '{old_internal_dir}') {{ "
-                f"      Remove-Item -LiteralPath '{old_internal_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
+                f"    $stagingInternal = Join-Path -Path '{staging_dir}' -ChildPath '_internal'; "
+                f"    if (Test-Path -LiteralPath $stagingInternal) {{ "
+                f"      Move-Item -LiteralPath $stagingInternal -Destination '{internal_dir}' -Force -ErrorAction Stop; "
                 f"    }} "
                 f"    if (Test-Path -LiteralPath '{target_exe}') {{ "
-                f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue "
+                f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue; "
                 f"    }} "
-                f"    if (Test-Path -LiteralPath '{internal_dir}') {{ "
-                f"      Move-Item -LiteralPath '{internal_dir}' -Destination '{old_internal_dir}' -Force -ErrorAction SilentlyContinue "
+                f"    $stagingCore = Join-Path '{staging_dir}' (Split-Path '{target_exe}' -Leaf); "
+                f"    if (Test-Path -LiteralPath $stagingCore) {{ "
+                f"      Move-Item -LiteralPath $stagingCore -Destination '{target_exe}' -Force -ErrorAction Stop; "
                 f"    }} "
                 f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
-                f"      $stagingInternal = Join-Path -Path '{staging_dir}' -ChildPath '_internal'; "
-                f"      if (Test-Path -LiteralPath $stagingInternal) {{ "
-                f"        if (Test-Path -LiteralPath '{internal_dir}') {{ "
-                f"          Remove-Item -LiteralPath '{internal_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
-                f"        }} "
-                f"        Move-Item -LiteralPath $stagingInternal -Destination '{internal_dir}' -Force "
-                f"      }} "
                 f"      Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {{ "
-                f"        Move-Item -LiteralPath $_.FullName -Destination '{target_dir}' -Force "
+                f"        Move-Item -LiteralPath $_.FullName -Destination '{target_dir}' -Force -ErrorAction SilentlyContinue; "
                 f"      }} "
                 f"    }} elseif (Test-Path -LiteralPath '{temp_download}') {{ "
-                f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop "
+                f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop; "
                 f"    }} "
                 f"    [System.IO.File]::WriteAllText('{version_file}', '{clean_tag}', (New-Object System.Text.UTF8Encoding $False)); "
                 f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
-                f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue "
+                f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue; "
                 f"    }} "
-                f"    if (Test-Path -LiteralPath '{old_internal_dir}') {{ "
-                f"      Remove-Item -LiteralPath '{old_internal_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
-                f"    }} "
+                f"    Get-ChildItem -LiteralPath '{target_dir}' -Filter '_internal_old*' -Directory -ErrorAction SilentlyContinue | ForEach-Object {{ "
+                f"      Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue; "
+                f"    }}; "
                 f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
-                f"      Remove-Item -LiteralPath '{staging_dir}' -Recurse -Force -ErrorAction SilentlyContinue "
+                f"      Remove-Item -LiteralPath '{staging_dir}' -Recurse -Force -ErrorAction SilentlyContinue; "
                 f"    }} "
                 f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
-                f"      Remove-Item -LiteralPath '{temp_download}' -Force -ErrorAction SilentlyContinue "
+                f"      Remove-Item -LiteralPath '{temp_download}' -Force -ErrorAction SilentlyContinue; "
                 f"    }} "
-                f"    break "
+                f"    break; "
                 f"  }} catch {{ "
-                f"    Start-Sleep -Milliseconds 400; "
-                f"    $retries++ "
+                f"    Start-Sleep -Milliseconds 200; "
+                f"    $retries++; "
                 f"  }} "
                 f"}}; "
             )
