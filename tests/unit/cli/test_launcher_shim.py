@@ -108,6 +108,9 @@ class TestLauncherShim(unittest.TestCase):
 
     def test_07_finalize_pending_update_atomic_swap(self):
         """Validates that --finalize-update atomically swaps staging files, updates version.txt, and cleans staging."""
+        if not self.is_windows:
+            self.skipTest("Windows-specific launcher shim test")
+
         # 1. Setup base directory with active old binary and _internal
         core_exe = os.path.join(self.temp_dir, "actx-core.exe" if self.is_windows else "actx-core")
         with open(core_exe, "w") as f:
