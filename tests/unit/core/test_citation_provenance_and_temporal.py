@@ -56,13 +56,13 @@ class TestTemporalExtraction(unittest.TestCase):
         self.assertIn("file_path LIKE '%2026/09/01%'", clauses)
         self.assertIn("file_path LIKE '%2026-09-01%'", clauses)
 
-    def test_brazilian_date_extraction(self):
+    def test_international_numeric_date_extraction(self):
         clauses = extract_temporal_clauses("Checklist do dia 01/09/2026")
         self.assertIn("file_path LIKE '%2026/09/01%'", clauses)
         self.assertIn("file_path LIKE '%2026-09-01%'", clauses)
 
-    def test_natural_language_portuguese(self):
-        clauses = extract_temporal_clauses("No dia 1 de setembro de 2026, quantos Shipments tivemos registrados?")
+    def test_international_rfc_dmy_english(self):
+        clauses = extract_temporal_clauses("Shipments on 1 Sep 2026")
         self.assertIn("file_path LIKE '%2026/09/01%'", clauses)
         self.assertIn("file_path LIKE '%2026-09-01%'", clauses)
 

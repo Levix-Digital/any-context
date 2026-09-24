@@ -54,16 +54,18 @@ dependencies = [
 
 [[package]]
 name = "any-context-core-rs"
-version = "0.30.30"
+version = "0.30.32"
 dependencies = [
  "bincode",
  "calamine",
+ "chrono",
  "csv",
  "image",
  "lopdf",
  "pulldown-cmark",
  "pyo3",
  "quick-xml 0.37.5",
+ "regex",
  "serde",
  "serde_json",
  "serde_yaml",

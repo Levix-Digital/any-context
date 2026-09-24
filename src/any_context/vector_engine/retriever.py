@@ -5,203 +5,21 @@ sparse Okapi BM25 keyword search in native Rust, and unified RRF fusion with
 source-fair diversification and density budgeting.
 """
 import os
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional, Dict, Any
 
 from any_context.vector_engine.models import ScoredChunk, RetrievalConfig
 from any_context.vector_engine.store import LanceDBStore
+from any_context.vector_engine.query_preprocessor import (
+    QueryPreprocessor,
+    ProcessedQuery,
+    extract_temporal_clauses,
+    expand_query_temporal,
+    extract_filename_mentions,
+)
 
 
-MONTH_MAP = {
-    "janeiro": "01", "january": "01", "jan": "01",
-    "fevereiro": "02", "february": "02", "fev": "02", "feb": "02",
-    "março": "03", "marco": "03", "march": "03", "mar": "03",
-    "abril": "04", "april": "04", "abr": "04", "apr": "04",
-    "maio": "05", "may": "05", "mai": "05",
-    "junho": "06", "june": "06", "jun": "06",
-    "julho": "07", "july": "07", "jul": "07",
-    "agosto": "08", "august": "08", "ago": "08", "aug": "08",
-    "setembro": "09", "september": "09", "set": "09", "sep": "09",
-    "outubro": "10", "october": "10", "out": "10", "oct": "10",
-    "novembro": "11", "november": "11", "nov": "11",
-    "dezembro": "12", "december": "12", "dez": "12", "dec": "12"
-}
 
-
-def extract_temporal_clauses(query: str) -> List[str]:
-    """
-    Extracts deterministic date and directory path filters from conversational queries
-    in both ISO, Brazilian/European (DD/MM/YYYY), and Portuguese/English natural language.
-    Eliminates semantic dilution of dates in dense vector embeddings.
-    """
-    clauses = []
-    q = query.lower()
-
-    # 1. ISO format: YYYY-MM-DD or YYYY/MM/DD
-    iso_matches = re.findall(r"\b(20\d{2})[-/](0[1-9]|1[0-2])[-/](0[1-9]|[12]\d|3[01])\b", q)
-    for y, m, d in iso_matches:
-        clauses.append(f"file_path LIKE '%{y}/{m}/{d}%'")
-        clauses.append(f"file_path LIKE '%{y}-{m}-{d}%'")
-        clauses.append(f"file_path LIKE '%/{m}/{d}/%'")
-        clauses.append(f"file_path LIKE '%/{m}/{d}%'")
-
-    # 2. Brazilian / European format: DD/MM/YYYY or DD-MM-YYYY
-    br_matches = re.findall(r"\b(0[1-9]|[12]\d|3[01])[-/](0[1-9]|1[0-2])[-/](20\d{2})\b", q)
-    for d, m, y in br_matches:
-        clauses.append(f"file_path LIKE '%{y}/{m}/{d}%'")
-        clauses.append(f"file_path LIKE '%{y}-{m}-{d}%'")
-        clauses.append(f"file_path LIKE '%/{m}/{d}/%'")
-        clauses.append(f"file_path LIKE '%/{m}/{d}%'")
-
-    # Helper to add standardized path patterns
-    def _add_clauses(yy_val: Optional[str], mm_val: str, dd_val: Optional[str]):
-        if yy_val and dd_val:
-            clauses.append(f"file_path LIKE '%{yy_val}/{mm_val}/{dd_val}%'")
-            clauses.append(f"file_path LIKE '%{yy_val}-{mm_val}-{dd_val}%'")
-            clauses.append(f"file_path LIKE '%/{mm_val}/{dd_val}/%'")
-            clauses.append(f"file_path LIKE '%/{mm_val}/{dd_val}%'")
-        elif dd_val:
-            clauses.append(f"file_path LIKE '%/{mm_val}/{dd_val}/%'")
-            clauses.append(f"file_path LIKE '%/{mm_val}/{dd_val}%'")
-        elif yy_val:
-            clauses.append(f"file_path LIKE '%/{yy_val}/{mm_val}/%'")
-            clauses.append(f"file_path LIKE '%/{yy_val}/{mm_val}%'")
-
-    # 3. Natural language (e.g., '1 de setembro de 2026', '01 de setembro', 'September 1, 2026')
-    months_pattern = "|".join(sorted(MONTH_MAP.keys(), key=len, reverse=True))
-
-    # Pattern A: Day-Month-Year (Portuguese/British, e.g. "1 de setembro de 2026", "1 sept 2026")
-    nl_pattern_dmy = rf"\b(?:(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:de\s+)?)?({months_pattern})(?:\s+(?:de\s+|,)?\s*(20\d{{2}}))?\b"
-    for m_day, m_month_name, m_year in re.findall(nl_pattern_dmy, q):
-        mm = MONTH_MAP.get(m_month_name)
-        if not mm:
-            continue
-        dd = f"{int(m_day):02d}" if m_day else None
-        yy = m_year if m_year else None
-        _add_clauses(yy, mm, dd)
-
-    # Pattern B: Month-Day-Year (US English, e.g. "September 1, 2026", "Sep 01 2026")
-    nl_pattern_mdy = rf"\b({months_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s+(20\d{{2}}))?\b"
-    for m_month_name, m_day, m_year in re.findall(nl_pattern_mdy, q):
-        mm = MONTH_MAP.get(m_month_name)
-        if not mm:
-            continue
-        dd = f"{int(m_day):02d}" if m_day else None
-        yy = m_year if m_year else None
-        _add_clauses(yy, mm, dd)
-
-    # 4. Short numeric dates without year: DD/MM or MM/DD (e.g., '02/09', '2/9', '02-09', '28/05')
-    short_pattern = r"(?<!\d[-/])\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])\b(?!\s*[-/]\s*\d)"
-    for d1, d2 in re.findall(short_pattern, q):
-        val1 = int(d1)
-        val2 = int(d2)
-        pad1 = f"{val1:02d}"
-        pad2 = f"{val2:02d}"
-        if val1 > 12:
-            # val1 must be day, val2 is month
-            clauses.append(f"file_path LIKE '%/{pad2}/{pad1}/%'")
-            clauses.append(f"file_path LIKE '%/{pad2}/{pad1}%'")
-            clauses.append(f"file_path LIKE '%{pad2}-{pad1}%'")
-            clauses.append(f"file_path LIKE '%{pad1}-{pad2}%'")
-        elif val2 > 12:
-            # val2 must be day, val1 is month
-            clauses.append(f"file_path LIKE '%/{pad1}/{pad2}/%'")
-            clauses.append(f"file_path LIKE '%/{pad1}/{pad2}%'")
-            clauses.append(f"file_path LIKE '%{pad1}-{pad2}%'")
-            clauses.append(f"file_path LIKE '%{pad2}-{pad1}%'")
-        else:
-            # Both <= 12: support both DD/MM (Brazilian/European default) and MM/DD (US)
-            clauses.append(f"file_path LIKE '%/{pad2}/{pad1}/%'")
-            clauses.append(f"file_path LIKE '%/{pad2}/{pad1}%'")
-            clauses.append(f"file_path LIKE '%/{pad1}/{pad2}/%'")
-            clauses.append(f"file_path LIKE '%/{pad1}/{pad2}%'")
-            clauses.append(f"file_path LIKE '%{pad2}-{pad1}%'")
-            clauses.append(f"file_path LIKE '%{pad1}-{pad2}%'")
-
-    return list(dict.fromkeys(clauses))
-
-
-def expand_query_temporal(query: str) -> str:
-    """
-    Expands conversational queries containing dates in Portuguese, English, or localized
-    formats with standardized date tokens (YYYY-MM-DD, YYYY/MM/DD, DD/MM/YYYY, MM/DD)
-    so BM25 keyword matching directly matches filenames, paths, and delimited rows.
-    """
-    expanded_tokens = []
-    q = query.lower()
-
-    # 1. ISO format: YYYY-MM-DD or YYYY/MM/DD
-    iso_matches = re.findall(r"\b(20\d{2})[-/](0[1-9]|1[0-2])[-/](0[1-9]|[12]\d|3[01])\b", q)
-    for y, m, d in iso_matches:
-        expanded_tokens.extend([f"{y}-{m}-{d}", f"{y}/{m}/{d}", f"{d}/{m}/{y}", f"{m}/{d}"])
-
-    # 2. Brazilian / European format: DD/MM/YYYY or DD-MM-YYYY
-    br_matches = re.findall(r"\b(0[1-9]|[12]\d|3[01])[-/](0[1-9]|1[0-2])[-/](20\d{2})\b", q)
-    for d, m, y in br_matches:
-        expanded_tokens.extend([f"{y}-{m}-{d}", f"{y}/{m}/{d}", f"{d}/{m}/{y}", f"{m}/{d}"])
-
-    # 3. Natural language (Portuguese / English)
-    months_pattern = "|".join(sorted(MONTH_MAP.keys(), key=len, reverse=True))
-
-    # Pattern A: Day-Month-Year (e.g., "3 de setembro de 2026", "3 de setembro")
-    nl_pattern_dmy = rf"\b(?:(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:de\s+)?)?({months_pattern})(?:\s+(?:de\s+|,)?\s*(20\d{{2}}))?\b"
-    for m_day, m_month_name, m_year in re.findall(nl_pattern_dmy, q):
-        mm = MONTH_MAP.get(m_month_name)
-        if not mm:
-            continue
-        if m_day:
-            dd = f"{int(m_day):02d}"
-            if m_year:
-                expanded_tokens.extend([f"{m_year}-{mm}-{dd}", f"{m_year}/{mm}/{dd}", f"{dd}/{mm}/{m_year}", f"{mm}/{dd}"])
-            else:
-                expanded_tokens.extend([f"{mm}-{dd}", f"{mm}/{dd}", f"{dd}/{mm}"])
-        elif m_year:
-            expanded_tokens.extend([f"{m_year}-{mm}", f"{m_year}/{mm}"])
-
-    # Pattern B: Month-Day-Year (US English, e.g., "September 3, 2026")
-    nl_pattern_mdy = rf"\b({months_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s+(20\d{{2}}))?\b"
-    for m_month_name, m_day, m_year in re.findall(nl_pattern_mdy, q):
-        mm = MONTH_MAP.get(m_month_name)
-        if not mm:
-            continue
-        dd = f"{int(m_day):02d}"
-        if m_year:
-            expanded_tokens.extend([f"{m_year}-{mm}-{dd}", f"{m_year}/{mm}/{dd}", f"{dd}/{mm}/{m_year}", f"{mm}/{dd}"])
-        else:
-            expanded_tokens.extend([f"{mm}-{dd}", f"{mm}/{dd}", f"{dd}/{mm}"])
-
-    # 4. Short numeric dates without year: DD/MM or MM/DD (e.g., '02/09', '2/9', '02-09', '28/05')
-    short_pattern = r"(?<!\d[-/])\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])\b(?!\s*[-/]\s*\d)"
-    for d1, d2 in re.findall(short_pattern, q):
-        val1 = int(d1)
-        val2 = int(d2)
-        pad1 = f"{val1:02d}"
-        pad2 = f"{val2:02d}"
-        expanded_tokens.extend([f"{pad1}/{pad2}", f"{pad2}/{pad1}", f"{pad1}-{pad2}", f"{pad2}-{pad1}"])
-
-    if not expanded_tokens:
-        return query
-
-    unique_tokens = list(dict.fromkeys(expanded_tokens))
-    return f"{query} {' '.join(unique_tokens)}"
-
-
-def extract_filename_mentions(query: str) -> List[str]:
-    """
-    Extracts explicit file names or extensions mentioned directly in the user prompt
-    (e.g., 'I.CMR_ONE_PICKUP.pdf', 'extraction_summary.csv', 'report.docx').
-    """
-    pattern = r"\b([a-zA-Z0-9_\-\.]+\.(?:pdf|csv|xlsx|xls|json|xml|docx|txt|md|log|tsv))\b"
-    matches = re.findall(pattern, query, flags=re.IGNORECASE)
-    seen = set()
-    filenames = []
-    for m in matches:
-        m_lower = m.lower()
-        if m_lower not in seen:
-            seen.add(m_lower)
-            filenames.append(m)
-    return filenames
 
 
 class ParallelRetriever:
@@ -257,9 +75,11 @@ class ParallelRetriever:
         raw_candidates_map: Dict[str, ScoredChunk] = {}
         guaranteed_file_cids: List[str] = []
 
-        # 0A. Filename Grounding / Boost: if user explicitly references specific document files
-        filenames = extract_filename_mentions(query)
-        temporal_clauses = extract_temporal_clauses(query)
+        # 0A. Single-Pass Language-Agnostic Query Preprocessing (Rust any-context-core-rs)
+        processed = QueryPreprocessor.process(query)
+        filenames = processed.filename_mentions
+        temporal_clauses = processed.temporal_clauses
+        expanded_query = processed.expanded_query
 
         if filenames:
             for fn in filenames:
@@ -373,7 +193,6 @@ class ParallelRetriever:
         if is_system_query and target_workspaces and "Global" in target_workspaces:
             target_ws = None
 
-        expanded_query = expand_query_temporal(query)
 
         effective_max_per_source = cfg.max_chunks_per_source
         if filenames:

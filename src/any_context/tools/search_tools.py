@@ -238,9 +238,12 @@ def search_db(
     """
     Search for relevant information in the vector database based on the provided prompt text.
     Enforces strict workspace isolation and multi-source round-robin diversity across all documents.
+    Supports deterministic temporal filtering and explicit filename grounding: when searching for documents
+    from a specific date, include the date in standard ISO format (YYYY-MM-DD) or international numeric format (DD/MM/YYYY)
+    and exact filenames (e.g. 'document.pdf', 'data.csv') directly in the prompt_text for highest accuracy.
 
     Args:
-        prompt_text (str): The text to search for (or query).
+        prompt_text (str): The text to search for (or query). Include ISO dates (e.g. '2026-09-02') or filenames when applicable.
         query (str, optional): Alias for prompt_text.
         search_session_memory (bool): Set to True to search the user's past conversations/sessions memory. Set to False to search general workspace documents.
         top_k (int): The number of relevant diversified document chunks to return (default: 40).

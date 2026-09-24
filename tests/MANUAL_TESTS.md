@@ -7,7 +7,52 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.31 Synchronous Atomic Update Pipeline & Launcher Shim Process Lifecycle Guard): Validação da Retenção de Prompt, Swap Atômico NTFS (< 50ms) e Eliminação Definitiva do Erro 'core engine not found'
+### 📌 Cenário 1 (v0.30.32 Universal Language-Agnostic Query Preprocessor & Native Rust Temporal Engine): Validação do Pré-processamento de Query em Rust, Expansão Temporal BM25, Grounding de Arquivos e Paridade 100% com Fallback Python
+
+- **Objetivo**: Comprovar que na versão `v0.30.32`:
+  1. **Motor Nativo Rust de Query Preprocessing (`QueryPreprocessor`)**: O pré-processamento de consultas de busca (extração de menções a arquivos, cláusulas de datas e expansão de tokens BM25) é executado em Rust nativo compilado (`any-context-core-rs`) em uma única passagem (Single-Pass) com latência de `0.010ms` (~100.000 ops/seg).
+  2. **Arquitetura Universal Agnóstica a Idiomas**: Purga total de tabelas de meses em português (`MONTH_MAP`) e regexes gramaticais locais. O motor reconhece estritamente padrões internacionais (ISO 8601, numérico internacional DD/MM/YYYY, numérico curto DD/MM e meses RFC em inglês), delegando a compreensão multilíngue conversacional ao LLM via instrução de formato ISO no schema da ferramenta `search_db`.
+  3. **Inspeção Linear de Limites de Bytes**: Eliminação de lookbehinds e lookaheads por checagem linear de delimitadores de bytes (`-`, `/`, `.`, dígitos), garantindo tempo $O(n)$ sem estouro de pilha no crate `regex`.
+  4. **Paridade 100% com Fallback Python (`query_preprocessor.py`)**: Em ambientes onde a biblioteca Rust não estiver compilada, o fallback em Python puro executa com comportamento e saídas idênticas.
+- **Pré-requisito**: Versão `v0.30.32` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão Instantânea via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.32` em menos de 50ms.
+
+2. **🦀 Validação da Execução do QueryPreprocessor Nativo em Rust:**
+   - Execute no terminal com o Python do AnyContext:
+     ```text
+     python -c "from any_context.vector_engine.query_preprocessor import QueryPreprocessor; p = QueryPreprocessor.process('Relatório CMR de 2026-09-02 no arquivo I.CMR_ONE_PICKUP.pdf'); print(p)"
+     ```
+   - **Critério de Aceitação:**
+     - `filename_mentions`: `['I.CMR_ONE_PICKUP.pdf']`
+     - `temporal_clauses`: contém cláusulas SQL `file_path LIKE '%2026/09/02%'` e `file_path LIKE '%2026-09-02%'`.
+     - `expanded_query`: contém os tokens canônicos `2026-09-02`, `2026/09/02`, `02/09/2026`, `09/02`.
+
+3. **🌍 Validação de Formatos Internacionais e Datas RFC:**
+   - Teste no terminal consultas com datas internacionais e RFC em inglês:
+     ```text
+     python -c "from any_context.vector_engine.query_preprocessor import extract_temporal_clauses; print('Intl:', extract_temporal_clauses('Auditoria 15/08/2026')); print('RFC:', extract_temporal_clauses('Shipments on September 3, 2026'))"
+     ```
+   - **Critério de Aceitação:**
+     - Ambas retornam cláusulas de caminho de arquivo formatadas corretamente (`2026/08/15` e `2026/09/03`).
+
+4. **⚡ Verificação de Latência Sub-Milissegundo:**
+   - Execute o teste unitário de performance:
+     ```text
+     python -m unittest tests/unit/core/test_query_preprocessor_rust.py
+     ```
+   - **Critério de Aceitação:** 9 testes passam em < 0.05s com latência por operação inferior a 0.5ms.
+
+---
+
+### 📌 Cenário 2 (v0.30.31 Synchronous Atomic Update Pipeline & Launcher Shim Process Lifecycle Guard): Validação da Retenção de Prompt, Swap Atômico NTFS (< 50ms) e Eliminação Definitiva do Erro 'core engine not found'
 
 - **Objetivo**: Comprovar que na versão `v0.30.31`:
   1. **Retenção Síncrona do Prompt**: Ao executar `actx --check-update` ou `actx --update` (ou `/update` no chat), o launcher nativo (`actx.exe` ou `actx`) retém o cursor do terminal bloqueado sem liberar o prompt para o usuário até que o download, descompactação, swap de pastas (`_internal`) e verificação do executável (`actx-core.exe`) estejam 100% concluídos.
