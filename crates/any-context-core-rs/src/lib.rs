@@ -4,12 +4,14 @@ pub mod models;
 pub mod ingestion;
 pub mod retrieval;
 pub mod storage;
+pub mod agent;
 
 pub use models::ChunkPayload;
 pub use ingestion::IngestionRouter;
 pub use ingestion::WorkspaceScanner;
 pub use retrieval::{HybridRetrieverEngine, QueryPreprocessor, ProcessedQuery};
 pub use storage::{NativeConfigDb, NativeLanceStore};
+pub use agent::{PyAgentEngine, PyAgentResponse, PyAgentEvent};
 
 #[pyfunction]
 fn extract_temporal_clauses(query: &str) -> Vec<String> {
@@ -172,8 +174,18 @@ impl PyConfigDb {
 
 #[pyclass]
 pub struct PyLmClient {
-    client: actx_lm::LmClient,
-    runtime: std::sync::Arc<tokio::runtime::Runtime>,
+    pub(crate) client: actx_lm::LmClient,
+    pub(crate) runtime: std::sync::Arc<tokio::runtime::Runtime>,
+}
+
+impl PyLmClient {
+    pub fn provider_arc(&self) -> std::sync::Arc<dyn actx_lm::traits::LmProvider> {
+        self.client.provider().clone()
+    }
+
+    pub fn runtime_arc(&self) -> std::sync::Arc<tokio::runtime::Runtime> {
+        self.runtime.clone()
+    }
 }
 
 #[pymethods]
@@ -303,6 +315,9 @@ fn any_context_core_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()>
     m.add_class::<PyLanceStore>()?;
     m.add_class::<PyConfigDb>()?;
     m.add_class::<PyLmClient>()?;
+    m.add_class::<PyAgentEngine>()?;
+    m.add_class::<PyAgentResponse>()?;
+    m.add_class::<PyAgentEvent>()?;
     m.add_function(wrap_pyfunction!(extract_temporal_clauses, m)?)?;
     m.add_function(wrap_pyfunction!(expand_query_temporal, m)?)?;
     m.add_function(wrap_pyfunction!(extract_filename_mentions, m)?)?;

@@ -3,8 +3,24 @@
 version = 4
 
 [[package]]
+name = "actx-agent"
+version = "0.30.38"
+dependencies = [
+ "actx-lm",
+ "async-trait",
+ "chrono",
+ "futures",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "actx-installer"
-version = "0.30.37"
+version = "0.30.38"
 dependencies = [
  "dirs 5.0.1",
  "flate2",
@@ -20,7 +36,7 @@ dependencies = [
 
 [[package]]
 name = "actx-lm"
-version = "0.30.37"
+version = "0.30.38"
 dependencies = [
  "async-trait",
  "bytes",
@@ -104,12 +120,14 @@ dependencies = [
 
 [[package]]
 name = "any-context-core-rs"
-version = "0.30.37"
+version = "0.30.38"
 dependencies = [
+ "actx-agent",
  "actx-lm",
  "arrow",
  "arrow-array",
  "arrow-schema",
+ "async-trait",
  "bincode",
  "calamine",
  "chrono",
@@ -894,8 +912,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link",
 ]
 

@@ -7,7 +7,68 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.37 Universal Language Model Engine - actx-lm, Strategy Pattern, SSE Streaming & SLM Support): Validação do Motor Unificado de Inferência de IA em Rust, Façade Pattern, Streaming SSE e Suporte a Modelos Locais (SLMs)
+### 📌 Cenário 1 (v0.30.38 Native Rust ReAct & Agent Orchestrator Layer - actx-agent, FSM, Polymorphic Tool Registry, SQLite Sessions & RFC-042 Foundations): Validação do Orquestrador ReAct Nativo em Rust, FSM Determinística, Registro de Ferramentas, Persistência SQLite e Modelos RFC-042
+
+- **Objetivo**: Comprovar que na versão `v0.30.38`:
+  1. **Motor de Agente Nativo em Rust (`actx-agent`)**: A nova crate autônoma implementa um loop ReAct completo através de uma Máquina de Estados Finitos (FSM) assíncrona, eliminando a dependência de frameworks externos pesados (como LangGraph) para orquestração de raciocínio e execução de ferramentas.
+  2. **Registro Polimórfico de Ferramentas (`ToolRegistry` & `PyBridgeTool`)**: Ferramentas nativas em Rust e callables em Python são registradas de forma unificada, com parsing defensivo de argumentos JSON e auto-recuperação (`self-healing`) perante erros sintáticos do modelo.
+  3. **Persistência de Sessões Descompactada (`SqliteSessionStore` & `InMemorySessionStore`)**: Armazenamento relacional de histórico com janela deslizante de 30 mensagens e commits imediatos sem compressão zlib opaca.
+  4. **Emissão de Eventos em Tempo Real (`AgentEvent`)**: Pipeline de eventos granulares (`Thinking`, `ToolStart`, `ToolEnd`, `Delta`, `Decomposition`, `IterationStart`, `GapAnalysis`, `Done`, `Error`) para renderização reativa de terminal e árvore de reflexão.
+  5. **Modelos Pydantic da RFC-042 (`deep_search_models.py`)**: Suporte a decomposição ortogonal de sub-queries, planos de execução e avaliação de suficiência factual.
+  6. **Ponte PyO3 Bidirecional com GIL Isolation (`PyAgentEngine`, `PyAgentResponse`, `PyAgentEvent`)**: Execução de chamadas Tokio assíncronas liberando o GIL (`py.allow_threads`) com segurança contra deadlocks em callbacks Python.
+- **Pré-requisito**: Versão `v0.30.38` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.38` em menos de 50ms com saída limpa.
+
+2. **🦀 Validação da Suíte de Testes da Crate Nativa `actx-agent`:**
+   - Execute no terminal (com ambiente Rust/MSVC configurado):
+     ```text
+     cargo test -p actx-agent
+     ```
+   - **Critério de Aceitação:** 7/7 testes unitários e de integração passam com 100% de sucesso (resposta direta, loop ReAct, auto-cura de ferramentas, circuit breaker, sessões em memória e SQLite, streaming de eventos).
+
+3. **🦀 Validação da Suíte de Testes da Crate `any-context-core-rs`:**
+   - Execute no terminal:
+     ```text
+     cargo test -p any-context-core-rs
+     ```
+   - **Critério de Aceitação:** 122/122 testes nativos em Rust passam com 100% de sucesso.
+
+4. **🐍 Validação dos Bindings PyO3 e Engine do Agente (`test_native_agent.py`):**
+   - Execute no terminal com o Python do AnyContext:
+     ```text
+     python -m unittest tests/unit/core/test_native_agent.py
+     ```
+   - **Critério de Aceitação:** 8/8 testes unitários passam com sucesso (instanciação com provedor mock, instanciação via `PyLmClient`, registro e consulta de ferramentas Python, execução direta, streaming com callback de eventos, persistência SQLite de sessões, factory `create_native_anycontext_agent` e `invoke`).
+
+5. **🧩 Validação dos Modelos Pydantic da RFC-042 (`deep_search_models.py`):**
+   - Execute no terminal com o Python:
+     ```text
+     python -c "from any_context.core.deep_search_models import SearchMode, SubQuery, QueryPlan, GapAnalysisResult, DeepSearchFinalResult, Citation; qp = QueryPlan(original_query='audit auth flow', mode=SearchMode.DEEP, sub_queries=[SubQuery(id='sub_1', query='JWT validation')]); gap = GapAnalysisResult(iteration=1, is_sufficient=True); res = DeepSearchFinalResult(answer='Summary', total_iterations=1, citations=[Citation(file_path='src/auth.rs')]); print('[OK] RFC-042 Pydantic Models Operational!')"
+     ```
+   - **Critério de Aceitação:** Executa sem erros e imprime `[OK] RFC-042 Pydantic Models Operational!`.
+
+6. **💬 Validação End-to-End no Chat Interativo do AnyContext (`actx`):**
+   - Inicie o AnyContext em um workspace com documentos:
+     ```text
+     actx
+     ```
+   - Envie uma pergunta direta no chat:
+     ```text
+     Explique o que é a crate actx-agent e quais são seus pilares de design.
+     ```
+   - **Critério de Aceitação:** O agente responde de forma fluida, executando o raciocínio sem falhas e com proveniência contextual.
+
+---
+
+### 📌 Cenário 2 (v0.30.37 Universal Language Model Engine - actx-lm, Strategy Pattern, SSE Streaming & SLM Support): Validação do Motor Unificado de Inferência de IA em Rust, Façade Pattern, Streaming SSE e Suporte a Modelos Locais (SLMs)
 
 - **Objetivo**: Comprovar que na versão `v0.30.37`:
   1. **Motor Agnóstico de Modelos (`actx-lm`)**: A nova crate nativa em Rust (`crates/actx-lm`) opera de forma autônoma e desacoplada, fornecendo uma fachada única (`LmClient`) e estratégias intercambiáveis (`LmProvider`) para múltiplos provedores sem dependência de frameworks externos pesados (como LangChain).
