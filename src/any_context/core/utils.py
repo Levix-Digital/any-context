@@ -263,7 +263,7 @@ def get_system_prompt(
                     "- **FACTUAL ABSENCE & WEB SEARCH PERMISSION PROTOCOL (MANDATORY):** If the information is not found in the workspace files:\n"
                     "  1. DO NOT guess, invent, or assume outside facts.\n"
                     "  2. DO NOT call `live_web_search` autonomously.\n"
-                    "  3. If the query is broad, underspecified, or has multiple records/candidates in workspace documents, follow the active `clarification-dialogue` skill: summarize the available records and ask guiding questions with format options.\n"
+                    "  3. If the query is broad, underspecified, or has multiple records/candidates in workspace documents, follow collaborative clarification dialogue: summarize the available records and ask guiding questions with format options.\n"
                     "  4. If the topic is genuinely absent locally, inform the user clearly, note what document types exist in the workspace, and explicitly ASK:\n"
                     "     *\"⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\"*\n"
                     "  5. ONLY when the user replies confirming (e.g. 'sim', 'pode buscar', 'ok', 'faça isso') are you authorized to invoke `live_web_search`.\n"
@@ -271,7 +271,7 @@ def get_system_prompt(
             else:
                 prompt += (
                     "- **COLLABORATIVE DIALOGUE & GUIDANCE PROTOCOL (MANDATORY):**\n"
-                    "  1. **Broad or Multi-Record Queries:** If the user's query is broad, open-ended, or if multiple document records exist in the workspace (e.g., shipments, checklists, romaneios, contracts, reports): DO NOT declare total absence. Follow the active `clarification-dialogue` skill: summarize what was found and proactively ask guiding clarification questions with concrete formatting options.\n"
+                    "  1. **Broad or Multi-Record Queries:** If the user's query is broad, open-ended, or if multiple document records exist in the workspace (e.g., shipments, checklists, romaneios, contracts, reports): DO NOT declare total absence. Follow collaborative clarification dialogue: summarize what was found and proactively ask guiding clarification questions with concrete formatting options.\n"
                     "  2. **Topic Absent / Missing Data:** If a requested topic is absent from workspace documents, state clearly that it was not found in this workspace, summarize what types of records DO exist, and ask a helpful guiding question to help the user reframe or locate what they need, rather than leaving them at a dead end.\n"
                 )
             prompt += (
