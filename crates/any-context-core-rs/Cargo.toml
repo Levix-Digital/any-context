@@ -1,6 +1,6 @@
 [package]
 name = "any-context-core-rs"
-version = "0.30.36"
+version = "0.30.37"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "High-performance Rust core engine for AnyContext (Ingestion Router, AST/Markdown chunkers, and RRF retrieval)"
@@ -10,6 +10,7 @@ name = "any_context_core_rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+actx-lm = { path = "../actx-lm" }
 pyo3 = { version = "0.22", features = ["extension-module"] }
 pulldown-cmark = { version = "0.11", default-features = false }
 serde = { version = "1.0", features = ["derive"] }

@@ -7,7 +7,56 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.36 Native Rust Storage & Vector Engine Layer - LanceDB + Rusqlite): Validação do Motor Nativo de Armazenamento Vetorial e Relacional em Rust, Persistência WAL e Busca por Similaridade Zero-Copy
+### 📌 Cenário 1 (v0.30.37 Universal Language Model Engine - actx-lm, Strategy Pattern, SSE Streaming & SLM Support): Validação do Motor Unificado de Inferência de IA em Rust, Façade Pattern, Streaming SSE e Suporte a Modelos Locais (SLMs)
+
+- **Objetivo**: Comprovar que na versão `v0.30.37`:
+  1. **Motor Agnóstico de Modelos (`actx-lm`)**: A nova crate nativa em Rust (`crates/actx-lm`) opera de forma autônoma e desacoplada, fornecendo uma fachada única (`LmClient`) e estratégias intercambiáveis (`LmProvider`) para múltiplos provedores sem dependência de frameworks externos pesados (como LangChain).
+  2. **Suporte Nativo a SLMs Locais (Small Language Models)**: O provedor compatível com OpenAI (`OpenAiCompatibleProvider`) conecta-se diretamente a instâncias locais de SLMs (como Ollama em `http://localhost:11434/v1` ou LM Studio em `http://localhost:1234/v1`) sem exigir chaves de API.
+  3. **Streaming Token-a-Token via Server-Sent Events (SSE)**: O decodificador nativo (`decode_sse_stream`) processa streams assíncronos com latência zero, emitindo tokens de resposta (`StreamChunk::Token`), fragmentos de raciocínio profundo (`StreamChunk::Reasoning` para DeepSeek R1 e Claude Thinking) e sinais de conclusão (`StreamChunk::Completed`).
+  4. **Interoperabilidade Python via PyO3 (`PyLmClient`)**: A ponte nativa em `any-context-core-rs` expõe `PyLmClient` para consumo direto e progressivo pelo ecossistema do AnyContext.
+  5. **Testabilidade Determinística Offline (`MockLmProvider`)**: Execução de chamadas completas e streaming sem necessidade de rede ou consumo de créditos de API.
+- **Pré-requisito**: Versão `v0.30.37` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.37` em menos de 50ms com saída limpa.
+
+2. **🦀 Validação da Suíte de Testes da Crate Nativa `actx-lm`:**
+   - Execute no terminal (com ambiente Rust/MSVC configurado):
+     ```text
+     cargo test -p actx-lm
+     ```
+   - **Critério de Aceitação:** 11/11 testes unitários e de integração passam com 100% de sucesso em 0.00s.
+
+3. **🐍 Validação dos Bindings PyO3 (`PyLmClient` com Mock Provider):**
+   - Execute no terminal com o Python do AnyContext:
+     ```text
+     python -c "import any_context_core_rs as core; client = core.PyLmClient('mock'); resp = client.quick_chat('test-model', 'Hello actx-lm'); print('[OK] Quick Chat:', resp); assert 'Hello actx-lm' in resp"
+     ```
+   - **Critério de Aceitação:** Retorna `[OK] Quick Chat: Mock response to: Hello actx-lm` confirmando o despacho e execução síncrona.
+
+4. **⚡ Validação de Streaming Token-a-Token em Tempo Real (`chat_stream_collect`):**
+   - Execute no terminal com o Python:
+     ```text
+     python -c "import any_context_core_rs as core, json; client = core.PyLmClient('mock'); msgs = json.dumps([{'role': 'user', 'content': 'Test stream tokens'}]); tokens = client.chat_stream_collect('test-model', msgs); print('[OK] Streamed tokens:', tokens); assert len(tokens) > 0"
+     ```
+   - **Critério de Aceitação:** Retorna a lista de tokens fracionados (`['Mock ', 'response ', 'to: ', 'Test ', 'stream ', 'tokens']`) confirmando o pipeline de streaming SSE.
+
+5. **🏠 Validação de Construtor para Modelos Locais (SLMs - Ollama):**
+   - Execute no terminal com o Python:
+     ```text
+     python -c "import any_context_core_rs as core; client = core.PyLmClient('ollama', base_url='http://localhost:11434/v1'); assert client.provider_id() == 'ollama'; print('[OK] Local SLM Ollama client initialized without API key requirement!')"
+     ```
+   - **Critério de Aceitação:** Executa sem exceções e imprime `[OK] Local SLM Ollama client initialized without API key requirement!`.
+
+---
+
+### 📌 Cenário 2 (v0.30.36 Native Rust Storage & Vector Engine Layer - LanceDB + Rusqlite): Validação do Motor Nativo de Armazenamento Vetorial e Relacional em Rust, Persistência WAL e Busca por Similaridade Zero-Copy
 
 - **Objetivo**: Comprovar que na versão `v0.30.36`:
   1. **Motor Vetorial Nativo em Rust (`NativeLanceStore`)**: O armazenamento vetorial é gerenciado diretamente pela crate nativa em Rust (`any-context-core-rs`) utilizando `lancedb 0.39` e schemas colunares `arrow 58`, executando operações assíncronas em um runtime multithreaded Tokio isolado.
