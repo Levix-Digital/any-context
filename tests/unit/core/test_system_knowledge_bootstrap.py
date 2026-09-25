@@ -72,20 +72,22 @@ class TestSystemKnowledgeBootstrap(unittest.TestCase):
         def mock_query_embed(query):
             return [0.05] * 1536
 
-        with patch("any_context.vector_engine.indexer.ParallelIndexer._get_text_embeddings_batch", side_effect=mock_embed_batch):
-            with patch("any_context.vector_engine.retriever.ParallelRetriever._get_query_embedding", side_effect=mock_query_embed):
-                with patch("any_context.tools.search_tools.configure_embedding_model"):
-                    success = ensure_system_knowledge_indexed(db_path=self.db_path, force=True)
-                    self.assertTrue(success)
+        mock_settings = AppSettings(context=ContextSettings(db_path=self.db_path))
+        with patch("any_context.tools.search_tools.AppSettings.load", return_value=mock_settings):
+            with patch("any_context.vector_engine.indexer.ParallelIndexer._get_text_embeddings_batch", side_effect=mock_embed_batch):
+                with patch("any_context.vector_engine.retriever.ParallelRetriever._get_query_embedding", side_effect=mock_query_embed):
+                    with patch("any_context.tools.search_tools.configure_embedding_model"):
+                        success = ensure_system_knowledge_indexed(db_path=self.db_path, force=True)
+                        self.assertTrue(success)
 
-                    records_count = self.lance_store.count_records(table_name="workspace_chunks")
-                    self.assertGreater(records_count, 0)
+                        records_count = self.lance_store.count_records(table_name="workspace_chunks")
+                        self.assertGreater(records_count, 0)
 
-                    # Test _execute_search_context for commands in an empty custom workspace retrieves Global help chunks
-                    res = _execute_search_context(
-                        prompt_text="como usar o comando /transfer",
-                        workspace="EmptyCustomWorkspace"
-                    )
+                        # Test _execute_search_context for commands in an empty custom workspace retrieves Global help chunks
+                        res = _execute_search_context(
+                            prompt_text="como usar o comando /transfer",
+                            workspace="EmptyCustomWorkspace"
+                        )
 
                     self.assertIn("Workspace: Global", res)
                     self.assertTrue(len(res) > 50)
