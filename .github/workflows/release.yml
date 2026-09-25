@@ -74,10 +74,11 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
+        shell: bash
         run: |
           uv pip install --system "pyinstaller>=6.16.0" maturin -r requirements.txt
           maturin build --release -m crates/any-context-core-rs/Cargo.toml --out dist
-          uv pip install --system dist/*.whl
+          uv pip install --system --find-links dist any-context-core-rs
           uv pip install --system -e .
           cd src/any_context/tui
           bun install --production
