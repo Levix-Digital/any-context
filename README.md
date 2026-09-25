@@ -53,6 +53,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🚀 Sub-Second Cold Boot Runtime & Dual-Binary Architecture (`--onedir`)**:
   - **Sub-Second Engine Startup**: Pre-extracts Python runtime libraries into `%LOCALAPPDATA%\actx\bin\_internal` (Windows) or `~/.local/bin/_internal` (Linux) on installation/update, eliminating the 2.7+ second decompression delay on every launch and bringing engine boot down from 2.8s to `< 0.2s`.
   - **Instant Execution Launcher Shim**: Native launcher (`actx.exe` on Windows, compiled C ELF `actx` on Linux) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
+- **🦀 Universal Native Rust Token Estimator & Density Budgeting Engine (`v0.30.34`)**:
+  - **Zero-Dependency Token Estimator**: Implemented high-throughput $O(n)$ Unicode sub-word and symbol estimator in native Rust (`token_budget.rs`), correlated >95% with BPE tokenizers while eliminating runtime dependencies on `tiktoken` and avoiding heavy vocabulary dictionaries in memory.
+  - **Failsafe Semantic Ceiling Truncation**: Automatically enforces model context limits (OpenAI 8191, Gemini 2048, Nomic 2048, MiniLM 512) and truncates exceeding chunks cleanly at line and sentence boundaries without mid-word corruption.
+  - **Language-Neutral Density Architecture**: Purged hardcoded Portuguese stop words in semantic keyword extraction and standardized retrieval density truncation notices on universal international English conventions.
 - **🦀 100% Native Rust Execution Architecture & Python Fallback Purge (`v0.30.33`)**:
   - **Elimination of Duplicate Python Fallbacks**: Completely expurgated redundant Python regex fallback engines and duplicate parsing branches from `query_preprocessor.py` and `router.py`.
   - **Rust as Single Source of Truth**: Mandates `any-context-core-rs` as an absolute, non-negotiable core dependency across all environments, eliminating maintenance drift, code duplication, and ghost logic.

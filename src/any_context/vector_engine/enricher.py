@@ -201,14 +201,11 @@ class ContextualEnricher:
     def _extract_top_keywords(self, text: str, title: str, top_n: int = 7) -> List[str]:
         """Extracts top domain keywords by frequency, length, and title significance."""
         STOP_WORDS = {
-            "a", "o", "as", "os", "um", "uma", "uns", "umas", "de", "do", "da", "dos", "das",
-            "em", "no", "na", "nos", "nas", "por", "pelo", "pela", "pelos", "pelas", "para",
-            "com", "sem", "sob", "sobre", "que", "se", "ou", "e", "mas", "como", "mais", "muito",
-            "seu", "sua", "seus", "suas", "este", "esta", "estes", "estas", "esse", "essa",
             "the", "and", "or", "to", "in", "of", "for", "with", "on", "at", "from", "by",
-            "about", "as", "into", "like", "through", "after", "over", "between", "out",
+            "about", "into", "like", "through", "after", "over", "between", "out",
             "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do",
-            "does", "did", "can", "could", "should", "would", "may", "might", "must", "will"
+            "does", "did", "can", "could", "should", "would", "may", "might", "must", "will",
+            "this", "that", "these", "those", "then", "than", "each", "more", "most", "such"
         }
 
         # Tokenize words >= 4 chars with unicode support

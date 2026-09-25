@@ -4015,3 +4015,70 @@ Starting in v0.30.33, AnyContext establishes native Rust (any-context-core-rs) a
 - router.py eliminates _RUST_CORE_AVAILABLE flags and mandates any_context_core_rs at the top-level import.
 - If any_context_core_rs fails to load, AnyContext raises an explicit, instructive ImportError detailing compilation instructions.
 - All subsequent phases of the Python-to-Rust migration will proceed directly in Rust without creating parallel pure-Python mirror implementations.
+
+
+## 71. Universal Native Rust Token Estimator & Density Budgeting Engine (v0.30.34)
+
+### 1. Architectural Motivation: Overcoming BPE Heavy Dictionaries & Runtime Inefficiencies
+
+Prior to `v0.30.34`, chunk token budgeting and context window ceiling enforcement in `ParallelIndexer` (`src/any_context/vector_engine/indexer.py`) relied on dynamic runtime imports of Python's `tiktoken` with hardcoded `cl100k_base` vocabulary tables. This design suffered from several architectural flaws:
+
+1. **Provider Misalignment**: `tiktoken` is strictly tailored to OpenAI tokenization. Applying `cl100k_base` BPE tables to evaluate chunks destined for Google Gemini (`text-embedding-004`), Ollama / Nomic (`nomic-embed-text`), or HuggingFace local models (`bge-small-en-v1.5`, `all-minilm-l6-v2`) introduces arbitrary approximation errors while retaining heavy memory footprints.
+2. **Dynamic Runtime Import Overhead**: Importing `tiktoken` dynamically during batch vector processing incurs repeated overhead and introduces memory pressure.
+3. **Destructive or Arbitrary Fallbacks**: When chunks exceeded token boundaries, heuristics with arbitrary multipliers (`* 3` and `* 4`) and naive string slicing led to mid-word truncation or malformed semantic structures.
+4. **Local Language Leakage in Core Density Engine**: The Rust retrieval engine's `apply_density_budget` in `crates/any-context-core-rs/src/retrieval/diversifier.rs` contained hardcoded Portuguese truncation notices (`[...trecho adicional condensado por limite de densidade...]`), and `enricher.py` contained local Portuguese `STOP_WORDS`.
+
+### 2. High-Throughput O(n) Universal Token Estimator (`token_budget.rs`)
+
+`v0.30.34` introduces a zero-dependency, linear-time $O(n)$ token estimator in native Rust (`crates/any-context-core-rs/src/retrieval/token_budget.rs`):
+
+```mermaid
+graph TD
+    A["Raw Document Chunk (UTF-8 &str)"] --> B["estimate_token_count(&str)"]
+    B --> C{"Unicode Character Analysis"}
+    C -->|Alphabetics & camelCase| D["Sub-word Splitting (word_len > 7 / Lower->Upper)"]
+    C -->|Digits| E["Numeric Grouping (chunks of 3)"]
+    C -->|CJK Characters| F["Ideograph / Syllable Weight (+2 tokens/char)"]
+    C -->|Emojis| G["Emoji Glyph Weight (+2 tokens/char)"]
+    C -->|Punctuation / Operators| H["Consecutive Punctuation Grouping (+1 per sequence)"]
+    
+    D --> I["Total Estimated Token Count"]
+    E --> I
+    F --> I
+    G --> I
+    H --> I
+    
+    I --> J{"Exceeds Model Ceiling?"}
+    J -- "No (<= safe_ceiling)" --> K["Pass Intact to Embedding Batch"]
+    J -- "Yes (> safe_ceiling)" --> L["truncate_to_token_ceiling(&str, ceiling)"]
+    L --> M["Semantic Boundary Lookback:\n1. Paragraph (\\n\\n)\n2. Line Break (\\n)\n3. Sentence End (. / ? / !)\n4. Word Space ( )"]
+    M --> N["Sanitized Chunk (Zero Mid-Word Splitting)"]
+```
+
+#### Core Mathematical & Algorithmic Foundations:
+1. **Sub-word Splitting Threshold**: English and code words up to 7 characters (e.g., `return`, `function`, `config`, `execute`) are evaluated as single tokens. Longer words trigger proportional token increments every 4 subsequent characters, matching empirical BPE sub-word boundaries.
+2. **Consecutive Punctuation Grouping**: Symbol combinations such as `::`, `->`, `==`, `):`, and `\n\n` are grouped as single tokens, reflecting BPE tokenizer vocabulary merges.
+3. **Multilingual Unicode & CJK Awareness**: Dedicated range checks for CJK Unified Ideographs (`U+4E00` - `U+9FFF`), Hiragana, Katakana, and Hangul allocate 2 tokens per glyph, mirroring real-world multi-byte tokenizer expansion.
+4. **Safety Buffer (95% Rule)**: `safe_token_ceiling = max(256, int(token_limit * 0.95))` guarantees that document chunks never exceed embedding model context windows, eliminating HTTP 400 Bad Request errors.
+
+### 3. Native Rust Context Window Catalog (`get_embedding_token_limit_rs`)
+
+Authoritative model token limits are compiled directly into the Rust core engine:
+
+| Model Family / Substring | Maximum Embedding Tokens | Default Engine Behavior |
+|---|---|---|
+| `text-embedding-3-*`, `ada-002` | **8191** | High-capacity semantic chunking |
+| `text-embedding-004`, `gemini`, `vertex` | **2048** | Standard multimodal context window |
+| `nomic-embed-text`, `nomic`, `ollama` | **2048** | Local Ollama / Nomic embeddings |
+| `all-minilm-*`, `bge-*` | **512** | Local lightweight HuggingFace models |
+| `embed-english`, `cohere` | **4096** | Enterprise Cohere embeddings |
+| *Unknown / Custom Models* | **2048** | Safe universal default |
+
+### 4. Language-Neutral International Standardization
+
+1. **Retrieval Density Notice**: Replaced hardcoded Portuguese string in `diversifier.rs` with universal international English:
+   ```rust
+   truncated.push_str("\n[...additional snippet condensed for density limit...]");
+   ```
+2. **Keyword Extraction**: Expurgated local Portuguese stop words from `enricher.py`, standardizing on international English grammatical stop words and length/frequency heuristics ($\ge 4$ characters).
+

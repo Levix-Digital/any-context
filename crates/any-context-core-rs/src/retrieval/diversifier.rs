@@ -108,7 +108,7 @@ pub fn apply_density_budget(chunks: Vec<RankedChunk>, max_chars: usize) -> Vec<R
             let remaining_space = max_chars.saturating_sub(accumulated_chars);
             if remaining_space > 200 {
                 let mut truncated = c.text.chars().take(remaining_space).collect::<String>();
-                truncated.push_str("\n[...trecho adicional condensado por limite de densidade...]");
+                truncated.push_str("\n[...additional snippet condensed for density limit...]");
                 c.text = truncated;
                 budgeted.push(c);
             }

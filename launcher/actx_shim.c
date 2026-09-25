@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <libgen.h>
 
-#define FALLBACK_VERSION "v0.30.31"
+#define FALLBACK_VERSION "v0.30.34"
 
 int main(int argc, char *argv[]) {
     // 1. Ultra-fast path for version check (< 2ms)

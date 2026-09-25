@@ -216,7 +216,8 @@ class ParallelIndexer:
         if not raw_chunks:
             return {"status": "empty", "indexed_chunks": 0}
 
-        # 2.5 Fail-safe token ceiling barrier per embedding model specification
+        # 2.5 Fail-safe token ceiling barrier via native Rust engine (any-context-core-rs)
+        import any_context_core_rs
         from any_context.tools.search_tools import get_embedding_token_limit
         token_limit = get_embedding_token_limit()
         safe_token_ceiling = max(256, int(token_limit * 0.95))
@@ -224,19 +225,10 @@ class ParallelIndexer:
         sanitized_chunks = []
         for rc in raw_chunks:
             text = rc["text"]
-            if len(text) > safe_token_ceiling * 3:
-                try:
-                    import tiktoken
-                    enc = tiktoken.get_encoding("cl100k_base")
-                    tokens = enc.encode(text)
-                    if len(tokens) > safe_token_ceiling:
-                        truncated_text = enc.decode(tokens[:safe_token_ceiling])
-                        rc = dict(rc)
-                        rc["text"] = truncated_text
-                except Exception:
-                    if len(text) > safe_token_ceiling * 4:
-                        rc = dict(rc)
-                        rc["text"] = text[:safe_token_ceiling * 4]
+            truncated_text, was_truncated = any_context_core_rs.truncate_to_token_ceiling(text, safe_token_ceiling)
+            if was_truncated:
+                rc = dict(rc)
+                rc["text"] = truncated_text
             sanitized_chunks.append(rc)
         raw_chunks = sanitized_chunks
 
