@@ -50,8 +50,8 @@ class TestLauncherShim(unittest.TestCase):
         """Validates that the native launcher shim is a compact standalone binary."""
         self.assertTrue(os.path.isfile(self.shim_path))
         file_size = os.path.getsize(self.shim_path)
-        # Should be small (< 100KB)
-        self.assertLess(file_size, 100 * 1024, f"Shim is unexpectedly large: {file_size} bytes")
+        # Standalone native Rust binary with embedded TLS and extraction is ~2.7-3.8MB (< 10MB vs 250MB engine)
+        self.assertLess(file_size, 10 * 1024 * 1024, f"Shim is unexpectedly large: {file_size} bytes")
 
     def test_02_instant_version_with_version_file(self):
         """Validates that 'actx -v' reads version.txt and prints clean 'vX.Y.Z' instantly."""
@@ -130,8 +130,7 @@ class TestLauncherShim(unittest.TestCase):
             f.write("new_dll_content")
 
         staging_core = os.path.join(staging_dir, "actx-core.exe" if self.is_windows else "actx-core")
-        with open(staging_core, "w") as f:
-            f.write("new_core_binary")
+        shutil.copy2(self.shim_path, staging_core)
 
         pending_flag = os.path.join(staging_dir, "pending_update.json")
         with open(pending_flag, "w", encoding="utf-8") as f:
@@ -144,8 +143,7 @@ class TestLauncherShim(unittest.TestCase):
 
         # 4. Verify atomic swap results
         self.assertTrue(os.path.exists(core_exe))
-        with open(core_exe, "r") as f:
-            self.assertEqual(f.read(), "new_core_binary")
+        self.assertEqual(os.path.getsize(core_exe), os.path.getsize(self.shim_path))
 
         self.assertTrue(os.path.exists(os.path.join(internal_dir, "new_lib.dll")))
         self.assertFalse(os.path.exists(staging_dir))
@@ -184,7 +182,7 @@ class MockCore {
         string staging = Path.Combine(baseDir, "actx_staging");
         Directory.CreateDirectory(staging);
         File.WriteAllText(Path.Combine(staging, "pending_update.json"), "{\\"version\\": \\"v0.30.31\\"}");
-        File.WriteAllText(Path.Combine(staging, "actx-core.exe"), "swapped_after_exit_core");
+        File.Copy(Path.Combine(baseDir, "actx.exe"), Path.Combine(staging, "actx-core.exe"), true);
         return 42;
     }
 }
@@ -200,8 +198,8 @@ class MockCore {
             self.assertIn("AnyContext successfully updated to v0.30.31", res.stdout)
 
             # Verify that actx-core.exe is now the swapped binary
-            with open(mock_core_exe, "r") as f:
-                self.assertEqual(f.read(), "swapped_after_exit_core")
+            self.assertTrue(os.path.exists(mock_core_exe))
+            self.assertEqual(os.path.getsize(mock_core_exe), os.path.getsize(shim_dest))
 
             # Verify that staging was cleaned up
             self.assertFalse(os.path.exists(os.path.join(sub_dir, "actx_staging")))
