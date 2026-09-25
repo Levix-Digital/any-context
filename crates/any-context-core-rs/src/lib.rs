@@ -170,6 +170,127 @@ impl PyConfigDb {
     }
 }
 
+#[pyclass]
+pub struct PyLmClient {
+    client: actx_lm::LmClient,
+    runtime: std::sync::Arc<tokio::runtime::Runtime>,
+}
+
+#[pymethods]
+impl PyLmClient {
+    #[new]
+    #[pyo3(signature = (provider, api_key=None, base_url=None, default_model=None))]
+    fn new(
+        provider: &str,
+        api_key: Option<String>,
+        base_url: Option<String>,
+        default_model: Option<String>,
+    ) -> PyResult<Self> {
+        let kind = match provider.to_lowercase().as_str() {
+            "openai" => actx_lm::ProviderKind::OpenAi,
+            "anthropic" => actx_lm::ProviderKind::Anthropic,
+            "gemini" => actx_lm::ProviderKind::Gemini,
+            "ollama" => actx_lm::ProviderKind::Ollama { base_url },
+            "groq" => actx_lm::ProviderKind::Groq,
+            "deepseek" => actx_lm::ProviderKind::DeepSeek,
+            "openrouter" => actx_lm::ProviderKind::OpenRouter,
+            "mock" => actx_lm::ProviderKind::Mock,
+            other => actx_lm::ProviderKind::CustomCompatible {
+                name: other.to_string(),
+                base_url: base_url.unwrap_or_else(|| "http://localhost:8000/v1".to_string()),
+            },
+        };
+
+        let mut builder = actx_lm::LmClient::builder().provider_kind(kind);
+        if let Some(key) = api_key {
+            builder = builder.api_key(key);
+        }
+        if let Some(model) = default_model {
+            builder = builder.default_model(model);
+        }
+
+        let client = builder
+            .build()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        Ok(Self {
+            client,
+            runtime: std::sync::Arc::new(runtime),
+        })
+    }
+
+    fn provider_id(&self) -> String {
+        self.client.provider_id().to_string()
+    }
+
+    fn quick_chat(&self, model: &str, prompt: &str) -> PyResult<String> {
+        self.runtime
+            .block_on(self.client.quick_chat(model, prompt))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(signature = (model, messages_json, temperature=None, max_tokens=None))]
+    fn chat_complete(
+        &self,
+        model: &str,
+        messages_json: &str,
+        temperature: Option<f32>,
+        max_tokens: Option<u32>,
+    ) -> PyResult<String> {
+        let messages: Vec<actx_lm::ChatMessage> = serde_json::from_str(messages_json)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+        let mut req = actx_lm::ChatRequest::new(model, messages);
+        if let Some(t) = temperature {
+            req = req.with_temperature(t);
+        }
+        if let Some(m) = max_tokens {
+            req = req.with_max_tokens(m);
+        }
+
+        let resp = self
+            .runtime
+            .block_on(self.client.chat_complete(req))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        serde_json::to_string(&resp)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    fn chat_stream_collect(&self, model: &str, messages_json: &str) -> PyResult<Vec<String>> {
+        use futures::StreamExt;
+        let messages: Vec<actx_lm::ChatMessage> = serde_json::from_str(messages_json)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+        let req = actx_lm::ChatRequest::new(model, messages);
+        let mut stream = self
+            .runtime
+            .block_on(self.client.chat_stream(req))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        let mut tokens = Vec::new();
+        self.runtime.block_on(async {
+            while let Some(chunk_res) = stream.next().await {
+                if let Ok(chunk) = chunk_res {
+                    match chunk {
+                        actx_lm::StreamChunk::Token(t) => tokens.push(t),
+                        actx_lm::StreamChunk::Reasoning(r) => tokens.push(format!("[THINK] {}", r)),
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        Ok(tokens)
+    }
+}
+
 /// AnyContext High-Performance Core Engine in Rust.
 #[pymodule]
 fn any_context_core_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -181,6 +302,7 @@ fn any_context_core_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()>
     m.add_class::<ProcessedQuery>()?;
     m.add_class::<PyLanceStore>()?;
     m.add_class::<PyConfigDb>()?;
+    m.add_class::<PyLmClient>()?;
     m.add_function(wrap_pyfunction!(extract_temporal_clauses, m)?)?;
     m.add_function(wrap_pyfunction!(expand_query_temporal, m)?)?;
     m.add_function(wrap_pyfunction!(extract_filename_mentions, m)?)?;

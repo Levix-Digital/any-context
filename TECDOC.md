@@ -4334,5 +4334,106 @@ Features provided natively:
 - **Interface Segregation Principle (ISP)**: Methods provide minimal, specialized signatures (`count_records`, `search_vector`, `upsert_batch`).
 - **Dependency Inversion Principle (DIP)**: Vector storage consumers depend on abstract storage traits rather than concrete storage backends.
 
+---
+
+## 74. Universal Language Model Engine (`actx-lm`) (v0.30.37)
+
+### 1. Architectural Motivation: Zero-Framework Lightweight AI Façade
+
+In `v0.30.37` (Priority 2 of the phased Native Rust Migration), AnyContext introduces **`actx-lm`** (`crates/actx-lm`), a standalone, modular language model engine built in pure Rust.
+
+Traditional Python and Rust AI ecosystems rely on bulky frameworks (such as LangChain or LlamaIndex) that impose:
+1. **Severe Framework Bloat & Fragility**: Layers of opaque abstractions, leaky interfaces, unbounded recursion loops, and dozens of transitive dependencies that increase build times and attack surfaces.
+2. **Artificial Cloud Lock-In**: Complex configurations that make switching between cloud LLMs (OpenAI, Anthropic Claude, Google Gemini) and local Small Language Models (SLMs via Ollama, LM Studio, vLLM) brittle and non-uniform.
+3. **High Streaming Latency**: Intermediate buffers and Python GIL contention during token streaming that degrade the interactive responsiveness of terminal and TUI interfaces.
+
+`actx-lm` solves this by delivering an ultra-lightweight, zero-cost abstraction engine centered on the **Strategy Pattern** and **Façade Pattern**, with pure asynchronous I/O (`tokio` + `reqwest` with native `rustls`), zero runtime Python requirement, and direct Server-Sent Events (SSE) streaming decoding.
+
+### 2. Architecture & Design Patterns (`crates/actx-lm`)
+
+```mermaid
+graph TD
+    subgraph "Client Consumer Layer"
+        CLI["AnyContext CLI / TUI"]
+        PY["any_context_core_rs (PyLmClient)"]
+        EXT["External Rust Applications"]
+    end
+
+    subgraph "actx-lm Façade"
+        FACADE["LmClient (Façade Pattern)"]
+        BUILDER["LmClientBuilder (Fluent Builder)"]
+    end
+
+    subgraph "Strategy Pattern (Trait LmProvider)"
+        TRAIT["<<Trait>> LmProvider<br/>chat_complete() / chat_stream() / embed()"]
+        
+        OPENAI["OpenAiCompatibleProvider<br/>(OpenAI, Groq, DeepSeek, OpenRouter)"]
+        OLLAMA["OpenAiCompatibleProvider<br/>(Local SLMs: Ollama, LM Studio, vLLM)"]
+        ANTHROPIC["AnthropicProvider<br/>(Claude 3.5/3.7 with Thinking Blocks)"]
+        GEMINI["GeminiProvider<br/>(Google Gemini Developer REST API)"]
+        MOCK["MockLmProvider<br/>(Deterministic Offline In-Memory Testing)"]
+    end
+
+    subgraph "High-Performance Transport & SSE"
+        REQWEST["Reqwest (Rustls TLS + HTTP/2)"]
+        SSE["decode_sse_stream<br/>(Zero-Copy Event Stream Parser)"]
+    end
+
+    CLI --> FACADE
+    PY --> FACADE
+    EXT --> FACADE
+    BUILDER --> FACADE
+    FACADE --> TRAIT
+    TRAIT --> OPENAI
+    TRAIT --> OLLAMA
+    TRAIT --> ANTHROPIC
+    TRAIT --> GEMINI
+    TRAIT --> MOCK
+    OPENAI --> REQWEST
+    ANTHROPIC --> REQWEST
+    GEMINI --> REQWEST
+    REQWEST --> SSE
+```
+
+### 3. Core Strategy Contract (`trait.rs`)
+
+Every model provider implements the asynchronous, thread-safe `LmProvider` trait:
+
+```rust
+#[async_trait]
+pub trait LmProvider: Send + Sync {
+    fn provider_id(&self) -> &'static str;
+    async fn chat_complete(&self, request: ChatRequest) -> Result<ChatResponse, LmError>;
+    async fn chat_stream(&self, request: ChatRequest) -> Result<BoxedChunkStream, LmError>;
+    async fn embed(&self, model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, LmError>;
+}
+```
+
+### 4. Canonical Domain Taxonomy & Normalized Streaming
+
+`actx-lm` enforces a unified, normalized representation across all models:
+- **`ChatMessage` & `Role`**: `System`, `User`, `Assistant`, `Tool`. For Anthropic, system prompts are automatically separated into the top-level `system` payload; for Gemini, mapped to `systemInstruction`.
+- **`StreamChunk`**:
+  - `StreamChunk::Token(String)`: Regular incremental completion tokens.
+  - `StreamChunk::Reasoning(String)`: Extended reasoning tokens (DeepSeek R1, Claude Thinking blocks, OpenAI o1/o3).
+  - `StreamChunk::ToolCallDelta`: Streaming function calling parameters.
+  - `StreamChunk::Completed`: Final finish reason and token metrics.
+
+### 5. Resilient Zero-Copy SSE Parser (`sse.rs`)
+
+The Server-Sent Events parser (`decode_sse_stream`) utilizes a stateful unfolding stream over incoming `bytes::Bytes`:
+- **Line Reassembly**: Correctly handles UTF-8 characters and JSON lines split across network packet boundaries.
+- **Comment Stripping**: Automatically drops `: keepalive` SSE heartbeat frames.
+- **Termination Sentinel**: Detects and cleanly halts on `data: [DONE]`.
+
+### 6. SOLID & Clean Code Engineering Principles
+
+- **Single Responsibility Principle (SRP)**: `sse.rs` decodes byte streams into text frames; each provider adapter translates requests and maps responses; `client.rs` manages high-level client ergonomics and defaults.
+- **Open/Closed Principle (OCP)**: Adding a new provider requires only implementing `LmProvider` and adding an entry to `ProviderKind`. No existing provider or consumer code is altered.
+- **Liskov Substitution Principle (LSP)**: Any `Arc<dyn LmProvider>` (including `MockLmProvider` and `OpenAiCompatibleProvider`) can be substituted transparently with identical streaming semantics.
+- **Interface Segregation Principle (ISP)**: The `LmProvider` trait exposes focused, essential methods with default implementations where optional (e.g. `embed`).
+- **Dependency Inversion Principle (DIP)**: `LmClient` and downstream consumers depend exclusively on the abstract `LmProvider` trait, never on concrete HTTP clients.
+
+
 
 

@@ -45,6 +45,12 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🧠 Universal Language Model Engine (`actx-lm`) (`v0.30.37`)**:
+  - **Agnostic LLM & SLM Façade**: Standalone, modular Rust crate (`crates/actx-lm`) implementing the Strategy and Façade design patterns for seamless inference across cloud giants (OpenAI, Anthropic Claude with Thinking blocks, Google Gemini) and local Small Language Models (Ollama, LM Studio, llama.cpp, vLLM).
+  - **Zero-Framework Bloat**: Built from the ground up without heavy external orchestration frameworks (e.g. LangChain), achieving sub-millisecond dispatch, minimal dependency footprint, and thread-safe async execution (`Send + Sync`).
+  - **Zero-Latency SSE Streaming**: High-performance Server-Sent Events (SSE) streaming decoder yielding real-time tokens (`StreamChunk::Token`), extended reasoning thoughts (`StreamChunk::Reasoning`), and function calling tool deltas.
+  - **Universal OpenAI-Compatible Strategy**: Single, highly-configurable adapter providing instant compatibility with Groq, DeepSeek, OpenRouter, Together AI, Mistral, and local Ollama instances (`http://localhost:11434/v1`) with zero API key requirement.
+  - **Python Interoperability (`PyLmClient`)**: Native bindings in `any-context-core-rs` enabling progressive migration and seamless access from Python scripts and tests.
 - **🦀 Native Rust Storage & Vector Engine (LanceDB + Rusqlite) (`v0.30.36`)**:
   - **Zero-Copy Apache Arrow Columnar Storage**: Vector chunks, dense embeddings (up to 3072 dimensions), and rich metadata are managed directly in native Rust (`any-context-core-rs`) using `lancedb 0.39` and `arrow 58`.
   - **High-Throughput Vector Similarity Search**: Pure native vector nearest neighbor search with calibrated cosine distance metrics ($S = \frac{1}{1 + \max(0, d)}$) and atomic batch upserts running within an isolated multi-threaded Tokio runtime.
