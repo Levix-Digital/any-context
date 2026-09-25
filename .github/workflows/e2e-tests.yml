@@ -61,7 +61,8 @@ jobs:
       - name: Install Dependencies
         run: |
           uv pip install --system -r requirements.txt pytest maturin
-          maturin develop -m crates/any-context-core-rs/Cargo.toml
+          maturin build -m crates/any-context-core-rs/Cargo.toml --out dist
+          uv pip install --system dist/*.whl
           uv pip install --system -e .
           cd src/any_context/tui
           bun install

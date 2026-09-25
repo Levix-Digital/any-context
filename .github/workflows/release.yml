@@ -76,7 +76,8 @@ jobs:
       - name: Install dependencies
         run: |
           uv pip install --system "pyinstaller>=6.16.0" maturin -r requirements.txt
-          maturin develop --release -m crates/any-context-core-rs/Cargo.toml
+          maturin build --release -m crates/any-context-core-rs/Cargo.toml --out dist
+          uv pip install --system dist/*.whl
           uv pip install --system -e .
           cd src/any_context/tui
           bun install --production
