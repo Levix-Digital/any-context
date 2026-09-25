@@ -7,7 +7,62 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.35 100% Pure Native Rust Cross-Platform Installer & Launcher Architecture): Validação do Instalador e Launcher Nativo em Rust, Download Direto HTTPS, Validação Pré-Swap de Binários PE/ELF e Eliminação de Glifos '??'
+### 📌 Cenário 1 (v0.30.36 Native Rust Storage & Vector Engine Layer - LanceDB + Rusqlite): Validação do Motor Nativo de Armazenamento Vetorial e Relacional em Rust, Persistência WAL e Busca por Similaridade Zero-Copy
+
+- **Objetivo**: Comprovar que na versão `v0.30.36`:
+  1. **Motor Vetorial Nativo em Rust (`NativeLanceStore`)**: O armazenamento vetorial é gerenciado diretamente pela crate nativa em Rust (`any-context-core-rs`) utilizando `lancedb 0.39` e schemas colunares `arrow 58`, executando operações assíncronas em um runtime multithreaded Tokio isolado.
+  2. **Busca por Similaridade Vetorial Calibrada**: A busca de vetores densos calcula a distância de cosseno normalizada e calibrada em score de similaridade ($S = \frac{1}{1 + \max(0, d)}$) com suporte a filtros de metadados e limites de Top-K.
+  3. **Persistência Relacional de Alta Concorrência (`NativeConfigDb`)**: O banco de configurações SQLite opera via Rusqlite compilado nativamente, aplicando obrigatoriamente `PRAGMA journal_mode = WAL`, `PRAGMA busy_timeout = 30000` e `PRAGMA synchronous = NORMAL`, eliminando contenção de threads e travamentos em disco no Windows.
+  4. **Rastreamento Diferencial de Hashes de Arquivos**: O cache de metadados e hashes de arquivos (`set_file_hash`, `get_file_hashes`) permite sincronização diferencial de diretórios em microssegundos sem concorrência pelo GIL do Python.
+  5. **Operações Atômicas de Exclusão**: Purga atômica de chunks por workspace (`delete_by_workspace`), por arquivo (`delete_by_file`) e por chunk individual (`delete_by_id`).
+- **Pré-requisito**: Versão `v0.30.36` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.36` em menos de 50ms com saída limpa.
+
+2. **🦀 Validação dos Módulos Nativos de Armazenamento (`PyLanceStore` e `PyConfigDb`):**
+   - Execute no terminal com o Python do AnyContext:
+     ```text
+     python -c "import any_context_core_rs as core; print(core.PyLanceStore, core.PyConfigDb)"
+     ```
+   - **Critério de Aceitação:** Retorna `<class 'builtins.PyLanceStore'> <class 'builtins.PyConfigDb'>` confirmando a importação das extensões nativas compiladas.
+
+3. **🗄️ Validação da Persistência Relacional Nativa (`NativeConfigDb`):**
+   - Execute no terminal com o Python:
+     ```text
+     python -c "import any_context_core_rs as core, tempfile, os; db_path = os.path.join(tempfile.mkdtemp(), 'test_cfg.db'); db = core.PyConfigDb(db_path); db.create_workspace('TestWS', '/tmp', 'user'); ws = db.get_workspace('TestWS'); assert ws['name'] == 'TestWS'; db.set_setting('theme', 'dark'); assert db.get_setting('theme') == 'dark'; db.set_file_hash('TestWS', 'doc.txt', 'hash123', 100.0, 50); hashes = db.get_file_hashes('TestWS'); assert 'doc.txt' in hashes; print('[OK] NativeConfigDb operational!')"
+     ```
+   - **Critério de Aceitação:** Executa sem exceções e imprime `[OK] NativeConfigDb operational!`.
+
+4. **⚡ Validação do Motor Vetorial Nativo (`NativeLanceStore`):**
+   - Execute no terminal com o Python:
+     ```text
+     python -c "import any_context_core_rs as core, tempfile, os; p = os.path.join(tempfile.mkdtemp(), 'test_lance'); store = core.PyLanceStore(p); records = [{'id': 'c1', 'vector': [0.1]*1536, 'text': 'Rust lance store test', 'file_path': 'test.txt', 'file_name': 'test.txt', 'workspace': 'TestWS', 'chunk_index': 0, 'page_number': 1, 'content_type': 'Plain Text', 'token_count': 5, 'content_hash': 'h1', 'last_modified': 1.0}]; store.upsert_batch('TestWS', records); count = store.count_records('TestWS'); assert count == 1; results = store.search_vector('TestWS', [0.1]*1536, 1, None); assert len(results) == 1 and results[0]['id'] == 'c1'; store.delete_by_workspace('TestWS'); assert store.count_records('TestWS') == 0; print('[OK] NativeLanceStore operational!')"
+     ```
+   - **Critério de Aceitação:** Executa sem exceções e imprime `[OK] NativeLanceStore operational!`.
+
+5. **💬 Validação End-to-End no Chat Interativo do AnyContext (`actx`):**
+   - Inicie o AnyContext em um workspace com documentos:
+     ```text
+     actx
+     ```
+   - No prompt do chat, execute:
+     ```text
+     /sync --force
+     /inspect 3
+     ```
+   - Em seguida, faça uma pergunta sobre os documentos indexados.
+   - **Critério de Aceitação:** A sincronização e inspeção operam com alta velocidade e a pergunta é respondida com fontes e citações perfeitamente grounded.
+
+---
+
+### 📌 Cenário 2 (v0.30.35 100% Pure Native Rust Cross-Platform Installer & Launcher Architecture): Validação do Instalador e Launcher Nativo em Rust, Download Direto HTTPS, Validação Pré-Swap de Binários PE/ELF e Eliminação de Glifos '??'
 
 - **Objetivo**: Comprovar que na versão `v0.30.35`:
   1. **Instalador Nativo em Rust (`crates/actx-installer`)**: A instalação, atualização e rollback do AnyContext são orquestrados por binários nativos compilados em Rust (`actx-installer.exe` no Windows, `actx-installer` no Linux/macOS), eliminando scripts frágeis em PowerShell/Bash e compiladores dinâmicos de C# (`csc.exe`).

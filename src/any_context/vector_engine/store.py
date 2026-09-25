@@ -34,6 +34,11 @@ class LanceDBStore:
         self._db = lancedb.connect(self._db_path)
         self._table_lock = threading.Lock()
         self._default_table_name = "workspace_chunks"
+        try:
+            import any_context_core_rs
+            self._native_store = any_context_core_rs.PyLanceStore(self._db_path)
+        except Exception:
+            self._native_store = None
 
     @classmethod
     def get_instance(cls, db_path: Optional[str] = None) -> "LanceDBStore":
@@ -315,9 +320,12 @@ class LanceDBStore:
             return
         with self._table_lock:
             try:
-                table = self._db.open_table(table_name)
-                clean_ws = workspace_name.replace("'", "''")
-                table.delete(f"workspace = '{clean_ws}'")
+                if self._native_store:
+                    self._native_store.delete_by_workspace(workspace_name, table_name)
+                else:
+                    table = self._db.open_table(table_name)
+                    clean_ws = workspace_name.replace("'", "''")
+                    table.delete(f"workspace = '{clean_ws}'")
             except Exception:
                 pass
             try:
@@ -368,9 +376,12 @@ class LanceDBStore:
             return
         with self._table_lock:
             try:
-                table = self._db.open_table(table_name)
-                clean_id = chunk_id.replace("'", "''")
-                table.delete(f"id = '{clean_id}'")
+                if self._native_store:
+                    self._native_store.delete_by_id(chunk_id, table_name)
+                else:
+                    table = self._db.open_table(table_name)
+                    clean_id = chunk_id.replace("'", "''")
+                    table.delete(f"id = '{clean_id}'")
             except Exception:
                 pass
             try:
@@ -386,14 +397,17 @@ class LanceDBStore:
             return
         with self._table_lock:
             try:
-                table = self._db.open_table(table_name)
-                clean_fp = self._norm_path(file_path).replace("'", "''")
-                clean_dir = clean_fp.rstrip("/")
-                where_clause = f"(file_path = '{clean_fp}' OR file_path LIKE '{clean_dir}/%')"
-                if workspace_name:
-                    clean_ws = workspace_name.replace("'", "''")
-                    where_clause = f"workspace = '{clean_ws}' AND ({where_clause})"
-                table.delete(where_clause)
+                if self._native_store:
+                    self._native_store.delete_by_file(file_path, workspace_name, table_name)
+                else:
+                    table = self._db.open_table(table_name)
+                    clean_fp = self._norm_path(file_path).replace("'", "''")
+                    clean_dir = clean_fp.rstrip("/")
+                    where_clause = f"(file_path = '{clean_fp}' OR file_path LIKE '{clean_dir}/%')"
+                    if workspace_name:
+                        clean_ws = workspace_name.replace("'", "''")
+                        where_clause = f"workspace = '{clean_ws}' AND ({where_clause})"
+                    table.delete(where_clause)
             except Exception:
                 pass
             try:
@@ -455,6 +469,11 @@ class LanceDBStore:
 
     def count_records(self, workspace_name: Optional[str] = None, table_name: str = "workspace_chunks") -> int:
         """Returns total record count in table or scoped to workspace using zero-copy projection."""
+        if self._native_store:
+            try:
+                return self._native_store.count_records(workspace_name, table_name)
+            except Exception:
+                pass
         if not self._has_table(table_name):
             return 0
         try:

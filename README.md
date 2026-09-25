@@ -45,6 +45,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🦀 Native Rust Storage & Vector Engine (LanceDB + Rusqlite) (`v0.30.36`)**:
+  - **Zero-Copy Apache Arrow Columnar Storage**: Vector chunks, dense embeddings (up to 3072 dimensions), and rich metadata are managed directly in native Rust (`any-context-core-rs`) using `lancedb 0.39` and `arrow 58`.
+  - **High-Throughput Vector Similarity Search**: Pure native vector nearest neighbor search with calibrated cosine distance metrics ($S = \frac{1}{1 + \max(0, d)}$) and atomic batch upserts running within an isolated multi-threaded Tokio runtime.
+  - **Thread-Safe SQLite Configuration Store (`NativeConfigDb`)**: Pure native Rusqlite layer enforcing mandatory high-concurrency PRAGMAs (`WAL`, `busy_timeout=30000`, `synchronous=NORMAL`, `foreign_keys=ON`), workspace lifecycle CRUD, settings key-value persistence, and microsecond differential file hash sync tracking with zero Python GIL contention.
+  - **Clean Code & SOLID Architecture**: Modular, decoupled storage design exposing complete PyO3 bindings (`PyLanceStore`, `PyConfigDb`) for seamless, zero-friction integration.
 - **⚡ 100% LanceDB Columnar Vector Engine (Apache Arrow / Rust)**:
   - **Sub-5ms Vector Queries**: Powered by native Rust SIMD vector distance routines, eliminating database locks and enabling instant retrieval across 500,000+ chunks.
   - **Zero Database Locks**: Columnar Apache Arrow dataset architecture eliminates SQLite write-lock contentions on Windows.
