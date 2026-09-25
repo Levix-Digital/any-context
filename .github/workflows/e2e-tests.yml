@@ -32,6 +32,9 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
