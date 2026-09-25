@@ -7,7 +7,48 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.33 100% Native Rust Execution Architecture & Complete Purge of Python Fallbacks): Validação da Autoridade Única do Motor Nativo Rust e Eliminação Total de Fallbacks em Python
+### 📌 Cenário 1 (v0.30.34 Universal Native Rust Token Estimator & Density Budgeting Engine): Validação da Estimativa de Tokens em Rust, Truncamento Semântico de Chunks e Neutralidade de Idioma
+
+- **Objetivo**: Comprovar que na versão `v0.30.34`:
+  1. **Motor Nativo Rust de Estimativa de Tokens (`token_budget.rs`)**: A estimativa de tokens é executada nativamente em Rust (`any_context_core_rs.estimate_token_count`) em tempo $O(n)$ linear com sub-word splitting e consciência Unicode, eliminando a dependência do `tiktoken` em Python e tabelas estáticas pesadas de BPE em memória.
+  2. **Truncamento Semântico em Fronteiras Limpas (`truncate_to_token_ceiling`)**: Chunks de documentos que excedem o teto do modelo de embedding são fatiados em fronteiras naturais (parágrafo, quebra de linha `\n` ou fim de sentença `. `), eliminando cortes no meio de palavras ou caracteres corrompidos.
+  3. **Catálogo Nativo de Context Windows (`get_embedding_token_limit`)**: Resolução compilada em Rust para limites máximos de tokens de embedding (OpenAI: 8191, Gemini: 2048, Nomic/Ollama: 2048, MiniLM/BGE: 512).
+  4. **Neutralidade de Idioma na Densidade e Enriquecimento**: Substituição da mensagem em português no `diversifier.rs` pelo padrão universal em inglês (`[...additional snippet condensed for density limit...]`) e eliminação de stop words locais no extrator de keywords.
+- **Pré-requisito**: Versão `v0.30.34` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão Instantânea via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.34` em menos de 50ms.
+
+2. **🦀 Validação da Estimativa e Truncamento de Tokens em Rust:**
+   - Execute no terminal com o Python do AnyContext:
+     ```text
+     python -c "import any_context_core_rs as core; text = 'Line 1: safe\n' * 50; tokens = core.estimate_token_count(text); truncated, was_t = core.truncate_to_token_ceiling(text, 20); print(f'Tokens: {tokens}, Truncated: {was_t}, Result Tokens: {core.estimate_token_count(truncated)}')"
+     ```
+   - **Critério de Aceitação:** `Tokens > 50`, `Truncated: True`, `Result Tokens <= 20`, e o texto termina limpo em `safe` ou quebra de linha sem quebrar palavras.
+
+3. **🏛️ Validação do Catálogo de Limites por Modelo:**
+   - Execute no terminal:
+     ```text
+     python -c "import any_context_core_rs as core; print('OpenAI:', core.get_embedding_token_limit('text-embedding-3-small')); print('Gemini:', core.get_embedding_token_limit('text-embedding-004')); print('MiniLM:', core.get_embedding_token_limit('all-minilm-l6-v2'))"
+     ```
+   - **Critério de Aceitação:** Retorna `OpenAI: 8191`, `Gemini: 2048`, `MiniLM: 512`.
+
+4. **🌍 Validação da Neutralidade de Idioma no Envelopador Semântico:**
+   - Verifique que o extrator de keywords no enricher opera sem hardcoding de português:
+     ```text
+     python -c "from any_context.vector_engine.enricher import ContextualEnricher; e = ContextualEnricher(); kw = e._extract_top_keywords('Microservices architecture deployment on Kubernetes clusters with Docker containers', 'Architecture Guide'); print('Keywords:', kw); assert 'microservices' in kw or 'kubernetes' in kw; print('OK')"
+     ```
+   - **Critério de Aceitação:** Extrai keywords técnicas com sucesso e imprime `OK`.
+
+---
+
+### 📌 Cenário 2 (v0.30.33 100% Native Rust Execution Architecture & Complete Purge of Python Fallbacks): Validação da Autoridade Única do Motor Nativo Rust e Eliminação Total de Fallbacks em Python
 
 - **Objetivo**: Comprovar que na versão `v0.30.33`:
   1. **Autoridade Única do Motor Nativo Rust (`any-context-core-rs`)**: A biblioteca nativa compilada em Rust passa a ser uma dependência primária, estrita e obrigatória do AnyContext, eliminando código duplicado de fallbacks em Python em `query_preprocessor.py` e `router.py`.

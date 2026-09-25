@@ -75,11 +75,8 @@ def get_embedding_token_limit(model_name: Optional[str] = None, settings: Option
     except Exception:
         pass
 
-    for key, limit in MODEL_MAX_EMBEDDING_TOKENS.items():
-        if key in m_name:
-            return limit
-
-    return MODEL_MAX_EMBEDDING_TOKENS["default"]
+    import any_context_core_rs
+    return any_context_core_rs.get_embedding_token_limit(m_name)
 
 
 def configure_embedding_model():
