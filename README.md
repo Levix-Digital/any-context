@@ -45,6 +45,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🤖 Native Rust ReAct Agent & Orchestrator (`actx-agent`) (`v0.30.38`)**:
+  - **Deterministic ReAct Finite State Machine (FSM)**: Standalone, modular Rust crate (`crates/actx-agent`) providing deterministic multi-turn tool calling and reasoning loops without heavy third-party framework dependencies (e.g. LangGraph).
+  - **Polymorphic Tool Registry & Defensive Self-Healing**: Thread-safe async tool registry supporting both pure Rust closures and Python callables with defensive JSON argument parsing and model self-healing on parameter errors.
+  - **Uncompressed SQLite Session Persistence**: Native SQLite session store (`SqliteSessionStore`) with configurable sliding window history (30 turns) and instant WAL transactions, eliminating opaque zlib compression and database locks.
+  - **Real-Time Event Streaming Pipeline**: Granular event emitter (`AgentEvent`) broadcasting thinking blocks, tool calls/returns, text deltas, and execution metadata for reactive UI rendering.
+  - **RFC-042 Deep Search Foundations**: Core Pydantic models (`deep_search_models.py`) supporting query decomposition into orthogonal sub-queries, iterative information gap analysis, and adaptive routing (`/fast` vs `/deep`).
+  - **Thread-Safe PyO3 Bridge (`PyAgentEngine`, `PyAgentResponse`, `PyAgentEvent`)**: Complete interoperability with Python execution environments, releasing the GIL during asynchronous I/O (`py.allow_threads`) to ensure deadlock-free tool execution.
 - **🧠 Universal Language Model Engine (`actx-lm`) (`v0.30.37`)**:
   - **Agnostic LLM & SLM Façade**: Standalone, modular Rust crate (`crates/actx-lm`) implementing the Strategy and Façade design patterns for seamless inference across cloud giants (OpenAI, Anthropic Claude with Thinking blocks, Google Gemini) and local Small Language Models (Ollama, LM Studio, llama.cpp, vLLM).
   - **Zero-Framework Bloat**: Built from the ground up without heavy external orchestration frameworks (e.g. LangChain), achieving sub-millisecond dispatch, minimal dependency footprint, and thread-safe async execution (`Send + Sync`).

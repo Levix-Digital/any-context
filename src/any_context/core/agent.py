@@ -784,6 +784,229 @@ def get_safe_checkpointer():
 # Backward compatible module export
 saver = get_safe_checkpointer()
 
+
+class NativeAgentChunk:
+    """Lightweight token chunk returned during native agent streaming."""
+    def __init__(self, content: str, event_type: str = "ai"):
+        self.content = content
+        self.type = event_type
+
+    def __repr__(self) -> str:
+        return f"NativeAgentChunk(type='{self.type}', content={self.content!r})"
+
+
+class NativeAgentWrapper:
+    """Native Rust ReAct Agent wrapper (actx-agent) maintaining parity with LangGraph interface."""
+    def __init__(self, engine: Any, active_workspace: str = "Default"):
+        self.engine = engine
+        self.active_workspace = active_workspace
+
+    def stream(self, input_data: Any, stream_mode: str = "messages", config: Optional[Dict[str, Any]] = None):
+        """Yields (chunk, metadata) tuples identical to LangGraph agent stream."""
+        prompt_text = ""
+        if isinstance(input_data, dict):
+            msgs = input_data.get("messages", [])
+            if msgs:
+                last = msgs[-1]
+                if isinstance(last, str):
+                    prompt_text = last
+                elif hasattr(last, "content"):
+                    prompt_text = str(last.content)
+                elif isinstance(last, dict):
+                    prompt_text = str(last.get("content", ""))
+        elif isinstance(input_data, str):
+            prompt_text = input_data
+
+        thread_id = None
+        if config and isinstance(config, dict):
+            cfg = config.get("configurable", {})
+            thread_id = cfg.get("thread_id")
+
+        events_queue = []
+
+        def on_event(ev):
+            events_queue.append(ev)
+
+        resp = self.engine.run_with_callback(prompt_text, on_event, session_id=thread_id)
+
+        meta = {"langgraph_node": "agent"}
+        yielded_any = False
+        import json
+        for ev in events_queue:
+            if ev.event_type == "Delta":
+                payload = ev.payload_json
+                try:
+                    delta_text = json.loads(payload) if isinstance(payload, str) else str(payload)
+                except Exception:
+                    delta_text = str(payload)
+                if delta_text:
+                    yield NativeAgentChunk(delta_text, "ai"), meta
+                    yielded_any = True
+
+        if not yielded_any and resp.content:
+            yield NativeAgentChunk(resp.content, "ai"), meta
+
+    def invoke(self, input_data: Any, config: Optional[Dict[str, Any]] = None):
+        """Executes agent turn and returns a dict with 'messages' list."""
+        prompt_text = ""
+        if isinstance(input_data, dict):
+            msgs = input_data.get("messages", [])
+            if msgs:
+                last = msgs[-1]
+                if isinstance(last, str):
+                    prompt_text = last
+                elif hasattr(last, "content"):
+                    prompt_text = str(last.content)
+                elif isinstance(last, dict):
+                    prompt_text = str(last.get("content", ""))
+        elif isinstance(input_data, str):
+            prompt_text = input_data
+
+        thread_id = None
+        if config and isinstance(config, dict):
+            cfg = config.get("configurable", {})
+            thread_id = cfg.get("thread_id")
+
+        resp = self.engine.run(prompt_text, session_id=thread_id)
+        return {
+            "messages": [
+                NativeAgentChunk(content=resp.content, event_type="ai")
+            ]
+        }
+
+
+def create_native_anycontext_agent(
+    active_workspace: Optional[str] = None,
+    model_override: Optional[str] = None,
+    provider_override: Optional[str] = None,
+    grounding_mode: Optional[str] = None,
+    web_search_enabled: Optional[bool] = None,
+    caller_type: Optional[str] = None,
+    **kwargs
+) -> Optional[NativeAgentWrapper]:
+    """Attempts to construct a native Rust ReAct Agent Engine (actx-agent)."""
+    try:
+        import any_context_core_rs as core
+        if not hasattr(core, "PyAgentEngine"):
+            return None
+    except ImportError:
+        return None
+
+    import json
+    from any_context.core.models_catalog import infer_provider_for_model, normalize_model_id
+    from any_context.config.app_settings import AppSettings
+    from any_context.core.utils import get_system_prompt, get_api_key
+
+    active_workspace = active_workspace or kwargs.get("workspace_name") or kwargs.get("workspace") or "Default"
+    resolved_caller_type = str(caller_type or kwargs.get("caller_type") or "human").strip().lower()
+
+    settings = AppSettings.load()
+    default_provider = settings.models.model_provider if settings else "openai"
+    default_model = normalize_model_id(settings.models.inference_model if (settings and settings.models and settings.models.inference_model) else "gpt-4o-mini")
+    base_url = settings.models.local_base_url if settings else "http://localhost:1234/v1"
+
+    inference_model = normalize_model_id(model_override or default_model)
+    model_provider = provider_override or infer_provider_for_model(inference_model, fallback_provider=default_provider)
+
+    api_key = get_api_key(provider=model_provider)
+    if not api_key:
+        api_key = "sk-placeholder" if model_provider == "openai" else "lm-studio"
+
+    system_prompt = get_system_prompt(
+        active_workspace=active_workspace,
+        grounding_mode=grounding_mode or "strict",
+        web_search_enabled=web_search_enabled or False,
+        caller_type=resolved_caller_type
+    )
+
+    session_db_path = None
+    if settings and settings.session and settings.session.db_path:
+        session_db_path = os.path.join(settings.session.db_path, "actx_sessions.db")
+        os.makedirs(settings.session.db_path, exist_ok=True)
+
+    try:
+        engine = core.PyAgentEngine(
+            provider=model_provider,
+            api_key=api_key,
+            base_url=base_url,
+            default_model=inference_model,
+            system_prompt=system_prompt,
+            max_turns=10,
+            temperature=0.0,
+            execution_mode="react",
+            search_mode="auto",
+            db_path=session_db_path
+        )
+
+        def _wrap_tool_call(tool_fn):
+            def wrapper(args_str: str) -> str:
+                try:
+                    args = json.loads(args_str) if args_str else {}
+                    if hasattr(tool_fn, "invoke"):
+                        res = tool_fn.invoke(args)
+                    elif hasattr(tool_fn, "func"):
+                        res = tool_fn.func(**args)
+                    else:
+                        res = tool_fn(**args)
+                    return str(res)
+                except Exception as e:
+                    return f"Tool execution error: {e}"
+            return wrapper
+
+        search_schema = json.dumps({
+            "type": "object",
+            "properties": {
+                "prompt_text": {"type": "string", "description": "The search query text."},
+                "workspace": {"type": "string", "description": "Workspace to search (default: active workspace)."},
+                "top_k": {"type": "integer", "description": "Number of document chunks to retrieve."}
+            },
+            "required": ["prompt_text"]
+        })
+        engine.register_tool("search_db", "Search for relevant documents in the vector database", search_schema, _wrap_tool_call(search_db))
+
+        add_web_schema = json.dumps({
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "URL of the web source to add."},
+                "workspace": {"type": "string", "description": "Workspace name."}
+            },
+            "required": ["url"]
+        })
+        engine.register_tool("add_web_source", "Add a web URL as an indexed knowledge source", add_web_schema, _wrap_tool_call(add_web_source))
+
+        list_web_schema = json.dumps({
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Workspace name."}
+            }
+        })
+        engine.register_tool("list_web_sources", "List all active web sources for the workspace", list_web_schema, _wrap_tool_call(list_web_sources))
+
+        rem_web_schema = json.dumps({
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "URL of the web source to remove."},
+                "workspace": {"type": "string", "description": "Workspace name."}
+            },
+            "required": ["url"]
+        })
+        engine.register_tool("remove_web_source", "Remove a web source from the workspace", rem_web_schema, _wrap_tool_call(remove_web_source))
+
+        if web_search_enabled:
+            live_schema = json.dumps({
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Web search query."}
+                },
+                "required": ["query"]
+            })
+            engine.register_tool("live_web_search", "Perform a live Google/DuckDuckGo web search", live_schema, _wrap_tool_call(live_web_search))
+
+        return NativeAgentWrapper(engine, active_workspace=active_workspace)
+    except Exception:
+        return None
+
+
 def create_anycontext_agent(
     active_workspace: str = None, 
     checkpointer=None,
@@ -813,6 +1036,19 @@ def create_anycontext_agent(
 
     resolved_caller_type = str(caller_type or kwargs.get("caller_type") or _CALLER_TYPE_CTX.get() or "human").strip().lower()
     set_caller_type_context(resolved_caller_type)
+
+    if os.environ.get("ANYCONTEXT_USE_NATIVE_AGENT", "0") == "1":
+        native = create_native_anycontext_agent(
+            active_workspace=active_workspace,
+            model_override=model_override,
+            provider_override=provider_override,
+            grounding_mode=grounding_mode,
+            web_search_enabled=web_search_enabled,
+            caller_type=resolved_caller_type,
+            **kwargs
+        )
+        if native is not None:
+            return native
 
     model_override = model_override or kwargs.get("model_name") or kwargs.get("model")
     provider_override = provider_override or kwargs.get("provider") or kwargs.get("model_provider")

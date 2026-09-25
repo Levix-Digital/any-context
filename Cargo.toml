@@ -3,5 +3,6 @@ members = [
     "crates/any-context-core-rs",
     "crates/actx-installer",
     "crates/actx-lm",
+    "crates/actx-agent",
 ]
 resolver = "2"
