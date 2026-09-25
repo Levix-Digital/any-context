@@ -51,33 +51,40 @@ printf "\n\033[36m🚀 Installing AnyContext (actx)...\033[0m\n"
 # 1. Ensure target directory exists
 mkdir -p "$INSTALL_DIR"
 
-# 2. Download Core distribution archive or standalone fallback binary
-printf "\033[33m⬇️ Downloading latest AnyContext from GitHub...\033[0m\n"
-log_install "Downloading AnyContext ($ARCHIVE_NAME or $FALLBACK_NAME) from GitHub"
+# 2. Prefer Native Rust Installer (Zero dependencies, pure HTTPS, atomic swap)
+NATIVE_BIN_NAME="actx-installer"
+[ "$IS_WINDOWS" -eq 1 ] && NATIVE_BIN_NAME="actx-installer.exe"
+NATIVE_URL="https://github.com/$REPO/releases/latest/download/$NATIVE_BIN_NAME"
+TEMP_NATIVE="/tmp/$NATIVE_BIN_NAME"
+[ "$IS_WINDOWS" -eq 1 ] && TEMP_NATIVE="$TEMP/$NATIVE_BIN_NAME"
 
-DOWNLOAD_SUCCESS=0
-
-# Try downloading distribution archive (.zip / .tar.gz) for sub-second cold boot
-if command -v gh >/dev/null 2>&1; then
-    printf "\033[90m⚡ Using GitHub CLI (gh) for authenticated download...\033[0m\n"
-    if gh release download --repo "$REPO" --pattern "$ARCHIVE_NAME" --dir "$INSTALL_DIR" --clobber 2>/dev/null; then
-        if [ -f "$INSTALL_DIR/$ARCHIVE_NAME" ]; then
-            if [ "$IS_WINDOWS" -eq 1 ]; then
-                if command -v unzip >/dev/null 2>&1; then
-                    unzip -o -q "$INSTALL_DIR/$ARCHIVE_NAME" -d "$INSTALL_DIR" 2>/dev/null || true
-                elif command -v tar >/dev/null 2>&1; then
-                    tar -xf "$INSTALL_DIR/$ARCHIVE_NAME" -C "$INSTALL_DIR" 2>/dev/null || true
-                else
-                    powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath '$INSTALL_DIR/$ARCHIVE_NAME' -DestinationPath '$INSTALL_DIR' -Force" 2>/dev/null || true
-                fi
-            else
-                tar -xzf "$INSTALL_DIR/$ARCHIVE_NAME" -C "$INSTALL_DIR" 2>/dev/null || true
-            fi
-            rm -f "$INSTALL_DIR/$ARCHIVE_NAME" 2>/dev/null || true
-            DOWNLOAD_SUCCESS=1
+if command -v curl >/dev/null 2>&1; then
+    if curl -fsSL "$NATIVE_URL" -o "$TEMP_NATIVE" 2>/dev/null && [ -s "$TEMP_NATIVE" ]; then
+        chmod +x "$TEMP_NATIVE" 2>/dev/null || true
+        printf "\033[36m[*] Executing native AnyContext installer engine...\033[0m\n"
+        if "$TEMP_NATIVE" --install; then
+            rm -f "$TEMP_NATIVE" 2>/dev/null || true
+            log_install "Installation completed successfully via native Rust installer engine."
+            exit 0
+        fi
+    fi
+elif command -v wget >/dev/null 2>&1; then
+    if wget -qO "$TEMP_NATIVE" "$NATIVE_URL" 2>/dev/null && [ -s "$TEMP_NATIVE" ]; then
+        chmod +x "$TEMP_NATIVE" 2>/dev/null || true
+        printf "\033[36m[*] Executing native AnyContext installer engine...\033[0m\n"
+        if "$TEMP_NATIVE" --install; then
+            rm -f "$TEMP_NATIVE" 2>/dev/null || true
+            log_install "Installation completed successfully via native Rust installer engine."
+            exit 0
         fi
     fi
 fi
+
+# Fallback Legacy Archive Download (if native installer asset is not yet available)
+printf "\033[33m⬇️ Downloading AnyContext distribution package from GitHub via HTTPS...\033[0m\n"
+log_install "Downloading AnyContext ($ARCHIVE_NAME or $FALLBACK_NAME) from GitHub"
+
+DOWNLOAD_SUCCESS=0
 
 if [ $DOWNLOAD_SUCCESS -eq 0 ]; then
     ARCHIVE_URL="https://github.com/$REPO/releases/latest/download/$ARCHIVE_NAME"

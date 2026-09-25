@@ -37,27 +37,53 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 
+def build_rust_shim(out_path: str) -> bool:
+    """Builds the native Rust launcher shim via cargo."""
+    cargo = shutil.which("cargo")
+    if not cargo:
+        return False
+    cmd = [cargo, "build", "--release", "-p", "actx-installer"]
+    print(f"[*] Compiling native Rust Launcher Shim: {' '.join(cmd)}")
+    res = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+    if res.returncode == 0:
+        is_windows = sys.platform.startswith("win")
+        built_name = "actx.exe" if is_windows else "actx"
+        src_bin = os.path.join(REPO_ROOT, "target", "release", built_name)
+        if os.path.exists(src_bin):
+            os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+            shutil.copy2(src_bin, out_path)
+            print(f"[OK] Successfully generated native Rust Launcher Shim: {out_path} ({os.path.getsize(out_path)} bytes)")
+            return True
+    return False
+
+
 def build_windows_shim(out_path: str) -> bool:
+    if build_rust_shim(out_path):
+        return True
+
     csc = find_windows_csharp_compiler()
     if not csc:
-        print("[ERROR] Windows C# compiler (csc.exe) not found.")
+        print("[ERROR] Neither Cargo nor Windows C# compiler (csc.exe) found.")
         return False
 
     cs_file = os.path.join(LAUNCHER_DIR, "actx_shim.cs")
     cmd = [csc, "/nologo", "/optimize+", "/target:exe", f"/out:{out_path}", cs_file]
-    print(f"[*] Compiling Windows Launcher Shim: {' '.join(cmd)}")
+    print(f"[*] Compiling fallback C# Launcher Shim: {' '.join(cmd)}")
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
         print(f"[ERROR] csc compilation failed:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
         return False
-    print(f"[OK] Successfully generated native Windows Launcher Shim: {out_path} ({os.path.getsize(out_path)} bytes)")
+    print(f"[OK] Successfully generated fallback Windows Launcher Shim: {out_path} ({os.path.getsize(out_path)} bytes)")
     return True
 
 
 def build_linux_shim(out_path: str) -> bool:
+    if build_rust_shim(out_path):
+        return True
+
     compiler = shutil.which("gcc") or shutil.which("clang") or shutil.which("cc")
     if not compiler:
-        print("[ERROR] C compiler (gcc/clang) not found.")
+        print("[ERROR] Neither Cargo nor C compiler (gcc/clang) found.")
         return False
 
     c_file = os.path.join(LAUNCHER_DIR, "actx_shim.c")

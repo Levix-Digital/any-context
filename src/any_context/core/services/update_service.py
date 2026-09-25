@@ -746,69 +746,78 @@ class UpdateService:
             except Exception:
                 pass
 
-            swap_script = (
-                f"$retries = 0; "
-                f"while ($retries -lt 40) {{ "
-                f"  try {{ "
-                f"    if (Test-Path -LiteralPath '{internal_dir}') {{ "
-                f"      $rnd = [System.IO.Path]::GetRandomFileName(); "
-                f"      $uniqueOld = Join-Path '{target_dir}' ('_internal_old_' + $rnd); "
-                f"      Move-Item -LiteralPath '{internal_dir}' -Destination $uniqueOld -Force -ErrorAction Stop; "
-                f"    }} "
-                f"    $stagingInternal = Join-Path -Path '{staging_dir}' -ChildPath '_internal'; "
-                f"    if (Test-Path -LiteralPath $stagingInternal) {{ "
-                f"      Move-Item -LiteralPath $stagingInternal -Destination '{internal_dir}' -Force -ErrorAction Stop; "
-                f"    }} "
-                f"    if (Test-Path -LiteralPath '{target_exe}') {{ "
-                f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue; "
-                f"    }} "
-                f"    $stagingCore = Join-Path '{staging_dir}' (Split-Path '{target_exe}' -Leaf); "
-                f"    if (Test-Path -LiteralPath $stagingCore) {{ "
-                f"      Move-Item -LiteralPath $stagingCore -Destination '{target_exe}' -Force -ErrorAction Stop; "
-                f"    }} "
-                f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
-                f"      Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {{ "
-                f"        Move-Item -LiteralPath $_.FullName -Destination '{target_dir}' -Force -ErrorAction SilentlyContinue; "
-                f"      }} "
-                f"    }} elseif (Test-Path -LiteralPath '{temp_download}') {{ "
-                f"      Move-Item -LiteralPath '{temp_download}' -Destination '{target_exe}' -Force -ErrorAction Stop; "
-                f"    }} "
-                f"    [System.IO.File]::WriteAllText('{version_file}', '{clean_tag}', (New-Object System.Text.UTF8Encoding $False)); "
-                f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
-                f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue; "
-                f"    }} "
-                f"    Get-ChildItem -LiteralPath '{target_dir}' -Filter '_internal_old*' -Directory -ErrorAction SilentlyContinue | ForEach-Object {{ "
-                f"      Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue; "
-                f"    }}; "
-                f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
-                f"      Remove-Item -LiteralPath '{staging_dir}' -Recurse -Force -ErrorAction SilentlyContinue; "
-                f"    }} "
-                f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
-                f"      Remove-Item -LiteralPath '{temp_download}' -Force -ErrorAction SilentlyContinue; "
-                f"    }} "
-                f"    break; "
-                f"  }} catch {{ "
-                f"    Start-Sleep -Milliseconds 200; "
-                f"    $retries++; "
-                f"  }} "
-                f"}}; "
-            )
-
-            try:
-                subprocess.Popen(
-                    ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", swap_script],
-                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
-                )
-            except Exception:
+            has_launcher = bool(os.environ.get("ACTX_LAUNCHER_PID"))
+            if has_launcher:
+                # Coordinated handoff: The active native launcher shim will finalize update synchronously upon core exit
                 pass
+            elif os.path.exists(shim_exe):
+                # Standalone execution: invoke native shim to finalize staging update cleanly
+                try:
+                    subprocess.run([shim_exe, "--finalize-update"], capture_output=False, timeout=15)
+                except Exception:
+                    pass
+            else:
+                # Fallback PowerShell swap only if launcher shim is not available
+                swap_script = (
+                    f"$retries = 0; "
+                    f"while ($retries -lt 40) {{ "
+                    f"  try {{ "
+                    f"    if (Test-Path -LiteralPath '{internal_dir}') {{ "
+                    f"      $rnd = [System.IO.Path]::GetRandomFileName(); "
+                    f"      $uniqueOld = Join-Path '{target_dir}' ('_internal_old_' + $rnd); "
+                    f"      Move-Item -LiteralPath '{internal_dir}' -Destination $uniqueOld -Force -ErrorAction Stop; "
+                    f"    }} "
+                    f"    $stagingInternal = Join-Path -Path '{staging_dir}' -ChildPath '_internal'; "
+                    f"    if (Test-Path -LiteralPath $stagingInternal) {{ "
+                    f"      Move-Item -LiteralPath $stagingInternal -Destination '{internal_dir}' -Force -ErrorAction Stop; "
+                    f"    }} "
+                    f"    if (Test-Path -LiteralPath '{target_exe}') {{ "
+                    f"      Move-Item -LiteralPath '{target_exe}' -Destination '{old_exe}' -Force -ErrorAction SilentlyContinue; "
+                    f"    }} "
+                    f"    $stagingCore = Join-Path '{staging_dir}' (Split-Path '{target_exe}' -Leaf); "
+                    f"    if (Test-Path -LiteralPath $stagingCore) {{ "
+                    f"      Move-Item -LiteralPath $stagingCore -Destination '{target_exe}' -Force -ErrorAction Stop; "
+                    f"    }} "
+                    f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
+                    f"      Get-ChildItem -LiteralPath '{staging_dir}' | ForEach-Object {{ "
+                    f"        Move-Item -LiteralPath $_.FullName -Destination '{target_dir}' -Force -ErrorAction SilentlyContinue; "
+                    f"      }} "
+                    f"    }} "
+                    f"    [System.IO.File]::WriteAllText('{version_file}', '{clean_tag}', (New-Object System.Text.UTF8Encoding $False)); "
+                    f"    if (Test-Path -LiteralPath '{old_exe}') {{ "
+                    f"      Remove-Item -LiteralPath '{old_exe}' -Force -ErrorAction SilentlyContinue; "
+                    f"    }} "
+                    f"    Get-ChildItem -LiteralPath '{target_dir}' -Filter '_internal_old*' -Directory -ErrorAction SilentlyContinue | ForEach-Object {{ "
+                    f"      Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue; "
+                    f"    }}; "
+                    f"    if (Test-Path -LiteralPath '{staging_dir}') {{ "
+                    f"      Remove-Item -LiteralPath '{staging_dir}' -Recurse -Force -ErrorAction SilentlyContinue; "
+                    f"    }} "
+                    f"    if (Test-Path -LiteralPath '{temp_download}') {{ "
+                    f"      Remove-Item -LiteralPath '{temp_download}' -Force -ErrorAction SilentlyContinue; "
+                    f"    }} "
+                    f"    break; "
+                    f"  }} catch {{ "
+                    f"    Start-Sleep -Milliseconds 200; "
+                    f"    $retries++; "
+                    f"  }} "
+                    f"}}; "
+                )
+                try:
+                    subprocess.Popen(
+                        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", swap_script],
+                        creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+                    )
+                except Exception:
+                    pass
 
             tracker.set_completed(f"Updated to {clean_tag}")
             if auto_close_instances:
                 close_label = "Closing session." if closed_count == 0 else f"Closing all {closed_count + 1} active sessions."
-                msg = f"🎉 Successfully updated AnyContext to {clean_tag}!\n👉 {close_label} Run 'actx' or 'actx --tui' to start the updated version."
+                msg = f"[OK] Successfully updated AnyContext to {clean_tag}!\n[>] {close_label} Run 'actx' or 'actx --tui' to start the updated version."
                 return True, msg, {"action": "exit_update", "version": clean_tag, "closed_count": closed_count}
             else:
-                msg = f"🎉 Successfully updated AnyContext to {clean_tag} in background!\n👉 The new version will take effect the next time you launch 'actx' or 'actx --tui'."
+                msg = f"[OK] Successfully updated AnyContext to {clean_tag} in background!\n[>] The new version will take effect the next time you launch 'actx' or 'actx --tui'."
                 return True, msg, {"action": "none", "version": clean_tag}
 
         else:

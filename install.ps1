@@ -85,45 +85,57 @@ function Extract-Package {
     return $false
 }
 
-# 2. Download Core executable or distribution archive
+# 2. Prefer Native Rust Installer (Zero dependencies, pure HTTPS, atomic swap)
+$NativeInstallerName = "actx-installer.exe"
+$NativeInstallerUrl = "https://github.com/$Repo/releases/latest/download/$NativeInstallerName"
+$TempInstallerPath = Join-Path $env:TEMP "actx-installer.exe"
+
+$InstalledViaRust = $false
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+    Write-Host "[*] Checking native Rust installer via HTTPS..." -ForegroundColor Gray
+    Invoke-WebRequest -Uri $NativeInstallerUrl -OutFile $TempInstallerPath -UseBasicParsing -TimeoutSec 30
+    if ((Test-Path $TempInstallerPath) -and (Get-Item $TempInstallerPath).Length -gt 1000000) {
+        Write-Host "[*] Executing native AnyContext installer engine..." -ForegroundColor Cyan
+        & $TempInstallerPath --install
+        if ($LASTEXITCODE -eq 0) {
+            $InstalledViaRust = $true
+            Remove-Item -LiteralPath $TempInstallerPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+} catch {}
+
+if ($InstalledViaRust) {
+    Log-Install "Installation completed successfully via native Rust installer engine."
+    exit 0
+}
+
+# Fallback Legacy Archive Download (if native installer asset is not yet available)
 $ArchiveName = "actx-windows-x86_64.zip"
 $FallbackName = "actx-windows-x86_64.exe"
 $Downloaded = $false
 
-Write-Host "[-] Downloading latest AnyContext from GitHub..." -ForegroundColor Yellow
+Write-Host "[-] Downloading AnyContext distribution package from GitHub via HTTPS..." -ForegroundColor Yellow
 Log-Install "Downloading AnyContext from GitHub"
 
-# Try archive (.zip) first for sub-second cold boot
-if (Get-Command gh -ErrorAction SilentlyContinue) {
-    try {
-        Write-Host "[*] Using GitHub CLI (gh) for authenticated download..." -ForegroundColor Gray
-        gh release download --repo $Repo --pattern $ArchiveName --dir $InstallDir --clobber
-        $TempZip = Join-Path $InstallDir $ArchiveName
-        if (Test-Path $TempZip) {
-            Write-Host "[*] Extracting package contents..." -ForegroundColor Gray
-            if (Extract-Package -ZipPath $TempZip -Destination $InstallDir) {
-                Remove-Item -LiteralPath $TempZip -Force -ErrorAction SilentlyContinue
-                $Downloaded = $true
-            }
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+    $ZipUrl = "https://github.com/$Repo/releases/latest/download/$ArchiveName"
+    $TempZip = Join-Path $InstallDir $ArchiveName
+    Invoke-WebRequest -Uri $ZipUrl -OutFile $TempZip -UseBasicParsing
+    if ((Test-Path $TempZip) -and (Get-Item $TempZip).Length -gt 0) {
+        Write-Host "[*] Extracting package contents..." -ForegroundColor Gray
+        Get-ChildItem -Path $InstallDir -Filter "_internal_old*" -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        $staleNested = Join-Path (Join-Path $InstallDir "_internal") "_internal"
+        if (Test-Path $staleNested) {
+            Remove-Item -LiteralPath $staleNested -Recurse -Force -ErrorAction SilentlyContinue
         }
-    } catch {}
-}
-
-if (-not $Downloaded) {
-    try {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $ZipUrl = "https://github.com/$Repo/releases/latest/download/$ArchiveName"
-        $TempZip = Join-Path $InstallDir $ArchiveName
-        Invoke-WebRequest -Uri $ZipUrl -OutFile $TempZip -UseBasicParsing
-        if ((Test-Path $TempZip) -and (Get-Item $TempZip).Length -gt 0) {
-            Write-Host "[*] Extracting package contents..." -ForegroundColor Gray
-            if (Extract-Package -ZipPath $TempZip -Destination $InstallDir) {
-                Remove-Item -LiteralPath $TempZip -Force -ErrorAction SilentlyContinue
-                $Downloaded = $true
-            }
+        if (Extract-Package -ZipPath $TempZip -Destination $InstallDir) {
+            Remove-Item -LiteralPath $TempZip -Force -ErrorAction SilentlyContinue
+            $Downloaded = $true
         }
-    } catch {}
-}
+    }
+} catch {}
 
 # Fallback to single binary if archive was not found
 if (-not $Downloaded) {
@@ -298,6 +310,67 @@ if (Test-Path "$env:USERPROFILE\.bun\bin\bun.exe") {
     if (-not (Test-Path "$InstallDir\bun.exe")) {
         Copy-Item "$env:USERPROFILE\.bun\bin\bun.exe" "$InstallDir\bun.exe" -Force -ErrorAction SilentlyContinue
     }
+}
+
+# 6. Check/Ensure Native Tesseract OCR is available for Smart Cascade (Marco 5)
+$TessInstalled = (Get-Command tesseract -ErrorAction SilentlyContinue) -ne $null `
+    -or (Test-Path "C:\Program Files\Tesseract-OCR\tesseract.exe") `
+    -or (Test-Path "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe") `
+    -or (Test-Path "$InstallDir\tesseract\tesseract.exe")
+
+if (-not $TessInstalled) {
+    Write-Host "[*] Tesseract OCR not detected. Transparently provisioning native OCR engine..." -ForegroundColor Yellow
+    Log-Install "Tesseract OCR not detected. Attempting transparent installation."
+    $TessSuccess = $false
+    $TessTargetDir = Join-Path $InstallDir "tesseract"
+    $TessDataDir = Join-Path $TessTargetDir "tessdata"
+
+    # Strategy 1: Transparent Portable Zero-Elevation Download (takes ~2 seconds, zero UAC)
+    try {
+        if (-not (Test-Path $TessDataDir)) {
+            New-Item -ItemType Directory -Path $TessDataDir -Force | Out-Null
+        }
+        $tessExePath = Join-Path $TessTargetDir "tesseract.exe"
+        $engDataPath = Join-Path $TessDataDir "eng.traineddata"
+        $porDataPath = Join-Path $TessDataDir "por.traineddata"
+
+        if (-not (Test-Path $tessExePath)) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/zstrathe/tesseract_portable_windows/main/tesseract.exe" -OutFile $tessExePath -UseBasicParsing
+        }
+        if (-not (Test-Path $engDataPath)) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/zstrathe/tesseract_portable_windows/main/tessdata/eng.traineddata" -OutFile $engDataPath -UseBasicParsing
+        }
+        if (-not (Test-Path $porDataPath)) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/por.traineddata" -OutFile $porDataPath -UseBasicParsing
+        }
+
+        if (Test-Path $tessExePath) {
+            $TessSuccess = $true
+            Write-Host "[OK] Portable Native Tesseract OCR provisioned successfully!" -ForegroundColor Green
+            Log-Install "Portable Tesseract OCR provisioned in $tessExePath"
+        }
+    } catch {}
+
+    # Strategy 2: Fallback to winget if portable download failed
+    if (-not $TessSuccess -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+        try {
+            Write-Host "[*] Installing Tesseract OCR via Windows Package Manager (winget)..." -ForegroundColor Gray
+            & winget install --id UB-Mannheim.TesseractOCR --silent --accept-package-agreements --accept-source-agreements --force | Out-Null
+            if ((Test-Path "C:\Program Files\Tesseract-OCR\tesseract.exe") -or (Get-Command tesseract -ErrorAction SilentlyContinue)) {
+                $TessSuccess = $true
+                Write-Host "[OK] Native Tesseract OCR engine installed successfully via winget!" -ForegroundColor Green
+                Log-Install "Tesseract OCR successfully installed via winget"
+            }
+        } catch {}
+    }
+
+    if (-not $TessSuccess) {
+        Write-Host "[!] Note: Tesseract OCR auto-provisioning deferred. You can install it anytime with '/ocr install' inside AnyContext." -ForegroundColor Gray
+        Log-Install "Tesseract OCR installation deferred to /ocr install"
+    }
+} else {
+    Write-Host "[OK] Native Tesseract OCR engine detected." -ForegroundColor Gray
+    Log-Install "Tesseract OCR already detected on system."
 }
 
 Write-Host "`n=======================================================" -ForegroundColor Cyan
