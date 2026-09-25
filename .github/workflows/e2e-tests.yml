@@ -13,6 +13,8 @@ jobs:
   e2e-tests:
     name: E2E Tests (${{ matrix.os }} - Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     strategy:
       fail-fast: false
       matrix:
@@ -34,6 +36,9 @@ jobs:
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
+        with:
+          shared-key: "actx-rust-cache"
+          cache-all-crates: "true"
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -48,7 +53,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest maturin
-          pip install ./crates/any-context-core-rs
+          pip install --no-build-isolation ./crates/any-context-core-rs
           pip install -e .
           cd src/any_context/tui
           bun install

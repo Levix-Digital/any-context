@@ -7,7 +7,51 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 1 (v0.30.39 Native Rust Hybrid RAG Pipeline & RFC-042 Batch Retrieval Engine): Validação do Pipeline RAG Nativo em Rust, Busca Concorrente em Lote (retrieve_hybrid_batch), Fusão RRF e Deduplicação Cross-Query
+
+- **Objetivo**: Comprovar que na versão `v0.30.39`:
+  1. **Pipeline Híbrido Nativo em Rust (`NativeHybridPipeline`)**: O motor de busca vetorial (LanceDB) e busca lexical (Okapi BM25) operam unificados em Rust com fusão RRF (Reciprocal Rank Fusion k=60) de latência ultrabaixa e zero cópias desnecessárias.
+  2. **Busca Concorrente em Lote (`retrieve_hybrid_batch`)**: Suporte nativo à execução paralela assíncrona de múltiplas sub-queries da RFC-042 via Tokio (`futures::future::join_all`).
+  3. **Deduplicação Cross-Query e Acúmulo de Score RRF**: Chunks idênticos retornados por múltiplas sub-queries têm seus hashes SHA-256 deduplicados, seus scores RRF acumulados monotonicamente ($RRF_{total} = \sum \frac{1}{60 + rank_i}$) e a lista de proveniência (`matched_subqueries`) preenchida.
+  4. **Diversificação Justa por Fonte & Orçamento de Densidade Nativo**: Intercalação round-robin entre fontes distintas e descarte determinístico de excedentes antes do envio de chunks para a camada Python.
+  5. **Transparência com Criptografia em Repouso**: Descriptografia automática em tempo de execução via `SecurityEngine` para workspaces protegidos com AES-GCM-256 (`enc::...`).
+  6. **Ponte PyO3 com Liberação de GIL (`PyHybridPipeline`, `PyHybridSearchRequest`, `PyHybridSearchResult`)**: O Python delega a recuperação híbrida liberando o GIL (`py.allow_threads`) com fallback transparente em caso de ausência do motor nativo.
+- **Pré-requisito**: Versão `v0.30.39` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.39` em menos de 50ms com saída limpa.
+
+2. **🦀 Validação da Suíte de Testes Rust do Pipeline RAG Nativo:**
+   - Execute no terminal (com ambiente Rust/MSVC configurado):
+     ```text
+     cargo test -p any-context-core-rs --lib retrieval::pipeline::tests
+     ```
+   - **Critério de Aceitação:** 2/2 testes do pipeline passam com 100% de sucesso (fusão híbrida e batch cross-query deduplication com score boost).
+
+3. **🐍 Validação dos Testes de Integração do Pipeline Nativo (`test_native_rag_pipeline.py`):**
+   - Execute no terminal com o Python do AnyContext:
+     ```text
+     pytest tests/unit/core/test_native_rag_pipeline.py -v
+     ```
+   - **Critério de Aceitação:** 3/3 testes passam com sucesso (busca direta nativa, batch retrieval com deduplicação/score boost e integração com `ParallelRetriever`).
+
+4. **🧪 Execução da Suíte Completa de Testes E2E sem Regressão:**
+   - Execute no terminal:
+     ```text
+     python tests/run_all_e2e.py
+     ```
+   - **Critério de Aceitação:** 370/370 testes passam com 100% de sucesso em tempo hábil.
+
+---
+
 ### 📌 Cenário 1 (v0.30.38 Native Rust ReAct & Agent Orchestrator Layer - actx-agent, FSM, Polymorphic Tool Registry, SQLite Sessions & RFC-042 Foundations): Validação do Orquestrador ReAct Nativo em Rust, FSM Determinística, Registro de Ferramentas, Persistência SQLite e Modelos RFC-042
+
 
 - **Objetivo**: Comprovar que na versão `v0.30.38`:
   1. **Motor de Agente Nativo em Rust (`actx-agent`)**: A nova crate autônoma implementa um loop ReAct completo através de uma Máquina de Estados Finitos (FSM) assíncrona, eliminando a dependência de frameworks externos pesados (como LangGraph) para orquestração de raciocínio e execução de ferramentas.

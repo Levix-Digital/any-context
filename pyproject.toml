@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any-context"
-version = "0.30.38"
+version = "0.30.39"
 description = "Context engine that continuously syncs and vectors all project documents, providing unified context to developers and agents."
 
 
