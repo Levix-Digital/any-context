@@ -7,7 +7,6 @@ import time
 from any_context.vector_engine.query_preprocessor import (
     QueryPreprocessor,
     ProcessedQuery,
-    _PythonQueryPreprocessor,
     extract_temporal_clauses,
     expand_query_temporal,
     extract_filename_mentions,
@@ -87,19 +86,7 @@ class TestQueryPreprocessorRust(unittest.TestCase):
         self.assertEqual(processed.temporal_clauses, [])
         self.assertEqual(processed.expanded_query, q)
 
-    def test_rust_python_parity(self):
-        queries = [
-            "Query with 2026-09-02 and file.pdf",
-            "Shipments on 02/09/2026 and 15 Oct 2025 in audit.csv",
-            "General query without dates or filenames",
-            "Dates 28/05 and 01.12.2024 with report.docx and notes.txt",
-        ]
-        for q in queries:
-            p_rust = QueryPreprocessor.process(q)
-            p_py = _PythonQueryPreprocessor.process(q)
-            self.assertEqual(p_rust.filename_mentions, p_py.filename_mentions, f"Mismatch in filenames for: {q}")
-            self.assertEqual(set(p_rust.temporal_clauses), set(p_py.temporal_clauses), f"Mismatch in temporal clauses for: {q}")
-            self.assertEqual(set(p_rust.expanded_query.split()), set(p_py.expanded_query.split()), f"Mismatch in expanded tokens for: {q}")
+
 
     def test_rust_performance_sub_millisecond(self):
         query = "Relatório CMR de 2026-09-02 no arquivo I.CMR_ONE_PICKUP.pdf para análise"

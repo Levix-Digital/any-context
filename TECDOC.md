@@ -3997,3 +3997,21 @@ Benchmarked on Windows 11 (AMD Ryzen 9 / CPython 3.13) across 5,000 iterations:
 - Throughput: ~100,000 queries/sec
 - Regex Compilations: 0 (Cached OnceLock Singletons)
 - Language Coupling: Purged hardcoded Portuguese; 100% Universal Language-Agnostic
+
+
+## 70. 100% Native Rust Execution Architecture & Complete Purge of Python Fallbacks (v0.30.33)
+
+### 1. Architectural Motivation: Elimination of Dual-Maintenance & Semantic Drift
+
+In transitioning performance-critical subsystems to Rust, retaining pure-Python fallback implementations creates insidious technical debt:
+1. **Semantic Drift Risk**: Subtleties in regular expression engines, AST grammar implementations, and Unicode handling inevitably diverge between Python and Rust.
+2. **Maintenance Duplication**: Any update to date formats, file extensions, or token algorithms requires double implementation and double unit testing.
+3. **Dead Code in Production**: All production releases (Windows and Linux) package compiled native binary extensions (any_context_core_rs.pyd / .so) inside _internal. The Python fallback code paths are never exercised by end users.
+
+### 2. Rust as the Strict Single Source of Truth
+
+Starting in v0.30.33, AnyContext establishes native Rust (any-context-core-rs) as a mandatory, non-negotiable core dependency:
+- query_preprocessor.py is reduced to a clean 25-line PyO3 bridge.
+- router.py eliminates _RUST_CORE_AVAILABLE flags and mandates any_context_core_rs at the top-level import.
+- If any_context_core_rs fails to load, AnyContext raises an explicit, instructive ImportError detailing compilation instructions.
+- All subsequent phases of the Python-to-Rust migration will proceed directly in Rust without creating parallel pure-Python mirror implementations.
