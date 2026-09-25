@@ -53,7 +53,9 @@ class TestTUISyntax(unittest.TestCase):
             [bun_exe, "build", "./app.tsx", "--no-bundle"],
             cwd=self.tui_dir,
             capture_output=True,
-            text=True
+            text=True,
+            encoding="utf-8",
+            errors="replace"
         )
         self.assertEqual(
             result.returncode, 0,

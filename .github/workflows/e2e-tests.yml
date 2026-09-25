@@ -9,12 +9,18 @@ on:
       - dev
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e-tests:
     name: E2E Tests (${{ matrix.os }} - Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     strategy:
       fail-fast: false
       matrix:
@@ -29,7 +35,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -37,7 +47,7 @@ jobs:
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
-          shared-key: "actx-rust-cache"
+          key: ${{ matrix.os }}-py${{ matrix.python-version }}
           cache-all-crates: "true"
 
       - name: Install Protoc
@@ -50,11 +60,9 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest maturin
-          pip install --no-build-isolation ./crates/any-context-core-rs
-          pip install -e .
+          uv pip install --system -r requirements.txt pytest maturin
+          maturin develop -m crates/any-context-core-rs/Cargo.toml
+          uv pip install --system -e .
           cd src/any_context/tui
           bun install
           bun run check

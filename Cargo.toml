@@ -6,3 +6,8 @@ members = [
     "crates/actx-agent",
 ]
 resolver = "2"
+
+[profile.dev]
+opt-level = 0
+debug = 1
+
