@@ -130,20 +130,24 @@ class TestLauncherShim(unittest.TestCase):
             f.write("new_dll_content")
 
         staging_core = os.path.join(staging_dir, "actx-core.exe" if self.is_windows else "actx-core")
-        shutil.copy2(self.shim_path, staging_core)
+        with open(staging_core, "w") as f:
+            f.write("new_core_binary")
 
         pending_flag = os.path.join(staging_dir, "pending_update.json")
         with open(pending_flag, "w", encoding="utf-8") as f:
             f.write('{"version": "v0.30.31", "staging": "actx_staging"}')
 
         # 3. Invoke shim with --finalize-update
-        res = subprocess.run([self.shim_path, "--finalize-update"], capture_output=True, text=True)
-        self.assertEqual(res.returncode, 0)
+        test_env = os.environ.copy()
+        test_env["ACTX_TEST_MODE"] = "1"
+        res = subprocess.run([self.shim_path, "--finalize-update"], capture_output=True, text=True, env=test_env)
+        self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
         self.assertIn("AnyContext successfully updated to v0.30.31", res.stdout)
 
         # 4. Verify atomic swap results
         self.assertTrue(os.path.exists(core_exe))
-        self.assertEqual(os.path.getsize(core_exe), os.path.getsize(self.shim_path))
+        with open(core_exe, "r") as f:
+            self.assertEqual(f.read(), "new_core_binary")
 
         self.assertTrue(os.path.exists(os.path.join(internal_dir, "new_lib.dll")))
         self.assertFalse(os.path.exists(staging_dir))
@@ -182,7 +186,7 @@ class MockCore {
         string staging = Path.Combine(baseDir, "actx_staging");
         Directory.CreateDirectory(staging);
         File.WriteAllText(Path.Combine(staging, "pending_update.json"), "{\\"version\\": \\"v0.30.31\\"}");
-        File.Copy(Path.Combine(baseDir, "actx.exe"), Path.Combine(staging, "actx-core.exe"), true);
+        File.WriteAllText(Path.Combine(staging, "actx-core.exe"), "swapped_after_exit_core");
         return 42;
     }
 }
@@ -193,13 +197,15 @@ class MockCore {
             self.assertEqual(c_res.returncode, 0)
 
             # Launch shim_dest (which will run mock_core_exe and wait for exit)
-            res = subprocess.run([shim_dest], capture_output=True, text=True)
-            self.assertEqual(res.returncode, 0)
+            test_env = os.environ.copy()
+            test_env["ACTX_TEST_MODE"] = "1"
+            res = subprocess.run([shim_dest], capture_output=True, text=True, env=test_env)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
             self.assertIn("AnyContext successfully updated to v0.30.31", res.stdout)
 
             # Verify that actx-core.exe is now the swapped binary
-            self.assertTrue(os.path.exists(mock_core_exe))
-            self.assertEqual(os.path.getsize(mock_core_exe), os.path.getsize(shim_dest))
+            with open(mock_core_exe, "r") as f:
+                self.assertEqual(f.read(), "swapped_after_exit_core")
 
             # Verify that staging was cleaned up
             self.assertFalse(os.path.exists(os.path.join(sub_dir, "actx_staging")))
