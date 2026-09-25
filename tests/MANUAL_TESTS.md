@@ -7,7 +7,40 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.32 Universal Language-Agnostic Query Preprocessor & Native Rust Temporal Engine): Validação do Pré-processamento de Query em Rust, Expansão Temporal BM25, Grounding de Arquivos e Paridade 100% com Fallback Python
+### 📌 Cenário 1 (v0.30.33 100% Native Rust Execution Architecture & Complete Purge of Python Fallbacks): Validação da Autoridade Única do Motor Nativo Rust e Eliminação Total de Fallbacks em Python
+
+- **Objetivo**: Comprovar que na versão `v0.30.33`:
+  1. **Autoridade Única do Motor Nativo Rust (`any-context-core-rs`)**: A biblioteca nativa compilada em Rust passa a ser uma dependência primária, estrita e obrigatória do AnyContext, eliminando código duplicado de fallbacks em Python em `query_preprocessor.py` e `router.py`.
+  2. **Eliminação de Código Zumbi e Risco de Semantic Drift**: Ausência de implementações paralelas em Python puro para regexes de datas, expansão BM25, detecção de arquivos e roteamento AST.
+  3. **Bridge Enxuto de PyO3**: Os módulos Python atuam exclusivamente como pontes diretas de importação (< 25 LOC), garantindo que 100% da execução computacional ocorra no binário nativo compilado.
+- **Pré-requisito**: Versão `v0.30.33` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão Instantânea via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.33` em menos de 50ms.
+
+2. **🦀 Validação da Execução 100% Nativa em Rust:**
+   - Execute no terminal com o Python do AnyContext:
+     ```text
+     python -c "from any_context.vector_engine.query_preprocessor import QueryPreprocessor; p = QueryPreprocessor.process('Relatório 2026-09-02 dados.csv'); print(p)"
+     ```
+   - **Critério de Aceitação:** Retorna a instância nativa `ProcessedQuery` do Rust com cláusulas temporais e menção a `dados.csv`.
+
+3. **🛡️ Validação da Omissão de Fallbacks Legados:**
+   - Verifique que `_PythonQueryPreprocessor` e `_PythonProcessedQuery` não existem mais em `query_preprocessor.py`:
+     ```text
+     python -c "import any_context.vector_engine.query_preprocessor as qp; assert not hasattr(qp, '_PythonQueryPreprocessor'); print('Fallbacks purgados com sucesso!')"
+     ```
+   - **Critério de Aceitação:** Retorna `Fallbacks purgados com sucesso!`.
+
+---
+
+### 📌 Cenário 2 (v0.30.32 Universal Language-Agnostic Query Preprocessor & Native Rust Temporal Engine): Validação do Pré-processamento de Query em Rust, Expansão Temporal BM25, Grounding de Arquivos e Paridade 100% com Fallback Python
 
 - **Objetivo**: Comprovar que na versão `v0.30.32`:
   1. **Motor Nativo Rust de Query Preprocessing (`QueryPreprocessor`)**: O pré-processamento de consultas de busca (extração de menções a arquivos, cláusulas de datas e expansão de tokens BM25) é executado em Rust nativo compilado (`any-context-core-rs`) em uma única passagem (Single-Pass) com latência de `0.010ms` (~100.000 ops/seg).
