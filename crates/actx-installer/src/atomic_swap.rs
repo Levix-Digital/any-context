@@ -1,6 +1,40 @@
 use std::path::Path;
 use crate::paths::{get_core_exe_name, get_shim_exe_name};
 use crate::validator::validate_binary_format;
+pub fn retry_rename(from: &Path, to: &Path, max_attempts: u32, delay_ms: u64) -> Result<(), std::io::Error> {
+    let mut last_err = None;
+    for attempt in 0..max_attempts {
+        match std::fs::rename(from, to) {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                last_err = Some(e);
+                if attempt + 1 < max_attempts {
+                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                }
+            }
+        }
+    }
+    Err(last_err.unwrap())
+}
+
+pub fn retry_remove_file(path: &Path, max_attempts: u32, delay_ms: u64) -> Result<(), std::io::Error> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let mut last_err = None;
+    for attempt in 0..max_attempts {
+        match std::fs::remove_file(path) {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                last_err = Some(e);
+                if attempt + 1 < max_attempts {
+                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                }
+            }
+        }
+    }
+    Err(last_err.unwrap())
+}
 
 /// Performs an atomic, self-validating swap between a prepared `staging_dir`
 /// and the active production `base_dir`.
@@ -27,6 +61,10 @@ pub fn finalize_staging_update(
     validate_binary_format(&staging_core)?;
 
     let target_core = base_dir.join(core_name);
+    // On Windows, yield briefly to ensure OS releases file mapping locks from dying child processes
+    #[cfg(target_os = "windows")]
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
     let old_core = base_dir.join(if cfg!(windows) { "actx_old.exe" } else { "actx_old" });
 
     let internal_dir = base_dir.join("_internal");
@@ -36,7 +74,7 @@ pub fn finalize_staging_update(
 
     // 3. Atomic move of existing _internal to old_internal (MFT pointer update < 5ms)
     let internal_moved = if internal_dir.exists() {
-        match std::fs::rename(&internal_dir, &old_internal) {
+        match retry_rename(&internal_dir, &old_internal, 20, 50) {
             Ok(_) => true,
             Err(e) => {
                 return Err(format!("Failed to rename active _internal directory: {}", e));
@@ -48,10 +86,10 @@ pub fn finalize_staging_update(
 
     // 4. Move staged _internal to production
     if staging_internal.exists() {
-        if let Err(e) = std::fs::rename(&staging_internal, &internal_dir) {
+        if let Err(e) = retry_rename(&staging_internal, &internal_dir, 20, 50) {
             // Rollback _internal
             if internal_moved {
-                let _ = std::fs::rename(&old_internal, &internal_dir);
+                let _ = retry_rename(&old_internal, &internal_dir, 20, 50);
             }
             return Err(format!("Failed to move staged _internal directory: {}", e));
         }
@@ -60,15 +98,15 @@ pub fn finalize_staging_update(
     // 5. Atomic move of active core engine to old_core
     let core_moved = if target_core.exists() {
         if old_core.exists() {
-            let _ = std::fs::remove_file(&old_core);
+            let _ = retry_remove_file(&old_core, 20, 50);
         }
-        match std::fs::rename(&target_core, &old_core) {
+        match retry_rename(&target_core, &old_core, 20, 50) {
             Ok(_) => true,
             Err(e) => {
                 // Rollback _internal
                 let _ = std::fs::remove_dir_all(&internal_dir);
                 if internal_moved {
-                    let _ = std::fs::rename(&old_internal, &internal_dir);
+                    let _ = retry_rename(&old_internal, &internal_dir, 20, 50);
                 }
                 return Err(format!("Failed to backup active core binary: {}", e));
             }
@@ -78,14 +116,14 @@ pub fn finalize_staging_update(
     };
 
     // 6. Move staged core engine to production
-    if let Err(e) = std::fs::rename(&staging_core, &target_core) {
+    if let Err(e) = retry_rename(&staging_core, &target_core, 20, 50) {
         // Rollback core and _internal
         if core_moved {
-            let _ = std::fs::rename(&old_core, &target_core);
+            let _ = retry_rename(&old_core, &target_core, 20, 50);
         }
         let _ = std::fs::remove_dir_all(&internal_dir);
         if internal_moved {
-            let _ = std::fs::rename(&old_internal, &internal_dir);
+            let _ = retry_rename(&old_internal, &internal_dir, 20, 50);
         }
         return Err(format!("Failed to promote staged core binary to production: {}", e));
     }
