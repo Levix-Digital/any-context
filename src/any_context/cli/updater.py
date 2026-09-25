@@ -765,7 +765,7 @@ def run_self_update(
         # Check if parent launcher shim is active (retaining the user's terminal prompt)
         has_launcher = bool(os.environ.get("ACTX_LAUNCHER_PID"))
         if has_launcher:
-            safe_print("\n📦 Finalizing installation (atomic swap)...")
+            safe_print("\n[*] Finalizing installation (atomic swap)...")
             log_update_event(f"Handing off atomic swap to parent launcher shim for {clean_tag}")
             sys.exit(42)
 
@@ -831,13 +831,13 @@ def run_self_update(
             pass
 
         log_update_event(f"Update to {clean_tag} completed successfully (Windows fallback).")
-        safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
+        safe_print(f"\n[OK] AnyContext successfully updated to {clean_tag}!")
         if decision == "close":
-            safe_print(f"👉 Closing session. Run 'actx' or 'actx --tui' to start the updated version.\n")
+            safe_print(f"[>] Closing session. Run 'actx' or 'actx --tui' to start the updated version.\n")
             if is_interactive_chat:
                 sys.exit(0)
         else:
-            safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
+            safe_print(f"[>] The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
     else:
         # Unix / macOS
         try:
@@ -942,13 +942,13 @@ def run_self_update(
                     pass
 
             log_update_event(f"Update to {clean_tag} completed successfully (Unix).")
-            safe_print(f"\n🎉 AnyContext successfully updated to {clean_tag}!")
+            safe_print(f"\n[OK] AnyContext successfully updated to {clean_tag}!")
             if decision == "close":
-                safe_print(f"👉 Closing session. Run 'actx' or 'actx --tui' to start the updated version.\n")
+                safe_print(f"[>] Closing session. Run 'actx' or 'actx --tui' to start the updated version.\n")
                 if is_interactive_chat:
                     sys.exit(0)
             else:
-                safe_print(f"👉 The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
+                safe_print(f"[>] The new version ({clean_tag}) will take effect the next time you launch 'actx' or 'actx --tui'.\n")
         except Exception as e:
             log_update_event(f"Unix replacement failed: {e}", level="ERROR")
             safe_print(f"⚠️ Replacement failed: {e}. Saved new file to: {temp_download}.")

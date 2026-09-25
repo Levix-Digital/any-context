@@ -53,6 +53,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🚀 Sub-Second Cold Boot Runtime & Dual-Binary Architecture (`--onedir`)**:
   - **Sub-Second Engine Startup**: Pre-extracts Python runtime libraries into `%LOCALAPPDATA%\actx\bin\_internal` (Windows) or `~/.local/bin/_internal` (Linux) on installation/update, eliminating the 2.7+ second decompression delay on every launch and bringing engine boot down from 2.8s to `< 0.2s`.
   - **Instant Execution Launcher Shim**: Native launcher (`actx.exe` on Windows, compiled C ELF `actx` on Linux) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
+- **🦀 100% Pure Native Rust Cross-Platform Installer & Launcher Shim (`actx-installer`) (`v0.30.35`)**:
+  - **Pure Native Rust Binary Architecture**: Replaced legacy PowerShell scripts, C# `.NET 4.0` `csc.exe` compilations, and bash workarounds with a compiled, standalone native Rust installer and launcher shim (`crates/actx-installer`).
+  - **Direct HTTPS Web Downloads (Zero `gh` CLI Dependency)**: Downloads releases directly via high-speed HTTPS from GitHub Releases, guaranteeing universal accessibility for all public users without requiring the GitHub CLI (`gh`).
+  - **Pre-Flight Binary Verification Engine**: Validates binary headers (`MZ` on Windows, `ELF` on Linux, `Mach-O` on macOS) and minimum file sizes before performing atomic swaps, completely eliminating corrupted ZIP-over-EXE overwrites (`Win32 Error 193 - Not a valid application`).
+  - **Atomic Swap & Rollback Guarantee**: Transacts payload updates using OS-level directory pointer moves with automatic rollback if post-swap validation fails.
+  - **Zero Console Glyph Degradation**: Purged UTF-16 surrogate emojis that degraded into `??` in Windows OEM consoles (CP437/CP850/CP1252), standardizing on clean, professional ASCII status markers (`[*]`, `[OK]`, `[!]`, `[>]`).
+  - **Modular Desktop Component Preparation**: Unified foundation structured to orchestrate multiple application modules (Core, TUI, and Desktop GUI).
 - **🦀 Universal Native Rust Token Estimator & Density Budgeting Engine (`v0.30.34`)**:
   - **Zero-Dependency Token Estimator**: Implemented high-throughput $O(n)$ Unicode sub-word and symbol estimator in native Rust (`token_budget.rs`), correlated >95% with BPE tokenizers while eliminating runtime dependencies on `tiktoken` and avoiding heavy vocabulary dictionaries in memory.
   - **Failsafe Semantic Ceiling Truncation**: Automatically enforces model context limits (OpenAI 8191, Gemini 2048, Nomic 2048, MiniLM 512) and truncates exceeding chunks cleanly at line and sentence boundaries without mid-word corruption.
@@ -417,18 +424,30 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## ⚡ Quick Start & Installation
 
-### Option 1: 1-Click Terminal Installer (No Python Required!)
+### Option 1: Native Rust Installer (Recommended - No Python or GitHub CLI Required!)
 
-Download the installer from the **[Latest GitHub Release](https://github.com/Levix-Digital/any-context/releases/latest)**:
+The fastest and most reliable way to install AnyContext is using the native, compiled Rust installer (`actx-installer`). It automatically detects your operating system, streams the latest release via direct HTTPS, verifies binary integrity, and provisions your environment in seconds.
 
 - **Windows (PowerShell)**:
   ```powershell
   irm https://raw.githubusercontent.com/Levix-Digital/any-context/main/install.ps1 | iex
   ```
+  *(Or download [`actx-installer.exe`](https://github.com/Levix-Digital/any-context/releases/latest/download/actx-installer.exe) directly and run `.\actx-installer.exe`)*
+
 - **Linux / macOS (Bash)**:
   ```bash
   curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/install.sh | bash
   ```
+  *(Or download [`actx-installer`](https://github.com/Levix-Digital/any-context/releases/latest/download/actx-installer), `chmod +x actx-installer`, and run `./actx-installer`)*
+
+#### Standalone Installer CLI Flags
+The native Rust installer can also be run directly with explicit control:
+```bash
+actx-installer               # Install or update to latest release
+actx-installer --install     # Clean install or repair
+actx-installer --update      # Check and apply latest update
+actx-installer --rollback    # Rollback to previous version if needed
+```
 
 ### Option 2: Install via Python / `uv` / `pip`
 

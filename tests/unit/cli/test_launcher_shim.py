@@ -50,8 +50,8 @@ class TestLauncherShim(unittest.TestCase):
         """Validates that the native launcher shim is a compact standalone binary."""
         self.assertTrue(os.path.isfile(self.shim_path))
         file_size = os.path.getsize(self.shim_path)
-        # Should be small (< 100KB)
-        self.assertLess(file_size, 100 * 1024, f"Shim is unexpectedly large: {file_size} bytes")
+        # Standalone native Rust binary with embedded TLS and extraction is ~2.7-3.8MB (< 10MB vs 250MB engine)
+        self.assertLess(file_size, 10 * 1024 * 1024, f"Shim is unexpectedly large: {file_size} bytes")
 
     def test_02_instant_version_with_version_file(self):
         """Validates that 'actx -v' reads version.txt and prints clean 'vX.Y.Z' instantly."""
@@ -138,8 +138,10 @@ class TestLauncherShim(unittest.TestCase):
             f.write('{"version": "v0.30.31", "staging": "actx_staging"}')
 
         # 3. Invoke shim with --finalize-update
-        res = subprocess.run([self.shim_path, "--finalize-update"], capture_output=True, text=True)
-        self.assertEqual(res.returncode, 0)
+        test_env = os.environ.copy()
+        test_env["ACTX_TEST_MODE"] = "1"
+        res = subprocess.run([self.shim_path, "--finalize-update"], capture_output=True, text=True, env=test_env)
+        self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
         self.assertIn("AnyContext successfully updated to v0.30.31", res.stdout)
 
         # 4. Verify atomic swap results
@@ -195,8 +197,10 @@ class MockCore {
             self.assertEqual(c_res.returncode, 0)
 
             # Launch shim_dest (which will run mock_core_exe and wait for exit)
-            res = subprocess.run([shim_dest], capture_output=True, text=True)
-            self.assertEqual(res.returncode, 0)
+            test_env = os.environ.copy()
+            test_env["ACTX_TEST_MODE"] = "1"
+            res = subprocess.run([shim_dest], capture_output=True, text=True, env=test_env)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
             self.assertIn("AnyContext successfully updated to v0.30.31", res.stdout)
 
             # Verify that actx-core.exe is now the swapped binary

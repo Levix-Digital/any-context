@@ -7,7 +7,58 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.34 Universal Native Rust Token Estimator & Density Budgeting Engine): Validação da Estimativa de Tokens em Rust, Truncamento Semântico de Chunks e Neutralidade de Idioma
+### 📌 Cenário 1 (v0.30.35 100% Pure Native Rust Cross-Platform Installer & Launcher Architecture): Validação do Instalador e Launcher Nativo em Rust, Download Direto HTTPS, Validação Pré-Swap de Binários PE/ELF e Eliminação de Glifos '??'
+
+- **Objetivo**: Comprovar que na versão `v0.30.35`:
+  1. **Instalador Nativo em Rust (`crates/actx-installer`)**: A instalação, atualização e rollback do AnyContext são orquestrados por binários nativos compilados em Rust (`actx-installer.exe` no Windows, `actx-installer` no Linux/macOS), eliminando scripts frágeis em PowerShell/Bash e compiladores dinâmicos de C# (`csc.exe`).
+  2. **Download Direto via HTTPS Web (Zero Dependência de `gh` CLI)**: O instalador realiza requisições HTTP/HTTPS diretas via TLS nativo (`ureq` + `rustls`) diretamente dos releases do GitHub, sem exigir que o usuário tenha o GitHub CLI (`gh`) instalado na máquina.
+  3. **Validação Pré-Swap de Binários (Anti-Corrupção Win32 Error 193)**: O instalador inspeciona os bytes mágicos do executável antes de qualquer substituição de arquivo (`MZ` no Windows, `ELF` no Linux, `Mach-O` no macOS) e tamanho mínimo (>= 1MB). Um arquivo ZIP ou payload incompleto é estritamente rejeitado com rollback automático, impedindo a sobreposição de arquivos compactados sobre executáveis.
+  4. **Eliminação de Glifos Corrompidos (`??`)**: Todos os marcadores de progresso e status foram padronizados em ASCII estrito (`[*]`, `[OK]`, `[!]`, `[>]`), eliminando caracteres corrompidos em consoles OEM do Windows (CP437/CP850/CP1252).
+  5. **Launcher Shim Nativo de Baixíssima Latência (`actx.exe`)**: O launcher shim em Rust despacha chamadas instantaneamente (< 2ms) lendo `version.txt` ou repassando a execução transparente para `actx-core.exe`.
+- **Pré-requisito**: Versão `v0.30.35` instalada.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão Instantânea via Launcher Shim:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Retorna `v0.30.35` em menos de 50ms com saída limpa.
+
+2. **🦀 Validação dos Binários do Instalador Nativo em Rust:**
+   - Verifique que o executável `actx-installer.exe` está presente e funcional:
+     ```text
+     actx-installer --help
+     ```
+   - **Critério de Aceitação:** Exibe o menu de ajuda do instalador nativo com flags `--install`, `--update`, `--rollback`, e `--dir` com marcadores limpos em ASCII.
+
+3. **🛡️ Validação da Integridade e Cabeçalho do Executável (`MZ` PE Header):**
+   - Execute no terminal com PowerShell:
+     ```powershell
+     $bytes = [System.IO.File]::ReadAllBytes("$env:LOCALAPPDATA\actx\bin\actx-core.exe")
+     $magic = [System.Text.Encoding]::ASCII.GetString($bytes[0..1])
+     Write-Host "Magic: $magic | Total Size: $([math]::Round($bytes.Length / 1MB, 2)) MB"
+     ```
+   - **Critério de Aceitação:** Exibe `Magic: MZ` e `Total Size` maior que 40 MB (comprovando que é um binário PE nativo válido e não um arquivo compactado `.zip`).
+
+4. **🌐 Teste de Download e Validação Direta HTTPS sem GitHub CLI (`gh`):**
+   - Execute o instalador no modo de verificação de atualização:
+     ```text
+     actx-installer --update
+     ```
+   - **Critério de Aceitação:** Conecta via HTTPS com barra de progresso visual em tempo real sem invocar o `gh` CLI. Emite marcadores limpos `[*] Checking latest release...` e `[OK] AnyContext is up to date` sem qualquer caractere corrompido `??`.
+
+5. **🚀 Execução Transparente de Comando do AnyContext via Shim Nativo:**
+   - Execute no terminal:
+     ```text
+     actx --check-update
+     ```
+   - **Critério de Aceitação:** Delega com sucesso para o motor core e retorna o status da versão de forma limpa e imediata.
+
+---
+
+### 📌 Cenário 2 (v0.30.34 Universal Native Rust Token Estimator & Density Budgeting Engine): Validação da Estimativa de Tokens em Rust, Truncamento Semântico de Chunks e Neutralidade de Idioma
 
 - **Objetivo**: Comprovar que na versão `v0.30.34`:
   1. **Motor Nativo Rust de Estimativa de Tokens (`token_budget.rs`)**: A estimativa de tokens é executada nativamente em Rust (`any_context_core_rs.estimate_token_count`) em tempo $O(n)$ linear com sub-word splitting e consciência Unicode, eliminando a dependência do `tiktoken` em Python e tabelas estáticas pesadas de BPE em memória.

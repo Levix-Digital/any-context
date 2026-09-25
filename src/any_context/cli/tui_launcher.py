@@ -104,8 +104,8 @@ def launch_opentui(workspace: str = "Default") -> bool:
                 with open(notice_file, "r", encoding="utf-8") as nf:
                     updated_ver = nf.read().strip()
                 os.remove(notice_file)
-                print(f"\n🎉 AnyContext foi atualizado com sucesso para {updated_ver}!")
-                print("👉 Execute 'actx' para iniciar a nova versão.\n")
+                print(f"\n[OK] AnyContext successfully updated to {updated_ver}!")
+                print("[>] Run 'actx' or 'actx --tui' to start the updated version.\n")
             except Exception:
                 pass
 

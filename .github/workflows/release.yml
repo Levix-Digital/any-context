@@ -68,13 +68,19 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
         run: |
-          # 1. Build sub-second cold boot distribution (--onedir)
+          # 1. Build native Rust launcher and installer
+          cargo build --release -p actx-installer
+          mkdir -p dist
+          cp target/release/actx.exe dist/actx.exe
+          cp target/release/actx-installer.exe dist/actx-installer.exe
+
+          # 2. Build sub-second cold boot distribution (--onedir)
           pyinstaller --clean --onedir --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
-          python launcher/build_shim.py --out dist/actx-core/actx.exe
+          cp target/release/actx.exe dist/actx-core/actx.exe
           python launcher/build_shim.py --out dist/actx.exe
           powershell -Command "Compress-Archive -Path 'dist/actx-core/*' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
 
-          # 2. Build legacy standalone fallback binary (--onefile) for backwards compatibility
+          # 3. Build legacy standalone fallback binary (--onefile) for backwards compatibility
           pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
 
       - name: Build with PyInstaller (Linux)
@@ -82,9 +88,15 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
         run: |
-          # 1. Build sub-second cold boot distribution (--onedir)
+          # 1. Build native Rust launcher and installer
+          cargo build --release -p actx-installer
+          mkdir -p dist
+          cp target/release/actx dist/actx
+          cp target/release/actx-installer dist/actx-installer
+
+          # 2. Build sub-second cold boot distribution (--onedir)
           pyinstaller --clean --onedir --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
-          python launcher/build_shim.py --out dist/actx-core/actx
+          cp target/release/actx dist/actx-core/actx
           python launcher/build_shim.py --out dist/actx
           tar -czf dist/actx-linux-x86_64.tar.gz -C dist/actx-core .
 
@@ -138,6 +150,8 @@ jobs:
         with:
           repository: Levix-Digital/any-context-releases
           files: |
+            dist/actx-installer
+            dist/actx-installer.exe
             dist/actx-linux-x86_64.tar.gz
             dist/actx-linux-x86_64
             dist/actx-windows-x86_64.zip

@@ -54,6 +54,10 @@
 66. [Collaborative Dialogue Supremacy, Dead-End Disclaimer Elimination & Full-Turn Epistemic Purging (`v0.30.29`)](#66-collaborative-dialogue-supremacy-dead-end-disclaimer-elimination--full-turn-epistemic-purging-v03029)
 67. [Native Rust Workspace File Scanner & High-Performance Differential Sync (`v0.30.30`)](#67-native-rust-workspace-file-scanner--high-performance-differential-sync-v03030)
 68. [Synchronous Atomic Update Pipeline & Launcher Shim Process Lifecycle Guard (`v0.30.31`)](#68-synchronous-atomic-update-pipeline--launcher-shim-process-lifecycle-guard-v03031)
+69. [Universal Language-Agnostic Query Preprocessor & Native Rust Temporal Engine (`v0.30.32`)](#69-universal-language-agnostic-query-preprocessor--native-rust-temporal-engine-v03032)
+70. [100% Native Rust Execution Architecture & Complete Purge of Python Fallbacks (`v0.30.33`)](#70-100-native-rust-execution-architecture--complete-purge-of-python-fallbacks-v03033)
+71. [Universal Native Rust Token Estimator & Density Budgeting Engine (`v0.30.34`)](#71-universal-native-rust-token-estimator--density-budgeting-engine-v03034)
+72. [Native Rust Cross-Platform Installer & Launcher Architecture (`v0.30.35`)](#72-native-rust-cross-platform-installer--launcher-architecture-v03035)
 
 ---
 
@@ -4081,4 +4085,144 @@ Authoritative model token limits are compiled directly into the Rust core engine
    truncated.push_str("\n[...additional snippet condensed for density limit...]");
    ```
 2. **Keyword Extraction**: Expurgated local Portuguese stop words from `enricher.py`, standardizing on international English grammatical stop words and length/frequency heuristics ($\ge 4$ characters).
+
+
+## 72. Native Rust Cross-Platform Installer & Launcher Architecture (v0.30.35)
+
+### 1. Architectural Motivation: Eliminating Fragile Scripts & Corrupt Update Race Conditions
+
+Prior to `v0.30.35`, AnyContext relied on a patchwork of installation and updating scripts across platforms:
+- **Windows**: PowerShell bootstrap scripts (`install.ps1`, `scripts/install.ps1`) executing background runspaces, C# `.NET 4.0` `csc.exe` dynamically compiling launcher shims (`actx_shim.cs`), and background update swaps.
+- **Linux / macOS**: Bash scripts (`install.sh`, `scripts/install.sh`) relying on `tar`, `curl`, and GCC compilation.
+- **Updater**: Python `update_service.py` and `updater.py` spawning background scripts.
+
+This architecture suffered from several critical vulnerabilities:
+1. **The Binary Overwrite Catastrophe (`ERROR_BAD_EXE_FORMAT` / Win32 Error 193)**:
+   When an in-app update occurred, background scripts attempted to fall back to `Move-Item temp_download actx-core.exe` when staging directories were unmounted. Because `temp_download` was the raw archive (`actx_new.zip`, ~250MB), it blindly overwrote the Windows PE binary (`actx-core.exe`) with the raw ZIP archive! The next execution failed immediately with:
+   `Error executing AnyContext: The specified executable is not a valid application for this OS platform.`
+2. **Terminal Encoding Degradation (`??` Glyphs)**:
+   Legacy shims and update scripts emitted UTF-16 surrogate Unicode emoji characters (`📦`, `🎉`, `👉`). On Windows consoles running single-byte OEM codepages (such as CP437, CP850, or CP1252), these characters failed to map and degraded into ugly `??` markers (`?? Finalizing installation...`).
+3. **GitHub CLI (`gh`) Dependency Barrier**:
+   Several installation scripts previously assumed or prioritized `gh release download`. Public end users without the GitHub CLI installed encountered download failures or required fragile token setups.
+4. **Platform Fragmentation**:
+   Maintaining C#, PowerShell, Python, and Bash scripts meant 4 distinct implementations of directory resolution, download progress, extraction, and file replacement.
+
+### 2. Standalone Crate Architecture: `crates/actx-installer`
+
+`v0.30.35` replaces all installation and launcher shims with a single, high-performance, cross-platform compiled Rust crate (`crates/actx-installer`):
+
+```mermaid
+graph TD
+    subgraph "crates/actx-installer"
+        CLI["src/bin/actx-installer.rs\n(Native Installer CLI)"]
+        SHIM["src/bin/actx.rs\n(Sub-2ms Native Launcher Shim)"]
+        
+        LIB["src/lib.rs (Core Installer Engine)"]
+        PATHS["paths.rs\nCanonical Platform Dirs"]
+        DOWN["downloader.rs\nDirect HTTPS (ureq + rustls)"]
+        EXTR["extractor.rs\nZip-Slip Protected Archive Extractor"]
+        VAL["validator.rs\nPre-Flight Binary Verification (PE/ELF/Mach-O)"]
+        SWAP["atomic_swap.rs\nAtomic Pointer Move & Rollback Engine"]
+        
+        CLI --> LIB
+        SHIM --> LIB
+        LIB --> PATHS
+        LIB --> DOWN
+        LIB --> EXTR
+        LIB --> VAL
+        LIB --> SWAP
+    end
+```
+
+### 3. Direct HTTPS Web Streaming & Universal Accessibility
+
+Using `ureq` with `rustls` (pure Rust TLS, zero OpenSSL/C runtime dependencies) and `indicatif`:
+1. **Public Endpoint Resolution**: Connects directly to `https://api.github.com/repos/Levix-Digital/any-context/releases/latest` to resolve release metadata, or parses explicit tag targets (`https://github.com/Levix-Digital/any-context/releases/download/<tag>/<asset>`).
+2. **Real-Time Visual Progress**: Streams chunks over HTTPS with accurate download speed, elapsed time, and total bytes progress bar:
+   `[*] Downloading AnyContext release... [====================] 248.4 MB / 248.4 MB (100%)`
+3. **Zero CLI Dependency**: Runs everywhere directly from standard web protocols without requiring `gh`, Git, or Python.
+
+### 4. Pre-Flight Binary Validation: Mathematically Immune to ZIP/PE Collisions
+
+Before moving any file into production (`%LOCALAPPDATA%\actx\bin\actx-core.exe` or `~/.local/bin/actx-core`), the validator inspects the raw file magic bytes and size:
+
+```rust
+pub fn validate_executable(path: &Path) -> Result<(), InstallerError> {
+    let metadata = fs::metadata(path)?;
+    if metadata.len() < MIN_EXECUTABLE_SIZE { // 1 MB
+        return Err(InstallerError::ValidationError("Binary too small".into()));
+    }
+    let mut file = File::open(path)?;
+    let mut header = [0u8; 4];
+    file.read_exact(&mut header)?;
+
+    // Reject archive headers unconditionally
+    if &header[0..2] == b"PK" {
+        return Err(InstallerError::ValidationError("ZIP archive detected instead of executable".into()));
+    }
+    if &header[0..2] == &[0x1F, 0x8B] {
+        return Err(InstallerError::ValidationError("GZIP archive detected instead of executable".into()));
+    }
+
+    // Enforce OS-native binary magic headers
+    #[cfg(target_os = "windows")]
+    if &header[0..2] != b"MZ" {
+        return Err(InstallerError::ValidationError("Invalid Windows PE header".into()));
+    }
+
+    #[cfg(target_os = "linux")]
+    if &header[0..4] != &[0x7F, b'E', b'L', b'F'] {
+        return Err(InstallerError::ValidationError("Invalid Linux ELF header".into()));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let magic = u32::from_be_bytes(header);
+        if magic != 0xFEEDFACE && magic != 0xFEEDFACF && magic != 0xCAFEBABE {
+            return Err(InstallerError::ValidationError("Invalid macOS Mach-O header".into()));
+        }
+    }
+    Ok(())
+}
+```
+
+### 5. Atomic Directory Swap & Transactional Rollback
+
+```mermaid
+sequenceDiagram
+    participant Ins as actx-installer
+    participant Staging as actx_staging/
+    participant Prod as actx/bin/
+    participant Backup as actx/bin_old/
+
+    Ins->>Staging: Extract payload & unpack _internal
+    Ins->>Staging: validate_executable(actx-core.exe)
+    alt Validation FAILS
+        Ins->>Staging: Abort & delete staging (Production untouched)
+    else Validation SUCCEEDS
+        Ins->>Backup: Rename actx-core.exe -> actx-core_old.exe
+        Ins->>Backup: Rename _internal -> _internal_old
+        Ins->>Prod: Move staging actx-core.exe -> actx-core.exe
+        Ins->>Prod: Move staging _internal -> _internal
+        Ins->>Prod: validate_executable(production actx-core.exe)
+        alt Post-swap FAILS
+            Ins->>Prod: Rollback from Backup (Restore _old)
+            Ins->>Ins: Return Rollback Error
+        else Post-swap SUCCEEDS
+            Ins->>Backup: Clean up _old files asynchronously
+            Ins->>Ins: Print "[OK] Installation completed successfully!"
+        end
+    end
+```
+
+### 6. ASCII-Safe Terminal Telemetry (Zero Codepage Degradation)
+
+All UI glyphs across the installer and Python updater are standardized on strict ASCII indicators:
+- `[*]` Information / Progress
+- `[OK]` Success / Confirmation
+- `[!]` Warning / Alert
+- `[>]` Action prompt / Next step
+
+This guarantees 100% visual fidelity across legacy Windows Command Prompt (`cmd.exe`), PowerShell 5.1/7+, Windows Terminal, Git Bash (MinGW), and headless CI/CD consoles.
+
 
