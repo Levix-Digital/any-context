@@ -64,6 +64,7 @@
 76. [Native Rust Hybrid RAG Pipeline & RFC-042 Batch Retrieval Engine (`v0.30.39`)](#76-native-rust-hybrid-rag-pipeline--rfc-042-batch-retrieval-engine-v03039)
 77. [100% Native Rust CLI & Full-Screen Interactive TUI Engine (`actx-cli` / Ratatui) (`v0.31.0`)](#77-100-native-rust-cli--full-screen-interactive-tui-engine-actx-cli--ratatui-v0310)
 78. [Normalized Relational Folder Storage & Legacy Schema Elimination Engine (`v0.32.0`)](#78-normalized-relational-folder-storage--legacy-schema-elimination-engine-v0320)
+79. [Multi-Byte UTF-8 Char Boundary Safety, Visual Cursor Alignment & Universal Release Protocol (`v0.32.2`)](#79-multi-byte-utf-8-char-boundary-safety-visual-cursor-alignment--universal-release-protocol-v0322)
 
 ---
 
@@ -4733,5 +4734,91 @@ flowchart TD
   - Positive: Clean, relational schema with zero redundant columns and zero dual-sync overhead.
   - Positive: 100% backward compatibility preserved; legacy databases upgrade smoothly on first run.
   - Positive: Native Rust engine operates with maximal speed and type safety.
+
+---
+
+## 79. Multi-Byte UTF-8 Char Boundary Safety, Visual Cursor Alignment & Universal Release Protocol (`v0.32.2`)
+
+### 1. Root Cause & Architectural Diagnosis
+Rust's `std::string::String` is a UTF-8 encoded byte array (`Vec<u8>`). In `crates/actx-cli/src/tui/app.rs`, the prompt input buffer previously incremented and decremented `cursor_idx` by 1 byte:
+```rust
+// Flawed legacy approach
+self.input_buffer.insert(self.cursor_idx, c);
+self.cursor_idx += 1; // ⚠️ Assumes 1 char == 1 byte!
+```
+When entering non-ASCII or accented characters common in Portuguese (such as `é`, `ã`, `ç`, `ó`, `ê`), as well as emojis (`🚀`), each code point requires 2 to 4 UTF-8 bytes (e.g., `é` is `0xC3 0xA9`). Incrementing `cursor_idx` by 1 byte positioned the index in the middle of a multi-byte sequence, causing subsequent `String::insert` or slicing calls to trigger an immediate panic:
+```text
+thread 'main' panicked at crates\actx-cli\src\tui\app.rs:95:27:
+assertion failed: self.is_char_boundary(idx)
+```
+
+### 2. Multi-Byte Boundary Safety Architecture
+In `v0.32.2`, `App` enforces strict UTF-8 char boundary integrity across all text mutation and navigation methods:
+1. **Accurate Character Insertion (`insert_char`)**:
+   - Sanitizes `cursor_idx` against `input_buffer.is_char_boundary(cursor_idx)`.
+   - Inserts character `c` at the verified boundary.
+   - Advances `cursor_idx` by `c.len_utf8()` bytes rather than 1.
+2. **Safe Reverse Deletion (`delete_backspace`)**:
+   - Queries `self.input_buffer[..self.cursor_idx].char_indices().last()`.
+   - Locates the starting byte offset of the preceding UTF-8 character.
+   - Removes the entire character via `String::remove(prev_idx)` and sets `self.cursor_idx = prev_idx`.
+3. **Forward Deletion (`delete_forward`)**:
+   - Handles `KeyCode::Delete` by removing the character at `cursor_idx`.
+4. **Char-Aware Cursor Navigation (`move_cursor_left` / `move_cursor_right`)**:
+   - Left navigation jumps to the preceding boundary using `char_indices().last()`.
+   - Right navigation jumps to the next boundary using `char_indices().nth(1)`.
+5. **Visual Terminal Cursor Alignment (`ui.rs`)**:
+   - Terminal screen column calculation (`render_input`) now computes `chars().count()` of the buffer slice up to `cursor_idx` instead of using the raw byte offset `cursor_idx as u16`.
+   - Prevents cursor drift where multi-byte characters caused the terminal cursor to appear shifted to the right of the actual typed text.
+
+```mermaid
+flowchart LR
+    A["Keystroke 'é' (0xC3 0xA9)"] --> B{"is_char_boundary(cursor_idx)?"}
+    B -- Yes --> C["String::insert(cursor_idx, 'é')"]
+    C --> D["cursor_idx += c.len_utf8() (+2 bytes)"]
+    D --> E["Visual Cursor = chars().count()"]
+    E --> F["Zero Panic / Perfect Visual Alignment"]
+```
+
+### 3. Dynamic Line-Count Calculation & Auto-Scroll Viewport Engine
+In previous releases, `scroll_offset` remained static at `0`, causing the viewport to anchor at the top of the chat session (displaying the initial system banner) while newly generated messages and streaming tokens were rendered below the visible screen boundaries.
+
+In `v0.32.2`, `actx-cli` introduces automatic viewport tracking:
+1. **Dynamic Wrapped Line Counting**:
+   - `render_chat` leverages `Paragraph::line_count(inner_area.width)` enabled via `ratatui`'s `unstable-rendered-line-info` feature.
+   - Evaluates the exact wrapped height of all chat history messages and active streaming buffers against `inner_area.height`.
+2. **Autonomous Trailing Anchor (`auto_scroll`)**:
+   - Computes `max_scroll = total_lines.saturating_sub(visible_height)`.
+   - When `app.auto_scroll` is active (`true`), `app.scroll_offset` tracks `max_scroll` on every frame render, guaranteeing that the newest assistant thoughts and streamed tokens remain pinned in the user's field of view.
+3. **Graceful User Reading Pause**:
+   - If the user scrolls upward using `PageUp`, Up Arrow, or Mouse Scroll Wheel, `app.auto_scroll` transitions to `false`.
+   - The conversation window title displays `[Scroll Paused - PgDn/End to auto-scroll]`, preventing annoying scroll jumps while inspecting past turns.
+4. **Seamless Resume**:
+   - Scrolling back to the bottom (`PageDown`, Down Arrow, or `Ctrl+End`) or submitting a new message / slash command immediately sets `app.auto_scroll = true` and snaps to the bottom.
+
+```mermaid
+flowchart TD
+    A["Frame Render (ui.rs)"] --> B["chat_para.line_count(inner_area.width)"]
+    B --> C["max_scroll = total_lines - visible_height"]
+    C --> D{"app.auto_scroll == true?"}
+    D -- Yes --> E["app.scroll_offset = max_scroll"]
+    D -- No (User Reading) --> F["Clamp scroll_offset <= max_scroll"]
+    E --> G["Render chat_para.scroll((scroll_offset, 0))"]
+    F --> G
+```
+
+### 4. Architecture Decision Record (ADR-079)
+- **Status**: Accepted & Implemented (`v0.32.2`).
+- **Context**: Users writing queries with international characters, accents, or emojis encountered fatal application panics during prompt input. Furthermore, as conversation turns exceeded terminal height, the active streaming response was pushed off-screen without automatic viewport scrolling.
+- **Decision**:
+  1. Upgrade all string index mutations in `crates/actx-cli` to use `c.len_utf8()` and `.char_indices()`, decoupling byte offsets from terminal visual cell coordinates.
+  2. Implement an autonomous trailing viewport engine powered by `Paragraph::line_count(inner_width)` with pause-on-user-scroll and snap-to-bottom mechanics.
+  3. Register project release repository in `.dev-cycle.json`.
+- **Consequences**:
+  - Positive: Complete immunity against UTF-8 char boundary panics.
+  - Positive: Chat view smoothly autoscrolls down as new messages and tokens arrive.
+  - Positive: Smooth keyboard (`PageUp`/`PageDown`/`Home`/`End`) and mouse scroll wheel support.
+
+
 
 

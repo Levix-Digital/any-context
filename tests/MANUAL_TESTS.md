@@ -7,6 +7,73 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 4 (v0.32.2 Correção de Entrada de Caracteres Acentuados UTF-8, Rolagem Automática do Chat & Protocolo Universal de Release):
+- **Objetivo**: Comprovar que na versão `v0.32.2`:
+  1. **Tratamento Seguro de Limites de Caracteres Multi-Byte UTF-8 (`is_char_boundary`) no TUI**:
+     - O TUI não sofre pânico (`assertion failed: self.is_char_boundary(idx)`) ao digitar palavras com acentos (ex: `é`, `ã`, `ç`, `ó`, `ê`), caracteres não-ASCII ou emojis (`🚀`).
+     - A remoção via tecla `Backspace` retrocede de forma segura pelo limite do caractere anterior (`char_indices().last()`), sem fatiar bytes intermediários.
+     - A tecla `Delete` (`KeyCode::Delete`) agora apaga o caractere multi-byte imediatamente à frente do cursor de maneira segura.
+     - A navegação pelas setas esquerda (`Left`) e direita (`Right`) posiciona o cursor estritamente em limites válidos de caracteres UTF-8.
+     - A renderização do cursor no terminal (`render_input`) calcula a posição X a partir da contagem visual de caracteres (`chars().count()`), garantindo alinhamento visual perfeito independente da largura em bytes dos caracteres digitados.
+  2. **Rolagem Automática do Chat (Auto-Scroll) & Navegação de Histórico**:
+     - O chat desce a tela automaticamente (autoscroll) sempre que novas mensagens são enviadas ou tokens do assistente são gerados via streaming, garantindo que o texto mais recente NUNCA fique escondido fora da tela quando o chat cresce.
+     - Quando o usuário sobe a tela manualmente usando `PageUp`, seta `Up` ou Scroll do Mouse, o autoscroll é pausado (`[Scroll Paused - PgDn/End to auto-scroll]`), permitindo a leitura calma do histórico anterior sem interrupções.
+     - Ao descer até o final usando `PageDown`, seta `Down`, `Ctrl+End` ou enviando uma nova mensagem/comando, o autoscroll é automaticamente retomado e a tela trava no final.
+     - O comando `/clear` limpa o histórico e reseta os offsets de rolagem para zero.
+  3. **Validação da Versão v0.32.2**:
+     - `actx -v` retorna `actx 0.32.2`.
+     - `actx --check-update` verifica updates contra a `v0.32.2`.
+     - `actx -d` / `actx diagnostics` reporta integridade e saúde operacional da engine.
+  4. **Protocolo Universal de Release**:
+     - O arquivo `.dev-cycle.json` configura explicitamente `"releases_repo": "Levix-Digital/any-context-releases"`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão e Diagnóstico:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     actx --check-update
+     actx -d
+     ```
+   - **Critério de Aceitação**: Deve exibir `actx 0.32.2`, confirmar a versão mais recente e reportar `Status: Healthy & Operational`.
+
+2. **📄 Teste de Digitação de Caracteres Acentuados e Emojis no TUI:**
+   - Inicie o AnyContext interativo:
+     ```text
+     actx
+     ```
+   - No prompt de entrada, digite uma frase com múltiplos caracteres acentuados:
+     ```text
+     Qual é a previsão de inflação para amanhã?
+     ```
+   - **Critério de Aceitação**: NENHUM pânico de Rust deve ocorrer (`assertion failed: self.is_char_boundary`). O texto digitado deve aparecer perfeitamente formatado.
+
+3. **📄 Teste de Edição, Backspace e Delete:**
+   - Pressione `Backspace` 7 vezes para apagar `amanhã?`.
+   - Digite `hoje?`.
+   - Use a seta para a esquerda (`Left`) para navegar até antes de `inflação`.
+   - Digite `nossa ` -> a frase fica `Qual é a previsão de nossa inflação para hoje?`.
+   - Pressione `Delete` sobre caracteres acentuados.
+   - Digite um emoji (ex: copie e cole `🚀`).
+   - Apague o emoji com `Backspace`.
+   - **Critério de Aceitação**: O cursor se movimenta de forma suave e estável, o cursor visual permanece alinhado com o caractere correto e não ocorre erro de índice em momento algum.
+
+4. **📄 Envio da Mensagem com Caracteres Acentuados:**
+   - Tecle `Enter` para submeter a pergunta.
+   - **Critério de Aceitação**: A mensagem aparece no histórico de chat com a acentuação correta e a inferência é disparada sem exceções.
+
+5. **📄 Teste de Rolagem Automática (Auto-Scroll) e Navegação Manual:**
+   - Envie múltiplos comandos ou perguntas longas até que o chat exceda a altura da tela (ex: `/help`, `/models --list`, `/diagnostics`).
+   - **Critério de Aceitação 1 (Auto-Scroll)**: A janela de chat deve acompanhar descendo a tela automaticamente, mantendo sempre o final da última resposta visível no fundo.
+   - Pressione `PageUp` ou seta `Up` para rolar para cima.
+   - **Critério de Aceitação 2 (Pausa de Rolagem)**: A rolagem sobe, o título da janela de conversa exibe `[Scroll Paused - PgDn/End to auto-scroll]`, e a tela não é puxada para baixo involuntariamente.
+   - Pressione `PageDown` ou `Ctrl+End` até atingir o fim da tela, ou envie uma nova mensagem.
+   - **Critério de Aceitação 3 (Retomada Automática)**: O indicador de pausa desaparece e a rolagem automática para o final é restaurada.
+
+
+---
+
 ### 📌 Cenário 3 (v0.32.1 Migração Definitiva para Tabela Normalizada workspace_folders & Exclusão de paths_json):
 - **Objetivo**: Comprovar que na versão `v0.32.1`:
   1. **Tabela Normalizada `workspace_folders` como Única Fonte da Verdade**:

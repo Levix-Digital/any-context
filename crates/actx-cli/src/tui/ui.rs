@@ -89,7 +89,7 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(header_para, area);
 }
 
-fn render_chat(frame: &mut Frame, area: Rect, app: &App) {
+fn render_chat(frame: &mut Frame, area: Rect, app: &mut App) {
     let mut lines = Vec::new();
 
     for msg in &app.chat_history {
@@ -121,19 +121,42 @@ fn render_chat(frame: &mut Frame, area: Rect, app: &App) {
         }
     }
 
+    let title_text = if !app.auto_scroll && app.scroll_offset < app.max_scroll {
+        " Conversation [Scroll Paused - PgDn/End to auto-scroll] "
+    } else {
+        " Conversation "
+    };
+
     let block = Block::default()
-        .title(" Conversation ")
+        .title(title_text)
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(Color::Cyan));
 
+    let inner_area = block.inner(area);
     let chat_para = Paragraph::new(lines)
         .block(block)
-        .wrap(Wrap { trim: false })
-        .scroll((app.scroll_offset, 0));
+        .wrap(Wrap { trim: false });
 
+    let total_lines = chat_para.line_count(inner_area.width);
+    let visible_height = inner_area.height as usize;
+
+    app.max_scroll = if total_lines > visible_height {
+        (total_lines - visible_height) as u16
+    } else {
+        0
+    };
+
+    if app.auto_scroll {
+        app.scroll_offset = app.max_scroll;
+    } else if app.scroll_offset > app.max_scroll {
+        app.scroll_offset = app.max_scroll;
+    }
+
+    let chat_para = chat_para.scroll((app.scroll_offset, 0));
     frame.render_widget(chat_para, area);
 }
+
 
 fn render_accordion(frame: &mut Frame, area: Rect, app: &App) {
     let fallback = "No active reasoning or tool calls yet. (Extended thoughts and ReAct loop events appear here)";
@@ -175,8 +198,13 @@ fn render_input(frame: &mut Frame, area: Rect, app: &App) {
     let para = Paragraph::new(display_text).block(block);
     frame.render_widget(para, area);
 
-    // Set cursor position inside the input block
-    let cursor_x = area.x + 3 + app.cursor_idx as u16;
+    // Set cursor position inside the input block using visual char count
+    let visual_cursor_offset = if app.cursor_idx <= app.input_buffer.len() {
+        app.input_buffer[..app.cursor_idx].chars().count()
+    } else {
+        app.input_buffer.chars().count()
+    };
+    let cursor_x = area.x + 3 + visual_cursor_offset as u16;
     let cursor_y = area.y + 1;
     if cursor_x < area.x + area.width - 1 {
         frame.set_cursor_position((cursor_x, cursor_y));
@@ -231,6 +259,8 @@ fn render_footer(frame: &mut Frame, area: Rect, _app: &App) {
         Span::raw(" Send  "),
         Span::styled("[Tab]", Style::default().fg(Color::Cyan)),
         Span::raw(" Complete  "),
+        Span::styled("[PgUp/PgDn]", Style::default().fg(Color::Cyan)),
+        Span::raw(" Scroll  "),
         Span::styled("[Ctrl+T]", Style::default().fg(Color::Yellow)),
         Span::raw(" Reasoning  "),
         Span::styled("[Esc/Ctrl+C]", Style::default().fg(Color::Red)),

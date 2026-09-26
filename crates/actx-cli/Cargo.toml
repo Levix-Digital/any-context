@@ -1,6 +1,6 @@
 [package]
 name = "actx-cli"
-version = "0.32.1"
+version = "0.32.2"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "100% Native Rust CLI & TUI Interface for AnyContext"
@@ -18,7 +18,7 @@ actx-lm = { path = "../actx-lm" }
 actx-agent = { path = "../actx-agent" }
 any-context-core-rs = { path = "../any-context-core-rs" }
 clap = { version = "4.5", features = ["derive", "env"] }
-ratatui = "0.29"
+ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
 crossterm = { version = "0.28", features = ["event-stream"] }
 tokio = { version = "1.40", features = ["full"] }
 futures = "0.3"

@@ -289,3 +289,127 @@ async fn test_app_state_and_slash_dispatch() {
     app.submit_input(tx);
     assert!(!app.running);
 }
+
+#[test]
+fn test_utf8_input_handling() {
+    let mut app = App::new("test-workspace".to_string(), "gpt-4o-mini".to_string(), None);
+
+    // 1. Type accented characters: "Qual é"
+    // 'é' is 2 bytes (0xC3 0xA9)
+    for c in "Qual é".chars() {
+        app.insert_char(c);
+    }
+    assert_eq!(app.input_buffer, "Qual é");
+    assert_eq!(app.cursor_idx, "Qual é".len()); // 7 bytes (5 ascii + 2 bytes for 'é')
+    assert!(app.input_buffer.is_char_boundary(app.cursor_idx));
+
+    // 2. Backspace deletes the multi-byte character cleanly without panicking
+    app.delete_backspace();
+    assert_eq!(app.input_buffer, "Qual ");
+    assert_eq!(app.cursor_idx, 5);
+    assert!(app.input_buffer.is_char_boundary(app.cursor_idx));
+
+    // 3. Re-insert 'é' and more accents: "é ação"
+    for c in "é ação".chars() {
+        app.insert_char(c);
+    }
+    assert_eq!(app.input_buffer, "Qual é ação");
+    assert_eq!(app.cursor_idx, "Qual é ação".len());
+    assert!(app.input_buffer.is_char_boundary(app.cursor_idx));
+
+    // 4. Cursor movement left across multi-byte characters
+    // "Qual é ação" ends with 'o', then 'ã' (2 bytes), 'c' with cedilla 'ç' (2 bytes)
+    app.move_cursor_left(); // before 'o'
+    app.move_cursor_left(); // before 'ã'
+    assert!(app.input_buffer.is_char_boundary(app.cursor_idx));
+
+    // 5. Delete forward on multi-byte char 'ã'
+    app.delete_forward();
+    assert_eq!(app.input_buffer, "Qual é aço");
+    assert!(app.input_buffer.is_char_boundary(app.cursor_idx));
+
+    // 6. Test 4-byte UTF-8 emoji
+    app.insert_char('🚀');
+    assert!(app.input_buffer.contains('🚀'));
+    assert!(app.input_buffer.is_char_boundary(app.cursor_idx));
+
+    app.delete_backspace();
+    assert!(!app.input_buffer.contains('🚀'));
+    assert_eq!(app.input_buffer, "Qual é aço");
+    assert!(app.input_buffer.is_char_boundary(app.cursor_idx));
+
+    // 7. Move all the way to beginning and right across characters
+    for _ in 0..20 {
+        app.move_cursor_left();
+    }
+    assert_eq!(app.cursor_idx, 0);
+
+    for _ in 0..app.input_buffer.chars().count() {
+        app.move_cursor_right();
+        assert!(app.input_buffer.is_char_boundary(app.cursor_idx));
+    }
+    assert_eq!(app.cursor_idx, app.input_buffer.len());
+}
+
+#[test]
+fn test_paragraph_line_count_and_autoscroll() {
+    use ratatui::layout::Rect;
+    use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+
+    let block = Block::default().borders(Borders::ALL);
+    let area = Rect::new(0, 0, 40, 10);
+    let inner = block.inner(area);
+
+    let text = "Line 1\nLine 2\nLine 3\nThis is a long sentence that should easily wrap across multiple lines at 40 width.";
+    let para = Paragraph::new(text).block(block).wrap(Wrap { trim: false });
+    let count = para.line_count(inner.width);
+    assert!(count >= 4);
+}
+
+#[tokio::test]
+async fn test_chat_autoscroll_lifecycle() {
+    let mut app = App::new("test-workspace".to_string(), "gpt-4o-mini".to_string(), None);
+    assert!(app.auto_scroll);
+    assert_eq!(app.scroll_offset, 0);
+
+    // Simulate chat viewport with max_scroll = 50
+    app.max_scroll = 50;
+
+    // Scroll up pauses autoscroll
+    app.scroll_offset = 30;
+    app.scroll_up(5);
+    assert_eq!(app.scroll_offset, 25);
+    assert!(!app.auto_scroll);
+
+    // Scroll down moves closer to bottom
+    app.scroll_down(10);
+    assert_eq!(app.scroll_offset, 35);
+    assert!(!app.auto_scroll);
+
+    // Reaching bottom resumes autoscroll
+    app.scroll_down(20);
+    assert_eq!(app.scroll_offset, 50);
+    assert!(app.auto_scroll);
+
+    // Scroll to top
+    app.scroll_to_top();
+    assert_eq!(app.scroll_offset, 0);
+    assert!(!app.auto_scroll);
+
+    // Scroll to bottom
+    app.scroll_to_bottom();
+    assert_eq!(app.scroll_offset, 50);
+    assert!(app.auto_scroll);
+
+    // Submitting input snaps to bottom and sets auto_scroll = true
+    app.scroll_up(10);
+    assert!(!app.auto_scroll);
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+    app.input_buffer = "hello".to_string();
+    app.submit_input(tx);
+    assert!(app.auto_scroll);
+    assert_eq!(app.scroll_offset, 50);
+}
+
+
+

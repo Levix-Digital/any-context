@@ -40,7 +40,7 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     // 2. Setup Terminal in raw mode with alternate screen
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableBlinking)?;
+    execute!(stdout, EnterAlternateScreen, EnableBlinking, crossterm::event::EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -54,8 +54,14 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
         tokio::select! {
             maybe_event = reader.next() => {
                 if let Some(Ok(event)) = maybe_event {
-                    if let Event::Key(key) = event {
-                        handle_key_event(key, &mut app, &agent_tx);
+                    match event {
+                        Event::Key(key) => {
+                            handle_key_event(key, &mut app, &agent_tx);
+                        }
+                        Event::Mouse(mouse) => {
+                            events::handle_mouse_event(mouse, &mut app);
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -67,7 +73,7 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. Teardown Terminal cleanly
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen, Show)?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, crossterm::event::DisableMouseCapture, Show)?;
     terminal.show_cursor()?;
 
     Ok(())
