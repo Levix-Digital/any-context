@@ -22,8 +22,46 @@ pub fn handle_key_event(
                 app.toggle_accordion();
                 return;
             }
+            KeyCode::Char('m') => {
+                if app.menu_state.is_open {
+                    app.close_menu();
+                } else {
+                    app.open_menu();
+                }
+                return;
+            }
             _ => {}
         }
+    }
+
+    // F1 toggles interactive menu
+    if key.code == KeyCode::F(1) {
+        if app.menu_state.is_open {
+            app.close_menu();
+        } else {
+            app.open_menu();
+        }
+        return;
+    }
+
+    // If Interactive Menu is open, intercept navigation keys
+    if app.menu_state.is_open {
+        match key.code {
+            KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => {
+                app.menu_back();
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                app.menu_up();
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                app.menu_down();
+            }
+            KeyCode::Enter | KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
+                app.menu_select();
+            }
+            _ => {}
+        }
+        return;
     }
 
     match key.code {
@@ -35,8 +73,9 @@ pub fn handle_key_event(
             }
         }
         KeyCode::Enter => {
-            if app.slash_palette_open {
+            if app.slash_palette_open && app.palette_navigated {
                 app.complete_selected_slash();
+                app.palette_navigated = false;
             } else {
                 app.submit_input(agent_tx.clone());
             }
@@ -44,6 +83,7 @@ pub fn handle_key_event(
         KeyCode::Tab => {
             if app.slash_palette_open {
                 app.complete_selected_slash();
+                app.palette_navigated = false;
             }
         }
         KeyCode::Up => {

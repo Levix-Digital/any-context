@@ -55,6 +55,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             render_slash_palette(frame, chunks[2], app);
         }
     }
+
+    if app.menu_state.is_open {
+        render_interactive_menu(frame, size, app);
+    }
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
@@ -221,16 +225,164 @@ fn render_slash_palette(frame: &mut Frame, input_area: Rect, app: &App) {
 
 fn render_footer(frame: &mut Frame, area: Rect, _app: &App) {
     let keys = vec![
+        Span::styled("[F1 / /menu]", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::raw(" Menu  "),
         Span::styled("[Enter]", Style::default().fg(Color::Cyan)),
         Span::raw(" Send  "),
         Span::styled("[Tab]", Style::default().fg(Color::Cyan)),
         Span::raw(" Complete  "),
         Span::styled("[Ctrl+T]", Style::default().fg(Color::Yellow)),
-        Span::raw(" Toggle Reasoning  "),
+        Span::raw(" Reasoning  "),
         Span::styled("[Esc/Ctrl+C]", Style::default().fg(Color::Red)),
         Span::raw(" Exit"),
     ];
 
     let footer = Paragraph::new(Line::from(keys));
     frame.render_widget(footer, area);
+}
+
+fn render_interactive_menu(frame: &mut Frame, area: Rect, app: &App) {
+    let popup_area = centered_rect(75, 75, area);
+
+    // Clear background so underlying chat is obscured cleanly
+    frame.render_widget(Clear, popup_area);
+
+    let breadcrumbs = app.menu_state.breadcrumbs.join(" ➔ ");
+    let title = format!(" ⚙️  Menu Interativo ─ [{}] ", breadcrumbs);
+
+    let main_block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::Yellow));
+
+    frame.render_widget(main_block.clone(), popup_area);
+
+    let inner_area = main_block.inner(popup_area);
+
+    // Inner layout: Header bar (1), Items list (min 4), Description box (3), Footer (1)
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // Sub-header / active context info
+            Constraint::Min(4),    // Items list
+            Constraint::Length(3), // Selected item details
+            Constraint::Length(1), // Key bindings
+        ])
+        .split(inner_area);
+
+    // 1. Sub-header
+    let header_line = Line::from(vec![
+        Span::raw("📂 Workspace: "),
+        Span::styled(&app.active_workspace, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::raw("  │  🤖 Modelo: "),
+        Span::styled(&app.active_model, Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+    ]);
+    frame.render_widget(Paragraph::new(header_line), chunks[0]);
+
+    // 2. Items list
+    let items: Vec<ListItem> = app
+        .menu_state
+        .items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| {
+            let is_selected = i == app.menu_state.selected_idx;
+            let prefix = if is_selected { "▸ " } else { "  " };
+
+            let mut spans = vec![
+                Span::styled(
+                    prefix,
+                    if is_selected {
+                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::DarkGray)
+                    },
+                ),
+                Span::raw(format!("{} ", item.icon)),
+                Span::styled(
+                    &item.title,
+                    if is_selected {
+                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    },
+                ),
+            ];
+
+            if let Some(badge) = &item.badge {
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled(badge, Style::default().fg(Color::Green)));
+            }
+
+            if let Some(shortcut) = &item.shortcut {
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled(format!("({})", shortcut), Style::default().fg(Color::DarkGray)));
+            }
+
+            if item.is_submenu {
+                spans.push(Span::styled(" ▶", Style::default().fg(Color::Cyan)));
+            }
+
+            let style = if is_selected {
+                Style::default().bg(Color::DarkGray)
+            } else {
+                Style::default()
+            };
+
+            ListItem::new(Line::from(spans)).style(style)
+        })
+        .collect();
+
+    let list = List::new(items);
+    frame.render_widget(list, chunks[1]);
+
+    // 3. Selected item details
+    let desc = app
+        .menu_state
+        .selected_item()
+        .map(|it| it.description.as_str())
+        .unwrap_or("Selecione uma opção com [Enter] ou navegue com [↑/↓]");
+
+    let desc_block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::DarkGray))
+        .title(" Detalhes ");
+
+    let desc_para = Paragraph::new(format!("ℹ️  {}", desc))
+        .block(desc_block)
+        .style(Style::default().fg(Color::Cyan));
+    frame.render_widget(desc_para, chunks[2]);
+
+    // 4. Footer navigation keys
+    let nav_keys = Line::from(vec![
+        Span::styled("[↑/↓]", Style::default().fg(Color::Yellow)),
+        Span::raw(" Navegar  •  "),
+        Span::styled("[Enter/Tab]", Style::default().fg(Color::Green)),
+        Span::raw(" Selecionar  •  "),
+        Span::styled("[Esc/←]", Style::default().fg(Color::Red)),
+        Span::raw(" Voltar/Fechar"),
+    ]);
+    frame.render_widget(Paragraph::new(nav_keys), chunks[3]);
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }

@@ -3,6 +3,8 @@ use crate::commands::registry::{autocomplete_commands, SlashCommand};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
+use crate::tui::menu::MenuState;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppStatus {
     Idle,
@@ -11,7 +13,7 @@ pub enum AppStatus {
     Error(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageRole {
     User,
     Assistant,
@@ -45,6 +47,10 @@ pub struct App {
     pub slash_palette_open: bool,
     pub slash_palette_idx: usize,
     pub slash_matches: Vec<&'static SlashCommand>,
+    pub palette_navigated: bool,
+
+    // Interactive Menu State
+    pub menu_state: MenuState,
 
     // Agent handles & channels
     pub agent: Option<Arc<Agent>>,
@@ -56,7 +62,7 @@ impl App {
         let initial_history = vec![ChatMessageItem {
             role: MessageRole::System,
             content: format!(
-                "AnyContext (actx) Native Rust Engine ready.\nWorkspace: [{}] | Model: [{}]\nType /help to view available commands.",
+                "AnyContext (actx) Native Rust Engine ready.\nWorkspace: [{}] | Model: [{}]\nType /menu (or press F1) for interactive menu, /help for commands.",
                 workspace, model
             ),
             thinking: None,
@@ -78,6 +84,8 @@ impl App {
             slash_palette_open: false,
             slash_palette_idx: 0,
             slash_matches: Vec::new(),
+            palette_navigated: false,
+            menu_state: MenuState::default(),
             agent: agent.map(Arc::new),
             is_generating: false,
         }
@@ -86,6 +94,7 @@ impl App {
     pub fn insert_char(&mut self, c: char) {
         self.input_buffer.insert(self.cursor_idx, c);
         self.cursor_idx += 1;
+        self.palette_navigated = false;
         self.update_slash_palette();
     }
 
@@ -93,6 +102,7 @@ impl App {
         if self.cursor_idx > 0 {
             self.cursor_idx -= 1;
             self.input_buffer.remove(self.cursor_idx);
+            self.palette_navigated = false;
             self.update_slash_palette();
         }
     }
@@ -126,11 +136,13 @@ impl App {
             self.slash_palette_open = false;
             self.slash_matches.clear();
             self.slash_palette_idx = 0;
+            self.palette_navigated = false;
         }
     }
 
     pub fn palette_up(&mut self) {
         if self.slash_palette_open && !self.slash_matches.is_empty() {
+            self.palette_navigated = true;
             if self.slash_palette_idx > 0 {
                 self.slash_palette_idx -= 1;
             } else {
@@ -143,6 +155,7 @@ impl App {
 
     pub fn palette_down(&mut self) {
         if self.slash_palette_open && !self.slash_matches.is_empty() {
+            self.palette_navigated = true;
             if self.slash_palette_idx + 1 < self.slash_matches.len() {
                 self.slash_palette_idx += 1;
             } else {
@@ -160,6 +173,72 @@ impl App {
             self.cursor_idx = self.input_buffer.len();
             self.slash_palette_open = false;
             self.slash_matches.clear();
+            self.palette_navigated = false;
+        }
+    }
+
+    pub fn open_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_main(&self.active_workspace, &self.active_model);
+    }
+
+    pub fn close_menu(&mut self) {
+        self.menu_state.is_open = false;
+    }
+
+    pub fn menu_up(&mut self) {
+        self.menu_state.previous();
+    }
+
+    pub fn menu_down(&mut self) {
+        self.menu_state.next();
+    }
+
+    pub fn menu_back(&mut self) {
+        self.menu_state.back(&self.active_workspace, &self.active_model);
+    }
+
+    pub fn menu_select(&mut self) {
+        if let Some(item) = self.menu_state.selected_item().cloned() {
+            if item.is_submenu {
+                self.menu_state.open_submenu(&item.id, &self.active_workspace, &self.active_model);
+            } else if item.id.starts_with("switch:") {
+                let target_ws = item.id.trim_start_matches("switch:");
+                crate::commands::dispatch_slash_command("switch", &[target_ws], self);
+                self.menu_state.is_open = false;
+            } else if item.id.starts_with("model:") {
+                let target_m = item.id.trim_start_matches("model:");
+                crate::commands::dispatch_slash_command("model", &[target_m], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "sync_action:incremental" {
+                crate::commands::dispatch_slash_command("sync", &[], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "sync_action:force" {
+                crate::commands::dispatch_slash_command("sync", &["--force"], self);
+                self.menu_state.is_open = false;
+            } else if item.id.starts_with("grounding_action:") {
+                let mode = item.id.trim_start_matches("grounding_action:");
+                crate::commands::dispatch_slash_command("search", &[mode], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "sources" {
+                crate::commands::dispatch_slash_command("sources", &[], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "keys" {
+                crate::commands::dispatch_slash_command("keys", &[], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "diagnostics" {
+                crate::commands::dispatch_slash_command("diagnostics", &[], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "history" {
+                crate::commands::dispatch_slash_command("history", &[], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "clear" {
+                crate::commands::dispatch_slash_command("clear", &[], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "exit" {
+                self.running = false;
+                self.menu_state.is_open = false;
+            }
         }
     }
 

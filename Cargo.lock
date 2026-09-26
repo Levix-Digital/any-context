@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "actx-agent"
-version = "0.31.0"
+version = "0.31.1"
 dependencies = [
  "actx-lm",
  "async-trait",
@@ -20,7 +20,7 @@ dependencies = [
 
 [[package]]
 name = "actx-cli"
-version = "0.31.0"
+version = "0.31.1"
 dependencies = [
  "actx-agent",
  "actx-lm",
@@ -40,7 +40,7 @@ dependencies = [
 
 [[package]]
 name = "actx-installer"
-version = "0.31.0"
+version = "0.31.1"
 dependencies = [
  "dirs 5.0.1",
  "flate2",
@@ -56,7 +56,7 @@ dependencies = [
 
 [[package]]
 name = "actx-lm"
-version = "0.31.0"
+version = "0.31.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "any-context-core-rs"
-version = "0.31.0"
+version = "0.31.1"
 dependencies = [
  "actx-agent",
  "actx-lm",

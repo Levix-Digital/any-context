@@ -131,6 +131,22 @@ impl NativeConfigDb {
                 UNIQUE(workspace, file_path)
             );
 
+            CREATE TABLE IF NOT EXISTS workspace_folders (
+                id TEXT PRIMARY KEY,
+                workspace_name TEXT NOT NULL,
+                folder_path TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(workspace_name, folder_path)
+            );
+
+            CREATE TABLE IF NOT EXISTS workspace_web_urls (
+                id TEXT PRIMARY KEY,
+                workspace_name TEXT NOT NULL,
+                url TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(workspace_name, url)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_file_metadata_ws ON file_metadata(workspace);
             CREATE INDEX IF NOT EXISTS idx_file_metadata_path ON file_metadata(file_path);",
         )?;
@@ -338,6 +354,52 @@ impl NativeConfigDb {
             list.push(r?);
         }
         Ok(list)
+    }
+
+    pub fn add_workspace_folder(&self, workspace_name: &str, folder_path: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let norm_path = normalize_path_slashes(folder_path);
+        let id = format!("wf_{}", uuid_simple());
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO workspace_folders (id, workspace_name, folder_path, created_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(workspace_name, folder_path) DO NOTHING",
+            params![&id, workspace_name, &norm_path, &now],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_workspace_folder(&self, workspace_name: &str, folder_path: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let norm_path = normalize_path_slashes(folder_path);
+        let count = conn.execute(
+            "DELETE FROM workspace_folders WHERE workspace_name = ?1 AND folder_path = ?2",
+            params![workspace_name, &norm_path],
+        )?;
+        Ok(count > 0)
+    }
+
+    pub fn add_workspace_web_url(&self, workspace_name: &str, url: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let id = format!("wu_{}", uuid_simple());
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO workspace_web_urls (id, workspace_name, url, created_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(workspace_name, url) DO NOTHING",
+            params![&id, workspace_name, url.trim(), &now],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_workspace_web_url(&self, workspace_name: &str, url: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let count = conn.execute(
+            "DELETE FROM workspace_web_urls WHERE workspace_name = ?1 AND url = ?2",
+            params![workspace_name, url.trim()],
+        )?;
+        Ok(count > 0)
     }
 
     pub fn rename_workspace(&self, old_name: &str, new_name: &str) -> Result<bool> {

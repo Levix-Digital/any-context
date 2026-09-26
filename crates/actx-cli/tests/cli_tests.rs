@@ -165,9 +165,87 @@ async fn test_app_state_and_slash_dispatch() {
     let models_msg = app.chat_history.last().expect("models item");
     assert!(models_msg.content.contains("Supported AI Providers & Models"));
 
+    // Test /menu
+    app.input_buffer = "/menu".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    assert!(app.menu_state.is_open);
+    app.close_menu();
+    assert!(!app.menu_state.is_open);
+
+    // Test /folder
+    app.input_buffer = "/folder".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let folder_msg = app.chat_history.last().expect("folder item");
+    assert!(folder_msg.content.contains("Monitored Folders"));
+
+    // Test /web
+    app.input_buffer = "/web".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let web_msg = app.chat_history.last().expect("web item");
+    assert!(web_msg.content.contains("Web Documentation Portals"));
+
+    // Test /mode deep
+    app.input_buffer = "/mode deep".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let mode_msg = app.chat_history.last().expect("mode item");
+    assert!(mode_msg.content.contains("Grounding Strategy Mode"));
+
+    // Test /web-search on
+    app.input_buffer = "/web-search on".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let ws_msg = app.chat_history.last().expect("ws item");
+    assert!(ws_msg.content.contains("Real-time Web Search"));
+
+    // Test /billing
+    app.input_buffer = "/billing".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let billing_msg = app.chat_history.last().expect("billing item");
+    assert!(billing_msg.content.contains("COMMUNITY"));
+
+    // Test /reset-memory
+    app.input_buffer = "/reset-memory".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let mem_msg = app.chat_history.last().expect("mem item");
+    assert!(mem_msg.content.contains("Long-term session memory reset"));
+
+    // Test /onboarding
+    app.input_buffer = "/onboarding".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let onb_msg = app.chat_history.last().expect("onb item");
+    assert!(onb_msg.content.contains("Welcome to AnyContext"));
+
+    // Test /vision
+    app.input_buffer = "/vision".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let vis_msg = app.chat_history.last().expect("vis item");
+    assert!(vis_msg.content.contains("Vision LLM"));
+
+    // Test /ocr
+    app.input_buffer = "/ocr".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let ocr_msg = app.chat_history.last().expect("ocr item");
+    assert!(ocr_msg.content.contains("OCR Engine Status"));
+
     // Test /clear
     app.input_buffer = "/clear".to_string();
     app.cursor_idx = app.input_buffer.len();
-    app.submit_input(tx);
+    app.submit_input(tx.clone());
     assert!(app.chat_history.is_empty());
+
+    // Test /exit
+    assert!(app.running);
+    app.input_buffer = "/exit".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx);
+    assert!(!app.running);
 }

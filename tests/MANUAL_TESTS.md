@@ -7,7 +7,7 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.31.0 100% Native Rust CLI & Full-Screen Interactive TUI Engine - actx-cli / Ratatui): Validação do Executável Nativo Único, Rótulo Amigável [AI], Descoberta de Workspaces (/switch), Sincronização Nativa (/sync) e Roteamento Headless
+### 📌 Cenário 1 (v0.31.1 100% Native Rust CLI, Dispatcher Canônico Completo & Interactive Modal Menu - actx-cli / Ratatui): Validação do Executável Nativo Único, Rótulo Amigável [AI], Descoberta de Workspaces (/switch), Sincronização Nativa (/sync) e Roteamento Headless
 
 - **Objetivo**: Comprovar que na versão `v0.31.0`:
   1. **Interface TUI Nativa Padrão (`crates/actx-cli`)**: Ao invocar `actx` sem argumentos em terminal interativo (TTY), a aplicação abre diretamente a TUI em tela cheia renderizada com Ratatui 0.29 e Crossterm 0.28, com tempo de boot < 10ms e consumo de memória < 40MB.
@@ -85,7 +85,30 @@
      - Digite `/diagnostics`: exibe o relatório de diagnóstico dentro do chat.
      - Digite `/models`: exibe o catálogo de provedores (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Ollama, Mock).
      - Pressione `Ctrl+T`: abre/fecha o Accordion de Raciocínio.
-     - Pressione `Esc` ou digite `/exit`: encerra o aplicativo suavemente restaurando o cursor do terminal.
+   - **3.7. Menu Interativo Modal (`/menu`, `F1`, `Ctrl+M`):**
+     - Digite `/menu` no chat ou pressione `F1` ou `Ctrl+M`:
+       - **Critério de Aceitação:** Um modal flutuante centralizado com bordas arredondadas e breadcrumbs `⚙️ Menu Interativo ─ [Menu Principal]` se abre sobre o chat, exibindo o status do workspace e modelo ativos.
+     - Navegue com `[↑/↓]` ou `[j/k]`:
+       - O cursor `▸ ` e o destaque visual percorrem as opções (`Workspaces`, `Sincronização`, `Fontes Monitoradas`, `Modelos de IA`, `Modos de Busca`, `Credenciais`, `Diagnóstico`, `Histórico`, `Limpar`, `Sair`), e o bloco inferior de `Detalhes` atualiza instantaneamente a descrição.
+     - Pressione `[Enter]` em `Workspaces & Pastas de Contexto`:
+       - O submenu `[Menu Principal ➔ Workspaces]` lista todos os 16 workspaces reais do banco SQLite com o badge `[Ativo]`. Selecionar um workspace diferente e teclar `[Enter]` executa a alternância imediata.
+     - Pressione `[Esc]` ou `[←]`: retorna um nível na hierarquia de menus sem fechar a aplicação.
+     - Pressione `[Esc]` no Menu Principal: fecha o modal interativo e restaura o foco para o prompt de digitação.
+   - **3.8. Validação dos Comandos Canônicos do Dispatcher Nativamente em Rust:**
+     - Digite `/folder`: lista todas as pastas monitoradas no workspace ativo.
+     - Digite `/folder --add <pasta>`: registra uma nova pasta no SQLite e prepara a sincronização.
+     - Digite `/web`: lista todos os portais e URLs de documentação cadastradas.
+     - Digite `/mode deep`: altera dinamicamente a estratégia de grounding para Deep Search Reflexivo.
+     - Digite `/web-search on`: ativa busca na web em tempo real.
+     - Digite `/billing`: exibe a matriz de assinatura Comunitária/Developer (.00, 100% Free & Open Source).
+     - Digite `/reset-memory`: limpa e reinicia o banco de memória de longo prazo da sessão.
+     - Digite `/onboarding`: abre o guia de primeiros passos do AnyContext.
+     - Digite `/vision`: inspeciona o status da ingestão multimodal via Vision LLM.
+     - Digite `/ocr`: inspeciona o motor de OCR nativo para imagens e PDFs digitalizados.
+   - **3.9. Execução Instantânea com Enter Único e Encerramento Suave:**
+     - Digite `/exit` no prompt e pressione `[Enter]` **uma única vez**:
+       - **Critério de Aceitação:** A aplicação encerra imediatamente sem requerer um segundo toque no Enter (o autocomplete do palette não intercepta mais comandos prontos para envio). O cursor e a janela original do terminal são restaurados com 100% de integridade.
+     - Alternativamente, pressione `[Esc]` com o chat focado para fechar instantaneamente.
 
 ---
 

@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "actx",
     author = "LeviGuilherme <contato@levix.digital>",
-    version = "0.31.0",
+    version = "0.31.1",
     about = "AnyContext (actx) - 100% Native Rust Agentic Context Engine & TUI",
     long_about = "AnyContext (actx) is a ultra-fast, local-first agentic context engine and RAG pipeline.\nBy default, launching 'actx' opens the full interactive terminal TUI.\nHeadless flags and direct piped inputs execute in terminal stdout mode."
 )]

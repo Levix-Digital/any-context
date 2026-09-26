@@ -1,6 +1,7 @@
 pub mod app;
 pub mod events;
 pub mod ui;
+pub mod menu;
 
 use std::io;
 use crossterm::{
