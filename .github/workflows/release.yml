@@ -91,7 +91,7 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           # 1. Build native Rust launcher and installer
-          cargo build --release -p actx-installer
+          cargo build --release -p actx-cli -p actx-installer
           mkdir -p dist
           cp target/release/actx.exe dist/actx.exe
           cp target/release/actx-installer.exe dist/actx-installer.exe
@@ -112,7 +112,7 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           # 1. Build native Rust launcher and installer
-          cargo build --release -p actx-installer
+          cargo build --release -p actx-cli -p actx-installer
           mkdir -p dist
           cp target/release/actx dist/actx
           cp target/release/actx-installer dist/actx-installer
