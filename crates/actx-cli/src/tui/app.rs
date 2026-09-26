@@ -1,5 +1,5 @@
 use actx_agent::{Agent, AgentEvent};
-use crate::commands::registry::{autocomplete_commands, find_command, SlashCommand};
+use crate::commands::registry::{autocomplete_commands, SlashCommand};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -178,100 +178,8 @@ impl App {
             let cmd_name = parts.next().unwrap_or("").trim_start_matches('/');
             let args: Vec<&str> = parts.collect();
 
-            match cmd_name {
-                "exit" | "quit" => {
-                    self.running = false;
-                    return None;
-                }
-                "clear" => {
-                    self.chat_history.clear();
-                    self.current_stream_buffer.clear();
-                    self.current_thinking_buffer.clear();
-                    self.status = AppStatus::Idle;
-                    return None;
-                }
-                "help" => {
-                    let mut help_msg = String::from("Available Slash Commands:\n");
-                    for cmd in crate::commands::registry::DEFAULT_SLASH_COMMANDS {
-                        help_msg.push_str(&format!("  /{:<12} {}\n", cmd.name, cmd.description));
-                    }
-                    self.chat_history.push(ChatMessageItem {
-                        role: MessageRole::System,
-                        content: help_msg,
-                        thinking: None,
-                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                    });
-                    return None;
-                }
-                "workspace" => {
-                    if let Some(ws) = args.first() {
-                        self.active_workspace = ws.to_string();
-                        self.chat_history.push(ChatMessageItem {
-                            role: MessageRole::System,
-                            content: format!("Switched to workspace: {}", ws),
-                            thinking: None,
-                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                        });
-                    } else {
-                        self.chat_history.push(ChatMessageItem {
-                            role: MessageRole::System,
-                            content: format!("Current workspace: {}", self.active_workspace),
-                            thinking: None,
-                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                        });
-                    }
-                    return None;
-                }
-                "model" => {
-                    if let Some(m) = args.first() {
-                        self.active_model = m.to_string();
-                        self.chat_history.push(ChatMessageItem {
-                            role: MessageRole::System,
-                            content: format!("Active model set to: {}", m),
-                            thinking: None,
-                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                        });
-                    } else {
-                        self.chat_history.push(ChatMessageItem {
-                            role: MessageRole::System,
-                            content: format!("Current active model: {}", self.active_model),
-                            thinking: None,
-                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                        });
-                    }
-                    return None;
-                }
-                "status" => {
-                    self.chat_history.push(ChatMessageItem {
-                        role: MessageRole::System,
-                        content: format!(
-                            "actx Engine Status:\n- Workspace: {}\n- Model: {}\n- State: {:?}\n- Zero Python Runtime: Verified",
-                            self.active_workspace, self.active_model, self.status
-                        ),
-                        thinking: None,
-                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                    });
-                    return None;
-                }
-                other => {
-                    if let Some(cmd) = find_command(other) {
-                        self.chat_history.push(ChatMessageItem {
-                            role: MessageRole::System,
-                            content: format!("Command /{}: {}\nUsage: {}", cmd.name, cmd.description, cmd.usage),
-                            thinking: None,
-                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                        });
-                    } else {
-                        self.chat_history.push(ChatMessageItem {
-                            role: MessageRole::System,
-                            content: format!("Unknown command: /{}. Type /help for list.", other),
-                            thinking: None,
-                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                        });
-                    }
-                    return None;
-                }
-            }
+            crate::commands::dispatch_slash_command(cmd_name, &args, self);
+            return None;
         }
 
         // Push User Message

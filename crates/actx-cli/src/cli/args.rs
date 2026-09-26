@@ -44,17 +44,20 @@ pub enum CliCommand {
     /// Runs the Stdio JSON-RPC 2.0 bridge server for IDE extensions
     Rpc,
     /// Triggers incremental synchronization for workspace folders and sources
+    #[command(alias = "reindex")]
     Sync {
         #[arg(short, long)]
         force: bool,
     },
     /// Checks or performs self-updates for the standalone binary
+    #[command(alias = "self-update", alias = "upgrade")]
     Update {
         /// Only check for updates without applying
         #[arg(long)]
         check: bool,
     },
     /// Emits system diagnostic report and telemetry
+    #[command(alias = "diag", alias = "perf", alias = "health", alias = "diagnistics")]
     Diagnostics,
 }
 

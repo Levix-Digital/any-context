@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, Copy)]
 pub struct SlashCommand {
     pub name: &'static str,
+    pub aliases: &'static [&'static str],
     pub description: &'static str,
     pub usage: &'static str,
     pub category: &'static str,
@@ -8,136 +9,204 @@ pub struct SlashCommand {
 
 pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     SlashCommand {
-        name: "help",
-        description: "Displays comprehensive command help and usage guide",
-        usage: "/help [command]",
-        category: "General",
-    },
-    SlashCommand {
-        name: "workspace",
-        description: "Switches or lists context workspaces",
-        usage: "/workspace [name]",
-        category: "Context",
+        name: "switch",
+        aliases: &["workspace", "workspaces"],
+        description: "Lists all workspaces or switches active context workspace",
+        usage: "/switch [name]",
+        category: "Workspace",
     },
     SlashCommand {
         name: "sync",
+        aliases: &["reindex"],
         description: "Performs incremental SHA-256 sync of documents and folders",
         usage: "/sync [--force]",
-        category: "Context",
+        category: "Sources",
     },
     SlashCommand {
         name: "model",
+        aliases: &["m"],
         description: "Inspects or selects the active LLM/SLM provider model",
         usage: "/model [name]",
         category: "Engine",
     },
     SlashCommand {
-        name: "clear",
-        description: "Clears the active chat viewport buffer",
-        usage: "/clear",
-        category: "General",
+        name: "models",
+        aliases: &[],
+        description: "Displays catalog of supported AI models and providers",
+        usage: "/models",
+        category: "Engine",
     },
     SlashCommand {
-        name: "history",
-        description: "Displays conversation turns from active session history",
-        usage: "/history",
-        category: "Session",
+        name: "sources",
+        aliases: &["list-sources"],
+        description: "Lists indexed local folders and web documentation sources",
+        usage: "/sources",
+        category: "Sources",
     },
     SlashCommand {
-        name: "info",
-        description: "Displays workspace statistics, chunk count, and model tier",
-        usage: "/info",
-        category: "Context",
+        name: "diagnostics",
+        aliases: &["diag", "perf", "health"],
+        description: "Inspects system health, memory, database, and latency metrics",
+        usage: "/diagnostics",
+        category: "System",
     },
     SlashCommand {
         name: "status",
+        aliases: &[],
         description: "Displays system health, LanceDB vector index and engine status",
         usage: "/status",
-        category: "General",
+        category: "System",
     },
     SlashCommand {
-        name: "exit",
-        description: "Gracefully terminates the AnyContext terminal session",
-        usage: "/exit",
-        category: "General",
-    },
-    SlashCommand {
-        name: "quit",
-        description: "Alias for /exit",
-        usage: "/quit",
-        category: "General",
+        name: "info",
+        aliases: &[],
+        description: "Displays workspace statistics, chunk count, and model tier",
+        usage: "/info",
+        category: "Workspace",
     },
     SlashCommand {
         name: "keys",
-        description: "Configures or audits API credentials in the local secure vault",
-        usage: "/keys [provider] [key]",
+        aliases: &["key", "api-key", "api-keys"],
+        description: "Audits AI provider API credentials in environment and vault",
+        usage: "/keys",
         category: "Config",
     },
     SlashCommand {
         name: "config",
+        aliases: &["settings"],
         description: "Opens or views persistent SQLite configuration settings",
         usage: "/config [key] [val]",
         category: "Config",
     },
     SlashCommand {
-        name: "diagnostics",
-        description: "Generates an end-to-end diagnostic report",
-        usage: "/diagnostics",
-        category: "Observability",
+        name: "history",
+        aliases: &[],
+        description: "Displays conversation turns from active session history",
+        usage: "/history",
+        category: "Session",
+    },
+    SlashCommand {
+        name: "clear",
+        aliases: &["cls"],
+        description: "Clears the active chat viewport buffer",
+        usage: "/clear",
+        category: "General",
+    },
+    SlashCommand {
+        name: "version",
+        aliases: &["v"],
+        description: "Displays AnyContext version, build, and runtime details",
+        usage: "/version",
+        category: "System",
     },
     SlashCommand {
         name: "logs",
+        aliases: &["log"],
         description: "Views recent observability logs from local storage",
         usage: "/logs [--limit N]",
         category: "Observability",
     },
     SlashCommand {
         name: "update",
+        aliases: &["self-update", "upgrade"],
         description: "Checks for updates or executes atomic self-update",
         usage: "/update [--check]",
         category: "System",
     },
     SlashCommand {
         name: "fast",
+        aliases: &[],
         description: "Executes next query using Fast RAG mode (single-turn)",
         usage: "/fast <query>",
         category: "RAG",
     },
     SlashCommand {
         name: "deep",
+        aliases: &[],
         description: "Executes next query using Deep Search Reflexive mode",
         usage: "/deep <query>",
         category: "RAG",
     },
     SlashCommand {
         name: "search",
+        aliases: &[],
         description: "Configures workspace search policy: auto, fast, or deep",
         usage: "/search <auto|fast|deep>",
         category: "RAG",
     },
     SlashCommand {
         name: "inspect",
+        aliases: &["chunks", "lance"],
         description: "Inspects indexed chunks and document taxonomy breakdown",
         usage: "/inspect [source]",
-        category: "Context",
+        category: "Sources",
     },
     SlashCommand {
         name: "purge",
+        aliases: &[],
         description: "Purges indexed documents or vectors from active workspace",
         usage: "/purge [--all]",
-        category: "Context",
+        category: "Sources",
+    },
+    SlashCommand {
+        name: "exit",
+        aliases: &["quit", "q"],
+        description: "Gracefully terminates the AnyContext terminal session",
+        usage: "/exit",
+        category: "General",
+    },
+    SlashCommand {
+        name: "help",
+        aliases: &["menu", "commands", "slash"],
+        description: "Displays comprehensive command help and usage guide",
+        usage: "/help [command]",
+        category: "General",
     },
 ];
 
 pub fn find_command(query: &str) -> Option<&'static SlashCommand> {
     let clean = query.trim_start_matches('/').trim().to_lowercase();
-    DEFAULT_SLASH_COMMANDS.iter().find(|cmd| cmd.name == clean)
+    DEFAULT_SLASH_COMMANDS
+        .iter()
+        .find(|cmd| cmd.name == clean || cmd.aliases.contains(&clean.as_str()))
 }
 
 pub fn autocomplete_commands(prefix: &str) -> Vec<&'static SlashCommand> {
     let clean = prefix.trim_start_matches('/').trim().to_lowercase();
     DEFAULT_SLASH_COMMANDS
         .iter()
-        .filter(|cmd| cmd.name.starts_with(&clean))
+        .filter(|cmd| {
+            cmd.name.starts_with(&clean) || cmd.aliases.iter().any(|a| a.starts_with(&clean))
+        })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_find_command_direct_and_aliases() {
+        assert_eq!(find_command("switch").unwrap().name, "switch");
+        assert_eq!(find_command("/switch").unwrap().name, "switch");
+        assert_eq!(find_command("workspace").unwrap().name, "switch");
+        assert_eq!(find_command("/workspaces").unwrap().name, "switch");
+
+        assert_eq!(find_command("sync").unwrap().name, "sync");
+        assert_eq!(find_command("reindex").unwrap().name, "sync");
+
+        assert_eq!(find_command("diagnostics").unwrap().name, "diagnostics");
+        assert_eq!(find_command("diag").unwrap().name, "diagnostics");
+        assert_eq!(find_command("perf").unwrap().name, "diagnostics");
+        assert_eq!(find_command("health").unwrap().name, "diagnostics");
+
+        assert_eq!(find_command("quit").unwrap().name, "exit");
+        assert_eq!(find_command("q").unwrap().name, "exit");
+    }
+
+    #[test]
+    fn test_autocomplete_aliases() {
+        let matches = autocomplete_commands("work");
+        assert!(matches.iter().any(|c| c.name == "switch"));
+    }
 }

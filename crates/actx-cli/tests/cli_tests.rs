@@ -110,11 +110,60 @@ async fn test_app_state_and_slash_dispatch() {
     app.submit_input(tx.clone());
     assert_eq!(app.active_workspace, "DevLab");
 
+    // Test /switch without args (lists workspaces)
+    app.input_buffer = "/switch".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let last_msg = app.chat_history.last().expect("history item");
+    assert!(last_msg.content.contains("Available Workspaces"));
+
+    // Test /sync execution
+    app.input_buffer = "/sync".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let sync_msg = app.chat_history.last().expect("sync item");
+    assert!(sync_msg.content.contains("sync completed for workspace"));
+
+    // Test /sync --force execution
+    app.input_buffer = "/sync --force".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let force_sync_msg = app.chat_history.last().expect("force sync item");
+    assert!(force_sync_msg.content.contains("Forced sync completed"));
+
+    // Test /sources
+    app.input_buffer = "/sources".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let sources_msg = app.chat_history.last().expect("sources item");
+    assert!(sources_msg.content.contains("Workspace Sources"));
+
+    // Test /diagnostics
+    app.input_buffer = "/diagnostics".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let diag_msg = app.chat_history.last().expect("diag item");
+    assert!(diag_msg.content.contains("AnyContext Diagnostics Report"));
+
+    // Test /keys
+    app.input_buffer = "/keys".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let keys_msg = app.chat_history.last().expect("keys item");
+    assert!(keys_msg.content.contains("Provider Credentials Audit"));
+
     // Test /model claude-3-5
     app.input_buffer = "/model claude-3-5-sonnet".to_string();
     app.cursor_idx = app.input_buffer.len();
     app.submit_input(tx.clone());
     assert_eq!(app.active_model, "claude-3-5-sonnet");
+
+    // Test /models (catalog)
+    app.input_buffer = "/models".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let models_msg = app.chat_history.last().expect("models item");
+    assert!(models_msg.content.contains("Supported AI Providers & Models"));
 
     // Test /clear
     app.input_buffer = "/clear".to_string();

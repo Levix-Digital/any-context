@@ -7,50 +7,85 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.31.0 100% Native Rust CLI & Full-Screen Interactive TUI Engine - actx-cli / Ratatui): Validação do Executável Nativo Único, Roteamento TUI vs Headless, Accordion de Raciocínio, Slash Commands Flutuantes e Streaming Puro em Rust
+### 📌 Cenário 1 (v0.31.0 100% Native Rust CLI & Full-Screen Interactive TUI Engine - actx-cli / Ratatui): Validação do Executável Nativo Único, Rótulo Amigável [AI], Descoberta de Workspaces (/switch), Sincronização Nativa (/sync) e Roteamento Headless
 
 - **Objetivo**: Comprovar que na versão `v0.31.0`:
   1. **Interface TUI Nativa Padrão (`crates/actx-cli`)**: Ao invocar `actx` sem argumentos em terminal interativo (TTY), a aplicação abre diretamente a TUI em tela cheia renderizada com Ratatui 0.29 e Crossterm 0.28, com tempo de boot < 10ms e consumo de memória < 40MB.
-  2. **Roteamento TTY vs Headless Automático**: Consultas com prompt direto (`actx "query"`), flags (`-p`, `--model`) ou stdin redirecionado via pipe (`cat file.txt | actx`) executam imediatamente no terminal stdout com streaming de tokens em tempo real sem abrir tela cheia.
-  3. **Accordion Colapsável de Raciocínio e Ferramentas (`Ctrl+T`)**: Tokens de raciocínio estendido (`<think>`) e logs de ferramentas ReAct são encapsulados em um painel retrátil, preservando a limpeza da área de conversação.
-  4. **Paleta Flutuante de Slash Commands**: Digitar `/` na barra de prompt abre uma janela modal flutuante com autocomplete em tempo real e navegação por teclado para todos os comandos operacionais.
-  5. **Eliminação Total de Dependências de Runtime Externo**: O binário nativo opera de forma 100% autônoma, sem necessidade de instalação de Python, Node.js ou Bun no ambiente do usuário.
+  2. **Rótulo Amigável de Mensagens (`[AI]` em vez de `[SYS]`)**: Tanto as respostas do assistente quanto as mensagens operacionais do sistema são identificadas com a tag `[AI]` em verde e negrito, eliminando rótulos técnicos e proporcionando uma experiência de usuário amigável.
+  3. **Comando Universal de Workspaces (`/switch`, `/workspace`, `/workspaces`)**:
+     - Invocado sem argumentos (`/switch` ou `/workspaces`), consulta a base de dados SQLite (`%LOCALAPPDATA%\AnyContext\config\settings.db`) e lista todos os workspaces reais existentes com indicação visual do workspace ativo (`* Default (active)`).
+     - Invocado com argumento (`/switch <nome>`), altera imediatamente o workspace ativo na barra de status e reconstrói o agente no novo escopo.
+  4. **Execução Real de Sincronização Incremental e Forçada (`/sync` e `/sync --force`)**:
+     - Em vez de exibir apenas texto de ajuda, executa o scanner recursivo de arquivos suportados no diretório/workspace, calcula metadados/hashes e emite relatório com total de arquivos escaneados, novos/modificados, inalterados e confirmação de sincronismo.
+  5. **Comandos Operacionais Nativos Integrados**:
+     - `/sources`: Lista diretórios monitorados e URLs de documentação cadastradas.
+     - `/diagnostics`: Emite relatório completo de saúde do sistema, engine em Rust e ausência de runtimes externos.
+     - `/models` e `/model`: Exibe catálogo completo de modelos e permite alternância dinâmica.
+     - `/keys`: Audita presença de credenciais de provedores com segurança.
+  6. **Roteamento TTY vs Headless Automático e Resiliência a Typos**: `actx diagnostics` (e alias defensivo `actx diagnistics`) executa instantaneamente no terminal stdout sem abrir modo tela cheia.
+  7. **Atalhos de Teclado**: `Ctrl+T` alterna o Accordion de Raciocínio e `Esc` fecha o aplicativo graciosamente restaurando o terminal original.
 - **Pré-requisito**: Binário `actx` compilado ou instalado.
 
 #### 📋 Passo a Passo de Execução:
 
-1. **📄 Verificação de Versão e Diagnóstico Nativo no Terminal:**
+1. **📄 Verificação de Diagnóstico Nativo no Terminal (`actx diagnostics`):**
    - Execute no terminal:
      ```text
-     actx --version
      actx diagnostics
      ```
-   - **Critério de Aceitação:** Retorna `actx 0.31.0` instantaneamente (<15ms) e o diagnóstico confirma status operacional com zero dependências de runtime.
+   - Teste também com o erro de digitação comum:
+     ```text
+     actx diagnistics
+     ```
+   - **Critério de Aceitação:** Ambos os comandos retornam o relatório formatado do motor nativo em Rust instantaneamente (<15ms), exibindo versão `v0.31.0`, zero dependências de runtime Python/Bun e conexão íntegra com a base `settings.db`.
 
-2. **🦀 Validação da Suíte de Testes Rust de `actx-cli`:**
+2. **🦀 Validação da Suíte de Testes Rust de `actx-cli` e `any-context-core-rs`:**
    - Execute no terminal:
      ```text
+     cargo test -p any-context-core-rs --lib storage::sqlite
      cargo test -p actx-cli
      ```
-   - **Critério de Aceitação:** Todos os testes unitários (detecção de modo headless, resolução de query, autocomplete de comandos e máquina de estado da TUI) passam com 100% de sucesso.
+   - **Critério de Aceitação:** Todos os testes unitários e de integração passam com 100% de sucesso (schema legado de SQLite, resolução de comandos e aliases, máquina de estados da TUI).
 
-3. **⚡ Validação do Modo Headless / One-Shot com Piped Stdin:**
-   - Execute no terminal:
-     ```text
-     echo "teste de contexto" | actx "analise o texto recebido"
-     ```
-   - **Critério de Aceitação:** A query executa em modo terminal puro (stdout), consumindo o stdin e transmitindo a resposta token-a-token sem invocar o modo tela cheia.
-
-4. **🖥️ Validação da Interface Interativa TUI em Ratatui:**
-   - Execute no terminal:
+3. **🖥️ Validação da TUI com Rótulo Amigável `[AI]`, `/switch` e `/sync`:**
+   - Abra a TUI interativa:
      ```text
      actx
      ```
-   - **Critério de Aceitação:**
-     - A interface TUI abre em tela cheia com bordas arredondadas e cabeçalho com badges de status (`● IDLE`).
-     - Digitar `/` abre a janela flutuante de autocomplete com os comandos `/help`, `/workspace`, `/sync`, etc.
-     - Pressionar `Ctrl+T` alterna a visibilidade do Accordion de Raciocínio.
-     - Pressionar `Esc` ou digitar `/exit` fecha o aplicativo graciosamente restaurando o cursor e o terminal original.
+   - **3.1. Rótulo Amigável:** Verifique a primeira mensagem de boas-vindas do sistema.
+     - **Critério de Aceitação:** A mensagem é exibida com o prefixo `[AI]` em verde e negrito (o prefixo `[SYS]` não é mais utilizado).
+   - **3.2. Listagem de Workspaces:** Digite no chat:
+     ```text
+     /workspaces
+     ```
+     ou
+     ```text
+     /switch
+     ```
+     - **Critério de Aceitação:** O sistema lista todos os workspaces disponíveis existentes no banco SQLite (ex: `Default`, `RustBook`, `JEVModel`, etc.), marcando o ativo com `* Default (active)`.
+   - **3.3. Alternância de Workspace:** Digite no chat:
+     ```text
+     /switch RustBook
+     ```
+     - **Critério de Aceitação:** O workspace ativo no topo da tela muda para `RustBook` e uma mensagem confirma: `Switched active workspace to: RustBook`.
+   - **3.4. Sincronização Real:** Digite no chat:
+     ```text
+     /sync
+     ```
+     - **Critério de Aceitação:** Em vez de texto de ajuda, o sistema executa a varredura e emite:
+       `Incremental sync completed for workspace 'RustBook': • Monitored roots: ... • Total files scanned: X • Newly indexed / modified: Y • Unchanged (cached): Z • Status: 100% Synchronized ($0.00)`.
+   - **3.5. Sincronização Forçada:** Digite no chat:
+     ```text
+     /sync --force
+     ```
+     - **Critério de Aceitação:** O sistema reprocessa e atualiza todos os metadados com:
+       `Forced sync completed for workspace 'RustBook': ... All files re-indexed and hash cache refreshed.`
+   - **3.6. Consulta de Fontes e Diagnóstico:**
+     - Digite `/sources`: exibe diretório de trabalho e URLs.
+     - Digite `/diagnostics`: exibe o relatório de diagnóstico dentro do chat.
+     - Digite `/models`: exibe o catálogo de provedores (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Ollama, Mock).
+     - Pressione `Ctrl+T`: abre/fecha o Accordion de Raciocínio.
+     - Pressione `Esc` ou digite `/exit`: encerra o aplicativo suavemente restaurando o cursor do terminal.
 
 ---
 

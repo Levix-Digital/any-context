@@ -91,8 +91,8 @@ fn render_chat(frame: &mut Frame, area: Rect, app: &App) {
     for msg in &app.chat_history {
         let (role_label, role_style) = match msg.role {
             MessageRole::User => ("YOU", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-            MessageRole::Assistant => ("ACTX", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            MessageRole::System => ("SYS", Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC)),
+            MessageRole::Assistant => ("AI", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            MessageRole::System => ("AI", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
         };
 
         lines.push(Line::from(vec![
@@ -109,7 +109,7 @@ fn render_chat(frame: &mut Frame, area: Rect, app: &App) {
     // If currently streaming assistant response
     if !app.current_stream_buffer.is_empty() {
         lines.push(Line::from(vec![
-            Span::styled("[ACTX] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled("[AI] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
             Span::styled("(streaming...) ", Style::default().fg(Color::DarkGray)),
         ]));
         for line in app.current_stream_buffer.lines() {

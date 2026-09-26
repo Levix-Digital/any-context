@@ -68,6 +68,29 @@ impl NativeConfigDb {
         Ok(db)
     }
 
+    /// Opens the default system configuration database.
+    pub fn open_default() -> Result<Self> {
+        let p = get_default_settings_db_path();
+        Self::open(p)
+    }
+
+    /// Checks if a specific column exists in a SQLite table.
+    fn check_column(conn: &Connection, table: &str, col: &str) -> bool {
+        let mut stmt = match conn.prepare(&format!("PRAGMA table_info({})", table)) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        let cols = stmt.query_map([], |row| row.get::<_, String>(1)).ok();
+        if let Some(iter) = cols {
+            for c in iter.flatten() {
+                if c.eq_ignore_ascii_case(col) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     fn apply_pragmas(conn: &Connection) -> Result<()> {
         conn.execute_batch(
             "PRAGMA journal_mode = WAL;
@@ -116,18 +139,37 @@ impl NativeConfigDb {
 
     pub fn ensure_default_workspace(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        let exists: bool = conn
+            .query_row(
+                "SELECT count(*) > 0 FROM workspaces WHERE name = 'Default'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if exists {
+            return Ok(());
+        }
+
+        let has_desc = Self::check_column(&conn, "workspaces", "description");
         let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "INSERT OR IGNORE INTO workspaces (id, name, description, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![
-                "ws_default",
-                "Default",
-                "Default general-purpose workspace",
-                &now,
-                &now
-            ],
-        )?;
+        if has_desc {
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO workspaces (id, name, description, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    "ws_default",
+                    "Default",
+                    "Default general-purpose workspace",
+                    &now,
+                    &now
+                ],
+            );
+        } else {
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json) VALUES (?1, ?2, ?3)",
+                params!["ws_default", "Default", "[]"],
+            );
+        }
         Ok(())
     }
 
@@ -137,48 +179,160 @@ impl NativeConfigDb {
         let conn = self.conn.lock().unwrap();
         let id = format!("ws_{}", uuid_simple());
         let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "INSERT INTO workspaces (id, name, description, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![&id, name, description, &now, &now],
-        )?;
+        let has_desc = Self::check_column(&conn, "workspaces", "description");
+        if has_desc {
+            conn.execute(
+                "INSERT INTO workspaces (id, name, description, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![&id, name, description, &now, &now],
+            )?;
+        } else {
+            conn.execute(
+                "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?1, ?2, ?3)",
+                params![&id, name, "[]"],
+            )?;
+        }
         Ok(id)
     }
 
     pub fn get_workspace(&self, name: &str) -> Result<Option<WorkspaceRecord>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, name, description, created_at, updated_at FROM workspaces WHERE name = ?1",
-        )?;
-        let mut rows = stmt.query(params![name])?;
-        if let Some(row) = rows.next()? {
-            Ok(Some(WorkspaceRecord {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                created_at: row.get(3)?,
-                updated_at: row.get(4)?,
-            }))
+        let has_desc = Self::check_column(&conn, "workspaces", "description");
+        if has_desc {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, description, created_at, updated_at FROM workspaces WHERE name = ?1",
+            )?;
+            let mut rows = stmt.query(params![name])?;
+            if let Some(row) = rows.next()? {
+                Ok(Some(WorkspaceRecord {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    created_at: row.get(3)?,
+                    updated_at: row.get(4)?,
+                }))
+            } else {
+                Ok(None)
+            }
         } else {
-            Ok(None)
+            let mut stmt = conn.prepare("SELECT id, name FROM workspaces WHERE name = ?1")?;
+            let mut rows = stmt.query(params![name])?;
+            if let Some(row) = rows.next()? {
+                let id: String = match row.get::<_, String>(0) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        let i: i64 = row.get(0)?;
+                        i.to_string()
+                    }
+                };
+                let name: String = row.get(1)?;
+                Ok(Some(WorkspaceRecord {
+                    id,
+                    name,
+                    description: None,
+                    created_at: String::new(),
+                    updated_at: String::new(),
+                }))
+            } else {
+                Ok(None)
+            }
         }
+    }
+
+    pub fn list_workspace_names(&self) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT name FROM workspaces ORDER BY name ASC")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
     }
 
     pub fn list_workspaces(&self) -> Result<Vec<WorkspaceRecord>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, name, description, created_at, updated_at FROM workspaces ORDER BY name ASC",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(WorkspaceRecord {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                created_at: row.get(3)?,
-                updated_at: row.get(4)?,
-            })
-        })?;
+        let has_desc = Self::check_column(&conn, "workspaces", "description");
+        if has_desc {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, description, created_at, updated_at FROM workspaces ORDER BY name ASC",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(WorkspaceRecord {
+                    id: row.get::<_, String>(0)?,
+                    name: row.get::<_, String>(1)?,
+                    description: row.get::<_, Option<String>>(2)?,
+                    created_at: row.get::<_, String>(3)?,
+                    updated_at: row.get::<_, String>(4)?,
+                })
+            })?;
+            let mut list = Vec::new();
+            for r in rows {
+                list.push(r?);
+            }
+            Ok(list)
+        } else {
+            let mut stmt = conn.prepare("SELECT id, name FROM workspaces ORDER BY name ASC")?;
+            let rows = stmt.query_map([], |row| {
+                let id: String = match row.get::<_, String>(0) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        let i: i64 = row.get(0)?;
+                        i.to_string()
+                    }
+                };
+                let name: String = row.get(1)?;
+                Ok(WorkspaceRecord {
+                    id,
+                    name,
+                    description: None,
+                    created_at: String::new(),
+                    updated_at: String::new(),
+                })
+            })?;
+            let mut list = Vec::new();
+            for r in rows {
+                list.push(r?);
+            }
+            Ok(list)
+        }
+    }
 
+    pub fn get_workspace_folders(&self, workspace_name: &str) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let tbl_exists: bool = conn
+            .query_row(
+                "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='workspace_folders'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if !tbl_exists {
+            return Ok(Vec::new());
+        }
+        let mut stmt = conn.prepare("SELECT folder_path FROM workspace_folders WHERE workspace_name = ?1")?;
+        let rows = stmt.query_map(params![workspace_name], |row| row.get::<_, String>(0))?;
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    pub fn get_workspace_web_urls(&self, workspace_name: &str) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let tbl_exists: bool = conn
+            .query_row(
+                "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='workspace_web_urls'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if !tbl_exists {
+            return Ok(Vec::new());
+        }
+        let mut stmt = conn.prepare("SELECT url FROM workspace_web_urls WHERE workspace_name = ?1")?;
+        let rows = stmt.query_map(params![workspace_name], |row| row.get::<_, String>(0))?;
         let mut list = Vec::new();
         for r in rows {
             list.push(r?);
@@ -319,6 +473,57 @@ impl NativeConfigDb {
     }
 }
 
+pub fn get_default_settings_db_path() -> PathBuf {
+    if let Ok(p) = std::env::var("ACTX_SETTINGS_DB") {
+        if !p.trim().is_empty() {
+            return PathBuf::from(p);
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            let p = PathBuf::from(&local).join("AnyContext").join("config").join("settings.db");
+            if p.exists() {
+                return p;
+            }
+        }
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let p = PathBuf::from(&appdata).join("AnyContext").join("config").join("settings.db");
+            if p.exists() {
+                return p;
+            }
+        }
+    }
+    if let Some(data_dir) = dirs::data_local_dir() {
+        let p = data_dir.join("AnyContext").join("config").join("settings.db");
+        if p.exists() {
+            return p;
+        }
+    }
+    if let Some(home) = dirs::home_dir() {
+        let p = home.join(".anycontext").join("config").join("settings.db");
+        if p.exists() {
+            return p;
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let base = std::env::var("LOCALAPPDATA")
+            .unwrap_or_else(|_| "C:\\Users\\Default\\AppData\\Local".to_string());
+        PathBuf::from(base).join("AnyContext").join("config").join("settings.db")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".local")
+            .join("share")
+            .join("any-context")
+            .join("config")
+            .join("settings.db")
+    }
+}
+
 fn normalize_path_slashes(p: &str) -> String {
     p.replace('\\', "/")
 }
@@ -406,5 +611,48 @@ mod tests {
         assert!(deleted);
         let map_after = db.get_workspace_file_hashes("Default").expect("get map after");
         assert!(map_after.is_empty());
+    }
+
+    #[test]
+    fn test_legacy_workspaces_schema_compatibility() {
+        let conn = Connection::open_in_memory().expect("open");
+        // Create table with legacy schema (from Python era)
+        conn.execute_batch(
+            "CREATE TABLE workspaces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workspace_id TEXT,
+                name TEXT UNIQUE NOT NULL,
+                paths_json TEXT NOT NULL DEFAULT '[]',
+                grounding_mode TEXT DEFAULT 'strict',
+                web_search_enabled INTEGER DEFAULT 0,
+                default_web_engine TEXT DEFAULT 'auto',
+                model TEXT DEFAULT 'gpt-4o-mini',
+                created_by TEXT DEFAULT 'user'
+            );
+            INSERT INTO workspaces (workspace_id, name) VALUES ('ws_1', 'Default');
+            INSERT INTO workspaces (workspace_id, name) VALUES ('ws_2', 'RustBook');
+            INSERT INTO workspaces (workspace_id, name) VALUES ('ws_3', 'JEVModel');",
+        )
+        .expect("create legacy table");
+
+        let db = NativeConfigDb {
+            db_path: PathBuf::from(":memory:"),
+            conn: Mutex::new(conn),
+        };
+        db.ensure_default_workspace().expect("ensure default");
+
+        let names = db.list_workspace_names().expect("list names");
+        assert_eq!(
+            names,
+            vec![
+                "Default".to_string(),
+                "JEVModel".to_string(),
+                "RustBook".to_string()
+            ]
+        );
+
+        let records = db.list_workspaces().expect("list records");
+        assert_eq!(records.len(), 3);
+        assert_eq!(records[0].name, "Default");
     }
 }

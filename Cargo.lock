@@ -202,6 +202,7 @@ dependencies = [
  "calamine",
  "chrono",
  "csv",
+ "dirs 6.0.0",
  "futures",
  "image",
  "lancedb",

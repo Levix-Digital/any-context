@@ -10,7 +10,7 @@ pub use models::ChunkPayload;
 pub use ingestion::IngestionRouter;
 pub use ingestion::WorkspaceScanner;
 pub use retrieval::{HybridRetrieverEngine, QueryPreprocessor, ProcessedQuery};
-pub use storage::{NativeConfigDb, NativeLanceStore};
+pub use storage::{NativeConfigDb, NativeLanceStore, get_default_settings_db_path};
 pub use agent::{PyAgentEngine, PyAgentResponse, PyAgentEvent};
 
 #[pyfunction]
