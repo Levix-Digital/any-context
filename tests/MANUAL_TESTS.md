@@ -7,8 +7,8 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 3 (v0.32.0 Migração Definitiva para Tabela Normalizada workspace_folders & Exclusão de paths_json):
-- **Objetivo**: Comprovar que na versão `v0.32.0`:
+### 📌 Cenário 3 (v0.32.1 Migração Definitiva para Tabela Normalizada workspace_folders & Exclusão de paths_json):
+- **Objetivo**: Comprovar que na versão `v0.32.1`:
   1. **Tabela Normalizada `workspace_folders` como Única Fonte da Verdade**:
      - 100% dos diretórios legados foram migrados com sucesso para a tabela relacional `workspace_folders`.
      - A coluna legada `paths_json` foi fisicamente excluída da tabela `workspaces` via `ALTER TABLE workspaces DROP COLUMN paths_json`.
@@ -17,9 +17,9 @@
      - Ao executar `/sources --all`, todos os workspaces (ex: `AnyContextProject`, `ConduitProject`, `ParserAST`, `TaxReturn`, etc.) listam suas respectivas pastas monitoradas diretamente da tabela `workspace_folders`.
      - Ao adicionar um novo diretório via `/folder add <caminho>` ou `/folder --add <caminho>`, o registro é inserido exclusivamente em `workspace_folders`.
      - Ao remover um diretório via `/folder remove <caminho>` ou `/folder rm <caminho>`, o registro é deletado de `workspace_folders`.
-  3. **Validação da Versão v0.32.0**:
-     - `actx -v` retorna `actx 0.32.0`.
-     - `actx --check-update` verifica updates contra a v0.32.0.
+  3. **Validação da Versão v0.32.1**:
+     - `actx -v` retorna `actx 0.32.1`.
+     - `actx --check-update` verifica updates contra a v0.32.1.
      - `actx -d` / `actx diagnostics` reporta 100% de saúde e integridade da engine Rust.
 
 #### 📋 Passo a Passo de Execução:
@@ -31,7 +31,7 @@
      actx --check-update
      actx -d
      ```
-   - **Critério de Aceitação**: Deve exibir `actx 0.32.0`, confirmar a versão mais recente e reportar `Status: Healthy & Operational`.
+   - **Critério de Aceitação**: Deve exibir `actx 0.32.1`, confirmar a versão mais recente e reportar `Status: Healthy & Operational`.
 
 2. **📄 Validação da Exclusão Física de `paths_json` no SQLite:**
    - Execute no terminal ou script de inspeção:

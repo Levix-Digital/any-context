@@ -1,6 +1,6 @@
 [package]
 name = "actx-lm"
-version = "0.32.0"
+version = "0.32.1"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Universal, lightweight, and modular Language Model (LLM & SLM) façade and streaming provider engine for Rust"
