@@ -18,3 +18,11 @@ sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = ["Win32_Storage_FileSystem"] }
+
+[[bin]]
+name = "actx-installer"
+path = "src/bin/actx-installer.rs"
+
+[[bin]]
+name = "actx-shim"
+path = "src/bin/actx-shim.rs"

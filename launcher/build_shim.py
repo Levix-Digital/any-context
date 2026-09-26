@@ -42,12 +42,12 @@ def build_rust_shim(out_path: str) -> bool:
     cargo = shutil.which("cargo")
     if not cargo:
         return False
-    cmd = [cargo, "build", "--release", "-p", "actx-installer"]
+    cmd = [cargo, "build", "--release", "-p", "actx-installer", "--bin", "actx-shim"]
     print(f"[*] Compiling native Rust Launcher Shim: {' '.join(cmd)}")
     res = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if res.returncode == 0:
         is_windows = sys.platform.startswith("win")
-        built_name = "actx.exe" if is_windows else "actx"
+        built_name = "actx-shim.exe" if is_windows else "actx-shim"
         src_bin = os.path.join(REPO_ROOT, "target", "release", built_name)
         if os.path.exists(src_bin):
             os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
