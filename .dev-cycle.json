@@ -1,0 +1,20 @@
+{
+  "project_name": "any-context",
+  "core_path": "crates/any-context-core-rs",
+  "doc_files": {
+    "user_doc": "README.md",
+    "tec_doc": "TECDOC.md",
+    "manual_tests": "tests/MANUAL_TESTS.md"
+  },
+  "test_commands": [
+    "cargo test --workspace"
+  ],
+  "surfaces": [
+    "cli",
+    "tui",
+    "mcp",
+    "python-binding"
+  ],
+  "canonical_datastore": "%LOCALAPPDATA%/actx/data/catalog.db",
+  "releases_repo": "Levix-Digital/any-context-releases"
+}

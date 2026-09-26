@@ -39,6 +39,8 @@ pub struct App {
     pub current_stream_buffer: String,
     pub current_thinking_buffer: String,
     pub scroll_offset: u16,
+    pub auto_scroll: bool,
+    pub max_scroll: u16,
 
     // Input & Slash Command Palette
     pub input_buffer: String,
@@ -78,6 +80,8 @@ impl App {
             current_stream_buffer: String::new(),
             current_thinking_buffer: String::new(),
             scroll_offset: 0,
+            auto_scroll: true,
+            max_scroll: 0,
             input_buffer: String::new(),
             cursor_idx: 0,
             accordion_open: true,
@@ -92,15 +96,36 @@ impl App {
     }
 
     pub fn insert_char(&mut self, c: char) {
+        if self.cursor_idx > self.input_buffer.len() {
+            self.cursor_idx = self.input_buffer.len();
+        } else if !self.input_buffer.is_char_boundary(self.cursor_idx) {
+            while self.cursor_idx > 0 && !self.input_buffer.is_char_boundary(self.cursor_idx) {
+                self.cursor_idx -= 1;
+            }
+        }
         self.input_buffer.insert(self.cursor_idx, c);
-        self.cursor_idx += 1;
+        self.cursor_idx += c.len_utf8();
         self.palette_navigated = false;
         self.update_slash_palette();
     }
 
     pub fn delete_backspace(&mut self) {
         if self.cursor_idx > 0 {
-            self.cursor_idx -= 1;
+            let prev_idx = self.input_buffer[..self.cursor_idx]
+                .char_indices()
+                .last()
+                .map(|(idx, _)| idx);
+            if let Some(idx) = prev_idx {
+                self.input_buffer.remove(idx);
+                self.cursor_idx = idx;
+                self.palette_navigated = false;
+                self.update_slash_palette();
+            }
+        }
+    }
+
+    pub fn delete_forward(&mut self) {
+        if self.cursor_idx < self.input_buffer.len() {
             self.input_buffer.remove(self.cursor_idx);
             self.palette_navigated = false;
             self.update_slash_palette();
@@ -109,13 +134,21 @@ impl App {
 
     pub fn move_cursor_left(&mut self) {
         if self.cursor_idx > 0 {
-            self.cursor_idx -= 1;
+            if let Some((prev_idx, _)) = self.input_buffer[..self.cursor_idx].char_indices().last() {
+                self.cursor_idx = prev_idx;
+            } else {
+                self.cursor_idx = 0;
+            }
         }
     }
 
     pub fn move_cursor_right(&mut self) {
         if self.cursor_idx < self.input_buffer.len() {
-            self.cursor_idx += 1;
+            if let Some((next_offset, _)) = self.input_buffer[self.cursor_idx..].char_indices().nth(1) {
+                self.cursor_idx += next_offset;
+            } else {
+                self.cursor_idx = self.input_buffer.len();
+            }
         }
     }
 
@@ -140,6 +173,28 @@ impl App {
         }
     }
 
+    pub fn scroll_up(&mut self, lines: u16) {
+        self.auto_scroll = false;
+        self.scroll_offset = self.scroll_offset.saturating_sub(lines);
+    }
+
+    pub fn scroll_down(&mut self, lines: u16) {
+        self.scroll_offset = (self.scroll_offset + lines).min(self.max_scroll);
+        if self.scroll_offset >= self.max_scroll {
+            self.auto_scroll = true;
+        }
+    }
+
+    pub fn scroll_to_top(&mut self) {
+        self.auto_scroll = false;
+        self.scroll_offset = 0;
+    }
+
+    pub fn scroll_to_bottom(&mut self) {
+        self.auto_scroll = true;
+        self.scroll_offset = self.max_scroll;
+    }
+
     pub fn palette_up(&mut self) {
         if self.slash_palette_open && !self.slash_matches.is_empty() {
             self.palette_navigated = true;
@@ -148,8 +203,8 @@ impl App {
             } else {
                 self.slash_palette_idx = self.slash_matches.len() - 1;
             }
-        } else if self.scroll_offset > 0 {
-            self.scroll_offset -= 1;
+        } else {
+            self.scroll_up(1);
         }
     }
 
@@ -162,7 +217,7 @@ impl App {
                 self.slash_palette_idx = 0;
             }
         } else {
-            self.scroll_offset += 1;
+            self.scroll_down(1);
         }
     }
 
@@ -324,6 +379,7 @@ impl App {
             thinking: None,
             timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
         });
+        self.scroll_to_bottom();
 
         self.current_stream_buffer.clear();
         self.current_thinking_buffer.clear();

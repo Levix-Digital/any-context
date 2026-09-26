@@ -90,6 +90,26 @@ pub fn handle_key_event(
         KeyCode::Down => {
             app.palette_down();
         }
+        KeyCode::PageUp => {
+            app.scroll_up(10);
+        }
+        KeyCode::PageDown => {
+            app.scroll_down(10);
+        }
+        KeyCode::Home => {
+            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                app.scroll_to_top();
+            } else {
+                app.cursor_idx = 0;
+            }
+        }
+        KeyCode::End => {
+            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                app.scroll_to_bottom();
+            } else {
+                app.cursor_idx = app.input_buffer.len();
+            }
+        }
         KeyCode::Left => {
             app.move_cursor_left();
         }
@@ -99,9 +119,25 @@ pub fn handle_key_event(
         KeyCode::Backspace => {
             app.delete_backspace();
         }
+        KeyCode::Delete => {
+            app.delete_forward();
+        }
         KeyCode::Char(c) => {
             app.insert_char(c);
         }
         _ => {}
     }
 }
+
+pub fn handle_mouse_event(mouse: crossterm::event::MouseEvent, app: &mut App) {
+    match mouse.kind {
+        crossterm::event::MouseEventKind::ScrollUp => {
+            app.scroll_up(3);
+        }
+        crossterm::event::MouseEventKind::ScrollDown => {
+            app.scroll_down(3);
+        }
+        _ => {}
+    }
+}
+

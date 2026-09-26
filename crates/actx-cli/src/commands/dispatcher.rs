@@ -16,6 +16,9 @@ pub fn dispatch_slash_command(raw_cmd: &str, args: &[&str], app: &mut App) {
             app.chat_history.clear();
             app.current_stream_buffer.clear();
             app.current_thinking_buffer.clear();
+            app.scroll_offset = 0;
+            app.max_scroll = 0;
+            app.auto_scroll = true;
             app.status = AppStatus::Idle;
         }
         "help" => {
@@ -291,6 +294,7 @@ fn push_system_msg(app: &mut App, content: String) {
         thinking: None,
         timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
     });
+    app.scroll_to_bottom();
 }
 
 fn execute_switch(app: &mut App, args: &[&str]) -> String {
