@@ -213,7 +213,11 @@ impl ReActOrchestrator {
     ) -> (EventReceiver, tokio::task::JoinHandle<Result<AgentResponse, AgentError>>) {
         let (tx, rx) = event_channel();
         let handle = tokio::spawn(async move {
-            self.run(&input, session_id.as_deref(), Some(tx)).await
+            let res = self.run(&input, session_id.as_deref(), Some(tx.clone())).await;
+            if let Err(ref e) = res {
+                let _ = tx.send(AgentEvent::Error(e.to_string()));
+            }
+            res
         });
         (rx, handle)
     }

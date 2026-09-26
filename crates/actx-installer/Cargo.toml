@@ -1,6 +1,6 @@
 [package]
 name = "actx-installer"
-version = "0.30.39"
+version = "0.32.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Native cross-platform installer, atomic updater, and launcher shim for AnyContext"
@@ -18,3 +18,11 @@ sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = ["Win32_Storage_FileSystem"] }
+
+[[bin]]
+name = "actx-installer"
+path = "src/bin/actx-installer.rs"
+
+[[bin]]
+name = "actx-shim"
+path = "src/bin/actx-shim.rs"

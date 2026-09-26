@@ -1,11 +1,12 @@
 # 📐 Architectural Blueprint: Prioridade 4 — Interface CLI & TUI 100% Nativa em Rust (`actx-cli` / `actx-tui`)
 
 > **Projeto**: AnyContext (`actx`)  
-> **Versão Alvo**: `v0.30.40`  
-> **Status**: `PROPOSED / AWAITING APPROVAL`  
+> **Versão Alvo**: `v0.31.0`  
+> **Status**: `APPROVED / IN_PROGRESS`  
 > **Autor**: Antigravity Assistant & LeviGuilherme  
 > **Data**: 2026-09-25  
 > **Sessão**: `9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372`  
+> **Decisão Fundamental**: A TUI nativa em Ratatui passa a ser a interface padrão absoluta do comando `actx`. O modo linha de comando puro (headless) fica restrito a flags operacionais (`--update`, `--version`, `--help`), daemons (`serve`, `mcp`, `rpc`) e queries diretas / piped stdin.  
 > **Meta Central**: Consolidar a transição definitiva para **100% Rust** e **zero linhas de Python**, eliminando o runtime Python e Bun/TypeScript da distribuição final através de um único binário executável autônomo (`actx.exe` / `actx`).
 
 ---

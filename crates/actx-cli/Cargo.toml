@@ -1,0 +1,30 @@
+[package]
+name = "actx-cli"
+version = "0.32.0"
+edition = "2021"
+authors = ["LeviGuilherme <contato@levix.digital>"]
+description = "100% Native Rust CLI & TUI Interface for AnyContext"
+
+[lib]
+name = "actx_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "actx"
+path = "src/main.rs"
+
+[dependencies]
+actx-lm = { path = "../actx-lm" }
+actx-agent = { path = "../actx-agent" }
+any-context-core-rs = { path = "../any-context-core-rs" }
+clap = { version = "4.5", features = ["derive", "env"] }
+ratatui = "0.29"
+crossterm = { version = "0.28", features = ["event-stream"] }
+tokio = { version = "1.40", features = ["full"] }
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "6.0"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
