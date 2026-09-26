@@ -990,12 +990,14 @@ fn execute_web_search(workspace: &str, target: Option<&str>) -> String {
 }
 
 fn execute_billing() -> String {
-    "💳 Subscription & Tier Status:\n\
-     • Active Tier: COMMUNITY (100% Free & Open Source)\n\
-     • Status: ACTIVE & UNLIMITED\n\
-     • Features: Full-Screen Native TUI, LanceDB Vector Search, Okapi BM25 Lexical Scan, Zero Python/Bun Runtimes, $0.00 Cost.\n\
-     • Target Release: AnyContext v0.31.2"
-        .to_string()
+    format!(
+        "💳 Subscription & Tier Status:\n\
+         • Active Tier: COMMUNITY (100% Free & Open Source)\n\
+         • Status: ACTIVE & UNLIMITED\n\
+         • Features: Full-Screen Native TUI, LanceDB Vector Search, Okapi BM25 Lexical Scan, Zero Python/Bun Runtimes, $0.00 Cost.\n\
+         • Target Release: AnyContext v{}",
+        env!("CARGO_PKG_VERSION")
+    )
 }
 
 fn execute_reset_memory(app: &mut App) -> String {

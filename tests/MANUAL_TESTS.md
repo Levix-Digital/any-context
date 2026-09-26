@@ -7,6 +7,64 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 3 (v0.32.0 Migração Definitiva para Tabela Normalizada workspace_folders & Exclusão de paths_json):
+- **Objetivo**: Comprovar que na versão `v0.32.0`:
+  1. **Tabela Normalizada `workspace_folders` como Única Fonte da Verdade**:
+     - 100% dos diretórios legados foram migrados com sucesso para a tabela relacional `workspace_folders`.
+     - A coluna legada `paths_json` foi fisicamente excluída da tabela `workspaces` via `ALTER TABLE workspaces DROP COLUMN paths_json`.
+     - Não há mais sincronização redundante com colunas JSON legadas.
+  2. **Persistência e Resolução de Fontes de Diretório**:
+     - Ao executar `/sources --all`, todos os workspaces (ex: `AnyContextProject`, `ConduitProject`, `ParserAST`, `TaxReturn`, etc.) listam suas respectivas pastas monitoradas diretamente da tabela `workspace_folders`.
+     - Ao adicionar um novo diretório via `/folder add <caminho>` ou `/folder --add <caminho>`, o registro é inserido exclusivamente em `workspace_folders`.
+     - Ao remover um diretório via `/folder remove <caminho>` ou `/folder rm <caminho>`, o registro é deletado de `workspace_folders`.
+  3. **Validação da Versão v0.32.0**:
+     - `actx -v` retorna `actx 0.32.0`.
+     - `actx --check-update` verifica updates contra a v0.32.0.
+     - `actx -d` / `actx diagnostics` reporta 100% de saúde e integridade da engine Rust.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão e Diagnóstico:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     actx --check-update
+     actx -d
+     ```
+   - **Critério de Aceitação**: Deve exibir `actx 0.32.0`, confirmar a versão mais recente e reportar `Status: Healthy & Operational`.
+
+2. **📄 Validação da Exclusão Física de `paths_json` no SQLite:**
+   - Execute no terminal ou script de inspeção:
+     ```text
+     python -c "import sqlite3, os; p = os.path.expandvars(r'%LOCALAPPDATA%\AnyContext\config\settings.db'); conn = sqlite3.connect(p); cols = [c[1] for c in conn.execute('PRAGMA table_info(workspaces)').fetchall()]; print('paths_json in workspaces:', 'paths_json' in cols); print('Total workspace_folders:', conn.execute('SELECT count(*) FROM workspace_folders').fetchone()[0])"
+     ```
+   - **Critério de Aceitação**:
+     - `paths_json in workspaces: False` (coluna foi removida).
+     - `Total workspace_folders` deve ser maior que 0 (ex: 22 pastas migradas).
+
+3. **📄 Teste de Listagem de Fontes no TUI:**
+   - Inicie o AnyContext:
+     ```text
+     actx
+     ```
+   - No prompt, digite `/sources --all` e tecle `Enter`.
+   - **Critério de Aceitação**: Deve listar todos os workspaces com seus diretórios mapeados (ex: `AnyContextProject` exibindo sua pasta no Google Drive, `ParserAST` exibindo suas 4 pastas de teste, etc.).
+
+4. **📄 Teste de Adição e Remoção de Pastas:**
+   - No prompt, adicione uma pasta de teste:
+     ```text
+     /folder add C:\temp\test_v32
+     ```
+   - Verifique com `/folder`: a pasta `C:\temp\test_v32` deve estar listada.
+   - Remova a pasta:
+     ```text
+     /folder remove C:\temp\test_v32
+     ```
+   - Verifique com `/folder`: a pasta deve ter sido removida.
+   - Digite `/exit` para sair do aplicativo.
+
+---
+
 ### 📌 Cenário 2 (v0.31.2 Modais Interativos como Atalhos de Slash Commands & Resolução Robusta de Parâmetros):
 - **Objetivo**: Comprovar que na versão `v0.31.2`:
   1. **Modais Interativos como Aliases Diretos de Comandos Slash**:

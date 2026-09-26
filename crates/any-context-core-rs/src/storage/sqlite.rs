@@ -52,6 +52,7 @@ impl NativeConfigDb {
         };
         db.ensure_tables()?;
         db.ensure_default_workspace()?;
+        db.migrate_legacy_paths_json_if_needed()?;
         Ok(db)
     }
 
@@ -65,6 +66,7 @@ impl NativeConfigDb {
         };
         db.ensure_tables()?;
         db.ensure_default_workspace()?;
+        db.migrate_legacy_paths_json_if_needed()?;
         Ok(db)
     }
 
@@ -132,10 +134,11 @@ impl NativeConfigDb {
             );
 
             CREATE TABLE IF NOT EXISTS workspace_folders (
-                id TEXT PRIMARY KEY,
+                folder_id TEXT PRIMARY KEY,
                 workspace_name TEXT NOT NULL,
                 folder_path TEXT NOT NULL,
-                created_at TEXT NOT NULL,
+                added_by_email TEXT NOT NULL DEFAULT 'user',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(workspace_name, folder_path)
             );
 
@@ -182,8 +185,8 @@ impl NativeConfigDb {
             );
         } else {
             let _ = conn.execute(
-                "INSERT OR IGNORE INTO workspaces (workspace_id, name, paths_json) VALUES (?1, ?2, ?3)",
-                params!["ws_default", "Default", "[]"],
+                "INSERT OR IGNORE INTO workspaces (workspace_id, name) VALUES (?1, ?2)",
+                params!["ws_default", "Default"],
             );
         }
         Ok(())
@@ -204,11 +207,86 @@ impl NativeConfigDb {
             )?;
         } else {
             conn.execute(
-                "INSERT INTO workspaces (workspace_id, name, paths_json) VALUES (?1, ?2, ?3)",
-                params![&id, name, "[]"],
+                "INSERT INTO workspaces (workspace_id, name) VALUES (?1, ?2)",
+                params![&id, name],
             )?;
         }
         Ok(id)
+    }
+
+    /// Migrates any legacy JSON folder lists in workspaces.paths_json to the normalized workspace_folders table,
+    /// then drops the legacy column from SQLite.
+    pub fn migrate_legacy_paths_json_if_needed(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+
+        // Check if legacy column paths_json exists in workspaces table
+        if !Self::check_column(&conn, "workspaces", "paths_json") {
+            return Ok(());
+        }
+
+        // 1. Fetch all workspaces that have non-empty paths_json
+        let mut stmt = match conn.prepare(
+            "SELECT name, paths_json FROM workspaces WHERE paths_json IS NOT NULL AND paths_json != '[]'",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Ok(()),
+        };
+
+        let rows = stmt.query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?;
+
+        let mut to_migrate: Vec<(String, Vec<String>)> = Vec::new();
+        for r in rows.flatten() {
+            let (ws_name, json_str) = r;
+            if let Ok(paths) = serde_json::from_str::<Vec<String>>(&json_str) {
+                if !paths.is_empty() {
+                    to_migrate.push((ws_name, paths));
+                }
+            }
+        }
+        drop(stmt);
+
+        // 2. Insert into workspace_folders
+        let col_id = if Self::check_column(&conn, "workspace_folders", "folder_id") {
+            "folder_id"
+        } else {
+            "id"
+        };
+        let has_added_by = Self::check_column(&conn, "workspace_folders", "added_by_email");
+        let now = chrono::Utc::now().to_rfc3339();
+
+        for (ws_name, paths) in to_migrate {
+            for p in paths {
+                let norm = normalize_path_slashes(&p);
+                if norm.is_empty() {
+                    continue;
+                }
+                let fid = format!("wf_{}", uuid_simple());
+                if has_added_by {
+                    let sql = format!(
+                        "INSERT INTO workspace_folders ({}, workspace_name, folder_path, added_by_email, created_at)
+                         VALUES (?1, ?2, ?3, 'user', ?4)
+                         ON CONFLICT DO NOTHING",
+                        col_id
+                    );
+                    let _ = conn.execute(&sql, params![&fid, &ws_name, &norm, &now]);
+                } else {
+                    let sql = format!(
+                        "INSERT INTO workspace_folders ({}, workspace_name, folder_path, created_at)
+                         VALUES (?1, ?2, ?3, ?4)
+                         ON CONFLICT DO NOTHING",
+                        col_id
+                    );
+                    let _ = conn.execute(&sql, params![&fid, &ws_name, &norm, &now]);
+                }
+            }
+        }
+
+        // 3. Drop legacy column paths_json from workspaces (SQLite 3.35.0+)
+        let _ = conn.execute("ALTER TABLE workspaces DROP COLUMN paths_json", []);
+
+        Ok(())
     }
 
     pub fn get_workspace(&self, name: &str) -> Result<Option<WorkspaceRecord>> {
@@ -318,7 +396,6 @@ impl NativeConfigDb {
         let conn = self.conn.lock().unwrap();
         let mut list = Vec::new();
 
-        // 1. Check workspace_folders table if it exists
         let tbl_exists: bool = conn
             .query_row(
                 "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='workspace_folders'",
@@ -326,36 +403,16 @@ impl NativeConfigDb {
                 |r| r.get(0),
             )
             .unwrap_or(false);
+
         if tbl_exists {
-            if let Ok(mut stmt) = conn.prepare("SELECT folder_path FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE") {
+            if let Ok(mut stmt) = conn.prepare(
+                "SELECT folder_path FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE ORDER BY created_at ASC"
+            ) {
                 if let Ok(rows) = stmt.query_map(params![workspace_name], |row| row.get::<_, String>(0)) {
                     for r in rows.flatten() {
                         let norm = normalize_path_slashes(&r);
                         if !list.contains(&norm) && !list.contains(&r) {
                             list.push(r);
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. Check legacy workspaces.paths_json column (stores JSON array of strings)
-        if Self::check_column(&conn, "workspaces", "paths_json") {
-            let paths_json_opt: Option<String> = conn
-                .query_row(
-                    "SELECT paths_json FROM workspaces WHERE name = ?1 COLLATE NOCASE",
-                    params![workspace_name],
-                    |r| r.get(0),
-                )
-                .ok()
-                .flatten();
-
-            if let Some(json_str) = paths_json_opt {
-                if let Ok(paths) = serde_json::from_str::<Vec<String>>(&json_str) {
-                    for p in paths {
-                        let norm = normalize_path_slashes(&p);
-                        if !list.contains(&norm) && !list.contains(&p) {
-                            list.push(p);
                         }
                     }
                 }
@@ -391,37 +448,30 @@ impl NativeConfigDb {
         let norm_path = normalize_path_slashes(folder_path);
         let id = format!("wf_{}", uuid_simple());
         let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "INSERT INTO workspace_folders (id, workspace_name, folder_path, created_at)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(workspace_name, folder_path) DO NOTHING",
-            params![&id, workspace_name, &norm_path, &now],
-        )?;
 
-        // Also sync with workspaces.paths_json if column exists
-        if Self::check_column(&conn, "workspaces", "paths_json") {
-            let paths_json_opt: Option<String> = conn
-                .query_row(
-                    "SELECT paths_json FROM workspaces WHERE name = ?1 COLLATE NOCASE",
-                    params![workspace_name],
-                    |r| r.get(0),
-                )
-                .ok()
-                .flatten();
+        let col_id = if Self::check_column(&conn, "workspace_folders", "folder_id") {
+            "folder_id"
+        } else {
+            "id"
+        };
+        let has_added_by = Self::check_column(&conn, "workspace_folders", "added_by_email");
 
-            let mut paths: Vec<String> = paths_json_opt
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_default();
-
-            if !paths.iter().any(|p| p == folder_path || p == &norm_path) {
-                paths.push(folder_path.to_string());
-                if let Ok(serialized) = serde_json::to_string(&paths) {
-                    let _ = conn.execute(
-                        "UPDATE workspaces SET paths_json = ?1 WHERE name = ?2 COLLATE NOCASE",
-                        params![&serialized, workspace_name],
-                    );
-                }
-            }
+        if has_added_by {
+            let sql = format!(
+                "INSERT INTO workspace_folders ({}, workspace_name, folder_path, added_by_email, created_at)
+                 VALUES (?1, ?2, ?3, 'user', ?4)
+                 ON CONFLICT DO NOTHING",
+                col_id
+            );
+            conn.execute(&sql, params![&id, workspace_name, &norm_path, &now])?;
+        } else {
+            let sql = format!(
+                "INSERT INTO workspace_folders ({}, workspace_name, folder_path, created_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT DO NOTHING",
+                col_id
+            );
+            conn.execute(&sql, params![&id, workspace_name, &norm_path, &now])?;
         }
 
         Ok(())
@@ -434,36 +484,7 @@ impl NativeConfigDb {
             "DELETE FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE AND (folder_path = ?2 OR folder_path = ?3)",
             params![workspace_name, &norm_path, folder_path],
         )?;
-
-        let mut paths_removed = false;
-        if Self::check_column(&conn, "workspaces", "paths_json") {
-            let paths_json_opt: Option<String> = conn
-                .query_row(
-                    "SELECT paths_json FROM workspaces WHERE name = ?1 COLLATE NOCASE",
-                    params![workspace_name],
-                    |r| r.get(0),
-                )
-                .ok()
-                .flatten();
-
-            if let Some(json_str) = paths_json_opt {
-                if let Ok(mut paths) = serde_json::from_str::<Vec<String>>(&json_str) {
-                    let prev_len = paths.len();
-                    paths.retain(|p| p != folder_path && normalize_path_slashes(p) != norm_path);
-                    if paths.len() < prev_len {
-                        paths_removed = true;
-                        if let Ok(serialized) = serde_json::to_string(&paths) {
-                            let _ = conn.execute(
-                                "UPDATE workspaces SET paths_json = ?1 WHERE name = ?2 COLLATE NOCASE",
-                                params![&serialized, workspace_name],
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(count > 0 || paths_removed)
+        Ok(count > 0)
     }
 
     pub fn add_workspace_web_url(&self, workspace_name: &str, url: &str) -> Result<()> {
@@ -975,7 +996,7 @@ mod tests {
                 created_by TEXT DEFAULT 'user'
             );
             INSERT INTO workspaces (workspace_id, name) VALUES ('ws_1', 'Default');
-            INSERT INTO workspaces (workspace_id, name) VALUES ('ws_2', 'RustBook');
+            INSERT INTO workspaces (workspace_id, name, paths_json) VALUES ('ws_2', 'RustBook', '[\"C:/repos/rust-book\", \"D:/notes\"]');
             INSERT INTO workspaces (workspace_id, name) VALUES ('ws_3', 'JEVModel');",
         )
         .expect("create legacy table");
@@ -984,7 +1005,9 @@ mod tests {
             db_path: PathBuf::from(":memory:"),
             conn: Mutex::new(conn),
         };
+        db.ensure_tables().expect("ensure tables");
         db.ensure_default_workspace().expect("ensure default");
+        db.migrate_legacy_paths_json_if_needed().expect("migrate");
 
         let names = db.list_workspace_names().expect("list names");
         assert_eq!(
@@ -1000,13 +1023,12 @@ mod tests {
         assert_eq!(records.len(), 3);
         assert_eq!(records[0].name, "Default");
 
-        // Verify legacy paths_json parsing
-        db.conn.lock().unwrap().execute(
-            "UPDATE workspaces SET paths_json = ?1 WHERE name = 'RustBook'",
-            params![r#"["C:/repos/rust-book", "D:/notes"]"#],
-        ).expect("set legacy paths");
-
+        // Verify that paths were migrated into workspace_folders
         let rust_folders = db.get_workspace_folders("RustBook").expect("get folders");
         assert_eq!(rust_folders, vec!["C:/repos/rust-book".to_string(), "D:/notes".to_string()]);
+
+        // Verify that the legacy column paths_json was DROPPED
+        let col_exists = NativeConfigDb::check_column(&db.conn.lock().unwrap(), "workspaces", "paths_json");
+        assert!(!col_exists, "paths_json column must be dropped after migration");
     }
 }

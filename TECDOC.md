@@ -63,6 +63,7 @@
 75. [Native Rust ReAct & Agent Orchestrator Layer - actx-agent, FSM, Polymorphic Tool Registry, SQLite Sessions & RFC-042 Foundations (`v0.30.38`)](#75-native-rust-react--agent-orchestrator-layer---actx-agent-fsm-polymorphic-tool-registry-sqlite-sessions--rfc-042-foundations-v03038)
 76. [Native Rust Hybrid RAG Pipeline & RFC-042 Batch Retrieval Engine (`v0.30.39`)](#76-native-rust-hybrid-rag-pipeline--rfc-042-batch-retrieval-engine-v03039)
 77. [100% Native Rust CLI & Full-Screen Interactive TUI Engine (`actx-cli` / Ratatui) (`v0.31.0`)](#77-100-native-rust-cli--full-screen-interactive-tui-engine-actx-cli--ratatui-v0310)
+78. [Normalized Relational Folder Storage & Legacy Schema Elimination Engine (`v0.32.0`)](#78-normalized-relational-folder-storage--legacy-schema-elimination-engine-v0320)
 
 ---
 
@@ -4698,4 +4699,39 @@ Zero Python dependency for LM dispatch:
   - Positive: Instant cold startup (< 10ms); memory footprint < 40MB RSS.
   - Positive: Zero external runtime dependencies (no Python, no Bun, no Node.js required).
   - Positive: Full feature parity across Windows, macOS, and Linux terminals.
+
+---
+
+## 78. Normalized Relational Folder Storage & Legacy Schema Elimination Engine (`v0.32.0`)
+
+### 1. Architectural Overview & Context
+In AnyContext's initial Python implementation, workspace folder paths were serialized as JSON string arrays inside the `workspaces.paths_json` column. During the transition to the 100% Native Rust architecture, a relational table `workspace_folders` was introduced, but legacy databases retained the `paths_json` column, requiring dual-table synchronization logic and defensive fallback queries.
+
+In `v0.32.0`, AnyContext definitively eliminates this technical debt:
+1. **Automated At-Boot Schema Migration**: `NativeConfigDb::migrate_legacy_paths_json_if_needed()` inspects `workspaces` for the existence of `paths_json`. If present, it deserializes all legacy JSON folder paths and atomically inserts them into the normalized `workspace_folders` relational table (`folder_id`, `workspace_name`, `folder_path`, `added_by_email`, `created_at`).
+2. **Physical Column Elimination**: The legacy `paths_json` column is physically dropped from SQLite using `ALTER TABLE workspaces DROP COLUMN paths_json`.
+3. **Pure Single-Table Domain Methods**: `get_workspace_folders`, `add_workspace_folder`, and `remove_workspace_folder` operate exclusively against `workspace_folders`, achieving complete relational normalization and zero duplicate data storage.
+
+```mermaid
+flowchart TD
+    A["Boot / open_default()"] --> B{"Legacy paths_json exists in workspaces?"}
+    B -- Yes --> C["Parse JSON folder arrays across all workspaces"]
+    C --> D["INSERT OR IGNORE into workspace_folders (normalized)"]
+    D --> E["ALTER TABLE workspaces DROP COLUMN paths_json"]
+    E --> F["Single Source of Truth: workspace_folders"]
+    B -- No --> F
+    F --> G["get_workspace_folders() queries workspace_folders directly"]
+    F --> H["add_workspace_folder() inserts into workspace_folders"]
+    F --> I["remove_workspace_folder() deletes from workspace_folders"]
+```
+
+### 2. Architecture Decision Record (ADR-078)
+- **Status**: Accepted & Implemented (`v0.32.0`).
+- **Context**: Dual-table reading and two-way synchronization between `workspace_folders` and `workspaces.paths_json` introduced maintenance overhead, increased query complexity, and risked data drift between interfaces.
+- **Decision**: Make `workspace_folders` the sole canonical source of truth for folder sources across all surfaces (TUI, Headless CLI, Stdio RPC, MCP, and REST API). Migrate existing records once and drop the legacy column.
+- **Consequences**:
+  - Positive: Clean, relational schema with zero redundant columns and zero dual-sync overhead.
+  - Positive: 100% backward compatibility preserved; legacy databases upgrade smoothly on first run.
+  - Positive: Native Rust engine operates with maximal speed and type safety.
+
 
