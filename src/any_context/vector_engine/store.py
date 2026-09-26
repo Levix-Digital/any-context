@@ -72,12 +72,27 @@ class LanceDBStore:
                 pass
         return engine
 
+    def get_native_pipeline(self) -> Any:
+        """Returns the native Rust hybrid pipeline instance."""
+        if getattr(self, "_native_pipeline", None) is None:
+            try:
+                import any_context_core_rs
+                self._native_pipeline = any_context_core_rs.PyHybridPipeline(self._db_path)
+            except Exception:
+                self._native_pipeline = None
+        return self._native_pipeline
+
     def save_hybrid_engine(self, engine: Any, table_name: str = "workspace_chunks"):
         """Saves the HybridRetrieverEngine to the persisted BM25 index on disk."""
         bm25_p = self.get_bm25_path(table_name=table_name)
         try:
             os.makedirs(os.path.dirname(bm25_p), exist_ok=True)
             engine.save_bm25_to_file(bm25_p)
+            if getattr(self, "_native_pipeline", None) is not None:
+                try:
+                    self._native_pipeline.load_bm25_from_file(table_name, bm25_p)
+                except Exception:
+                    pass
         except Exception:
             pass
 

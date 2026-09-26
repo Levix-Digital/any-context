@@ -31,6 +31,7 @@ class ParallelRetriever:
 
     def __init__(self, store: Optional[LanceDBStore] = None):
         self._store = store or LanceDBStore.get_instance()
+        self._native_pipeline = getattr(self._store, "get_native_pipeline", lambda: None)()
 
     def _get_query_embedding(self, query_text: str) -> List[float]:
         """Generates query embedding vector using LlamaIndex / OpenAI configured model."""
@@ -58,6 +59,55 @@ class ParallelRetriever:
         """
         cfg = config or RetrievalConfig.from_preset("balanced")
         query_vector = self._get_query_embedding(query)
+
+        # 0. High-performance native Rust pipeline dispatch (Prioridade 3)
+        if self._native_pipeline is not None:
+            try:
+                import any_context_core_rs
+                req = any_context_core_rs.PyHybridSearchRequest(
+                    query_text=query,
+                    sub_query_id=None,
+                    query_vector=query_vector,
+                    workspace=workspace,
+                    target_workspaces=target_workspaces or [],
+                    linked_sources=linked_sources or [],
+                    top_k=cfg.target_top_k,
+                    candidate_pool_k=cfg.candidate_pool_k,
+                    min_score=getattr(cfg, "min_score", 0.0),
+                    max_chunks_per_source=cfg.max_chunks_per_source,
+                    max_density_chars=cfg.max_density_chars,
+                    table_name=table_name,
+                    rrf_k=getattr(cfg, "rrf_k", 60)
+                )
+                native_results = self._native_pipeline.search(req)
+                if native_results:
+                    from any_context.core.security_engine import SecurityEngine
+                    sec = SecurityEngine.get_instance()
+                    return [
+                        ScoredChunk(
+                            text=sec.decrypt_text(r.text),
+                            file_name=r.file_name,
+                            file_path=r.file_path,
+                            workspace=r.workspace,
+                            score=r.score,
+                            content_type=r.content_type,
+                            chunk_id=r.chunk_id,
+                            metadata={
+                                "file_name": r.file_name,
+                                "file_path": r.file_path,
+                                "workspace": r.workspace,
+                                "content_type": r.content_type,
+                                "content_hash": r.content_hash,
+                                "dense_score": r.dense_score,
+                                "sparse_score": r.sparse_score,
+                                "token_count": r.token_count,
+                                "matched_subqueries": r.matched_subqueries,
+                            }
+                        )
+                        for r in native_results
+                    ]
+            except Exception:
+                pass
 
         # Build distinct workspace query targets
         targets = []
@@ -249,3 +299,100 @@ class ParallelRetriever:
             )
 
         return final_chunks[:cfg.target_top_k]
+
+    def retrieve_batch(
+        self,
+        requests: List[Dict[str, Any]],
+        table_name: str = "workspace_chunks"
+    ) -> List[ScoredChunk]:
+        """
+        RFC-042: Concurrent multi-query batch retrieval with cross-query SHA-256 deduplication
+        and accumulated RRF scoring in native Rust.
+        """
+        if not requests:
+            return []
+
+        if self._native_pipeline is not None:
+            try:
+                import any_context_core_rs
+                native_reqs = []
+                for r in requests:
+                    q = r.get("query", r.get("query_text", ""))
+                    q_vec = r.get("query_vector")
+                    if not q_vec:
+                        try:
+                            q_vec = self._get_query_embedding(q)
+                        except Exception:
+                            q_vec = None
+
+                    native_reqs.append(
+                        any_context_core_rs.PyHybridSearchRequest(
+                            query_text=q,
+                            sub_query_id=r.get("sub_query_id"),
+                            query_vector=q_vec,
+                            workspace=r.get("workspace"),
+                            target_workspaces=r.get("target_workspaces") or [],
+                            linked_sources=r.get("linked_sources") or [],
+                            top_k=r.get("top_k", 20),
+                            candidate_pool_k=r.get("candidate_pool_k", 100),
+                            min_score=r.get("min_score", 0.0),
+                            max_chunks_per_source=r.get("max_chunks_per_source", 3),
+                            max_density_chars=r.get("max_density_chars", 40000),
+                            table_name=r.get("table_name", table_name),
+                            rrf_k=r.get("rrf_k", 60)
+                        )
+                    )
+                native_results = self._native_pipeline.retrieve_hybrid_batch(native_reqs)
+                from any_context.core.security_engine import SecurityEngine
+                sec = SecurityEngine.get_instance()
+                return [
+                    ScoredChunk(
+                        text=sec.decrypt_text(res.text),
+                        file_name=res.file_name,
+                        file_path=res.file_path,
+                        workspace=res.workspace,
+                        score=res.score,
+                        content_type=res.content_type,
+                        chunk_id=res.chunk_id,
+                        metadata={
+                            "file_name": res.file_name,
+                            "file_path": res.file_path,
+                            "workspace": res.workspace,
+                            "content_type": res.content_type,
+                            "content_hash": res.content_hash,
+                            "dense_score": res.dense_score,
+                            "sparse_score": res.sparse_score,
+                            "token_count": res.token_count,
+                            "matched_subqueries": res.matched_subqueries,
+                        }
+                    )
+                    for res in native_results
+                ]
+            except Exception:
+                pass
+
+        # Fallback multi-query execution
+        combined_chunks: Dict[str, ScoredChunk] = {}
+        for r in requests:
+            q = r.get("query", r.get("query_text", ""))
+            sub_id = r.get("sub_query_id", q)
+            ws = r.get("workspace")
+            t_ws = r.get("target_workspaces")
+            chunks = self.search(q, workspace=ws, target_workspaces=t_ws, table_name=table_name)
+            for c in chunks:
+                cid = c.chunk_id or f"{c.file_path}::{c.text[:80]}"
+                if cid in combined_chunks:
+                    combined_chunks[cid].score += c.score
+                    sub_list = combined_chunks[cid].metadata.get("matched_subqueries", [])
+                    if sub_id not in sub_list:
+                        sub_list.append(sub_id)
+                    combined_chunks[cid].metadata["matched_subqueries"] = sub_list
+                else:
+                    c.metadata["matched_subqueries"] = [sub_id]
+                    combined_chunks[cid] = c
+
+        res = list(combined_chunks.values())
+        res.sort(key=lambda x: x.score, reverse=True)
+        top_k = requests[0].get("top_k", 20) if requests else 20
+        return res[:top_k]
+

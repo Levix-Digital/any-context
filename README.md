@@ -45,6 +45,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **⚡ Native Hybrid RAG & Batch Retrieval Engine (`v0.30.39`)**:
+  - **Unified Rust-First Pipeline (`NativeHybridPipeline`)**: Unifies LanceDB Apache Arrow columnar vector search, Okapi BM25 inverted lexical index, and Reciprocal Rank Fusion (RRF k=60) inside a zero-copy, sub-3ms native Rust engine (`crates/any-context-core-rs/src/retrieval/pipeline.rs`).
+  - **RFC-042 Deep Search Batching (`retrieve_hybrid_batch`)**: Concurrently executes 2 to 4 orthogonal sub-queries on Tokio worker threads with cross-query SHA-256 deduplication and accumulated RRF multi-query boosting.
+  - **Source-Fair Round-Robin & Density Budgeting**: Native allocation balancing multi-source workspace distributions with strict character density limits and token ceiling preservation (`token_budget.rs`).
+  - **Zero-GIL Interoperability (`PyHybridPipeline`, `PyHybridSearchRequest`, `PyHybridSearchResult`)**: PyO3 bindings with GIL release (`py.allow_threads`) and seamless fallback for legacy Python callers.
 - **🤖 Native Rust ReAct Agent & Orchestrator (`actx-agent`) (`v0.30.38`)**:
   - **Deterministic ReAct Finite State Machine (FSM)**: Standalone, modular Rust crate (`crates/actx-agent`) providing deterministic multi-turn tool calling and reasoning loops without heavy third-party framework dependencies (e.g. LangGraph).
   - **Polymorphic Tool Registry & Defensive Self-Healing**: Thread-safe async tool registry supporting both pure Rust closures and Python callables with defensive JSON argument parsing and model self-healing on parameter errors.

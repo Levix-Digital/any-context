@@ -68,15 +68,37 @@ impl NativeLanceStore {
             .map_err(|e| format!("Failed to initialize Tokio runtime for LanceDB: {e}"))?;
 
         let uri = p.to_string_lossy().to_string();
-        let conn = rt
-            .block_on(async { lancedb::connect(&uri).execute().await })
-            .map_err(|e| format!("Failed to connect to LanceDB at {uri}: {e}"))?;
+        let conn = if tokio::runtime::Handle::try_current().is_ok() {
+            let uri_clone = uri.clone();
+            std::thread::spawn(move || {
+                let temp_rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| e.to_string())?;
+                temp_rt
+                    .block_on(async { lancedb::connect(&uri_clone).execute().await })
+                    .map_err(|e| format!("Failed to connect to LanceDB at {uri_clone}: {e}"))
+            })
+            .join()
+            .map_err(|_| "LanceDB connection thread panicked".to_string())??
+        } else {
+            rt.block_on(async { lancedb::connect(&uri).execute().await })
+                .map_err(|e| format!("Failed to connect to LanceDB at {uri}: {e}"))?
+        };
 
         Ok(Self {
             db_path: p,
             runtime: Arc::new(rt),
             conn,
         })
+    }
+
+    pub fn db_path(&self) -> &Path {
+        &self.db_path
+    }
+
+    pub fn runtime(&self) -> &Arc<tokio::runtime::Runtime> {
+        &self.runtime
     }
 
     pub fn get_schema(dim: usize) -> Arc<Schema> {
@@ -102,16 +124,18 @@ impl NativeLanceStore {
         ]))
     }
 
+    pub async fn table_exists_async(&self, table_name: &str) -> Result<bool, String> {
+        let names = self
+            .conn
+            .table_names()
+            .execute()
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(names.contains(&table_name.to_string()))
+    }
+
     pub fn table_exists(&self, table_name: &str) -> Result<bool, String> {
-        self.runtime.block_on(async {
-            let names = self
-                .conn
-                .table_names()
-                .execute()
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(names.contains(&table_name.to_string()))
-        })
+        self.runtime.block_on(self.table_exists_async(table_name))
     }
 
     pub fn get_or_create_table(&self, table_name: &str, dim: usize) -> Result<Table, String> {
@@ -238,8 +262,8 @@ impl NativeLanceStore {
         })
     }
 
-    /// Performs vector similarity search with optional workspace filtering.
-    pub fn search_vector(
+    /// Performs vector similarity search with optional workspace filtering asynchronously.
+    pub async fn search_vector_async(
         &self,
         query_vector: Vec<f32>,
         limit: usize,
@@ -248,47 +272,63 @@ impl NativeLanceStore {
         table_name: Option<&str>,
     ) -> Result<Vec<ScoredVectorResult>, String> {
         let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
-        if !self.table_exists(tname)? {
+        if !self.table_exists_async(tname).await? {
             return Ok(Vec::new());
         }
 
-        self.runtime.block_on(async {
-            let table = self
-                .conn
-                .open_table(tname)
-                .execute()
-                .await
-                .map_err(|e| e.to_string())?;
+        let table = self
+            .conn
+            .open_table(tname)
+            .execute()
+            .await
+            .map_err(|e| e.to_string())?;
 
-            let mut query = table.vector_search(query_vector).map_err(|e| e.to_string())?;
-            query = query.limit(limit);
+        let mut query = table.vector_search(query_vector).map_err(|e| e.to_string())?;
+        query = query.limit(limit);
 
-            let mut where_clauses = Vec::new();
-            if let Some(ws) = workspace {
-                let clean_ws = ws.replace('\'', "''");
-                where_clauses.push(format!("workspace = '{clean_ws}'"));
-            }
-            if let Some(f) = filter_expr {
-                where_clauses.push(f.to_string());
-            }
+        let mut where_clauses = Vec::new();
+        if let Some(ws) = workspace {
+            let clean_ws = ws.replace('\'', "''");
+            where_clauses.push(format!("workspace = '{clean_ws}'"));
+        }
+        if let Some(f) = filter_expr {
+            where_clauses.push(f.to_string());
+        }
 
-            if !where_clauses.is_empty() {
-                query = query.only_if(where_clauses.join(" AND "));
-            }
+        if !where_clauses.is_empty() {
+            query = query.only_if(where_clauses.join(" AND "));
+        }
 
-            let mut stream = query.execute().await.map_err(|e| e.to_string())?;
-            let mut results = Vec::new();
+        let mut stream = query.execute().await.map_err(|e| e.to_string())?;
+        let mut results = Vec::new();
 
-            while let Some(batch) = stream.try_next().await.map_err(|e| e.to_string())? {
-                results.extend(Self::extract_scored_results(&batch)?);
-            }
+        while let Some(batch) = stream.try_next().await.map_err(|e| e.to_string())? {
+            results.extend(Self::extract_scored_results(&batch)?);
+        }
 
-            Ok(results)
-        })
+        Ok(results)
     }
 
-    /// Performs ultra-fast (<25ms) metadata filtering on LanceDB without computing embeddings.
-    pub fn search_metadata(
+    /// Performs vector similarity search with optional workspace filtering synchronously.
+    pub fn search_vector(
+        &self,
+        query_vector: Vec<f32>,
+        limit: usize,
+        workspace: Option<&str>,
+        filter_expr: Option<&str>,
+        table_name: Option<&str>,
+    ) -> Result<Vec<ScoredVectorResult>, String> {
+        self.runtime.block_on(self.search_vector_async(
+            query_vector,
+            limit,
+            workspace,
+            filter_expr,
+            table_name,
+        ))
+    }
+
+    /// Performs ultra-fast (<25ms) metadata filtering on LanceDB without computing embeddings asynchronously.
+    pub async fn search_metadata_async(
         &self,
         where_clause: &str,
         limit: usize,
@@ -296,37 +336,51 @@ impl NativeLanceStore {
         table_name: Option<&str>,
     ) -> Result<Vec<ScoredVectorResult>, String> {
         let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
-        if !self.table_exists(tname)? || where_clause.is_empty() {
+        if !self.table_exists_async(tname).await? || where_clause.is_empty() {
             return Ok(Vec::new());
         }
 
-        self.runtime.block_on(async {
-            let table = self
-                .conn
-                .open_table(tname)
-                .execute()
-                .await
-                .map_err(|e| e.to_string())?;
+        let table = self
+            .conn
+            .open_table(tname)
+            .execute()
+            .await
+            .map_err(|e| e.to_string())?;
 
-            let mut where_clauses = Vec::new();
-            if let Some(ws) = workspace {
-                let clean_ws = ws.replace('\'', "''");
-                where_clauses.push(format!("workspace = '{clean_ws}'"));
-            }
-            where_clauses.push(format!("({where_clause})"));
+        let mut where_clauses = Vec::new();
+        if let Some(ws) = workspace {
+            let clean_ws = ws.replace('\'', "''");
+            where_clauses.push(format!("workspace = '{clean_ws}'"));
+        }
+        where_clauses.push(format!("({where_clause})"));
 
-            let combined_filter = where_clauses.join(" AND ");
-            let query = table.query().only_if(combined_filter).limit(limit);
+        let combined_filter = where_clauses.join(" AND ");
+        let query = table.query().only_if(combined_filter).limit(limit);
 
-            let mut stream = query.execute().await.map_err(|e| e.to_string())?;
-            let mut results = Vec::new();
+        let mut stream = query.execute().await.map_err(|e| e.to_string())?;
+        let mut results = Vec::new();
 
-            while let Some(batch) = stream.try_next().await.map_err(|e| e.to_string())? {
-                results.extend(Self::extract_scored_results(&batch)?);
-            }
+        while let Some(batch) = stream.try_next().await.map_err(|e| e.to_string())? {
+            results.extend(Self::extract_scored_results(&batch)?);
+        }
 
-            Ok(results)
-        })
+        Ok(results)
+    }
+
+    /// Performs ultra-fast (<25ms) metadata filtering on LanceDB without computing embeddings synchronously.
+    pub fn search_metadata(
+        &self,
+        where_clause: &str,
+        limit: usize,
+        workspace: Option<&str>,
+        table_name: Option<&str>,
+    ) -> Result<Vec<ScoredVectorResult>, String> {
+        self.runtime.block_on(self.search_metadata_async(
+            where_clause,
+            limit,
+            workspace,
+            table_name,
+        ))
     }
 
     /// Counts rows in the table or scoped to a specific workspace.

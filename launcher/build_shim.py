@@ -44,7 +44,7 @@ def build_rust_shim(out_path: str) -> bool:
         return False
     cmd = [cargo, "build", "--release", "-p", "actx-installer"]
     print(f"[*] Compiling native Rust Launcher Shim: {' '.join(cmd)}")
-    res = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+    res = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if res.returncode == 0:
         is_windows = sys.platform.startswith("win")
         built_name = "actx.exe" if is_windows else "actx"
@@ -69,7 +69,7 @@ def build_windows_shim(out_path: str) -> bool:
     cs_file = os.path.join(LAUNCHER_DIR, "actx_shim.cs")
     cmd = [csc, "/nologo", "/optimize+", "/target:exe", f"/out:{out_path}", cs_file]
     print(f"[*] Compiling fallback C# Launcher Shim: {' '.join(cmd)}")
-    res = subprocess.run(cmd, capture_output=True, text=True)
+    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if res.returncode != 0:
         print(f"[ERROR] csc compilation failed:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
         return False
@@ -89,7 +89,7 @@ def build_linux_shim(out_path: str) -> bool:
     c_file = os.path.join(LAUNCHER_DIR, "actx_shim.c")
     cmd = [compiler, "-O3", c_file, "-o", out_path]
     print(f"[*] Compiling Linux Launcher Shim: {' '.join(cmd)}")
-    res = subprocess.run(cmd, capture_output=True, text=True)
+    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if res.returncode != 0:
         print(f"[ERROR] C compilation failed:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}")
         return False

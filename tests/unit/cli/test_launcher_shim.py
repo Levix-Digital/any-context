@@ -27,7 +27,7 @@ class TestLauncherShim(unittest.TestCase):
 
         # Build shim using launcher/build_shim.py
         build_script = os.path.join(repo_root, "launcher", "build_shim.py")
-        res = subprocess.run([sys.executable, build_script, "--out", cls.shim_path], capture_output=True, text=True)
+        res = subprocess.run([sys.executable, build_script, "--out", cls.shim_path], capture_output=True, text=True, encoding="utf-8", errors="replace")
         if res.returncode != 0:
             cls.build_failed = True
             cls.build_error = f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}"
@@ -60,7 +60,7 @@ class TestLauncherShim(unittest.TestCase):
             f.write("0.28.71\n")
 
         t0 = time.perf_counter()
-        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True)
+        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
         self.assertEqual(res.returncode, 0)
@@ -71,7 +71,7 @@ class TestLauncherShim(unittest.TestCase):
 
     def test_03_double_dash_version_flag(self):
         """Validates that '--version' produces identical clean output."""
-        res = subprocess.run([self.shim_path, "--version"], capture_output=True, text=True)
+        res = subprocess.run([self.shim_path, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(res.returncode, 0)
         self.assertEqual(res.stdout.strip(), "v0.28.71")
 
@@ -81,7 +81,7 @@ class TestLauncherShim(unittest.TestCase):
         if os.path.isfile(version_file):
             os.remove(version_file)
 
-        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True)
+        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(res.returncode, 0)
         output = res.stdout.strip()
         self.assertTrue(output.startswith("v0."))
@@ -92,7 +92,7 @@ class TestLauncherShim(unittest.TestCase):
         with open(version_file, "wb") as f:
             f.write(b"\xef\xbb\xbfv0.28.88\r\n")
 
-        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True)
+        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(res.returncode, 0)
         self.assertEqual(res.stdout.strip(), "v0.28.88")
 
@@ -102,7 +102,7 @@ class TestLauncherShim(unittest.TestCase):
         with open(version_file, "wb") as f:
             f.write(b"\xef\xbb\xbf0.28.88\r\n")
 
-        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True)
+        res = subprocess.run([self.shim_path, "-v"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(res.returncode, 0)
         self.assertEqual(res.stdout.strip(), "v0.28.88")
 
@@ -140,7 +140,7 @@ class TestLauncherShim(unittest.TestCase):
         # 3. Invoke shim with --finalize-update
         test_env = os.environ.copy()
         test_env["ACTX_TEST_MODE"] = "1"
-        res = subprocess.run([self.shim_path, "--finalize-update"], capture_output=True, text=True, env=test_env)
+        res = subprocess.run([self.shim_path, "--finalize-update"], capture_output=True, text=True, encoding="utf-8", errors="replace", env=test_env)
         self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
         self.assertIn("AnyContext successfully updated to v0.30.31", res.stdout)
 
@@ -193,13 +193,13 @@ class MockCore {
 """)
             mock_core_exe = os.path.join(sub_dir, "actx-core.exe")
             cmd = [csc, "/nologo", "/target:exe", f"/out:{mock_core_exe}", mock_cs]
-            c_res = subprocess.run(cmd, capture_output=True, text=True)
+            c_res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
             self.assertEqual(c_res.returncode, 0)
 
             # Launch shim_dest (which will run mock_core_exe and wait for exit)
             test_env = os.environ.copy()
             test_env["ACTX_TEST_MODE"] = "1"
-            res = subprocess.run([shim_dest], capture_output=True, text=True, env=test_env)
+            res = subprocess.run([shim_dest], capture_output=True, text=True, encoding="utf-8", errors="replace", env=test_env)
             self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
             self.assertIn("AnyContext successfully updated to v0.30.31", res.stdout)
 

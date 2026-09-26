@@ -303,6 +303,283 @@ impl PyLmClient {
     }
 }
 
+/// PyO3 container for hybrid search request parameters.
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct PyHybridSearchRequest {
+    #[pyo3(get, set)]
+    pub query_text: String,
+    #[pyo3(get, set)]
+    pub sub_query_id: Option<String>,
+    #[pyo3(get, set)]
+    pub query_vector: Option<Vec<f32>>,
+    #[pyo3(get, set)]
+    pub workspace: Option<String>,
+    #[pyo3(get, set)]
+    pub target_workspaces: Vec<String>,
+    #[pyo3(get, set)]
+    pub linked_sources: Vec<String>,
+    #[pyo3(get, set)]
+    pub top_k: usize,
+    #[pyo3(get, set)]
+    pub candidate_pool_k: usize,
+    #[pyo3(get, set)]
+    pub min_score: f64,
+    #[pyo3(get, set)]
+    pub max_chunks_per_source: usize,
+    #[pyo3(get, set)]
+    pub max_density_chars: usize,
+    #[pyo3(get, set)]
+    pub table_name: String,
+    #[pyo3(get, set)]
+    pub rrf_k: usize,
+}
+
+#[pymethods]
+impl PyHybridSearchRequest {
+    #[new]
+    #[pyo3(signature = (
+        query_text,
+        sub_query_id=None,
+        query_vector=None,
+        workspace=None,
+        target_workspaces=None,
+        linked_sources=None,
+        top_k=20,
+        candidate_pool_k=100,
+        min_score=0.0,
+        max_chunks_per_source=3,
+        max_density_chars=40000,
+        table_name="workspace_chunks".to_string(),
+        rrf_k=60
+    ))]
+    pub fn new(
+        query_text: String,
+        sub_query_id: Option<String>,
+        query_vector: Option<Vec<f32>>,
+        workspace: Option<String>,
+        target_workspaces: Option<Vec<String>>,
+        linked_sources: Option<Vec<String>>,
+        top_k: usize,
+        candidate_pool_k: usize,
+        min_score: f64,
+        max_chunks_per_source: usize,
+        max_density_chars: usize,
+        table_name: String,
+        rrf_k: usize,
+    ) -> Self {
+        Self {
+            query_text,
+            sub_query_id,
+            query_vector,
+            workspace,
+            target_workspaces: target_workspaces.unwrap_or_default(),
+            linked_sources: linked_sources.unwrap_or_default(),
+            top_k,
+            candidate_pool_k,
+            min_score,
+            max_chunks_per_source,
+            max_density_chars,
+            table_name,
+            rrf_k,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PyHybridSearchRequest(query_text={:?}, sub_query_id={:?}, workspace={:?}, top_k={})",
+            self.query_text, self.sub_query_id, self.workspace, self.top_k
+        )
+    }
+}
+
+impl PyHybridSearchRequest {
+    pub fn to_native(&self) -> retrieval::HybridSearchRequest {
+        retrieval::HybridSearchRequest {
+            sub_query_id: self.sub_query_id.clone(),
+            query_text: self.query_text.clone(),
+            query_vector: self.query_vector.clone(),
+            workspace: self.workspace.clone(),
+            target_workspaces: self.target_workspaces.clone(),
+            linked_sources: self.linked_sources.clone(),
+            top_k: self.top_k,
+            candidate_pool_k: self.candidate_pool_k,
+            min_score: self.min_score,
+            max_chunks_per_source: self.max_chunks_per_source,
+            max_density_chars: self.max_density_chars,
+            table_name: self.table_name.clone(),
+            rrf_k: self.rrf_k,
+        }
+    }
+}
+
+/// Scored chunk result container exposed to Python.
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct PyHybridSearchResult {
+    #[pyo3(get)]
+    pub chunk_id: String,
+    #[pyo3(get)]
+    pub file_name: String,
+    #[pyo3(get)]
+    pub file_path: String,
+    #[pyo3(get)]
+    pub workspace: String,
+    #[pyo3(get)]
+    pub text: String,
+    #[pyo3(get)]
+    pub content_type: String,
+    #[pyo3(get)]
+    pub content_hash: String,
+    #[pyo3(get)]
+    pub score: f64,
+    #[pyo3(get)]
+    pub dense_score: Option<f32>,
+    #[pyo3(get)]
+    pub sparse_score: Option<f32>,
+    #[pyo3(get)]
+    pub token_count: usize,
+    #[pyo3(get)]
+    pub matched_subqueries: Vec<String>,
+}
+
+#[pymethods]
+impl PyHybridSearchResult {
+    pub fn to_dict(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let dict = pyo3::types::PyDict::new_bound(py);
+        dict.set_item("chunk_id", &self.chunk_id)?;
+        dict.set_item("id", &self.chunk_id)?;
+        dict.set_item("file_name", &self.file_name)?;
+        dict.set_item("file_path", &self.file_path)?;
+        dict.set_item("workspace", &self.workspace)?;
+        dict.set_item("text", &self.text)?;
+        dict.set_item("content_type", &self.content_type)?;
+        dict.set_item("content_hash", &self.content_hash)?;
+        dict.set_item("score", self.score)?;
+        dict.set_item("dense_score", self.dense_score)?;
+        dict.set_item("sparse_score", self.sparse_score)?;
+        dict.set_item("token_count", self.token_count)?;
+        dict.set_item("matched_subqueries", &self.matched_subqueries)?;
+        Ok(dict.into())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PyHybridSearchResult(chunk_id={:?}, file_name={:?}, score={:.4}, matched_subqueries={:?})",
+            self.chunk_id, self.file_name, self.score, self.matched_subqueries
+        )
+    }
+}
+
+impl PyHybridSearchResult {
+    pub fn from_native(native: retrieval::HybridSearchResult) -> Self {
+        Self {
+            chunk_id: native.chunk_id,
+            file_name: native.file_name,
+            file_path: native.file_path,
+            workspace: native.workspace,
+            text: native.text,
+            content_type: native.content_type,
+            content_hash: native.content_hash,
+            score: native.score,
+            dense_score: native.dense_score,
+            sparse_score: native.sparse_score,
+            token_count: native.token_count,
+            matched_subqueries: native.matched_subqueries,
+        }
+    }
+}
+
+/// High-performance native Rust Hybrid Pipeline exposed to Python with GIL release.
+#[pyclass]
+pub struct PyHybridPipeline {
+    inner: std::sync::Arc<retrieval::NativeHybridPipeline>,
+}
+
+#[pymethods]
+impl PyHybridPipeline {
+    #[new]
+    #[pyo3(signature = (db_path))]
+    pub fn new(db_path: &str) -> PyResult<Self> {
+        let pipeline = retrieval::NativeHybridPipeline::open(db_path)
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+        Ok(Self {
+            inner: std::sync::Arc::new(pipeline),
+        })
+    }
+
+    #[pyo3(signature = (req))]
+    pub fn search(
+        &self,
+        py: Python<'_>,
+        req: &PyHybridSearchRequest,
+    ) -> PyResult<Vec<PyHybridSearchResult>> {
+        let native_req = req.to_native();
+        let pipeline = self.inner.clone();
+        let results = py
+            .allow_threads(move || pipeline.search(native_req))
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+
+        Ok(results
+            .into_iter()
+            .map(PyHybridSearchResult::from_native)
+            .collect())
+    }
+
+    #[pyo3(signature = (requests))]
+    pub fn retrieve_hybrid_batch(
+        &self,
+        py: Python<'_>,
+        requests: Vec<PyHybridSearchRequest>,
+    ) -> PyResult<Vec<PyHybridSearchResult>> {
+        let native_reqs: Vec<retrieval::HybridSearchRequest> =
+            requests.into_iter().map(|r| r.to_native()).collect();
+        let pipeline = self.inner.clone();
+        let results = py
+            .allow_threads(move || pipeline.retrieve_hybrid_batch(native_reqs))
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+
+        Ok(results
+            .into_iter()
+            .map(PyHybridSearchResult::from_native)
+            .collect())
+    }
+
+    #[pyo3(signature = (table_name, id, text, file_name, file_path, workspace="Default".to_string(), content_type="Local Document".to_string()))]
+    pub fn add_chunk_to_bm25(
+        &self,
+        table_name: &str,
+        id: String,
+        text: String,
+        file_name: String,
+        file_path: String,
+        workspace: String,
+        content_type: String,
+    ) {
+        self.inner.add_chunk_to_bm25(
+            table_name,
+            id,
+            text,
+            file_name,
+            file_path,
+            workspace,
+            content_type,
+        );
+    }
+
+    pub fn save_bm25(&self, table_name: &str) -> PyResult<()> {
+        self.inner
+            .save_bm25(table_name)
+            .map_err(pyo3::exceptions::PyIOError::new_err)
+    }
+
+    pub fn load_bm25_from_file(&self, table_name: &str, file_path: &str) -> PyResult<()> {
+        self.inner
+            .load_bm25_from_file(table_name, file_path)
+            .map_err(pyo3::exceptions::PyIOError::new_err)
+    }
+}
+
 /// AnyContext High-Performance Core Engine in Rust.
 #[pymodule]
 fn any_context_core_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -318,6 +595,9 @@ fn any_context_core_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()>
     m.add_class::<PyAgentEngine>()?;
     m.add_class::<PyAgentResponse>()?;
     m.add_class::<PyAgentEvent>()?;
+    m.add_class::<PyHybridSearchRequest>()?;
+    m.add_class::<PyHybridSearchResult>()?;
+    m.add_class::<PyHybridPipeline>()?;
     m.add_function(wrap_pyfunction!(extract_temporal_clauses, m)?)?;
     m.add_function(wrap_pyfunction!(expand_query_temporal, m)?)?;
     m.add_function(wrap_pyfunction!(extract_filename_mentions, m)?)?;
@@ -327,3 +607,4 @@ fn any_context_core_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()>
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }
+
