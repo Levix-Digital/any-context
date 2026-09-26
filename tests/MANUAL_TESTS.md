@@ -7,6 +7,62 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 2 (v0.31.2 Modais Interativos como Atalhos de Slash Commands & Resolução Robusta de Parâmetros):
+- **Objetivo**: Comprovar que na versão `v0.31.2`:
+  1. **Modais Interativos como Aliases Diretos de Comandos Slash**:
+     - Digitar `/switch` ou `/workspace` sem argumentos abre a caixa/modal interativa de Workspaces com navegação por setas e Enter.
+     - Digitar `/model` ou `/models` sem argumentos abre a caixa/modal interativa de Modelos de IA com status visual de ativo.
+     - Digitar `/sync` sem argumentos abre a caixa/modal de seleção de sincronização (Incremental / Forçada).
+     - Digitar `/mode`, `/grounding` ou `/search` sem argumentos abre a caixa/modal com 6 estratégias de grounding (Auto, Strict, Hybrid, Proactive, Fast, Deep).
+     - Digitar `/sources` ou `/source` sem argumentos abre a caixa/modal de fontes (Workspace atual, `--all` global ou inspeção LanceDB).
+     - Digitar `/keys` sem argumentos abre a caixa/modal de auditoria de credenciais de provedores de IA.
+  2. **Execução Imediata no Autocomplete com Single-Enter**:
+     - Ao digitar `/` e navegar na paleta de comandos, selecionar qualquer comando sem argumentos e pressionar `Enter` abre imediatamente o modal correspondente (eliminando a necessidade de dar Enter duas vezes).
+  3. **Robustez no Tratamento de Argumentos e Flags Canônicas**:
+     - `/sources --all` (e aliases `/sources -a`, `/sources all`): lista todas as pastas e URLs configuradas em todos os workspaces do banco de dados SQLite.
+     - `/folder add <caminho>` e `/folder --add <caminho>`: adiciona diretório corretamente.
+     - `/folder remove <caminho>` e `/folder rm <caminho>`: remove diretório.
+     - `/web add <url>` e `/web --add <url>`: cadastra portal de documentação web.
+     - `/mode strict`, `/mode hybrid`, `/mode proactive`, `/mode auto`: altera a estratégia de busca e grounding persistida no banco.
+     - `/history --limit <n>` e `/history --clear`: exibe histórico paginado ou limpa o viewport.
+  4. **Atualização do Binário Nativo**:
+     - `actx -v` retorna `actx 0.31.2`.
+     - `actx --check-update` executa sem requisição de API key do OpenAI e informa a versão correta.
+     - `actx -d` / `actx diagnostics` relata 100% de integridade da engine Rust.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão e Update:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     actx --check-update
+     ```
+   - **Critério de Aceitação**: Deve exibir `actx 0.31.2` e informar que a versão é a mais recente.
+
+2. **📄 Teste de Modais Interativos Diretos na TUI:**
+   - Inicie o AnyContext:
+     ```text
+     actx
+     ```
+   - No prompt, digite `/switch` e tecle `Enter`: deve abrir o modal interativo de seleção de workspaces.
+   - Pressione `Esc` para fechar.
+   - Digite `/model` e tecle `Enter`: deve abrir o modal interativo de seleção de modelos de IA.
+   - Pressione `Esc` para fechar.
+   - Digite `/sync` e tecle `Enter`: deve abrir o modal interativo de sincronização.
+   - Pressione `Esc` para fechar.
+   - Digite `/mode` e tecle `Enter`: deve abrir o modal interativo com as 6 estratégias de grounding.
+   - Pressione `Esc` para fechar.
+   - Digite `/sources` e tecle `Enter`: deve abrir o modal interativo de fontes.
+   - Pressione `Esc` para fechar.
+
+3. **📄 Teste de Comandos com Argumentos:**
+   - Digite `/sources --all` e tecle `Enter`: deve imprimir o catálogo de todos os workspaces e suas fontes.
+   - Digite `/mode strict` e tecle `Enter`: deve exibir a mensagem confirmando que o modo foi alterado para STRICT.
+   - Digite `/exit` para sair graciosamente.
+
+---
+
 ### 📌 Cenário 1 (v0.31.1 100% Native Rust CLI, Dispatcher Canônico Completo & Interactive Modal Menu - actx-cli / Ratatui): Validação do Executável Nativo Único, Rótulo Amigável [AI], Descoberta de Workspaces (/switch), Sincronização Nativa (/sync) e Roteamento Headless
 
 - **Objetivo**: Comprovar que na versão `v0.31.0`:

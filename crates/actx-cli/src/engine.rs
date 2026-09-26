@@ -2,65 +2,71 @@ use std::sync::Arc;
 use actx_agent::{Agent, AgentExecutionMode, SearchMode};
 use actx_lm::providers::ProviderKind;
 use actx_lm::traits::LmProvider;
+use any_context_core_rs::storage::NativeConfigDb;
 
-/// Resolves an LmClient based on available environment credentials or model prefix.
-pub fn resolve_lm_provider(model_override: Option<&str>) -> Result<(Arc<dyn LmProvider>, String), String> {
-    let explicit_model = model_override
+/// Resolves an LmClient based on persistent SQLite database configuration,
+/// environment variables, or explicit overrides. Interface-agnostic.
+pub fn resolve_lm_provider(
+    model_override: Option<&str>,
+    workspace: Option<&str>,
+) -> Result<(Arc<dyn LmProvider>, String), String> {
+    let db = NativeConfigDb::open_default().ok();
+
+    // 1. Resolve effective model:
+    // model_override > ACTX_MODEL env > workspace model from DB > default model from DB > "gpt-4o-mini"
+    let effective_model = model_override
         .map(|s| s.to_string())
-        .or_else(|| std::env::var("ACTX_MODEL").ok());
-
-    let (kind, model_name, api_key) = if let Some(raw_model) = explicit_model {
-        if raw_model == "mock" || raw_model.starts_with("mock") {
-            (ProviderKind::Mock, "mock-model".to_string(), None)
-        } else if raw_model.starts_with("ollama/") || raw_model.starts_with("local/") {
-            let actual_model = raw_model.trim_start_matches("ollama/").trim_start_matches("local/");
-            (ProviderKind::Ollama { base_url: None }, actual_model.to_string(), None)
-        } else if raw_model.starts_with("claude") {
-            let key = std::env::var("ANTHROPIC_API_KEY").ok();
-            (ProviderKind::Anthropic, raw_model, key)
-        } else if raw_model.starts_with("gemini") {
-            let key = std::env::var("GEMINI_API_KEY").ok();
-            (ProviderKind::Gemini, raw_model, key)
-        } else if raw_model.starts_with("deepseek") {
-            let key = std::env::var("DEEPSEEK_API_KEY").ok();
-            (ProviderKind::DeepSeek, raw_model, key)
-        } else if raw_model.starts_with("groq") {
-            let key = std::env::var("GROQ_API_KEY").ok();
-            (ProviderKind::Groq, raw_model, key)
-        } else if raw_model.starts_with("gpt") || raw_model.starts_with("o1") || raw_model.starts_with("o3") {
-            let key = std::env::var("OPENAI_API_KEY").ok();
-            (ProviderKind::OpenAi, raw_model, key)
-        } else {
-            // Check available keys
-            if let Ok(key) = std::env::var("OPENAI_API_KEY") {
-                (ProviderKind::OpenAi, raw_model, Some(key))
-            } else if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
-                (ProviderKind::Anthropic, raw_model, Some(key))
-            } else if let Ok(key) = std::env::var("GEMINI_API_KEY") {
-                (ProviderKind::Gemini, raw_model, Some(key))
-            } else if let Ok(key) = std::env::var("DEEPSEEK_API_KEY") {
-                (ProviderKind::DeepSeek, raw_model, Some(key))
-            } else if let Ok(key) = std::env::var("GROQ_API_KEY") {
-                (ProviderKind::Groq, raw_model, Some(key))
+        .or_else(|| std::env::var("ACTX_MODEL").ok())
+        .or_else(|| {
+            if let Some(ws) = workspace {
+                db.as_ref().and_then(|d| d.get_workspace_model(ws).ok())
             } else {
-                (ProviderKind::Mock, raw_model, None)
+                None
             }
-        }
+        })
+        .or_else(|| db.as_ref().and_then(|d| d.get_default_model().ok()))
+        .unwrap_or_else(|| "gpt-4o-mini".to_string());
+
+    let raw_model = effective_model.trim().to_string();
+
+    let get_key = |provider: &str| -> Option<String> {
+        db.as_ref().and_then(|d| d.get_api_key(provider).ok().flatten())
+    };
+
+    let (kind, model_name, api_key) = if raw_model == "mock" || raw_model.starts_with("mock") {
+        (ProviderKind::Mock, "mock-model".to_string(), None)
+    } else if raw_model.starts_with("ollama/") || raw_model.starts_with("local/") {
+        let actual_model = raw_model.trim_start_matches("ollama/").trim_start_matches("local/");
+        (ProviderKind::Ollama { base_url: None }, actual_model.to_string(), None)
+    } else if raw_model.starts_with("claude") {
+        let key = get_key("anthropic");
+        (ProviderKind::Anthropic, raw_model, key)
+    } else if raw_model.starts_with("gemini") {
+        let key = get_key("gemini");
+        (ProviderKind::Gemini, raw_model, key)
+    } else if raw_model.starts_with("deepseek") {
+        let key = get_key("deepseek");
+        (ProviderKind::DeepSeek, raw_model, key)
+    } else if raw_model.starts_with("groq") {
+        let key = get_key("groq");
+        (ProviderKind::Groq, raw_model, key)
+    } else if raw_model.starts_with("gpt") || raw_model.starts_with("o1") || raw_model.starts_with("o3") {
+        let key = get_key("openai");
+        (ProviderKind::OpenAi, raw_model, key)
     } else {
-        // No explicit model requested -> detect based on available credentials
-        if let Ok(key) = std::env::var("OPENAI_API_KEY") {
-            (ProviderKind::OpenAi, "gpt-4o-mini".to_string(), Some(key))
-        } else if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
-            (ProviderKind::Anthropic, "claude-3-5-sonnet-20241022".to_string(), Some(key))
-        } else if let Ok(key) = std::env::var("GEMINI_API_KEY") {
-            (ProviderKind::Gemini, "gemini-3.8-flash".to_string(), Some(key))
-        } else if let Ok(key) = std::env::var("DEEPSEEK_API_KEY") {
-            (ProviderKind::DeepSeek, "deepseek-chat".to_string(), Some(key))
-        } else if let Ok(key) = std::env::var("GROQ_API_KEY") {
-            (ProviderKind::Groq, "llama-3.3-70b-versatile".to_string(), Some(key))
+        // Fallback: check which provider has credentials configured in env or SQLite database
+        if let Some(key) = get_key("openai") {
+            (ProviderKind::OpenAi, raw_model, Some(key))
+        } else if let Some(key) = get_key("anthropic") {
+            (ProviderKind::Anthropic, raw_model, Some(key))
+        } else if let Some(key) = get_key("gemini") {
+            (ProviderKind::Gemini, raw_model, Some(key))
+        } else if let Some(key) = get_key("deepseek") {
+            (ProviderKind::DeepSeek, raw_model, Some(key))
+        } else if let Some(key) = get_key("groq") {
+            (ProviderKind::Groq, raw_model, Some(key))
         } else {
-            // Local-first zero credential fallback
-            (ProviderKind::Mock, "mock-model".to_string(), None)
+            (ProviderKind::Mock, raw_model, None)
         }
     };
 

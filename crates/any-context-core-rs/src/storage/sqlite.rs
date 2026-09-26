@@ -316,6 +316,9 @@ impl NativeConfigDb {
 
     pub fn get_workspace_folders(&self, workspace_name: &str) -> Result<Vec<String>> {
         let conn = self.conn.lock().unwrap();
+        let mut list = Vec::new();
+
+        // 1. Check workspace_folders table if it exists
         let tbl_exists: bool = conn
             .query_row(
                 "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='workspace_folders'",
@@ -323,15 +326,42 @@ impl NativeConfigDb {
                 |r| r.get(0),
             )
             .unwrap_or(false);
-        if !tbl_exists {
-            return Ok(Vec::new());
+        if tbl_exists {
+            if let Ok(mut stmt) = conn.prepare("SELECT folder_path FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE") {
+                if let Ok(rows) = stmt.query_map(params![workspace_name], |row| row.get::<_, String>(0)) {
+                    for r in rows.flatten() {
+                        let norm = normalize_path_slashes(&r);
+                        if !list.contains(&norm) && !list.contains(&r) {
+                            list.push(r);
+                        }
+                    }
+                }
+            }
         }
-        let mut stmt = conn.prepare("SELECT folder_path FROM workspace_folders WHERE workspace_name = ?1")?;
-        let rows = stmt.query_map(params![workspace_name], |row| row.get::<_, String>(0))?;
-        let mut list = Vec::new();
-        for r in rows {
-            list.push(r?);
+
+        // 2. Check legacy workspaces.paths_json column (stores JSON array of strings)
+        if Self::check_column(&conn, "workspaces", "paths_json") {
+            let paths_json_opt: Option<String> = conn
+                .query_row(
+                    "SELECT paths_json FROM workspaces WHERE name = ?1 COLLATE NOCASE",
+                    params![workspace_name],
+                    |r| r.get(0),
+                )
+                .ok()
+                .flatten();
+
+            if let Some(json_str) = paths_json_opt {
+                if let Ok(paths) = serde_json::from_str::<Vec<String>>(&json_str) {
+                    for p in paths {
+                        let norm = normalize_path_slashes(&p);
+                        if !list.contains(&norm) && !list.contains(&p) {
+                            list.push(p);
+                        }
+                    }
+                }
+            }
         }
+
         Ok(list)
     }
 
@@ -347,7 +377,7 @@ impl NativeConfigDb {
         if !tbl_exists {
             return Ok(Vec::new());
         }
-        let mut stmt = conn.prepare("SELECT url FROM workspace_web_urls WHERE workspace_name = ?1")?;
+        let mut stmt = conn.prepare("SELECT url FROM workspace_web_urls WHERE workspace_name = ?1 COLLATE NOCASE")?;
         let rows = stmt.query_map(params![workspace_name], |row| row.get::<_, String>(0))?;
         let mut list = Vec::new();
         for r in rows {
@@ -367,6 +397,33 @@ impl NativeConfigDb {
              ON CONFLICT(workspace_name, folder_path) DO NOTHING",
             params![&id, workspace_name, &norm_path, &now],
         )?;
+
+        // Also sync with workspaces.paths_json if column exists
+        if Self::check_column(&conn, "workspaces", "paths_json") {
+            let paths_json_opt: Option<String> = conn
+                .query_row(
+                    "SELECT paths_json FROM workspaces WHERE name = ?1 COLLATE NOCASE",
+                    params![workspace_name],
+                    |r| r.get(0),
+                )
+                .ok()
+                .flatten();
+
+            let mut paths: Vec<String> = paths_json_opt
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+
+            if !paths.iter().any(|p| p == folder_path || p == &norm_path) {
+                paths.push(folder_path.to_string());
+                if let Ok(serialized) = serde_json::to_string(&paths) {
+                    let _ = conn.execute(
+                        "UPDATE workspaces SET paths_json = ?1 WHERE name = ?2 COLLATE NOCASE",
+                        params![&serialized, workspace_name],
+                    );
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -374,10 +431,39 @@ impl NativeConfigDb {
         let conn = self.conn.lock().unwrap();
         let norm_path = normalize_path_slashes(folder_path);
         let count = conn.execute(
-            "DELETE FROM workspace_folders WHERE workspace_name = ?1 AND folder_path = ?2",
-            params![workspace_name, &norm_path],
+            "DELETE FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE AND (folder_path = ?2 OR folder_path = ?3)",
+            params![workspace_name, &norm_path, folder_path],
         )?;
-        Ok(count > 0)
+
+        let mut paths_removed = false;
+        if Self::check_column(&conn, "workspaces", "paths_json") {
+            let paths_json_opt: Option<String> = conn
+                .query_row(
+                    "SELECT paths_json FROM workspaces WHERE name = ?1 COLLATE NOCASE",
+                    params![workspace_name],
+                    |r| r.get(0),
+                )
+                .ok()
+                .flatten();
+
+            if let Some(json_str) = paths_json_opt {
+                if let Ok(mut paths) = serde_json::from_str::<Vec<String>>(&json_str) {
+                    let prev_len = paths.len();
+                    paths.retain(|p| p != folder_path && normalize_path_slashes(p) != norm_path);
+                    if paths.len() < prev_len {
+                        paths_removed = true;
+                        if let Ok(serialized) = serde_json::to_string(&paths) {
+                            let _ = conn.execute(
+                                "UPDATE workspaces SET paths_json = ?1 WHERE name = ?2 COLLATE NOCASE",
+                                params![&serialized, workspace_name],
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(count > 0 || paths_removed)
     }
 
     pub fn add_workspace_web_url(&self, workspace_name: &str, url: &str) -> Result<()> {
@@ -454,6 +540,203 @@ impl NativeConfigDb {
             "INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, ?3)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
             params![key, value, &now],
+        )?;
+        Ok(())
+    }
+
+    // --- Model Configuration ---
+
+    pub fn get_default_model(&self) -> Result<String> {
+        let conn = self.conn.lock().unwrap();
+
+        // 1. Check app_settings for "active_model" or "default_model"
+        let val: Option<String> = conn
+            .query_row(
+                "SELECT value FROM app_settings WHERE key IN ('active_model', 'default_model') ORDER BY key ASC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        if let Some(m) = val {
+            if !m.trim().is_empty() {
+                return Ok(m.trim().to_string());
+            }
+        }
+
+        // 2. Check models table for inference_model
+        let tbl_exists: bool = conn
+            .query_row(
+                "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='models'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if tbl_exists {
+            let inf_model: Option<String> = conn
+                .query_row(
+                    "SELECT inference_model FROM models ORDER BY id ASC LIMIT 1",
+                    [],
+                    |r| r.get(0),
+                )
+                .ok();
+            if let Some(m) = inf_model {
+                if !m.trim().is_empty() {
+                    return Ok(m.trim().to_string());
+                }
+            }
+        }
+
+        // 3. Fallback
+        Ok("gpt-4o-mini".to_string())
+    }
+
+    pub fn set_default_model(&self, model: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO app_settings (key, value, updated_at) VALUES ('active_model', ?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            params![model.trim(), &now],
+        )?;
+
+        let tbl_exists: bool = conn
+            .query_row(
+                "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='models'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if tbl_exists {
+            let count = conn.execute(
+                "UPDATE models SET inference_model = ?1",
+                params![model.trim()],
+            )?;
+            if count == 0 {
+                let _ = conn.execute(
+                    "INSERT INTO models (inference_model, summary_model, model_provider) VALUES (?1, ?1, 'openai')",
+                    params![model.trim()],
+                );
+            }
+        }
+        Ok(())
+    }
+
+    pub fn get_workspace_model(&self, workspace_name: &str) -> Result<String> {
+        let conn = self.conn.lock().unwrap();
+        if Self::check_column(&conn, "workspaces", "model") {
+            let ws_model: Option<String> = conn
+                .query_row(
+                    "SELECT model FROM workspaces WHERE name = ?1 COLLATE NOCASE",
+                    params![workspace_name],
+                    |r| r.get(0),
+                )
+                .ok()
+                .flatten();
+            if let Some(m) = ws_model {
+                if !m.trim().is_empty() {
+                    return Ok(m.trim().to_string());
+                }
+            }
+        }
+        drop(conn);
+        self.get_default_model()
+    }
+
+    pub fn set_workspace_model(&self, workspace_name: &str, model: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        if Self::check_column(&conn, "workspaces", "model") {
+            let _ = conn.execute(
+                "UPDATE workspaces SET model = ?1 WHERE name = ?2 COLLATE NOCASE",
+                params![model.trim(), workspace_name],
+            );
+        }
+        drop(conn);
+        self.set_default_model(model)
+    }
+
+    // --- API Key Credential Resolution ---
+
+    pub fn get_api_key(&self, provider: &str) -> Result<Option<String>> {
+        let clean = provider.trim().to_lowercase();
+        let env_var = match clean.as_str() {
+            "openai" => "OPENAI_API_KEY",
+            "anthropic" => "ANTHROPIC_API_KEY",
+            "gemini" | "google" => "GEMINI_API_KEY",
+            "deepseek" => "DEEPSEEK_API_KEY",
+            "groq" => "GROQ_API_KEY",
+            _ => "",
+        };
+        if !env_var.is_empty() {
+            if let Ok(key) = std::env::var(env_var) {
+                if !key.trim().is_empty() {
+                    return Ok(Some(key.trim().to_string()));
+                }
+            }
+        }
+        if clean == "gemini" || clean == "google" {
+            if let Ok(key) = std::env::var("GOOGLE_API_KEY") {
+                if !key.trim().is_empty() {
+                    return Ok(Some(key.trim().to_string()));
+                }
+            }
+        }
+
+        let conn = self.conn.lock().unwrap();
+        let tbl_exists: bool = conn
+            .query_row(
+                "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='api_keys'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if tbl_exists {
+            let key: Option<String> = conn
+                .query_row(
+                    "SELECT api_key FROM api_keys WHERE provider = ?1 COLLATE NOCASE",
+                    params![&clean],
+                    |r| r.get(0),
+                )
+                .ok();
+            if let Some(k) = key {
+                if !k.trim().is_empty() {
+                    return Ok(Some(k.trim().to_string()));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn get_all_api_keys(&self) -> Result<HashMap<String, String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut map = HashMap::new();
+        let tbl_exists: bool = conn
+            .query_row(
+                "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='api_keys'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if tbl_exists {
+            if let Ok(mut stmt) = conn.prepare("SELECT provider, api_key FROM api_keys") {
+                if let Ok(rows) = stmt.query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                }) {
+                    for r in rows.flatten() {
+                        map.insert(r.0.to_lowercase(), r.1);
+                    }
+                }
+            }
+        }
+        Ok(map)
+    }
+
+    pub fn set_api_key(&self, provider: &str, api_key: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let clean = provider.trim().to_lowercase();
+        conn.execute(
+            "INSERT INTO api_keys (provider, api_key) VALUES (?1, ?2)
+             ON CONFLICT(provider) DO UPDATE SET api_key = excluded.api_key",
+            params![&clean, api_key.trim()],
         )?;
         Ok(())
     }
@@ -716,5 +999,14 @@ mod tests {
         let records = db.list_workspaces().expect("list records");
         assert_eq!(records.len(), 3);
         assert_eq!(records[0].name, "Default");
+
+        // Verify legacy paths_json parsing
+        db.conn.lock().unwrap().execute(
+            "UPDATE workspaces SET paths_json = ?1 WHERE name = 'RustBook'",
+            params![r#"["C:/repos/rust-book", "D:/notes"]"#],
+        ).expect("set legacy paths");
+
+        let rust_folders = db.get_workspace_folders("RustBook").expect("get folders");
+        assert_eq!(rust_folders, vec!["C:/repos/rust-book".to_string(), "D:/notes".to_string()]);
     }
 }

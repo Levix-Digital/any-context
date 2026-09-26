@@ -206,7 +206,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
     }
 
     // 3. Resolve Provider & Build Agent
-    let (provider, model_name) = resolve_lm_provider(args.model.as_deref())
+    let (provider, model_name) = resolve_lm_provider(args.model.as_deref(), Some(&args.workspace))
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     let agent = build_agent(provider, &model_name, &args.workspace).await

@@ -22,19 +22,20 @@ use self::events::handle_key_event;
 
 /// Launches the interactive full-screen TUI session.
 pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Resolve Provider and create agent
-    let (provider, resolved_model) = match resolve_lm_provider(args.model.as_deref()) {
+    // 1. Resolve Provider and create agent via agnostic engine module
+    let effective_ws = args.workspace.clone();
+    let (provider, resolved_model) = match resolve_lm_provider(args.model.as_deref(), Some(&effective_ws)) {
         Ok((prov, m)) => (Some(prov), m),
         Err(_) => (None, "mock".to_string()),
     };
 
     let agent = if let Some(prov) = provider {
-        build_agent(prov, &resolved_model, &args.workspace).await.ok()
+        build_agent(prov, &resolved_model, &effective_ws).await.ok()
     } else {
         None
     };
 
-    let mut app = App::new(args.workspace, resolved_model, agent);
+    let mut app = App::new(effective_ws, resolved_model, agent);
 
     // 2. Setup Terminal in raw mode with alternate screen
     enable_raw_mode()?;

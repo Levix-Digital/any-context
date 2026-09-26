@@ -364,8 +364,12 @@ fn execute_switch(app: &mut App, args: &[&str]) -> String {
 
         app.active_workspace = target_ws.to_string();
 
+        if let Ok(ws_model) = db.get_workspace_model(target_ws) {
+            app.active_model = ws_model;
+        }
+
         // Rebuild agent for the new workspace if provider is available
-        if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&app.active_model)) {
+        if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&app.active_model), Some(&app.active_workspace)) {
             let ws_clone = app.active_workspace.clone();
             let model_clone = app.active_model.clone();
             tokio::spawn(async move {
@@ -576,7 +580,11 @@ fn execute_models(app: &mut App, target_model: Option<&str>) -> String {
         let m = m.trim();
         if !m.is_empty() && m != "--list" && m != "-l" && m != "list" {
             app.active_model = m.to_string();
-            if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&app.active_model)) {
+            if let Ok(db) = NativeConfigDb::open_default() {
+                let _ = db.set_workspace_model(&app.active_workspace, m);
+                let _ = db.set_default_model(m);
+            }
+            if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&app.active_model), Some(&app.active_workspace)) {
                 let ws_clone = app.active_workspace.clone();
                 let model_clone = app.active_model.clone();
                 tokio::spawn(async move {
@@ -649,26 +657,34 @@ fn execute_history(app: &mut App, args: &[&str]) -> String {
 }
 
 fn execute_keys() -> String {
-    let check = |env_var: &str| -> &'static str {
+    let db = NativeConfigDb::open_default().ok();
+    let check = |provider: &str, env_var: &str| -> String {
         if std::env::var(env_var).map(|v| !v.trim().is_empty()).unwrap_or(false) {
-            "[Configured]"
+            "[Configured (Env)]".to_string()
+        } else if let Some(ref d) = db {
+            if let Ok(Some(k)) = d.get_api_key(provider) {
+                if !k.trim().is_empty() {
+                    return "[Configured (Vault)]".to_string();
+                }
+            }
+            "[Not Set]".to_string()
         } else {
-            "[Not Set]"
+            "[Not Set]".to_string()
         }
     };
 
     format!(
         "Provider Credentials Audit:\n\
-         • OpenAI:     {} (env: OPENAI_API_KEY)\n\
-         • Anthropic:  {} (env: ANTHROPIC_API_KEY)\n\
-         • Gemini:     {} (env: GEMINI_API_KEY)\n\
-         • DeepSeek:   {} (env: DEEPSEEK_API_KEY)\n\
-         • Groq:       {} (env: GROQ_API_KEY)",
-        check("OPENAI_API_KEY"),
-        check("ANTHROPIC_API_KEY"),
-        check("GEMINI_API_KEY"),
-        check("DEEPSEEK_API_KEY"),
-        check("GROQ_API_KEY"),
+         • OpenAI:     {} (env: OPENAI_API_KEY / vault: api_keys)\n\
+         • Anthropic:  {} (env: ANTHROPIC_API_KEY / vault: api_keys)\n\
+         • Gemini:     {} (env: GEMINI_API_KEY / vault: api_keys)\n\
+         • DeepSeek:   {} (env: DEEPSEEK_API_KEY / vault: api_keys)\n\
+         • Groq:       {} (env: GROQ_API_KEY / vault: api_keys)",
+        check("openai", "OPENAI_API_KEY"),
+        check("anthropic", "ANTHROPIC_API_KEY"),
+        check("gemini", "GEMINI_API_KEY"),
+        check("deepseek", "DEEPSEEK_API_KEY"),
+        check("groq", "GROQ_API_KEY"),
     )
 }
 
@@ -978,7 +994,7 @@ fn execute_billing() -> String {
      • Active Tier: COMMUNITY (100% Free & Open Source)\n\
      • Status: ACTIVE & UNLIMITED\n\
      • Features: Full-Screen Native TUI, LanceDB Vector Search, Okapi BM25 Lexical Scan, Zero Python/Bun Runtimes, $0.00 Cost.\n\
-     • Target Release: AnyContext v0.31.1"
+     • Target Release: AnyContext v0.31.2"
         .to_string()
 }
 

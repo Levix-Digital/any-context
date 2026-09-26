@@ -460,9 +460,17 @@ pub fn build_sources_menu(active_workspace: &str) -> Vec<MenuItem> {
 }
 
 pub fn build_keys_menu() -> Vec<MenuItem> {
-    let check = |env_var: &str| -> (&'static str, Option<String>) {
+    let db = NativeConfigDb::open_default().ok();
+    let check = |provider: &str, env_var: &str| -> (&'static str, Option<String>) {
         if std::env::var(env_var).map(|v| !v.trim().is_empty()).unwrap_or(false) {
-            ("Configurada", Some("[Ativo]".to_string()))
+            ("Configurada (Env)", Some("[Ativo]".to_string()))
+        } else if let Some(ref d) = db {
+            if let Ok(Some(k)) = d.get_api_key(provider) {
+                if !k.trim().is_empty() {
+                    return ("Configurada (Vault)", Some("[Ativo]".to_string()));
+                }
+            }
+            ("Não configurada", Some("[Ausente]".to_string()))
         } else {
             ("Não configurada", Some("[Ausente]".to_string()))
         }
@@ -481,45 +489,45 @@ pub fn build_keys_menu() -> Vec<MenuItem> {
         MenuItem {
             id: "keys_info:gemini".to_string(),
             title: "Google Gemini (Gemini 3.8 Flash, 1.5 Pro)".to_string(),
-            description: format!("Chave: GEMINI_API_KEY - Status: {}", check("GEMINI_API_KEY").0),
+            description: format!("Chave: GEMINI_API_KEY - Status: {}", check("gemini", "GEMINI_API_KEY").0),
             icon: "🔑".to_string(),
-            badge: check("GEMINI_API_KEY").1,
+            badge: check("gemini", "GEMINI_API_KEY").1,
             shortcut: None,
             is_submenu: false,
         },
         MenuItem {
             id: "keys_info:openai".to_string(),
             title: "OpenAI (GPT-4o, o1, o3-mini)".to_string(),
-            description: format!("Chave: OPENAI_API_KEY - Status: {}", check("OPENAI_API_KEY").0),
+            description: format!("Chave: OPENAI_API_KEY - Status: {}", check("openai", "OPENAI_API_KEY").0),
             icon: "🔑".to_string(),
-            badge: check("OPENAI_API_KEY").1,
+            badge: check("openai", "OPENAI_API_KEY").1,
             shortcut: None,
             is_submenu: false,
         },
         MenuItem {
             id: "keys_info:anthropic".to_string(),
             title: "Anthropic (Claude 3.5 Sonnet, Haiku)".to_string(),
-            description: format!("Chave: ANTHROPIC_API_KEY - Status: {}", check("ANTHROPIC_API_KEY").0),
+            description: format!("Chave: ANTHROPIC_API_KEY - Status: {}", check("anthropic", "ANTHROPIC_API_KEY").0),
             icon: "🔑".to_string(),
-            badge: check("ANTHROPIC_API_KEY").1,
+            badge: check("anthropic", "ANTHROPIC_API_KEY").1,
             shortcut: None,
             is_submenu: false,
         },
         MenuItem {
             id: "keys_info:deepseek".to_string(),
             title: "DeepSeek (DeepSeek V3, R1 Reasoner)".to_string(),
-            description: format!("Chave: DEEPSEEK_API_KEY - Status: {}", check("DEEPSEEK_API_KEY").0),
+            description: format!("Chave: DEEPSEEK_API_KEY - Status: {}", check("deepseek", "DEEPSEEK_API_KEY").0),
             icon: "🔑".to_string(),
-            badge: check("DEEPSEEK_API_KEY").1,
+            badge: check("deepseek", "DEEPSEEK_API_KEY").1,
             shortcut: None,
             is_submenu: false,
         },
         MenuItem {
             id: "keys_info:groq".to_string(),
             title: "Groq Cloud (Llama 3.3 70B LPU)".to_string(),
-            description: format!("Chave: GROQ_API_KEY - Status: {}", check("GROQ_API_KEY").0),
+            description: format!("Chave: GROQ_API_KEY - Status: {}", check("groq", "GROQ_API_KEY").0),
             icon: "🔑".to_string(),
-            badge: check("GROQ_API_KEY").1,
+            badge: check("groq", "GROQ_API_KEY").1,
             shortcut: None,
             is_submenu: false,
         },
