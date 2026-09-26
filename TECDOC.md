@@ -58,6 +58,11 @@
 70. [100% Native Rust Execution Architecture & Complete Purge of Python Fallbacks (`v0.30.33`)](#70-100-native-rust-execution-architecture--complete-purge-of-python-fallbacks-v03033)
 71. [Universal Native Rust Token Estimator & Density Budgeting Engine (`v0.30.34`)](#71-universal-native-rust-token-estimator--density-budgeting-engine-v03034)
 72. [Native Rust Cross-Platform Installer & Launcher Architecture (`v0.30.35`)](#72-native-rust-cross-platform-installer--launcher-architecture-v03035)
+73. [Native Rust SQLite Dynamic Configuration Engine & Thread-Safe Cache (`v0.30.36`)](#73-native-rust-sqlite-dynamic-configuration-engine--thread-safe-cache-v03036)
+74. [Unified Rust LLM/SLM Provider Strategy Engine - actx-lm (`v0.30.37`)](#74-unified-rust-llmslm-provider-strategy-engine---actx-lm-v03037)
+75. [Native Rust ReAct & Agent Orchestrator Layer - actx-agent, FSM, Polymorphic Tool Registry, SQLite Sessions & RFC-042 Foundations (`v0.30.38`)](#75-native-rust-react--agent-orchestrator-layer---actx-agent-fsm-polymorphic-tool-registry-sqlite-sessions--rfc-042-foundations-v03038)
+76. [Native Rust Hybrid RAG Pipeline & RFC-042 Batch Retrieval Engine (`v0.30.39`)](#76-native-rust-hybrid-rag-pipeline--rfc-042-batch-retrieval-engine-v03039)
+77. [100% Native Rust CLI & Full-Screen Interactive TUI Engine (`actx-cli` / Ratatui) (`v0.31.0`)](#77-100-native-rust-cli--full-screen-interactive-tui-engine-actx-cli--ratatui-v0310)
 
 ---
 
@@ -4617,3 +4622,80 @@ Chunks stored in LanceDB maintain AES-GCM-256 encryption (`enc::...`) at rest. `
   - Positive: Zero-copy ranking eliminates intermediate Python allocations and GIL contention.
   - Positive: Cross-query deduplication and score accumulation provide superior multi-faceted grounding for complex inquiries.
   - Positive: Foundation established for 100% Rust migration (eliminating Python orchestration completely).
+
+---
+
+## 77. 100% Native Rust CLI & Full-Screen Interactive TUI Engine (`actx-cli` / Ratatui) (`v0.31.0`)
+
+### 1. Architectural Vision & Decoupled Surface Model
+
+The transition to `v0.31.0` achieves the long-term milestone of AnyContext: **100% Native Rust execution from binary boot to screen rendering**, completely eliminating Python and Bun runtime dependencies from the standard user distribution.
+
+```mermaid
+flowchart TD
+    UserInvocation["User Invocation: actx [args]"] --> TtyCheck{"Is Stdin a TTY & No Headless Flags?"}
+    
+    subgraph HeadlessExecution ["Headless Fast-Path (cli::oneshot)"]
+        TtyCheck -->|No / Flag / Pipe| OneShotRouter["One-Shot & Daemon Router"]
+        OneShotRouter --> SubCommands["Subcommands: sync, diagnostics, update, serve, mcp, rpc"]
+        OneShotRouter --> StreamStdOut["Token Streaming Direct to Terminal Stdout"]
+    end
+    
+    subgraph InteractiveTui ["Interactive Native TUI (Ratatui 0.29 + Crossterm 0.28)"]
+        TtyCheck -->|Yes (Default)| AlternateScreen["EnterAlternateScreen & RawMode"]
+        AlternateScreen --> EventLoop["Tokio Async Event Loop (crossterm::EventStream)"]
+        EventLoop --> RenderFrame["Ratatui Frame Render"]
+        
+        subgraph TuiLayout ["Full-Screen TUI Architecture"]
+            direction TB
+            HeaderBlock["HeaderBar: Workspace, Model, Live Status Badge"]
+            ChatBlock["ChatViewport: Colored User/ACTX Bubbles, Scroll"]
+            AccordionBlock["ReActAccordion: Collapsible <think> & Tool Logs (Ctrl+T)"]
+            InputBlock["InputArea: Prompt, Multi-turn History, Cursor"]
+            SlashModal["SlashPalette: Floating Autocomplete Modal"]
+            FooterBlock["FooterBar: Keybindings [Enter] [Tab] [Ctrl+T] [Esc]"]
+        end
+    end
+    
+    InteractiveTui --> NativeEngine["Native Rust Engine Bridge (actx-agent + actx-lm)"]
+    HeadlessExecution --> NativeEngine
+```
+
+### 2. Core Traits & Components
+
+#### 2.1 Dual-Mode TTY-Aware Dispatch (`cli/args.rs`)
+
+`CliArgs::is_headless()` automatically inspects terminal context:
+1. **Interactive TUI (Default)**: Typing `actx` in an interactive terminal opens directly into the full-screen Ratatui TUI.
+2. **Headless Execution**: Any positional query (`actx "how does auth work?"`), prompt flag (`-p` / `-q`), piped stdin (`cat log.txt | actx`), or operational subcommand (`sync`, `diagnostics`, `update`, `serve`, `mcp`, `rpc`) automatically bypasses alternate screen initialization and routes to `cli::oneshot::run_headless`.
+
+#### 2.2 ReAct & Reasoning Collapsible Accordion (`tui/ui.rs` & `tui/app.rs`)
+
+Extended reasoning tokens (DeepSeek-R1, Claude thinking) and internal tool execution logs are routed into a dedicated `ReActAccordion` widget:
+- Toggled on/off instantly via `Ctrl+T`.
+- When streaming tokens arrive, thinking blocks remain contained within the accordion, preventing viewport jitter.
+- Once thinking finishes, final synthesis streams smoothly into the conversation viewport.
+
+#### 2.3 Floating Slash Command Palette (`commands/registry.rs`)
+
+Typing `/` opens a dynamic floating popup modal anchored above the prompt input:
+- Real-time prefix filtering and fuzzy matching for all commands (`/help`, `/workspace`, `/sync`, `/model`, `/clear`, `/status`, `/exit`, `/fast`, `/deep`, `/inspect`, `/purge`).
+- Arrow key navigation (`Up`/`Down`) with `Tab` or `Enter` for instant command completion.
+
+#### 2.4 Multi-Provider Native Engine Bridge (`engine.rs`)
+
+Zero Python dependency for LM dispatch:
+- Integrates directly with `actx-agent::Agent` and `actx-lm::LmClient`.
+- Transparent environment variable detection: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, or local Ollama endpoints.
+- Built-in Mock provider fallback ensuring hermetic offline testing.
+
+### 3. Architecture Decision Record (ADR-077)
+
+- **Status**: Accepted & Implemented (`v0.31.0`).
+- **Context**: Relying on Python wrappers or Bun sidecars (OpenTUI) created binary bloat (>150MB), slow boot times (>800ms), and fragile cross-platform process orchestration.
+- **Decision**: Adopt Ratatui 0.29 + Crossterm 0.28 as the primary canonical interface of AnyContext in `crates/actx-cli`, packaging everything into a single static native executable (`actx.exe` / `actx`).
+- **Consequences**:
+  - Positive: Instant cold startup (< 10ms); memory footprint < 40MB RSS.
+  - Positive: Zero external runtime dependencies (no Python, no Bun, no Node.js required).
+  - Positive: Full feature parity across Windows, macOS, and Linux terminals.
+

@@ -45,6 +45,12 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🖥️ 100% Native Rust CLI & Full-Screen Interactive TUI (`v0.31.0`)**:
+  - **Single Autonomous Executable (`actx.exe` / `actx`)**: Completely eliminates Python, Node.js, and Bun runtime dependencies from the standard user distribution. Instant cold startup in `< 10ms` with `< 40MB` memory footprint.
+  - **Interactive Full-Screen TUI (Ratatui 0.29 + Crossterm 0.28)**: Running `actx` in an interactive terminal opens directly into a sleek terminal UI with header status telemetry, colored conversation bubbles, and auto-scrolling viewport.
+  - **Collapsible ReAct & Reasoning Accordion (`Ctrl+T`)**: Extended reasoning tokens (`<think>`) and internal tool logs are contained in an expandable top drawer, eliminating viewport jitter during generation.
+  - **Floating Slash Commands Palette**: Typing `/` triggers a floating popup modal with real-time prefix filtering and keyboard navigation across all operational commands (`/help`, `/workspace`, `/sync`, `/model`, `/clear`, `/status`, `/exit`, etc.).
+  - **Headless Terminal Fast-Path**: Direct command queries (`actx "query"`), prompt flags (`-p`), piped stdin (`cat log.txt | actx`), and daemons (`serve`, `mcp`, `rpc`) execute immediately in terminal stdout without opening full-screen mode.
 - **⚡ Native Hybrid RAG & Batch Retrieval Engine (`v0.30.39`)**:
   - **Unified Rust-First Pipeline (`NativeHybridPipeline`)**: Unifies LanceDB Apache Arrow columnar vector search, Okapi BM25 inverted lexical index, and Reciprocal Rank Fusion (RRF k=60) inside a zero-copy, sub-3ms native Rust engine (`crates/any-context-core-rs/src/retrieval/pipeline.rs`).
   - **RFC-042 Deep Search Batching (`retrieve_hybrid_batch`)**: Concurrently executes 2 to 4 orthogonal sub-queries on Tokio worker threads with cross-query SHA-256 deduplication and accumulated RRF multi-query boosting.

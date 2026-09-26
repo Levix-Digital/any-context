@@ -4,6 +4,7 @@ members = [
     "crates/actx-installer",
     "crates/actx-lm",
     "crates/actx-agent",
+    "crates/actx-cli",
 ]
 resolver = "2"
 

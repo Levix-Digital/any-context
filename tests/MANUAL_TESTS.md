@@ -7,7 +7,54 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
-### 📌 Cenário 1 (v0.30.39 Native Rust Hybrid RAG Pipeline & RFC-042 Batch Retrieval Engine): Validação do Pipeline RAG Nativo em Rust, Busca Concorrente em Lote (retrieve_hybrid_batch), Fusão RRF e Deduplicação Cross-Query
+### 📌 Cenário 1 (v0.31.0 100% Native Rust CLI & Full-Screen Interactive TUI Engine - actx-cli / Ratatui): Validação do Executável Nativo Único, Roteamento TUI vs Headless, Accordion de Raciocínio, Slash Commands Flutuantes e Streaming Puro em Rust
+
+- **Objetivo**: Comprovar que na versão `v0.31.0`:
+  1. **Interface TUI Nativa Padrão (`crates/actx-cli`)**: Ao invocar `actx` sem argumentos em terminal interativo (TTY), a aplicação abre diretamente a TUI em tela cheia renderizada com Ratatui 0.29 e Crossterm 0.28, com tempo de boot < 10ms e consumo de memória < 40MB.
+  2. **Roteamento TTY vs Headless Automático**: Consultas com prompt direto (`actx "query"`), flags (`-p`, `--model`) ou stdin redirecionado via pipe (`cat file.txt | actx`) executam imediatamente no terminal stdout com streaming de tokens em tempo real sem abrir tela cheia.
+  3. **Accordion Colapsável de Raciocínio e Ferramentas (`Ctrl+T`)**: Tokens de raciocínio estendido (`<think>`) e logs de ferramentas ReAct são encapsulados em um painel retrátil, preservando a limpeza da área de conversação.
+  4. **Paleta Flutuante de Slash Commands**: Digitar `/` na barra de prompt abre uma janela modal flutuante com autocomplete em tempo real e navegação por teclado para todos os comandos operacionais.
+  5. **Eliminação Total de Dependências de Runtime Externo**: O binário nativo opera de forma 100% autônoma, sem necessidade de instalação de Python, Node.js ou Bun no ambiente do usuário.
+- **Pré-requisito**: Binário `actx` compilado ou instalado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Verificação de Versão e Diagnóstico Nativo no Terminal:**
+   - Execute no terminal:
+     ```text
+     actx --version
+     actx diagnostics
+     ```
+   - **Critério de Aceitação:** Retorna `actx 0.31.0` instantaneamente (<15ms) e o diagnóstico confirma status operacional com zero dependências de runtime.
+
+2. **🦀 Validação da Suíte de Testes Rust de `actx-cli`:**
+   - Execute no terminal:
+     ```text
+     cargo test -p actx-cli
+     ```
+   - **Critério de Aceitação:** Todos os testes unitários (detecção de modo headless, resolução de query, autocomplete de comandos e máquina de estado da TUI) passam com 100% de sucesso.
+
+3. **⚡ Validação do Modo Headless / One-Shot com Piped Stdin:**
+   - Execute no terminal:
+     ```text
+     echo "teste de contexto" | actx "analise o texto recebido"
+     ```
+   - **Critério de Aceitação:** A query executa em modo terminal puro (stdout), consumindo o stdin e transmitindo a resposta token-a-token sem invocar o modo tela cheia.
+
+4. **🖥️ Validação da Interface Interativa TUI em Ratatui:**
+   - Execute no terminal:
+     ```text
+     actx
+     ```
+   - **Critério de Aceitação:**
+     - A interface TUI abre em tela cheia com bordas arredondadas e cabeçalho com badges de status (`● IDLE`).
+     - Digitar `/` abre a janela flutuante de autocomplete com os comandos `/help`, `/workspace`, `/sync`, etc.
+     - Pressionar `Ctrl+T` alterna a visibilidade do Accordion de Raciocínio.
+     - Pressionar `Esc` ou digitar `/exit` fecha o aplicativo graciosamente restaurando o cursor e o terminal original.
+
+---
+
+### 📌 Cenário 2 (v0.30.39 Native Rust Hybrid RAG Pipeline & RFC-042 Batch Retrieval Engine): Validação do Pipeline RAG Nativo em Rust, Busca Concorrente em Lote (retrieve_hybrid_batch), Fusão RRF e Deduplicação Cross-Query
 
 - **Objetivo**: Comprovar que na versão `v0.30.39`:
   1. **Pipeline Híbrido Nativo em Rust (`NativeHybridPipeline`)**: O motor de busca vetorial (LanceDB) e busca lexical (Okapi BM25) operam unificados em Rust com fusão RRF (Reciprocal Rank Fusion k=60) de latência ultrabaixa e zero cópias desnecessárias.
