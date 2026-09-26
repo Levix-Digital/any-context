@@ -86,6 +86,7 @@ jobs:
 
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
+        shell: bash
         env:
           PYTHONIOENCODING: utf-8
         run: |
@@ -106,6 +107,7 @@ jobs:
 
       - name: Build with PyInstaller (Linux)
         if: runner.os == 'Linux'
+        shell: bash
         env:
           PYTHONIOENCODING: utf-8
         run: |
