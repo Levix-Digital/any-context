@@ -74,16 +74,14 @@ pub fn handle_key_event(
         }
         KeyCode::Enter => {
             if app.slash_palette_open && app.palette_navigated {
-                app.complete_selected_slash();
-                app.palette_navigated = false;
+                app.complete_selected_slash(true);
             } else {
                 app.submit_input(agent_tx.clone());
             }
         }
         KeyCode::Tab => {
             if app.slash_palette_open {
-                app.complete_selected_slash();
-                app.palette_navigated = false;
+                app.complete_selected_slash(false);
             }
         }
         KeyCode::Up => {

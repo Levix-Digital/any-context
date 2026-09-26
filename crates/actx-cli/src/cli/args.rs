@@ -1,17 +1,42 @@
 use clap::{Parser, Subcommand};
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Default)]
 #[command(
     name = "actx",
     author = "LeviGuilherme <contato@levix.digital>",
     version = "0.31.1",
+    disable_version_flag = true,
     about = "AnyContext (actx) - 100% Native Rust Agentic Context Engine & TUI",
-    long_about = "AnyContext (actx) is a ultra-fast, local-first agentic context engine and RAG pipeline.\nBy default, launching 'actx' opens the full interactive terminal TUI.\nHeadless flags and direct piped inputs execute in terminal stdout mode."
+    long_about = "AnyContext (actx) is an ultra-fast, local-first agentic context engine and RAG pipeline.\nBy default, launching 'actx' opens the full interactive terminal TUI.\nHeadless flags and direct piped inputs execute in terminal stdout mode."
 )]
 pub struct CliArgs {
+    /// Print version information (supports -v, -V, --version)
+    #[arg(short = 'v', short_alias = 'V', long = "version", action = clap::ArgAction::Version)]
+    pub version: Option<bool>,
+
     /// Context workspace to operate on
     #[arg(short = 'w', long = "workspace", default_value = "Default")]
     pub workspace: String,
+
+    /// Check if a newer release is available on GitHub
+    #[arg(long = "check-update", alias = "check")]
+    pub check_update: bool,
+
+    /// Self-update AnyContext binary to the latest release
+    #[arg(short = 'u', long = "update", alias = "upgrade")]
+    pub update: bool,
+
+    /// Run system diagnostics report in headless stdout mode
+    #[arg(short = 'd', long = "diagnostics", alias = "diag", alias = "health", alias = "diagnistics")]
+    pub diagnostics: bool,
+
+    /// Synchronize workspace folders and sources
+    #[arg(short = 's', long = "sync", alias = "reindex")]
+    pub sync: bool,
+
+    /// Force full reindex during sync
+    #[arg(short = 'f', long = "force")]
+    pub force: bool,
 
     /// Direct one-shot prompt query (executes without opening full TUI)
     #[arg(short = 'p', long = "prompt", short_alias = 'q', alias = "query")]
@@ -65,6 +90,9 @@ impl CliArgs {
     /// Determines whether the invocation should run headless (one-shot query)
     /// instead of launching the interactive full-screen TUI.
     pub fn is_headless(&self) -> bool {
+        if self.check_update || self.update || self.diagnostics || self.sync {
+            return true;
+        }
         if self.command.is_some() {
             return true;
         }

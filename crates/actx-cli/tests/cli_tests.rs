@@ -7,10 +7,8 @@ fn test_cli_args_headless_detection() {
     // 1. With command
     let args = CliArgs {
         workspace: "default".into(),
-        prompt: None,
-        model: None,
         command: Some(CliCommand::Diagnostics),
-        positional_query: vec![],
+        ..Default::default()
     };
     assert!(args.is_headless());
 
@@ -18,19 +16,34 @@ fn test_cli_args_headless_detection() {
     let args = CliArgs {
         workspace: "default".into(),
         prompt: Some("explain this project".into()),
-        model: None,
-        command: None,
-        positional_query: vec![],
+        ..Default::default()
     };
     assert!(args.is_headless());
 
     // 3. With positional query
     let args = CliArgs {
         workspace: "default".into(),
-        prompt: None,
-        model: None,
-        command: None,
         positional_query: vec!["how".into(), "does".into(), "it".into(), "work".into()],
+        ..Default::default()
+    };
+    assert!(args.is_headless());
+
+    // 4. With top-level flags
+    let args = CliArgs {
+        check_update: true,
+        ..Default::default()
+    };
+    assert!(args.is_headless());
+
+    let args = CliArgs {
+        diagnostics: true,
+        ..Default::default()
+    };
+    assert!(args.is_headless());
+
+    let args = CliArgs {
+        sync: true,
+        ..Default::default()
     };
     assert!(args.is_headless());
 }
@@ -40,27 +53,21 @@ fn test_resolved_query() {
     let args = CliArgs {
         workspace: "default".into(),
         prompt: Some("query from flag".into()),
-        model: None,
-        command: None,
         positional_query: vec!["ignored".into()],
+        ..Default::default()
     };
     assert_eq!(args.resolved_query(), Some("query from flag".to_string()));
 
     let args = CliArgs {
         workspace: "default".into(),
-        prompt: None,
-        model: None,
-        command: None,
         positional_query: vec!["positional".into(), "words".into()],
+        ..Default::default()
     };
     assert_eq!(args.resolved_query(), Some("positional words".to_string()));
 
     let args = CliArgs {
         workspace: "default".into(),
-        prompt: None,
-        model: None,
-        command: None,
-        positional_query: vec![],
+        ..Default::default()
     };
     assert_eq!(args.resolved_query(), None);
 }

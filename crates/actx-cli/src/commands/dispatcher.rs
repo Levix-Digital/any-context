@@ -489,7 +489,7 @@ fn execute_models(app: &mut App, target_model: Option<&str>) -> String {
         "Supported AI Providers & Models:\n\
          • OpenAI:     gpt-4o, gpt-4o-mini, o1, o3-mini (OPENAI_API_KEY)\n\
          • Anthropic:  claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022 (ANTHROPIC_API_KEY)\n\
-         • Gemini:     gemini-2.0-flash, gemini-1.5-pro (GEMINI_API_KEY)\n\
+         • Gemini:     gemini-3.8-flash, gemini-1.5-pro (GEMINI_API_KEY)\n\
          • DeepSeek:   deepseek-chat, deepseek-reasoner (DEEPSEEK_API_KEY)\n\
          • Groq:       llama-3.3-70b-versatile, mixtral-8x7b-32768 (GROQ_API_KEY)\n\
          • Ollama:     ollama/<model_name> (Local HTTP endpoint)\n\

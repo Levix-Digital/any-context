@@ -248,7 +248,7 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
         ("gpt-4o", "OpenAI - Flagship multimodal de alta capacidade"),
         ("claude-3-5-sonnet-20241022", "Anthropic - Raciocínio avançado e código"),
         ("claude-3-5-haiku-20241022", "Anthropic - Ultrarrápido e eficiente"),
-        ("gemini-2.0-flash", "Google - Baixíssima latência e multimodalidade"),
+        ("gemini-3.8-flash", "Google - Baixíssima latência e multimodalidade"),
         ("gemini-1.5-pro", "Google - Janela de contexto estendida"),
         ("deepseek-chat", "DeepSeek - Excelente custo-benefício para código"),
         ("deepseek-reasoner", "DeepSeek R1 - Raciocínio analítico passo-a-passo"),

@@ -166,14 +166,29 @@ impl App {
         }
     }
 
-    pub fn complete_selected_slash(&mut self) {
+    pub fn complete_selected_slash(&mut self, execute_if_zero_args: bool) {
         if self.slash_palette_open && !self.slash_matches.is_empty() {
             let selected = self.slash_matches[self.slash_palette_idx];
-            self.input_buffer = format!("/{} ", selected.name);
-            self.cursor_idx = self.input_buffer.len();
+            let name = selected.name;
             self.slash_palette_open = false;
             self.slash_matches.clear();
             self.palette_navigated = false;
+
+            let zero_arg_commands = [
+                "exit", "menu", "clear", "diagnostics", "status", "version",
+                "sync", "sources", "models", "keys", "history", "billing",
+                "reset-memory", "paste", "check-update", "ocr", "shared",
+                "help", "info", "inspect", "onboarding"
+            ];
+
+            if execute_if_zero_args && zero_arg_commands.contains(&name) {
+                self.input_buffer.clear();
+                self.cursor_idx = 0;
+                crate::commands::dispatch_slash_command(name, &[], self);
+            } else {
+                self.input_buffer = format!("/{} ", name);
+                self.cursor_idx = self.input_buffer.len();
+            }
         }
     }
 
