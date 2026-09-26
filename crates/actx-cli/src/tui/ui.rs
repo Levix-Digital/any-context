@@ -12,9 +12,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let size = frame.area();
 
     // Check if thinking accordion should be displayed
-    let show_accordion = app.accordion_open
-        && (!app.current_thinking_buffer.is_empty()
-            || app.chat_history.last().map(|m| m.thinking.is_some()).unwrap_or(false));
+    let show_accordion = app.accordion_open;
 
     // Vertical Layout
     let chunks = if show_accordion {
@@ -134,13 +132,14 @@ fn render_chat(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_accordion(frame: &mut Frame, area: Rect, app: &App) {
+    let fallback = "No active reasoning or tool calls yet. (Extended thoughts and ReAct loop events appear here)";
     let content = if !app.current_thinking_buffer.is_empty() {
-        &app.current_thinking_buffer
+        app.current_thinking_buffer.as_str()
     } else {
         app.chat_history
             .last()
             .and_then(|m| m.thinking.as_deref())
-            .unwrap_or("")
+            .unwrap_or(fallback)
     };
 
     let lines: Vec<Line> = content

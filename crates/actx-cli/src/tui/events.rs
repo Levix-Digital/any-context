@@ -8,6 +8,10 @@ pub fn handle_key_event(
     app: &mut App,
     agent_tx: &mpsc::UnboundedSender<AgentEvent>,
 ) {
+    if key.kind == crossterm::event::KeyEventKind::Release {
+        return;
+    }
+
     if key.modifiers.contains(KeyModifiers::CONTROL) {
         match key.code {
             KeyCode::Char('c') => {
