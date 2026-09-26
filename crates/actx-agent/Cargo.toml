@@ -1,6 +1,6 @@
 [package]
 name = "actx-agent"
-version = "0.32.0"
+version = "0.32.1"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Deterministic ReAct and Deep Search agent orchestrator with finite state machine, polymorphic tool registry, and session persistence for Rust"
