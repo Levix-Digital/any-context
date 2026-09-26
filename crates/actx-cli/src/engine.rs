@@ -10,19 +10,31 @@ pub fn resolve_lm_provider(model_override: Option<&str>) -> Result<(Arc<dyn LmPr
             .unwrap_or_else(|_| "gpt-4o-mini".to_string())
     });
 
-    let (kind, default_m) = if raw_model.starts_with("ollama/") || raw_model.starts_with("local/") {
+    let (kind, default_m) = if raw_model == "mock" || raw_model.starts_with("mock") {
+        (ProviderKind::Mock, "mock-model".to_string())
+    } else if raw_model.starts_with("ollama/") || raw_model.starts_with("local/") {
         let actual_model = raw_model.trim_start_matches("ollama/").trim_start_matches("local/");
         (ProviderKind::Ollama { base_url: None }, actual_model.to_string())
-    } else if raw_model.starts_with("claude") || std::env::var("ANTHROPIC_API_KEY").is_ok() {
-        (ProviderKind::Anthropic, if raw_model.starts_with("claude") { raw_model.clone() } else { "claude-3-5-sonnet-20241022".to_string() })
-    } else if raw_model.starts_with("gemini") || std::env::var("GEMINI_API_KEY").is_ok() {
-        (ProviderKind::Gemini, if raw_model.starts_with("gemini") { raw_model.clone() } else { "gemini-2.0-flash".to_string() })
-    } else if raw_model.starts_with("deepseek") || std::env::var("DEEPSEEK_API_KEY").is_ok() {
-        (ProviderKind::DeepSeek, if raw_model.starts_with("deepseek") { raw_model.clone() } else { "deepseek-chat".to_string() })
-    } else if raw_model.starts_with("groq") || std::env::var("GROQ_API_KEY").is_ok() {
-        (ProviderKind::Groq, if raw_model.starts_with("groq") { raw_model.clone() } else { "llama-3.3-70b-versatile".to_string() })
+    } else if raw_model.starts_with("claude") {
+        (ProviderKind::Anthropic, raw_model.clone())
+    } else if raw_model.starts_with("gemini") {
+        (ProviderKind::Gemini, raw_model.clone())
+    } else if raw_model.starts_with("deepseek") {
+        (ProviderKind::DeepSeek, raw_model.clone())
+    } else if raw_model.starts_with("groq") {
+        (ProviderKind::Groq, raw_model.clone())
+    } else if raw_model.starts_with("gpt") || raw_model.starts_with("o1") || raw_model.starts_with("o3") {
+        (ProviderKind::OpenAi, raw_model.clone())
     } else if std::env::var("OPENAI_API_KEY").is_ok() {
         (ProviderKind::OpenAi, raw_model.clone())
+    } else if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+        (ProviderKind::Anthropic, "claude-3-5-sonnet-20241022".to_string())
+    } else if std::env::var("GEMINI_API_KEY").is_ok() {
+        (ProviderKind::Gemini, "gemini-2.0-flash".to_string())
+    } else if std::env::var("DEEPSEEK_API_KEY").is_ok() {
+        (ProviderKind::DeepSeek, "deepseek-chat".to_string())
+    } else if std::env::var("GROQ_API_KEY").is_ok() {
+        (ProviderKind::Groq, "llama-3.3-70b-versatile".to_string())
     } else {
         // Fallback to Mock provider for seamless testing / offline demo
         (ProviderKind::Mock, raw_model.clone())
