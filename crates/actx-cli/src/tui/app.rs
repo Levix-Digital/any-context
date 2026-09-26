@@ -178,7 +178,8 @@ impl App {
                 "exit", "menu", "clear", "diagnostics", "status", "version",
                 "sync", "sources", "models", "keys", "history", "billing",
                 "reset-memory", "paste", "check-update", "ocr", "shared",
-                "help", "info", "inspect", "onboarding"
+                "help", "info", "inspect", "onboarding", "switch", "model",
+                "mode", "source", "workspace", "search"
             ];
 
             if execute_if_zero_args && zero_arg_commands.contains(&name) {
@@ -195,6 +196,36 @@ impl App {
     pub fn open_menu(&mut self) {
         self.slash_palette_open = false;
         self.menu_state.open_main(&self.active_workspace, &self.active_model);
+    }
+
+    pub fn open_workspaces_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_workspaces(&self.active_workspace);
+    }
+
+    pub fn open_models_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_models(&self.active_model);
+    }
+
+    pub fn open_sync_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_sync();
+    }
+
+    pub fn open_grounding_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_grounding();
+    }
+
+    pub fn open_sources_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_sources(&self.active_workspace);
+    }
+
+    pub fn open_keys_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_keys();
     }
 
     pub fn close_menu(&mut self) {
@@ -233,14 +264,24 @@ impl App {
                 self.menu_state.is_open = false;
             } else if item.id.starts_with("grounding_action:") {
                 let mode = item.id.trim_start_matches("grounding_action:");
-                crate::commands::dispatch_slash_command("search", &[mode], self);
+                crate::commands::dispatch_slash_command("mode", &[mode], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "sources_action:active" {
+                crate::commands::dispatch_slash_command("sources", &["active"], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "sources_action:all" {
+                crate::commands::dispatch_slash_command("sources", &["--all"], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "sources_action:inspect" {
+                crate::commands::dispatch_slash_command("inspect", &[], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "keys_action:audit" {
+                crate::commands::dispatch_slash_command("keys", &["audit"], self);
                 self.menu_state.is_open = false;
             } else if item.id == "sources" {
-                crate::commands::dispatch_slash_command("sources", &[], self);
-                self.menu_state.is_open = false;
+                self.open_sources_menu();
             } else if item.id == "keys" {
-                crate::commands::dispatch_slash_command("keys", &[], self);
-                self.menu_state.is_open = false;
+                self.open_keys_menu();
             } else if item.id == "diagnostics" {
                 crate::commands::dispatch_slash_command("diagnostics", &[], self);
                 self.menu_state.is_open = false;

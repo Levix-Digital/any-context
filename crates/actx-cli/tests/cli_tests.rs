@@ -117,19 +117,28 @@ async fn test_app_state_and_slash_dispatch() {
     app.submit_input(tx.clone());
     assert_eq!(app.active_workspace, "DevLab");
 
-    // Test /switch without args (lists workspaces)
+    // Test /switch without args (opens workspaces interactive modal)
     app.input_buffer = "/switch".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    assert!(app.menu_state.is_open);
+    assert_eq!(app.menu_state.current_menu_id, "workspaces");
+    app.close_menu();
+
+    // Test /switch --list (lists workspaces directly)
+    app.input_buffer = "/switch --list".to_string();
     app.cursor_idx = app.input_buffer.len();
     app.submit_input(tx.clone());
     let last_msg = app.chat_history.last().expect("history item");
     assert!(last_msg.content.contains("Available Workspaces"));
 
-    // Test /sync execution
+    // Test /sync without args (opens sync interactive modal)
     app.input_buffer = "/sync".to_string();
     app.cursor_idx = app.input_buffer.len();
     app.submit_input(tx.clone());
-    let sync_msg = app.chat_history.last().expect("sync item");
-    assert!(sync_msg.content.contains("sync completed for workspace"));
+    assert!(app.menu_state.is_open);
+    assert_eq!(app.menu_state.current_menu_id, "sync");
+    app.close_menu();
 
     // Test /sync --force execution
     app.input_buffer = "/sync --force".to_string();
@@ -138,12 +147,20 @@ async fn test_app_state_and_slash_dispatch() {
     let force_sync_msg = app.chat_history.last().expect("force sync item");
     assert!(force_sync_msg.content.contains("Forced sync completed"));
 
-    // Test /sources
+    // Test /sources without args (opens sources interactive modal)
     app.input_buffer = "/sources".to_string();
     app.cursor_idx = app.input_buffer.len();
     app.submit_input(tx.clone());
-    let sources_msg = app.chat_history.last().expect("sources item");
-    assert!(sources_msg.content.contains("Workspace Sources"));
+    assert!(app.menu_state.is_open);
+    assert_eq!(app.menu_state.current_menu_id, "sources");
+    app.close_menu();
+
+    // Test /sources --all (lists all sources across workspaces)
+    app.input_buffer = "/sources --all".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let sources_all_msg = app.chat_history.last().expect("sources all item");
+    assert!(sources_all_msg.content.contains("All Configured Workspaces & Sources"));
 
     // Test /diagnostics
     app.input_buffer = "/diagnostics".to_string();
@@ -152,8 +169,16 @@ async fn test_app_state_and_slash_dispatch() {
     let diag_msg = app.chat_history.last().expect("diag item");
     assert!(diag_msg.content.contains("AnyContext Diagnostics Report"));
 
-    // Test /keys
+    // Test /keys without args (opens keys interactive modal)
     app.input_buffer = "/keys".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    assert!(app.menu_state.is_open);
+    assert_eq!(app.menu_state.current_menu_id, "keys");
+    app.close_menu();
+
+    // Test /keys audit (direct credential audit)
+    app.input_buffer = "/keys audit".to_string();
     app.cursor_idx = app.input_buffer.len();
     app.submit_input(tx.clone());
     let keys_msg = app.chat_history.last().expect("keys item");
@@ -165,8 +190,16 @@ async fn test_app_state_and_slash_dispatch() {
     app.submit_input(tx.clone());
     assert_eq!(app.active_model, "claude-3-5-sonnet");
 
-    // Test /models (catalog)
+    // Test /models without args (opens models interactive modal)
     app.input_buffer = "/models".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    assert!(app.menu_state.is_open);
+    assert_eq!(app.menu_state.current_menu_id, "models");
+    app.close_menu();
+
+    // Test /models --list (catalog display)
+    app.input_buffer = "/models --list".to_string();
     app.cursor_idx = app.input_buffer.len();
     app.submit_input(tx.clone());
     let models_msg = app.chat_history.last().expect("models item");

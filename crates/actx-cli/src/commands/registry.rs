@@ -10,14 +10,14 @@ pub struct SlashCommand {
 pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     SlashCommand {
         name: "switch",
-        aliases: &["workspace", "workspaces"],
+        aliases: &["workspace", "workspaces", "ws"],
         description: "Lists all workspaces or switches active context workspace",
-        usage: "/switch [name]",
+        usage: "/switch [name] [--delete <name>]",
         category: "Workspace",
     },
     SlashCommand {
         name: "sync",
-        aliases: &["reindex"],
+        aliases: &["reindex", "resync", "index"],
         description: "Performs incremental SHA-256 sync of documents and folders",
         usage: "/sync [--force]",
         category: "Sources",
@@ -31,21 +31,21 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     },
     SlashCommand {
         name: "models",
-        aliases: &[],
+        aliases: &["list-models", "model-list"],
         description: "Displays catalog of supported AI models and providers",
         usage: "/models",
         category: "Engine",
     },
     SlashCommand {
         name: "sources",
-        aliases: &["list-sources"],
+        aliases: &["source", "list-sources", "src"],
         description: "Lists indexed local folders and web documentation sources",
-        usage: "/sources",
+        usage: "/sources [--all]",
         category: "Sources",
     },
     SlashCommand {
         name: "diagnostics",
-        aliases: &["diag", "perf", "health"],
+        aliases: &["diag", "perf", "health", "diagnistics"],
         description: "Inspects system health, memory, database, and latency metrics",
         usage: "/diagnostics",
         category: "System",
@@ -199,9 +199,9 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     },
     SlashCommand {
         name: "mode",
-        aliases: &["grounding"],
+        aliases: &["grounding", "grounding-mode", "answer-mode", "am"],
         description: "Select AI Grounding Strategy mode (strict, hybrid, proactive, auto)",
-        usage: "/mode [strategy]",
+        usage: "/mode [--strict|--hybrid|--proactive|--auto]",
         category: "RAG",
     },
     SlashCommand {

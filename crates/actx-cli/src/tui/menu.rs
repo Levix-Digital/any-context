@@ -70,11 +70,73 @@ impl MenuState {
                 self.breadcrumbs = vec!["Menu Principal".to_string(), "Busca & Grounding".to_string()];
                 self.items = build_grounding_menu();
             }
+            "sources" => {
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Fontes & Documentos".to_string()];
+                self.items = build_sources_menu(active_workspace);
+            }
+            "keys" => {
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Credenciais de API".to_string()];
+                self.items = build_keys_menu();
+            }
             _ => {
                 self.breadcrumbs = vec!["Menu Principal".to_string()];
                 self.items = build_main_menu(active_workspace, active_model);
             }
         }
+    }
+
+    pub fn open_workspaces(&mut self, active_workspace: &str) {
+        self.is_open = true;
+        self.current_menu_id = "workspaces".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Menu Principal".to_string(), "Workspaces".to_string()];
+        self.items = build_workspaces_menu(active_workspace);
+    }
+
+    pub fn open_models(&mut self, active_model: &str) {
+        self.is_open = true;
+        self.current_menu_id = "models".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Menu Principal".to_string(), "Modelos de IA".to_string()];
+        self.items = build_models_menu(active_model);
+    }
+
+    pub fn open_sync(&mut self) {
+        self.is_open = true;
+        self.current_menu_id = "sync".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Menu Principal".to_string(), "Sincronização".to_string()];
+        self.items = build_sync_menu();
+    }
+
+    pub fn open_grounding(&mut self) {
+        self.is_open = true;
+        self.current_menu_id = "grounding".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Menu Principal".to_string(), "Busca & Grounding".to_string()];
+        self.items = build_grounding_menu();
+    }
+
+    pub fn open_sources(&mut self, active_workspace: &str) {
+        self.is_open = true;
+        self.current_menu_id = "sources".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Menu Principal".to_string(), "Fontes & Documentos".to_string()];
+        self.items = build_sources_menu(active_workspace);
+    }
+
+    pub fn open_keys(&mut self) {
+        self.is_open = true;
+        self.current_menu_id = "keys".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Menu Principal".to_string(), "Credenciais de API".to_string()];
+        self.items = build_keys_menu();
     }
 
     pub fn back(&mut self, active_workspace: &str, active_model: &str) -> bool {
@@ -143,7 +205,7 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
             icon: "📁".to_string(),
             badge: None,
             shortcut: Some("/sources".to_string()),
-            is_submenu: false,
+            is_submenu: true,
         },
         MenuItem {
             id: "models".to_string(),
@@ -157,10 +219,10 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         MenuItem {
             id: "grounding".to_string(),
             title: "Modos de Busca & Grounding RAG".to_string(),
-            description: "Configurar estratégia: Auto Grounding, Fast RAG ou Deep Search".to_string(),
+            description: "Configurar estratégia: Auto Grounding, Strict, Hybrid, Proactive, Fast ou Deep".to_string(),
             icon: "🔍".to_string(),
             badge: Some("[Auto]".to_string()),
-            shortcut: Some("/search".to_string()),
+            shortcut: Some("/mode".to_string()),
             is_submenu: true,
         },
         MenuItem {
@@ -170,7 +232,7 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
             icon: "🔑".to_string(),
             badge: None,
             shortcut: Some("/keys".to_string()),
-            is_submenu: false,
+            is_submenu: true,
         },
         MenuItem {
             id: "diagnostics".to_string(),
@@ -244,11 +306,11 @@ pub fn build_workspaces_menu(active_workspace: &str) -> Vec<MenuItem> {
 
 pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
     let models = &[
+        ("gemini-3.8-flash", "Google - Baixíssima latência e multimodalidade"),
         ("gpt-4o-mini", "OpenAI - Rápido, econômico e inteligente"),
         ("gpt-4o", "OpenAI - Flagship multimodal de alta capacidade"),
         ("claude-3-5-sonnet-20241022", "Anthropic - Raciocínio avançado e código"),
         ("claude-3-5-haiku-20241022", "Anthropic - Ultrarrápido e eficiente"),
-        ("gemini-3.8-flash", "Google - Baixíssima latência e multimodalidade"),
         ("gemini-1.5-pro", "Google - Janela de contexto estendida"),
         ("deepseek-chat", "DeepSeek - Excelente custo-benefício para código"),
         ("deepseek-reasoner", "DeepSeek R1 - Raciocínio analítico passo-a-passo"),
@@ -309,7 +371,34 @@ pub fn build_grounding_menu() -> Vec<MenuItem> {
             description: "Alterna automaticamente entre busca rápida e reflexiva conforme a pergunta".to_string(),
             icon: "🎯".to_string(),
             badge: Some("[Padrão]".to_string()),
-            shortcut: Some("/search auto".to_string()),
+            shortcut: Some("/mode auto".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "grounding_action:strict".to_string(),
+            title: "Strict Mode (100% Fatos Verificados)".to_string(),
+            description: "Respostas estritamente ancoradas nos documentos, zero especulação externa".to_string(),
+            icon: "🔒".to_string(),
+            badge: Some("[Auditoria]".to_string()),
+            shortcut: Some("/mode strict".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "grounding_action:hybrid".to_string(),
+            title: "Hybrid Mode (Dual-Layer)".to_string(),
+            description: "Camada 1: fatos do workspace + Camada 2: sugestões externas identificadas".to_string(),
+            icon: "⚖️".to_string(),
+            badge: Some("[Equilibrado]".to_string()),
+            shortcut: Some("/mode hybrid".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "grounding_action:proactive".to_string(),
+            title: "Proactive Mode (Síntese & Recomendações)".to_string(),
+            description: "Síntese ampla, insights de pesquisa e recomendações proativas de fontes".to_string(),
+            icon: "💡".to_string(),
+            badge: Some("[Pesquisa]".to_string()),
+            shortcut: Some("/mode proactive".to_string()),
             is_submenu: false,
         },
         MenuItem {
@@ -318,7 +407,7 @@ pub fn build_grounding_menu() -> Vec<MenuItem> {
             description: "Busca vetorial e lexical direta de latência ultra-baixa (<50ms)".to_string(),
             icon: "⚡".to_string(),
             badge: None,
-            shortcut: Some("/fast".to_string()),
+            shortcut: Some("/mode fast".to_string()),
             is_submenu: false,
         },
         MenuItem {
@@ -327,7 +416,111 @@ pub fn build_grounding_menu() -> Vec<MenuItem> {
             description: "Raciocínio multi-turn com decomposição de subtarefas e auto-correção".to_string(),
             icon: "🧠".to_string(),
             badge: None,
-            shortcut: Some("/deep".to_string()),
+            shortcut: Some("/mode deep".to_string()),
+            is_submenu: false,
+        },
+    ]
+}
+
+pub fn build_sources_menu(active_workspace: &str) -> Vec<MenuItem> {
+    let db = NativeConfigDb::open_default().ok();
+    let folders = db.as_ref().and_then(|d| d.get_workspace_folders(active_workspace).ok()).unwrap_or_default();
+    let urls = db.as_ref().and_then(|d| d.get_workspace_web_urls(active_workspace).ok()).unwrap_or_default();
+    let total_active = folders.len() + urls.len();
+
+    vec![
+        MenuItem {
+            id: "sources_action:active".to_string(),
+            title: format!("Fontes do Workspace '{}' ({})", active_workspace, total_active),
+            description: "Exibe todas as pastas e portais web indexados no workspace atual".to_string(),
+            icon: "📂".to_string(),
+            badge: Some(format!("[{} fontes]", total_active)),
+            shortcut: Some("/sources".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "sources_action:all".to_string(),
+            title: "Todas as Fontes & Workspaces (--all)".to_string(),
+            description: "Lista todas as pastas e URLs configuradas em todos os workspaces".to_string(),
+            icon: "🌐".to_string(),
+            badge: Some("[Global]".to_string()),
+            shortcut: Some("/sources --all".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "sources_action:inspect".to_string(),
+            title: "Inspecionar Vetores LanceDB & Chunks (/inspect)".to_string(),
+            description: "Auditar integridade dos vetores, chunks e índices Apache Arrow".to_string(),
+            icon: "🔎".to_string(),
+            badge: Some("[LanceDB]".to_string()),
+            shortcut: Some("/inspect".to_string()),
+            is_submenu: false,
+        },
+    ]
+}
+
+pub fn build_keys_menu() -> Vec<MenuItem> {
+    let check = |env_var: &str| -> (&'static str, Option<String>) {
+        if std::env::var(env_var).map(|v| !v.trim().is_empty()).unwrap_or(false) {
+            ("Configurada", Some("[Ativo]".to_string()))
+        } else {
+            ("Não configurada", Some("[Ausente]".to_string()))
+        }
+    };
+
+    vec![
+        MenuItem {
+            id: "keys_action:audit".to_string(),
+            title: "Relatório de Auditoria de Credenciais".to_string(),
+            description: "Emite relatório detalhado no chat com status de cada provedor".to_string(),
+            icon: "📋".to_string(),
+            badge: Some("[Auditar]".to_string()),
+            shortcut: Some("/keys".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "keys_info:gemini".to_string(),
+            title: "Google Gemini (Gemini 3.8 Flash, 1.5 Pro)".to_string(),
+            description: format!("Chave: GEMINI_API_KEY - Status: {}", check("GEMINI_API_KEY").0),
+            icon: "🔑".to_string(),
+            badge: check("GEMINI_API_KEY").1,
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "keys_info:openai".to_string(),
+            title: "OpenAI (GPT-4o, o1, o3-mini)".to_string(),
+            description: format!("Chave: OPENAI_API_KEY - Status: {}", check("OPENAI_API_KEY").0),
+            icon: "🔑".to_string(),
+            badge: check("OPENAI_API_KEY").1,
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "keys_info:anthropic".to_string(),
+            title: "Anthropic (Claude 3.5 Sonnet, Haiku)".to_string(),
+            description: format!("Chave: ANTHROPIC_API_KEY - Status: {}", check("ANTHROPIC_API_KEY").0),
+            icon: "🔑".to_string(),
+            badge: check("ANTHROPIC_API_KEY").1,
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "keys_info:deepseek".to_string(),
+            title: "DeepSeek (DeepSeek V3, R1 Reasoner)".to_string(),
+            description: format!("Chave: DEEPSEEK_API_KEY - Status: {}", check("DEEPSEEK_API_KEY").0),
+            icon: "🔑".to_string(),
+            badge: check("DEEPSEEK_API_KEY").1,
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "keys_info:groq".to_string(),
+            title: "Groq Cloud (Llama 3.3 70B LPU)".to_string(),
+            description: format!("Chave: GROQ_API_KEY - Status: {}", check("GROQ_API_KEY").0),
+            icon: "🔑".to_string(),
+            badge: check("GROQ_API_KEY").1,
+            shortcut: None,
             is_submenu: false,
         },
     ]
@@ -390,6 +583,15 @@ mod tests {
         assert!(sync.iter().any(|i| i.id == "sync_action:force"));
 
         let grounding = build_grounding_menu();
-        assert_eq!(grounding.len(), 3);
+        assert_eq!(grounding.len(), 6);
+        assert!(grounding.iter().any(|i| i.id == "grounding_action:strict"));
+        assert!(grounding.iter().any(|i| i.id == "grounding_action:hybrid"));
+
+        let sources = build_sources_menu("Default");
+        assert_eq!(sources.len(), 3);
+        assert!(sources.iter().any(|i| i.id == "sources_action:all"));
+
+        let keys = build_keys_menu();
+        assert_eq!(keys.len(), 6);
     }
 }

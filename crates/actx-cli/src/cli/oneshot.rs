@@ -126,10 +126,11 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         }
     }
 
+    #[allow(unused_mut)]
     let mut query = args.resolved_query().unwrap_or_default();
 
     // 2. Read piped stdin only if no query was supplied via arguments
-    #[allow(unused_mut)]
+    #[allow(unused_mut, unused_variables)]
     let mut stdin_input = String::new();
     #[cfg(not(test))]
     if query.is_empty() && !crossterm::tty::IsTty::is_tty(&io::stdin()) {

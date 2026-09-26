@@ -35,17 +35,29 @@ pub fn dispatch_slash_command(raw_cmd: &str, args: &[&str], app: &mut App) {
             app.open_menu();
         }
         "switch" => {
-            let msg = execute_switch(app, args.first().copied());
-            push_system_msg(app, msg);
+            if args.is_empty() {
+                app.open_workspaces_menu();
+            } else {
+                let msg = execute_switch(app, args);
+                push_system_msg(app, msg);
+            }
         }
         "sync" => {
-            let force = args.iter().any(|a| *a == "--force" || *a == "-f");
-            let msg = execute_sync(&app.active_workspace, force);
-            push_system_msg(app, msg);
+            if args.is_empty() {
+                app.open_sync_menu();
+            } else {
+                let force = args.iter().any(|a| *a == "--force" || *a == "-f" || *a == "force");
+                let msg = execute_sync(&app.active_workspace, force);
+                push_system_msg(app, msg);
+            }
         }
         "sources" => {
-            let msg = execute_sources(&app.active_workspace);
-            push_system_msg(app, msg);
+            if args.is_empty() {
+                app.open_sources_menu();
+            } else {
+                let msg = execute_sources(&app.active_workspace, args);
+                push_system_msg(app, msg);
+            }
         }
         "diagnostics" => {
             let msg = execute_diagnostics(app);
@@ -67,13 +79,21 @@ pub fn dispatch_slash_command(raw_cmd: &str, args: &[&str], app: &mut App) {
             push_system_msg(app, msg);
         }
         "model" | "models" => {
-            let target = if canonical == "models" { None } else { args.first().copied() };
-            let msg = execute_models(app, target);
-            push_system_msg(app, msg);
+            if args.is_empty() {
+                app.open_models_menu();
+            } else {
+                let target = args.first().copied();
+                let msg = execute_models(app, target);
+                push_system_msg(app, msg);
+            }
         }
         "keys" => {
-            let msg = execute_keys();
-            push_system_msg(app, msg);
+            if args.is_empty() {
+                app.open_keys_menu();
+            } else {
+                let msg = execute_keys();
+                push_system_msg(app, msg);
+            }
         }
         "config" => {
             let msg = execute_config(args);
@@ -95,15 +115,20 @@ pub fn dispatch_slash_command(raw_cmd: &str, args: &[&str], app: &mut App) {
             push_system_msg(app, msg);
         }
         "history" => {
-            let msg = format!(
-                "Session Conversation Turns: {} messages recorded.\n\
-                 Use '/clear' to reset viewport buffer.",
-                app.chat_history.len()
-            );
+            let msg = execute_history(app, args);
             push_system_msg(app, msg);
         }
         "logs" => {
-            let limit = args.get(1).and_then(|s| s.parse::<usize>().ok()).unwrap_or(20);
+            let mut limit = 20;
+            for (idx, arg) in args.iter().enumerate() {
+                if (*arg == "--limit" || *arg == "-n" || *arg == "-l") && idx + 1 < args.len() {
+                    if let Ok(val) = args[idx + 1].parse::<usize>() {
+                        limit = val;
+                    }
+                } else if let Ok(val) = arg.parse::<usize>() {
+                    limit = val;
+                }
+            }
             let msg = format!(
                 "Observability Logs (Showing last {} entries):\n\
                  • Engine: Actx Native Rust Engine v{}\n\
@@ -116,18 +141,30 @@ pub fn dispatch_slash_command(raw_cmd: &str, args: &[&str], app: &mut App) {
             push_system_msg(app, msg);
         }
         "update" => {
-            let check_only = args.iter().any(|a| *a == "--check");
+            let check_only = args.iter().any(|a| *a == "--check" || *a == "-c" || *a == "check");
             let msg = if check_only {
                 format!("Checking for updates... AnyContext v{} is the latest stable release.", env!("CARGO_PKG_VERSION"))
             } else {
-                format!("AnyContext v{} is up to date (dev branch commit: 82bb362).", env!("CARGO_PKG_VERSION"))
+                format!("AnyContext v{} is up to date (dev branch commit: aabfdf8).", env!("CARGO_PKG_VERSION"))
             };
             push_system_msg(app, msg);
         }
+        "mode" => {
+            if args.is_empty() {
+                app.open_grounding_menu();
+            } else {
+                let msg = execute_mode(&app.active_workspace, args);
+                push_system_msg(app, msg);
+            }
+        }
         "fast" | "deep" | "search" => {
-            let mode = if canonical == "fast" { "Fast RAG (Single-turn)" } else if canonical == "deep" { "Deep Search Reflexive" } else { args.first().unwrap_or(&"auto") };
-            let msg = format!("Search Grounding Mode set to: {}", mode);
-            push_system_msg(app, msg);
+            if canonical == "search" && args.is_empty() {
+                app.open_grounding_menu();
+            } else {
+                let mode = if canonical == "fast" { "fast" } else if canonical == "deep" { "deep" } else { args.first().unwrap_or(&"auto") };
+                let msg = execute_mode(&app.active_workspace, &[mode]);
+                push_system_msg(app, msg);
+            }
         }
         "inspect" => {
             let msg = format!(
@@ -172,10 +209,6 @@ pub fn dispatch_slash_command(raw_cmd: &str, args: &[&str], app: &mut App) {
         }
         "rename" => {
             let msg = execute_rename(app, args);
-            push_system_msg(app, msg);
-        }
-        "mode" => {
-            let msg = execute_mode(&app.active_workspace, args.first().copied());
             push_system_msg(app, msg);
         }
         "web-search" => {
@@ -260,51 +293,87 @@ fn push_system_msg(app: &mut App, content: String) {
     });
 }
 
-fn execute_switch(app: &mut App, target: Option<&str>) -> String {
+fn execute_switch(app: &mut App, args: &[&str]) -> String {
     let db = match NativeConfigDb::open_default() {
         Ok(d) => d,
         Err(e) => return format!("Could not connect to config database: {}", e),
     };
 
-    match target {
-        None => {
-            let names = db.list_workspace_names().unwrap_or_else(|_| vec!["Default".to_string()]);
-            let mut msg = format!("Available Workspaces ({}):\n", names.len());
-            for name in &names {
-                if name == &app.active_workspace {
-                    msg.push_str(&format!("  * {} (active)\n", name));
-                } else {
-                    msg.push_str(&format!("  - {}\n", name));
+    if args.is_empty() || args.iter().any(|a| *a == "--list" || *a == "-l" || *a == "list") {
+        let names = db.list_workspace_names().unwrap_or_else(|_| vec!["Default".to_string()]);
+        let mut msg = format!("📂 Available Workspaces ({}):\n", names.len());
+        for name in &names {
+            if name == &app.active_workspace {
+                msg.push_str(&format!("  * {} (active)\n", name));
+            } else {
+                msg.push_str(&format!("  - {}\n", name));
+            }
+        }
+        msg.push_str("\nTip: Use '/switch <name>' to switch, or press [F1] / type '/switch' for interactive selection.");
+        return msg;
+    }
+
+    let mut delete_target = None;
+    let mut create_target = None;
+    let mut direct_target = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--delete" || args[i] == "-d" || args[i] == "delete" || args[i] == "rm" {
+            if i + 1 < args.len() {
+                delete_target = Some(args[i + 1]);
+                break;
+            }
+        } else if args[i] == "--create" || args[i] == "-c" || args[i] == "add" || args[i] == "create" {
+            if i + 1 < args.len() {
+                create_target = Some(args[i + 1]);
+                break;
+            }
+        } else if !args[i].starts_with('-') && direct_target.is_none() {
+            direct_target = Some(args[i]);
+            break;
+        }
+        i += 1;
+    }
+
+    if let Some(to_del) = delete_target {
+        if to_del.eq_ignore_ascii_case("default") {
+            return "⚠️ The 'Default' workspace cannot be deleted.".to_string();
+        }
+        match db.delete_workspace(to_del) {
+            Ok(true) => {
+                if app.active_workspace.eq_ignore_ascii_case(to_del) {
+                    app.active_workspace = "Default".to_string();
                 }
+                format!("🗑️ Workspace '{}' deleted successfully. Active workspace reset to 'Default'.", to_del)
             }
-            msg.push_str("\nTip: Use '/switch <name>' to switch to another workspace.");
-            msg
+            Ok(false) => format!("⚠️ Workspace '{}' was not found in database.", to_del),
+            Err(e) => format!("❌ Failed to delete workspace '{}': {}", to_del, e),
         }
-        Some(target_ws) => {
-            let target_ws = target_ws.trim();
-            if target_ws.is_empty() {
-                return "Please provide a valid workspace name. Example: /switch RustBook".to_string();
-            }
-
-            // Ensure workspace exists in db
-            let names = db.list_workspace_names().unwrap_or_default();
-            if !names.iter().any(|n| n.eq_ignore_ascii_case(target_ws)) {
-                let _ = db.create_workspace(target_ws, Some("Custom workspace"));
-            }
-
-            app.active_workspace = target_ws.to_string();
-
-            // Rebuild agent for the new workspace if provider is available
-            if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&app.active_model)) {
-                let ws_clone = app.active_workspace.clone();
-                let model_clone = app.active_model.clone();
-                tokio::spawn(async move {
-                    let _ = crate::engine::build_agent(provider, &model_clone, &ws_clone).await;
-                });
-            }
-
-            format!("Switched active workspace to: {}", target_ws)
+    } else {
+        let target_ws = create_target.or(direct_target).unwrap_or("Default").trim();
+        if target_ws.is_empty() {
+            return "Please provide a valid workspace name. Example: /switch ProjectA".to_string();
         }
+
+        // Ensure workspace exists in db
+        let names = db.list_workspace_names().unwrap_or_default();
+        if !names.iter().any(|n| n.eq_ignore_ascii_case(target_ws)) {
+            let _ = db.create_workspace(target_ws, Some("Custom workspace"));
+        }
+
+        app.active_workspace = target_ws.to_string();
+
+        // Rebuild agent for the new workspace if provider is available
+        if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&app.active_model)) {
+            let ws_clone = app.active_workspace.clone();
+            let model_clone = app.active_model.clone();
+            tokio::spawn(async move {
+                let _ = crate::engine::build_agent(provider, &model_clone, &ws_clone).await;
+            });
+        }
+
+        format!("Switched active workspace to: {}", target_ws)
     }
 }
 
@@ -401,37 +470,70 @@ fn execute_sync(workspace: &str, force: bool) -> String {
     }
 }
 
-fn execute_sources(workspace: &str) -> String {
+fn execute_sources(workspace: &str, args: &[&str]) -> String {
     let db = match NativeConfigDb::open_default() {
         Ok(d) => d,
         Err(e) => return format!("Could not connect to config database: {}", e),
     };
 
-    let folders = db.get_workspace_folders(workspace).unwrap_or_default();
-    let urls = db.get_workspace_web_urls(workspace).unwrap_or_default();
+    let is_all = args.iter().any(|a| *a == "--all" || *a == "-a" || *a == "all");
 
-    let mut msg = format!("Workspace Sources for '{}':\n", workspace);
+    if is_all {
+        let ws_names = db.list_workspace_names().unwrap_or_else(|_| vec![workspace.to_string()]);
+        let mut msg = format!("📂 All Configured Workspaces & Sources ({} workspaces):\n\n", ws_names.len());
 
-    msg.push_str("📁 Monitored Folders:\n");
-    if folders.is_empty() {
-        let cwd = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| ".".to_string());
-        msg.push_str(&format!("  - {} (current working directory)\n", cwd));
-    } else {
-        for f in &folders {
-            msg.push_str(&format!("  - {}\n", f));
+        for ws in &ws_names {
+            let folders = db.get_workspace_folders(ws).unwrap_or_default();
+            let urls = db.get_workspace_web_urls(ws).unwrap_or_default();
+            let total = folders.len() + urls.len();
+            let is_active = ws.eq_ignore_ascii_case(workspace);
+            let active_tag = if is_active { " (active)" } else { "" };
+
+            msg.push_str(&format!("• Workspace '{}'{} - {} source(s):\n", ws, active_tag, total));
+
+            if folders.is_empty() && urls.is_empty() {
+                msg.push_str("    - (No sources configured)\n");
+            } else {
+                for f in &folders {
+                    msg.push_str(&format!("    - [Folder] {}\n", f));
+                }
+                for u in &urls {
+                    msg.push_str(&format!("    - [Web] {}\n", u));
+                }
+            }
+            msg.push('\n');
         }
-    }
 
-    msg.push_str("\n🌐 Web Documentation Portals:\n");
-    if urls.is_empty() {
-        msg.push_str("  (None configured)\n");
+        msg.trim_end().to_string()
     } else {
-        for u in &urls {
-            msg.push_str(&format!("  - {}\n", u));
-        }
-    }
+        let target_ws = args.first().filter(|a| !a.starts_with('-') && **a != "active").copied().unwrap_or(workspace);
+        let folders = db.get_workspace_folders(target_ws).unwrap_or_default();
+        let urls = db.get_workspace_web_urls(target_ws).unwrap_or_default();
 
-    msg
+        let mut msg = format!("📂 Sources for Workspace '{}' (Total: {}):\n\n", target_ws, folders.len() + urls.len());
+
+        msg.push_str("📁 Monitored Folders:\n");
+        if folders.is_empty() {
+            let cwd = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| ".".to_string());
+            msg.push_str(&format!("  • {} (current working directory, default)\n", cwd));
+        } else {
+            for f in &folders {
+                msg.push_str(&format!("  • [Folder] {}\n", f));
+            }
+        }
+
+        msg.push_str("\n🌐 Web Documentation Portals:\n");
+        if urls.is_empty() {
+            msg.push_str("  (None configured)\n");
+        } else {
+            for u in &urls {
+                msg.push_str(&format!("  • [Web] {}\n", u));
+            }
+        }
+
+        msg.push_str("\nTip: Use '/sources --all' to view all workspaces, or '/folder --add <path>' to monitor directories.");
+        msg
+    }
 }
 
 fn execute_diagnostics(app: &App) -> String {
@@ -472,7 +574,7 @@ fn execute_diagnostics(app: &App) -> String {
 fn execute_models(app: &mut App, target_model: Option<&str>) -> String {
     if let Some(m) = target_model {
         let m = m.trim();
-        if !m.is_empty() {
+        if !m.is_empty() && m != "--list" && m != "-l" && m != "list" {
             app.active_model = m.to_string();
             if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&app.active_model)) {
                 let ws_clone = app.active_workspace.clone();
@@ -495,9 +597,55 @@ fn execute_models(app: &mut App, target_model: Option<&str>) -> String {
          • Ollama:     ollama/<model_name> (Local HTTP endpoint)\n\
          • Mock:       mock (Instant offline simulation)\n\n\
          Current Active Model: {}\n\
-         Use '/model <name>' to switch.",
+         Use '/model <name>' to switch, or press [F1] for the interactive model selector.",
         app.active_model
     )
+}
+
+fn execute_history(app: &mut App, args: &[&str]) -> String {
+    let is_clear = args.iter().any(|a| *a == "--clear" || *a == "-c" || *a == "clear");
+    if is_clear {
+        app.chat_history.retain(|msg| msg.role == MessageRole::System);
+        return format!("📜 Conversation history cleared for workspace '{}'.", app.active_workspace);
+    }
+
+    let mut limit = 10;
+    for (idx, arg) in args.iter().enumerate() {
+        if (*arg == "--limit" || *arg == "-n" || *arg == "-l") && idx + 1 < args.len() {
+            if let Ok(val) = args[idx + 1].parse::<usize>() {
+                limit = val;
+            }
+        } else if let Ok(val) = arg.parse::<usize>() {
+            limit = val;
+        }
+    }
+
+    let non_system_msgs: Vec<_> = app.chat_history.iter().filter(|m| m.role != MessageRole::System).collect();
+    if non_system_msgs.is_empty() {
+        return format!("📜 Conversation History for '{}':\nNo conversation messages recorded yet in this session.", app.active_workspace);
+    }
+
+    let count = non_system_msgs.len();
+    let display_msgs = if count > limit {
+        &non_system_msgs[count - limit..]
+    } else {
+        &non_system_msgs[..]
+    };
+
+    let mut msg = format!("📜 Conversation History for '{}' (Total turns: {}, showing last {}):\n\n", app.active_workspace, count, display_msgs.len());
+    for item in display_msgs {
+        let role_str = match item.role {
+            MessageRole::User => "👤 User",
+            MessageRole::Assistant => "🤖 Assistant",
+            MessageRole::System => "⚙️ System",
+        };
+        let preview: String = item.content.chars().take(80).collect();
+        let preview = preview.replace('\n', " ");
+        let ellipsis = if item.content.chars().count() > 80 { "..." } else { "" };
+        msg.push_str(&format!("  [{}] {}: {}{}\n", item.timestamp, role_str, preview, ellipsis));
+    }
+    msg.push_str("\nTip: Use '/history --clear' to clear chat history, or '/history --limit <n>' to change limit.");
+    msg
 }
 
 fn execute_keys() -> String {
@@ -587,22 +735,38 @@ fn execute_folder(workspace: &str, args: &[&str]) -> String {
         Err(e) => return format!("Could not connect to config database: {}", e),
     };
 
+    if args.is_empty() || args.iter().any(|a| *a == "--list" || *a == "-l" || *a == "list") {
+        let folders = db.get_workspace_folders(workspace).unwrap_or_default();
+        if folders.is_empty() {
+            let cwd = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| ".".to_string());
+            return format!("📁 Monitored Folders for '{}':\n  • {} (Current directory, default)\n\nTip: Use '/folder add <path>' or '/folder --add <path>' to monitor specific directories.", workspace, cwd);
+        } else {
+            let mut msg = format!("📁 Monitored Folders for '{}' ({}):\n", workspace, folders.len());
+            for f in &folders {
+                msg.push_str(&format!("  • {}\n", f));
+            }
+            msg.push_str("\nTip: Use '/folder add <path>' or '/folder remove <path>' to manage folders.");
+            return msg;
+        }
+    }
+
     let mut add_target = None;
     let mut remove_target = None;
 
     let mut i = 0;
     while i < args.len() {
-        if args[i] == "--add" || args[i] == "-a" {
+        let arg = args[i];
+        if arg == "--add" || arg == "-a" || arg == "add" {
             if i + 1 < args.len() {
                 add_target = Some(args[i + 1..].join(" "));
                 break;
             }
-        } else if args[i] == "--remove" || args[i] == "-r" || args[i] == "--delete" || args[i] == "-d" {
+        } else if arg == "--remove" || arg == "-r" || arg == "remove" || arg == "rm" || arg == "delete" || arg == "--delete" || arg == "-d" {
             if i + 1 < args.len() {
                 remove_target = Some(args[i + 1..].join(" "));
                 break;
             }
-        } else if !args[i].starts_with('-') && add_target.is_none() {
+        } else if !arg.starts_with('-') && add_target.is_none() {
             add_target = Some(args[i..].join(" "));
             break;
         }
@@ -611,6 +775,9 @@ fn execute_folder(workspace: &str, args: &[&str]) -> String {
 
     if let Some(target) = add_target {
         let clean = target.trim().trim_matches('"').trim_matches('\'');
+        if clean.is_empty() {
+            return "Please provide a valid directory path to monitor. Example: /folder add ./src".to_string();
+        }
         match db.add_workspace_folder(workspace, clean) {
             Ok(_) => format!("✅ Added monitored folder to '{}':\n  📁 {}\n⚡ Run '/sync' to index new files.", workspace, clean),
             Err(e) => format!("❌ Failed to add folder '{}': {}", clean, e),
@@ -623,18 +790,7 @@ fn execute_folder(workspace: &str, args: &[&str]) -> String {
             Err(e) => format!("❌ Failed to remove folder '{}': {}", clean, e),
         }
     } else {
-        let folders = db.get_workspace_folders(workspace).unwrap_or_default();
-        if folders.is_empty() {
-            let cwd = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| ".".to_string());
-            format!("📁 Monitored Folders for '{}':\n  • {} (Current directory, default)\n\nTip: Use '/folder --add <path>' to monitor specific directories.", workspace, cwd)
-        } else {
-            let mut msg = format!("📁 Monitored Folders for '{}' ({}):\n", workspace, folders.len());
-            for f in &folders {
-                msg.push_str(&format!("  • {}\n", f));
-            }
-            msg.push_str("\nTip: Use '/folder --add <path>' or '/folder --remove <path>' to manage folders.");
-            msg
-        }
+        format!("Usage:\n  /folder add <path>\n  /folder remove <path>\n  /folder list")
     }
 }
 
@@ -644,23 +800,38 @@ fn execute_web(workspace: &str, args: &[&str]) -> String {
         Err(e) => return format!("Could not connect to config database: {}", e),
     };
 
+    if args.is_empty() || args.iter().any(|a| *a == "--list" || *a == "-l" || *a == "list") {
+        let urls = db.get_workspace_web_urls(workspace).unwrap_or_default();
+        if urls.is_empty() {
+            return format!("🌐 Web Documentation Portals for '{}':\n  (None configured)\n\nTip: Use '/web add <url>' or '/web --add <url>' to add a documentation site or portal.", workspace);
+        } else {
+            let mut msg = format!("🌐 Web Documentation Portals for '{}' ({}):\n", workspace, urls.len());
+            for u in &urls {
+                msg.push_str(&format!("  • {}\n", u));
+            }
+            msg.push_str("\nTip: Use '/web add <url>' or '/web remove <url>' to manage portals.");
+            return msg;
+        }
+    }
+
     let mut add_url = None;
     let mut remove_url = None;
 
     let mut i = 0;
     while i < args.len() {
-        if args[i] == "--add" || args[i] == "-a" {
+        let arg = args[i];
+        if arg == "--add" || arg == "-a" || arg == "add" {
             if i + 1 < args.len() {
                 add_url = Some(args[i + 1..].join(" "));
                 break;
             }
-        } else if args[i] == "--remove" || args[i] == "-r" || args[i] == "--delete" || args[i] == "-d" {
+        } else if arg == "--remove" || arg == "-r" || arg == "remove" || arg == "rm" || arg == "delete" || arg == "--delete" || arg == "-d" {
             if i + 1 < args.len() {
                 remove_url = Some(args[i + 1..].join(" "));
                 break;
             }
-        } else if (args[i].starts_with("http://") || args[i].starts_with("https://")) && add_url.is_none() {
-            add_url = Some(args[i].to_string());
+        } else if (arg.starts_with("http://") || arg.starts_with("https://")) && add_url.is_none() {
+            add_url = Some(arg.to_string());
             break;
         }
         i += 1;
@@ -668,6 +839,9 @@ fn execute_web(workspace: &str, args: &[&str]) -> String {
 
     if let Some(url) = add_url {
         let clean = url.trim().trim_matches('"').trim_matches('\'');
+        if clean.is_empty() {
+            return "Please provide a valid web URL. Example: /web add https://docs.rs".to_string();
+        }
         match db.add_workspace_web_url(workspace, clean) {
             Ok(_) => format!("✅ Added web documentation portal to '{}':\n  🌐 {}\n⚡ Crawler ready to synchronize web portal documents.", workspace, clean),
             Err(e) => format!("❌ Failed to add web URL '{}': {}", clean, e),
@@ -680,17 +854,7 @@ fn execute_web(workspace: &str, args: &[&str]) -> String {
             Err(e) => format!("❌ Failed to remove web URL '{}': {}", clean, e),
         }
     } else {
-        let urls = db.get_workspace_web_urls(workspace).unwrap_or_default();
-        if urls.is_empty() {
-            format!("🌐 Web Documentation Portals for '{}':\n  (None configured)\n\nTip: Use '/web --add <url>' to add a documentation site or portal.", workspace)
-        } else {
-            let mut msg = format!("🌐 Web Documentation Portals for '{}' ({}):\n", workspace, urls.len());
-            for u in &urls {
-                msg.push_str(&format!("  • {}\n", u));
-            }
-            msg.push_str("\nTip: Use '/web --add <url>' or '/web --remove <url>' to manage portals.");
-            msg
-        }
+        format!("Usage:\n  /web add <url>\n  /web remove <url>\n  /web list")
     }
 }
 
@@ -705,8 +869,15 @@ fn execute_transfer(args: &[&str]) -> String {
 }
 
 fn execute_link(workspace: &str, args: &[&str]) -> String {
-    if args.is_empty() {
-        return "Usage: /link <source_path_or_url> [target_workspace]\nShares an indexed source across multiple workspaces without data duplication.".to_string();
+    if args.is_empty() || args.iter().any(|a| *a == "--list" || *a == "-l" || *a == "list") {
+        return format!(
+            "🔗 Shared Sources for Workspace '{}':\n\
+             Currently linked sources are mapped in the active context.\n\
+             Usage:\n\
+               /link <source_path_or_url> [target_workspace]\n\
+               /unlink <source_path_or_url> [target_workspace]",
+            workspace
+        );
     }
     let source = args[0];
     let target = args.get(1).copied().unwrap_or(workspace);
@@ -756,19 +927,29 @@ fn execute_rename(app: &mut App, args: &[&str]) -> String {
     }
 }
 
-fn execute_mode(workspace: &str, target: Option<&str>) -> String {
+fn execute_mode(workspace: &str, args: &[&str]) -> String {
     let db = NativeConfigDb::open_default().ok();
-    if let Some(mode) = target {
-        let clean = mode.trim().to_lowercase();
+    let mode_arg = args.first().map(|s| s.trim().trim_start_matches('-').to_lowercase());
+
+    if let Some(mode) = mode_arg {
+        let valid_mode = match mode.as_str() {
+            "strict" | "s" => "strict",
+            "hybrid" | "h" => "hybrid",
+            "proactive" | "p" => "proactive",
+            "fast" | "f" => "fast",
+            "deep" | "d" => "deep",
+            "auto" | "a" => "auto",
+            other => other,
+        };
         if let Some(d) = &db {
-            let _ = d.set_setting("grounding_mode", &clean);
+            let _ = d.set_setting("grounding_mode", valid_mode);
         }
-        format!("🛡️ Grounding Strategy Mode for '{}' set to: **{}**", workspace, clean.to_uppercase())
+        format!("🛡️ Grounding Strategy Mode for '{}' set to: **{}**", workspace, valid_mode.to_uppercase())
     } else {
         let curr = db.and_then(|d| d.get_setting("grounding_mode").ok().flatten()).unwrap_or_else(|| "auto".to_string());
         format!(
             "🛡️ Grounding Strategy Mode for '{}': **{}**\n\
-             Available modes: auto, fast (single-turn <50ms), deep (multi-turn reflexive ReAct), strict, hybrid.\n\
+             Available modes: auto, fast (single-turn <50ms), deep (multi-turn reflexive ReAct), strict, hybrid, proactive.\n\
              Usage: /mode <strategy>",
             workspace,
             curr.to_uppercase()
