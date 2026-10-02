@@ -7,6 +7,51 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 7 (v0.32.5 Resiliência de Runtime Tokio em search_db, Safe Drop de LanceDB e Tool Calling OpenAI Compliant):
+- **Objetivo**: Comprovar que na versão `v0.32.5`:
+  1. **Execução de Tool Calls sem Panic de Runtime Tokio**:
+     - Quando o modelo dispara uma chamada de ferramenta (`search_db`), a execução do LanceDB ocorre de forma isolada (`safe_block_on` com `std::thread::scope` e `spawn_blocking`).
+     - O erro fatal `Cannot start a runtime from within a runtime` e o erro de descarte `Cannot drop a runtime in a context where blocking is not allowed` foram 100% eliminados.
+  2. **Serialização Conforme de Tool Calls para OpenAI**:
+     - As chamadas de ferramenta retornadas no payload `messages` para a API da OpenAI incluem estritamente `"type": "function"` e `"function": { "name": ..., "arguments": ... }`.
+     - O erro HTTP 400 (`Missing required parameter: 'messages[2].tool_calls[0].type'`) foi resolvido.
+  3. **Comandos de Atualização Posicionais no CLI**:
+     - `actx update` e `actx check-update` chamam diretamente o atualizador nativo `actx-installer`.
+  4. **Versão e Integridade**:
+     - `actx -v` retorna `actx 0.32.5`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão do Binário:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Exibe estritamente `actx 0.32.5`.
+
+2. **🔍 Teste de Pergunta com Chamada de Ferramenta (search_db) em Modo One-Shot:**
+   - Execute no terminal:
+     ```text
+     actx -p "Quais os programas de imigração que o Canada está dando preferência hoje em dia?"
+     ```
+   - **Critério de Aceitação:**
+     - O terminal exibe a chamada da ferramenta:
+       `🔧 [Tool Call: search_db] {"query":"..."}`
+       `✔ [Tool Done: search_db]`
+     - A resposta da IA é gerada e concluída com sucesso sem pânico de Tokio (`Cannot start a runtime from within a runtime`).
+     - Não ocorre erro HTTP 400 da OpenAI.
+
+3. **💬 Teste da Mesma Pergunta na TUI Interativa:**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - Envie a pergunta: *"Quais os programas de imigração que o Canada está dando preferência hoje em dia?"*
+   - Pressione `Ctrl+T` para visualizar o acordeão de raciocínio ReAct.
+   - **Critério de Aceitação:** A ferramenta `search_db` executa no background, a resposta é transmitida via streaming sem crash da aplicação e a barra de status permanece fluida e responsiva.
+
+---
+
 ### 📌 Cenário 6 (v0.32.4 Motor Universal de Comandos UI-Agnóstico, Separação Rígida Grounding vs Search Depth e Header Quint-Status Telemetry):
 - **Objetivo**: Comprovar que na versão `v0.32.4`:
   1. **Separação Rígida entre Grounding Mode e Search Depth Mode**:

@@ -51,8 +51,22 @@ pub struct ScoredVectorResult {
 
 pub struct NativeLanceStore {
     db_path: PathBuf,
-    runtime: Arc<tokio::runtime::Runtime>,
+    runtime: Option<Arc<tokio::runtime::Runtime>>,
     conn: Connection,
+}
+
+impl Drop for NativeLanceStore {
+    fn drop(&mut self) {
+        if let Some(rt) = self.runtime.take() {
+            if tokio::runtime::Handle::try_current().is_ok() && Arc::strong_count(&rt) == 1 {
+                let _ = std::thread::spawn(move || {
+                    drop(rt);
+                }).join();
+            } else {
+                drop(rt);
+            }
+        }
+    }
 }
 
 impl NativeLanceStore {
@@ -88,7 +102,7 @@ impl NativeLanceStore {
 
         Ok(Self {
             db_path: p,
-            runtime: Arc::new(rt),
+            runtime: Some(Arc::new(rt)),
             conn,
         })
     }
@@ -98,8 +112,9 @@ impl NativeLanceStore {
     }
 
     pub fn runtime(&self) -> &Arc<tokio::runtime::Runtime> {
-        &self.runtime
+        self.runtime.as_ref().expect("NativeLanceStore runtime must be initialized")
     }
+
 
     pub fn get_schema(dim: usize) -> Arc<Schema> {
         Arc::new(Schema::new(vec![
@@ -134,12 +149,37 @@ impl NativeLanceStore {
         Ok(names.contains(&table_name.to_string()))
     }
 
+    /// Safely executes an asynchronous future synchronously without risking
+    /// "Cannot start a runtime from within a runtime" panics if called from inside a Tokio worker thread.
+    fn safe_block_on<F, T>(&self, future: F) -> T
+    where
+        F: std::future::Future<Output = T> + Send,
+        T: Send,
+    {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            std::thread::scope(|s| {
+                s.spawn(|| {
+                    let temp_rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("Failed to initialize temporary worker runtime");
+                    temp_rt.block_on(future)
+                })
+                .join()
+                .expect("LanceDB worker thread panicked")
+            })
+        } else {
+            self.runtime.as_ref().unwrap().block_on(future)
+        }
+    }
+
     pub fn table_exists(&self, table_name: &str) -> Result<bool, String> {
-        self.runtime.block_on(self.table_exists_async(table_name))
+        self.safe_block_on(self.table_exists_async(table_name))
     }
 
     pub fn get_or_create_table(&self, table_name: &str, dim: usize) -> Result<Table, String> {
-        self.runtime.block_on(async {
+        self.safe_block_on(async {
+
             let names = self
                 .conn
                 .table_names()
@@ -250,7 +290,7 @@ impl NativeLanceStore {
 
         let table = self.get_or_create_table(tname, d)?;
 
-        self.runtime.block_on(async {
+        self.safe_block_on(async {
             let batch_iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
             let reader: Box<dyn arrow_array::RecordBatchReader + Send> = Box::new(batch_iter);
             table
@@ -318,7 +358,7 @@ impl NativeLanceStore {
         filter_expr: Option<&str>,
         table_name: Option<&str>,
     ) -> Result<Vec<ScoredVectorResult>, String> {
-        self.runtime.block_on(self.search_vector_async(
+        self.safe_block_on(self.search_vector_async(
             query_vector,
             limit,
             workspace,
@@ -375,7 +415,7 @@ impl NativeLanceStore {
         workspace: Option<&str>,
         table_name: Option<&str>,
     ) -> Result<Vec<ScoredVectorResult>, String> {
-        self.runtime.block_on(self.search_metadata_async(
+        self.safe_block_on(self.search_metadata_async(
             where_clause,
             limit,
             workspace,
@@ -394,7 +434,7 @@ impl NativeLanceStore {
             return Ok(0);
         }
 
-        self.runtime.block_on(async {
+        self.safe_block_on(async {
             let table = self
                 .conn
                 .open_table(tname)
@@ -424,7 +464,7 @@ impl NativeLanceStore {
             return Ok(());
         }
 
-        self.runtime.block_on(async {
+        self.safe_block_on(async {
             let table = self
                 .conn
                 .open_table(tname)
@@ -452,7 +492,7 @@ impl NativeLanceStore {
             return Ok(());
         }
 
-        self.runtime.block_on(async {
+        self.safe_block_on(async {
             let table = self
                 .conn
                 .open_table(tname)
@@ -482,7 +522,7 @@ impl NativeLanceStore {
             return Ok(());
         }
 
-        self.runtime.block_on(async {
+        self.safe_block_on(async {
             let table = self
                 .conn
                 .open_table(tname)
@@ -669,4 +709,45 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_lance_called_from_within_tokio_runtime() {
+        let temp_dir = std::env::temp_dir().join(format!("actx_test_lance_tokio_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+
+        // This is executing directly on a Tokio worker thread.
+        // It must NOT panic with "Cannot start a runtime from within a runtime".
+        let store = NativeLanceStore::open(&temp_dir).expect("open lance store inside tokio");
+
+        let records = vec![
+            VectorRecord {
+                id: "tokio_c1".into(),
+                vector: vec![0.5; 4],
+                text: "Tokio worker thread safety test chunk".into(),
+                file_name: "tokio.rs".into(),
+                file_path: "src/tokio.rs".into(),
+                workspace: "TokioWS".into(),
+                last_modified: Some("2026-10-02".into()),
+                content_type: Some("Code".into()),
+                document_summary: None,
+                keywords: None,
+                content_hash: Some("th1".into()),
+            },
+        ];
+
+        let count = store.upsert_records(records, Some("tokio_chunks"), Some(4)).expect("upsert in tokio");
+        assert_eq!(count, 1);
+
+        let hits = store.search_metadata("text LIKE '%safety%'", 5, Some("TokioWS"), Some("tokio_chunks"))
+            .expect("search_metadata in tokio");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "tokio_c1");
+
+        let vec_hits = store.search_vector(vec![0.5; 4], 1, Some("TokioWS"), None, Some("tokio_chunks"))
+            .expect("search_vector in tokio");
+        assert_eq!(vec_hits.len(), 1);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
 }
+

@@ -136,41 +136,48 @@ pub fn build_agent_sync(
                     return Ok("Empty search query provided.".to_string());
                 }
 
-                let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
-                let folders = db.as_ref()
-                    .and_then(|d| d.get_workspace_folders(&ws).ok())
-                    .unwrap_or_default();
+                let query_str = query.to_string();
+                let ws_clone = ws.clone();
 
-                let lance_path = if let Ok(local) = std::env::var("LOCALAPPDATA") {
-                    std::path::PathBuf::from(local).join("AnyContext").join("lancedb")
-                } else if let Some(d) = dirs::data_local_dir() {
-                    d.join("AnyContext").join("lancedb")
-                } else {
-                    std::path::PathBuf::from("./lancedb")
-                };
+                let output = tokio::task::spawn_blocking(move || {
+                    let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+                    let folders = db.as_ref()
+                        .and_then(|d| d.get_workspace_folders(&ws_clone).ok())
+                        .unwrap_or_default();
 
-                let mut results = Vec::new();
-                if let Ok(lance) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) {
-                    let sanitized = query.replace('\'', "''");
-                    if let Ok(hits) = lance.search_metadata(
-                        &format!("text LIKE '%{}%'", sanitized),
-                        5,
-                        Some(&ws),
-                        None,
-                    ) {
-                        for hit in hits {
-                            results.push(format!("• [{}] (Score: {:.2}):\n{}", hit.file_name, hit.score, hit.text));
+                    let lance_path = if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                        std::path::PathBuf::from(local).join("AnyContext").join("lancedb")
+                    } else if let Some(d) = dirs::data_local_dir() {
+                        d.join("AnyContext").join("lancedb")
+                    } else {
+                        std::path::PathBuf::from("./lancedb")
+                    };
+
+                    let mut results = Vec::new();
+                    if let Ok(lance) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) {
+                        let sanitized = query_str.replace('\'', "''");
+                        if let Ok(hits) = lance.search_metadata(
+                            &format!("text LIKE '%{}%'", sanitized),
+                            5,
+                            Some(&ws_clone),
+                            None,
+                        ) {
+                            for hit in hits {
+                                results.push(format!("• [{}] (Score: {:.2}):\n{}", hit.file_name, hit.score, hit.text));
+                            }
                         }
                     }
-                }
 
-                if results.is_empty() && !folders.is_empty() {
-                    results.push(format!("Active workspace '{}' monitors folders: [{}]. No indexed vector chunks matched '{}'.", ws, folders.join(", "), query));
-                } else if results.is_empty() {
-                    results.push(format!("No indexed document chunks found in workspace '{}' for query '{}'.", ws, query));
-                }
+                    if results.is_empty() && !folders.is_empty() {
+                        results.push(format!("Active workspace '{}' monitors folders: [{}]. No indexed vector chunks matched '{}'.", ws_clone, folders.join(", "), query_str));
+                    } else if results.is_empty() {
+                        results.push(format!("No indexed document chunks found in workspace '{}' for query '{}'.", ws_clone, query_str));
+                    }
 
-                Ok(results.join("\n\n"))
+                    results.join("\n\n")
+                }).await.unwrap_or_else(|e| format!("Search task failed: {}", e));
+
+                Ok(output)
             }
         }
     );
