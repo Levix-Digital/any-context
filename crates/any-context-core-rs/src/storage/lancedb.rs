@@ -58,7 +58,7 @@ pub struct NativeLanceStore {
 impl Drop for NativeLanceStore {
     fn drop(&mut self) {
         if let Some(rt) = self.runtime.take() {
-            if tokio::runtime::Handle::try_current().is_ok() && Arc::strong_count(&rt) == 1 {
+            if tokio::runtime::Handle::try_current().is_ok() {
                 let _ = std::thread::spawn(move || {
                     drop(rt);
                 }).join();
@@ -131,17 +131,11 @@ impl NativeLanceStore {
     pub fn open(db_path: impl AsRef<Path>) -> Result<Self, String> {
         let p = db_path.as_ref().to_path_buf();
         let _ = std::fs::create_dir_all(&p);
-
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .map_err(|e| format!("Failed to initialize Tokio runtime for LanceDB: {e}"))?;
-
         let uri = p.to_string_lossy().to_string();
-        let conn = if tokio::runtime::Handle::try_current().is_ok() {
+
+        let (conn, rt) = if tokio::runtime::Handle::try_current().is_ok() {
             let uri_clone = uri.clone();
-            std::thread::spawn(move || {
+            let conn = std::thread::spawn(move || {
                 let temp_rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
@@ -151,15 +145,22 @@ impl NativeLanceStore {
                     .map_err(|e| format!("Failed to connect to LanceDB at {uri_clone}: {e}"))
             })
             .join()
-            .map_err(|_| "LanceDB connection thread panicked".to_string())??
+            .map_err(|_| "LanceDB connection thread panicked".to_string())??;
+            (conn, None)
         } else {
-            rt.block_on(async { lancedb::connect(&uri).execute().await })
-                .map_err(|e| format!("Failed to connect to LanceDB at {uri}: {e}"))?
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .map_err(|e| format!("Failed to initialize Tokio runtime for LanceDB: {e}"))?;
+            let conn = rt.block_on(async { lancedb::connect(&uri).execute().await })
+                .map_err(|e| format!("Failed to connect to LanceDB at {uri}: {e}"))?;
+            (conn, Some(Arc::new(rt)))
         };
 
         Ok(Self {
             db_path: p,
-            runtime: Some(Arc::new(rt)),
+            runtime: rt,
             conn,
         })
     }
@@ -168,8 +169,8 @@ impl NativeLanceStore {
         &self.db_path
     }
 
-    pub fn runtime(&self) -> &Arc<tokio::runtime::Runtime> {
-        self.runtime.as_ref().expect("NativeLanceStore runtime must be initialized")
+    pub fn runtime(&self) -> Option<&Arc<tokio::runtime::Runtime>> {
+        self.runtime.as_ref()
     }
 
 
@@ -225,8 +226,14 @@ impl NativeLanceStore {
                 .join()
                 .expect("LanceDB worker thread panicked")
             })
+        } else if let Some(ref rt) = self.runtime {
+            rt.block_on(future)
         } else {
-            self.runtime.as_ref().unwrap().block_on(future)
+            let temp_rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to initialize temporary worker runtime");
+            temp_rt.block_on(future)
         }
     }
 

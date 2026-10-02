@@ -129,6 +129,8 @@ class ConfigDBStore:
             # Ensure workspace_id, grounding_mode, web_search_enabled, default_web_engine, model, created_by columns exist for existing tables
             cursor.execute("PRAGMA table_info(workspaces)")
             ws_cols = [r[1] for r in cursor.fetchall()]
+            if "paths_json" not in ws_cols:
+                cursor.execute("ALTER TABLE workspaces ADD COLUMN paths_json TEXT DEFAULT '[]'")
             if "workspace_id" not in ws_cols:
                 cursor.execute("ALTER TABLE workspaces ADD COLUMN workspace_id TEXT")
             if "grounding_mode" not in ws_cols:
@@ -453,8 +455,13 @@ class ConfigDBStore:
             # Safe cascade cleanup: Purge ALL workspaces explicitly tagged with created_by = 'test'
             # and any lingering ephemeral test fixtures (Unit_Dispatch_WS, TestWS, RpcUnitTestWS, NewRPCWS).
             # Workspaces with created_by = 'user' or 'system' can NEVER be deleted.
-            # Only executed in production mode (when ACTX_TEST_MODE != "1") to prevent deleting active fixtures during test runs.
-            if os.environ.get("ACTX_TEST_MODE") != "1":
+            # Only executed in production mode (outside test runs) to prevent deleting active fixtures during tests.
+            is_test_run = (
+                os.environ.get("ACTX_TEST_MODE") == "1"
+                or "pytest" in sys.modules
+                or "unittest" in sys.modules
+            )
+            if not is_test_run:
                 try:
                     cursor.execute("""
                         SELECT DISTINCT name FROM workspaces 

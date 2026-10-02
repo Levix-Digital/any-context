@@ -97,6 +97,7 @@ pub fn build_agent_sync(
     let system_prompt = crate::prompt::build_system_prompt(workspace, grounding_mode, search_mode, web_search_enabled);
 
     let ws_for_tool = workspace.to_string();
+    let provider_for_search = provider.clone();
     let search_tool = actx_agent::NativeTool::new(
         "search_db",
         "Searches for relevant documents, source code, and knowledge context in the active workspace.",
@@ -112,6 +113,7 @@ pub fn build_agent_sync(
         }),
         move |args: serde_json::Value| {
             let ws = ws_for_tool.clone();
+            let tool_provider = provider_for_search.clone();
             async move {
                 let query = args.get("query")
                     .and_then(|v| v.as_str())
@@ -121,73 +123,78 @@ pub fn build_agent_sync(
                     return Ok("Empty search query provided.".to_string());
                 }
 
-                let query_str = query.to_string();
-                let ws_clone = ws.clone();
+                let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
+                let lance_store = match any_context_core_rs::storage::NativeLanceStore::open(&lance_path) {
+                    Ok(ls) => Arc::new(ls),
+                    Err(e) => return Ok(format!("Search database unavailable: {e}")),
+                };
 
-                let output = tokio::task::spawn_blocking(move || {
-                    let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
-                    let folders = db.as_ref()
-                        .and_then(|d| d.get_workspace_folders(&ws_clone).ok())
-                        .unwrap_or_default();
+                let pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
+                    lance_store,
+                    Some(tool_provider),
+                );
 
-                    let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
-                    let mut results = Vec::new();
+                let req = any_context_core_rs::retrieval::HybridSearchRequest {
+                    query_text: query.to_string(),
+                    workspace: Some(ws.clone()),
+                    top_k: 5,
+                    candidate_pool_k: 30,
+                    max_density_chars: 12_000,
+                    min_score: 0.02,
+                    table_name: "workspace_chunks".to_string(),
+                    ..Default::default()
+                };
 
-                    // 1. Try BM25 index if available in canonical directory
-                    let bm25_path = lance_path.join("bm25_index.bin");
-                    if bm25_path.exists() {
-                        if let Ok(bm25) = any_context_core_rs::retrieval::BM25Index::load_from_file(bm25_path.to_str().unwrap_or_default()) {
-                            let hits = bm25.search(&query_str, 5, Some(&ws_clone));
-                            for (doc_id, score) in hits {
-                                if let Some(doc) = bm25.get_doc_by_id(&doc_id) {
-                                    results.push(format!("• [{}] (Score: {:.2}):\n{}", doc.file_name, score, doc.text));
-                                }
+                match pipeline.search_single_async(&req).await {
+                    Ok(results) if !results.is_empty() => {
+                        let mut out = Vec::new();
+                        for r in results {
+                            let type_str = if r.content_type.is_empty() { "Document" } else { &r.content_type };
+                            out.push(format!(
+                                "• [{}] (Score: {:.2}, Source: {}, Type: {}):\n{}",
+                                r.file_name,
+                                r.score,
+                                r.file_path,
+                                type_str,
+                                r.text
+                            ));
+                        }
+                        Ok(out.join("\n\n"))
+                    }
+                    Ok(_) => {
+                        let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+                        let folders = db.as_ref()
+                            .and_then(|d| d.get_workspace_folders(&ws).ok())
+                            .unwrap_or_default();
+                        let web_urls = db.as_ref()
+                            .and_then(|d| d.get_workspace_web_urls(&ws).ok())
+                            .unwrap_or_default();
+
+                        if !folders.is_empty() || !web_urls.is_empty() {
+                            let mut sources = Vec::new();
+                            if !folders.is_empty() {
+                                sources.push(format!("folders: [{}]", folders.join(", ")));
                             }
+                            if !web_urls.is_empty() {
+                                sources.push(format!("web portals: [{}]", web_urls.join(", ")));
+                            }
+                            Ok(format!(
+                                "Active workspace '{}' monitors {}. No indexed document chunks matched query '{}'.",
+                                ws,
+                                sources.join("; "),
+                                query
+                            ))
+                        } else {
+                            Ok(format!(
+                                "No indexed document chunks found in workspace '{}' for query '{}'.",
+                                ws, query
+                            ))
                         }
                     }
-
-                    // 2. Supplement with LanceDB metadata search if needed
-                    if results.is_empty() {
-                        if let Ok(lance) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) {
-                            let words: Vec<&str> = query_str
-                                .split(|c: char| !c.is_alphanumeric() && c != '_' && c != '-')
-                                .filter(|w| w.len() >= 3)
-                                .collect();
-
-                            let where_clause = if !words.is_empty() {
-                                let conditions: Vec<String> = words.iter().map(|w| {
-                                    let s = w.replace('\'', "''");
-                                    format!("text LIKE '%{}%'", s)
-                                }).collect();
-                                conditions.join(" OR ")
-                            } else {
-                                let sanitized = query_str.replace('\'', "''");
-                                format!("text LIKE '%{}%'", sanitized)
-                            };
-
-                            if let Ok(hits) = lance.search_metadata(
-                                &where_clause,
-                                5,
-                                Some(&ws_clone),
-                                None,
-                            ) {
-                                for hit in hits {
-                                    results.push(format!("• [{}] (Score: {:.2}):\n{}", hit.file_name, hit.score, hit.text));
-                                }
-                            }
-                        }
+                    Err(e) => {
+                        Ok(format!("Search query returned 0 results: {e}"))
                     }
-
-                    if results.is_empty() && !folders.is_empty() {
-                        results.push(format!("Active workspace '{}' monitors folders: [{}]. No indexed vector chunks matched '{}'.", ws_clone, folders.join(", "), query_str));
-                    } else if results.is_empty() {
-                        results.push(format!("No indexed document chunks found in workspace '{}' for query '{}'.", ws_clone, query_str));
-                    }
-
-                    results.join("\n\n")
-                }).await.unwrap_or_else(|e| format!("Search task failed: {}", e));
-
-                Ok(output)
+                }
             }
         }
     );
