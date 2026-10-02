@@ -507,7 +507,9 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/folder`** | `--add <path>`, `--remove <path>`, `--list`, `--sync` | Gerencia e sincroniza exclusivamente pastas locais do workspace. |
 | **`/web`** | `--add <url>`, `--remove <url>`, `--list`, `--sync` | Gerencia, rastreia e sincroniza exclusivamente portais e páginas web. |
 | **`/drive`** | `--add`, `--remove <id>`, `--list`, `--sync`, `/cloud` | Gerencia e sincroniza conexões com Google Drive e OneDrive. |
-| **`/mode`** | `--hybrid`, `--strict`, `--proactive`, `--global` | Switch AI grounding mode per workspace or globally: **`Hybrid`** (dual-layer), **`Strict`** (100% verified facts), or **`Proactive`** (research & synthesis). |
+| **`/mode`** | `strict`, `hybrid`, `proactive`, `--global` | Configura o Grounding Mode da IA: **`Strict`** (100% ancorado nos docs), **`Hybrid`** (equilíbrio dual-layer) ou **`Proactive`** (pesquisa e síntese). |
+| **`/search`** | `auto`, `fast`, `deep`, `/fast`, `/deep` | Configura o Search Depth Mode (RFC-042): **`Auto`** (heurística dinâmica), **`Fast`** (baixa latência) ou **`Deep`** (recuperação exaustiva). |
+
 | **`/web-search`** | `--on`, `--off`, `--status`, `--global`, `/ws` | Toggle real-time live web search per workspace with domain portal prioritization and source discrimination. |
 | **`/link`** | `<src> [dst]`, `--list`, `--unlink <src>` | Link or unlink reusable indexed sources across workspaces with zero API cost ($0.00). |
 | **`/transfer`** | `<src_ws> <tgt_ws> <path_or_url>` | Instant zero-cost transfer of folders or web portals between workspaces. |
@@ -598,14 +600,20 @@ O AnyContext adota uma arquitetura determinística de **Injeção de Estratégia
 | **🚀 Proactive** *(Pesquisa & Estratégia)* | **OFF** | • **Prioridade 0:** VectorDB & Conhecimento Estratégico do Modelo.<br>• **Desativada:** Busca Web. | Fusão de documentos locais com antecipação de riscos, próximos passos e visão estratégica. A norma ou dado mais recente prevalece. |
 | **🚀 Proactive** *(Pesquisa & Estratégia)* | **ON** | • **Prioridade 0 (Fusão Total em Tempo Real):** VectorDB + Portais Web + Web Search ao Vivo + Raciocínio Proativo. | Execução autônoma e contínua de RAG + Web. **Total fusão temporal:** a fonte com data mais recente em qualquer canal prevalece. Sugere ativamente novas URLs autoritativas com `/web add <url>`. |
 
-### 🖥️ Painel Fixo de Input & Barra de Status Ancorada no Rodapé (`v0.24.6`)
+### 🖥️ Top Header Quint-Status Telemetry (`v0.32.4`)
 
-Inspirado na experiência de console do **Antigravity CLI**, o AnyContext gerencia as margens de rolagem do terminal via sequências ANSI VT100 (`DECSTBM - \033[top;bottom r`):
-- **Barra de Status Permanentemente Ancorada**: O divisor horizontal e o dock de informações (`📂 Workspace │ 🤖 Modelo │ 🛡️ Modo │ 🌐 Search │ ⚡ Syncing │ 🚪 /exit`) permanecem **fixos na base da tela** durante todo o ciclo de busca vetorial, chamadas de ferramentas e streaming de tokens.
-- **Streaming Fluido na Janela Superior**: A resposta da IA sobe naturalmente na área de rolagem superior sem empurrar, piscar ou apagar a barra de status.
-- **Resiliência Multi-Console**: Compatível com Windows Terminal, PowerShell, VS Code Terminal, Cursor e Git Bash, com fallback transparente para ambientes não-TTY (CI/CD).
+A interface TUI exibe no cabeçalho superior todas as dimensões vitais de execução de forma permanente e reativa:
+```text
+AnyContext v0.32.4 ─ [WS: Default] ─ [Model: gemini-2.5-flash] ─ [Grounding: STRICT] ─ [Search: AUTO] ─ [Web: OFF] ─ ● IDLE
+```
+- **`[WS: <name>]`**: Workspace ativo (selecionável via `/switch`).
+- **`[Model: <model>]`**: Modelo LLM/SLM conectado (selecionável via `/model`).
+- **`[Grounding: <MODE>]`**: Estratégia de grounding (`STRICT`, `HYBRID`, `PROACTIVE`), configurada via `/mode`.
+- **`[Search: <DEPTH>]`**: Profundidade de recuperação vetorial RAG RFC-042 (`AUTO`, `FAST`, `DEEP`), configurada via `/search`.
+- **`[Web: ON|OFF]`**: Status da busca web em tempo real, alternada via `/web-search`.
 
 ---
+
 
 
 ## 💡 Real-World Usage Examples (For Technical & Non-Technical Users)

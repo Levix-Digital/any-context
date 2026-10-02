@@ -129,9 +129,9 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     },
     SlashCommand {
         name: "search",
-        aliases: &[],
-        description: "Configures workspace search policy: auto, fast, or deep",
-        usage: "/search <auto|fast|deep>",
+        aliases: &["search-mode", "depth", "sm"],
+        description: "Configures retrieval depth search policy: auto, fast, or deep",
+        usage: "/search [auto|fast|deep]",
         category: "RAG",
     },
     SlashCommand {
@@ -200,8 +200,8 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     SlashCommand {
         name: "mode",
         aliases: &["grounding", "grounding-mode", "answer-mode", "am"],
-        description: "Select AI Grounding Strategy mode (strict, hybrid, proactive, auto)",
-        usage: "/mode [--strict|--hybrid|--proactive|--auto]",
+        description: "Select AI Grounding Strategy mode (strict, hybrid, proactive)",
+        usage: "/mode [strict|hybrid|proactive]",
         category: "RAG",
     },
     SlashCommand {

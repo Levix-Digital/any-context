@@ -207,6 +207,9 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
     let grounding_mode = db.as_ref()
         .and_then(|d| d.get_setting("grounding_mode").ok().flatten())
         .unwrap_or_else(|| "strict".to_string());
+    let search_mode = db.as_ref()
+        .and_then(|d| d.get_setting("search_mode").ok().flatten())
+        .unwrap_or_else(|| "auto".to_string());
     let web_search_enabled = db.as_ref()
         .and_then(|d| d.get_setting("web_search_enabled").ok().flatten())
         .map(|v| v == "true" || v == "1")
@@ -215,7 +218,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
     let (provider, model_name) = resolve_lm_provider(args.model.as_deref(), Some(&args.workspace))
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    let agent = build_agent(provider, &model_name, &args.workspace, &grounding_mode, web_search_enabled).await
+    let agent = build_agent(provider, &model_name, &args.workspace, &grounding_mode, &search_mode, web_search_enabled).await
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     // 4. Stream response to stdout

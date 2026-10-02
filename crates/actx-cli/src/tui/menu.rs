@@ -67,8 +67,12 @@ impl MenuState {
                 self.items = build_sync_menu();
             }
             "grounding" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Busca & Grounding".to_string()];
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Grounding Strategy".to_string()];
                 self.items = build_grounding_menu();
+            }
+            "search" => {
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Profundidade de Busca".to_string()];
+                self.items = build_search_menu();
             }
             "sources" => {
                 self.breadcrumbs = vec!["Menu Principal".to_string(), "Fontes & Documentos".to_string()];
@@ -117,8 +121,17 @@ impl MenuState {
         self.current_menu_id = "grounding".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
-        self.breadcrumbs = vec!["Menu Principal".to_string(), "Busca & Grounding".to_string()];
+        self.breadcrumbs = vec!["Menu Principal".to_string(), "Grounding Strategy".to_string()];
         self.items = build_grounding_menu();
+    }
+
+    pub fn open_search(&mut self) {
+        self.is_open = true;
+        self.current_menu_id = "search".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Menu Principal".to_string(), "Profundidade de Busca".to_string()];
+        self.items = build_search_menu();
     }
 
     pub fn open_sources(&mut self, active_workspace: &str) {
@@ -218,11 +231,20 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "grounding".to_string(),
-            title: "Modos de Busca & Grounding RAG".to_string(),
-            description: "Configurar estratégia: Auto Grounding, Strict, Hybrid, Proactive, Fast ou Deep".to_string(),
-            icon: "🔍".to_string(),
-            badge: Some("[Auto]".to_string()),
+            title: "Grounding Strategy (Ancoragem)".to_string(),
+            description: "Configurar política de fidelidade: Strict, Hybrid ou Proactive".to_string(),
+            icon: "🛡️".to_string(),
+            badge: None,
             shortcut: Some("/mode".to_string()),
+            is_submenu: true,
+        },
+        MenuItem {
+            id: "search".to_string(),
+            title: "Search Depth Mode (Profundidade de Busca)".to_string(),
+            description: "Configurar profundidade de recuperação: Auto, Fast ou Deep".to_string(),
+            icon: "🔍".to_string(),
+            badge: None,
+            shortcut: Some("/search".to_string()),
             is_submenu: true,
         },
         MenuItem {
@@ -366,15 +388,6 @@ pub fn build_sync_menu() -> Vec<MenuItem> {
 pub fn build_grounding_menu() -> Vec<MenuItem> {
     vec![
         MenuItem {
-            id: "grounding_action:auto".to_string(),
-            title: "Auto Grounding (Padrão Inteligente)".to_string(),
-            description: "Alterna automaticamente entre busca rápida e reflexiva conforme a pergunta".to_string(),
-            icon: "🎯".to_string(),
-            badge: Some("[Padrão]".to_string()),
-            shortcut: Some("/mode auto".to_string()),
-            is_submenu: false,
-        },
-        MenuItem {
             id: "grounding_action:strict".to_string(),
             title: "Strict Mode (100% Fatos Verificados)".to_string(),
             description: "Respostas estritamente ancoradas nos documentos, zero especulação externa".to_string(),
@@ -401,22 +414,36 @@ pub fn build_grounding_menu() -> Vec<MenuItem> {
             shortcut: Some("/mode proactive".to_string()),
             is_submenu: false,
         },
+    ]
+}
+
+pub fn build_search_menu() -> Vec<MenuItem> {
+    vec![
         MenuItem {
-            id: "grounding_action:fast".to_string(),
-            title: "Fast RAG (Single-Turn)".to_string(),
-            description: "Busca vetorial e lexical direta de latência ultra-baixa (<50ms)".to_string(),
-            icon: "⚡".to_string(),
-            badge: None,
-            shortcut: Some("/mode fast".to_string()),
+            id: "search_action:auto".to_string(),
+            title: "Auto Search Depth (Padrão Inteligente)".to_string(),
+            description: "Alterna automaticamente entre busca rápida e reflexiva conforme a pergunta".to_string(),
+            icon: "🎯".to_string(),
+            badge: Some("[Padrão]".to_string()),
+            shortcut: Some("/search auto".to_string()),
             is_submenu: false,
         },
         MenuItem {
-            id: "grounding_action:deep".to_string(),
+            id: "search_action:fast".to_string(),
+            title: "Fast RAG (Single-Turn <50ms)".to_string(),
+            description: "Busca vetorial e lexical direta de latência ultra-baixa".to_string(),
+            icon: "⚡".to_string(),
+            badge: Some("[Ultra Rápido]".to_string()),
+            shortcut: Some("/search fast".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "search_action:deep".to_string(),
             title: "Deep Search (Reflexive ReAct)".to_string(),
             description: "Raciocínio multi-turn com decomposição de subtarefas e auto-correção".to_string(),
             icon: "🧠".to_string(),
-            badge: None,
-            shortcut: Some("/mode deep".to_string()),
+            badge: Some("[Aprofundado]".to_string()),
+            shortcut: Some("/search deep".to_string()),
             is_submenu: false,
         },
     ]
@@ -591,9 +618,16 @@ mod tests {
         assert!(sync.iter().any(|i| i.id == "sync_action:force"));
 
         let grounding = build_grounding_menu();
-        assert_eq!(grounding.len(), 6);
+        assert_eq!(grounding.len(), 3);
         assert!(grounding.iter().any(|i| i.id == "grounding_action:strict"));
         assert!(grounding.iter().any(|i| i.id == "grounding_action:hybrid"));
+        assert!(grounding.iter().any(|i| i.id == "grounding_action:proactive"));
+
+        let search = build_search_menu();
+        assert_eq!(search.len(), 3);
+        assert!(search.iter().any(|i| i.id == "search_action:auto"));
+        assert!(search.iter().any(|i| i.id == "search_action:fast"));
+        assert!(search.iter().any(|i| i.id == "search_action:deep"));
 
         let sources = build_sources_menu("Default");
         assert_eq!(sources.len(), 3);

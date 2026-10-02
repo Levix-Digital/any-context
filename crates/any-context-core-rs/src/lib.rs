@@ -5,6 +5,7 @@ pub mod ingestion;
 pub mod retrieval;
 pub mod storage;
 pub mod agent;
+pub mod commands;
 
 pub use models::ChunkPayload;
 pub use ingestion::IngestionRouter;
@@ -12,6 +13,7 @@ pub use ingestion::WorkspaceScanner;
 pub use retrieval::{HybridRetrieverEngine, QueryPreprocessor, ProcessedQuery};
 pub use storage::{NativeConfigDb, NativeLanceStore, get_default_settings_db_path};
 pub use agent::{PyAgentEngine, PyAgentResponse, PyAgentEvent};
+pub use commands::{CommandEngine, CommandResult, CommandAction, CommandStateUpdates, ExecutionContext, GroundingMode, SearchDepthMode};
 
 #[pyfunction]
 fn extract_temporal_clauses(query: &str) -> Vec<String> {

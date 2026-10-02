@@ -227,12 +227,21 @@ async fn test_app_state_and_slash_dispatch() {
     let web_msg = app.chat_history.last().expect("web item");
     assert!(web_msg.content.contains("Web Documentation Portals"));
 
-    // Test /mode deep
-    app.input_buffer = "/mode deep".to_string();
+    // Test /mode hybrid
+    app.input_buffer = "/mode hybrid".to_string();
     app.cursor_idx = app.input_buffer.len();
     app.submit_input(tx.clone());
     let mode_msg = app.chat_history.last().expect("mode item");
     assert!(mode_msg.content.contains("Grounding Strategy Mode"));
+    assert_eq!(app.grounding_mode, "hybrid");
+
+    // Test /search deep
+    app.input_buffer = "/search deep".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    let search_msg = app.chat_history.last().expect("search item");
+    assert!(search_msg.content.contains("Search Depth Policy"));
+    assert_eq!(app.search_mode, "deep");
 
     // Test /web-search on
     app.input_buffer = "/web-search on".to_string();
@@ -476,22 +485,43 @@ async fn test_prompt_history_navigation_and_workspace_isolation() {
 }
 
 #[tokio::test]
-async fn test_top_header_quad_status_and_reactive_updates() {
+async fn test_top_header_quint_status_and_reactive_updates() {
     let mut app = App::new("Default".to_string(), "gpt-4o-mini".to_string(), None);
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
 
     // Verify initial values exist
     assert!(!app.grounding_mode.is_empty());
+    assert!(!app.search_mode.is_empty());
 
-    // Switch mode to hybrid
+    // Switch grounding mode to hybrid
     app.input_buffer = "/mode hybrid".to_string();
     app.submit_input(tx.clone());
     assert_eq!(app.grounding_mode, "hybrid");
 
-    // Switch mode to strict
+    // Switch grounding mode to proactive
+    app.input_buffer = "/mode proactive".to_string();
+    app.submit_input(tx.clone());
+    assert_eq!(app.grounding_mode, "proactive");
+
+    // Switch grounding mode to strict
     app.input_buffer = "/mode strict".to_string();
     app.submit_input(tx.clone());
     assert_eq!(app.grounding_mode, "strict");
+
+    // Switch search depth mode to fast
+    app.input_buffer = "/search fast".to_string();
+    app.submit_input(tx.clone());
+    assert_eq!(app.search_mode, "fast");
+
+    // Switch search depth mode to deep
+    app.input_buffer = "/search deep".to_string();
+    app.submit_input(tx.clone());
+    assert_eq!(app.search_mode, "deep");
+
+    // Switch search depth mode to auto
+    app.input_buffer = "/search auto".to_string();
+    app.submit_input(tx.clone());
+    assert_eq!(app.search_mode, "auto");
 
     // Enable web search
     app.input_buffer = "/web-search on".to_string();
