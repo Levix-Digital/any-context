@@ -125,11 +125,9 @@ impl SqliteSessionStore {
             db_path: p,
         })
     }
-}
 
-#[async_trait]
-impl SessionStore for SqliteSessionStore {
-    async fn get_messages(&self, session_id: &str) -> Result<Vec<ChatMessage>, AgentError> {
+    /// Synchronously retrieves messages from the SQLite session store without needing an async runtime
+    pub fn get_messages_sync(&self, session_id: &str) -> Result<Vec<ChatMessage>, AgentError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn
             .prepare(
@@ -176,6 +174,27 @@ impl SessionStore for SqliteSessionStore {
         }
     }
 
+    /// Synchronously clears messages from the SQLite session store
+    pub fn clear_session_sync(&self, session_id: &str) -> Result<(), AgentError> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM actx_sessions WHERE session_id = ?", params![session_id])
+            .map_err(|e| AgentError::SessionStoreError(e.to_string()))?;
+        conn.execute("DELETE FROM actx_session_messages WHERE session_id = ?", params![session_id])
+            .map_err(|e| AgentError::SessionStoreError(e.to_string()))?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl SessionStore for SqliteSessionStore {
+    async fn get_messages(&self, session_id: &str) -> Result<Vec<ChatMessage>, AgentError> {
+        self.get_messages_sync(session_id)
+    }
+
+    async fn clear_session(&self, session_id: &str) -> Result<(), AgentError> {
+        self.clear_session_sync(session_id)
+    }
+
     async fn append_message(&self, session_id: &str, message: ChatMessage) -> Result<(), AgentError> {
         self.append_messages(session_id, &[message]).await
     }
@@ -212,15 +231,6 @@ impl SessionStore for SqliteSessionStore {
         }
 
         tx.commit()
-            .map_err(|e| AgentError::SessionStoreError(e.to_string()))?;
-        Ok(())
-    }
-
-    async fn clear_session(&self, session_id: &str) -> Result<(), AgentError> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute("DELETE FROM actx_sessions WHERE session_id = ?", params![session_id])
-            .map_err(|e| AgentError::SessionStoreError(e.to_string()))?;
-        conn.execute("DELETE FROM actx_session_messages WHERE session_id = ?", params![session_id])
             .map_err(|e| AgentError::SessionStoreError(e.to_string()))?;
         Ok(())
     }

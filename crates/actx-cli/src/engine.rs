@@ -81,27 +81,128 @@ pub fn resolve_lm_provider(
     Ok((provider, model_name))
 }
 
-/// Builds an active `Agent` configured for the specified workspace and model.
-pub async fn build_agent(
+/// Builds an active `Agent` configured for the specified workspace and model synchronously.
+pub fn build_agent_sync(
     provider: Arc<dyn LmProvider>,
     model: &str,
     workspace: &str,
+    grounding_mode: &str,
+    web_search_enabled: bool,
 ) -> Result<Agent, String> {
+    let db_path = any_context_core_rs::storage::get_default_settings_db_path();
+    let session_store = actx_agent::SqliteSessionStore::open(&db_path, 50).ok()
+        .map(|s| Arc::new(s) as Arc<dyn actx_agent::SessionStore>);
+
+    let web_status_str = if web_search_enabled { "ENABLED (Active)" } else { "DISABLED (Offline)" };
     let system_prompt = format!(
-        "You are AnyContext (actx), an ultra-fast, local-first agentic context engine.\n\
-         Active Workspace: {}\n\
-         Help the user by retrieving relevant code context, diagnosing issues, and answering queries concisely.",
-        workspace
+        "You are AnyContext (actx), an ultra-fast, local-first agentic context engine and AI assistant developed by Levix Digital.\n\
+         \n\
+         ### 🎯 ACTIVE WORKSPACE & OPERATIONAL ENVIRONMENT:\n\
+         - Active Workspace: '{workspace}'\n\
+         - Grounding Strategy: {grounding_mode}\n\
+         - Real-Time Web Search: {web_status_str}\n\
+         \n\
+         ### 🧠 PERSISTENT LONG-TERM CONVERSATION MEMORY:\n\
+         - You maintain persistent conversation memory across turns and sessions stored locally in SQLite for each workspace.\n\
+         - You remember prior conversations, past context, decisions, and instructions given in earlier turns of this workspace.\n\
+         - When the user asks about previous topics, past conversations, or asks if you have long-term memory, ALWAYS recognize and reference your persistent memory and conversation history.\n\
+         - NEVER claim that you lack long-term memory or that interactions are independent. You are AnyContext and you retain workspace memory.\n\
+         \n\
+         ### 🛡️ GROUNDING & RESPONSE RULES:\n\
+         - Answer concisely, accurately, and directly in Markdown.\n\
+         - When searching for documents, source code, or workspace files, call the `search_db` tool.\n\
+         - In STRICT grounding mode, base your answers on workspace documents and verified context."
     );
 
-    Agent::builder()
+    let ws_for_tool = workspace.to_string();
+    let search_tool = actx_agent::NativeTool::new(
+        "search_db",
+        "Searches for relevant documents, source code, and knowledge context in the active workspace.",
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query, topic, or keyword to look up"
+                }
+            },
+            "required": ["query"]
+        }),
+        move |args: serde_json::Value| {
+            let ws = ws_for_tool.clone();
+            async move {
+                let query = args.get("query")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim();
+                if query.is_empty() {
+                    return Ok("Empty search query provided.".to_string());
+                }
+
+                let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+                let folders = db.as_ref()
+                    .and_then(|d| d.get_workspace_folders(&ws).ok())
+                    .unwrap_or_default();
+
+                let lance_path = if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                    std::path::PathBuf::from(local).join("AnyContext").join("lancedb")
+                } else if let Some(d) = dirs::data_local_dir() {
+                    d.join("AnyContext").join("lancedb")
+                } else {
+                    std::path::PathBuf::from("./lancedb")
+                };
+
+                let mut results = Vec::new();
+                if let Ok(lance) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) {
+                    let sanitized = query.replace('\'', "''");
+                    if let Ok(hits) = lance.search_metadata(
+                        &format!("text LIKE '%{}%'", sanitized),
+                        5,
+                        Some(&ws),
+                        None,
+                    ) {
+                        for hit in hits {
+                            results.push(format!("• [{}] (Score: {:.2}):\n{}", hit.file_name, hit.score, hit.text));
+                        }
+                    }
+                }
+
+                if results.is_empty() && !folders.is_empty() {
+                    results.push(format!("Active workspace '{}' monitors folders: [{}]. No indexed vector chunks matched '{}'.", ws, folders.join(", "), query));
+                } else if results.is_empty() {
+                    results.push(format!("No indexed document chunks found in workspace '{}' for query '{}'.", ws, query));
+                }
+
+                Ok(results.join("\n\n"))
+            }
+        }
+    );
+
+    let mut builder = Agent::builder()
         .client(provider)
         .model(model)
         .system_prompt(system_prompt)
         .execution_mode(AgentExecutionMode::ReAct)
         .search_mode(SearchMode::Auto)
         .max_turns(10)
-        .build()
-        .await
+        .tool(Arc::new(search_tool));
+
+    if let Some(store) = session_store {
+        builder = builder.session_store(store);
+    }
+
+    builder
+        .build_sync()
         .map_err(|e| format!("Agent construction failed: {}", e))
+}
+
+/// Builds an active `Agent` configured for the specified workspace and model.
+pub async fn build_agent(
+    provider: Arc<dyn LmProvider>,
+    model: &str,
+    workspace: &str,
+    grounding_mode: &str,
+    web_search_enabled: bool,
+) -> Result<Agent, String> {
+    build_agent_sync(provider, model, workspace, grounding_mode, web_search_enabled)
 }

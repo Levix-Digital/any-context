@@ -7,14 +7,12 @@ use crate::engine::{build_agent, resolve_lm_provider};
 pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     // 0. Handle top-level flags first
     if args.check_update {
-        println!("Checking for updates on GitHub releases (Levix-Digital/any-context)...");
-        println!("actx v{} is currently the latest stable release.", env!("CARGO_PKG_VERSION"));
+        handle_check_update();
         return Ok(());
     }
 
     if args.update {
-        println!("Checking for updates on GitHub releases (Levix-Digital/any-context)...");
-        println!("actx is already up-to-date (v{}).", env!("CARGO_PKG_VERSION"));
+        handle_update(None);
         return Ok(());
     }
 
@@ -81,11 +79,10 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 return Ok(());
             }
             CliCommand::Update { check } => {
-                println!("Checking for updates on GitHub releases (Levix-Digital/any-context)...");
                 if *check {
-                    println!("actx v{} is currently the latest stable release.", env!("CARGO_PKG_VERSION"));
+                    handle_check_update();
                 } else {
-                    println!("actx is already up-to-date (v{}).", env!("CARGO_PKG_VERSION"));
+                    handle_update(None);
                 }
                 return Ok(());
             }
@@ -206,14 +203,24 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
     }
 
     // 3. Resolve Provider & Build Agent
+    let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+    let grounding_mode = db.as_ref()
+        .and_then(|d| d.get_setting("grounding_mode").ok().flatten())
+        .unwrap_or_else(|| "strict".to_string());
+    let web_search_enabled = db.as_ref()
+        .and_then(|d| d.get_setting("web_search_enabled").ok().flatten())
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
     let (provider, model_name) = resolve_lm_provider(args.model.as_deref(), Some(&args.workspace))
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    let agent = build_agent(provider, &model_name, &args.workspace).await
+    let agent = build_agent(provider, &model_name, &args.workspace, &grounding_mode, web_search_enabled).await
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     // 4. Stream response to stdout
-    let (mut rx, handle) = agent.stream(query, None);
+    let session_id = format!("ws_{}", args.workspace);
+    let (mut rx, handle) = agent.stream(query, Some(session_id));
 
     let mut stdout = io::stdout();
     let mut in_thinking = false;
@@ -267,4 +274,49 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         eprintln!("\n\x1b[31mError: {}\x1b[0m", err);
     }
     Ok(())
+}
+
+fn handle_check_update() {
+    println!("Checking for updates on GitHub releases (Levix-Digital/any-context-releases)...");
+    match actx_installer::downloader::fetch_latest_release_tag() {
+        Ok(latest) => {
+            let current_tag = format!("v{}", env!("CARGO_PKG_VERSION"));
+            let clean_latest = if latest.starts_with('v') || latest.starts_with('V') {
+                latest
+            } else {
+                format!("v{}", latest)
+            };
+
+            let parse_ver = |v: &str| -> (u64, u64, u64) {
+                let s = v.trim_start_matches(|c| c == 'v' || c == 'V');
+                let mut parts = s.split('.').filter_map(|p| p.parse::<u64>().ok());
+                (
+                    parts.next().unwrap_or(0),
+                    parts.next().unwrap_or(0),
+                    parts.next().unwrap_or(0),
+                )
+            };
+
+            if parse_ver(&clean_latest) > parse_ver(&current_tag) {
+                println!(
+                    "A new release of actx is available: {} (current: {}). Run 'actx --update' to upgrade.",
+                    clean_latest, current_tag
+                );
+            } else {
+                println!("actx {} is up to date (latest GitHub release: {}).", current_tag, clean_latest);
+            }
+        }
+        Err(e) => {
+            println!("actx v{} (latest release check: {})", env!("CARGO_PKG_VERSION"), e);
+        }
+    }
+}
+
+fn handle_update(target_ver: Option<&str>) {
+    println!("Checking for updates on GitHub releases (Levix-Digital/any-context-releases)...");
+    let bin_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .unwrap_or_else(actx_installer::paths::get_canonical_bin_dir);
+    actx_installer::run_standalone_update(&bin_dir, target_ver);
 }

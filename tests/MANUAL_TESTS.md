@@ -7,6 +7,102 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 5 (v0.32.3 Estabilização TUI, Histórico Up/Down por Workspace, Header Quad-Status Grounding/WebSearch, Memória de Longo Prazo e Auto-Consciência do Agente):
+- **Objetivo**: Comprovar que na versão `v0.32.3`:
+  1. **Navegação de Histórico de Prompts via Seta Up/Down Isolada por Workspace**:
+     - As setas `Up` e `Down` chamam o histórico de comandos e prompts digitados pelo usuário (comportamento estilo terminal/readline), isolados por workspace.
+     - A rolagem vertical do chat não é ativada por `Up`/`Down` simples; ela é operada por `PageUp`, `PageDown`, `Home`, `End`, scroll do mouse ou `Shift+Up`/`Shift+Down`.
+     - Alternar entre workspaces (`/switch`) isola perfeitamente o histórico de prompts de cada ambiente.
+  2. **Top Header Quad-Status (Workspace, Modelo, Grounding Mode e Web Search)**:
+     - O cabeçalho superior do TUI renderiza explicitamente o status quádruplo:
+       `AnyContext v0.32.3 ─ [WS: <workspace>] ─ [Model: <model>] ─ [Mode: <STRICT|HYBRID|PROACTIVE>] ─ [Web: ON|OFF] ─ ● IDLE`
+     - Comandos como `/mode hybrid`, `/web on`, `/web off` e `/model` atualizam os indicadores reativamente em tempo real no topo da tela.
+  3. **Auto-Consciência e Memória de Longo Prazo por Workspace**:
+     - O AnyContext armazena todo o histórico de conversas localmente em SQLite (`actx_sessions` e `actx_session_messages`).
+     - Ao reiniciar o `actx` ou alternar de workspace, o histórico de mensagens anteriores é recarregado automaticamente na tela do chat.
+     - Ao ser questionado sobre suas capacidades e conversas passadas (ex: *"Você tem memória de longo prazo, certo?"*), o assistente reconhece sua memória persistente local e cita o histórico do workspace, nunca emitindo a recusa genérica de falta de memória.
+     - O comando `/reset-memory` limpa o histórico da sessão do workspace ativo sem afetar os vetores de documentos indexados.
+  4. **Consistência de Versão e Checagem de Atualizações**:
+     - `actx -v` retorna `actx 0.32.3` no Windows e no Linux.
+     - `actx --check-update` e `actx --update` integram-se ao repositório de releases oficial `Levix-Digital/any-context-releases`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão e Diagnóstico no Windows e Linux:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     actx --check-update
+     actx -d
+     ```
+   - **Critério de Aceitação**: Deve exibir `actx 0.32.3`, confirmar que a versão está atualizada contra o repositório oficial de releases e reportar `Status: Healthy & Operational`.
+
+2. **📄 Teste de Histórico de Prompts (Up / Down) no TUI:**
+   - Inicie o AnyContext interativo:
+     ```text
+     actx
+     ```
+   - Digite um primeiro prompt:
+     ```text
+     Olá AnyContext, qual é o seu objetivo?
+     ```
+     e pressione Enter.
+   - Digite um segundo comando:
+     ```text
+     /mode hybrid
+     ```
+     e pressione Enter.
+   - Digite um terceiro prompt:
+     ```text
+     Liste os arquivos da pasta atual
+     ```
+     e pressione Enter.
+   - Agora, no campo de texto vazio, pressione a seta para cima (`Up`):
+     - Deve preencher o prompt com: `Liste os arquivos da pasta atual`.
+   - Pressione `Up` novamente:
+     - Deve preencher com: `/mode hybrid`.
+   - Pressione `Up` mais uma vez:
+     - Deve preencher com: `Olá AnyContext, qual é o seu objetivo?`.
+   - Pressione `Down`:
+     - Deve avançar para `/mode hybrid`.
+   - Pressione `Down` novamente:
+     - Deve avançar para `Liste os arquivos da pasta atual`.
+   - Pressione `Down` mais uma vez:
+     - Deve retornar ao rascunho limpo vazio.
+   - **Critério de Aceitação**: A navegação por setas `Up` e `Down` preenche o campo de texto conforme o histórico e NÃO efetua rolagem na janela do chat.
+
+3. **📄 Teste do Top Header Quad-Status e Atualização Reativa:**
+   - Observe a barra superior do TUI:
+     - Deve conter claramente:
+       `AnyContext v0.32.3 ─ [WS: Default] ─ [Model: gpt-4o-mini] ─ [Mode: HYBRID] ─ [Web: OFF] ─ ● IDLE`
+   - Digite no prompt:
+     ```text
+     /web on
+     ```
+     e pressione Enter.
+   - **Critério de Aceitação**: O topo deve mudar instantaneamente para `[Web: ON]`.
+   - Digite:
+     ```text
+     /mode strict
+     ```
+     e pressione Enter.
+   - **Critério de Aceitação**: O topo deve mudar instantaneamente para `[Mode: STRICT]`.
+
+4. **📄 Teste de Auto-Consciência e Memória de Longo Prazo:**
+   - No mesmo chat ou após sair com `/quit` e reabrir o `actx`:
+   - Digite a pergunta chave:
+     ```text
+     Mas o que falamos na nossa ultima conversa? Você tem memória de longo prazo, certo?
+     ```
+   - **Critério de Aceitação**: O assistente deve responder confirmando que possui memória persistente por workspace via SQLite, referenciando as perguntas anteriores (ex: `/mode hybrid`, objetivo, arquivos ou conversas passadas) e NUNCA dizer *"Eu não tenho memória de longo prazo"*.
+   - Digite o comando de reset de memória:
+     ```text
+     /reset-memory
+     ```
+   - **Critério de Aceitação**: A sessão ativa do workspace é limpa e o assistente reporta confirmação.
+
+---
+
 ### 📌 Cenário 4 (v0.32.2 Correção de Entrada de Caracteres Acentuados UTF-8, Rolagem Automática do Chat & Protocolo Universal de Release):
 - **Objetivo**: Comprovar que na versão `v0.32.2`:
   1. **Tratamento Seguro de Limites de Caracteres Multi-Byte UTF-8 (`is_char_boundary`) no TUI**:

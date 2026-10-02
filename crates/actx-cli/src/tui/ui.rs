@@ -69,13 +69,32 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         AppStatus::Error(e) => Span::styled(format!("✖ ERROR ({})", e), Style::default().fg(Color::Red)),
     };
 
+    let mode_color = match app.grounding_mode.to_lowercase().as_str() {
+        "strict" => Color::Blue,
+        "hybrid" => Color::Cyan,
+        "proactive" => Color::LightMagenta,
+        "fast" => Color::Green,
+        "deep" => Color::Yellow,
+        _ => Color::White,
+    };
+
+    let (web_text, web_style) = if app.web_search_enabled {
+        ("ON", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+    } else {
+        ("OFF", Style::default().fg(Color::DarkGray))
+    };
+
     let title = Line::from(vec![
         Span::styled("AnyContext ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         Span::styled(format!("v{} ", env!("CARGO_PKG_VERSION")), Style::default().fg(Color::DarkGray)),
-        Span::raw("─ [Workspace: "),
+        Span::raw("─ [WS: "),
         Span::styled(&app.active_workspace, Style::default().fg(Color::Yellow)),
         Span::raw("] ─ [Model: "),
         Span::styled(&app.active_model, Style::default().fg(Color::Magenta)),
+        Span::raw("] ─ [Mode: "),
+        Span::styled(app.grounding_mode.to_uppercase(), Style::default().fg(mode_color).add_modifier(Modifier::BOLD)),
+        Span::raw("] ─ [Web: "),
+        Span::styled(web_text, web_style),
         Span::raw("] ─ "),
         status_span,
     ]);

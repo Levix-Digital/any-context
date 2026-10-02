@@ -57,6 +57,11 @@ impl Agent {
     pub async fn register_tool(&self, tool: Arc<dyn Tool>) {
         self.orchestrator.tools().register(tool).await;
     }
+
+    /// Register an additional tool dynamically on this agent instance synchronously
+    pub fn register_tool_sync(&self, tool: Arc<dyn Tool>) {
+        self.orchestrator.tools().register_sync(tool);
+    }
 }
 
 /// Fluent builder for constructing an `Agent`
@@ -119,13 +124,14 @@ impl AgentBuilder {
         self
     }
 
-    pub async fn build(self) -> Result<Agent, AgentError> {
+    /// Build the configured agent synchronously
+    pub fn build_sync(self) -> Result<Agent, AgentError> {
         let client = self
             .client
             .ok_or_else(|| AgentError::ConfigError("Missing LmProvider client in AgentBuilder".to_string()))?;
 
         for t in self.registered_tools {
-            self.tools.register(t).await;
+            self.tools.register_sync(t);
         }
 
         let orchestrator = Arc::new(ReActOrchestrator::new(
@@ -136,5 +142,10 @@ impl AgentBuilder {
         ));
 
         Ok(Agent { orchestrator })
+    }
+
+    /// Build the configured agent asynchronously
+    pub async fn build(self) -> Result<Agent, AgentError> {
+        self.build_sync()
     }
 }
