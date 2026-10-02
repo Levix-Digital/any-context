@@ -639,8 +639,30 @@ impl App {
                 self.finalize_assistant_turn();
             }
             AgentEvent::Error(err) => {
-                self.status = AppStatus::Error(err.clone());
-                self.finalize_assistant_turn();
+                if !self.current_stream_buffer.is_empty() || !self.current_thinking_buffer.is_empty() {
+                    let thinking = if !self.current_thinking_buffer.is_empty() {
+                        Some(std::mem::take(&mut self.current_thinking_buffer))
+                    } else {
+                        None
+                    };
+                    let content = std::mem::take(&mut self.current_stream_buffer);
+                    self.chat_history.push(ChatMessageItem {
+                        role: MessageRole::Assistant,
+                        content,
+                        thinking,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+                }
+
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!("❌ Error: {}", err),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.is_generating = false;
+                self.status = AppStatus::Error(err);
             }
             _ => {}
         }

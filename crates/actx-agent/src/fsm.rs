@@ -112,10 +112,9 @@ impl ReActOrchestrator {
 
             // Check if model emitted tool calls and we're not forced to stop
             if !response.tool_calls.is_empty() && !is_last_turn {
-                // Record assistant message with tool calls
+                // Record assistant message with tool calls in working context
                 let asst_msg = ChatMessage::assistant_with_tools(&response.content, response.tool_calls.clone());
-                working_messages.push(asst_msg.clone());
-                persisted_new_messages.push(asst_msg);
+                working_messages.push(asst_msg);
 
                 for call in &response.tool_calls {
                     tool_calls_count += 1;
@@ -150,8 +149,7 @@ impl ReActOrchestrator {
                     }
 
                     let tool_msg = ChatMessage::tool(tool_result_str, call.id.clone());
-                    working_messages.push(tool_msg.clone());
-                    persisted_new_messages.push(tool_msg);
+                    working_messages.push(tool_msg);
                 }
 
                 // Continue to next turn to allow model to digest tool observation
@@ -192,6 +190,9 @@ impl ReActOrchestrator {
         }
 
         // If loop finished by exhausting max_turns without returning
+        if !final_content.is_empty() {
+            persisted_new_messages.push(ChatMessage::assistant(&final_content));
+        }
         if let (Some(sid), Some(ref store)) = (session_id, &self.session_store) {
             let _ = store.append_messages(sid, &persisted_new_messages).await;
         }

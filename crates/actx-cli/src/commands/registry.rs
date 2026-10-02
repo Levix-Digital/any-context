@@ -113,6 +113,8 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         usage: "/update [--check]",
         category: "System",
     },
+    // Temporarily hidden until RFC-042 Deep Search engine is fully operational
+    /*
     SlashCommand {
         name: "fast",
         aliases: &[],
@@ -134,6 +136,7 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         usage: "/search [auto|fast|deep]",
         category: "RAG",
     },
+    */
     SlashCommand {
         name: "inspect",
         aliases: &["chunks", "lance"],

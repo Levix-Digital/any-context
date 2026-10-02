@@ -302,6 +302,16 @@ async fn test_sqlite_session_store_persistence() {
     assert_eq!(loaded[0].content, "Primeira mensagem");
     assert_eq!(loaded[1].content, "Resposta 1");
 
+    // Test that orphaned tool calls or empty assistant messages are filtered out
+    let orphaned_tool = actx_lm::types::ChatMessage::tool("raw chunk result", "call_123");
+    let empty_asst = actx_lm::types::ChatMessage::assistant("");
+    let valid_user = actx_lm::types::ChatMessage::user("Pergunta 2");
+    store.append_messages(sid, &[orphaned_tool, empty_asst, valid_user]).await.unwrap();
+
+    let loaded2 = store.get_messages(sid).await.unwrap();
+    assert_eq!(loaded2.len(), 3);
+    assert_eq!(loaded2[2].content, "Pergunta 2");
+
     store.clear_session(sid).await.unwrap();
     let empty = store.get_messages(sid).await.unwrap();
     assert!(empty.is_empty());

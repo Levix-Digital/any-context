@@ -87,7 +87,7 @@ fn test_slash_command_lookup_and_autocomplete() {
     let matches = autocomplete_commands("/s");
     assert!(matches.iter().any(|c| c.name == "sync"));
     assert!(matches.iter().any(|c| c.name == "status"));
-    assert!(matches.iter().any(|c| c.name == "search"));
+    assert!(matches.iter().any(|c| c.name == "switch"));
 }
 
 #[tokio::test]

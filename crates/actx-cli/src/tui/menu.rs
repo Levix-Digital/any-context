@@ -239,15 +239,6 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
             is_submenu: true,
         },
         MenuItem {
-            id: "search".to_string(),
-            title: "Search Depth Mode (Profundidade de Busca)".to_string(),
-            description: "Configurar profundidade de recuperação: Auto, Fast ou Deep".to_string(),
-            icon: "🔍".to_string(),
-            badge: None,
-            shortcut: Some("/search".to_string()),
-            is_submenu: true,
-        },
-        MenuItem {
             id: "keys".to_string(),
             title: "Credenciais & Chaves de API".to_string(),
             description: "Auditar presença de chaves configuradas nos provedores".to_string(),
