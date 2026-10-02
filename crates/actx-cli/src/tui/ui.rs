@@ -69,12 +69,17 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         AppStatus::Error(e) => Span::styled(format!("✖ ERROR ({})", e), Style::default().fg(Color::Red)),
     };
 
-    let mode_color = match app.grounding_mode.to_lowercase().as_str() {
+    let grounding_color = match app.grounding_mode.to_lowercase().as_str() {
         "strict" => Color::Blue,
         "hybrid" => Color::Cyan,
         "proactive" => Color::LightMagenta,
-        "fast" => Color::Green,
-        "deep" => Color::Yellow,
+        _ => Color::White,
+    };
+
+    let search_color = match app.search_mode.to_lowercase().as_str() {
+        "auto" => Color::Green,
+        "fast" => Color::LightYellow,
+        "deep" => Color::LightRed,
         _ => Color::White,
     };
 
@@ -91,8 +96,10 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled(&app.active_workspace, Style::default().fg(Color::Yellow)),
         Span::raw("] ─ [Model: "),
         Span::styled(&app.active_model, Style::default().fg(Color::Magenta)),
-        Span::raw("] ─ [Mode: "),
-        Span::styled(app.grounding_mode.to_uppercase(), Style::default().fg(mode_color).add_modifier(Modifier::BOLD)),
+        Span::raw("] ─ [Grounding: "),
+        Span::styled(app.grounding_mode.to_uppercase(), Style::default().fg(grounding_color).add_modifier(Modifier::BOLD)),
+        Span::raw("] ─ [Search: "),
+        Span::styled(app.search_mode.to_uppercase(), Style::default().fg(search_color).add_modifier(Modifier::BOLD)),
         Span::raw("] ─ [Web: "),
         Span::styled(web_text, web_style),
         Span::raw("] ─ "),

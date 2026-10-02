@@ -33,6 +33,7 @@ pub struct App {
     pub active_workspace: String,
     pub active_model: String,
     pub grounding_mode: String,
+    pub search_mode: String,
     pub web_search_enabled: bool,
     pub status: AppStatus,
 
@@ -72,6 +73,9 @@ impl App {
         let grounding_mode = db.as_ref()
             .and_then(|d| d.get_setting("grounding_mode").ok().flatten())
             .unwrap_or_else(|| "strict".to_string());
+        let search_mode = db.as_ref()
+            .and_then(|d| d.get_setting("search_mode").ok().flatten())
+            .unwrap_or_else(|| "auto".to_string());
         let web_search_enabled = db.as_ref()
             .and_then(|d| d.get_setting("web_search_enabled").ok().flatten())
             .map(|v| v == "true" || v == "1")
@@ -80,8 +84,8 @@ impl App {
         let initial_history = vec![ChatMessageItem {
             role: MessageRole::System,
             content: format!(
-                "AnyContext (actx) Native Rust Engine ready.\nWorkspace: [{}] | Model: [{}] | Grounding: [{}] | Web: [{}]\nType /menu (or press F1) for interactive menu, /help for commands.",
-                workspace, model, grounding_mode.to_uppercase(), if web_search_enabled { "ON" } else { "OFF" }
+                "AnyContext (actx) Native Rust Engine ready.\nWorkspace: [{}] | Model: [{}] | Grounding: [{}] | Search: [{}] | Web: [{}]\nType /menu (or press F1) for interactive menu, /help for commands.",
+                workspace, model, grounding_mode.to_uppercase(), search_mode.to_uppercase(), if web_search_enabled { "ON" } else { "OFF" }
             ),
             thinking: None,
             timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
@@ -92,6 +96,7 @@ impl App {
             active_workspace: workspace,
             active_model: model,
             grounding_mode,
+            search_mode,
             web_search_enabled,
             status: AppStatus::Idle,
             chat_history: initial_history,
@@ -291,9 +296,10 @@ impl App {
             let ws = self.active_workspace.clone();
             let model = self.active_model.clone();
             let mode = self.grounding_mode.clone();
+            let search = self.search_mode.clone();
             let web = self.web_search_enabled;
 
-            if let Ok(new_agent) = crate::engine::build_agent_sync(provider, &model, &ws, &mode, web) {
+            if let Ok(new_agent) = crate::engine::build_agent_sync(provider, &model, &ws, &mode, &search, web) {
                 self.agent = Some(Arc::new(new_agent));
             }
         }
@@ -379,6 +385,11 @@ impl App {
         self.menu_state.open_grounding();
     }
 
+    pub fn open_search_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_search();
+    }
+
     pub fn open_sources_menu(&mut self) {
         self.slash_palette_open = false;
         self.menu_state.open_sources(&self.active_workspace);
@@ -427,6 +438,10 @@ impl App {
                 let mode = item.id.trim_start_matches("grounding_action:");
                 crate::commands::dispatch_slash_command("mode", &[mode], self);
                 self.menu_state.is_open = false;
+            } else if item.id.starts_with("search_action:") {
+                let mode = item.id.trim_start_matches("search_action:");
+                crate::commands::dispatch_slash_command("search", &[mode], self);
+                self.menu_state.is_open = false;
             } else if item.id == "sources_action:active" {
                 crate::commands::dispatch_slash_command("sources", &["active"], self);
                 self.menu_state.is_open = false;
@@ -456,6 +471,80 @@ impl App {
                 self.running = false;
                 self.menu_state.is_open = false;
             }
+        }
+    }
+
+    pub fn to_execution_context(&self) -> any_context_core_rs::commands::ExecutionContext {
+        any_context_core_rs::commands::ExecutionContext {
+            active_workspace: self.active_workspace.clone(),
+            active_model: self.active_model.clone(),
+            grounding_mode: self.grounding_mode.clone(),
+            search_mode: self.search_mode.clone(),
+            web_search_enabled: self.web_search_enabled,
+        }
+    }
+
+    pub fn apply_command_result(&mut self, res: any_context_core_rs::commands::CommandResult) {
+        if let Some(ws) = res.state_updates.active_workspace {
+            self.active_workspace = ws;
+        }
+        if let Some(m) = res.state_updates.active_model {
+            self.active_model = m;
+        }
+        if let Some(g) = res.state_updates.grounding_mode {
+            self.grounding_mode = g;
+        }
+        if let Some(s) = res.state_updates.search_mode {
+            self.search_mode = s;
+        }
+        if let Some(w) = res.state_updates.web_search_enabled {
+            self.web_search_enabled = w;
+        }
+
+        match res.action {
+            any_context_core_rs::commands::CommandAction::Exit => {
+                self.running = false;
+            }
+            any_context_core_rs::commands::CommandAction::ClearChat => {
+                self.chat_history.clear();
+                self.current_stream_buffer.clear();
+                self.current_thinking_buffer.clear();
+                self.scroll_offset = 0;
+                self.max_scroll = 0;
+                self.auto_scroll = true;
+                self.status = AppStatus::Idle;
+            }
+            any_context_core_rs::commands::CommandAction::OpenMenu(ref menu_name) => {
+                match menu_name.as_str() {
+                    "workspaces" => self.open_workspaces_menu(),
+                    "models" => self.open_models_menu(),
+                    "sync" => self.open_sync_menu(),
+                    "grounding" => self.open_grounding_menu(),
+                    "search" => self.open_search_menu(),
+                    "sources" => self.open_sources_menu(),
+                    "keys" => self.open_keys_menu(),
+                    _ => self.open_menu(),
+                }
+            }
+            any_context_core_rs::commands::CommandAction::SwitchWorkspace(ref ws) => {
+                self.active_workspace = ws.clone();
+                self.load_session_history_for_workspace();
+                self.rebuild_agent();
+            }
+            any_context_core_rs::commands::CommandAction::RebuildAgent => {
+                self.rebuild_agent();
+            }
+            any_context_core_rs::commands::CommandAction::None => {}
+        }
+
+        if !res.message.is_empty() {
+            self.chat_history.push(ChatMessageItem {
+                role: MessageRole::System,
+                content: res.message,
+                thinking: None,
+                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+            });
+            self.scroll_to_bottom();
         }
     }
 

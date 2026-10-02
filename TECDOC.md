@@ -66,6 +66,8 @@
 78. [Normalized Relational Folder Storage & Legacy Schema Elimination Engine (`v0.32.0`)](#78-normalized-relational-folder-storage--legacy-schema-elimination-engine-v0320)
 79. [Multi-Byte UTF-8 Char Boundary Safety, Visual Cursor Alignment & Universal Release Protocol (`v0.32.2`)](#79-multi-byte-utf-8-char-boundary-safety-visual-cursor-alignment--universal-release-protocol-v0322)
 80. [TUI Stabilization, Isolated Prompt History Navigation, Quad-Status Top Header & Long-Term Memory Self-Awareness (`v0.32.3`)](#80-tui-stabilization-isolated-prompt-history-navigation-quad-status-top-header--long-term-memory-self-awareness-v0323)
+81. [Universal UI-Agnostic Command Engine & Grounding vs Search Depth Mode Decoupling Architecture (`v0.32.4`)](#81-universal-ui-agnostic-command-engine--grounding-vs-search-depth-mode-decoupling-architecture-v0324)
+
 
 ---
 
@@ -4951,6 +4953,128 @@ sequenceDiagram
 #### ADR-083: Dedicated Releases Repository & Semver Updater
 - **Status**: Accepted & Implemented (`v0.32.3`).
 - **Decision**: Route `actx --check-update` and `actx --update` to `Levix-Digital/any-context-releases`. Implement semantic version tuple comparisons to prevent false update alerts when running local development builds.
+
+---
+
+## 81. Universal UI-Agnostic Command Engine & Grounding vs Search Depth Mode Decoupling Architecture (`v0.32.4`)
+
+### 1. Root Cause Analysis & Architectural Motivation
+Prior to `v0.32.4`, slash commands (`/mode`, `/sync`, `/model`, etc.) were directly implemented inside the Ratatui TUI event dispatch layer (`crates/actx-cli/src/commands/dispatcher.rs`), tightly coupled to the terminal application state `actx_cli::tui::app::App`. This architecture created several fundamental liabilities:
+1. **Presentation Layer Inversion (Anti-Pattern)**: Domain operations (workspace switching, folder syncing, search strategy configuration, model selection) were inaccessible outside of Ratatui. Planned user interfaces (Desktop GUI, Web UI, REST API, RPC daemons) would have been forced to re-implement command logic or emulate terminal input.
+2. **Conceptual Conflation of Grounding and Search Depth**: Early iterations overloaded `/mode` to accept both grounding strategies (`strict`, `hybrid`, `proactive`) and retrieval depth modes (`auto`, `fast`, `deep`). Grounding governs LLM verification rigor (whether answers must strictly cite local context or can incorporate generalized prior knowledge), whereas Search Depth (RFC-042) governs vector retrieval depth, reranking pass intensity, and multihop latency budgets. Treating them as the same configuration caused severe user confusion and flawed agent reasoning parameters.
+3. **Telemetry Incomplete Visibility**: The TUI status bar displayed only quad-status metadata, hiding the active Search Depth mode. Users could not verify at a glance whether the retrieval engine was running in lightweight `fast` mode or resource-intensive `deep` mode.
+
+### 2. Universal Command Engine Architecture (`crates/any-context-core-rs/src/commands/`)
+The command layer is now completely decoupled from all presentation logic and resides in `any-context-core-rs` following the Hexagonal Ports & Adapters design pattern:
+
+```mermaid
+graph TD
+    subgraph UI_Surface_Layer [Presentation Adapters]
+        TUI[Ratatui TUI actx-cli]
+        GUI[Desktop GUI Future]
+        WEB[Web Dashboard Future]
+        RPC[Daemon / REST API Future]
+    end
+
+    subgraph Command_Port [Universal Command Port]
+        CTX[ExecutionContext]
+        ENG[CommandEngine::execute]
+        RES[CommandResult]
+    end
+
+    subgraph Domain_Core [Core Domain Engine]
+        SQL[SQLite Config Store]
+        SES[SqliteSessionStore]
+        LANCE[LanceDB Vector Engine]
+        RAG[Hybrid RAG Engine]
+    end
+
+    TUI -->|to_execution_context| CTX
+    GUI -->|to_execution_context| CTX
+    WEB -->|to_execution_context| CTX
+    RPC -->|to_execution_context| CTX
+
+    CTX --> ENG
+    ENG -->|queries & mutations| SQL
+    ENG -->|session audit & reset| SES
+    ENG -->|vector ops| LANCE
+    ENG -->|query evaluation| RAG
+
+    ENG --> RES
+    RES -->|apply_command_result| TUI
+    RES -->|apply_command_result| GUI
+    RES -->|apply_command_result| WEB
+    RES -->|apply_command_result| RPC
+```
+
+#### Core Data Contracts (`models.rs`)
+- **`ExecutionContext`**:
+  ```rust
+  pub struct ExecutionContext {
+      pub current_workspace: String,
+      pub current_model: String,
+      pub grounding_mode: String,
+      pub search_mode: String,
+      pub web_search_enabled: bool,
+  }
+  ```
+- **`CommandAction`**:
+  Represents UI-facing triggers that the consuming interface must handle:
+  - `None`: Standard informational command output.
+  - `ClearChat`: Purges the active viewport chat log (e.g., `/clear`).
+  - `ExitApp`: Initiates graceful terminal or application termination (`/exit`, `/quit`).
+  - `OpenMenu(MenuType)`: Directs the UI to present interactive selection dialogs (`Workspace`, `Model`, `GroundingMode`, `SearchDepthMode`, `Sync`, `Sources`, `Keys`).
+  - `TriggerSync(WorkspaceSyncRequest)`: Instructs the workspace ingestion pipeline to index folders.
+  - `TriggerWebSearch(String)`: Dispatches external web search query.
+- **`CommandStateUpdates`**:
+  Contains optional mutated fields (`workspace`, `model`, `grounding_mode`, `search_mode`, `web_search_enabled`) and an atomic boolean flag `needs_agent_rebuild`.
+- **`CommandResult`**:
+  Standardized envelope `{ success: bool, message: String, action: CommandAction, state_updates: Option<CommandStateUpdates> }`.
+
+#### Rigid Conceptual Boundary: Grounding Mode vs Search Depth Mode
+- **`GroundingMode`**:
+  - `Strict`: Responses must be 100% grounded in indexed workspace chunks. Zero speculation.
+  - `Hybrid`: Balanced synthesis between retrieved context and pre-trained LLM knowledge.
+  - `Proactive`: Autonomous agent reasoning, multi-turn tool orchestration, proactive context expansion.
+  - **Parsing Contract**: Accepts only `strict`, `s`, `hybrid`, `h`, `proactive`, `p`. Rejects search depth strings.
+- **`SearchDepthMode`**:
+  - `Auto`: Dynamic retrieval depth determined by query complexity heuristic (RFC-042).
+  - `Fast`: Low-latency vector search, minimal chunk expansion, no deep reranking.
+  - `Deep`: Exhaustive multi-hop vector retrieval, full cross-encoder reranking, hierarchical document traversal.
+  - **Parsing Contract**: Accepts only `auto`, `a`, `fast`, `f`, `deep`, `d`. Rejects grounding mode strings.
+
+### 3. TUI Ratatui Hexagonal Adapter (`crates/actx-cli`)
+`actx-cli` now consumes `CommandEngine` as an external domain service:
+1. **Thin Dispatcher**: `crates/actx-cli/src/commands/dispatcher.rs` simply packages `App` state into `ExecutionContext` via `app.to_execution_context()` and passes the raw line to `CommandEngine::execute()`.
+2. **Deterministic State Application**: `App::apply_command_result(res)` mutates local TUI fields (`app.workspace`, `app.model`, `app.grounding_mode`, `app.search_mode`, `app.web_search_enabled`), persists updates to SQLite via `actx_core_rs::config::set_config()`, and invokes `app.rebuild_agent()` if `needs_agent_rebuild == true`.
+3. **Dedicated Interactive Menus**:
+   - `build_grounding_menu()`: 3 selectable options (`Strict`, `Hybrid`, `Proactive`). Triggered by `/mode`.
+   - `build_search_menu()`: 3 selectable options (`Auto`, `Fast`, `Deep`). Triggered by `/search`.
+   - `build_main_menu()`: Exposes separate sub-menu entries for Grounding Strategy and Search Depth.
+
+### 4. Quint-Status Top Header Telemetry
+The top header (`crates/actx-cli/src/tui/ui.rs`) renders real-time status across five core dimensions:
+```
+AnyContext v0.32.4 ─ [WS: Default] ─ [Model: gemini-2.5-flash] ─ [Grounding: STRICT] ─ [Search: AUTO] ─ [Web: OFF] ─ ● IDLE
+```
+- **Workspace**: Cyan highlight.
+- **Model**: Magenta highlight.
+- **Grounding Mode**: Green for `STRICT`, Yellow for `HYBRID` / `PROACTIVE`.
+- **Search Depth**: Cyan for `AUTO`, Green for `FAST`, Blue for `DEEP`.
+- **Web Search**: Bright Green for `ON`, Dark Gray for `OFF`.
+
+### 5. Architectural Decision Records (ADR-084 & ADR-085)
+
+#### ADR-084: Universal UI-Agnostic Command Engine (Hexagonal Architecture)
+- **Status**: Accepted & Implemented (`v0.32.4`).
+- **Context**: Slash commands and domain operations were tightly coupled to `actx-cli::tui::app::App`, preventing code reuse across upcoming GUI, Web, and Daemon interfaces.
+- **Decision**: Extract all command evaluation into `any_context_core_rs::commands::CommandEngine`. Use pure input contexts (`ExecutionContext`) and output payloads (`CommandResult`, `CommandAction`, `CommandStateUpdates`). `actx-cli` serves as a thin consumer/adapter.
+
+#### ADR-085: Grounding Strategy vs Search Depth Mode Decoupling & Quint-Status Header
+- **Status**: Accepted & Implemented (`v0.32.4`).
+- **Context**: `auto|fast|deep` (search retrieval depth) was conflated with `strict|hybrid|proactive` (LLM grounding verification rigor), creating user confusion and semantic corruption.
+- **Decision**: Strictly isolate `/mode` (Grounding: `strict`, `hybrid`, `proactive`) from `/search` (Search Depth: `auto`, `fast`, `deep`). Provide independent interactive menus (`build_grounding_menu` vs `build_search_menu`). Expand TUI top header to quint-status telemetry (`WS`, `Model`, `Grounding`, `Search`, `Web`).
+
 
 
 

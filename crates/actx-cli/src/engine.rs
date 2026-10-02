@@ -87,6 +87,7 @@ pub fn build_agent_sync(
     model: &str,
     workspace: &str,
     grounding_mode: &str,
+    search_mode: &str,
     web_search_enabled: bool,
 ) -> Result<Agent, String> {
     let db_path = any_context_core_rs::storage::get_default_settings_db_path();
@@ -100,18 +101,14 @@ pub fn build_agent_sync(
          ### 🎯 ACTIVE WORKSPACE & OPERATIONAL ENVIRONMENT:\n\
          - Active Workspace: '{workspace}'\n\
          - Grounding Strategy: {grounding_mode}\n\
+         - Search Retrieval Depth: {search_mode}\n\
          - Real-Time Web Search: {web_status_str}\n\
          \n\
          ### 🧠 PERSISTENT LONG-TERM CONVERSATION MEMORY:\n\
          - You maintain persistent conversation memory across turns and sessions stored locally in SQLite for each workspace.\n\
          - You remember prior conversations, past context, decisions, and instructions given in earlier turns of this workspace.\n\
          - When the user asks about previous topics, past conversations, or asks if you have long-term memory, ALWAYS recognize and reference your persistent memory and conversation history.\n\
-         - NEVER claim that you lack long-term memory or that interactions are independent. You are AnyContext and you retain workspace memory.\n\
-         \n\
-         ### 🛡️ GROUNDING & RESPONSE RULES:\n\
-         - Answer concisely, accurately, and directly in Markdown.\n\
-         - When searching for documents, source code, or workspace files, call the `search_db` tool.\n\
-         - In STRICT grounding mode, base your answers on workspace documents and verified context."
+         - NEVER claim that you lack long-term memory or that interactions are independent. You are AnyContext and you retain workspace memory.\n"
     );
 
     let ws_for_tool = workspace.to_string();
@@ -178,12 +175,18 @@ pub fn build_agent_sync(
         }
     );
 
+    let search_policy = match search_mode.to_lowercase().as_str() {
+        "fast" => SearchMode::Fast,
+        "deep" => SearchMode::Deep,
+        _ => SearchMode::Auto,
+    };
+
     let mut builder = Agent::builder()
         .client(provider)
         .model(model)
         .system_prompt(system_prompt)
         .execution_mode(AgentExecutionMode::ReAct)
-        .search_mode(SearchMode::Auto)
+        .search_mode(search_policy)
         .max_turns(10)
         .tool(Arc::new(search_tool));
 
@@ -202,7 +205,8 @@ pub async fn build_agent(
     model: &str,
     workspace: &str,
     grounding_mode: &str,
+    search_mode: &str,
     web_search_enabled: bool,
 ) -> Result<Agent, String> {
-    build_agent_sync(provider, model, workspace, grounding_mode, web_search_enabled)
+    build_agent_sync(provider, model, workspace, grounding_mode, search_mode, web_search_enabled)
 }

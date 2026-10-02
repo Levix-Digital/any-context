@@ -7,6 +7,115 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 6 (v0.32.4 Motor Universal de Comandos UI-Agnóstico, Separação Rígida Grounding vs Search Depth e Header Quint-Status Telemetry):
+- **Objetivo**: Comprovar que na versão `v0.32.4`:
+  1. **Separação Rígida entre Grounding Mode e Search Depth Mode**:
+     - O comando `/mode` é restrito estritamente a estratégias de verificação de Grounding: `strict`, `hybrid`, `proactive`. Qualquer tentativa de passar valores de busca (`/mode deep` ou `/mode fast`) é rejeitada com mensagem de erro clara.
+     - O comando `/search` (e os atalhos diretos `/fast`, `/deep`) controla exclusivamente a profundidade de recuperação vetorial RAG (RFC-042): `auto`, `fast`, `deep`. Valores de grounding são rejeitados.
+     - No menu interativo (`[Esc]` ou `/menu`), as opções de configuração de Grounding e de Search Depth aparecem como menus independentes e dedicados: `Grounding Mode (Strict / Hybrid / Proactive)` e `Search Depth Mode (Auto / Fast / Deep)`.
+  2. **Desacoplamento Total de Comandos e Apresentação (Arquitetura Hexagonal)**:
+     - O motor universal de comandos reside em `crates/any-context-core-rs/src/commands/engine.rs`, sendo 100% puro e desacoplado da TUI Ratatui.
+     - Futuras interfaces de usuário (GUI desktop, web, REST API, RPC) consomem os mesmos comandos via `CommandEngine::execute` com `ExecutionContext` e `CommandResult`.
+     - O `dispatcher.rs` da TUI funciona estritamente como um adaptador fino de apresentação.
+  3. **Cabeçalho Superior com Telemetria Quíntupla (Quint-Status Header)**:
+     - O topo da TUI exibe simultaneamente as 5 dimensões operacionais vitais:
+       `AnyContext v0.32.4 ─ [WS: <workspace>] ─ [Model: <model>] ─ [Grounding: <MODE>] ─ [Search: <DEPTH>] ─ [Web: ON|OFF] ─ ● IDLE`
+     - Cada dimensão possui coloração contextual (Cyan para Workspace/Auto, Magenta para Modelo, Verde para Strict/Fast/Web ON, Amarelo para Hybrid/Proactive, Azul para Deep, Dark Gray para Web OFF).
+     - Alterações via slash command refletem instantaneamente no topo.
+  4. **Contratos Determinísticos de `/clear` e `/reset-memory`**:
+     - O comando `/clear` limpa 100% da visualização de chat do viewport sem poluição visual.
+     - O comando `/reset-memory` limpa o histórico da sessão SQLite no workspace ativo e confirma a operação mantendo os documentos e vetores intactos.
+  5. **Versão e Integridade**:
+     - `actx -v` retorna `actx 0.32.4`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão do Binário:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação:** Exibe estritamente `actx 0.32.4`.
+
+2. **🚀 Inicialização da TUI e Telemetria Quíntupla:**
+   - Inicie a TUI interativa:
+     ```text
+     actx
+     ```
+   - Observe a barra superior (topo da tela).
+   - **Critério de Aceitação:** A barra superior exibe claramente:
+     `AnyContext v0.32.4 ─ [WS: ...] ─ [Model: ...] ─ [Grounding: STRICT] ─ [Search: AUTO] ─ [Web: OFF] ─ ● IDLE`
+     Verifique que `Grounding` e `Search` são dois campos distintos e visíveis.
+
+3. **🛡️ Teste de Separação Rígida de Grounding (`/mode`):**
+   - Digite no input:
+     ```text
+     /mode hybrid
+     ```
+   - **Critério de Aceitação:** O status `[Grounding: HYBRID]` é atualizado imediatamente no cabeçalho em amarelo.
+   - Digite:
+     ```text
+     /mode proactive
+     ```
+   - **Critério de Aceitação:** O status `[Grounding: PROACTIVE]` é atualizado no cabeçalho.
+   - Digite:
+     ```text
+     /mode deep
+     ```
+   - **Critério de Aceitação:** O sistema rejeita o comando com erro: `Unknown grounding mode: 'deep'. Valid modes: strict, hybrid, proactive. (For search depth, use /search deep)`.
+   - Digite:
+     ```text
+     /mode strict
+     ```
+   - **Critério de Aceitação:** Retorna para `[Grounding: STRICT]` em verde.
+
+4. **🔍 Teste de Separação Rígida de Search Depth (`/search`, `/fast`, `/deep`):**
+   - Digite no input:
+     ```text
+     /search deep
+     ```
+   - **Critério de Aceitação:** O status `[Search: DEEP]` é atualizado imediatamente no cabeçalho em azul.
+   - Digite:
+     ```text
+     /fast
+     ```
+   - **Critério de Aceitação:** O status `[Search: FAST]` é atualizado imediatamente no cabeçalho em verde.
+   - Digite:
+     ```text
+     /search hybrid
+     ```
+   - **Critério de Aceitação:** O sistema rejeita o comando com erro: `Unknown search depth mode: 'hybrid'. Valid modes: auto, fast, deep. (For grounding strategy, use /mode hybrid)`.
+   - Digite:
+     ```text
+     /search auto
+     ```
+   - **Critério de Aceitação:** Retorna para `[Search: AUTO]` em cyan.
+
+5. **📋 Teste dos Menus Interativos Independentes:**
+   - Pressione `[Esc]` para abrir o Menu Principal.
+   - **Critério de Aceitação:** O menu exibe opções distintas:
+     - `Grounding Strategy (Strict, Hybrid, Proactive)`
+     - `Search Depth Mode (Auto, Fast, Deep)`
+   - Selecione `Grounding Strategy` e verifique as 3 opções. Pressione `[Esc]`.
+   - Selecione `Search Depth Mode` e verifique as 3 opções. Pressione `[Esc]`.
+   - Digite `/mode` sem argumentos no chat.
+   - **Critério de Aceitação:** Abre diretamente o submenu de Grounding.
+   - Digite `/search` sem argumentos no chat.
+   - **Critério de Aceitação:** Abre diretamente o submenu de Search Depth.
+
+6. **🧹 Teste dos Contratos de `/clear` e `/reset-memory`:**
+   - Digite `/clear`.
+   - **Critério de Aceitação:** Todas as mensagens da tela de chat são removidas instantaneamente, deixando a viewport limpa.
+   - Digite uma pergunta de teste (ex: `Olá`).
+   - Digite `/reset-memory`.
+   - **Critério de Aceitação:** Uma mensagem de confirmação amigável aparece no chat confirmando que o histórico da sessão foi resetado mantendo os arquivos indexados.
+
+7. **🚪 Saída Graciosa:**
+   - Digite `/exit` ou `/quit`.
+   - **Critério de Aceitação:** A TUI encerra graciosamente sem pânico ou corrupção no terminal.
+
+---
+
 ### 📌 Cenário 5 (v0.32.3 Estabilização TUI, Histórico Up/Down por Workspace, Header Quad-Status Grounding/WebSearch, Memória de Longo Prazo e Auto-Consciência do Agente):
 - **Objetivo**: Comprovar que na versão `v0.32.3`:
   1. **Navegação de Histórico de Prompts via Seta Up/Down Isolada por Workspace**:
