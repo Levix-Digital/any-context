@@ -111,6 +111,7 @@ impl NativeConfigDb {
                 id TEXT PRIMARY KEY,
                 name TEXT UNIQUE NOT NULL,
                 description TEXT,
+                paths_json TEXT DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -153,6 +154,11 @@ impl NativeConfigDb {
             CREATE INDEX IF NOT EXISTS idx_file_metadata_ws ON file_metadata(workspace);
             CREATE INDEX IF NOT EXISTS idx_file_metadata_path ON file_metadata(file_path);",
         )?;
+
+        if !Self::check_column(&conn, "workspaces", "paths_json") {
+            let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN paths_json TEXT DEFAULT '[]'", []);
+        }
+
         Ok(())
     }
 
@@ -281,12 +287,33 @@ impl NativeConfigDb {
                     let _ = conn.execute(&sql, params![&fid, &ws_name, &norm, &now]);
                 }
             }
+            Self::sync_paths_json(&conn, &ws_name);
         }
 
-        // 3. Drop legacy column paths_json from workspaces (SQLite 3.35.0+)
-        let _ = conn.execute("ALTER TABLE workspaces DROP COLUMN paths_json", []);
-
         Ok(())
+    }
+
+    /// Helper to synchronize workspace_folders into workspaces.paths_json for bidirectional Python parity.
+    fn sync_paths_json(conn: &Connection, workspace_name: &str) {
+        if !Self::check_column(conn, "workspaces", "paths_json") {
+            return;
+        }
+        let mut stmt = match conn.prepare(
+            "SELECT folder_path FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE ORDER BY created_at ASC",
+        ) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+        let rows = stmt.query_map(params![workspace_name], |r| r.get::<_, String>(0));
+        if let Ok(iter) = rows {
+            let paths: Vec<String> = iter.flatten().collect();
+            if let Ok(json_str) = serde_json::to_string(&paths) {
+                let _ = conn.execute(
+                    "UPDATE workspaces SET paths_json = ?1 WHERE name = ?2 COLLATE NOCASE",
+                    params![json_str, workspace_name],
+                );
+            }
+        }
     }
 
     pub fn get_workspace(&self, name: &str) -> Result<Option<WorkspaceRecord>> {
@@ -474,6 +501,7 @@ impl NativeConfigDb {
             conn.execute(&sql, params![&id, workspace_name, &norm_path, &now])?;
         }
 
+        Self::sync_paths_json(&conn, workspace_name);
         Ok(())
     }
 
@@ -484,6 +512,9 @@ impl NativeConfigDb {
             "DELETE FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE AND (folder_path = ?2 OR folder_path = ?3)",
             params![workspace_name, &norm_path, folder_path],
         )?;
+        if count > 0 {
+            Self::sync_paths_json(&conn, workspace_name);
+        }
         Ok(count > 0)
     }
 
@@ -1101,8 +1132,8 @@ mod tests {
         let rust_folders = db.get_workspace_folders("RustBook").expect("get folders");
         assert_eq!(rust_folders, vec!["C:/repos/rust-book".to_string(), "D:/notes".to_string()]);
 
-        // Verify that the legacy column paths_json was DROPPED
+        // Verify that the column paths_json is preserved for Python compatibility
         let col_exists = NativeConfigDb::check_column(&db.conn.lock().unwrap(), "workspaces", "paths_json");
-        assert!(!col_exists, "paths_json column must be dropped after migration");
+        assert!(col_exists, "paths_json column must remain present for Python compatibility");
     }
 }

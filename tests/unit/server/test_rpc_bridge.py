@@ -24,7 +24,9 @@ class TestRPCBridge(unittest.TestCase):
         cls.temp_dir = tempfile.mkdtemp(prefix="actx_test_rpc_")
         cls.db_path = os.path.join(cls.temp_dir, "test_settings.db")
         cls._orig_db = os.environ.get("ACTX_SETTINGS_DB")
+        cls._orig_test_mode = os.environ.get("ACTX_TEST_MODE")
         os.environ["ACTX_SETTINGS_DB"] = cls.db_path
+        os.environ["ACTX_TEST_MODE"] = "1"
 
     @classmethod
     def tearDownClass(cls):
@@ -33,6 +35,10 @@ class TestRPCBridge(unittest.TestCase):
             os.environ["ACTX_SETTINGS_DB"] = cls._orig_db
         else:
             os.environ.pop("ACTX_SETTINGS_DB", None)
+        if cls._orig_test_mode is not None:
+            os.environ["ACTX_TEST_MODE"] = cls._orig_test_mode
+        else:
+            os.environ.pop("ACTX_TEST_MODE", None)
         if hasattr(cls, "temp_dir") and os.path.exists(cls.temp_dir):
             shutil.rmtree(cls.temp_dir, ignore_errors=True)
 

@@ -110,26 +110,18 @@ pub fn build_system_prompt(
         "strict" => {
             prompt.push_str(
                 "### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL & ZERO PARAMETRIC ANSWERS)\n\
-                 - **ZERO SPECULATION / ZERO HALLUCINATION / ZERO PARAMETRIC MEMORY:** You are STRICTLY FORBIDDEN from using your pre-trained internal memory or parametric weights to answer, invent, assume, or provide unverified facts (e.g. citing immigration programs from other countries, unindexed laws, or outside facts). If a fact is not found in the workspace documents, you MUST declare its absence.\n\
-                 - **MANDATORY AUTONOMOUS RETRIEVAL (DO NOT ASK PERMISSION):** You MUST call `search_db` immediately on the user's turn. NEVER ask the user: \"Deseja que eu procure em documentos?\" or \"Posso buscar para você?\". Search autonomously on every factual query!\n\
+                 - **ZERO GENERAL KNOWLEDGE / ZERO PARAMETRIC MEMORY:** You are an internal workspace assistant. You are STRICTLY FORBIDDEN from using your pre-trained weights or general knowledge to answer ANY question (including recipes, general knowledge, external facts, outside programs, or trivia). You must answer SOLELY based on facts returned by `search_db`.\n\
+                 - **MANDATORY AUTONOMOUS RETRIEVAL:** You MUST call `search_db` immediately on EVERY user query before answering. Do NOT answer directly without calling `search_db` first!\n\
                  - **FACTUAL ABSENCE PROTOCOL:** If `search_db` returns no relevant chunks for the user's query:\n\
-                   1. DO NOT invent or synthesize an answer from training memory.\n\
-                   2. State clearly: \"⚠️ Essa informação não consta nos documentos deste workspace.\"\n"
-            );
-            if web_search_enabled {
-                prompt.push_str(
-                    "   3. You may ask: \"⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?\" and STOP. Do NOT guess outside facts.\n"
-                );
-            } else {
-                prompt.push_str(
-                    "   3. State what workspace is active and suggest relevant keywords or workspace folders, rather than leaving the user at a dead end.\n"
-                );
-            }
-            prompt.push_str(
-                " - **MANDATORY SOURCE CITATIONS:** Conclude every answer that used documents with:\n\
+                   1. DO NOT invent or synthesize an answer from training memory or general knowledge.\n\
+                   2. State clearly: \"⚠️ Essa informação não consta nos documentos deste workspace.\"\n\
+                   3. Mention which workspace is active and suggest relevant keywords, topics, or adding folder/web sources.\n\
+                   4. NEVER output fictitious source citations or placeholders like `[Nome_do_Arquivo.ext]`.\n\
+                 - **MANDATORY SOURCE CITATIONS:** Conclude every answer that used documents with:\n\
                    ---\n\
                    📄 **Fontes Consultadas (Arquivos Locais):**\n\
-                   - `[Nome_do_Arquivo.ext]` (Última Modificação / Seção)\n\n"
+                   - `<nome_real_do_arquivo>` (Caminho ou URL real retornado pelo search_db)\n\
+                   NEVER invent filenames or output literal placeholder strings like `[Nome_do_Arquivo.ext]`.\n\n"
             );
         }
         "hybrid" => {

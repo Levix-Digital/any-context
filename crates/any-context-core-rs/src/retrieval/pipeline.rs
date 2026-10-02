@@ -78,7 +78,6 @@ pub struct NativeHybridPipeline {
     lance_store: Arc<NativeLanceStore>,
     bm25_indices: Arc<RwLock<HashMap<String, BM25Index>>>,
     lm_client: Option<Arc<dyn LmProvider>>,
-    runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl NativeHybridPipeline {
@@ -86,26 +85,22 @@ impl NativeHybridPipeline {
     pub fn open(db_path: impl AsRef<Path>) -> Result<Self, String> {
         let p = db_path.as_ref().to_path_buf();
         let lance_store = Arc::new(NativeLanceStore::open(&p)?);
-        let runtime = lance_store.runtime().clone();
         Ok(Self {
             db_path: p,
             lance_store,
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
             lm_client: None,
-            runtime,
         })
     }
 
     /// Creates pipeline with an existing [`NativeLanceStore`] and optional [`LmProvider`].
     pub fn new(lance_store: Arc<NativeLanceStore>, lm_client: Option<Arc<dyn LmProvider>>) -> Self {
         let p = lance_store.db_path().to_path_buf();
-        let runtime = lance_store.runtime().clone();
         Self {
             db_path: p,
             lance_store,
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
             lm_client,
-            runtime,
         }
     }
 
@@ -479,12 +474,69 @@ impl NativeHybridPipeline {
             });
         }
 
-        Ok(results)
+        // Filter by min_score if set
+        if req.min_score > 0.0 {
+            results.retain(|c| c.score >= req.min_score);
+        }
+
+        // Sort descending by score
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // Source-fair diversification
+        let ranked_chunks: Vec<RankedChunk> = results
+            .iter()
+            .map(|c| RankedChunk {
+                id: c.chunk_id.clone(),
+                score: c.score,
+                file_path: c.file_path.clone(),
+                file_name: c.file_name.clone(),
+                text: c.text.clone(),
+                workspace: c.workspace.clone(),
+                content_type: c.content_type.clone(),
+            })
+            .collect();
+
+        let diversified_ranked = apply_source_diversification(
+            ranked_chunks,
+            req.max_chunks_per_source,
+            req.top_k,
+        );
+
+        // Density budgeting
+        let budgeted_ranked = apply_density_budget(diversified_ranked, req.max_density_chars);
+
+        let mut candidate_map: HashMap<String, HybridSearchResult> =
+            results.into_iter().map(|c| (c.chunk_id.clone(), c)).collect();
+
+        let mut final_results = Vec::with_capacity(budgeted_ranked.len());
+        for b in budgeted_ranked {
+            if let Some(res) = candidate_map.remove(&b.id) {
+                final_results.push(res);
+            }
+        }
+
+        Ok(final_results)
     }
 
     /// Single-query hybrid retrieval synchronous wrapper.
     pub fn search(&self, req: HybridSearchRequest) -> Result<Vec<HybridSearchResult>, String> {
-        self.runtime.block_on(self.search_single_async(&req))
+        if tokio::runtime::Handle::try_current().is_ok() {
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(self.search_single_async(&req))
+            })
+        } else if let Some(rt) = self.lance_store.runtime() {
+            rt.block_on(self.search_single_async(&req))
+        } else {
+            let temp_rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| e.to_string())?;
+            temp_rt.block_on(self.search_single_async(&req))
+        }
     }
 
     /// RFC-042: Concurrent multi-query batch retrieval with cross-query SHA-256 deduplication,
@@ -607,8 +659,19 @@ impl NativeHybridPipeline {
         &self,
         requests: Vec<HybridSearchRequest>,
     ) -> Result<Vec<HybridSearchResult>, String> {
-        self.runtime
-            .block_on(self.retrieve_hybrid_batch_async(&requests))
+        if tokio::runtime::Handle::try_current().is_ok() {
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(self.retrieve_hybrid_batch_async(&requests))
+            })
+        } else if let Some(rt) = self.lance_store.runtime() {
+            rt.block_on(self.retrieve_hybrid_batch_async(&requests))
+        } else {
+            let temp_rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| e.to_string())?;
+            temp_rt.block_on(self.retrieve_hybrid_batch_async(&requests))
+        }
     }
 }
 
