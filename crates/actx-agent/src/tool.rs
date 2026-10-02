@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::sync::RwLock;
 
 /// Universal contract for all tools executable by the agent
 #[async_trait]
@@ -94,33 +94,50 @@ impl ToolRegistry {
         }
     }
 
+    /// Register a new tool in the registry synchronously
+    pub fn register_sync(&self, tool: Arc<dyn Tool>) {
+        if let Ok(mut map) = self.tools.write() {
+            map.insert(tool.name().to_string(), tool);
+        }
+    }
+
     /// Register a new tool in the registry
     pub async fn register(&self, tool: Arc<dyn Tool>) {
-        let mut map = self.tools.write().await;
-        map.insert(tool.name().to_string(), tool);
+        self.register_sync(tool);
+    }
+
+    /// Look up a tool by name synchronously
+    pub fn get_sync(&self, name: &str) -> Option<Arc<dyn Tool>> {
+        self.tools.read().ok().and_then(|map| map.get(name).cloned())
     }
 
     /// Look up a tool by name
     pub async fn get(&self, name: &str) -> Option<Arc<dyn Tool>> {
-        let map = self.tools.read().await;
-        map.get(name).cloned()
+        self.get_sync(name)
     }
 
     /// Check if a tool with the given name is registered
     pub async fn contains(&self, name: &str) -> bool {
-        let map = self.tools.read().await;
-        map.contains_key(name)
+        self.tools.read().ok().map(|map| map.contains_key(name)).unwrap_or(false)
+    }
+
+    /// Retrieve all tool definitions formatted for actx-lm synchronously
+    pub fn definitions_sync(&self) -> Vec<ToolDefinition> {
+        self.tools
+            .read()
+            .ok()
+            .map(|map| map.values().map(|t| t.to_definition()).collect())
+            .unwrap_or_default()
     }
 
     /// Retrieve all tool definitions formatted for actx-lm
     pub async fn definitions(&self) -> Vec<ToolDefinition> {
-        let map = self.tools.read().await;
-        map.values().map(|t| t.to_definition()).collect()
+        self.definitions_sync()
     }
 
     /// Execute a tool by name, handling raw JSON string argument parsing and defensive self-healing
     pub async fn execute(&self, name: &str, raw_args: &str) -> Result<String, ToolError> {
-        let tool = match self.get(name).await {
+        let tool = match self.get_sync(name) {
             Some(t) => t,
             None => {
                 return Err(ToolError::new(format!(

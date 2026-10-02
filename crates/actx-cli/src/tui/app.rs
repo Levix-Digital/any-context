@@ -32,6 +32,8 @@ pub struct App {
     pub running: bool,
     pub active_workspace: String,
     pub active_model: String,
+    pub grounding_mode: String,
+    pub web_search_enabled: bool,
     pub status: AppStatus,
 
     // Chat history & Viewport
@@ -42,9 +44,14 @@ pub struct App {
     pub auto_scroll: bool,
     pub max_scroll: u16,
 
-    // Input & Slash Command Palette
+    // Input & Prompt History
     pub input_buffer: String,
     pub cursor_idx: usize,
+    pub input_history: std::collections::HashMap<String, Vec<String>>,
+    pub history_index: Option<usize>,
+    pub current_draft: String,
+
+    // Slash Palette & Accordion
     pub accordion_open: bool,
     pub slash_palette_open: bool,
     pub slash_palette_idx: usize,
@@ -61,20 +68,31 @@ pub struct App {
 
 impl App {
     pub fn new(workspace: String, model: String, agent: Option<Agent>) -> Self {
+        let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+        let grounding_mode = db.as_ref()
+            .and_then(|d| d.get_setting("grounding_mode").ok().flatten())
+            .unwrap_or_else(|| "strict".to_string());
+        let web_search_enabled = db.as_ref()
+            .and_then(|d| d.get_setting("web_search_enabled").ok().flatten())
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+
         let initial_history = vec![ChatMessageItem {
             role: MessageRole::System,
             content: format!(
-                "AnyContext (actx) Native Rust Engine ready.\nWorkspace: [{}] | Model: [{}]\nType /menu (or press F1) for interactive menu, /help for commands.",
-                workspace, model
+                "AnyContext (actx) Native Rust Engine ready.\nWorkspace: [{}] | Model: [{}] | Grounding: [{}] | Web: [{}]\nType /menu (or press F1) for interactive menu, /help for commands.",
+                workspace, model, grounding_mode.to_uppercase(), if web_search_enabled { "ON" } else { "OFF" }
             ),
             thinking: None,
             timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
         }];
 
-        Self {
+        let mut app = Self {
             running: true,
             active_workspace: workspace,
             active_model: model,
+            grounding_mode,
+            web_search_enabled,
             status: AppStatus::Idle,
             chat_history: initial_history,
             current_stream_buffer: String::new(),
@@ -84,6 +102,9 @@ impl App {
             max_scroll: 0,
             input_buffer: String::new(),
             cursor_idx: 0,
+            input_history: std::collections::HashMap::new(),
+            history_index: None,
+            current_draft: String::new(),
             accordion_open: true,
             slash_palette_open: false,
             slash_palette_idx: 0,
@@ -92,7 +113,10 @@ impl App {
             menu_state: MenuState::default(),
             agent: agent.map(Arc::new),
             is_generating: false,
-        }
+        };
+
+        app.load_session_history_for_workspace();
+        app
     }
 
     pub fn insert_char(&mut self, c: char) {
@@ -195,6 +219,47 @@ impl App {
         self.scroll_offset = self.max_scroll;
     }
 
+    pub fn history_up(&mut self) {
+        let history = self.input_history.entry(self.active_workspace.clone()).or_default();
+        if history.is_empty() {
+            return;
+        }
+
+        match self.history_index {
+            None => {
+                self.current_draft = self.input_buffer.clone();
+                let last_idx = history.len() - 1;
+                self.history_index = Some(last_idx);
+                self.input_buffer = history[last_idx].clone();
+                self.cursor_idx = self.input_buffer.len();
+            }
+            Some(idx) => {
+                if idx > 0 {
+                    let prev_idx = idx - 1;
+                    self.history_index = Some(prev_idx);
+                    self.input_buffer = history[prev_idx].clone();
+                    self.cursor_idx = self.input_buffer.len();
+                }
+            }
+        }
+    }
+
+    pub fn history_down(&mut self) {
+        let history = self.input_history.entry(self.active_workspace.clone()).or_default();
+        if let Some(idx) = self.history_index {
+            if idx + 1 < history.len() {
+                let next_idx = idx + 1;
+                self.history_index = Some(next_idx);
+                self.input_buffer = history[next_idx].clone();
+                self.cursor_idx = self.input_buffer.len();
+            } else {
+                self.history_index = None;
+                self.input_buffer = std::mem::take(&mut self.current_draft);
+                self.cursor_idx = self.input_buffer.len();
+            }
+        }
+    }
+
     pub fn palette_up(&mut self) {
         if self.slash_palette_open && !self.slash_matches.is_empty() {
             self.palette_navigated = true;
@@ -204,7 +269,7 @@ impl App {
                 self.slash_palette_idx = self.slash_matches.len() - 1;
             }
         } else {
-            self.scroll_up(1);
+            self.history_up();
         }
     }
 
@@ -217,7 +282,48 @@ impl App {
                 self.slash_palette_idx = 0;
             }
         } else {
-            self.scroll_down(1);
+            self.history_down();
+        }
+    }
+
+    pub fn rebuild_agent(&mut self) {
+        if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&self.active_model), Some(&self.active_workspace)) {
+            let ws = self.active_workspace.clone();
+            let model = self.active_model.clone();
+            let mode = self.grounding_mode.clone();
+            let web = self.web_search_enabled;
+
+            if let Ok(new_agent) = crate::engine::build_agent_sync(provider, &model, &ws, &mode, web) {
+                self.agent = Some(Arc::new(new_agent));
+            }
+        }
+    }
+
+    pub fn load_session_history_for_workspace(&mut self) {
+        let db_path = any_context_core_rs::storage::get_default_settings_db_path();
+        if let Ok(store) = actx_agent::SqliteSessionStore::open(&db_path, 50) {
+            let session_id = format!("ws_{}", self.active_workspace);
+            let msgs = store.get_messages_sync(&session_id).unwrap_or_default();
+
+            if !msgs.is_empty() {
+                for m in msgs {
+                    let role = match m.role {
+                        actx_lm::types::Role::User => MessageRole::User,
+                        actx_lm::types::Role::Assistant => MessageRole::Assistant,
+                        _ => MessageRole::System,
+                    };
+                    if role == MessageRole::System && m.content.starts_with("You are AnyContext") {
+                        continue;
+                    }
+                    self.chat_history.push(ChatMessageItem {
+                        role,
+                        content: m.content,
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+                }
+                self.scroll_to_bottom();
+            }
         }
     }
 
@@ -362,6 +468,14 @@ impl App {
             return None;
         }
 
+        // Record in prompt history for this workspace
+        let history = self.input_history.entry(self.active_workspace.clone()).or_default();
+        if history.last() != Some(&text) {
+            history.push(text.clone());
+        }
+        self.history_index = None;
+        self.current_draft.clear();
+
         // Handle Slash Commands
         if text.starts_with('/') {
             let mut parts = text.split_whitespace();
@@ -390,8 +504,9 @@ impl App {
         if let Some(agent) = &self.agent {
             let agent = agent.clone();
             let query = text.clone();
+            let session_id = format!("ws_{}", self.active_workspace);
             tokio::spawn(async move {
-                let (mut rx, _handle) = agent.stream(query, None);
+                let (mut rx, _handle) = agent.stream(query, Some(session_id));
                 while let Some(evt) = rx.recv().await {
                     let _ = event_tx.send(evt);
                 }

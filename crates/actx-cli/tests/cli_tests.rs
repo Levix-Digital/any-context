@@ -411,5 +411,131 @@ async fn test_chat_autoscroll_lifecycle() {
     assert_eq!(app.scroll_offset, 50);
 }
 
+#[tokio::test]
+async fn test_prompt_history_navigation_and_workspace_isolation() {
+    let mut app = App::new("WorkspaceA".to_string(), "gpt-4o-mini".to_string(), None);
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // 1. Submit 3 prompts in WorkspaceA
+    app.input_buffer = "prompt 1".to_string();
+    app.submit_input(tx.clone());
+
+    app.input_buffer = "prompt 2".to_string();
+    app.submit_input(tx.clone());
+
+    app.input_buffer = "prompt 3".to_string();
+    app.submit_input(tx.clone());
+
+    // 2. User starts typing a draft
+    app.input_buffer = "my unsubmitted draft".to_string();
+    app.cursor_idx = app.input_buffer.len();
+
+    // 3. Press Up: should recall "prompt 3"
+    app.palette_up();
+    assert_eq!(app.input_buffer, "prompt 3");
+    assert_eq!(app.history_index, Some(2));
+
+    // Press Up again: should recall "prompt 2"
+    app.palette_up();
+    assert_eq!(app.input_buffer, "prompt 2");
+    assert_eq!(app.history_index, Some(1));
+
+    // Press Up again: should recall "prompt 1"
+    app.palette_up();
+    assert_eq!(app.input_buffer, "prompt 1");
+    assert_eq!(app.history_index, Some(0));
+
+    // Press Up at start: remains "prompt 1"
+    app.palette_up();
+    assert_eq!(app.input_buffer, "prompt 1");
+
+    // Press Down: should advance to "prompt 2"
+    app.palette_down();
+    assert_eq!(app.input_buffer, "prompt 2");
+    assert_eq!(app.history_index, Some(1));
+
+    // Press Down: should advance to "prompt 3"
+    app.palette_down();
+    assert_eq!(app.input_buffer, "prompt 3");
+    assert_eq!(app.history_index, Some(2));
+
+    // Press Down at end: restores "my unsubmitted draft"
+    app.palette_down();
+    assert_eq!(app.input_buffer, "my unsubmitted draft");
+    assert_eq!(app.history_index, None);
+
+    // 4. Switch workspace to WorkspaceB
+    app.input_buffer = "/switch WorkspaceB".to_string();
+    app.submit_input(tx.clone());
+    assert_eq!(app.active_workspace, "WorkspaceB");
+
+    // Press Up in WorkspaceB: history is empty, input buffer stays empty
+    app.input_buffer.clear();
+    app.palette_up();
+    assert_eq!(app.input_buffer, "");
+}
+
+#[tokio::test]
+async fn test_top_header_quad_status_and_reactive_updates() {
+    let mut app = App::new("Default".to_string(), "gpt-4o-mini".to_string(), None);
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Verify initial values exist
+    assert!(!app.grounding_mode.is_empty());
+
+    // Switch mode to hybrid
+    app.input_buffer = "/mode hybrid".to_string();
+    app.submit_input(tx.clone());
+    assert_eq!(app.grounding_mode, "hybrid");
+
+    // Switch mode to strict
+    app.input_buffer = "/mode strict".to_string();
+    app.submit_input(tx.clone());
+    assert_eq!(app.grounding_mode, "strict");
+
+    // Enable web search
+    app.input_buffer = "/web-search on".to_string();
+    app.submit_input(tx.clone());
+    assert!(app.web_search_enabled);
+
+    // Disable web search
+    app.input_buffer = "/web-search off".to_string();
+    app.submit_input(tx.clone());
+    assert!(!app.web_search_enabled);
+}
+
+#[tokio::test]
+async fn test_sqlite_session_store_integration() {
+    use actx_agent::SessionStore;
+    use actx_lm::types::ChatMessage;
+
+    let temp_db = std::env::temp_dir().join(format!("actx_test_sess_{}.db", std::process::id()));
+    let store = actx_agent::SqliteSessionStore::open(&temp_db, 50).expect("open session store");
+
+    let session_id = "ws_test_integration";
+
+    // 1. Initially empty
+    let msgs = store.get_messages(session_id).await.expect("get messages");
+    assert!(msgs.is_empty());
+
+    // 2. Append turn
+    let user_msg = ChatMessage::user("What is the speed of light?");
+    let asst_msg = ChatMessage::assistant("Approximately 299,792,458 m/s.");
+    store.append_messages(session_id, &[user_msg, asst_msg]).await.expect("append");
+
+    // 3. Verify retrieval
+    let retrieved = store.get_messages(session_id).await.expect("get messages");
+    assert_eq!(retrieved.len(), 2);
+    assert_eq!(retrieved[0].content, "What is the speed of light?");
+    assert_eq!(retrieved[1].content, "Approximately 299,792,458 m/s.");
+
+    // 4. Clear session
+    store.clear_session(session_id).await.expect("clear");
+    let cleared = store.get_messages(session_id).await.expect("get messages");
+    assert!(cleared.is_empty());
+
+    let _ = std::fs::remove_file(temp_db);
+}
+
 
 

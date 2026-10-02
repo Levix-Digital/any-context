@@ -85,10 +85,18 @@ pub fn handle_key_event(
             }
         }
         KeyCode::Up => {
-            app.palette_up();
+            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                app.scroll_up(1);
+            } else {
+                app.palette_up();
+            }
         }
         KeyCode::Down => {
-            app.palette_down();
+            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                app.scroll_down(1);
+            } else {
+                app.palette_down();
+            }
         }
         KeyCode::PageUp => {
             app.scroll_up(10);

@@ -156,7 +156,7 @@ pub fn dispatch_slash_command(raw_cmd: &str, args: &[&str], app: &mut App) {
             if args.is_empty() {
                 app.open_grounding_menu();
             } else {
-                let msg = execute_mode(&app.active_workspace, args);
+                let msg = execute_mode(app, args);
                 push_system_msg(app, msg);
             }
         }
@@ -165,7 +165,7 @@ pub fn dispatch_slash_command(raw_cmd: &str, args: &[&str], app: &mut App) {
                 app.open_grounding_menu();
             } else {
                 let mode = if canonical == "fast" { "fast" } else if canonical == "deep" { "deep" } else { args.first().unwrap_or(&"auto") };
-                let msg = execute_mode(&app.active_workspace, &[mode]);
+                let msg = execute_mode(app, &[mode]);
                 push_system_msg(app, msg);
             }
         }
@@ -215,7 +215,7 @@ pub fn dispatch_slash_command(raw_cmd: &str, args: &[&str], app: &mut App) {
             push_system_msg(app, msg);
         }
         "web-search" => {
-            let msg = execute_web_search(&app.active_workspace, args.first().copied());
+            let msg = execute_web_search(app, args.first().copied());
             push_system_msg(app, msg);
         }
         "billing" => {
@@ -372,14 +372,16 @@ fn execute_switch(app: &mut App, args: &[&str]) -> String {
             app.active_model = ws_model;
         }
 
-        // Rebuild agent for the new workspace if provider is available
-        if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&app.active_model), Some(&app.active_workspace)) {
-            let ws_clone = app.active_workspace.clone();
-            let model_clone = app.active_model.clone();
-            tokio::spawn(async move {
-                let _ = crate::engine::build_agent(provider, &model_clone, &ws_clone).await;
-            });
-        }
+        // Refresh grounding mode and web search status
+        app.grounding_mode = db.get_setting("grounding_mode").ok().flatten().unwrap_or_else(|| "strict".to_string());
+        app.web_search_enabled = db.get_setting("web_search_enabled").ok().flatten().map(|v| v == "true" || v == "1").unwrap_or(false);
+
+        // Rebuild agent for the new workspace
+        app.rebuild_agent();
+
+        // Reload conversation history for this workspace
+        app.chat_history.retain(|msg| msg.role == MessageRole::System);
+        app.load_session_history_for_workspace();
 
         format!("Switched active workspace to: {}", target_ws)
     }
@@ -588,13 +590,7 @@ fn execute_models(app: &mut App, target_model: Option<&str>) -> String {
                 let _ = db.set_workspace_model(&app.active_workspace, m);
                 let _ = db.set_default_model(m);
             }
-            if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&app.active_model), Some(&app.active_workspace)) {
-                let ws_clone = app.active_workspace.clone();
-                let model_clone = app.active_model.clone();
-                tokio::spawn(async move {
-                    let _ = crate::engine::build_agent(provider, &model_clone, &ws_clone).await;
-                });
-            }
+            app.rebuild_agent();
             return format!("Active model switched to: {}", m);
         }
     }
@@ -947,7 +943,7 @@ fn execute_rename(app: &mut App, args: &[&str]) -> String {
     }
 }
 
-fn execute_mode(workspace: &str, args: &[&str]) -> String {
+fn execute_mode(app: &mut App, args: &[&str]) -> String {
     let db = NativeConfigDb::open_default().ok();
     let mode_arg = args.first().map(|s| s.trim().trim_start_matches('-').to_lowercase());
 
@@ -964,32 +960,36 @@ fn execute_mode(workspace: &str, args: &[&str]) -> String {
         if let Some(d) = &db {
             let _ = d.set_setting("grounding_mode", valid_mode);
         }
-        format!("🛡️ Grounding Strategy Mode for '{}' set to: **{}**", workspace, valid_mode.to_uppercase())
+        app.grounding_mode = valid_mode.to_string();
+        app.rebuild_agent();
+        format!("🛡️ Grounding Strategy Mode for '{}' set to: **{}**", app.active_workspace, valid_mode.to_uppercase())
     } else {
         let curr = db.and_then(|d| d.get_setting("grounding_mode").ok().flatten()).unwrap_or_else(|| "auto".to_string());
         format!(
             "🛡️ Grounding Strategy Mode for '{}': **{}**\n\
              Available modes: auto, fast (single-turn <50ms), deep (multi-turn reflexive ReAct), strict, hybrid, proactive.\n\
              Usage: /mode <strategy>",
-            workspace,
+            app.active_workspace,
             curr.to_uppercase()
         )
     }
 }
 
-fn execute_web_search(workspace: &str, target: Option<&str>) -> String {
+fn execute_web_search(app: &mut App, target: Option<&str>) -> String {
     let db = NativeConfigDb::open_default().ok();
     if let Some(arg) = target {
         let is_on = matches!(arg.to_lowercase().as_str(), "on" | "true" | "1" | "enable");
         if let Some(d) = &db {
             let _ = d.set_setting("web_search_enabled", if is_on { "true" } else { "false" });
         }
+        app.web_search_enabled = is_on;
+        app.rebuild_agent();
         let status = if is_on { "🟢 ON" } else { "🔴 OFF" };
-        format!("🌐 Real-time Web Search for '{}': {}", workspace, status)
+        format!("🌐 Real-time Web Search for '{}': {}", app.active_workspace, status)
     } else {
         let curr = db.and_then(|d| d.get_setting("web_search_enabled").ok().flatten()).map(|v| v == "true").unwrap_or(false);
         let status = if curr { "🟢 ON" } else { "🔴 OFF" };
-        format!("🌐 Real-time Web Search for '{}': {}\nUsage: /web-search [on|off]", workspace, status)
+        format!("🌐 Real-time Web Search for '{}': {}\nUsage: /web-search [on|off]", app.active_workspace, status)
     }
 }
 
@@ -1009,5 +1009,12 @@ fn execute_reset_memory(app: &mut App) -> String {
     app.chat_history.retain(|msg| msg.role == MessageRole::System);
     app.current_stream_buffer.clear();
     app.current_thinking_buffer.clear();
+
+    let db_path = any_context_core_rs::storage::get_default_settings_db_path();
+    if let Ok(store) = actx_agent::SqliteSessionStore::open(&db_path, 50) {
+        let session_id = format!("ws_{}", ws);
+        let _ = store.clear_session_sync(&session_id);
+    }
+
     format!("🧠 Long-term session memory reset for workspace '{}'.\nChat history cleared while preserving indexed document vectors.", ws)
 }

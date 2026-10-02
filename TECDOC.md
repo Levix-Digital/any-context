@@ -65,6 +65,7 @@
 77. [100% Native Rust CLI & Full-Screen Interactive TUI Engine (`actx-cli` / Ratatui) (`v0.31.0`)](#77-100-native-rust-cli--full-screen-interactive-tui-engine-actx-cli--ratatui-v0310)
 78. [Normalized Relational Folder Storage & Legacy Schema Elimination Engine (`v0.32.0`)](#78-normalized-relational-folder-storage--legacy-schema-elimination-engine-v0320)
 79. [Multi-Byte UTF-8 Char Boundary Safety, Visual Cursor Alignment & Universal Release Protocol (`v0.32.2`)](#79-multi-byte-utf-8-char-boundary-safety-visual-cursor-alignment--universal-release-protocol-v0322)
+80. [TUI Stabilization, Isolated Prompt History Navigation, Quad-Status Top Header & Long-Term Memory Self-Awareness (`v0.32.3`)](#80-tui-stabilization-isolated-prompt-history-navigation-quad-status-top-header--long-term-memory-self-awareness-v0323)
 
 ---
 
@@ -4818,6 +4819,139 @@ flowchart TD
   - Positive: Complete immunity against UTF-8 char boundary panics.
   - Positive: Chat view smoothly autoscrolls down as new messages and tokens arrive.
   - Positive: Smooth keyboard (`PageUp`/`PageDown`/`Home`/`End`) and mouse scroll wheel support.
+
+---
+
+## 80. TUI Stabilization, Isolated Prompt History Navigation, Quad-Status Top Header & Long-Term Memory Self-Awareness (`v0.32.3`)
+
+### 1. Root Cause Analysis & Field Regression Telemetry
+Following the initial migration to the native Rust CLI (`actx-cli`), field telemetry revealed four critical regressions:
+1. **Prompt History Hijack by Viewport Scrolling**:
+   In `v0.32.2`, pressing the `Up` and `Down` arrow keys was intercepted by the chat view auto-scroll logic, completely displacing readline-style prompt history navigation. Users were forced to manually retype complex prompts and commands.
+2. **Loss of Grounding Strategy & Web Search Status in Top Header**:
+   When active workspace and model names were migrated to the TUI top header bar, the operational Grounding Mode (`Strict`, `Hybrid`, `Proactive`) and real-time Web Search status (`ON`/`OFF`) indicators were dropped from view, leaving users blind to whether retrieval augmentation or live web search was actively influencing LLM responses.
+3. **Agent Amnesia & Epistemic Self-Identity Failure**:
+   When users inquired about past sessions or asked *"Você tem memória de longo prazo, certo?"*, the agent issued a generic LLM refusal (*"Eu não tenho memória de longo prazo, cada interação é independente"*). The agent was missing persistent session linking to SQLite, lacked canonical self-awareness directives in its system prompt, and had no native tool to query workspace context directly.
+4. **Windows Global Binary Version Stagnation (`v0.32.1`)**:
+   While Linux installations ran `v0.32.2`, Windows environments remained stuck on `v0.32.1` because `actx --check-update` and `actx --update` had mock stubs targeting the main source repository rather than the dedicated release repository `Levix-Digital/any-context-releases`.
+
+---
+
+### 2. Workspace-Isolated Prompt History Architecture
+To restore classic terminal readline ergonomics while preserving viewport inspection capabilities:
+1. **Decoupled Key Routing**:
+   - `Up` / `Down` arrows are strictly dedicated to prompt history navigation when the slash command palette is inactive.
+   - Vertical chat scrolling is exclusively bound to `PageUp`, `PageDown`, `Home`, `End`, Mouse Scroll Wheel, and `Shift+Up` / `Shift+Down` for micro line-by-line inspection.
+2. **Workspace Isolation (`input_history: HashMap<String, Vec<String>>`)**:
+   - Prompt history is keyed by `active_workspace`. Switching workspaces (`/switch <name>`) instantly scopes prompt recall to the selected workspace.
+   - Pushing a new query records the prompt into the active workspace queue, deduplicating consecutive duplicates, and resets `history_index` to `None`.
+3. **Non-Destructive Draft Buffer (`current_draft`)**:
+   - Paging upward through history caches the currently typed text into `current_draft`.
+   - Stepping back downward past the most recent entry smoothly restores `current_draft` with the cursor positioned at the end of the text.
+
+```mermaid
+flowchart TD
+    A["User presses Up Arrow"] --> B{"Slash Palette Open?"}
+    B -- Yes --> C["Navigate Slash Palette Menu"]
+    B -- No --> D["history_up()"]
+    D --> E{"history_index == None?"}
+    E -- Yes --> F["current_draft = input_buffer\nhistory_index = last_idx"]
+    E -- No --> G["history_index = prev_idx"]
+    F --> H["input_buffer = history[history_index]"]
+    G --> H
+    H --> I["cursor_idx = input_buffer.len()"]
+```
+
+---
+
+### 3. Top Header Quad-Status & Reactive Dispatch
+The TUI top header bar (`render_header` in `ui.rs`) now renders a quad-status telemetry strip with prominent visual formatting:
+
+```text
+AnyContext v0.32.3 ─ [WS: Default] ─ [Model: gpt-4o-mini] ─ [Mode: HYBRID] ─ [Web: OFF] ─ ● IDLE
+```
+
+1. **State Persistence & Reactivity**:
+   - Grounding mode (`app.grounding_mode`) and web search status (`app.web_search_enabled`) are loaded from `NativeConfigDb` at startup.
+   - Commands `/mode <strict|hybrid|proactive|auto|fast|deep>`, `/web <on|off>`, `/model <name>`, and `/switch <ws>` update the in-memory `App` state immediately, rebuild the background agent orchestrator synchronously via `rebuild_agent()`, and re-render the header with zero frame lag.
+2. **Visual Hierarchy & Color Coding**:
+   - Active workspace is highlighted in cyan.
+   - Active model is highlighted in magenta.
+   - Grounding mode is styled in yellow (`HYBRID`/`PROACTIVE`) or green (`STRICT`).
+   - Web search is highlighted in bright green (`ON`) or muted dark gray (`OFF`).
+
+---
+
+### 4. Native Agent Identity & Persistent Long-Term Conversation Memory
+To eliminate agent amnesia and establish self-awareness:
+1. **SQLite Session Persistence**:
+   - `build_agent_sync` connects to `actx_agent::SqliteSessionStore`, attaching `actx_sessions` and `actx_session_messages` with session IDs structured as `ws_{workspace}`.
+   - Every user submission and assistant response is appended to the workspace session table.
+   - On workspace switch or application startup, `load_session_history_for_workspace` reads past turns and repopulates the TUI chat history automatically.
+2. **Canonical AnyContext System Prompt**:
+   - Directly injects operational environment metadata (`workspace`, `grounding_mode`, `web_search_enabled`).
+   - Explicitly instructs the LLM that it is AnyContext with persistent SQLite memory, mandating that it recognize previous turns, recall user instructions, and never claim lack of memory.
+3. **Native Context Search Tool (`search_db`)**:
+   - Registered directly with `ToolRegistry`.
+   - Allows the agent to query LanceDB columnar vector storage (`search_metadata`) and workspace folders directly during reasoning turns.
+4. **Thread-Safe Synchronous Registry**:
+   - `ToolRegistry` upgraded to `std::sync::RwLock`, allowing instant tool registration, schema definitions retrieval, and synchronous agent construction (`build_agent_sync`) without blocking Tokio runtime worker threads.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant App as TUI App (Rust)
+    participant Agent as actx-agent Orchestrator
+    participant Store as SqliteSessionStore
+    participant Lance as NativeLanceStore
+
+    User->>App: "Mas o que falamos na nossa ultima conversa?"
+    App->>Store: append_message(User)
+    App->>Agent: stream(query, session_id="ws_Default")
+    Agent->>Store: get_messages("ws_Default")
+    Store-->>Agent: [Past Turns & Instructions]
+    Note over Agent: System Prompt guides memory recall
+    opt Needs workspace docs
+        Agent->>Lance: search_db(query)
+        Lance-->>Agent: Vector chunks
+    end
+    Agent-->>App: "Na nossa conversa anterior, nós configuramos..."
+    App->>Store: append_message(Assistant)
+    App-->>User: Streaming response rendered in TUI
+```
+
+---
+
+### 5. Standalone Update Pipeline & Semver Comparison
+`actx-installer` is now fully integrated into `crates/actx-cli`:
+1. **Dedicated Releases Repository**:
+   - Pointed to `Levix-Digital/any-context-releases`.
+2. **Semantic Version Comparison**:
+   - Parses `(major, minor, patch)` tuples to evaluate release recency, accurately reporting when local versions are equal to or ahead of published GitHub releases.
+3. **Self-Contained Executable Replacement**:
+   - `handle_update()` invokes `actx_installer::run_standalone_update` to atomically download, extract, and replace the active executable and pre-extracted assets across Windows, Linux, and macOS.
+
+---
+
+### 6. Architecture Decision Records (ADR-080 to ADR-083)
+
+#### ADR-080: Workspace-Isolated Prompt History Navigation
+- **Status**: Accepted & Implemented (`v0.32.3`).
+- **Decision**: Restrict `Up`/`Down` key events to prompt history navigation; delegate chat viewport scrolling to `PageUp`, `PageDown`, `Home`, `End`, Mouse Scroll, and `Shift+Up`/`Shift+Down`. Store history in `HashMap<String, Vec<String>>` indexed by workspace.
+
+#### ADR-081: TUI Top Header Quad-Status Telemetry
+- **Status**: Accepted & Implemented (`v0.32.3`).
+- **Decision**: Render Workspace, Model, Grounding Mode, and Web Search status in the top bar on every render pass. Wire slash commands (`/mode`, `/web`, `/model`, `/switch`) to trigger immediate state mutation and agent rebuild.
+
+#### ADR-082: SQLite Session Memory & Canonical Identity Injection
+- **Status**: Accepted & Implemented (`v0.32.3`).
+- **Decision**: Connect `SqliteSessionStore` per workspace session (`ws_{name}`). Embed persistent memory directives and environment metadata in the system prompt. Register native `search_db` tool for LanceDB vector search. Upgrade `ToolRegistry` to `std::sync::RwLock` for synchronous agent instantiation.
+
+#### ADR-083: Dedicated Releases Repository & Semver Updater
+- **Status**: Accepted & Implemented (`v0.32.3`).
+- **Decision**: Route `actx --check-update` and `actx --update` to `Levix-Digital/any-context-releases`. Implement semantic version tuple comparisons to prevent false update alerts when running local development builds.
+
 
 
 
