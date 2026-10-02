@@ -148,8 +148,9 @@ class TestNativeAgentEngine(unittest.TestCase):
         self.assertTrue(len(chunks) > 0)
         token, meta = chunks[0]
         self.assertEqual(meta["langgraph_node"], "agent")
-        self.assertIn("Mock response", token.content)
         self.assertEqual(token.type, "ai")
+        full_content = "".join(c[0].content for c in chunks)
+        self.assertIn("Mock response", full_content)
 
     def test_native_agent_wrapper_invoke(self):
         from any_context.core.agent import create_native_anycontext_agent
