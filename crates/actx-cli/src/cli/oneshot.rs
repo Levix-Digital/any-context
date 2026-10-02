@@ -203,14 +203,13 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
     // 3. Resolve Provider & Build Agent
     let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
     let grounding_mode = db.as_ref()
-        .and_then(|d| d.get_setting("grounding_mode").ok().flatten())
+        .and_then(|d| d.get_workspace_grounding_mode(&args.workspace).ok())
         .unwrap_or_else(|| "strict".to_string());
     let search_mode = db.as_ref()
         .and_then(|d| d.get_setting("search_mode").ok().flatten())
         .unwrap_or_else(|| "auto".to_string());
     let web_search_enabled = db.as_ref()
-        .and_then(|d| d.get_setting("web_search_enabled").ok().flatten())
-        .map(|v| v == "true" || v == "1")
+        .and_then(|d| d.get_workspace_web_search(&args.workspace).ok())
         .unwrap_or(false);
 
     let (provider, model_name) = resolve_lm_provider(args.model.as_deref(), Some(&args.workspace))

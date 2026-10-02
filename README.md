@@ -45,6 +45,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🛡️ Strict Grounding Parity, Real-Time Token Streaming & Single Canonical LanceDB (`v0.32.7`)**:
+  - **Single Canonical LanceDB Path (Zero Legacy Paths)**: Consolidates all vector datasets and BM25 indices into exactly ONE canonical location (`<app_data_root>/data/context_db/lancedb`, e.g., `%LOCALAPPDATA%\AnyContext\data\context_db\lancedb` on Windows), eradicating all legacy path guessing, fragmentation, and directory conflicts.
+  - **Strict Grounding Strategy & `AGENT.md` Engine**: The native Rust CLI embeds and enforces authoritative system prompt directives (`config/AGENT.md`) with zero parametric memory hallucination in `STRICT` mode, autonomous `search_db` execution, explicit citation footers (`📄 Fontes Consultadas`), and temporal recency precedence.
+  - **Per-Workspace Grounding & Web Persistence**: Workspace modes (`/mode strict|hybrid|proactive` and `/web on|off`) are persisted transactionally in SQLite (`settings.db`) per workspace and automatically restored across reboots and switches.
+  - **Real-Time Token & Reasoning Streaming**: Finite state machine streams tokens directly into the terminal or TUI viewport via `chat_stream()`, eliminating burst output and rendering thoughts dynamically.
+  - **Active ReAct & Reasoning `<think>` Accordion (`Ctrl+T`)**: Live view of model reasoning and tool execution lifecycle with backward history discovery.
+  - **Global Query Flag (`-q`, `--query`)**: Standardized international flag for direct queries (`actx -q "..."`), with positional argument support (`actx "..."`) and backward-compatible alias (`-p, --prompt`).
 - **🖥️ 100% Native Rust CLI & Full-Screen Interactive TUI (`v0.32.3`)**:
   - **Single Autonomous Executable (`actx.exe` / `actx`)**: Completely eliminates Python, Node.js, and Bun runtime dependencies from the standard user distribution. Instant cold startup in `< 10ms` with `< 40MB` memory footprint.
   - **Top Header Quad-Status Telemetry**: Real-time display of `Workspace`, `Model`, `Grounding Mode` (`STRICT`, `HYBRID`, `PROACTIVE`), and `Web Search` (`ON`/`OFF`), dynamically updated via slash commands.

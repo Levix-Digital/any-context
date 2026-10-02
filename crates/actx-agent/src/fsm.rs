@@ -7,6 +7,7 @@ use crate::session::SessionStore;
 use crate::tool::ToolRegistry;
 use actx_lm::traits::LmProvider;
 use actx_lm::types::{ChatMessage, ChatRequest, FinishReason};
+use futures::StreamExt;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -101,22 +102,84 @@ impl ReActOrchestrator {
                 req = req.with_temperature(t);
             }
 
-            let response = self.client.chat_complete(req).await.map_err(AgentError::LmError)?;
+            let mut response_content = String::new();
+            let mut response_tool_calls = Vec::new();
+            let mut finish_reason = None;
+            let mut total_usage = None;
+            let mut did_stream_tokens = false;
 
-            // Emit thinking event if model supplied reasoning
-            if let Some(ref thinking) = response.thinking {
-                if let Some(ref tx) = event_tx {
-                    let _ = tx.send(AgentEvent::Thinking(thinking.clone()));
+            if event_tx.is_some() {
+                if let Ok(mut stream) = self.client.chat_stream(req.clone()).await {
+                    let mut streamed_tools: std::collections::BTreeMap<usize, (Option<String>, Option<String>, String)> = std::collections::BTreeMap::new();
+
+                    while let Some(chunk_res) = stream.next().await {
+                        if let Ok(chunk) = chunk_res {
+                            match chunk {
+                                actx_lm::types::StreamChunk::Token(token) => {
+                                    response_content.push_str(&token);
+                                    if streamed_tools.is_empty() {
+                                        did_stream_tokens = true;
+                                        if let Some(ref tx) = event_tx {
+                                            let _ = tx.send(AgentEvent::Delta(token));
+                                        }
+                                    }
+                                }
+                                actx_lm::types::StreamChunk::Reasoning(reasoning) => {
+                                    if let Some(ref tx) = event_tx {
+                                        let _ = tx.send(AgentEvent::Thinking(reasoning));
+                                    }
+                                }
+                                actx_lm::types::StreamChunk::ToolCallDelta { index, id, name, arguments_delta } => {
+                                    let entry = streamed_tools.entry(index).or_insert((None, None, String::new()));
+                                    if let Some(i) = id { entry.0 = Some(i); }
+                                    if let Some(n) = name { entry.1 = Some(n); }
+                                    entry.2.push_str(&arguments_delta);
+                                }
+                                actx_lm::types::StreamChunk::Completed { finish_reason: fr, usage } => {
+                                    finish_reason = fr;
+                                    if usage.is_some() {
+                                        total_usage = usage;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if !streamed_tools.is_empty() {
+                        response_tool_calls = streamed_tools.into_values().filter_map(|(id, name, args)| {
+                            name.map(|n| actx_lm::types::ToolCall {
+                                id: id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+                                name: n,
+                                arguments: args,
+                            })
+                        }).collect();
+                    }
+                }
+            }
+
+            // Fallback to chat_complete if streaming was not executed or produced no content and no tool calls
+            if response_content.is_empty() && response_tool_calls.is_empty() {
+                let comp_resp = self.client.chat_complete(req).await.map_err(AgentError::LmError)?;
+                response_content = comp_resp.content;
+                response_tool_calls = comp_resp.tool_calls;
+                finish_reason = comp_resp.finish_reason;
+                total_usage = comp_resp.usage;
+                did_stream_tokens = false;
+
+                if let Some(ref thinking) = comp_resp.thinking {
+                    if let Some(ref tx) = event_tx {
+                        let _ = tx.send(AgentEvent::Thinking(thinking.clone()));
+                    }
                 }
             }
 
             // Check if model emitted tool calls and we're not forced to stop
-            if !response.tool_calls.is_empty() && !is_last_turn {
+            if !response_tool_calls.is_empty() && !is_last_turn {
                 // Record assistant message with tool calls in working context
-                let asst_msg = ChatMessage::assistant_with_tools(&response.content, response.tool_calls.clone());
+                let asst_msg = ChatMessage::assistant_with_tools(&response_content, response_tool_calls.clone());
                 working_messages.push(asst_msg);
 
-                for call in &response.tool_calls {
+                for call in &response_tool_calls {
                     tool_calls_count += 1;
 
                     if let Some(ref tx) = event_tx {
@@ -156,11 +219,13 @@ impl ReActOrchestrator {
                 continue;
             } else {
                 // Model delivered final answer in this turn!
-                final_content = response.content;
-                final_reason = response.finish_reason;
+                final_content = response_content;
+                final_reason = finish_reason;
 
-                if let Some(ref tx) = event_tx {
-                    let _ = tx.send(AgentEvent::Delta(final_content.clone()));
+                if !did_stream_tokens {
+                    if let Some(ref tx) = event_tx {
+                        let _ = tx.send(AgentEvent::Delta(final_content.clone()));
+                    }
                 }
 
                 let final_asst_msg = ChatMessage::assistant(&final_content);
@@ -172,7 +237,7 @@ impl ReActOrchestrator {
                 }
 
                 if let Some(ref tx) = event_tx {
-                    let total_tok = response.usage.map(|u| u.total_tokens as usize);
+                    let total_tok = total_usage.map(|u| u.total_tokens as usize);
                     let _ = tx.send(AgentEvent::Done {
                         total_turns: total_turns_executed,
                         total_tokens: total_tok,

@@ -94,22 +94,7 @@ pub fn build_agent_sync(
     let session_store = actx_agent::SqliteSessionStore::open(&db_path, 50).ok()
         .map(|s| Arc::new(s) as Arc<dyn actx_agent::SessionStore>);
 
-    let web_status_str = if web_search_enabled { "ENABLED (Active)" } else { "DISABLED (Offline)" };
-    let system_prompt = format!(
-        "You are AnyContext (actx), an ultra-fast, local-first agentic context engine and AI assistant developed by Levix Digital.\n\
-         \n\
-         ### 🎯 ACTIVE WORKSPACE & OPERATIONAL ENVIRONMENT:\n\
-         - Active Workspace: '{workspace}'\n\
-         - Grounding Strategy: {grounding_mode}\n\
-         - Search Retrieval Depth: {search_mode}\n\
-         - Real-Time Web Search: {web_status_str}\n\
-         \n\
-         ### 🧠 PERSISTENT LONG-TERM CONVERSATION MEMORY:\n\
-         - You maintain persistent conversation memory across turns and sessions stored locally in SQLite for each workspace.\n\
-         - You remember prior conversations, past context, decisions, and instructions given in earlier turns of this workspace.\n\
-         - When the user asks about previous topics, past conversations, or asks if you have long-term memory, ALWAYS recognize and reference your persistent memory and conversation history.\n\
-         - NEVER claim that you lack long-term memory or that interactions are independent. You are AnyContext and you retain workspace memory.\n"
-    );
+    let system_prompt = crate::prompt::build_system_prompt(workspace, grounding_mode, search_mode, web_search_enabled);
 
     let ws_for_tool = workspace.to_string();
     let search_tool = actx_agent::NativeTool::new(
@@ -145,25 +130,50 @@ pub fn build_agent_sync(
                         .and_then(|d| d.get_workspace_folders(&ws_clone).ok())
                         .unwrap_or_default();
 
-                    let lance_path = if let Ok(local) = std::env::var("LOCALAPPDATA") {
-                        std::path::PathBuf::from(local).join("AnyContext").join("lancedb")
-                    } else if let Some(d) = dirs::data_local_dir() {
-                        d.join("AnyContext").join("lancedb")
-                    } else {
-                        std::path::PathBuf::from("./lancedb")
-                    };
-
+                    let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
                     let mut results = Vec::new();
-                    if let Ok(lance) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) {
-                        let sanitized = query_str.replace('\'', "''");
-                        if let Ok(hits) = lance.search_metadata(
-                            &format!("text LIKE '%{}%'", sanitized),
-                            5,
-                            Some(&ws_clone),
-                            None,
-                        ) {
-                            for hit in hits {
-                                results.push(format!("• [{}] (Score: {:.2}):\n{}", hit.file_name, hit.score, hit.text));
+
+                    // 1. Try BM25 index if available in canonical directory
+                    let bm25_path = lance_path.join("bm25_index.bin");
+                    if bm25_path.exists() {
+                        if let Ok(bm25) = any_context_core_rs::retrieval::BM25Index::load_from_file(bm25_path.to_str().unwrap_or_default()) {
+                            let hits = bm25.search(&query_str, 5, Some(&ws_clone));
+                            for (doc_id, score) in hits {
+                                if let Some(doc) = bm25.get_doc_by_id(&doc_id) {
+                                    results.push(format!("• [{}] (Score: {:.2}):\n{}", doc.file_name, score, doc.text));
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Supplement with LanceDB metadata search if needed
+                    if results.is_empty() {
+                        if let Ok(lance) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) {
+                            let words: Vec<&str> = query_str
+                                .split(|c: char| !c.is_alphanumeric() && c != '_' && c != '-')
+                                .filter(|w| w.len() >= 3)
+                                .collect();
+
+                            let where_clause = if !words.is_empty() {
+                                let conditions: Vec<String> = words.iter().map(|w| {
+                                    let s = w.replace('\'', "''");
+                                    format!("text LIKE '%{}%'", s)
+                                }).collect();
+                                conditions.join(" OR ")
+                            } else {
+                                let sanitized = query_str.replace('\'', "''");
+                                format!("text LIKE '%{}%'", sanitized)
+                            };
+
+                            if let Ok(hits) = lance.search_metadata(
+                                &where_clause,
+                                5,
+                                Some(&ws_clone),
+                                None,
+                            ) {
+                                for hit in hits {
+                                    results.push(format!("• [{}] (Score: {:.2}):\n{}", hit.file_name, hit.score, hit.text));
+                                }
                             }
                         }
                     }

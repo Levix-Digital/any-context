@@ -71,14 +71,13 @@ impl App {
     pub fn new(workspace: String, model: String, agent: Option<Agent>) -> Self {
         let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
         let grounding_mode = db.as_ref()
-            .and_then(|d| d.get_setting("grounding_mode").ok().flatten())
+            .and_then(|d| d.get_workspace_grounding_mode(&workspace).ok())
             .unwrap_or_else(|| "strict".to_string());
         let search_mode = db.as_ref()
             .and_then(|d| d.get_setting("search_mode").ok().flatten())
             .unwrap_or_else(|| "auto".to_string());
         let web_search_enabled = db.as_ref()
-            .and_then(|d| d.get_setting("web_search_enabled").ok().flatten())
-            .map(|v| v == "true" || v == "1")
+            .and_then(|d| d.get_workspace_web_search(&workspace).ok())
             .unwrap_or(false);
 
         let initial_history = vec![ChatMessageItem {

@@ -7,6 +7,64 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 9 (v0.32.7 Grounding Estrito com Injeção de AGENT.md, LanceDB Canônico Único Sem Legados, Persistência de Modos por Workspace, Acordeão ReAct/Thinking Ativo, Streaming Real e Flag Global -q/--query):
+- **Objetivo**: Comprovar que na versão `v0.32.7`:
+  1. **Flag Global de Consulta Direta (`-q, --query`)**:
+     - O comando `actx -q "..."` ou `actx "..."` executa a pergunta diretamente no terminal stdout sem abrir a interface de tela cheia.
+     - A flag legada `-p` permanece funcionando como alias retrocompatível.
+  2. **Paridade Rigorosa de Grounding (`STRICT`) com `config/AGENT.md`**:
+     - No modo `STRICT`, o modelo NUNCA responde a perguntas factuais inventando dados da sua memória paramétrica e NUNCA pergunta *"Deseja que eu procure nos documentos?"*.
+     - O modelo dispara autonomamente a ferramenta de busca (`search_db`).
+     - Se o documento não existir no workspace, ele recusa estritamente informando: `⚠️ Essa informação não consta nos documentos deste workspace.` e conclui com o rodapé de fontes consultadas (`📄 Fontes Consultadas`).
+  3. **LanceDB Único e Canônico (Zero Caminhos Legados)**:
+     - Os índices vetoriais e BM25 utilizam exclusivamente um único diretório no sistema operacional (`%LOCALAPPDATA%\AnyContext\data\context_db\lancedb` no Windows ou `~/.local/share/AnyContext/data/context_db/lancedb` no Linux). Todos os caminhos legados foram expurgados.
+  4. **Persistência de Modos por Workspace no SQLite (`settings.db`)**:
+     - Alterar o modo de grounding via `/mode hybrid`, `/mode strict` ou `/mode proactive` salva a configuração de forma transacional e permanente para o workspace ativo.
+     - Ao fechar o app, trocar de workspace e retornar, o modo configurado é 100% preservado.
+  5. **Streaming em Tempo Real de Tokens e Acordeão `<think>`**:
+     - As respostas do modelo fluem suavemente token a token no terminal e na TUI, eliminando rajadas de texto em bloco único.
+     - O acordeão de raciocínio `<think>` (`Ctrl+T`) exibe os eventos de raciocínio e o ciclo de vida das ferramentas em tempo real, mantendo histórico de raciocínio disponível.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão e Flag de Consulta Global `-q`:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.7`.
+   - Execute no terminal com a nova flag `-q`:
+     ```text
+     actx -q "Quais programas de imigracao existem?"
+     ```
+   - **Critério de Aceitação**: O sistema dispara autonomamente `search_db`, busca no LanceDB/BM25 canônico e responde no terminal stdout recusando inventar informações paramétricas: `⚠️ Essa informação não consta nos documentos deste workspace.`
+
+2. **🛡️ Teste de Persistência de Grounding por Workspace na TUI:**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - Altere o modo de grounding para HYBRID:
+     ```text
+     /mode hybrid
+     ```
+   - **Critério de Aceitação**: A barra superior atualiza para `[Grounding: HYBRID]`.
+   - Saia com `/exit` ou `Ctrl+C`.
+   - Reabra `actx`.
+   - **Critério de Aceitação**: O cabeçalho carrega imediatamente com `[Grounding: HYBRID]`, comprovando a persistência no SQLite `settings.db`.
+   - Retorne para STRICT:
+     ```text
+     /mode strict
+     ```
+   - **Critério de Aceitação**: O status retorna para `[Grounding: STRICT]`.
+
+3. **🧠 Teste do Acordeão ReAct & Reasoning `<think>` (Ctrl+T) e Streaming Real:**
+   - Na TUI com modo `STRICT`, faça uma pergunta sobre os documentos do workspace.
+   - Pressione `Ctrl+T` para abrir a gaveta de raciocínio.
+   - **Critério de Aceitação**: O acordeão exibe o raciocínio preliminar e o ciclo de vida das ferramentas (`search_db`). O texto da resposta flui via streaming token a token sem engasgos nem rajadas instantâneas.
+
+---
+
 ### 📌 Cenário 8 (v0.32.6 Conversação Multi-Turn Sem Erros HTTP 400, Sanitização de Histórico SQLite, Exibição Visual de Erros na TUI e Ocultação Temporária de Search Depth):
 - **Objetivo**: Comprovar que na versão `v0.32.6`:
   1. **Continuidade de Conversação Multi-Turn (Eliminação do HTTP 400 de Tool Orphan)**:
