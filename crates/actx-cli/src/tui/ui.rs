@@ -181,8 +181,9 @@ fn render_accordion(frame: &mut Frame, area: Rect, app: &App) {
         app.current_thinking_buffer.as_str()
     } else {
         app.chat_history
-            .last()
-            .and_then(|m| m.thinking.as_deref())
+            .iter()
+            .rev()
+            .find_map(|m| m.thinking.as_deref())
             .unwrap_or(fallback)
     };
 

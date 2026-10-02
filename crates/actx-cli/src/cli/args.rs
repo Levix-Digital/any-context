@@ -38,8 +38,8 @@ pub struct CliArgs {
     #[arg(short = 'f', long = "force")]
     pub force: bool,
 
-    /// Direct one-shot prompt query (executes without opening full TUI)
-    #[arg(short = 'p', long = "prompt", short_alias = 'q', alias = "query")]
+    /// Direct one-shot query or question (executes without opening full TUI)
+    #[arg(short = 'q', long = "query", short_alias = 'p', alias = "prompt", alias = "question")]
     pub prompt: Option<String>,
 
     /// Model identifier to override configuration (e.g. gpt-4o, claude-3-5-sonnet, ollama/qwen2.5-coder)

@@ -6,7 +6,7 @@ use crate::commands::models::{
     CommandAction, CommandResult, CommandStateUpdates, ExecutionContext, GroundingMode, SearchDepthMode,
 };
 use crate::ingestion::WorkspaceScanner;
-use crate::storage::{get_default_settings_db_path, NativeConfigDb, NativeLanceStore};
+use crate::storage::{get_default_lancedb_path, get_default_settings_db_path, NativeConfigDb, NativeLanceStore};
 
 /// UI-Agnostic command executor service.
 pub struct CommandEngine;
@@ -158,7 +158,7 @@ impl CommandEngine {
             if let Some(parsed) = GroundingMode::parse(arg) {
                 let valid_str = parsed.as_str();
                 if let Some(d) = &db {
-                    let _ = d.set_setting("grounding_mode", valid_str);
+                    let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, valid_str);
                 }
                 let mut updates = CommandStateUpdates::default();
                 updates.grounding_mode = Some(valid_str.to_string());
@@ -185,7 +185,7 @@ impl CommandEngine {
             }
         } else if args.iter().any(|a| *a == "--status" || *a == "--info" || *a == "-s") {
             let curr = db
-                .and_then(|d| d.get_setting("grounding_mode").ok().flatten())
+                .and_then(|d| d.get_workspace_grounding_mode(&ctx.active_workspace).ok())
                 .unwrap_or_else(|| ctx.grounding_mode.clone());
             CommandResult::success(format!(
                 "🛡️ Active Grounding Strategy for '{}': **{}**\n\n\
@@ -293,7 +293,7 @@ impl CommandEngine {
         if let Some(arg) = target {
             let is_on = matches!(arg.to_lowercase().as_str(), "on" | "true" | "1" | "enable");
             if let Some(d) = &db {
-                let _ = d.set_setting("web_search_enabled", if is_on { "true" } else { "false" });
+                let _ = d.set_workspace_web_search(&ctx.active_workspace, is_on);
             }
             let mut updates = CommandStateUpdates::default();
             updates.web_search_enabled = Some(is_on);
@@ -304,8 +304,7 @@ impl CommandEngine {
                 .with_state_updates(updates)
         } else {
             let curr = db
-                .and_then(|d| d.get_setting("web_search_enabled").ok().flatten())
-                .map(|v| v == "true")
+                .and_then(|d| d.get_workspace_web_search(&ctx.active_workspace).ok())
                 .unwrap_or(ctx.web_search_enabled);
             let status = if curr { "🟢 ON" } else { "🔴 OFF" };
             CommandResult::success(format!(
@@ -369,6 +368,16 @@ impl CommandEngine {
 
             let mut updates = CommandStateUpdates::default();
             updates.active_workspace = Some(target_ws.clone());
+
+            if let Ok(model) = db.get_workspace_model(&target_ws) {
+                updates.active_model = Some(model);
+            }
+            if let Ok(mode) = db.get_workspace_grounding_mode(&target_ws) {
+                updates.grounding_mode = Some(mode);
+            }
+            if let Ok(web) = db.get_workspace_web_search(&target_ws) {
+                updates.web_search_enabled = Some(web);
+            }
 
             CommandResult::success(format!("Switched active workspace to: **{}**", target_ws))
                 .with_action(CommandAction::SwitchWorkspace(target_ws))
@@ -1098,15 +1107,5 @@ Available Commands (UI-Agnostic Engine):
              Tip: Use '/link <source> <target_workspace>' to share folders across workspaces.",
             ctx.active_workspace
         ))
-    }
-}
-
-fn get_default_lancedb_path() -> std::path::PathBuf {
-    if let Ok(local) = std::env::var("LOCALAPPDATA") {
-        std::path::PathBuf::from(local).join("AnyContext").join("lancedb")
-    } else if let Some(d) = dirs::data_local_dir() {
-        d.join("AnyContext").join("lancedb")
-    } else {
-        std::path::PathBuf::from("./lancedb")
     }
 }

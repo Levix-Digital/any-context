@@ -5210,6 +5210,60 @@ flowchart TD
 - **Context**: TUI swallowed `AgentEvent::Error` without rendering, causing silent freezes. Concurrently, displaying `[Search: ...]` prematurely confused users since RFC-042 Deep Search is not yet active.
 - **Decision**: Explicitly push error events to `chat_history` with `MessageRole::System` and preserve `AppStatus::Error`. Temporarily conceal search depth UI elements until RFC-042 is fully operational.
 
+---
+
+## 32. Strict Grounding Strategy Engine, Real-Time Token Streaming & Canonical LanceDB Consolidation (`v0.32.7`)
+
+### 1. Root Cause Analysis
+1. **Parametric Weight Hallucination & Prompt Parity Gap**:
+   - In the pure Rust rewrite (`v0.32.x`), the system prompt lacked the exhaustive behavioral constraints previously defined in `config/AGENT.md`.
+   - When configured in `STRICT` mode, the agent answered general questions (e.g. Canadian immigration programs) using its pre-trained parametric weights or asked passivity questions like *"Deseja que eu procure nos documentos?"* instead of executing `search_db` autonomously and declining if absent.
+2. **LanceDB Directory Fragmentation & Legacy Path Guessing**:
+   - The storage layer maintained legacy fallback chains checking multiple directories across `AppData/Local`, `AppData/Roaming`, and working paths, causing fragmentation between Python-ingested and Rust-queried datasets.
+3. **Grounding Mode Volatility**:
+   - Grounding mode changes (`/mode`) were not persisted per-workspace in SQLite `settings.db`, reverting to defaults upon workspace switch or application reload.
+4. **ReAct `<think>` Accordion Inactivity & Output Bursting**:
+   - The TUI reasoning accordion inspected only the active turn buffer, ignoring previous thoughts.
+   - Outputs were returned in large blocks rather than smooth real-time token streaming.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    UserQuery["User Query (-q / TUI)"] --> PromptEngine["Prompt Engine (crates/actx-cli/src/prompt.rs)"]
+    PromptEngine --> EmbeddedAgent["Embedded config/AGENT.md + Active Mode Rules"]
+    EmbeddedAgent --> AgentFSM["Agent FSM (crates/actx-agent/src/fsm.rs)"]
+    AgentFSM --> StreamTokens["chat_stream() -> AgentEvent::Delta / Thinking"]
+    AgentFSM --> ToolTrigger["Strict Mode: Mandatory search_db Autonomous Trigger"]
+    ToolTrigger --> CanonicalLance["Single Canonical LanceDB: get_default_lancedb_path()"]
+    CanonicalLance --> BM25OrLance["BM25 Index + Native LanceDB Table (Arrow Columnar)"]
+    BM25OrLance --> Chunks["Retrieved Chunks or Factual Absence Notice"]
+    Chunks --> FinalSynthesis["Synthesized Answer + Mandatory Citation Footer"]
+```
+
+1. **Embedded `AGENT.md` & Grounding Strategy Engine (`crates/actx-cli/src/prompt.rs`)**:
+   - `build_system_prompt()` embeds `config/AGENT.md` (`include_str!("../../../config/AGENT.md")`) and layers workspace grounding directives:
+     - `STRICT`: Zero parametric memory, mandatory autonomous retrieval via `search_db`, hard factual absence refusal when chunks are empty (`⚠️ Essa informação não consta nos documentos deste workspace.`), permission-gated web search, mandatory citation footer (`📄 Fontes Consultadas`).
+     - `HYBRID`: Local workspace documents prioritized, labeled general model knowledge (`### 📂 Informações do Workspace` vs `### 💡 Conhecimento Geral do Modelo`).
+     - `PROACTIVE`: Autonomous synthesis across local chunks, web intelligence, and domain recommendations.
+2. **Single Canonical LanceDB Path (`get_default_lancedb_path`)**:
+   - All legacy path guessing purged. Exactly ONE directory: `<app_data_root>/data/context_db/lancedb` (`%LOCALAPPDATA%\AnyContext\data\context_db\lancedb` on Windows, `~/.local/share/AnyContext/data/context_db/lancedb` on Linux).
+   - Unified across `NativeLanceStore::open_default()` and CLI tool engine.
+3. **Workspace Mode Transactional Persistence in SQLite (`settings.db`)**:
+   - `get_workspace_grounding_mode`, `set_workspace_grounding_mode`, `get_workspace_web_search`, and `set_workspace_web_search` ensure `/mode` and `/web` survive workspace switches, TUI reloads, and headless sessions.
+4. **Real-Time Token Streaming & `<think>` Accordion Lifecycle**:
+   - FSM dispatches `chat_stream()` yielding real-time `AgentEvent::Delta` tokens and `AgentEvent::Thinking` chunks.
+   - Accordion inspects `chat_history.iter().rev().find_map(|m| m.thinking.as_deref())` to display the most recent reasoning block across multi-turn interactions.
+5. **Universal Query Flag (`-q`, `--query`)**:
+   - Standardized `-q, --query` as the primary flag for one-shot questions, with positional argument support (`actx "..."`) and backward-compatible alias (`-p, --prompt`).
+
+### 3. Architecture Decision Record (ADR-090)
+
+#### ADR-090: Grounding Parity, Real-Time Token Streaming, and Single Canonical LanceDB Path
+- **Status**: Accepted & Implemented (`v0.32.7`).
+- **Context**: Discrepancies between Python and Rust system prompts allowed models to answer from weights in STRICT mode. Multiple LanceDB paths led to dataset fragmentation. Token output was delayed until turn completion.
+- **Decision**: Embed `config/AGENT.md` into the native binary, strictly enforce autonomous `search_db` invocation, consolidate LanceDB into a single canonical directory, persist grounding modes per-workspace in SQLite, and implement real-time SSE token streaming via `chat_stream()`.
+
 
 
 

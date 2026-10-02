@@ -69,7 +69,64 @@ impl Drop for NativeLanceStore {
     }
 }
 
+/// Returns the single canonical path for AnyContext LanceDB vector storage.
+/// - Windows: %LOCALAPPDATA%\AnyContext\data\context_db\lancedb
+/// - macOS: ~/Library/Application Support/AnyContext/data/context_db/lancedb
+/// - Linux: ~/.local/share/any-context/data/context_db/lancedb
+/// Can be overridden via ACTX_CONTEXT_DB environment variable.
+pub fn get_default_lancedb_path() -> PathBuf {
+    if let Ok(p) = std::env::var("ACTX_CONTEXT_DB") {
+        let trimmed = p.trim();
+        if !trimmed.is_empty() {
+            let pb = PathBuf::from(trimmed);
+            if pb.ends_with("lancedb") {
+                return pb;
+            } else {
+                return pb.join("lancedb");
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            return PathBuf::from(local).join("AnyContext").join("data").join("context_db").join("lancedb");
+        }
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            return PathBuf::from(appdata).join("AnyContext").join("data").join("context_db").join("lancedb");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = dirs::home_dir() {
+            return home.join("Library").join("Application Support").join("AnyContext").join("data").join("context_db").join("lancedb");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
+            return PathBuf::from(xdg).join("any-context").join("data").join("context_db").join("lancedb");
+        }
+        if let Some(home) = dirs::home_dir() {
+            return home.join(".local").join("share").join("any-context").join("data").join("context_db").join("lancedb");
+        }
+    }
+
+    if let Some(data_dir) = dirs::data_local_dir() {
+        return data_dir.join("AnyContext").join("data").join("context_db").join("lancedb");
+    }
+
+    PathBuf::from("./data/context_db/lancedb")
+}
+
 impl NativeLanceStore {
+    /// Opens the LanceDB database at the canonical system default location.
+    pub fn open_default() -> Result<Self, String> {
+        Self::open(get_default_lancedb_path())
+    }
+
     /// Opens or creates a LanceDB database directory.
     pub fn open(db_path: impl AsRef<Path>) -> Result<Self, String> {
         let p = db_path.as_ref().to_path_buf();

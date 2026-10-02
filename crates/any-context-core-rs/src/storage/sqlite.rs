@@ -675,6 +675,80 @@ impl NativeConfigDb {
         self.set_default_model(model)
     }
 
+    pub fn get_workspace_grounding_mode(&self, workspace_name: &str) -> Result<String> {
+        let conn = self.conn.lock().unwrap();
+        if Self::check_column(&conn, "workspaces", "grounding_mode") {
+            let ws_mode: Option<String> = conn
+                .query_row(
+                    "SELECT grounding_mode FROM workspaces WHERE name = ?1 COLLATE NOCASE",
+                    params![workspace_name],
+                    |r| r.get(0),
+                )
+                .ok()
+                .flatten();
+            if let Some(m) = ws_mode {
+                let trimmed = m.trim().to_lowercase();
+                if trimmed == "strict" || trimmed == "hybrid" || trimmed == "proactive" {
+                    return Ok(trimmed);
+                }
+            }
+        }
+        drop(conn);
+        Ok(self.get_setting("grounding_mode")?.unwrap_or_else(|| "strict".to_string()))
+    }
+
+    pub fn set_workspace_grounding_mode(&self, workspace_name: &str, mode: &str) -> Result<()> {
+        let clean = mode.trim().to_lowercase();
+        let valid_mode = match clean.as_str() {
+            "hybrid" => "hybrid",
+            "proactive" => "proactive",
+            _ => "strict",
+        };
+        let conn = self.conn.lock().unwrap();
+        if Self::check_column(&conn, "workspaces", "grounding_mode") {
+            let _ = conn.execute(
+                "UPDATE workspaces SET grounding_mode = ?1 WHERE name = ?2 COLLATE NOCASE",
+                params![valid_mode, workspace_name],
+            );
+        }
+        drop(conn);
+        self.set_setting("grounding_mode", valid_mode)?;
+        Ok(())
+    }
+
+    pub fn get_workspace_web_search(&self, workspace_name: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        if Self::check_column(&conn, "workspaces", "web_search_enabled") {
+            let enabled: Option<i64> = conn
+                .query_row(
+                    "SELECT web_search_enabled FROM workspaces WHERE name = ?1 COLLATE NOCASE",
+                    params![workspace_name],
+                    |r| r.get(0),
+                )
+                .ok()
+                .flatten();
+            if let Some(val) = enabled {
+                return Ok(val != 0);
+            }
+        }
+        drop(conn);
+        let s = self.get_setting("web_search_enabled")?.unwrap_or_default();
+        Ok(s == "true" || s == "1")
+    }
+
+    pub fn set_workspace_web_search(&self, workspace_name: &str, enabled: bool) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        if Self::check_column(&conn, "workspaces", "web_search_enabled") {
+            let _ = conn.execute(
+                "UPDATE workspaces SET web_search_enabled = ?1 WHERE name = ?2 COLLATE NOCASE",
+                params![if enabled { 1 } else { 0 }, workspace_name],
+            );
+        }
+        drop(conn);
+        self.set_setting("web_search_enabled", if enabled { "true" } else { "false" })?;
+        Ok(())
+    }
+
     // --- API Key Credential Resolution ---
 
     pub fn get_api_key(&self, provider: &str) -> Result<Option<String>> {

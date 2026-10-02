@@ -53,14 +53,31 @@ impl LmProvider for TestMockProvider {
 
     async fn chat_stream(&self, _request: ChatRequest) -> Result<BoxedChunkStream, LmError> {
         let resp = self.chat_complete(_request).await?;
-        let s = futures::stream::iter(vec![
-            Ok(StreamChunk::Token(resp.content)),
-            Ok(StreamChunk::Completed {
-                finish_reason: Some(FinishReason::Stop),
-                usage: resp.usage,
-            }),
-        ]);
-        Ok(Box::pin(s))
+        let mut chunks = Vec::new();
+
+        if let Some(ref think) = resp.thinking {
+            chunks.push(Ok(StreamChunk::Reasoning(think.clone())));
+        }
+
+        for (i, tc) in resp.tool_calls.iter().enumerate() {
+            chunks.push(Ok(StreamChunk::ToolCallDelta {
+                index: i,
+                id: Some(tc.id.clone()),
+                name: Some(tc.name.clone()),
+                arguments_delta: tc.arguments.clone(),
+            }));
+        }
+
+        if !resp.content.is_empty() {
+            chunks.push(Ok(StreamChunk::Token(resp.content)));
+        }
+
+        chunks.push(Ok(StreamChunk::Completed {
+            finish_reason: resp.finish_reason,
+            usage: resp.usage,
+        }));
+
+        Ok(Box::pin(futures::stream::iter(chunks)))
     }
 }
 
