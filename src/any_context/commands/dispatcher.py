@@ -214,7 +214,7 @@ class CommandDispatcher:
                 update_svc = UpdateService()
                 has_up, latest_v = update_svc.check_for_updates()
                 if has_up and latest_v:
-                    msg = f"💡 New update available! v{__version__} → {latest_v}. Type `/update` to install now."
+                    msg = f"💡 New AnyContext update available! v{__version__} → {latest_v}. Type `/update` to install now."
                 else:
                     msg = f"🚀 AnyContext v{__version__} is up to date."
                 return CommandResult(
