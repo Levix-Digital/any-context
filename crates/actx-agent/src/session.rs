@@ -115,6 +115,9 @@ impl SqliteSessionStore {
             );
 
             CREATE INDEX IF NOT EXISTS idx_actx_messages_sess ON actx_session_messages(session_id, id);
+
+            -- Automatically scrub any orphaned tool messages or empty assistant messages from legacy sessions
+            DELETE FROM actx_session_messages WHERE role = 'tool' OR (role = 'assistant' AND (content IS NULL OR TRIM(content) = ''));
             "#,
         )
         .map_err(|e| AgentError::SessionStoreError(format!("Schema initialization failed: {}", e)))?;
@@ -131,7 +134,7 @@ impl SqliteSessionStore {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn
             .prepare(
-                "SELECT role, content, name, tool_call_id FROM actx_session_messages WHERE session_id = ? ORDER BY id ASC",
+                "SELECT role, content, name, tool_call_id FROM actx_session_messages WHERE session_id = ? AND role != 'tool' AND NOT (role = 'assistant' AND TRIM(content) = '') ORDER BY id ASC",
             )
             .map_err(|e| AgentError::SessionStoreError(e.to_string()))?;
 

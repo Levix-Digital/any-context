@@ -7,6 +7,56 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 8 (v0.32.6 Conversação Multi-Turn Sem Erros HTTP 400, Sanitização de Histórico SQLite, Exibição Visual de Erros na TUI e Ocultação Temporária de Search Depth):
+- **Objetivo**: Comprovar que na versão `v0.32.6`:
+  1. **Continuidade de Conversação Multi-Turn (Eliminação do HTTP 400 de Tool Orphan)**:
+     - Perguntas subsequentes que continuam tópicos anteriores (ex: *"Destes programas, quais são mais adequados para AI Engineers?"* ou *"Você está aí?"*) funcionam perfeitamente sem travar ou sofrer rejeição de API.
+     - As iterações intermediárias de ferramentas (`search_db`) ficam isoladas no scratchpad do turno atual e não contaminam a lista de mensagens persistidas para o SQLite (`actx_session_messages`).
+     - A base de dados SQLite sanitiza automaticamente na inicialização e na leitura qualquer mensagem de ferramenta órfã de versões anteriores.
+  2. **Exibição Transparente de Erros na TUI (Zero Silent Freezes)**:
+     - Caso ocorra qualquer falha de API ou rede, a TUI renderiza explicitamente a mensagem no histórico do chat como `❌ Error: <detalhes>` e mantém o indicador `✖ ERROR` na barra superior, nunca mais deixando o usuário em silêncio inexplicável.
+  3. **Ocultação Temporária do Search Depth**:
+     - O cabeçalho superior da TUI exibe estritamente as dimensões ativas: `AnyContext v0.32.6 ─ [WS: <workspace>] ─ [Model: <model>] ─ [Grounding: <MODE>] ─ [Web: ON|OFF] ─ ● IDLE`.
+     - O item "Search Depth Mode" fica oculto do menu principal interativo (`/menu`).
+     - Os comandos `/search`, `/fast` e `/deep` ficam ocultos da paleta de comandos da TUI até a conclusão da RFC-042.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão e Cabeçalho:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.6`.
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - **Critério de Aceitação**: O cabeçalho superior exibe `AnyContext v0.32.6 ─ [WS: Default] ─ [Model: ...] ─ [Grounding: STRICT] ─ [Web: OFF] ─ ● IDLE` (sem o badge `[Search: ...]`).
+
+2. **💬 Teste de Diálogo Multi-Turn Contínuo com Memória:**
+   - No prompt da TUI, envie a primeira pergunta:
+     ```text
+     Quais os programas de imigração que o Canada está dando preferência hoje em dia?
+     ```
+   - Aguarde a resposta completa da IA (que executa a busca interna e responde com a lista de programas).
+   - Em seguida, envie imediatamente a pergunta de continuação:
+     ```text
+     Destes programas, quais são mais adequados para AI Engineers?
+     ```
+   - **Critério de Aceitação**: A IA responde imediatamente analisando especificamente os programas de imigração canadenses citados na mensagem anterior, contextualizando-os para Engenheiros de Inteligência Artificial. Não ocorre congelamento silencioso nem erro HTTP 400.
+   - Envie uma terceira pergunta curta de teste de presença:
+     ```text
+     Você está aí?
+     ```
+   - **Critério de Aceitação**: A IA responde confirmando sua presença e pronta para ajudar na mesma conversa.
+
+3. **📋 Verificação do Menu Interativo:**
+   - Pressione `F1` ou digite `/menu`.
+   - **Critério de Aceitação**: O menu principal não exibe a opção de profundidade de busca (Search Depth Mode), mantendo as opções consolidadas (Workspaces, Sincronização, Fontes, Modelos, Grounding, Chaves, Diagnóstico e Sair). Pressione `Esc` para fechar.
+
+---
+
 ### 📌 Cenário 7 (v0.32.5 Resiliência de Runtime Tokio em search_db, Safe Drop de LanceDB e Tool Calling OpenAI Compliant):
 - **Objetivo**: Comprovar que na versão `v0.32.5`:
   1. **Execução de Tool Calls sem Panic de Runtime Tokio**:

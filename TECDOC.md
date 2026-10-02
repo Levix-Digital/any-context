@@ -5139,6 +5139,78 @@ In `crates/actx-lm/src/providers/openai.rs`, `serialize_request` now constructs 
 - **Context**: Flattened serialization of `ToolCall` caused OpenAI HTTP 400 rejection due to missing `type: "function"` parameter.
 - **Decision**: Restructure `ChatMessage` serialization in `actx-lm::providers::openai` to strictly adhere to the OpenAI function tool call specification.
 
+---
+
+## 83. High-Level Conversational Session Boundary, Orphaned Tool Scrubbing & TUI Error Surfacing (`v0.32.6`)
+
+### 1. Context & Architectural Root Causes
+During multi-turn conversational testing of the native Rust engine in both Windows and Linux environments, a critical issue arose where follow-up queries after a tool invocation would silently freeze without receiving any response:
+1. **ReAct Scratchpad Persistence Contamination**:
+   - In `crates/actx-agent/src/fsm.rs`, intermediate internal reasoning events (`ChatMessage::assistant_with_tools` with empty content and `ChatMessage::tool` with raw database outputs) were pushed to `persisted_new_messages`.
+   - Because `actx_session_messages` did not store `tool_calls`, the assistant step was saved with empty text and no tool metadata.
+   - On subsequent conversation turns, `SqliteSessionStore::get_messages` reloaded this sequence and transmitted an empty assistant turn followed by an orphaned tool response to the LLM provider.
+   - Upstream API providers (including OpenAI) rejected the payload with HTTP 400 (`Invalid parameter: messages with role 'tool' must be a response to a preceeding message with 'tool_calls'`).
+2. **Silent Error Swallowing in TUI**:
+   - In `crates/actx-cli/src/tui/app.rs`, `AgentEvent::Error(err)` called `finalize_assistant_turn()`.
+   - Because both `current_stream_buffer` and `current_thinking_buffer` were empty on immediate failure, no item was appended to `chat_history`.
+   - Furthermore, `finalize_assistant_turn()` set `self.status = AppStatus::Idle`, immediately overwriting `AppStatus::Error(err)`. The error was completely invisible, creating a silent freeze experience.
+3. **Premature Search Depth Mode Telemetry**:
+   - `[Search: AUTO|FAST|DEEP]` was displayed on the TUI top header, despite RFC-042 Deep Search remaining an active roadmap feature. This prematurely exposed incomplete search depth semantics to users.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    subgraph SingleTurnReAct["Single Turn ReAct Loop (In-Memory Scratchpad)"]
+        UserPrompt["User Prompt"] --> AgentFSM["ReAct FSM Loop"]
+        AgentFSM --> WorkingMsg["working_messages: Assistant(tool_calls) + Tool(result)"]
+        WorkingMsg --> Synthesis["Final Synthesized Answer"]
+    end
+
+    subgraph PersistentStorage["High-Level Persistent Storage (SqliteSessionStore)"]
+        UserPrompt -.-> PersistedMsg["persisted_new_messages"]
+        Synthesis -.-> PersistedMsg
+        PersistedMsg --> CleanSQL["actx_session_messages (User + Synthesized Assistant only)"]
+    end
+
+    subgraph TUIEvent["TUI Error Handling"]
+        AgentEventError["AgentEvent::Error(err)"] --> SystemMsg["chat_history.push(System Error Message)"]
+        SystemMsg --> ErrorStatus["app.status = AppStatus::Error(err)"]
+        ErrorStatus --> VisualRender["Render ❌ Error in Chat & Header"]
+    end
+```
+
+1. **High-Level Conversational Boundary (`crates/actx-agent/src/fsm.rs`)**:
+   - Intermediate `asst_msg` (tool calls) and `tool_msg` (tool execution results) are isolated strictly to `working_messages` during active turn deliberation.
+   - `persisted_new_messages` strictly records `ChatMessage::user` and the synthesized `ChatMessage::assistant(&final_content)`.
+   - If `max_turns` is exhausted, the final accumulated content is persisted if non-empty.
+2. **SqliteSessionStore Defensive Scrubbing (`crates/actx-agent/src/session.rs`)**:
+   - Added automated cleanup on database connection:
+     `DELETE FROM actx_session_messages WHERE role = 'tool' OR (role = 'assistant' AND (content IS NULL OR TRIM(content) = ''));`
+   - Added query-level filter in `get_messages_sync`:
+     `WHERE session_id = ? AND role != 'tool' AND NOT (role = 'assistant' AND TRIM(content) = '')`
+   - Guarantees backward compatibility and self-healing for legacy databases.
+3. **TUI Error Surfacing Guarantee (`crates/actx-cli/src/tui/app.rs`)**:
+   - `AgentEvent::Error(err)` appends a system error message directly into `chat_history`: `❌ Error: {err}`.
+   - Retains `self.status = AppStatus::Error(err)` for top-bar visibility, guaranteeing zero silent failures.
+4. **Search Depth UI Concealment (`crates/actx-cli/src/tui/ui.rs`, `menu.rs`, `registry.rs`)**:
+   - Temporarily concealed `[Search: ...]` from the TUI top header.
+   - Temporarily removed "Search Depth Mode" from the main interactive menu (`build_main_menu`).
+   - Temporarily commented out `/search`, `/fast`, `/deep` from the slash command palette until RFC-042 completion.
+
+### 3. Architecture Decision Records (ADR-088 & ADR-089)
+
+#### ADR-088: High-Level Conversational Session Boundary & Orphaned Tool Scrubbing
+- **Status**: Accepted & Implemented (`v0.32.6`).
+- **Context**: Persisting intermediate ReAct tool messages in SQLite corrupted multi-turn conversation payloads, causing OpenAI HTTP 400 rejection due to orphaned tool messages.
+- **Decision**: Restrict long-term session persistence to high-level user prompts and final synthesized assistant responses. Keep ReAct tool iterations in ephemeral working memory. Add automatic scrubbing and SQL filtering in `SqliteSessionStore`.
+
+#### ADR-089: TUI Error Surfacing Guarantee & Temporary Search Depth UI Concealment
+- **Status**: Accepted & Implemented (`v0.32.6`).
+- **Context**: TUI swallowed `AgentEvent::Error` without rendering, causing silent freezes. Concurrently, displaying `[Search: ...]` prematurely confused users since RFC-042 Deep Search is not yet active.
+- **Decision**: Explicitly push error events to `chat_history` with `MessageRole::System` and preserve `AppStatus::Error`. Temporarily conceal search depth UI elements until RFC-042 is fully operational.
+
+
 
 
 

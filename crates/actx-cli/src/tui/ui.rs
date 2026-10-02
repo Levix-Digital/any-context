@@ -76,13 +76,6 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         _ => Color::White,
     };
 
-    let search_color = match app.search_mode.to_lowercase().as_str() {
-        "auto" => Color::Green,
-        "fast" => Color::LightYellow,
-        "deep" => Color::LightRed,
-        _ => Color::White,
-    };
-
     let (web_text, web_style) = if app.web_search_enabled {
         ("ON", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
     } else {
@@ -98,8 +91,6 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled(&app.active_model, Style::default().fg(Color::Magenta)),
         Span::raw("] ─ [Grounding: "),
         Span::styled(app.grounding_mode.to_uppercase(), Style::default().fg(grounding_color).add_modifier(Modifier::BOLD)),
-        Span::raw("] ─ [Search: "),
-        Span::styled(app.search_mode.to_uppercase(), Style::default().fg(search_color).add_modifier(Modifier::BOLD)),
         Span::raw("] ─ [Web: "),
         Span::styled(web_text, web_style),
         Span::raw("] ─ "),
