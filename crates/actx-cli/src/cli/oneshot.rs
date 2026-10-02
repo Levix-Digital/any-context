@@ -146,14 +146,12 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
 
     let trimmed = query.trim();
     if trimmed == "--check-update" || trimmed == "-check-update" || trimmed == "check-update" {
-        println!("Checking for updates on GitHub releases (Levix-Digital/any-context)...");
-        println!("actx v{} is currently the latest stable release.", env!("CARGO_PKG_VERSION"));
+        handle_check_update();
         return Ok(());
     }
 
     if trimmed == "--update" || trimmed == "-u" || trimmed == "update" || trimmed == "upgrade" {
-        println!("Checking for updates on GitHub releases (Levix-Digital/any-context)...");
-        println!("actx is already up-to-date (v{}).", env!("CARGO_PKG_VERSION"));
+        handle_update(None);
         return Ok(());
     }
 

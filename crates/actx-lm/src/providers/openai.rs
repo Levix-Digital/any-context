@@ -116,9 +116,47 @@ impl OpenAiCompatibleProvider {
     }
 
     fn serialize_request(&self, request: &ChatRequest, stream: bool) -> serde_json::Value {
+        let messages: Vec<serde_json::Value> = request
+            .messages
+            .iter()
+            .map(|msg| {
+                let mut obj = serde_json::json!({
+                    "role": msg.role.to_string(),
+                    "content": msg.content,
+                });
+
+                if let Some(ref name) = msg.name {
+                    obj["name"] = serde_json::json!(name);
+                }
+
+                if let Some(ref tcid) = msg.tool_call_id {
+                    obj["tool_call_id"] = serde_json::json!(tcid);
+                }
+
+                if let Some(ref tool_calls) = msg.tool_calls {
+                    let tc_json: Vec<serde_json::Value> = tool_calls
+                        .iter()
+                        .map(|tc| {
+                            serde_json::json!({
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.name,
+                                    "arguments": tc.arguments,
+                                }
+                            })
+                        })
+                        .collect();
+                    obj["tool_calls"] = serde_json::json!(tc_json);
+                }
+
+                obj
+            })
+            .collect();
+
         let mut json = serde_json::json!({
             "model": request.model,
-            "messages": request.messages,
+            "messages": messages,
             "stream": stream,
         });
 

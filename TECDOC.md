@@ -67,6 +67,8 @@
 79. [Multi-Byte UTF-8 Char Boundary Safety, Visual Cursor Alignment & Universal Release Protocol (`v0.32.2`)](#79-multi-byte-utf-8-char-boundary-safety-visual-cursor-alignment--universal-release-protocol-v0322)
 80. [TUI Stabilization, Isolated Prompt History Navigation, Quad-Status Top Header & Long-Term Memory Self-Awareness (`v0.32.3`)](#80-tui-stabilization-isolated-prompt-history-navigation-quad-status-top-header--long-term-memory-self-awareness-v0323)
 81. [Universal UI-Agnostic Command Engine & Grounding vs Search Depth Mode Decoupling Architecture (`v0.32.4`)](#81-universal-ui-agnostic-command-engine--grounding-vs-search-depth-mode-decoupling-architecture-v0324)
+82. [Asynchronous LanceDB Thread Isolation, Safe Runtime Destruction & OpenAI Tool Calls Alignment (`v0.32.5`)](#82-asynchronous-lancedb-thread-isolation-safe-runtime-destruction--openai-tool-calls-alignment-v0325)
+
 
 
 ---
@@ -5074,6 +5076,69 @@ AnyContext v0.32.4 ─ [WS: Default] ─ [Model: gemini-2.5-flash] ─ [Groundin
 - **Status**: Accepted & Implemented (`v0.32.4`).
 - **Context**: `auto|fast|deep` (search retrieval depth) was conflated with `strict|hybrid|proactive` (LLM grounding verification rigor), creating user confusion and semantic corruption.
 - **Decision**: Strictly isolate `/mode` (Grounding: `strict`, `hybrid`, `proactive`) from `/search` (Search Depth: `auto`, `fast`, `deep`). Provide independent interactive menus (`build_grounding_menu` vs `build_search_menu`). Expand TUI top header to quint-status telemetry (`WS`, `Model`, `Grounding`, `Search`, `Web`).
+
+---
+
+## 82. Asynchronous LanceDB Thread Isolation, Safe Runtime Destruction & OpenAI Tool Calls Alignment (`v0.32.5`)
+
+### 1. Root Cause Analysis & Field Regression Telemetry
+In field deployments following `v0.32.4`, two critical regressions were identified when running interactive multi-turn ReAct agent queries with tool calls:
+1. **Tokio Runtime Nesting Panic in `search_db`**:
+   - When the agent executed `search_db`, it invoked synchronous `NativeLanceStore` methods (`search_metadata`, `search_vector`, `upsert_records`, etc.) directly on a Tokio worker thread.
+   - Synchronous wrappers in `NativeLanceStore` invoked `self.runtime.block_on(...)`. Tokio immediately panicked with:
+     ```text
+     thread 'tokio-rt-worker' panicked at Cannot start a runtime from within a runtime.
+     This happens because a function (like block_on) attempted to block the current thread while the thread is being used to drive asynchronous tasks.
+     ```
+2. **Tokio Runtime Destruction Panic on Drop**:
+   - When `NativeLanceStore` went out of scope inside an asynchronous context, its field `runtime: Arc<tokio::runtime::Runtime>` was dropped. Dropping a `Runtime` initiates blocking thread joins, causing Tokio to panic:
+     ```text
+     Cannot drop a runtime in a context where blocking is not allowed. This happens when a runtime is dropped from within an asynchronous context.
+     ```
+3. **OpenAI Protocol Tool Call Serialization Schema Mismatch**:
+   - `ChatMessage::assistant_with_tools` serialized `ToolCall` directly into `messages[].tool_calls` as `{ id, name, arguments }`.
+   - OpenAI and compliant upstream APIs strictly enforce `{ id, type: "function", function: { name, arguments } }`, throwing HTTP 400:
+     ```text
+     Missing required parameter: 'messages[2].tool_calls[0].type'.
+     ```
+
+### 2. Scoped Thread Isolation Engine (`safe_block_on`) & Safe Drop
+`crates/any-context-core-rs/src/storage/lancedb.rs` was re-engineered with dual-layer runtime protection:
+1. **`safe_block_on`**:
+   - Detects if execution occurs on a Tokio thread via `tokio::runtime::Handle::try_current().is_ok()`.
+   - Uses `std::thread::scope` to spawn an isolated OS thread that executes a clean single-threaded worker runtime (`temp_rt.block_on(future)`).
+   - Guarantees zero nested runtime panics while preserving borrowing of `&self`.
+2. **`Drop for NativeLanceStore`**:
+   - Checks `Arc::strong_count(&rt) == 1` and `Handle::try_current().is_ok()`.
+   - If dropped inside an async task, offloads `drop(rt)` to a detached `std::thread::spawn`, preventing blocking shutdown panics on Tokio worker threads.
+3. **Tokio Blocking Offloading**:
+   - In `crates/actx-cli/src/engine.rs`, `search_db` wraps storage operations in `tokio::task::spawn_blocking`, ensuring non-blocking execution across the TUI event loop.
+
+### 3. OpenAI Tool Call Protocol Alignment
+In `crates/actx-lm/src/providers/openai.rs`, `serialize_request` now constructs compliant payload envelopes:
+```json
+{
+  "id": "call_123",
+  "type": "function",
+  "function": {
+    "name": "search_db",
+    "arguments": "{\"query\":\"...\"}"
+  }
+}
+```
+
+### 4. Architecture Decision Records (ADR-086 & ADR-087)
+
+#### ADR-086: Scoped Non-Blocking LanceDB Invocation and Safe Runtime Destruction
+- **Status**: Accepted & Implemented (`v0.32.5`).
+- **Context**: Calling synchronous LanceDB methods or dropping `NativeLanceStore` from within async tasks triggered Tokio runtime panics.
+- **Decision**: Introduce `safe_block_on` with `std::thread::scope` for Tokio-safe synchronous calls, wrap `search_db` in `tokio::task::spawn_blocking`, and implement custom `Drop` to offload runtime destruction to dedicated OS threads.
+
+#### ADR-087: OpenAI Function Tool Call Protocol Alignment
+- **Status**: Accepted & Implemented (`v0.32.5`).
+- **Context**: Flattened serialization of `ToolCall` caused OpenAI HTTP 400 rejection due to missing `type: "function"` parameter.
+- **Decision**: Restructure `ChatMessage` serialization in `actx-lm::providers::openai` to strictly adhere to the OpenAI function tool call specification.
+
 
 
 
