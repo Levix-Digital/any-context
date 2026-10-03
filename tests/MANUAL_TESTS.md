@@ -7,6 +7,103 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 10 (v0.32.9 Persistência Hermética de Workspaces, Auto-Update Atômico no Windows, Sincronização Unificada Real e Expurgo de Venv):
+- **Objetivo**: Comprovar que na versão `v0.32.9`:
+  1. **Persistência Hermética e Isolamento de Configurações por Workspace no SQLite**:
+     - Cada workspace armazena de forma independente e estrita no banco SQLite (`settings.db`) suas próprias configurações (`grounding_mode`, `model`, `web_search_enabled`).
+     - A alteração do modo (ex: `/mode proactive` no workspace `Default`) NUNCA vaza para outros workspaces ou para a tabela global `app_settings`.
+     - Novos workspaces criados pelo usuário iniciam sempre com as configurações padrão canônicas: Grounding em `STRICT`, modelo `gpt-4o-mini` e Web Search `OFF`.
+     - Ao reiniciar a aplicação ou alternar entre workspaces, as opções previamente configuradas pelo usuário para cada workspace são 100% preservadas e recarregadas.
+  2. **Execução Real de Sincronização Multi-Fonte em Background (`/sync` e `/sync --force`)**:
+     - O comando `/sync` ou `/sync --force` na TUI ou no terminal (`actx --sync --force`) não é um mock cosmético de menos de 1 segundo.
+     - Dispara o worker unificado em segundo plano (`--sync-worker`), processando pastas locais e portais web cadastrados (incluindo sites com mais de 1.500 páginas), gerando embeddings e atualizando os índices no LanceDB.
+     - A TUI exibe o feedback detalhado de pastas e portais web sendo sincronizados sem travar a navegação.
+  3. **Auto-Update Atômico e In-Place no Windows (`actx --update` e `/update`)**:
+     - Em ambiente Windows, o instalador supera a trava de arquivo em execução (`OS error 32 / ERROR_SHARING_VIOLATION`).
+     - O processo executa uma renomeação atômica do binário ativo (`actx.exe` -> `actx.exe.old`), posiciona o novo executável e agenda a limpeza dos arquivos obsoletos.
+     - Ao rodar `actx -v` após a conclusão do update, a versão atualizada (`v0.32.9`) é confirmada sem falhas de permissão.
+  4. **Expurgo Total de Ambientes Virtuais (Venv) e Diretórios de Desenvolvimento no Instalador**:
+     - O `actx-installer` opera exclusivamente sobre os diretórios canônicos do sistema operacional (`%LOCALAPPDATA%\actx\bin` no Windows, `~/.local/bin` no Linux e `~/Library/Application Support/actx/bin` no macOS).
+     - Todas as tentativas ou verificações de caminhos `.venv` ou `../main.py` foram erradicadas da distribuição de produção.
+  5. **Blindagem do Modo PROACTIVE contra Placeholders de Conversa**:
+     - O modelo em modo `PROACTIVE` é terminantemente proibido de fabricar sessões passadas com templates genéricos (`[insira o tópico ou assunto...]`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão e Expurgo de Fallbacks:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.9`. Nenhuma menção a venv ou arquivos em desenvolvimento deve ocorrer.
+
+2. **🛡️ Teste de Persistência Hermética e Criação de Workspace:**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - No workspace `Default`, configure para PROACTIVE:
+     ```text
+     /mode proactive
+     ```
+   - **Critério de Aceitação**: A barra superior atualiza para `[WS: Default] ─ ... ─ [Grounding: PROACTIVE]`.
+   - Crie e mude para um novo workspace de teste:
+     ```text
+     /workspace test-isolation
+     ```
+   - **Critério de Aceitação**: O novo workspace `test-isolation` abre com as configurações padrão: `[Grounding: STRICT]`, `[Model: gpt-4o-mini]`, `[Web: OFF]`. O modo PROACTIVE do `Default` NÃO vazou para o novo workspace.
+   - Configure o workspace `test-isolation` para HYBRID:
+     ```text
+     /mode hybrid
+     ```
+   - Volte para o workspace `Default`:
+     ```text
+     /workspace Default
+     ```
+   - **Critério de Aceitação**: O workspace `Default` recarrega imediatamente com `[Grounding: PROACTIVE]`.
+   - Alterne novamente para `test-isolation`:
+     ```text
+     /workspace test-isolation
+     ```
+   - **Critério de Aceitação**: O workspace `test-isolation` recarrega com `[Grounding: HYBRID]`, provando isolamento hermético entre ambos.
+   - Retorne o `Default` para `strict` se desejar:
+     ```text
+     /workspace Default
+     /mode strict
+     ```
+
+3. **🌐 Teste de Sincronização Real em Segundo Plano (`/sync --force`):**
+   - No workspace ativo, execute o comando de ressincronização forçada:
+     ```text
+     /sync --force
+     ```
+   - **Critério de Aceitação**: A tela exibe confirmação informando que o processo de sincronização unificada foi disparado em segundo plano (`Background sync started...`), detalhando as pastas e fontes web vinculadas. A TUI não congela e o worker processa as páginas em background.
+   - No terminal (modo direto), execute:
+     ```text
+     actx --sync
+     ```
+   - **Critério de Aceitação**: O terminal executa a sincronização com retorno completo das fontes e páginas indexadas.
+
+4. **🔄 Teste de Auto-Update no Windows (`actx --update` e `/update`):**
+   - Execute no terminal do Windows:
+     ```text
+     actx --update
+     ```
+   - Se já estiver na versão mais recente (`v0.32.9`), o sistema informa:
+     ```text
+     actx is already up to date (v0.32.9).
+     ```
+   - Se houver uma nova release lançada, o instalador faz o download, realiza a troca atômica (`actx.exe` -> `actx.exe.old`), instala o novo binário e finaliza com sucesso sem gerar erro de permissão ou `OS error 32`.
+
+5. **💬 Teste de Blindagem de Prompt no Modo PROACTIVE:**
+   - Na TUI, no modo `PROACTIVE`:
+     ```text
+     O que falamos da última vez?
+     ```
+   - **Critério de Aceitação**: A IA responde honestamente indicando o contexto disponível ou solicitando o assunto, sem NUNCA cuspir placeholders literais como `[insira o tópico ou assunto que foi abordado anteriormente]`.
+
+---
+
 ### 📌 Cenário 9 (v0.32.7 Grounding Estrito com Injeção de AGENT.md, LanceDB Canônico Único Sem Legados, Persistência de Modos por Workspace, Acordeão ReAct/Thinking Ativo, Streaming Real e Flag Global -q/--query):
 - **Objetivo**: Comprovar que na versão `v0.32.7`:
   1. **Flag Global de Consulta Direta (`-q, --query`)**:

@@ -11,7 +11,7 @@ use std::process::Command;
 use atomic_swap::finalize_staging_update;
 use downloader::{download_release_asset, fetch_latest_release_tag};
 use extractor::extract_archive;
-use paths::{get_canonical_bin_dir, get_core_exe_name, get_distribution_asset_name, get_shim_exe_name};
+pub use paths::{get_canonical_bin_dir, get_core_exe_name, get_distribution_asset_name, get_shim_exe_name};
 use validator::validate_binary_format;
 
 pub const FALLBACK_VERSION: &str = "v0.30.34";
@@ -72,10 +72,22 @@ pub fn run_launcher_or_update_workflow(args: &[String], current_exe: &Path) {
         return;
     }
 
-    // 4. Pre-flight check: finalize any orphaned pending updates from earlier runs
+    // 4. Pre-flight check: finalize any orphaned pending updates and clean lingering .old files
     if pending_flag.exists() {
         let new_ver = read_version_from_pending_json(&pending_flag);
         let _ = finalize_staging_update(&base_dir, &staging_dir, new_ver.as_deref());
+    }
+    if let Ok(entries) = std::fs::read_dir(&base_dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                if let Some(ext) = p.extension() {
+                    if ext.eq_ignore_ascii_case("old") {
+                        let _ = std::fs::remove_file(&p);
+                    }
+                }
+            }
+        }
     }
 
     // 5. Locate and validate the heavy core engine
@@ -83,18 +95,6 @@ pub fn run_launcher_or_update_workflow(args: &[String], current_exe: &Path) {
     let core_exe = base_dir.join(core_name);
 
     if !core_exe.exists() {
-        // Fallback for development environments: check for ../main.py
-        let dev_main = base_dir.join("..").join("main.py");
-        if dev_main.exists() {
-            let mut cmd = Command::new("python");
-            cmd.arg(&dev_main);
-            if args.len() > 1 {
-                cmd.args(&args[1..]);
-            }
-            let status = cmd.status().unwrap_or_else(|_| std::process::exit(1));
-            std::process::exit(status.code().unwrap_or(1));
-        }
-
         eprintln!("[!] Error: AnyContext core engine ('{}') not found in: {}", core_name, base_dir.display());
         eprintln!("[>] Please run 'actx --update' or reinstall to repair.");
         std::process::exit(1);
@@ -241,10 +241,8 @@ pub fn run_installer_workflow(args: &[String]) {
     println!("[>] Open a new terminal and run '{}' or 'actx --tui' to start.\n", get_shim_exe_name());
 }
 
-/// Executes a self-update from the active installation directory.
-pub fn run_standalone_update(base_dir: &Path, requested_version: Option<&str>) {
-    println!("\n[*] Checking for AnyContext updates via HTTPS...");
-
+/// Executes a self-update returning a Result for UI-agnostic callers.
+pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str>) -> Result<String, String> {
     let target_version = match requested_version {
         Some(v) => {
             if v.starts_with('v') {
@@ -253,24 +251,14 @@ pub fn run_standalone_update(base_dir: &Path, requested_version: Option<&str>) {
                 format!("v{}", v)
             }
         }
-        None => match fetch_latest_release_tag() {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("[!] {}", e);
-                return;
-            }
-        },
+        None => fetch_latest_release_tag().map_err(|e| format!("Failed to resolve latest release: {}", e))?,
     };
-
-    println!("[*] Preparing update to {}...", target_version);
 
     let asset_name = get_distribution_asset_name();
     let temp_archive = std::env::temp_dir().join(format!("actx_update_{}_{}", target_version, asset_name));
 
-    if let Err(e) = download_release_asset(&target_version, asset_name, &temp_archive) {
-        eprintln!("[!] Download failed: {}", e);
-        return;
-    }
+    download_release_asset(&target_version, asset_name, &temp_archive)
+        .map_err(|e| format!("Download failed: {}", e))?;
 
     let staging_dir = base_dir.join("actx_staging");
     if staging_dir.exists() {
@@ -278,16 +266,32 @@ pub fn run_standalone_update(base_dir: &Path, requested_version: Option<&str>) {
     }
 
     if let Err(e) = extract_archive(&temp_archive, &staging_dir) {
-        eprintln!("[!] Extraction failed: {}", e);
         let _ = std::fs::remove_file(&temp_archive);
-        return;
+        return Err(format!("Extraction failed: {}", e));
     }
 
     let _ = std::fs::remove_file(&temp_archive);
 
-    if let Err(e) = finalize_staging_update(base_dir, &staging_dir, Some(&target_version)) {
-        eprintln!("[!] Update finalization failed: {}", e);
-        return;
+    finalize_staging_update(base_dir, &staging_dir, Some(&target_version))
+        .map_err(|e| format!("Update finalization failed: {}", e))?;
+
+    configure_system_path(base_dir);
+
+    Ok(format!("AnyContext successfully updated to {} in {}", target_version, base_dir.display()))
+}
+
+/// Executes a self-update from the active installation directory with stdout progress.
+pub fn run_standalone_update(base_dir: &Path, requested_version: Option<&str>) {
+    println!("\n[*] Checking for AnyContext updates via HTTPS...");
+
+    match execute_standalone_update(base_dir, requested_version) {
+        Ok(msg) => {
+            println!("\n[OK] {}", msg);
+            println!("[>] Please restart 'actx' to launch the new version.\n");
+        }
+        Err(e) => {
+            eprintln!("\n[!] {}", e);
+        }
     }
 }
 
@@ -300,7 +304,7 @@ pub fn read_version_from_pending_json(pending_flag: &Path) -> Option<String> {
     val.get("version").and_then(|v| v.as_str()).map(|s| s.to_string())
 }
 
-/// Checks and ensures that the bin directory is added to PATH on Windows.
+/// Checks and ensures that the bin directory is added to PATH on Windows with high precedence.
 pub fn configure_system_path(bin_dir: &Path) {
     #[cfg(target_os = "windows")]
     {
@@ -313,7 +317,7 @@ pub fn configure_system_path(bin_dir: &Path) {
                         "-NoProfile",
                         "-Command",
                         &format!(
-                            "[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';{}', 'User')",
+                            "[Environment]::SetEnvironmentVariable('Path', '{}' + ';' + [Environment]::GetEnvironmentVariable('Path', 'User'), 'User')",
                             bin_str
                         ),
                     ])

@@ -45,6 +45,12 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🔒 Hermetic Workspace Settings, Background Unified Sync & Windows Atomic Update (`v0.32.9`)**:
+  - **Hermetic SQLite Workspace Settings Isolation**: Workspace configuration (`grounding_mode`, `model`, `web_search_enabled`) is persisted strictly in the relational `workspaces` table with auto-migrations. New workspaces initialize in `STRICT` mode with `gpt-4o-mini` and `web_search: 0`, completely preventing global setting leakage across workspaces.
+  - **Real Multi-Source Background Synchronization (`/sync`)**: Replaced instantaneous mocks with real background worker execution (`--sync-worker`), reliably scraping and indexing registered web portals (>1,500 pages) and local file trees into LanceDB vector datasets.
+  - **Windows Atomic Self-Update Swap**: Solved Windows file locking (`OS error 32 / ERROR_SHARING_VIOLATION`) during `actx --update` and `/update` via atomic executable rename (`.exe` -> `.exe.old`), target placement, and automatic cleanup of obsolete binaries.
+  - **Pure Canonical Paths & Zero Dev/Venv Fallbacks**: Completely eradicated virtual environment (`.venv`) and source repo checks from `actx-installer`, guaranteeing standardized deployment across Windows (`%LOCALAPPDATA%\actx\bin`), Linux (`~/.local/bin`), and macOS.
+  - **Hardened PROACTIVE Grounding**: Enforced system prompt safeguards against generic placeholder templates (`[insira o tópico...]`) and ungrounded statements.
 - **🛡️ Strict Grounding Parity, Real-Time Token Streaming & Single Canonical LanceDB (`v0.32.7`)**:
   - **Single Canonical LanceDB Path (Zero Legacy Paths)**: Consolidates all vector datasets and BM25 indices into exactly ONE canonical location (`<app_data_root>/data/context_db/lancedb`, e.g., `%LOCALAPPDATA%\AnyContext\data\context_db\lancedb` on Windows), eradicating all legacy path guessing, fragmentation, and directory conflicts.
   - **Strict Grounding Strategy & `AGENT.md` Engine**: The native Rust CLI embeds and enforces authoritative system prompt directives (`config/AGENT.md`) with zero parametric memory hallucination in `STRICT` mode, autonomous `search_db` execution, explicit citation footers (`📄 Fontes Consultadas`), and temporal recency precedence.

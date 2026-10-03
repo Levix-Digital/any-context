@@ -156,6 +156,20 @@ def entrypoint():
         run_rpc_server(default_workspace=target_ws)
         sys.exit(0)
 
+    if "--sync-worker" in sys.argv:
+        target_ws = "Default"
+        force = "--force" in sys.argv or "-f" in sys.argv
+        for i, a in enumerate(sys.argv):
+            if a in ["-w", "--workspace"] and i + 1 < len(sys.argv):
+                target_ws = sys.argv[i + 1]
+            elif not a.startswith("-") and a != sys.argv[0] and a != "--sync-worker":
+                target_ws = a
+        from any_context.ingestion.unified_sync import run_unified_sync
+        print(f"🔄 Executing unified sync worker for workspace '{target_ws}' (force={force})...", flush=True)
+        res = run_unified_sync(workspace_name=target_ws, force_full=force, verbose=True)
+        print(f"✔ Unified sync worker completed for workspace '{target_ws}'.", flush=True)
+        sys.exit(0)
+
     if "--mcp" in sys.argv:
         obs.info("CLI:DISPATCH", "Dispatching to MCP Server", {"argv": sys.argv})
         from any_context.server.mcp import start_mcp_server

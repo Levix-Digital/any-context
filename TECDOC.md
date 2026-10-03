@@ -68,9 +68,9 @@
 80. [TUI Stabilization, Isolated Prompt History Navigation, Quad-Status Top Header & Long-Term Memory Self-Awareness (`v0.32.3`)](#80-tui-stabilization-isolated-prompt-history-navigation-quad-status-top-header--long-term-memory-self-awareness-v0323)
 81. [Universal UI-Agnostic Command Engine & Grounding vs Search Depth Mode Decoupling Architecture (`v0.32.4`)](#81-universal-ui-agnostic-command-engine--grounding-vs-search-depth-mode-decoupling-architecture-v0324)
 82. [Asynchronous LanceDB Thread Isolation, Safe Runtime Destruction & OpenAI Tool Calls Alignment (`v0.32.5`)](#82-asynchronous-lancedb-thread-isolation-safe-runtime-destruction--openai-tool-calls-alignment-v0325)
-
-
-
+83. [High-Level Conversational Session Boundary, Orphaned Tool Scrubbing & TUI Error Surfacing (`v0.32.6`)](#83-high-level-conversational-session-boundary-orphaned-tool-scrubbing--tui-error-surfacing-v0326)
+84. [Strict Grounding Strategy Engine, Real-Time Token Streaming & Canonical LanceDB Consolidation (`v0.32.7`)](#84-strict-grounding-strategy-engine-real-time-token-streaming--canonical-lancedb-consolidation-v0327)
+85. [Hermetic Workspace Settings Persistence, Unified Sync Worker Ingestion, Windows Atomic Self-Update Swap & Venv Purge (`v0.32.9`)](#85-hermetic-workspace-settings-persistence-unified-sync-worker-ingestion-windows-atomic-self-update-swap--venv-purge-v0329)
 ---
 
 
@@ -5212,7 +5212,7 @@ flowchart TD
 
 ---
 
-## 32. Strict Grounding Strategy Engine, Real-Time Token Streaming & Canonical LanceDB Consolidation (`v0.32.7`)
+## 84. Strict Grounding Strategy Engine, Real-Time Token Streaming & Canonical LanceDB Consolidation (`v0.32.7`)
 
 ### 1. Root Cause Analysis
 1. **Parametric Weight Hallucination & Prompt Parity Gap**:
@@ -5263,6 +5263,95 @@ flowchart TD
 - **Status**: Accepted & Implemented (`v0.32.7`).
 - **Context**: Discrepancies between Python and Rust system prompts allowed models to answer from weights in STRICT mode. Multiple LanceDB paths led to dataset fragmentation. Token output was delayed until turn completion.
 - **Decision**: Embed `config/AGENT.md` into the native binary, strictly enforce autonomous `search_db` invocation, consolidate LanceDB into a single canonical directory, persist grounding modes per-workspace in SQLite, and implement real-time SSE token streaming via `chat_stream()`.
+
+---
+
+## 85. Hermetic Workspace Settings Persistence, Unified Sync Worker Ingestion, Windows Atomic Self-Update Swap & Venv Purge (`v0.32.9`)
+
+### 1. Root Cause Analysis
+1. **Workspace Setting Leakage & Default Desynchronization**:
+   - In previous releases, workspace setting accessors (`get_workspace_grounding_mode`, `set_workspace_grounding_mode`, `get_workspace_model`, `get_workspace_web_search`) fell back to or modified the global `app_settings` key-value table whenever table queries failed.
+   - Consequently, setting a mode or model in one workspace leaked globally, overwriting settings across unrelated workspaces. Furthermore, newly created workspaces lacked explicit database-level defaults, sometimes defaulting unpredictably to `proactive` or legacy state rather than `strict`.
+2. **Windows File Locking During In-Place Self-Update (`ERROR_SHARING_VIOLATION` / OS Error 32)**:
+   - On Windows NTFS filesystems, replacing or deleting an executable file currently running (`actx.exe`) is rejected by the kernel with a sharing violation (`OS error 32`).
+   - Although in-place deletion/overwriting is blocked, Windows explicitly permits **atomic renaming** of locked running binaries within the same filesystem volume.
+   - Running `actx --update` or the `/update` slash command previously attempted direct replacement, leaving the user on the existing binary despite reporting a successful download.
+3. **Superficial Mock Execution in `/sync` & `/sync --force`**:
+   - In `crates/any-context-core-rs/src/commands/engine.rs`, `execute_sync` was a lightweight mock returning in `< 10ms` without dispatching background synchronization tasks.
+   - For workspaces containing registered web portals (>1,500 pages) or large local document trees, the command returned immediately without executing recursive web scraping, chunking, or LanceDB vector index updates.
+4. **Development/Virtualenv Fallbacks in Distribution Installer**:
+   - `crates/actx-installer` retained development-only fallback paths (checking `../main.py` or `.venv/Scripts/python.exe`).
+   - In end-user environments, these dev fallbacks caused unexpected failures, log noise, and conceptual confusion. End-user installations must strictly and exclusively target canonical OS binary directories.
+5. **PROACTIVE Grounding Hallucination & Template Fillers**:
+   - When asked open-ended questions about past conversation history without context, the model in `PROACTIVE` mode occasionally emitted template filler strings (`Na última conversa, discutimos sobre [insira o tópico ou assunto...]`).
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    subgraph UpdateEngine["Windows Atomic Self-Update Swap (crates/actx-installer)"]
+        NewBin["Downloaded actx-vX.Y.Z.exe"] --> LockCheck{"actx.exe Locked? (OS Error 32)"}
+        LockCheck -- "Yes" --> RenameOld["Atomic Rename: actx.exe -> actx.exe.old"]
+        RenameOld --> MoveNew["Atomic Move: NewBin -> actx.exe"]
+        MoveNew --> Cleanup["Sweep & Unlink Unlocked *.old Binaries"]
+        LockCheck -- "No" --> MoveNew
+    end
+
+    subgraph WorkspaceIsolation["Hermetic Workspace Isolation (crates/any-context-core-rs)"]
+        WSQuery["get_workspace_grounding_mode(ws)"] --> WSTable["SELECT grounding_mode FROM workspaces WHERE name = ?"]
+        WSTable --> ReturnMode["Return Mode ('strict' default) - ZERO app_settings Access"]
+        WSSet["set_workspace_grounding_mode(ws, mode)"] --> WSUpdate["UPDATE workspaces SET grounding_mode = ? WHERE name = ?"]
+    end
+
+    subgraph SyncWorkerEngine["Unified Background Sync Worker (crates/any-context-core-rs)"]
+        SyncCmd["/sync or /sync --force"] --> WorkerSpawn["Spawn actx-core / actx --sync-worker"]
+        WorkerSpawn --> ScrapeCrawl["Recursive Web Crawler (>1500 Pages) & Local Scanner"]
+        ScrapeCrawl --> LanceDBUpdate["Apache Arrow Chunking & LanceDB Vector Store Update"]
+        SyncCmd --> TUINonBlock["Immediate TUI Feedback: Sync running in background"]
+    end
+```
+
+1. **Hermetic Workspace Storage & Zero Global Leakage (`crates/any-context-core-rs/src/storage/sqlite.rs`)**:
+   - The `workspaces` table DDL now defines:
+     ```sql
+     CREATE TABLE IF NOT EXISTS workspaces (
+         name TEXT PRIMARY KEY,
+         created_at TEXT NOT NULL,
+         updated_at TEXT NOT NULL,
+         grounding_mode TEXT NOT NULL DEFAULT 'strict',
+         model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+         web_search_enabled INTEGER NOT NULL DEFAULT 0
+     );
+     ```
+   - Automated safe migrations inspect `PRAGMA table_info(workspaces)` and apply `ALTER TABLE workspaces ADD COLUMN ...` if columns are absent in legacy databases.
+   - All workspace setting accessors (`get_workspace_grounding_mode`, `set_workspace_grounding_mode`, `get_workspace_web_search`, `set_workspace_web_search`, `get_workspace_model`, `set_workspace_model`) execute strictly against the `workspaces` table. All fallback reads and writes to global `app_settings` were completely eradicated.
+   - Added automated schema migration for `workspace_web_urls` (`title`, `last_hash`, `polling_interval_hours`, `last_scraped_at`, `page_count`, `root_url`, `scope`).
+2. **Windows Atomic Executable Swap & Self-Update (`crates/actx-installer/src/atomic_swap.rs` & `lib.rs`)**:
+   - In Step 8 of `atomic_swap.rs`, if copying to the destination executable fails on Windows (`dest.is_file()`), the updater atomically renames the locked running file to `dest.with_extension("old")` (`actx.exe.old`), then moves the new executable into place (`dest`).
+   - In Step 10 and at initialization, the installer performs a directory sweep, deleting any unlinked `.old` executables that have since been released by closed processes.
+   - Implemented `actx_installer::execute_standalone_update(base_dir, requested_ver)` returning structured status messages.
+3. **Canonical Binary Path Resolution & Zero Venv Fallbacks**:
+   - Eradicated all references to `../main.py`, `.venv`, and source repository checkouts in `crates/actx-installer`.
+   - The updater strictly operates on canonical binary paths:
+     - **Windows**: `%LOCALAPPDATA%\actx\bin` (`C:\Users\<User>\AppData\Local\actx\bin`)
+     - **Linux**: `~/.local/bin`
+     - **macOS**: `~/Library/Application Support/actx/bin` (or `~/.local/bin`)
+   - `configure_system_path` on Windows automatically prepends the canonical bin directory to the User `PATH` environment variable.
+4. **Real Unified Sync Worker Integration (`crates/any-context-core-rs/src/commands/engine.rs` & `cli/entrypoint.py`)**:
+   - Replaced the instantaneous mock in `execute_sync`:
+     - Spawns background process with `--sync-worker --workspace <ws> [--force]`.
+     - Queries `workspace_folders` and `workspace_web_urls` to display the exact counts of local paths and web portals currently queued for synchronization.
+     - In Python/core entrypoint, handles `--sync-worker` by invoking `run_unified_sync(workspace_name=..., force_full=..., verbose=True)`.
+5. **Prompt Hardening for PROACTIVE Mode (`crates/actx-cli/src/prompt.rs`)**:
+   - System prompt instructions for PROACTIVE grounding now forbid generic placeholder templates (`[insira o tópico...]`) and prohibit pretending to recall ungrounded conversation history.
+
+### 3. Architecture Decision Record (ADR-091)
+
+#### ADR-091: Hermetic Workspace Isolation, Windows Atomic Executable Swap & Production Installer Canonicalization
+- **Status**: Accepted & Implemented (`v0.32.9`).
+- **Context**: Workspace settings leaked across workspaces via global SQLite fallbacks; Windows file locking prevented in-place binary self-updates; `/sync` was an instantaneous mock; and installer code contained fragile developer venv assumptions.
+- **Decision**: Enforce strict relational workspace columns with automated schema migrations, eliminate all global settings fallbacks, execute Windows self-updates via atomic `.exe.old` renaming, route `/sync` to a dedicated background `--sync-worker`, and eradicate all developer virtual environment assumptions from production installer binaries.
+
 
 
 
