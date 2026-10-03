@@ -140,6 +140,8 @@ pub fn build_system_prompt(
                 "### 🚀 ACTIVE GROUNDING MODE: PROACTIVE (RESEARCH & STRATEGY)\n\
                  - Freely combine workspace documents, web intelligence, and domain knowledge.\n\
                  - Tag each insight by source (`[Documento: ...]`, `[Web: ...]`, `[Recomendação]`).\n\
+                 - NEVER output generic template placeholder phrases such as `[insira o tópico...]` or fabricate past session details.\n\
+                 - If the user asks about prior conversations or historical context and no record is present in this workspace, state honestly that no previous record was found.\n\
                  - Conclude with `📄 Fontes Consultadas:`.\n\n"
             );
         }

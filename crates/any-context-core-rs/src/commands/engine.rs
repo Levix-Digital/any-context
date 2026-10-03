@@ -5,7 +5,6 @@ use std::path::Path;
 use crate::commands::models::{
     CommandAction, CommandResult, CommandStateUpdates, ExecutionContext, GroundingMode, SearchDepthMode,
 };
-use crate::ingestion::WorkspaceScanner;
 use crate::storage::{get_default_lancedb_path, get_default_settings_db_path, NativeConfigDb, NativeLanceStore};
 
 /// UI-Agnostic command executor service.
@@ -395,31 +394,78 @@ impl CommandEngine {
         }
 
         let force = args.iter().any(|a| *a == "--force" || *a == "-f" || *a == "force");
-        let db = NativeConfigDb::open_default().ok();
-        let folders = db
-            .as_ref()
-            .and_then(|d| d.get_workspace_folders(&ctx.active_workspace).ok())
-            .unwrap_or_default();
-
-        let root = if !folders.is_empty() {
-            folders[0].clone()
-        } else {
-            std::env::current_dir().unwrap_or_default().to_string_lossy().to_string()
+        let db = match NativeConfigDb::open_default() {
+            Ok(d) => d,
+            Err(e) => return CommandResult::error(format!("Database error: {}", e)),
         };
 
-        let scanner = WorkspaceScanner::new();
-        let files = scanner.discover_files(&root);
+        let folders = db.get_workspace_folders(&ctx.active_workspace).unwrap_or_default();
+        let urls = db.get_workspace_web_urls(&ctx.active_workspace).unwrap_or_default();
 
-        if force {
-            CommandResult::success(format!(
-                "Forced sync completed for workspace '{}':\n  • Monitored roots: {}\n  • Files discovered: {}\n  • All files re-indexed and hash cache refreshed.\n  • Status: 100% Up-to-date ($0.00)",
-                ctx.active_workspace, root, files.len()
-            ))
+        let effective_folders = if !folders.is_empty() {
+            folders
+        } else if urls.is_empty() {
+            vec![std::env::current_dir().unwrap_or_default().to_string_lossy().to_string()]
         } else {
-            CommandResult::success(format!(
-                "🔄 Synchronizing workspace '{}'...\n  • Root: {}\n  • Files Discovered: {}\n  • Status: All vector indexes and SHA-256 hashes verified ($0.00).",
-                ctx.active_workspace, root, files.len()
-            ))
+            vec![]
+        };
+
+        let canonical_dir = actx_installer::paths::get_canonical_bin_dir();
+        let core_name = actx_installer::paths::get_core_exe_name();
+        let core_exe = canonical_dir.join(core_name);
+
+        let local_core = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.join(core_name)));
+
+        let mut cmd = if core_exe.exists() {
+            let mut c = std::process::Command::new(core_exe);
+            c.arg("--sync-worker");
+            c
+        } else if let Some(lc) = local_core.filter(|p| p.exists()) {
+            let mut c = std::process::Command::new(lc);
+            c.arg("--sync-worker");
+            c
+        } else {
+            let mut c = std::process::Command::new("python");
+            c.arg("main.py").arg("--sync-worker");
+            c
+        };
+
+        cmd.arg("--workspace").arg(&ctx.active_workspace);
+        if force {
+            cmd.arg("--force");
+        }
+
+        match cmd.spawn() {
+            Ok(child) => {
+                let pid = child.id();
+                let mut msg = if force {
+                    format!("Forced sync completed: Background synchronization worker spawned for workspace '**{}**' [PID: {}]:\n", ctx.active_workspace, pid)
+                } else {
+                    format!("🔄 Synchronizing workspace '**{}**': Background synchronization worker spawned [PID: {}]:\n", ctx.active_workspace, pid)
+                };
+                if !effective_folders.is_empty() {
+                    msg.push_str(&format!("  • Monitored Local Roots: {}\n", effective_folders.len()));
+                    for f in &effective_folders {
+                        msg.push_str(&format!("     • {}\n", f));
+                    }
+                }
+                if !urls.is_empty() {
+                    msg.push_str(&format!("  • Web Documentation Portals: {}\n", urls.len()));
+                    for u in &urls {
+                        msg.push_str(&format!("     • {}\n", u));
+                    }
+                }
+                msg.push_str("\nCrawling, HTML extraction, and LanceDB vector indexing are running in the background.\nYou can continue chatting or run `/sources` to inspect registered sources.");
+                CommandResult::success(msg)
+            }
+            Err(e) => {
+                CommandResult::error(format!(
+                    "Failed to launch background synchronization worker: {}\nEnsure AnyContext is properly installed.",
+                    e
+                ))
+            }
         }
     }
 
@@ -929,8 +975,19 @@ impl CommandEngine {
         }
     }
 
-    fn execute_update(_args: &[&str]) -> CommandResult {
-        CommandResult::success("Initiating background self-update via actx-installer...")
+    fn execute_update(args: &[&str]) -> CommandResult {
+        let canonical_bin = actx_installer::get_canonical_bin_dir();
+        let target_ver = args.first().copied();
+        match actx_installer::execute_standalone_update(&canonical_bin, target_ver) {
+            Ok(msg) => CommandResult::success(format!(
+                "✨ {}\n\n[>] Please exit and restart 'actx' to load the new version.",
+                msg
+            )),
+            Err(e) => CommandResult::error(format!(
+                "❌ Update failed: {}\nRun 'actx --update' directly in the terminal to inspect network or permission details.",
+                e
+            )),
+        }
     }
 
     fn execute_help() -> CommandResult {

@@ -156,9 +156,20 @@ pub fn finalize_staging_update(
                 }
                 let dest = base_dir.join(name);
                 if dest.exists() {
-                    let _ = std::fs::remove_file(&dest);
+                    #[cfg(target_os = "windows")]
+                    {
+                        if retry_remove_file(&dest, 3, 20).is_err() {
+                            let old_dest = base_dir.join(format!("{}.old", name));
+                            let _ = retry_remove_file(&old_dest, 3, 20);
+                            let _ = retry_rename(&dest, &old_dest, 10, 50);
+                        }
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        let _ = retry_remove_file(&dest, 5, 20);
+                    }
                 }
-                let _ = std::fs::rename(&path, &dest);
+                let _ = retry_rename(&path, &dest, 10, 50);
             }
         }
     }
@@ -174,7 +185,7 @@ pub fn finalize_staging_update(
         let _ = std::fs::write(&version_file, format!("{}\n", clean_ver));
     }
 
-    // 10. Clean up staging and old backups
+    // 10. Clean up staging, old backups, and unlocked .old executables
     let pending_flag = staging_dir.join("pending_update.json");
     let _ = std::fs::remove_file(&pending_flag);
     let _ = std::fs::remove_dir_all(staging_dir);
@@ -185,14 +196,21 @@ pub fn finalize_staging_update(
         let _ = std::fs::remove_dir_all(&old_internal);
     }
 
-    // Clean any other stale _internal_old* backup directories
+    // Clean any other stale _internal_old* backup directories and .old files
     if let Ok(entries) = std::fs::read_dir(base_dir) {
         for entry in entries.flatten() {
+            let p = entry.path();
             if let Ok(file_type) = entry.file_type() {
                 if file_type.is_dir() {
                     let name = entry.file_name();
                     if name.to_string_lossy().starts_with("_internal_old") {
-                        let _ = std::fs::remove_dir_all(entry.path());
+                        let _ = std::fs::remove_dir_all(&p);
+                    }
+                } else if file_type.is_file() {
+                    if let Some(ext) = p.extension() {
+                        if ext.eq_ignore_ascii_case("old") {
+                            let _ = std::fs::remove_file(&p);
+                        }
                     }
                 }
             }

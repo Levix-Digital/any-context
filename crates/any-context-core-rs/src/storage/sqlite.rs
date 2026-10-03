@@ -111,6 +111,9 @@ impl NativeConfigDb {
                 id TEXT PRIMARY KEY,
                 name TEXT UNIQUE NOT NULL,
                 description TEXT,
+                grounding_mode TEXT NOT NULL DEFAULT 'strict',
+                model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+                web_search_enabled INTEGER NOT NULL DEFAULT 0,
                 paths_json TEXT DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -147,7 +150,14 @@ impl NativeConfigDb {
                 id TEXT PRIMARY KEY,
                 workspace_name TEXT NOT NULL,
                 url TEXT NOT NULL,
-                created_at TEXT NOT NULL,
+                title TEXT,
+                last_hash TEXT,
+                polling_interval_hours INTEGER DEFAULT 24,
+                last_scraped_at TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                page_count INTEGER DEFAULT 1,
+                root_url TEXT,
+                scope TEXT DEFAULT 'domain',
                 UNIQUE(workspace_name, url)
             );
 
@@ -155,8 +165,40 @@ impl NativeConfigDb {
             CREATE INDEX IF NOT EXISTS idx_file_metadata_path ON file_metadata(file_path);",
         )?;
 
+        // Ensure columns exist on legacy databases
         if !Self::check_column(&conn, "workspaces", "paths_json") {
             let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN paths_json TEXT DEFAULT '[]'", []);
+        }
+        if !Self::check_column(&conn, "workspaces", "grounding_mode") {
+            let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN grounding_mode TEXT NOT NULL DEFAULT 'strict'", []);
+        }
+        if !Self::check_column(&conn, "workspaces", "model") {
+            let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN model TEXT NOT NULL DEFAULT 'gpt-4o-mini'", []);
+        }
+        if !Self::check_column(&conn, "workspaces", "web_search_enabled") {
+            let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN web_search_enabled INTEGER NOT NULL DEFAULT 0", []);
+        }
+
+        if !Self::check_column(&conn, "workspace_web_urls", "title") {
+            let _ = conn.execute("ALTER TABLE workspace_web_urls ADD COLUMN title TEXT", []);
+        }
+        if !Self::check_column(&conn, "workspace_web_urls", "last_hash") {
+            let _ = conn.execute("ALTER TABLE workspace_web_urls ADD COLUMN last_hash TEXT", []);
+        }
+        if !Self::check_column(&conn, "workspace_web_urls", "polling_interval_hours") {
+            let _ = conn.execute("ALTER TABLE workspace_web_urls ADD COLUMN polling_interval_hours INTEGER DEFAULT 24", []);
+        }
+        if !Self::check_column(&conn, "workspace_web_urls", "last_scraped_at") {
+            let _ = conn.execute("ALTER TABLE workspace_web_urls ADD COLUMN last_scraped_at TEXT", []);
+        }
+        if !Self::check_column(&conn, "workspace_web_urls", "page_count") {
+            let _ = conn.execute("ALTER TABLE workspace_web_urls ADD COLUMN page_count INTEGER DEFAULT 1", []);
+        }
+        if !Self::check_column(&conn, "workspace_web_urls", "root_url") {
+            let _ = conn.execute("ALTER TABLE workspace_web_urls ADD COLUMN root_url TEXT", []);
+        }
+        if !Self::check_column(&conn, "workspace_web_urls", "scope") {
+            let _ = conn.execute("ALTER TABLE workspace_web_urls ADD COLUMN scope TEXT DEFAULT 'domain'", []);
         }
 
         Ok(())
@@ -179,8 +221,8 @@ impl NativeConfigDb {
         let now = chrono::Utc::now().to_rfc3339();
         if has_desc {
             let _ = conn.execute(
-                "INSERT OR IGNORE INTO workspaces (id, name, description, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT OR IGNORE INTO workspaces (id, name, description, grounding_mode, model, web_search_enabled, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, 'strict', 'gpt-4o-mini', 0, ?4, ?5)",
                 params![
                     "ws_default",
                     "Default",
@@ -191,7 +233,7 @@ impl NativeConfigDb {
             );
         } else {
             let _ = conn.execute(
-                "INSERT OR IGNORE INTO workspaces (workspace_id, name) VALUES (?1, ?2)",
+                "INSERT OR IGNORE INTO workspaces (workspace_id, name, grounding_mode, model, web_search_enabled) VALUES (?1, ?2, 'strict', 'gpt-4o-mini', 0)",
                 params!["ws_default", "Default"],
             );
         }
@@ -207,13 +249,13 @@ impl NativeConfigDb {
         let has_desc = Self::check_column(&conn, "workspaces", "description");
         if has_desc {
             conn.execute(
-                "INSERT INTO workspaces (id, name, description, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO workspaces (id, name, description, grounding_mode, model, web_search_enabled, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, 'strict', 'gpt-4o-mini', 0, ?4, ?5)",
                 params![&id, name, description, &now, &now],
             )?;
         } else {
             conn.execute(
-                "INSERT INTO workspaces (workspace_id, name) VALUES (?1, ?2)",
+                "INSERT INTO workspaces (workspace_id, name, grounding_mode, model, web_search_enabled) VALUES (?1, ?2, 'strict', 'gpt-4o-mini', 0)",
                 params![&id, name],
             )?;
         }
@@ -702,8 +744,7 @@ impl NativeConfigDb {
                 params![model.trim(), workspace_name],
             );
         }
-        drop(conn);
-        self.set_default_model(model)
+        Ok(())
     }
 
     pub fn get_workspace_grounding_mode(&self, workspace_name: &str) -> Result<String> {
@@ -724,8 +765,8 @@ impl NativeConfigDb {
                 }
             }
         }
-        drop(conn);
-        Ok(self.get_setting("grounding_mode")?.unwrap_or_else(|| "strict".to_string()))
+        // Strict default for new or unspecified workspaces
+        Ok("strict".to_string())
     }
 
     pub fn set_workspace_grounding_mode(&self, workspace_name: &str, mode: &str) -> Result<()> {
@@ -742,8 +783,6 @@ impl NativeConfigDb {
                 params![valid_mode, workspace_name],
             );
         }
-        drop(conn);
-        self.set_setting("grounding_mode", valid_mode)?;
         Ok(())
     }
 
@@ -762,9 +801,7 @@ impl NativeConfigDb {
                 return Ok(val != 0);
             }
         }
-        drop(conn);
-        let s = self.get_setting("web_search_enabled")?.unwrap_or_default();
-        Ok(s == "true" || s == "1")
+        Ok(false)
     }
 
     pub fn set_workspace_web_search(&self, workspace_name: &str, enabled: bool) -> Result<()> {
@@ -775,8 +812,6 @@ impl NativeConfigDb {
                 params![if enabled { 1 } else { 0 }, workspace_name],
             );
         }
-        drop(conn);
-        self.set_setting("web_search_enabled", if enabled { "true" } else { "false" })?;
         Ok(())
     }
 
