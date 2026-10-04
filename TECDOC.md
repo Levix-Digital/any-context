@@ -71,6 +71,7 @@
 83. [High-Level Conversational Session Boundary, Orphaned Tool Scrubbing & TUI Error Surfacing (`v0.32.6`)](#83-high-level-conversational-session-boundary-orphaned-tool-scrubbing--tui-error-surfacing-v0326)
 84. [Strict Grounding Strategy Engine, Real-Time Token Streaming & Canonical LanceDB Consolidation (`v0.32.7`)](#84-strict-grounding-strategy-engine-real-time-token-streaming--canonical-lancedb-consolidation-v0327)
 85. [Hermetic Workspace Settings Persistence, Unified Sync Worker Ingestion, Windows Atomic Self-Update Swap & Venv Purge (`v0.32.9`)](#85-hermetic-workspace-settings-persistence-unified-sync-worker-ingestion-windows-atomic-self-update-swap--venv-purge-v0329)
+86. [Virtual Tab Workspace Chat Buffer Isolation & Viewport Lifecycle (`v0.32.10`)](#86-virtual-tab-workspace-chat-buffer-isolation--viewport-lifecycle-v03210)
 ---
 
 
@@ -5351,6 +5352,63 @@ flowchart TD
 - **Status**: Accepted & Implemented (`v0.32.9`).
 - **Context**: Workspace settings leaked across workspaces via global SQLite fallbacks; Windows file locking prevented in-place binary self-updates; `/sync` was an instantaneous mock; and installer code contained fragile developer venv assumptions.
 - **Decision**: Enforce strict relational workspace columns with automated schema migrations, eliminate all global settings fallbacks, execute Windows self-updates via atomic `.exe.old` renaming, route `/sync` to a dedicated background `--sync-worker`, and eradicate all developer virtual environment assumptions from production installer binaries.
+
+---
+
+## 86. Virtual Tab Workspace Chat Buffer Isolation & Viewport Lifecycle (`v0.32.10`)
+
+### 1. Problem Statement & Root Cause Analysis
+During manual interactive validation of workspace switching in the native Ratatui TUI (`crates/actx-cli`), switching between workspaces via `/workspace <name>` or `/switch <name>` revealed a severe conversational leakage:
+- **Shared In-Memory Chat History (`App.chat_history`)**: The conversational viewport rendered messages directly from a single global `Vec<ChatMessageItem>` stored on `App`. When a user switched from workspace `Default` to workspace `test-isolation`, all messages exchanged in `Default` remained visible in the chat pane.
+- **Session Identity Desynchronization**: While `actx-agent` stored session messages under `ws_<workspace>` in SQLite, the TUI frontend did not preserve per-workspace active buffers in RAM or restore them when returning to a previously active workspace within the same interactive session.
+- **Leaked Streaming & Viewport Buffers**: Viewport scroll offsets (`scroll_offset`), active streaming tokens (`current_stream_buffer`), and thinking trace items (`current_thinking_buffer`) were not purged on workspace transitions, leading to corrupted layouts and cross-workspace message bleeding.
+- **Partial Memory Clears**: Commands like `/reset-memory` only cleared SQLite session storage without clearing the active visual chat screen (`CommandAction::None`), leaving stale messages visible until the user manually ran `/clear`.
+
+### 2. Architectural Design & Implementation: Virtual Tab Pattern
+
+```mermaid
+flowchart TD
+    subgraph TUI_Workspace_Switch["switch_to_workspace(target_ws) (crates/actx-cli)"]
+        ActiveWS["Current WS: ws_A"] --> SaveBuffer["workspace_chat_buffers.insert('ws_A', chat_history)"]
+        SaveBuffer --> UpdateWS["self.active_workspace = target_ws"]
+        UpdateWS --> CheckCache{"Cached in RAM?"}
+        CheckCache -- "Yes" --> RestoreRAM["chat_history = cached_buffer"]
+        CheckCache -- "No" --> CheckDB{"Session exists in SQLite?"}
+        CheckDB -- "Yes (>0 msgs)" --> LoadDB["Load ws_{target_ws} from SQLite Store"]
+        CheckDB -- "No" --> InitBanner["Create Welcome Banner for New Workspace"]
+        RestoreRAM --> ResetViewport["Reset Viewport (scroll_offset=0, stream='', thinking='')"]
+        LoadDB --> ResetViewport
+        InitBanner --> ResetViewport
+    end
+
+    subgraph Command_Actions["Command Engine & Action Flow (crates/any-context-core-rs)"]
+        ResetCmd["/reset-memory"] --> ActionClear["Emit CommandAction::ClearChat"]
+        ActionClear --> DBReset["SQLite: clear_session_sync(ws_{name})"]
+        ActionClear --> VisualClear["TUI: chat_history.clear() + Purge RAM Cache"]
+        DelSwitch["/switch --delete <name>"] --> ClearDBSwitch["SQLite: purge session ws_{name}"]
+    end
+```
+
+1. **Per-Workspace In-Memory Chat Buffers (`crates/actx-cli/src/tui/app.rs`)**:
+   - `App` now maintains `pub workspace_chat_buffers: HashMap<String, Vec<ChatMessageItem>>`.
+   - Workspace transitions are orchestrated exclusively through `App::switch_to_workspace(&mut self, target_ws: &str)`:
+     - The active workspace's chat buffer is saved into `workspace_chat_buffers`.
+     - `self.active_workspace` is updated to `target_ws`.
+     - If `target_ws` was previously visited in the current session, its exact buffer is restored from `workspace_chat_buffers`.
+     - If not cached in RAM, `SqliteSessionStore::load_session_sync(&format!("ws_{}", target_ws))` hydrates past persistent messages. If empty, a clean, branded welcome banner is generated via `create_welcome_message(target_ws)`.
+     - Ephemeral viewport states (`current_stream_buffer`, `current_thinking_buffer`, `scroll_offset = 0`, `auto_scroll = true`) are immediately sanitized.
+2. **Synchronized `/clear` and `/reset-memory` Lifecycle**:
+   - Executing `/clear` purges `chat_history` and expurgates the active workspace entry from `workspace_chat_buffers`.
+   - In `crates/any-context-core-rs/src/commands/engine.rs`, `execute_reset_memory` now emits `CommandAction::ClearChat`, guaranteeing dual parity: SQLite database session purged and frontend TUI screen cleared in a single atomic transaction.
+   - Executing `/switch --delete <name>` cascades the deletion into SQLite session history (`store.clear_session_sync(&format!("ws_{}", target))`).
+
+### 3. Architecture Decision Record (ADR-092)
+
+#### ADR-092: Virtual Tab Workspace Chat Buffer Isolation & Viewport Lifecycle
+- **Status**: Accepted & Implemented (`v0.32.10`).
+- **Context**: Navigating across workspaces in the Ratatui TUI leaked in-memory chat buffers and viewport streaming states across workspace boundaries, violating conversational privacy and context isolation.
+- **Decision**: Implement a Virtual Tab architecture with `workspace_chat_buffers: HashMap<String, Vec<ChatMessageItem>>` and lifecycle hooks in `switch_to_workspace`. Bind `/reset-memory` to `CommandAction::ClearChat` to enforce immediate frontend/backend synchronization across all workspace transitions and resets.
+
 
 
 

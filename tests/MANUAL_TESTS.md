@@ -7,6 +7,73 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 11 (v0.32.10 Isolamento Hermético de Buffers de Chat e Histórico por Workspace na TUI Nativa):
+- **Objetivo**: Comprovar que na versão `v0.32.10`:
+  1. **Isolamento de Buffers de Chat em Memória (Padrão Virtual Tab)**:
+     - Cada workspace possui seu próprio buffer de tela (`workspace_chat_buffers`) em memória RAM e persistência de sessão isolada no SQLite.
+     - Conversas e mensagens de um workspace NUNCA vazam para a tela ou histórico de outro workspace ao alternar entre eles.
+     - Ao trocar de workspace (`/workspace <nome>` ou `/switch <nome>`), o buffer atual é salvo e o buffer do workspace de destino é restaurado (ou inicializado com seu banner exclusivo limpo).
+  2. **Higienização de Viewport e Estado Transitório**:
+     - Transições entre workspaces resetam buffers de streaming de tokens, blocos de thinking (`<think>`) e posição de scroll da viewport (`scroll_offset = 0`), garantindo paridade visual.
+  3. **Paridade de Limpeza de Memória e Tela (`/reset-memory` e `/clear`)**:
+     - O comando `/reset-memory` executa a limpeza atômica da sessão no SQLite e limpa imediatamente a viewport do chat na TUI (`CommandAction::ClearChat`).
+     - O comando `/clear` esvazia o buffer de exibição do workspace ativo e sua respectiva entrada de cache em RAM.
+     - O comando `/switch --delete <nome>` expurga as sessões SQLite do workspace removido.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.10`.
+
+2. **💬 Teste de Isolamento de Tela entre Workspaces (Virtual Tab):**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - No workspace padrão (`Default`), envie uma mensagem de teste:
+     ```text
+     Olá, esta é uma mensagem no workspace Default.
+     ```
+   - Aguarde a resposta do modelo.
+   - Troque para o workspace de isolamento:
+     ```text
+     /workspace test-isolation
+     ```
+   - **Critério de Aceitação**: A tela de chat é imediatamente limpa e exibe o cabeçalho/banner de boas-vindas do workspace `test-isolation`. A mensagem *"Olá, esta é uma mensagem no workspace Default"* e a resposta do modelo NÃO aparecem na tela!
+   - No workspace `test-isolation`, envie uma mensagem diferente:
+     ```text
+     Olá, esta mensagem pertence exclusivamente ao test-isolation.
+     ```
+   - Aguarde a resposta do modelo.
+   - Retorne para o workspace `Default`:
+     ```text
+     /workspace Default
+     ```
+   - **Critério de Aceitação**: A tela restaura instantaneamente as mensagens trocadas anteriormente no `Default` ("Olá, esta é uma mensagem no workspace Default"), e a mensagem do `test-isolation` NÃO aparece aqui.
+   - Alterne novamente para `test-isolation`:
+     ```text
+     /workspace test-isolation
+     ```
+   - **Critério de Aceitação**: A mensagem "Olá, esta mensagem pertence exclusivamente ao test-isolation" é restaurada perfeitamente.
+
+3. **🧹 Teste de Limpeza de Memória e Paridade de Tela (`/reset-memory`):**
+   - No workspace `test-isolation`, digite:
+     ```text
+     /reset-memory
+     ```
+   - **Critério de Aceitação**: A tela de chat é limpa imediatamente (com o banner inicial), e o histórico de memória do workspace `test-isolation` é resetado no banco de dados SQLite.
+   - Volte para o workspace `Default`:
+     ```text
+     /workspace Default
+     ```
+   - **Critério de Aceitação**: As mensagens do workspace `Default` continuam salvas e visíveis normalmente, provando que o `/reset-memory` afetou estritamente o workspace `test-isolation`.
+
+---
+
 ### 📌 Cenário 10 (v0.32.9 Persistência Hermética de Workspaces, Auto-Update Atômico no Windows, Sincronização Unificada Real e Expurgo de Venv):
 - **Objetivo**: Comprovar que na versão `v0.32.9`:
   1. **Persistência Hermética e Isolamento de Configurações por Workspace no SQLite**:

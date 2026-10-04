@@ -39,6 +39,7 @@ pub struct App {
 
     // Chat history & Viewport
     pub chat_history: Vec<ChatMessageItem>,
+    pub workspace_chat_buffers: std::collections::HashMap<String, Vec<ChatMessageItem>>,
     pub current_stream_buffer: String,
     pub current_thinking_buffer: String,
     pub scroll_offset: u16,
@@ -68,6 +69,24 @@ pub struct App {
 }
 
 impl App {
+    pub fn create_welcome_message(
+        workspace: &str,
+        model: &str,
+        grounding: &str,
+        search: &str,
+        web: bool,
+    ) -> ChatMessageItem {
+        ChatMessageItem {
+            role: MessageRole::System,
+            content: format!(
+                "AnyContext (actx) Native Rust Engine ready.\nWorkspace: [{}] | Model: [{}] | Grounding: [{}] | Search: [{}] | Web: [{}]\nType /menu (or press F1) for interactive menu, /help for commands.",
+                workspace, model, grounding.to_uppercase(), search.to_uppercase(), if web { "ON" } else { "OFF" }
+            ),
+            thinking: None,
+            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+        }
+    }
+
     pub fn new(workspace: String, model: String, agent: Option<Agent>) -> Self {
         let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
         let grounding_mode = db.as_ref()
@@ -80,15 +99,13 @@ impl App {
             .and_then(|d| d.get_workspace_web_search(&workspace).ok())
             .unwrap_or(false);
 
-        let initial_history = vec![ChatMessageItem {
-            role: MessageRole::System,
-            content: format!(
-                "AnyContext (actx) Native Rust Engine ready.\nWorkspace: [{}] | Model: [{}] | Grounding: [{}] | Search: [{}] | Web: [{}]\nType /menu (or press F1) for interactive menu, /help for commands.",
-                workspace, model, grounding_mode.to_uppercase(), search_mode.to_uppercase(), if web_search_enabled { "ON" } else { "OFF" }
-            ),
-            thinking: None,
-            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-        }];
+        let initial_history = vec![Self::create_welcome_message(
+            &workspace,
+            &model,
+            &grounding_mode,
+            &search_mode,
+            web_search_enabled,
+        )];
 
         let mut app = Self {
             running: true,
@@ -99,6 +116,7 @@ impl App {
             web_search_enabled,
             status: AppStatus::Idle,
             chat_history: initial_history,
+            workspace_chat_buffers: std::collections::HashMap::new(),
             current_stream_buffer: String::new(),
             current_thinking_buffer: String::new(),
             scroll_offset: 0,
@@ -332,6 +350,74 @@ impl App {
         }
     }
 
+    pub fn switch_to_workspace(&mut self, target_ws: &str) {
+        if self.active_workspace == target_ws {
+            return;
+        }
+
+        // 1. Save current active workspace's visual chat buffer
+        let current_history = std::mem::take(&mut self.chat_history);
+        self.workspace_chat_buffers.insert(self.active_workspace.clone(), current_history);
+
+        // 2. Set new active workspace
+        self.active_workspace = target_ws.to_string();
+
+        // 3. Reset ephemeral stream/thinking buffers and scroll
+        self.current_stream_buffer.clear();
+        self.current_thinking_buffer.clear();
+        self.scroll_offset = 0;
+        self.max_scroll = 0;
+        self.auto_scroll = true;
+        self.status = AppStatus::Idle;
+        self.history_index = None;
+        self.current_draft.clear();
+
+        // 4. Restore existing view buffer if already in memory
+        if let Some(buffered) = self.workspace_chat_buffers.remove(target_ws) {
+            self.chat_history = buffered;
+        } else {
+            // First time accessing target_ws in this session:
+            // Load messages from SQLite session store or initialize with clean welcome message
+            let mut msgs_to_display = Vec::new();
+            let db_path = any_context_core_rs::storage::get_default_settings_db_path();
+            if let Ok(store) = actx_agent::SqliteSessionStore::open(&db_path, 50) {
+                let session_id = format!("ws_{}", self.active_workspace);
+                if let Ok(msgs) = store.get_messages_sync(&session_id) {
+                    for m in msgs {
+                        let role = match m.role {
+                            actx_lm::types::Role::User => MessageRole::User,
+                            actx_lm::types::Role::Assistant => MessageRole::Assistant,
+                            _ => MessageRole::System,
+                        };
+                        if role == MessageRole::System && m.content.starts_with("You are AnyContext") {
+                            continue;
+                        }
+                        msgs_to_display.push(ChatMessageItem {
+                            role,
+                            content: m.content,
+                            thinking: None,
+                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                        });
+                    }
+                }
+            }
+
+            if msgs_to_display.is_empty() {
+                self.chat_history = vec![Self::create_welcome_message(
+                    &self.active_workspace,
+                    &self.active_model,
+                    &self.grounding_mode,
+                    &self.search_mode,
+                    self.web_search_enabled,
+                )];
+            } else {
+                self.chat_history = msgs_to_display;
+            }
+        }
+
+        self.scroll_to_bottom();
+    }
+
     pub fn complete_selected_slash(&mut self, execute_if_zero_args: bool) {
         if self.slash_palette_open && !self.slash_matches.is_empty() {
             let selected = self.slash_matches[self.slash_palette_idx];
@@ -484,9 +570,6 @@ impl App {
     }
 
     pub fn apply_command_result(&mut self, res: any_context_core_rs::commands::CommandResult) {
-        if let Some(ws) = res.state_updates.active_workspace {
-            self.active_workspace = ws;
-        }
         if let Some(m) = res.state_updates.active_model {
             self.active_model = m;
         }
@@ -506,6 +589,7 @@ impl App {
             }
             any_context_core_rs::commands::CommandAction::ClearChat => {
                 self.chat_history.clear();
+                self.workspace_chat_buffers.remove(&self.active_workspace);
                 self.current_stream_buffer.clear();
                 self.current_thinking_buffer.clear();
                 self.scroll_offset = 0;
@@ -526,14 +610,20 @@ impl App {
                 }
             }
             any_context_core_rs::commands::CommandAction::SwitchWorkspace(ref ws) => {
-                self.active_workspace = ws.clone();
-                self.load_session_history_for_workspace();
+                self.switch_to_workspace(ws);
                 self.rebuild_agent();
             }
             any_context_core_rs::commands::CommandAction::RebuildAgent => {
                 self.rebuild_agent();
             }
-            any_context_core_rs::commands::CommandAction::None => {}
+            any_context_core_rs::commands::CommandAction::None => {
+                if let Some(ref ws) = res.state_updates.active_workspace {
+                    if ws != &self.active_workspace {
+                        self.switch_to_workspace(ws);
+                        self.rebuild_agent();
+                    }
+                }
+            }
         }
 
         if !res.message.is_empty() {

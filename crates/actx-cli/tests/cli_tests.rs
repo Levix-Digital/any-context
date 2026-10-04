@@ -567,5 +567,63 @@ async fn test_sqlite_session_store_integration() {
     let _ = std::fs::remove_file(temp_db);
 }
 
+#[tokio::test]
+async fn test_workspace_chat_buffers_isolation_and_clear_lifecycle() {
+    let mut app = App::new("WorkspaceAlpha".to_string(), "gpt-4o-mini".to_string(), None);
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // 1. Submit prompts in WorkspaceAlpha
+    app.input_buffer = "Question in Alpha 1".to_string();
+    app.submit_input(tx.clone());
+
+    app.input_buffer = "Question in Alpha 2".to_string();
+    app.submit_input(tx.clone());
+
+    // Verify Alpha chat history contains both questions
+    assert!(app.chat_history.iter().any(|m| m.content == "Question in Alpha 1"));
+    assert!(app.chat_history.iter().any(|m| m.content == "Question in Alpha 2"));
+
+    // 2. Switch to WorkspaceBeta
+    app.input_buffer = "/switch WorkspaceBeta".to_string();
+    app.submit_input(tx.clone());
+    assert_eq!(app.active_workspace, "WorkspaceBeta");
+
+    // CRITICAL: WorkspaceBeta MUST NOT show Alpha's messages
+    assert!(!app.chat_history.iter().any(|m| m.content == "Question in Alpha 1"), "Alpha messages leaked into Beta!");
+    assert!(!app.chat_history.iter().any(|m| m.content == "Question in Alpha 2"), "Alpha messages leaked into Beta!");
+    assert!(app.chat_history.iter().any(|m| m.content.contains("WorkspaceBeta")));
+
+    // 3. Submit prompt in WorkspaceBeta
+    app.input_buffer = "Question in Beta 1".to_string();
+    app.submit_input(tx.clone());
+    assert!(app.chat_history.iter().any(|m| m.content == "Question in Beta 1"));
+
+    // 4. Switch back to WorkspaceAlpha
+    app.input_buffer = "/switch WorkspaceAlpha".to_string();
+    app.submit_input(tx.clone());
+    assert_eq!(app.active_workspace, "WorkspaceAlpha");
+
+    // CRITICAL: WorkspaceAlpha MUST restore Alpha's messages and MUST NOT contain Beta's messages
+    assert!(app.chat_history.iter().any(|m| m.content == "Question in Alpha 1"), "Alpha message 1 not restored!");
+    assert!(app.chat_history.iter().any(|m| m.content == "Question in Alpha 2"), "Alpha message 2 not restored!");
+    assert!(!app.chat_history.iter().any(|m| m.content == "Question in Beta 1"), "Beta messages leaked into Alpha!");
+
+    // 5. Execute /clear in WorkspaceAlpha
+    app.input_buffer = "/clear".to_string();
+    app.submit_input(tx.clone());
+    assert!(app.chat_history.is_empty(), "Chat history was not cleared by /clear!");
+
+    // 6. Switch back to WorkspaceBeta: Beta MUST still have its message!
+    app.input_buffer = "/switch WorkspaceBeta".to_string();
+    app.submit_input(tx.clone());
+    assert!(app.chat_history.iter().any(|m| m.content == "Question in Beta 1"), "Beta messages affected by Alpha's /clear!");
+
+    // 7. Execute /reset-memory in WorkspaceBeta: resets both SQLite memory and view buffer
+    app.input_buffer = "/reset-memory".to_string();
+    app.submit_input(tx.clone());
+    assert!(!app.chat_history.iter().any(|m| m.content == "Question in Beta 1"), "Beta view buffer not cleared by /reset-memory!");
+    assert!(app.chat_history.iter().any(|m| m.content.contains("Long-term session memory reset")), "Reset confirmation missing!");
+}
+
 
 

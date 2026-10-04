@@ -104,7 +104,7 @@ fn test_ui_agnostic_actions() {
     assert_eq!(res_menu.action, CommandAction::OpenMenu("main".to_string()));
 
     let res_reset = CommandEngine::execute("reset-memory", &[], &ctx);
-    assert_eq!(res_reset.action, CommandAction::None);
+    assert_eq!(res_reset.action, CommandAction::ClearChat);
     assert!(res_reset.message.contains("session memory reset"));
 }
 

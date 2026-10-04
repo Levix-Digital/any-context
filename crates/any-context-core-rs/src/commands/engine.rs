@@ -355,6 +355,10 @@ impl CommandEngine {
                     if let Ok(lance) = NativeLanceStore::open(&lance_path) {
                         let _ = lance.delete_by_workspace(target, None);
                     }
+                    let db_path = get_default_settings_db_path();
+                    if let Ok(store) = actx_agent::SqliteSessionStore::open(&db_path, 50) {
+                        let _ = store.clear_session_sync(&format!("ws_{}", target));
+                    }
                     CommandResult::success(format!("🗑️ Workspace '{}' and associated vector records deleted.", target))
                 }
                 Ok(false) => CommandResult::error(format!("Workspace '{}' not found.", target)),
@@ -878,6 +882,7 @@ impl CommandEngine {
             "🧠 Long-term session memory reset for workspace '{}'.\nChat history cleared while preserving indexed document vectors.",
             ctx.active_workspace
         ))
+        .with_action(CommandAction::ClearChat)
     }
 
     fn execute_billing() -> CommandResult {
