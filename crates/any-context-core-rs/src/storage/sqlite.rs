@@ -1030,6 +1030,25 @@ pub fn get_default_settings_db_path() -> PathBuf {
     }
 }
 
+pub fn get_default_logs_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            return PathBuf::from(local).join("AnyContext").join("logs");
+        }
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            return PathBuf::from(appdata).join("AnyContext").join("logs");
+        }
+    }
+    if let Some(data_dir) = dirs::data_local_dir() {
+        return data_dir.join("AnyContext").join("logs");
+    }
+    if let Some(home) = dirs::home_dir() {
+        return home.join(".local").join("share").join("any-context").join("logs");
+    }
+    PathBuf::from("logs")
+}
+
 fn normalize_path_slashes(p: &str) -> String {
     p.replace('\\', "/")
 }

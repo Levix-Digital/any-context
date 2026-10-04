@@ -11,7 +11,7 @@ pub use models::ChunkPayload;
 pub use ingestion::IngestionRouter;
 pub use ingestion::WorkspaceScanner;
 pub use retrieval::{HybridRetrieverEngine, QueryPreprocessor, ProcessedQuery};
-pub use storage::{NativeConfigDb, NativeLanceStore, get_default_settings_db_path, get_default_lancedb_path};
+pub use storage::{NativeConfigDb, NativeLanceStore, get_default_settings_db_path, get_default_lancedb_path, get_default_logs_dir};
 pub use agent::{PyAgentEngine, PyAgentResponse, PyAgentEvent};
 pub use commands::{CommandEngine, CommandResult, CommandAction, CommandStateUpdates, ExecutionContext, GroundingMode, SearchDepthMode};
 

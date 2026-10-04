@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::commands::models::{
     CommandAction, CommandResult, CommandStateUpdates, ExecutionContext, GroundingMode, SearchDepthMode,
 };
-use crate::storage::{get_default_lancedb_path, get_default_settings_db_path, NativeConfigDb, NativeLanceStore};
+use crate::storage::{get_default_lancedb_path, get_default_settings_db_path, get_default_logs_dir, NativeConfigDb, NativeLanceStore};
 
 /// UI-Agnostic command executor service.
 pub struct CommandEngine;
@@ -441,6 +441,35 @@ impl CommandEngine {
             cmd.arg("--force");
         }
 
+        let log_dir = get_default_logs_dir();
+        let _ = std::fs::create_dir_all(&log_dir);
+        let log_path = log_dir.join(format!("sync_{}.log", ctx.active_workspace));
+
+        let log_file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path);
+
+        if let Ok(f) = log_file {
+            let err_clone = f.try_clone().ok();
+            cmd.stdout(std::process::Stdio::from(f));
+            if let Some(err_f) = err_clone {
+                cmd.stderr(std::process::Stdio::from(err_f));
+            } else {
+                cmd.stderr(std::process::Stdio::null());
+            }
+        } else {
+            cmd.stdout(std::process::Stdio::null());
+            cmd.stderr(std::process::Stdio::null());
+        }
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
         match cmd.spawn() {
             Ok(child) => {
                 let pid = child.id();
@@ -461,7 +490,10 @@ impl CommandEngine {
                         msg.push_str(&format!("     • {}\n", u));
                     }
                 }
-                msg.push_str("\nCrawling, HTML extraction, and LanceDB vector indexing are running in the background.\nYou can continue chatting or run `/sources` to inspect registered sources.");
+                msg.push_str(&format!(
+                    "\n📝 Worker log: {}\nCrawling, HTML extraction, and LanceDB vector indexing are running in the background.\nYou can continue chatting or run `/sources` to inspect registered sources.",
+                    log_path.display()
+                ));
                 CommandResult::success(msg)
             }
             Err(e) => {

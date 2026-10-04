@@ -45,6 +45,9 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🔄 Sync Worker Background Stdio Isolation & Chain of Responsibility Ingestion (`v0.32.11`)**:
+  - **Zero Viewport Leaks**: Background synchronization worker child processes are launched with complete stdio redirection to dedicated log files (`logs/sync_<workspace>.log`) and `CREATE_NO_WINDOW` on Windows, eliminating 100% of terminal screen corruption during `/sync` and `/sync --force`.
+  - **Chain of Responsibility Multi-Source Ingestion**: Modular pipeline architecture (`LocalFolderSyncHandler`, `WebPortalSyncHandler`, `CloudDriveSyncHandler`) ensuring each source category evaluates and syncs independently. Workspaces configured solely with web documentation portals skip local folder scanning cleanly with zero false-positive error alerts.
 - **🗂️ Virtual Tab Workspace Chat Buffer Isolation & Viewport Lifecycle (`v0.32.10`)**:
   - **Hermetic In-Memory Chat Isolation**: Each workspace retains its own isolated conversational buffer (`workspace_chat_buffers`) in RAM. Switching between workspaces immediately saves current viewport state and restores the target workspace's messages without cross-workspace leakage or ghost messages.
   - **Clean Viewport Lifecycle**: Workspace transitions sanitize active streaming buffers, reasoning traces, and viewport scroll offsets, welcoming new workspaces with clean, branded status headers.

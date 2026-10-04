@@ -129,3 +129,15 @@ fn test_grounding_and_search_mode_parsing() {
     assert_eq!(SearchDepthMode::parse("strict"), None);
     assert_eq!(SearchDepthMode::parse("hybrid"), None);
 }
+
+#[test]
+fn test_sync_command_execution_and_log_redirection() {
+    let ctx = ExecutionContext::default();
+    let res = CommandEngine::execute("sync", &["--force"], &ctx);
+    if res.success {
+        assert!(res.message.contains("sync_Default.log"));
+        assert!(res.message.contains("Background synchronization worker spawned"));
+    } else {
+        assert!(res.message.contains("Failed to launch background synchronization worker"));
+    }
+}

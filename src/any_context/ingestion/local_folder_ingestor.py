@@ -160,8 +160,12 @@ def run_index_folder(
                         files_to_index.extend(discover_workspace_files(folder_path))
 
             if not files_to_index:
+                has_configured_paths = any(ws.paths for ws in workspaces_to_process)
                 if verbose:
-                    safe_print("❌ No valid documents found across configured paths.\n")
+                    if has_configured_paths:
+                        safe_print("⚠️ No valid indexable documents found across configured paths.\n")
+                    else:
+                        safe_print("ℹ️ No local folders configured for this workspace.\n")
                 return {"status": "empty", "total_files": 0, "indexed_files": 0}
 
             diff_summary = {

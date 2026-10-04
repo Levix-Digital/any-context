@@ -7,6 +7,54 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 12 (v0.32.11 Isolamento de Stdout do Sync Worker e Ingestão com Chain of Responsibility):
+- **Objetivo**: Comprovar que na versão `v0.32.11`:
+  1. **Isolamento Hermético de Stdout/Stderr do Sync Worker em Background**:
+     - Ao executar `/sync` ou `/sync --force` na TUI interativa, o processo filho roda totalmente desacoplado do console (`CREATE_NO_WINDOW` no Windows).
+     - NENHUM caractere impresso pelo worker em background vaza ou corrompe a tela da TUI (o prompt `>` e a barra de rodapé permanecem perfeitamente desenhados).
+     - A TUI exibe a confirmação amigável e informa o caminho exato do arquivo de log (`📝 Worker log: ...\logs\sync_<workspace>.log`).
+  2. **Pipeline de Ingestão via Chain of Responsibility (Zero Falsos-Positivos)**:
+     - Em workspaces configurados apenas com portais web (sem pastas locais cadastradas, como o `Default`), o manipulador `LocalFolderSyncHandler` detecta a ausência de pastas e pula graciosamente a etapa.
+     - NUNCA é disparado o falso alerta de erro `❌ No valid documents found across configured paths`.
+     - O manipulador `WebPortalSyncHandler` sincroniza os portais normalmente, registrando as páginas e vetores no LanceDB.
+  3. **Inspeção de Logs do Worker em Disco**:
+     - Os logs completos de crawling, parsing e embedding são gravados no arquivo de log do workspace, permitindo conferência sem congelamento ou ruído na interface.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.11`.
+
+2. **🌐 Teste de Sincronização sem Corrupção Visual na TUI (`/sync --force`):**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - No workspace `Default` (ou qualquer workspace com fontes web), execute:
+     ```text
+     /sync --force
+     ```
+   - **Critérios de Aceitação**:
+     - A tela da TUI permanece 100% limpa e estável! Nenhuma mensagem de terminal cru vaza por cima do prompt `>` ou da barra de rodapé `[Tab] Complete...`.
+     - A resposta da IA exibe a confirmação estruturada do disparo em background:
+       - Contagem de fontes web sendo processadas.
+       - A linha `📝 Worker log:` informando o caminho do arquivo de log `sync_Default.log`.
+     - Você pode continuar navegando e digitando normalmente na TUI sem interrupções.
+
+3. **📝 Verificação do Arquivo de Log em Disco e Supressão de Falsos Erros:**
+   - Em outro terminal (ou após sair com `/exit`), inspecione o arquivo de log gerado:
+     - No Windows: `Get-Content "$env:LOCALAPPDATA\AnyContext\logs\sync_Default.log" -Tail 20`
+     - No Linux: `cat ~/.local/share/any-context/logs/sync_Default.log`
+   - **Critério de Aceitação**:
+     - O log registra o processamento dos portais web.
+     - Se não havia pastas locais cadastradas, o log registra `Local Folders: (None configured for 'Default' - skipped)` e NUNCA registra `❌ No valid documents found across configured paths`.
+
+---
+
 ### 📌 Cenário 11 (v0.32.10 Isolamento Hermético de Buffers de Chat e Histórico por Workspace na TUI Nativa):
 - **Objetivo**: Comprovar que na versão `v0.32.10`:
   1. **Isolamento de Buffers de Chat em Memória (Padrão Virtual Tab)**:

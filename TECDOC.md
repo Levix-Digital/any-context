@@ -72,6 +72,7 @@
 84. [Strict Grounding Strategy Engine, Real-Time Token Streaming & Canonical LanceDB Consolidation (`v0.32.7`)](#84-strict-grounding-strategy-engine-real-time-token-streaming--canonical-lancedb-consolidation-v0327)
 85. [Hermetic Workspace Settings Persistence, Unified Sync Worker Ingestion, Windows Atomic Self-Update Swap & Venv Purge (`v0.32.9`)](#85-hermetic-workspace-settings-persistence-unified-sync-worker-ingestion-windows-atomic-self-update-swap--venv-purge-v0329)
 86. [Virtual Tab Workspace Chat Buffer Isolation & Viewport Lifecycle (`v0.32.10`)](#86-virtual-tab-workspace-chat-buffer-isolation--viewport-lifecycle-v03210)
+87. [Sync Worker Background Stdio Isolation & Chain of Responsibility Ingestion Engine (`v0.32.11`)](#87-sync-worker-background-stdio-isolation--chain-of-responsibility-ingestion-engine-v03211)
 ---
 
 
@@ -5408,6 +5409,62 @@ flowchart TD
 - **Status**: Accepted & Implemented (`v0.32.10`).
 - **Context**: Navigating across workspaces in the Ratatui TUI leaked in-memory chat buffers and viewport streaming states across workspace boundaries, violating conversational privacy and context isolation.
 - **Decision**: Implement a Virtual Tab architecture with `workspace_chat_buffers: HashMap<String, Vec<ChatMessageItem>>` and lifecycle hooks in `switch_to_workspace`. Bind `/reset-memory` to `CommandAction::ClearChat` to enforce immediate frontend/backend synchronization across all workspace transitions and resets.
+
+---
+
+## 87. Sync Worker Background Stdio Isolation & Chain of Responsibility Ingestion Engine (`v0.32.11`)
+
+### 1. Problem Statement & Root Cause Analysis
+During manual verification of background synchronization (`/sync --force`) within the Ratatui TUI (`crates/actx-cli`), two structural defects were identified:
+- **Terminal Viewport Corruption from Leaked Background Stdout**: In `crates/any-context-core-rs/src/commands/engine.rs`, the background sync worker was launched via `cmd.spawn()` with default inherited standard I/O streams. As the ingestion pipeline printed ASCII status messages, the raw text was written directly into the terminal while Ratatui was rendering its Alternate Screen Buffer. This destroyed the prompt box (`>`), corrupted the footer shortcut legend, and caused severe terminal jitter.
+- **False-Positive Error on Local Folders**: Workspaces configured exclusively with web documentation portals and zero local folders (e.g., `Default` with `https://www.canada.ca/...`) triggered `❌ No valid documents found across configured paths` from `local_folder_ingestor.py`. This alarmed users and misrepresented a healthy web-only workspace as an error state.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    subgraph RustCore["crates/any-context-core-rs (execute_sync)"]
+        CmdSync["/sync ou /sync --force"] --> PrepareLog["Open Append Log: %LOCALAPPDATA%/AnyContext/logs/sync_<ws>.log"]
+        PrepareLog --> SpawnDetached["Spawn with CREATE_NO_WINDOW + Stdout/Stderr Redirected to Log"]
+        SpawnDetached --> CleanTUI["TUI 100% Limpa (Zero caracteres vazados na tela)"]
+        SpawnDetached --> MsgLog["TUI Feedback includes exact log file path"]
+    end
+
+    subgraph PythonChain["src/any_context/ingestion/unified_sync.py (Chain of Responsibility)"]
+        SyncReq["SyncContext(workspace, force_full)"] --> FolderHandler["1. LocalFolderSyncHandler"]
+        FolderHandler -- "Pastas vazias? Sim" --> SkipFolders["Log: (No local folders configured - skipped)"]
+        FolderHandler -- "Pastas vazias? Não" --> RunFolderIndex["run_index_folder()"]
+        SkipFolders --> WebHandler["2. WebPortalSyncHandler"]
+        RunFolderIndex --> WebHandler
+        WebHandler -- "Web URLs? Sim" --> RunWebSync["sync_workspace_web_urls()"]
+        WebHandler -- "Web URLs? Não" --> SkipWeb["Log: (No web documentation portals - skipped)"]
+        RunWebSync --> DriveHandler["3. CloudDriveSyncHandler (GDrive, OneDrive, etc.)"]
+        SkipWeb --> DriveHandler
+        DriveHandler --> Summary["Resultados Consolidados no Log"]
+    end
+```
+
+1. **Hermetic Background Process Isolation (`crates/any-context-core-rs/src/commands/engine.rs`)**:
+   - Canonical logs path resolved via `get_default_logs_dir().join(format!("sync_{}.log", ctx.active_workspace))`.
+   - `cmd.stdout(Stdio::from(log_file))` and `cmd.stderr(Stdio::from(err_clone))`.
+   - On Windows, `cmd.creation_flags(0x08000000)` (`CREATE_NO_WINDOW`) decouples the worker entirely from the console subsystem.
+   - Command feedback message informs the exact log location: `📝 Worker log: <path>`.
+2. **Chain of Responsibility Multi-Source Pipeline (`src/any_context/ingestion/unified_sync.py`)**:
+   - `SyncContext`: Carries options, sources, results, and logging facilities.
+   - `BaseSyncHandler`: Abstract pipeline handler defining `set_next` and `handle`.
+   - `LocalFolderSyncHandler`: Gracefully skips when no local folders are attached (`status: skipped`), eliminating false alarms.
+   - `WebPortalSyncHandler`: Crawls and vectors registered documentation sites.
+   - `CloudDriveSyncHandler`: Extensible plug for future cloud storage providers.
+3. **Informative Message Sanitization (`src/any_context/ingestion/local_folder_ingestor.py`)**:
+   - Suppresses `❌ No valid documents found across configured paths` when `has_configured_paths` is false, outputting neutral `ℹ️ No local folders configured for this workspace` instead.
+
+### 3. Architecture Decision Record (ADR-093)
+
+#### ADR-093: Sync Worker Background Stdio Isolation & Chain of Responsibility Ingestion Engine
+- **Status**: Accepted & Implemented (`v0.32.11`).
+- **Context**: Child background sync processes wrote raw stdout/stderr into the terminal during active TUI rendering, and workspaces with only web portals generated false-positive local folder error alerts.
+- **Decision**: Redirect child process stdio to dedicated workspace log files with `CREATE_NO_WINDOW` on Windows, and refactor multi-source ingestion into a Chain of Responsibility pattern where handlers independently validate source presence and skip gracefully with zero error emojis.
+
 
 
 
