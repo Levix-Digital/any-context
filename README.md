@@ -45,6 +45,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🗂️ Virtual Tab Workspace Chat Buffer Isolation & Viewport Lifecycle (`v0.32.10`)**:
+  - **Hermetic In-Memory Chat Isolation**: Each workspace retains its own isolated conversational buffer (`workspace_chat_buffers`) in RAM. Switching between workspaces immediately saves current viewport state and restores the target workspace's messages without cross-workspace leakage or ghost messages.
+  - **Clean Viewport Lifecycle**: Workspace transitions sanitize active streaming buffers, reasoning traces, and viewport scroll offsets, welcoming new workspaces with clean, branded status headers.
+  - **Synchronized Visual & Database Memory Clears**: Commands `/reset-memory` and `/switch --delete` trigger atomic frontend screen clears (`CommandAction::ClearChat`) in parity with SQLite session purges.
 - **🔒 Hermetic Workspace Settings, Background Unified Sync & Windows Atomic Update (`v0.32.9`)**:
   - **Hermetic SQLite Workspace Settings Isolation**: Workspace configuration (`grounding_mode`, `model`, `web_search_enabled`) is persisted strictly in the relational `workspaces` table with auto-migrations. New workspaces initialize in `STRICT` mode with `gpt-4o-mini` and `web_search: 0`, completely preventing global setting leakage across workspaces.
   - **Real Multi-Source Background Synchronization (`/sync`)**: Replaced instantaneous mocks with real background worker execution (`--sync-worker`), reliably scraping and indexing registered web portals (>1,500 pages) and local file trees into LanceDB vector datasets.
