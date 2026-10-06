@@ -126,69 +126,56 @@ jobs:
           # 2. Build legacy standalone fallback binary (--onefile) for backwards compatibility
           pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
 
-      - name: Upload Binary Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: dist/*
-          if-no-files-found: error
-
-  publish-release:
-    name: Publish Release Assets
-    needs: build-binaries
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download Linux Binary
-        uses: actions/download-artifact@v4
-        with:
-          name: actx-linux
-          path: dist-linux
-
-      - name: Download Windows Binary
-        uses: actions/download-artifact@v4
-        with:
-          name: actx-windows
-          path: dist-windows
-
-      - name: Consolidate Release Assets
-        run: |
-          mkdir -p dist
-          # Copy Linux binaries (preserves native Linux ELF actx, actx-linux-x86_64, actx-linux-x86_64.tar.gz)
-          cp -r dist-linux/* dist/
-          # Copy Windows binaries (only .zip and .exe, preventing overwriting dist/actx with Windows git bash wrapper)
-          cp dist-windows/*.zip dist/
-          cp dist-windows/*.exe dist/
-
       - name: Normalize line endings for Unix scripts
+        if: runner.os == 'Linux'
         run: |
           sed -i 's/\r$//' scripts/install.sh
           sed -i 's/\r$//' scripts/uninstall.sh
 
-      - name: Publish Unified Release
+      - name: Publish Linux Release Assets
+        if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Linux'
         uses: softprops/action-gh-release@v2
         with:
           repository: Levix-Digital/any-context-releases
           files: |
             dist/actx-installer
-            dist/actx-installer.exe
             dist/actx-linux-x86_64.tar.gz
             dist/actx-linux-x86_64
-            dist/actx-windows-x86_64.zip
-            dist/actx-windows-x86_64.exe
             dist/actx
-            dist/actx.exe
-            scripts/install.ps1
             scripts/install.sh
-            scripts/uninstall.ps1
             scripts/uninstall.sh
           tag_name: ${{ github.ref_name }}
           name: AnyContext ${{ github.ref_name }}
           token: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
           fail_on_unmatched_files: true
+
+      - name: Publish Windows Release Assets
+        if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: Levix-Digital/any-context-releases
+          files: |
+            dist/actx-installer.exe
+            dist/actx-windows-x86_64.zip
+            dist/actx-windows-x86_64.exe
+            dist/actx.exe
+            scripts/install.ps1
+            scripts/uninstall.ps1
+          tag_name: ${{ github.ref_name }}
+          name: AnyContext ${{ github.ref_name }}
+          token: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
+          fail_on_unmatched_files: true
+
+      - name: Upload Binary Artifact (CI Debugging)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/*
+          retention-days: 1
+          if-no-files-found: ignore
+
 
 
 
