@@ -341,13 +341,22 @@ impl CommandEngine {
             return CommandResult::success(msg);
         }
 
-        if args[0] == "--delete" || args[0] == "-d" {
+        if args.iter().any(|a| *a == "--help" || *a == "-h" || *a == "help") {
+            let msg = "\
+📂 Workspace Switch Options:
+  • /switch <name>           Switch active workspace (creates if new)
+  • /switch --delete <name>  Delete workspace and associated vector records
+  • /switch --list           List all registered workspaces";
+            return CommandResult::success(msg);
+        }
+
+        if args[0] == "--delete" || args[0] == "-d" || args[0] == "delete" || args[0] == "remove" {
             if args.len() < 2 {
                 return CommandResult::error("Usage: /switch --delete <workspace_name>");
             }
             let target = args[1];
-            if target.eq_ignore_ascii_case("default") {
-                return CommandResult::error("Cannot delete the protected 'Default' workspace.");
+            if target.eq_ignore_ascii_case("default") || target.eq_ignore_ascii_case("global") {
+                return CommandResult::error(format!("Cannot delete the protected '{}' workspace.", target));
             }
             match db.delete_workspace(target) {
                 Ok(true) => {
@@ -359,7 +368,16 @@ impl CommandEngine {
                     if let Ok(store) = actx_agent::SqliteSessionStore::open(&db_path, 50) {
                         let _ = store.clear_session_sync(&format!("ws_{}", target));
                     }
-                    CommandResult::success(format!("🗑️ Workspace '{}' and associated vector records deleted.", target))
+                    if target.eq_ignore_ascii_case(&ctx.active_workspace) {
+                        let _ = db.set_setting("active_workspace", "Default");
+                        let mut updates = CommandStateUpdates::default();
+                        updates.active_workspace = Some("Default".to_string());
+                        CommandResult::success(format!("🗑️ Active workspace '{}' deleted. Switched back to 'Default'.", target))
+                            .with_action(CommandAction::SwitchWorkspace("Default".to_string()))
+                            .with_state_updates(updates)
+                    } else {
+                        CommandResult::success(format!("🗑️ Workspace '{}' and associated vector records deleted.", target))
+                    }
                 }
                 Ok(false) => CommandResult::error(format!("Workspace '{}' not found.", target)),
                 Err(e) => CommandResult::error(format!("Error deleting workspace: {}", e)),

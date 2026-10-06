@@ -87,6 +87,12 @@ pub fn get_default_lancedb_path() -> PathBuf {
         }
     }
 
+    if std::env::var("ACTX_TEST_MODE").is_ok() {
+        let sandbox = std::env::temp_dir().join("actx_test_sandbox").join("data").join("context_db").join("lancedb");
+        let _ = std::fs::create_dir_all(&sandbox);
+        return sandbox;
+    }
+
     #[cfg(target_os = "windows")]
     {
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
@@ -393,7 +399,7 @@ impl NativeLanceStore {
         let mut where_clauses = Vec::new();
         if let Some(ws) = workspace {
             let clean_ws = ws.replace('\'', "''");
-            where_clauses.push(format!("workspace = '{clean_ws}'"));
+            where_clauses.push(format!("(workspace = '{clean_ws}' OR workspace = 'Global')"));
         }
         if let Some(f) = filter_expr {
             where_clauses.push(f.to_string());
@@ -454,7 +460,7 @@ impl NativeLanceStore {
         let mut where_clauses = Vec::new();
         if let Some(ws) = workspace {
             let clean_ws = ws.replace('\'', "''");
-            where_clauses.push(format!("workspace = '{clean_ws}'"));
+            where_clauses.push(format!("(workspace = '{clean_ws}' OR workspace = 'Global')"));
         }
         where_clauses.push(format!("({where_clause})"));
 

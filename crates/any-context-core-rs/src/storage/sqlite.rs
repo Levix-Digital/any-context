@@ -985,6 +985,11 @@ pub fn get_default_settings_db_path() -> PathBuf {
             return PathBuf::from(p);
         }
     }
+    if std::env::var("ACTX_TEST_MODE").is_ok() {
+        let sandbox = std::env::temp_dir().join("actx_test_sandbox").join("config");
+        let _ = std::fs::create_dir_all(&sandbox);
+        return sandbox.join("settings.db");
+    }
     #[cfg(target_os = "windows")]
     {
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
@@ -1031,6 +1036,11 @@ pub fn get_default_settings_db_path() -> PathBuf {
 }
 
 pub fn get_default_logs_dir() -> PathBuf {
+    if std::env::var("ACTX_TEST_MODE").is_ok() {
+        let sandbox = std::env::temp_dir().join("actx_test_sandbox").join("logs");
+        let _ = std::fs::create_dir_all(&sandbox);
+        return sandbox;
+    }
     #[cfg(target_os = "windows")]
     {
         if let Ok(local) = std::env::var("LOCALAPPDATA") {

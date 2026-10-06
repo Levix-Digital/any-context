@@ -129,6 +129,8 @@ pub fn build_agent_sync(
                     Err(e) => return Ok(format!("Search database unavailable: {e}")),
                 };
 
+                ensure_global_knowledge_bootstrap(&lance_store);
+
                 let pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
                     lance_store,
                     Some(tool_provider),
@@ -137,6 +139,7 @@ pub fn build_agent_sync(
                 let req = any_context_core_rs::retrieval::HybridSearchRequest {
                     query_text: query.to_string(),
                     workspace: Some(ws.clone()),
+                    target_workspaces: vec!["Global".to_string()],
                     top_k: 5,
                     candidate_pool_k: 30,
                     max_density_chars: 12_000,
@@ -233,4 +236,87 @@ pub async fn build_agent(
     web_search_enabled: bool,
 ) -> Result<Agent, String> {
     build_agent_sync(provider, model, workspace, grounding_mode, search_mode, web_search_enabled)
+}
+
+/// Ensures that the 'Global' workspace in LanceDB contains AnyContext system documentation.
+/// If no chunks exist under 'Global', it automatically chunks and indexes the embedded README.md
+/// and updates the BM25 index for zero-token self-knowledge.
+pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::storage::NativeLanceStore) {
+    let count = lance_store.count_records(Some("workspace_chunks"), Some("Global")).unwrap_or(0);
+    if count > 0 {
+        return;
+    }
+
+    let readme = crate::prompt::EMBEDDED_README_MD;
+    let mut sections = Vec::new();
+    let mut current_header = "AnyContext Overview".to_string();
+    let mut current_body = String::new();
+
+    for line in readme.lines() {
+        if line.starts_with("# ") || line.starts_with("## ") || line.starts_with("### ") {
+            if !current_body.trim().is_empty() {
+                sections.push((current_header.clone(), current_body.trim().to_string()));
+                current_body.clear();
+            }
+            current_header = line.trim_start_matches('#').trim().to_string();
+        } else {
+            current_body.push_str(line);
+            current_body.push('\n');
+        }
+    }
+    if !current_body.trim().is_empty() {
+        sections.push((current_header, current_body.trim().to_string()));
+    }
+
+    if sections.is_empty() {
+        return;
+    }
+
+    let mut records = Vec::new();
+    let mut bm25_chunks = Vec::new();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    for (idx, (header, text)) in sections.into_iter().enumerate() {
+        let chunk_id = format!("global_sys_doc_{idx}");
+        let full_text = format!("# {}\n\n{}", header, text);
+        let rec = any_context_core_rs::storage::VectorRecord {
+            id: chunk_id.clone(),
+            vector: vec![0.0; 1536],
+            text: full_text.clone(),
+            file_name: "README.md".to_string(),
+            file_path: "system://README.md".to_string(),
+            workspace: "Global".to_string(),
+            last_modified: Some(now.clone()),
+            content_type: Some("System Documentation".to_string()),
+            document_summary: Some(format!("AnyContext Documentation: {}", header)),
+            keywords: Some("anycontext, system, guide, commands, usage".to_string()),
+            content_hash: None,
+        };
+        records.push(rec);
+        bm25_chunks.push((chunk_id, full_text, header));
+    }
+
+    // 1. Insert into LanceDB
+    let _ = lance_store.upsert_records(records, Some("workspace_chunks"), Some(1536));
+
+    // 2. Insert into BM25 index and save
+    let bm25_path = lance_store.db_path().join("bm25_index.bin");
+    let mut bm25 = if bm25_path.exists() {
+        any_context_core_rs::retrieval::BM25Index::load_from_file(bm25_path.to_str().unwrap_or(""))
+            .unwrap_or_else(|_| any_context_core_rs::retrieval::BM25Index::new(None, None))
+    } else {
+        any_context_core_rs::retrieval::BM25Index::new(None, None)
+    };
+
+    for (cid, ftext, _) in bm25_chunks {
+        bm25.add_chunk(
+            cid,
+            ftext,
+            "README.md".to_string(),
+            "system://README.md".to_string(),
+            "Global".to_string(),
+            "System Documentation".to_string(),
+        );
+    }
+    let _ = bm25.save_to_file(bm25_path.to_str().unwrap_or(""));
 }

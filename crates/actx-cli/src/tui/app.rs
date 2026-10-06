@@ -509,6 +509,10 @@ impl App {
                 let target_ws = item.id.trim_start_matches("switch:");
                 crate::commands::dispatch_slash_command("switch", &[target_ws], self);
                 self.menu_state.is_open = false;
+            } else if item.id == "workspace_tip" {
+                self.input_buffer = "/switch --delete ".to_string();
+                self.cursor_idx = self.input_buffer.len();
+                self.menu_state.is_open = false;
             } else if item.id.starts_with("model:") {
                 let target_m = item.id.trim_start_matches("model:");
                 crate::commands::dispatch_slash_command("model", &[target_m], self);

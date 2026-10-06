@@ -314,6 +314,16 @@ pub fn build_workspaces_menu(active_workspace: &str) -> Vec<MenuItem> {
         });
     }
 
+    items.push(MenuItem {
+        id: "workspace_tip".to_string(),
+        title: "💡 Excluir Workspace (Dica)".to_string(),
+        description: "Para excluir um workspace, use o comando: /switch --delete <nome>".to_string(),
+        icon: "🗑️".to_string(),
+        badge: Some("[Dica]".to_string()),
+        shortcut: None,
+        is_submenu: false,
+    });
+
     items
 }
 

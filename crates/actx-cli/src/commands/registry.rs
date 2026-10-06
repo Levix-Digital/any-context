@@ -12,7 +12,7 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         name: "switch",
         aliases: &["workspace", "workspaces", "ws"],
         description: "Lists all workspaces or switches active context workspace",
-        usage: "/switch [name] [--delete <name>]",
+        usage: "/switch [name] | --delete <name> | --list",
         category: "Workspace",
     },
     SlashCommand {
@@ -155,14 +155,14 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         name: "folder",
         aliases: &["add", "dir"],
         description: "Add, list, or remove local folder from workspace",
-        usage: "/folder [--add <path>|--remove <path>]",
+        usage: "/folder [--add <path> | --remove <path> | --list]",
         category: "Sources",
     },
     SlashCommand {
         name: "web",
         aliases: &["url"],
         description: "Add, list, or crawl documentation portal or web URL",
-        usage: "/web [--add <url>|--remove <url>]",
+        usage: "/web [--add <url> | --remove <url> | --list]",
         category: "Sources",
     },
     SlashCommand {

@@ -206,14 +206,69 @@ fn render_accordion(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_input(frame: &mut Frame, area: Rect, app: &App) {
+    let trimmed = app.input_buffer.trim_start();
+    let maybe_cmd = if trimmed.starts_with('/') {
+        let cmd_word = trimmed[1..].split_whitespace().next().unwrap_or("");
+        crate::commands::find_command(cmd_word)
+    } else {
+        None
+    };
+
+    let title_line = if let Some(cmd) = maybe_cmd {
+        Line::from(vec![
+            Span::raw(" Prompt │ "),
+            Span::styled(format!("Opções: {} ", cmd.usage), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        ])
+    } else {
+        Line::from(vec![
+            Span::raw(" Prompt (Enter para enviar, / para comandos) "),
+        ])
+    };
+
+    let border_color = if maybe_cmd.is_some() {
+        Color::Cyan
+    } else {
+        Color::White
+    };
+
     let block = Block::default()
-        .title(" Prompt (Enter to submit, / for commands) ")
+        .title(title_line)
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::White));
+        .border_style(Style::default().fg(border_color));
 
-    let display_text = format!("> {}", app.input_buffer);
-    let para = Paragraph::new(display_text).block(block);
+    let mut spans = vec![
+        Span::raw("> "),
+        Span::styled(&app.input_buffer, Style::default().fg(Color::White)),
+    ];
+
+    // Contextual inline ghost text for expected parameters
+    if let Some(cmd) = maybe_cmd {
+        if app.cursor_idx >= app.input_buffer.len() {
+            let cmd_prefix = format!("/{}", cmd.name);
+            let raw_trimmed = app.input_buffer.trim();
+            let matches_cmd_name = raw_trimmed.eq_ignore_ascii_case(&cmd_prefix)
+                || cmd.aliases.iter().any(|a| raw_trimmed.eq_ignore_ascii_case(&format!("/{}", a)));
+
+            if matches_cmd_name {
+                let usage_params = cmd.usage.split_once(' ').map(|(_, p)| p).unwrap_or("");
+                if !usage_params.is_empty() {
+                    let ghost = if app.input_buffer.ends_with(' ') {
+                        usage_params.to_string()
+                    } else {
+                        format!(" {}", usage_params)
+                    };
+                    spans.push(Span::styled(
+                        ghost,
+                        Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+                    ));
+                }
+            }
+        }
+    }
+
+    let line = Line::from(spans);
+    let para = Paragraph::new(line).block(block);
     frame.render_widget(para, area);
 
     // Set cursor position inside the input block using visual char count
@@ -231,7 +286,7 @@ fn render_input(frame: &mut Frame, area: Rect, app: &App) {
 
 fn render_slash_palette(frame: &mut Frame, input_area: Rect, app: &App) {
     let height = (app.slash_matches.len().min(8) as u16) + 2;
-    let width = 60.min(input_area.width.saturating_sub(4));
+    let width = 75.min(input_area.width.saturating_sub(4));
     let y = input_area.y.saturating_sub(height);
     let x = input_area.x + 2;
 
@@ -254,7 +309,7 @@ fn render_slash_palette(frame: &mut Frame, input_area: Rect, app: &App) {
                 Style::default().fg(Color::White)
             };
 
-            let text = format!("/{: <12} {}", cmd.name, cmd.description);
+            let text = format!("/{: <11} {: <28} │ {}", cmd.name, cmd.usage, cmd.description);
             ListItem::new(Span::styled(text, style))
         })
         .collect();

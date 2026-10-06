@@ -11,6 +11,9 @@ use std::path::PathBuf;
 /// Canonical AGENT.md embedded at compile time for zero-dependency standalone binaries.
 pub const EMBEDDED_AGENT_MD: &str = include_str!("../../../config/AGENT.md");
 
+/// Canonical README.md embedded at compile time for system self-knowledge.
+pub const EMBEDDED_README_MD: &str = include_str!("../../../README.md");
+
 /// Loads AGENT.md from disk if available, otherwise returns the compile-time embedded version.
 pub fn load_agent_md() -> String {
     // 1. Explicit env var override
@@ -103,6 +106,12 @@ pub fn build_system_prompt(
          - You remember prior conversations, past context, decisions, and instructions given in earlier turns of this workspace.\n\
          - When the user asks about previous topics, past conversations, or asks if you have long-term memory, ALWAYS recognize and reference your persistent memory and conversation history.\n\
          - NEVER claim that you lack long-term memory or that interactions are independent. You are AnyContext and you retain workspace memory.\n\n"
+    );
+
+    // Specialized Agent Skills (Lean & Token-Efficient)
+    prompt.push_str(
+        "### 🧩 SPECIALIZED AGENT SKILLS:\n\
+         - **Skill `system-knowledge`**: You are the main conversational interface of AnyContext (actx). When the user asks questions about AnyContext itself (capabilities, how it works, supported commands like `/folder`, `/switch`, `/sync`, `/mode`, options, keyboard shortcuts, or workflows), you MUST call `search_db` to retrieve the authoritative documentation from the knowledge base and explain it clearly in Portuguese or the user's language.\n\n"
     );
 
     // Active Grounding Mode Directives

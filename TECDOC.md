@@ -5465,6 +5465,74 @@ flowchart TD
 - **Context**: Child background sync processes wrote raw stdout/stderr into the terminal during active TUI rendering, and workspaces with only web portals generated false-positive local folder error alerts.
 - **Decision**: Redirect child process stdio to dedicated workspace log files with `CREATE_NO_WINDOW` on Windows, and refactor multi-source ingestion into a Chain of Responsibility pattern where handlers independently validate source presence and skip gracefully with zero error emojis.
 
+---
+
+## 88. Test Isolation Sandbox, Universal Option Hinting & Skill-Based Global Self-Knowledge (`v0.32.12`)
+
+### 1. Problem Statement & Root Cause Analysis
+During quality auditing prior to the full production rollout of AnyContext, three interconnected architectural gaps were discovered:
+1. **Production Database Cross-Contamination by Automated Tests**: Automated integration tests in `crates/actx-cli/tests/cli_tests.rs` instantiated the top-level `App` struct, which resolved canonical storage paths via `get_default_settings_db_path()` and `get_default_lancedb_path()`. Because these functions directly pointed to the user's live `%LOCALAPPDATA%\AnyContext` directory, test executions silently inserted dummy workspaces (`WorkspaceAlpha`, `WorkspaceBeta`, `WorkspaceB`, `test-isolation`, `--list`) and vector artifacts into the production databases, violating database hygiene.
+2. **Command Option Discoverability & Absence of Workspace Deletion in TUI**: While the Core engine possessed internal capabilities for workspace lifecycle management, users lacked visibility into which subcommands or flags were supported across commands without consulting offline documentation. Crucially, deleting an entire workspace was unobvious, and creating new slash commands would unnecessarily clutter the lean command catalog.
+3. **Application Amnesia Regarding Its Own Operations (Self-Knowledge)**: When users queried the conversational agent about how AnyContext functions, how to configure models, or how to index folders, the agent hallucinated or stated lack of context. Direct inclusion of the full system documentation inside the base LLM prompt would severely deplete the token context window for user queries.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    subgraph Test_Isolation["Hermetic Test Sandbox Isolation (ACTX_TEST_MODE)"]
+        TestRunner["Cargo Test / Integration Harness"] --> SetEnv["ACTX_TEST_MODE = 1"]
+        SetEnv --> CoreStorage["any-context-core-rs storage paths"]
+        CoreStorage --> SandboxDir["temp_dir()/actx_test_sandbox"]
+        CoreStorage -. "BLOCKED (100% Imune)" .-> ProdDB["%LOCALAPPDATA%/AnyContext/config/settings.db"]
+    end
+
+    subgraph TUI_Hinting["Universal Option Hinting & Ghost Text Engine"]
+        UserInput["Input Buffer (e.g. '/switch ')"] --> MatchCmd["Match registered command prefix"]
+        MatchCmd --> TitleReactive["Render Border Title: 'Prompt │ Opções: <usage>' (Cyan/Yellow)"]
+        MatchCmd --> InlineGhost["Render DarkGray Italic Ghost Text at Cursor: '<nome> | --delete <nome>'"]
+        MatchCmd --> PalettePreview["Slash Palette Popup: Command + Formatted Usage Hint"]
+        MenuWorkspaces["/menu -> Workspaces"] --> PreFillTip["💡 Excluir Workspace (Dica) -> Prefill '/switch --delete '"]
+    end
+
+    subgraph Self_Knowledge["Skill-Based Self-Knowledge Engine & Virtual 'Global' Workspace"]
+        Boot["actx Engine Startup"] --> CheckGlobal{"'Global' chunks count == 0?"}
+        CheckGlobal -- "Yes (First Run)" --> ChunkDoc["Chunk embedded README.md (600 tokens, 100 overlap)"]
+        ChunkDoc --> UpsertLance["LanceDB: workspace='Global', source='system://README.md'"]
+        ChunkDoc --> UpsertBM25["BM25 Index: workspace='Global'"]
+        CheckGlobal -- "No (Cached)" --> Ready["Ready"]
+        
+        AgentPrompt["Prompt Builder (crates/actx-cli/src/prompt.rs)"] --> LeanSkill["Inject <50 token 'system-knowledge' skill directive"]
+        UserQuestion["User: 'Como funciona o AnyContext?'"] --> AgentDecide["Agent triggers tool search_db('AnyContext', target_workspaces=['Global'])"]
+        AgentDecide --> SearchHybrid["Hybrid LanceDB Vector + BM25 Lexical (Active WS + 'Global')"]
+        SearchHybrid --> AccurateAnswer["Grounded, factual answer citing official system documentation"]
+    end
+```
+
+1. **Hermetic Test Isolation Sandbox (`crates/any-context-core-rs/src/storage/`)**:
+   - `sqlite.rs` and `lancedb.rs` inspect the environment variable `ACTX_TEST_MODE`.
+   - When set (`"1"` or `"true"`), `get_default_settings_db_path()`, `get_default_lancedb_path()`, and `get_default_logs_dir()` dynamically pivot to `std::env::temp_dir().join("actx_test_sandbox")`.
+   - All integration tests in `crates/actx-cli/tests/cli_tests.rs` execute an atomic `setup_test_sandbox()` initialization helper, guaranteeing that test executions leave the canonical `%LOCALAPPDATA%\AnyContext` storage 100% immune to contamination.
+   - A one-time sanitation routine purged historical test leftovers (`WorkspaceAlpha`, `WorkspaceBeta`, `WorkspaceB`, `test-isolation`, `--list`) from user configuration stores.
+
+2. **Universal Contextual Option Hinting & Ghost Text Engine (`crates/actx-cli/src/tui/`)**:
+   - **Reactive Border Title**: `crates/actx-cli/src/tui/ui.rs` dynamically updates the prompt box border title to `Prompt │ Opções: <usage>` rendered in Cyan and Yellow whenever the user types a registered slash command.
+   - **Inline Contextual Ghost Text**: Suggestion placeholders appear immediately after the cursor in `DarkGray` italic, providing real-time syntax feedback (e.g., typing `/switch ` renders `<nome> | --delete <nome> | --list`).
+   - **Enriched Slash Palette**: The autocomplete popup expands to 75 characters wide, displaying aligned syntax usage specifications alongside descriptions for each command.
+   - **Interactive Menu Tip**: The workspaces sub-menu (`/menu`) includes `💡 Excluir Workspace (Dica)` which auto-populates `/switch --delete ` into the input buffer without introducing fragmented new slash commands.
+   - **Core Engine Lifecycle Parity**: In `crates/any-context-core-rs/src/commands/engine.rs`, `/switch` accepts `delete`, `remove`, `--delete`, and `-d` subcommands, blocks deletion of reserved `Default` and `Global` roots, and executes automatic fallback to `Default` if the active workspace is removed.
+
+3. **Skill-Based Native Self-Knowledge Engine & Virtual "Global" Workspace (`crates/actx-cli/src/`)**:
+   - **Zero Token Bloat**: Rather than dumping complete user manuals into the agent system prompt, `build_system_prompt()` injects a compact skill directive (~40 tokens) identifying AnyContext's architecture and instructing the model to invoke `search_db` over workspace `"Global"` when queried about application functionality.
+   - **Global Workspace Bootstrapper**: `ensure_global_knowledge_bootstrap()` inspects LanceDB and BM25 on startup. If `"Global"` contains zero chunks, it ingests the embedded `README.md` into `workspace_chunks` and `bm25_index.bin` tagged with `workspace = "Global"` and `file_path = "system://README.md"`.
+   - **Multi-Workspace Hybrid Search Parity**: LanceDB vector search (`search_vector` and `search_metadata_async`) queries `(workspace = '{ws}' OR workspace = 'Global')`, matching BM25 lexical search behavior and enabling seamless cross-workspace retrieval for system documentation.
+
+### 3. Architecture Decision Record (ADR-094)
+
+#### ADR-094: Test Isolation Sandbox, Universal Contextual Option Hinting & Skill-Based Self-Knowledge via Global LanceDB Workspace
+- **Status**: Accepted & Implemented (`v0.32.12`).
+- **Context**: Automated test runs polluted production databases with test workspaces; users lacked discoverability for command options and workspace deletion; and the AI agent could not answer questions about its own operation without risking system prompt token bloat.
+- **Decision**: Redirect test storage to an ephemeral temporary sandbox via `ACTX_TEST_MODE`; introduce universal reactive border titles and inline ghost text across all commands with options; provide interactive `/switch --delete` menu hints; and bootstrap official documentation into a virtual `"Global"` LanceDB/BM25 workspace paired with a lean (<50 tokens) system prompt skill directive.
+
 
 
 

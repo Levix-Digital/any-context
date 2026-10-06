@@ -141,3 +141,28 @@ fn test_sync_command_execution_and_log_redirection() {
         assert!(res.message.contains("Failed to launch background synchronization worker"));
     }
 }
+
+#[test]
+fn test_switch_command_options_and_deletion() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext {
+        active_workspace: "TempDeletable".to_string(),
+        ..Default::default()
+    };
+
+    // 1. Help flag returns clear options
+    let res_help = CommandEngine::execute("switch", &["--help"], &ctx);
+    assert!(res_help.success);
+    assert!(res_help.message.contains("--delete"));
+    assert!(res_help.message.contains("--list"));
+
+    // 2. Reject deletion of protected Default workspace
+    let res_del_default = CommandEngine::execute("switch", &["--delete", "Default"], &ctx);
+    assert!(!res_del_default.success);
+    assert!(res_del_default.message.contains("Cannot delete the protected 'Default' workspace"));
+
+    // 3. Reject deletion of protected Global workspace
+    let res_del_global = CommandEngine::execute("switch", &["delete", "Global"], &ctx);
+    assert!(!res_del_global.success);
+    assert!(res_del_global.message.contains("Cannot delete the protected 'Global' workspace"));
+}

@@ -7,6 +7,110 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 13 (v0.32.12 Sandbox de Isolamento de Testes, Ghost Text Universal e Auto-Consciência Nativa Global):
+- **Objetivo**: Comprovar que na versão `v0.32.12`:
+  1. **Sandbox Hermético de Testes & Imunidade da Base de Produção**:
+     - A execução de testes automatizados (`cargo test`) NUNCA mais cria bancos, logs ou workspaces no diretório canônico de produção do usuário (`%LOCALAPPDATA%\AnyContext`).
+     - Os testes rodam 100% isolados em sandbox temporário (`temp_dir().join("actx_test_sandbox")`).
+  2. **Ghost Text Contextual Universal e Reactive Border Title para Todos os Comandos com Opções**:
+     - Ao digitar qualquer comando que possui opções (como `/switch`, `/folder`, `/mode`, `/help`, etc.), a borda do prompt da TUI exibe dinamicamente `Prompt │ Opções: <sintaxe de uso>` em ciano e amarelo.
+     - Texto fantasma inline (*ghost text*) em cinza escuro itálico aparece no cursor indicando as opções esperadas (ex: `/switch ` sugere `<nome> | --delete <nome> | --list`).
+     - A paleta de slash commands exibe a sintaxe completa das opções alinhada com as descrições.
+  3. **Exclusão de Workspace sem Novos Comandos (`/switch --delete <nome>`) e Dica no Menu**:
+     - O usuário consegue excluir qualquer workspace não-raiz através de `/switch --delete <nome>`, `/switch -d <nome>` ou `/switch delete <nome>`.
+     - Workspaces do sistema (`Default` e `Global`) são protegidos e não podem ser excluídos.
+     - Se o workspace ativo for excluído, o sistema faz fallback seguro imediato para o workspace `Default`.
+     - No menu interativo (`/menu` -> `Workspaces`), a opção `💡 Excluir Workspace (Dica)` preenche automaticamente o prompt com `/switch --delete ` sem adicionar novos comandos na TUI.
+  4. **Auto-Consciência do Sistema (Self-Knowledge) sem Inchaço de Tokens via Workspace Virtual "Global"**:
+     - O manual oficial do usuário (`README.md`) é automaticamente indexado no primeiro boot dentro da tabela LanceDB e índice BM25 sob o workspace virtual `"Global"`.
+     - O agente possui a Skill enxuta `system-knowledge` (~40 tokens) e busca ativamente no `"Global"` ao ser questionado sobre o funcionamento do AnyContext.
+     - A ferramenta `search_db` busca no workspace ativo e no `"Global"`, retornando respostas precisas citando a documentação oficial (`system://README.md`), sem estourar a janela de contexto.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.12`.
+
+2. **💡 Teste de Ghost Text Universal e Reactive Border Title na TUI:**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - No prompt de entrada, digite lentamente:
+     ```text
+     /switch 
+     ```
+   - **Critérios de Aceitação**:
+     - O título superior da caixa de prompt reage e muda para: `Prompt │ Opções: <nome> | --delete <nome> | --list` em cores ciano e amarelo.
+     - No próprio cursor (após o espaço), surge o texto fantasma inline (*ghost text*) em cinza escuro itálico: `<nome> | --delete <nome> | --list`.
+   - Apague e teste outro comando com opções, por exemplo:
+     ```text
+     /folder 
+     ```
+   - **Critério de Aceitação**: O título e o ghost text reagem instantaneamente sugerindo: `<caminho> | --remove <caminho> | --list`.
+   - Digite apenas `/` e navegue com as setas:
+     - **Critério de Aceitação**: A janela suspensa de autocompletar exibe a sintaxe completa de opções de cada comando formatada ao lado da descrição.
+
+3. **🗑️ Teste de Exclusão de Workspace e Dica Interativa no Menu:**
+   - Crie um workspace temporário para teste:
+     ```text
+     /workspace TesteDelete
+     ```
+   - Verifique que você está no workspace `TesteDelete` (indicado no cabeçalho superior).
+   - Abra o menu interativo:
+     ```text
+     /menu
+     ```
+   - Selecione a opção `Workspaces`.
+   - Observe a lista de opções:
+     - **Critério de Aceitação**: A última opção da lista exibe `💡 Excluir Workspace (Dica)`.
+   - Pressione Enter sobre `💡 Excluir Workspace (Dica)`:
+     - **Critério de Aceitação**: O menu fecha e o prompt de entrada é automaticamente preenchido com `/switch --delete `, pronto para você digitar o nome do workspace.
+   - Complete o comando para:
+     ```text
+     /switch --delete TesteDelete
+     ```
+   - Pressione Enter:
+     - **Critérios de Aceitação**:
+       - O sistema exibe confirmação: `🗑️ Workspace 'TesteDelete' excluído com sucesso.`
+       - Como `TesteDelete` era o workspace ativo, o sistema realiza fallback seguro para `Default`: `🔄 Alternado para o workspace 'Default'.`
+       - O cabeçalho da TUI agora reflete `Workspace: Default`.
+   - Tente excluir o workspace `Default`:
+     ```text
+     /switch --delete Default
+     ```
+   - **Critério de Aceitação**: O sistema bloqueia a exclusão e exibe o aviso amigável: `⚠️ O workspace 'Default' é reservado pelo sistema e não pode ser excluído.`
+
+4. **🧠 Teste de Auto-Consciência do Sistema (Self-Knowledge):**
+   - Ainda na TUI no workspace `Default`, envie a seguinte pergunta ao assistente:
+     ```text
+     Como funciona o AnyContext e como posso indexar uma pasta local?
+     ```
+   - Aguarde a resposta do agente.
+   - **Critérios de Aceitação**:
+     - O agente aciona a ferramenta de busca interna (`search_db`) consultando a documentação oficial.
+     - O agente explica com precisão cirúrgica a arquitetura do AnyContext, o comando `/folder <caminho>` ou `/folder add <caminho>`, o processo de sincronização (`/sync`), a busca híbrida vetorial/BM25 e os modos de grounding (`STRICT`, `HYBRID`, `PROACTIVE`).
+     - A resposta cita a documentação interna oficial (`system://README.md`).
+     - O tempo de resposta é rápido e o consumo de contexto foi mínimo (a documentação foi recuperada sob demanda do workspace `"Global"`, sem inchar o prompt do sistema).
+
+5. **🛡️ Teste de Imunidade do Banco de Produção contra Poluição de Testes:**
+   - Saia da TUI (`/exit`).
+   - Execute o teste automatizado em sandbox:
+     ```powershell
+     cargo test -p actx-cli
+     ```
+   - Inspecione a quantidade de workspaces no banco de produção oficial:
+     ```powershell
+     python -c "import sqlite3, os; p = os.path.expandvars('%LOCALAPPDATA%\\AnyContext\\config\\settings.db'); conn = sqlite3.connect(p); cur = conn.cursor(); cur.execute('SELECT name FROM workspaces'); print(cur.fetchall())"
+     ```
+   - **Critério de Aceitação**: NENHUM workspace temporário de teste (`WorkspaceAlpha`, `WorkspaceBeta`, `test-isolation`, etc.) foi adicionado ao seu banco de dados de produção! Todos os testes rodaram isolados no sandbox temporário.
+
+---
+
 ### 📌 Cenário 12 (v0.32.11 Isolamento de Stdout do Sync Worker e Ingestão com Chain of Responsibility):
 - **Objetivo**: Comprovar que na versão `v0.32.11`:
   1. **Isolamento Hermético de Stdout/Stderr do Sync Worker em Background**:

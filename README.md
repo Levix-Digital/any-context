@@ -45,6 +45,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🛡️ Test Isolation Sandbox, Universal Command Option Hinting & Skill-Based Self-Knowledge (`v0.32.12`)**:
+  - **Hermetic Test Isolation**: Storage engines (`settings.db`, `lancedb`, logs) automatically redirect to a sandbox directory in `temp_dir` whenever `ACTX_TEST_MODE=1` or test harnesses execute, rendering the user's canonical `%LOCALAPPDATA%\AnyContext` storage completely immune to test pollution.
+  - **Universal Contextual Option Hinting**: The terminal TUI now dynamically displays expected command options and flags via interactive inline ghost text (`> /switch <name> | --delete <name> | --list`), reactive border titles (`Prompt │ Opções: ...`), enriched slash palette syntax preview, and interactive tips in the Workspaces menu (`/menu`), eliminating manual reading without adding new commands.
+  - **Zero-Token Skill-Based System Self-Knowledge**: Equipped the AI agent with the lightweight `system-knowledge` skill and multi-workspace target retrieval across `"Global"`. Official User Documentation (`README.md`) and command specifications are automatically bootstrapped into the virtual `"Global"` workspace in LanceDB on startup, enabling instantaneous, accurate answers to questions about AnyContext without bloating baseline system prompt token budgets.
 - **🔄 Sync Worker Background Stdio Isolation & Chain of Responsibility Ingestion (`v0.32.11`)**:
   - **Zero Viewport Leaks**: Background synchronization worker child processes are launched with complete stdio redirection to dedicated log files (`logs/sync_<workspace>.log`) and `CREATE_NO_WINDOW` on Windows, eliminating 100% of terminal screen corruption during `/sync` and `/sync --force`.
   - **Chain of Responsibility Multi-Source Ingestion**: Modular pipeline architecture (`LocalFolderSyncHandler`, `WebPortalSyncHandler`, `CloudDriveSyncHandler`) ensuring each source category evaluates and syncs independently. Workspaces configured solely with web documentation portals skip local folder scanning cleanly with zero false-positive error alerts.

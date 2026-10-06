@@ -90,8 +90,13 @@ fn test_slash_command_lookup_and_autocomplete() {
     assert!(matches.iter().any(|c| c.name == "switch"));
 }
 
+fn setup_test_sandbox() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+}
+
 #[tokio::test]
 async fn test_app_state_and_slash_dispatch() {
+    setup_test_sandbox();
     let mut app = App::new("test-workspace".to_string(), "gpt-4o-mini".to_string(), None);
     assert_eq!(app.active_workspace, "test-workspace");
     assert_eq!(app.active_model, "gpt-4o-mini");
@@ -301,6 +306,7 @@ async fn test_app_state_and_slash_dispatch() {
 
 #[test]
 fn test_utf8_input_handling() {
+    setup_test_sandbox();
     let mut app = App::new("test-workspace".to_string(), "gpt-4o-mini".to_string(), None);
 
     // 1. Type accented characters: "Qual é"
@@ -377,6 +383,7 @@ fn test_paragraph_line_count_and_autoscroll() {
 
 #[tokio::test]
 async fn test_chat_autoscroll_lifecycle() {
+    setup_test_sandbox();
     let mut app = App::new("test-workspace".to_string(), "gpt-4o-mini".to_string(), None);
     assert!(app.auto_scroll);
     assert_eq!(app.scroll_offset, 0);
@@ -422,6 +429,7 @@ async fn test_chat_autoscroll_lifecycle() {
 
 #[tokio::test]
 async fn test_prompt_history_navigation_and_workspace_isolation() {
+    setup_test_sandbox();
     let mut app = App::new("WorkspaceA".to_string(), "gpt-4o-mini".to_string(), None);
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -486,6 +494,7 @@ async fn test_prompt_history_navigation_and_workspace_isolation() {
 
 #[tokio::test]
 async fn test_top_header_quint_status_and_reactive_updates() {
+    setup_test_sandbox();
     let mut app = App::new("Default".to_string(), "gpt-4o-mini".to_string(), None);
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -569,6 +578,7 @@ async fn test_sqlite_session_store_integration() {
 
 #[tokio::test]
 async fn test_workspace_chat_buffers_isolation_and_clear_lifecycle() {
+    setup_test_sandbox();
     let mut app = App::new("WorkspaceAlpha".to_string(), "gpt-4o-mini".to_string(), None);
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
 
