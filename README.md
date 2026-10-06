@@ -45,6 +45,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **⚡ 100% Core Command Parity, Auto-Sync Spawning & Live Scanning Telemetry (`v0.32.15`)**:
+  - **Full Rust Hexagonal Command Parity**: Completed 100% feature parity across all 24 slash commands between Python reference and the native Rust Core (`CommandEngine`). `/folder` and `/web` auto-spawn background synchronization and crawler workers immediately; `/keys` persists credentials to SQLite and sets process runtime environment; `/config` renders the complete system configuration dashboard; `/purge` cleans LanceDB vectors and SQLite file metadata cache; `/vision` persists multimodal preferences; `/logs` reads live logs directly from disk; and `/inspect` outputs taxonomy and non-truncated chunk previews.
+  - **LanceDB Columnar Count Parameter Fix**: Resolved parameter order swap in `NativeLanceStore::count_records`, ensuring accurate chunk metrics across all 17+ workspaces and eliminating AI false negative answers.
+  - **TUI Footer Live Braille Spinner & Discovery Telemetry**: Replaced static frozen footer state with a responsive 250ms Braille spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) and live item discovery progress (`[scanning... X items found]`).
+  - **Menu Incremental Sync Action Unblocked**: Fixed interactive menu dispatch for incremental synchronization, guaranteeing instant background worker invocation without modal re-opening loops.
 - **🛡️ Bounded BM25 Deserialization, Live Sync Progress Bar & Agent Background Telemetry (`v0.32.14`)**:
   - **Panic-Safe BM25 Deserialization & Self-Healing**: Configured bincode with a strict 150MB allocation bound, wrapped index loading in `catch_unwind`, enforced atomic file persistence via temp-and-rename, and implemented automatic quarantine (`.corrupt.<timestamp>`) with clean memory fallback. This permanently prevents catastrophic memory allocation panics (`memory allocation of X bytes failed`).
   - **Live TUI Footer Sync Progress Bar**: The bottom footer dynamically displays real-time synchronization progress (`⚡ Syncing [████░░░░] 50% (15/30 files)` and `✔ Up to date`) driven by an asynchronous 250ms polling loop connected to canonical SQLite telemetry (`workspace_sync_status`), preserving chat focus while giving full transparency.

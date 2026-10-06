@@ -739,6 +739,30 @@ fn test_sync_progress_bar_telemetry_and_agent_status_tool() {
     assert!(completed_status.progress_bar.contains("100%"));
 }
 
+#[test]
+fn test_menu_incremental_sync_selection_and_tick_animation() {
+    let mut app = App::new("Default".to_string(), "gpt-4o-mini".to_string(), None);
+    assert_eq!(app.tick_count, 0);
+    app.tick();
+    assert_eq!(app.tick_count, 1);
+    app.tick();
+    assert_eq!(app.tick_count, 2);
+
+    // Open sync submenu
+    app.open_sync_menu();
+    assert!(app.menu_state.is_open);
+    assert_eq!(app.menu_state.selected_item().unwrap().id, "sync_action:incremental");
+
+    // Select incremental sync
+    app.menu_select();
+    assert!(!app.menu_state.is_open);
+
+    // Verify system notification in chat history
+    let last_msg = app.chat_history.last().expect("chat message after sync selection");
+    assert_eq!(last_msg.role, actx_cli::tui::app::MessageRole::System);
+    assert!(last_msg.content.contains("Synchronizing workspace") || last_msg.content.contains("worker spawned") || last_msg.content.contains("sync"));
+}
+
 
 
 

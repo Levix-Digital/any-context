@@ -48,7 +48,7 @@ class HTMLLinkExtractor(HTMLParser):
                         pass
 
 
-def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) -> Tuple[List[str], Dict[str, str]]:
+def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6, progress_callback: Optional[Any] = None) -> Tuple[List[str], Dict[str, str]]:
     """
     Locates and parses sitemaps, extracting web page URLs and their <lastmod> timestamps.
     Properly handles sitemap indexes by following sub-sitemaps (excluding raw XML files).
@@ -110,6 +110,11 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
                         discovered_pages.add(p)
                         if lm:
                             sitemap_lastmods[p] = lm
+                        if progress_callback and len(discovered_pages) % 25 == 0:
+                            try:
+                                progress_callback(len(discovered_pages), 0, "scanning", p)
+                            except Exception:
+                                pass
                         if len(discovered_pages) >= max_urls:
                             break
 
@@ -143,6 +148,11 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
                                                 discovered_pages.add(sp)
                                                 if slm:
                                                     sitemap_lastmods[sp] = slm
+                                                if progress_callback and len(discovered_pages) % 25 == 0:
+                                                    try:
+                                                        progress_callback(len(discovered_pages), 0, "scanning", sp)
+                                                    except Exception:
+                                                        pass
                                                 if len(discovered_pages) >= max_urls:
                                                     break
                             except Exception:
@@ -156,13 +166,24 @@ def fetch_sitemap_urls(base_url: str, max_urls: int = 5000, timeout: int = 6) ->
     return list(discovered_pages), sitemap_lastmods
 
 
-def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int = 6) -> Dict[str, Any]:
+def discover_site_urls(
+    start_url: str,
+    max_discovery: int = 2500,
+    timeout: int = 6,
+    progress_callback: Optional[Any] = None
+) -> Dict[str, Any]:
     """
     Fast discovery phase: Scans the target page, internal links, and sitemaps.
     Categorizes discovered URLs into 'section_urls' (matching start path) and 'domain_urls' (same root domain).
     """
     if not start_url.startswith("http://") and not start_url.startswith("https://"):
         start_url = f"https://{start_url}"
+
+    if progress_callback:
+        try:
+            progress_callback(1, 0, "scanning", start_url)
+        except Exception:
+            pass
 
     parsed_start = urllib.parse.urlparse(start_url)
     domain = parsed_start.netloc.lower()
@@ -219,9 +240,9 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
         key_terms = [seg.lower() for seg in path_segments if len(seg) > 2]
 
     # 2. Check sitemap
-    sitemap_urls, sitemap_lastmods = fetch_sitemap_urls(effective_url, max_urls=max_discovery, timeout=timeout)
+    sitemap_urls, sitemap_lastmods = fetch_sitemap_urls(effective_url, max_urls=max_discovery, timeout=timeout, progress_callback=progress_callback)
     if not sitemap_urls and effective_url != start_url:
-        fb_urls, fb_lastmods = fetch_sitemap_urls(start_url, max_urls=max_discovery, timeout=timeout)
+        fb_urls, fb_lastmods = fetch_sitemap_urls(start_url, max_urls=max_discovery, timeout=timeout, progress_callback=progress_callback)
         sitemap_urls.extend(fb_urls)
         sitemap_lastmods.update(fb_lastmods)
 
@@ -247,6 +268,11 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
                     for lk in sub_extractor.links:
                         if urllib.parse.urlparse(lk).netloc.lower() == domain:
                             all_domain_urls.add(lk)
+                            if progress_callback and len(all_domain_urls) % 20 == 0:
+                                try:
+                                    progress_callback(len(all_domain_urls), 0, "scanning", lk)
+                                except Exception:
+                                    pass
                             if len(all_domain_urls) >= max_discovery:
                                 break
             except Exception:
@@ -293,6 +319,12 @@ def discover_site_urls(start_url: str, max_discovery: int = 2500, timeout: int =
 
     if not section_urls:
         section_urls = [effective_url] if effective_url else [start_url]
+
+    if progress_callback:
+        try:
+            progress_callback(len(ranked_domain_urls), len(ranked_domain_urls), "scanning", f"{len(ranked_domain_urls)} pages found")
+        except Exception:
+            pass
 
     return {
         "start_url": start_url,
@@ -602,13 +634,15 @@ def crawl_website(
     force_rescrape: bool = False,
     max_workers: int = 20,
     progress_callback: Optional[Any] = None,
-    embed_progress_callback: Optional[Any] = None
+    embed_progress_callback: Optional[Any] = None,
+    discovery_progress_callback: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Programmatic, non-interactive website crawler and indexer with High-Speed Dual-Stage Parallel Pipeline.
     Discovers internal links/sitemaps and crawls them automatically into LanceDB.
     """
-    disc = discover_site_urls(start_url)
+    disc_cb = discovery_progress_callback or progress_callback
+    disc = discover_site_urls(start_url, progress_callback=disc_cb)
     effective_url = disc.get("effective_url") or start_url
     if scope == "section":
         target_urls = disc.get("section_urls") or [effective_url]

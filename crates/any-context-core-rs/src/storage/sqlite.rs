@@ -576,10 +576,14 @@ impl NativeConfigDb {
 
     pub fn remove_workspace_folder(&self, workspace_name: &str, folder_path: &str) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
-        let norm_path = normalize_path_slashes(folder_path);
+        let clean_path = folder_path.trim_start_matches(r"\\?\");
+        let norm_path = normalize_path_slashes(clean_path);
+        let orig_norm = normalize_path_slashes(folder_path);
         let count = conn.execute(
-            "DELETE FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE AND (folder_path = ?2 OR folder_path = ?3)",
-            params![workspace_name, &norm_path, folder_path],
+            "DELETE FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE AND (
+                folder_path = ?2 OR folder_path = ?3 OR folder_path = ?4 OR folder_path = ?5
+            )",
+            params![workspace_name, &norm_path, clean_path, folder_path, &orig_norm],
         )?;
         if count > 0 {
             Self::sync_paths_json(&conn, workspace_name);
@@ -673,9 +677,17 @@ impl NativeConfigDb {
             let updated_at: String = row.get(8)?;
             let error: Option<String> = row.get(9)?;
 
-            let bar = progress_bar.unwrap_or_else(|| {
+            let is_stale_bar = match &progress_bar {
+                Some(b) => b == "[scanning...]" || b == "[crawling...]" || b == "[calculating...]" || b.is_empty(),
+                None => true,
+            };
+            let bar = if is_stale_bar && (total_items > 0 || current_item > 0) {
                 Self::format_sync_progress_bar(current_item as usize, total_items as usize, &stage)
-            });
+            } else {
+                progress_bar.unwrap_or_else(|| {
+                    Self::format_sync_progress_bar(current_item as usize, total_items as usize, &stage)
+                })
+            };
 
             Ok(Some(WorkspaceSyncStatus {
                 workspace_name: row.get(0)?,
@@ -740,10 +752,20 @@ impl NativeConfigDb {
     pub fn format_sync_progress_bar(current: usize, total: usize, stage: &str) -> String {
         let width = 8;
         if total == 0 {
+            if current > 0 {
+                let stage_label = if stage == "pages" || stage == "web" || stage == "crawling" {
+                    "urls"
+                } else if stage == "files" {
+                    "files"
+                } else {
+                    "items"
+                };
+                return format!("[scanning... {} {} found]", current, stage_label);
+            }
             if stage == "crawling" || stage == "web" || stage == "pages" {
                 return "[crawling...]".to_string();
             }
-            if stage == "scanning" {
+            if stage == "scanning" || stage == "discovering" {
                 return "[scanning...]".to_string();
             }
             return "[calculating...]".to_string();
@@ -971,6 +993,8 @@ impl NativeConfigDb {
             "gemini" | "google" => "GEMINI_API_KEY",
             "deepseek" => "DEEPSEEK_API_KEY",
             "groq" => "GROQ_API_KEY",
+            "openrouter" => "OPENROUTER_API_KEY",
+            "mistral" => "MISTRAL_API_KEY",
             _ => "",
         };
         if !env_var.is_empty() {
@@ -1118,6 +1142,15 @@ impl NativeConfigDb {
             params![workspace, &norm_path],
         )?;
         Ok(count > 0)
+    }
+
+    pub fn clear_workspace_file_metadata(&self, workspace: &str) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let count = conn.execute(
+            "DELETE FROM file_metadata WHERE workspace = ?1 COLLATE NOCASE",
+            params![workspace],
+        )?;
+        Ok(count)
     }
 
     pub fn get_db_path(&self) -> &Path {

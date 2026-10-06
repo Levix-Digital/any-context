@@ -157,7 +157,13 @@ def run_index_folder(
             for ws in workspaces_to_process:
                 for folder_path in ws.paths:
                     if os.path.exists(folder_path):
-                        files_to_index.extend(discover_workspace_files(folder_path))
+                        found = discover_workspace_files(folder_path)
+                        files_to_index.extend(found)
+                        if progress_callback:
+                            try:
+                                progress_callback(len(files_to_index), 0, "scanning", folder_path)
+                            except Exception:
+                                pass
 
             if not files_to_index:
                 has_configured_paths = any(ws.paths for ws in workspaces_to_process)
@@ -183,6 +189,11 @@ def run_index_folder(
         else:
             diff = check_workspace_changes(target_ws_name)
             diff_summary = diff
+            if progress_callback and diff.get("total_disk_files"):
+                try:
+                    progress_callback(diff.get("total_disk_files", 0), 0, "scanning", f"{diff.get('total_disk_files', 0)} files found")
+                except Exception:
+                    pass
             if diff["is_up_to_date"]:
                 if verbose:
                     safe_print(f"  • Stat Check: 100% up to date ({diff['total_disk_files']} files, 0 changes)")

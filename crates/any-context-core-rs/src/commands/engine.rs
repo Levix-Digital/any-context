@@ -93,7 +93,7 @@ impl CommandEngine {
                 Self::execute_keys(args)
             }
             "config" | "settings" => {
-                Self::execute_config(args)
+                Self::execute_config(args, ctx)
             }
             "update" | "self-update" | "upgrade" => {
                 Self::execute_update(args)
@@ -111,7 +111,7 @@ impl CommandEngine {
                 Self::execute_history(args, ctx)
             }
             "logs" | "log" => {
-                Self::execute_logs(args)
+                Self::execute_logs(args, ctx)
             }
             "paste" | "multiline" | "mline" => {
                 Self::execute_paste()
@@ -407,31 +407,11 @@ impl CommandEngine {
     }
 
     // -------------------------------------------------------------------------
-    // Sync
     // -------------------------------------------------------------------------
-    fn execute_sync(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
-        if args.is_empty() {
-            return CommandResult::success("Opening sync options...")
-                .with_action(CommandAction::OpenMenu("sync".to_string()));
-        }
-
-        let force = args.iter().any(|a| *a == "--force" || *a == "-f" || *a == "force");
-        let db = match NativeConfigDb::open_default() {
-            Ok(d) => d,
-            Err(e) => return CommandResult::error(format!("Database error: {}", e)),
-        };
-
-        let folders = db.get_workspace_folders(&ctx.active_workspace).unwrap_or_default();
-        let urls = db.get_workspace_web_urls(&ctx.active_workspace).unwrap_or_default();
-
-        let effective_folders = if !folders.is_empty() {
-            folders
-        } else if urls.is_empty() {
-            vec![std::env::current_dir().unwrap_or_default().to_string_lossy().to_string()]
-        } else {
-            vec![]
-        };
-
+    // Background Sync Worker Spawning Helper
+    // -------------------------------------------------------------------------
+    /// Spawns the background synchronization / crawler worker for a workspace.
+    pub fn spawn_sync_worker(workspace: &str, force: bool) -> Result<(u32, std::path::PathBuf), String> {
         let canonical_dir = actx_installer::paths::get_canonical_bin_dir();
         let core_name = actx_installer::paths::get_core_exe_name();
         let core_exe = canonical_dir.join(core_name);
@@ -454,14 +434,14 @@ impl CommandEngine {
             c
         };
 
-        cmd.arg("--workspace").arg(&ctx.active_workspace);
+        cmd.arg("--workspace").arg(workspace);
         if force {
             cmd.arg("--force");
         }
 
         let log_dir = get_default_logs_dir();
         let _ = std::fs::create_dir_all(&log_dir);
-        let log_path = log_dir.join(format!("sync_{}.log", ctx.active_workspace));
+        let log_path = log_dir.join(format!("sync_{}.log", workspace));
 
         let log_file = std::fs::OpenOptions::new()
             .create(true)
@@ -491,16 +471,54 @@ impl CommandEngine {
         match cmd.spawn() {
             Ok(child) => {
                 let pid = child.id();
-                let _ = db.update_sync_status(
-                    &ctx.active_workspace,
-                    true,
-                    Some(pid),
-                    0,
-                    0,
-                    "scanning",
-                    None,
-                    None,
-                );
+                if let Ok(db) = NativeConfigDb::open_default() {
+                    let _ = db.update_sync_status(
+                        workspace,
+                        true,
+                        Some(pid),
+                        0,
+                        0,
+                        "scanning",
+                        None,
+                        None,
+                    );
+                }
+                Ok((pid, log_path))
+            }
+            Err(e) => Err(format!("Failed to launch background synchronization worker: {}", e)),
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Sync
+    // -------------------------------------------------------------------------
+    fn execute_sync(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+        let is_incremental = args.iter().any(|a| *a == "--incremental" || *a == "-i" || *a == "incremental");
+        let force = args.iter().any(|a| *a == "--force" || *a == "-f" || *a == "force");
+        let is_menu = args.iter().any(|a| *a == "--menu" || *a == "-m" || *a == "menu");
+
+        if (args.is_empty() || is_menu) && !is_incremental && !force {
+            return CommandResult::success("Opening sync options...")
+                .with_action(CommandAction::OpenMenu("sync".to_string()));
+        }
+        let db = match NativeConfigDb::open_default() {
+            Ok(d) => d,
+            Err(e) => return CommandResult::error(format!("Database error: {}", e)),
+        };
+
+        let folders = db.get_workspace_folders(&ctx.active_workspace).unwrap_or_default();
+        let urls = db.get_workspace_web_urls(&ctx.active_workspace).unwrap_or_default();
+
+        let effective_folders = if !folders.is_empty() {
+            folders
+        } else if urls.is_empty() {
+            vec![std::env::current_dir().unwrap_or_default().to_string_lossy().to_string()]
+        } else {
+            vec![]
+        };
+
+        match Self::spawn_sync_worker(&ctx.active_workspace, force) {
+            Ok((pid, log_path)) => {
                 let mut msg = if force {
                     format!("Forced sync completed: Background synchronization worker spawned for workspace '**{}**' [PID: {}]:\n", ctx.active_workspace, pid)
                 } else {
@@ -526,7 +544,7 @@ impl CommandEngine {
             }
             Err(e) => {
                 CommandResult::error(format!(
-                    "Failed to launch background synchronization worker: {}\nEnsure AnyContext is properly installed.",
+                    "{}\nEnsure AnyContext is properly installed.",
                     e
                 ))
             }
@@ -578,7 +596,7 @@ impl CommandEngine {
         let mut out = format!("📂 Data Sources configured for workspace '{}':\n", ctx.active_workspace);
         out.push_str("📁 Local Folders:\n");
         if folders.is_empty() {
-            out.push_str("  (none configured. Use `/folder --add <path>`)\n");
+            out.push_str("  (none configured. Use `/folder --add <path>` or `/folder <path>`)\n");
         } else {
             for f in &folders {
                 out.push_str(&format!("  • {}\n", f));
@@ -586,7 +604,7 @@ impl CommandEngine {
         }
         out.push_str("\n🌐 Web Documentation Portals:\n");
         if web_sources.is_empty() {
-            out.push_str("  (none configured. Use `/web --add <url>`)\n");
+            out.push_str("  (none configured. Use `/web --add <url>` or `/web <url>`)\n");
         } else {
             for w in &web_sources {
                 out.push_str(&format!("  • {}\n", w));
@@ -601,38 +619,64 @@ impl CommandEngine {
             Err(e) => return CommandResult::error(format!("Failed to open config database: {}", e)),
         };
 
-        if args.len() >= 2 && (args[0] == "--add" || args[0] == "-a" || args[0] == "add") {
-            let path_str = args[1];
-            let path = Path::new(path_str);
-            if !path.exists() {
-                return CommandResult::error(format!("❌ Directory does not exist: {}", path_str));
-            }
-            let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-            let canonical_str = canonical.to_string_lossy().to_string();
-
-            match db.add_workspace_folder(&ctx.active_workspace, &canonical_str) {
-                Ok(_) => CommandResult::success(format!("📁 Added folder to workspace '{}':\n  {}", ctx.active_workspace, canonical_str)),
-                Err(e) => CommandResult::error(format!("❌ Error adding folder: {}", e)),
-            }
-        } else if args.len() >= 2 && (args[0] == "--remove" || args[0] == "-r" || args[0] == "remove") {
-            let path_str = args[1];
-            match db.remove_workspace_folder(&ctx.active_workspace, path_str) {
-                Ok(true) => CommandResult::success(format!("📁 Removed folder from workspace '{}':\n  {}", ctx.active_workspace, path_str)),
-                Ok(false) => CommandResult::error(format!("⚠️ Folder '{}' was not attached to workspace '{}'.", path_str, ctx.active_workspace)),
-                Err(e) => CommandResult::error(format!("❌ Error removing folder: {}", e)),
-            }
-        } else {
+        if args.is_empty() || args.iter().any(|a| *a == "--list" || *a == "-l" || *a == "list") {
             let folders = db.get_workspace_folders(&ctx.active_workspace).unwrap_or_default();
             let mut msg = format!("📁 Monitored Folders in workspace '{}':\n", ctx.active_workspace);
             if folders.is_empty() {
-                msg.push_str("  (none attached. Use `/folder --add <path>`)\n");
+                msg.push_str("  (none attached. Use `/folder --add <path>` or `/folder <path>`)\n");
             } else {
                 for f in folders {
                     msg.push_str(&format!("  • {}\n", f));
                 }
             }
-            msg.push_str("\nUsage: /folder [--add <path> | --remove <path>]");
-            CommandResult::success(msg)
+            msg.push_str("\nUsage: /folder [--add <path> | --remove <path> | <path>]");
+            return CommandResult::success(msg);
+        }
+
+        if args[0] == "--remove" || args[0] == "-r" || args[0] == "remove" || args[0] == "--delete" || args[0] == "-d" || args[0] == "delete" {
+            if args.len() < 2 {
+                return CommandResult::error("❌ Specify folder path: `/folder --remove <path>`");
+            }
+            let path_str = args[1..].join(" ");
+            match db.remove_workspace_folder(&ctx.active_workspace, &path_str) {
+                Ok(true) => CommandResult::success(format!("📁 Removed folder from workspace '{}':\n  {}", ctx.active_workspace, path_str)),
+                Ok(false) => CommandResult::error(format!("⚠️ Folder '{}' was not attached to workspace '{}'.", path_str, ctx.active_workspace)),
+                Err(e) => CommandResult::error(format!("❌ Error removing folder: {}", e)),
+            }
+        } else {
+            let path_parts = if args[0] == "--add" || args[0] == "-a" || args[0] == "add" {
+                if args.len() < 2 {
+                    return CommandResult::error("❌ Specify folder path: `/folder --add <path>`");
+                }
+                &args[1..]
+            } else {
+                args
+            };
+            let path_str = path_parts.join(" ");
+            let clean_path_str = path_str.trim().trim_matches('\'').trim_matches('"');
+            let path = Path::new(clean_path_str);
+            if !path.exists() {
+                return CommandResult::error(format!("❌ Directory does not exist: {}", clean_path_str));
+            }
+            let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+            let canonical_str = canonical.to_string_lossy().to_string();
+            let clean_canonical_str = canonical_str.trim_start_matches(r"\\?\").to_string();
+
+            match db.add_workspace_folder(&ctx.active_workspace, &clean_canonical_str) {
+                Ok(_) => {
+                    let mut msg = format!("📁 Added folder to workspace '{}':\n  {}", ctx.active_workspace, clean_canonical_str);
+                    match Self::spawn_sync_worker(&ctx.active_workspace, false) {
+                        Ok((pid, _)) => {
+                            msg.push_str(&format!("\n⚡ Indexing started in background [PID: {}].", pid));
+                        }
+                        Err(e) => {
+                            msg.push_str(&format!("\n(Background sync worker note: {})", e));
+                        }
+                    }
+                    CommandResult::success(msg)
+                }
+                Err(e) => CommandResult::error(format!("❌ Error adding folder: {}", e)),
+            }
         }
     }
 
@@ -642,34 +686,61 @@ impl CommandEngine {
             Err(e) => return CommandResult::error(format!("Failed to open config database: {}", e)),
         };
 
-        if args.len() >= 2 && (args[0] == "--add" || args[0] == "-a" || args[0] == "add") {
-            let url = args[1];
-            if !url.starts_with("http://") && !url.starts_with("https://") {
-                return CommandResult::error(format!("❌ Invalid URL format (must begin with http:// or https://): {}", url));
-            }
-            match db.add_workspace_web_url(&ctx.active_workspace, url) {
-                Ok(_) => CommandResult::success(format!("🌐 Added web documentation portal to workspace '{}':\n  {}", ctx.active_workspace, url)),
-                Err(e) => CommandResult::error(format!("❌ Error adding web source: {}", e)),
-            }
-        } else if args.len() >= 2 && (args[0] == "--remove" || args[0] == "-r" || args[0] == "remove") {
-            let url = args[1];
-            match db.remove_workspace_web_url(&ctx.active_workspace, url) {
-                Ok(true) => CommandResult::success(format!("🌐 Removed web source from workspace '{}':\n  {}", ctx.active_workspace, url)),
-                Ok(false) => CommandResult::error(format!("⚠️ Web source '{}' was not attached to workspace '{}'.", url, ctx.active_workspace)),
-                Err(e) => CommandResult::error(format!("❌ Error removing web source: {}", e)),
-            }
-        } else {
+        if args.is_empty() || args.iter().any(|a| *a == "--list" || *a == "-l" || *a == "list") {
             let sources = db.get_workspace_web_urls(&ctx.active_workspace).unwrap_or_default();
             let mut msg = format!("🌐 Web Documentation Portals in workspace '{}':\n", ctx.active_workspace);
             if sources.is_empty() {
-                msg.push_str("  (none attached. Use `/web --add <url>`)\n");
+                msg.push_str("  (none attached. Use `/web --add <url>` or `/web <url>`)\n");
             } else {
                 for s in sources {
                     msg.push_str(&format!("  • {}\n", s));
                 }
             }
-            msg.push_str("\nUsage: /web [--add <url> | --remove <url>]");
-            CommandResult::success(msg)
+            msg.push_str("\nUsage: /web [--add <url> | --remove <url> | <url>]");
+            return CommandResult::success(msg);
+        }
+
+        if args[0] == "--remove" || args[0] == "-r" || args[0] == "remove" || args[0] == "--delete" || args[0] == "-d" || args[0] == "delete" {
+            if args.len() < 2 {
+                return CommandResult::error("❌ Specify URL: `/web --remove <url>`");
+            }
+            let url = args[1..].join(" ");
+            let clean_url = url.trim().trim_matches('\'').trim_matches('"');
+            match db.remove_workspace_web_url(&ctx.active_workspace, clean_url) {
+                Ok(true) => CommandResult::success(format!("🌐 Removed web source from workspace '{}':\n  {}", ctx.active_workspace, clean_url)),
+                Ok(false) => CommandResult::error(format!("⚠️ Web source '{}' was not attached to workspace '{}'.", clean_url, ctx.active_workspace)),
+                Err(e) => CommandResult::error(format!("❌ Error removing web source: {}", e)),
+            }
+        } else {
+            let url_parts = if args[0] == "--add" || args[0] == "-a" || args[0] == "add" {
+                if args.len() < 2 {
+                    return CommandResult::error("❌ Specify URL: `/web --add <url>`");
+                }
+                &args[1..]
+            } else {
+                args
+            };
+            let url_str = url_parts.join(" ");
+            let clean_url = url_str.trim().trim_matches('\'').trim_matches('"');
+            if !clean_url.starts_with("http://") && !clean_url.starts_with("https://") {
+                return CommandResult::error(format!("❌ Invalid URL format (must begin with http:// or https://): {}", clean_url));
+            }
+
+            match db.add_workspace_web_url(&ctx.active_workspace, clean_url) {
+                Ok(_) => {
+                    let mut msg = format!("🌐 Added web documentation portal to workspace '{}':\n  {}", ctx.active_workspace, clean_url);
+                    match Self::spawn_sync_worker(&ctx.active_workspace, false) {
+                        Ok((pid, _)) => {
+                            msg.push_str(&format!("\n⚡ Crawler started in background [PID: {}].", pid));
+                        }
+                        Err(e) => {
+                            msg.push_str(&format!("\n(Background crawler note: {})", e));
+                        }
+                    }
+                    CommandResult::success(msg)
+                }
+                Err(e) => CommandResult::error(format!("❌ Error adding web source: {}", e)),
+            }
         }
     }
 
@@ -783,16 +854,23 @@ impl CommandEngine {
         let is_all = args.iter().any(|a| *a == "--all" || *a == "-a");
         let lance_path = get_default_lancedb_path();
 
+        let db = match NativeConfigDb::open_default() {
+            Ok(d) => d,
+            Err(e) => return CommandResult::error(format!("Database error: {}", e)),
+        };
+
         if let Ok(lance) = NativeLanceStore::open(&lance_path) {
-            let res = if is_all {
+            let _ = if is_all {
                 lance.delete_by_workspace(&ctx.active_workspace, None)
             } else {
                 lance.delete_by_workspace(&ctx.active_workspace, None)
             };
-            match res {
-                Ok(_) => CommandResult::success(format!("🧹 Vectors purged for workspace '{}'.", ctx.active_workspace)),
-                Err(e) => CommandResult::error(format!("❌ Error purging vectors: {}", e)),
-            }
+            let _ = db.clear_workspace_file_metadata(&ctx.active_workspace);
+            let _ = db.update_sync_status(&ctx.active_workspace, false, None, 0, 0, "idle", None, None);
+            CommandResult::success(format!(
+                "🧹 Vector index and file hash metadata purged for workspace '{}'.\nNext sync will perform a clean, full re-index.",
+                ctx.active_workspace
+            ))
         } else {
             CommandResult::error("Failed to connect to LanceDB vector storage.")
         }
@@ -849,20 +927,109 @@ impl CommandEngine {
     // -------------------------------------------------------------------------
     // Inspection & Status
     // -------------------------------------------------------------------------
-    fn execute_inspect(_args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+    fn execute_inspect(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         let lance_path = get_default_lancedb_path();
-        if let Ok(lance) = NativeLanceStore::open(&lance_path) {
-            let total = lance.count_records(Some(&ctx.active_workspace), None).unwrap_or(0);
-            CommandResult::success(format!(
-                "🔍 Live LanceDB Columnar Vector Inspection:\n\
-                 • Workspace: {}\n\
-                 • Total Chunks: {}\n\
-                 • Engine: Native Apache Arrow SIMD (Ready)",
-                ctx.active_workspace, total
-            ))
-        } else {
-            CommandResult::error("Unable to open LanceDB vector storage for inspection.")
+        let lance = match NativeLanceStore::open(&lance_path) {
+            Ok(l) => l,
+            Err(e) => return CommandResult::error(format!("Unable to open LanceDB vector storage for inspection: {}", e)),
+        };
+
+        let ws_count = lance.count_records(Some(&ctx.active_workspace), None).unwrap_or(0);
+        let total_count = lance.count_records(None, None).unwrap_or(0);
+
+        let show_full = args.iter().any(|a| *a == "--full" || *a == "-f");
+        let clean_args: Vec<&str> = args.iter().copied().filter(|a| *a != "--full" && *a != "-f").collect();
+
+        let mut limit = 3usize;
+        let mut filter_query: Option<&str> = None;
+
+        if let Some(first) = clean_args.first() {
+            if let Ok(n) = first.parse::<usize>() {
+                limit = n.clamp(1, 25);
+            } else {
+                filter_query = Some(first);
+                if let Some(second) = clean_args.get(1) {
+                    if let Ok(n) = second.parse::<usize>() {
+                        limit = n.clamp(1, 25);
+                    }
+                }
+            }
         }
+
+        let mut lines = vec![
+            format!("🔍 **Vector Store Inspection for `{}`**:", ctx.active_workspace),
+            format!("• Workspace Chunks: **{}**", ws_count),
+            format!("• Total Database Chunks: **{}**", total_count),
+            "• Storage Engine: **LanceDB (Apache Arrow / Native Rust)**".to_string(),
+        ];
+
+        if ws_count == 0 {
+            lines.push(String::new());
+            lines.push("*(No chunks found in this workspace yet. Run `/sync` or `/folder <path>` to ingest files.)*".to_string());
+            return CommandResult::success(lines.join("\n"));
+        }
+
+        let where_clause = if let Some(q) = filter_query {
+            let clean_q = q.replace('\'', "''");
+            format!("(content_type LIKE '%{clean_q}%' OR file_name LIKE '%{clean_q}%' OR file_path LIKE '%{clean_q}%' OR text LIKE '%{clean_q}%')")
+        } else {
+            "length(text) > 0".to_string()
+        };
+
+        let samples = lance.search_metadata(&where_clause, limit.max(20), Some(&ctx.active_workspace), None).unwrap_or_default();
+
+        if !samples.is_empty() {
+            use std::collections::HashMap;
+            let mut taxonomy_counts: HashMap<String, usize> = HashMap::new();
+            for s in &samples {
+                let ct = s.content_type.as_deref().unwrap_or("unknown");
+                *taxonomy_counts.entry(ct.to_string()).or_insert(0) += 1;
+            }
+
+            if !taxonomy_counts.is_empty() {
+                lines.push(String::new());
+                lines.push("📊 **Chunk Taxonomy Breakdown (sample):**".to_string());
+                let mut counts_vec: Vec<(String, usize)> = taxonomy_counts.into_iter().collect();
+                counts_vec.sort_by(|a, b| b.1.cmp(&a.1));
+                for (ct, count) in counts_vec {
+                    lines.push(format!("  • `{}`: **{}** chunk(s)", ct, count));
+                }
+            }
+
+            lines.push(String::new());
+            let filter_info = if let Some(q) = filter_query { format!(" (filtered by '{}')", q) } else { String::new() };
+            let display_count = samples.len().min(limit);
+            lines.push(format!("📋 **Sample Chunks{} (showing {}):**", filter_info, display_count));
+
+            for (idx, r) in samples.iter().take(display_count).enumerate() {
+                let fn_str = &r.file_name;
+                let ct_str = r.content_type.as_deref().unwrap_or("unknown");
+                let text = r.text.trim();
+                let char_count = text.len();
+
+                lines.push(format!("  **[{}] 📄 `{}`**", idx + 1, fn_str));
+                lines.push(format!("    • Taxonomy: `{}`", ct_str));
+                lines.push(format!("    • Size: **{}** characters", char_count));
+
+                if show_full {
+                    lines.push(format!("    • Full Content:\n```text\n{}\n```", text));
+                } else {
+                    let preview: String = text.chars().take(120).collect();
+                    let clean_preview = preview.replace('\n', " ");
+                    lines.push(format!("    • Preview: *\"{}...\"*", clean_preview));
+                }
+            }
+
+            if !show_full {
+                lines.push(String::new());
+                lines.push("💡 *Tip: Run `/inspect --full` to display the complete, non-truncated content.*".to_string());
+            }
+        } else if let Some(q) = filter_query {
+            lines.push(String::new());
+            lines.push(format!("⚠️ No chunks matched filter query `{}`.", q));
+        }
+
+        CommandResult::success(lines.join("\n"))
     }
 
     fn execute_status(ctx: &ExecutionContext) -> CommandResult {
@@ -962,29 +1129,65 @@ impl CommandEngine {
                 .with_action(CommandAction::OpenMenu("keys".to_string()));
         }
 
+        let db = NativeConfigDb::open_default().ok();
+
+        if args.len() >= 2 {
+            let provider = args[0].trim();
+            let key = args[1].trim();
+            let clean_p = provider.to_lowercase();
+            let env_var = match clean_p.as_str() {
+                "openai" => "OPENAI_API_KEY",
+                "anthropic" => "ANTHROPIC_API_KEY",
+                "gemini" | "google" => "GEMINI_API_KEY",
+                "groq" => "GROQ_API_KEY",
+                "deepseek" => "DEEPSEEK_API_KEY",
+                "openrouter" => "OPENROUTER_API_KEY",
+                "mistral" => "MISTRAL_API_KEY",
+                _ => "",
+            };
+
+            if let Some(d) = &db {
+                let _ = d.set_api_key(&clean_p, key);
+            }
+            if !env_var.is_empty() {
+                std::env::set_var(env_var, key);
+            } else {
+                let custom_env = format!("{}_API_KEY", clean_p.to_uppercase());
+                std::env::set_var(&custom_env, key);
+            }
+
+            return CommandResult::success(format!(
+                "🔑 API key saved for provider '**{}**' (active in runtime & persisted to SQLite).",
+                provider
+            ))
+            .with_action(CommandAction::RebuildAgent);
+        }
+
         let mut out = String::from("🔑 Provider Credentials Audit:\n");
         let providers = [
-            ("OpenAI", "OPENAI_API_KEY"),
-            ("Anthropic", "ANTHROPIC_API_KEY"),
-            ("Google Gemini", "GEMINI_API_KEY"),
-            ("Groq", "GROQ_API_KEY"),
-            ("DeepSeek", "DEEPSEEK_API_KEY"),
-            ("OpenRouter", "OPENROUTER_API_KEY"),
-            ("Mistral", "MISTRAL_API_KEY"),
+            ("OpenAI", "openai", "OPENAI_API_KEY"),
+            ("Anthropic", "anthropic", "ANTHROPIC_API_KEY"),
+            ("Google Gemini", "gemini", "GEMINI_API_KEY"),
+            ("Groq", "groq", "GROQ_API_KEY"),
+            ("DeepSeek", "deepseek", "DEEPSEEK_API_KEY"),
+            ("OpenRouter", "openrouter", "OPENROUTER_API_KEY"),
+            ("Mistral", "mistral", "MISTRAL_API_KEY"),
         ];
-        for (name, env_var) in providers {
-            let status = if std::env::var(env_var).is_ok() {
-                "🟢 Present in ENV"
+        for (name, p_key, env_var) in providers {
+            let configured = std::env::var(env_var).is_ok()
+                || db.as_ref().and_then(|d| d.get_api_key(p_key).ok().flatten()).is_some();
+            let status = if configured {
+                "🟢 Present / Configured"
             } else {
-                "🔴 Missing in ENV"
+                "🔴 Missing"
             };
             out.push_str(&format!("  • {:<16}: {}\n", name, status));
         }
-        out.push_str("\nSet keys via your system environment variables or `.env` file.");
+        out.push_str("\nUsage: /keys <provider> <api_key> (e.g. `/keys openai sk-...`)\nOr press [F1] to configure via the interactive menu.");
         CommandResult::success(out)
     }
 
-    fn execute_config(args: &[&str]) -> CommandResult {
+    fn execute_config(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         let db = match NativeConfigDb::open_default() {
             Ok(d) => d,
             Err(e) => return CommandResult::error(format!("Database error: {}", e)),
@@ -1001,7 +1204,36 @@ impl CommandEngine {
             let val = db.get_setting(key).ok().flatten().unwrap_or_else(|| "(unset)".to_string());
             CommandResult::success(format!("⚙️ {} = '{}'", key, val))
         } else {
-            CommandResult::success("Usage: /config [key] [val]")
+            let folders = db.get_workspace_folders(&ctx.active_workspace).unwrap_or_default();
+            let urls = db.get_workspace_web_urls(&ctx.active_workspace).unwrap_or_default();
+            let lance_path = get_default_lancedb_path();
+            let db_path = get_default_settings_db_path();
+
+            let out = format!(
+                "⚙️ AnyContext System Configuration:\n\
+                 • Active Workspace:   **{}**\n\
+                 • Inference Model:    **{}**\n\
+                 • Grounding Strategy: **{}**\n\
+                 • Search Depth:       **{}**\n\
+                 • Live Web Search:    **{}**\n\
+                 • Monitored Folders:  {} folder(s) attached\n\
+                 • Web Portals:        {} portal(s) attached\n\
+                 • LanceDB Directory:  {}\n\
+                 • Settings Database:  {}\n\
+                 • Native Core Engine: v{}\n\n\
+                 Tip: Use `/config <key> <val>` to modify settings or press [F1] for the interactive menu.",
+                ctx.active_workspace,
+                ctx.active_model,
+                ctx.grounding_mode.to_uppercase(),
+                ctx.search_mode.to_uppercase(),
+                if ctx.web_search_enabled { "ON" } else { "OFF" },
+                folders.len(),
+                urls.len(),
+                lance_path.display(),
+                db_path.display(),
+                env!("CARGO_PKG_VERSION")
+            );
+            CommandResult::success(out)
         }
     }
 
@@ -1174,7 +1406,7 @@ Available Commands (UI-Agnostic Engine):
         }
     }
 
-    fn execute_logs(args: &[&str]) -> CommandResult {
+    fn execute_logs(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         let mut limit = 20;
         for (idx, arg) in args.iter().enumerate() {
             if (*arg == "--limit" || *arg == "-n" || *arg == "-l") && idx + 1 < args.len() {
@@ -1185,11 +1417,57 @@ Available Commands (UI-Agnostic Engine):
                 limit = val;
             }
         }
-        CommandResult::success(format!(
-            "📋 Recent Observability Logs (Showing last {} records):\n\
-             • Engine: Ready (0 errors recorded in current session)",
-            limit
-        ))
+
+        let log_dir = get_default_logs_dir();
+        let ws_log = log_dir.join(format!("sync_{}.log", ctx.active_workspace));
+        let target_file = if ws_log.exists() {
+            Some(ws_log)
+        } else {
+            if let Ok(entries) = std::fs::read_dir(&log_dir) {
+                let mut log_files: Vec<(std::time::SystemTime, std::path::PathBuf)> = entries
+                    .flatten()
+                    .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("log"))
+                    .filter_map(|e| {
+                        let m = e.metadata().ok()?.modified().ok()?;
+                        Some((m, e.path()))
+                    })
+                    .collect();
+                log_files.sort_by(|a, b| b.0.cmp(&a.0));
+                log_files.first().map(|(_, p)| p.clone())
+            } else {
+                None
+            }
+        };
+
+        if let Some(log_path) = target_file {
+            match std::fs::read_to_string(&log_path) {
+                Ok(content) => {
+                    let lines: Vec<&str> = content.lines().collect();
+                    let total = lines.len();
+                    let start = total.saturating_sub(limit);
+                    let recent = &lines[start..];
+
+                    let mut out = format!(
+                        "📋 Observability Logs: {} (Showing last {} of {} lines):\n```text\n",
+                        log_path.file_name().unwrap_or_default().to_string_lossy(),
+                        recent.len(),
+                        total
+                    );
+                    for l in recent {
+                        out.push_str(l);
+                        out.push('\n');
+                    }
+                    out.push_str("```\n");
+                    CommandResult::success(out)
+                }
+                Err(e) => CommandResult::error(format!("Failed to read log file '{}': {}", log_path.display(), e)),
+            }
+        } else {
+            CommandResult::success(format!(
+                "📋 No log files found in '{}' for workspace '{}'.",
+                log_dir.display(), ctx.active_workspace
+            ))
+        }
     }
 
     fn execute_paste() -> CommandResult {
@@ -1231,15 +1509,34 @@ Available Commands (UI-Agnostic Engine):
     }
 
     fn execute_vision(args: &[&str]) -> CommandResult {
+        let db = NativeConfigDb::open_default().ok();
         let mode = args.first().map(|s| s.to_lowercase()).unwrap_or_else(|| "status".to_string());
-        let msg = if mode == "on" || mode == "enable" {
-            "👁️ Multimodal Vision LLM Ingestion: ENABLED (Charts, mockups and diagrams will be described by Vision models).".to_string()
-        } else if mode == "off" || mode == "disable" {
-            "👁️ Multimodal Vision LLM Ingestion: DISABLED (Using Native Rust structural metadata).".to_string()
+
+        if mode == "on" || mode == "enable" || mode == "true" || mode == "1" {
+            if let Some(d) = &db {
+                let _ = d.set_setting("enable_vision_llm", "true");
+            }
+            CommandResult::success(
+                "👁️ Multimodal Vision LLM Ingestion: ENABLED (Charts, mockups and diagrams will be described by Vision models)."
+            )
+        } else if mode == "off" || mode == "disable" || mode == "false" || mode == "0" {
+            if let Some(d) = &db {
+                let _ = d.set_setting("enable_vision_llm", "false");
+            }
+            CommandResult::success(
+                "👁️ Multimodal Vision LLM Ingestion: DISABLED (Using Native Rust structural metadata)."
+            )
         } else {
-            "👁️ Multimodal Vision LLM Ingestion Status: ENABLED (Fallback: Native Rust Metadata).\nUse '/vision on' or '/vision off' to toggle.".to_string()
-        };
-        CommandResult::success(msg)
+            let is_on = db
+                .and_then(|d| d.get_setting("enable_vision_llm").ok().flatten())
+                .map(|v| v != "false" && v != "0")
+                .unwrap_or(true);
+            let status_str = if is_on { "🟢 ENABLED" } else { "🔴 DISABLED (Native Rust Metadata Fallback)" };
+            CommandResult::success(format!(
+                "👁️ Multimodal Vision LLM Ingestion Status: {}\nUse '/vision on' or '/vision off' to toggle.",
+                status_str
+            ))
+        }
     }
 
     fn execute_ocr() -> CommandResult {

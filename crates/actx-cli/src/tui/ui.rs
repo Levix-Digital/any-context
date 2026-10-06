@@ -329,7 +329,9 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
 
     if let Some(status) = &app.sync_status {
         if status.is_syncing {
-            spans.push(Span::styled("⚡ Syncing ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
+            spans.push(Span::styled(format!("{} Syncing ", spinner), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled(format!("{} ", status.progress_bar), Style::default().fg(Color::LightYellow).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled("│ ", Style::default().fg(Color::DarkGray)));
         } else if !status.progress_bar.is_empty() && (status.stage == "completed" || status.progress_bar.contains("Up to date") || status.progress_bar.contains("100%")) {

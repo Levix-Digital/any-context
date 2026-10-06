@@ -442,9 +442,19 @@ def sync_workspace_web_urls(
         if page_count > 1 or scope in ["domain", "section", "custom"]:
             from any_context.ingestion.web_crawler import crawl_website
 
-            def _sub_crawl_prog(curr, tot, idxed, skp, url, title):
-                if progress_callback:
+            def _sub_crawl_prog(curr, tot, *args):
+                if not progress_callback:
+                    return
+                if len(args) >= 4:
+                    url = args[2] if len(args) > 2 else ""
                     progress_callback(curr, tot, "pages", url)
+                elif len(args) == 2:
+                    stage, item_name = args[0], args[1]
+                    progress_callback(curr, tot, stage, item_name)
+                elif len(args) == 1:
+                    progress_callback(curr, tot, args[0], "")
+                else:
+                    progress_callback(curr, tot, "pages", "")
 
             try:
                 crawl_res = crawl_website(

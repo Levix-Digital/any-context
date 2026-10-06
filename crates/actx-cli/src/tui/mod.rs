@@ -66,6 +66,7 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
         tokio::select! {
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(250)) => {
                 // Periodic tick for live background sync progress and animations
+                app.tick();
             }
             maybe_event = reader.next() => {
                 if let Some(Ok(event)) = maybe_event {

@@ -77,6 +77,7 @@
 89. [Clean Screen Buffer Initialization, Long-Term Memory Decoupling & Virtual Tab Lifecycle (`v0.32.13`)](#89-clean-screen-buffer-initialization-long-term-memory-decoupling--virtual-tab-lifecycle-v03213)
 90. [Bounded BM25 Deserialization, Atomic Temp-Rename & Self-Healing Index Recovery (`v0.32.14`)](#90-bounded-bm25-deserialization-atomic-temp-rename--self-healing-index-recovery-v03214)
 91. [Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar & Native Agent Background Awareness (`v0.32.14`)](#91-canonical-sqlite-sync-telemetry-live-tui-footer-progress-bar--native-agent-background-awareness-v03214)
+92. [Hexagonal Command Parity, Auto-Sync Spawning, Parameter Inversion Fix & Live Scanning Telemetry (`v0.32.15`)](#92-hexagonal-command-parity-auto-sync-spawning-parameter-inversion-fix--live-scanning-telemetry-v03215)
 ---
 
 
@@ -5747,6 +5748,88 @@ flowchart TD
 - **Status**: Accepted & Implemented (`v0.32.14`).
 - **Context**: Users lacked visual feedback on background synchronization progress in the TUI footer, and the AI agent was unaware of background indexing tasks, leading to false negative responses when asked about indexing progress.
 - **Decision**: Create a shared `workspace_sync_status` table in SQLite; connect a 250ms asynchronous polling loop in the TUI event loop to display live progress in `render_footer`; register a native `system_status` agent tool reading SQLite telemetry and LanceDB chunks; and instruct the agent via a lean system prompt skill to report real-time background status autonomously.
+
+---
+
+## 92. Hexagonal Command Parity, Auto-Sync Spawning, Parameter Inversion Fix & Live Scanning Telemetry (`v0.32.15`)
+
+### 1. Problem Statement & Root Cause Forensics
+
+During extensive user validation on real-world datasets across 17+ workspaces, three critical bugs and several command parity discrepancies were diagnosed:
+1. **The Parameter Swap Trap in LanceDB (`count_records`)**:
+   - `NativeLanceStore::count_records(workspace: Option<&str>, table_name: Option<&str>)` takes `workspace` as the FIRST parameter and `table_name` as the SECOND.
+   - In `actx-cli/src/engine.rs`, lines 237 & 305 invoked `lance.count_records(Some("workspace_chunks"), Some(&ws))`, querying table `CanadaPoliceCertificates` for records where column `workspace = 'workspace_chunks'`.
+   - Because the table was `workspace_chunks` and workspace was the dynamic name, the query returned `Ok(0)`, causing the AI agent to falsely claim that "não há chunks indexados disponíveis" even though LanceDB contained 45,664 chunks.
+2. **Interactive Menu Incremental Sync Loop**:
+   - Selecting "Sincronização Incremental (Padrão)" dispatched `sync` with `&[]`. The core intercepted empty arguments as a request to open the menu modal (`OpenMenu("sync")`), producing an infinite loop.
+3. **Frozen Footer State During Scanning**:
+   - The TUI footer remained statically frozen at `⚡ Syncing [scanning...]` without visual feedback or count updates during sitemap parsing or folder discovery.
+4. **Command Discrepancies Between Python and Rust Core**:
+   - Adding sources via `/folder` or `/web` in Rust registered entries in SQLite but never spawned background synchronization workers.
+   - `/keys <provider> <key>` only checked environment variables without persisting to SQLite or updating the current process environment.
+   - `/config` lacked a full system configuration dashboard when invoked without arguments.
+   - `/purge` purged vector records but did not invalidate the SQLite `file_metadata` hash cache.
+   - `/logs` returned static placeholder strings instead of reading physical log files.
+   - `/inspect` provided a minimal summary instead of taxonomic breakdown and chunk previews.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    subgraph UI_Surface["UI Surface (Ratatui / actx-cli)"]
+        UserCmd["/folder /web /sync /keys /config /purge /logs /inspect"] --> DispatchTUI["CommandEngine::execute(raw, args, ctx)"]
+        EventLoop["TUI Event Loop (250ms tick)"] --> Tick["app.tick()"]
+        Tick --> BrailleSpinner["Braille Spinner (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏)"]
+    end
+
+    subgraph Core_Engine["Universal Command Engine (crates/any-context-core-rs)"]
+        DispatchTUI --> CommandEngine["CommandEngine::execute"]
+        CommandEngine --> SpawnWorker["CommandEngine::spawn_sync_worker(workspace, force)"]
+        CommandEngine --> NativeConfigDb["NativeConfigDb (rusqlite)"]
+        CommandEngine --> NativeLanceStore["NativeLanceStore (Apache Arrow SIMD)"]
+    end
+
+    subgraph Storage_And_Workers["Storage & Background Workers"]
+        SpawnWorker --> DetachedProc["Detached Background Sync Worker (CREATE_NO_WINDOW)"]
+        DetachedProc --> WriteLog["sync_<workspace>.log"]
+        DetachedProc --> UpdateStatus["workspace_sync_status (live scanning counts)"]
+        NativeConfigDb --> HashCache["file_metadata (hash cache)"]
+        NativeConfigDb --> ApiKeys["api_keys (credentials)"]
+        NativeLanceStore --> ColumnarVectors["workspace_chunks (45k+ vectors)"]
+    end
+```
+
+1. **LanceDB Parameter Order Inversion Fix (`crates/actx-cli/src/engine.rs`)**:
+   - Standardized all `count_records` calls to `s.count_records(Some(&ws), Some("workspace_chunks"))`.
+   - Verified that all 45,664 chunks across all workspaces are correctly resolved and reported to the agent.
+2. **Extracted `CommandEngine::spawn_sync_worker` Helper**:
+   - Centralized background worker invocation logic, process detaching (with Windows `CREATE_NO_WINDOW`), standard log file redirection (`sync_<workspace>.log`), and SQLite status initialization into a shared, UI-agnostic helper function.
+3. **Automated Worker Spawning on Source Registration (`/folder` and `/web`)**:
+   - Adding local folders (`/folder <path>` or `/folder --add <path>`) and web documentation portals (`/web <url>` or `/web --add <url>`) immediately triggers `spawn_sync_worker`, restoring full behavioral parity with the reference Python implementation.
+4. **Live Scanning Telemetry & Animated Braille Spinner**:
+   - `crates/actx-cli/src/tui/app.rs`: Added `tick_count` and `tick()` method.
+   - `crates/actx-cli/src/tui/mod.rs`: Invokes `app.tick()` every 250ms.
+   - `crates/actx-cli/src/tui/ui.rs`: Animate Braille spinner (`⠋`, `⠙`, `⠹`, `⠸`, `⠼`, `⠴`, `⠦`, `⠧`, `⠇`, `⠏`) in the footer during active synchronization and display live discovery telemetry (e.g., `[scanning... 1440 urls found]`).
+5. **Full Hexagonal Command Alignment**:
+   - `/keys <provider> <key>`: Persists API keys to SQLite `api_keys`, sets environment variables via `std::env::set_var`, and emits `CommandAction::RebuildAgent`.
+   - `/config`: When called without arguments, renders a complete system configuration dashboard.
+   - `/purge`: Purges LanceDB vectors, purges SQLite `file_metadata` via `clear_workspace_file_metadata`, and resets sync status to `idle`.
+   - `/vision`: Persists `enable_vision_llm` in SQLite `app_settings`.
+   - `/logs`: Reads the latest lines from the active workspace log file on disk.
+   - `/inspect`: Performs metadata queries on LanceDB, aggregates chunk taxonomy by content type, and formats previews with optional `--full` non-truncated display.
+
+### 3. Architecture Decision Records (ADR-098 & ADR-099)
+
+#### ADR-098: Parameter Order Inversion Resolution in Native LanceStore (`count_records`) & Live Telemetry Unfreezing
+- **Status**: Accepted & Implemented (`v0.32.15`).
+- **Context**: An inverted parameter order in `NativeLanceStore::count_records` caused the agent to report 0 indexed chunks across workspaces with tens of thousands of chunks, and the TUI footer remained frozen during long scanning stages.
+- **Decision**: Fix the parameter order to `(Some(&ws), Some("workspace_chunks"))`; add live scanning counts to crawler and ingestor progress callbacks; integrate a 250ms Braille spinner in the TUI footer; and implement defensive auto-recalculation in SQLite telemetry.
+
+#### ADR-099: 100% Core Command Parity, Worker Auto-Spawning & Hexagonal Command Engine Alignment
+- **Status**: Accepted & Implemented (`v0.32.15`).
+- **Context**: Following the Rust migration, several commands had discrepancies compared to Python: `/folder` and `/web` did not auto-spawn workers; `/keys` did not persist credentials; `/config` lacked a dashboard; `/purge` did not clear file metadata cache; `/logs` and `/inspect` had incomplete implementations.
+- **Decision**: Centralize worker spawning in `CommandEngine::spawn_sync_worker`; auto-spawn workers on folder and web additions; persist credentials in SQLite and process environment; provide full configuration dashboard, comprehensive inspection, and live disk log retrieval in the core command engine.
+
 
 
 

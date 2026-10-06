@@ -7,6 +7,75 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 16 (v0.32.15 Paridade Total de Comandos, Auto-Spawn de Workers, Telemetria Live de Scanning e Correção no LanceDB):
+- **Objetivo**: Comprovar que na versão `v0.32.15`:
+  1. **Correção de Inversão de Parâmetros no LanceDB (`count_records`)**:
+     - O agente não alega mais falsamente que "não há chunks indexados disponíveis". A ordem dos parâmetros em `count_records(workspace, table_name)` foi corrigida em todos os pontos do core e CLI.
+  2. **Telemetria de Varredura (Scanning) e Spinner Braille Animado no Rodapé da TUI**:
+     - O rodapé da TUI não fica mais congelado estaticamente em `[scanning...]`. A TUI renderiza um Braille spinner animado a 250ms (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) e exibe o progresso de itens descobertos durante a varredura local ou sitemap parsing.
+  3. **Seleção de Sincronização Incremental no Menu TUI**:
+     - A seleção de "Sincronização Incremental (Padrão)" no menu TUI (`/menu` ou [F1]) despacha corretamente `--incremental` e dispara o worker em background sem entrar em loop de reabertura do modal.
+  4. **Auto-Spawn de Workers em `/folder` e `/web`**:
+     - Ao adicionar pastas (`/folder <path>` ou `/folder --add <path>`) ou portais web (`/web <url>` ou `/web --add <url>`), o motor Rust Core dispara automaticamente o worker de indexação/crawling em segundo plano.
+  5. **Paridade Total dos Comandos Core no Rust**:
+     - `/keys <provider> <key>` persiste as credenciais na tabela `api_keys` do SQLite, define a variável de ambiente no processo e reconstrói o agente.
+     - `/config` sem argumentos exibe dashboard completo com workspace ativo, modelo, estratégia de grounding, profundidade de busca, web search, pastas e caminhos de banco de dados.
+     - `/purge` remove tanto os vetores no LanceDB quanto o cache de hashes `file_metadata` no SQLite, reiniciando o status de sincronização para `idle`.
+     - `/vision on|off` persiste a configuração em SQLite e `/vision` exibe o status atual.
+     - `/logs` lê diretamente do arquivo de log real em disco (`sync_<workspace>.log`).
+     - `/inspect` analisa a taxonomia por tipo de conteúdo e apresenta prévias dos chunks com suporte a `--full`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.15` (ou `AnyContext (actx) v0.32.15`).
+
+2. **🔍 Teste de Inspeção e Contagem Correta no LanceDB (`/inspect`):**
+   - Execute o comando:
+     ```text
+     actx "/inspect"
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe a contagem real de chunks do workspace e do banco de dados (ex: Workspace Chunks: > 0 se houver documentos).
+     - Apresenta o detalhamento taxonômico e amostras de chunks formatadas.
+
+3. **🔄 Teste de Auto-Spawn de Indexação ao Adicionar Pasta:**
+   - No terminal ou TUI, execute:
+     ```text
+     actx "/folder ."
+     ```
+   - **Critérios de Aceitação**:
+     - A pasta é adicionada ao workspace ativo no SQLite.
+     - Uma mensagem confirma a inclusão com `⚡ Indexing started in background [PID: ...]`.
+
+4. **⚙️ Teste do Dashboard de Configuração (`/config`):**
+   - Execute:
+     ```text
+     actx "/config"
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe o painel completo de configuração do sistema, incluindo Active Workspace, Inference Model, Grounding Strategy, Search Depth, Live Web Search, diretório do LanceDB e versão v0.32.15.
+
+5. **🔑 Teste de Persistência de Chaves de API (`/keys`):**
+   - Execute:
+     ```text
+     actx "/keys openai sk-teste-verificacao-12345"
+     ```
+   - **Critérios de Aceitação**:
+     - Confirma que a chave foi salva e ativada em runtime e persistida no SQLite.
+
+6. **⚡ Teste de Spinner Braille e Sincronização Incremental no Menu:**
+   - Abra a TUI (`actx`), pressione `[F1]` ou digite `/sync`, selecione "Sincronização Incremental".
+   - **Critérios de Aceitação**:
+     - O worker em segundo plano é disparado imediatamente.
+     - A barra inferior exibe o Braille spinner animado dinamicamente a cada 250ms enquanto o scanning/crawling ocorre.
+
+---
+
 ### 📌 Cenário 15 (v0.32.14 Imunização contra Pânico no BM25, Barra de Progresso no Rodapé da TUI e Auto-Consciência do Agente sobre Background):
 - **Objetivo**: Comprovar que na versão `v0.32.14`:
   1. **Imunização Contra Pânico e Auto-Cura de Índice BM25 Corrompido**:

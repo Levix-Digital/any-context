@@ -234,7 +234,7 @@ pub fn build_agent_sync(
                 let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
                 let chunk_count = any_context_core_rs::storage::NativeLanceStore::open(&lance_path)
                     .ok()
-                    .and_then(|s| s.count_records(Some("workspace_chunks"), Some(&ws)).ok())
+                    .and_then(|s| s.count_records(Some(&ws), Some("workspace_chunks")).ok())
                     .unwrap_or(0);
 
                 let sync_info = if let Some(ss) = sync_status {
@@ -302,7 +302,7 @@ pub async fn build_agent(
 /// If no chunks exist under 'Global', it automatically chunks and indexes the embedded README.md
 /// and updates the BM25 index for zero-token self-knowledge.
 pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::storage::NativeLanceStore) {
-    let count = lance_store.count_records(Some("workspace_chunks"), Some("Global")).unwrap_or(0);
+    let count = lance_store.count_records(Some("Global"), Some("workspace_chunks")).unwrap_or(0);
     if count > 0 {
         return;
     }

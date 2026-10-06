@@ -70,9 +70,14 @@ pub struct App {
     // Background Synchronization Telemetry
     pub sync_status: Option<any_context_core_rs::storage::WorkspaceSyncStatus>,
     pub last_sync_poll: std::time::Instant,
+    pub tick_count: u64,
 }
 
 impl App {
+    pub fn tick(&mut self) {
+        self.tick_count = self.tick_count.wrapping_add(1);
+    }
+
     pub fn create_welcome_message(
         workspace: &str,
         model: &str,
@@ -144,6 +149,7 @@ impl App {
             is_generating: false,
             sync_status: initial_sync_status,
             last_sync_poll: std::time::Instant::now(),
+            tick_count: 0,
         };
 
         app
@@ -508,7 +514,7 @@ impl App {
                 crate::commands::dispatch_slash_command("model", &[target_m], self);
                 self.menu_state.is_open = false;
             } else if item.id == "sync_action:incremental" {
-                crate::commands::dispatch_slash_command("sync", &[], self);
+                crate::commands::dispatch_slash_command("sync", &["--incremental"], self);
                 self.menu_state.is_open = false;
             } else if item.id == "sync_action:force" {
                 crate::commands::dispatch_slash_command("sync", &["--force"], self);

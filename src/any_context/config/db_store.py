@@ -986,6 +986,26 @@ class ConfigDBStore:
                 cursor.execute("DELETE FROM workspace_sync_ledger")
             conn.commit()
 
+    @staticmethod
+    def format_sync_progress_bar(current: int, total: int, stage: str = "files", width: int = 8) -> str:
+        """Formats a compact Unicode block progress bar matching the Rust core engine."""
+        if total <= 0:
+            if current > 0:
+                stage_label = "urls" if stage in ["pages", "web", "crawling"] else ("files" if stage == "files" else "items")
+                return f"[scanning... {current} {stage_label} found]"
+            if stage in ["pages", "web", "crawling"]:
+                return "[crawling...]"
+            if stage in ["scanning", "discovering"]:
+                return "[scanning...]"
+            return "[calculating...]"
+
+        fill = int(round(width * (current / total))) if total > 0 else 0
+        fill = min(width, max(0, fill))
+        bar = "█" * fill + "░" * (width - fill)
+        pct = int(round((current / total) * 100))
+        stage_suffix = f" {stage}" if stage in ["files", "pages", "drives", "web"] else ""
+        return f"[{bar}] {pct}% ({current}/{total}{stage_suffix})"
+
     def update_sync_status(
         self,
         workspace_name: str,
@@ -1001,6 +1021,9 @@ class ConfigDBStore:
         """Atomically updates synchronization status telemetry in workspace_sync_status."""
         clean_ws = (workspace_name or "Default").strip()
         now_str = datetime.now(timezone.utc).isoformat()
+        if not progress_bar or not progress_bar.strip():
+            progress_bar = self.format_sync_progress_bar(current_item, total_items, stage)
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -1013,7 +1036,7 @@ class ConfigDBStore:
                     total_items = excluded.total_items,
                     stage = excluded.stage,
                     item_name = excluded.item_name,
-                    progress_bar = COALESCE(excluded.progress_bar, workspace_sync_status.progress_bar),
+                    progress_bar = excluded.progress_bar,
                     updated_at = excluded.updated_at,
                     error = excluded.error
             """, (

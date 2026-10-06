@@ -133,6 +133,22 @@ fn test_grounding_and_search_mode_parsing() {
 #[test]
 fn test_sync_command_execution_and_log_redirection() {
     let ctx = ExecutionContext::default();
+
+    // 1. Menu option flag or empty args opens sync menu
+    let res_menu = CommandEngine::execute("sync", &["--menu"], &ctx);
+    assert_eq!(res_menu.action, CommandAction::OpenMenu("sync".to_string()));
+
+    let res_empty = CommandEngine::execute("sync", &[], &ctx);
+    assert_eq!(res_empty.action, CommandAction::OpenMenu("sync".to_string()));
+
+    // 2. --incremental flag executes incremental sync
+    let res_inc = CommandEngine::execute("sync", &["--incremental"], &ctx);
+    if res_inc.success {
+        assert!(res_inc.message.contains("Synchronizing workspace"));
+        assert!(res_inc.message.contains("Background synchronization worker spawned"));
+    }
+
+    // 3. Force flag executes forced full sync
     let res = CommandEngine::execute("sync", &["--force"], &ctx);
     if res.success {
         assert!(res.message.contains("sync_Default.log"));
@@ -166,3 +182,153 @@ fn test_switch_command_options_and_deletion() {
     assert!(!res_del_global.success);
     assert!(res_del_global.message.contains("Cannot delete the protected 'Global' workspace"));
 }
+
+#[test]
+fn test_folder_command_options_and_dispatch() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext {
+        active_workspace: "FolderTestWS".to_string(),
+        ..Default::default()
+    };
+
+    // 1. List folders when empty
+    let res_list = CommandEngine::execute("folder", &[], &ctx);
+    assert!(res_list.success);
+    assert!(res_list.message.contains("Monitored Folders"));
+
+    // 2. Add temporary folder
+    let temp_dir = std::env::temp_dir().join("actx_folder_cmd_test");
+    let _ = std::fs::create_dir_all(&temp_dir);
+    let temp_str = temp_dir.to_string_lossy().to_string();
+
+    let res_add = CommandEngine::execute("folder", &[&temp_str], &ctx);
+    assert!(res_add.success);
+    assert!(res_add.message.contains("Added folder to workspace"));
+
+    // 3. Remove folder
+    let res_remove = CommandEngine::execute("folder", &["--remove", &temp_str], &ctx);
+    assert!(res_remove.success);
+    assert!(res_remove.message.contains("Removed folder"));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_web_command_options_and_dispatch() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext {
+        active_workspace: "WebTestWS".to_string(),
+        ..Default::default()
+    };
+
+    // 1. List web portals
+    let res_list = CommandEngine::execute("web", &[], &ctx);
+    assert!(res_list.success);
+    assert!(res_list.message.contains("Web Documentation Portals"));
+
+    // 2. Add web portal via direct URL
+    let res_add = CommandEngine::execute("web", &["https://actx.dev/docs"], &ctx);
+    assert!(res_add.success);
+    assert!(res_add.message.contains("Added web documentation portal"));
+
+    // 3. Remove web portal
+    let res_remove = CommandEngine::execute("web", &["--remove", "https://actx.dev/docs"], &ctx);
+    assert!(res_remove.success);
+    assert!(res_remove.message.contains("Removed web source"));
+}
+
+#[test]
+fn test_keys_command_options_and_persistence() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext::default();
+
+    // 1. No args opens keys menu
+    let res_menu = CommandEngine::execute("keys", &[], &ctx);
+    assert_eq!(res_menu.action, CommandAction::OpenMenu("keys".to_string()));
+
+    // 2. Audit shows provider audit
+    let res_audit = CommandEngine::execute("keys", &["audit"], &ctx);
+    assert!(res_audit.success);
+    assert!(res_audit.message.contains("Provider Credentials Audit"));
+    assert!(res_audit.message.contains("OpenAI"));
+
+    // 3. Set API key persists and sets env var
+    let res_set = CommandEngine::execute("keys", &["openai", "sk-test-anycontext-secret-key-123"], &ctx);
+    assert!(res_set.success);
+    assert_eq!(res_set.action, CommandAction::RebuildAgent);
+    assert_eq!(std::env::var("OPENAI_API_KEY").ok(), Some("sk-test-anycontext-secret-key-123".to_string()));
+}
+
+#[test]
+fn test_config_dashboard_and_get_set() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext {
+        active_workspace: "ConfigTestWS".to_string(),
+        ..Default::default()
+    };
+
+    // 1. No args returns full system dashboard
+    let res_dash = CommandEngine::execute("config", &[], &ctx);
+    assert!(res_dash.success);
+    assert!(res_dash.message.contains("AnyContext System Configuration"));
+    assert!(res_dash.message.contains("ConfigTestWS"));
+    assert!(res_dash.message.contains("Grounding Strategy"));
+
+    // 2. Set custom config
+    let res_set = CommandEngine::execute("config", &["custom_timeout", "120s"], &ctx);
+    assert!(res_set.success);
+    assert!(res_set.message.contains("custom_timeout"));
+
+    // 3. Get custom config
+    let res_get = CommandEngine::execute("config", &["custom_timeout"], &ctx);
+    assert!(res_get.success);
+    assert!(res_get.message.contains("120s"));
+}
+
+#[test]
+fn test_purge_command_execution() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext {
+        active_workspace: "PurgeTestWS".to_string(),
+        ..Default::default()
+    };
+
+    let res = CommandEngine::execute("purge", &[], &ctx);
+    assert!(res.success);
+    assert!(res.message.contains("Vector index and file hash metadata purged"));
+}
+
+#[test]
+fn test_vision_command_toggle() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext::default();
+
+    let res_on = CommandEngine::execute("vision", &["on"], &ctx);
+    assert!(res_on.success);
+    assert!(res_on.message.contains("ENABLED"));
+
+    let res_off = CommandEngine::execute("vision", &["off"], &ctx);
+    assert!(res_off.success);
+    assert!(res_off.message.contains("DISABLED"));
+
+    let res_status = CommandEngine::execute("vision", &[], &ctx);
+    assert!(res_status.success);
+    assert!(res_status.message.contains("DISABLED"));
+}
+
+#[test]
+fn test_inspect_and_logs_execution() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext {
+        active_workspace: "InspectTestWS".to_string(),
+        ..Default::default()
+    };
+
+    let res_inspect = CommandEngine::execute("inspect", &[], &ctx);
+    assert!(res_inspect.success);
+    assert!(res_inspect.message.contains("Vector Store Inspection for `InspectTestWS`"));
+
+    let res_logs = CommandEngine::execute("logs", &[], &ctx);
+    assert!(res_logs.success);
+}
+

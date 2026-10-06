@@ -191,11 +191,11 @@ def entrypoint():
                 verbose=True,
                 progress_callback=_worker_progress
             )
-            store.update_sync_status(target_ws, is_syncing=False, pid=os.getpid(), stage="completed")
+            store.update_sync_status(target_ws, is_syncing=False, pid=os.getpid(), stage="completed", progress_bar="✔ Up to date")
             print(f"✔ Unified sync worker completed for workspace '{target_ws}'.", flush=True)
             sys.exit(0)
         except Exception as e:
-            store.update_sync_status(target_ws, is_syncing=False, pid=os.getpid(), stage="error", error=str(e))
+            store.update_sync_status(target_ws, is_syncing=False, pid=os.getpid(), stage="error", error=str(e), progress_bar="✖ Failed")
             raise
 
     if "--mcp" in sys.argv:
