@@ -7,6 +7,64 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 15 (v0.32.14 Imunização contra Pânico no BM25, Barra de Progresso no Rodapé da TUI e Auto-Consciência do Agente sobre Background):
+- **Objetivo**: Comprovar que na versão `v0.32.14`:
+  1. **Imunização Contra Pânico e Auto-Cura de Índice BM25 Corrompido**:
+     - Arquivos de índice léxico corrompidos ou com cabeçalhos gigantescos (como o infame `memory allocation of 7939688266103746149 bytes failed`) NÃO causam mais crash, pânico nem aborto fatal da aplicação.
+     - O sistema impõe limite estrito de 150MB no `bincode`, intercepta falhas com `std::panic::catch_unwind`, isola arquivos corrompidos em quarentena (`.corrupt.<timestamp>`) e instancia automaticamente um índice em memória íntegro.
+  2. **Barra de Progresso Reativa no Rodapé da TUI Durante Sincronização (`/sync`)**:
+     - Ao executar `/sync` ou sincronização em segundo plano, a barra inferior de status da TUI (`render_footer`) exibe dinamicamente o progresso em tempo real (ex: `⚡ Syncing [████░░░░] 50% (15/30 files)` ou `✔ Up to date`), sem interferir na digitação ou no chat do usuário.
+     - As atualizações ocorrem suavemente a cada 250ms via polling assíncrono na tabela unificada `workspace_sync_status` do SQLite.
+  3. **Auto-Consciência Nativa do Agente sobre Processamento em Segundo Plano (`system_status`)**:
+     - Quando o usuário pergunta sobre o status da indexação (ex: *"Já foi tudo indexado?"* ou *"Qual o status da sincronização?"*), o agente de IA NÃO responde mais *"⚠️ Essa informação não consta nos documentos deste workspace"*.
+     - O agente invoca autonomamente a ferramenta nativa `system_status` (habilitada pela `Skill system-status`) e responde fatualmente com o progresso real, arquivos pendentes, total de chunks no LanceDB e pastas monitoradas.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.14` (ou `AnyContext (actx) v0.32.14`).
+
+2. **🛡️ Teste de Imunidade contra Pânico em Índice BM25 Corrompido:**
+   - No diretório do LanceDB canônico (`%LOCALAPPDATA%\AnyContext\data\context_db\lancedb` ou sandbox de testes), se houver um arquivo `bm25_index.bin` corrompido, execute uma busca ou abra a TUI:
+     ```text
+     actx "teste de pesquisa"
+     ```
+   - **Critérios de Aceitação**:
+     - O aplicativo NÃO aborta com erro fatal `memory allocation of ... bytes failed`.
+     - O arquivo corrompido é isolado com sufixo `.corrupt.<timestamp>` e a busca prossegue graciosamente usando fallback em memória e LanceDB vetorial.
+
+3. **⚡ Teste da Barra de Progresso de `/sync` no Rodapé da TUI:**
+   - Abra a TUI interativa:
+     ```text
+     actx
+     ```
+   - Inicie a sincronização do workspace digitando no prompt:
+     ```text
+     /sync
+     ```
+   - Observe a barra de rodapé (linha inferior da tela).
+   - **Critérios de Aceitação**:
+     - Enquanto o worker em segundo plano processa os arquivos/páginas web, o rodapé exibe o indicador dinâmico:
+       `⚡ Syncing [████░░░░] XX% (Y/Z files) │ ...`
+     - O usuário pode continuar digitando ou conversando com o chat normalmente sem nenhum travamento da tela!
+     - Ao concluir o processo, o rodapé transiciona elegantemente para `✔ Up to date │ ...`.
+
+4. **🤖 Teste de Auto-Consciência do Agente sobre Background (`system_status`):**
+   - Na TUI ou via CLI direta, envie a seguinte pergunta ao assistente:
+     ```text
+     Já foi tudo indexado?
+     ```
+   - **Critérios de Aceitação**:
+     - O agente invoca internamente a ferramenta `system_status`.
+     - O agente NÃO emite o aviso enganoso *"⚠️ Essa informação não consta nos documentos deste workspace"*.
+     - A resposta descreve com clareza o estado atual da indexação: se está concluída (`Up to date`), em progresso (com porcentagem e contagem de arquivos), ou o total de chunks indexados no LanceDB.
+
+---
+
 ### 📌 Cenário 14 (v0.32.13 Inicialização com Tela Limpa na TUI e Preservação de Memória de Longo Prazo):
 - **Objetivo**: Comprovar que na versão `v0.32.13`:
   1. **Inicialização com Tela 100% Zerada em Cada Nova Sessão (Linux, Windows, macOS)**:

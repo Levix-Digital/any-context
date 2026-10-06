@@ -66,6 +66,10 @@ pub struct App {
     // Agent handles & channels
     pub agent: Option<Arc<Agent>>,
     pub is_generating: bool,
+
+    // Background Synchronization Telemetry
+    pub sync_status: Option<any_context_core_rs::storage::WorkspaceSyncStatus>,
+    pub last_sync_poll: std::time::Instant,
 }
 
 impl App {
@@ -107,6 +111,9 @@ impl App {
             web_search_enabled,
         )];
 
+        let initial_sync_status = db.as_ref()
+            .and_then(|d| d.get_sync_status(&workspace).ok().flatten());
+
         let app = Self {
             running: true,
             active_workspace: workspace,
@@ -135,9 +142,21 @@ impl App {
             menu_state: MenuState::default(),
             agent: agent.map(Arc::new),
             is_generating: false,
+            sync_status: initial_sync_status,
+            last_sync_poll: std::time::Instant::now(),
         };
 
         app
+    }
+
+    pub fn poll_sync_status(&mut self) {
+        if self.last_sync_poll.elapsed() < std::time::Duration::from_millis(400) {
+            return;
+        }
+        self.last_sync_poll = std::time::Instant::now();
+        if let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() {
+            self.sync_status = db.get_sync_status(&self.active_workspace).unwrap_or(None);
+        }
     }
 
     pub fn insert_char(&mut self, c: char) {

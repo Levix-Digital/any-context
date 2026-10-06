@@ -227,22 +227,75 @@ impl BM25Index {
         results
     }
 
-    /// Persists the index to disk using high-speed bincode serialization.
+    /// Persists the index to disk using high-speed atomic bincode serialization.
     pub fn save_to_file(&self, path: &str) -> Result<(), String> {
-        let file = File::create(path).map_err(|e| format!("Failed to create BM25 index file '{}': {}", path, e))?;
-        let writer = BufWriter::new(file);
-        bincode::serialize_into(writer, self)
-            .map_err(|e| format!("Failed to serialize BM25 index to '{}': {}", path, e))?;
+        use bincode::Options;
+        use std::io::Write;
+
+        let path_obj = std::path::Path::new(path);
+        let parent = path_obj.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let pid = std::process::id();
+        let timestamp = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+        let tmp_path = parent.join(format!(".bm25_tmp_{}_{}.bin", pid, timestamp));
+
+        let file = File::create(&tmp_path)
+            .map_err(|e| format!("Failed to create temporary BM25 index file '{:?}': {}", tmp_path, e))?;
+        let mut writer = BufWriter::new(file);
+
+        let options = bincode::DefaultOptions::new()
+            .with_fixint_encoding()
+            .allow_trailing_bytes();
+
+        options
+            .serialize_into(&mut writer, self)
+            .map_err(|e| format!("Failed to serialize BM25 index to '{:?}': {}", tmp_path, e))?;
+        writer
+            .flush()
+            .map_err(|e| format!("Failed to flush temporary BM25 index '{:?}': {}", tmp_path, e))?;
+        drop(writer);
+
+        #[cfg(windows)]
+        {
+            if path_obj.exists() {
+                let _ = std::fs::remove_file(path_obj);
+            }
+        }
+
+        std::fs::rename(&tmp_path, path_obj)
+            .map_err(|e| format!("Failed to atomically rename BM25 index '{:?}' to '{}': {}", tmp_path, path, e))?;
         Ok(())
     }
 
-    /// Loads the index from disk using bincode deserialization.
+    /// Loads the index from disk using bounded, panic-safe bincode deserialization.
+    /// Rejects corrupted length prefixes (e.g. 7.9 exabytes) and catches any allocator overflow.
     pub fn load_from_file(path: &str) -> Result<Self, String> {
-        let file = File::open(path).map_err(|e| format!("Failed to open BM25 index file '{}': {}", path, e))?;
-        let reader = BufReader::new(file);
-        let index: Self = bincode::deserialize_from(reader)
-            .map_err(|e| format!("Failed to deserialize BM25 index from '{}': {}", path, e))?;
-        Ok(index)
+        let path_str = path.to_string();
+        let catch_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            use bincode::Options;
+
+            let file = File::open(&path_str)
+                .map_err(|e| format!("Failed to open BM25 index file '{}': {}", path_str, e))?;
+            let reader = BufReader::new(file);
+
+            // Maximum allowed allocation per index: 150 MB
+            let options = bincode::DefaultOptions::new()
+                .with_limit(150 * 1024 * 1024)
+                .with_fixint_encoding()
+                .allow_trailing_bytes();
+
+            let index: Self = options
+                .deserialize_from(reader)
+                .map_err(|e| format!("Failed to deserialize BM25 index from '{}': {}", path_str, e))?;
+            Ok(index)
+        }));
+
+        match catch_result {
+            Ok(inner_res) => inner_res,
+            Err(_) => Err(format!(
+                "Memory allocation or panic caught during deserialization of BM25 index file '{}': index file is corrupted",
+                path
+            )),
+        }
     }
 }
 
@@ -335,4 +388,37 @@ mod tests {
 
         let _ = std::fs::remove_file(tmp_path);
     }
+
+    #[test]
+    fn test_bm25_corrupted_huge_allocation_protection() {
+        let tmp_path = std::env::temp_dir().join(format!("bm25_corrupt_{}.bin", std::process::id()));
+        let path_str = tmp_path.to_str().unwrap();
+
+        // Write corrupt bytes simulating an exabyte collection size: 7939688266103746149 (b'enship/n')
+        let mut corrupt_bytes = Vec::new();
+        // Number of docs = 1
+        corrupt_bytes.extend_from_slice(&1u64.to_le_bytes());
+        // DocRecord id len = 4
+        corrupt_bytes.extend_from_slice(&4u64.to_le_bytes());
+        corrupt_bytes.extend_from_slice(b"test");
+        // DocRecord text len = 7939688266103746149 (b'enship/n')
+        corrupt_bytes.extend_from_slice(&7939688266103746149u64.to_le_bytes());
+        // Followed by junk
+        corrupt_bytes.extend_from_slice(b"some remainder data");
+
+        std::fs::write(&tmp_path, &corrupt_bytes).expect("Failed to write corrupt test file");
+
+        // Attempting to load MUST return an Err and NOT abort/panic the process
+        let result = BM25Index::load_from_file(path_str);
+        assert!(result.is_err(), "Expected load_from_file to fail safely on corrupted file");
+        let err_msg = result.unwrap_err();
+        assert!(
+            err_msg.contains("corrupted") || err_msg.contains("SizeLimit") || err_msg.contains("deserialize"),
+            "Expected size limit or corruption error, got: {}",
+            err_msg
+        );
+
+        let _ = std::fs::remove_file(tmp_path);
+    }
 }
+

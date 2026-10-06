@@ -130,8 +130,18 @@ impl NativeHybridPipeline {
         };
         let file_path = self.db_path.join(prefix);
         let index = if file_path.exists() {
-            BM25Index::load_from_file(file_path.to_str().unwrap_or(""))
-                .unwrap_or_else(|_| BM25Index::new(None, None))
+            match BM25Index::load_from_file(file_path.to_str().unwrap_or("")) {
+                Ok(idx) => idx,
+                Err(err) => {
+                    eprintln!(
+                        "⚠️ [WARN] BM25 index at '{:?}' is corrupted or unreadable: {}. Quarantining and starting fresh index...",
+                        file_path, err
+                    );
+                    let corrupt_name = format!("{}.corrupt.{}", file_path.display(), chrono::Utc::now().timestamp());
+                    let _ = std::fs::rename(&file_path, &corrupt_name);
+                    BM25Index::new(None, None)
+                }
+            }
         } else {
             BM25Index::new(None, None)
         };

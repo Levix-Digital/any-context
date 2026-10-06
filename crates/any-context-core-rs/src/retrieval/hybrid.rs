@@ -87,12 +87,23 @@ impl HybridRetrieverEngine {
             .map_err(|e| pyo3::exceptions::PyIOError::new_err(e))
     }
 
-    /// Loads BM25 index from binary file on disk.
+    /// Loads BM25 index from binary file on disk. Quarantines corrupted files automatically.
     pub fn load_bm25_from_file(&mut self, path: &str) -> PyResult<()> {
-        let loaded = BM25Index::load_from_file(path)
-            .map_err(|e| pyo3::exceptions::PyIOError::new_err(e))?;
-        self.bm25 = loaded;
-        Ok(())
+        match BM25Index::load_from_file(path) {
+            Ok(loaded) => {
+                self.bm25 = loaded;
+                Ok(())
+            }
+            Err(e) => {
+                let corrupt_name = format!("{}.corrupt.{}", path, chrono::Utc::now().timestamp());
+                let _ = std::fs::rename(path, &corrupt_name);
+                self.bm25 = BM25Index::new(None, None);
+                Err(pyo3::exceptions::PyIOError::new_err(format!(
+                    "BM25 index at '{}' was corrupted and quarantined to '{}': {}",
+                    path, corrupt_name, e
+                )))
+            }
+        }
     }
 
     /// Executes full Hybrid Retrieval with Reciprocal Rank Fusion (RRF), Source-Fair Round-Robin,

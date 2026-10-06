@@ -7,6 +7,7 @@ import secrets
 import uuid
 import shutil
 import time
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from any_context.config.app_settings import (
     AppSettings,
@@ -265,6 +266,21 @@ class ConfigDBStore:
                     deleted_sources_json TEXT NOT NULL,
                     added_sources_json TEXT NOT NULL,
                     modified_sources_json TEXT NOT NULL
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_sync_status (
+                    workspace_name TEXT PRIMARY KEY,
+                    is_syncing INTEGER NOT NULL DEFAULT 0,
+                    pid INTEGER,
+                    current_item INTEGER NOT NULL DEFAULT 0,
+                    total_items INTEGER NOT NULL DEFAULT 0,
+                    stage TEXT NOT NULL DEFAULT 'idle',
+                    item_name TEXT,
+                    progress_bar TEXT,
+                    updated_at TEXT NOT NULL,
+                    error TEXT
                 )
             """)
 
@@ -969,6 +985,76 @@ class ConfigDBStore:
             else:
                 cursor.execute("DELETE FROM workspace_sync_ledger")
             conn.commit()
+
+    def update_sync_status(
+        self,
+        workspace_name: str,
+        is_syncing: bool = False,
+        pid: Optional[int] = None,
+        current_item: int = 0,
+        total_items: int = 0,
+        stage: str = "idle",
+        item_name: Optional[str] = None,
+        progress_bar: Optional[str] = None,
+        error: Optional[str] = None
+    ) -> None:
+        """Atomically updates synchronization status telemetry in workspace_sync_status."""
+        clean_ws = (workspace_name or "Default").strip()
+        now_str = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO workspace_sync_status (workspace_name, is_syncing, pid, current_item, total_items, stage, item_name, progress_bar, updated_at, error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(workspace_name) DO UPDATE SET
+                    is_syncing = excluded.is_syncing,
+                    pid = COALESCE(excluded.pid, workspace_sync_status.pid),
+                    current_item = excluded.current_item,
+                    total_items = excluded.total_items,
+                    stage = excluded.stage,
+                    item_name = excluded.item_name,
+                    progress_bar = COALESCE(excluded.progress_bar, workspace_sync_status.progress_bar),
+                    updated_at = excluded.updated_at,
+                    error = excluded.error
+            """, (
+                clean_ws,
+                1 if is_syncing else 0,
+                pid,
+                current_item,
+                total_items,
+                stage,
+                item_name,
+                progress_bar,
+                now_str,
+                error
+            ))
+            conn.commit()
+
+    def get_sync_status(self, workspace_name: str) -> Optional[Dict[str, Any]]:
+        """Retrieves synchronization status telemetry for a workspace from workspace_sync_status."""
+        clean_ws = (workspace_name or "Default").strip()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT workspace_name, is_syncing, pid, current_item, total_items, stage, item_name, progress_bar, updated_at, error
+                FROM workspace_sync_status
+                WHERE workspace_name = ? COLLATE NOCASE
+            """, (clean_ws,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "workspace_name": row["workspace_name"],
+                "is_syncing": bool(row["is_syncing"]),
+                "pid": row["pid"],
+                "current_item": row["current_item"],
+                "total_items": row["total_items"],
+                "stage": row["stage"],
+                "item_name": row["item_name"],
+                "progress_bar": row["progress_bar"] or "",
+                "updated_at": row["updated_at"],
+                "error": row["error"]
+            }
 
     def rename_workspace(self, old_name: str, new_name: str) -> Dict[str, Any]:
         """

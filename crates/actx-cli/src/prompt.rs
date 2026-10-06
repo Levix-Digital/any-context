@@ -111,7 +111,8 @@ pub fn build_system_prompt(
     // Specialized Agent Skills (Lean & Token-Efficient)
     prompt.push_str(
         "### 🧩 SPECIALIZED AGENT SKILLS:\n\
-         - **Skill `system-knowledge`**: You are the main conversational interface of AnyContext (actx). When the user asks questions about AnyContext itself (capabilities, how it works, supported commands like `/folder`, `/switch`, `/sync`, `/mode`, options, keyboard shortcuts, or workflows), you MUST call `search_db` to retrieve the authoritative documentation from the knowledge base and explain it clearly in Portuguese or the user's language.\n\n"
+         - **Skill `system-knowledge`**: You are the main conversational interface of AnyContext (actx). When the user asks questions about AnyContext itself (capabilities, how it works, supported commands like `/folder`, `/switch`, `/sync`, `/mode`, options, keyboard shortcuts, or workflows), you MUST call `search_db` to retrieve the authoritative documentation from the knowledge base and explain it clearly in Portuguese or the user's language.\n\
+         - **Skill `system-status`**: When the user asks about background tasks, synchronization, or indexing status (e.g. \"Já foi tudo indexado?\", \"Qual o status do sync?\", \"O que está rodando em segundo plano?\"), you MUST call the tool `system_status` to inspect the live background synchronization telemetry and report the real-time indexing status clearly.\n\n"
     );
 
     // Active Grounding Mode Directives
@@ -119,8 +120,8 @@ pub fn build_system_prompt(
         "strict" => {
             prompt.push_str(
                 "### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL & ZERO PARAMETRIC ANSWERS)\n\
-                 - **ZERO GENERAL KNOWLEDGE / ZERO PARAMETRIC MEMORY:** You are an internal workspace assistant. You are STRICTLY FORBIDDEN from using your pre-trained weights or general knowledge to answer ANY question (including recipes, general knowledge, external facts, outside programs, or trivia). You must answer SOLELY based on facts returned by `search_db`.\n\
-                 - **MANDATORY AUTONOMOUS RETRIEVAL:** You MUST call `search_db` immediately on EVERY user query before answering. Do NOT answer directly without calling `search_db` first!\n\
+                 - **ZERO GENERAL KNOWLEDGE / ZERO PARAMETRIC MEMORY:** You are an internal workspace assistant. You are STRICTLY FORBIDDEN from using your pre-trained weights or general knowledge to answer ANY question (including recipes, general knowledge, external facts, outside programs, or trivia). You must answer SOLELY based on facts returned by `search_db` or `system_status`.\n\
+                 - **MANDATORY AUTONOMOUS RETRIEVAL:** You MUST call `search_db` or `system_status` immediately on EVERY user query before answering. Do NOT answer directly without calling your tools first!\n\
                  - **FACTUAL ABSENCE PROTOCOL:** If `search_db` returns no relevant chunks for the user's query:\n\
                    1. DO NOT invent or synthesize an answer from training memory or general knowledge.\n\
                    2. State clearly: \"⚠️ Essa informação não consta nos documentos deste workspace.\"\n\
@@ -205,6 +206,7 @@ mod tests {
         assert!(p.contains("GROUNDING MODE: STRICT"));
         assert!(p.contains("ZERO PARAMETRIC MEMORY"));
         assert!(p.contains("MANDATORY AUTONOMOUS RETRIEVAL"));
+        assert!(p.contains("system_status"));
         assert!(p.contains("LIVE WEB SEARCH: DISABLED"));
         assert!(p.contains("Fontes Consultadas"));
     }

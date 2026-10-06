@@ -324,8 +324,21 @@ fn render_slash_palette(frame: &mut Frame, input_area: Rect, app: &App) {
     frame.render_widget(list, popup_area);
 }
 
-fn render_footer(frame: &mut Frame, area: Rect, _app: &App) {
-    let keys = vec![
+fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
+    let mut spans = Vec::new();
+
+    if let Some(status) = &app.sync_status {
+        if status.is_syncing {
+            spans.push(Span::styled("⚡ Syncing ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            spans.push(Span::styled(format!("{} ", status.progress_bar), Style::default().fg(Color::LightYellow).add_modifier(Modifier::BOLD)));
+            spans.push(Span::styled("│ ", Style::default().fg(Color::DarkGray)));
+        } else if !status.progress_bar.is_empty() && (status.stage == "completed" || status.progress_bar.contains("Up to date") || status.progress_bar.contains("100%")) {
+            spans.push(Span::styled("✔ Up to date ", Style::default().fg(Color::Green)));
+            spans.push(Span::styled("│ ", Style::default().fg(Color::DarkGray)));
+        }
+    }
+
+    spans.extend(vec![
         Span::styled("[F1 / /menu]", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Span::raw(" Menu  "),
         Span::styled("[Enter]", Style::default().fg(Color::Cyan)),
@@ -338,9 +351,9 @@ fn render_footer(frame: &mut Frame, area: Rect, _app: &App) {
         Span::raw(" Reasoning  "),
         Span::styled("[Esc/Ctrl+C]", Style::default().fg(Color::Red)),
         Span::raw(" Exit"),
-    ];
+    ]);
 
-    let footer = Paragraph::new(Line::from(keys));
+    let footer = Paragraph::new(Line::from(spans));
     frame.render_widget(footer, area);
 }
 

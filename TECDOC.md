@@ -73,6 +73,10 @@
 85. [Hermetic Workspace Settings Persistence, Unified Sync Worker Ingestion, Windows Atomic Self-Update Swap & Venv Purge (`v0.32.9`)](#85-hermetic-workspace-settings-persistence-unified-sync-worker-ingestion-windows-atomic-self-update-swap--venv-purge-v0329)
 86. [Virtual Tab Workspace Chat Buffer Isolation & Viewport Lifecycle (`v0.32.10`)](#86-virtual-tab-workspace-chat-buffer-isolation--viewport-lifecycle-v03210)
 87. [Sync Worker Background Stdio Isolation & Chain of Responsibility Ingestion Engine (`v0.32.11`)](#87-sync-worker-background-stdio-isolation--chain-of-responsibility-ingestion-engine-v03211)
+88. [Test Sandbox Architecture, Contextual Option Hinting & Skill-Based Self-Knowledge via Global LanceDB Workspace (`v0.32.12`)](#88-test-sandbox-architecture-contextual-option-hinting--skill-based-self-knowledge-via-global-lancedb-workspace-v03212)
+89. [Clean Screen Buffer Initialization, Long-Term Memory Decoupling & Virtual Tab Lifecycle (`v0.32.13`)](#89-clean-screen-buffer-initialization-long-term-memory-decoupling--virtual-tab-lifecycle-v03213)
+90. [Bounded BM25 Deserialization, Atomic Temp-Rename & Self-Healing Index Recovery (`v0.32.14`)](#90-bounded-bm25-deserialization-atomic-temp-rename--self-healing-index-recovery-v03214)
+91. [Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar & Native Agent Background Awareness (`v0.32.14`)](#91-canonical-sqlite-sync-telemetry-live-tui-footer-progress-bar--native-agent-background-awareness-v03214)
 ---
 
 
@@ -5592,6 +5596,158 @@ flowchart TD
 - **Status**: Accepted & Implemented (`v0.32.13`).
 - **Context**: Every launch of the application dumped old session messages directly onto the terminal chat viewport, cluttering the screen and disrupting users who wanted a clean start for their new session.
 - **Decision**: Decouple the visual screen buffer from the agent's long-term memory: initialize the TUI chat history strictly with the welcome message banner on startup and unvisited workspace switches; preserve all past messages in SQLite (`actx_session_messages`) for agent retrieval; and enhance `/history` to inspect or wipe long-term memory on demand.
+
+---
+
+## 90. Bounded BM25 Deserialization, Atomic Temp-Rename & Self-Healing Index Recovery (`v0.32.14`)
+
+### 1. Problem Statement & Root Cause Analysis
+During search execution within large workspaces containing thousands of indexed web pages (e.g., `IKEAShipments`), the application experienced an immediate fatal abort:
+```text
+memory allocation of 7939688266103746149 bytes failed
+error: process didn't exit successfully: ... (exit code: 0xc0000409, STATUS_STACK_BUFFER_OVERRUN)
+```
+
+#### Forensic Analysis of Index File Offset 5976850
+- The requested byte count `7939688266103746149` translates in hexadecimal to `0x6e2f706968736e65`.
+- Interpreted as little-endian ASCII, these 8 bytes represent the character sequence `enship/n` — part of an indexed web URL (`citizenship/news`).
+- Prior to `v0.32.14`, `BM25Index::save_to_file` wrote directly to `bm25_index.bin` without file-level synchronization. Concurrent writes between the foreground search cache and background worker processes interleaved content, resulting in a fractured binary file.
+- Unbounded `bincode::deserialize_from` encountered these ASCII bytes in place of a collection length header and attempted to allocate a `Vec` with capacity for ~7.9 exabytes.
+- Rust's global memory allocator immediately aborted execution via `alloc::rust_oom`, bypassing standard `Result` error handling.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    subgraph Corrupt_File_Recovery["Resilient BM25 Deserialization Pipeline"]
+        FileOnDisk["bm25_index.bin on Disk"] --> LoadAttempt["BM25Index::load_from_file"]
+        LoadAttempt --> BoundedBincode["bincode with_limit(150MB) + fixint"]
+        BoundedBincode --> CatchUnwind["std::panic::catch_unwind"]
+        
+        CatchUnwind -- "Corrupt / Size Exceeded" --> ErrResult["Return Err(io::Error)"]
+        CatchUnwind -- "Valid Index" --> OkResult["Return Ok(BM25Index)"]
+        
+        ErrResult --> Quarantine["Quarantine: rename to bm25_index.bin.corrupt.<ts>"]
+        Quarantine --> CleanFallback["Instantiate Clean In-Memory Fallback Index"]
+        CleanFallback --> AutoReconstruct["Reconstruct vocabulary from LanceDB rows on next sync"]
+    end
+
+    subgraph Atomic_Persistence["Atomic Write Safety"]
+        SaveReq["BM25Index::save_to_file"] --> TmpFile["Write to .bm25_tmp_<pid>_<ts>.bin"]
+        TmpFile --> FlushBuffer["Flush buffer to disk"]
+        FlushBuffer --> AtomicRename["Atomic fs::rename -> bm25_index.bin"]
+        AtomicRename --> SafeDisk["Zero partial writes or concurrent interleaving"]
+    end
+```
+
+1. **Bounded Deserialization & Panic Isolation (`crates/any-context-core-rs/src/retrieval/bm25.rs`)**:
+   - Replaced default unbounded `bincode::deserialize_from` with:
+     ```rust
+     let options = bincode::DefaultOptions::new()
+         .with_limit(150 * 1024 * 1024)
+         .with_fixint_encoding()
+         .allow_trailing_bytes();
+     ```
+   - Wrapped deserialization in `std::panic::catch_unwind` to prevent fatal memory aborts from terminating the host process.
+   - Any corrupt collection header exceeding 150MB returns `Err(io::Error)` cleanly.
+
+2. **Atomic Temp-and-Rename File Persistence (`crates/any-context-core-rs/src/retrieval/bm25.rs`)**:
+   - Replaced direct in-place file overwrites with an atomic write-flush-rename sequence:
+     ```rust
+     let tmp_path = parent.join(format!(".bm25_tmp_{}_{}.bin", std::process::id(), now_ms));
+     // serialize to tmp_path, flush...
+     std::fs::rename(&tmp_path, path)?;
+     ```
+   - Guarantees zero partial writes, preventing race conditions between background ingestion workers and foreground retrieval queries.
+
+3. **Quarantine & Self-Healing (`crates/any-context-core-rs/src/retrieval/pipeline.rs` & `hybrid.rs`)**:
+   - When `load_from_file` returns an error, the pipeline isolates the corrupt file by moving it to `<path>.corrupt.<timestamp>`.
+   - The system immediately initializes a fresh in-memory index, logging a warning rather than panicking.
+   - The lexical index is automatically repopulated from LanceDB records during the next synchronization pass.
+
+### 3. Architecture Decision Record (ADR-096)
+
+#### ADR-096: Bounded BM25 Deserialization, Atomic Temp-Rename & Self-Healing Index Recovery
+- **Status**: Accepted & Implemented (`v0.32.14`).
+- **Context**: Concurrently written BM25 binary index files suffered corrupt length headers, causing unbounded `bincode` deserialization to request 7.9 exabytes of RAM and trigger unrecoverable OOM aborts.
+- **Decision**: Impose a 150MB allocation bound on bincode deserialization; enclose deserialization inside `panic::catch_unwind`; enforce atomic file writes via temporary file and atomic rename; quarantine corrupt index files automatically to `.corrupt.<timestamp>`; and provide graceful in-memory fallback index recovery.
+
+---
+
+## 91. Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar & Native Agent Background Awareness (`v0.32.14`)
+
+### 1. Problem Statement & Root Cause Analysis
+Two usability gaps were identified after migrating the interactive shell to Rust:
+1. **Missing Live `/sync` Progress Bar in TUI**: While background synchronization executed properly in detached worker processes, the interactive terminal footer lacked real-time visual progress indication (`⚡ Syncing [████░░░░] 50%`), leaving users uncertain about background task progress.
+2. **Agent Blindness to Background Tasks**: When users inquired about background ingestion (*"Já foi tudo indexado?"*), the agent evaluated the query strictly as a document retrieval task (`search_db`). Because document chunks do not describe active worker PIDs or crawler states, the model incorrectly responded with *"⚠️ Essa informação não consta nos documentos deste workspace"*.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    subgraph Core_Telemetry["Canonical Telemetry (SQLite settings.db)"]
+        WorkerPy["Python Sync Worker / orchestrator.py"] -->|"publish live progress"| TableSync[("workspace_sync_status")]
+        WorkerRs["Rust CLI Ingestion Engine"] -->|"publish live progress"| TableSync
+    end
+
+    subgraph TUI_Presentation["TUI Layer (crates/actx-cli)"]
+        EventLoop["TUI Event Loop (mod.rs: 250ms tick)"] --> Poll["app.poll_sync_status()"]
+        Poll -->|"query get_sync_status(active_ws)"| TableSync
+        Poll --> RenderFooter["ui.rs: render_footer"]
+        RenderFooter --> DisplayBar["⚡ Syncing [████░░░░] 50% (15/30 files) │ ✔ Up to date"]
+    end
+
+    subgraph Agent_Awareness["Native Agent Background Telemetry (crates/actx-cli)"]
+        UserQ["User: 'Já foi tudo indexado?'"] --> AgentReAct["Agent ReAct Loop (engine.rs)"]
+        PromptSkill["Skill system-status directive"] --> AgentReAct
+        AgentReAct --> TriggerTool["Tool call: system_status()"]
+        TriggerTool --> QueryDB["NativeConfigDb::get_sync_status() + LanceDB chunk count"]
+        QueryDB --> TableSync
+        TriggerTool --> FactualResponse["AI: 'A sincronização está ativa com 50% concluído (15/30 arquivos)...'"]
+    end
+```
+
+1. **Canonical SQLite Sync Telemetry (`workspace_sync_status`)**:
+   - Added schema in `crates/any-context-core-rs/src/storage/sqlite.rs` and `src/any_context/config/db_store.py`:
+     ```sql
+     CREATE TABLE IF NOT EXISTS workspace_sync_status (
+         workspace TEXT PRIMARY KEY,
+         status TEXT NOT NULL,
+         progress_pct INTEGER NOT NULL DEFAULT 0,
+         total_files INTEGER NOT NULL DEFAULT 0,
+         processed_files INTEGER NOT NULL DEFAULT 0,
+         current_file TEXT,
+         error_message TEXT,
+         pid INTEGER,
+         started_at REAL,
+         updated_at REAL
+     );
+     ```
+   - Added `WorkspaceSyncStatus` struct in Rust with helper `format_progress_bar()` generating consistent visual representations across surfaces.
+   - Updated `orchestrator.py` (`BackgroundSyncManager`), `entrypoint.py` (`--sync-worker`), and `commands/engine.rs` to persist continuous state transitions (`queued`, `syncing`, `completed`, `error`).
+
+2. **Live TUI Footer Progress Bar (`crates/actx-cli/src/tui/`)**:
+   - `crates/actx-cli/src/tui/app.rs`: Added `sync_status: Option<WorkspaceSyncStatus>` and `poll_sync_status(&mut self)` to query SQLite.
+   - `crates/actx-cli/src/tui/mod.rs`: Integrated a 250ms tick timer branch in `tokio::select!` that re-polls sync status and requests terminal redrawing without blocking keystroke processing.
+   - `crates/actx-cli/src/tui/ui.rs`: `render_footer` checks active sync status:
+     - While syncing: `⚡ Syncing [████░░░░] 50% (15/30 files) │ ...`
+     - When idle/completed: `✔ Up to date │ ...`
+
+3. **Native Agent Background Awareness (`system_status` Tool & Skill)**:
+   - `crates/actx-cli/src/engine.rs`: Implemented and registered the native tool `system_status` within the agent's tool registry. When invoked, it reads:
+     - Active workspace synchronization status from `workspace_sync_status`.
+     - Count of registered local folders and web portal URLs from SQLite.
+     - Total indexed chunk count from LanceDB (`workspace_chunks`).
+   - `crates/actx-cli/src/prompt.rs`: Injected the lean `Skill system-status` directive into the agent system prompt, instructing the model to invoke `system_status` autonomously whenever the user queries background activity, ingestion progress, or system status.
+   - Enabled autonomous multi-tool execution in `STRICT` mode for `system_status`.
+
+### 3. Architecture Decision Record (ADR-097)
+
+#### ADR-097: Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar & Native Agent Background Awareness
+- **Status**: Accepted & Implemented (`v0.32.14`).
+- **Context**: Users lacked visual feedback on background synchronization progress in the TUI footer, and the AI agent was unaware of background indexing tasks, leading to false negative responses when asked about indexing progress.
+- **Decision**: Create a shared `workspace_sync_status` table in SQLite; connect a 250ms asynchronous polling loop in the TUI event loop to display live progress in `render_footer`; register a native `system_status` agent tool reading SQLite telemetry and LanceDB chunks; and instruct the agent via a lean system prompt skill to report real-time background status autonomously.
+
 
 
 

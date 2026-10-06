@@ -30,6 +30,20 @@ pub struct FileMetadataRecord {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WorkspaceSyncStatus {
+    pub workspace_name: String,
+    pub is_syncing: bool,
+    pub pid: Option<u32>,
+    pub current_item: usize,
+    pub total_items: usize,
+    pub stage: String,
+    pub item_name: Option<String>,
+    pub progress_bar: String,
+    pub updated_at: String,
+    pub error: Option<String>,
+}
+
 pub struct NativeConfigDb {
     db_path: PathBuf,
     conn: Mutex<Connection>,
@@ -159,6 +173,19 @@ impl NativeConfigDb {
                 root_url TEXT,
                 scope TEXT DEFAULT 'domain',
                 UNIQUE(workspace_name, url)
+            );
+
+            CREATE TABLE IF NOT EXISTS workspace_sync_status (
+                workspace_name TEXT PRIMARY KEY,
+                is_syncing INTEGER NOT NULL DEFAULT 0,
+                pid INTEGER,
+                current_item INTEGER NOT NULL DEFAULT 0,
+                total_items INTEGER NOT NULL DEFAULT 0,
+                stage TEXT NOT NULL DEFAULT 'idle',
+                item_name TEXT,
+                progress_bar TEXT,
+                updated_at TEXT NOT NULL,
+                error TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_file_metadata_ws ON file_metadata(workspace);
@@ -612,6 +639,125 @@ impl NativeConfigDb {
         } else {
             Ok(false)
         }
+    }
+
+    // --- Synchronization Telemetry ---
+
+    pub fn get_sync_status(&self, workspace: &str) -> Result<Option<WorkspaceSyncStatus>> {
+        let conn = self.conn.lock().unwrap();
+        let tbl_exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='workspace_sync_status'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if !tbl_exists {
+            return Ok(None);
+        }
+
+        let mut stmt = conn.prepare(
+            "SELECT workspace_name, is_syncing, pid, current_item, total_items, stage, item_name, progress_bar, updated_at, error
+             FROM workspace_sync_status WHERE workspace_name = ?1 COLLATE NOCASE"
+        )?;
+        let mut rows = stmt.query(params![workspace])?;
+        if let Some(row) = rows.next()? {
+            let is_syncing_int: i32 = row.get(1)?;
+            let is_syncing = is_syncing_int != 0;
+            let pid_opt: Option<u32> = row.get(2)?;
+            let current_item: i64 = row.get(3)?;
+            let total_items: i64 = row.get(4)?;
+            let stage: String = row.get(5)?;
+            let item_name: Option<String> = row.get(6)?;
+            let progress_bar: Option<String> = row.get(7)?;
+            let updated_at: String = row.get(8)?;
+            let error: Option<String> = row.get(9)?;
+
+            let bar = progress_bar.unwrap_or_else(|| {
+                Self::format_sync_progress_bar(current_item as usize, total_items as usize, &stage)
+            });
+
+            Ok(Some(WorkspaceSyncStatus {
+                workspace_name: row.get(0)?,
+                is_syncing,
+                pid: pid_opt,
+                current_item: current_item as usize,
+                total_items: total_items as usize,
+                stage,
+                item_name,
+                progress_bar: bar,
+                updated_at,
+                error,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn update_sync_status(
+        &self,
+        workspace: &str,
+        is_syncing: bool,
+        pid: Option<u32>,
+        current_item: usize,
+        total_items: usize,
+        stage: &str,
+        item_name: Option<&str>,
+        error: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let bar = Self::format_sync_progress_bar(current_item, total_items, stage);
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO workspace_sync_status (workspace_name, is_syncing, pid, current_item, total_items, stage, item_name, progress_bar, updated_at, error)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+             ON CONFLICT(workspace_name) DO UPDATE SET
+                is_syncing = excluded.is_syncing,
+                pid = excluded.pid,
+                current_item = excluded.current_item,
+                total_items = excluded.total_items,
+                stage = excluded.stage,
+                item_name = excluded.item_name,
+                progress_bar = excluded.progress_bar,
+                updated_at = excluded.updated_at,
+                error = excluded.error",
+            params![
+                workspace,
+                if is_syncing { 1 } else { 0 },
+                pid,
+                current_item as i64,
+                total_items as i64,
+                stage,
+                item_name,
+                bar,
+                now,
+                error
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn format_sync_progress_bar(current: usize, total: usize, stage: &str) -> String {
+        let width = 8;
+        if total == 0 {
+            if stage == "crawling" || stage == "web" || stage == "pages" {
+                return "[crawling...]".to_string();
+            }
+            if stage == "scanning" {
+                return "[scanning...]".to_string();
+            }
+            return "[calculating...]".to_string();
+        }
+        let pct = ((current as f32 / total as f32) * 100.0).round() as usize;
+        let fill = ((width as f32 * current as f32) / total as f32).round() as usize;
+        let fill = fill.min(width);
+        let bar = "█".repeat(fill) + &"░".repeat(width - fill);
+        let stage_suffix = if !stage.is_empty() && stage != "idle" {
+            format!(" {}", stage)
+        } else {
+            String::new()
+        };
+        format!("[{}] {}% ({}/{}{})", bar, pct, current, total, stage_suffix)
     }
 
     // --- Settings Key-Value ---

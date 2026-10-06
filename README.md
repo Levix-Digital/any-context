@@ -45,6 +45,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🛡️ Bounded BM25 Deserialization, Live Sync Progress Bar & Agent Background Telemetry (`v0.32.14`)**:
+  - **Panic-Safe BM25 Deserialization & Self-Healing**: Configured bincode with a strict 150MB allocation bound, wrapped index loading in `catch_unwind`, enforced atomic file persistence via temp-and-rename, and implemented automatic quarantine (`.corrupt.<timestamp>`) with clean memory fallback. This permanently prevents catastrophic memory allocation panics (`memory allocation of X bytes failed`).
+  - **Live TUI Footer Sync Progress Bar**: The bottom footer dynamically displays real-time synchronization progress (`⚡ Syncing [████░░░░] 50% (15/30 files)` and `✔ Up to date`) driven by an asynchronous 250ms polling loop connected to canonical SQLite telemetry (`workspace_sync_status`), preserving chat focus while giving full transparency.
+  - **Native Agent Background Awareness (`system_status`)**: Equipped the AI agent with the native tool `system_status` and the lean `Skill system-status` directive. When asked *"Já foi tudo indexado?"* or querying background tasks, the agent autonomously inspects SQLite sync status and LanceDB chunk counts rather than returning false negative responses.
 - **✨ Clean Screen Startup Buffer & Long-Term Memory Decoupling (`v0.32.13`)**:
   - **Pristine Session Startup**: The terminal TUI now always opens with a 100% clean chat screen buffer displaying only the active workspace's welcome banner, eliminating unwanted dumps of past session turns onto the terminal on Linux, Windows, and macOS.
   - **Decoupled Long-Term Memory**: Past conversations remain safely preserved in the relational SQLite session store (`actx_session_messages`), ensuring the AI agent retains full conversational context across sessions without visual screen clutter.

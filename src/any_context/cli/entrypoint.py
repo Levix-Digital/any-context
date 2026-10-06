@@ -165,10 +165,38 @@ def entrypoint():
             elif not a.startswith("-") and a != sys.argv[0] and a != "--sync-worker":
                 target_ws = a
         from any_context.ingestion.unified_sync import run_unified_sync
+        from any_context.config.db_store import ConfigDBStore
+        store = ConfigDBStore()
+        store.update_sync_status(target_ws, is_syncing=True, pid=os.getpid(), stage="scanning")
         print(f"🔄 Executing unified sync worker for workspace '{target_ws}' (force={force})...", flush=True)
-        res = run_unified_sync(workspace_name=target_ws, force_full=force, verbose=True)
-        print(f"✔ Unified sync worker completed for workspace '{target_ws}'.", flush=True)
-        sys.exit(0)
+
+        def _worker_progress(current, total, stage, item_name):
+            try:
+                store.update_sync_status(
+                    target_ws,
+                    is_syncing=True,
+                    pid=os.getpid(),
+                    current_item=current,
+                    total_items=total,
+                    stage=stage,
+                    item_name=item_name
+                )
+            except Exception:
+                pass
+
+        try:
+            res = run_unified_sync(
+                workspace_name=target_ws,
+                force_full=force,
+                verbose=True,
+                progress_callback=_worker_progress
+            )
+            store.update_sync_status(target_ws, is_syncing=False, pid=os.getpid(), stage="completed")
+            print(f"✔ Unified sync worker completed for workspace '{target_ws}'.", flush=True)
+            sys.exit(0)
+        except Exception as e:
+            store.update_sync_status(target_ws, is_syncing=False, pid=os.getpid(), stage="error", error=str(e))
+            raise
 
     if "--mcp" in sys.argv:
         obs.info("CLI:DISPATCH", "Dispatching to MCP Server", {"argv": sys.argv})

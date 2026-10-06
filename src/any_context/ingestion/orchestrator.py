@@ -331,6 +331,20 @@ class BackgroundSyncManager:
                 "stage": stage,
                 "item_name": item_name
             }
+        try:
+            from any_context.config.db_store import ConfigDBStore
+            bar = self.format_progress_bar(clean_ws, width=8)
+            ConfigDBStore().update_sync_status(
+                clean_ws,
+                is_syncing=True,
+                current_item=current,
+                total_items=total,
+                stage=stage,
+                item_name=item_name,
+                progress_bar=bar
+            )
+        except Exception:
+            pass
 
     def get_progress(self, workspace_name: str) -> Dict[str, Any]:
         """Returns the current synchronization progress telemetry for a workspace."""
@@ -486,6 +500,17 @@ class BackgroundSyncManager:
                     self._notifications[clean_ws].append(notif)
                     listeners = list(self._completion_listeners)
 
+                try:
+                    from any_context.config.db_store import ConfigDBStore
+                    ConfigDBStore().update_sync_status(
+                        clean_ws,
+                        is_syncing=False,
+                        stage="completed",
+                        progress_bar="✔ Up to date"
+                    )
+                except Exception:
+                    pass
+
                 # Dispatch notifications to listeners
                 for listener in listeners:
                     try:
@@ -508,6 +533,18 @@ class BackgroundSyncManager:
                     "success": False,
                     "error": str(e)
                 }
+
+                try:
+                    from any_context.config.db_store import ConfigDBStore
+                    ConfigDBStore().update_sync_status(
+                        clean_ws,
+                        is_syncing=False,
+                        stage="failed",
+                        error=str(e),
+                        progress_bar="✖ Failed"
+                    )
+                except Exception:
+                    pass
                 with self._lock:
                     self._active_jobs[clean_ws]["status"] = "failed"
                     self._active_jobs[clean_ws]["error"] = str(e)

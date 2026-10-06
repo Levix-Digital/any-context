@@ -202,6 +202,65 @@ pub fn build_agent_sync(
         }
     );
 
+    let ws_for_status = workspace.to_string();
+    let status_tool = actx_agent::NativeTool::new(
+        "system_status",
+        "Checks real-time system status, background indexing/sync progress, and document counts for the active workspace.",
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "workspace": {
+                    "type": "string",
+                    "description": "Optional workspace name to inspect (defaults to active workspace)"
+                }
+            }
+        }),
+        move |args: serde_json::Value| {
+            let ws = args.get("workspace")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&ws_for_status)
+                .to_string();
+            async move {
+                let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+                let sync_status = db.as_ref()
+                    .and_then(|d| d.get_sync_status(&ws).ok().flatten());
+                let folders = db.as_ref()
+                    .and_then(|d| d.get_workspace_folders(&ws).ok())
+                    .unwrap_or_default();
+                let web_urls = db.as_ref()
+                    .and_then(|d| d.get_workspace_web_urls(&ws).ok())
+                    .unwrap_or_default();
+
+                let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
+                let chunk_count = any_context_core_rs::storage::NativeLanceStore::open(&lance_path)
+                    .ok()
+                    .and_then(|s| s.count_records(Some("workspace_chunks"), Some(&ws)).ok())
+                    .unwrap_or(0);
+
+                let sync_info = if let Some(ss) = sync_status {
+                    if ss.is_syncing {
+                        format!("SYNC IN PROGRESS: {} (item {} of {}, stage '{}', target: '{}')",
+                            ss.progress_bar, ss.current_item, ss.total_items, ss.stage, ss.item_name.as_deref().unwrap_or("none"))
+                    } else if ss.stage == "completed" || ss.progress_bar.contains("Up to date") {
+                        format!("READY / UP TO DATE: All documents indexed successfully. Last update: {}", ss.updated_at)
+                    } else {
+                        format!("IDLE: {}", ss.progress_bar)
+                    }
+                } else {
+                    "IDLE / READY: No active background synchronization. All registered documents are indexed.".to_string()
+                };
+
+                let folders_str = if folders.is_empty() { "none".to_string() } else { folders.join(", ") };
+                let web_str = if web_urls.is_empty() { "none".to_string() } else { web_urls.join(", ") };
+
+                Ok(format!(
+                    "Workspace '{}' Status:\n• Synchronization Status: {}\n• Total Indexed Chunks: {}\n• Monitored Local Folders: {}\n• Monitored Web Sources: {}",
+                    ws, sync_info, chunk_count, folders_str, web_str
+                ))
+            }
+        }
+    );
+
     let search_policy = match search_mode.to_lowercase().as_str() {
         "fast" => SearchMode::Fast,
         "deep" => SearchMode::Deep,
@@ -215,7 +274,8 @@ pub fn build_agent_sync(
         .execution_mode(AgentExecutionMode::ReAct)
         .search_mode(search_policy)
         .max_turns(10)
-        .tool(Arc::new(search_tool));
+        .tool(Arc::new(search_tool))
+        .tool(Arc::new(status_tool));
 
     if let Some(store) = session_store {
         builder = builder.session_store(store);
@@ -302,8 +362,14 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
     // 2. Insert into BM25 index and save
     let bm25_path = lance_store.db_path().join("bm25_index.bin");
     let mut bm25 = if bm25_path.exists() {
-        any_context_core_rs::retrieval::BM25Index::load_from_file(bm25_path.to_str().unwrap_or(""))
-            .unwrap_or_else(|_| any_context_core_rs::retrieval::BM25Index::new(None, None))
+        match any_context_core_rs::retrieval::BM25Index::load_from_file(bm25_path.to_str().unwrap_or("")) {
+            Ok(idx) => idx,
+            Err(_e) => {
+                let corrupt_name = format!("{}.corrupt.{}", bm25_path.display(), chrono::Utc::now().timestamp());
+                let _ = std::fs::rename(&bm25_path, &corrupt_name);
+                any_context_core_rs::retrieval::BM25Index::new(None, None)
+            }
+        }
     } else {
         any_context_core_rs::retrieval::BM25Index::new(None, None)
     };

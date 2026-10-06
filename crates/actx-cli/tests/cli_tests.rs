@@ -683,6 +683,63 @@ fn test_clean_screen_startup_and_long_term_memory_preservation() {
     assert!(after_clear.is_empty(), "SQLite session memory must be wiped by /history --clear");
 }
 
+#[test]
+fn test_sync_progress_bar_telemetry_and_agent_status_tool() {
+    setup_test_sandbox();
+    let ws = format!("SyncTelemetryWS_{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0));
+    let db = any_context_core_rs::storage::NativeConfigDb::open_default().expect("open db");
+
+    // 1. Initially no sync status
+    let initial_status = db.get_sync_status(&ws).expect("query status");
+    assert!(initial_status.is_none());
+
+    // 2. Publish active sync status
+    db.update_sync_status(
+        &ws,
+        true,
+        Some(12345),
+        15,
+        30,
+        "files",
+        Some("contract.pdf"),
+        None,
+    ).expect("update sync status");
+
+    // Verify DB contains progress bar
+    let status = db.get_sync_status(&ws).expect("query status").expect("status row");
+    assert!(status.is_syncing);
+    assert_eq!(status.current_item, 15);
+    assert_eq!(status.total_items, 30);
+    assert!(status.progress_bar.contains("50%"));
+    assert!(status.progress_bar.contains("15/30 files"));
+
+    // 3. App polls sync status and updates its state
+    let mut app = App::new(ws.clone(), "gpt-4o-mini".to_string(), None);
+    app.poll_sync_status();
+    let app_status = app.sync_status.as_ref().expect("app sync status");
+    assert!(app_status.is_syncing);
+    assert!(app_status.progress_bar.contains("50%"));
+
+    // 4. Update sync status to completed
+    db.update_sync_status(
+        &ws,
+        false,
+        Some(12345),
+        30,
+        30,
+        "completed",
+        None,
+        None,
+    ).expect("update sync status to completed");
+
+    app.last_sync_poll = std::time::Instant::now() - std::time::Duration::from_secs(1);
+    app.poll_sync_status();
+    let completed_status = app.sync_status.as_ref().expect("completed status");
+    assert!(!completed_status.is_syncing);
+    assert!(completed_status.progress_bar.contains("100%"));
+}
+
+
 
 
 

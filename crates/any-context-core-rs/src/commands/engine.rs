@@ -491,6 +491,16 @@ impl CommandEngine {
         match cmd.spawn() {
             Ok(child) => {
                 let pid = child.id();
+                let _ = db.update_sync_status(
+                    &ctx.active_workspace,
+                    true,
+                    Some(pid),
+                    0,
+                    0,
+                    "scanning",
+                    None,
+                    None,
+                );
                 let mut msg = if force {
                     format!("Forced sync completed: Background synchronization worker spawned for workspace '**{}**' [PID: {}]:\n", ctx.active_workspace, pid)
                 } else {

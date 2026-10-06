@@ -30,6 +30,22 @@ class SyncService:
     def get_sync_status(self, workspace: str = "Default") -> Dict[str, Any]:
         """Returns the current background sync progress and status string."""
         ws_name = (workspace or "Default").strip()
+        try:
+            from any_context.config.db_store import ConfigDBStore
+            db_status = ConfigDBStore().get_sync_status(ws_name)
+            if db_status:
+                is_syncing = db_status["is_syncing"]
+                prog_bar = db_status["progress_bar"] or ""
+                return {
+                    "workspace": ws_name,
+                    "is_syncing": is_syncing,
+                    "progress_bar": prog_bar,
+                    "status": f"Syncing {prog_bar}" if is_syncing else "Ready",
+                    "details": db_status
+                }
+        except Exception:
+            pass
+
         is_syncing = self.bg_mgr.is_syncing(ws_name)
         progress_bar = self.bg_mgr.format_progress_bar(ws_name, width=8) if is_syncing else ""
         return {
