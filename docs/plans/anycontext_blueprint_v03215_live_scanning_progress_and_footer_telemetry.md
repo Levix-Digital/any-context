@@ -1,41 +1,56 @@
-# Blueprint v0.32.15: Live Scanning Progress Bar & Reactive TUI Footer Telemetry
+# Blueprint v0.32.15: Live Scanning Progress Bar, Paridade de Comandos Core & Telemetria TUI
 
 ## 1. Contexto & Causa Raiz
-Na versão `v0.32.14`, a telemetria do rodapé da TUI apresentou congelamento no estado estático `⚡ Syncing [scanning...] │ ` durante toda a sincronização de grandes portais web (ex: 2.516 páginas), mesmo quando o agente via `system_status` reportava corretamente que 1.440 páginas já haviam sido escaneadas:
-
-### Causa Raiz Identificada:
-1. **Falta de Cálculo do Progress Bar no Worker Python (`entrypoint.py` / `db_store.py`)**:
-   `_worker_progress` chamava `store.update_sync_status(current, total, stage, item_name)` sem fornecer `progress_bar`.
-   No SQLite `update_sync_status`, o SQL executava:
-   `progress_bar = COALESCE(excluded.progress_bar, workspace_sync_status.progress_bar)`
-   Como `excluded.progress_bar` era `NULL`, o SQLite preservava o valor inicial `"[scanning...]"` gravado pelo Rust no boot do worker.
-2. **Avaliação Estática no Leitor do Rust (`sqlite.rs`)**:
-   Em `get_sync_status`, o Rust verificava `progress_bar.unwrap_or_else(...)`. Como `progress_bar` já continha `"[scanning...]"`, ele nunca recalculava a barra com base nos campos `current_item` e `total_items`.
-3. **Ausência de Telemetria Durante a Descoberta/Scanning**:
-   Na fase inicial de varredura (parsing de `sitemap.xml`, BFS de links de domínio e scan de arquivos locais), o sistema operava sem emitir callbacks granulares, deixando `total = 0` e `current = 0` sem indicador dinâmico.
+Na versão `v0.32.14`, foram identificadas três falhas críticas em produção após a migração do Core para Rust:
+1. **Inversão de Parâmetros no LanceDB**:
+   - `NativeLanceStore::count_records` recebia `workspace` como primeiro parâmetro e `table_name` como segundo. No CLI (`crates/actx-cli/src/engine.rs`), as chamadas passavam `count_records(Some("workspace_chunks"), Some(&ws))`, invertendo os argumentos.
+   - Consequência: O sistema consultava uma tabela inexistente e reportava "0 chunks", fazendo a IA responder falsamente: *"Sim, todas as páginas foram escaneadas e indexadas... No entanto, atualmente não há chunks indexados disponíveis."*, mesmo com mais de 45.000 chunks indexados no LanceDB.
+2. **Loop Modal de Sincronização Incremental**:
+   - No `/menu` da TUI (`crates/actx-cli/src/tui/app.rs`), selecionar sincronização incremental gerava o comando `/sync incremental`. O despachador em `engine.rs` comparava estritamente com `"--incremental"`, ignorando o comando e reabrindo o menu sucessivamente em loop sem acionar o worker.
+3. **Congelamento da Telemetria no Rodapé (`⚡ Syncing [scanning...] │ `)**:
+   - Durante o scanning/crawling de portais extensos (ex: 2.516 URLs), o SQLite retinha a string estática inicial `"[scanning...]"` porque `db_store.py` não calculava `progress_bar` quando `stage="scanning"`.
+   - O leitor em `crates/any-context-core-rs/src/storage/sqlite.rs` não recalculava o texto defensivamente quando encontrava a flag estática, e a TUI não possuía animação por ticks.
+4. **Lacunas de Paridade Funcional nos Comandos do Core Rust**:
+   - Auditoria profunda entre a TUI antiga em Python e a arquitetura hexagonal em Rust revelou comandos com comportamento estático ou ausência de disparo de workers:
+     - `/folder add <path>` adicionava o caminho no SQLite mas não disparava o worker de sincronização em background.
+     - `/web add <url>` cadastrava a URL mas não iniciava o crawler.
+     - Caminhos canônicos do Windows eram salvos com prefixo estendido `\\?\`, quebrando a comparação no `/folder remove`.
+     - `/keys` sem argumentos não abria o modal interativo da TUI nem atualizava as variáveis de ambiente do processo.
+     - `/config` sem argumentos não exibia o dashboard de configurações gerais.
+     - `/purge` não limpava a tabela SQLite `file_metadata`, gerando inconsistências no re-scan.
+     - `/logs` retornava mensagem estática em vez de ler as últimas linhas de `sync_<workspace>.log`.
+     - `/inspect` não suportava a flag `--full` nem detalhava a contagem total de chunks da base.
 
 ---
 
-## 2. Decisões Arquiteturais & Solução (ADR-098)
-1. **Cálculo Automático & Descongelamento no SQLite (`db_store.py`)**:
-   Em `update_sync_status`, caso `progress_bar` não seja fornecido, ele é calculado imediatamente através de `format_sync_progress_bar(current, total, stage)`.
-   No SQL, `progress_bar = excluded.progress_bar` atualiza a coluna a cada item processado.
-2. **Auto-Recálculo no Rust Core (`sqlite.rs`)**:
-   Em `get_sync_status`, caso a string armazenada seja estática (`"[scanning...]"`, `"[crawling...]"`, `"[calculating...]"`) mas `total_items > 0` ou `current_item > 0`, o Rust recalcula dinamicamente a barra de blocos Unicode `format_sync_progress_bar`.
-3. **Telemetria Granular na Fase de Scanning/Descoberta (`web_crawler.py` & `local_folder_ingestor.py`)**:
-   A função `discover_site_urls` agora recebe `progress_callback` e emite atualizações conforme URLs de sitemap e links de página são descobertos (`current > 0`, `total = 0`, `stage = "scanning"`).
-   A formatação de progresso exibe `[scanning... X urls/files found]`.
-4. **Spinner Braille Dinâmico na TUI (`app.rs`, `mod.rs`, `ui.rs`)**:
-   O `App` mantém um contador de ticks assíncronos (`tick_count: u64`) incrementado a cada 250ms.
-   O rodapé da TUI anima um spinner Braille (`⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏`) ao lado do texto de scanning, oferecendo feedback visual imediato e contínuo ao usuário de que o sistema está ativo e processando.
+## 2. Decisões Arquiteturais & Solução (ADR-098 & ADR-099)
+
+### 2.1 Correção Canônica do LanceDB e Sincronização Incremental
+- **Assinatura Corrigida no LanceDB**: `count_records(Some(&ws), Some("workspace_chunks"))` em todas as rotas de contagem de vetores no Core e CLI.
+- **Normalização de Argumentos no `/sync`**: `execute_sync` aceita `incremental`, `--incremental`, `-i`, e a seleção no menu TUI despacha `["--incremental"]`.
+
+### 2.2 Telemetria Reativa e Spinner Braille Dinâmico
+- **Cálculo Automático & Descongelamento no SQLite (`db_store.py`)**: `format_sync_progress_bar` calcula a barra dinâmica Unicode mesmo na fase de descoberta (`[scanning... X urls/files found]`).
+- **Auto-Recálculo no Rust Core (`sqlite.rs`)**: Em `get_sync_status`, se a string for estática mas houver contadores, a barra é reconstruída dinamicamente.
+- **Spinner Braille Dinâmico na TUI (`app.rs`, `mod.rs`, `ui.rs`)**: Ciclo de ticks a 250ms com animação contínua (`⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏`).
+
+### 2.3 Paridade Hexagonal Total dos Comandos Core (`crates/any-context-core-rs/src/commands/engine.rs`)
+- **`spawn_sync_worker`**: Extração de helper utilitário reutilizável que inicializa o worker de sincronização em background e atualiza o estado de telemetria no SQLite.
+- **`/folder`**: Spawna automaticamente o sync worker após adicionar diretório; higieniza o prefixo `\\?\` do Windows em `execute_folder` e defensivamente em `remove_workspace_folder`.
+- **`/web`**: Spawna automaticamente o crawler worker após adicionar URL.
+- **`/keys`**: Sem argumentos abre o modal `keys` na TUI; com `audit` exibe o relatório de chaves configuradas; ao definir chave, persiste no SQLite `api_keys`, define a variável de ambiente via `std::env::set_var` e emite `CommandAction::RebuildAgent`.
+- **`/config`**: Sem argumentos renderiza o painel completo de configurações; com chave e valor aplica `app_settings`.
+- **`/purge`**: Invoca `clear_workspace_file_metadata` no SQLite além de deletar vetores no LanceDB; reseta o status de sincronização para `idle`.
+- **`/vision`**: Configura `enable_vision_llm` em `app_settings`.
+- **`/logs`**: Lê dinamicamente as últimas N linhas do arquivo de log real `sync_<workspace>.log` no disco.
+- **`/inspect`**: Consulta a taxonomia de documentos e exibe prévia com suporte à flag `--full`.
 
 ---
 
 ## 3. Marcos de Execução (Milestones)
-- **M1**: Cálculo dinâmico e descongelamento em `db_store.py` e `entrypoint.py`.
-- **M2**: Auto-recálculo defensivo e suporte a itens descobertos em `sqlite.rs`.
-- **M3**: Emissão de progresso de scanning em `web_crawler.py`, `web_scheduler.py` e `local_folder_ingestor.py`.
-- **M4**: Spinner Braille dinâmico e animação a 250ms no rodapé da TUI (`app.rs`, `mod.rs`, `ui.rs`).
-- **M5**: Testes automatizados no Rust (`cargo test --workspace`) e Python (`unittest`).
-- **M6**: Dual-Doc (`README.md`, `TECDOC.md` ADR-098) e Cenário 16 em `MANUAL_TESTS.md`.
-- **M7**: Verificação Gate 8, bump `v0.32.15`, commit, tag, push e monitoramento do CI/CD até publicação de todos os 12 binários.
+- **M1: Correções Críticas & LanceDB**: Correção da ordem dos parâmetros LanceDB, resolução do modal loop incremental e sanitização de caminhos Windows (`\\?\`).
+- **M2: Telemetria Reativa & Spinner**: Cálculo dinâmico em `db_store.py`/`sqlite.rs`, callbacks granulares de scanning no crawler/ingestor e spinner Braille a 250ms na TUI.
+- **M3: Paridade Hexagonal de Comandos Core**: Implementação de `spawn_sync_worker`, auto-spawn em `/folder` e `/web`, `/keys` audit/modal, `/config` dashboard, `/purge` metadata cleanup, `/vision`, `/logs` tail real e `/inspect --full`.
+- **M4: Suíte de Testes Automatizados**: 127 testes unitários do Core, 15 testes de comandos em `command_tests.rs`, 14 testes CLI em `cli_tests.rs`, e testes de integração Python 100% verdes.
+- **M5: Dual-Doc & Cenário 16 em MANUAL_TESTS.md**: Documentação completa em `README.md`, `TECDOC.md` (ADR-098 e ADR-099) e Cenário 16 acumulativo não-truncado.
+- **M6: Verificação Gate 8 & Release v0.32.15**: Validação pelo `verify_gate.py`, commit `80c5a90`, tag `v0.32.15`, push para `dev` e `main`, e CI watch dos 12 binários de release.
