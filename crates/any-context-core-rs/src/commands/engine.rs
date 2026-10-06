@@ -1112,28 +1112,56 @@ Available Commands (UI-Agnostic Engine):
 
     fn execute_history(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         let is_clear = args.iter().any(|a| *a == "--clear" || *a == "-c" || *a == "clear");
+        let db_path = get_default_settings_db_path();
+
         if is_clear {
+            if let Ok(store) = actx_agent::SqliteSessionStore::open(&db_path, 50) {
+                let session_id = format!("ws_{}", ctx.active_workspace);
+                let _ = store.clear_session_sync(&session_id);
+            }
             return CommandResult::success(format!(
-                "📜 Conversation history cleared for workspace '{}'.",
+                "📜 Long-term conversation history cleared for workspace '{}'.",
                 ctx.active_workspace
             ))
             .with_action(CommandAction::ClearChat);
         }
 
-        let db_path = get_default_settings_db_path();
-        let count = if let Ok(store) = actx_agent::SqliteSessionStore::open(&db_path, 50) {
+        let msgs = if let Ok(store) = actx_agent::SqliteSessionStore::open(&db_path, 50) {
             let session_id = format!("ws_{}", ctx.active_workspace);
-            store.get_messages_sync(&session_id).map(|m| m.len()).unwrap_or(0)
+            store.get_messages_sync(&session_id).unwrap_or_default()
         } else {
-            0
+            Vec::new()
         };
 
-        CommandResult::success(format!(
-            "📜 Conversation History for '{}' (Total turns in session: {}):\n\
-             • Use `/clear` to clear current chat buffer\n\
-             • Use `/history --clear` to truncate session history",
-            ctx.active_workspace, count
-        ))
+        if msgs.is_empty() {
+            CommandResult::success(format!(
+                "📜 Long-term session memory for '{}' is empty (0 turns).\n\
+                 • New conversations are automatically remembered across sessions.\n\
+                 • Screen buffer starts clean on every session.",
+                ctx.active_workspace
+            ))
+        } else {
+            let mut summary = format!(
+                "📜 Long-term Session Memory for '{}' ({} messages in SQLite):\n",
+                ctx.active_workspace, msgs.len()
+            );
+            let start = msgs.len().saturating_sub(6);
+            if start > 0 {
+                summary.push_str(&format!("  ... (+{} older messages)\n", start));
+            }
+            for m in &msgs[start..] {
+                let role_label = match m.role {
+                    actx_lm::types::Role::User => "User",
+                    actx_lm::types::Role::Assistant => "Assistant",
+                    _ => "System",
+                };
+                let snippet: String = m.content.chars().take(70).collect();
+                let clean_snippet = snippet.replace('\n', " ");
+                summary.push_str(&format!("  • [{}] {}\n", role_label, clean_snippet));
+            }
+            summary.push_str("• Screen buffer is clean for this session.\n• Use `/clear` to clear active screen, or `/history --clear` to wipe SQLite memory.");
+            CommandResult::success(summary)
+        }
     }
 
     fn execute_logs(args: &[&str]) -> CommandResult {

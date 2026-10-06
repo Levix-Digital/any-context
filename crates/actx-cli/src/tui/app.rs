@@ -107,7 +107,7 @@ impl App {
             web_search_enabled,
         )];
 
-        let mut app = Self {
+        let app = Self {
             running: true,
             active_workspace: workspace,
             active_model: model,
@@ -137,7 +137,6 @@ impl App {
             is_generating: false,
         };
 
-        app.load_session_history_for_workspace();
         app
     }
 
@@ -377,42 +376,14 @@ impl App {
             self.chat_history = buffered;
         } else {
             // First time accessing target_ws in this session:
-            // Load messages from SQLite session store or initialize with clean welcome message
-            let mut msgs_to_display = Vec::new();
-            let db_path = any_context_core_rs::storage::get_default_settings_db_path();
-            if let Ok(store) = actx_agent::SqliteSessionStore::open(&db_path, 50) {
-                let session_id = format!("ws_{}", self.active_workspace);
-                if let Ok(msgs) = store.get_messages_sync(&session_id) {
-                    for m in msgs {
-                        let role = match m.role {
-                            actx_lm::types::Role::User => MessageRole::User,
-                            actx_lm::types::Role::Assistant => MessageRole::Assistant,
-                            _ => MessageRole::System,
-                        };
-                        if role == MessageRole::System && m.content.starts_with("You are AnyContext") {
-                            continue;
-                        }
-                        msgs_to_display.push(ChatMessageItem {
-                            role,
-                            content: m.content,
-                            thinking: None,
-                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                        });
-                    }
-                }
-            }
-
-            if msgs_to_display.is_empty() {
-                self.chat_history = vec![Self::create_welcome_message(
-                    &self.active_workspace,
-                    &self.active_model,
-                    &self.grounding_mode,
-                    &self.search_mode,
-                    self.web_search_enabled,
-                )];
-            } else {
-                self.chat_history = msgs_to_display;
-            }
+            // Start clean with branded welcome message for this workspace
+            self.chat_history = vec![Self::create_welcome_message(
+                &self.active_workspace,
+                &self.active_model,
+                &self.grounding_mode,
+                &self.search_mode,
+                self.web_search_enabled,
+            )];
         }
 
         self.scroll_to_bottom();

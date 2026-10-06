@@ -635,5 +635,54 @@ async fn test_workspace_chat_buffers_isolation_and_clear_lifecycle() {
     assert!(app.chat_history.iter().any(|m| m.content.contains("Long-term session memory reset")), "Reset confirmation missing!");
 }
 
+#[test]
+fn test_clean_screen_startup_and_long_term_memory_preservation() {
+    setup_test_sandbox();
+    let db_path = any_context_core_rs::storage::get_default_settings_db_path();
+    let store = actx_agent::SqliteSessionStore::open(&db_path, 50).expect("open session store");
+    let session_id = "ws_CleanScreenWS";
+
+    // 1. Populate SQLite with past session messages
+    use actx_lm::types::ChatMessage;
+    let u_msg = ChatMessage::user("What was the result of yesterday's query?");
+    let a_msg = ChatMessage::assistant("The result was 42.");
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        use actx_agent::SessionStore;
+        store.append_messages(session_id, &[u_msg, a_msg]).await.expect("append messages");
+    });
+
+    // Verify messages exist in SQLite long-term storage
+    let stored = store.get_messages_sync(session_id).expect("get stored");
+    assert_eq!(stored.len(), 2, "SQLite must have 2 messages in long-term memory");
+
+    // 2. Start a brand new App session
+    let mut app = App::new("CleanScreenWS".to_string(), "gpt-4o-mini".to_string(), None);
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // CRITICAL: Chat history MUST start clean with ONLY the welcome message banner
+    assert_eq!(app.chat_history.len(), 1, "App chat_history must contain only the initial welcome banner on startup");
+    assert!(!app.chat_history.iter().any(|m| m.content.contains("What was the result of yesterday's query?")), "Old session leaked onto screen buffer!");
+    assert!(!app.chat_history.iter().any(|m| m.content.contains("The result was 42.")), "Old session leaked onto screen buffer!");
+
+    // 3. Long-term memory is still safely preserved in SQLite
+    let still_stored = store.get_messages_sync(session_id).expect("get stored");
+    assert_eq!(still_stored.len(), 2, "Long-term memory must remain intact in SQLite");
+
+    // 4. Test /history command inspecting long-term memory
+    app.input_buffer = "/history".to_string();
+    app.submit_input(tx.clone());
+    let hist_msg = app.chat_history.last().expect("history msg");
+    assert!(hist_msg.content.contains("Long-term Session Memory for 'CleanScreenWS'"));
+    assert!(hist_msg.content.contains("2 messages in SQLite"));
+    assert!(hist_msg.content.contains("Screen buffer is clean for this session"));
+
+    // 5. Test /history --clear wiping long-term memory
+    app.input_buffer = "/history --clear".to_string();
+    app.submit_input(tx);
+    let after_clear = store.get_messages_sync(session_id).expect("get stored");
+    assert!(after_clear.is_empty(), "SQLite session memory must be wiped by /history --clear");
+}
+
+
 
 

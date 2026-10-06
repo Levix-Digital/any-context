@@ -7,6 +7,75 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 14 (v0.32.13 Inicialização com Tela Limpa na TUI e Preservação de Memória de Longo Prazo):
+- **Objetivo**: Comprovar que na versão `v0.32.13`:
+  1. **Inicialização com Tela 100% Zerada em Cada Nova Sessão (Linux, Windows, macOS)**:
+     - Ao abrir a TUI (`actx`), a tela de chat inicia completamente limpa, exibindo estritamente o cabeçalho/banner inicial de boas-vindas do workspace ativo.
+     - NENHUMA mensagem de conversas anteriores é despejada na tela ao iniciar o aplicativo.
+  2. **Preservação Integral da Memória de Longo Prazo no SQLite**:
+     - As conversas anteriores permanecem 100% salvas no banco de dados SQLite (`settings.db` -> tabela `actx_session_messages`).
+     - Ao fazer perguntas ao assistente na nova sessão sobre assuntos discutidos anteriormente (ex: *"Qual era o tópico que conversamos antes?"*), o agente consulta o histórico no SQLite e responde demonstrando memória de longo prazo.
+  3. **Inspeção e Limpeza Atômica via `/history`**:
+     - O comando `/history` exibe um resumo organizado das mensagens preservadas na memória de longo prazo do SQLite sem poluir a tela do usuário.
+     - O comando `/history --clear` limpa tanto o buffer visual da tela quanto as mensagens armazenadas no SQLite.
+  4. **Navegação com Abas Virtuais em RAM**:
+     - Alternar para um novo workspace pela primeira vez inicia com tela limpa e banner exclusivo.
+     - Alternar entre workspaces durante a sessão ativa preserva apenas as mensagens trocadas na sessão atual em RAM.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.13` (ou `AnyContext (actx) v0.32.13`).
+
+2. **✨ Teste de Tela Zerada no Startup:**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - **Critérios de Aceitação**:
+     - A viewport do terminal é aberta 100% limpa, contendo apenas o banner de boas-vindas do workspace `Default` (`AnyContext (actx) Native Rust Engine ready...`).
+     - Nenhuma mensagem antiga de sessões anteriores aparece na tela!
+
+3. **🧠 Teste de Memória de Longo Prazo do Agente na Nova Sessão:**
+   - Envie uma pergunta para a IA criando uma memória na sessão:
+     ```text
+     Lembre-se da palavra-chave: PROJETO_FÊNIX_2026.
+     ```
+   - Aguarde a resposta do agente confirmando.
+   - Saia da aplicação:
+     ```text
+     /exit
+     ```
+   - Inicie novamente a TUI:
+     ```text
+     actx
+     ```
+   - **Critérios de Aceitação**:
+     - A tela abre 100% LIMPA novamente! A mensagem anterior sobre `PROJETO_FÊNIX_2026` NÃO é impressa no buffer visual de inicialização.
+   - Agora teste a memória de longo prazo do agente perguntando:
+     ```text
+     Qual foi a palavra-chave que eu pedi para você se lembrar?
+     ```
+   - **Critério de Aceitação**:
+     - O agente responde corretamente indicando `PROJETO_FÊNIX_2026`, comprovando que a memória de longo prazo no SQLite foi consultada e mantida com perfeição, mesmo com a tela tendo iniciado zerada!
+
+4. **📜 Teste de Inspeção de Histórico com `/history`:**
+   - Digite na TUI:
+     ```text
+     /history
+     ```
+   - **Critérios de Aceitação**:
+     - O sistema exibe um resumo claro: `📜 Long-term Session Memory for 'Default' (X messages in SQLite):` listando as mensagens recentes de usuário e assistente de forma sucinta.
+     - O sistema confirma: `• Screen buffer is clean for this session.`
+   - Digite `/history --clear`:
+     - O histórico no SQLite é zerado e a tela do chat é limpa: `📜 Long-term conversation history cleared for workspace 'Default'.`
+
+---
+
 ### 📌 Cenário 13 (v0.32.12 Sandbox de Isolamento de Testes, Ghost Text Universal e Auto-Consciência Nativa Global):
 - **Objetivo**: Comprovar que na versão `v0.32.12`:
   1. **Sandbox Hermético de Testes & Imunidade da Base de Produção**:

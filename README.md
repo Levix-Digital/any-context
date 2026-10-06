@@ -45,6 +45,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **✨ Clean Screen Startup Buffer & Long-Term Memory Decoupling (`v0.32.13`)**:
+  - **Pristine Session Startup**: The terminal TUI now always opens with a 100% clean chat screen buffer displaying only the active workspace's welcome banner, eliminating unwanted dumps of past session turns onto the terminal on Linux, Windows, and macOS.
+  - **Decoupled Long-Term Memory**: Past conversations remain safely preserved in the relational SQLite session store (`actx_session_messages`), ensuring the AI agent retains full conversational context across sessions without visual screen clutter.
+  - **Enhanced `/history` Inspectability**: Running `/history` displays an informative summary of long-term memory messages stored in SQLite on demand without dumping raw messages into the viewport, and `/history --clear` purges both the visual screen and SQLite long-term storage in a single atomic action.
 - **🛡️ Test Isolation Sandbox, Universal Command Option Hinting & Skill-Based Self-Knowledge (`v0.32.12`)**:
   - **Hermetic Test Isolation**: Storage engines (`settings.db`, `lancedb`, logs) automatically redirect to a sandbox directory in `temp_dir` whenever `ACTX_TEST_MODE=1` or test harnesses execute, rendering the user's canonical `%LOCALAPPDATA%\AnyContext` storage completely immune to test pollution.
   - **Universal Contextual Option Hinting**: The terminal TUI now dynamically displays expected command options and flags via interactive inline ghost text (`> /switch <name> | --delete <name> | --list`), reactive border titles (`Prompt │ Opções: ...`), enriched slash palette syntax preview, and interactive tips in the Workspaces menu (`/menu`), eliminating manual reading without adding new commands.

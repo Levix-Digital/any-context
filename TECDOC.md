@@ -5533,6 +5533,67 @@ flowchart TD
 - **Context**: Automated test runs polluted production databases with test workspaces; users lacked discoverability for command options and workspace deletion; and the AI agent could not answer questions about its own operation without risking system prompt token bloat.
 - **Decision**: Redirect test storage to an ephemeral temporary sandbox via `ACTX_TEST_MODE`; introduce universal reactive border titles and inline ghost text across all commands with options; provide interactive `/switch --delete` menu hints; and bootstrap official documentation into a virtual `"Global"` LanceDB/BM25 workspace paired with a lean (<50 tokens) system prompt skill directive.
 
+---
+
+## 89. Clean Screen Buffer Initialization, Long-Term Memory Decoupling & Virtual Tab Lifecycle (`v0.32.13`)
+
+### 1. Problem Statement & Root Cause Analysis
+During Linux and cross-platform verification of `v0.32.12`, a significant user experience regression was identified:
+- **Automatic Session Dump onto Screen Viewport**: Upon starting `actx` (`App::new()`), the frontend automatically invoked `app.load_session_history_for_workspace()`. This routine synchronously queried SQLite (`SqliteSessionStore::get_messages_sync`) and pushed every historical turn from prior application runs directly into the visual chat viewport buffer (`app.chat_history`).
+- **Workspace Navigation Pollution**: Similarly, when navigating to a workspace not yet cached in RAM (`switch_to_workspace()`), the application pulled past messages from SQLite into the active display buffer.
+- **Viewport vs. Memory Coupling**: While conversational memory is essential for the AI agent to maintain continuity across multi-session interactions, forcing prior turns into the active terminal screen destroyed the expected "fresh start" experience of opening a new terminal session.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    subgraph Persistent_Memory["Long-Term Storage (Relational SQLite)"]
+        SQLiteDB[("settings.db: actx_session_messages")]
+        SQLiteDB ---|"100% Preserved across sessions"| LTM["Long-Term Session Memory"]
+    end
+
+    subgraph Agent_Orchestrator["Agent Intelligence Layer (crates/actx-agent)"]
+        UserQuery["User Prompt in New Session"] --> FSM["ReAct FSM Loop (fsm.rs)"]
+        SQLiteDB -->|"store.get_messages(ws_id)"| FSM
+        FSM -->|"Prior messages injected into working_messages"| LLM["LLM (Full Historical Recall)"]
+        FSM -->|"New turn appended atomically"| SQLiteDB
+    end
+
+    subgraph Presentation_Viewport["Visual TUI Layer (crates/actx-cli)"]
+        Startup["actx Boot (App::new)"] --> InitClean["chat_history = [Welcome Message Banner]"]
+        InitClean --> CleanTerminal["Terminal Viewport: 100% LIMPA (Tela Zerada)"]
+        
+        Switch["/switch <workspace>"] --> CheckCache{"Cached in RAM?"}
+        CheckCache -- "Yes" --> RestoreRAM["Restore in-memory buffer (Current Session)"]
+        CheckCache -- "No" --> CleanWS["Initialize clean welcome banner for workspace"]
+        
+        CmdHistory["/history"] --> InspectLTM["Display formatted summary of SQLite turns on demand"]
+        CmdClearHistory["/history --clear"] --> WipeBoth["Clear active screen buffer AND wipe SQLite session store"]
+    end
+```
+
+1. **Clean Screen Buffer Initialization (`crates/actx-cli/src/tui/app.rs`)**:
+   - Purged the automated call to `load_session_history_for_workspace()` from `App::new()`.
+   - The visual chat screen starts strictly with `initial_history` (the branded welcome message banner).
+   - In `switch_to_workspace()`, if the target workspace has not been visited within the active process session, it initializes strictly with `vec![Self::create_welcome_message(...)]`, avoiding terminal pollution.
+   - The in-memory `workspace_chat_buffers: HashMap<String, Vec<ChatMessageItem>>` continues to preserve tabs during the *active* session lifecycle.
+
+2. **Decoupled Long-Term Memory Preservation (`crates/actx-agent/src/fsm.rs`)**:
+   - `SqliteSessionStore` maintains all historical conversation turns safely in `actx_session_messages` (`session_id = ws_<workspace>`).
+   - When the agent receives a prompt in a clean session, `fsm.rs` automatically hydrates `prior` messages into `working_messages`, ensuring the LLM maintains seamless conversational memory of past sessions without visual viewport clutter.
+
+3. **Enhanced `/history` Inspectability (`crates/any-context-core-rs/src/commands/engine.rs`)**:
+   - Executing `/history` inspects SQLite long-term storage and formats a clean preview of recent stored turns without polluting the active screen buffer.
+   - Executing `/history --clear` clears the active screen buffer and executes `store.clear_session_sync(&session_id)`, ensuring atomic dual purge of both RAM and SQLite.
+
+### 3. Architecture Decision Record (ADR-095)
+
+#### ADR-095: Clean Screen Buffer Initialization, Long-Term Memory Decoupling & Virtual Tab Lifecycle
+- **Status**: Accepted & Implemented (`v0.32.13`).
+- **Context**: Every launch of the application dumped old session messages directly onto the terminal chat viewport, cluttering the screen and disrupting users who wanted a clean start for their new session.
+- **Decision**: Decouple the visual screen buffer from the agent's long-term memory: initialize the TUI chat history strictly with the welcome message banner on startup and unvisited workspace switches; preserve all past messages in SQLite (`actx_session_messages`) for agent retrieval; and enhance `/history` to inspect or wipe long-term memory on demand.
+
+
 
 
 

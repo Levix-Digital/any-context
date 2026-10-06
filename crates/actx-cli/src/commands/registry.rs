@@ -81,8 +81,8 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     SlashCommand {
         name: "history",
         aliases: &[],
-        description: "Displays conversation turns from active session history",
-        usage: "/history",
+        description: "Inspects long-term session memory or clears stored turns",
+        usage: "/history [--clear]",
         category: "Session",
     },
     SlashCommand {

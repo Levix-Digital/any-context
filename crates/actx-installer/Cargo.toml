@@ -1,6 +1,6 @@
 [package]
 name = "actx-installer"
-version = "0.32.12"
+version = "0.32.13"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Native cross-platform installer, atomic updater, and launcher shim for AnyContext"
