@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -97,13 +95,13 @@ jobs:
           cp target/release/actx-installer.exe dist/actx-installer.exe
 
           # 2. Build sub-second cold boot distribution (--onedir)
-          pyinstaller --clean --onedir --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
+          pyinstaller --clean --noconfirm --onedir --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
           cp target/release/actx.exe dist/actx-core/actx.exe
           python launcher/build_shim.py --out dist/actx.exe
           powershell -Command "Compress-Archive -Path 'dist/actx-core/*' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
 
-          # 3. Build legacy standalone fallback binary (--onefile) for backwards compatibility
-          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
+          # 3. Build legacy standalone fallback binary (--onefile) for backwards compatibility (reuses cache from onedir)
+          pyinstaller --noconfirm --onefile --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-windows-x86_64 --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
 
       - name: Build with PyInstaller (Linux)
         if: runner.os == 'Linux'
@@ -118,13 +116,13 @@ jobs:
           cp target/release/actx-installer dist/actx-installer
 
           # 2. Build sub-second cold boot distribution (--onedir)
-          pyinstaller --clean --onedir --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
+          pyinstaller --clean --noconfirm --onedir --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
           cp target/release/actx dist/actx-core/actx
           python launcher/build_shim.py --out dist/actx
           tar -czf dist/actx-linux-x86_64.tar.gz -C dist/actx-core .
 
-          # 2. Build legacy standalone fallback binary (--onefile) for backwards compatibility
-          pyinstaller --clean --onefile --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
+          # 3. Build legacy standalone fallback binary (--onefile) for backwards compatibility (reuses cache from onedir)
+          pyinstaller --noconfirm --onefile --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-linux-x86_64 --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
 
       - name: Normalize line endings for Unix scripts
         if: runner.os == 'Linux'
