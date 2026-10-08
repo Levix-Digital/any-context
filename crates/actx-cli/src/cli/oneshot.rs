@@ -300,7 +300,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
 }
 
 fn handle_check_update() {
-    println!("Checking for updates on GitHub releases (Levix-Digital/any-context-releases)...");
+    println!("Checking for updates...");
     match actx_installer::downloader::fetch_latest_release_tag() {
         Ok(latest) => {
             let current_tag = format!("v{}", env!("CARGO_PKG_VERSION"));
@@ -326,7 +326,7 @@ fn handle_check_update() {
                     clean_latest, current_tag
                 );
             } else {
-                println!("actx {} is up to date (latest GitHub release: {}).", current_tag, clean_latest);
+                println!("actx {} is up to date (latest: {}).", current_tag, clean_latest);
             }
         }
         Err(e) => {
@@ -336,7 +336,6 @@ fn handle_check_update() {
 }
 
 fn handle_update(target_ver: Option<&str>) {
-    println!("Checking for updates on GitHub releases (Levix-Digital/any-context-releases)...");
     let bin_dir = actx_installer::paths::get_canonical_bin_dir();
     actx_installer::run_standalone_update(&bin_dir, target_ver);
 }

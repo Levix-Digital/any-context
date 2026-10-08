@@ -5893,6 +5893,50 @@ flowchart TD
 - **Context**: Encrypted LanceDB payloads remained raw in Rust inspection and retrieval; background sync workers could not be cancelled; and `eprintln!` output corrupted interactive Ratatui prompt buffers.
 - **Decision**: Port `SecurityEngine` to native Rust (`NativeSecurityEngine`) with identical PBKDF2 and AES-GCM parameters; add process termination and status reset to `/sync cancel`; introduce `/cd` and `/pwd`; and enforce strict logging isolation away from terminal stderr during interactive sessions.
 
+---
+
+## 94. Executable Shadowing Auto-Healing, User PATH Prioritization, and Clean Updater Telemetry
+
+### 1. Problem Analysis & Windows Shadowing Mechanism
+On Windows environments, developers and advanced users frequently encounter subtle executable shadowing issues:
+1. **Multi-Location Binary Drift**: Tools like Cargo (`cargo install`), virtualenvs, or custom scripts place `actx.exe` into directories such as `~/.cargo/bin` or `.venv/Scripts`.
+2. **PATH Search Order Inversion**: In user environments, `C:\Users\<user>\.cargo\bin` often precedes `%LOCALAPPDATA%\actx\bin` in the resolved `PATH`.
+3. **Orphaned Updates**: When the user executed `actx --update`, the running process in `~/.cargo/bin` updated only `%LOCALAPPDATA%\actx\bin`, leaving its own binary frozen at the prior version. Subsequent calls to `actx -v` invoked `~/.cargo/bin\actx.exe`, causing the update to appear non-functional despite successful extraction.
+4. **Information Leakage in Telemetry**: Updater routines emitted technical implementation details (e.g. `(Levix-Digital/any-context-releases)` and `via HTTPS...`), exposing internal repository architecture and networking mechanisms rather than clean, customer-grade status feedback.
+
+### 2. Architectural Solution
+```mermaid
+flowchart TD
+    UpdateReq["actx --update Executed"] --> GetCurrent["Resolve current_exe & canonical_bin_dir"]
+    GetCurrent --> SwapCanonical["Finalize Staging into canonical_bin_dir"]
+    SwapCanonical --> PrioritizePath["Prepend canonical_bin_dir to User PATH"]
+    PrioritizePath --> CheckSelf["Is current_exe outside canonical_bin_dir?"]
+    CheckSelf -- Yes --> RenameOld["Windows NT: Rename current_exe to .old_<pid>"]
+    RenameOld --> CopyNew["Copy canonical actx.exe to current_exe"]
+    CheckSelf -- No --> ScanPath["Scan all directories in PATH"]
+    CopyNew --> ScanPath
+    ScanPath --> DetectShadows["Found other actx.exe in PATH?"]
+    DetectShadows -- Yes --> AutoHeal["Auto-Heal / Synchronize shadowed binary"]
+    DetectShadows -- No --> CleanOld["Purge lingering .old files"]
+    AutoHeal --> CleanOld
+    CleanOld --> Finish["Output Clean User Status: actx successfully updated!"]
+```
+
+1. **Active Executable Auto-Healing (`heal_executing_and_shadowed_binaries`)**:
+   - `crates/actx-installer/src/lib.rs` detects if `current_exe` resides outside `canonical_bin_dir`.
+   - On Windows NT, while an open executable cannot be overwritten directly (`ERROR_ACCESS_DENIED`), it CAN be renamed. The updater renames `current_exe` to `{name}.old_{pid}` and immediately copies the freshly updated canonical shim into its place.
+   - It additionally scans every directory in `std::env::var("PATH")`, locating and synchronizing any older or drifting `actx.exe` instances.
+2. **User PATH Prioritization (`configure_system_path`)**:
+   - Modifies Windows User PATH by stripping existing entries of `%LOCALAPPDATA%\actx\bin` and prepending it to the front, guaranteeing highest precedence over `~/.cargo/bin` and other development directories.
+3. **Telemetry & Presentation Cleansing**:
+   - Stripped all repository paths (`Levix-Digital/any-context-releases`) and transport descriptors (`via HTTPS`) across `actx-cli`, `actx-installer`, and Core commands, providing concise, user-focused messages (`Checking for updates...`, `Downloading 'actx-windows-x86_64.zip'...`).
+
+### 3. Architecture Decision Record (ADR-101)
+
+#### ADR-101: Shadowed Binary Synchronization, User PATH Prioritization, and Clean Telemetry
+- **Status**: Accepted & Implemented.
+- **Decision**: In `actx-installer`, inspect `current_exe` and `PATH` on self-update to rename and overwrite all active/shadowed instances of `actx.exe`. Prepend `%LOCALAPPDATA%\actx\bin` to User PATH. Strip internal GitHub repository URLs and networking protocols from end-user CLI stdout.
+
 
 
 

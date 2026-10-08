@@ -71,6 +71,46 @@
 
 ---
 
+### 📌 Cenário 18 (Auto-Cura de Binários Ocultados no PATH, Priorização de Diretório Canônico e Limpeza de Mensagens Técnicas de Atualização):
+- **Objetivo**: Comprovar que o mecanismo de self-update:
+  1. **Auto-Cura de Executáveis Ocultados no PATH**:
+     - Se o usuário executar `actx --update` a partir de um executável secundário (como `~/.cargo/bin/actx.exe`, scripts de virtualenv ou diretórios precedentes no PATH), o updater atualiza o diretório canônico E sincroniza o binário em execução (usando renomeação atômica Windows NT para `.old`), garantindo que chamadas subsequentes a `actx -v` reflitam imediatamente a nova versão.
+     - Varre todos os diretórios do `PATH` do sistema e sincroniza quaisquer outras cópias de `actx.exe` encontradas.
+  2. **Priorização no PATH do Usuário**:
+     - `configure_system_path` e os scripts de instalação priorizam `%LOCALAPPDATA%\actx\bin` na primeira posição da variável de ambiente `PATH` do usuário.
+  3. **Limpeza de Mensagens Técnicas**:
+     - O CLI e instalador emitem mensagens de atualização limpas e amigáveis (`Checking for updates...`, `Downloading 'actx-windows-x86_64.zip'...`), sem expor repositórios internos do GitHub (`Levix-Digital/any-context-releases`) ou protocolos de rede (`via HTTPS`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão no Terminal:**
+   - Em qualquer janela de terminal (bash, PowerShell, cmd), execute:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a versão atualizada (ex: `actx 0.32.16`), independentemente de `~/.cargo/bin` estar no PATH.
+
+2. **🔍 Teste de Checagem Limpa de Atualizações:**
+   - Execute no terminal:
+     ```text
+     actx --check-update
+     ```
+   - **Critérios de Aceitação**:
+     - A saída começa com `Checking for updates...`.
+     - Nenhuma URL de repositório interno ou string como `(Levix-Digital/any-context-releases)` é exibida para o usuário.
+
+3. **🔄 Teste de Auto-Cura de Binário Ocultado (`--update`):**
+   - Execute no terminal:
+     ```text
+     actx --update
+     ```
+   - **Critérios de Aceitação**:
+     - As mensagens são limpas: `Checking for updates...`, `Downloading 'actx-windows-x86_64.zip'...`, `AnyContext successfully updated...`.
+     - Se houver cópia em `~/.cargo/bin` ou outro diretório do PATH, o sistema sincroniza a cópia automaticamente ou a prioriza.
+     - Executar imediatamente `actx -v` confirma a versão sem necessidade de intervenção manual no PATH.
+
+---
+
 ### 📌 Cenário 16 (v0.32.15 Paridade Total de Comandos, Auto-Spawn de Workers, Telemetria Live de Scanning e Correção no LanceDB):
 - **Objetivo**: Comprovar que na versão `v0.32.15`:
   1. **Correção de Inversão de Parâmetros no LanceDB (`count_records`)**:

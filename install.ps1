@@ -93,7 +93,7 @@ $TempInstallerPath = Join-Path $env:TEMP "actx-installer.exe"
 $InstalledViaRust = $false
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-    Write-Host "[*] Checking native Rust installer via HTTPS..." -ForegroundColor Gray
+    Write-Host "[*] Checking installer components..." -ForegroundColor Gray
     Invoke-WebRequest -Uri $NativeInstallerUrl -OutFile $TempInstallerPath -UseBasicParsing -TimeoutSec 30
     if ((Test-Path $TempInstallerPath) -and (Get-Item $TempInstallerPath).Length -gt 1000000) {
         Write-Host "[*] Executing native AnyContext installer engine..." -ForegroundColor Cyan
@@ -115,7 +115,7 @@ $ArchiveName = "actx-windows-x86_64.zip"
 $FallbackName = "actx-windows-x86_64.exe"
 $Downloaded = $false
 
-Write-Host "[-] Downloading AnyContext distribution package from GitHub via HTTPS..." -ForegroundColor Yellow
+Write-Host "[-] Downloading AnyContext package..." -ForegroundColor Yellow
 Log-Install "Downloading AnyContext from GitHub"
 
 try {
@@ -286,16 +286,29 @@ fi
 Write-Host "[OK] Git Bash wrapper deployed: $BashShimPath" -ForegroundColor Gray
 
 
-# 5. Add to User PATH if not present
+# 5. Ensure $InstallDir is prioritized at the FRONT of User PATH
 $UserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-if ($UserPath -notlike "*$InstallDir*") {
-    Write-Host "[*] Adding $InstallDir to User PATH environment variable..." -ForegroundColor Yellow
-    $NewPath = if ([string]::IsNullOrEmpty($UserPath)) { $InstallDir } else { "$UserPath;$InstallDir" }
-    [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
-    $env:Path += ";$InstallDir"
-    Write-Host "[OK] Added to PATH successfully!" -ForegroundColor Green
-} else {
-    Write-Host "[OK] $InstallDir is already in User PATH." -ForegroundColor Gray
+if (-not $UserPath) { $UserPath = '' }
+$CleanUserPath = ($UserPath -split ';' | Where-Object { $_ -ne '' -and $_.TrimEnd('\/').ToLower() -ne $InstallDir.TrimEnd('\/').ToLower() }) -join ';'
+$NewUserPath = if ($CleanUserPath) { "$InstallDir;$CleanUserPath" } else { $InstallDir }
+[Environment]::SetEnvironmentVariable('Path', $NewUserPath, 'User')
+$env:Path = "$InstallDir;" + ($env:Path -replace [regex]::Escape("$InstallDir;"), "")
+Write-Host "[OK] $InstallDir prioritized at front of User PATH." -ForegroundColor Green
+
+# 5.1 Auto-heal and synchronize any shadowed actx binaries
+$ShadowLocations = @(
+    (Join-Path $env:USERPROFILE ".cargo\bin\actx.exe"),
+    (Join-Path $env:USERPROFILE ".cargo\bin\actx")
+)
+foreach ($Shadow in $ShadowLocations) {
+    if (Test-Path $Shadow) {
+        try {
+            Copy-Item -Path $ShimExePath -Destination $Shadow -Force
+            Write-Host "[OK] Synchronized shadowed binary: $Shadow" -ForegroundColor Green
+        } catch {
+            Write-Host "[!] Note: Could not overwrite $Shadow (locked or access denied)." -ForegroundColor Yellow
+        }
+    }
 }
 
 # 5. Check/Ensure Bun is available for OpenTUI desktop interface

@@ -4,7 +4,6 @@ pub mod extractor;
 pub mod paths;
 pub mod validator;
 
-use std::env;
 use std::path::Path;
 use std::process::Command;
 
@@ -77,16 +76,10 @@ pub fn run_launcher_or_update_workflow(args: &[String], current_exe: &Path) {
         let new_ver = read_version_from_pending_json(&pending_flag);
         let _ = finalize_staging_update(&base_dir, &staging_dir, new_ver.as_deref());
     }
-    if let Ok(entries) = std::fs::read_dir(&base_dir) {
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if p.is_file() {
-                if let Some(ext) = p.extension() {
-                    if ext.eq_ignore_ascii_case("old") {
-                        let _ = std::fs::remove_file(&p);
-                    }
-                }
-            }
+    clean_lingering_old_files(&base_dir);
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(parent) = current_exe.parent() {
+            clean_lingering_old_files(parent);
         }
     }
 
@@ -201,7 +194,7 @@ pub fn run_installer_workflow(args: &[String]) {
         .and_then(|a| a.split('=').nth(1))
         .map(|s| s.to_string())
         .or_else(|| {
-            println!("[*] Checking latest release from GitHub via HTTPS...");
+            println!("[*] Checking for latest release...");
             fetch_latest_release_tag().ok()
         })
         .unwrap_or_else(|| FALLBACK_VERSION.to_string());
@@ -276,13 +269,14 @@ pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str
         .map_err(|e| format!("Update finalization failed: {}", e))?;
 
     configure_system_path(base_dir);
+    heal_executing_and_shadowed_binaries(base_dir, &target_version);
 
     Ok(format!("AnyContext successfully updated to {} in {}", target_version, base_dir.display()))
 }
 
 /// Executes a self-update from the active installation directory with stdout progress.
 pub fn run_standalone_update(base_dir: &Path, requested_version: Option<&str>) {
-    println!("\n[*] Checking for AnyContext updates via HTTPS...");
+    println!("\n[*] Checking for AnyContext updates...");
 
     match execute_standalone_update(base_dir, requested_version) {
         Ok(msg) => {
@@ -304,25 +298,246 @@ pub fn read_version_from_pending_json(pending_flag: &Path) -> Option<String> {
     val.get("version").and_then(|v| v.as_str()).map(|s| s.to_string())
 }
 
-/// Checks and ensures that the bin directory is added to PATH on Windows with high precedence.
+/// Cleans any lingering .old backup files created during atomic self-updates.
+pub fn clean_lingering_old_files(dir: &Path) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name.contains(".old") || name.ends_with(".old") {
+                    let _ = std::fs::remove_file(&p);
+                }
+            }
+        }
+    }
+}
+
+fn is_same_file_or_dir(a: &Path, b: &Path) -> bool {
+    if a == b {
+        return true;
+    }
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(ca), Ok(cb)) => ca == cb,
+        _ => {
+            let sa = a.to_string_lossy().trim_end_matches(['\\', '/']).to_lowercase();
+            let sb = b.to_string_lossy().trim_end_matches(['\\', '/']).to_lowercase();
+            sa == sb
+        }
+    }
+}
+
+/// Safely replaces target binary with source binary, even if target is currently executing on Windows.
+pub fn replace_target_binary(target: &Path, source: &Path) -> Result<(), std::io::Error> {
+    if !source.exists() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Source binary not found: {}", source.display()),
+        ));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Try direct copy first
+        if std::fs::copy(source, target).is_ok() {
+            return Ok(());
+        }
+
+        // On Windows NT, an executing binary cannot be written directly (error 5: Access is denied),
+        // but Windows allows renaming an active executing process.
+        let unique = format!(
+            "{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0)
+        );
+        let old_target = target.with_file_name(format!(
+            "{}.old_{}",
+            target.file_name().and_then(|n| n.to_str()).unwrap_or("actx"),
+            unique
+        ));
+
+        std::fs::rename(target, &old_target)?;
+        match std::fs::copy(source, target) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let _ = std::fs::rename(&old_target, target);
+                Err(e)
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let parent = target.parent().unwrap_or_else(|| Path::new("."));
+        let temp_target = parent.join(format!(".actx_tmp_{}", std::process::id()));
+        std::fs::copy(source, &temp_target)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&temp_target, std::fs::Permissions::from_mode(0o755));
+        }
+        std::fs::rename(&temp_target, target)?;
+        Ok(())
+    }
+}
+
+/// Scans for and synchronizes the currently executing binary and any shadowed binaries found in PATH.
+pub fn heal_executing_and_shadowed_binaries(base_dir: &Path, target_version: &str) {
+    let shim_name = get_shim_exe_name();
+    let source_shim = base_dir.join(shim_name);
+    if !source_shim.exists() {
+        return;
+    }
+
+    // 1. Check if the executing binary is outside base_dir (e.g. ~/.cargo/bin or custom path)
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(parent) = current_exe.parent() {
+            if !is_same_file_or_dir(parent, base_dir) {
+                let file_name = current_exe.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if file_name.to_lowercase().starts_with("actx") {
+                    println!("[*] Synchronizing executing binary at '{}'...", current_exe.display());
+                    match replace_target_binary(&current_exe, &source_shim) {
+                        Ok(_) => {
+                            println!(
+                                "[OK] Updated executing binary at '{}' to {}!",
+                                current_exe.display(),
+                                target_version
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "[!] Warning: Could not update executing binary at '{}': {}",
+                                current_exe.display(),
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Scan PATH environment variable to detect and heal shadowed binaries
+    if let Ok(path_var) = std::env::var("PATH") {
+        let separator = if cfg!(windows) { ';' } else { ':' };
+        for dir_str in path_var.split(separator) {
+            let dir = Path::new(dir_str.trim());
+            if dir.as_os_str().is_empty() || is_same_file_or_dir(dir, base_dir) {
+                continue;
+            }
+            let candidate = dir.join(shim_name);
+            if candidate.is_file() {
+                if let Ok(current_exe) = std::env::current_exe() {
+                    if is_same_file_or_dir(&candidate, &current_exe) {
+                        continue;
+                    }
+                }
+                let needs_update = match (std::fs::metadata(&candidate), std::fs::metadata(&source_shim)) {
+                    (Ok(m_cand), Ok(m_src)) => m_cand.len() != m_src.len(),
+                    _ => true,
+                };
+                if needs_update {
+                    println!("[*] Detected shadowed binary in PATH: '{}'. Synchronizing...", candidate.display());
+                    match replace_target_binary(&candidate, &source_shim) {
+                        Ok(_) => {
+                            println!(
+                                "[OK] Synchronized shadowed binary at '{}' to {}!",
+                                candidate.display(),
+                                target_version
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "[!] Warning: Found older actx binary at '{}' that could shadow AnyContext (error: {}). Please remove it or ensure '{}' takes precedence in PATH.",
+                                candidate.display(),
+                                e,
+                                base_dir.display()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Checks and ensures that the bin directory is added to PATH on Windows with highest precedence.
 pub fn configure_system_path(bin_dir: &Path) {
     #[cfg(target_os = "windows")]
     {
         let bin_str = bin_dir.to_string_lossy().to_string();
-        if let Ok(path_var) = env::var("PATH") {
-            if !path_var.to_lowercase().contains(&bin_str.to_lowercase()) {
-                println!("[*] Adding '{}' to User PATH environment variable...", bin_str);
-                let _ = Command::new("powershell")
-                    .args([
-                        "-NoProfile",
-                        "-Command",
-                        &format!(
-                            "[Environment]::SetEnvironmentVariable('Path', '{}' + ';' + [Environment]::GetEnvironmentVariable('Path', 'User'), 'User')",
-                            bin_str
-                        ),
-                    ])
-                    .status();
-            }
-        }
+        let _ = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    r#"$bin = '{}';
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User');
+if (-not $userPath) {{ $userPath = '' }};
+if ($userPath -notlike "$bin;*" -and $userPath -ne $bin) {{
+    $clean = ($userPath -split ';' | Where-Object {{ $_ -ne '' -and $_.TrimEnd('\/').ToLower() -ne $bin.TrimEnd('\/').ToLower() }}) -join ';';
+    $newPath = if ($clean) {{ "$bin;$clean" }} else {{ $bin }};
+    [Environment]::SetEnvironmentVariable('Path', $newPath, 'User');
+}}"#,
+                    bin_str
+                ),
+            ])
+            .status();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clean_lingering_old_files() {
+        let temp = std::env::temp_dir().join(format!("test_clean_old_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&temp);
+
+        let old_file1 = temp.join("actx.exe.old");
+        let old_file2 = temp.join("actx.old_12345");
+        let valid_file = temp.join("actx.exe");
+
+        std::fs::write(&old_file1, "old1").unwrap();
+        std::fs::write(&old_file2, "old2").unwrap();
+        std::fs::write(&valid_file, "valid").unwrap();
+
+        clean_lingering_old_files(&temp);
+
+        assert!(!old_file1.exists(), "old_file1 should be deleted");
+        assert!(!old_file2.exists(), "old_file2 should be deleted");
+        assert!(valid_file.exists(), "valid_file should be preserved");
+
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_replace_target_binary() {
+        let temp = std::env::temp_dir().join(format!("test_replace_target_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&temp);
+
+        let source = temp.join("source.exe");
+        let target = temp.join("target.exe");
+
+        std::fs::write(&source, "NEW_BINARY_CONTENT").unwrap();
+        std::fs::write(&target, "OLD_BINARY_CONTENT").unwrap();
+
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "OLD_BINARY_CONTENT");
+
+        replace_target_binary(&target, &source).expect("replace_target_binary should succeed");
+
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "NEW_BINARY_CONTENT");
+
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_is_same_file_or_dir() {
+        let temp = std::env::temp_dir();
+        assert!(is_same_file_or_dir(&temp, &temp));
     }
 }

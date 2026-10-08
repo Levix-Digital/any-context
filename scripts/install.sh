@@ -81,7 +81,7 @@ elif command -v wget >/dev/null 2>&1; then
 fi
 
 # Fallback Legacy Archive Download (if native installer asset is not yet available)
-printf "\033[33m⬇️ Downloading AnyContext distribution package from GitHub via HTTPS...\033[0m\n"
+printf "\033[33m⬇️ Downloading AnyContext package...\033[0m\n"
 log_install "Downloading AnyContext ($ARCHIVE_NAME or $FALLBACK_NAME) from GitHub"
 
 DOWNLOAD_SUCCESS=0
@@ -260,11 +260,11 @@ if [ "$IS_WINDOWS" -eq 1 ]; then
     WIN_INSTALL_DIR="$(cygpath -w "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")"
     powershell.exe -NoProfile -Command "
         \$UserPath = [Environment]::GetEnvironmentVariable('Path', 'User');
-        if (\$UserPath -notlike '*$WIN_INSTALL_DIR*') {
-            \$NewPath = if ([string]::IsNullOrEmpty(\$UserPath)) { '$WIN_INSTALL_DIR' } else { \"\$UserPath;$WIN_INSTALL_DIR\" };
-            [Environment]::SetEnvironmentVariable('Path', \$NewPath, 'User');
-            Write-Host '⚙️ Added $WIN_INSTALL_DIR to Windows User PATH environment variable!';
-        }
+        if (-not \$UserPath) { \$UserPath = '' };
+        \$Clean = (\$UserPath -split ';' | Where-Object { \$_ -ne '' -and \$_.TrimEnd('\/').ToLower() -ne '$WIN_INSTALL_DIR'.TrimEnd('\/').ToLower() }) -join ';';
+        \$NewPath = if (\$Clean) { '$WIN_INSTALL_DIR;' + \$Clean } else { '$WIN_INSTALL_DIR' };
+        [Environment]::SetEnvironmentVariable('Path', \$NewPath, 'User');
+        Write-Host '⚙️ Prioritized $WIN_INSTALL_DIR at front of Windows User PATH!';
     " 2>/dev/null || true
 else
     if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then

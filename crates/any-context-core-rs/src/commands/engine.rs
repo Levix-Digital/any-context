@@ -1385,7 +1385,7 @@ impl CommandEngine {
                         clean_latest, current_tag
                     ))
                 } else {
-                    CommandResult::success(format!("actx {} is up to date (latest GitHub release: {}).", current_tag, clean_latest))
+                    CommandResult::success(format!("actx {} is up to date (latest: {}).", current_tag, clean_latest))
                 }
             }
             Err(e) => {

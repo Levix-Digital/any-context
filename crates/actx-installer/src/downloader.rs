@@ -48,7 +48,7 @@ pub fn download_release_asset(
         format!("v{}", tag)
     };
 
-    println!("[*] Downloading '{}' via HTTPS...", asset_name);
+    println!("[*] Downloading '{}'...", asset_name);
 
     if let Some(parent) = dest_path.parent() {
         std::fs::create_dir_all(parent)
