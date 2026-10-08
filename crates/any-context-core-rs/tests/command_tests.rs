@@ -332,3 +332,88 @@ fn test_inspect_and_logs_execution() {
     assert!(res_logs.success);
 }
 
+#[test]
+fn test_sync_cancel_execution() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext {
+        active_workspace: "CancelSyncWS".to_string(),
+        ..Default::default()
+    };
+
+    // When no worker is active, reports idle/no worker gracefully
+    let res_cancel = CommandEngine::execute("sync", &["cancel"], &ctx);
+    assert!(res_cancel.success);
+    assert!(res_cancel.message.contains("No active synchronization worker is currently running"));
+
+    // Shortcut `/cancel` routes to sync cancel
+    let res_shortcut = CommandEngine::execute("cancel", &[], &ctx);
+    assert!(res_shortcut.success);
+    assert!(res_shortcut.message.contains("No active synchronization worker is currently running"));
+}
+
+#[test]
+fn test_cd_and_pwd_execution() {
+    let ctx = ExecutionContext::default();
+
+    // 1. /pwd reports current directory
+    let res_pwd = CommandEngine::execute("pwd", &[], &ctx);
+    assert!(res_pwd.success);
+    assert!(res_pwd.message.contains("Current Working Directory"));
+
+    // 2. /cd to existing dir
+    let temp_dir = std::env::temp_dir();
+    let temp_str = temp_dir.to_string_lossy().to_string();
+    let res_cd = CommandEngine::execute("cd", &[&temp_str], &ctx);
+    assert!(res_cd.success);
+    assert!(res_cd.message.contains("Changed working directory to"));
+
+    // 3. /cd to non-existent dir reports error
+    let res_err = CommandEngine::execute("cd", &["this_directory_should_not_exist_xyz123"], &ctx);
+    assert!(!res_err.success);
+    assert!(res_err.message.contains("Directory does not exist"));
+}
+
+#[test]
+fn test_inspect_transparent_decryption() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    std::env::set_var("ACTX_MACHINE_ID", "test_inspect_decrypt_node");
+
+    let ws = "CryptoInspectWS";
+    let ctx = ExecutionContext {
+        active_workspace: ws.to_string(),
+        ..Default::default()
+    };
+
+    let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
+    let lance = any_context_core_rs::storage::NativeLanceStore::open(&lance_path).expect("open lance");
+
+    let sec = any_context_core_rs::security::NativeSecurityEngine::new(Some("test_inspect_decrypt_node"));
+    let plaintext_secret = "Top Secret Architectural Source Code";
+    let encrypted_payload = sec.encrypt_text(plaintext_secret);
+    assert!(encrypted_payload.starts_with("enc::"));
+
+    let rec = any_context_core_rs::storage::VectorRecord {
+        id: "crypto_chunk_1".to_string(),
+        vector: vec![0.0; 1536],
+        text: encrypted_payload,
+        file_name: "secret.rs".to_string(),
+        file_path: "src/secret.rs".to_string(),
+        workspace: ws.to_string(),
+        last_modified: Some("2026-10-08T12:00:00Z".to_string()),
+        content_type: Some("Rust Source Code".to_string()),
+        document_summary: Some("Confidential module".to_string()),
+        keywords: Some("secret, crypto".to_string()),
+        content_hash: None,
+    };
+
+    let _ = lance.upsert_records(vec![rec], Some("workspace_chunks"), Some(1536));
+
+    let res_full = CommandEngine::execute("inspect", &["--full"], &ctx);
+    assert!(res_full.success);
+    // Should NOT contain the encrypted prefix
+    assert!(!res_full.message.contains("enc::"));
+    // Should contain the decrypted plaintext
+    assert!(res_full.message.contains(plaintext_secret));
+}
+
+

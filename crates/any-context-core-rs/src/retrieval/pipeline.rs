@@ -133,10 +133,13 @@ impl NativeHybridPipeline {
             match BM25Index::load_from_file(file_path.to_str().unwrap_or("")) {
                 Ok(idx) => idx,
                 Err(err) => {
-                    eprintln!(
-                        "⚠️ [WARN] BM25 index at '{:?}' is corrupted or unreadable: {}. Quarantining and starting fresh index...",
-                        file_path, err
-                    );
+                    let log_dir = crate::storage::get_default_logs_dir();
+                    let _ = std::fs::create_dir_all(&log_dir);
+                    let log_file = log_dir.join("bm25_quarantine.log");
+                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(log_file) {
+                        use std::io::Write;
+                        let _ = writeln!(f, "[{}] Corrupted BM25 at '{:?}': {}", chrono::Utc::now().to_rfc3339(), file_path, err);
+                    }
                     let corrupt_name = format!("{}.corrupt.{}", file_path.display(), chrono::Utc::now().timestamp());
                     let _ = std::fs::rename(&file_path, &corrupt_name);
                     BM25Index::new(None, None)

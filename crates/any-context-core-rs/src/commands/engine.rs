@@ -47,6 +47,15 @@ impl CommandEngine {
             "sync" | "reindex" | "resync" | "index" => {
                 Self::execute_sync(args, ctx)
             }
+            "cancel" | "stop-sync" | "stop" => {
+                Self::execute_sync(&["cancel"], ctx)
+            }
+            "cd" => {
+                Self::execute_cd(args, ctx)
+            }
+            "pwd" | "cwd" => {
+                Self::execute_pwd(ctx)
+            }
             "sources" | "source" | "list-sources" | "src" => {
                 Self::execute_sources(args, ctx)
             }
@@ -493,6 +502,68 @@ impl CommandEngine {
     // Sync
     // -------------------------------------------------------------------------
     fn execute_sync(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+        let is_cancel = args.iter().any(|a| *a == "--cancel" || *a == "-c" || *a == "cancel" || *a == "stop");
+        if is_cancel {
+            let db = match NativeConfigDb::open_default() {
+                Ok(d) => d,
+                Err(e) => return CommandResult::error(format!("Database error: {}", e)),
+            };
+
+            let status = db.get_sync_status(&ctx.active_workspace).ok().flatten();
+            if let Some(ss) = status {
+                if let Some(pid) = ss.pid {
+                    #[cfg(windows)]
+                    {
+                        let _ = std::process::Command::new("taskkill")
+                            .args(["/PID", &pid.to_string(), "/F", "/T"])
+                            .output();
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        let _ = std::process::Command::new("kill")
+                            .args(["-9", &pid.to_string()])
+                            .output();
+                    }
+
+                    let _ = db.update_sync_status(
+                        &ctx.active_workspace,
+                        false,
+                        None,
+                        ss.current_item,
+                        ss.total_items,
+                        "cancelled",
+                        ss.item_name.as_deref(),
+                        None,
+                    );
+
+                    return CommandResult::success(format!(
+                        "🛑 Background synchronization worker (PID: {}) for workspace '**{}**' has been cancelled.",
+                        pid, ctx.active_workspace
+                    ));
+                } else if ss.is_syncing {
+                    let _ = db.update_sync_status(
+                        &ctx.active_workspace,
+                        false,
+                        None,
+                        ss.current_item,
+                        ss.total_items,
+                        "cancelled",
+                        ss.item_name.as_deref(),
+                        None,
+                    );
+                    return CommandResult::success(format!(
+                        "🛑 Active synchronization status for workspace '**{}**' reset to cancelled.",
+                        ctx.active_workspace
+                    ));
+                }
+            }
+
+            return CommandResult::success(format!(
+                "ℹ️ No active synchronization worker is currently running for workspace '**{}**'.",
+                ctx.active_workspace
+            ));
+        }
+
         let is_incremental = args.iter().any(|a| *a == "--incremental" || *a == "-i" || *a == "incremental");
         let force = args.iter().any(|a| *a == "--force" || *a == "-f" || *a == "force");
         let is_menu = args.iter().any(|a| *a == "--menu" || *a == "-m" || *a == "menu");
@@ -665,6 +736,9 @@ impl CommandEngine {
             match db.add_workspace_folder(&ctx.active_workspace, &clean_canonical_str) {
                 Ok(_) => {
                     let mut msg = format!("📁 Added folder to workspace '{}':\n  {}", ctx.active_workspace, clean_canonical_str);
+                    if clean_path_str == "." {
+                        msg.push_str(" (resolved from current working directory)");
+                    }
                     match Self::spawn_sync_worker(&ctx.active_workspace, false) {
                         Ok((pid, _)) => {
                             msg.push_str(&format!("\n⚡ Indexing started in background [PID: {}].", pid));
@@ -677,6 +751,52 @@ impl CommandEngine {
                 }
                 Err(e) => CommandResult::error(format!("❌ Error adding folder: {}", e)),
             }
+        }
+    }
+
+    fn execute_pwd(_ctx: &ExecutionContext) -> CommandResult {
+        match std::env::current_dir() {
+            Ok(dir) => {
+                let clean = dir.display().to_string().replace(r"\\?\", "");
+                CommandResult::success(format!("📂 Current Working Directory:\n  `{}`", clean))
+            }
+            Err(e) => CommandResult::error(format!("Failed to determine current working directory: {}", e)),
+        }
+    }
+
+    fn execute_cd(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+        if args.is_empty() {
+            return Self::execute_pwd(ctx);
+        }
+        let target_str = args.join(" ");
+        let clean_target = target_str.trim().trim_matches('\'').trim_matches('"');
+        let target_path = std::path::PathBuf::from(clean_target);
+        let resolved = if target_path.is_absolute() {
+            target_path
+        } else {
+            match std::env::current_dir() {
+                Ok(cwd) => cwd.join(&target_path),
+                Err(_) => target_path,
+            }
+        };
+
+        if !resolved.exists() {
+            return CommandResult::error(format!("❌ Directory does not exist: `{}`", resolved.display()));
+        }
+        if !resolved.is_dir() {
+            return CommandResult::error(format!("❌ Path is not a directory: `{}`", resolved.display()));
+        }
+
+        match std::env::set_current_dir(&resolved) {
+            Ok(()) => {
+                let canonical = resolved.canonicalize().unwrap_or(resolved);
+                let clean_display = canonical.display().to_string().replace(r"\\?\", "");
+                CommandResult::success(format!(
+                    "📂 Changed working directory to:\n  `{}`\n\nTip: Run `/folder .` to attach and synchronize this folder in workspace '**{}**'.",
+                    clean_display, ctx.active_workspace
+                ))
+            }
+            Err(e) => CommandResult::error(format!("❌ Failed to change working directory to `{}`: {}", resolved.display(), e)),
         }
     }
 
@@ -1001,10 +1121,12 @@ impl CommandEngine {
             let display_count = samples.len().min(limit);
             lines.push(format!("📋 **Sample Chunks{} (showing {}):**", filter_info, display_count));
 
+            let sec = crate::security::NativeSecurityEngine::get_instance();
             for (idx, r) in samples.iter().take(display_count).enumerate() {
                 let fn_str = &r.file_name;
                 let ct_str = r.content_type.as_deref().unwrap_or("unknown");
-                let text = r.text.trim();
+                let decrypted = sec.decrypt_text(&r.text);
+                let text = decrypted.trim();
                 let char_count = text.len();
 
                 lines.push(format!("  **[{}] 📄 `{}`**", idx + 1, fn_str));

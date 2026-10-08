@@ -672,13 +672,23 @@ impl NativeLanceStore {
             .column_by_name("content_hash")
             .and_then(|c| c.as_any().downcast_ref::<StringArray>());
 
+        let sec = crate::security::NativeSecurityEngine::get_instance();
+
         for i in 0..num_rows {
             let dist = dist_col.map(|d| d.value(i)).unwrap_or(0.0);
             let score = 1.0 / (1.0 + dist.max(0.0));
 
+            let raw_text = text_col.value(i);
+            let raw_ds = ds_col.map(|c| c.value(i));
+            let raw_kw = kw_col.map(|c| c.value(i));
+
+            let text = sec.decrypt_text(raw_text);
+            let document_summary = raw_ds.map(|s| sec.decrypt_text(s));
+            let keywords = raw_kw.map(|s| sec.decrypt_text(s));
+
             results.push(ScoredVectorResult {
                 id: id_col.value(i).to_string(),
-                text: text_col.value(i).to_string(),
+                text,
                 file_name: fn_col.value(i).to_string(),
                 file_path: fp_col.value(i).to_string(),
                 workspace: ws_col.value(i).to_string(),
@@ -686,8 +696,8 @@ impl NativeLanceStore {
                 distance: dist,
                 last_modified: lm_col.map(|c| c.value(i).to_string()),
                 content_type: ct_col.map(|c| c.value(i).to_string()),
-                document_summary: ds_col.map(|c| c.value(i).to_string()),
-                keywords: kw_col.map(|c| c.value(i).to_string()),
+                document_summary,
+                keywords,
                 content_hash: h_col.map(|c| c.value(i).to_string()),
             });
         }

@@ -256,25 +256,50 @@ impl BM25Index {
 
         #[cfg(windows)]
         {
-            if path_obj.exists() {
-                let _ = std::fs::remove_file(path_obj);
+            let mut renamed = false;
+            for attempt in 0..5 {
+                if path_obj.exists() {
+                    let _ = std::fs::remove_file(path_obj);
+                }
+                if std::fs::rename(&tmp_path, path_obj).is_ok() {
+                    renamed = true;
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(25 * (attempt + 1)));
+            }
+            if !renamed {
+                std::fs::rename(&tmp_path, path_obj)
+                    .map_err(|e| format!("Failed to atomically rename BM25 index '{:?}' to '{}': {}", tmp_path, path, e))?;
             }
         }
+        #[cfg(not(windows))]
+        {
+            std::fs::rename(&tmp_path, path_obj)
+                .map_err(|e| format!("Failed to atomically rename BM25 index '{:?}' to '{}': {}", tmp_path, path, e))?;
+        }
 
-        std::fs::rename(&tmp_path, path_obj)
-            .map_err(|e| format!("Failed to atomically rename BM25 index '{:?}' to '{}': {}", tmp_path, path, e))?;
         Ok(())
     }
 
     /// Loads the index from disk using bounded, panic-safe bincode deserialization.
     /// Rejects corrupted length prefixes (e.g. 7.9 exabytes) and catches any allocator overflow.
+    /// Gracefully initializes empty index if file is 0 bytes or newly created.
     pub fn load_from_file(path: &str) -> Result<Self, String> {
         let path_str = path.to_string();
-        let catch_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+
+        let try_deserialize = |p: &str| -> Result<Self, String> {
             use bincode::Options;
 
-            let file = File::open(&path_str)
-                .map_err(|e| format!("Failed to open BM25 index file '{}': {}", path_str, e))?;
+            let file = File::open(p)
+                .map_err(|e| format!("Failed to open BM25 index file '{}': {}", p, e))?;
+
+            // If file is 0 bytes / empty, return clean fresh index immediately without error
+            if let Ok(meta) = file.metadata() {
+                if meta.len() == 0 {
+                    return Ok(Self::new(None, None));
+                }
+            }
+
             let reader = BufReader::new(file);
 
             // Maximum allowed allocation per index: 150 MB
@@ -285,17 +310,36 @@ impl BM25Index {
 
             let index: Self = options
                 .deserialize_from(reader)
-                .map_err(|e| format!("Failed to deserialize BM25 index from '{}': {}", path_str, e))?;
+                .map_err(|e| format!("Failed to deserialize BM25 index from '{}': {}", p, e))?;
             Ok(index)
-        }));
+        };
 
-        match catch_result {
-            Ok(inner_res) => inner_res,
-            Err(_) => Err(format!(
-                "Memory allocation or panic caught during deserialization of BM25 index file '{}': index file is corrupted",
-                path
-            )),
+        // Try load with 1 retry in case concurrent process was finishing an atomic rename/write
+        let mut last_err = String::new();
+        for attempt in 0..2 {
+            let p_clone = path_str.clone();
+            let catch_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+                try_deserialize(&p_clone)
+            }));
+
+            match catch_result {
+                Ok(Ok(idx)) => return Ok(idx),
+                Ok(Err(err)) => {
+                    last_err = err;
+                    if attempt == 0 {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                }
+                Err(_) => {
+                    return Err(format!(
+                        "Memory allocation or panic caught during deserialization of BM25 index file '{}': index file is corrupted",
+                        path
+                    ));
+                }
+            }
         }
+
+        Err(last_err)
     }
 }
 

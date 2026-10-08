@@ -383,6 +383,15 @@ pub fn build_sync_menu() -> Vec<MenuItem> {
             shortcut: Some("/sync --force".to_string()),
             is_submenu: false,
         },
+        MenuItem {
+            id: "sync_action:cancel".to_string(),
+            title: "Cancelar Sincronização em Andamento".to_string(),
+            description: "Interrompe o worker de indexação/crawler e reseta o status".to_string(),
+            icon: "🛑".to_string(),
+            badge: Some("[Parar]".to_string()),
+            shortcut: Some("/sync cancel".to_string()),
+            is_submenu: false,
+        },
     ]
 }
 
@@ -615,8 +624,9 @@ mod tests {
         assert_eq!(mock_item.unwrap().badge, Some("[Ativo]".to_string()));
 
         let sync = build_sync_menu();
-        assert_eq!(sync.len(), 2);
+        assert_eq!(sync.len(), 3);
         assert!(sync.iter().any(|i| i.id == "sync_action:force"));
+        assert!(sync.iter().any(|i| i.id == "sync_action:cancel"));
 
         let grounding = build_grounding_menu();
         assert_eq!(grounding.len(), 3);

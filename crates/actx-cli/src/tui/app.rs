@@ -519,6 +519,9 @@ impl App {
             } else if item.id == "sync_action:force" {
                 crate::commands::dispatch_slash_command("sync", &["--force"], self);
                 self.menu_state.is_open = false;
+            } else if item.id == "sync_action:cancel" {
+                crate::commands::dispatch_slash_command("sync", &["cancel"], self);
+                self.menu_state.is_open = false;
             } else if item.id.starts_with("grounding_action:") {
                 let mode = item.id.trim_start_matches("grounding_action:");
                 crate::commands::dispatch_slash_command("mode", &[mode], self);

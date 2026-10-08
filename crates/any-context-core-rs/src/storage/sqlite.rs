@@ -762,6 +762,9 @@ impl NativeConfigDb {
                 };
                 return format!("[scanning... {} {} found]", current, stage_label);
             }
+            if stage == "cancelled" {
+                return "[cancelled]".to_string();
+            }
             if stage == "crawling" || stage == "web" || stage == "pages" {
                 return "[crawling...]".to_string();
             }
@@ -769,6 +772,9 @@ impl NativeConfigDb {
                 return "[scanning...]".to_string();
             }
             return "[calculating...]".to_string();
+        }
+        if stage == "cancelled" {
+            return "[cancelled]".to_string();
         }
         let pct = ((current as f32 / total as f32) * 100.0).round() as usize;
         let fill = ((width as f32 * current as f32) / total as f32).round() as usize;

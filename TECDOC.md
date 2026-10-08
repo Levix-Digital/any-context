@@ -78,6 +78,7 @@
 90. [Bounded BM25 Deserialization, Atomic Temp-Rename & Self-Healing Index Recovery (`v0.32.14`)](#90-bounded-bm25-deserialization-atomic-temp-rename--self-healing-index-recovery-v03214)
 91. [Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar & Native Agent Background Awareness (`v0.32.14`)](#91-canonical-sqlite-sync-telemetry-live-tui-footer-progress-bar--native-agent-background-awareness-v03214)
 92. [Hexagonal Command Parity, Auto-Sync Spawning, Parameter Inversion Fix & Live Scanning Telemetry (`v0.32.15`)](#92-hexagonal-command-parity-auto-sync-spawning-parameter-inversion-fix--live-scanning-telemetry-v03215)
+93. [Transparent Vector Decryption, Sync Cancellation, Session Directory Navigation & TUI Prompt Immunity (`v0.32.16`)](#93-transparent-vector-decryption-sync-cancellation-session-directory-navigation--tui-prompt-immunity-v03216)
 ---
 
 
@@ -5829,6 +5830,69 @@ flowchart TD
 - **Status**: Accepted & Implemented (`v0.32.15`).
 - **Context**: Following the Rust migration, several commands had discrepancies compared to Python: `/folder` and `/web` did not auto-spawn workers; `/keys` did not persist credentials; `/config` lacked a dashboard; `/purge` did not clear file metadata cache; `/logs` and `/inspect` had incomplete implementations.
 - **Decision**: Centralize worker spawning in `CommandEngine::spawn_sync_worker`; auto-spawn workers on folder and web additions; persist credentials in SQLite and process environment; provide full configuration dashboard, comprehensive inspection, and live disk log retrieval in the core command engine.
+
+---
+
+## 93. Transparent Vector Decryption, Sync Cancellation, Session Directory Navigation & TUI Prompt Immunity (`v0.32.16`)
+
+### 1. Problem Statement & Root Cause
+In version `v0.32.15`, cross-platform testing revealed three distinct functional issues:
+1. **Encrypted Chunks in Inspection and Hybrid Retrieval (`enc::...`)**:
+   - Python's `SecurityEngine` encrypts records at rest (`text`, `document_summary`, `keywords`) using hardware-bound AES-GCM-256 and PBKDF2-HMAC-SHA256 (`enc::<base64>`).
+   - When inspecting chunks on Linux via `/inspect --full`, the Rust core retrieved raw strings from LanceDB without decryption, displaying ciphertexts. Furthermore, the native Rust retrieval pipeline risked delivering encrypted text to LLM agents.
+2. **Missing Sync Cancellation & Static Working Directory in TUI**:
+   - Background synchronization workers indexing hundreds of thousands of files could not be halted from the interface, causing CPU and disk contention.
+   - The `/folder .` command resolved the launch directory of the TUI process with no mechanism to inspect (`/pwd`) or change (`/cd <path>`) the active directory.
+3. **Prompt Buffer Pollution and BM25 Read-Write Contention**:
+   - Diagnostic warnings written directly to `stderr` via `eprintln!` in `pipeline.rs` printed into Ratatui's alternate screen buffer right at the cursor position in the Prompt widget.
+   - Concurrent access to `bm25_index.bin` while a background worker was saving caused intermittent `failed to fill whole buffer` errors.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    subgraph UI_Layer["TUI & CLI Presentation Layer"]
+        User["User Interaction"] --> CmdDispatch["CommandEngine::execute"]
+        CmdDispatch --> CancelCmd["/sync cancel | /cancel"]
+        CmdDispatch --> NavCmd["/cd <path> | /pwd"]
+        CmdDispatch --> InspectCmd["/inspect [--full]"]
+        TuiPrompt["Prompt Widget"] --- NoStderr["Zero eprintln! Leaks"]
+    end
+
+    subgraph Security_Module["NativeSecurityEngine (Rust Core)"]
+        InspectCmd --> SecEngine["NativeSecurityEngine::decrypt_text"]
+        LanceDB["NativeLanceStore::extract_scored_results"] --> SecEngine
+        SecEngine --> AES["AES-GCM-256 + PBKDF2-HMAC-SHA256"]
+        AES --> HardwareKey["Host Hardware Machine ID (win_guid, lin_mid, mac_uuid)"]
+    end
+
+    subgraph Worker_Lifecycle["Sync Worker Lifecycle Management"]
+        CancelCmd --> KillProc["Terminate Process Tree (PID)"]
+        KillProc --> StatusReset["Update SQLite: is_syncing=0, stage='cancelled'"]
+    end
+```
+
+1. **`NativeSecurityEngine` (`crates/any-context-core-rs/src/security/mod.rs`)**:
+   - Implements hardware-bound key derivation identical to Python's `SecurityEngine` (PBKDF2-HMAC-SHA256, 100,000 rounds, AES-GCM-256).
+   - Seamlessly decrypts `enc::` strings in `NativeLanceStore::extract_scored_results`, ensuring `/inspect` and RAG pipelines always operate on plaintext.
+2. **Sync Cancellation Subsystem (`/sync cancel`)**:
+   - Inspects `workspace_sync_status.pid`, issues process tree termination (`taskkill` on Windows, `kill -9` on Unix), and resets SQLite status to `stage="cancelled"`.
+   - Adds an interactive "Cancelar Sincronização em Andamento" option in the TUI sync menu (`[F1]`).
+3. **Session Directory Navigation (`/cd` and `/pwd`)**:
+   - Implements `/pwd` to inspect the process current working directory and `/cd <path>` to change it dynamically at runtime.
+   - Refines `/folder .` to output `(resolved from current working directory)`.
+4. **BM25 Concurrency Hardening & TUI Screen Isolation**:
+   - Eliminates direct `eprintln!` calls to avoid screen corruption in Ratatui alternate buffer.
+   - Detects 0-byte BM25 files gracefully without triggering corrupt quarantine.
+   - Implements exponential backoff retries on Windows atomic renames.
+
+### 3. Architecture Decision Record (ADR-100)
+
+#### ADR-100: Native Encryption-at-Rest Interoperability, Background Worker Cancellation, and TUI Screen Isolation
+- **Status**: Accepted & Implemented (`v0.32.16`).
+- **Context**: Encrypted LanceDB payloads remained raw in Rust inspection and retrieval; background sync workers could not be cancelled; and `eprintln!` output corrupted interactive Ratatui prompt buffers.
+- **Decision**: Port `SecurityEngine` to native Rust (`NativeSecurityEngine`) with identical PBKDF2 and AES-GCM parameters; add process termination and status reset to `/sync cancel`; introduce `/cd` and `/pwd`; and enforce strict logging isolation away from terminal stderr during interactive sessions.
+
 
 
 

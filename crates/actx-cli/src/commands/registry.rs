@@ -23,6 +23,27 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         category: "Sources",
     },
     SlashCommand {
+        name: "cancel",
+        aliases: &["stop-sync", "stop"],
+        description: "Cancels active background indexing/sync worker process",
+        usage: "/cancel",
+        category: "Sources",
+    },
+    SlashCommand {
+        name: "cd",
+        aliases: &[],
+        description: "Changes the current working directory of the application session",
+        usage: "/cd <path>",
+        category: "General",
+    },
+    SlashCommand {
+        name: "pwd",
+        aliases: &["cwd"],
+        description: "Prints the current working directory of the application session",
+        usage: "/pwd",
+        category: "General",
+    },
+    SlashCommand {
         name: "model",
         aliases: &["m"],
         description: "Inspects or selects the active LLM/SLM provider model",

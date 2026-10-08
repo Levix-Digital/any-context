@@ -7,6 +7,70 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 17 (v0.32.16 Descriptografia Transparente no LanceDB, Cancelamento de Sync, Comandos /cd e /pwd, e Imunização do Prompt TUI):
+- **Objetivo**: Comprovar que na versão `v0.32.16`:
+  1. **Descriptografia Transparente no `/inspect` e RAG**:
+     - No Linux e Windows, ao executar `/inspect --full` ou `/inspect`, chunks cifrados em repouso com `enc::...` são descriptografados automaticamente pelo `NativeSecurityEngine` em Rust, exibindo texto legível e nunca o ciphertext criptografado cru.
+  2. **Cancelamento de Sincronização em Andamento (`/sync cancel`)**:
+     - Durante qualquer processo de sincronização/crawling massivo em background, o usuário pode interromper imediatamente a tarefa via `/sync cancel` (ou `/cancel` ou opção no menu `[F1]`), finalizando o processo do worker pelo PID e resetando o status no SQLite para `[cancelled]`.
+  3. **Navegação de Sessão com `/cd` e `/pwd`**:
+     - `/pwd` exibe o diretório de trabalho atual do processo.
+     - `/cd <caminho>` permite mudar dinamicamente o diretório ativo da aplicação de dentro da TUI, facilitando o uso subsequente de `/folder .`.
+     - `/folder .` exibe a mensagem de confirmação com a indicação explícita `(resolved from current working directory)`.
+  4. **Imunização do Widget de Prompt contra Vazamento de Erros**:
+     - Erros ou alertas internos do BM25 não são mais impressos no `stderr` via `eprintln!`, garantindo que o widget de digitação do `Prompt` permaneça 100% limpo e sem poluição visual.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.32.16` (ou `AnyContext (actx) v0.32.16`).
+
+2. **🔍 Teste de Inspeção com Descriptografia Transparente (`/inspect --full`):**
+   - Na TUI ou CLI, execute:
+     ```text
+     actx "/inspect --full"
+     ```
+   - **Critérios de Aceitação**:
+     - O texto dos chunks exibidos é texto puro em linguagem natural ou código-fonte.
+     - NENHUM chunk exibe payload iniciado por `enc::` ou texto cifrado.
+
+3. **🛑 Teste de Cancelamento de Sincronização (`/sync cancel`):**
+   - Dispare uma sincronização:
+     ```text
+     /sync
+     ```
+   - Em seguida, cancele:
+     ```text
+     /sync cancel
+     ```
+   - **Critérios de Aceitação**:
+     - O sistema confirma `🛑 Background synchronization worker (PID: ...) for workspace '...' has been cancelled.`
+     - O rodapé atualiza o status de sincronização para `[cancelled]` ou volta para o estado inativo.
+
+4. **📂 Teste de Navegação de Diretórios (`/pwd` e `/cd`):**
+   - Na TUI, execute:
+     ```text
+     /pwd
+     ```
+   - Verifique que o diretório atual é exibido. Em seguida:
+     ```text
+     /cd ..
+     /pwd
+     ```
+   - **Critérios de Aceitação**:
+     - O diretório de trabalho é alterado com sucesso.
+
+5. **🛡️ Teste de Limpeza e Integridade do Prompt:**
+   - Abra a TUI (`actx`), digite comandos e navegue nos menus.
+   - **Critérios de Aceitação**:
+     - O widget `Prompt` permanece limpo, sem sobrescrita de avisos ou mensagens em segundo plano.
+
+---
+
 ### 📌 Cenário 16 (v0.32.15 Paridade Total de Comandos, Auto-Spawn de Workers, Telemetria Live de Scanning e Correção no LanceDB):
 - **Objetivo**: Comprovar que na versão `v0.32.15`:
   1. **Correção de Inversão de Parâmetros no LanceDB (`count_records`)**:
