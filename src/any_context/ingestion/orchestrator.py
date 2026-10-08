@@ -66,43 +66,59 @@ def clear_context_vector_db(verbose: bool = False):
             safe_print(f"│ ├─ ⚠️ Warning during vector db clear: {e}")
 
 
-def check_workspace_changes(workspace_name: str) -> Dict[str, Any]:
+def check_workspace_changes(workspace_name: str, target_folder: Optional[str] = None) -> Dict[str, Any]:
     """
     Performs ultra-fast (<30ms) holistic scan over all workspace sources:
     1. Local Folders: Compares (file_path, mtime, size) against workspace_files_stat_cache in SQLite.
     2. Web Sources: Queries registered web URLs, total page counts, and last scrape dates.
     3. Cloud Drives: Queries registered cloud drives and sync state.
     4. Shared Links: Reusable sources linked to this workspace.
+    If target_folder is specified, strictly scopes scanning and diffing to that directory.
     """
     store = ConfigDBStore()
     clean_ws = (workspace_name or "Default").strip()
 
-    # Query multi-source details from SQLite
-    ws_sources = store.get_workspace_sources(clean_ws)
-    folders = list(ws_sources.get("folders", []))
-    web_sources = ws_sources.get("web_sources", [])
-    cloud_drives = ws_sources.get("cloud_drives", [])
-    unified_sources = ws_sources.get("sources", [])
-    from any_context.vector_engine.store import LanceDBStore
-    lance = LanceDBStore.get_instance()
-    inv_summary = lance.get_workspace_inventory_summary(clean_ws)
-    total_web_pages = inv_summary.get("total_web_pages", 0) or sum(w.get("page_count", 1) or 1 for w in web_sources)
+    if target_folder:
+        norm_tf = os.path.abspath(target_folder.strip().strip("'\""))
+        folders = [norm_tf]
+        web_sources = []
+        cloud_drives = []
+        unified_sources = []
+        total_web_pages = 0
+    else:
+        # Query multi-source details from SQLite
+        ws_sources = store.get_workspace_sources(clean_ws)
+        folders = list(ws_sources.get("folders", []))
+        web_sources = ws_sources.get("web_sources", [])
+        cloud_drives = ws_sources.get("cloud_drives", [])
+        unified_sources = ws_sources.get("sources", [])
+        from any_context.vector_engine.store import LanceDBStore
+        lance = LanceDBStore.get_instance()
+        inv_summary = lance.get_workspace_inventory_summary(clean_ws)
+        total_web_pages = inv_summary.get("total_web_pages", 0) or sum(w.get("page_count", 1) or 1 for w in web_sources)
 
-    # Also merge folders from AppSettings if present
-    try:
-        current_settings = AppSettings.load()
-        if current_settings and current_settings.workspaces:
-            for ws in current_settings.workspaces:
-                if ws.name.lower() == clean_ws.lower() or (getattr(ws, "workspace_id", None) and ws.workspace_id == clean_ws):
-                    for p in (ws.paths or []):
-                        norm_p = os.path.abspath(p.strip().strip("'\""))
-                        if norm_p and norm_p not in folders:
-                            folders.append(norm_p)
-                    break
-    except Exception:
-        pass
+        # Also merge folders from AppSettings if present
+        try:
+            current_settings = AppSettings.load()
+            if current_settings and current_settings.workspaces:
+                for ws in current_settings.workspaces:
+                    if ws.name.lower() == clean_ws.lower() or (getattr(ws, "workspace_id", None) and ws.workspace_id == clean_ws):
+                        for p in (ws.paths or []):
+                            norm_p = os.path.abspath(p.strip().strip("'\""))
+                            if norm_p and norm_p not in folders:
+                                folders.append(norm_p)
+                        break
+        except Exception:
+            pass
 
     cached_files = store.get_workspace_files_cache(clean_ws)
+    if target_folder:
+        norm_tf = os.path.abspath(target_folder.strip().strip("'\""))
+        norm_prefix = os.path.normcase(norm_tf if norm_tf.endswith(os.sep) else norm_tf + os.sep)
+        cached_files = {
+            fp: info for fp, info in cached_files.items()
+            if os.path.normcase(fp) == os.path.normcase(norm_tf) or os.path.normcase(fp).startswith(norm_prefix)
+        }
 
     # 1. Native Rust WorkspaceScanner: ultra-fast multi-folder scan & differential change calculation
     diff_res = None

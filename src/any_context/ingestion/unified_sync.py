@@ -10,12 +10,14 @@ class SyncContext:
     def __init__(
         self,
         workspace_name: str,
+        target_folder: Optional[str] = None,
         force_full: bool = False,
         verbose: bool = False,
         progress_callback: Optional[Any] = None,
         sources: Optional[Dict[str, Any]] = None
     ):
         self.workspace_name = workspace_name
+        self.target_folder = target_folder
         self.force_full = force_full
         self.verbose = verbose
         self.progress_callback = progress_callback
@@ -57,6 +59,20 @@ class LocalFolderSyncHandler(BaseSyncHandler):
     """Handles synchronization and vectorization of local folders."""
     def execute_sync(self, ctx: SyncContext) -> None:
         folders = ctx.sources.get("folders", [])
+        if ctx.target_folder:
+            import os
+            norm_target = os.path.abspath(ctx.target_folder.strip().strip("'\""))
+            ctx.log(f"📁 Synchronizing scoped folder '{norm_target}' for '{ctx.workspace_name}'...")
+            folder_res = run_index_folder(
+                workspace_name=ctx.workspace_name,
+                verbose=ctx.verbose,
+                force_full=ctx.force_full,
+                progress_callback=ctx.progress_callback,
+                target_folder=norm_target
+            )
+            ctx.results["folders"] = folder_res
+            return
+
         if not folders:
             ctx.log(f"📁 Local Folders: (None configured for '{ctx.workspace_name}' - skipped)")
             ctx.results["folders"] = {
@@ -124,6 +140,7 @@ class CloudDriveSyncHandler(BaseSyncHandler):
 
 def run_unified_sync(
     workspace_name: Optional[str] = None,
+    target_folder: Optional[str] = None,
     sync_folders: bool = True,
     sync_web: bool = True,
     sync_drives: bool = True,
@@ -137,6 +154,10 @@ def run_unified_sync(
     leveraging an extensible Chain of Responsibility pipeline.
     """
     store = ConfigDBStore()
+
+    if target_folder:
+        sync_web = False
+        sync_drives = False
 
     if is_all:
         settings = store.get_app_settings()
@@ -158,6 +179,7 @@ def run_unified_sync(
         sources = store.get_workspace_sources(ws)
         ctx = SyncContext(
             workspace_name=ws,
+            target_folder=target_folder,
             force_full=force_full,
             verbose=verbose,
             progress_callback=progress_callback,

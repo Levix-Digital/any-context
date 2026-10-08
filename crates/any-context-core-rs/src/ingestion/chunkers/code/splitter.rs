@@ -4,6 +4,27 @@ pub struct SplitCodePart {
     pub end_line_offset: usize,
 }
 
+/// Returns the greatest byte index <= index that is on a valid UTF-8 character boundary.
+/// If index lands inside a multibyte sequence (such as '…' taking 3 bytes), it steps back to the start of that char.
+pub fn safe_floor_char_boundary(s: &str, mut index: usize) -> usize {
+    if index >= s.len() {
+        return s.len();
+    }
+    while index > 0 && !s.is_char_boundary(index) {
+        index -= 1;
+    }
+    if index == 0 && !s.is_char_boundary(0) {
+        while index < s.len() && !s.is_char_boundary(index) {
+            index += 1;
+        }
+    }
+    if index == 0 {
+        s.chars().next().map(|c| c.len_utf8()).unwrap_or(s.len())
+    } else {
+        index
+    }
+}
+
 /// Splits any oversized code string into smaller chunks that strictly do not exceed max_chunk_chars.
 /// Uses a 3-tier hierarchical strategy:
 ///   Tier 1: Paragraphs (double newline \n\n)
@@ -72,14 +93,15 @@ pub fn split_oversized_code(code: &str, max_chunk_chars: usize) -> Vec<SplitCode
                             break;
                         }
 
-                        // Try to find a natural boundary near the cut-off
-                        let search_window = &remaining[..max_chunk_chars];
+                        // Determine safe UTF-8 character boundary floor up to max_chunk_chars
+                        let safe_max = safe_floor_char_boundary(remaining, max_chunk_chars);
+                        let search_window = &remaining[..safe_max];
                         let cut_point = search_window
                             .rfind(|c: char| c == ' ' || c == ';' || c == ',' || c == '{' || c == '}' || c == '(' || c == ')')
                             .map(|idx| idx + 1)
-                            .unwrap_or(max_chunk_chars);
+                            .unwrap_or(safe_max);
 
-                        let cut = if cut_point == 0 { max_chunk_chars } else { cut_point };
+                        let cut = if cut_point == 0 { safe_max } else { cut_point };
                         let chunk_slice = remaining[..cut].trim();
                         if !chunk_slice.is_empty() {
                             units.push(AtomicUnit {
@@ -179,6 +201,19 @@ mod tests {
         assert!(parts.len() > 1);
         for part in &parts {
             assert!(part.text.len() <= 400, "Part length {} exceeds 400", part.text.len());
+        }
+    }
+
+    #[test]
+    fn test_split_multibyte_utf8_char_boundary_no_panic() {
+        // Simulates multi-byte character (ellipsis '…' = 3 bytes) landing exactly across the boundary
+        let prefix = "a".repeat(1023);
+        let content = format!("{}…rest_of_the_code_file_continues_here", prefix);
+        // Byte 1024 is in the middle of '…' (bytes 1023..1026)
+        let parts = split_oversized_code(&content, 1024);
+        assert!(parts.len() >= 2);
+        for part in &parts {
+            assert!(part.text.len() <= 1024);
         }
     }
 }

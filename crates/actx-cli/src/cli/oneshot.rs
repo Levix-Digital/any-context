@@ -37,7 +37,15 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
     }
 
     if args.sync {
-        println!("Triggering sync for workspace '{}' (force={})...", args.workspace, args.force);
+        let fld = args.folder.as_deref().or_else(|| {
+            args.positional_query.first().map(|s| s.as_str()).filter(|s| *s == "." || std::path::Path::new(s).exists())
+        });
+        let fld_msg = if let Some(f) = fld {
+            format!(" (scoped folder: '{}')", f)
+        } else {
+            String::new()
+        };
+        println!("Triggering sync for workspace '{}' (force={}){}...", args.workspace, args.force, fld_msg);
         let canonical_dir = actx_installer::paths::get_canonical_bin_dir();
         let core_name = actx_installer::paths::get_core_exe_name();
         let core_exe = canonical_dir.join(core_name);
@@ -62,6 +70,9 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         cmd.arg("--workspace").arg(&args.workspace);
         if args.force {
             cmd.arg("--force");
+        }
+        if let Some(f) = fld {
+            cmd.arg("--folder").arg(f);
         }
 
         let status = cmd.status();
@@ -109,14 +120,24 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 }
                 return Ok(());
             }
-            CliCommand::Sync { force } => {
-                println!("Triggering incremental sync for workspace '{}' (force={})...", args.workspace, force);
+            CliCommand::Sync { force, folder } => {
+                let fld = folder.as_deref().or_else(|| {
+                    args.positional_query.first().map(|s| s.as_str()).filter(|s| *s == "." || std::path::Path::new(s).exists())
+                });
+                let fld_msg = if let Some(f) = fld {
+                    format!(" (scoped folder: '{}')", f)
+                } else {
+                    String::new()
+                };
+                println!("Triggering incremental sync for workspace '{}' (force={}){}...", args.workspace, force, fld_msg);
                 let db = any_context_core_rs::storage::NativeConfigDb::open_default();
                 let folders = db
                     .as_ref()
                     .map(|d| d.get_workspace_folders(&args.workspace).unwrap_or_default())
                     .unwrap_or_default();
-                let root = if !folders.is_empty() {
+                let root = if let Some(f) = fld {
+                    f.to_string()
+                } else if !folders.is_empty() {
                     folders[0].clone()
                 } else {
                     std::env::current_dir().unwrap_or_default().to_string_lossy().to_string()

@@ -31,6 +31,8 @@ class TestUnifiedSyncArchitecture(unittest.TestCase):
 
         self._orig_db = os.environ.get("ACTX_SETTINGS_DB")
         os.environ["ACTX_SETTINGS_DB"] = self.sqlite_db
+        self._orig_test_mode = os.environ.get("ACTX_TEST_MODE")
+        os.environ["ACTX_TEST_MODE"] = "1"
 
         self.store = ConfigDBStore(db_path=self.sqlite_db)
         ConfigDBStore._instance = self.store
@@ -51,6 +53,10 @@ class TestUnifiedSyncArchitecture(unittest.TestCase):
                 os.environ["ACTX_SETTINGS_DB"] = self._orig_db
             else:
                 os.environ.pop("ACTX_SETTINGS_DB", None)
+            if self._orig_test_mode:
+                os.environ["ACTX_TEST_MODE"] = self._orig_test_mode
+            else:
+                os.environ.pop("ACTX_TEST_MODE", None)
         except Exception:
             pass
         shutil.rmtree(self.test_dir, ignore_errors=True)
@@ -123,6 +129,27 @@ class TestUnifiedSyncArchitecture(unittest.TestCase):
         self.assertIn("TestWS", res["workspaces"])
         self.assertIn("SecondWS", res["workspaces"])
         self.assertGreaterEqual(mock_folder_sync.call_count, 2)
+
+    @patch("any_context.ingestion.unified_sync.run_index_folder")
+    @patch("any_context.ingestion.unified_sync.sync_workspace_web_urls")
+    def test_05_sync_scoped_folder(self, mock_web_sync, mock_folder_sync):
+        """Verify target_folder scopes indexing strictly to the given folder and disables web sync."""
+        mock_folder_sync.return_value = {"status": "ok"}
+
+        res = run_unified_sync(
+            workspace_name="TestWS",
+            target_folder=self.folder_a,
+            sync_folders=True,
+            sync_web=True,
+            sync_drives=True
+        )
+
+        self.assertIn("TestWS", res["workspaces"])
+        mock_folder_sync.assert_called_once()
+        _, kwargs = mock_folder_sync.call_args
+        self.assertEqual(kwargs.get("target_folder"), os.path.abspath(self.folder_a))
+        # Web sync must be bypassed when a scoped folder is targeted
+        mock_web_sync.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

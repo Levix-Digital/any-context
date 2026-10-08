@@ -79,6 +79,8 @@
 91. [Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar & Native Agent Background Awareness (`v0.32.14`)](#91-canonical-sqlite-sync-telemetry-live-tui-footer-progress-bar--native-agent-background-awareness-v03214)
 92. [Hexagonal Command Parity, Auto-Sync Spawning, Parameter Inversion Fix & Live Scanning Telemetry (`v0.32.15`)](#92-hexagonal-command-parity-auto-sync-spawning-parameter-inversion-fix--live-scanning-telemetry-v03215)
 93. [Transparent Vector Decryption, Sync Cancellation, Session Directory Navigation & TUI Prompt Immunity (`v0.32.16`)](#93-transparent-vector-decryption-sync-cancellation-session-directory-navigation--tui-prompt-immunity-v03216)
+94. [Shadowed Binary Synchronization, User PATH Prioritization & Clean Telemetry (`v0.32.16`)](#94-shadowed-binary-synchronization-user-path-prioritization--clean-telemetry-v03216)
+95. [Scoped Directory Ingestion on /folder, UTF-8 Multibyte Boundary Protection & Isolated LanceDB Sync (`v0.32.17`)](#95-scoped-directory-ingestion-on-folder-utf-8-multibyte-boundary-protection--isolated-lancedb-sync-v03217)
 ---
 
 
@@ -5936,6 +5938,60 @@ flowchart TD
 #### ADR-101: Shadowed Binary Synchronization, User PATH Prioritization, and Clean Telemetry
 - **Status**: Accepted & Implemented.
 - **Decision**: In `actx-installer`, inspect `current_exe` and `PATH` on self-update to rename and overwrite all active/shadowed instances of `actx.exe`. Prepend `%LOCALAPPDATA%\actx\bin` to User PATH. Strip internal GitHub repository URLs and networking protocols from end-user CLI stdout.
+
+---
+
+## 95. Scoped Directory Ingestion on /folder, UTF-8 Multibyte Boundary Protection & Isolated LanceDB Sync (`v0.32.17`)
+
+### 1. Problem Statement & Root Cause
+In version `v0.32.16`, testing on production workspaces revealed two critical issues:
+1. **Unscoped Workspace Crawling upon Adding a Folder (`/folder .` / `/folder <path>`)**:
+   - When a user ran `/folder .` to attach and index the current directory, `engine.rs` spawned the background worker with `--sync-worker --workspace <ws>`, with no folder target specified.
+   - The ingestion pipeline interpreted this as an unscoped workspace-wide sync, triggering recursive crawling of all pre-existing roots (such as `esp-idf` with 268,000 files) and scheduled web portals.
+   - This caused massive CPU/disk load, long sync times, and irrelevant logs when the user only intended to index the specified folder.
+2. **UTF-8 Multibyte Character Boundary Panic in Code Chunker (`splitter.rs`)**:
+   - Scanning repositories with UTF-8 characters (e.g. 3-byte ellipsis `…`, curly quotes, non-ASCII symbols) caused a panic in `splitter.rs:76:55`:
+     `byte index 1024 is not a char boundary; it is inside '…' (bytes 1022..1025 of string)`
+   - Slicing `&remaining[..max_chunk_chars]` failed because `max_chunk_chars` cut through the middle of a 3-byte UTF-8 sequence, crashing the worker process during ingestion.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    FolderCmd["User executes /folder <path> or /folder ."] --> ResolveCanon["Canonicalize & Add to SQLite"]
+    ResolveCanon --> SpawnWorker["engine::spawn_sync_worker(ws, force, Some(clean_folder))"]
+    SpawnWorker --> CLIWorker["actx-core --sync-worker --workspace <ws> --folder <path>"]
+    CLIWorker --> Entrypoint["entrypoint.py: parse --folder target_folder"]
+    Entrypoint --> UnifiedSync["run_unified_sync(ws, target_folder)"]
+    UnifiedSync --> SkipNonFolder["Set sync_web=False, sync_drives=False"]
+    SkipNonFolder --> FolderIngestor["run_index_folder(..., target_folder)"]
+    FolderIngestor --> CheckChanges["check_workspace_changes(ws, target_folder)"]
+    CheckChanges --> ScopedDiff["Filter cached_files strictly to target_folder prefix"]
+    ScopedDiff --> Discovery["Only discover and diff target_folder"]
+    Discovery --> Chunking["Native Rust Code Chunker (safe_floor_char_boundary)"]
+    Chunking --> LanceDB["Upsert only target_folder chunks to LanceDB ($0.00)"]
+```
+
+1. **Safe UTF-8 Character Boundary Clamping (`safe_floor_char_boundary`)**:
+   - Implemented `safe_floor_char_boundary(s: &str, mut index: usize) -> usize` in `crates/any-context-core-rs/src/ingestion/chunkers/code/splitter.rs`.
+   - Before slicing `&remaining[..max_chunk_chars]`, the chunker finds the greatest byte boundary `<=` `max_chunk_chars`. If index lands in the middle of a multibyte UTF-8 codepoint, it steps back safely, completely eliminating char boundary panics.
+2. **End-to-End Scoped Folder Parameter Flow**:
+   - `crates/any-context-core-rs/src/commands/engine.rs`:
+     - `spawn_sync_worker(workspace, force, target_folder: Option<&str>)` appends `--folder <path>`.
+     - `execute_folder`: passes `Some(&clean_canonical_str)`.
+     - `execute_sync`: parses optional target directory or `--folder` argument and scopes execution if provided.
+   - `crates/actx-cli/src/cli/args.rs` & `oneshot.rs`: Added `--folder` / `-fld` parameter and support in `actx -s --folder <path>` and `actx sync --folder <path>`.
+   - `src/any_context/cli/entrypoint.py`: Parses `--folder` with safe positional token stepping.
+   - `src/any_context/ingestion/unified_sync.py`: Bypasses web portals and cloud drives when `target_folder` is supplied.
+   - `src/any_context/ingestion/local_folder_ingestor.py` & `orchestrator.py`:
+     - In Mode A (`force_full`): purges and re-indexes strictly the scoped directory prefix without clearing unrelated files.
+     - In Mode B (`incremental sync`): filters `cached_files` strictly to matching prefix, preventing false-positive deletions of other registered workspace roots.
+
+### 3. Architecture Decision Record (ADR-102)
+
+#### ADR-102: Scoped Directory Ingestion and Multi-Byte UTF-8 Boundary Clamping
+- **Status**: Accepted & Implemented.
+- **Decision**: Scope `/folder <path>` sync invocations exclusively to the added folder via `--folder <path>`. Restrict stat caching and diffing to the target prefix. Enforce `safe_floor_char_boundary` on all string slices in the native code splitter.
 
 
 

@@ -101,12 +101,14 @@ def run_index_folder(
     workspace_name: str = None,
     verbose: bool = False,
     force_full: bool = False,
-    progress_callback: Optional[Callable[[int, int, str, str], None]] = None
+    progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
+    target_folder: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Index documents in the vector database incrementally across all configured workspaces,
     or a specific workspace if provided. Performs deep recursive scanning across all subdirectories.
     Uses SQLite stat cache (mtime & size) for sub-30ms bypass when unchanged and zero-cost file path migration.
+    If target_folder is specified, strictly scopes indexing to that directory.
     """
     if progress_callback:
         progress_callback(0, 0, "scanning", "")
@@ -141,35 +143,59 @@ def run_index_folder(
         # Mode A: FORCE FULL REINDEX (/sync --force)
         # -------------------------------------------------------------
         if force_full:
-            if verbose:
-                safe_print(f"  • Force Full: Purging existing local document chunks for '{target_ws_name}'...")
-            for ws in workspaces_to_process:
+            if target_folder:
+                norm_tf = os.path.abspath(target_folder.strip().strip("'\""))
+                if verbose:
+                    safe_print(f"  • Force Full: Purging existing local document chunks for folder '{norm_tf}' in '{target_ws_name}'...")
                 try:
-                    lance_store.delete_local_documents_by_workspace(ws.name)
+                    lance_store.delete_by_file(norm_tf, workspace_name=target_ws_name)
                 except Exception:
                     pass
-                try:
-                    store.clear_workspace_files_cache(ws.name)
-                except Exception:
-                    pass
+                cached_files = store.get_workspace_files_cache(target_ws_name)
+                norm_prefix = os.path.normcase(norm_tf if norm_tf.endswith(os.sep) else norm_tf + os.sep)
+                matching_keys = [
+                    fp for fp in cached_files
+                    if os.path.normcase(fp) == os.path.normcase(norm_tf) or os.path.normcase(fp).startswith(norm_prefix)
+                ]
+                if matching_keys:
+                    store.remove_workspace_files_cache(target_ws_name, matching_keys)
 
-            files_to_index = []
-            for ws in workspaces_to_process:
-                for folder_path in ws.paths:
-                    if os.path.exists(folder_path):
-                        found = discover_workspace_files(folder_path)
-                        files_to_index.extend(found)
-                        if progress_callback:
-                            try:
-                                progress_callback(len(files_to_index), 0, "scanning", folder_path)
-                            except Exception:
-                                pass
+                files_to_index = discover_workspace_files(norm_tf) if os.path.exists(norm_tf) else []
+                if progress_callback:
+                    try:
+                        progress_callback(len(files_to_index), 0, "scanning", norm_tf)
+                    except Exception:
+                        pass
+            else:
+                if verbose:
+                    safe_print(f"  • Force Full: Purging existing local document chunks for '{target_ws_name}'...")
+                for ws in workspaces_to_process:
+                    try:
+                        lance_store.delete_local_documents_by_workspace(ws.name)
+                    except Exception:
+                        pass
+                    try:
+                        store.clear_workspace_files_cache(ws.name)
+                    except Exception:
+                        pass
+
+                files_to_index = []
+                for ws in workspaces_to_process:
+                    for folder_path in ws.paths:
+                        if os.path.exists(folder_path):
+                            found = discover_workspace_files(folder_path)
+                            files_to_index.extend(found)
+                            if progress_callback:
+                                try:
+                                    progress_callback(len(files_to_index), 0, "scanning", folder_path)
+                                except Exception:
+                                    pass
 
             if not files_to_index:
                 has_configured_paths = any(ws.paths for ws in workspaces_to_process)
                 if verbose:
-                    if has_configured_paths:
-                        safe_print("⚠️ No valid indexable documents found across configured paths.\n")
+                    if has_configured_paths or target_folder:
+                        safe_print("⚠️ No valid indexable documents found across target path.\n")
                     else:
                         safe_print("ℹ️ No local folders configured for this workspace.\n")
                 return {"status": "empty", "total_files": 0, "indexed_files": 0}
@@ -187,7 +213,7 @@ def run_index_folder(
         # Mode B: INCREMENTAL SYNC (/sync)
         # -------------------------------------------------------------
         else:
-            diff = check_workspace_changes(target_ws_name)
+            diff = check_workspace_changes(target_ws_name, target_folder=target_folder)
             diff_summary = diff
             if progress_callback and diff.get("total_disk_files"):
                 try:

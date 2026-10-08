@@ -7,6 +7,59 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 19 (v0.32.17 Sincronização Escopada de Pastas no /folder, Resiliência UTF-8 Multibyte no Chunker e LanceDB Sync Isolado):
+- **Objetivo**: Comprovar que na versão `v0.32.17`:
+  1. **Sincronização Estritamente Escopada no `/folder` e `/folder .`**:
+     - Ao executar `/folder <caminho>` ou `/folder .` (ou `/sync <caminho>` / `/sync --folder <caminho>`), o AnyContext sincroniza única e exclusivamente a pasta especificada.
+     - Nenhuma outra pasta previamente registrada no workspace (mesmo repositórios com centenas de milhares de arquivos como `esp-idf`) nem portais web são sincronizados ou tocados.
+     - O worker em segundo plano recebe o parâmetro `--folder <caminho>` e restringe o scan, diff e indexação no LanceDB exclusivamente à pasta escopada, sem falsos positivos de arquivos deletados de outras pastas.
+  2. **Resiliência do Chunker de Código UTF-8 Multibyte (`safe_floor_char_boundary`)**:
+     - Arquivos contendo caracteres UTF-8 multibyte (como reticências `…` de 3 bytes, aspas curvas ou caracteres especiais) situados exatamente na fronteira de corte de chunks (1024 caracteres) não causam mais pânico em `splitter.rs` (`byte index is not a char boundary`).
+     - A quebra de chunks respeita as fronteiras de caracteres UTF-8 de forma segura.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.32.17`.
+
+2. **📁 Teste de Sincronização Estritamente Escopada (`/folder .`):**
+   - Em um workspace contendo outras pastas já registradas, navegue até um diretório específico e execute:
+     ```text
+     /folder .
+     ```
+   - **Critérios de Aceitação**:
+     - O feedback informa: `📁 Added folder to workspace '...': <caminho> (resolved from current working directory)`.
+     - Informa: `⚡ Indexing started in background for this folder [PID: ...]`.
+     - Verifique o log de sincronização (`/logs` ou no arquivo de log do workspace):
+       - Apenas a pasta especificada é listada como escopada (`(scoped folder: '<caminho>')`).
+       - Nenhuma outra pasta previamente cadastrada no workspace é escaneada ou reindexada.
+       - Nenhum portal web é sincronizado durante a operação.
+
+3. **🔄 Teste de Sincronização Específica com `/sync <caminho>`:**
+   - Na TUI ou CLI, execute:
+     ```text
+     /sync .
+     ```
+     ou:
+     ```text
+     actx -s --folder .
+     ```
+   - **Critérios de Aceitação**:
+     - O feedback exibe explicitamente `• Scoped Folder: <caminho>`.
+     - O worker processa apenas os arquivos daquela pasta.
+
+4. **🛡️ Teste de Resiliência UTF-8 Multibyte:**
+   - Adicione ou sincronize uma pasta contendo arquivos com caracteres multibyte (ex: `…`, emojis ou acentuações).
+   - **Critérios de Aceitação**:
+     - A indexação conclui com sucesso com `100%` e status `Up to date`.
+     - Nenhum erro de `panicked at ... is not a char boundary` ocorre nos logs.
+
+---
+
 ### 📌 Cenário 17 (v0.32.16 Descriptografia Transparente no LanceDB, Cancelamento de Sync, Comandos /cd e /pwd, e Imunização do Prompt TUI):
 - **Objetivo**: Comprovar que na versão `v0.32.16`:
   1. **Descriptografia Transparente no `/inspect` e RAG**:

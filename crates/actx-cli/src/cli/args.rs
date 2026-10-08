@@ -38,6 +38,10 @@ pub struct CliArgs {
     #[arg(short = 'f', long = "force")]
     pub force: bool,
 
+    /// Scoped folder for targeted synchronization
+    #[arg(long = "folder", alias = "fld")]
+    pub folder: Option<String>,
+
     /// Direct one-shot query or question (executes without opening full TUI)
     #[arg(short = 'q', long = "query", short_alias = 'p', alias = "prompt", alias = "question")]
     pub prompt: Option<String>,
@@ -73,6 +77,8 @@ pub enum CliCommand {
     Sync {
         #[arg(short, long)]
         force: bool,
+        #[arg(short, long)]
+        folder: Option<String>,
     },
     /// Checks or performs self-updates for the standalone binary
     #[command(alias = "self-update", alias = "upgrade")]

@@ -159,16 +159,26 @@ def entrypoint():
     if "--sync-worker" in sys.argv:
         target_ws = "Default"
         force = "--force" in sys.argv or "-f" in sys.argv
+        target_folder = None
+        skip_next = False
         for i, a in enumerate(sys.argv):
+            if skip_next:
+                skip_next = False
+                continue
             if a in ["-w", "--workspace"] and i + 1 < len(sys.argv):
                 target_ws = sys.argv[i + 1]
+                skip_next = True
+            elif a in ["--folder", "-fld"] and i + 1 < len(sys.argv):
+                target_folder = sys.argv[i + 1]
+                skip_next = True
             elif not a.startswith("-") and a != sys.argv[0] and a != "--sync-worker":
                 target_ws = a
         from any_context.ingestion.unified_sync import run_unified_sync
         from any_context.config.db_store import ConfigDBStore
         store = ConfigDBStore()
         store.update_sync_status(target_ws, is_syncing=True, pid=os.getpid(), stage="scanning")
-        print(f"🔄 Executing unified sync worker for workspace '{target_ws}' (force={force})...", flush=True)
+        fld_msg = f" (scoped folder: '{target_folder}')" if target_folder else ""
+        print(f"🔄 Executing unified sync worker for workspace '{target_ws}' (force={force}){fld_msg}...", flush=True)
 
         def _worker_progress(current, total, stage, item_name):
             try:
@@ -187,6 +197,7 @@ def entrypoint():
         try:
             res = run_unified_sync(
                 workspace_name=target_ws,
+                target_folder=target_folder,
                 force_full=force,
                 verbose=True,
                 progress_callback=_worker_progress

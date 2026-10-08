@@ -420,7 +420,11 @@ impl CommandEngine {
     // Background Sync Worker Spawning Helper
     // -------------------------------------------------------------------------
     /// Spawns the background synchronization / crawler worker for a workspace.
-    pub fn spawn_sync_worker(workspace: &str, force: bool) -> Result<(u32, std::path::PathBuf), String> {
+    pub fn spawn_sync_worker(
+        workspace: &str,
+        force: bool,
+        target_folder: Option<&str>,
+    ) -> Result<(u32, std::path::PathBuf), String> {
         let canonical_dir = actx_installer::paths::get_canonical_bin_dir();
         let core_name = actx_installer::paths::get_core_exe_name();
         let core_exe = canonical_dir.join(core_name);
@@ -446,6 +450,9 @@ impl CommandEngine {
         cmd.arg("--workspace").arg(workspace);
         if force {
             cmd.arg("--force");
+        }
+        if let Some(folder) = target_folder {
+            cmd.arg("--folder").arg(folder);
         }
 
         let log_dir = get_default_logs_dir();
@@ -568,7 +575,33 @@ impl CommandEngine {
         let force = args.iter().any(|a| *a == "--force" || *a == "-f" || *a == "force");
         let is_menu = args.iter().any(|a| *a == "--menu" || *a == "-m" || *a == "menu");
 
-        if (args.is_empty() || is_menu) && !is_incremental && !force {
+        // Parse optional target folder from args
+        let mut target_folder: Option<String> = None;
+        for i in 0..args.len() {
+            if (args[i] == "--folder" || args[i] == "-fld") && i + 1 < args.len() {
+                let p = Path::new(args[i + 1].trim_matches('\'').trim_matches('"'));
+                let canonical = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+                target_folder = Some(canonical.to_string_lossy().trim_start_matches(r"\\?\").to_string());
+                break;
+            }
+        }
+        if target_folder.is_none() {
+            for arg in args {
+                let a = *arg;
+                if a.starts_with('-') || a == "incremental" || a == "force" || a == "menu" || a == "status" || a == "cancel" {
+                    continue;
+                }
+                let clean = a.trim_matches('\'').trim_matches('"');
+                let p = Path::new(clean);
+                if p.exists() || clean == "." {
+                    let canonical = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+                    target_folder = Some(canonical.to_string_lossy().trim_start_matches(r"\\?\").to_string());
+                    break;
+                }
+            }
+        }
+
+        if (args.is_empty() || is_menu) && !is_incremental && !force && target_folder.is_none() {
             return CommandResult::success("Opening sync options...")
                 .with_action(CommandAction::OpenMenu("sync".to_string()));
         }
@@ -588,23 +621,27 @@ impl CommandEngine {
             vec![]
         };
 
-        match Self::spawn_sync_worker(&ctx.active_workspace, force) {
+        match Self::spawn_sync_worker(&ctx.active_workspace, force, target_folder.as_deref()) {
             Ok((pid, log_path)) => {
                 let mut msg = if force {
                     format!("Forced sync completed: Background synchronization worker spawned for workspace '**{}**' [PID: {}]:\n", ctx.active_workspace, pid)
                 } else {
                     format!("🔄 Synchronizing workspace '**{}**': Background synchronization worker spawned [PID: {}]:\n", ctx.active_workspace, pid)
                 };
-                if !effective_folders.is_empty() {
-                    msg.push_str(&format!("  • Monitored Local Roots: {}\n", effective_folders.len()));
-                    for f in &effective_folders {
-                        msg.push_str(&format!("     • {}\n", f));
+                if let Some(ref tf) = target_folder {
+                    msg.push_str(&format!("  • Scoped Folder: {}\n", tf));
+                } else {
+                    if !effective_folders.is_empty() {
+                        msg.push_str(&format!("  • Monitored Local Roots: {}\n", effective_folders.len()));
+                        for f in &effective_folders {
+                            msg.push_str(&format!("     • {}\n", f));
+                        }
                     }
-                }
-                if !urls.is_empty() {
-                    msg.push_str(&format!("  • Web Documentation Portals: {}\n", urls.len()));
-                    for u in &urls {
-                        msg.push_str(&format!("     • {}\n", u));
+                    if !urls.is_empty() {
+                        msg.push_str(&format!("  • Web Documentation Portals: {}\n", urls.len()));
+                        for u in &urls {
+                            msg.push_str(&format!("     • {}\n", u));
+                        }
                     }
                 }
                 msg.push_str(&format!(
@@ -739,9 +776,9 @@ impl CommandEngine {
                     if clean_path_str == "." {
                         msg.push_str(" (resolved from current working directory)");
                     }
-                    match Self::spawn_sync_worker(&ctx.active_workspace, false) {
+                    match Self::spawn_sync_worker(&ctx.active_workspace, false, Some(&clean_canonical_str)) {
                         Ok((pid, _)) => {
-                            msg.push_str(&format!("\n⚡ Indexing started in background [PID: {}].", pid));
+                            msg.push_str(&format!("\n⚡ Indexing started in background for this folder [PID: {}].", pid));
                         }
                         Err(e) => {
                             msg.push_str(&format!("\n(Background sync worker note: {})", e));
@@ -849,7 +886,7 @@ impl CommandEngine {
             match db.add_workspace_web_url(&ctx.active_workspace, clean_url) {
                 Ok(_) => {
                     let mut msg = format!("🌐 Added web documentation portal to workspace '{}':\n  {}", ctx.active_workspace, clean_url);
-                    match Self::spawn_sync_worker(&ctx.active_workspace, false) {
+                    match Self::spawn_sync_worker(&ctx.active_workspace, false, None) {
                         Ok((pid, _)) => {
                             msg.push_str(&format!("\n⚡ Crawler started in background [PID: {}].", pid));
                         }
