@@ -7,6 +7,60 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 20 (v0.32.18 Suporte a --update@<versão>, Indicador Persistente de Workspace Up-to-Date na TUI, Resolução Definitiva de Shadowing de Binários no Windows e Log de Atualização Canônico):
+- **Objetivo**: Comprovar que na versão `v0.32.18`:
+  1. **Sintaxe de Atualização com Versão-Alvo (`--update@<versão>`, `-u@<versão>`, `update@<versão>`, `/update@<versão>` e `/update @<versão>`)**:
+     - Suporte nativo completo a flags compostas como `actx --update@v0.32.17`, `actx -u@v0.32.17`, `actx update@v0.32.17`, `actx update --version v0.32.17`, e comandos interativos na TUI como `/update@v0.32.17` e `/update @v0.32.17`.
+     - O CLI e a TUI extraem e normalizam a tag de versão especificada (com ou sem `@` e prefixo `v`), realizando o download e swap atômico da versão desejada.
+  2. **Indicador Visual Persistente de Workspace Up-to-Date na TUI Rust (Header e Footer)**:
+     - O cabeçalho superior (Header) renderiza permanentemente o badge `[Sync: ✔ Up to date]` (em verde) quando o workspace está indexado e em repouso, ou `[Sync: ⚡ Syncing <progresso>]` (em amarelo bold com animação rotativa) durante sincronização ativa.
+     - A barra inferior (Footer) exibe permanentemente `✔ Up to date │ ` antes dos atalhos de teclado (ou `⚡ Syncing <progresso> │ ` durante execução), eliminando o desaparecimento do status presente em versões anteriores.
+  3. **Resolução Definitiva de Shadowing e Substituição Atômica no Windows (`~/.cargo/bin/actx.exe`)**:
+     - A substituição do binário ativo (`replace_target_binary`) no Windows utiliza retry loop com backoff exponencial de 15 tentativas (1.5 segundos no total), tolerando travas de antivírus e processos em finalização após o rename atômico.
+     - A rotina de auto-cura (`heal_executing_and_shadowed_binaries`) inspeciona tanto o binário atualmente em execução quanto todas as ocorrências do PATH e o diretório padrão `~/.cargo/bin/actx.exe`, garantindo que executáveis antigos que precedem no PATH do Git Bash / MSYS2 sejam atualizados automaticamente e seus arquivos `.old` limpos.
+  4. **Log Canônico de Auditoria de Atualização (`update.log`)**:
+     - Todos os eventos do pipeline de atualização (resolução de tag, download, extração, swap atômico, sincronização de binários sombreados e erros) são registrados de forma persistente e estruturada com timestamps ISO em `%LOCALAPPDATA%\AnyContext\logs\update.log` (ou `~/.local/share/AnyContext/logs/update.log` no Linux/macOS).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.32.18`.
+
+2. **🔄 Teste de Atualização com Sintaxe @ (`actx --update@<versão>`):**
+   - Execute no terminal:
+     ```text
+     actx --update@v0.32.17
+     ```
+   - **Critérios de Aceitação**:
+     - O CLI não acusa erro de argumento inesperado do Clap.
+     - O instalador inicia a resolução e o download do ativo da versão solicitada `v0.32.17`.
+     - Verifique que o arquivo de log `%LOCALAPPDATA%\AnyContext\logs\update.log` registra o evento com o timestamp e a tag de destino.
+   - Retorne para a versão mais recente com `actx --update`.
+
+3. **📊 Teste do Indicador Visual Persistente de Workspace Up-to-Date na TUI:**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - Observe o cabeçalho superior (Header):
+     - **Critério de Aceitação**: Exibe claramente `[Sync: ✔ Up to date]` em verde, logo após `[WS: Default]`.
+   - Observe o rodapé inferior (Footer):
+     - **Critério de Aceitação**: Exibe `✔ Up to date │ ` imediatamente antes dos atalhos de teclado `[F1 / /menu] Menu ...`.
+   - Dispare uma sincronização:
+     ```text
+     /sync
+     ```
+   - **Critério de Aceitação**: Enquanto a sincronização ocorre, tanto o Header quanto o Footer exibem `⚡ Syncing <spinner> <progresso>` em amarelo bold. Ao concluir, ambos retornam para `✔ Up to date` em verde.
+
+4. **🛡️ Teste de Cura de Binário Sombreado no Windows (`~/.cargo/bin`):**
+   - No Git Bash / UCRT64, execute `actx -v` e verifique que o binário localizado em `~/.cargo/bin/actx.exe` ou `%LOCALAPPDATA%\actx\bin\actx.exe` reporta a versão correta sem mensagens de `No such file or directory` nem reversão para versões legadas.
+
+---
+
 ### 📌 Cenário 19 (v0.32.17 Sincronização Escopada de Pastas no /folder, Resiliência UTF-8 Multibyte no Chunker e LanceDB Sync Isolado):
 - **Objetivo**: Comprovar que na versão `v0.32.17`:
   1. **Sincronização Estritamente Escopada no `/folder` e `/folder .`**:

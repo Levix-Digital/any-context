@@ -26,6 +26,10 @@ pub struct CliArgs {
     #[arg(short = 'u', long = "update", alias = "upgrade")]
     pub update: bool,
 
+    /// Explicit target release version tag (e.g. v0.32.17)
+    #[arg(long = "version-target", hide = true)]
+    pub version_target: Option<String>,
+
     /// Run system diagnostics report in headless stdout mode
     #[arg(short = 'd', long = "diagnostics", alias = "diag", alias = "health", alias = "diagnistics")]
     pub diagnostics: bool,
@@ -86,6 +90,12 @@ pub enum CliCommand {
         /// Only check for updates without applying
         #[arg(long)]
         check: bool,
+        /// Explicit target release version tag (e.g. v0.32.17)
+        #[arg(short, long)]
+        version: Option<String>,
+        /// Positional target release version tag
+        #[arg(index = 1)]
+        target: Option<String>,
     },
     /// Emits system diagnostic report and telemetry
     #[command(alias = "diag", alias = "perf", alias = "health", alias = "diagnistics")]

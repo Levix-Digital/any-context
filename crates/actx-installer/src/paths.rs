@@ -90,6 +90,50 @@ pub fn get_distribution_asset_name() -> &'static str {
     }
 }
 
+/// Resolves the canonical logs directory cross-platform.
+/// - Windows: %LOCALAPPDATA%\AnyContext\logs
+/// - macOS: ~/Library/Logs/AnyContext
+/// - Linux: ~/.local/share/any-context/logs
+pub fn get_canonical_logs_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            return PathBuf::from(local).join("AnyContext").join("logs");
+        }
+        if let Some(local_app_data) = dirs::data_local_dir() {
+            return local_app_data.join("AnyContext").join("logs");
+        }
+        if let Some(home) = dirs::home_dir() {
+            return home.join("AppData").join("Local").join("AnyContext").join("logs");
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = dirs::home_dir() {
+            return home.join("Library").join("Logs").join("AnyContext");
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(".local").join("share").join("any-context").join("logs");
+        }
+    }
+    std::env::temp_dir().join("AnyContext").join("logs")
+}
+
+/// Appends a structured log event to the persistent update.log file.
+pub fn log_update_event(level: &str, message: &str) {
+    let logs_dir = get_canonical_logs_dir();
+    let _ = std::fs::create_dir_all(&logs_dir);
+    let log_path = logs_dir.join("update.log");
+    use std::io::Write;
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+        let ts = chrono::Utc::now().to_rfc3339();
+        let _ = writeln!(file, "[{}] [{}] {}", ts, level, message);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -12,7 +12,9 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
     }
 
     if args.update {
-        handle_update(None);
+        let target_ver = args.version_target.as_deref()
+            .or_else(|| args.positional_query.first().map(|s| s.as_str()).filter(|s| s.starts_with('v') || s.starts_with('@')));
+        handle_update(target_ver);
         return Ok(());
     }
 
@@ -112,11 +114,14 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 println!("Status:     Healthy & Operational");
                 return Ok(());
             }
-            CliCommand::Update { check } => {
+            CliCommand::Update { check, version, target } => {
                 if *check {
                     handle_check_update();
                 } else {
-                    handle_update(None);
+                    let target_ver = version.as_deref()
+                        .or(target.as_deref())
+                        .or(args.version_target.as_deref());
+                    handle_update(target_ver);
                 }
                 return Ok(());
             }
@@ -195,7 +200,18 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
     }
 
     if trimmed == "--update" || trimmed == "-u" || trimmed == "update" || trimmed == "upgrade" {
-        handle_update(None);
+        handle_update(args.version_target.as_deref());
+        return Ok(());
+    }
+
+    if let Some(target) = trimmed.strip_prefix("--update@")
+        .or_else(|| trimmed.strip_prefix("-u@"))
+        .or_else(|| trimmed.strip_prefix("update@"))
+        .or_else(|| trimmed.strip_prefix("upgrade@"))
+        .or_else(|| trimmed.strip_prefix("--update="))
+        .or_else(|| trimmed.strip_prefix("-u="))
+    {
+        handle_update(Some(target));
         return Ok(());
     }
 
@@ -357,6 +373,7 @@ fn handle_check_update() {
 }
 
 fn handle_update(target_ver: Option<&str>) {
+    let clean = target_ver.map(|t| t.trim_start_matches('@'));
     let bin_dir = actx_installer::paths::get_canonical_bin_dir();
-    actx_installer::run_standalone_update(&bin_dir, target_ver);
+    actx_installer::run_standalone_update(&bin_dir, clean);
 }

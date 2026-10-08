@@ -10,7 +10,7 @@ use std::process::Command;
 use atomic_swap::finalize_staging_update;
 use downloader::{download_release_asset, fetch_latest_release_tag};
 use extractor::extract_archive;
-pub use paths::{get_canonical_bin_dir, get_core_exe_name, get_distribution_asset_name, get_shim_exe_name};
+pub use paths::{get_canonical_bin_dir, get_canonical_logs_dir, get_core_exe_name, get_distribution_asset_name, get_shim_exe_name, log_update_event};
 use validator::validate_binary_format;
 
 pub const FALLBACK_VERSION: &str = "v0.30.34";
@@ -236,22 +236,45 @@ pub fn run_installer_workflow(args: &[String]) {
 
 /// Executes a self-update returning a Result for UI-agnostic callers.
 pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str>) -> Result<String, String> {
+    log_update_event(
+        "INFO",
+        &format!(
+            "execute_standalone_update initiated: requested={:?}, base_dir={}",
+            requested_version,
+            base_dir.display()
+        ),
+    );
+
     let target_version = match requested_version {
         Some(v) => {
-            if v.starts_with('v') {
-                v.to_string()
+            let clean = v.trim_start_matches('@');
+            if clean.starts_with('v') || clean.starts_with('V') {
+                clean.to_string()
             } else {
-                format!("v{}", v)
+                format!("v{}", clean)
             }
         }
-        None => fetch_latest_release_tag().map_err(|e| format!("Failed to resolve latest release: {}", e))?,
+        None => match fetch_latest_release_tag() {
+            Ok(tag) => tag,
+            Err(e) => {
+                let err_msg = format!("Failed to resolve latest release: {}", e);
+                log_update_event("ERROR", &err_msg);
+                return Err(err_msg);
+            }
+        },
     };
+
+    log_update_event("INFO", &format!("Target release tag resolved: {}", target_version));
 
     let asset_name = get_distribution_asset_name();
     let temp_archive = std::env::temp_dir().join(format!("actx_update_{}_{}", target_version, asset_name));
 
-    download_release_asset(&target_version, asset_name, &temp_archive)
-        .map_err(|e| format!("Download failed: {}", e))?;
+    if let Err(e) = download_release_asset(&target_version, asset_name, &temp_archive) {
+        let err_msg = format!("Download failed: {}", e);
+        log_update_event("ERROR", &err_msg);
+        return Err(err_msg);
+    }
+    log_update_event("INFO", &format!("Downloaded release asset: {}", temp_archive.display()));
 
     let staging_dir = base_dir.join("actx_staging");
     if staging_dir.exists() {
@@ -260,18 +283,27 @@ pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str
 
     if let Err(e) = extract_archive(&temp_archive, &staging_dir) {
         let _ = std::fs::remove_file(&temp_archive);
-        return Err(format!("Extraction failed: {}", e));
+        let err_msg = format!("Extraction failed: {}", e);
+        log_update_event("ERROR", &err_msg);
+        return Err(err_msg);
     }
 
     let _ = std::fs::remove_file(&temp_archive);
+    log_update_event("INFO", "Archive extracted successfully into staging directory.");
 
-    finalize_staging_update(base_dir, &staging_dir, Some(&target_version))
-        .map_err(|e| format!("Update finalization failed: {}", e))?;
+    if let Err(e) = finalize_staging_update(base_dir, &staging_dir, Some(&target_version)) {
+        let err_msg = format!("Update finalization failed: {}", e);
+        log_update_event("ERROR", &err_msg);
+        return Err(err_msg);
+    }
+    log_update_event("INFO", "Staging update finalized (atomic swap completed).");
 
     configure_system_path(base_dir);
     heal_executing_and_shadowed_binaries(base_dir, &target_version);
 
-    Ok(format!("AnyContext successfully updated to {} in {}", target_version, base_dir.display()))
+    let ok_msg = format!("AnyContext successfully updated to {} in {}", target_version, base_dir.display());
+    log_update_event("SUCCESS", &ok_msg);
+    Ok(ok_msg)
 }
 
 /// Executes a self-update from the active installation directory with stdout progress.
@@ -360,8 +392,29 @@ pub fn replace_target_binary(target: &Path, source: &Path) -> Result<(), std::io
         ));
 
         std::fs::rename(target, &old_target)?;
-        match std::fs::copy(source, target) {
-            Ok(_) => Ok(()),
+
+        let mut copy_res = Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Initial copy attempt",
+        ));
+        for _ in 0..15 {
+            match std::fs::copy(source, target) {
+                Ok(_) => {
+                    copy_res = Ok(());
+                    break;
+                }
+                Err(e) => {
+                    copy_res = Err(e);
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+            }
+        }
+
+        match copy_res {
+            Ok(_) => {
+                let _ = std::fs::remove_file(&old_target);
+                Ok(())
+            }
             Err(e) => {
                 let _ = std::fs::rename(&old_target, target);
                 Err(e)
@@ -392,6 +445,8 @@ pub fn heal_executing_and_shadowed_binaries(base_dir: &Path, target_version: &st
         return;
     }
 
+    clean_lingering_old_files(base_dir);
+
     // 1. Check if the executing binary is outside base_dir (e.g. ~/.cargo/bin or custom path)
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(parent) = current_exe.parent() {
@@ -401,18 +456,22 @@ pub fn heal_executing_and_shadowed_binaries(base_dir: &Path, target_version: &st
                     println!("[*] Synchronizing executing binary at '{}'...", current_exe.display());
                     match replace_target_binary(&current_exe, &source_shim) {
                         Ok(_) => {
-                            println!(
-                                "[OK] Updated executing binary at '{}' to {}!",
+                            let msg = format!(
+                                "Updated executing binary at '{}' to {}!",
                                 current_exe.display(),
                                 target_version
                             );
+                            println!("[OK] {}", msg);
+                            log_update_event("INFO", &msg);
                         }
                         Err(e) => {
-                            eprintln!(
-                                "[!] Warning: Could not update executing binary at '{}': {}",
+                            let warn_msg = format!(
+                                "Could not update executing binary at '{}': {}",
                                 current_exe.display(),
                                 e
                             );
+                            eprintln!("[!] Warning: {}", warn_msg);
+                            log_update_event("WARN", &warn_msg);
                         }
                     }
                 }
@@ -428,6 +487,7 @@ pub fn heal_executing_and_shadowed_binaries(base_dir: &Path, target_version: &st
             if dir.as_os_str().is_empty() || is_same_file_or_dir(dir, base_dir) {
                 continue;
             }
+            clean_lingering_old_files(dir);
             let candidate = dir.join(shim_name);
             if candidate.is_file() {
                 if let Ok(current_exe) = std::env::current_exe() {
@@ -443,19 +503,62 @@ pub fn heal_executing_and_shadowed_binaries(base_dir: &Path, target_version: &st
                     println!("[*] Detected shadowed binary in PATH: '{}'. Synchronizing...", candidate.display());
                     match replace_target_binary(&candidate, &source_shim) {
                         Ok(_) => {
-                            println!(
-                                "[OK] Synchronized shadowed binary at '{}' to {}!",
+                            let msg = format!(
+                                "Synchronized shadowed binary at '{}' to {}!",
                                 candidate.display(),
                                 target_version
                             );
+                            println!("[OK] {}", msg);
+                            log_update_event("INFO", &msg);
                         }
                         Err(e) => {
-                            eprintln!(
-                                "[!] Warning: Found older actx binary at '{}' that could shadow AnyContext (error: {}). Please remove it or ensure '{}' takes precedence in PATH.",
+                            let warn_msg = format!(
+                                "Found older actx binary at '{}' that could shadow AnyContext (error: {}). Please remove it or ensure '{}' takes precedence in PATH.",
                                 candidate.display(),
                                 e,
                                 base_dir.display()
                             );
+                            eprintln!("[!] Warning: {}", warn_msg);
+                            log_update_event("WARN", &warn_msg);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Explicitly inspect ~/.cargo/bin in case it is installed there without being directly in PATH
+    if let Some(home) = dirs::home_dir() {
+        let cargo_dir = home.join(".cargo").join("bin");
+        clean_lingering_old_files(&cargo_dir);
+        let cargo_candidate = cargo_dir.join(shim_name);
+        if cargo_candidate.is_file() && !is_same_file_or_dir(&cargo_candidate, &source_shim) {
+            let is_cur = std::env::current_exe().map(|c| is_same_file_or_dir(&c, &cargo_candidate)).unwrap_or(false);
+            if !is_cur {
+                let needs_update = match (std::fs::metadata(&cargo_candidate), std::fs::metadata(&source_shim)) {
+                    (Ok(m_cand), Ok(m_src)) => m_cand.len() != m_src.len(),
+                    _ => true,
+                };
+                if needs_update {
+                    println!("[*] Synchronizing cargo binary at '{}'...", cargo_candidate.display());
+                    match replace_target_binary(&cargo_candidate, &source_shim) {
+                        Ok(_) => {
+                            let msg = format!(
+                                "Synchronized cargo binary at '{}' to {}!",
+                                cargo_candidate.display(),
+                                target_version
+                            );
+                            println!("[OK] {}", msg);
+                            log_update_event("INFO", &msg);
+                        }
+                        Err(e) => {
+                            let warn_msg = format!(
+                                "Could not update cargo binary at '{}': {}",
+                                cargo_candidate.display(),
+                                e
+                            );
+                            eprintln!("[!] Warning: {}", warn_msg);
+                            log_update_event("WARN", &warn_msg);
                         }
                     }
                 }

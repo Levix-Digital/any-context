@@ -45,6 +45,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **⚡ Targeted Version Updating, Persistent TUI Sync Indicators & Windows Binary Healing (`v0.32.18`)**:
+  - **Universal Tagged Update Syntax (`actx --update@<version>`)**: Added first-class support for targeted version upgrades and downgrades via CLI flags (`actx --update@v0.32.17`, `actx -u@v0.32.17`, `actx update@v0.32.17`, `actx update --version v0.32.17`) and interactive TUI commands (`/update@v0.32.17`), with transparent version normalization and dedicated audit logging in `%LOCALAPPDATA%\AnyContext\logs\update.log`.
+  - **Persistent Workspace Sync Status (Header & Footer Parity)**: The Rust TUI now continuously displays the active synchronization status badge in both the Top Header (`[Sync: ✔ Up to date]` / `[Sync: ⚡ Syncing <bar>]`) and Bottom Footer (`✔ Up to date │ ` / `⚡ Syncing <bar> │ `), restoring full visual feedback parity with earlier TUI versions.
+  - **Windows NT Binary Replacement & Shadowing Immunity**: Resolved executable file locking and bash path hash invalidation on Windows NT (`bash: No such file or directory`) using a 15-attempt backoff retry loop on binary replacement, and automated detection and synchronization of shadowed binaries across `PATH` and `~/.cargo/bin/actx.exe`.
 - **🔒 Native Vector Decryption, Sync Cancellation, Session Directory Navigation & TUI Prompt Immunity (`v0.32.16`)**:
   - **Native Transparent Encryption-at-Rest (`NativeSecurityEngine`)**: Implemented 100% interoperable AES-GCM-256 and PBKDF2-HMAC-SHA256 decryption in the Rust Core matching Python's hardware-bound machine key signature. `/inspect --full` and native RAG pipelines seamlessly decrypt on-the-fly, completely eliminating raw `enc::...` ciphertexts from inspection and retrieval across Linux, Windows, and macOS.
   - **Sync Cancellation Subsystem (`/sync cancel`)**: Users can now immediately halt background synchronization or crawling tasks via `/sync cancel`, `/cancel`, or the TUI sync menu (`[F1]`), safely terminating the background worker process tree and resetting status to `[cancelled]`.

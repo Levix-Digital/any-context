@@ -82,11 +82,39 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         ("OFF", Style::default().fg(Color::DarkGray))
     };
 
+    let (sync_text, sync_style) = if let Some(status) = &app.sync_status {
+        if status.is_syncing {
+            let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
+            (
+                format!("⚡ Syncing {} {}", spinner, status.progress_bar),
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            )
+        } else if status.stage == "cancelled" {
+            (
+                "🛑 Sync Cancelled".to_string(),
+                Style::default().fg(Color::Red),
+            )
+        } else {
+            (
+                "✔ Up to date".to_string(),
+                Style::default().fg(Color::Green),
+            )
+        }
+    } else {
+        (
+            "✔ Up to date".to_string(),
+            Style::default().fg(Color::Green),
+        )
+    };
+
     let title = Line::from(vec![
         Span::styled("AnyContext ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         Span::styled(format!("v{} ", env!("CARGO_PKG_VERSION")), Style::default().fg(Color::DarkGray)),
         Span::raw("─ [WS: "),
         Span::styled(&app.active_workspace, Style::default().fg(Color::Yellow)),
+        Span::raw("] ─ [Sync: "),
+        Span::styled(sync_text, sync_style),
         Span::raw("] ─ [Model: "),
         Span::styled(&app.active_model, Style::default().fg(Color::Magenta)),
         Span::raw("] ─ [Grounding: "),
@@ -334,10 +362,16 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
             spans.push(Span::styled(format!("{} Syncing ", spinner), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled(format!("{} ", status.progress_bar), Style::default().fg(Color::LightYellow).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled("│ ", Style::default().fg(Color::DarkGray)));
-        } else if !status.progress_bar.is_empty() && (status.stage == "completed" || status.progress_bar.contains("Up to date") || status.progress_bar.contains("100%")) {
+        } else if status.stage == "cancelled" {
+            spans.push(Span::styled("🛑 Sync cancelled ", Style::default().fg(Color::Red)));
+            spans.push(Span::styled("│ ", Style::default().fg(Color::DarkGray)));
+        } else {
             spans.push(Span::styled("✔ Up to date ", Style::default().fg(Color::Green)));
             spans.push(Span::styled("│ ", Style::default().fg(Color::DarkGray)));
         }
+    } else {
+        spans.push(Span::styled("✔ Up to date ", Style::default().fg(Color::Green)));
+        spans.push(Span::styled("│ ", Style::default().fg(Color::DarkGray)));
     }
 
     spans.extend(vec![

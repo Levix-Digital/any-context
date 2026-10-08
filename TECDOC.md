@@ -81,6 +81,7 @@
 93. [Transparent Vector Decryption, Sync Cancellation, Session Directory Navigation & TUI Prompt Immunity (`v0.32.16`)](#93-transparent-vector-decryption-sync-cancellation-session-directory-navigation--tui-prompt-immunity-v03216)
 94. [Shadowed Binary Synchronization, User PATH Prioritization & Clean Telemetry (`v0.32.16`)](#94-shadowed-binary-synchronization-user-path-prioritization--clean-telemetry-v03216)
 95. [Scoped Directory Ingestion on /folder, UTF-8 Multibyte Boundary Protection & Isolated LanceDB Sync (`v0.32.17`)](#95-scoped-directory-ingestion-on-folder-utf-8-multibyte-boundary-protection--isolated-lancedb-sync-v03217)
+96. [Targeted Version Syntax, Persistent Workspace Sync Indicator, Windows Binary Shadowing Resolution & Canonical Update Logging (`v0.32.18`)](#96-targeted-version-syntax-persistent-workspace-sync-indicator-windows-binary-shadowing-resolution--canonical-update-logging-v03218)
 ---
 
 
@@ -5992,6 +5993,63 @@ flowchart TD
 #### ADR-102: Scoped Directory Ingestion and Multi-Byte UTF-8 Boundary Clamping
 - **Status**: Accepted & Implemented.
 - **Decision**: Scope `/folder <path>` sync invocations exclusively to the added folder via `--folder <path>`. Restrict stat caching and diffing to the target prefix. Enforce `safe_floor_char_boundary` on all string slices in the native code splitter.
+
+---
+
+## 96. Targeted Version Syntax, Persistent Workspace Sync Indicator, Windows Binary Shadowing Resolution & Canonical Update Logging (`v0.32.18`)
+
+### 1. Problem Statement & Root Cause
+In version `v0.32.17`, production user testing on Windows uncovered four significant usability and operational hurdles:
+1. **Targeted Version Syntax (`--update@<version>` / `-u@<version>`) Failure**:
+   - Users running `actx --update@v0.32.17` or `actx update@v0.32.17` experienced immediate command rejection from Clap (`error: unexpected argument '--update@v0.32.17' found`).
+   - Clap's default token parser expects standard flags and delimiters.
+2. **Missing Workspace Up-To-Date Indicator in Native Rust TUI**:
+   - In the legacy Python/TypeScript TUI, the status bar rendered `✔ Up to date` or `⚡ Syncing <bar>` continuously.
+   - In the Native Rust TUI, `app.sync_status` was initialized to `None` if no sync record existed in SQLite, and `render_footer` only displayed sync text when `status.progress_bar` was populated with a completed percentage. The Top Header only rendered Workspace, Model, Grounding, and Web Search, leaving users blind to whether their workspace was currently indexed and up to date.
+3. **Windows PATH Shadowing & Locked Binary Inconsistency**:
+   - In Git Bash and UCRT64 environments, `~/.cargo/bin/actx.exe` often preceded `%LOCALAPPDATA%\actx\bin\actx.exe` in `PATH`.
+   - When running `actx --update`, the executing process renamed `target` to `target.old_<pid>`, but immediate `std::fs::copy` failed intermittently due to transient antivirus file scanning or directory locking on Windows NT. The updater rolled back `rename`, resulting in bash hashing errors (`bash: /c/Users/guilh/.cargo/bin/actx: No such file or directory`) followed by reversion to the older binary version.
+4. **Silent Update Logging**:
+   - In-TUI update failures (`/update`) emitted errors to the chat viewport without writing structured diagnostic traces to disk, making remote troubleshooting difficult.
+
+### 2. Architectural Design & Implementation
+
+```mermaid
+flowchart TD
+    CLIInput["CLI Input: actx --update@v0.32.17 or /update@v0.32.17"] --> Preprocess["main.rs / CommandEngine: Preprocess & normalize @ into version_target"]
+    Preprocess --> Resolver["Downloader: fetch release asset for target_version"]
+    Resolver --> LogAudit["Log ISO structured event to update.log"]
+    LogAudit --> AtomicSwap["finalize_staging_update: Atomic swap in %LOCALAPPDATA%\\actx\\bin"]
+    AtomicSwap --> HealShadow["heal_executing_and_shadowed_binaries"]
+    HealShadow --> RetryCopy["replace_target_binary with 15-attempt (1.5s) backoff loop"]
+    RetryCopy --> SyncCargo["Explicitly detect & update ~/.cargo/bin/actx.exe"]
+    SyncCargo --> CleanOld["clean_lingering_old_files in all candidate directories"]
+```
+
+1. **Targeted Version Preprocessing & Hexagonal Dispatch**:
+   - `crates/actx-cli/src/main.rs`: Preprocesses raw `std::env::args()` before invoking `CliArgs::parse_from()`. Replaces `--update@<tag>`, `-u@<tag>`, `--update=<tag>`, and `update@<tag>` with `--update --version-target <tag>`.
+   - `crates/actx-cli/src/cli/args.rs`: Added hidden `--version-target` argument and `target`/`version` fields to `CliCommand::Update`.
+   - `crates/any-context-core-rs/src/commands/engine.rs`: In `CommandEngine::execute()`, parses `clean_cmd.split_once('@')` to cleanly support `/update@v0.32.17` and `/update @v0.32.17`.
+   - `crates/actx-installer/src/lib.rs`: In `execute_standalone_update()`, trims leading `@` characters from `requested_version` and normalizes tag prefixes.
+2. **Persistent Workspace Sync Status Indicator (Header & Footer Parity)**:
+   - `crates/actx-cli/src/tui/ui.rs`:
+     - `render_header`: Added persistent badge `[Sync: ✔ Up to date]` (green) or `[Sync: ⚡ Syncing <spinner> <bar>]` (yellow bold) right next to `[WS: <workspace>]`.
+     - `render_footer`: Ensures `✔ Up to date │ ` is permanently rendered before keybindings even when `app.sync_status` is `None` or idle.
+3. **Robust Locked Binary Replacement & Cargo Bin Healing on Windows**:
+   - `crates/actx-installer/src/lib.rs`:
+     - `replace_target_binary`: Added a 15-attempt retry loop with 100ms exponential delay upon Windows NT `std::fs::copy` failure after renaming the running binary.
+     - `heal_executing_and_shadowed_binaries`: Explicitly inspects `~/.cargo/bin/actx.exe` via `dirs::home_dir()`, ensuring any shadowed binary is updated to match the active release.
+     - Automatically cleans lingering `.old` backup files across `base_dir`, `PATH` directories, and `~/.cargo/bin`.
+4. **Canonical Update Logging Pipeline**:
+   - `crates/actx-installer/src/paths.rs`: Implemented `get_canonical_logs_dir()` and `log_update_event(level, message)` appending ISO-8601 timestamps to `%LOCALAPPDATA%\AnyContext\logs\update.log`.
+   - Wired audit logs throughout `execute_standalone_update`, `heal_executing_and_shadowed_binaries`, and `CommandEngine::execute_update`.
+
+### 3. Architecture Decision Record (ADR-103)
+
+#### ADR-103: Robust Multi-Binary Windows Self-Updating, Target Version Delimiters & Sync Indicator Parity
+- **Status**: Accepted & Implemented.
+- **Decision**: Preprocess CLI `@` version delimiters prior to Clap argument validation. Guarantee continuous display of workspace sync status in TUI header and footer. Enforce 15-attempt backoff copy loops on Windows binary replacements and synchronize `~/.cargo/bin/actx.exe`. Route all updater operations to canonical `update.log`.
+
 
 
 

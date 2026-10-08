@@ -14,7 +14,11 @@ impl CommandEngine {
     /// Executes a slash command string or action by canonical name or alias.
     pub fn execute(raw_cmd: &str, args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         let clean_cmd = raw_cmd.trim().trim_start_matches('/').to_lowercase();
-        let cmd = clean_cmd.as_str();
+        let (cmd, at_version) = if let Some((base, ver)) = clean_cmd.split_once('@') {
+            (base, Some(ver))
+        } else {
+            (clean_cmd.as_str(), None)
+        };
 
         match cmd {
             "exit" | "quit" | "q" => {
@@ -105,7 +109,11 @@ impl CommandEngine {
                 Self::execute_config(args, ctx)
             }
             "update" | "self-update" | "upgrade" => {
-                Self::execute_update(args)
+                if let Some(v) = at_version {
+                    Self::execute_update(&[v])
+                } else {
+                    Self::execute_update(args)
+                }
             }
             "check-update" | "check" => {
                 Self::execute_check_update()
@@ -1433,16 +1441,43 @@ impl CommandEngine {
 
     fn execute_update(args: &[&str]) -> CommandResult {
         let canonical_bin = actx_installer::get_canonical_bin_dir();
-        let target_ver = args.first().copied();
+        let target_ver = args.iter().find_map(|a| {
+            let clean = a.trim();
+            if clean.is_empty() || clean == "--check" || clean == "-c" {
+                None
+            } else if let Some(stripped) = clean.strip_prefix("--version=") {
+                Some(stripped.trim_start_matches('@'))
+            } else if let Some(stripped) = clean.strip_prefix("-v=") {
+                Some(stripped.trim_start_matches('@'))
+            } else if clean.starts_with('-') {
+                None
+            } else {
+                Some(clean.trim_start_matches('@'))
+            }
+        });
+        actx_installer::log_update_event(
+            "INFO",
+            &format!(
+                "CommandEngine /update invoked: target_ver={:?}, canonical_bin={}",
+                target_ver,
+                canonical_bin.display()
+            ),
+        );
         match actx_installer::execute_standalone_update(&canonical_bin, target_ver) {
-            Ok(msg) => CommandResult::success(format!(
-                "✨ {}\n\n[>] Please exit and restart 'actx' to load the new version.",
-                msg
-            )),
-            Err(e) => CommandResult::error(format!(
-                "❌ Update failed: {}\nRun 'actx --update' directly in the terminal to inspect network or permission details.",
-                e
-            )),
+            Ok(msg) => {
+                actx_installer::log_update_event("SUCCESS", &format!("CommandEngine update succeeded: {}", msg));
+                CommandResult::success(format!(
+                    "✨ {}\n\n[>] Please exit and restart 'actx' to load the new version.",
+                    msg
+                ))
+            }
+            Err(e) => {
+                actx_installer::log_update_event("ERROR", &format!("CommandEngine update failed: {}", e));
+                CommandResult::error(format!(
+                    "❌ Update failed: {}\nRun 'actx --update' directly in the terminal to inspect network or permission details.",
+                    e
+                ))
+            }
         }
     }
 

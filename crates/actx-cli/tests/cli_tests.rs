@@ -763,6 +763,47 @@ fn test_menu_incremental_sync_selection_and_tick_animation() {
     assert!(last_msg.content.contains("Synchronizing workspace") || last_msg.content.contains("worker spawned") || last_msg.content.contains("sync"));
 }
 
+#[test]
+fn test_update_flag_and_version_target_parsing() {
+    use clap::Parser;
+
+    // 1. Plain update
+    let args1 = CliArgs::parse_from(["actx", "--update"]);
+    assert!(args1.update);
+    assert_eq!(args1.version_target, None);
+    assert!(args1.is_headless());
+
+    // 2. Update with version target
+    let args2 = CliArgs::parse_from(["actx", "--update", "--version-target", "v0.32.17"]);
+    assert!(args2.update);
+    assert_eq!(args2.version_target.as_deref(), Some("v0.32.17"));
+    assert!(args2.is_headless());
+
+    // 3. Subcommand update with positional target
+    let args3 = CliArgs::parse_from(["actx", "update", "v0.32.17"]);
+    match &args3.command {
+        Some(CliCommand::Update { target, version, check }) => {
+            assert_eq!(target.as_deref(), Some("v0.32.17"));
+            assert_eq!(version, &None);
+            assert!(!check);
+        }
+        _ => panic!("Expected CliCommand::Update"),
+    }
+    assert!(args3.is_headless());
+
+    // 4. Subcommand update with --version flag
+    let args4 = CliArgs::parse_from(["actx", "update", "--version", "v0.32.17"]);
+    match &args4.command {
+        Some(CliCommand::Update { target, version, check }) => {
+            assert_eq!(target, &None);
+            assert_eq!(version.as_deref(), Some("v0.32.17"));
+            assert!(!check);
+        }
+        _ => panic!("Expected CliCommand::Update"),
+    }
+    assert!(args4.is_headless());
+}
+
 
 
 
