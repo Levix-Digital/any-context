@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 use walkdir::{DirEntry, WalkDir};
 
-/// Normalizes path string by removing Windows UNC prefix (`\\?\`) and normalizing separators.
+/// Normalizes path string by removing Windows UNC prefix (`\\?\`) and normalizing separators to OS-native format.
 pub fn normalize_path(path: &Path) -> String {
     let s = path.to_string_lossy();
     let clean = if let Some(stripped) = s.strip_prefix(r"\\?\") {
@@ -14,7 +14,14 @@ pub fn normalize_path(path: &Path) -> String {
     } else {
         s.to_string()
     };
-    clean.replace('\\', "/")
+    #[cfg(windows)]
+    {
+        clean.replace('/', "\\")
+    }
+    #[cfg(not(windows))]
+    {
+        clean.replace('\\', "/")
+    }
 }
 
 /// Converts a path to an absolute path string without expanding 8.3 short names on Windows.
@@ -261,6 +268,7 @@ impl WorkspaceScanner {
         let mut cached_map: HashMap<String, (f64, u64)> = HashMap::new();
         for (k, v) in cached_files.iter() {
             let path_str: String = k.extract()?;
+            let norm_k = normalize_path(Path::new(&path_str));
             if let Ok(dict) = v.downcast::<PyDict>() {
                 let mtime: f64 = dict
                     .get_item("last_mtime")?
@@ -272,7 +280,7 @@ impl WorkspaceScanner {
                     .map(|val| val.extract())
                     .transpose()?
                     .unwrap_or(0);
-                cached_map.insert(path_str, (mtime, size));
+                cached_map.insert(norm_k, (mtime, size));
             }
         }
 
@@ -339,7 +347,7 @@ impl WorkspaceScanner {
 
         let mut norm_cached: HashMap<String, (f64, u64)> = HashMap::with_capacity(cached_files.len());
         for (k, v) in cached_files {
-            norm_cached.insert(k.replace('\\', "/"), *v);
+            norm_cached.insert(normalize_path(Path::new(k)), *v);
         }
 
         let mut new_files = Vec::new();

@@ -1221,7 +1221,11 @@ impl NativeConfigDb {
                 Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?, row.get::<_, i64>(2)?))
             })?;
             for r in rows.flatten() {
-                let norm = normalize_path_slashes(&r.0);
+                let norm = if cfg!(windows) {
+                    r.0.replace('/', "\\")
+                } else {
+                    normalize_path_slashes(&r.0)
+                };
                 map.insert(norm, (r.1, r.2.max(0) as u64));
             }
         }
@@ -1234,7 +1238,11 @@ impl NativeConfigDb {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?))
             })?;
             for r in rows.flatten() {
-                let norm = normalize_path_slashes(&r.0);
+                let norm = if cfg!(windows) {
+                    r.0.replace('/', "\\")
+                } else {
+                    normalize_path_slashes(&r.0)
+                };
                 let mtime: f64 = r.1.parse().unwrap_or(0.0);
                 map.insert(norm, (mtime, r.2.max(0) as u64));
             }
@@ -1253,7 +1261,8 @@ impl NativeConfigDb {
         content_hash: Option<&str>,
     ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        let norm_path = normalize_path_slashes(file_path);
+        let norm_path_fm = normalize_path_slashes(file_path);
+        let orig_path = file_path;
         let now = chrono::Utc::now().to_rfc3339();
         let hash = content_hash.unwrap_or("");
         let doc_id = format!("doc_{}", uuid_simple());
@@ -1276,7 +1285,7 @@ impl NativeConfigDb {
                     doc_id = excluded.doc_id,
                     content_hash = excluded.content_hash,
                     indexed_at = excluded.indexed_at",
-                params![workspace, &norm_path, last_mtime, file_size as i64, &doc_id, hash, &now],
+                params![workspace, orig_path, last_mtime, file_size as i64, &doc_id, hash, &now],
             )?;
         }
 
@@ -1291,7 +1300,7 @@ impl NativeConfigDb {
                 size_bytes = excluded.size_bytes,
                 status = excluded.status,
                 updated_at = excluded.updated_at",
-            params![&fm_id, workspace, &norm_path, hash, &mtime_str, file_size as i64, &now],
+            params![&fm_id, workspace, &norm_path_fm, hash, &mtime_str, file_size as i64, &now],
         )?;
 
         Ok(())
@@ -1301,16 +1310,17 @@ impl NativeConfigDb {
     pub fn delete_file_stat_cache(&self, workspace: &str, file_path: &str) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
         let norm_path = normalize_path_slashes(file_path);
+        let norm_back = file_path.replace('/', "\\");
         let orig = file_path;
 
         let _ = conn.execute(
-            "DELETE FROM workspace_files_stat_cache WHERE workspace_name = ?1 COLLATE NOCASE AND (file_path = ?2 OR file_path = ?3)",
-            params![workspace, &norm_path, orig],
+            "DELETE FROM workspace_files_stat_cache WHERE workspace_name = ?1 COLLATE NOCASE AND (file_path = ?2 OR file_path = ?3 OR file_path = ?4)",
+            params![workspace, &norm_path, orig, &norm_back],
         );
 
         let count = conn.execute(
-            "DELETE FROM file_metadata WHERE workspace = ?1 COLLATE NOCASE AND (file_path = ?2 OR file_path = ?3)",
-            params![workspace, &norm_path, orig],
+            "DELETE FROM file_metadata WHERE workspace = ?1 COLLATE NOCASE AND (file_path = ?2 OR file_path = ?3 OR file_path = ?4)",
+            params![workspace, &norm_path, orig, &norm_back],
         )?;
 
         Ok(count > 0)
@@ -1334,19 +1344,21 @@ impl NativeConfigDb {
     pub fn rename_cached_file(&self, workspace: &str, old_path: &str, new_path: &str) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
         let old_norm = normalize_path_slashes(old_path);
+        let old_back = old_path.replace('/', "\\");
         let new_norm = normalize_path_slashes(new_path);
+        let new_target = if cfg!(windows) { new_path.replace('/', "\\") } else { new_norm.clone() };
         let now = chrono::Utc::now().to_rfc3339();
 
         let _ = conn.execute(
             "UPDATE workspace_files_stat_cache SET file_path = ?1, indexed_at = ?2
-             WHERE workspace_name = ?3 COLLATE NOCASE AND (file_path = ?4 OR file_path = ?5)",
-            params![&new_norm, &now, workspace, &old_norm, old_path],
+             WHERE workspace_name = ?3 COLLATE NOCASE AND (file_path = ?4 OR file_path = ?5 OR file_path = ?6)",
+            params![&new_target, &now, workspace, &old_norm, old_path, &old_back],
         );
 
         let count = conn.execute(
             "UPDATE file_metadata SET file_path = ?1, updated_at = ?2
-             WHERE workspace = ?3 COLLATE NOCASE AND (file_path = ?4 OR file_path = ?5)",
-            params![&new_norm, &now, workspace, &old_norm, old_path],
+             WHERE workspace = ?3 COLLATE NOCASE AND (file_path = ?4 OR file_path = ?5 OR file_path = ?6)",
+            params![&new_norm, &now, workspace, &old_norm, old_path, &old_back],
         )?;
 
         Ok(count > 0)
