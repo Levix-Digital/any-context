@@ -185,15 +185,24 @@ Log-Install "Version registered: v$VersionTag"
 
 
 # 4. Compile or Deploy Ultra-Fast Native Launcher Shim (actx.exe < 2ms)
-Write-Host "[*] Configuring ultra-fast native Launcher Shim (actx.exe)..." -ForegroundColor Gray
-$CscPath = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-if (-not (Test-Path $CscPath)) {
-    $CscPath = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+$ShimCompiled = $false
+if (Test-Path $ShimExePath) {
+    $existingShim = Get-Item -LiteralPath $ShimExePath -ErrorAction SilentlyContinue
+    if ($existingShim -and $existingShim.Length -gt 1000000) {
+        Write-Host "[OK] Native Rust executable verified at $ShimExePath" -ForegroundColor Green
+        $ShimCompiled = $true
+    }
 }
 
-$ShimCompiled = $false
-if (Test-Path $CscPath) {
-    $ShimSrc = @"
+if (-not $ShimCompiled) {
+    Write-Host "[*] Configuring ultra-fast native Launcher Shim (actx.exe)..." -ForegroundColor Gray
+    $CscPath = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+    if (-not (Test-Path $CscPath)) {
+        $CscPath = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+    }
+
+    if (Test-Path $CscPath) {
+        $ShimSrc = @"
 using System;
 using System.IO;
 using System.Diagnostics;
@@ -218,10 +227,11 @@ namespace AnyContext.Launcher
                 Console.WriteLine(ver);
                 return 0;
             }
-            string core = Path.Combine(baseDir, "actx-core.exe");
+            string core = Path.Combine(baseDir, "actx.exe");
+            if (!File.Exists(core)) core = Path.Combine(baseDir, "actx-core.exe");
             if (!File.Exists(core)) core = Path.Combine(baseDir, "actx-core");
             if (!File.Exists(core)) {
-                Console.Error.WriteLine("Error: actx-core.exe not found in: " + baseDir);
+                Console.Error.WriteLine("Error: actx.exe or actx-core.exe not found in: " + baseDir);
                 return 1;
             }
             string[] escaped = new string[args.Length];

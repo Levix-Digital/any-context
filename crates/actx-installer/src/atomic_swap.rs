@@ -54,7 +54,17 @@ pub fn finalize_staging_update(
         return Err(format!("Staging directory not found: {}", staging_dir.display()));
     }
 
-    let core_name = get_core_exe_name();
+    let core_name = if staging_dir.join(get_core_exe_name()).exists() {
+        get_core_exe_name()
+    } else if staging_dir.join("actx-core.exe").exists() {
+        "actx-core.exe"
+    } else if staging_dir.join("actx-core").exists() {
+        "actx-core"
+    } else if staging_dir.join(get_shim_exe_name()).exists() {
+        get_shim_exe_name()
+    } else {
+        get_core_exe_name()
+    };
     let staging_core = staging_dir.join(core_name);
 
     // 2. Strict Pre-Swap Binary Format Validation
@@ -194,6 +204,15 @@ pub fn finalize_staging_update(
     }
     if old_internal.exists() {
         let _ = std::fs::remove_dir_all(&old_internal);
+    }
+
+    // Clean up legacy actx-core binary and legacy _internal if migrating from Python to pure Rust
+    let legacy_core = base_dir.join(if cfg!(windows) { "actx-core.exe" } else { "actx-core" });
+    if legacy_core.exists() && legacy_core != target_core {
+        let _ = retry_remove_file(&legacy_core, 5, 20);
+    }
+    if internal_dir.exists() && !staging_internal.exists() {
+        let _ = std::fs::remove_dir_all(&internal_dir);
     }
 
     // Clean any other stale _internal_old* backup directories and .old files

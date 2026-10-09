@@ -239,12 +239,14 @@ if [ "\$1" = "-v" ] || [ "\$1" = "--version" ]; then
     exit 0
 fi
 
-if [ -f "\$BIN_DIR/actx-core" ]; then
+if [ -f "\$BIN_DIR/actx" ]; then
+    exec "\$BIN_DIR/actx" "\$@"
+elif [ -f "\$BIN_DIR/actx-core" ]; then
     exec "\$BIN_DIR/actx-core" "\$@"
 elif [ -f "\$BIN_DIR/actx-core.exe" ]; then
     exec "\$BIN_DIR/actx-core.exe" "\$@"
 else
-    echo "❌ AnyContext core engine not found at \$BIN_DIR/actx-core" >&2
+    echo "❌ AnyContext core engine not found at \$BIN_DIR/actx" >&2
     echo "💡 Please run './install.sh' to repair." >&2
     exit 1
 fi

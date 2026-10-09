@@ -69,13 +69,14 @@ jobs:
           cp target/release/actx.exe dist/actx.exe
           cp target/release/actx-installer.exe dist/actx-installer.exe
           cp dist/actx.exe dist/actx-windows-x86_64.exe
+          cp dist/actx.exe dist/actx-core.exe
 
           if command -v 7z >/dev/null 2>&1; then
-            (cd dist && 7z a -tzip -mx=3 actx-windows-x86_64.zip actx.exe actx-installer.exe)
+            (cd dist && 7z a -tzip -mx=3 actx-windows-x86_64.zip actx.exe actx-core.exe actx-installer.exe)
           elif command -v tar >/dev/null 2>&1; then
-            tar -a -cf dist/actx-windows-x86_64.zip -C dist actx.exe actx-installer.exe
+            tar -a -cf dist/actx-windows-x86_64.zip -C dist actx.exe actx-core.exe actx-installer.exe
           else
-            powershell -Command "Compress-Archive -Path 'dist/actx.exe','dist/actx-installer.exe' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
+            powershell -Command "Compress-Archive -Path 'dist/actx.exe','dist/actx-core.exe','dist/actx-installer.exe' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
           fi
 
       - name: Package Release Assets (Linux)
@@ -86,7 +87,8 @@ jobs:
           cp target/release/actx dist/actx
           cp target/release/actx-installer dist/actx-installer
           cp dist/actx dist/actx-linux-x86_64
-          tar -czf dist/actx-linux-x86_64.tar.gz -C dist actx actx-installer
+          cp dist/actx dist/actx-core
+          tar -czf dist/actx-linux-x86_64.tar.gz -C dist actx actx-core actx-installer
 
       - name: Normalize line endings for Unix scripts
         if: runner.os == 'Linux'
@@ -104,6 +106,7 @@ jobs:
             dist/actx-linux-x86_64.tar.gz
             dist/actx-linux-x86_64
             dist/actx
+            dist/actx-core
             scripts/install.sh
             scripts/uninstall.sh
           tag_name: ${{ github.ref_name }}
@@ -121,6 +124,7 @@ jobs:
             dist/actx-windows-x86_64.zip
             dist/actx-windows-x86_64.exe
             dist/actx.exe
+            dist/actx-core.exe
             scripts/install.ps1
             scripts/uninstall.ps1
           tag_name: ${{ github.ref_name }}
