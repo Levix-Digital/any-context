@@ -5886,3 +5886,54 @@
 3. **🔍 Verificar Persistência no LanceDB:**
    - Faça uma pergunta de busca sobre uma página recém-atualizada do site.
    - **Critério de Sucesso:** A resposta utiliza os vetores atualizados com precisão absoluta.
+
+---
+
+### 📌 Cenário 22 (v0.33.1): Validação da Higiene e Integridade do Monorepo 100% Rust
+
+- **Objetivo**: Comprovar que a release `v0.33.1`:
+  1. Operacionaliza 100% do AnyContext em Rust nativo sem qualquer dependência ou arquivo de runtime legado em Python.
+  2. Garante que `config/app_settings.py` e artefatos mortos foram completamente expurgados do repositório.
+  3. Comprova que `actx --diagnostics` e `actx -v` funcionam de forma ultra-rápida (< 10ms) reportando zero dependências de Python ou Bun.
+  4. Valida a imunidade do processo de auto-atualização (`actx --update`), finalizando o swap atômico sem falhas de arquivo inexistente.
+- **Pré-requisito**: Binário instalado na versão `v0.33.1` (`actx -v` exibindo `v0.33.1` ou `0.33.1`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🧹 Validação de Ausência de Código Python de Runtime:**
+   - Abra um terminal no repositório do AnyContext e liste arquivos Python rastreados:
+     ```bash
+     git ls-files "*.py"
+     ```
+   - **Critério de Aceitação:** O arquivo legado `config/app_settings.py` NÃO existe mais. Apenas utilitários administrativos isolados (como `scripts/levix_license_tool.py`) podem existir, sem nenhum código de execução de runtime da aplicação.
+
+2. **⚡ Validação do Diagnóstico de Saúde Nativo:**
+   - Execute o diagnóstico da aplicação:
+     ```bash
+     actx --diagnostics
+     ```
+   - **Critério de Aceitação:** O terminal renderiza:
+     ```text
+     === AnyContext (actx) Native Rust Diagnostics ===
+     Version:    v0.33.1
+     Engine:     100% Native Rust (crates/actx-cli)
+     Runtimes:   Zero Python, Zero Bun/Node dependencies
+     Database:   ... (Connected)
+     Vectors:    LanceDB Columnar Arrow Engine (Ready)
+     Status:     Healthy & Operational
+     ```
+
+3. **🦀 Validação da Suíte de Testes Rust do Workspace:**
+   - Execute a suíte de testes do workspace:
+     ```bash
+     cargo test --workspace
+     ```
+   - **Critério de Aceitação:** Todos os testes unitários e de integração de todos os crates (`actx-cli`, `actx-installer`, `any-context-core-rs`, `actx-agent`, `actx-lm`) compilam e passam com 100% de sucesso (`test result: ok. 0 failed`).
+
+4. **🔄 Validação do Processo de Auto-Atualização Sem Quebra:**
+   - Execute a atualização em um terminal:
+     ```bash
+     actx --update
+     ```
+   - **Critério de Aceitação:** O instalador nativo baixa o pacote de release, extrai os componentes no diretório de staging, valida os cabeçalhos PE/ELF e finaliza o swap atômico com sucesso (`[OK] AnyContext successfully updated`), sem qualquer falha do tipo `Binary file does not exist: actx-core.exe`.
+

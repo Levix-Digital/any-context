@@ -114,34 +114,32 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Unified Rust-First Pipeline (`NativeHybridPipeline`)**: Unifies LanceDB Apache Arrow columnar vector search, Okapi BM25 inverted lexical index, and Reciprocal Rank Fusion (RRF k=60) inside a zero-copy, sub-3ms native Rust engine (`crates/any-context-core-rs/src/retrieval/pipeline.rs`).
   - **RFC-042 Deep Search Batching (`retrieve_hybrid_batch`)**: Concurrently executes 2 to 4 orthogonal sub-queries on Tokio worker threads with cross-query SHA-256 deduplication and accumulated RRF multi-query boosting.
   - **Source-Fair Round-Robin & Density Budgeting**: Native allocation balancing multi-source workspace distributions with strict character density limits and token ceiling preservation (`token_budget.rs`).
-  - **Zero-GIL Interoperability (`PyHybridPipeline`, `PyHybridSearchRequest`, `PyHybridSearchResult`)**: PyO3 bindings with GIL release (`py.allow_threads`) and seamless fallback for legacy Python callers.
+  - **High-Throughput Vector & Lexical Fusion**: Sub-millisecond rank fusion with zero-allocation iterators, thread-safe asynchronous execution, and zero overhead.
 - **🤖 Native Rust ReAct Agent & Orchestrator (`actx-agent`) (`v0.30.38`)**:
-  - **Deterministic ReAct Finite State Machine (FSM)**: Standalone, modular Rust crate (`crates/actx-agent`) providing deterministic multi-turn tool calling and reasoning loops without heavy third-party framework dependencies (e.g. LangGraph).
-  - **Polymorphic Tool Registry & Defensive Self-Healing**: Thread-safe async tool registry supporting both pure Rust closures and Python callables with defensive JSON argument parsing and model self-healing on parameter errors.
-  - **Uncompressed SQLite Session Persistence**: Native SQLite session store (`SqliteSessionStore`) with configurable sliding window history (30 turns) and instant WAL transactions, eliminating opaque zlib compression and database locks.
+  - **Deterministic ReAct Finite State Machine (FSM)**: Standalone, modular Rust crate (`crates/actx-agent`) providing deterministic multi-turn tool calling and reasoning loops without heavy third-party framework dependencies.
+  - **Polymorphic Tool Registry & Defensive Self-Healing**: Thread-safe async tool registry supporting pure Rust closures and tools (`search_db`, `system_status`, `web_search`) with defensive JSON argument parsing and model self-healing on parameter errors.
+  - **Uncompressed SQLite Session Persistence**: Native SQLite session store (`SqliteSessionStore`) with configurable sliding window history (30 turns) and instant WAL transactions, eliminating opaque compression and database locks.
   - **Real-Time Event Streaming Pipeline**: Granular event emitter (`AgentEvent`) broadcasting thinking blocks, tool calls/returns, text deltas, and execution metadata for reactive UI rendering.
-  - **RFC-042 Deep Search Foundations**: Core Pydantic models (`deep_search_models.py`) supporting query decomposition into orthogonal sub-queries, iterative information gap analysis, and adaptive routing (`/fast` vs `/deep`).
-  - **Thread-Safe PyO3 Bridge (`PyAgentEngine`, `PyAgentResponse`, `PyAgentEvent`)**: Complete interoperability with Python execution environments, releasing the GIL during asynchronous I/O (`py.allow_threads`) to ensure deadlock-free tool execution.
+  - **Deep Search & Information Synthesis**: Native execution decomposing queries into orthogonal sub-queries, iterative information gap analysis, and adaptive routing (`/fast` vs `/deep`).
 - **🧠 Universal Language Model Engine (`actx-lm`) (`v0.30.37`)**:
   - **Agnostic LLM & SLM Façade**: Standalone, modular Rust crate (`crates/actx-lm`) implementing the Strategy and Façade design patterns for seamless inference across cloud giants (OpenAI, Anthropic Claude with Thinking blocks, Google Gemini) and local Small Language Models (Ollama, LM Studio, llama.cpp, vLLM).
-  - **Zero-Framework Bloat**: Built from the ground up without heavy external orchestration frameworks (e.g. LangChain), achieving sub-millisecond dispatch, minimal dependency footprint, and thread-safe async execution (`Send + Sync`).
+  - **Zero-Framework Bloat**: Built from the ground up without heavy external orchestration frameworks, achieving sub-millisecond dispatch, minimal dependency footprint, and thread-safe async execution (`Send + Sync`).
   - **Zero-Latency SSE Streaming**: High-performance Server-Sent Events (SSE) streaming decoder yielding real-time tokens (`StreamChunk::Token`), extended reasoning thoughts (`StreamChunk::Reasoning`), and function calling tool deltas.
   - **Universal OpenAI-Compatible Strategy**: Single, highly-configurable adapter providing instant compatibility with Groq, DeepSeek, OpenRouter, Together AI, Mistral, and local Ollama instances (`http://localhost:11434/v1`) with zero API key requirement.
-  - **Python Interoperability (`PyLmClient`)**: Native bindings in `any-context-core-rs` enabling progressive migration and seamless access from Python scripts and tests.
 - **🦀 Native Rust Storage & Vector Engine (LanceDB + Rusqlite) (`v0.30.36`)**:
   - **Zero-Copy Apache Arrow Columnar Storage**: Vector chunks, dense embeddings (up to 3072 dimensions), and rich metadata are managed directly in native Rust (`any-context-core-rs`) using `lancedb 0.39` and `arrow 58`.
   - **High-Throughput Vector Similarity Search**: Pure native vector nearest neighbor search with calibrated cosine distance metrics ($S = \frac{1}{1 + \max(0, d)}$) and atomic batch upserts running within an isolated multi-threaded Tokio runtime.
-  - **Thread-Safe SQLite Configuration Store (`NativeConfigDb`)**: Pure native Rusqlite layer enforcing mandatory high-concurrency PRAGMAs (`WAL`, `busy_timeout=30000`, `synchronous=NORMAL`, `foreign_keys=ON`), workspace lifecycle CRUD, settings key-value persistence, and microsecond differential file hash sync tracking with zero Python GIL contention.
-  - **Clean Code & SOLID Architecture**: Modular, decoupled storage design exposing complete PyO3 bindings (`PyLanceStore`, `PyConfigDb`) for seamless, zero-friction integration.
+  - **Thread-Safe SQLite Configuration Store (`NativeConfigDb`)**: Pure native Rusqlite layer enforcing mandatory high-concurrency PRAGMAs (`WAL`, `busy_timeout=30000`, `synchronous=NORMAL`, `foreign_keys=ON`), workspace lifecycle CRUD, settings key-value persistence, and microsecond differential file hash sync tracking with zero lock contention.
+  - **Clean Code & SOLID Architecture**: Modular, decoupled storage design exposing complete native Rust APIs (`NativeLanceStore`, `NativeConfigDb`) for high-concurrency ingestion and retrieval.
 - **⚡ 100% LanceDB Columnar Vector Engine (Apache Arrow / Rust)**:
   - **Sub-5ms Vector Queries**: Powered by native Rust SIMD vector distance routines, eliminating database locks and enabling instant retrieval across 500,000+ chunks.
   - **Zero Database Locks**: Columnar Apache Arrow dataset architecture eliminates SQLite write-lock contentions on Windows.
   - **Live Dataset Inspection (`/inspect` ou `/chunks`)**: Directly inspect live vector records, record counts, and snippet previews for both document context and session memory.
   - **Instant $0.00 Transfers & Renames**: Data source transfers and workspace renames execute on LanceDB datasets in `< 50ms` with zero token expenditure.
-- **🚀 Sub-Second Cold Boot Runtime & Dual-Binary Architecture (`--onedir`)**:
-  - **Sub-Second Engine Startup**: Pre-extracts Python runtime libraries into `%LOCALAPPDATA%\actx\bin\_internal` (Windows) or `~/.local/bin/_internal` (Linux) on installation/update, eliminating the 2.7+ second decompression delay on every launch and bringing engine boot down from 2.8s to `< 0.2s`.
-  - **Instant Execution Launcher Shim**: Native launcher (`actx.exe` on Windows, compiled C ELF `actx` on Linux) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
-- **🦀 100% Pure Native Rust Cross-Platform Installer & Launcher Shim (`actx-installer`) (`v0.30.35`)**:
+- **🚀 Sub-Millisecond Cold Boot & Single Autonomous Executable**:
+  - **Sub-10ms Engine Startup**: Instantaneous native execution without dynamic runtime decompression, bringing engine boot down to `< 10ms` and memory footprint to `< 40MB`.
+  - **Instant Execution Launcher Shim**: Native launcher (`actx.exe` on Windows, compiled ELF `actx` on Linux) executes version checks (`actx -v`) in `< 2ms` directly by reading cached `version.txt`.
+- **🦀 100% Pure Native Rust Cross-Platform Installer & Atomic Updater (`actx-installer`) (`v0.30.35`)**:
   - **Pure Native Rust Binary Architecture**: Replaced legacy PowerShell scripts, C# `.NET 4.0` `csc.exe` compilations, and bash workarounds with a compiled, standalone native Rust installer and launcher shim (`crates/actx-installer`).
   - **Direct HTTPS Web Downloads (Zero `gh` CLI Dependency)**: Downloads releases directly via high-speed HTTPS from GitHub Releases, guaranteeing universal accessibility for all public users without requiring the GitHub CLI (`gh`).
   - **Pre-Flight Binary Verification Engine**: Validates binary headers (`MZ` on Windows, `ELF` on Linux, `Mach-O` on macOS) and minimum file sizes before performing atomic swaps, completely eliminating corrupted ZIP-over-EXE overwrites (`Win32 Error 193 - Not a valid application`).
@@ -408,18 +406,18 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🔄 Instant Zero-Cost Source Transfer (`/transfer` & `/config`)**:
   - Move folders and web portals between workspaces in sub-50ms with **$0.00 in embedding API costs**.
   - Dynamically updates vector metadata tags in ChromaDB and SQLite without re-indexing or re-crawling.
-- **🖥️ OpenTUI Canonical Terminal Interface (`actx`)**:
-  - OpenTUI é a **interface padrão interativa** ao executar `actx` no terminal, desenvolvida com **OpenTUI (`@opentui/core` + `@opentui/react`)** e Zig/React: chat rolável fluido, herança de background transparente nativo do terminal, Banner ASCII Art clássico, identificadores `👤 You:` e `🤖 AI [modelo]:`, e barra de status inferior de 1 linha.
-  - **100% Thin Client & Paridade Hexagonal com Futuro Tauri Desktop**: Todo comando de barra e prompt passa diretamente pelo motor central de despacho em Python via RPC Bridge (`client.executeCommand`). Nenhuma regra de negócio fica presa no front-end, garantindo que o OpenTUI e o futuro app Desktop Desktop Tauri compartilhem rigorosamente as mesmas mensagens e comportamento.
-  - **Frozen Full-Screen Scroll Engine**: Rolagem nativa fluida em tela cheia com **rodinha do mouse**, teclas `PgUp` / `PgDn`, `Shift + ↑` / `↓` e auto-scroll reativo em streaming.
-  - **⚡ Real-Time Progressive Engine Startup Telemetry**: Árvore progressiva de telemetria de boot (`┌─ ⚡ Engine Startup Telemetry`) com animação de spinner braille em tempo real e cadência perceptual em cascata suave. Acompanha o spawn do runtime Python, conexão com SQLite, vinculação do modelo de IA, conexão do workspace e verificação do índice vetorial.
-  - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os 32 comandos internos canônicos.
-  - **Zero-Port Stdio RPC Bridge & Sub-Process DLL Isolation**: Comunicação local em sub-milissegundo com o backend AnyContext via NDJSON, sem portas de rede ou avisos de firewall, com isolamento total de variáveis de bootloader (`_MEIPASS`, `PATH`).
+- **🖥️ Interactive Terminal UI (Ratatui / `actx`)**:
+  - **Interface Interativa Padrão**: Desenvolvida 100% em Rust nativo utilizando **Ratatui (0.29) + Crossterm (0.28)**: chat rolável fluido, background transparente nativo do terminal, banner clássico, identificadores claros e barra de status quad-status no cabeçalho.
+  - **100% Pure Rust & Paridade Hexagonal**: Todo comando e prompt é despachado pelo motor central de domínio (`CommandEngine`) e pelo orquestrador de agentes (`actx-agent`), garantindo coerência estrita entre o modo interativo e o modo headless.
+  - **Full-Screen Scroll & Viewport Isolation**: Rolagem nativa fluida em tela cheia com rodinha do mouse, teclas `PgUp` / `PgDn`, `Shift + ↑` / `↓` e auto-scroll reativo em streaming.
+  - **⚡ Telemetria em Tempo Real**: Barra de status superior com badges de Workspace, Modelo, Modo de Grounding e Web Search, além de spinner Braille reativo e indicador de sincronização em segundo plano.
+  - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os comandos internos.
+  - **Accordion de Raciocínio (`Ctrl+T`)**: Visualizador dobrável de tokens `<think>` e chamadas de ferramentas do agente ReAct.
 - **⚡ Headless Developer CLI & One-Shot Prompt Engine**:
   - One-shot execution para scripts, cronjobs & automação: `actx "sua pergunta aqui"` ou `actx -p "..."`.
   - Suporte completo a pipes Unix/PowerShell: `cat document.txt | actx "resuma os pontos principais"`.
-  - Flags de alta performance: `actx -v` (< 50ms via launcher shim), `actx --rpc`, `actx --mcp`, `actx --diagnostics`, `actx --logs`.
-  - Flags de atualização direta: `actx --update` (atualização direta com barra de progresso no terminal), `actx --check-update`, `actx --releases`, `actx --rollback`.
+  - Flags de alta performance: `actx -v` (< 2ms via launcher shim), `actx --diagnostics`, `actx --logs`.
+  - Flags de atualização direta: `actx --update` (atualização atômica direta com barra de progresso no terminal), `actx --check-update`, `actx --rollback`.
 
 - **🗑️ Interactive Workspace Deletion with Safety Confirmation (`/menu` & `/switch --delete`)**:
   - Exclusão segura e interativa de workspaces com listagem do total de fontes e modal de confirmação explícito (`Yes, permanently delete` vs `Cancel` com foco seguro).
@@ -537,14 +535,14 @@ actx-installer --update      # Check and apply latest update
 actx-installer --rollback    # Rollback to previous version if needed
 ```
 
-### Option 2: Install via Python / `uv` / `pip`
+### Option 2: Build from Source via Cargo (Rust)
 
 ```bash
 git clone https://github.com/Levix-Digital/any-context.git
 cd any-context
-pip install -e .
+cargo build --release -p actx-cli -p actx-installer
 ```
-*(Available terminal aliases: `actx`, `anycontext`, `any-context`, `ac`)*
+*(The native binaries will be generated at `target/release/actx` and `target/release/actx-installer`)*
 
 ---
 
@@ -1001,7 +999,7 @@ To cleanly remove AnyContext, restore PATH variables, purge legacy databases, an
   *Or locally:* `./scripts/uninstall.sh`
 
 > [!NOTE]
-> The uninstaller prompts whether to preserve or wipe your configured workspaces and vector databases (`%LOCALAPPDATA%\AnyContext` or `~/.local/share/any-context`), purges any legacy database files, cleans your User PATH variable, and automatically uninstalls residual Python `pip` wrappers.
+> The uninstaller prompts whether to preserve or wipe your configured workspaces and vector databases (`%LOCALAPPDATA%\AnyContext` or `~/.local/share/any-context`), purges any legacy database files, cleans your User PATH variable, and removes all native AnyContext executables cleanly.
 
 ---
 

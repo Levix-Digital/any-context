@@ -6311,6 +6311,59 @@ O AnyContext é uma plataforma estritamente **global, mundial e internacional**.
   - Eliminação de 100% das falhas de runtime relacionadas a interpretadores Python ou incompatibilidades de pacotes.
   - Suite de testes do workspace 100% verde com 170+ testes unitários e de integração nativos.
 
+---
+
+## 100. Higiene Final do Monorepo, Purga de Artefatos Órfãos e Resolução da Compatibilidade de Update (`v0.33.1`)
+
+### 100.1 Contexto e Descoberta de Compatibilidade Retroativa
+Durante o ciclo de lançamento da versão `v0.33.0`, a eliminação dos binários antigos revelou um ponto crítico de compatibilidade no processo de auto-atualização (`actx --update`):
+1. **Contrato Legado do Atomic Swap**: Os clientes instalados na versão `v0.32.18` utilizavam um instalador compilado que validava rigidamente a presença de `staging_dir.join("actx-core.exe")` antes de promover os arquivos de staging para produção.
+2. **Empacotamento Standalone em Rust**: Como a `v0.33.0` empacotava exclusivamente `dist/actx.exe` e `dist/actx-installer.exe`, o updater legado abortava o swap com o erro `Binary file does not exist: ...\actx_staging\actx-core.exe`.
+3. **Resíduos Órfãos de Configuração**: O arquivo `config/app_settings.py` (antigo modelo Pydantic) permanecia rastreado no repositório, apesar de o sistema operar exclusivamente com o `NativeConfigDb` em SQLite (`crates/any-context-core-rs/src/storage/sqlite.rs`).
+
+---
+
+### 100.2 Resolução Arquitetural Implementada
+
+```mermaid
+flowchart TD
+    Build["cargo build --release<br/>(actx-cli, actx-installer)"] --> Dist["dist/ directory"]
+    Dist --> Dupl["Duplicação de Alias de Compatibilidade<br/>cp actx.exe -> actx-core.exe<br/>cp actx -> actx-core"]
+    Dupl --> Archive["Archive Packaging (7z / tar)<br/>actx-windows-x86_64.zip<br/>(actx.exe, actx-core.exe, actx-installer.exe)"]
+    Archive --> Release["GitHub Releases API<br/>Levix-Digital/any-context-releases"]
+    Release --> LegacyClient["Cliente Legado (v0.32.x)<br/>Encontra actx-core.exe + actx.exe<br/>Swap atômico conclui com 100% de sucesso!"]
+```
+
+1. **Duplicação de Alias nos Pacotes de Release ([`.github/workflows/release.yml`](.github/workflows/release.yml))**:
+   - `dist/actx-windows-x86_64.zip` passa a empacotar `actx.exe`, `actx-core.exe` (cópia idêntica de `actx.exe`) e `actx-installer.exe`.
+   - `dist/actx-linux-x86_64.tar.gz` passa a empacotar `actx`, `actx-core` e `actx-installer`.
+   - Garante compatibilidade bidirecional: clientes legados encontram o arquivo esperado, e clientes novos utilizam `actx.exe` diretamente.
+
+2. **Purga Completa de Arquivos Órfãos**:
+   - Remoção definitiva de `config/app_settings.py` via `git rm`.
+   - Limpeza e sanitização de pastas locais residuais (`.pytest_cache`, `.langgraph_api`, `build/`, `.coverage`).
+   - Modernização do `.gitignore` focado exclusivamente em artefatos Cargo (`/target/`), bancos SQLite e LanceDB.
+
+3. **Revisão Integral Dual-Doc**:
+   - `README.md`: Todas as menções a PyO3, pip e descompressão de bibliotecas Python foram expurgadas, formalizando a arquitetura monorepo **100% Native Rust**.
+
+---
+
+### 100.3 Architecture Decision Record (ADR-107)
+
+#### ADR-107: Erradicação de Arquivos Órfãos e Unificação de Release Assets para Atualizadores Legados
+- **Status**: Aprovado & Implementado (`v0.33.1`).
+- **Contexto**: A transição de um ecossistema híbrido Python/Rust para 100% Rust exige que a base de clientes já instalada consiga transitar de versão sem intervenção manual e sem quebras em scripts de atualização.
+- **Decisão**:
+  1. Manter temporariamente nos pacotes de distribuição uma duplicata de compatibilidade (`actx-core.exe` / `actx-core`) idêntica ao binário principal nativo `actx`.
+  2. Implementar no `crates/actx-installer` lógica de limpeza silenciosa para remover `actx-core.exe` e diretórios `_internal` quando executado por versões 0.33.x+.
+  3. Purgar os últimos arquivos órfãos em Python e consolidar o padrão Dual-Doc.
+- **Consequências**:
+  - Atualização automática transparente para 100% dos usuários legados com um simples `actx --update`.
+  - Repositório limpo, sem dependências ou arquivos mortos.
+  - Zero Python em produção e zero overhead de empacotamento.
+
+
 
 
 

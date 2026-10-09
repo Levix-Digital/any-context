@@ -1,10 +1,14 @@
-# Ambientes Virtuais
-.venv/
-venv/
-env/
-.env
+# Rust / Cargo Build Artifacts
+target/
+**/target/
+Cargo.lock.backup
+*.pdb
 
-# Bancos de Dados ChromaDB / LanceDB / SQLite (ancorados na raiz)
+# Local Distribution Artifacts
+/dist/
+/build/
+
+# Local Vector & SQLite Databases
 /context_db/
 /memory/
 /chroma_db/
@@ -15,33 +19,28 @@ env/
 *.sqlite3
 *.db
 
-# Python & Build Artifacts
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg-info/
-dist/
-build/
-target/
-*.spec
+# Secrets & Environment Configurations
+.env
+.env.local
+.env.*.local
 
-# Arquivos de IDE e SO
+# IDE, OS & Editor Artifacts
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*~
 
-# LangGraph
-.langgraph_api/
-
-# Test & Coverage Artifacts
+# Local Test, AI & Agent Caches
 .coverage
-.coverage.*
 htmlcov/
-
 .ai/
 node_modules/
 brain/
-
-.clinerules
+.clinerules
+.pytest_cache/
+.venv/
+venv/
+__pycache__/
