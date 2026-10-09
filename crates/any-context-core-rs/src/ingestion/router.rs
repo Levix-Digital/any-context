@@ -60,15 +60,38 @@ impl IngestionRouter {
 
     /// Chunks document content using the specialized parser matching the file extension.
     pub fn chunk_text(&self, file_path: &str, content: &str) -> PyResult<Vec<ChunkPayload>> {
+        self.chunk_text_native(file_path, content)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    }
+
+    /// Reads and chunks a file directly from the filesystem in high-speed native Rust.
+    /// Handles binary spreadsheet files (.xlsx, .xls, .ods), PDFs (.pdf), and images (.png, .jpg, .webp).
+    pub fn chunk_file(&self, file_path: &str) -> PyResult<Vec<ChunkPayload>> {
+        self.chunk_file_native(file_path)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    }
+
+    /// Chunks raw byte content (useful for binary workbooks, PDFs, images, or in-memory streams).
+    pub fn chunk_bytes(&self, file_path: &str, bytes: &[u8]) -> PyResult<Vec<ChunkPayload>> {
+        self.chunk_bytes_native(file_path, bytes)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    }
+}
+
+impl Default for IngestionRouter {
+    fn default() -> Self {
+        Self::new(1800, 200)
+    }
+}
+
+impl IngestionRouter {
+    /// Pure Rust native implementation for document chunking.
+    pub fn chunk_text_native(&self, file_path: &str, content: &str) -> Result<Vec<ChunkPayload>, String> {
         if self.text_chunker.is_web_url(file_path) {
             if content.lines().any(|l| l.trim_start().starts_with('#')) {
-                return self.markdown_chunker.chunk(file_path, content).map_err(|e| {
-                    pyo3::exceptions::PyRuntimeError::new_err(format!("Markdown web chunker error: {}", e))
-                });
+                return self.markdown_chunker.chunk(file_path, content);
             } else {
-                return self.text_chunker.chunk(file_path, content).map_err(|e| {
-                    pyo3::exceptions::PyRuntimeError::new_err(format!("Text web chunker error: {}", e))
-                });
+                return self.text_chunker.chunk(file_path, content);
             }
         }
 
@@ -77,82 +100,54 @@ impl IngestionRouter {
         let file_name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         if matches!(ext.as_str(), "md" | "markdown" | "rst" | "mdown") {
-            self.markdown_chunker.chunk(file_path, content).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Markdown chunker error: {}", e))
-            })
+            self.markdown_chunker.chunk(file_path, content)
         } else if self.code_chunker.supports_extension(&ext) {
-            self.code_chunker.chunk(file_path, content).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Code AST chunker error: {}", e))
-            })
+            self.code_chunker.chunk(file_path, content)
         } else if self.structured_chunker.supports_extension(&ext) {
-            self.structured_chunker.chunk(file_path, content).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Structured data chunker error: {}", e))
-            })
+            self.structured_chunker.chunk(file_path, content)
         } else if self.tabular_chunker.supports_extension(&ext) {
-            self.tabular_chunker.chunk(file_path, content).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Tabular chunker error: {}", e))
-            })
+            self.tabular_chunker.chunk(file_path, content)
         } else if self.pdf_chunker.supports_extension(&ext) {
-            self.pdf_chunker.chunk(file_path, content).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("PDF chunker error: {}", e))
-            })
+            self.pdf_chunker.chunk(file_path, content)
         } else if self.text_chunker.supports_extension(&ext) || self.text_chunker.supports_filename(file_name) {
-            self.text_chunker.chunk(file_path, content).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Text chunker error: {}", e))
-            })
+            self.text_chunker.chunk(file_path, content)
         } else {
-            self.text_chunker.chunk(file_path, content).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Universal text chunker error: {}", e))
-            })
+            self.text_chunker.chunk(file_path, content)
         }
     }
 
-    /// Reads and chunks a file directly from the filesystem in high-speed native Rust.
-    /// Handles binary spreadsheet files (.xlsx, .xls, .ods), PDFs (.pdf), and images (.png, .jpg, .webp).
-    pub fn chunk_file(&self, file_path: &str) -> PyResult<Vec<ChunkPayload>> {
+    /// Pure Rust native implementation for direct filesystem file chunking.
+    pub fn chunk_file_native(&self, file_path: &str) -> Result<Vec<ChunkPayload>, String> {
         let p = Path::new(file_path);
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
 
         if self.tabular_chunker.supports_extension(&ext) && matches!(ext.as_str(), "xlsx" | "xls" | "ods") {
-            self.tabular_chunker.chunk_file(file_path).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Tabular Excel chunker error: {}", e))
-            })
+            self.tabular_chunker.chunk_file(file_path)
         } else if self.pdf_chunker.supports_extension(&ext) {
-            self.pdf_chunker.chunk_file(file_path).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("PDF chunker error: {}", e))
-            })
+            self.pdf_chunker.chunk_file(file_path)
         } else if self.image_chunker.supports_extension(&ext) {
-            self.image_chunker.chunk_file(file_path).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Image chunker error: {}", e))
-            })
+            self.image_chunker.chunk_file(file_path)
         } else {
-            let content = std::fs::read_to_string(file_path).map_err(|e| {
-                pyo3::exceptions::PyIOError::new_err(format!("Failed to read file '{}': {}", file_path, e))
-            })?;
-            self.chunk_text(file_path, &content)
+            let content = std::fs::read_to_string(file_path)
+                .map_err(|e| format!("Failed to read file '{}': {}", file_path, e))?;
+            self.chunk_text_native(file_path, &content)
         }
     }
 
-    /// Chunks raw byte content (useful for binary workbooks, PDFs, images, or in-memory streams).
-    pub fn chunk_bytes(&self, file_path: &str, bytes: &[u8]) -> PyResult<Vec<ChunkPayload>> {
+    /// Pure Rust native implementation for raw byte chunking.
+    pub fn chunk_bytes_native(&self, file_path: &str, bytes: &[u8]) -> Result<Vec<ChunkPayload>, String> {
         let p = Path::new(file_path);
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
 
         if matches!(ext.as_str(), "xlsx" | "xls" | "ods") {
-            self.tabular_chunker.excel_chunker.chunk_bytes(file_path, bytes).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Tabular Excel bytes error: {}", e))
-            })
+            self.tabular_chunker.excel_chunker.chunk_bytes(file_path, bytes)
         } else if self.pdf_chunker.supports_extension(&ext) {
-            self.pdf_chunker.chunk_bytes(file_path, bytes).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("PDF bytes error: {}", e))
-            })
+            self.pdf_chunker.chunk_bytes(file_path, bytes)
         } else if self.image_chunker.supports_extension(&ext) {
-            self.image_chunker.chunk_bytes(file_path, bytes).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!("Image bytes error: {}", e))
-            })
+            self.image_chunker.chunk_bytes(file_path, bytes)
         } else {
             let content = String::from_utf8_lossy(bytes);
-            self.chunk_text(file_path, &content)
+            self.chunk_text_native(file_path, &content)
         }
     }
 }

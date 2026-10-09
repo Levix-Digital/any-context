@@ -1,6 +1,6 @@
 [package]
 name = "any-context-core-rs"
-version = "0.32.18"
+version = "0.32.19"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "High-performance Rust core engine for AnyContext (Ingestion Router, AST/Markdown chunkers, and RRF retrieval)"
@@ -56,6 +56,7 @@ arrow-schema = "58"
 arrow-array = "58"
 lancedb = { version = "0.39.0", features = ["remote"] }
 dirs = "6.0"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
 [features]
 default = []

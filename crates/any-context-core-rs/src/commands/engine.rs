@@ -434,24 +434,21 @@ impl CommandEngine {
         target_folder: Option<&str>,
     ) -> Result<(u32, std::path::PathBuf), String> {
         let canonical_dir = actx_installer::paths::get_canonical_bin_dir();
-        let core_name = actx_installer::paths::get_core_exe_name();
-        let core_exe = canonical_dir.join(core_name);
+        let app_exe_name = actx_installer::paths::get_shim_exe_name();
+        let installed_exe = canonical_dir.join(app_exe_name);
+        let current_exe = std::env::current_exe().ok();
 
-        let local_core = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.join(core_name)));
-
-        let mut cmd = if core_exe.exists() {
-            let mut c = std::process::Command::new(core_exe);
+        let mut cmd = if let Some(ref cur) = current_exe.filter(|p| p.exists()) {
+            let mut c = std::process::Command::new(cur);
             c.arg("--sync-worker");
             c
-        } else if let Some(lc) = local_core.filter(|p| p.exists()) {
-            let mut c = std::process::Command::new(lc);
+        } else if installed_exe.exists() {
+            let mut c = std::process::Command::new(installed_exe);
             c.arg("--sync-worker");
             c
         } else {
-            let mut c = std::process::Command::new("python");
-            c.arg("main.py").arg("--sync-worker");
+            let mut c = std::process::Command::new(app_exe_name);
+            c.arg("--sync-worker");
             c
         };
 
@@ -509,7 +506,50 @@ impl CommandEngine {
                 }
                 Ok((pid, log_path))
             }
-            Err(e) => Err(format!("Failed to launch background synchronization worker: {}", e)),
+            Err(spawn_err) => {
+                // If launching detached process failed, fall back to running NativeSyncOrchestrator in a background OS thread
+                let ws_owned = workspace.to_string();
+                let tf_owned = target_folder.map(|s| s.to_string());
+                let pid = std::process::id();
+                let thread_res = std::thread::Builder::new()
+                    .name(format!("sync-worker-{}", workspace))
+                    .spawn(move || {
+                        if let Ok(orchestrator) = crate::ingestion::NativeSyncOrchestrator::new_default() {
+                            let opts = crate::ingestion::SyncOptions {
+                                workspace: ws_owned,
+                                force,
+                                target_folder: tf_owned,
+                                verbose: false,
+                                model: None,
+                            };
+                            let _ = orchestrator.run_sync(&opts);
+                        }
+                    });
+
+                match thread_res {
+                    Ok(_) => {
+                        if let Ok(db) = NativeConfigDb::open_default() {
+                            let _ = db.update_sync_status(
+                                workspace,
+                                true,
+                                Some(pid),
+                                0,
+                                0,
+                                "scanning",
+                                None,
+                                None,
+                            );
+                        }
+                        Ok((pid, log_path))
+                    }
+                    Err(th_err) => {
+                        Err(format!(
+                            "Failed to launch background synchronization worker: {} (thread fallback failed: {})",
+                            spawn_err, th_err
+                        ))
+                    }
+                }
+            }
         }
     }
 

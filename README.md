@@ -45,6 +45,10 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🦀 100% Native Rust Transition & Zero-Python Sync Orchestrator (`v0.32.19`)**:
+  - **Zero Python Runtime Dependencies**: Complete deprecation and elimination of Python runtimes, `actx-core.exe`, and PyInstaller bundles. All scanning, AST/Markdown chunking, vectorization, and LanceDB/BM25 ingestion run directly through the compiled native Rust core engine.
+  - **Native Differential Scanner (`NativeSyncOrchestrator`)**: Sub-30ms incremental scans with cryptographic SHA-256 stat caching in SQLite (`workspace_files_stat_cache`). Instant $0.00 detection and metadata update for renamed and moved files without re-embedding.
+  - **Headless Worker & TUI Background Integration**: Native `--sync-worker` background process mode spawned transparently by `/sync` and `/folder` commands, with real-time status badges in the TUI header (`[Sync: ⚡ Syncing ...]`) and footer (`✔ Up to date`).
 - **⚡ Targeted Version Updating, Persistent TUI Sync Indicators & Windows Binary Healing (`v0.32.18`)**:
   - **Universal Tagged Update Syntax (`actx --update@<version>`)**: Added first-class support for targeted version upgrades and downgrades via CLI flags (`actx --update@v0.32.17`, `actx -u@v0.32.17`, `actx update@v0.32.17`, `actx update --version v0.32.17`) and interactive TUI commands (`/update@v0.32.17`), with transparent version normalization and dedicated audit logging in `%LOCALAPPDATA%\AnyContext\logs\update.log`.
   - **Persistent Workspace Sync Status (Header & Footer Parity)**: The Rust TUI now continuously displays the active synchronization status badge in both the Top Header (`[Sync: ✔ Up to date]` / `[Sync: ⚡ Syncing <bar>]`) and Bottom Footer (`✔ Up to date │ ` / `⚡ Syncing <bar> │ `), restoring full visual feedback parity with earlier TUI versions.

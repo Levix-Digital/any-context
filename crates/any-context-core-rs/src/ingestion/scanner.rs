@@ -14,7 +14,7 @@ pub fn normalize_path(path: &Path) -> String {
     } else {
         s.to_string()
     };
-    clean
+    clean.replace('\\', "/")
 }
 
 /// Converts a path to an absolute path string without expanding 8.3 short names on Windows.
@@ -213,6 +213,16 @@ pub fn get_file_mtime(metadata: &fs::Metadata) -> f64 {
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceScanner;
 
+#[derive(Debug, Clone, Default)]
+pub struct DiffResult {
+    pub is_up_to_date: bool,
+    pub new_files: Vec<String>,
+    pub modified_files: Vec<String>,
+    pub deleted_files: Vec<String>,
+    pub renamed_files: Vec<(String, String)>,
+    pub disk_files: HashMap<String, (f64, u64)>,
+}
+
 #[pymethods]
 impl WorkspaceScanner {
     #[new]
@@ -247,28 +257,6 @@ impl WorkspaceScanner {
         folders: Vec<String>,
         cached_files: &Bound<'_, PyDict>,
     ) -> PyResult<PyObject> {
-        let mut disk_files: HashMap<String, (f64, u64)> = HashMap::new();
-
-        for folder in &folders {
-            let root_p = Path::new(folder);
-            if !root_p.exists() {
-                continue;
-            }
-
-            let walker = WalkDir::new(root_p).into_iter().filter_entry(|e| !is_ignored_dir(e));
-            for entry in walker.filter_map(|e| e.ok()) {
-                if entry.file_type().is_file() && is_supported_file(entry.path()) {
-                    let norm_path = to_absolute_path(entry.path());
-
-                    if let Ok(meta) = entry.metadata() {
-                        let mtime = get_file_mtime(&meta);
-                        let size = meta.len();
-                        disk_files.insert(norm_path, (mtime, size));
-                    }
-                }
-            }
-        }
-
         // Read cached files from Python PyDict: path -> {last_mtime: float, file_size: int}
         let mut cached_map: HashMap<String, (f64, u64)> = HashMap::new();
         for (k, v) in cached_files.iter() {
@@ -288,12 +276,78 @@ impl WorkspaceScanner {
             }
         }
 
+        let diff = self.scan_and_diff_native(&folders, &cached_map);
+
+        // Build result dictionary
+        let result_dict = PyDict::new_bound(py);
+        result_dict.set_item("is_up_to_date", diff.is_up_to_date)?;
+        result_dict.set_item("new_files", PyList::new_bound(py, &diff.new_files))?;
+        result_dict.set_item("modified_files", PyList::new_bound(py, &diff.modified_files))?;
+        result_dict.set_item("deleted_files", PyList::new_bound(py, &diff.deleted_files))?;
+
+        let py_renamed = PyList::empty_bound(py);
+        for (old_p, new_p) in &diff.renamed_files {
+            let tuple = PyTuple::new_bound(py, &[old_p.as_str(), new_p.as_str()]);
+            py_renamed.append(tuple)?;
+        }
+        result_dict.set_item("renamed_files", py_renamed)?;
+        result_dict.set_item("total_disk_files", diff.disk_files.len())?;
+
+        let py_disk_files = PyDict::new_bound(py);
+        for (fp, (mtime, size)) in &diff.disk_files {
+            let entry = PyDict::new_bound(py);
+            entry.set_item("file_path", fp.as_str())?;
+            entry.set_item("last_mtime", *mtime)?;
+            entry.set_item("file_size", *size)?;
+            py_disk_files.set_item(fp.as_str(), entry)?;
+        }
+        result_dict.set_item("disk_files", py_disk_files)?;
+
+        Ok(result_dict.into())
+    }
+}
+
+impl WorkspaceScanner {
+    /// Performs high-speed multi-folder filesystem scan and calculates differential changes
+    /// natively in pure Rust against cached metadata (file_path -> (mtime, size)).
+    pub fn scan_and_diff_native(
+        &self,
+        folders: &[String],
+        cached_files: &HashMap<String, (f64, u64)>,
+    ) -> DiffResult {
+        let mut disk_files: HashMap<String, (f64, u64)> = HashMap::new();
+
+        for folder in folders {
+            let root_p = Path::new(folder);
+            if !root_p.exists() {
+                continue;
+            }
+
+            let walker = WalkDir::new(root_p).into_iter().filter_entry(|e| !is_ignored_dir(e));
+            for entry in walker.filter_map(|e| e.ok()) {
+                if entry.file_type().is_file() && is_supported_file(entry.path()) {
+                    let norm_path = to_absolute_path(entry.path());
+
+                    if let Ok(meta) = entry.metadata() {
+                        let mtime = get_file_mtime(&meta);
+                        let size = meta.len();
+                        disk_files.insert(norm_path, (mtime, size));
+                    }
+                }
+            }
+        }
+
+        let mut norm_cached: HashMap<String, (f64, u64)> = HashMap::with_capacity(cached_files.len());
+        for (k, v) in cached_files {
+            norm_cached.insert(k.replace('\\', "/"), *v);
+        }
+
         let mut new_files = Vec::new();
         let mut modified_files = Vec::new();
         let mut deleted_files = Vec::new();
 
         for (fp, (d_mtime, d_size)) in &disk_files {
-            match cached_map.get(fp) {
+            match norm_cached.get(fp) {
                 None => new_files.push(fp.clone()),
                 Some((c_mtime, c_size)) => {
                     if (c_mtime - d_mtime).abs() > 0.001 || c_size != d_size {
@@ -303,7 +357,7 @@ impl WorkspaceScanner {
             }
         }
 
-        for fp in cached_map.keys() {
+        for fp in norm_cached.keys() {
             if !disk_files.contains_key(fp) {
                 deleted_files.push(fp.clone());
             }
@@ -317,7 +371,7 @@ impl WorkspaceScanner {
         for del_f in &deleted_files {
             let (del_size, del_base, del_ext, del_dir) = {
                 let p = Path::new(del_f);
-                let size = cached_map.get(del_f).map(|s| s.1).unwrap_or(0);
+                let size = norm_cached.get(del_f).map(|s| s.1).unwrap_or(0);
                 let base = p.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
                 let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
                 let dir = p.parent().map(normalize_path).unwrap_or_default();
@@ -364,31 +418,19 @@ impl WorkspaceScanner {
         new_files = remaining_new;
         deleted_files = remaining_deleted;
 
-        // Build result dictionary
-        let result_dict = PyDict::new_bound(py);
-        result_dict.set_item("new_files", PyList::new_bound(py, &new_files))?;
-        result_dict.set_item("modified_files", PyList::new_bound(py, &modified_files))?;
-        result_dict.set_item("deleted_files", PyList::new_bound(py, &deleted_files))?;
+        let is_up_to_date = new_files.is_empty()
+            && modified_files.is_empty()
+            && deleted_files.is_empty()
+            && renamed_files.is_empty();
 
-        let py_renamed = PyList::empty_bound(py);
-        for (old_p, new_p) in &renamed_files {
-            let tuple = PyTuple::new_bound(py, &[old_p.as_str(), new_p.as_str()]);
-            py_renamed.append(tuple)?;
+        DiffResult {
+            is_up_to_date,
+            new_files,
+            modified_files,
+            deleted_files,
+            renamed_files,
+            disk_files,
         }
-        result_dict.set_item("renamed_files", py_renamed)?;
-        result_dict.set_item("total_disk_files", disk_files.len())?;
-
-        let py_disk_files = PyDict::new_bound(py);
-        for (fp, (mtime, size)) in &disk_files {
-            let entry = PyDict::new_bound(py);
-            entry.set_item("file_path", fp.as_str())?;
-            entry.set_item("last_mtime", *mtime)?;
-            entry.set_item("file_size", *size)?;
-            py_disk_files.set_item(fp.as_str(), entry)?;
-        }
-        result_dict.set_item("disk_files", py_disk_files)?;
-
-        Ok(result_dict.into())
     }
 }
 

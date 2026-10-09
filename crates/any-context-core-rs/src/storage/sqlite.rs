@@ -188,6 +188,18 @@ impl NativeConfigDb {
                 error TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS workspace_files_stat_cache (
+                workspace_name TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                last_mtime REAL NOT NULL,
+                file_size INTEGER NOT NULL,
+                doc_id TEXT,
+                content_hash TEXT,
+                indexed_at TEXT,
+                PRIMARY KEY (workspace_name, file_path)
+            );
+            CREATE INDEX IF NOT EXISTS idx_wfsc_ws ON workspace_files_stat_cache (workspace_name);
+
             CREATE INDEX IF NOT EXISTS idx_file_metadata_ws ON file_metadata(workspace);
             CREATE INDEX IF NOT EXISTS idx_file_metadata_path ON file_metadata(file_path);",
         )?;
@@ -1157,6 +1169,187 @@ impl NativeConfigDb {
             params![workspace],
         )?;
         Ok(count)
+    }
+
+    /// Retrieves full file metadata records for a workspace.
+    pub fn get_workspace_files_meta(&self, workspace: &str) -> Result<HashMap<String, FileMetadataRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, workspace, file_path, content_hash, last_modified, size_bytes, status, updated_at
+             FROM file_metadata WHERE workspace = ?1 COLLATE NOCASE",
+        )?;
+        let rows = stmt.query_map(params![workspace], |row| {
+            Ok(FileMetadataRecord {
+                id: row.get(0)?,
+                workspace: row.get(1)?,
+                file_path: row.get(2)?,
+                content_hash: row.get(3)?,
+                last_modified: row.get(4)?,
+                size_bytes: row.get(5)?,
+                status: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+
+        let mut map = HashMap::new();
+        for r in rows {
+            let rec = r?;
+            map.insert(rec.file_path.clone(), rec);
+        }
+        Ok(map)
+    }
+
+    /// Returns a map of normalized file_path -> (last_mtime, file_size) for workspace files,
+    /// checking workspace_files_stat_cache first and falling back to file_metadata.
+    pub fn get_workspace_files_stat_cache(&self, workspace: &str) -> Result<HashMap<String, (f64, u64)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut map = HashMap::new();
+
+        let tbl_exists: bool = conn
+            .query_row(
+                "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='workspace_files_stat_cache'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+
+        if tbl_exists {
+            let mut stmt = conn.prepare(
+                "SELECT file_path, last_mtime, file_size FROM workspace_files_stat_cache WHERE workspace_name = ?1 COLLATE NOCASE"
+            )?;
+            let rows = stmt.query_map(params![workspace], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?, row.get::<_, i64>(2)?))
+            })?;
+            for r in rows.flatten() {
+                let norm = normalize_path_slashes(&r.0);
+                map.insert(norm, (r.1, r.2.max(0) as u64));
+            }
+        }
+
+        if map.is_empty() {
+            let mut stmt = conn.prepare(
+                "SELECT file_path, last_modified, size_bytes FROM file_metadata WHERE workspace = ?1 COLLATE NOCASE"
+            )?;
+            let rows = stmt.query_map(params![workspace], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?))
+            })?;
+            for r in rows.flatten() {
+                let norm = normalize_path_slashes(&r.0);
+                let mtime: f64 = r.1.parse().unwrap_or(0.0);
+                map.insert(norm, (mtime, r.2.max(0) as u64));
+            }
+        }
+
+        Ok(map)
+    }
+
+    /// Upserts file stat records into both workspace_files_stat_cache and file_metadata.
+    pub fn upsert_file_stat_cache(
+        &self,
+        workspace: &str,
+        file_path: &str,
+        last_mtime: f64,
+        file_size: u64,
+        content_hash: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let norm_path = normalize_path_slashes(file_path);
+        let now = chrono::Utc::now().to_rfc3339();
+        let hash = content_hash.unwrap_or("");
+        let doc_id = format!("doc_{}", uuid_simple());
+
+        let tbl_exists: bool = conn
+            .query_row(
+                "SELECT count(*) > 0 FROM sqlite_master WHERE type='table' AND name='workspace_files_stat_cache'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+
+        if tbl_exists {
+            conn.execute(
+                "INSERT INTO workspace_files_stat_cache (workspace_name, file_path, last_mtime, file_size, doc_id, content_hash, indexed_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(workspace_name, file_path) DO UPDATE SET
+                    last_mtime = excluded.last_mtime,
+                    file_size = excluded.file_size,
+                    doc_id = excluded.doc_id,
+                    content_hash = excluded.content_hash,
+                    indexed_at = excluded.indexed_at",
+                params![workspace, &norm_path, last_mtime, file_size as i64, &doc_id, hash, &now],
+            )?;
+        }
+
+        let mtime_str = last_mtime.to_string();
+        let fm_id = format!("fm_{}", uuid_simple());
+        conn.execute(
+            "INSERT INTO file_metadata (id, workspace, file_path, content_hash, last_modified, size_bytes, status, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'synced', ?7)
+             ON CONFLICT(workspace, file_path) DO UPDATE SET
+                content_hash = excluded.content_hash,
+                last_modified = excluded.last_modified,
+                size_bytes = excluded.size_bytes,
+                status = excluded.status,
+                updated_at = excluded.updated_at",
+            params![&fm_id, workspace, &norm_path, hash, &mtime_str, file_size as i64, &now],
+        )?;
+
+        Ok(())
+    }
+
+    /// Removes a file from both workspace_files_stat_cache and file_metadata.
+    pub fn delete_file_stat_cache(&self, workspace: &str, file_path: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let norm_path = normalize_path_slashes(file_path);
+        let orig = file_path;
+
+        let _ = conn.execute(
+            "DELETE FROM workspace_files_stat_cache WHERE workspace_name = ?1 COLLATE NOCASE AND (file_path = ?2 OR file_path = ?3)",
+            params![workspace, &norm_path, orig],
+        );
+
+        let count = conn.execute(
+            "DELETE FROM file_metadata WHERE workspace = ?1 COLLATE NOCASE AND (file_path = ?2 OR file_path = ?3)",
+            params![workspace, &norm_path, orig],
+        )?;
+
+        Ok(count > 0)
+    }
+
+    /// Clears all file cache entries for a workspace.
+    pub fn clear_workspace_stat_cache(&self, workspace: &str) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let _ = conn.execute(
+            "DELETE FROM workspace_files_stat_cache WHERE workspace_name = ?1 COLLATE NOCASE",
+            params![workspace],
+        );
+        let count = conn.execute(
+            "DELETE FROM file_metadata WHERE workspace = ?1 COLLATE NOCASE",
+            params![workspace],
+        )?;
+        Ok(count)
+    }
+
+    /// Updates file path on rename/move with zero cost.
+    pub fn rename_cached_file(&self, workspace: &str, old_path: &str, new_path: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let old_norm = normalize_path_slashes(old_path);
+        let new_norm = normalize_path_slashes(new_path);
+        let now = chrono::Utc::now().to_rfc3339();
+
+        let _ = conn.execute(
+            "UPDATE workspace_files_stat_cache SET file_path = ?1, indexed_at = ?2
+             WHERE workspace_name = ?3 COLLATE NOCASE AND (file_path = ?4 OR file_path = ?5)",
+            params![&new_norm, &now, workspace, &old_norm, old_path],
+        );
+
+        let count = conn.execute(
+            "UPDATE file_metadata SET file_path = ?1, updated_at = ?2
+             WHERE workspace = ?3 COLLATE NOCASE AND (file_path = ?4 OR file_path = ?5)",
+            params![&new_norm, &now, workspace, &old_norm, old_path],
+        )?;
+
+        Ok(count > 0)
     }
 
     pub fn get_db_path(&self) -> &Path {

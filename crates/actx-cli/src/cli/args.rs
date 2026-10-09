@@ -38,6 +38,10 @@ pub struct CliArgs {
     #[arg(short = 's', long = "sync", alias = "reindex")]
     pub sync: bool,
 
+    /// Internal background synchronization worker daemon flag
+    #[arg(long = "sync-worker", hide = true)]
+    pub sync_worker: bool,
+
     /// Force full reindex during sync
     #[arg(short = 'f', long = "force")]
     pub force: bool,
@@ -106,7 +110,7 @@ impl CliArgs {
     /// Determines whether the invocation should run headless (one-shot query)
     /// instead of launching the interactive full-screen TUI.
     pub fn is_headless(&self) -> bool {
-        if self.check_update || self.update || self.diagnostics || self.sync {
+        if self.sync_worker || self.check_update || self.update || self.diagnostics || self.sync {
             return true;
         }
         if self.command.is_some() {

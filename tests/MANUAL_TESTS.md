@@ -7,6 +7,59 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 21 (v0.32.19 Transição 100% Rust - Orquestrador Nativo de Ingestão e Sincronização Zero-Python):
+- **Objetivo**: Comprovar que na versão `v0.32.19`:
+  1. **Orquestrador de Ingestão e Sincronização 100% Rust Puro (`NativeSyncOrchestrator`)**:
+     - Eliminação completa de dependências de runtime Python (`actx-core.exe`, `main.py`, `local_folder_ingestor.py`, `unified_sync.py`).
+     - Toda a indexação, escaneamento, cálculo de diff, chunking e vetorização são executados diretamente pelo binário nativo compilado em Rust.
+     - Scan e diff incremental em sub-30ms via `WorkspaceScanner::scan_and_diff_native`, com detecção instantânea de arquivos renomeados/movidos sem custo ($0.00).
+  2. **Chunking Especializado Multi-Formato em Rust**:
+     - Chunking AST estruturado em 13 linguagens de programação, Markdown com árvore de cabeçalhos, planilhas binárias (.xlsx, .xls, .ods, .csv, .tsv, .ofx), PDFs e dados estruturados (.json, .yaml, .toml, .xml).
+  3. **Vetorização Híbrida Direta (LanceDB + Okapi BM25 + SQLite)**:
+     - Os chunks são gravados diretamente na tabela `workspace_chunks` do LanceDB columnar Arrow engine.
+     - O índice Okapi BM25 é atualizado de forma incremental em memória e persistido atomicamente em `bm25_index.bin`.
+     - Metadados de timestamp e hashes SHA-256 são sincronizados atômica e simultaneamente em `workspace_files_stat_cache` e `file_metadata` no SQLite.
+  4. **Execução Headless e Worker em Background**:
+     - `actx --sync` ou `actx sync` executa o orquestrador nativo diretamente no terminal, emitindo progresso em stdout.
+     - Disparos a partir da TUI (`/sync`, `/folder <caminho>`) invocam `actx --sync-worker` de forma isolada em segundo plano, atualizando o progresso em tempo real nos badges do Header (`[Sync: ⚡ Syncing ...]`) e Footer.
+     - Suporte a cancelamento cooperativo instantâneo via `/sync cancel`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.32.19`.
+
+2. **🦀 Teste de Sincronização Nativa via CLI (`actx --sync`):**
+   - Execute no terminal em uma pasta com arquivos:
+     ```text
+     actx --sync
+     ```
+   - **Critérios de Aceitação**:
+     - O CLI exibe: `🦀 Running 100% Native Rust sync for workspace 'Default' ...`
+     - Não há invocação de interpretador Python nem busca por `actx-core.exe`.
+     - O processo completa em milissegundos reportando: `✔ Native sync completed: X files indexed, Y chunks created in ...ms.`
+   - Execute novamente `actx --sync` imediatamente em seguida:
+     - **Critério de Aceitação**: Detecta 0 alterações e reporta `✔ Workspace 'Default' is already 100% up-to-date (0 changes).` em menos de 30ms.
+
+3. **📊 Teste de Sincronização via TUI com Badges em Tempo Real (`/sync` e `/sync cancel`):**
+   - Abra a TUI:
+     ```text
+     actx
+     ```
+   - Digite `/sync` e pressione Enter:
+     - **Critérios de Aceitação**:
+       - O Header exibe `[Sync: ⚡ Syncing ...]` com contador de arquivos e spinner animado.
+       - O Footer exibe o badge de sincronização em progresso.
+       - Ao concluir, o status transiciona suavemente para `[Sync: ✔ Up to date]` em verde.
+   - Digite `/sync cancel`:
+     - **Critério de Aceitação**: Reseta o status para cancelado com mensagem de confirmação.
+
+---
+
 ### 📌 Cenário 20 (v0.32.18 Suporte a --update@<versão>, Indicador Persistente de Workspace Up-to-Date na TUI, Resolução Definitiva de Shadowing de Binários no Windows e Log de Atualização Canônico):
 - **Objetivo**: Comprovar que na versão `v0.32.18`:
   1. **Sintaxe de Atualização com Versão-Alvo (`--update@<versão>`, `-u@<versão>`, `update@<versão>`, `/update@<versão>` e `/update @<versão>`)**:

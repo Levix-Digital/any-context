@@ -38,6 +38,36 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         return Ok(());
     }
 
+    if args.sync_worker {
+        let fld = args.folder.as_deref().or_else(|| {
+            args.positional_query.first().map(|s| s.as_str()).filter(|s| *s == "." || std::path::Path::new(s).exists())
+        });
+        let orchestrator = any_context_core_rs::ingestion::NativeSyncOrchestrator::new_default()
+            .map_err(|e| format!("Failed to initialize native orchestrator: {e}"))?;
+        let options = any_context_core_rs::ingestion::SyncOptions {
+            workspace: args.workspace.clone(),
+            force: args.force,
+            target_folder: fld.map(|s| s.to_string()),
+            verbose: true,
+            model: args.model.clone(),
+        };
+        match orchestrator.run(&options).await {
+            Ok(res) => {
+                if res.is_up_to_date {
+                    println!("✔ Workspace '{}' is already 100% up-to-date (0 changes).", args.workspace);
+                } else {
+                    println!("✔ Native background sync finished: {} files indexed, {} chunks created in {}ms.",
+                        res.indexed_files, res.chunks_created, res.duration_ms);
+                }
+            }
+            Err(e) => {
+                eprintln!("[!] Native background sync error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return Ok(());
+    }
+
     if args.sync {
         let fld = args.folder.as_deref().or_else(|| {
             args.positional_query.first().map(|s| s.as_str()).filter(|s| *s == "." || std::path::Path::new(s).exists())
@@ -47,46 +77,28 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         } else {
             String::new()
         };
-        println!("Triggering sync for workspace '{}' (force={}){}...", args.workspace, args.force, fld_msg);
-        let canonical_dir = actx_installer::paths::get_canonical_bin_dir();
-        let core_name = actx_installer::paths::get_core_exe_name();
-        let core_exe = canonical_dir.join(core_name);
-        let local_core = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.join(core_name)));
-
-        let mut cmd = if core_exe.exists() {
-            let mut c = std::process::Command::new(core_exe);
-            c.arg("--sync-worker");
-            c
-        } else if let Some(lc) = local_core.filter(|p| p.exists()) {
-            let mut c = std::process::Command::new(lc);
-            c.arg("--sync-worker");
-            c
-        } else {
-            let mut c = std::process::Command::new("python");
-            c.arg("main.py").arg("--sync-worker");
-            c
+        println!("🦀 Running 100% Native Rust sync for workspace '{}' (force={}){}...", args.workspace, args.force, fld_msg);
+        let orchestrator = any_context_core_rs::ingestion::NativeSyncOrchestrator::new_default()
+            .map_err(|e| format!("Failed to initialize native orchestrator: {e}"))?;
+        let options = any_context_core_rs::ingestion::SyncOptions {
+            workspace: args.workspace.clone(),
+            force: args.force,
+            target_folder: fld.map(|s| s.to_string()),
+            verbose: true,
+            model: args.model.clone(),
         };
-
-        cmd.arg("--workspace").arg(&args.workspace);
-        if args.force {
-            cmd.arg("--force");
-        }
-        if let Some(f) = fld {
-            cmd.arg("--folder").arg(f);
-        }
-
-        let status = cmd.status();
-        match status {
-            Ok(s) if s.success() => {
-                println!("✔ Unified sync completed successfully.");
-            }
-            Ok(s) => {
-                eprintln!("[!] Sync worker exited with code: {:?}", s.code());
+        match orchestrator.run(&options).await {
+            Ok(res) => {
+                if res.is_up_to_date {
+                    println!("✔ Workspace '{}' is already 100% up-to-date (0 changes).", args.workspace);
+                } else {
+                    println!("✔ Native sync completed: {} files indexed, {} chunks created in {}ms.",
+                        res.indexed_files, res.chunks_created, res.duration_ms);
+                }
             }
             Err(e) => {
-                eprintln!("[!] Failed to execute sync worker: {}", e);
+                eprintln!("[!] Native sync failed: {e}");
+                std::process::exit(1);
             }
         }
         return Ok(());
@@ -134,24 +146,30 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 } else {
                     String::new()
                 };
-                println!("Triggering incremental sync for workspace '{}' (force={}){}...", args.workspace, force, fld_msg);
-                let db = any_context_core_rs::storage::NativeConfigDb::open_default();
-                let folders = db
-                    .as_ref()
-                    .map(|d| d.get_workspace_folders(&args.workspace).unwrap_or_default())
-                    .unwrap_or_default();
-                let root = if let Some(f) = fld {
-                    f.to_string()
-                } else if !folders.is_empty() {
-                    folders[0].clone()
-                } else {
-                    std::env::current_dir().unwrap_or_default().to_string_lossy().to_string()
+                println!("🦀 Running 100% Native Rust sync for workspace '{}' (force={}){}...", args.workspace, force, fld_msg);
+                let orchestrator = any_context_core_rs::ingestion::NativeSyncOrchestrator::new_default()
+                    .map_err(|e| format!("Failed to initialize native orchestrator: {e}"))?;
+                let options = any_context_core_rs::ingestion::SyncOptions {
+                    workspace: args.workspace.clone(),
+                    force: *force,
+                    target_folder: fld.map(|s| s.to_string()),
+                    verbose: true,
+                    model: args.model.clone(),
                 };
-                let scanner = any_context_core_rs::ingestion::WorkspaceScanner::new();
-                let files = scanner.discover_files(&root);
-                println!("  • Scanned root: {}", root);
-                println!("  • Files discovered: {}", files.len());
-                println!("✔ Sync complete. All vector indexes and hashes up-to-date ($0.00).");
+                match orchestrator.run(&options).await {
+                    Ok(res) => {
+                        if res.is_up_to_date {
+                            println!("✔ Workspace '{}' is already 100% up-to-date (0 changes).", args.workspace);
+                        } else {
+                            println!("✔ Native sync completed: {} files indexed, {} chunks created in {}ms.",
+                                res.indexed_files, res.chunks_created, res.duration_ms);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[!] Native sync failed: {e}");
+                        std::process::exit(1);
+                    }
+                }
                 return Ok(());
             }
             CliCommand::Serve { host, port } => {
