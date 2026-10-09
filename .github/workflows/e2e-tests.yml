@@ -1,4 +1,4 @@
-name: End-to-End (E2E) Modular Test Suite
+name: Rust Workspace Test Suite
 
 on:
   pull_request:
@@ -14,32 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  e2e-tests:
-    name: E2E Tests (${{ matrix.os }} - Python ${{ matrix.python-version }})
+  rust-tests:
+    name: Cargo Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    env:
-      CARGO_TARGET_DIR: ${{ github.workspace }}/target
-      PYTHONUTF8: "1"
-      PYTHONIOENCODING: "utf-8"
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ['3.11', '3.12']
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -47,32 +32,8 @@ jobs:
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.os }}-py${{ matrix.python-version }}
+          key: ${{ matrix.os }}-cargo-test
           cache-all-crates: "true"
 
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install Dependencies
-        shell: bash
-        run: |
-          uv pip install --system -r requirements.txt pytest maturin
-          maturin build -m crates/any-context-core-rs/Cargo.toml --out dist
-          uv pip install --system --find-links dist any-context-core-rs
-          uv pip install --system -e .
-          cd src/any_context/tui
-          bun install
-          bun run check
-          cd ../../..
-
-      - name: Execute 100% Modular E2E Test Suite
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'mock_test_ci_key' }}
-          PYTHONPATH: .
-        run: |
-          python tests/run_all_e2e.py
+      - name: Run Workspace Tests
+        run: cargo test --workspace --verbose

@@ -77,3 +77,16 @@ impl ChunkPayload {
         )
     }
 }
+
+/// Rich semantic metadata envelope extracted per document.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SemanticEnvelope {
+    pub summary: String,
+    pub keywords: Vec<String>,
+    pub content_hash: String,
+    pub file_name: String,
+    pub file_path: Option<String>,
+    pub url: Option<String>,
+    pub created_at: String,
+}
+

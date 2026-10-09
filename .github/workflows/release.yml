@@ -15,8 +15,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
-      PYTHONUTF8: "1"
-      PYTHONIOENCODING: "utf-8"
     strategy:
       fail-fast: false
       matrix:
@@ -44,16 +42,6 @@ jobs:
           sudo rm -rf /var/lib/docker
           sudo apt-get clean
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -63,77 +51,37 @@ jobs:
           shared-key: "actx-rust-cache"
           cache-all-crates: "true"
 
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-
       - name: Build Native Rust Binaries & Core Engine
         shell: bash
         run: |
-          # Compile all release binaries and libraries across the workspace in a single unified pass
           cargo build --release -p actx-cli -p actx-installer -p any-context-core-rs
 
-      - name: Install dependencies
-        shell: bash
-        run: |
-          uv pip install --system "pyinstaller>=6.16.0" maturin -r requirements.txt
-          # Maturin packages the already-compiled cdylib into a wheel in seconds
-          maturin build --release -m crates/any-context-core-rs/Cargo.toml --out dist
-          uv pip install --system --find-links dist any-context-core-rs
-          uv pip install --system -e .
-          cd src/any_context/tui
-          bun install --production
-          cd ../../..
-
-      - name: Build with PyInstaller (Windows)
+      - name: Package Release Assets (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        env:
-          PYTHONIOENCODING: utf-8
         run: |
           mkdir -p dist
           cp target/release/actx.exe dist/actx.exe
           cp target/release/actx-installer.exe dist/actx-installer.exe
+          cp dist/actx.exe dist/actx-windows-x86_64.exe
 
-          # 1. Build sub-second cold boot distribution (--onedir)
-          pyinstaller --clean --noconfirm --onedir --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config;any_context/config" --add-data "src/any_context/tui;any_context/tui" main.py
-          cp target/release/actx.exe dist/actx-core/actx.exe
-          python launcher/build_shim.py --out dist/actx.exe
-
-          # 2. High-performance multi-threaded archive creation (7z / tar / Compress-Archive)
           if command -v 7z >/dev/null 2>&1; then
-            (cd dist/actx-core && 7z a -tzip -mx=3 ../actx-windows-x86_64.zip ./*)
+            (cd dist && 7z a -tzip -mx=3 actx-windows-x86_64.zip actx.exe actx-installer.exe)
           elif command -v tar >/dev/null 2>&1; then
-            tar -a -cf dist/actx-windows-x86_64.zip -C dist/actx-core .
+            tar -a -cf dist/actx-windows-x86_64.zip -C dist actx.exe actx-installer.exe
           else
-            powershell -Command "Compress-Archive -Path 'dist/actx-core/*' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
+            powershell -Command "Compress-Archive -Path 'dist/actx.exe','dist/actx-installer.exe' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
           fi
 
-          # 3. Provide native installer as standalone binary fallback (instantaneous, zero overhead)
-          cp dist/actx-installer.exe dist/actx-windows-x86_64.exe
-
-      - name: Build with PyInstaller (Linux)
+      - name: Package Release Assets (Linux)
         if: runner.os == 'Linux'
         shell: bash
-        env:
-          PYTHONIOENCODING: utf-8
         run: |
           mkdir -p dist
           cp target/release/actx dist/actx
           cp target/release/actx-installer dist/actx-installer
-
-          # 1. Build sub-second cold boot distribution (--onedir)
-          pyinstaller --clean --noconfirm --onedir --paths src --collect-all any_context --collect-all any_context_core_rs --collect-all lancedb --collect-all pyarrow --collect-all tiktoken --collect-all tiktoken_ext --exclude-module torch --exclude-module nvidia --exclude-module scipy --exclude-module matplotlib --name actx-core --add-data "src/any_context/config:any_context/config" --add-data "src/any_context/tui:any_context/tui" main.py
-          cp target/release/actx dist/actx-core/actx
-          python launcher/build_shim.py --out dist/actx
-          tar -czf dist/actx-linux-x86_64.tar.gz -C dist/actx-core .
-
-          # 2. Provide native installer as standalone binary fallback (instantaneous, zero overhead)
-          cp dist/actx-installer dist/actx-linux-x86_64
+          cp dist/actx dist/actx-linux-x86_64
+          tar -czf dist/actx-linux-x86_64.tar.gz -C dist actx actx-installer
 
       - name: Normalize line endings for Unix scripts
         if: runner.os == 'Linux'
@@ -184,7 +132,3 @@ jobs:
           path: dist/*
           retention-days: 1
           if-no-files-found: ignore
-
-
-
-

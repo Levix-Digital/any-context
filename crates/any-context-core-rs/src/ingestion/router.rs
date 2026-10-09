@@ -7,6 +7,7 @@ use crate::ingestion::chunkers::tabular::TabularChunker;
 use crate::ingestion::chunkers::pdf::PdfChunker;
 use crate::ingestion::chunkers::image::ImageChunker;
 use crate::ingestion::chunkers::text::TextChunker;
+use crate::ingestion::chunkers::office::OfficeChunker;
 use crate::ingestion::traits::Chunker;
 use crate::models::ChunkPayload;
 
@@ -20,6 +21,7 @@ pub struct IngestionRouter {
     pub pdf_chunker: PdfChunker,
     pub image_chunker: ImageChunker,
     pub text_chunker: TextChunker,
+    pub office_chunker: OfficeChunker,
 }
 
 #[pymethods]
@@ -35,6 +37,7 @@ impl IngestionRouter {
             pdf_chunker: PdfChunker::new(max_chunk_chars.max(8000)),
             image_chunker: ImageChunker::new(max_chunk_chars),
             text_chunker: TextChunker::new(max_chunk_chars, overlap_chars),
+            office_chunker: OfficeChunker::new(max_chunk_chars, overlap_chars),
         }
     }
 
@@ -53,6 +56,7 @@ impl IngestionRouter {
             || self.structured_chunker.supports_extension(&ext)
             || self.tabular_chunker.supports_extension(&ext)
             || self.pdf_chunker.supports_extension(&ext)
+            || self.office_chunker.supports_extension(&ext)
             || self.image_chunker.supports_extension(&ext)
             || self.text_chunker.supports_extension(&ext)
             || self.text_chunker.supports_filename(file_name)
@@ -125,6 +129,8 @@ impl IngestionRouter {
             self.tabular_chunker.chunk_file(file_path)
         } else if self.pdf_chunker.supports_extension(&ext) {
             self.pdf_chunker.chunk_file(file_path)
+        } else if self.office_chunker.supports_extension(&ext) {
+            self.office_chunker.chunk_file(file_path)
         } else if self.image_chunker.supports_extension(&ext) {
             self.image_chunker.chunk_file(file_path)
         } else {
@@ -143,6 +149,8 @@ impl IngestionRouter {
             self.tabular_chunker.excel_chunker.chunk_bytes(file_path, bytes)
         } else if self.pdf_chunker.supports_extension(&ext) {
             self.pdf_chunker.chunk_bytes(file_path, bytes)
+        } else if self.office_chunker.supports_extension(&ext) {
+            self.office_chunker.chunk_bytes(file_path, bytes)
         } else if self.image_chunker.supports_extension(&ext) {
             self.image_chunker.chunk_bytes(file_path, bytes)
         } else {
@@ -501,5 +509,15 @@ mod tests {
         let web_chunks = router.chunk_text("https://api.acme.org/docs", web_content).expect("Chunking failed");
         assert!(!web_chunks.is_empty());
         assert_eq!(web_chunks[0].content_type, "markdown");
+    }
+
+    #[test]
+    fn test_router_supports_office_docx_and_pptx() {
+        pyo3::prepare_freethreaded_python();
+        let router = IngestionRouter::new(1800, 200);
+        assert!(router.supports_file("spec.docx"));
+        assert!(router.supports_file("slides.pptx"));
+        assert!(router.supports_file("legacy.doc"));
+        assert!(router.supports_file("presentation.ppt"));
     }
 }

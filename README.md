@@ -16,7 +16,7 @@
 
 [![Release](https://img.shields.io/github/v/release/Levix-Digital/any-context?color=blue&label=release)](https://github.com/Levix-Digital/any-context/releases)
 [![License](https://img.shields.io/badge/license-Community%20%2F%20Enterprise-green.svg)](https://github.com/Levix-Digital/any-context)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
 [![Privacy](https://img.shields.io/badge/privacy-100%25%20Offline%20First-success.svg)](https://lmstudio.ai/)
 [![Architecture & TecDoc](https://img.shields.io/badge/docs-TecDoc%20(Architecture)-blueviolet.svg)](TECDOC.md)
 
@@ -45,6 +45,12 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🦀 100% Native Rust Parity & Complete Python Purge (`v0.33.0`)**:
+  - **Complete Legacy Python Purge**: Eradicated all legacy Python codebase (`src/any_context/`), PyInstaller specs, requirements, and virtualenv tooling. AnyContext is now 100% native Rust from end to end, compiling into a lean, single-file native executable with sub-10ms startup.
+  - **Native Office Ingestion (`OfficeChunker`)**: Pure native extraction and chunking for Microsoft Word (`.docx`) and PowerPoint (`.pptx`) archives using streaming XML parsing (`zip` + `quick-xml`), preserving headings, tables, slide titles, and presentation speaker notes.
+  - **Autonomous Web Crawler & Sitemap Engine (`NativeWebCrawler`)**: High-performance recursive crawler featuring XML sitemap & sitemap index traversal (`sitemap.xml`), strict RFC 9309 `robots.txt` compliance, rate-limiting, and direct LanceDB/BM25 ingestion.
+  - **Multi-Provider Web Search (`NativeWebSearchEngine`)**: Embedded native web search tool supporting Tavily, Serper, and DuckDuckGo fallback, wired directly to the agent's ReAct tool execution engine when web search is enabled (`/web on`).
+  - **Semantic Envelope & Retrieval Presets**: Enriched document indexing with contextual metadata envelopes (`SemanticEnvelope`) and `workspace_sync_ledger` in SQLite, complemented by tiered retrieval presets (`Turbo`, `Balanced`, `Deep`).
 - **🦀 100% Native Rust Transition & Zero-Python Sync Orchestrator (`v0.32.19`)**:
   - **Zero Python Runtime Dependencies**: Complete deprecation and elimination of Python runtimes, `actx-core.exe`, and PyInstaller bundles. All scanning, AST/Markdown chunking, vectorization, and LanceDB/BM25 ingestion run directly through the compiled native Rust core engine.
   - **Native Differential Scanner (`NativeSyncOrchestrator`)**: Sub-30ms incremental scans with cryptographic SHA-256 stat caching in SQLite (`workspace_files_stat_cache`). Instant $0.00 detection and metadata update for renamed and moved files without re-embedding.

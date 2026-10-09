@@ -1,6 +1,6 @@
 [package]
 name = "actx-cli"
-version = "0.32.19"
+version = "0.33.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "100% Native Rust CLI & TUI Interface for AnyContext"
@@ -29,3 +29,4 @@ dirs = "6.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2.5"

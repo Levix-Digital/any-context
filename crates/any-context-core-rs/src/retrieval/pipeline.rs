@@ -17,6 +17,92 @@ use crate::retrieval::query::QueryPreprocessor;
 use crate::retrieval::token_budget::estimate_token_count;
 use actx_lm::traits::LmProvider;
 
+/// Preset profiles for hybrid retrieval and RAG candidate boundaries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RetrievalPreset {
+    Turbo,
+    Balanced,
+    Deep,
+}
+
+impl Default for RetrievalPreset {
+    fn default() -> Self {
+        Self::Balanced
+    }
+}
+
+impl RetrievalPreset {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().trim() {
+            "turbo" | "fast" => Self::Turbo,
+            "deep" | "deep_research" | "research" => Self::Deep,
+            _ => Self::Balanced,
+        }
+    }
+
+    pub fn candidate_pool_k(&self) -> usize {
+        match self {
+            Self::Turbo => 50,
+            Self::Balanced => 100,
+            Self::Deep => 150,
+        }
+    }
+
+    pub fn top_k(&self) -> usize {
+        match self {
+            Self::Turbo => 10,
+            Self::Balanced => 20,
+            Self::Deep => 40,
+        }
+    }
+
+    pub fn min_score(&self) -> f64 {
+        match self {
+            Self::Turbo => 0.55,
+            Self::Balanced => 0.50,
+            Self::Deep => 0.45,
+        }
+    }
+
+    pub fn max_chunks_per_source(&self) -> usize {
+        match self {
+            Self::Turbo => 2,
+            Self::Balanced => 3,
+            Self::Deep => 5,
+        }
+    }
+
+    pub fn max_density_chars(&self) -> usize {
+        match self {
+            Self::Turbo => 20_000,
+            Self::Balanced => 40_000,
+            Self::Deep => 60_000,
+        }
+    }
+
+    pub fn rrf_k(&self) -> usize {
+        60
+    }
+
+    pub fn build_request(&self, query_text: impl Into<String>, workspace: Option<String>) -> HybridSearchRequest {
+        HybridSearchRequest {
+            sub_query_id: None,
+            query_text: query_text.into(),
+            query_vector: None,
+            workspace,
+            target_workspaces: Vec::new(),
+            linked_sources: Vec::new(),
+            top_k: self.top_k(),
+            candidate_pool_k: self.candidate_pool_k(),
+            min_score: self.min_score(),
+            max_chunks_per_source: self.max_chunks_per_source(),
+            max_density_chars: self.max_density_chars(),
+            table_name: "workspace_chunks".to_string(),
+            rrf_k: self.rrf_k(),
+        }
+    }
+}
+
 /// Request payload for native hybrid retrieval.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HybridSearchRequest {
@@ -33,6 +119,12 @@ pub struct HybridSearchRequest {
     pub max_density_chars: usize,
     pub table_name: String,
     pub rrf_k: usize,
+}
+
+impl HybridSearchRequest {
+    pub fn from_preset(preset: RetrievalPreset, query_text: impl Into<String>, workspace: Option<String>) -> Self {
+        preset.build_request(query_text, workspace)
+    }
 }
 
 impl Default for HybridSearchRequest {
@@ -764,5 +856,26 @@ mod tests {
         assert!(top_match.matched_subqueries.contains(&"sub-2".to_string()));
 
         let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_retrieval_presets() {
+        let p_turbo = RetrievalPreset::from_str("turbo");
+        assert_eq!(p_turbo, RetrievalPreset::Turbo);
+        assert_eq!(p_turbo.top_k(), 10);
+        assert_eq!(p_turbo.candidate_pool_k(), 50);
+
+        let p_deep = RetrievalPreset::from_str("deep_research");
+        assert_eq!(p_deep, RetrievalPreset::Deep);
+        assert_eq!(p_deep.top_k(), 40);
+        assert_eq!(p_deep.candidate_pool_k(), 150);
+
+        let p_bal = RetrievalPreset::from_str("other");
+        assert_eq!(p_bal, RetrievalPreset::Balanced);
+
+        let req = HybridSearchRequest::from_preset(p_turbo, "auth logic", Some("Security".to_string()));
+        assert_eq!(req.top_k, 10);
+        assert_eq!(req.candidate_pool_k, 50);
+        assert_eq!(req.workspace.as_deref(), Some("Security"));
     }
 }

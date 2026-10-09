@@ -7,6 +7,72 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 22 (v0.33.0 Paridade Integral 100% Rust Core, Ingestão Office .docx/.pptx, Web Crawler com Sitemaps, Web Search Multiprovedor e Purga Completa do Código Legado Python):
+- **Objetivo**: Comprovar que na versão `v0.33.0`:
+  1. **Purga Completa do Código Legado Python e Arquitetura 100% Rust Nativo**:
+     - O repositório e o artefato de distribuição foram 100% desvinculados de runtimes Python, `src/any_context/`, `requirements.txt`, PyInstaller specs e Maturin/PyO3 fallbacks.
+     - O binário compilado único (`actx.exe` no Windows, `actx` no Linux/macOS) executa instantaneamente com cold-boot < 10ms.
+  2. **Ingestão Nativa de Arquivos Office (.docx e .pptx)**:
+     - O `OfficeChunker` extrai e indexa textos, títulos, tabelas, seções e notas de apresentações PowerPoint e documentos Word diretamente via streaming XML nativo (`zip` + `quick-xml`).
+  3. **Crawler Web Nativo com Suporte a Sitemaps e RFC 9309 (`NativeWebCrawler`)**:
+     - Sincronização web autônoma com parsing de `sitemap.xml` / `sitemap_index.xml`, controle de taxa de requisições, detecção de links recursivos via BFS e conformidade estrita com `robots.txt`.
+  4. **Motor de Busca Web Multiprovedor (`NativeWebSearchEngine`)**:
+     - Disponibilização da ferramenta `web_search` para o agente ReAct quando o modo web estiver habilitado (`/web on`), suportando Tavily, Serper e fallback DuckDuckGo.
+  5. **Presets de Recuperação Semântica RAG (`RetrievalPreset`)**:
+     - Suporte a estratégias otimizadas de recuperação RAG: `Turbo` (baixa latência com BM25 preferencial), `Balanced` (híbrido balanceado) e `Deep` (vetores densos + BM25 expandido + rerank).
+  6. **Ledger de Sincronização e Envelopamento Contextual (`SemanticEnvelope`)**:
+     - Registro transacional de cada operação de sincronização na tabela `workspace_sync_ledger` e metadados contextuais persistidos no SQLite.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.33.0`.
+
+2. **🦀 Teste de Ingestão de Documento Office (.docx / .pptx):**
+   - Crie ou copie um arquivo `.docx` ou `.pptx` em uma pasta vinculada ao workspace ativo.
+   - Execute a sincronização nativa:
+     ```text
+     actx --sync
+     ```
+   - **Critérios de Aceitação**:
+     - O `OfficeChunker` processa o arquivo sem invocar nenhum interpretador externo ou serviço COM/Office.
+     - Os chunks extraídos contêm parágrafos e tabelas do documento indexados no LanceDB e BM25.
+     - Realize uma consulta sobre o conteúdo do documento com `actx -q "<pergunta sobre o arquivo>"`. A resposta cita com precisão o arquivo `.docx`/`.pptx` como fonte.
+
+3. **🌐 Teste de Descoberta Web via Crawler com Sitemap:**
+   - Adicione uma URL ou portal web ao workspace com sitemap disponível:
+     ```text
+     actx
+     /web add https://docs.rs/quick-xml/latest/quick_xml/
+     ```
+   - Dispare a sincronização do portal:
+     ```text
+     /sync
+     ```
+   - **Critérios de Aceitação**:
+     - O `NativeWebCrawler` rastreia as páginas e indexa o conteúdo no LanceDB.
+     - Não ocorre travamento da TUI durante a extração.
+
+4. **🔍 Teste de Busca Web Integrada no Chat (`/web on`):**
+   - Na TUI interativa:
+     ```text
+     /web on
+     ```
+   - Faça uma pergunta de atualidades externas (ex: sobre a cotação do dólar ou notícias recentes):
+     - **Critérios de Aceitação**:
+       - O agente invoca a ferramenta nativa `web_search` se as credenciais estiverem configuradas ou relata a tentativa via fallback.
+       - As respostas incluem as fontes encontradas na web.
+
+5. **🧹 Validação de Purga Total do Código Python:**
+   - Verifique que a pasta `src/any_context` e arquivos `.py` não existem no repositório.
+   - O workspace compila e roda todos os testes com pureza 100% Rust (`cargo test --workspace`).
+
+---
+
 ### 📌 Cenário 21 (v0.32.19 Transição 100% Rust - Orquestrador Nativo de Ingestão e Sincronização Zero-Python):
 - **Objetivo**: Comprovar que na versão `v0.32.19`:
   1. **Orquestrador de Ingestão e Sincronização 100% Rust Puro (`NativeSyncOrchestrator`)**:

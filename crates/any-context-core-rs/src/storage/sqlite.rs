@@ -58,6 +58,7 @@ impl NativeConfigDb {
         }
 
         let conn = Connection::open(&p)?;
+        let _ = conn.busy_timeout(std::time::Duration::from_secs(30));
         Self::apply_pragmas(&conn)?;
 
         let db = Self {
@@ -199,6 +200,25 @@ impl NativeConfigDb {
                 PRIMARY KEY (workspace_name, file_path)
             );
             CREATE INDEX IF NOT EXISTS idx_wfsc_ws ON workspace_files_stat_cache (workspace_name);
+
+            CREATE TABLE IF NOT EXISTS semantic_envelopes (
+                content_hash TEXT PRIMARY KEY,
+                file_name TEXT,
+                file_path TEXT,
+                url TEXT,
+                summary TEXT,
+                keywords_json TEXT,
+                created_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_envelope_file ON semantic_envelopes(file_path);
+
+            CREATE TABLE IF NOT EXISTS workspace_sync_ledger (
+                workspace TEXT PRIMARY KEY,
+                last_sync_timestamp TEXT NOT NULL,
+                deleted_sources_json TEXT NOT NULL DEFAULT '[]',
+                added_sources_json TEXT NOT NULL DEFAULT '[]',
+                modified_sources_json TEXT NOT NULL DEFAULT '[]'
+            );
 
             CREATE INDEX IF NOT EXISTS idx_file_metadata_ws ON file_metadata(workspace);
             CREATE INDEX IF NOT EXISTS idx_file_metadata_path ON file_metadata(file_path);",
@@ -1362,6 +1382,108 @@ impl NativeConfigDb {
         )?;
 
         Ok(count > 0)
+    }
+
+    /// Retrieves cached semantic envelope by SHA-256 content hash in sub-millisecond time.
+    pub fn get_semantic_envelope(&self, content_hash: &str) -> Result<Option<crate::models::SemanticEnvelope>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT summary, keywords_json, file_name, file_path, url, created_at FROM semantic_envelopes WHERE content_hash = ?1"
+        )?;
+        let mut rows = stmt.query(params![content_hash])?;
+        if let Some(row) = rows.next()? {
+            let summary: String = row.get(0)?;
+            let kw_json: Option<String> = row.get(1)?;
+            let file_name: String = row.get(2)?;
+            let file_path: Option<String> = row.get(3)?;
+            let url: Option<String> = row.get(4)?;
+            let created_at: String = row.get(5)?;
+            let keywords: Vec<String> = kw_json
+                .and_then(|j| serde_json::from_str(&j).ok())
+                .unwrap_or_default();
+            Ok(Some(crate::models::SemanticEnvelope {
+                summary,
+                keywords,
+                content_hash: content_hash.to_string(),
+                file_name,
+                file_path,
+                url,
+                created_at,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Persists or updates semantic envelope in thread-safe SQLite cache.
+    pub fn save_semantic_envelope(&self, envelope: &crate::models::SemanticEnvelope) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let kw_json = serde_json::to_string(&envelope.keywords).unwrap_or_else(|_| "[]".to_string());
+        conn.execute(
+            "INSERT OR REPLACE INTO semantic_envelopes (content_hash, file_name, file_path, url, summary, keywords_json, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                &envelope.content_hash,
+                &envelope.file_name,
+                &envelope.file_path,
+                &envelope.url,
+                &envelope.summary,
+                &kw_json,
+                &envelope.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Records the latest sync mutation diff in workspace_sync_ledger.
+    pub fn record_sync_ledger(
+        &self,
+        workspace: &str,
+        deleted_sources: &[String],
+        added_sources: &[String],
+        modified_sources: &[String],
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        let del_json = serde_json::to_string(deleted_sources).unwrap_or_else(|_| "[]".to_string());
+        let add_json = serde_json::to_string(added_sources).unwrap_or_else(|_| "[]".to_string());
+        let mod_json = serde_json::to_string(modified_sources).unwrap_or_else(|_| "[]".to_string());
+        conn.execute(
+            "INSERT INTO workspace_sync_ledger (workspace, last_sync_timestamp, deleted_sources_json, added_sources_json, modified_sources_json)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(workspace) DO UPDATE SET
+                last_sync_timestamp = excluded.last_sync_timestamp,
+                deleted_sources_json = excluded.deleted_sources_json,
+                added_sources_json = excluded.added_sources_json,
+                modified_sources_json = excluded.modified_sources_json",
+            params![workspace, &now, &del_json, &add_json, &mod_json],
+        )?;
+        Ok(())
+    }
+
+    /// Retrieves the latest sync ledger for a workspace.
+    pub fn get_sync_ledger(
+        &self,
+        workspace: &str,
+    ) -> Result<Option<(String, Vec<String>, Vec<String>, Vec<String>)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT last_sync_timestamp, deleted_sources_json, added_sources_json, modified_sources_json
+             FROM workspace_sync_ledger WHERE workspace = ?1 COLLATE NOCASE",
+        )?;
+        let mut rows = stmt.query(params![workspace])?;
+        if let Some(row) = rows.next()? {
+            let ts: String = row.get(0)?;
+            let del_s: String = row.get(1)?;
+            let add_s: String = row.get(2)?;
+            let mod_s: String = row.get(3)?;
+            let del: Vec<String> = serde_json::from_str(&del_s).unwrap_or_default();
+            let add: Vec<String> = serde_json::from_str(&add_s).unwrap_or_default();
+            let mdf: Vec<String> = serde_json::from_str(&mod_s).unwrap_or_default();
+            Ok(Some((ts, del, add, mdf)))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn get_db_path(&self) -> &Path {

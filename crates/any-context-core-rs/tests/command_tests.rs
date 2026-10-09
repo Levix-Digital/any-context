@@ -387,7 +387,7 @@ fn test_inspect_transparent_decryption() {
     let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
     let lance = any_context_core_rs::storage::NativeLanceStore::open(&lance_path).expect("open lance");
 
-    let sec = any_context_core_rs::security::NativeSecurityEngine::new(Some("test_inspect_decrypt_node"));
+    let sec = any_context_core_rs::security::NativeSecurityEngine::get_instance();
     let plaintext_secret = "Top Secret Architectural Source Code";
     let encrypted_payload = sec.encrypt_text(plaintext_secret);
     assert!(encrypted_payload.starts_with("enc::"));
@@ -406,7 +406,7 @@ fn test_inspect_transparent_decryption() {
         content_hash: None,
     };
 
-    let _ = lance.upsert_records(vec![rec], Some("workspace_chunks"), Some(1536));
+    lance.upsert_records(vec![rec], Some("workspace_chunks"), Some(1536)).expect("upsert failed in test_inspect_transparent_decryption");
 
     let res_full = CommandEngine::execute("inspect", &["--full"], &ctx);
     assert!(res_full.success);
@@ -414,6 +414,8 @@ fn test_inspect_transparent_decryption() {
     assert!(!res_full.message.contains("enc::"));
     // Should contain the decrypted plaintext
     assert!(res_full.message.contains(plaintext_secret));
+
+    let _ = lance.delete_by_workspace(ws, None);
 }
 
 #[test]

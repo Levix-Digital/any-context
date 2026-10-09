@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "actx-agent"
-version = "0.32.19"
+version = "0.33.0"
 dependencies = [
  "actx-lm",
  "async-trait",
@@ -20,7 +20,7 @@ dependencies = [
 
 [[package]]
 name = "actx-cli"
-version = "0.32.19"
+version = "0.33.0"
 dependencies = [
  "actx-agent",
  "actx-installer",
@@ -37,11 +37,12 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
 name = "actx-installer"
-version = "0.32.19"
+version = "0.33.0"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
@@ -58,7 +59,7 @@ dependencies = [
 
 [[package]]
 name = "actx-lm"
-version = "0.32.19"
+version = "0.33.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -227,7 +228,7 @@ dependencies = [
 
 [[package]]
 name = "any-context-core-rs"
-version = "0.32.19"
+version = "0.33.0"
 dependencies = [
  "actx-agent",
  "actx-installer",
@@ -275,7 +276,9 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-swift",
  "tree-sitter-typescript",
+ "url",
  "walkdir",
+ "zip",
 ]
 
 [[package]]

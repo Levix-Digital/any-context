@@ -277,6 +277,64 @@ pub fn build_agent_sync(
         .tool(Arc::new(search_tool))
         .tool(Arc::new(status_tool));
 
+    if web_search_enabled {
+        let ws_for_web = workspace.to_string();
+        let web_search_tool = actx_agent::NativeTool::new(
+            "web_search",
+            "Performs live internet search across documentation and the public web for real-time information.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query or technical keywords to search on the web"
+                    }
+                },
+                "required": ["query"]
+            }),
+            move |args: serde_json::Value| {
+                let ws = ws_for_web.clone();
+                async move {
+                    let query = args.get("query")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .trim();
+                    if query.is_empty() {
+                        return Ok("Empty query provided to web search.".to_string());
+                    }
+
+                    let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok().map(Arc::new);
+                    let mut domains = Vec::new();
+                    if let Some(ref d) = db {
+                        if let Ok(web_urls) = d.get_workspace_web_urls(&ws) {
+                            for u_str in web_urls {
+                                if let Ok(parsed) = url::Url::parse(&u_str) {
+                                    if let Some(host) = parsed.host_str() {
+                                        domains.push(host.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let engine = any_context_core_rs::retrieval::NativeWebSearchEngine::new(db);
+                    match engine.search(query, &domains, 5).await {
+                        Ok(results) if !results.is_empty() => {
+                            let mut formatted = Vec::new();
+                            for r in results {
+                                formatted.push(format!("• [{}] ({}):\n{}", r.title, r.url, r.snippet));
+                            }
+                            Ok(formatted.join("\n\n"))
+                        }
+                        Ok(_) => Ok(format!("No live web results found for '{}'.", query)),
+                        Err(e) => Ok(format!("Web search failed: {e}")),
+                    }
+                }
+            }
+        );
+        builder = builder.tool(Arc::new(web_search_tool));
+    }
+
     if let Some(store) = session_store {
         builder = builder.session_store(store);
     }
