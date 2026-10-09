@@ -793,10 +793,20 @@ impl CommandEngine {
             if args.len() < 2 {
                 return CommandResult::error("❌ Specify folder path: `/folder --remove <path>`");
             }
-            let path_str = args[1..].join(" ");
-            match db.remove_workspace_folder(&ctx.active_workspace, &path_str) {
-                Ok(true) => CommandResult::success(format!("📁 Removed folder from workspace '{}':\n  {}", ctx.active_workspace, path_str)),
-                Ok(false) => CommandResult::error(format!("⚠️ Folder '{}' was not attached to workspace '{}'.", path_str, ctx.active_workspace)),
+            let raw_path = args[1..].join(" ");
+            let clean_path = raw_path.trim().trim_matches('\'').trim_matches('"');
+            let path = Path::new(clean_path);
+            let canonical_str = path.canonicalize()
+                .map(|p| p.to_string_lossy().trim_start_matches(r"\\?\").to_string())
+                .unwrap_or_else(|_| clean_path.to_string());
+
+            let mut removed = db.remove_workspace_folder(&ctx.active_workspace, &canonical_str);
+            if removed.as_ref().ok() != Some(&true) && canonical_str != clean_path {
+                removed = db.remove_workspace_folder(&ctx.active_workspace, clean_path);
+            }
+            match removed {
+                Ok(true) => CommandResult::success(format!("📁 Removed folder from workspace '{}':\n  {}", ctx.active_workspace, clean_path)),
+                Ok(false) => CommandResult::error(format!("⚠️ Folder '{}' was not attached to workspace '{}'.", clean_path, ctx.active_workspace)),
                 Err(e) => CommandResult::error(format!("❌ Error removing folder: {}", e)),
             }
         } else {

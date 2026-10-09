@@ -1,5 +1,4 @@
 use std::path::Path;
-use pyo3::prelude::*;
 use crate::ingestion::chunkers::code::ASTCodeChunker;
 use crate::ingestion::chunkers::markdown::MarkdownHeaderChunker;
 use crate::ingestion::chunkers::structured::StructuredDataChunker;
@@ -11,7 +10,6 @@ use crate::ingestion::chunkers::office::OfficeChunker;
 use crate::ingestion::traits::Chunker;
 use crate::models::ChunkPayload;
 
-#[pyclass]
 #[derive(Debug, Clone)]
 pub struct IngestionRouter {
     pub markdown_chunker: MarkdownHeaderChunker,
@@ -24,10 +22,7 @@ pub struct IngestionRouter {
     pub office_chunker: OfficeChunker,
 }
 
-#[pymethods]
 impl IngestionRouter {
-    #[new]
-    #[pyo3(signature = (max_chunk_chars=1800, overlap_chars=200))]
     pub fn new(max_chunk_chars: usize, overlap_chars: usize) -> Self {
         Self {
             markdown_chunker: MarkdownHeaderChunker::new(max_chunk_chars, overlap_chars),
@@ -63,22 +58,19 @@ impl IngestionRouter {
     }
 
     /// Chunks document content using the specialized parser matching the file extension.
-    pub fn chunk_text(&self, file_path: &str, content: &str) -> PyResult<Vec<ChunkPayload>> {
+    pub fn chunk_text(&self, file_path: &str, content: &str) -> Result<Vec<ChunkPayload>, String> {
         self.chunk_text_native(file_path, content)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
 
     /// Reads and chunks a file directly from the filesystem in high-speed native Rust.
     /// Handles binary spreadsheet files (.xlsx, .xls, .ods), PDFs (.pdf), and images (.png, .jpg, .webp).
-    pub fn chunk_file(&self, file_path: &str) -> PyResult<Vec<ChunkPayload>> {
+    pub fn chunk_file(&self, file_path: &str) -> Result<Vec<ChunkPayload>, String> {
         self.chunk_file_native(file_path)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
 
     /// Chunks raw byte content (useful for binary workbooks, PDFs, images, or in-memory streams).
-    pub fn chunk_bytes(&self, file_path: &str, bytes: &[u8]) -> PyResult<Vec<ChunkPayload>> {
+    pub fn chunk_bytes(&self, file_path: &str, bytes: &[u8]) -> Result<Vec<ChunkPayload>, String> {
         self.chunk_bytes_native(file_path, bytes)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
 }
 
@@ -166,7 +158,6 @@ mod tests {
 
     #[test]
     fn test_router_supports_files() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         assert!(router.supports_file("README.md"));
         assert!(router.supports_file("docs/architecture.markdown"));
@@ -215,7 +206,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_text() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let md = "# Title\nParagraph content.";
         let chunks = router.chunk_text("test.md", md).expect("Chunking failed");
@@ -225,7 +215,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_python_code() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "def hello():\n    print('world')\n";
         let chunks = router.chunk_text("script.py", code).expect("Chunking failed");
@@ -236,7 +225,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_typescript() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "export function calculateTotal(items: number[]): number {\n  return items.reduce((a, b) => a + b, 0);\n}\n";
         let chunks = router.chunk_text("math.ts", code).expect("Chunking failed");
@@ -246,7 +234,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_java() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n}\n";
         let chunks = router.chunk_text("Calculator.java", code).expect("Chunking failed");
@@ -256,7 +243,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_csharp() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "namespace MyStore;\npublic class OrderProcessor {\n    public void Process() {}\n}\n";
         let chunks = router.chunk_text("OrderProcessor.cs", code).expect("Chunking failed");
@@ -266,7 +252,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_go() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "package main\n\nfunc RunApp() error {\n    return nil\n}\n";
         let chunks = router.chunk_text("main.go", code).expect("Chunking failed");
@@ -276,7 +261,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_rust() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "pub fn execute_task() -> bool {\n    true\n}\n";
         let chunks = router.chunk_text("task.rs", code).expect("Chunking failed");
@@ -286,7 +270,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_cpp() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "#include <iostream>\n\nclass Engine {\npublic:\n    void start();\n};\n";
         let chunks = router.chunk_text("Engine.cpp", code).expect("Chunking failed");
@@ -296,7 +279,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_kotlin() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "package com.example\n\nclass MainActivity {\n    fun onCreate() {\n        println(\"Created\")\n    }\n}\n";
         let chunks = router.chunk_text("MainActivity.kt", code).expect("Chunking failed");
@@ -306,7 +288,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_swift() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "import Foundation\n\nclass AppCoordinator {\n    func start() {\n        print(\"Started\")\n    }\n}\n";
         let chunks = router.chunk_text("AppCoordinator.swift", code).expect("Chunking failed");
@@ -316,7 +297,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_ruby() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "class User\n  def full_name\n    \"#{first_name} #{last_name}\"\n  end\nend\n";
         let chunks = router.chunk_text("user.rb", code).expect("Chunking failed");
@@ -326,7 +306,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_php() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "<?php\n\nclass OrderService {\n    public function createOrder(): int {\n        return 123;\n    }\n}\n";
         let chunks = router.chunk_text("OrderService.php", code).expect("Chunking failed");
@@ -336,7 +315,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_lua() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "local M = {}\n\nfunction M.greet(name)\n    return \"Hello, \" .. name\nend\n\nreturn M\n";
         let chunks = router.chunk_text("init.lua", code).expect("Chunking failed");
@@ -346,7 +324,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_dart() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let code = "import 'package:flutter/material.dart';\n\nclass MyApp extends StatelessWidget {\n  Widget build(BuildContext context) {\n    return Container();\n  }\n}\n";
         let chunks = router.chunk_text("main.dart", code).expect("Chunking failed");
@@ -356,7 +333,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_xml() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let xml = "<project><modelVersion>4.0.0</modelVersion><groupId>com.mycompany</groupId></project>";
         let chunks = router.chunk_text("pom.xml", xml).expect("Chunking failed");
@@ -367,7 +343,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_json() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let json = r#"{"name": "any-context", "version": "0.30.7", "private": true}"#;
         let chunks = router.chunk_text("package.json", json).expect("Chunking failed");
@@ -378,7 +353,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_jsonl() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let jsonl = "{\"id\": 1, \"event\": \"start\"}\n{\"id\": 2, \"event\": \"stop\"}\n";
         let chunks = router.chunk_text("logs.jsonl", jsonl).expect("Chunking failed");
@@ -389,7 +363,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_yaml() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let yaml = "version: '3.8'\nservices:\n  redis:\n    image: redis:alpine\n";
         let chunks = router.chunk_text("docker-compose.yml", yaml).expect("Chunking failed");
@@ -400,7 +373,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_toml() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let toml = "[package]\nname = \"any-context\"\nversion = \"0.30.8\"\n";
         let chunks = router.chunk_text("Cargo.toml", toml).expect("Chunking failed");
@@ -411,7 +383,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_csv() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let csv = "Col1,Col2\nVal1,Val2\n";
         let chunks = router.chunk_text("test.csv", csv).expect("Chunking failed");
@@ -422,7 +393,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_tsv() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let tsv = "ID\tProduct\n1\tBook\n";
         let chunks = router.chunk_text("test.tsv", tsv).expect("Chunking failed");
@@ -433,7 +403,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_ofx() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let ofx = "<OFX><BANKID>001<ACCTID>123<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260901<TRNAMT>-50.00<MEMO>Dinner</STMTTRN></OFX>";
         let chunks = router.chunk_text("extrato.ofx", ofx).expect("Chunking failed");
@@ -444,7 +413,6 @@ mod tests {
 
     #[test]
     fn test_router_supports_pdf_and_images() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         assert!(router.supports_file("report.pdf"));
         assert!(router.supports_file("diagram.png"));
@@ -455,7 +423,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_pdf_text() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let pdf_text = "Chapter 1: Native Rust Core Architecture\nThis document describes the high-performance engine.";
         let chunks = router.chunk_text("manual.pdf", pdf_text).expect("Chunking failed");
@@ -466,7 +433,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_image_bytes() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let chunks = router.chunk_bytes("architecture.png", b"fake image bytes").expect("Chunking failed");
         assert_eq!(chunks.len(), 1);
@@ -476,7 +442,6 @@ mod tests {
 
     #[test]
     fn test_router_supports_text_scripts_and_web() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         assert!(router.supports_file("notes.txt"));
         assert!(router.supports_file("server.log"));
@@ -497,7 +462,6 @@ mod tests {
 
     #[test]
     fn test_router_chunk_sql_and_web() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         let sql = "CREATE TABLE users (id INT PRIMARY KEY, name TEXT);\nINSERT INTO users VALUES (1, 'Admin');\n";
         let chunks = router.chunk_text("migrations.sql", sql).expect("Chunking failed");
@@ -513,7 +477,6 @@ mod tests {
 
     #[test]
     fn test_router_supports_office_docx_and_pptx() {
-        pyo3::prepare_freethreaded_python();
         let router = IngestionRouter::new(1800, 200);
         assert!(router.supports_file("spec.docx"));
         assert!(router.supports_file("slides.pptx"));

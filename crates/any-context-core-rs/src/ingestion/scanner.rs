@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::time::UNIX_EPOCH;
-use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyTuple};
 use walkdir::{DirEntry, WalkDir};
 
 /// Normalizes path string by removing Windows UNC prefix (`\\?\`) and normalizing separators to OS-native format.
@@ -216,7 +214,6 @@ pub fn get_file_mtime(metadata: &fs::Metadata) -> f64 {
         .unwrap_or(0.0)
 }
 
-#[pyclass]
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceScanner;
 
@@ -230,9 +227,7 @@ pub struct DiffResult {
     pub disk_files: HashMap<String, (f64, u64)>,
 }
 
-#[pymethods]
 impl WorkspaceScanner {
-    #[new]
     pub fn new() -> Self {
         Self
     }
@@ -255,67 +250,6 @@ impl WorkspaceScanner {
 
         discovered
     }
-
-    /// Performs high-speed multi-folder filesystem scan and calculates differential changes
-    /// against cached metadata from SQLite, including rename detection with zero cost ($0.00).
-    pub fn scan_and_diff(
-        &self,
-        py: Python<'_>,
-        folders: Vec<String>,
-        cached_files: &Bound<'_, PyDict>,
-    ) -> PyResult<PyObject> {
-        // Read cached files from Python PyDict: path -> {last_mtime: float, file_size: int}
-        let mut cached_map: HashMap<String, (f64, u64)> = HashMap::new();
-        for (k, v) in cached_files.iter() {
-            let path_str: String = k.extract()?;
-            let norm_k = normalize_path(Path::new(&path_str));
-            if let Ok(dict) = v.downcast::<PyDict>() {
-                let mtime: f64 = dict
-                    .get_item("last_mtime")?
-                    .map(|val| val.extract())
-                    .transpose()?
-                    .unwrap_or(0.0);
-                let size: u64 = dict
-                    .get_item("file_size")?
-                    .map(|val| val.extract())
-                    .transpose()?
-                    .unwrap_or(0);
-                cached_map.insert(norm_k, (mtime, size));
-            }
-        }
-
-        let diff = self.scan_and_diff_native(&folders, &cached_map);
-
-        // Build result dictionary
-        let result_dict = PyDict::new_bound(py);
-        result_dict.set_item("is_up_to_date", diff.is_up_to_date)?;
-        result_dict.set_item("new_files", PyList::new_bound(py, &diff.new_files))?;
-        result_dict.set_item("modified_files", PyList::new_bound(py, &diff.modified_files))?;
-        result_dict.set_item("deleted_files", PyList::new_bound(py, &diff.deleted_files))?;
-
-        let py_renamed = PyList::empty_bound(py);
-        for (old_p, new_p) in &diff.renamed_files {
-            let tuple = PyTuple::new_bound(py, &[old_p.as_str(), new_p.as_str()]);
-            py_renamed.append(tuple)?;
-        }
-        result_dict.set_item("renamed_files", py_renamed)?;
-        result_dict.set_item("total_disk_files", diff.disk_files.len())?;
-
-        let py_disk_files = PyDict::new_bound(py);
-        for (fp, (mtime, size)) in &diff.disk_files {
-            let entry = PyDict::new_bound(py);
-            entry.set_item("file_path", fp.as_str())?;
-            entry.set_item("last_mtime", *mtime)?;
-            entry.set_item("file_size", *size)?;
-            py_disk_files.set_item(fp.as_str(), entry)?;
-        }
-        result_dict.set_item("disk_files", py_disk_files)?;
-
-        Ok(result_dict.into())
-    }
-}
-
-impl WorkspaceScanner {
     /// Performs high-speed multi-folder filesystem scan and calculates differential changes
     /// natively in pure Rust against cached metadata (file_path -> (mtime, size)).
     pub fn scan_and_diff_native(

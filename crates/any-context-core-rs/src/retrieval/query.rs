@@ -1,4 +1,3 @@
-use pyo3::prelude::*;
 use regex::Regex;
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -374,42 +373,24 @@ pub fn extract_filename_mentions_native(query: &str) -> Vec<String> {
     filenames
 }
 
-/// Single-Pass parsed query container exposed directly to PyO3.
-#[pyclass]
+/// Single-Pass parsed query container.
 #[derive(Debug, Clone)]
 pub struct ProcessedQuery {
-    #[pyo3(get)]
     pub temporal_clauses: Vec<String>,
-    #[pyo3(get)]
     pub expanded_query: String,
-    #[pyo3(get)]
     pub filename_mentions: Vec<String>,
 }
 
-#[pymethods]
-impl ProcessedQuery {
-    fn __repr__(&self) -> String {
-        format!(
-            "ProcessedQuery(temporal_clauses={:?}, filename_mentions={:?}, expanded_query={:?})",
-            self.temporal_clauses, self.filename_mentions, self.expanded_query
-        )
-    }
-}
-
 /// High-performance language-agnostic Query Preprocessor.
-#[pyclass]
 #[derive(Debug, Clone, Default)]
 pub struct QueryPreprocessor;
 
-#[pymethods]
 impl QueryPreprocessor {
-    #[new]
     pub fn new() -> Self {
         Self
     }
 
     /// Single-pass preprocessing: extracts temporal clauses, filename mentions, and expands query in < 0.02ms.
-    #[staticmethod]
     pub fn process(query: &str) -> ProcessedQuery {
         let temporal_clauses = extract_temporal_clauses_native(query);
         let expanded_query = expand_query_temporal_native(query);
@@ -422,17 +403,14 @@ impl QueryPreprocessor {
         }
     }
 
-    #[staticmethod]
     pub fn extract_temporal_clauses(query: &str) -> Vec<String> {
         extract_temporal_clauses_native(query)
     }
 
-    #[staticmethod]
     pub fn expand_query_temporal(query: &str) -> String {
         expand_query_temporal_native(query)
     }
 
-    #[staticmethod]
     pub fn extract_filename_mentions(query: &str) -> Vec<String> {
         extract_filename_mentions_native(query)
     }
