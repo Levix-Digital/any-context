@@ -14,6 +14,9 @@ pub const EMBEDDED_AGENT_MD: &str = include_str!("../../../config/AGENT.md");
 /// Canonical README.md embedded at compile time for system self-knowledge.
 pub const EMBEDDED_README_MD: &str = include_str!("../../../README.md");
 
+/// Canonical SYSTEM_KNOWLEDGE.md technical manual embedded at compile time for system self-knowledge.
+pub const EMBEDDED_SYSTEM_KNOWLEDGE_MD: &str = include_str!("../../../config/SYSTEM_KNOWLEDGE.md");
+
 /// Loads AGENT.md from disk if available, otherwise returns the compile-time embedded version.
 pub fn load_agent_md() -> String {
     // 1. Explicit env var override
@@ -200,6 +203,14 @@ mod tests {
         assert!(!EMBEDDED_AGENT_MD.trim().is_empty());
         assert!(EMBEDDED_AGENT_MD.contains("Mandatory Retrieval Strategy"));
         assert!(EMBEDDED_AGENT_MD.contains("search_db"));
+    }
+
+    #[test]
+    fn test_embedded_system_knowledge_md_not_empty() {
+        assert!(!EMBEDDED_SYSTEM_KNOWLEDGE_MD.trim().is_empty());
+        assert!(EMBEDDED_SYSTEM_KNOWLEDGE_MD.contains("System Identity, Philosophy & Architecture"));
+        assert!(EMBEDDED_SYSTEM_KNOWLEDGE_MD.contains("Complete Command Reference"));
+        assert!(EMBEDDED_SYSTEM_KNOWLEDGE_MD.contains("Smart Path Healing"));
     }
 
     #[test]

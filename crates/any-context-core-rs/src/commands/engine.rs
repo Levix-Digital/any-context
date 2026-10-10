@@ -151,8 +151,8 @@ impl CommandEngine {
             "ocr" | "scan" => {
                 Self::execute_ocr()
             }
-            "shared" => {
-                Self::execute_shared(ctx)
+            "shared" | "shared-sources" => {
+                CommandResult::error("The '/shared' command and Shared Sources workspace have been deprecated in AnyContext v0.36.0. Workspaces are now strictly isolated environments.")
             }
             "help" | "commands" | "slash" => {
                 Self::execute_help()
@@ -761,24 +761,67 @@ impl CommandEngine {
             Err(e) => return CommandResult::error(format!("Failed to open config database: {}", e)),
         };
 
+        // Subcommand: /sources rename <number_or_name> <new_display_name>
+        if args[0].eq_ignore_ascii_case("rename") {
+            if args.len() < 3 {
+                return CommandResult::error("Usage: /sources rename <number_id_or_name> <new_display_name>");
+            }
+
+            let (target_ident, new_name): (String, String) = if args.len() == 3 {
+                (args[1].trim().trim_matches('"').to_string(), args[2].trim().trim_matches('"').to_string())
+            } else if args[1].parse::<usize>().is_ok() {
+                (args[1].trim().to_string(), args[2..].join(" ").trim().trim_matches('"').to_string())
+            } else {
+                let rest = args[1..].join(" ");
+                let rest_trimmed = rest.trim();
+                if rest_trimmed.starts_with('"') {
+                    if let Some(end_quote) = rest_trimmed[1..].find('"') {
+                        let ident = rest_trimmed[1..1 + end_quote].trim().to_string();
+                        let remainder = rest_trimmed[1 + end_quote + 1..].trim().trim_matches('"').to_string();
+                        (ident, remainder)
+                    } else {
+                        (args[1].trim().trim_matches('"').to_string(), args[2..].join(" ").trim().trim_matches('"').to_string())
+                    }
+                } else {
+                    (args[1].trim().trim_matches('"').to_string(), args[2..].join(" ").trim().trim_matches('"').to_string())
+                }
+            };
+
+            if new_name.is_empty() {
+                return CommandResult::error("Usage: /sources rename <number_id_or_name> <new_display_name>");
+            }
+
+            match db.rename_workspace_source(&ctx.active_workspace, &target_ident, &new_name) {
+                Ok(true) => {
+                    return CommandResult::success(format!(
+                        "✔ Source '{}' renamed to '{}'.\n  Workspace: {}\n  Chunks impacted in LanceDB: 0 (Decoupled relational alias)",
+                        target_ident, new_name, ctx.active_workspace
+                    ));
+                }
+                Ok(false) => {
+                    return CommandResult::error(format!(
+                        "⚠️ Source '{}' not found in workspace '{}'.\nTip: Run `/sources` to list registered source numbers and names.",
+                        target_ident, ctx.active_workspace
+                    ));
+                }
+                Err(e) => return CommandResult::error(format!("Failed to rename source: {}", e)),
+            }
+        }
+
         let is_all = args.iter().any(|a| *a == "--all" || *a == "-a" || *a == "all");
         if is_all {
             let ws_names = db.list_workspace_names().unwrap_or_else(|_| vec![ctx.active_workspace.clone()]);
             let mut msg = format!("📂 All Configured Workspaces & Sources ({} workspaces):\n\n", ws_names.len());
             for ws in &ws_names {
-                let folders = db.get_workspace_folders(ws).unwrap_or_default();
-                let urls = db.get_workspace_web_urls(ws).unwrap_or_default();
-                let total = folders.len() + urls.len();
+                let sources = db.list_workspace_sources(ws).unwrap_or_default();
                 let is_active = ws.eq_ignore_ascii_case(&ctx.active_workspace);
                 let active_tag = if is_active { " (active)" } else { "" };
-                msg.push_str(&format!("• Workspace '{}'{} - {} source(s):\n", ws, active_tag, total));
-                for f in &folders {
-                    msg.push_str(&format!("  📁 {}\n", f));
+                msg.push_str(&format!("• Workspace '{}'{} - {} source(s):\n", ws, active_tag, sources.len()));
+                for (idx, s) in sources.iter().enumerate() {
+                    let icon = if s.source_type == "folder" { "📁" } else { "🌐" };
+                    msg.push_str(&format!("  {}. {} {} ({})\n", idx + 1, icon, s.display_name, s.raw_target));
                 }
-                for u in &urls {
-                    msg.push_str(&format!("  🌐 {}\n", u));
-                }
-                if total == 0 {
+                if sources.is_empty() {
                     msg.push_str("  (no sources registered)\n");
                 }
                 msg.push('\n');
@@ -786,25 +829,30 @@ impl CommandEngine {
             return CommandResult::success(msg);
         }
 
-        let folders = db.get_workspace_folders(&ctx.active_workspace).unwrap_or_default();
-        let web_sources = db.get_workspace_web_urls(&ctx.active_workspace).unwrap_or_default();
+        let sources = db.list_workspace_sources(&ctx.active_workspace).unwrap_or_default();
+        let folders: Vec<_> = sources.iter().filter(|s| s.source_type == "folder").collect();
+        let urls: Vec<_> = sources.iter().filter(|s| s.source_type == "web_url").collect();
 
         let mut out = format!("📂 Data Sources configured for workspace '{}':\n", ctx.active_workspace);
         out.push_str("📁 Local Folders:\n");
         if folders.is_empty() {
             out.push_str("  (none configured. Use `/folder --add <path>` or `/folder <path>`)\n");
         } else {
-            for f in &folders {
-                out.push_str(&format!("  • {}\n", f));
+            for (idx, f) in folders.iter().enumerate() {
+                out.push_str(&format!("  {}. 📁 {} ({})\n", idx + 1, f.display_name, f.raw_target));
             }
         }
         out.push_str("\n🌐 Web Documentation Portals:\n");
-        if web_sources.is_empty() {
+        if urls.is_empty() {
             out.push_str("  (none configured. Use `/web --add <url>` or `/web <url>`)\n");
         } else {
-            for w in &web_sources {
-                out.push_str(&format!("  • {}\n", w));
+            for (idx, u) in urls.iter().enumerate() {
+                let num = folders.len() + idx + 1;
+                out.push_str(&format!("  {}. 🌐 {} ({})\n", num, u.display_name, u.raw_target));
             }
+        }
+        if !sources.is_empty() {
+            out.push_str("\n💡 Tip: Use `/sources rename <number_or_name> <new_name>` to customize display aliases ($0.00 cost, 0 vector chunks rewritten).");
         }
         CommandResult::success(out)
     }
@@ -1853,15 +1901,5 @@ Available Commands (UI-Agnostic Engine):
             "🔎 OCR Engine Status: Native Rust Image Metadata & Tesseract Pipeline Operational.\n\
              High-speed OCR parsing is active for scanned PDF and image context.".to_string()
         )
-    }
-
-    fn execute_shared(ctx: &ExecutionContext) -> CommandResult {
-        CommandResult::success(format!(
-            "🌐 Shared Reusable Sources in AnyContext:\n\
-             • Workspace: {}\n\
-             • Shared Sources: No external shared links configured.\n\
-             Tip: Use '/link <source> <target_workspace>' to share folders across workspaces.",
-            ctx.active_workspace
-        ))
     }
 }

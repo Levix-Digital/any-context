@@ -402,53 +402,61 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
         let _ = lance_store.delete_by_workspace("Global", Some("workspace_chunks"));
     }
 
-    let readme = crate::prompt::EMBEDDED_README_MD;
-    let mut sections = Vec::new();
-    let mut current_header = "AnyContext Overview".to_string();
-    let mut current_body = String::new();
-
-    for line in readme.lines() {
-        if line.starts_with("# ") || line.starts_with("## ") || line.starts_with("### ") {
-            if !current_body.trim().is_empty() {
-                sections.push((current_header.clone(), current_body.trim().to_string()));
-                current_body.clear();
-            }
-            current_header = line.trim_start_matches('#').trim().to_string();
-        } else {
-            current_body.push_str(line);
-            current_body.push('\n');
-        }
-    }
-    if !current_body.trim().is_empty() {
-        sections.push((current_header, current_body.trim().to_string()));
-    }
-
-    if sections.is_empty() {
-        return;
-    }
+    let doc_sources = [
+        ("SYSTEM_KNOWLEDGE.md", "system://SYSTEM_KNOWLEDGE.md", crate::prompt::EMBEDDED_SYSTEM_KNOWLEDGE_MD),
+        ("README.md", "system://README.md", crate::prompt::EMBEDDED_README_MD),
+    ];
 
     let mut records = Vec::new();
     let mut bm25_chunks = Vec::new();
     let now = chrono::Utc::now().to_rfc3339();
+    let mut chunk_idx = 0;
 
-    for (idx, (header, text)) in sections.into_iter().enumerate() {
-        let chunk_id = format!("global_sys_doc_{idx}");
-        let full_text = format!("# {}\n\n{}", header, text);
-        let rec = any_context_core_rs::storage::VectorRecord {
-            id: chunk_id.clone(),
-            vector: vec![0.0; 1536],
-            text: full_text.clone(),
-            file_name: "README.md".to_string(),
-            file_path: "system://README.md".to_string(),
-            workspace: "Global".to_string(),
-            last_modified: Some(now.clone()),
-            content_type: Some("System Documentation".to_string()),
-            document_summary: Some(format!("AnyContext Documentation: {}", header)),
-            keywords: Some("anycontext, system, guide, commands, usage".to_string()),
-            content_hash: None,
-        };
-        records.push(rec);
-        bm25_chunks.push((chunk_id, full_text, header));
+    for (file_name, file_path, content) in &doc_sources {
+        let mut sections = Vec::new();
+        let mut current_header = format!("{file_name} Overview");
+        let mut current_body = String::new();
+
+        for line in content.lines() {
+            if line.starts_with("# ") || line.starts_with("## ") || line.starts_with("### ") {
+                if !current_body.trim().is_empty() {
+                    sections.push((current_header.clone(), current_body.trim().to_string()));
+                    current_body.clear();
+                }
+                current_header = line.trim_start_matches('#').trim().to_string();
+            } else {
+                current_body.push_str(line);
+                current_body.push('\n');
+            }
+        }
+        if !current_body.trim().is_empty() {
+            sections.push((current_header, current_body.trim().to_string()));
+        }
+
+        for (header, text) in sections {
+            let chunk_id = format!("global_sys_doc_{chunk_idx}");
+            chunk_idx += 1;
+            let full_text = format!("# {}\n\n{}", header, text);
+            let rec = any_context_core_rs::storage::VectorRecord {
+                id: chunk_id.clone(),
+                vector: vec![0.0; 1536],
+                text: full_text.clone(),
+                file_name: file_name.to_string(),
+                file_path: file_path.to_string(),
+                workspace: "Global".to_string(),
+                last_modified: Some(now.clone()),
+                content_type: Some("System Documentation".to_string()),
+                document_summary: Some(format!("AnyContext Documentation: {}", header)),
+                keywords: Some("anycontext, system, guide, commands, usage, architecture".to_string()),
+                content_hash: None,
+            };
+            records.push(rec);
+            bm25_chunks.push((chunk_id, full_text, header, file_name.to_string(), file_path.to_string()));
+        }
+    }
+
+    if records.is_empty() {
+        return;
     }
 
     // 1. Insert into LanceDB
@@ -470,12 +478,12 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
     };
 
     let now_ts = chrono::Utc::now().to_rfc3339();
-    for (cid, ftext, _) in bm25_chunks {
+    for (cid, ftext, _, fname, fpath) in bm25_chunks {
         bm25.add_chunk(
             cid,
             ftext,
-            "README.md".to_string(),
-            "system://README.md".to_string(),
+            fname,
+            fpath,
             "Global".to_string(),
             "System Documentation".to_string(),
             Some(now_ts.clone()),

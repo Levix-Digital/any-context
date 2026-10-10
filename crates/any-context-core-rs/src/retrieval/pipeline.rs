@@ -458,44 +458,6 @@ impl NativeHybridPipeline {
                     }
                 }
             }
-
-            // Linked shared sources search
-            if !req.linked_sources.is_empty() {
-                let clauses: Vec<String> = req
-                    .linked_sources
-                    .iter()
-                    .map(|l| format!("file_path LIKE '%{l}%'"))
-                    .collect();
-                let filter_expr = clauses.join(" OR ");
-                if let Ok(matches) = self
-                    .lance_store
-                    .search_vector_async(
-                        q_vec.clone(),
-                        req.candidate_pool_k * 2,
-                        None,
-                        Some(&filter_expr),
-                        Some(&req.table_name),
-                    )
-                    .await
-                {
-                    for sc in matches {
-                        let cid = if !sc.id.is_empty() {
-                            sc.id.clone()
-                        } else {
-                            format!(
-                                "{}::{}",
-                                sc.file_path,
-                                &sc.text.chars().take(80).collect::<String>()
-                            )
-                        };
-                        if let Some(existing) = raw_candidates_map.get_mut(&cid) {
-                            existing.score = existing.score.max(sc.score);
-                        } else {
-                            raw_candidates_map.insert(cid, sc);
-                        }
-                    }
-                }
-            }
         }
 
         // 7. Order dense candidates

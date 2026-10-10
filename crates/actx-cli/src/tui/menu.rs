@@ -547,14 +547,13 @@ pub fn build_search_menu() -> Vec<MenuItem> {
 
 pub fn build_sources_menu(active_workspace: &str) -> Vec<MenuItem> {
     let db = NativeConfigDb::open_default().ok();
-    let folders = db.as_ref().and_then(|d| d.get_workspace_folders(active_workspace).ok()).unwrap_or_default();
-    let urls = db.as_ref().and_then(|d| d.get_workspace_web_urls(active_workspace).ok()).unwrap_or_default();
-    let total_active = folders.len() + urls.len();
+    let sources = db.as_ref().and_then(|d| d.list_workspace_sources(active_workspace).ok()).unwrap_or_default();
+    let total_active = sources.len();
 
-    vec![
+    let mut items = vec![
         MenuItem {
             id: "sources_action:active".to_string(),
-            title: format!("Workspace Sources '{}' ({})", active_workspace, total_active),
+            title: format!("List All Sources in '{}' ({})", active_workspace, total_active),
             description: "Displays all folders and web portals indexed in the current workspace".to_string(),
             icon: "📂".to_string(),
             badge: Some(format!("[{} sources]", total_active)),
@@ -566,7 +565,7 @@ pub fn build_sources_menu(active_workspace: &str) -> Vec<MenuItem> {
             title: "All Sources & Workspaces (--all)".to_string(),
             description: "Lists all folders and URLs configured across all workspaces".to_string(),
             icon: "🌐".to_string(),
-            badge: Some("[Global]".to_string()),
+            badge: Some("[All Workspaces]".to_string()),
             shortcut: Some("/sources --all".to_string()),
             is_submenu: false,
         },
@@ -579,7 +578,22 @@ pub fn build_sources_menu(active_workspace: &str) -> Vec<MenuItem> {
             shortcut: Some("/inspect".to_string()),
             is_submenu: false,
         },
-    ]
+    ];
+
+    for (idx, src) in sources.into_iter().enumerate() {
+        let icon = if src.source_type == "folder" { "📁" } else { "🌐" };
+        items.push(MenuItem {
+            id: format!("source_item:{}", src.id),
+            title: format!("{}. {} {}", idx + 1, icon, src.display_name),
+            description: format!("Target: {} (Press Enter to rename)", src.raw_target),
+            icon: icon.to_string(),
+            badge: Some("[Enter: Rename]".to_string()),
+            shortcut: None,
+            is_submenu: false,
+        });
+    }
+
+    items
 }
 
 pub fn build_keys_menu() -> Vec<MenuItem> {
@@ -1035,7 +1049,7 @@ mod tests {
         assert!(vision.iter().any(|i| i.id == "doc_ai_action:vision_cloud"));
 
         let sources = build_sources_menu("Default");
-        assert_eq!(sources.len(), 3);
+        assert!(sources.len() >= 3);
         assert!(sources.iter().any(|i| i.id == "sources_action:all"));
 
         let keys = build_keys_menu();

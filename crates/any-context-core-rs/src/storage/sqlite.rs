@@ -19,6 +19,18 @@ pub struct WorkspaceRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WorkspaceSourceRecord {
+    pub id: String,
+    pub workspace: String,
+    pub source_type: String,
+    pub raw_target: String,
+    pub canonical_slug: String,
+    pub display_name: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FileMetadataRecord {
     pub id: String,
     pub workspace: String,
@@ -222,7 +234,20 @@ impl NativeConfigDb {
             );
 
             CREATE INDEX IF NOT EXISTS idx_file_metadata_ws ON file_metadata(workspace);
-            CREATE INDEX IF NOT EXISTS idx_file_metadata_path ON file_metadata(file_path);",
+            CREATE INDEX IF NOT EXISTS idx_file_metadata_path ON file_metadata(file_path);
+
+            CREATE TABLE IF NOT EXISTS workspace_sources (
+                id TEXT PRIMARY KEY,
+                workspace TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                raw_target TEXT NOT NULL,
+                canonical_slug TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(workspace, raw_target)
+            );
+            CREATE INDEX IF NOT EXISTS idx_workspace_sources_ws ON workspace_sources(workspace);",
         )?;
 
         // Ensure columns exist on legacy databases
@@ -629,6 +654,7 @@ impl NativeConfigDb {
             conn.execute(&sql, params![&id, workspace_name, &norm_path, &now])?;
         }
 
+        let _ = Self::insert_workspace_source_internal(&conn, workspace_name, "folder", &norm_path, None);
         Self::sync_paths_json(&conn, workspace_name);
         Ok(())
     }
@@ -644,6 +670,12 @@ impl NativeConfigDb {
             )",
             params![workspace_name, &norm_path, clean_path, folder_path, &orig_norm],
         )?;
+        let _ = conn.execute(
+            "DELETE FROM workspace_sources WHERE workspace = ?1 COLLATE NOCASE AND source_type = 'folder' AND (
+                raw_target = ?2 OR raw_target = ?3 OR raw_target = ?4 OR raw_target = ?5
+            )",
+            params![workspace_name, &norm_path, clean_path, folder_path, &orig_norm],
+        );
         if count > 0 {
             Self::sync_paths_json(&conn, workspace_name);
         }
@@ -660,6 +692,7 @@ impl NativeConfigDb {
              ON CONFLICT(workspace_name, url) DO NOTHING",
             params![&id, workspace_name, url.trim(), &now],
         )?;
+        let _ = Self::insert_workspace_source_internal(&conn, workspace_name, "web_url", url.trim(), None);
         Ok(())
     }
 
@@ -669,7 +702,222 @@ impl NativeConfigDb {
             "DELETE FROM workspace_web_urls WHERE workspace_name = ?1 AND url = ?2",
             params![workspace_name, url.trim()],
         )?;
+        let _ = conn.execute(
+            "DELETE FROM workspace_sources WHERE workspace = ?1 COLLATE NOCASE AND source_type = 'web_url' AND raw_target = ?2",
+            params![workspace_name, url.trim()],
+        );
         Ok(count > 0)
+    }
+
+    // --- Workspace Sources & Intelligent Aliasing ---
+
+    fn insert_workspace_source_internal(
+        conn: &Connection,
+        workspace: &str,
+        source_type: &str,
+        raw_target: &str,
+        custom_name: Option<&str>,
+    ) -> Result<WorkspaceSourceRecord> {
+        let now = chrono::Utc::now().to_rfc3339();
+        let display_name = custom_name
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| generate_intelligent_display_name(source_type, raw_target));
+        let slug = generate_canonical_slug(&display_name);
+
+        let existing: Option<(String, String, String)> = conn
+            .query_row(
+                "SELECT id, canonical_slug, display_name FROM workspace_sources WHERE workspace = ?1 COLLATE NOCASE AND raw_target = ?2",
+                params![workspace, raw_target],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .ok();
+
+        if let Some((id, orig_slug, existing_display)) = existing {
+            let final_display = if let Some(c) = custom_name {
+                conn.execute(
+                    "UPDATE workspace_sources SET display_name = ?1, updated_at = ?2 WHERE id = ?3",
+                    params![c, &now, &id],
+                )?;
+                c.to_string()
+            } else {
+                existing_display
+            };
+            return Ok(WorkspaceSourceRecord {
+                id,
+                workspace: workspace.to_string(),
+                source_type: source_type.to_string(),
+                raw_target: raw_target.to_string(),
+                canonical_slug: orig_slug,
+                display_name: final_display,
+                created_at: now.clone(),
+                updated_at: now,
+            });
+        }
+
+        let id = format!("src_{}", uuid_simple());
+        conn.execute(
+            "INSERT INTO workspace_sources (id, workspace, source_type, raw_target, canonical_slug, display_name, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                &id,
+                workspace,
+                source_type,
+                raw_target,
+                &slug,
+                &display_name,
+                &now,
+                &now
+            ],
+        )?;
+
+        Ok(WorkspaceSourceRecord {
+            id,
+            workspace: workspace.to_string(),
+            source_type: source_type.to_string(),
+            raw_target: raw_target.to_string(),
+            canonical_slug: slug,
+            display_name,
+            created_at: now.clone(),
+            updated_at: now,
+        })
+    }
+
+    /// Adds a source with an optional custom display name.
+    pub fn add_workspace_source(&self, workspace: &str, source_type: &str, raw_target: &str, custom_name: Option<&str>) -> Result<WorkspaceSourceRecord> {
+        let conn = self.conn.lock().unwrap();
+        Self::insert_workspace_source_internal(&conn, workspace, source_type, raw_target, custom_name)
+    }
+
+    /// Lists all sources registered in the workspace, automatically backfilling any folders/URLs from legacy tables.
+    pub fn list_workspace_sources(&self, workspace: &str) -> Result<Vec<WorkspaceSourceRecord>> {
+        let conn = self.conn.lock().unwrap();
+
+        // 1. Backfill from workspace_folders if missing
+        if let Ok(mut stmt) = conn.prepare("SELECT folder_path FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE") {
+            let folder_rows: Vec<String> = stmt.query_map(params![workspace], |r| r.get(0))
+                .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                .unwrap_or_default();
+            for fp in folder_rows {
+                let _ = Self::insert_workspace_source_internal(&conn, workspace, "folder", &fp, None);
+            }
+        }
+
+        // 2. Backfill from workspace_web_urls if missing
+        if let Ok(mut stmt) = conn.prepare("SELECT url FROM workspace_web_urls WHERE workspace_name = ?1 COLLATE NOCASE") {
+            let url_rows: Vec<String> = stmt.query_map(params![workspace], |r| r.get(0))
+                .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                .unwrap_or_default();
+            for u in url_rows {
+                let _ = Self::insert_workspace_source_internal(&conn, workspace, "web_url", &u, None);
+            }
+        }
+
+        // 3. Query all workspace_sources
+        let mut stmt = conn.prepare(
+            "SELECT id, workspace, source_type, raw_target, canonical_slug, display_name, created_at, updated_at
+             FROM workspace_sources WHERE workspace = ?1 COLLATE NOCASE ORDER BY created_at ASC"
+        )?;
+
+        let rows = stmt.query_map(params![workspace], |row| {
+            Ok(WorkspaceSourceRecord {
+                id: row.get(0)?,
+                workspace: row.get(1)?,
+                source_type: row.get(2)?,
+                raw_target: row.get(3)?,
+                canonical_slug: row.get(4)?,
+                display_name: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    /// Renames a source's display_name at O(1) in SQLite without touching vector chunks.
+    pub fn rename_workspace_source(&self, workspace: &str, identifier: &str, new_display_name: &str) -> Result<bool> {
+        let sources = self.list_workspace_sources(workspace)?;
+        let trimmed_id = identifier.trim();
+        let trimmed_new = new_display_name.trim();
+        if trimmed_new.is_empty() {
+            return Ok(false);
+        }
+
+        // Match by 1-based index if number
+        let target_source_id = if let Ok(idx) = trimmed_id.parse::<usize>() {
+            if idx >= 1 && idx <= sources.len() {
+                Some(sources[idx - 1].id.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let matched_id = target_source_id.or_else(|| {
+            sources.iter().find(|s| {
+                s.id == trimmed_id
+                    || s.display_name.eq_ignore_ascii_case(trimmed_id)
+                    || s.canonical_slug.eq_ignore_ascii_case(trimmed_id)
+                    || s.raw_target == trimmed_id
+                    || normalize_path_slashes(&s.raw_target) == normalize_path_slashes(trimmed_id)
+            }).map(|s| s.id.clone())
+        });
+
+        if let Some(src_id) = matched_id {
+            let conn = self.conn.lock().unwrap();
+            let now = chrono::Utc::now().to_rfc3339();
+            let count = conn.execute(
+                "UPDATE workspace_sources SET display_name = ?1, updated_at = ?2 WHERE id = ?3",
+                params![trimmed_new, &now, &src_id],
+            )?;
+            Ok(count > 0)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Removes a source by ID, target path/URL, or display name from both workspace_sources and physical tables.
+    pub fn remove_workspace_source(&self, workspace: &str, raw_target_or_id: &str) -> Result<bool> {
+        let sources = self.list_workspace_sources(workspace)?;
+        let trimmed = raw_target_or_id.trim();
+        let matched = sources.iter().find(|s| {
+            s.id == trimmed
+                || s.display_name.eq_ignore_ascii_case(trimmed)
+                || s.raw_target == trimmed
+                || normalize_path_slashes(&s.raw_target) == normalize_path_slashes(trimmed)
+        });
+
+        if let Some(src) = matched {
+            let target = src.raw_target.clone();
+            let is_web = src.source_type == "web_url";
+            let conn = self.conn.lock().unwrap();
+            let _ = conn.execute(
+                "DELETE FROM workspace_sources WHERE workspace = ?1 COLLATE NOCASE AND raw_target = ?2",
+                params![workspace, &target],
+            );
+            drop(conn);
+            if is_web {
+                let _ = self.remove_workspace_web_url(workspace, &target);
+            } else {
+                let _ = self.remove_workspace_folder(workspace, &target);
+            }
+            Ok(true)
+        } else {
+            let conn = self.conn.lock().unwrap();
+            let count = conn.execute(
+                "DELETE FROM workspace_sources WHERE workspace = ?1 COLLATE NOCASE AND (raw_target = ?2 OR id = ?2)",
+                params![workspace, trimmed],
+            )?;
+            drop(conn);
+            let _ = self.remove_workspace_folder(workspace, trimmed);
+            let _ = self.remove_workspace_web_url(workspace, trimmed);
+            Ok(count > 0)
+        }
     }
 
     pub fn rename_workspace(&self, old_name: &str, new_name: &str) -> Result<bool> {
@@ -683,6 +931,18 @@ impl NativeConfigDb {
             let _ = conn.execute(
                 "UPDATE file_metadata SET workspace = ?1, updated_at = ?2 WHERE workspace = ?3",
                 params![new_name, &now, old_name],
+            );
+            let _ = conn.execute(
+                "UPDATE workspace_sources SET workspace = ?1, updated_at = ?2 WHERE workspace = ?3 COLLATE NOCASE",
+                params![new_name, &now, old_name],
+            );
+            let _ = conn.execute(
+                "UPDATE workspace_folders SET workspace_name = ?1 WHERE workspace_name = ?2",
+                params![new_name, old_name],
+            );
+            let _ = conn.execute(
+                "UPDATE workspace_web_urls SET workspace_name = ?1 WHERE workspace_name = ?2",
+                params![new_name, old_name],
             );
             Ok(true)
         } else {
@@ -698,6 +958,9 @@ impl NativeConfigDb {
         let count = conn.execute("DELETE FROM workspaces WHERE name = ?1", params![name])?;
         if count > 0 {
             let _ = conn.execute("DELETE FROM file_metadata WHERE workspace = ?1", params![name]);
+            let _ = conn.execute("DELETE FROM workspace_sources WHERE workspace = ?1 COLLATE NOCASE", params![name]);
+            let _ = conn.execute("DELETE FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE", params![name]);
+            let _ = conn.execute("DELETE FROM workspace_web_urls WHERE workspace_name = ?1 COLLATE NOCASE", params![name]);
             Ok(true)
         } else {
             Ok(false)
@@ -1666,6 +1929,158 @@ pub fn get_default_models_dir() -> PathBuf {
     PathBuf::from("models")
 }
 
+pub fn generate_canonical_slug(name: &str) -> String {
+    let clean: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else if c == ' ' || c == '_' || c == '-' || c == '/' || c == '.' {
+                '-'
+            } else {
+                ' '
+            }
+        })
+        .collect();
+    let parts: Vec<&str> = clean.split('-').filter(|p| !p.trim().is_empty()).collect();
+    if parts.is_empty() {
+        "source".to_string()
+    } else {
+        parts.join("-")
+    }
+}
+
+pub fn generate_intelligent_display_name(source_type: &str, raw_target: &str) -> String {
+    let trimmed = raw_target.trim();
+    if source_type.eq_ignore_ascii_case("web_url") || trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        let clean = trimmed
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .trim_start_matches("www.");
+
+        // Check GitHub pattern: github.com/owner/repo...
+        if clean.starts_with("github.com/") {
+            let parts: Vec<&str> = clean.split('/').collect();
+            if parts.len() >= 3 && !parts[2].is_empty() {
+                return format!("GitHub: {}", parts[2]);
+            } else if parts.len() >= 2 && !parts[1].is_empty() {
+                return format!("GitHub: {}", parts[1]);
+            }
+        }
+
+        // Check docs.rs pattern: docs.rs/crate_name/...
+        if clean.starts_with("docs.rs/") {
+            let parts: Vec<&str> = clean.split('/').collect();
+            if parts.len() >= 2 && !parts[1].is_empty() {
+                let crate_name = parts[1];
+                let capitalized = format!("{}{}", &crate_name[..1].to_ascii_uppercase(), &crate_name[1..]);
+                return format!("{} Docs", capitalized);
+            }
+        }
+
+        // Check crates.io pattern: crates.io/crates/name
+        if clean.starts_with("crates.io/crates/") {
+            let parts: Vec<&str> = clean.split('/').collect();
+            if parts.len() >= 3 && !parts[2].is_empty() {
+                return format!("Crate: {}", parts[2]);
+            }
+        }
+
+        // General domain + path heuristic
+        let parts: Vec<&str> = clean.split('/').filter(|p| !p.is_empty()).collect();
+        if parts.is_empty() {
+            return "Web Source".to_string();
+        }
+        let domain = parts[0];
+        if parts.len() == 1 {
+            let domain_base = domain.split('.').next().unwrap_or(domain);
+            let cap = format!("{}{}", &domain_base[..1].to_ascii_uppercase(), &domain_base[1..]);
+            return format!("{} Portal", cap);
+        } else {
+            let domain_base = domain.split('.').next().unwrap_or(domain);
+            let last_seg = parts.last().unwrap_or(&domain_base);
+            let clean_seg = last_seg.trim_end_matches(".html").trim_end_matches(".htm");
+            let cap_domain = format!("{}{}", &domain_base[..1].to_ascii_uppercase(), &domain_base[1..]);
+            let cap_seg = format!("{}{}", &clean_seg[..1].to_ascii_uppercase(), &clean_seg[1..]);
+            return format!("{}: {}", cap_domain, cap_seg);
+        }
+    } else {
+        // Folder or local path
+        let path = Path::new(trimmed);
+        if path.is_dir() {
+            // Check Cargo.toml
+            let cargo_toml = path.join("Cargo.toml");
+            if cargo_toml.exists() {
+                if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
+                    for line in content.lines() {
+                        let line_trimmed = line.trim();
+                        if line_trimmed.starts_with("name") && line_trimmed.contains('=') {
+                            if let Some(val) = line_trimmed.split('=').nth(1) {
+                                let name = val.trim().trim_matches('"').trim_matches('\'');
+                                if !name.is_empty() {
+                                    return name.to_string();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Check package.json
+            let pkg_json = path.join("package.json");
+            if pkg_json.exists() {
+                if let Ok(content) = std::fs::read_to_string(&pkg_json) {
+                    for line in content.lines() {
+                        let line_trimmed = line.trim();
+                        if line_trimmed.starts_with("\"name\"") && line_trimmed.contains(':') {
+                            if let Some(val) = line_trimmed.split(':').nth(1) {
+                                let name = val.trim().trim_matches(',').trim().trim_matches('"');
+                                if !name.is_empty() {
+                                    return name.to_string();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Check pyproject.toml
+            let pyproject = path.join("pyproject.toml");
+            if pyproject.exists() {
+                if let Ok(content) = std::fs::read_to_string(&pyproject) {
+                    for line in content.lines() {
+                        let line_trimmed = line.trim();
+                        if line_trimmed.starts_with("name") && line_trimmed.contains('=') {
+                            if let Some(val) = line_trimmed.split('=').nth(1) {
+                                let name = val.trim().trim_matches('"').trim_matches('\'');
+                                if !name.is_empty() {
+                                    return name.to_string();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Leaf folder fallback
+        let norm = trimmed.replace('\\', "/");
+        let segments: Vec<&str> = norm.split('/').filter(|s| !s.is_empty() && *s != ".").collect();
+        if segments.is_empty() {
+            return "Local Folder".to_string();
+        }
+        let leaf = *segments.last().unwrap();
+        if leaf.ends_with(':') {
+            return format!("Drive {}", leaf);
+        }
+        let generic_names = ["src", "dist", "build", "lib", "bin", "docs", "pkg"];
+        if generic_names.contains(&leaf.to_ascii_lowercase().as_str()) && segments.len() >= 2 {
+            let parent = segments[segments.len() - 2];
+            format!("{}/{}", parent, leaf)
+        } else {
+            leaf.to_string()
+        }
+    }
+}
+
 fn normalize_path_slashes(p: &str) -> String {
     p.replace('\\', "/")
 }
@@ -1806,5 +2221,54 @@ mod tests {
         // Verify that the column paths_json is preserved for Python compatibility
         let col_exists = NativeConfigDb::check_column(&db.conn.lock().unwrap(), "workspaces", "paths_json");
         assert!(col_exists, "paths_json column must remain present for Python compatibility");
+    }
+
+    #[test]
+    fn test_intelligent_source_naming_and_rename_crud() {
+        let db = NativeConfigDb::open_in_memory().expect("open memory db");
+
+        // 1. Test auto-naming heuristics
+        let gh_name = generate_intelligent_display_name("web_url", "https://github.com/Levix-Digital/any-context");
+        assert_eq!(gh_name, "GitHub: any-context");
+
+        let tokio_docs = generate_intelligent_display_name("web_url", "https://docs.rs/tokio/latest/tokio/index.html");
+        assert_eq!(tokio_docs, "Tokio Docs");
+
+        let crate_name = generate_intelligent_display_name("web_url", "https://crates.io/crates/rusqlite");
+        assert_eq!(crate_name, "Crate: rusqlite");
+
+        let folder_name = generate_intelligent_display_name("folder", "C:\\Projects\\finance-engine\\src");
+        assert_eq!(folder_name, "finance-engine/src");
+
+        // 2. Add source via add_workspace_source
+        let src1 = db.add_workspace_source("Default", "web_url", "https://docs.rs/tokio/latest/tokio/index.html", None).expect("add source");
+        assert_eq!(src1.display_name, "Tokio Docs");
+        assert_eq!(src1.canonical_slug, "tokio-docs");
+
+        // 3. Add folder via add_workspace_folder, verify auto-mirroring
+        db.add_workspace_folder("Default", "C:/Projects/finance-engine").expect("add folder");
+        let sources = db.list_workspace_sources("Default").expect("list sources");
+        assert_eq!(sources.len(), 2);
+        assert!(sources.iter().any(|s| s.raw_target == "C:/Projects/finance-engine" && s.display_name == "finance-engine"));
+
+        // 4. Rename source at O(1) in SQLite
+        let renamed = db.rename_workspace_source("Default", "Tokio Docs", "Tokio Async Engine").expect("rename");
+        assert!(renamed);
+
+        let updated = db.list_workspace_sources("Default").expect("list sources after rename");
+        let tokio_item = updated.iter().find(|s| s.raw_target.contains("docs.rs/tokio")).expect("found tokio");
+        assert_eq!(tokio_item.display_name, "Tokio Async Engine");
+
+        // 5. Rename using 1-based index
+        let renamed_by_idx = db.rename_workspace_source("Default", "1", "Tokio Runtime Core").expect("rename by idx");
+        assert!(renamed_by_idx);
+        let updated2 = db.list_workspace_sources("Default").expect("list sources");
+        assert_eq!(updated2[0].display_name, "Tokio Runtime Core");
+
+        // 6. Remove source
+        let removed = db.remove_workspace_source("Default", "Tokio Runtime Core").expect("remove source");
+        assert!(removed);
+        let sources_after = db.list_workspace_sources("Default").expect("list sources");
+        assert_eq!(sources_after.len(), 1);
     }
 }

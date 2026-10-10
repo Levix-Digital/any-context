@@ -6594,4 +6594,74 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
      - As etapas de publicação contêm `generate_release_notes: true`.
      - As notas de versão geradas pelo GitHub seguem a estrutura padrão com cabeçalho `## What's Changed`, commits convencionais mapeados por PR/autor (`* <feat/fix> by @<author> in #<pr>`), links de changelog comparativo e categorias semânticas (Features, Bug Fixes, Documentation, Maintenance).
 
+---
+
+### 📌 Cenário 35: Intelligent Source Naming, Decoupled SQLite Alias, Shared Sources Deprecation & Canonical System Knowledge Manual (v0.36.0):
+- **Objetivo**: Comprovar que na versão `v0.36.0`:
+  1. Fontes locais e portais web recebem nomes inteligentes e amigáveis gerados automaticamente (ex: `"Tokio Docs"`, `"GitHub: repo"`, manifesto de projeto ou diretório folha).
+  2. O usuário pode renomear fontes a qualquer momento via terminal (`/sources rename <target_ou_numero> <novo_nome>`) e via TUI modal ao teclar `[Enter]` na lista de fontes, atualizando o `display_name` no SQLite em $O(1)$ (< 1ms) sem reescrever ou invalidar chunks no LanceDB ($0.00 custo de embedding).
+  3. O workspace `Shared Sources` e o comando `/shared` foram totalmente descontinuados, garantindo isolamento puro entre workspaces e zero risco de context bleed no RAG Top-K.
+  4. O manual técnico canônico em 7 capítulos (`config/SYSTEM_KNOWLEDGE.md`) está compilado no binário e indexado automaticamente no workspace `Global` do LanceDB e BM25 no startup, respondendo perguntas técnicas sobre a arquitetura com precisão semântica imediata.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🏷️ Validação de Nomes Inteligentes Automáticos:**
+   - Adicione um repositório ou documentação web ao workspace:
+     ```text
+     /web https://docs.rs/tokio/latest/tokio/index.html
+     ```
+   - Liste as fontes cadastradas:
+     ```text
+     /sources
+     ```
+   - **Critérios de Aceitação**:
+     - A fonte web não exibe a URL crua como título principal; ela aparece como `1. 🌐 Tokio Docs (https://docs.rs/tokio/latest/tokio/index.html)`.
+     - O rodapé exibe a dica: `💡 Tip: Use '/sources rename <number_or_name> <new_name>' to customize display aliases ($0.00 cost, 0 vector chunks rewritten).`.
+
+2. **✏️ Validação da Renomeação Desacoplada O(1) via Terminal:**
+   - Execute o comando de renomeação usando o número da fonte ou nome atual:
+     ```text
+     /sources rename 1 "Tokio Async Engine"
+     ```
+   - **Critérios de Aceitação**:
+     - Retorna confirmação instantânea em < 1ms:
+       ```text
+       ✔ Source '1' renamed to 'Tokio Async Engine'.
+         Workspace: Default
+         Chunks impacted in LanceDB: 0 (Decoupled relational alias)
+       ```
+     - Ao executar `/sources`, a lista exibe `1. 🌐 Tokio Async Engine (https://docs.rs/tokio/latest/tokio/index.html)`.
+     - Nenhuma operação de re-indexação ou re-embedding é disparada no LanceDB.
+
+3. **🖥️ Validação da Edição de Nome via Menu Interativo TUI:**
+   - Abra a lista de fontes via `/sources` (sem argumentos) ou `F1 -> Sources`.
+   - Navegue com as setas do teclado até a fonte desejada (ex: `1. 🌐 Tokio Async Engine`) e pressione `[Enter]`.
+   - **Critérios de Aceitação**:
+     - O campo de entrada (input buffer) é automaticamente pré-preenchido com `/sources rename "Tokio Async Engine" `.
+     - Uma mensagem informativa de sistema no chat orienta o usuário: `✏️ Rename Source: 'Tokio Async Engine' - Type the new display name and press [Enter] to save instantly.`.
+     - O usuário digita o novo nome (ex: `Tokio Production Core`) e pressiona `[Enter]`.
+     - O nome é salvo instantaneamente no SQLite e a interface reflete a nova nomenclatura.
+
+4. **🚫 Validação da Descontinuação Completa de Shared Sources:**
+   - Tente executar o comando descontinuado `/shared`:
+     ```text
+     /shared
+     ```
+   - **Critérios de Aceitação**:
+     - O AnyContext retorna uma mensagem clara de erro informando a descontinuação:
+       `❌ The '/shared' command and Shared Sources workspace have been deprecated in AnyContext v0.36.0. Workspaces are now strictly isolated environments.`
+     - O comando `/shared` não aparece no menu interativo nem na lista de `/help`.
+     - As buscas vetoriais no workspace ativo realizam recuperação estritamente isolada sem contaminação entre projetos.
+
+5. **📖 Validação da Autoconsciência via Manual Canônico (`SYSTEM_KNOWLEDGE.md`):**
+   - No chat do AnyContext, faça uma pergunta sobre a arquitetura interna do sistema:
+     ```text
+     How does Smart Path Healing work in AnyContext?
+     ```
+   - **Critérios de Aceitação**:
+     - O assistente executa `search_db` e recupera chunks do arquivo `system://SYSTEM_KNOWLEDGE.md` no workspace `Global`.
+     - A resposta explica detalhadamente o algoritmo de reconciliação fonética (Double Metaphone) e distância de Levenshtein (ADR-117) sem alucinações.
+     - A resposta conclui com a citação formal: `📄 Sources Consulted: - SYSTEM_KNOWLEDGE.md (system://SYSTEM_KNOWLEDGE.md)`.
+
+
 

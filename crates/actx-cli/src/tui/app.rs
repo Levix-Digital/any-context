@@ -856,6 +856,19 @@ impl App {
             } else if item.id == "sources_action:inspect" {
                 crate::commands::dispatch_slash_command("inspect", &[], self);
                 self.menu_state.is_open = false;
+            } else if let Some(_source_id) = item.id.strip_prefix("source_item:") {
+                let name_part = item.title.split('.').nth(1).unwrap_or(&item.title);
+                let clean_name = name_part.trim().trim_start_matches("📁").trim_start_matches("🌐").trim();
+                self.input_buffer = format!("/sources rename \"{}\" ", clean_name);
+                self.cursor_idx = self.input_buffer.len();
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!("✏️ Rename Source: '{}'\nType the new display name and press [Enter] to save instantly.", clean_name),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.menu_state.is_open = false;
             } else if item.id == "keys_action:audit" {
                 crate::commands::dispatch_slash_command("keys", &["audit"], self);
                 self.menu_state.is_open = false;
