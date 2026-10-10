@@ -225,6 +225,7 @@ pub struct DiffResult {
     pub deleted_files: Vec<String>,
     pub renamed_files: Vec<(String, String)>,
     pub disk_files: HashMap<String, (f64, u64)>,
+    pub missing_folders: Vec<String>,
 }
 
 impl WorkspaceScanner {
@@ -258,14 +259,20 @@ impl WorkspaceScanner {
         cached_files: &HashMap<String, (f64, u64)>,
     ) -> DiffResult {
         let mut disk_files: HashMap<String, (f64, u64)> = HashMap::new();
+        let mut missing_folders: Vec<String> = Vec::new();
 
         for folder in folders {
             let root_p = Path::new(folder);
-            if !root_p.exists() {
+            let effective_p = if root_p.exists() {
+                root_p.to_path_buf()
+            } else if let Some(healed) = crate::storage::path_healer::try_heal_path(root_p) {
+                healed
+            } else {
+                missing_folders.push(folder.to_string());
                 continue;
-            }
+            };
 
-            let walker = WalkDir::new(root_p).into_iter().filter_entry(|e| !is_ignored_dir(e));
+            let walker = WalkDir::new(&effective_p).into_iter().filter_entry(|e| !is_ignored_dir(e));
             for entry in walker.filter_map(|e| e.ok()) {
                 if entry.file_type().is_file() && is_supported_file(entry.path()) {
                     let norm_path = to_absolute_path(entry.path());
@@ -363,7 +370,8 @@ impl WorkspaceScanner {
         let is_up_to_date = new_files.is_empty()
             && modified_files.is_empty()
             && deleted_files.is_empty()
-            && renamed_files.is_empty();
+            && renamed_files.is_empty()
+            && missing_folders.is_empty();
 
         DiffResult {
             is_up_to_date,
@@ -372,6 +380,7 @@ impl WorkspaceScanner {
             deleted_files,
             renamed_files,
             disk_files,
+            missing_folders,
         }
     }
 }

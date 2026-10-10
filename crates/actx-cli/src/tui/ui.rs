@@ -113,12 +113,32 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
                 "🛑 Sync Cancelled".to_string(),
                 Style::default().fg(theme.error),
             )
+        } else if let Some(ref warn) = app.source_health_warning {
+            (
+                warn.clone(),
+                Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+            )
+        } else if app.changes_detected {
+            (
+                "⚡ Changes detected (/sync)".to_string(),
+                Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
+            )
         } else {
             (
                 "✔ Up to date".to_string(),
                 Style::default().fg(theme.primary),
             )
         }
+    } else if let Some(ref warn) = app.source_health_warning {
+        (
+            warn.clone(),
+            Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+        )
+    } else if app.changes_detected {
+        (
+            "⚡ Changes detected (/sync)".to_string(),
+            Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
+        )
     } else {
         (
             "✔ Up to date".to_string(),
@@ -444,10 +464,22 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
         } else if status.stage == "cancelled" {
             spans.push(Span::styled("🛑 Sync cancelled ", Style::default().fg(theme.error)));
             spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
+        } else if let Some(ref warn) = app.source_health_warning {
+            spans.push(Span::styled(format!("{} ", warn), Style::default().fg(theme.error).add_modifier(Modifier::BOLD)));
+            spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
+        } else if app.changes_detected {
+            spans.push(Span::styled("⚡ Changes detected (/sync) ", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)));
+            spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
         } else {
             spans.push(Span::styled("✔ Up to date ", Style::default().fg(theme.primary)));
             spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
         }
+    } else if let Some(ref warn) = app.source_health_warning {
+        spans.push(Span::styled(format!("{} ", warn), Style::default().fg(theme.error).add_modifier(Modifier::BOLD)));
+        spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
+    } else if app.changes_detected {
+        spans.push(Span::styled("⚡ Changes detected (/sync) ", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)));
+        spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
     } else {
         spans.push(Span::styled("✔ Up to date ", Style::default().fg(theme.primary)));
         spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));

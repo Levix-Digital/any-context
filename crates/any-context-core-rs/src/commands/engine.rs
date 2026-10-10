@@ -861,17 +861,23 @@ impl CommandEngine {
             let path_str = path_parts.join(" ");
             let clean_path_str = path_str.trim().trim_matches('\'').trim_matches('"');
             let path = Path::new(clean_path_str);
-            if !path.exists() {
+            let (path_buf, was_healed) = if path.exists() {
+                (path.to_path_buf(), false)
+            } else if let Some(healed) = crate::storage::try_heal_path(path) {
+                (healed, true)
+            } else {
                 return CommandResult::error(format!("❌ Directory does not exist: {}", clean_path_str));
-            }
-            let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+            };
+            let canonical = path_buf.canonicalize().unwrap_or_else(|_| path_buf.clone());
             let canonical_str = canonical.to_string_lossy().to_string();
             let clean_canonical_str = canonical_str.trim_start_matches(r"\\?\").to_string();
 
             match db.add_workspace_folder(&ctx.active_workspace, &clean_canonical_str) {
                 Ok(_) => {
                     let mut msg = format!("📁 Added folder to workspace '{}':\n  {}", ctx.active_workspace, clean_canonical_str);
-                    if clean_path_str == "." {
+                    if was_healed {
+                        msg.push_str(&format!(" (🔄 auto-resolved from '{}')", clean_path_str));
+                    } else if clean_path_str == "." {
                         msg.push_str(" (resolved from current working directory)");
                     }
                     match Self::spawn_sync_worker(&ctx.active_workspace, false, Some(&clean_canonical_str)) {

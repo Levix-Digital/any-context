@@ -153,12 +153,17 @@ pub fn build_agent_sync(
                         let mut out = Vec::new();
                         for r in results {
                             let type_str = if r.content_type.is_empty() { "Document" } else { &r.content_type };
+                            let mod_str = match &r.last_modified {
+                                Some(lm) if !lm.is_empty() => format!(" | Modified: {}", lm),
+                                _ => String::new(),
+                            };
                             out.push(format!(
-                                "• [{}] (Score: {:.2}, Source: {}, Type: {}):\n{}",
+                                "• [{}] (Score: {:.2}, Source: {}, Type: {}{}):\n{}",
                                 r.file_name,
                                 r.score,
                                 r.file_path,
                                 type_str,
+                                mod_str,
                                 r.text
                             ));
                         }
@@ -464,6 +469,7 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
         any_context_core_rs::retrieval::BM25Index::new(None, None)
     };
 
+    let now_ts = chrono::Utc::now().to_rfc3339();
     for (cid, ftext, _) in bm25_chunks {
         bm25.add_chunk(
             cid,
@@ -472,6 +478,7 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
             "system://README.md".to_string(),
             "Global".to_string(),
             "System Documentation".to_string(),
+            Some(now_ts.clone()),
         );
     }
     let _ = bm25.save_to_file(bm25_path.to_str().unwrap_or(""));

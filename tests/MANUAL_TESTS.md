@@ -6420,3 +6420,47 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
      - O agente responde diretamente e com naturalidade: *"Não foram encontrados códigos de website, como HTML, CSS ou JavaScript, relacionados ao projeto."*.
      - A resposta **NÃO** contém a frase enlatada *"⚠️ Essa informação não consta nos documentos deste workspace."* nem emojis de aviso de erro.
      - O tom é fluido, colaborativo e direto como um colega de equipe humano.
+
+---
+
+## 🧪 Cenário 31: Validação do Smart Path Healing, Proveniência Temporal no RAG, Cascade de Metadados Web e Detecção Ativa de Alterações de Fontes (v0.34.8)
+
+**Objetivo**: Validar a resiliência a caminhos alterados em drives de nuvem (Smart Path Healing), a injeção e respeito rigoroso à Regra Universal de Informação Mais Recente via metadados de modificação nos chunks de RAG, a cascata histórica de metadados web com checagem condicional HTTP 304, e os novos alertas de saúde de fontes e alterações pendentes no cabeçalho e rodapé da TUI.
+
+### Pré-requisitos
+- AnyContext CLI compilado em versão `v0.34.8` (`actx --version`).
+- Ter pelo menos um workspace com pastas locais e fontes web configuradas.
+
+### Procedimento de Teste
+
+1. **🩹 Validação do Smart Path Healing em Pastas Locais / Google Drive:**
+   - Adicione uma pasta com caminho desviado ou que sofreu reorganização estrutural (ex: adicionando `/Documentos/` no caminho onde a pasta real não possui essa subpasta, ex: `G:/My Drive/Documentos/Levix Digital/AnyContext`).
+   - Execute `/folder` ou inicialize a TUI no workspace:
+     - **Critérios de Aceitação**:
+       - O motor de cura de caminhos (`try_heal_path`) inspeciona variações fonéticas e estruturais (removendo subpastas intermediárias, normalizando barras e maiúsculas/minúsculas).
+       - O comando `/folder` reporta com sucesso: `🔄 auto-resolved from 'G:/My Drive/Documentos/Levix Digital/AnyContext'`.
+       - O banco SQLite (`workspace_folders`) é auto-reparado com o caminho real e canônico.
+       - Nenhum erro de `❌ Directory does not exist` falso-positivo é emitido quando o diretório existe fisicamente no disco.
+
+2. **⏳ Validação da Proveniência Temporal de Chunks e Regra de Recência no RAG:**
+   - Adicione dois documentos que contenham informações divergentes ou concorrentes sobre o mesmo tópico com datas de modificação distintas (ex: `Doc_v1_2023.md` e `Doc_v2_2026.md`).
+   - Execute `/sync` e pergunte ao assistente sobre a informação divergente.
+   - **Critérios de Aceitação**:
+     - Cada chunk recuperado pelo pipeline de RAG injeta o carimbo `| Modified: YYYY-MM-DD HH:MM:SS UTC` no cabeçalho do contexto enviado ao LLM.
+     - O LLM prioriza categoricamente a versão de data mais recente de acordo com a Regra de Informação Mais Recente, indicando a evolução temporal dos dados de forma límpida e precisa.
+
+3. **🌐 Validação da Cascata Histórica de Metadados Web e HTTP 304 Not Modified:**
+   - Adicione uma documentação web via `/web https://...`.
+   - Execute `/sync`:
+     - O crawler executa os 5 níveis da cascata de metadados recuperados (Meta tags HTML / Schema.org JSON-LD `dateModified`, regex de rodapé `Date modified`, padrão de URL `/YYYY/MM/DD/`, cabeçalho HTTP `Last-Modified` e fallback UTC).
+   - Execute `/sync` novamente:
+     - O crawler dispara requisição `HEAD` ou `GET` condicional com `If-None-Match` e `If-Modified-Since`.
+     - O servidor web responde `304 Not Modified`, evitando download desnecessário de corpos de página em menos de 50ms.
+
+4. **⚡ Validação da Detecção Ativa de Alterações e Alertas de Saúde na TUI:**
+   - Mova ou delete um arquivo de uma das pastas rastreadas pelo workspace ativo.
+   - Observe o cabeçalho e rodapé da TUI:
+     - **Critérios de Aceitação**:
+       - O scanner em segundo plano detecta a exclusão/modificação e atualiza o estado para `⚡ [Sync: Changes detected (/sync)]`.
+       - Se uma pasta inteira for renomeada ou removida de forma irrecuperável, a barra superior sinaliza imediatamente: `⚠️ [Sync: 1 folder(s) unreachable]`.
+       - Ao rodar `/sync`, os arquivos deletados são purgados do LanceDB, os alterados são reindexados, e a barra retorna a `✔ Up to date`.

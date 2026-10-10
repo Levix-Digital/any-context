@@ -71,6 +71,9 @@ pub struct App {
     pub sync_status: Option<any_context_core_rs::storage::WorkspaceSyncStatus>,
     pub last_sync_poll: std::time::Instant,
     pub tick_count: u64,
+    pub source_health_warning: Option<String>,
+    pub changes_detected: bool,
+    pub last_health_check: std::time::Instant,
 }
 
 impl App {
@@ -150,6 +153,9 @@ impl App {
             sync_status: initial_sync_status,
             last_sync_poll: std::time::Instant::now(),
             tick_count: 0,
+            source_health_warning: None,
+            changes_detected: false,
+            last_health_check: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(10)).unwrap_or_else(std::time::Instant::now),
         };
 
         app
@@ -162,6 +168,37 @@ impl App {
         self.last_sync_poll = std::time::Instant::now();
         if let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() {
             self.sync_status = db.get_sync_status(&self.active_workspace).unwrap_or(None);
+        }
+        self.check_source_health();
+    }
+
+    pub fn check_source_health(&mut self) {
+        if self.last_health_check.elapsed() < std::time::Duration::from_secs(4) {
+            return;
+        }
+        self.last_health_check = std::time::Instant::now();
+
+        if let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() {
+            let folders = db.get_workspace_folders(&self.active_workspace).unwrap_or_default();
+            let mut missing_count = 0;
+            for f in &folders {
+                let p = std::path::Path::new(f);
+                if !p.exists() && any_context_core_rs::storage::path_healer::try_heal_path(p).is_none() {
+                    missing_count += 1;
+                }
+            }
+
+            if missing_count > 0 {
+                self.source_health_warning = Some(format!("⚠️ {} folder(s) unreachable", missing_count));
+                self.changes_detected = false;
+            } else {
+                self.source_health_warning = None;
+
+                let cached_files = db.get_workspace_files_stat_cache(&self.active_workspace).unwrap_or_default();
+                let scanner = any_context_core_rs::ingestion::scanner::WorkspaceScanner::new();
+                let diff = scanner.scan_and_diff_native(&folders, &cached_files);
+                self.changes_detected = !diff.is_up_to_date && diff.missing_folders.is_empty();
+            }
         }
     }
 

@@ -294,7 +294,9 @@ impl NativeSyncOrchestrator {
                 None,
             );
             if options.verbose {
-                if diff.is_up_to_date {
+                if !diff.missing_folders.is_empty() {
+                    println!("⚠️ Workspace '{}' has unreachable folder(s): {}", ws, diff.missing_folders.join(", "));
+                } else if diff.is_up_to_date {
                     println!("✔ Workspace '{}' is 100% up-to-date (0 changes).", ws);
                 } else {
                     println!("✔ Workspace '{}' synchronized: {} files purged.", ws, diff.deleted_files.len());
@@ -565,6 +567,7 @@ impl NativeSyncOrchestrator {
                 file_path.to_string(),
                 workspace.to_string(),
                 c.content_type.clone(),
+                Some(last_mod_str.clone()),
             );
             chunk_texts.push(text_to_embed);
             chunk_ids.push(id);
@@ -676,6 +679,18 @@ impl NativeSyncOrchestrator {
 
                 let envelope = enricher.extract_envelope(&page.text, &page.title, None, Some(&page.url));
 
+                let page_mtime = if let Some(ref lm) = page.lastmod {
+                    chrono::DateTime::parse_from_rfc3339(lm)
+                        .map(|dt| dt.timestamp() as f64)
+                        .or_else(|_| {
+                            chrono::NaiveDate::parse_from_str(lm, "%Y-%m-%d")
+                                .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() as f64)
+                        })
+                        .unwrap_or_else(|_| chrono::Utc::now().timestamp() as f64)
+                } else {
+                    chrono::Utc::now().timestamp() as f64
+                };
+
                 let _ = self.embed_and_upsert_chunks(
                     &chunks,
                     Some(&envelope),
@@ -684,7 +699,7 @@ impl NativeSyncOrchestrator {
                     &page.url,
                     &page.title,
                     &hash_hex,
-                    0.0,
+                    page_mtime,
                     lm_provider,
                     embedding_model,
                     bm25,

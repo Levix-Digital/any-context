@@ -162,6 +162,7 @@ pub struct HybridSearchResult {
     pub sparse_score: Option<f32>,
     pub token_count: usize,
     pub matched_subqueries: Vec<String>,
+    pub last_modified: Option<String>,
 }
 
 /// Unified Native Hybrid Retrieval and Reranking Pipeline.
@@ -256,12 +257,13 @@ impl NativeHybridPipeline {
         file_path: String,
         workspace: String,
         content_type: String,
+        last_modified: Option<String>,
     ) {
         // Ensure index is loaded
         let _ = self.get_or_load_bm25(table_name);
         let mut writer = self.bm25_indices.write().unwrap();
         if let Some(idx) = writer.get_mut(table_name) {
-            idx.add_chunk(id, text, file_name, file_path, workspace, content_type);
+            idx.add_chunk(id, text, file_name, file_path, workspace, content_type, last_modified);
         }
     }
 
@@ -534,7 +536,7 @@ impl NativeHybridPipeline {
             let dense_entry = dense_map.remove(&chunk_id);
             let sparse_score = sparse_score_map.get(&chunk_id).copied();
 
-            let (file_name, file_path, workspace, text, content_type, content_hash, dense_score) =
+            let (file_name, file_path, workspace, text, content_type, content_hash, dense_score, last_modified) =
                 if let Some(ref d) = dense_entry {
                     (
                         d.file_name.clone(),
@@ -544,6 +546,7 @@ impl NativeHybridPipeline {
                         d.content_type.clone().unwrap_or_else(|| "Local Document".to_string()),
                         d.content_hash.clone().unwrap_or_default(),
                         Some(d.score),
+                        d.last_modified.clone(),
                     )
                 } else if let Some(doc) = bm25_index.get_doc_by_id(&chunk_id) {
                     (
@@ -554,6 +557,7 @@ impl NativeHybridPipeline {
                         doc.content_type.clone(),
                         String::new(),
                         None,
+                        doc.last_modified.clone(),
                     )
                 } else {
                     continue;
@@ -568,7 +572,21 @@ impl NativeHybridPipeline {
 
             let token_count = estimate_token_count(&clear_text);
             let is_guaranteed = guaranteed_file_cids.contains(&chunk_id);
-            let final_score = if is_guaranteed { 1.0 } else { res.score };
+
+            // Subtle recency boost: recent chunks receive a micro-boost to cleanly break score ties
+            let recency_boost = if let Some(ref lm) = last_modified {
+                if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(lm) {
+                    let now = chrono::Utc::now();
+                    let days_old = (now - dt.with_timezone(&chrono::Utc)).num_days().max(0) as f64;
+                    0.01 / (1.0 + (days_old / 30.0))
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            };
+
+            let final_score = if is_guaranteed { 1.0 } else { res.score + recency_boost };
 
             results.push(HybridSearchResult {
                 chunk_id,
@@ -583,6 +601,7 @@ impl NativeHybridPipeline {
                 sparse_score,
                 token_count,
                 matched_subqueries: vec![sub_query_tag.clone()],
+                last_modified,
             });
         }
 
@@ -806,6 +825,7 @@ mod tests {
             "/src/retrieval/pipeline.rs".to_string(),
             "Default".to_string(),
             "Local Document".to_string(),
+            Some("2026-10-10T12:00:00Z".to_string()),
         );
 
         let bm25 = p.get_or_load_bm25("workspace_chunks");
@@ -827,6 +847,7 @@ mod tests {
             "/src/auth.rs".to_string(),
             "Default".to_string(),
             "Local Document".to_string(),
+            Some("2026-10-10T12:00:00Z".to_string()),
         );
 
         pipeline.add_chunk_to_bm25(
@@ -837,6 +858,7 @@ mod tests {
             "/src/db.rs".to_string(),
             "Default".to_string(),
             "Local Document".to_string(),
+            Some("2026-10-09T10:00:00Z".to_string()),
         );
 
         let req1 = HybridSearchRequest {

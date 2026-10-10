@@ -25,6 +25,130 @@ pub struct CrawledPage {
     pub title: String,
     pub text: String,
     pub lastmod: Option<String>,
+    pub etag: Option<String>,
+    pub content_type: Option<String>,
+}
+
+/// Metadata extracted from HTML meta tags, headers, JSON-LD schema, and URLs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WebMetadata {
+    pub last_modified: Option<String>,
+    pub date_confidence: String,
+    pub content_type: String,
+}
+
+/// Result of checking whether a URL was modified via HTTP HEAD / Conditional GET (RFC 7232).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UrlCheckResult {
+    NotModified,
+    Modified { last_modified: Option<String>, etag: Option<String> },
+    Error(String),
+}
+
+/// Extracts temporal publication/modification date and content classification from HTML, headers, and URL.
+pub fn extract_web_metadata(
+    html: &str,
+    url: &str,
+    headers: Option<&reqwest::header::HeaderMap>,
+) -> WebMetadata {
+    let mut last_modified: Option<String> = None;
+    let mut date_confidence = "none".to_string();
+
+    // 1. Meta tags (Highest confidence)
+    let meta_regexes = [
+        r#"(?i)<meta[^>]+(?:property|name)=["'](?:article:modified_time|dcterms\.modified|dc\.date\.modified)["'][^>]+content=["']([^"']+)["']"#,
+        r#"(?i)<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:article:modified_time|dcterms\.modified|dc\.date\.modified)["']"#,
+        r#"(?i)<meta[^>]+(?:property|name)=["'](?:article:published_time|dcterms\.issued|dc\.date\.issued|dc\.date)["'][^>]+content=["']([^"']+)["']"#,
+        r#"(?i)<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:article:published_time|dcterms\.issued|dc\.date\.issued|dc\.date)["']"#,
+        r#"(?i)"dateModified"\s*:\s*"([^"]+)""#,
+        r#"(?i)"datePublished"\s*:\s*"([^"]+)""#,
+        r#"(?i)<time[^>]+datetime=["']([^"']+)["']"#,
+    ];
+
+    let date_clean_re = Regex::new(r"(\d{4}-\d{2}-\d{2})").unwrap();
+
+    for pat in &meta_regexes {
+        if let Ok(re) = Regex::new(pat) {
+            if let Some(cap) = re.captures(html) {
+                if let Some(val) = cap.get(1) {
+                    if let Some(d_match) = date_clean_re.captures(val.as_str()) {
+                        last_modified = Some(d_match.get(1).unwrap().as_str().to_string());
+                        date_confidence = "meta_tag".to_string();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. In-page text / footer patterns
+    if last_modified.is_none() {
+        let text_patterns = [
+            r#"(?i)Page details\s*(\d{4}-\d{2}-\d{2})"#,
+            r#"(?i)Date modified:\s*(\d{4}-\d{2}-\d{2})"#,
+            r#"(?i)Last modified:\s*(\d{4}-\d{2}-\d{2})"#,
+            r#"(?i)Last updated:\s*(\d{4}-\d{2}-\d{2})"#,
+            r#"(?i)Updated:\s*(\d{4}-\d{2}-\d{2})"#,
+        ];
+        for pat in &text_patterns {
+            if let Ok(re) = Regex::new(pat) {
+                if let Some(cap) = re.captures(html) {
+                    if let Some(val) = cap.get(1) {
+                        last_modified = Some(val.as_str().to_string());
+                        date_confidence = "footer_pattern".to_string();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. URL Date Pattern (e.g. /2024/06/15/ or /2024/06/)
+    if last_modified.is_none() {
+        if let Ok(url_re) = Regex::new(r"/(20\d{2})/(0[1-9]|1[0-2])(?:/([0-3]\d))?/") {
+            if let Some(cap) = url_re.captures(url) {
+                let y = cap.get(1).map_or("2026", |m| m.as_str());
+                let m = cap.get(2).map_or("01", |m| m.as_str());
+                let d = cap.get(3).map_or("01", |m| m.as_str());
+                last_modified = Some(format!("{}-{}-{}", y, m, d));
+                date_confidence = "url_pattern".to_string();
+            }
+        }
+    }
+
+    // 4. HTTP Headers (Last-Modified)
+    if last_modified.is_none() {
+        if let Some(h) = headers {
+            if let Some(lm_val) = h.get(reqwest::header::LAST_MODIFIED).and_then(|v| v.to_str().ok()) {
+                if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(lm_val) {
+                    last_modified = Some(dt.format("%Y-%m-%d").to_string());
+                    date_confidence = "http_header".to_string();
+                }
+            }
+        }
+    }
+
+    // 5. Fallback: current crawl timestamp
+    if last_modified.is_none() {
+        last_modified = Some(chrono::Utc::now().format("%Y-%m-%d").to_string());
+        date_confidence = "crawl_timestamp".to_string();
+    }
+
+    // Content Type Classification
+    let url_lower = url.to_ascii_lowercase();
+    let content_type = if url_lower.contains("/news/") || url_lower.contains("/blog/") || url_lower.contains("/press/") || url_lower.contains("/announcement") {
+        "News & Announcements".to_string()
+    } else if url_lower.contains("/docs/") || url_lower.contains("/doc/") || url_lower.contains("/guide/") || url_lower.contains("/manual/") || url_lower.contains("/api/") {
+        "Technical Documentation".to_string()
+    } else {
+        "Web Documentation".to_string()
+    };
+
+    WebMetadata {
+        last_modified,
+        date_confidence,
+        content_type,
+    }
 }
 
 /// RFC 9309 compliant robots.txt policy manager.
@@ -349,8 +473,11 @@ impl NativeWebCrawler {
                 continue;
             }
 
-            let content_type = resp
-                .headers()
+            let headers = resp.headers().clone();
+            let etag = headers.get(reqwest::header::ETAG).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+            let http_lastmod = headers.get(reqwest::header::LAST_MODIFIED).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+
+            let content_type = headers
                 .get(reqwest::header::CONTENT_TYPE)
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("")
@@ -366,6 +493,12 @@ impl NativeWebCrawler {
                 Err(_) => continue,
             };
 
+            let meta = extract_web_metadata(&html, &curr_url_str, Some(&headers));
+            let effective_lastmod = meta.last_modified
+                .or(lastmod)
+                .or(http_lastmod)
+                .or_else(|| Some(chrono::Utc::now().to_rfc3339()));
+
             let title = extract_title(&html).unwrap_or_else(|| curr_url_str.clone());
             let clean_text = crate::ingestion::orchestrator::strip_html_tags(&html);
 
@@ -374,7 +507,9 @@ impl NativeWebCrawler {
                     url: curr_url_str.clone(),
                     title,
                     text: clean_text,
-                    lastmod,
+                    lastmod: effective_lastmod,
+                    etag,
+                    content_type: Some(meta.content_type),
                 });
             }
 
@@ -391,6 +526,36 @@ impl NativeWebCrawler {
         }
 
         Ok(crawled_pages)
+    }
+
+    /// Checks if a web page URL has changed without downloading the body (RFC 7232).
+    /// Sends an HTTP HEAD request with If-None-Match and If-Modified-Since.
+    pub async fn check_url_modified(
+        &self,
+        url: &str,
+        cached_etag: Option<&str>,
+        cached_last_modified: Option<&str>,
+    ) -> Result<UrlCheckResult, String> {
+        let mut req = self.client.head(url);
+        if let Some(etag) = cached_etag {
+            req = req.header(reqwest::header::IF_NONE_MATCH, etag);
+        }
+        if let Some(lm) = cached_last_modified {
+            req = req.header(reqwest::header::IF_MODIFIED_SINCE, lm);
+        }
+
+        match req.send().await {
+            Ok(resp) => {
+                let status = resp.status();
+                if status == reqwest::StatusCode::NOT_MODIFIED {
+                    return Ok(UrlCheckResult::NotModified);
+                }
+                let etag = resp.headers().get(reqwest::header::ETAG).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+                let last_mod = resp.headers().get(reqwest::header::LAST_MODIFIED).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+                Ok(UrlCheckResult::Modified { last_modified: last_mod, etag })
+            }
+            Err(e) => Err(format!("Network check error for '{url}': {e}")),
+        }
     }
 
     /// Fetches and parses robots.txt for the given domain root.
@@ -553,5 +718,38 @@ Disallow: /secret.html
     fn test_extract_title() {
         let html = "<html><head><title>  AnyContext Documentation  </title></head></html>";
         assert_eq!(extract_title(html), Some("AnyContext Documentation".to_string()));
+    }
+
+    #[test]
+    fn test_extract_web_metadata_meta_tag() {
+        let html = r#"<html><head><meta property="article:modified_time" content="2026-10-09T14:30:00Z"></head><body>Text</body></html>"#;
+        let meta = extract_web_metadata(html, "https://example.com/docs/guide", None);
+        assert_eq!(meta.last_modified, Some("2026-10-09".to_string()));
+        assert_eq!(meta.date_confidence, "meta_tag");
+        assert_eq!(meta.content_type, "Technical Documentation");
+    }
+
+    #[test]
+    fn test_extract_web_metadata_json_ld() {
+        let html = r#"<html><head><script type="application/ld+json">{"@context":"https://schema.org","dateModified":"2026-10-05T18:00:00Z"}</script></head><body>Text</body></html>"#;
+        let meta = extract_web_metadata(html, "https://example.com/page", None);
+        assert_eq!(meta.last_modified, Some("2026-10-05".to_string()));
+        assert_eq!(meta.date_confidence, "meta_tag");
+    }
+
+    #[test]
+    fn test_extract_web_metadata_footer_pattern() {
+        let html = r#"<html><body><main>Content</main><footer>Last modified: 2026-09-25</footer></body></html>"#;
+        let meta = extract_web_metadata(html, "https://example.com/page", None);
+        assert_eq!(meta.last_modified, Some("2026-09-25".to_string()));
+        assert_eq!(meta.date_confidence, "footer_pattern");
+    }
+
+    #[test]
+    fn test_extract_web_metadata_url_pattern() {
+        let html = r#"<html><body>Simple text without date tags</body></html>"#;
+        let meta = extract_web_metadata(html, "https://example.com/2026/07/12/release-notes", None);
+        assert_eq!(meta.last_modified, Some("2026-07-12".to_string()));
+        assert_eq!(meta.date_confidence, "url_pattern");
     }
 }

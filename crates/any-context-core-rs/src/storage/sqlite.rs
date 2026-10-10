@@ -537,16 +537,39 @@ impl NativeConfigDb {
             .unwrap_or(false);
 
         if tbl_exists {
+            let mut raw_paths = Vec::new();
             if let Ok(mut stmt) = conn.prepare(
                 "SELECT folder_path FROM workspace_folders WHERE workspace_name = ?1 COLLATE NOCASE ORDER BY created_at ASC"
             ) {
                 if let Ok(rows) = stmt.query_map(params![workspace_name], |row| row.get::<_, String>(0)) {
                     for r in rows.flatten() {
-                        let norm = normalize_path_slashes(&r);
-                        if !list.contains(&norm) && !list.contains(&r) {
-                            list.push(r);
-                        }
+                        raw_paths.push(r);
                     }
+                }
+            }
+
+            for r in raw_paths {
+                let p = std::path::Path::new(&r);
+                let effective_path = if !p.exists() {
+                    if let Some(healed) = crate::storage::path_healer::try_heal_path(p) {
+                        let healed_str = healed.to_string_lossy().replace('\\', "/");
+                        if healed_str != r {
+                            let _ = conn.execute(
+                                "UPDATE workspace_folders SET folder_path = ?1 WHERE workspace_name = ?2 AND folder_path = ?3",
+                                params![&healed_str, workspace_name, &r],
+                            );
+                        }
+                        healed_str
+                    } else {
+                        r
+                    }
+                } else {
+                    r
+                };
+
+                let norm = normalize_path_slashes(&effective_path);
+                if !list.contains(&norm) && !list.contains(&effective_path) {
+                    list.push(effective_path);
                 }
             }
         }

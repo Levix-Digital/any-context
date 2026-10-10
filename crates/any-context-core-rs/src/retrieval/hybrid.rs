@@ -19,8 +19,9 @@ impl HybridRetrieverEngine {
         file_path: String,
         workspace: String,
         content_type: String,
+        last_modified: Option<String>,
     ) {
-        self.bm25.add_chunk(id, text, file_name, file_path, workspace, content_type);
+        self.bm25.add_chunk(id, text, file_name, file_path, workspace, content_type, last_modified);
     }
 
     pub fn remove_by_id(&mut self, id: &str) -> bool {
