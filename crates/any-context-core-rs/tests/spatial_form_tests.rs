@@ -211,3 +211,26 @@ fn test_spatial_form_2d_coordinate_voronoi_pairing() {
     assert!(chunks[0].text.contains("- **PATIENT ID**: PID-99214"));
     assert!(chunks[0].text.contains("- **NOTES**: Patient tolerates therapy well"));
 }
+
+#[test]
+fn test_spatial_form_does_not_invert_arbitrary_table_columns() {
+    let chunker = SpatialFormChunker::default();
+
+    // 2-column table with tax box numbers and financial values
+    let t4_doc = "\
+| Box 14 Employment income | Box 22 Income tax deducted |
+| --- | --- |
+| 58792.60 | 7976.60 |
+";
+
+    let fields = chunker.extract_fields_from_dense_text(t4_doc);
+    // Should NOT invert 58792.60 as key and 7976.60 as value!
+    assert!(fields.is_empty(), "Arbitrary multi-column tables must not be parsed into fake key-value pairs");
+
+    // Formatted chunk generation preserves the table cleanly
+    let chunks = chunker.chunk_dense_text("t4.pdf", "/docs/t4.pdf", 1, t4_doc);
+    assert_eq!(chunks.len(), 1);
+    assert!(chunks[0].text.contains("58792.60"));
+    assert!(chunks[0].text.contains("7976.60"));
+    assert!(!chunks[0].text.contains("- **58792.60**: 7976.60"));
+}

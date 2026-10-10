@@ -143,7 +143,7 @@ pub fn build_agent_sync(
                     top_k: 5,
                     candidate_pool_k: 30,
                     max_density_chars: 12_000,
-                    min_score: 0.02,
+                    min_score: 0.005,
                     table_name: "workspace_chunks".to_string(),
                     ..Default::default()
                 };

@@ -45,6 +45,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **📑 RAG Semantic Fidelity & Ingestion 2D Layout Sacred Preservation (`v0.34.5`)**:
+  - **Sacred 2D Layout Preservation**: Complex documents with tabular geometry (Canadian T4 tax returns, CMR shipment reports, commercial invoices) maintain structured Markdown tables with exact cell relationships without destructive key-value column collapse.
+  - **QualityGate Structured Table Exemption**: Eliminates false-positive `DenseComplexForm` classifications by identifying valid Markdown table delimiters (`| --- |`), allowing high-fidelity text to bypass lossy spatial fallbacks directly into LanceDB and BM25.
+  - **Conservative Form Pairing**: Restricts key-value extraction strictly to explicit headers (`Property | Value`, `Field | Value`) or inline colons (`Label: Value`), completely preventing financial amounts or company names from being inverted as dictionary keys.
+  - **Calibrated RRF Hybrid Retrieval Threshold**: Aligns `min_score` to `0.005` in reciprocal rank fusion ($k=60$), ensuring cross-lingual semantic vector matches (e.g. Portuguese queries over English/French forms) pass ranking filters smoothly.
+  - **Transparent In-Memory Decryption**: Seamless hardware-bound on-the-fly decryption (`NativeSecurityEngine`) for legacy encrypted chunks (`enc::`), eliminating sparse lexical retrieval blindspots.
+
 - **🎨 UX Stabilization, Deep Search Direct Conclusion, Multiline Prompt & Document AI (`v0.34.4`)**:
   - **Deep Search Direct Conclusion & Language Parity**: Deep Search synthesized outputs now provide direct, grounded conclusions without conversational preambles or narrative transitions, strictly matching the user query's language (e.g. Portuguese).
   - **Per-Workspace Search Retrieval Depth**: Persists `/search` depth mode (`auto`, `fast`, `deep`) independently per workspace in SQLite, preventing global cross-talk and honoring workspace autonomy.

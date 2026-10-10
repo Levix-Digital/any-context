@@ -58,9 +58,9 @@ impl RetrievalPreset {
 
     pub fn min_score(&self) -> f64 {
         match self {
-            Self::Turbo => 0.55,
-            Self::Balanced => 0.50,
-            Self::Deep => 0.45,
+            Self::Turbo => 0.012,
+            Self::Balanced => 0.008,
+            Self::Deep => 0.005,
         }
     }
 
@@ -559,7 +559,14 @@ impl NativeHybridPipeline {
                     continue;
                 };
 
-            let token_count = estimate_token_count(&text);
+            let clear_text = if text.starts_with("enc::") {
+                let sec = crate::security::NativeSecurityEngine::get_instance();
+                sec.decrypt_text(&text)
+            } else {
+                text
+            };
+
+            let token_count = estimate_token_count(&clear_text);
             let is_guaranteed = guaranteed_file_cids.contains(&chunk_id);
             let final_score = if is_guaranteed { 1.0 } else { res.score };
 
@@ -568,7 +575,7 @@ impl NativeHybridPipeline {
                 file_name,
                 file_path,
                 workspace,
-                text,
+                text: clear_text,
                 content_type,
                 content_hash,
                 score: final_score,

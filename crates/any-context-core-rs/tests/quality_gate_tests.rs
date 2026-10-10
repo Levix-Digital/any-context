@@ -164,10 +164,10 @@ fn test_quality_gate_scanned_page_or_diagram_detection() {
 }
 
 #[test]
-fn test_quality_gate_tabular_form_detection() {
+fn test_quality_gate_markdown_tables_pass_with_high_score() {
     let gate = QualityGate::default();
 
-    // PDF or document_form content_type with complex table
+    // High-fidelity structured Markdown table from 2D spatial reconstruction
     let table_content = "\
 | Header 1 | Header 2 | Header 3 |
 | --- | --- | --- |
@@ -177,13 +177,33 @@ fn test_quality_gate_tabular_form_detection() {
 
     let chunk = make_chunk(table_content, "report.pdf", "pdf");
     match gate.evaluate_chunk(&chunk) {
+        QualityDecision::Pass { score } => {
+            assert!(score > 0.6, "Well-formed Markdown table should pass with high score: {}", score);
+        }
+        other => panic!("Expected Pass for well-formed markdown table, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_quality_gate_disjoint_dense_form_detection() {
+    let gate = QualityGate::default();
+
+    // Dense disjoint form without structured Markdown header delimiters
+    let disjoint_form = "\
+| IKEA Distribution | Calgary Terminal | Dock 4B |
+| Delivery Note: 8819 | Order Ref: 9942 | Carrier: Bison |
+| Status: In Transit | Driver ID: D-991 | Seal: S-1102 |
+| Tare: 12000kg | Gross: 24000kg | Net: 12000kg |";
+
+    let chunk = make_chunk(disjoint_form, "cmr_raw.pdf", "pdf");
+    match gate.evaluate_chunk(&chunk) {
         QualityDecision::NeedsDocumentAi { target } => match target {
             DocumentAiTarget::DenseComplexForm { template_ratio } => {
                 assert!(template_ratio > 0.5, "Should have high template ratio: {}", template_ratio);
             }
             other => panic!("Expected DenseComplexForm, got {:?}", other),
         },
-        other => panic!("Expected NeedsDocumentAi for table in pdf, got {:?}", other),
+        other => panic!("Expected NeedsDocumentAi for disjoint dense form in pdf, got {:?}", other),
     }
 }
 

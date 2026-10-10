@@ -273,19 +273,25 @@ impl QualityGate {
     }
 
     /// Evaluates if a text represents a dense tabular form with fragmented cell pipes.
+    /// Well-formed Markdown tables (with `| --- |` header separators) are high-fidelity
+    /// 2D reconstructed layouts that do NOT require Document AI fallback.
     pub fn is_dense_complex_form(&self, text: &str) -> bool {
         let lines: Vec<&str> = text.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
         if lines.is_empty() {
             return false;
         }
 
+        // If it contains valid markdown table delimiters, it is already clean structured markdown
+        let has_markdown_table_separators = lines.iter().any(|l| l.contains("| ---") || l.contains("|:---"));
+        if has_markdown_table_separators {
+            return false;
+        }
+
         let pipe_lines = lines.iter().filter(|l| l.contains('|')).count();
         let pipe_line_ratio = (pipe_lines as f32) / (lines.len() as f32);
 
-        // Also check table delimiter ratio (`| --- | --- |`)
-        let table_header_separators = lines.iter().filter(|l| l.contains("| ---") || l.contains("|:---")).count();
-
-        pipe_line_ratio >= self.config.max_table_pipe_ratio || table_header_separators >= 3
+        // Disjoint fragmented pipes without structured table delimiters
+        pipe_line_ratio >= self.config.max_table_pipe_ratio
     }
 
     /// Computes ratio of pipe occurrences.

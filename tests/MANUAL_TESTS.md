@@ -6237,5 +6237,84 @@
      ```
    - **Critério de Aceitação:** O instalador detecta a release `v0.34.1`, efetua o download do pacote zip de release, extrai os binários e realiza o swap atômico sem corrupção (`[OK] AnyContext successfully updated to v0.34.1`).
 
+---
+
+### 📌 Cenário 25 (v0.34.2): Triagem de Qualidade de Ingestão e Document AI ModelRouter
+- **Objetivo**: Comprovar a capacidade do `QualityGate` e do `IngestionModelRouter` de avaliar a qualidade de chunks sintáticos, rejeitar ruídos de baixa entropia ou binários e triar páginas complexas.
+- **Passo a Passo**:
+  1. Iniciar ingestão com arquivos contendo ruído binário, chaves soltas e diagramas visuais.
+  2. Verificar que ruídos sintáticos degenerados recebem rejeição com métricas documentadas.
+- **Critério de Aceitação**: Taxa de rejeição determinística registrada nas métricas do orquestrador com sub-milissegundo de latência.
+
+---
+
+### 📌 Cenário 26 (v0.34.3): Telemetria Expandida de Raciocínio ReAct e Deep Search
+- **Objetivo**: Validar a emissão granular de eventos de raciocínio, subqueries decompostas, gaps de informação e chamadas de ferramenta no painel Accordion.
+- **Passo a Passo**:
+  1. Executar query com `/search deep`.
+  2. Observar a emissão em tempo real de eventos tipados (`AgentEvent`).
+- **Critério de Aceitação**: A TUI renderiza as etapas de raciocínio de forma legível e com cores distintas sem truncar o fluxo do usuário.
+
+---
+
+### 📌 Cenário 27 (v0.34.4): Paridade Linguística, Prompt Multilinhas e Identidade Visual por Workspace
+- **Objetivo**: Comprovar a síntese estrita no idioma do usuário, a expansão multilinhas da caixa de texto do prompt com `Shift+Enter` e o prefixo `[AI - <Workspace>]`.
+- **Passo a Passo**:
+  1. Digitar pergunta em português no modo Deep Search e verificar que a conclusão é estritamente em português.
+  2. Inserir quebras de linha com `Shift+Enter` e verificar que o cursor e a altura da caixa de texto se ajustam dinamicamente.
+  3. Verificar que as respostas são prefixadas com `[AI - NomeDoWorkspace]`.
+- **Critério de Aceitação**: Formatação visual impecável, navegação 2D no prompt e preservação de auto-ajuda com sincronização transparente.
+
+---
+
+### 📌 Cenário 28 (v0.34.5): Validação Cumulativa de Fidelidade Semântica de Chunks e RAG em Documentos Fiscais e Logísticos Complexos (T4 e CMR)
+- **Objetivo**: Comprovar que o AnyContext v0.34.5 preserva integralmente a geometria 2D e o conteúdo relacional de formulários com tabelas em Markdown, eliminando a corrupção de dados por falsas chaves e viabilizando respostas factuais com 100% de precisão.
+- **Pré-requisitos**: Documentos de teste fiscais canadenses (`T4-2025.pdf`) e logísticos internacionais (`CMR for Single Pickup Report.pdf`) disponíveis nos workspaces correspondentes.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão do Binário:**
+   - Execute no terminal:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe `actx 0.34.5`.
+
+2. **🔄 Sincronização Forçada de Auto-Cura dos Workspaces:**
+   - Execute no terminal:
+     ```bash
+     actx -w TaxReturn sync --force
+     actx -w IKEAShipments sync --force
+     ```
+   - **Critérios de Aceitação**:
+     - O orquestrador purga os vetores corrompidos legados e reindexa com 100% de pass rate (`0 noise filtered`).
+     - No `TaxReturn`, 1 arquivo indexado gera 3 chunks estruturados preservando tabelas Markdown completas.
+     - No `IKEAShipments`, todos os relatórios são reindexados sem divisão destrutiva de destinatários e transportadoras.
+
+3. **🔍 Consulta de Alta Precisão em Formulário Fiscal (T4):**
+   - Execute:
+     ```bash
+     actx -w TaxReturn -q "qual o valor de employment income no T4?"
+     ```
+   - **Critério de Aceitação**: O LLM responde explicitamente que o rendimento de emprego (Box 14) é de **58792,60**, citando `T4-2025.pdf`.
+   - Execute:
+     ```bash
+     actx -w TaxReturn -q "qual o valor da caixa 22 no formulário T4?"
+     ```
+   - **Critério de Aceitação**: O LLM responde explicitamente que o imposto retido na fonte (Box 22) é de **7976,60**, citando `T4-2025.pdf`.
+   - Execute:
+     ```bash
+     actx -w TaxReturn -q "quem é o empregador e quem é o funcionário no documento T4?"
+     ```
+   - **Critério de Aceitação**: O LLM identifica com precisão que o empregador é **IKEA Canada Ltd. Partnership** e o funcionário é **Levi Silveira**.
+
+4. **🚛 Consulta de Alta Precisão em Relatórios Logísticos (CMR):**
+   - Execute:
+     ```bash
+     actx -w IKEAShipments -q "quais são as transportadoras e destinos nos relatórios CMR?"
+     ```
+   - **Critério de Aceitação**: O LLM lista transportadoras (ex.: `LANDSTAR INWAY INC`, `RAINBOW GREENHOUSES INC.`) e destinatários (`IKEA CALGARY`) com seus respectivos endereços de forma perfeitamente discriminada, sem inverter rótulos ou truncar o fluxo.
+
+
 
 

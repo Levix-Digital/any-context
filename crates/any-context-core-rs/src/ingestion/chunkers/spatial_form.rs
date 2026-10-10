@@ -232,16 +232,15 @@ impl SpatialFormChunker {
                     continue;
                 }
 
-                // Use table headers if column count matches
+                // Use table headers ONLY if it's explicitly a 2-column Key-Value table
                 if let Some(ref headers) = table_headers {
-                    // Check if this is a 2-column Key-Value table (e.g. Property | Value, or Label | Info)
                     if headers.len() == 2 && cells.len() == 2 {
                         let h0 = headers[0].to_lowercase();
                         let h1 = headers[1].to_lowercase();
-                        let is_kv_header = matches!(h0.as_str(), "property" | "key" | "field" | "attribute" | "name" | "item" | "parameter")
-                            || matches!(h1.as_str(), "value" | "val" | "description" | "detail" | "info" | "data");
+                        let is_kv_header = matches!(h0.as_str(), "property" | "key" | "field" | "attribute" | "name" | "item" | "parameter" | "propriedade" | "chave" | "campo")
+                            && matches!(h1.as_str(), "value" | "val" | "description" | "detail" | "info" | "data" | "valor" | "descrição" | "dado");
 
-                        if is_kv_header || (cells[0].len() < 50 && !cells[0].contains('\n')) {
+                        if is_kv_header {
                             fields.push(FormField {
                                 label: cells[0].trim_end_matches([':', '-']).to_string(),
                                 value: cells[1].to_string(),
@@ -250,29 +249,6 @@ impl SpatialFormChunker {
                             continue;
                         }
                     }
-
-                    // Multi-column table: pair each cell with its column header
-                    if headers.len() == cells.len() {
-                        for (h, val) in headers.iter().zip(cells.iter()) {
-                            if !val.is_empty() {
-                                fields.push(FormField {
-                                    label: h.clone(),
-                                    value: val.to_string(),
-                                    section: None,
-                                });
-                            }
-                        }
-                        continue;
-                    }
-                }
-
-                // Fallback for 2 cells without headers
-                if cells.len() == 2 && cells[0].len() < 50 {
-                    fields.push(FormField {
-                        label: cells[0].trim_end_matches([':', '-']).to_string(),
-                        value: cells[1].to_string(),
-                        section: None,
-                    });
                 }
             } else {
                 // Leaving table block, reset table headers

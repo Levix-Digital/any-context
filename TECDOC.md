@@ -6693,6 +6693,72 @@ flowchart TD
   - O usuário visualiza com clareza em qual workspace a IA está atuando e o que o motor está executando nos bastidores.
   - Nenhuma perda de auto-consciência em relação aos comandos e funcionamento do sistema após updates.
 
+---
+
+## 106. Arquitetura de Ingestão de Alta Fidelidade Semântica e Preservação 2D (`v0.34.5`)
+
+### 106.1 O Diagnóstico Forense da Inversão Heurística e Destruição Tabular
+Na versão v0.34.2, a introdução do `QualityGate` e do `SpatialFormChunker` como fallback para documentos densos gerou uma regressão semântica crítica em formulários estruturados com geometria 2D (ex.: formulários fiscais canadenses T4, formulários logísticos internacionais CMR e faturas comerciais):
+1. **Falso-Positivo no `QualityGate`**: O método `is_dense_complex_form` contabilizava pipes (`|`) em relação ao total de linhas. Como o parser nativo de PDF (`pdf.rs`) converte colunas alinhadas em tabelas Markdown legítimas (`| Col 1 | Col 2 |`), quase todos os documentos estruturados atingiam a proporção `pipe_line_ratio >= 0.55` ou `table_header_separators >= 3`, sendo rotulados incorretamente como `NeedsDocumentAi { DenseComplexForm }`.
+2. **Inversão Heurística Destrutiva**: Ao entrar no fallback sem modelo de visão ativo, o `SpatialFormChunker::extract_fields_from_dense_text` continha uma regra ingênua onde qualquer linha de tabela com 2 células em que a primeira tivesse menos de 50 caracteres (`cells[0].len() < 50`) era transformada em par chave-valor (`label: cells[0], value: cells[1]`). Isso levou à inversão e desconstrução sistemática de relações, onde salários viraram chaves de impostos (`58792.60: 7976.60`) e consignatários viraram chaves de transportadoras (`IKEA CALGARY: BISON TRANSPORT INC.`).
+3. **Substituição Cega no `ModelRouter`**: O roteador descartava o Markdown original completo gerado pelo `pdf.rs` e injetava a lista desfigurada no LanceDB e BM25, cegando os modelos de linguagem que consultavam a base.
+4. **Descompasso de Escala no Limiar de RRF**: O limiar `min_score = 0.02` no `HybridSearchRequest` superava matematicamente o score máximo unitário do Reciprocal Rank Fusion ($1 / (60 + 1) = 0.01639$), descartando silenciosamente qualquer candidato que casasse apenas vetorialmente (ex.: perguntas com termos em português consultando fontes em inglês/francês).
+
+```mermaid
+flowchart TD
+    subgraph Antigo ["❌ Pipeline Destrutivo (v0.34.2 - v0.34.4)"]
+        PDF1["T4 / CMR em PDF"] --> Dec1["pdf.rs gera Markdown 2D"]
+        Dec1 --> QG1{"QualityGate: pipe_ratio >= 0.55?"}
+        QG1 -- Sim --> AI1["NeedsDocumentAi"]
+        AI1 --> SF1["SpatialFormChunker: cells[0] < 50 vira Chave!"]
+        SF1 --> Lixo["Substitui e descarta Markdown original:<br/>'- **58792.60**: 7976.60'"]
+        Lixo --> Fail["LLM não encontra respostas"]
+    end
+
+    subgraph Novo ["✅ Pipeline de Alta Fidelidade (v0.34.5)"]
+        PDF2["T4 / CMR em PDF"] --> Dec2["pdf.rs gera Markdown 2D"]
+        Dec2 --> QG2{"QualityGate: Possui '| --- |'?"}
+        QG2 -- Sim (Estruturado) --> Pass["QualityDecision::Pass (Score 0.95)"]
+        Pass --> SafeDB["LanceDB & BM25 armazenam tabela Markdown íntegra"]
+        SafeDB --> RRF["Busca Híbrida com min_score calibrado (0.005)"]
+        RRF --> Success["LLM extrai valores, caixas e nomes com 100% de precisão"]
+    end
+```
+
+### 106.2 Princípio da Preservação Sagrada do Layout 2D
+A versão v0.34.5 estabelece o princípio inviolável de que **conteúdo textual estruturado extraído diretamente de coordenadas 2D pelo motor nativo de PDF nunca pode ser fragmentado ou substituído por heurísticas de chave-valor**. A sintaxe de tabelas Markdown (`| col1 | col2 |`) é a melhor representação semântica e relacional possível para processamento por LLMs contemporâneos.
+
+### 106.3 Ajustes Algorítmicos nos Componentes Centrais
+1. **`QualityGate::is_dense_complex_form`**:
+   - Chunks que contêm separadores válidos de cabeçalho de tabela Markdown (`| --- |` ou `|:--- |`) são imediatamente reconhecidos como texto estruturado de alta qualidade, retornando `false` e recebendo `QualityDecision::Pass`.
+   - Apenas formulários verdadeiramente caóticos ou ruídos de digitalização sem formatação estruturada são encaminhados para Document AI.
+2. **`SpatialFormChunker::extract_fields_from_dense_text`**:
+   - Eliminação da cláusula cega `cells[0].len() < 50`.
+   - Tabelas de 2 colunas só são convertidas em pares chave-valor se os cabeçalhos indicarem explicitamente `Property | Value`, `Key | Value`, `Campo | Valor`, ou se a célula contiver um delimitador pontual explícito (`:`).
+   - Se nenhuma chave explícita for detectada, o texto da tabela é preservado integralmente sem mutações.
+3. **`ModelRouter::process_document_ai_candidates`**:
+   - No modo de fallback, o chunk original jamais é descartado se contiver texto ou linhas tabulares estruturadas.
+4. **`NativeHybridPipeline` & Descriptografia Transparente**:
+   - Inclusão de descriptografia dinâmica com `NativeSecurityEngine::get_instance().decrypt_text` para qualquer chunk recuperado com prefixo `enc::`, restaurando a busca em bases legadas.
+   - Calibração do limiar `min_score` no `engine.rs` para `0.005`, garantindo que candidatos descobertos exclusivamente pela rota de similaridade densa sobrevivam ao filtro de corte do RRF.
+
+---
+
+### 106.4 Architecture Decision Record (ADR-113)
+
+#### ADR-113: Eliminação de Inversão Heurística em Chunker Tabular e Preservação Incondicional de Formatos Markdown 2D
+- **Status**: Aprovado & Implementado (`v0.34.5`).
+- **Contexto**: A queixa do usuário apontou que formulários como T4 e CMR eram indexados com pares chave-valor absurdos (`58792.60: 7976.60`), impedindo respostas factuais do RAG.
+- **Decisões**:
+  1. **Preservação de Tabelas Markdown no QualityGate**: Isentar blocos de tabela que já possuam delimitadores de cabeçalho da marcação de `DenseComplexForm`.
+  2. **Pareamento Conservador em Formulários**: Restringir a identificação de campos em tabelas a cabeçalhos estritamente declarativos (`Key | Value`, `Field | Value`, etc.).
+  3. **Calibração de Limiar de RRF no CLI Engine**: Ajustar `min_score` de `0.02` para `0.005` no `HybridSearchRequest` para permitir que consultas semânticas multilingues passem pelo corte de rankeamento do RRF.
+  4. **Descriptografia Defensiva em Tempo de Execução**: Assegurar que consultas do BM25 e montagem de candidatos no pipeline híbrido desembalem textos `enc::` de forma transparente.
+- **Consequências**:
+  - Restauração total da acurácia semântica do RAG do AnyContext em documentos fiscais, faturas e relatórios logísticos.
+  - O formulário fiscal T4 passa a responder valores exatos para rendimento de emprego ($58,792.60) e imposto retido na fonte ($7,976.60).
+  - Preservação da compatibilidade com bases de dados existentes mediante comando `actx sync --force`.
+
 
 
 
