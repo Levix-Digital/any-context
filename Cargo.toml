@@ -12,3 +12,9 @@ resolver = "2"
 opt-level = 0
 debug = 1
 
+[profile.release]
+opt-level = 3
+codegen-units = 16
+lto = "off"
+strip = true
+debug = false

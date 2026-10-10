@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build-binaries:
@@ -15,6 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     strategy:
       fail-fast: false
       matrix:
@@ -45,21 +48,29 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rust Cache
+      - name: Rust Dependency Cache
         uses: swatinem/rust-cache@v2
         with:
-          shared-key: "actx-rust-cache"
+          shared-key: "actx-rust-deps"
           cache-all-crates: "true"
+          cache-targets: "false"
 
       - name: Build Native Rust Binaries & Core Engine
         shell: bash
         run: |
           cargo build --release -p actx-cli -p actx-installer -p any-context-core-rs
+
+      - name: Show sccache statistics
+        shell: bash
+        run: ${SCCACHE_PATH} --show-stats
 
       - name: Package Release Assets (Windows)
         if: runner.os == 'Windows'

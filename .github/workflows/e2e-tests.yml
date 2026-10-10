@@ -13,10 +13,17 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   rust-tests:
     name: Cargo Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     strategy:
       fail-fast: false
       matrix:
@@ -29,16 +36,24 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rust Cache
+      - name: Rust Dependency Cache
         uses: swatinem/rust-cache@v2
         with:
           key: ${{ matrix.os }}-cargo-test
           cache-all-crates: "true"
+          cache-targets: "false"
 
       - name: Run Workspace Tests
         run: cargo test --workspace --verbose
+
+      - name: Show sccache statistics
+        shell: bash
+        run: ${SCCACHE_PATH} --show-stats

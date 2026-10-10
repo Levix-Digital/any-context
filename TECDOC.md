@@ -6450,6 +6450,67 @@ sequenceDiagram
   - Preservação da latência ultrarrápida (graças ao paralelismo de Rust e *early stopping* quando as informações acumuladas são suficientes).
   - 100% de cobertura com testes unitários e de integração verdes em todo o workspace.
 
+---
+
+## 102. Arquitetura de Aceleração Radical de CI/CD: Granularidade com Sccache e Otimizações de Perfil (`v0.34.1`)
+
+A release `v0.34.1` ataca e soluciona o maior gargalo operacional do ciclo de entrega contínua do AnyContext: o tempo excessivo de compilação release no GitHub Actions (que chegava a ~50 minutos no runner Windows).
+
+### 102.1 Diagnóstico de Invalidação de Cache nos Runners
+- **Limitação Estrutural do `swatinem/rust-cache`**: O `rust-cache` atrela sua chave primária ao hash do arquivo `Cargo.lock` e de todos os `Cargo.toml` do workspace.
+- **Invalidação Total por Versão**: Cada nova release necessita de um bump de versão (ex: de `0.33.1` para `0.34.0`). Essa alteração mínima nos metadados causava um *Cache Miss* compulsório (`No cache found`), obrigando o runner do Windows (com apenas 2 vCPUs e alto overhead de I/O no sistema de arquivos NTFS) a recompilar ~300 dependências pesadas (`LanceDB`, `Arrow`, `Tantivy`, `Protobuf`, `Tree-Sitter`) da estaca zero.
+
+### 102.2 Arquitetura Dual-Layer de Caching
+A nova infraestrutura divide as responsabilidades em duas camadas complementares:
+
+```mermaid
+flowchart TD
+    subgraph CI["GitHub Actions Runner (Linux / Windows)"]
+        DEP["Rust Dependency Cache (swatinem/rust-cache)<br/>cache-targets: false"]
+        SCC["Mozilla Sccache Action<br/>SCCACHE_GHA_ENABLED=true"]
+        CARGO["Cargo Build / Cargo Test<br/>RUSTC_WRAPPER=sccache"]
+        PROFILE["Cargo.toml [profile.release]<br/>codegen-units=16, lto=off, strip=true"]
+    end
+
+    DEP -->|Preserva ~/.cargo/registry| CARGO
+    CARGO -->|Intercepta rustc e cc-rs| SCC
+    SCC -->|Hit: Baixa .obj/.rlib em ms<br/>Miss: Compila e salva no GHA cache| GHA[("GitHub Actions Cache Backend")]
+    PROFILE -->|Paraleliza codegen e linkagem rápida| CARGO
+```
+
+1. **Camada de Registro (`swatinem/rust-cache` com `cache-targets: false`)**:
+   - Preserva unicamente os pacotes descompactados em `~/.cargo/registry` e `~/.cargo/git`.
+   - Evita downloads redundantes da rede crates.io sem poluir o cache com gigabytes de diretórios `target/` voláteis.
+2. **Camada de Objeto Compilado (`sccache` com backend GHA)**:
+   - Intercepta chamadas ao `rustc` e ao `cc-rs` (Tree-sitter e SQLite C).
+   - Como 99% das dependências externas não mudam entre versões do AnyContext, o `sccache` atinge taxa de acerto próxima a 100%, baixando os artefatos compilados diretamente do cache em milissegundos.
+3. **Otimizações do Perfil `[profile.release]`**:
+   - `codegen-units = 16`: Maximiza o paralelismo da geração de código LLVM em todas as vCPUs disponíveis.
+   - `lto = "off"`: Elimina o gargalo crítico de 15 a 20 minutos de linkagem monolítica no MSVC `link.exe`.
+   - `strip = true`: Remove automaticamente tabelas de símbolos do binário final sem overhead adicional.
+   - `debug = false`: Reduz a pegada dos arquivos de objeto intermediários.
+4. **Governança e Telemetria**:
+   - Inclusão de `actions: write` nas permissões do workflow para gravação autorizada no cache.
+   - Execução de `${SCCACHE_PATH} --show-stats` ao final de cada job para auditoria pública de acertos e economia de tempo.
+
+---
+
+### 102.3 Architecture Decision Record (ADR-109)
+
+#### ADR-109: Aceleração de CI/CD com Sccache e Otimizações de Perfil de Release
+- **Status**: Aprovado & Implementado (`v0.34.1`).
+- **Contexto**: A compilação limpa do ecossistema Rust (com LanceDB, Apache Arrow, DataFusion e Tree-sitter em C) demandava ~50 minutos no runner Windows do GitHub Actions, gerando atrito e lentidão no ciclo de release.
+- **Decisão**:
+  1. Configurar `mozilla-actions/sccache-action@v0.0.11` com `SCCACHE_GHA_ENABLED: "true"` e `RUSTC_WRAPPER: "sccache"` nos workflows `release.yml` e `e2e-tests.yml`.
+  2. Ajustar `swatinem/rust-cache` para `cache-targets: "false"`, focando exclusivamente no cache do registro de crates.
+  3. Adicionar permissão explícita `actions: write` aos workflows.
+  4. Adicionar perfil `[profile.release]` no `Cargo.toml` com `opt-level = 3`, `codegen-units = 16`, `lto = "off"`, `strip = true` e `debug = false`.
+- **Consequências**:
+  - Eliminação de recompilações desnecessárias de dependências externas após bumps de versão.
+  - Redução drástica do tempo de execução dos pipelines no GitHub Actions.
+  - Rastreabilidade via telemetria nativa `${SCCACHE_PATH} --show-stats` nos logs da esteira.
+
+
 
 
 

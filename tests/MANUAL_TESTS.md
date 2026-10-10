@@ -5991,4 +5991,46 @@
      ```
    - **Critério de Aceitação:** O sistema responde diretamente em turno único de baixa latência sem iniciar o loop reflexivo de múltiplas iterações.
 
+---
+
+### 📌 Cenário 24 (v0.34.1): Validação da Aceleração de CI/CD com Sccache e Otimizações de Perfil de Release
+
+- **Objetivo**: Comprovar a eficácia da infraestrutura de CI/CD acelerada com `sccache` (`mozilla-actions/sccache-action`), flags de compilação release otimizadas no `Cargo.toml` (`[profile.release]`), persistência granular de objetos compilados no backend de cache do GitHub Actions e integridade total dos binários distribuídos.
+- **Pré-requisito**: AnyContext atualizado para `v0.34.1` ou execução do pipeline de GitHub Actions nos branches `dev`/`main` ou tags de release.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:** O binário responde imediatamente com `actx 0.34.1` sem latência ou erros.
+
+2. **⚡ Validação da Suíte Completa de Testes Nativos do Workspace:**
+   - Execute no terminal do repositório a suíte completa de testes:
+     ```bash
+     cargo test --workspace
+     ```
+   - **Critério de Aceitação:** Todos os testes unitários e de integração de todos os 5 crates (`actx-cli`, `actx-installer`, `any-context-core-rs`, `actx-agent`, `actx-lm`) compilam e passam 100% verdes (`test result: ok. 0 failed`).
+
+3. **📊 Inspeção dos Logs de CI e Telemetria do Sccache:**
+   - Acesse os logs da execução do GitHub Actions para a release `v0.34.1`:
+     ```bash
+     gh run view --log --job=<job_id>
+     ```
+   - Inspecione a etapa `Show sccache statistics`:
+   - **Critérios de Aceitação:**
+     - O executável do `sccache` reporta estatísticas detalhadas de compilação.
+     - As chamadas de compilação de C/C++ (Tree-sitter e SQLite) e Rust são interceptadas pelo `sccache`.
+     - O tempo total de execução no runner Windows é significativamente reduzido, e a etapa `Rust Dependency Cache` opera com `cache-targets: false`.
+
+4. **🔄 Validação de Auto-Atualização Atômica (`actx --update`):**
+   - Execute a atualização no terminal:
+     ```bash
+     actx --update
+     ```
+   - **Critério de Aceitação:** O instalador detecta a release `v0.34.1`, efetua o download do pacote zip de release, extrai os binários e realiza o swap atômico sem corrupção (`[OK] AnyContext successfully updated to v0.34.1`).
+
+
 
