@@ -110,3 +110,63 @@ async fn test_orchestrator_full_lifecycle() {
     // 9. Cleanup sandbox
     let _ = std::fs::remove_dir_all(temp_dir);
 }
+
+#[tokio::test]
+async fn test_orchestrator_quality_gate_and_metrics() {
+    let pid = std::process::id();
+    let temp_dir = std::env::temp_dir().join(format!("actx_orch_qg_test_{}", pid));
+    let db_dir = temp_dir.join("db");
+    let docs_dir = temp_dir.join("docs");
+    let _ = std::fs::create_dir_all(&db_dir);
+    let _ = std::fs::create_dir_all(&docs_dir);
+
+    let db_path = db_dir.join("settings.db");
+    let lance_path = db_dir.join("lancedb");
+    let db = Arc::new(NativeConfigDb::open(&db_path).expect("open db"));
+    let lance = Arc::new(NativeLanceStore::open(&lance_path).expect("open lance"));
+
+    let ws = "TestQgWs";
+    db.create_workspace(ws, Some("Testing Quality Gate")).expect("create ws");
+    db.add_workspace_folder(ws, &docs_dir.to_string_lossy()).expect("add folder");
+
+    let orchestrator = NativeSyncOrchestrator::new(lance.clone(), db.clone());
+
+    // Valid code file
+    let file_valid = docs_dir.join("valid.rs");
+    std::fs::write(
+        &file_valid,
+        "pub fn calculate_metrics() -> i32 {\n    let val = 42;\n    println!(\"val={}\", val);\n    val\n}\n",
+    )
+    .unwrap();
+
+    // Noise file with repeated dashes delimiter (low entropy)
+    let file_noise = docs_dir.join("noise.txt");
+    std::fs::write(
+        &file_noise,
+        "----------------------------------------------------------------------------------------------------\n",
+    )
+    .unwrap();
+
+    let opts = SyncOptions {
+        workspace: ws.to_string(),
+        force: false,
+        target_folder: None,
+        verbose: true,
+        model: Some("mock".to_string()),
+    };
+
+    let res = orchestrator.run(&opts).await.expect("sync run");
+    assert_eq!(res.indexed_files, 2, "Both files were visited");
+    assert!(
+        res.chunks_dropped_quality >= 1,
+        "Expected at least 1 noise chunk to be dropped by Quality Gate, got {}",
+        res.chunks_dropped_quality
+    );
+    assert!(
+        res.quality_pass_rate < 1.0,
+        "Quality pass rate should reflect dropped noise chunks (pass rate: {})",
+        res.quality_pass_rate
+    );
+
+    let _ = std::fs::remove_dir_all(temp_dir);
+}

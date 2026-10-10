@@ -15,6 +15,7 @@ use std::time::Instant;
 use sha2::{Digest, Sha256};
 
 use crate::ingestion::enricher::NativeContextualEnricher;
+use crate::ingestion::model_router::IngestionModelRouter;
 use crate::ingestion::router::IngestionRouter;
 use crate::ingestion::scanner::WorkspaceScanner;
 use crate::models::{ChunkPayload, SemanticEnvelope};
@@ -62,6 +63,9 @@ pub struct SyncResult {
     pub total_files: usize,
     pub indexed_files: usize,
     pub chunks_created: usize,
+    pub chunks_dropped_quality: usize,
+    pub documents_enriched_ai: usize,
+    pub quality_pass_rate: f32,
     pub deleted_files: usize,
     pub renamed_files: usize,
     pub errors: Vec<String>,
@@ -72,6 +76,7 @@ pub struct SyncResult {
 /// Pure Rust Ingestion & Vectorization Orchestrator.
 pub struct NativeSyncOrchestrator {
     router: IngestionRouter,
+    model_router: Arc<IngestionModelRouter>,
     scanner: WorkspaceScanner,
     lance_store: Arc<NativeLanceStore>,
     db: Arc<NativeConfigDb>,
@@ -84,6 +89,7 @@ impl NativeSyncOrchestrator {
         let lance_store = Arc::new(NativeLanceStore::open_default()?);
         Ok(Self {
             router: IngestionRouter::default(),
+            model_router: Arc::new(IngestionModelRouter::default()),
             scanner: WorkspaceScanner::default(),
             lance_store,
             db,
@@ -94,10 +100,16 @@ impl NativeSyncOrchestrator {
     pub fn new(lance_store: Arc<NativeLanceStore>, db: Arc<NativeConfigDb>) -> Self {
         Self {
             router: IngestionRouter::default(),
+            model_router: Arc::new(IngestionModelRouter::default()),
             scanner: WorkspaceScanner::default(),
             lance_store,
             db,
         }
+    }
+
+    pub fn with_model_router(mut self, model_router: Arc<IngestionModelRouter>) -> Self {
+        self.model_router = model_router;
+        self
     }
 
     /// Synchronous convenience entrypoint that manages its own Tokio execution if needed.
@@ -106,6 +118,7 @@ impl NativeSyncOrchestrator {
             // Already inside a Tokio runtime: spawn worker thread to avoid blocking or panic
             let orchestrator = Self {
                 router: self.router.clone(),
+                model_router: self.model_router.clone(),
                 scanner: self.scanner.clone(),
                 lance_store: self.lance_store.clone(),
                 db: self.db.clone(),
@@ -293,6 +306,9 @@ impl NativeSyncOrchestrator {
                 total_files: diff.disk_files.len(),
                 indexed_files: 0,
                 chunks_created: 0,
+                chunks_dropped_quality: 0,
+                documents_enriched_ai: 0,
+                quality_pass_rate: 1.0,
                 deleted_files: diff.deleted_files.len(),
                 renamed_files: diff.renamed_files.len(),
                 errors: Vec::new(),
@@ -304,6 +320,8 @@ impl NativeSyncOrchestrator {
         let total_files = files_to_index.len();
         let mut indexed_count = 0;
         let mut total_chunks_created = 0;
+        let mut total_chunks_dropped_quality = 0;
+        let mut total_documents_enriched_ai = 0;
         let mut errors = Vec::new();
 
         // 12. Main Indexing Loop
@@ -324,12 +342,20 @@ impl NativeSyncOrchestrator {
                         None,
                         None,
                     );
+                    let pass_rate = if total_chunks_created + total_chunks_dropped_quality > 0 {
+                        (total_chunks_created as f32) / ((total_chunks_created + total_chunks_dropped_quality) as f32)
+                    } else {
+                        1.0
+                    };
                     return Ok(SyncResult {
                         workspace: ws.to_string(),
                         is_up_to_date: false,
                         total_files,
                         indexed_files: indexed_count,
                         chunks_created: total_chunks_created,
+                        chunks_dropped_quality: total_chunks_dropped_quality,
+                        documents_enriched_ai: total_documents_enriched_ai,
+                        quality_pass_rate: pass_rate,
                         deleted_files: diff.deleted_files.len(),
                         renamed_files: diff.renamed_files.len(),
                         errors,
@@ -359,7 +385,7 @@ impl NativeSyncOrchestrator {
             }
 
             // Chunk the file using high-speed native Rust router
-            let chunks = match self.router.chunk_file_native(file_path) {
+            let raw_chunks = match self.router.chunk_file_native(file_path) {
                 Ok(c) => c,
                 Err(e) => {
                     let err_msg = format!("Failed to chunk '{}': {}", file_path, e);
@@ -368,11 +394,26 @@ impl NativeSyncOrchestrator {
                 }
             };
 
+            // Ingestion ModelRouter: Quality Gate & Document AI Triage
+            let (mut approved_chunks, ai_candidates, dropped_noise) = self.model_router.triage_chunks(raw_chunks);
+            total_chunks_dropped_quality += dropped_noise;
+
+            if !ai_candidates.is_empty() {
+                total_documents_enriched_ai += 1;
+                let ai_chunks = self.model_router.process_document_ai_candidates(
+                    ai_candidates,
+                    lm_provider.as_ref(),
+                ).await;
+                approved_chunks.extend(ai_chunks);
+            }
+
+            let chunks = approved_chunks;
+
             let (mtime, size) = diff.disk_files.get(file_path).copied().unwrap_or((0.0, 0));
             let content_hash = compute_file_sha256(path_obj).unwrap_or_else(|_| "hash_err".to_string());
 
             if chunks.is_empty() {
-                // File was empty or only whitespace; record in SQLite cache so it doesn't get repeatedly checked
+                // File was empty, whitespace, or filtered as noise; record in SQLite cache so it doesn't get repeatedly checked
                 let _ = self.db.upsert_file_stat_cache(ws, file_path, mtime, size, Some(&content_hash));
                 indexed_count += 1;
                 continue;
@@ -450,10 +491,16 @@ impl NativeSyncOrchestrator {
         );
 
         let duration_ms = start_time.elapsed().as_millis();
+        let pass_rate = if total_chunks_created + total_chunks_dropped_quality > 0 {
+            (total_chunks_created as f32) / ((total_chunks_created + total_chunks_dropped_quality) as f32)
+        } else {
+            1.0
+        };
+
         if options.verbose {
             println!(
-                "✔ Synchronization completed in {}ms: {} files indexed, {} chunks created, {} deleted.",
-                duration_ms, indexed_count, total_chunks_created, diff.deleted_files.len()
+                "✔ Synchronization completed in {}ms: {} files indexed, {} chunks created, {} noise filtered (pass rate: {:.1}%), {} deleted.",
+                duration_ms, indexed_count, total_chunks_created, total_chunks_dropped_quality, pass_rate * 100.0, diff.deleted_files.len()
             );
         }
 
@@ -463,6 +510,9 @@ impl NativeSyncOrchestrator {
             total_files,
             indexed_files: indexed_count,
             chunks_created: total_chunks_created,
+            chunks_dropped_quality: total_chunks_dropped_quality,
+            documents_enriched_ai: total_documents_enriched_ai,
+            quality_pass_rate: pass_rate,
             deleted_files: diff.deleted_files.len(),
             renamed_files: diff.renamed_files.len(),
             errors,

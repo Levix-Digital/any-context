@@ -7,6 +7,59 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 25 (v0.34.2 ModelRouter na Ingestão, Quality Gate Determinístico Sub-0.1ms & Reconstrução Espacial 2D de Formulários Multidomínio):
+- **Objetivo**: Comprovar que na versão `v0.34.2`:
+  1. **Filtragem Determinística de Ruído via Quality Gate (Sub-0.1ms)**:
+     - Chunks contendo delimitadores repetitivos (ex: `-------------------`), fragmentos sintáticos degenerados (`}`, `};`) ou arquivos corrompidos/binários são identificados e descartados instantaneamente sem onerar o banco vetorial LanceDB nem o índice BM25.
+     - Código-fonte íntegro e documentação técnica recebem escores altos e transitam sem penalidade para o índice vetorial.
+     - O comando `actx --sync` exibe telemetria de qualidade no resumo: contagem de chunks de ruído filtrados e percentual de taxa de aprovação (`pass rate`).
+  2. **Reconstrução Espacial 2D de Formulários e Tabelas Multidomínio (`SpatialFormChunker`)**:
+     - Documentos com estruturas tabulares ou blocos de formulários (como os relatórios de expedição e CMR do caso `IKEAShipments`, prescrições médicas em hospitais, peças jurídicas ou balancetes contábeis) são preservados com pareamento semântico chave-valor (`- **Campo**: Valor`) de forma 100% agnóstica de domínio.
+     - Células e linhas de tabelas não perdem a associação com o cabeçalho original.
+  3. **Ingestion ModelRouter e Fallback Leve (Zero Cloud / Low Spec)**:
+     - O sistema opera por padrão no modo de visão desligado (`Disabled`), recorrendo ao motor heurístico espacial 2D em Rust puro (< 5MB de memória RAM, sem necessidade de GPU ou download de modelos pesados), viabilizando execução ágil em qualquer computador corporativo cliente.
+     - Suporta integração com extratores especializados de layout (`DocumentLayoutExtractor`) e modelos multimodais corporativos via VPC.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.34.2`.
+
+2. **🧹 Teste de Rejeição de Ruído e Telemetria no Sync:**
+   - Crie um arquivo `delimitador.txt` contendo apenas linhas de hífens (`--------------------------------------------------`).
+   - Crie um arquivo `codigo.rs` com uma função válida em Rust.
+   - Execute `actx --sync` no workspace de teste.
+   - **Critérios de Aceitação**:
+     - O arquivo de ruído tem seus chunks descartados pelo Quality Gate.
+     - O sumário final do sync exibe métrica auditável de chunks descartados (`noise filtered`) e `pass rate` < 100%.
+
+3. **📐 Teste de Reconstrução de Formulário / Tabela Complexa (Caso IKEAShipments):**
+   - No workspace com documento PDF ou markdown com formulário denso:
+     ```text
+     | 1 Sender: Nordic Freight Lines AB | 2 Consignee: IKEA Distribution Center Almhult |
+     | 16 Carrier: Scandinavian Logistics Express | 24 Gross Weight: 14500 kg |
+     ```
+   - Sincronize o workspace e faça uma pergunta na CLI ou TUI:
+     ```text
+     actx -q "Qual é o consignee e o gross weight do carregamento?"
+     ```
+   - **Critérios de Aceitação**:
+     - O AnyContext responde com precisão citando `IKEA Distribution Center Almhult` e `14500 kg`.
+     - A resposta referencia o documento e o chunk enriquecido de formulário (`document_form`).
+
+4. **🧪 Execução Completa dos Testes Automatizados:**
+   - Execute no terminal:
+     ```text
+     cargo test --workspace
+     ```
+   - **Critério de Aceitação**: Todos os testes compilam e passam com 100% de sucesso (191+ testes OK).
+
+---
+
 ### 📌 Cenário 22 (v0.33.0 Paridade Integral 100% Rust Core, Ingestão Office .docx/.pptx, Web Crawler com Sitemaps, Web Search Multiprovedor e Purga Completa do Código Legado Python):
 - **Objetivo**: Comprovar que na versão `v0.33.0`:
   1. **Purga Completa do Código Legado Python e Arquitetura 100% Rust Nativo**:

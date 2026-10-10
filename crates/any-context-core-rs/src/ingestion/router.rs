@@ -7,6 +7,7 @@ use crate::ingestion::chunkers::pdf::PdfChunker;
 use crate::ingestion::chunkers::image::ImageChunker;
 use crate::ingestion::chunkers::text::TextChunker;
 use crate::ingestion::chunkers::office::OfficeChunker;
+use crate::ingestion::chunkers::spatial_form::SpatialFormChunker;
 use crate::ingestion::traits::Chunker;
 use crate::models::ChunkPayload;
 
@@ -20,6 +21,7 @@ pub struct IngestionRouter {
     pub image_chunker: ImageChunker,
     pub text_chunker: TextChunker,
     pub office_chunker: OfficeChunker,
+    pub spatial_chunker: SpatialFormChunker,
 }
 
 impl IngestionRouter {
@@ -33,6 +35,7 @@ impl IngestionRouter {
             image_chunker: ImageChunker::new(max_chunk_chars),
             text_chunker: TextChunker::new(max_chunk_chars, overlap_chars),
             office_chunker: OfficeChunker::new(max_chunk_chars, overlap_chars),
+            spatial_chunker: SpatialFormChunker::new(max_chunk_chars),
         }
     }
 

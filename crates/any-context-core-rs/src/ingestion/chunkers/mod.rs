@@ -6,3 +6,4 @@ pub mod pdf;
 pub mod image;
 pub mod text;
 pub mod office;
+pub mod spatial_form;
