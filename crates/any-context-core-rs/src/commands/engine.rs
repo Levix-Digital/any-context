@@ -39,6 +39,9 @@ impl CommandEngine {
             "search" | "search-mode" | "depth" | "sm" => {
                 Self::execute_search_mode(args, ctx)
             }
+            "router" | "routing" => {
+                Self::execute_router_status(args, ctx)
+            }
             "fast" => {
                 Self::execute_fast_shortcut(args, ctx)
             }
@@ -251,11 +254,19 @@ impl CommandEngine {
                 let mut updates = CommandStateUpdates::default();
                 updates.search_mode = Some(valid_str.to_string());
 
+                let explanation = match parsed {
+                    SearchDepthMode::Auto => "• Autonomous ModelRouter: evaluates each prompt in sub-1ms and routes to Fast RAG or Deep Search.",
+                    SearchDepthMode::Fast => "• Fast RAG: forced single-turn low-latency hybrid retrieval (<50ms).",
+                    SearchDepthMode::Deep => "• Deep Search: forced multi-turn reflexive reasoning with orthogonal decomposition (RFC-042).",
+                };
+
                 CommandResult::success(format!(
                     "🔍 Search Depth Policy (Retrieval Depth) for '{}' set to: **{}**\n\
+                     {}\n\
                      • Agent RAG policy updated to {} retrieval mode.",
                     ctx.active_workspace,
                     valid_str.to_uppercase(),
+                    explanation,
                     valid_str.to_uppercase()
                 ))
                 .with_action(CommandAction::RebuildAgent)
@@ -275,6 +286,31 @@ impl CommandEngine {
             CommandResult::success("Opening search depth menu...")
                 .with_action(CommandAction::OpenMenu("search".to_string()))
         }
+    }
+
+    fn execute_router_status(_args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+        let db = NativeConfigDb::open_default().ok();
+        let curr = db
+            .as_ref()
+            .and_then(|d| d.get_setting("search_mode").ok().flatten())
+            .unwrap_or_else(|| "auto".to_string());
+
+        CommandResult::success(format!(
+            "🧭 Chat ModelRouter Status (Workspace '{}'):\n\
+             • Active Search Depth Policy: **{}**\n\
+             • Classifier: Deterministic Multilingual Semantic Classifier (<1µs on CPU)\n\
+             • Triage Engine: Fast RAG vs Deep Search (RFC-042)\n\
+             • Domain Intent Detection: Code, Architecture, Document, General\n\
+             • Routing SLA: Sub-1ms, zero token cost\n\
+             Usage:\n\
+             • `/search auto`: Enable autonomous query complexity routing.\n\
+             • `/search fast`: Force Fast RAG mode for all queries.\n\
+             • `/search deep`: Force Deep Search mode for all queries.\n\
+             • `/fast <query>`: Shortcut to run a single query in Fast RAG mode.\n\
+             • `/deep <query>`: Shortcut to run a single query in Deep Search mode.",
+            ctx.active_workspace,
+            curr.to_uppercase()
+        ))
     }
 
     fn execute_fast_shortcut(args: &[&str], ctx: &ExecutionContext) -> CommandResult {

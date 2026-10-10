@@ -723,6 +723,17 @@ impl App {
                     self.current_thinking_buffer.push_str(&format!("✔ [Tool Done: {}]\n", name));
                 }
             }
+            AgentEvent::RoutingDecision { mode, complexity, intent, confidence, reason } => {
+                let badge = if complexity == "Deep" || mode.contains("DeepSearch") {
+                    "🧠 [ModelRouter: Deep Search]"
+                } else {
+                    "⚡ [ModelRouter: Fast RAG]"
+                };
+                self.current_thinking_buffer.push_str(&format!(
+                    "{} (Intent: {}, Conf: {:.0}%)\n• Reason: {}\n\n",
+                    badge, intent, confidence * 100.0, reason
+                ));
+            }
             AgentEvent::Decomposition { sub_queries } => {
                 self.status = AppStatus::Thinking;
                 self.current_thinking_buffer.push_str("\n🌲 [Deep Search: Decomposing Query into Sub-Queries]:\n");

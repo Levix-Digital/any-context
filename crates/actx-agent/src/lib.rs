@@ -9,6 +9,7 @@ pub mod deep_search;
 pub mod error;
 pub mod events;
 pub mod fsm;
+pub mod router;
 pub mod session;
 pub mod tool;
 
@@ -20,6 +21,10 @@ pub use deep_search::{
 pub use error::{AgentError, ToolError};
 pub use events::{event_channel, AgentEvent, EventReceiver, EventSender};
 pub use fsm::{AgentResponse, ReActOrchestrator};
+pub use router::{
+    ChatModelRouter, ChatRouterConfig, ComplexityClassifier, QueryComplexity, QueryIntent,
+    RoutingDecision,
+};
 pub use session::{InMemorySessionStore, SessionStore, SqliteSessionStore};
 pub use tool::{NativeTool, Tool, ToolRegistry};
 
@@ -68,12 +73,14 @@ impl DeepSearchRetriever for ToolBasedRetriever {
     }
 }
 
-/// High-level unified agent interface supporting both ReAct and DeepSearch
+/// High-level unified agent interface supporting ReAct, DeepSearch, and dynamic ChatModelRouter
 #[derive(Clone)]
 pub struct Agent {
     orchestrator: Arc<ReActOrchestrator>,
     deep_search_orchestrator: Option<Arc<DeepSearchOrchestrator>>,
     execution_mode: AgentExecutionMode,
+    search_mode: SearchMode,
+    router: Arc<ChatModelRouter>,
 }
 
 impl Agent {
@@ -82,9 +89,25 @@ impl Agent {
         AgentBuilder::default()
     }
 
-    /// Execute the agent synchronously/asynchronously to completion
+    /// Access the active ChatModelRouter
+    pub fn router(&self) -> &ChatModelRouter {
+        &self.router
+    }
+
+    /// Access the active SearchMode policy
+    pub fn search_mode(&self) -> SearchMode {
+        self.search_mode
+    }
+
+    /// Access the base configured execution mode
+    pub fn execution_mode(&self) -> AgentExecutionMode {
+        self.execution_mode
+    }
+
+    /// Execute the agent synchronously/asynchronously to completion with dynamic routing
     pub async fn run(&self, input: &str, session_id: Option<&str>) -> Result<AgentResponse, AgentError> {
-        if self.execution_mode == AgentExecutionMode::DeepSearch {
+        let decision = self.router.evaluate(input, self.search_mode);
+        if decision.mode == AgentExecutionMode::DeepSearch {
             if let Some(ref dso) = self.deep_search_orchestrator {
                 return dso.run(input, session_id, None).await;
             }
@@ -92,29 +115,45 @@ impl Agent {
         self.orchestrator.run(input, session_id, None).await
     }
 
-    /// Stream fine-grained events during agent execution
+    /// Stream fine-grained events during agent execution with dynamic routing telemetry
     pub fn stream(
         &self,
         input: impl Into<String>,
         session_id: Option<String>,
     ) -> (EventReceiver, tokio::task::JoinHandle<Result<AgentResponse, AgentError>>) {
         let inp = input.into();
-        if self.execution_mode == AgentExecutionMode::DeepSearch {
-            if let Some(ref dso) = self.deep_search_orchestrator {
-                let (tx, rx) = event_channel();
-                let dso_clone = dso.clone();
-                let handle = tokio::spawn(async move {
-                    let res = dso_clone.run(&inp, session_id.as_deref(), Some(tx.clone())).await;
-                    if let Err(ref e) = res {
-                        let _ = tx.send(AgentEvent::Error(e.to_string()));
-                    }
-                    res
-                });
-                return (rx, handle);
-            }
+        let decision = self.router.evaluate(&inp, self.search_mode);
+        let (tx, rx) = event_channel();
+
+        // Emit RoutingDecision event immediately so UI/CLI can render badges
+        let _ = tx.send(AgentEvent::RoutingDecision {
+            mode: format!("{:?}", decision.mode),
+            complexity: format!("{:?}", decision.complexity),
+            intent: decision.intent.as_str().to_string(),
+            confidence: decision.confidence,
+            reason: decision.reason,
+        });
+
+        if decision.mode == AgentExecutionMode::DeepSearch && self.deep_search_orchestrator.is_some() {
+            let dso_clone = self.deep_search_orchestrator.clone().unwrap();
+            let handle = tokio::spawn(async move {
+                let res = dso_clone.run(&inp, session_id.as_deref(), Some(tx.clone())).await;
+                if let Err(ref e) = res {
+                    let _ = tx.send(AgentEvent::Error(e.to_string()));
+                }
+                res
+            });
+            return (rx, handle);
         }
+
         let orch = self.orchestrator.clone();
-        orch.stream(inp, session_id)
+        let (mut inner_rx, handle) = orch.stream(inp, session_id);
+        tokio::spawn(async move {
+            while let Some(evt) = inner_rx.recv().await {
+                let _ = tx.send(evt);
+            }
+        });
+        (rx, handle)
     }
 
     /// Access the underlying tool registry
@@ -143,6 +182,7 @@ pub struct AgentBuilder {
     config: AgentConfig,
     deep_search_config: Option<DeepSearchConfig>,
     deep_search_retriever: Option<Arc<dyn DeepSearchRetriever>>,
+    router: Option<Arc<ChatModelRouter>>,
 }
 
 impl AgentBuilder {
@@ -195,6 +235,11 @@ impl AgentBuilder {
         self
     }
 
+    pub fn router(mut self, router: Arc<ChatModelRouter>) -> Self {
+        self.router = Some(router);
+        self
+    }
+
     pub fn deep_search_config(mut self, config: DeepSearchConfig) -> Self {
         self.deep_search_config = Some(config);
         self
@@ -224,7 +269,13 @@ impl AgentBuilder {
             self.config.clone(),
         ));
 
+        let search_mode = if self.config.execution_mode == AgentExecutionMode::DeepSearch {
+            SearchMode::Deep
+        } else {
+            self.config.search_mode
+        };
         let deep_search_orchestrator = if self.config.execution_mode == AgentExecutionMode::DeepSearch
+            || search_mode == SearchMode::Auto
             || self.deep_search_retriever.is_some()
         {
             let ds_cfg = self.deep_search_config.unwrap_or_default();
@@ -243,10 +294,14 @@ impl AgentBuilder {
             None
         };
 
+        let router = self.router.unwrap_or_else(|| Arc::new(ChatModelRouter::default()));
+
         Ok(Agent {
             orchestrator,
             deep_search_orchestrator,
             execution_mode: self.config.execution_mode,
+            search_mode,
+            router,
         })
     }
 

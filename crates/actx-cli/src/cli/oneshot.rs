@@ -327,6 +327,14 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     println!("\x1b[32m✔ [Tool Done: {}]\x1b[0m", name);
                 }
             }
+            AgentEvent::RoutingDecision { mode, complexity, intent, confidence, reason } => {
+                let badge = if complexity == "Deep" || mode.contains("DeepSearch") {
+                    "\x1b[35m🧠 [ModelRouter: Deep Search]\x1b[0m"
+                } else {
+                    "\x1b[36m⚡ [ModelRouter: Fast RAG]\x1b[0m"
+                };
+                println!("{} \x1b[2m(intent: {}, confidence: {:.0}%)\x1b[0m\n\x1b[2m  • {}\x1b[0m\n", badge, intent, confidence * 100.0, reason);
+            }
             AgentEvent::Decomposition { sub_queries } => {
                 if in_thinking {
                     print!("\x1b[2m</think>\x1b[0m\n\n");

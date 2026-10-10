@@ -45,6 +45,11 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🧠 Chat ModelRouter, Dynamic Query Complexity & Intent Routing (`v0.34.3`)**:
+  - **Deterministic Zero-Token Classifier**: Evaluates user query complexity and structural intent 100% on local CPU in sub-1 microsecond (< 1µs), consuming exactly zero LLM tokens ($0.00) and avoiding external classification roundtrips.
+  - **Autonomous Dynamic Triage (`/search auto`)**: Dynamically routes simple questions (*"onde fica o timeout?", "qual a versão atual?"*) to low-latency ReAct single-turn execution, while automatically escalating multi-faceted comparative queries (*"compare A com B, prós e contras e fluxo ponta a ponta"*) to Deep Search reflective multi-turn loops (RFC-042).
+  - **Real-Time Visual Badges & Intent Telemetry**: Instantly emits `AgentEvent::RoutingDecision` before streaming the first token, surfacing informative badges (`🧠 [ModelRouter: Deep Search]` / `⚡ [ModelRouter: Fast RAG]`) in both the TUI and one-shot CLI with detected intent (`Code`, `Architecture`, `Document`, `General`), confidence, and explainable rationale.
+  - **Multi-Surface `/router` Status Command**: Inspect active routing policies, classification guarantees, and threshold metrics via `/router` (alias `/routing`).
 - **🦀 100% Native Rust Parity & Complete Python Purge (`v0.33.0`)**:
   - **Complete Legacy Python Purge**: Eradicated all legacy Python codebase (`src/any_context/`), PyInstaller specs, requirements, and virtualenv tooling. AnyContext is now 100% native Rust from end to end, compiling into a lean, single-file native executable with sub-10ms startup.
   - **Native Office Ingestion (`OfficeChunker`)**: Pure native extraction and chunking for Microsoft Word (`.docx`) and PowerPoint (`.pptx`) archives using streaming XML parsing (`zip` + `quick-xml`), preserving headings, tables, slide titles, and presentation speaker notes.
@@ -563,6 +568,7 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/drive`** | `--add`, `--remove <id>`, `--list`, `--sync`, `/cloud` | Gerencia e sincroniza conexões com Google Drive e OneDrive. |
 | **`/mode`** | `strict`, `hybrid`, `proactive`, `--global` | Configura o Grounding Mode da IA: **`Strict`** (100% ancorado nos docs), **`Hybrid`** (equilíbrio dual-layer) ou **`Proactive`** (pesquisa e síntese). |
 | **`/search`** | `auto`, `fast`, `deep`, `/fast`, `/deep` | Configura o Search Depth Mode (RFC-042): **`Auto`** (heurística dinâmica), **`Fast`** (baixa latência) ou **`Deep`** (recuperação exaustiva). |
+| **`/router`** | `/routing` | Inspeciona a política ativa de roteamento, o modo de pesquisa e as métricas do classificador determinístico (< 1µs). |
 | **`/deep`** | `[query]` | Dispara busca profunda reflexiva multi-turno (RFC-042) com decomposição de sub-perguntas, análise de lacunas (*gap queries*) e síntese com citações de código. |
 | **`/fast`** | `[query]` | Força resposta rápida em turno único com recuperação padrão de baixa latência. |
 

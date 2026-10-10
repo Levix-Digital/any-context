@@ -156,6 +156,13 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         category: "RAG",
     },
     SlashCommand {
+        name: "router",
+        aliases: &["routing"],
+        description: "Inspects Chat ModelRouter policy, complexity thresholds, and intent triage",
+        usage: "/router",
+        category: "RAG",
+    },
+    SlashCommand {
         name: "inspect",
         aliases: &["chunks", "lance"],
         description: "Inspects indexed chunks and document taxonomy breakdown",

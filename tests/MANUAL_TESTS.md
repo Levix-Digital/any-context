@@ -7,6 +7,72 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 26 (v0.34.3 Chat ModelRouter, Classificação Dinâmica de Complexidade de Queries & Roteamento Orientado a Intenção):
+- **Objetivo**: Comprovar que na versão `v0.34.3`:
+  1. **Classificação Determinística de Complexidade em Sub-1µs e Custo Zero de Tokens**:
+     - O `ChatModelRouter` analisa cada prompt do usuário localmente em CPU em menos de 1 microssegundo (< 1µs), consumindo 0 tokens de LLM e zero chamadas a APIs na nuvem para a decisão de roteamento.
+     - Perguntas curtas e pontuais (ex: *"onde fica o timeout?", "qual a versão atual?"*) são classificadas como `Fast` (ReAct padrão de baixa latência).
+     - Perguntas com múltiplos tópicos, comparações de prós/contras, análise arquitetural ponta a ponta ou que contenham mais de 25 palavras são classificadas como `Deep` (Deep Search reflexivo RFC-042).
+  2. **Roteamento Dinâmico no Modo `/search auto`**:
+     - No modo padrão `/search auto`, o agente alterna de forma autônoma e fluida entre ReAct e DeepSearch baseado no resultado da avaliação estrutural da consulta.
+     - Os modos forçados `/search fast` e `/search deep` continuam operando como overrides determinísticos de alta prioridade.
+  3. **Detecção de Intenção e Telemetria em Tempo Real (TUI & CLI)**:
+     - O sistema identifica a intenção do usuário (`Code`, `Architecture`, `Document` ou `General`) com pontuação de confiança calibrada.
+     - O evento tipado `AgentEvent::RoutingDecision` é emitido imediatamente no início do turno, antes do streaming do primeiro token.
+     - A interface TUI e a CLI exibem badges visuais explicativos (`🧠 [ModelRouter: Deep Search]` ou `⚡ [ModelRouter: Fast RAG]`) detalhando intenção, confiança e motivo da decisão.
+  4. **Comando Universal `/router` (Paridade Multi-Superfície)**:
+     - O comando `/router` (ou `/routing`) inspeciona e exibe a política ativa, o modo de pesquisa configurado, e os parâmetros e limiares do classificador determinístico.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.34.3`.
+
+2. **⚡ Teste de Consulta Simples (Fast RAG):**
+   - Inicie o chat interativo com `actx` ou execute em modo one-shot:
+     ```text
+     actx -q "qual linha define a porta 8080?"
+     ```
+   - **Critérios de Aceitação**:
+     - O badge de telemetria exibe `⚡ [ModelRouter: Fast RAG]` com intenção `Code` e confiança >= 0.85.
+     - O agente responde rapidamente através do loop ReAct padrão de baixa latência.
+
+3. **🧠 Teste de Consulta Complexa (Deep Search Dinâmico no `/search auto`):**
+   - No modo padrão `/search auto`, envie uma pergunta comparativa ou multi-aspecto:
+     ```text
+     actx -q "compare a arquitetura do LanceDB com o SQLite no AnyContext, quais são os prós e contras de cada um e como eles se integram ponta a ponta?"
+     ```
+   - **Critérios de Aceitação**:
+     - O classificador identifica automaticamente complexidade `Deep` com intenção `Architecture`.
+     - O badge de telemetria exibe `🧠 [ModelRouter: Deep Search]` com o motivo (ex: marcadores comparativos ou extensão).
+     - O agente aciona o loop reflexivo de Deep Search (decomposição, gap analysis e síntese).
+
+4. **⚙️ Teste de Inspeção de Política com `/router`:**
+   - No chat interativo da TUI ou CLI, digite:
+     ```text
+     /router
+     ```
+   - **Critérios de Aceitação**:
+     - O AnyContext renderiza o painel de status do ModelRouter com:
+       - Active Search Mode (`auto`, `fast`, ou `deep`)
+       - Classifier Engine (`Deterministic (Lexical & Structural)`)
+       - Latency Guarantee (`< 1µs per query`)
+       - LLM Token Cost (`0 tokens (100% local CPU)`)
+       - Supported Intents (`Code`, `Architecture`, `Document`, `General`)
+
+5. **🧪 Execução Completa dos Testes Automatizados:**
+   - Execute no terminal:
+     ```text
+     cargo test --workspace
+     ```
+   - **Critério de Aceitação**: Todos os testes compilam e passam com 100% de sucesso (incluindo a suite `router_tests.rs`).
+
+---
+
 ### 📌 Cenário 25 (v0.34.2 ModelRouter na Ingestão, Quality Gate Determinístico Sub-0.1ms & Reconstrução Espacial 2D de Formulários Multidomínio):
 - **Objetivo**: Comprovar que na versão `v0.34.2`:
   1. **Filtragem Determinística de Ruído via Quality Gate (Sub-0.1ms)**:

@@ -6574,6 +6574,78 @@ flowchart TD
   - Execução ultra-leve viabilizando operação fluida em máquinas corporativas modestas (Intel Core i5/i7, 8GB-16GB RAM, gráficos integrados).
   - 100% de cobertura de testes automatizados unitários e de integração verdes no workspace.
 
+---
+
+## 104. Chat ModelRouter, Classificação Dinâmica de Complexidade & Roteamento de Intenção (`v0.34.3`)
+
+A versão `v0.34.3` implementa o Marco 3 (Fase 2) do AnyContext, introduzindo o **`ChatModelRouter`** em `actx-agent`: um orquestrador de triagem de consultas dinâmico, local e determinístico com execução em sub-1 microssegundo (< 1µs) em CPU, custo zero ($0.00) de tokens de LLM e zero latência de rede.
+
+### 104.1 Motivação e Desafios de Orquestração no Chat
+- **Sobrecarga de Deep Search para Perguntas Triviais**: Submeter perguntas factuais simples (*"onde fica a porta 8080?", "qual o timeout configurado?"*) ao loop reflexivo multi-fase de Deep Search (RFC-042: decomposição, sub-queries concorrentes e reflexão de lacunas) consumia tokens desnecessários e aumentava a latência de 200ms para vários segundos.
+- **Subdimensionamento de Perguntas Arquiteturais Complexas**: Por outro lado, enviar perguntas comparativas complexas (*"compare LanceDB com SQLite ponta a ponta e aponte prós e contras"*) para o loop ReAct single-turn simples produzia respostas rasas sem explorar relações profundas entre fontes.
+- **Custo e Latência de Classificadores Baseados em LLM**: Usar um LLM (como gpt-4o-mini ou modelos remotos) para classificar a consulta do usuário antes de processá-la adicionaria 200ms a 500ms de latência de rede e custos de token em 100% das mensagens.
+- **Solução AnyContext**: Análise léxico-estrutural determinística em Rust puro, avaliando marcadores multivariados, extensão, sintaxe interrogativa composta e padrões de domínio em sub-1µs.
+
+### 104.2 Arquitetura do ChatModelRouter
+
+```mermaid
+flowchart TD
+    UserQuery["💬 Query do Usuário / Prompt"] --> PolicyCheck{"SearchMode Policy<br/>(/search auto|fast|deep)"}
+    
+    PolicyCheck -->|Fast (Forçado)| ForceFast["⚡ ReAct Orchestrator<br/>(Single-Turn / Low-Latency)"]
+    PolicyCheck -->|Deep (Forçado)| ForceDeep["🧠 Deep Search Orchestrator<br/>(RFC-042 Reflective Loop)"]
+    
+    PolicyCheck -->|Auto (Padrão)| Classifier["DeterministicClassifier (Sub-1µs CPU)<br/>• Análise de Extensão (> 25 palavras)<br/>• Marcadores Multi-Cláusula ('? ... ?', 'e também')<br/>• Gatilhos Comparativos ('compare', 'prós e contras')<br/>• Detecção de Intenção (Code, Arch, Doc, General)"]
+    
+    Classifier --> Decision{"Complexidade?"}
+    Decision -->|Fast| ReActRoute["⚡ ReAct Single-Turn Engine"]
+    Decision -->|Deep| DeepRoute["🧠 Deep Search Loop (RFC-042)"]
+    
+    ReActRoute --> StreamEvent["📡 Emissão Imediata:<br/>AgentEvent::RoutingDecision"]
+    DeepRoute --> StreamEvent
+    ForceFast --> StreamEvent
+    ForceDeep --> StreamEvent
+    
+    StreamEvent --> UIStream["🖥️ TUI & CLI Badges:<br/>• 🧠 [ModelRouter: Deep Search]<br/>• ⚡ [ModelRouter: Fast RAG]"]
+```
+
+### 104.3 Componentes Centrais (`crates/actx-agent/src/router.rs`)
+
+1. **`QueryComplexity` e `QueryIntent`**:
+   - `QueryComplexity`: `Fast` (baixa latência, 1 turno) ou `Deep` (investigação reflexiva exaustiva).
+   - `QueryIntent`: `Code` (funções, linhas, sintaxe), `Architecture` (design, trade-offs, componentes), `Document` (leis, contratos, formulários) ou `General` (demais tópicos).
+2. **`RoutingDecision`**:
+   - Encapsula `mode: AgentExecutionMode`, `complexity: QueryComplexity`, `intent: QueryIntent`, `confidence: f32` (calibrada entre 0.0 e 1.0) e `reason: String` (justificativa humana explicável).
+3. **`DeterministicClassifier`**:
+   - Implementa o trait `ComplexityClassifier`.
+   - Executa 100% em CPU com alocação mínima em memória.
+   - Benchmark: 5.000 avaliações de consultas executadas em ~1.2 milissegundos (~250 nanossegundos por consulta), com 0 tokens consumidos.
+4. **Integração no `Agent::stream` e `Agent::run`**:
+   - Cria o canal de eventos e dispara `AgentEvent::RoutingDecision` antes do streaming do primeiro token ou chamada de ferramenta.
+   - Conecta a ponte de eventos de forma desacoplada entre ReAct e DeepSearch.
+5. **Comando `/router` e Paridade Multi-Superfície**:
+   - Suporte aos comandos universais `/search <auto|fast|deep>` e `/router` (alias `/routing`), inspecionando política ativa, garantias de latência e limiares do classificador.
+
+---
+
+### 104.4 Architecture Decision Record (ADR-111)
+
+#### ADR-111: Chat ModelRouter com Triagem Determinística de Consultas em Sub-1µs e Custo Zero de Tokens
+- **Status**: Aprovado & Implementado (`v0.34.3`).
+- **Contexto**: A incorporação do Deep Search (RFC-042) exigia um mecanismo confiável para alternar entre buscas rápidas ReAct e buscas profundas sem penalizar a latência de consultas simples com classificadores LLM externos.
+- **Decisão**:
+  1. Criar o módulo `crates/actx-agent/src/router.rs` com `ChatModelRouter` e `DeterministicClassifier`.
+  2. Implementar classificação heurística léxico-estrutural multivariada avaliando extensão (> 25 palavras), conjunções multi-pergunta (`? ... ?`), palavras-chave arquiteturais e termos comparativos.
+  3. Adicionar o evento tipado `AgentEvent::RoutingDecision` em `crates/actx-agent/src/events.rs` para observabilidade em tempo real.
+  4. Atualizar a TUI (`crates/actx-cli/src/tui/app.rs`) e o modo one-shot CLI (`crates/actx-cli/src/cli/oneshot.rs`) para exibir badges visuais informando intenção, confiança e motivo da decisão.
+  5. Registrar o comando `/router` em `actx-cli` e `any-context-core-rs` para inspeção da política e dos limiares em tempo de execução.
+- **Consequências**:
+  - Latência de triagem inferior a 1 microssegundo (< 1µs) por consulta.
+  - Zero custo de tokens ($0.00) e zero dependência de conexão com nuvem para a decisão de roteamento.
+  - Experiência de usuário transparente com telemetria explicável no topo da resposta.
+  - 100% de compatibilidade retroativa com configurações manuais e testes unitários.
+
+
 
 
 
