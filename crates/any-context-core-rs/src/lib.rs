@@ -4,6 +4,7 @@ pub mod retrieval;
 pub mod storage;
 pub mod commands;
 pub mod security;
+pub mod theme;
 
 pub use models::{ChunkPayload, SemanticEnvelope};
 pub use ingestion::{IngestionRouter, WorkspaceScanner};
@@ -22,3 +23,4 @@ pub use commands::{
     ExecutionContext, GroundingMode, SearchDepthMode,
 };
 pub use security::NativeSecurityEngine;
+pub use theme::{AuroraTheme, RgbColor};

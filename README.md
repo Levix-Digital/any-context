@@ -45,6 +45,12 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🌌 Aurora Boreal Design System & Zero-Delay Fast Startup (`v0.34.6`)**:
+  - **Modular Aurora Boreal Palette**: Implements the official Levix Digital design tokens (Emerald `#00E5A3`, Glacial Cyan `#00F0FF`, Cosmic Violet `#A855F7`, Polar Pink `#EC4899`, Solar Amber `#F59E0B`, Polar Crimson `#EF4444`) centralizing color definitions in `any-context-core-rs` so all present and future UIs (TUI, Headless CLI, Web, Desktop) inherit a unified, cohesive visual identity.
+  - **Zero-Delay Fast Startup (< 50ms)**: Eliminates synchronous initialization bottlenecks. Regular daily runs query SQLite version in < 1ms and launch the TUI instantly without blocking on disk indexes.
+  - **Intelligent Splash Telemetry (Option C)**: On first-run or post-upgrade, displays a sleek Aurora Boreal terminal progress loader with live step-by-step telemetry before entering full-screen mode.
+  - **TrueColor ANSI Headless Logs**: CLI queries, tool executions, and Deep Search streams now render with high-contrast, crystal-clear 24-bit TrueColor typography.
+
 - **📑 RAG Semantic Fidelity & Ingestion 2D Layout Sacred Preservation (`v0.34.5`)**:
   - **Sacred 2D Layout Preservation**: Complex documents with tabular geometry (Canadian T4 tax returns, CMR shipment reports, commercial invoices) maintain structured Markdown tables with exact cell relationships without destructive key-value column collapse.
   - **QualityGate Structured Table Exemption**: Eliminates false-positive `DenseComplexForm` classifications by identifying valid Markdown table delimiters (`| --- |`), allowing high-fidelity text to bypass lossy spatial fallbacks directly into LanceDB and BM25.

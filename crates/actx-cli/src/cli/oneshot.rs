@@ -302,45 +302,46 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
 
     let mut stdout = io::stdout();
     let mut in_thinking = false;
+    let theme = crate::theme::UiTheme::default();
 
     while let Some(event) = rx.recv().await {
         match event {
             AgentEvent::Thinking(token) => {
                 if !in_thinking {
-                    print!("\x1b[2m<think>\x1b[0m\n");
+                    print!("{}\x1b[2m<think>\x1b[0m\n", theme.core.text_muted.ansi_fg());
                     in_thinking = true;
                 }
-                print!("\x1b[2m{}\x1b[0m", token);
+                print!("{}\x1b[2m{}\x1b[0m", theme.core.text_muted.ansi_fg(), token);
                 let _ = stdout.flush();
             }
             AgentEvent::ToolStart { name, arguments, .. } => {
                 if in_thinking {
-                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
                     in_thinking = false;
                 }
-                println!("\x1b[33m🔧 [Tool Call: {}]\x1b[0m \x1b[2m{}\x1b[0m", name, arguments);
+                println!("{} \x1b[2m{}\x1b[0m", theme.ansi_accent(&format!("🔧 [Tool Call: {}]", name)), arguments);
             }
             AgentEvent::ToolEnd { name, result, is_error, .. } => {
                 if is_error {
-                    println!("\x1b[31m❌ [Tool Error: {}]: {}\x1b[0m", name, result);
+                    println!("{}: {}", theme.ansi_error(&format!("❌ [Tool Error: {}]", name)), result);
                 } else {
-                    println!("\x1b[32m✔ [Tool Done: {}]\x1b[0m", name);
+                    println!("{}", theme.ansi_primary(&format!("✔ [Tool Done: {}]", name)));
                 }
             }
             AgentEvent::RoutingDecision { mode, complexity, intent, confidence, reason } => {
                 let badge = if complexity == "Deep" || mode.contains("DeepSearch") {
-                    "\x1b[35m🧠 [ModelRouter: Deep Search]\x1b[0m"
+                    theme.ansi_reasoning("🧠 [ModelRouter: Deep Search]")
                 } else {
-                    "\x1b[36m⚡ [ModelRouter: Fast RAG]\x1b[0m"
+                    theme.ansi_warning("⚡ [ModelRouter: Fast RAG]")
                 };
                 println!("{} \x1b[2m(intent: {}, confidence: {:.0}%)\x1b[0m\n\x1b[2m  • {}\x1b[0m\n", badge, intent, confidence * 100.0, reason);
             }
             AgentEvent::Decomposition { sub_queries } => {
                 if in_thinking {
-                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
                     in_thinking = false;
                 }
-                println!("\x1b[36m🌲 [Deep Search: Decomposing Query into Sub-Queries]\x1b[0m");
+                println!("{}", theme.ansi_accent("🌲 [Deep Search: Decomposing Query into Sub-Queries]"));
                 for (i, q) in sub_queries.iter().enumerate() {
                     println!("   \x1b[2m{}.\x1b[0m {}", i + 1, q);
                 }
@@ -348,25 +349,25 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             }
             AgentEvent::IterationStart { iteration, max_iterations } => {
                 if in_thinking {
-                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
                     in_thinking = false;
                 }
-                println!("\x1b[35m🔄 [Deep Search Iteration {}/{}]\x1b[0m \x1b[2mBatch Retrieval & Reflection...\x1b[0m", iteration, max_iterations);
+                println!("{} \x1b[2mBatch Retrieval & Reflection...\x1b[0m", theme.ansi_warning(&format!("🔄 [Deep Search Iteration {}/{}]", iteration, max_iterations)));
             }
             AgentEvent::GapAnalysis { is_sufficient, missing_aspects } => {
                 if in_thinking {
-                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
                     in_thinking = false;
                 }
                 if is_sufficient {
-                    println!("\x1b[32m✔ [Evidence Complete]\x1b[0m \x1b[2mSynthesizing grounded answer...\x1b[0m\n");
+                    println!("{} \x1b[2mSynthesizing grounded answer...\x1b[0m\n", theme.ansi_primary("✔ [Evidence Complete]"));
                 } else {
-                    println!("\x1b[33m🔎 [Gap Analysis]\x1b[0m Missing aspects: {}\n", missing_aspects.join(", "));
+                    println!("{} Missing aspects: {}\n", theme.ansi_warning("🔎 [Gap Analysis]"), missing_aspects.join(", "));
                 }
             }
             AgentEvent::Delta(token) => {
                 if in_thinking {
-                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
                     in_thinking = false;
                 }
                 print!("{}", token);
@@ -374,18 +375,18 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             }
             AgentEvent::Done { .. } => {
                 if in_thinking {
-                    print!("\x1b[2m</think>\x1b[0m\n");
+                    print!("{}\x1b[2m</think>\x1b[0m\n", theme.core.text_muted.ansi_fg());
                 }
                 println!();
             }
             AgentEvent::Error(err) => {
-                eprintln!("\n\x1b[31mError: {}\x1b[0m", err);
+                eprintln!("\n{}", theme.ansi_error(&format!("Error: {}", err)));
             }
         }
     }
 
     if let Ok(Err(err)) = handle.await {
-        eprintln!("\n\x1b[31mError: {}\x1b[0m", err);
+        eprintln!("\n{}", theme.ansi_error(&format!("Error: {}", err)));
     }
     Ok(())
 }

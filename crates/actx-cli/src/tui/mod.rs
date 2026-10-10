@@ -22,6 +22,11 @@ use self::events::handle_key_event;
 
 /// Launches the interactive full-screen TUI session.
 pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
+    // 0. Check if first-run or upgrade to display splash telemetry (Option C)
+    if crate::engine::is_first_run_or_upgrade() {
+        crate::engine::run_startup_splash_bootstrap();
+    }
+
     // 1. Resolve Provider and create agent via agnostic engine module
     let effective_ws = args.workspace.clone();
     let (provider, resolved_model) = match resolve_lm_provider(args.model.as_deref(), Some(&effective_ws)) {

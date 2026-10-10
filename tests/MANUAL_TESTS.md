@@ -6308,12 +6308,59 @@
      ```
    - **Critério de Aceitação**: O LLM identifica com precisão que o empregador é **IKEA Canada Ltd. Partnership** e o funcionário é **Levi Silveira**.
 
-4. **🚛 Consulta de Alta Precisão em Relatórios Logísticos (CMR):**
+4. 🚛 Consulta de Alta Precisão em Relatórios Logísticos (CMR):
    - Execute:
      ```bash
      actx -w IKEAShipments -q "quais são as transportadoras e destinos nos relatórios CMR?"
      ```
-   - **Critério de Aceitação**: O LLM lista transportadoras (ex.: `LANDSTAR INWAY INC`, `RAINBOW GREENHOUSES INC.`) e destinatários (`IKEA CALGARY`) com seus respectivos endereços de forma perfeitamente discriminada, sem inverter rótulos ou truncar o fluxo.
+   - Critério de Aceitação: O LLM lista transportadoras (ex.: LANDSTAR INWAY INC, RAINBOW GREENHOUSES INC.) e destinatários (IKEA CALGARY) com seus respectivos endereços de forma perfeitamente discriminada, sem inverter rótulos ou truncar o fluxo.
+
+---
+
+### 📌 Cenário 29 (v0.34.6): Validação da Identidade Cromática Aurora Boreal e Startup Fast-Path (< 50ms) / Splash Loader (Opção C)
+- **Objetivo**: Comprovar que o AnyContext v0.34.6:
+  1. Adota com fidelidade os tokens de design da Levix Digital (Aurora Boreal: Esmeralda `#00E5A3`, Ciano Glacial `#00F0FF`, Violeta Cósmico `#A855F7`, Rosa Polar `#EC4899`, Âmbar Solar `#F59E0B`, Carmesim `#EF4444`, Noite Polar `#0B0F19`) em toda a TUI interativa e no CLI headless com escape ANSI TrueColor de 24-bits.
+  2. Implementa a arquitetura de inicialização de latência zero (Opção C): abertura diária instantânea via Fast-Path (< 50ms) sem travas de I/O de disco, e Splash Loader com telemetria de 3 etapas no console padrão durante o primeiro uso ou após atualização.
+  3. Garante desacoplamento modular absoluto do tema no crate `any-context-core-rs`, viabilizando herança uniforme em futuras interfaces.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão do Binário:**
+   - Execute no terminal:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.34.6`.
+
+2. **⚡ Validação de Abertura Fast-Path (< 50ms):**
+   - Execute:
+     ```bash
+     actx --diagnostics
+     ```
+   - **Critérios de Aceitação**:
+     - Retorna em menos de 50 milissegundos indicando `Version: v0.34.6`, `Vectors: LanceDB Columnar Arrow Engine (Ready)` e `Status: Healthy & Operational`.
+     - Iniciar a TUI (`actx`) no dia-a-dia abre instantaneamente a interface de terminal sem delays perceptíveis de indexação bloqueante.
+
+3. **🌌 Validação de Telemetria TrueColor ANSI no Modo Headless:**
+   - Execute uma consulta no terminal:
+     ```bash
+     actx -w TaxReturn -q "qual o valor total do imposto de renda deduzido no T4?"
+     ```
+   - **Critérios de Aceitação**:
+     - O badge do ModelRouter exibe `⚡ [ModelRouter: Fast RAG]` nas cores de destaque Aurora Boreal.
+     - As chamadas de ferramentas exibem `🔧 [Tool Call: search_db]` em Ciano Glacial e `✔ [Tool Done: search_db]` em Esmeralda Boreal.
+     - A resposta final preserva a precisão factual ($7,976.60) com alta legibilidade.
+
+4. **✨ Validação do Splash Loader de Primeiro Uso / Upgrade (Opção C):**
+   - No primeiro boot ou após atualizar o executável para uma versão superior:
+   - **Critérios de Aceitação**:
+     - O terminal exibe o banner Aurora Boreal: `✨ AnyContext v0.34.6` e `🌌 Initializing Aurora Engine & System Knowledge...`.
+     - A telemetria avança progressivamente pelas 3 etapas com spinner de carregamento e confirmação `✔`:
+       - `[1/3] Verifying native SQLite & LanceDB vector stores... [OK]`
+       - `[2/3] Indexing system knowledge & BM25 hybrid lexicon... [OK]`
+       - `[3/3] Warming up workspace engine & model routing... [OK]`
+     - O console transiciona de forma limpa para a TUI interativa.
+     - Nas aberturas subsequentes, o splash não reaparece e o Fast-Path assume imediatamente.
 
 
 

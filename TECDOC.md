@@ -84,6 +84,15 @@
 96. [Targeted Version Syntax, Persistent Workspace Sync Indicator, Windows Binary Shadowing Resolution & Canonical Update Logging (`v0.32.18`)](#96-targeted-version-syntax-persistent-workspace-sync-indicator-windows-binary-shadowing-resolution--canonical-update-logging-v03218)
 97. [CI/CD Release Pipeline Optimization: Unified Workspace Compilation, Multi-Threaded Archiving & Elimination of Redundant Onefile Artifacts (`v0.32.18`)](#97-cicd-release-pipeline-optimization-unified-workspace-compilation-multi-threaded-archiving--elimination-of-redundant-onefile-artifacts)
 98. [Pure Native Rust Ingestion & Sync Orchestrator: Zero-Python Transition (`v0.32.19`)](#98-pure-native-rust-ingestion--sync-orchestrator-zero-python-transition-v03219)
+99. [Paridade Integral de Ingestao e Recuperacao de Indices (Rust Core) e Purga Definitiva do Codigo Legado Python (`v0.33.0`)](#99-paridade-integral-de-ingestao-e-recuperacao-de-indices-rust-core-e-purga-definitiva-do-codigo-legado-python-v0330)
+100. [Higiene Final do Monorepo, Purga de Artefatos Orfaos e Resolucao da Compatibilidade de Update (`v0.33.1`)](#100-higiene-final-do-monorepo-purga-de-artefatos-orfaos-e-resolucao-da-compatibilidade-de-update-v0331)
+101. [Motor Deep Search Agentico Reflexivo e Roteamento Adaptativo (RFC-042, `v0.34.0`)](#101-motor-deep-search-agentico-reflexivo-e-roteamento-adaptativo-rfc-042-v0340)
+102. [Arquitetura de Aceleracao Radical de CI/CD: Granularidade com Sccache e Otimizacoes de Perfil (`v0.34.1`)](#102-arquitetura-de-aceleracao-radical-de-cicd-granularidade-com-sccache-e-otimizacoes-de-perfil-v0341)
+103. [ModelRouter na Ingestao, Quality Gate Deterministico & Document AI Multidominio (`v0.34.2`)](#103-modelrouter-na-ingestao-quality-gate-deterministico--document-ai-multidominio-v0342)
+104. [Chat ModelRouter, Classificacao Dinamica de Complexidade & Roteamento de Intencao (`v0.34.3`)](#104-chat-modelrouter-classificacao-dinamica-de-complexidade--roteamento-de-intencao-v0343)
+105. [Estabilizacao e Refinamento de UX: Conclusao Direta Deep Search, Isolamento de Busca por Workspace, Spinner 8-Dot, Prompt Multilinhas, Auto-Consciencia Global Persistente, Menu Document AI e Telemetria ReAct Enriquecida (`v0.34.4`)](#105-estabilizacao-e-refinamento-de-ux-conclusao-direta-deep-search-isolamento-de-busca-por-workspace-spinner-8-dot-prompt-multilinhas-auto-consciencia-global-persistente-menu-document-ai-e-telemetria-react-enriquecida-v0344)
+106. [Arquitetura de Ingestao de Alta Fidelidade Semantica e Preservacao 2D (`v0.34.5`)](#106-arquitetura-de-ingestao-de-alta-fidelidade-semantica-e-preservacao-2d-v0345)
+107. [Aurora Boreal Design System & Zero-Delay Modular Theme Architecture (`v0.34.6`)](#107-aurora-boreal-design-system--zero-delay-modular-theme-architecture-v0346)
 ---
 
 
@@ -6758,6 +6767,67 @@ A versão v0.34.5 estabelece o princípio inviolável de que **conteúdo textual
   - Restauração total da acurácia semântica do RAG do AnyContext em documentos fiscais, faturas e relatórios logísticos.
   - O formulário fiscal T4 passa a responder valores exatos para rendimento de emprego ($58,792.60) e imposto retido na fonte ($7,976.60).
   - Preservação da compatibilidade com bases de dados existentes mediante comando `actx sync --force`.
+
+---
+
+## 107. Aurora Boreal Design System & Zero-Delay Modular Theme Architecture (`v0.34.6`)
+
+### 107.1 Visão Geral e Princípio de Design Tokens Centralizados
+A versão `v0.34.6` introduz o **Levix Digital Aurora Boreal Design System** como autoridade única de identidade cromática para todo o ecossistema AnyContext. O objetivo fundamental é desacoplar totalmente as definições de estilo e cor de bibliotecas gráficas específicas (como `ratatui` ou sequências de terminal `crossterm`), permitindo que a paleta seja compartilhada de forma nativa e estrita entre:
+- **TUI Interativa** (Ratatui / Crossterm com mapeamento `Color::Rgb`)
+- **CLI Headless / Streaming** (Sequências de escape ANSI TrueColor de 24-bits `\x1b[38;2;R;G;Bm`)
+- **Futuras Camadas Web & REST** (Serialização nativa em JSON via `serde::Serialize` e `serde::Deserialize` no endpoint `/api/v1/theme` ou geração de variáveis CSS `:root`)
+- **Futuras Aplicações Desktop GUI** (Tauri, Slint ou Iced)
+
+### 107.2 Paleta Canônica Aurora Boreal (Levix Digital)
+
+| Token Semântico | Cor Institucional | Hexadecimal | RGB | Função Semântica |
+|---|---|---|---|---|
+| `primary` | Esmeralda Boreal | `#00E5A3` | `(0, 229, 163)` | Identidade da marca AnyContext, status operacional (IDLE / Up to date), itens concluídos com sucesso |
+| `accent` | Ciano Glacial | `#00F0FF` | `(0, 240, 255)` | Bordas ativas/focadas, prefixo `[YOU]`, streaming em andamento, destaques primários |
+| `reasoning` | Violeta Cósmico | `#A855F7` | `(168, 85, 247)` | Roteador de modelos (Deep Search), modelos de inferência, badge ReAct, tokens cognitivos |
+| `magenta` | Rosa Polar | `#EC4899` | `(236, 72, 153)` | Modo de grounding proativo, alertas de alta relevância, tags especiais |
+| `warning` | Âmbar Solar | `#F59E0B` | `(245, 158, 11)` | Spinner de sincronização, badge Fast RAG, acordeom em atenção, destaques operacionais |
+| `error` | Carmesim Polar | `#EF4444` | `(239, 68, 68)` | Erros de ferramentas, cancelamento de sync, status de falha do agente |
+| `info` | Azul Ártico | `#38BDF8` | `(56, 189, 248)` | Sub-queries decompostas, badges contextuais, dicas auxiliares |
+| `bg_dark` | Noite Polar | `#0B0F19` | `(11, 15, 25)` | Fundo da aplicação e do terminal |
+| `bg_surface` | Superfície Meia-Noite | `#161F30` | `(22, 31, 48)` | Superfície de popups, listas suspensas, menus e itens selecionados |
+| `border_focus` | Ciano Glacial | `#00F0FF` | `(0, 240, 255)` | Borda ativa do chat e do prompt com comando digitado |
+| `border_unfocused`| Ardósia Subdued | `#334155` | `(51, 65, 85)` | Bordas neutras e passivas de cabeçalho, divisores e painéis secundários |
+| `text_bright` | Gelo Polar Branco | `#F1F5F9` | `(241, 245, 249)` | Títulos, comandos em foco e texto em alto contraste |
+| `text_body` | Prata Glacial | `#CBD5E1` | `(203, 213, 225)` | Conteúdo de leitura contínua de mensagens de chat |
+| `text_muted` | Ardósia Mudo | `#64748B` | `(100, 116, 139)` | Timestamps, textos fantasmas de sugestão, rodapé secundário |
+
+### 107.3 Eliminação da Latência de Inicialização: O Padrão Híbrido Inteligente (Opção C)
+No projeto anterior, chamadas síncronas de bootstrap em `ensure_global_knowledge_bootstrap` eram executadas na criação do agente, abrindo LanceDB, contando registros, decodificando e salvando o arquivo binário do índice BM25 antes mesmo de abrir o terminal.
+
+A Opção C resolve esse gargalo através de um fluxo bifurcado:
+1. **Fast-Path (< 50ms) no Uso Diário**:
+   - A função `is_first_run_or_upgrade()` consulta exclusivamente o SQLite em `< 1ms` (`SELECT value FROM app_settings WHERE key = 'global_knowledge_version'`).
+   - Se a versão gravada no banco corresponder à `env!("CARGO_PKG_VERSION")`, **nenhum bootstrap é acionado**, e a TUI abre instantaneamente.
+2. **Upgrade / First-Run Splash Loader**:
+   - Se for o primeiro boot pós-instalação ou após um `actx update`, o console standard exibe um Splash Loader elegante com spinner de 8 pontos (`⣾`), cabeçalho Aurora Boreal e telemetria em 3 fases:
+     - `[1/3] Verifying native SQLite & LanceDB vector stores...`
+     - `[2/3] Indexing system knowledge & BM25 hybrid lexicon...`
+     - `[3/3] Warming up workspace engine & model routing...`
+   - Após a conclusão, persiste `global_knowledge_version` no banco e transiciona suavemente para o modo TUI.
+
+---
+
+### 107.4 Architecture Decision Record (ADR-114)
+
+#### ADR-114: Centralização Modular de Design Tokens Aurora Boreal e Startup Fast-Path Híbrido (Opção C)
+- **Status**: Aprovado & Implementado (`v0.34.6`).
+- **Contexto**: A interface visual carecia da identidade institucional da Levix Digital (cores da Aurora Boreal), e o tempo de inicialização da TUI sofria com atrasos perceptíveis decorrentes de verificações síncronas de indexação de conhecimento do sistema a cada abertura.
+- **Decisões**:
+  1. **Módulo de Tema no Core (`any_context_core_rs::theme`)**: Definir `RgbColor` e `AuroraTheme` agnósticos a UI no crate de base, suportando serialização `serde` para que qualquer interface futura (Web/WASM, REST, Desktop GUI) herde os mesmos tokens.
+  2. **Adaptador de Apresentação no CLI (`actx_cli::theme::UiTheme`)**: Implementar conversões para `ratatui::style::Color::Rgb` e sequências ANSI TrueColor de 24-bits.
+  3. **Fast-Path no SQLite**: Pular verificações síncronas de LanceDB e BM25 no caminho crítico se a versão do SQLite bater com `CARGO_PKG_VERSION`.
+  4. **Splash Loader Telemetry no Upgrade**: Renderizar splash no console padrão durante primeiro uso ou upgrade de versão para transparência total das operações de I/O de inicialização.
+- **Consequências**:
+  - Tempo de abertura do `actx` reduzido para menos de 50 milissegundos no regime diário.
+  - Identidade visual coerente, sóbria, elegante e de alto contraste em todas as telas da TUI e nos logs de terminal.
+  - Zero duplicação de constantes de cores no ecossistema.
 
 
 

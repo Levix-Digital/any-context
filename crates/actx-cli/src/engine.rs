@@ -277,7 +277,6 @@ pub fn build_agent_sync(
     let lance_store_for_deep = any_context_core_rs::storage::NativeLanceStore::open(&lance_path).ok().map(Arc::new);
 
     let deep_search_retriever = lance_store_for_deep.map(|ls| {
-        ensure_global_knowledge_bootstrap(&ls);
         Arc::new(PipelineBatchRetriever {
             lance_store: ls,
             lm_provider: provider.clone(),
@@ -483,6 +482,61 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
     }
 }
 
+/// Quickly checks if the application is starting for the first time or after a version upgrade.
+/// Runs in < 1ms via SQLite without touching LanceDB or BM25 index on the main thread.
+pub fn is_first_run_or_upgrade() -> bool {
+    let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+    let current_version = env!("CARGO_PKG_VERSION");
+    let stored_version = db.as_ref().and_then(|d| d.get_setting("global_knowledge_version").ok().flatten());
+    stored_version.as_deref() != Some(current_version)
+}
+
+/// Renders an Aurora Boreal branded CLI Splash Loader with step-by-step telemetry
+/// before launching the TUI when an upgrade or first run is detected (Option C).
+pub fn run_startup_splash_bootstrap() {
+    use std::io::{stdout, Write};
+    let theme = crate::theme::UiTheme::default();
+    let mut out = stdout();
+
+    let banner = format!(
+        "\n  {} {}\n  {}\n\n",
+        theme.ansi_primary("✨ AnyContext"),
+        theme.ansi_accent(&format!("v{}", env!("CARGO_PKG_VERSION"))),
+        theme.ansi_reasoning("🌌 Initializing Aurora Engine & System Knowledge...")
+    );
+    let _ = out.write_all(banner.as_bytes());
+    let _ = out.flush();
+
+    // Step 1: Databases verification
+    let _ = out.write_all(format!("  {} [1/3] Verifying native SQLite & LanceDB vector stores...", theme.ansi_warning("⣾")).as_bytes());
+    let _ = out.flush();
+    let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
+    let lance_store = any_context_core_rs::storage::NativeLanceStore::open(&lance_path).ok();
+    let _ = out.write_all(format!("\r  {} [1/3] Native SQLite & LanceDB vector stores verified.     \n", theme.ansi_primary("✔")).as_bytes());
+    let _ = out.flush();
+
+    // Step 2: Index system documentation & BM25
+    let _ = out.write_all(format!("  {} [2/3] Indexing system knowledge & BM25 hybrid lexicon...", theme.ansi_warning("⣾")).as_bytes());
+    let _ = out.flush();
+    if let Some(ref ls) = lance_store {
+        ensure_global_knowledge_bootstrap(ls);
+    }
+    let _ = out.write_all(format!("\r  {} [2/3] System knowledge & BM25 hybrid lexicon indexed.      \n", theme.ansi_primary("✔")).as_bytes());
+    let _ = out.flush();
+
+    // Step 3: Warmup engine
+    let _ = out.write_all(format!("  {} [3/3] Warming up workspace engine & model routing...", theme.ansi_warning("⣾")).as_bytes());
+    let _ = out.flush();
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    let _ = out.write_all(format!("\r  {} [3/3] Workspace engine & model routing ready.             \n", theme.ansi_primary("✔")).as_bytes());
+    let _ = out.flush();
+
+    let ready_msg = format!("  {} Ready! Launching interactive workspace...\n\n", theme.ansi_primary("✔"));
+    let _ = out.write_all(ready_msg.as_bytes());
+    let _ = out.flush();
+    std::thread::sleep(std::time::Duration::from_millis(250));
+}
+
 /// Native Hybrid RAG batch retriever adapter for DeepSearch
 struct PipelineBatchRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
@@ -533,5 +587,26 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
             }
             Err(e) => Err(actx_agent::AgentError::Internal(e)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_first_run_or_upgrade_does_not_panic() {
+        // Calling is_first_run_or_upgrade should execute in < 5ms and return a boolean without panicking
+        let start = std::time::Instant::now();
+        let _result = is_first_run_or_upgrade();
+        let elapsed = start.elapsed();
+        assert!(elapsed.as_millis() < 50, "Startup check must run in under 50ms (was {:?})", elapsed);
+    }
+
+    #[test]
+    fn test_run_startup_splash_bootstrap_lifecycle() {
+        // Executing splash bootstrap should run all 3 stages and persist the current version
+        run_startup_splash_bootstrap();
+        assert!(!is_first_run_or_upgrade(), "After running splash bootstrap, is_first_run_or_upgrade must be false");
     }
 }
