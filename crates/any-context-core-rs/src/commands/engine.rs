@@ -1301,16 +1301,27 @@ impl CommandEngine {
             .and_then(|l| l.count_records(Some(&ctx.active_workspace), None).ok())
             .unwrap_or(0);
 
+        let model_summary = crate::ingestion::OnnxModelManager::inspect_store();
+        let (classifier_name, classifier_desc, _) = crate::ingestion::OnnxModelManager::active_ingestion_classifier();
+        let (scanned_name, scanned_desc, _) = crate::ingestion::OnnxModelManager::active_scanned_classifier();
+        let (vision_name, vision_desc, _) = crate::ingestion::OnnxModelManager::active_vision_state();
+        let mb_on_disk = model_summary.total_bytes_on_disk as f64 / (1024.0 * 1024.0);
+
         CommandResult::success(format!(
             "📊 AnyContext Native Core Operational Status:\n\
-             • Workspace:      {} (Total workspaces: {})\n\
-             • Target Model:   {}\n\
-             • Grounding:      {}\n\
-             • Search Depth:   {}\n\
-             • Web Search:     {}\n\
-             • Local Folders:  {} attached\n\
-             • Vector Chunks:  {} indexed (LanceDB)\n\
-             • Health:         ● HEALTHY & READY",
+             • Workspace:        {} (Total workspaces: {})\n\
+             • Target Model:     {}\n\
+             • Grounding:        {}\n\
+             • Search Depth:     {}\n\
+             • Web Search:       {}\n\
+             • Local Folders:    {} attached\n\
+             • Vector Chunks:    {} indexed (LanceDB)\n\
+             • Local AI Models:\n\
+               - Ingestion Classifier: {} [{}]\n\
+               - Scanned Classifier:   {} [{}]\n\
+               - Document Vision:      {} [{}]\n\
+               - Models Directory:     {} ({} models / {:.1} MB)\n\
+             • Health:           ● HEALTHY & READY",
             ctx.active_workspace,
             ws_count,
             ctx.active_model,
@@ -1318,7 +1329,16 @@ impl CommandEngine {
             ctx.search_mode.to_uppercase(),
             if ctx.web_search_enabled { "ON" } else { "OFF" },
             folders_count,
-            chunks_count
+            chunks_count,
+            classifier_name,
+            classifier_desc,
+            scanned_name,
+            scanned_desc,
+            vision_name,
+            vision_desc,
+            model_summary.models_dir.display(),
+            model_summary.installed_count,
+            mb_on_disk
         ))
     }
 

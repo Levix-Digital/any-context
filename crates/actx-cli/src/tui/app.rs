@@ -383,8 +383,22 @@ impl App {
         let current_history = std::mem::take(&mut self.chat_history);
         self.workspace_chat_buffers.insert(self.active_workspace.clone(), current_history);
 
-        // 2. Set new active workspace
+        // 2. Set new active workspace and reload its persistent configuration
         self.active_workspace = target_ws.to_string();
+        if let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() {
+            if let Ok(s) = db.get_workspace_search_mode(target_ws) {
+                self.search_mode = s;
+            }
+            if let Ok(m) = db.get_workspace_model(target_ws) {
+                self.active_model = m;
+            }
+            if let Ok(g) = db.get_workspace_grounding_mode(target_ws) {
+                self.grounding_mode = g;
+            }
+            if let Ok(w) = db.get_workspace_web_search(target_ws) {
+                self.web_search_enabled = w;
+            }
+        }
 
         // 3. Reset ephemeral stream/thinking buffers and scroll
         self.current_stream_buffer.clear();
@@ -556,22 +570,41 @@ impl App {
                 });
                 self.scroll_to_bottom();
                 self.menu_state.is_open = false;
-            } else if item.id == "doc_ai_action:local_vision" {
-                self.chat_history.push(ChatMessageItem {
-                    role: MessageRole::System,
-                    content: "ℹ [Document AI: Modelo de Visão Local Air-Gapped]\nPara rodar visão computacional 100% local e offline:\n1. Instale ou inicie o Ollama com: `ollama run minicpm-v` (ou `ollama run llava`).\n2. O AnyContext detecta automaticamente o endpoint local para OCR denso e extração visual.\n\nNota: Para preservar a inicialização em milissegundos e instalação ultra-leve, o AnyContext não obriga download de 4GB no instalador padrão.".to_string(),
-                    thinking: None,
-                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                });
+            } else if let Some(model_id) = item.id.strip_prefix("model_action:download:") {
+                if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
+                    let spec_name = spec.name.to_string();
+                    let spec_mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
+                    let spec_file = spec.file_name.to_string();
+                    let spec_clone = spec.clone();
+
+                    self.chat_history.push(ChatMessageItem {
+                        role: MessageRole::System,
+                        content: format!(
+                            "📥 [Download de Modelo ONNX Iniciado]\nIniciando download assíncrono de **{}** (~{:.0} MB)...\nArquivo: `{}`\nDestino: `%LOCALAPPDATA%\\AnyContext\\models\\`\nO download prossegue em segundo plano sem travar a interface. O AnyContext continua totalmente operacional via fallback determinístico.",
+                            spec_name, spec_mb, spec_file
+                        ),
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+
+                    tokio::spawn(async move {
+                        let _ = any_context_core_rs::ingestion::OnnxModelManager::download_model(&spec_clone).await;
+                    });
+                }
                 self.scroll_to_bottom();
                 self.menu_state.is_open = false;
-            } else if item.id == "doc_ai_action:local_classifier" {
-                self.chat_history.push(ChatMessageItem {
-                    role: MessageRole::System,
-                    content: "ℹ [Document AI: Classificador Neural Local]\nO AnyContext utiliza por padrão um classificador heurístico determinístico com latência <1µs e 0MB de RAM.\nCaso deseje acoplar um classificador neural denso local (como BGE-Small ou Mistral), execute:\n`ollama pull bge-m3` e defina `ACTX_NEURAL_CLASSIFIER=1`.".to_string(),
-                    thinking: None,
-                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                });
+            } else if let Some(model_id) = item.id.strip_prefix("model_action:toggle:") {
+                if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
+                    self.chat_history.push(ChatMessageItem {
+                        role: MessageRole::System,
+                        content: format!(
+                            "✔ [Modelo ONNX Ativo]\n**{}** está instalado em disco e ativo para {}.\nFallback resiliente automático: {}.",
+                            spec.name, spec.category.as_str(), spec.fallback_description
+                        ),
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+                }
                 self.scroll_to_bottom();
                 self.menu_state.is_open = false;
             } else if item.id.starts_with("doc_ai_info:") {

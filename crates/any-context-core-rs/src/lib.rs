@@ -7,7 +7,10 @@ pub mod security;
 pub mod theme;
 
 pub use models::{ChunkPayload, SemanticEnvelope};
-pub use ingestion::{IngestionRouter, WorkspaceScanner};
+pub use ingestion::{
+    IngestionRouter, WorkspaceScanner,
+    OnnxModelManager, OnnxModelSpec, OnnxModelCategory, ModelStoreSummary, ModelStatusItem, ONNX_CATALOG,
+};
 pub use retrieval::{
     HybridRetrieverEngine, QueryPreprocessor, ProcessedQuery,
     NativeHybridPipeline, HybridSearchRequest, HybridSearchResult, RetrievalPreset,
@@ -16,7 +19,7 @@ pub use retrieval::{
 };
 pub use storage::{
     NativeConfigDb, NativeLanceStore,
-    get_default_settings_db_path, get_default_lancedb_path, get_default_logs_dir,
+    get_default_settings_db_path, get_default_lancedb_path, get_default_logs_dir, get_default_models_dir,
 };
 pub use commands::{
     CommandEngine, CommandResult, CommandAction, CommandStateUpdates,

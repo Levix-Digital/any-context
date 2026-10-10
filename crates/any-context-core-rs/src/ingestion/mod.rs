@@ -7,6 +7,7 @@ pub mod enricher;
 pub mod crawler;
 pub mod quality_gate;
 pub mod model_router;
+pub mod model_manager;
 
 pub use router::IngestionRouter;
 pub use traits::Chunker;
@@ -16,4 +17,5 @@ pub use enricher::NativeContextualEnricher;
 pub use crawler::{NativeWebCrawler, CrawlerConfig, CrawledPage, SitemapEntry, RobotsPolicy};
 pub use quality_gate::{QualityGate, QualityGateConfig, QualityDecision, QualityRejectionReason, DocumentAiTarget};
 pub use model_router::{IngestionModelRouter, DocumentLayoutExtractor, VisionExecutionMode};
+pub use model_manager::{OnnxModelManager, OnnxModelSpec, OnnxModelCategory, ModelStoreSummary, ModelStatusItem, ONNX_CATALOG};
 pub use chunkers::spatial_form::SpatialFormChunker;

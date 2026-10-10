@@ -603,62 +603,83 @@ pub fn build_keys_menu() -> Vec<MenuItem> {
 }
 
 pub fn build_document_ai_menu() -> Vec<MenuItem> {
-    vec![
-        MenuItem {
-            id: "doc_ai_info:classifier".to_string(),
-            title: "Classificador de Consultas: Determinístico (<1µs / 0MB RAM)".to_string(),
-            description: "Roteia automaticamente entre Fast RAG e Deep Search sem cold start ou GPU".to_string(),
-            icon: "⚡".to_string(),
-            badge: Some("[Ativo / Padrão]".to_string()),
+    let mut items = Vec::new();
+
+    // 1. Built-in instant engines
+    items.push(MenuItem {
+        id: "doc_ai_info:classifier".to_string(),
+        title: "Classificador de Consultas: Determinístico (<1µs / 0MB RAM)".to_string(),
+        description: "Roteia automaticamente entre Fast RAG e Deep Search sem cold start ou GPU".to_string(),
+        icon: "⚡".to_string(),
+        badge: Some("[Ativo / Padrão]".to_string()),
+        shortcut: None,
+        is_submenu: false,
+    });
+
+    items.push(MenuItem {
+        id: "doc_ai_info:vision_spatial".to_string(),
+        title: "Layout & Visão Espacial: Heurística 2D (<5MB RAM)".to_string(),
+        description: "Parser nativo de PDFs, tabelas e bounding boxes geométricos sem dependência externa".to_string(),
+        icon: "📐".to_string(),
+        badge: Some("[Ativo / Padrão]".to_string()),
+        shortcut: None,
+        is_submenu: false,
+    });
+
+    items.push(MenuItem {
+        id: "doc_ai_action:vision_cloud".to_string(),
+        title: "Visão via Provedor Multimodal (Nuvem / Provedor Ativo)".to_string(),
+        description: "Usa Gemini Flash, Claude Sonnet ou GPT-4o configurados para inspeção de imagens".to_string(),
+        icon: "☁️".to_string(),
+        badge: Some("[Recomendado]".to_string()),
+        shortcut: Some("/model".to_string()),
+        is_submenu: false,
+    });
+
+    // 2. Real ONNX Models from Catalog
+    for spec in any_context_core_rs::ingestion::OnnxModelManager::catalog() {
+        let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
+        let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
+
+        let (id, title, badge, icon) = if is_installed {
+            (
+                format!("model_action:toggle:{}", spec.id),
+                format!("{}", spec.name),
+                Some("[Instalado / Ativo]".to_string()),
+                "✔".to_string(),
+            )
+        } else {
+            (
+                format!("model_action:download:{}", spec.id),
+                format!("Baixar / Acoplar {}", spec.name),
+                Some(format!("[Download (~{:.0} MB)]", mb)),
+                "📥".to_string(),
+            )
+        };
+
+        items.push(MenuItem {
+            id,
+            title,
+            description: format!("{} | Fallback: {}", spec.description, spec.fallback_description),
+            icon,
+            badge,
             shortcut: None,
             is_submenu: false,
-        },
-        MenuItem {
-            id: "doc_ai_info:vision_spatial".to_string(),
-            title: "Layout & Visão Espacial: Heurística 2D (<5MB RAM)".to_string(),
-            description: "Parser nativo de PDFs, tabelas e bounding boxes geométricos sem dependência externa".to_string(),
-            icon: "📐".to_string(),
-            badge: Some("[Ativo / Padrão]".to_string()),
-            shortcut: None,
-            is_submenu: false,
-        },
-        MenuItem {
-            id: "doc_ai_action:vision_cloud".to_string(),
-            title: "Visão via LLM Multimodal (Nuvem / Provedor Ativo)".to_string(),
-            description: "Usa Gemini Flash, Claude Sonnet ou GPT-4o configurados para inspeção de imagens".to_string(),
-            icon: "☁️".to_string(),
-            badge: Some("[Recomendado]".to_string()),
-            shortcut: Some("/model".to_string()),
-            is_submenu: false,
-        },
-        MenuItem {
-            id: "doc_ai_action:local_vision".to_string(),
-            title: "Baixar / Ativar Visão Local SLM (Ollama minicpm-v / llava)".to_string(),
-            description: "Instruções para executar modelo local de visão para ambientes 100% air-gapped".to_string(),
-            icon: "📥".to_string(),
-            badge: Some("[Local Air-Gapped]".to_string()),
-            shortcut: None,
-            is_submenu: false,
-        },
-        MenuItem {
-            id: "doc_ai_action:local_classifier".to_string(),
-            title: "Baixar / Acoplar Classificador Neural Local (BGE-Small / Mistral)".to_string(),
-            description: "Substitui o classificador heurístico por SLM neural local dedicado (~130MB a 1.2GB)".to_string(),
-            icon: "📥".to_string(),
-            badge: Some("[Opcional]".to_string()),
-            shortcut: None,
-            is_submenu: false,
-        },
-        MenuItem {
-            id: "doc_ai_info:policy".to_string(),
-            title: "Política de Instalação: Leve e Instantânea por Padrão".to_string(),
-            description: "AnyContext não obriga download de 4GB no instalador para manter startup em milissegundos".to_string(),
-            icon: "🛡️".to_string(),
-            badge: Some("[Arquitetura]".to_string()),
-            shortcut: None,
-            is_submenu: false,
-        },
-    ]
+        });
+    }
+
+    // 3. Fallback resilience guarantee
+    items.push(MenuItem {
+        id: "doc_ai_info:resilience".to_string(),
+        title: "Resiliência de Fallbacks & Zero Quebra (ADR-110)".to_string(),
+        description: "Tolerância total a modelos ausentes: o sistema nunca falha e recai nas heurísticas nativas.".to_string(),
+        icon: "🛡️".to_string(),
+        badge: Some("[Arquitetura]".to_string()),
+        shortcut: None,
+        is_submenu: false,
+    });
+
+    items
 }
 
 #[cfg(test)]
@@ -733,9 +754,9 @@ mod tests {
         assert!(search.iter().any(|i| i.id == "search_action:deep"));
 
         let doc_ai = build_document_ai_menu();
-        assert_eq!(doc_ai.len(), 6);
+        assert!(doc_ai.len() >= 8);
         assert!(doc_ai.iter().any(|i| i.id == "doc_ai_info:classifier"));
-        assert!(doc_ai.iter().any(|i| i.id == "doc_ai_action:local_vision"));
+        assert!(doc_ai.iter().any(|i| i.id.contains("laya-int8")));
 
         let sources = build_sources_menu("Default");
         assert_eq!(sources.len(), 3);

@@ -6365,3 +6365,58 @@
 
 
 
+
+---
+
+### 📌 Cenário 30 (v0.34.7): Validação do Catálogo ONNX Nativo, Fallbacks Resilientes, Indicador Search Mode no Header e Diálogo Fluido Humanizado
+
+#### 🎯 Objetivo
+Garantir que a versão `v0.34.7` forneça catálogo e repositório real de modelos ONNX em disco (`%LOCALAPPDATA%\AnyContext\models\`), com fallbacks à prova de quebra (tolerância incondicional a ausência de modelos), indicador de profundidade de busca (`Search: AUTO|FAST|DEEP`) visível no cabeçalho superior e sincronizado por workspace, spinner Braille acelerado e em sentido horário, e respostas fluidas e conversacionais sem frases enlatadas ou emojis de alerta (`⚠️`).
+
+#### 🧪 Procedimento e Casos de Teste
+
+1. **📦 Validação do Submenu "Document AI & Modelos Locais" e Catálogo ONNX:**
+   - Abra a TUI (`actx`) e pressione `[F1]` ou digite `/menu`.
+   - Navegue até a opção `Document AI & Modelos Locais` e pressione `[Enter]`.
+   - **Critérios de Aceitação**:
+     - O submenu lista os motores padrão nativos e os modelos ONNX reais:
+       - `Laya AI (mmBERT INT8 ONNX)` (~210 MB)
+       - `MobileNetV4 RVL-CDIP (ONNX)` (~14 MB)
+       - `BGE-Small Query Classifier (ONNX)` (~35 MB)
+       - `Moondream2 1.8B (INT4 ONNX)` (~1.1 GB)
+       - `SmolVLM-500M (ONNX)` (~480 MB)
+     - Se o modelo não estiver em disco, o badge exibe `[Download (~X MB)]`.
+     - Ao pressionar `[Enter]` em um modelo ausente, uma mensagem de sistema no chat confirma o início do download em background para `%LOCALAPPDATA%\AnyContext\models\`. A aplicação continua responsiva sem congelamento.
+     - Ao pressionar `[Enter]` em um modelo instalado, o badge exibe `[Instalado / Ativo]`.
+
+2. **🛡️ Validação da Resiliência de Fallbacks (Tolerância a Modelos Ausentes):**
+   - Sem nenhum modelo ONNX baixado na máquina:
+     - Execute `/status`.
+     - **Critérios de Aceitação**:
+       - O relatório exibe `Local AI Models` detalhando:
+         - `Ingestion Classifier: Determinístico / Heurístico (<1µs / 0MB RAM) [Padrão ativo]`
+         - `Scanned Classifier: Heurística 2D Espacial (<5MB RAM) [Padrão ativo]`
+         - `Document Vision: Heurística 2D & Tipográfica (<5MB RAM) [Padrão ativo]`
+         - `Models Directory: C:\Users\...\AppData\Local\AnyContext\models (0 models / 0.0 MB)`
+       - A indexação e o RAG continuam funcionando perfeitamente sem erros ou travamentos.
+
+3. **🏷️ Validação do Indicador de Search Mode no Header da TUI e Troca por Workspace:**
+   - Observe a barra de status superior na TUI:
+     - O cabeçalho exibe `─ [Search: AUTO] ─` (ou `FAST`/`DEEP`) formatado nas cores Aurora Boreal.
+   - Alterne o modo com `/search fast`:
+     - O cabeçalho atualiza imediatamente para `─ [Search: FAST] ─` em Verde Boreal (`#00E5A3`).
+   - Alterne para um workspace diferente (`/switch Teste`):
+     - As preferências do workspace `Teste` são recarregadas instantaneamente do SQLite e o indicador no header reflete o modo daquele workspace.
+
+4. **🌀 Validação do Spinner Braille Horário e Velocidade Acelerada:**
+   - Dispare uma sincronização (`/sync --force`):
+     - **Critérios de Aceitação**:
+       - O spinner Braille roda em sentido horário: `["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"]`.
+       - A velocidade de animação é visivelmente ágil (2x a velocidade anterior).
+
+5. **💬 Validação do Tom Conversacional Humano (Sem Disclaimer Robótico nem ⚠️):**
+   - No workspace ativo, faça uma pergunta sobre um tema sabidamente ausente nos documentos (ex: *"Qual o código do website HTML deste projeto?"* ou *"Quais as novidades de imigração para 2026?"*).
+   - **Critérios de Aceitação**:
+     - O agente responde diretamente e com naturalidade: *"Não foram encontrados códigos de website, como HTML, CSS ou JavaScript, relacionados ao projeto."*.
+     - A resposta **NÃO** contém a frase enlatada *"⚠️ Essa informação não consta nos documentos deste workspace."* nem emojis de aviso de erro.
+     - O tom é fluido, colaborativo e direto como um colega de equipe humano.

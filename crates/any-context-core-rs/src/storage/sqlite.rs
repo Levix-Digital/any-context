@@ -1614,6 +1614,35 @@ pub fn get_default_logs_dir() -> PathBuf {
     PathBuf::from("logs")
 }
 
+pub fn get_default_models_dir() -> PathBuf {
+    if let Ok(p) = std::env::var("ACTX_MODELS_DIR") {
+        if !p.trim().is_empty() {
+            return PathBuf::from(p);
+        }
+    }
+    if std::env::var("ACTX_TEST_MODE").is_ok() {
+        let sandbox = std::env::temp_dir().join("actx_test_sandbox").join("models");
+        let _ = std::fs::create_dir_all(&sandbox);
+        return sandbox;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            return PathBuf::from(local).join("AnyContext").join("models");
+        }
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            return PathBuf::from(appdata).join("AnyContext").join("models");
+        }
+    }
+    if let Some(data_dir) = dirs::data_local_dir() {
+        return data_dir.join("AnyContext").join("models");
+    }
+    if let Some(home) = dirs::home_dir() {
+        return home.join(".local").join("share").join("any-context").join("models");
+    }
+    PathBuf::from("models")
+}
+
 fn normalize_path_slashes(p: &str) -> String {
     p.replace('\\', "/")
 }

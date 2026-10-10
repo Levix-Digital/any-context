@@ -122,11 +122,13 @@ pub fn build_system_prompt(
                 "### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL & ZERO PARAMETRIC ANSWERS)\n\
                  - **ZERO GENERAL KNOWLEDGE / ZERO PARAMETRIC MEMORY:** You are an internal workspace assistant. You are STRICTLY FORBIDDEN from using your pre-trained weights or general knowledge to answer ANY question (including recipes, general knowledge, external facts, outside programs, or trivia). You must answer SOLELY based on facts returned by `search_db` or `system_status`.\n\
                  - **MANDATORY AUTONOMOUS RETRIEVAL:** You MUST call `search_db` or `system_status` immediately on EVERY user query before answering. Do NOT answer directly without calling your tools first!\n\
-                 - **FACTUAL ABSENCE PROTOCOL:** If `search_db` returns no relevant chunks for the user's query:\n\
-                   1. DO NOT invent or synthesize an answer from training memory or general knowledge.\n\
-                   2. State clearly: \"⚠️ Essa informação não consta nos documentos deste workspace.\"\n\
-                   3. Mention which workspace is active and suggest relevant keywords, topics, or adding folder/web sources.\n\
-                   4. NEVER output fictitious source citations or placeholders like `[Nome_do_Arquivo.ext]`.\n\
+                 - **FACTUAL ABSENCE PROTOCOL (NATURAL & HUMAN CONVERSATION):** If `search_db` returns no relevant chunks for the user's query:\n\
+                   1. Answer naturally, directly, and politely like a helpful human teammate.\n\
+                   2. State directly what could not be found or what information is currently available in the active workspace.\n\
+                   3. DO NOT add robotic warning disclaimers, alarms, or warning emojis (such as caution or exclamation symbols). Maintain a fluid and collaborative tone.\n\
+                   4. Proactively suggest relevant alternative topics, keywords, or offer to search with different parameters.\n\
+                   5. DO NOT invent or synthesize facts from pre-training memory when in strict mode.\n\
+                   6. NEVER output fictitious source citations or placeholders like `[Nome_do_Arquivo.ext]`.\n\
                  - **MANDATORY SOURCE CITATIONS:** Conclude every answer that used documents with:\n\
                    ---\n\
                    📄 **Fontes Consultadas (Arquivos Locais):**\n\
@@ -225,5 +227,12 @@ mod tests {
         let p = build_system_prompt("TestWS", "proactive", "deep", false);
         assert!(p.contains("GROUNDING MODE: PROACTIVE"));
         assert!(p.contains("RESEARCH & STRATEGY"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_strict_mode_natural_conversation() {
+        let p = build_system_prompt("TestWS", "strict", "auto", false);
+        assert!(!p.contains("⚠️"));
+        assert!(p.contains("FACTUAL ABSENCE PROTOCOL (NATURAL & HUMAN CONVERSATION)"));
     }
 }

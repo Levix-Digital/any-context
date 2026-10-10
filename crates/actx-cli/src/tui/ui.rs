@@ -88,6 +88,12 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
         _ => theme.text_bright,
     };
 
+    let search_color = match app.search_mode.to_lowercase().as_str() {
+        "fast" => theme.primary,
+        "deep" => theme.magenta,
+        _ => theme.info,
+    };
+
     let (web_text, web_style) = if app.web_search_enabled {
         ("ON", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
     } else {
@@ -96,8 +102,8 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
 
     let (sync_text, sync_style) = if let Some(status) = &app.sync_status {
         if status.is_syncing {
-            let spinner_chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
-            let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
+            let spinner_chars = ["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"];
+            let spinner = spinner_chars[((app.tick_count * 2) as usize) % spinner_chars.len()];
             (
                 format!("⚡ Syncing {} {}", spinner, status.progress_bar),
                 Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
@@ -131,6 +137,8 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
         Span::styled(&app.active_model, Style::default().fg(theme.reasoning)),
         Span::styled("] ─ [Grounding: ", Style::default().fg(theme.border_unfocused)),
         Span::styled(app.grounding_mode.to_uppercase(), Style::default().fg(grounding_color).add_modifier(Modifier::BOLD)),
+        Span::styled("] ─ [Search: ", Style::default().fg(theme.border_unfocused)),
+        Span::styled(app.search_mode.to_uppercase(), Style::default().fg(search_color).add_modifier(Modifier::BOLD)),
         Span::styled("] ─ [Web: ", Style::default().fg(theme.border_unfocused)),
         Span::styled(web_text, web_style),
         Span::styled("] ─ ", Style::default().fg(theme.border_unfocused)),
@@ -428,8 +436,8 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
 
     if let Some(status) = &app.sync_status {
         if status.is_syncing {
-            let spinner_chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
-            let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
+            let spinner_chars = ["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"];
+            let spinner = spinner_chars[((app.tick_count * 2) as usize) % spinner_chars.len()];
             spans.push(Span::styled(format!("{} Syncing ", spinner), Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled(format!("{} ", status.progress_bar), Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
