@@ -1184,11 +1184,12 @@ impl CommandEngine {
             return CommandResult::success(lines.join("\n"));
         }
 
+        let ws_clean = ctx.active_workspace.replace('\'', "''");
         let where_clause = if let Some(q) = filter_query {
             let clean_q = q.replace('\'', "''");
-            format!("(content_type LIKE '%{clean_q}%' OR file_name LIKE '%{clean_q}%' OR file_path LIKE '%{clean_q}%' OR text LIKE '%{clean_q}%')")
+            format!("workspace = '{ws_clean}' AND (content_type LIKE '%{clean_q}%' OR file_name LIKE '%{clean_q}%' OR file_path LIKE '%{clean_q}%' OR text LIKE '%{clean_q}%')")
         } else {
-            "length(text) > 0".to_string()
+            format!("workspace = '{ws_clean}' AND length(text) > 0")
         };
 
         let samples = lance.search_metadata(&where_clause, limit.max(20), Some(&ctx.active_workspace), None).unwrap_or_default();

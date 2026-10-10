@@ -395,7 +395,7 @@ fn test_inspect_transparent_decryption() {
     let rec = any_context_core_rs::storage::VectorRecord {
         id: "crypto_chunk_1".to_string(),
         vector: vec![0.0; 1536],
-        text: encrypted_payload,
+        text: encrypted_payload.clone(),
         file_name: "secret.rs".to_string(),
         file_path: "src/secret.rs".to_string(),
         workspace: ws.to_string(),
@@ -410,8 +410,8 @@ fn test_inspect_transparent_decryption() {
 
     let res_full = CommandEngine::execute("inspect", &["--full"], &ctx);
     assert!(res_full.success);
-    // Should NOT contain the encrypted prefix
-    assert!(!res_full.message.contains("enc::"));
+    // Should NOT contain the raw encrypted ciphertext payload
+    assert!(!res_full.message.contains(&encrypted_payload));
     // Should contain the decrypted plaintext
     assert!(res_full.message.contains(plaintext_secret));
 

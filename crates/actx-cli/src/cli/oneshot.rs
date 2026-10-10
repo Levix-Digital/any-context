@@ -327,6 +327,35 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     println!("\x1b[32m✔ [Tool Done: {}]\x1b[0m", name);
                 }
             }
+            AgentEvent::Decomposition { sub_queries } => {
+                if in_thinking {
+                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    in_thinking = false;
+                }
+                println!("\x1b[36m🌲 [Deep Search: Decomposing Query into Sub-Queries]\x1b[0m");
+                for (i, q) in sub_queries.iter().enumerate() {
+                    println!("   \x1b[2m{}.\x1b[0m {}", i + 1, q);
+                }
+                println!();
+            }
+            AgentEvent::IterationStart { iteration, max_iterations } => {
+                if in_thinking {
+                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    in_thinking = false;
+                }
+                println!("\x1b[35m🔄 [Deep Search Iteration {}/{}]\x1b[0m \x1b[2mBatch Retrieval & Reflection...\x1b[0m", iteration, max_iterations);
+            }
+            AgentEvent::GapAnalysis { is_sufficient, missing_aspects } => {
+                if in_thinking {
+                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    in_thinking = false;
+                }
+                if is_sufficient {
+                    println!("\x1b[32m✔ [Evidence Complete]\x1b[0m \x1b[2mSynthesizing grounded answer...\x1b[0m\n");
+                } else {
+                    println!("\x1b[33m🔎 [Gap Analysis]\x1b[0m Missing aspects: {}\n", missing_aspects.join(", "));
+                }
+            }
             AgentEvent::Delta(token) => {
                 if in_thinking {
                     print!("\x1b[2m</think>\x1b[0m\n\n");
@@ -344,7 +373,6 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             AgentEvent::Error(err) => {
                 eprintln!("\n\x1b[31mError: {}\x1b[0m", err);
             }
-            _ => {}
         }
     }
 

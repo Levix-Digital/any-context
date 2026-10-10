@@ -723,6 +723,25 @@ impl App {
                     self.current_thinking_buffer.push_str(&format!("✔ [Tool Done: {}]\n", name));
                 }
             }
+            AgentEvent::Decomposition { sub_queries } => {
+                self.status = AppStatus::Thinking;
+                self.current_thinking_buffer.push_str("\n🌲 [Deep Search: Decomposing Query into Sub-Queries]:\n");
+                for (i, q) in sub_queries.iter().enumerate() {
+                    self.current_thinking_buffer.push_str(&format!("  {}. {}\n", i + 1, q));
+                }
+                self.current_thinking_buffer.push('\n');
+            }
+            AgentEvent::IterationStart { iteration, max_iterations } => {
+                self.status = AppStatus::Thinking;
+                self.current_thinking_buffer.push_str(&format!("🔄 [Deep Search Iteration {}/{}]: Batch Retrieval & Reflection...\n", iteration, max_iterations));
+            }
+            AgentEvent::GapAnalysis { is_sufficient, missing_aspects } => {
+                if is_sufficient {
+                    self.current_thinking_buffer.push_str("✔ [Evidence Sufficient]: Synthesizing grounded response with citations.\n\n");
+                } else {
+                    self.current_thinking_buffer.push_str(&format!("🔎 [Gap Analysis - Missing Aspects]: {}\n\n", missing_aspects.join(", ")));
+                }
+            }
             AgentEvent::Delta(token) => {
                 self.status = AppStatus::Streaming;
                 self.current_stream_buffer.push_str(&token);
@@ -756,7 +775,6 @@ impl App {
                 self.is_generating = false;
                 self.status = AppStatus::Error(err);
             }
-            _ => {}
         }
     }
 

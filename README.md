@@ -563,6 +563,8 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/drive`** | `--add`, `--remove <id>`, `--list`, `--sync`, `/cloud` | Gerencia e sincroniza conexões com Google Drive e OneDrive. |
 | **`/mode`** | `strict`, `hybrid`, `proactive`, `--global` | Configura o Grounding Mode da IA: **`Strict`** (100% ancorado nos docs), **`Hybrid`** (equilíbrio dual-layer) ou **`Proactive`** (pesquisa e síntese). |
 | **`/search`** | `auto`, `fast`, `deep`, `/fast`, `/deep` | Configura o Search Depth Mode (RFC-042): **`Auto`** (heurística dinâmica), **`Fast`** (baixa latência) ou **`Deep`** (recuperação exaustiva). |
+| **`/deep`** | `[query]` | Dispara busca profunda reflexiva multi-turno (RFC-042) com decomposição de sub-perguntas, análise de lacunas (*gap queries*) e síntese com citações de código. |
+| **`/fast`** | `[query]` | Força resposta rápida em turno único com recuperação padrão de baixa latência. |
 
 | **`/web-search`** | `--on`, `--off`, `--status`, `--global`, `/ws` | Toggle real-time live web search per workspace with domain portal prioritization and source discrimination. |
 | **`/link`** | `<src> [dst]`, `--list`, `--unlink <src>` | Link or unlink reusable indexed sources across workspaces with zero API cost ($0.00). |
@@ -827,6 +829,25 @@ Unlike basic web scrapers that blindly download noisy HTML or crawl randomly, An
 
 6. **Strict Workspace Privacy & Scope Isolation**:
    - Web vectors are tagged with strict workspace metadata. Queries in workspace `Legal` cannot bleed into workspace `Marketing`.
+
+---
+
+## 🧠 Motor Deep Search Agêntico Reflexivo (RFC-042)
+
+Inspirado nos conceitos arquiteturais do projeto de referência [`zilliztech/deep-searcher`](https://github.com/zilliztech/deep-searcher), o AnyContext implementa um motor de pesquisa profunda **100% nativo em Rust** (`crates/actx-agent/src/deep_search.rs`) perfeitamente integrado ao pipeline híbrido (`LanceDB` + `BM25 Okapi` + `RRF` $k=60$):
+
+1. **Decomposição Ortogonal (`SUB_QUERY_PROMPT`)**:
+   - Questões complexas ou exploratórias são automaticamente decompostas pelo LLM em até 4 sub-perguntas independentes e ortogonais, cobrindo diferentes facetas do problema.
+2. **Recuperação Híbrida em Lote Paralela (`retrieve_hybrid_batch_async`)**:
+   - As sub-perguntas são disparadas concorrentemente contra o banco vetorial LanceDB (Apache Arrow) e o índice léxico BM25 Okapi em memória, consolidando candidatos via Reciprocal Rank Fusion ($k=60$) com deduplicação criptográfica SHA-256.
+3. **Loop Reflexivo & Análise de Lacunas (`REFLECT_PROMPT`)**:
+   - A cada iteração (até um teto determinístico de 3 ciclos), o agente analisa as evidências já acumuladas em relação à pergunta original e detecta lacunas de conhecimento.
+   - Caso encontre pontos cegos, gera novas *gap queries* direcionadas para a próxima iteração.
+   - Se todas as informações necessárias já tiverem sido recuperadas, dispara *early stopping* imediatamente, poupando tokens e latência.
+4. **Síntese Final com Proveniência em Nível de Linha (`SUMMARY_PROMPT`)**:
+   - Os chunks validados são estruturados com identificação exata de arquivo e linhas (`[crates/actx-agent/src/deep_search.rs:45-80]`), instruindo o modelo a citar fontes verificáveis em cada parágrafo.
+5. **Telemetria Reativa para TUI e CLI**:
+   - Emissão contínua de eventos tipados em tempo real (`AgentEvent::Decomposition`, `AgentEvent::IterationStart`, `AgentEvent::GapAnalysis`), renderizando a árvore de reflexão visualmente no terminal.
 
 ---
 

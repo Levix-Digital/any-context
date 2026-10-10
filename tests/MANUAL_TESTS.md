@@ -5937,3 +5937,58 @@
      ```
    - **Critério de Aceitação:** O instalador nativo baixa o pacote de release, extrai os componentes no diretório de staging, valida os cabeçalhos PE/ELF e finaliza o swap atômico com sucesso (`[OK] AnyContext successfully updated`), sem qualquer falha do tipo `Binary file does not exist: actx-core.exe`.
 
+---
+
+### 📌 Cenário 23 (v0.34.0): Validação do Motor Deep Search Agêntico Reflexivo e Roteamento Adaptativo (RFC-042)
+
+- **Objetivo**: Comprovar ponta a ponta o funcionamento do Motor Deep Search reflexivo nativo em Rust (`crates/actx-agent/src/deep_search.rs`), validando decomposição ortogonal de perguntas, recuperação híbrida em lote (`LanceDB` + `BM25`), loop de reflexão com análise de lacunas (*gap queries*), *early stopping*, síntese com citações exatas de código (`[arquivo:linhas]`) e os comandos `/deep`, `/fast` e `/search`.
+- **Pré-requisito**: AnyContext compilado e atualizado para a versão `v0.34.0` ou branch de desenvolvimento `dev`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🦀 Validação da Suíte Completa de Testes Nativos de Deep Search:**
+   - Execute no terminal do repositório os testes unitários e de integração de Deep Search:
+     ```bash
+     cargo test -p actx-agent --test deep_search_tests
+     cargo test -p actx-cli --test deep_search_e2e_tests
+     ```
+   - **Critério de Aceitação:** Todos os testes passam 100% verdes (`13/13 passed` em `actx-agent`, `3/3 passed` em `actx-cli`), comprovando os parsers de listas JSON, decomposição de queries, early stopping, mitigação de loop infinito e integração com o dispatcher de comandos.
+
+2. **🔍 Validação do Roteador de Comandos Slash (`/search`, `/deep`, `/fast`):**
+   - Inicie o terminal interativo do AnyContext:
+     ```bash
+     actx
+     ```
+   - No prompt de comando, teste a configuração de profundidade de busca:
+     ```text
+     /search deep
+     ```
+   - **Critério de Aceitação:** O terminal responde confirmando a alteração da política de busca do workspace:
+     ```text
+     Search Depth Mode set to 'deep' for workspace '...'.
+     ```
+   - Teste o comando `/search fast` e `/search auto`:
+     ```text
+     /search auto
+     ```
+   - **Critério de Aceitação:** A política é atualizada e persistida no banco SQLite `settings.db`.
+
+3. **🧠 Execução de Busca Profunda com Decomposição e Reflexão (`/deep`):**
+   - No chat interativo, execute uma pergunta arquitetural complexa usando o prefixo `/deep`:
+     ```text
+     /deep Como funciona a ingestão de documentos, chunking e recuperação híbrida no AnyContext?
+     ```
+   - **Critério de Aceitação:**
+     - O sistema emite eventos em tempo real informando a decomposição da pergunta em sub-perguntas ortogonais (`AgentEvent::Decomposition`).
+     - O sistema executa a busca paralela em lote (`retrieve_hybrid_batch_async`) no LanceDB e BM25.
+     - O loop reflexivo avalia as evidências acumuladas, gerando *gap queries* ou disparando *early stopping* ao atingir cobertura suficiente.
+     - A resposta final sintetizada é exibida estruturada com títulos claros e proveniência precisa de arquivos e linhas (`[crates/.../scanner.rs:10-50]`).
+
+4. **⚡ Execução de Pergunta em Modo Rápido (`/fast`):**
+   - No chat interativo, execute uma pergunta objetiva usando o prefixo `/fast`:
+     ```text
+     /fast Qual a versão atual do AnyContext?
+     ```
+   - **Critério de Aceitação:** O sistema responde diretamente em turno único de baixa latência sem iniciar o loop reflexivo de múltiplas iterações.
+
+

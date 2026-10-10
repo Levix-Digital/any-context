@@ -267,15 +267,39 @@ pub fn build_agent_sync(
         _ => SearchMode::Auto,
     };
 
+    let execution_mode = if search_policy == SearchMode::Deep {
+        AgentExecutionMode::DeepSearch
+    } else {
+        AgentExecutionMode::ReAct
+    };
+
+    let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
+    let lance_store_for_deep = any_context_core_rs::storage::NativeLanceStore::open(&lance_path).ok().map(Arc::new);
+
+    let deep_search_retriever = lance_store_for_deep.map(|ls| {
+        ensure_global_knowledge_bootstrap(&ls);
+        Arc::new(PipelineBatchRetriever {
+            lance_store: ls,
+            lm_provider: provider.clone(),
+            workspace: workspace.to_string(),
+        }) as Arc<dyn actx_agent::DeepSearchRetriever>
+    });
+
     let mut builder = Agent::builder()
         .client(provider)
         .model(model)
         .system_prompt(system_prompt)
-        .execution_mode(AgentExecutionMode::ReAct)
+        .execution_mode(execution_mode)
         .search_mode(search_policy)
         .max_turns(10)
         .tool(Arc::new(search_tool))
         .tool(Arc::new(status_tool));
+
+    if let Some(retriever) = deep_search_retriever {
+        builder = builder
+            .deep_search_retriever(retriever)
+            .deep_search_config(actx_agent::DeepSearchConfig::default());
+    }
 
     if web_search_enabled {
         let ws_for_web = workspace.to_string();
@@ -443,4 +467,57 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
         );
     }
     let _ = bm25.save_to_file(bm25_path.to_str().unwrap_or(""));
+}
+
+/// Native Hybrid RAG batch retriever adapter for DeepSearch
+struct PipelineBatchRetriever {
+    lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
+    lm_provider: Arc<dyn LmProvider>,
+    workspace: String,
+}
+
+#[actx_agent::async_trait]
+impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
+    async fn retrieve_batch(&self, queries: &[String]) -> Result<Vec<actx_agent::RetrievedChunk>, actx_agent::AgentError> {
+        let pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
+            self.lance_store.clone(),
+            Some(self.lm_provider.clone()),
+        );
+
+        let requests: Vec<_> = queries
+            .iter()
+            .map(|q| any_context_core_rs::retrieval::HybridSearchRequest {
+                query_text: q.clone(),
+                workspace: Some(self.workspace.clone()),
+                target_workspaces: vec!["Global".to_string()],
+                top_k: 8,
+                candidate_pool_k: 40,
+                max_density_chars: 16_000,
+                min_score: 0.02,
+                table_name: "workspace_chunks".to_string(),
+                ..Default::default()
+            })
+            .collect();
+
+        match pipeline.retrieve_hybrid_batch_async(&requests).await {
+            Ok(results) => {
+                let chunks = results
+                    .into_iter()
+                    .map(|r| actx_agent::RetrievedChunk {
+                        id: r.chunk_id,
+                        file_name: r.file_name,
+                        file_path: r.file_path,
+                        header_path: None,
+                        start_line: None,
+                        end_line: None,
+                        text: r.text,
+                        score: r.score,
+                        matched_queries: r.matched_subqueries,
+                    })
+                    .collect();
+                Ok(chunks)
+            }
+            Err(e) => Err(actx_agent::AgentError::Internal(e)),
+        }
+    }
 }
