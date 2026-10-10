@@ -381,12 +381,21 @@ pub async fn build_agent(
 }
 
 /// Ensures that the 'Global' workspace in LanceDB contains AnyContext system documentation.
-/// If no chunks exist under 'Global', it automatically chunks and indexes the embedded README.md
-/// and updates the BM25 index for zero-token self-knowledge.
+/// If no chunks exist under 'Global' or if the application version was upgraded, it automatically
+/// chunks and indexes the embedded documentation and updates the BM25 index for zero-token self-knowledge.
 pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::storage::NativeLanceStore) {
+    let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+    let current_version = env!("CARGO_PKG_VERSION");
+    let stored_version = db.as_ref().and_then(|d| d.get_setting("global_knowledge_version").ok().flatten());
     let count = lance_store.count_records(Some("Global"), Some("workspace_chunks")).unwrap_or(0);
-    if count > 0 {
+
+    let is_upgrade = stored_version.as_deref() != Some(current_version);
+    if count > 0 && !is_upgrade {
         return;
+    }
+
+    if is_upgrade && count > 0 {
+        let _ = lance_store.delete_by_workspace("Global", Some("workspace_chunks"));
     }
 
     let readme = crate::prompt::EMBEDDED_README_MD;
@@ -467,6 +476,11 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
         );
     }
     let _ = bm25.save_to_file(bm25_path.to_str().unwrap_or(""));
+
+    // 3. Persist current version to settings for transparent upgrades
+    if let Some(ref d) = db {
+        let _ = d.set_setting("global_knowledge_version", current_version);
+    }
 }
 
 /// Native Hybrid RAG batch retriever adapter for DeepSearch

@@ -6622,28 +6622,77 @@ flowchart TD
    - Benchmark: 5.000 avaliações de consultas executadas em ~1.2 milissegundos (~250 nanossegundos por consulta), com 0 tokens consumidos.
 4. **Integração no `Agent::stream` e `Agent::run`**:
    - Cria o canal de eventos e dispara `AgentEvent::RoutingDecision` antes do streaming do primeiro token ou chamada de ferramenta.
-   - Conecta a ponte de eventos de forma desacoplada entre ReAct e DeepSearch.
-5. **Comando `/router` e Paridade Multi-Superfície**:
-   - Suporte aos comandos universais `/search <auto|fast|deep>` e `/router` (alias `/routing`), inspecionando política ativa, garantias de latência e limiares do classificador.
+---
+
+## 105. Estabilização e Refinamento de UX: Conclusão Direta Deep Search, Isolamento de Busca por Workspace, Spinner 8-Dot, Prompt Multilinhas, Auto-Consciência Global Persistente, Menu Document AI e Telemetria ReAct Enriquecida (`v0.34.4`)
+
+### 105.1 Contexto e Objetivos
+A versão `v0.34.4` introduz um ciclo completo de correções de bugs, polimento de ergonomia visual (TUI) e resiliência de auto-conhecimento, atendendo rigorosamente a 9 diretrizes de usabilidade:
+1. **Conclusão Direta & Paridade Linguística no Deep Search**: Eliminação de preâmbulos de reflexão ("Here is a summary of the findings...", narrações em inglês) na resposta final ao usuário, garantindo ancoragem factual estrita respondida exatamente no idioma da consulta.
+2. **Isolamento de `/search` por Workspace**: Persistência do modo de busca (`auto`, `fast`, `deep`) por workspace na tabela `workspaces` do SQLite com schema auto-migrável e separação completa de contexto.
+3. **Spinner Braille de 8 Pontos (4 Pontos de Altura) & Dobro de Rotação**: Substituição do spinner de 6 pontos (`⠋⠙⠹...`) pelo glifo braille de 8 pontos (`⣾⣽⣻⢿⡿⣟⣯⣷`) e redução do tick do event loop de 250ms para 125ms na TUI.
+4. **Instruções Seguras de `/update`**: Erradicação de corrupção do buffer do terminal raw-mode; `/update` orienta de forma segura a execução no terminal do sistema operacional via `actx --update`.
+5. **Prompt de Entrada Multilinhas com Atalhos e Cursor 2D**: Expansão dinâmica da caixa de entrada de 3 a 8 linhas com quebra automática, suporte a `Shift+Enter`, `Alt+Enter`, `Ctrl+J` e posicionamento preciso do cursor bidimensional `(x, y)`.
+6. **Badge AI Contextual e Tipografia em Cinza**: Tag do assistente exibida como `[AI - <Workspace>]` (com nome do workspace em ciano suave) e texto do prompt do usuário renderizado no mesmo cinza neutro do chat (`Color::Gray` com borda `Color::DarkGray`).
+7. **Auto-Consciência Global Persistente com Force-Sync Transparente**: O workspace `Global` é sincronizado de forma transparente em segundo plano na inicialização e sempre que a versão da aplicação for atualizada, reindexando documentação e help sem intervenção do usuário.
+8. **Submenu de Modelos Locais & Document AI em `/menu`**: Submenu interativo expondo a política determinística leve (`<1µs, 0MB RAM`), parser espacial 2D (`<5MB RAM`), e guias para download opcional de SLMs de visão (`minicpm-v`/`llava`) e classificadores neurais locais.
+9. **Telemetria Enriquecida no Accordion de ReAct & Reasoning**: Renderização colorida com hierarquia visual clara de badges para o ModelRouter, Decomposição de Subqueries, Iterações de Busca, Análise de Gaps e Execução de Ferramentas.
 
 ---
 
-### 104.4 Architecture Decision Record (ADR-111)
+### 105.2 Diagrama Arquitetural de Interação UX e Auto-Conhecimento (`v0.34.4`)
 
-#### ADR-111: Chat ModelRouter com Triagem Determinística de Consultas em Sub-1µs e Custo Zero de Tokens
-- **Status**: Aprovado & Implementado (`v0.34.3`).
-- **Contexto**: A incorporação do Deep Search (RFC-042) exigia um mecanismo confiável para alternar entre buscas rápidas ReAct e buscas profundas sem penalizar a latência de consultas simples com classificadores LLM externos.
-- **Decisão**:
-  1. Criar o módulo `crates/actx-agent/src/router.rs` com `ChatModelRouter` e `DeterministicClassifier`.
-  2. Implementar classificação heurística léxico-estrutural multivariada avaliando extensão (> 25 palavras), conjunções multi-pergunta (`? ... ?`), palavras-chave arquiteturais e termos comparativos.
-  3. Adicionar o evento tipado `AgentEvent::RoutingDecision` em `crates/actx-agent/src/events.rs` para observabilidade em tempo real.
-  4. Atualizar a TUI (`crates/actx-cli/src/tui/app.rs`) e o modo one-shot CLI (`crates/actx-cli/src/cli/oneshot.rs`) para exibir badges visuais informando intenção, confiança e motivo da decisão.
-  5. Registrar o comando `/router` em `actx-cli` e `any-context-core-rs` para inspeção da política e dos limiares em tempo de execução.
+```mermaid
+flowchart TD
+    User["Usuário (TUI / CLI)"] --> InputBox["Prompt Multilinhas Dinâmico<br/>(3..8 Linhas, Shift+Enter, Cinza Neutro)"]
+    
+    subgraph Engine["Motor Hexagonal AnyContext"]
+        InputBox --> Router["ChatModelRouter (<1µs)"]
+        Router -->|Fast RAG| FastExec["Single-Turn Fast RAG"]
+        Router -->|Deep Search| DeepExec["Iterative Deep Search Orchestrator"]
+        
+        DeepExec --> Synthesis["Prompt de Síntese Rigoroso<br/>(Sem narração, Idioma do Usuário)"]
+        
+        FastExec --> AccordionStream["Emissão Estruturada de Eventos<br/>(AgentEvent)"]
+        DeepExec --> AccordionStream
+    end
+    
+    subgraph Storage["Armazenamento & Auto-Consciência"]
+        SQLite["SQLite (settings.db)<br/>• search_mode por Workspace<br/>• global_knowledge_version"]
+        LanceDB["LanceDB & BM25<br/>• Chunks do Workspace<br/>• Chunks de Auto-Ajuda 'Global'"]
+        
+        AppStart["Inicialização da Aplicação"] --> CheckVer{"Versão != global_knowledge_version?"}
+        CheckVer -->|Sim / 1ª Vez| ForceSync["Transparent Force Sync<br/>(Reindexação em Segundo Plano)"]
+        CheckVer -->|Não| Ready["Pronto Imediatamente (<1ms)"]
+        ForceSync --> LanceDB
+        ForceSync --> SQLite
+    end
+    
+    AccordionStream --> AccordionUI["Accordion Colorido 🧠<br/>• ModelRouter (Magenta/Amarelo)<br/>• Subqueries (Ciano/Branco)<br/>• Gaps & Ferramentas (Verde/Azul)"]
+    Synthesis --> ChatView["Visualização de Chat<br/>[AI - NomeDoWorkspace] (Verde/Ciano)"]
+```
+
+---
+
+### 105.3 Architecture Decision Record (ADR-112)
+
+#### ADR-112: Estabilização de UX, Paridade Linguística Deep Search, Prompt Multilinhas e Auto-Conhecimento Transparente
+- **Status**: Aprovado & Implementado (`v0.34.4`).
+- **Contexto**: A evolução do AnyContext para suporte a Deep Search e múltiplos modos exigia refinamento fino em detalhes de interação humana (acessibilidade de teclado, fidelidade de idioma, legibilidade de telemetria) e garantia de que manuais de auto-ajuda permaneçam indexados entre versões.
+- **Decisões**:
+  1. **Sanitização de Conclusão Deep Search**: Reforçar as instruções do `SUMMARY_PROMPT` em `actx-agent/src/deep_search.rs` e adicionar `sanitize_direct_conclusion` para podar metanarrativas reflexivas.
+  2. **Persistência de `search_mode`**: Adicionar a coluna `search_mode` na tabela `workspaces` com migração automática transparente e suporte nos comandos `/search` e `/switch`.
+  3. **Event Loop TUI a 125ms & 8-Dot Spinner**: Aumentar a cadência visual de sincronização em segundo plano reduzindo a latência do loop para 125ms com glifos `⣾⣽⣻⢿⡿⣟⣯⣷`.
+  4. **Instrução de Atualização Segura**: Substituir chamada in-process de atualização por instrução segura para terminal do SO (`actx --update`), prevenindo colisões de I/O em raw-mode.
+  5. **Input Multilinhas Flexível**: Adicionar suporte a múltiplas linhas no buffer de entrada (`\n`), captura de `Shift+Enter` / `Alt+Enter` / `Ctrl+J`, cálculo dinâmico de altura (`clamp(3, 8)`) e cursor 2D `(x, y)`.
+  6. **Identidade Visual por Workspace**: Prefixar respostas com `[AI - <Workspace>]` na cor de destaque suave `Color::LightCyan` e renderizar texto digitado pelo usuário em `Color::Gray`.
+  7. **Auto-Consciência Versão-Ciente**: Armazenar `global_knowledge_version` em `app_settings` no SQLite e disparar sincronização transparente do `Global` em segundo plano quando a versão for atualizada.
+  8. **Document AI no Menu**: Incluir itens explicativos e de ação para modelos locais e visão espacial em `actx-cli/src/tui/menu.rs`.
 - **Consequências**:
-  - Latência de triagem inferior a 1 microssegundo (< 1µs) por consulta.
-  - Zero custo de tokens ($0.00) e zero dependência de conexão com nuvem para a decisão de roteamento.
-  - Experiência de usuário transparente com telemetria explicável no topo da resposta.
-  - 100% de compatibilidade retroativa com configurações manuais e testes unitários.
+  - Eliminação completa de respostas em inglês para perguntas feitas em português no Deep Search.
+  - O usuário visualiza com clareza em qual workspace a IA está atuando e o que o motor está executando nos bastidores.
+  - Nenhuma perda de auto-consciência em relação aos comandos e funcionamento do sistema após updates.
+
 
 
 

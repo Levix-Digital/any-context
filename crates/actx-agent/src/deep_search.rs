@@ -115,22 +115,20 @@ Retrieved Evidence Chunks:
 Respond EXCLUSIVELY with a valid JSON array of strings (e.g. ["query 1", "query 2"] or []):"#;
 
 pub const SUMMARY_PROMPT: &str = r#"You are an expert AI system and deep technical research assistant.
-Please provide a comprehensive, accurate, and detailed answer or report based on the original query, the sub-queries explored, and the retrieved document chunks.
+Please provide a comprehensive, accurate, and direct conclusion answering the user's query based on the retrieved document chunks.
 
-CRITICAL GROUNDING RULES:
-1. Rely strictly on the provided evidence chunks.
-2. Whenever citing information or code, provide exact source provenance with file names and line ranges if available, e.g. `[path/to/file.rs:45-60]`.
-3. If specific details are not found in the chunks, explicitly state the limitation.
+CRITICAL GROUNDING & LANGUAGE RULES:
+1. STRICT LANGUAGE MATCHING: You MUST write the final response strictly in the EXACT same language as the user's Original Query (e.g., if the user wrote in Portuguese, answer 100% in Portuguese).
+2. DIRECT CONCLUSION ONLY: Deliver ONLY the direct, grounded answer or conclusion. DO NOT include preambles, introductory filler (e.g., "Based on the evidence...", "Here is the response..."), meta-explanations of your research process, or repetition of explored sub-queries.
+3. PRECISE PROVENANCE: Rely strictly on the provided evidence chunks. Whenever citing information or code, cite exact source provenance with file names and line ranges, e.g. `[path/to/file.rs:45-60]`.
+4. If specific details are not found in the chunks, explicitly state the limitation.
 
 Original Query: {original_query}
-
-Explored Sub-Queries:
-{explored_queries}
 
 Retrieved Chunks:
 {chunks_text}
 
-Comprehensive Answer:"#;
+Conclusion:"#;
 
 // ============================================================================
 // PARSER UTILITIES (Resilient JSON / Markdown / Python extraction)
@@ -438,12 +436,10 @@ impl DeepSearchOrchestrator {
         // --------------------------------------------------------------------
         // PHASE 3: Grounded Synthesis with Provenance
         // --------------------------------------------------------------------
-        let explored_str = all_explored_queries.join("\n- ");
         let full_chunks_text = self.format_full_chunks(&all_accepted_chunks);
 
         let summary_prompt = SUMMARY_PROMPT
             .replace("{original_query}", input)
-            .replace("{explored_queries}", &format!("- {explored_str}"))
             .replace("{chunks_text}", &full_chunks_text);
 
         let mut synthesis_messages = working_history;
@@ -486,11 +482,13 @@ impl DeepSearchOrchestrator {
             }
         }
 
+        let clean_final_answer = sanitize_direct_conclusion(&final_answer);
+
         // Record to session store if enabled
         if let (Some(sid), Some(ref store)) = (session_id, &self.session_store) {
             let new_msgs = vec![
                 ChatMessage::user(input),
-                ChatMessage::assistant(&final_answer),
+                ChatMessage::assistant(&clean_final_answer),
             ];
             let _ = store.append_messages(sid, &new_msgs).await;
         }
@@ -503,7 +501,7 @@ impl DeepSearchOrchestrator {
         }
 
         Ok(AgentResponse {
-            content: final_answer,
+            content: clean_final_answer,
             total_turns: total_turns_executed,
             tool_calls_count: all_accepted_chunks.len(),
             finish_reason: final_reason.or(Some(FinishReason::Stop)),
@@ -549,4 +547,19 @@ impl DeepSearchOrchestrator {
         }
         out
     }
+}
+
+/// Sanitizes any remaining metadata or section headers, ensuring only the direct conclusion is returned.
+pub fn sanitize_direct_conclusion(s: &str) -> String {
+    let trimmed = s.trim();
+    for prefix in &[
+        "Conclusion:", "Conclusão:", "### Conclusion:", "### Conclusão:",
+        "### Conclusion", "### Conclusão", "## Conclusion:", "## Conclusão:",
+        "## Conclusion", "## Conclusão", "# Conclusion:", "# Conclusão:"
+    ] {
+        if let Some(stripped) = trimmed.strip_prefix(prefix) {
+            return stripped.trim_start().to_string();
+        }
+    }
+    trimmed.to_string()
 }

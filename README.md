@@ -45,6 +45,16 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🎨 UX Stabilization, Deep Search Direct Conclusion, Multiline Prompt & Document AI (`v0.34.4`)**:
+  - **Deep Search Direct Conclusion & Language Parity**: Deep Search synthesized outputs now provide direct, grounded conclusions without conversational preambles or narrative transitions, strictly matching the user query's language (e.g. Portuguese).
+  - **Per-Workspace Search Retrieval Depth**: Persists `/search` depth mode (`auto`, `fast`, `deep`) independently per workspace in SQLite, preventing global cross-talk and honoring workspace autonomy.
+  - **8-Dot Braille Spinner & 125ms Event Loop**: Upgraded background sync spinner to 8-dot braille (`⣾⣽⣻⢿⡿⣟⣯⣷`) and halved TUI event loop tick to 125ms for fluid, responsive visual feedback.
+  - **Dynamic Multiline Prompt Input**: Expandable prompt box (3 to 8 lines) with auto-wrap, precise 2D cursor `(x, y)` navigation, and newline insertion shortcuts (`Shift+Enter`, `Alt+Enter`, `Ctrl+J`).
+  - **Workspace Context Badge & Neutral Typography**: AI message tags now explicitly display the active workspace (`[AI - <Workspace>]`), with user text in neutral gray and dark gray borders matching the conversation viewport.
+  - **Transparent Persistent Self-Knowledge**: Automatically force-syncs and updates system help and guides in the `"Global"` workspace in LanceDB on startup and version upgrades.
+  - **Document AI & Local Models Menu**: Interactive submenu in `/menu` detailing zero-overhead deterministic classification (<1µs), 2D spatial layout heuristics (<5MB RAM), and air-gapped local SLM vision instructions (`minicpm-v`/`llava`).
+  - **Enriched ReAct Telemetry Hierarchy**: Color-coded, structured telemetry in the `<think>` accordion (`Ctrl+T`) distinguishing routing decisions, query decomposition, reflection iterations, and tool executions.
+
 - **🧠 Chat ModelRouter, Dynamic Query Complexity & Intent Routing (`v0.34.3`)**:
   - **Deterministic Zero-Token Classifier**: Evaluates user query complexity and structural intent 100% on local CPU in sub-1 microsecond (< 1µs), consuming exactly zero LLM tokens ($0.00) and avoiding external classification roundtrips.
   - **Autonomous Dynamic Triage (`/search auto`)**: Dynamically routes simple questions (*"onde fica o timeout?", "qual a versão atual?"*) to low-latency ReAct single-turn execution, while automatically escalating multi-faceted comparative queries (*"compare A com B, prós e contras e fluxo ponta a ponta"*) to Deep Search reflective multi-turn loops (RFC-042).

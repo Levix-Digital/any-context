@@ -102,7 +102,7 @@ impl App {
             .and_then(|d| d.get_workspace_grounding_mode(&workspace).ok())
             .unwrap_or_else(|| "strict".to_string());
         let search_mode = db.as_ref()
-            .and_then(|d| d.get_setting("search_mode").ok().flatten())
+            .and_then(|d| d.get_workspace_search_mode(&workspace).ok())
             .unwrap_or_else(|| "auto".to_string());
         let web_search_enabled = db.as_ref()
             .and_then(|d| d.get_workspace_web_search(&workspace).ok())
@@ -481,6 +481,11 @@ impl App {
         self.menu_state.open_keys();
     }
 
+    pub fn open_document_ai_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_document_ai();
+    }
+
     pub fn close_menu(&mut self) {
         self.menu_state.is_open = false;
     }
@@ -541,6 +546,42 @@ impl App {
                 self.menu_state.is_open = false;
             } else if item.id == "keys_action:audit" {
                 crate::commands::dispatch_slash_command("keys", &["audit"], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "doc_ai_action:vision_cloud" {
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: "ℹ [Document AI: Visão via Nuvem/VPC]\nPara habilitar inspeção visual de alta precisão via Nuvem/VPC, selecione um modelo multimodal ativo usando /model (ex: gemini-1.5-pro, claude-3-5-sonnet ou gpt-4o). O AnyContext envia diagramas, layouts e imagens diretamente ao modelo configurado.".to_string(),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.menu_state.is_open = false;
+            } else if item.id == "doc_ai_action:local_vision" {
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: "ℹ [Document AI: Modelo de Visão Local Air-Gapped]\nPara rodar visão computacional 100% local e offline:\n1. Instale ou inicie o Ollama com: `ollama run minicpm-v` (ou `ollama run llava`).\n2. O AnyContext detecta automaticamente o endpoint local para OCR denso e extração visual.\n\nNota: Para preservar a inicialização em milissegundos e instalação ultra-leve, o AnyContext não obriga download de 4GB no instalador padrão.".to_string(),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.menu_state.is_open = false;
+            } else if item.id == "doc_ai_action:local_classifier" {
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: "ℹ [Document AI: Classificador Neural Local]\nO AnyContext utiliza por padrão um classificador heurístico determinístico com latência <1µs e 0MB de RAM.\nCaso deseje acoplar um classificador neural denso local (como BGE-Small ou Mistral), execute:\n`ollama pull bge-m3` e defina `ACTX_NEURAL_CLASSIFIER=1`.".to_string(),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.menu_state.is_open = false;
+            } else if item.id.starts_with("doc_ai_info:") {
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!("ℹ [{}]\n{}", item.title, item.description),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
                 self.menu_state.is_open = false;
             } else if item.id == "sources" {
                 self.open_sources_menu();
@@ -607,6 +648,7 @@ impl App {
                     "sync" => self.open_sync_menu(),
                     "grounding" => self.open_grounding_menu(),
                     "search" => self.open_search_menu(),
+                    "document_ai" => self.open_document_ai_menu(),
                     "sources" => self.open_sources_menu(),
                     "keys" => self.open_keys_menu(),
                     _ => self.open_menu(),

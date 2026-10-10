@@ -284,7 +284,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         .and_then(|d| d.get_workspace_grounding_mode(&args.workspace).ok())
         .unwrap_or_else(|| "strict".to_string());
     let search_mode = db.as_ref()
-        .and_then(|d| d.get_setting("search_mode").ok().flatten())
+        .and_then(|d| d.get_workspace_search_mode(&args.workspace).ok())
         .unwrap_or_else(|| "auto".to_string());
     let web_search_enabled = db.as_ref()
         .and_then(|d| d.get_workspace_web_search(&args.workspace).ok())

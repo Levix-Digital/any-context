@@ -422,20 +422,20 @@ fn test_inspect_transparent_decryption() {
 fn test_update_command_syntax_and_audit_logging() {
     let ctx = ExecutionContext::default();
 
-    // 1. /update@v99.99.99 syntax recognized by router
+    // 1. /update@v99.99.99 syntax recognized by router and yields safe guidance
     let res1 = CommandEngine::execute("update@v99.99.99", &[], &ctx);
     assert!(!res1.message.contains("Unknown command"));
-    assert!(res1.message.contains("Update failed") || res1.message.contains("updated to"));
+    assert!(res1.message.contains("actx --update@v99.99.99"));
 
     // 2. /update with @v99.99.99 argument recognized
     let res2 = CommandEngine::execute("update", &["@v99.99.99"], &ctx);
     assert!(!res2.message.contains("Unknown command"));
-    assert!(res2.message.contains("Update failed") || res2.message.contains("updated to"));
+    assert!(res2.message.contains("actx --update@v99.99.99"));
 
     // 3. /update with --version=v99.99.99 argument recognized
     let res3 = CommandEngine::execute("update", &["--version=v99.99.99"], &ctx);
     assert!(!res3.message.contains("Unknown command"));
-    assert!(res3.message.contains("Update failed") || res3.message.contains("updated to"));
+    assert!(res3.message.contains("actx --update@v99.99.99"));
 
     // 4. Verify update.log contains audit traces
     let logs_dir = actx_installer::paths::get_canonical_logs_dir();

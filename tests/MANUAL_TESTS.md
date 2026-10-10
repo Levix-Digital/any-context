@@ -7,6 +7,92 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 27 (v0.34.4 Estabilização de UX, Conclusão Direta Deep Search, Busca Isolada por Workspace, Spinner 8-Dot, Prompt Multilinhas, Auto-Consciência Global, Menu Document AI e Telemetria ReAct):
+- **Objetivo**: Comprovar que na versão `v0.34.4`:
+  1. **Conclusão Direta e Paridade Linguística no Deep Search**:
+     - Perguntas feitas em português (ou outro idioma) no Deep Search retornam estritamente a conclusão direta ancorada nos fatos, no idioma do usuário, sem preâmbulos narrativos em inglês ("Here is a summary of the findings...", etc.).
+  2. **Isolamento de `/search` por Workspace**:
+     - O modo `/search` (`auto`, `fast`, `deep`) é persistido independentemente por workspace no SQLite. Alterar `/search deep` no workspace A não afeta o workspace B.
+  3. **Spinner Braille de 8 Pontos (4 Pontos de Altura) e Giro Duplo**:
+     - O spinner de sincronização na TUI utiliza o conjunto braille de 8 pontos (`["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]`) e roda a cada 125ms com sensação de alta velocidade.
+  4. **Instruções Seguras de `/update`**:
+     - O comando `/update` orienta de forma segura a execução no terminal do sistema operacional via `actx --update`, sem corromper o buffer ou prompt em raw mode.
+  5. **Prompt de Entrada Multilinhas com Atalhos e Cursor 2D**:
+     - A caixa de entrada se expande dinamicamente de 3 até 8 linhas conforme o texto cresce ou quebra.
+     - Atalhos `Shift+Enter`, `Alt+Enter` e `Ctrl+J` inserem quebra de linha `\n`.
+     - O cursor pisca exatamente no caractere correspondente em duas dimensões `(x, y)`.
+  6. **Badge AI Contextual e Tipografia em Cinza**:
+     - As respostas da IA exibem o prefixo `[AI - <Workspace>]` com o nome do workspace em `LightCyan`.
+     - O texto digitado pelo usuário e a borda do prompt utilizam tons neutros de cinza (`Color::Gray` e `Color::DarkGray`), combinando harmoniosamente com a janela de conversa.
+  7. **Auto-Consciência Global Persistente com Force-Sync Transparente**:
+     - Em segundo plano, no primeiro start e após cada atualização de versão, o help e documentação são indexados transparentemente no workspace `Global`.
+  8. **Menu Document AI e Modelos Locais**:
+     - O `/menu` possui o submenu `Document AI & Modelos Locais` detalhando a política determinística leve (<1µs, 0MB RAM), layout espacial (<5MB RAM) e instruções para download opcional de SLMs de visão e classificadores neurais locais.
+  9. **Telemetria Enriquecida no Accordion de ReAct**:
+     - Ao abrir o accordion (`Ctrl+T`), as mensagens exibem cores distintas e estruturadas para ModelRouter, Subqueries, Iterações, Análise de Gaps e Ferramentas.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.34.4`.
+
+2. **🌐 Teste de Idioma no Deep Search:**
+   - No chat interativo ou via CLI:
+     ```text
+     actx -q "qual o impacto arquitetural do ModelRouter no AnyContext?"
+     ```
+   - **Critérios de Aceitação**:
+     - A resposta final sintetizada é retornada em português fluido.
+     - Zero preâmbulos desnecessários em inglês ("Here is what was found...").
+     - A conclusão vai direto ao ponto com evidências ancoradas.
+
+3. **📂 Teste de Isolamento de `/search` por Workspace:**
+   - Alterne para um workspace de teste e altere o modo:
+     ```text
+     /switch ProjetoA
+     /search deep
+     /switch ProjetoB
+     /search fast
+     /switch ProjetoA
+     /search
+     ```
+   - **Critérios de Aceitação**:
+     - O `ProjetoA` mantém o modo `deep`.
+     - O `ProjetoB` mantém o modo `fast`.
+     - O SQLite persiste o estado independentemente por workspace.
+
+4. **⌨️ Teste do Prompt Multilinhas e Cursor 2D:**
+   - Abra a TUI com `actx`.
+   - Digite uma linha de texto e pressione `Shift+Enter` (ou `Alt+Enter` / `Ctrl+J`).
+   - Digite uma segunda e terceira linha.
+   - **Critérios de Aceitação**:
+     - A caixa de entrada se expande de 3 para 5 linhas sem sobrepor o chat.
+     - O cursor acompanha a nova linha e se movimenta corretamente com as setas do teclado.
+     - O texto é renderizado em cinza neutro e a borda em cinza escuro.
+
+5. **🏷️ Teste do Badge AI com Nome do Workspace:**
+   - Envie uma mensagem no chat (ex: `"olá"`).
+   - **Critérios de Aceitação**:
+     - A resposta do assistente inicia com `[AI - Default]` (ou nome do workspace ativo), com `Default` destacado em ciano suave.
+
+6. **👁️ Teste do Submenu Document AI & Modelos Locais:**
+   - Pressione `/` e selecione `/menu` (ou digite `/menu`).
+   - Selecione a opção `Document AI & Modelos Locais`.
+   - **Critérios de Aceitação**:
+     - O submenu abre com as opções de Classificador Determinístico, Visão Espacial 2D, e instruções para modelos locais e nuvem.
+     - Ao selecionar a opção de visão local, uma mensagem instrutiva clara é exibida no chat.
+
+7. **⚡ Teste do Spinner 8-Dot & Velocidade:**
+   - Dispare uma sincronização com `/sync --force`.
+   - **Critérios de Aceitação**:
+     - O spinner no cabeçalho e rodapé gira com 8 pontos braille (`⣾⣽⣻⢿⡿⣟⣯⣷`) e rotação visivelmente mais rápida (125ms).
+
+---
+
 ### 📌 Cenário 26 (v0.34.3 Chat ModelRouter, Classificação Dinâmica de Complexidade de Queries & Roteamento Orientado a Intenção):
 - **Objetivo**: Comprovar que na versão `v0.34.3`:
   1. **Classificação Determinística de Complexidade em Sub-1µs e Custo Zero de Tokens**:

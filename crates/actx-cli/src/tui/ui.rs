@@ -14,6 +14,16 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     // Check if thinking accordion should be displayed
     let show_accordion = app.accordion_open;
 
+    // Dynamic Input Height Calculation (clamped to 3..8 lines)
+    let input_inner_width = size.width.saturating_sub(6).max(20) as usize;
+    let mut total_input_lines: usize = 0;
+    for l in app.input_buffer.split('\n') {
+        let chars = l.chars().count();
+        let rows = if chars == 0 { 1 } else { (chars + input_inner_width - 1) / input_inner_width };
+        total_input_lines += rows.max(1);
+    }
+    let input_height = ((total_input_lines.max(1) + 2) as u16).clamp(3, 8);
+
     // Vertical Layout
     let chunks = if show_accordion {
         Layout::default()
@@ -22,7 +32,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
                 Constraint::Length(3), // Header
                 Constraint::Min(6),    // Chat viewport
                 Constraint::Length(7), // Accordion (thinking & tool logs)
-                Constraint::Length(3), // Input area
+                Constraint::Length(input_height), // Dynamic Input area
                 Constraint::Length(1), // Footer
             ])
             .split(size)
@@ -32,7 +42,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             .constraints([
                 Constraint::Length(3), // Header
                 Constraint::Min(8),    // Chat viewport
-                Constraint::Length(3), // Input area
+                Constraint::Length(input_height), // Dynamic Input area
                 Constraint::Length(1), // Footer
             ])
             .split(size)
@@ -84,7 +94,7 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
 
     let (sync_text, sync_style) = if let Some(status) = &app.sync_status {
         if status.is_syncing {
-            let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let spinner_chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
             let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
             (
                 format!("⚡ Syncing {} {}", spinner, status.progress_bar),
@@ -138,16 +148,22 @@ fn render_chat(frame: &mut Frame, area: Rect, app: &mut App) {
     let mut lines = Vec::new();
 
     for msg in &app.chat_history {
-        let (role_label, role_style) = match msg.role {
-            MessageRole::User => ("YOU", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-            MessageRole::Assistant => ("AI", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            MessageRole::System => ("AI", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-        };
-
-        lines.push(Line::from(vec![
-            Span::styled(format!("[{}] ", role_label), role_style),
-            Span::styled(format!("({}) ", msg.timestamp), Style::default().fg(Color::DarkGray)),
-        ]));
+        match msg.role {
+            MessageRole::User => {
+                lines.push(Line::from(vec![
+                    Span::styled("[YOU] ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("({}) ", msg.timestamp), Style::default().fg(Color::DarkGray)),
+                ]));
+            }
+            MessageRole::Assistant | MessageRole::System => {
+                lines.push(Line::from(vec![
+                    Span::styled("[AI - ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                    Span::styled(&app.active_workspace, Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD)),
+                    Span::styled("] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("({}) ", msg.timestamp), Style::default().fg(Color::DarkGray)),
+                ]));
+            }
+        }
 
         for line in msg.content.lines() {
             lines.push(Line::from(Span::raw(format!("  {}", line))));
@@ -158,7 +174,9 @@ fn render_chat(frame: &mut Frame, area: Rect, app: &mut App) {
     // If currently streaming assistant response
     if !app.current_stream_buffer.is_empty() {
         lines.push(Line::from(vec![
-            Span::styled("[AI] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled("[AI - ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(&app.active_workspace, Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD)),
+            Span::styled("] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
             Span::styled("(streaming...) ", Style::default().fg(Color::DarkGray)),
         ]));
         for line in app.current_stream_buffer.lines() {
@@ -215,10 +233,34 @@ fn render_accordion(frame: &mut Frame, area: Rect, app: &App) {
             .unwrap_or(fallback)
     };
 
-    let lines: Vec<Line> = content
-        .lines()
-        .map(|l| Line::from(Span::styled(l, Style::default().fg(Color::DarkGray))))
-        .collect();
+    let mut lines: Vec<Line> = Vec::new();
+    for l in content.lines() {
+        let trimmed = l.trim();
+        let styled_line = if trimmed.starts_with("🧠") || trimmed.contains("[ModelRouter: Deep Search]") {
+            Line::from(Span::styled(l, Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)))
+        } else if trimmed.starts_with("⚡") || trimmed.contains("[ModelRouter: Fast RAG]") {
+            Line::from(Span::styled(l, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+        } else if trimmed.starts_with("• Reason:") || trimmed.contains("Intent:") {
+            Line::from(Span::styled(l, Style::default().fg(Color::Gray)))
+        } else if trimmed.starts_with("🌲") || trimmed.contains("[Deep Search: Decomposing") {
+            Line::from(Span::styled(l, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)))
+        } else if trimmed.starts_with("🔄") || trimmed.contains("[Deep Search Iteration") {
+            Line::from(Span::styled(l, Style::default().fg(Color::LightYellow).add_modifier(Modifier::BOLD)))
+        } else if trimmed.starts_with("✔") || trimmed.contains("[Evidence Sufficient]") || trimmed.contains("[Tool Done") {
+            Line::from(Span::styled(l, Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)))
+        } else if trimmed.starts_with("🔎") || trimmed.contains("[Gap Analysis") {
+            Line::from(Span::styled(l, Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD)))
+        } else if trimmed.starts_with("🔧") || trimmed.contains("[Tool Call:") {
+            Line::from(Span::styled(l, Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)))
+        } else if trimmed.starts_with("❌") || trimmed.contains("[Tool Error:") {
+            Line::from(Span::styled(l, Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)))
+        } else if trimmed.starts_with("1.") || trimmed.starts_with("2.") || trimmed.starts_with("3.") || trimmed.starts_with("4.") || trimmed.starts_with("5.") {
+            Line::from(Span::styled(format!("  {}", trimmed), Style::default().fg(Color::White)))
+        } else {
+            Line::from(Span::styled(l, Style::default().fg(Color::DarkGray)))
+        };
+        lines.push(styled_line);
+    }
 
     let block = Block::default()
         .title(" 🧠 ReAct & Reasoning <think> (Ctrl+T to toggle) ")
@@ -249,14 +291,14 @@ fn render_input(frame: &mut Frame, area: Rect, app: &App) {
         ])
     } else {
         Line::from(vec![
-            Span::raw(" Prompt (Enter para enviar, / para comandos) "),
+            Span::raw(" Prompt (Enter para enviar, Shift+Enter para nova linha, / para comandos) "),
         ])
     };
 
     let border_color = if maybe_cmd.is_some() {
         Color::Cyan
     } else {
-        Color::White
+        Color::DarkGray
     };
 
     let block = Block::default()
@@ -265,49 +307,77 @@ fn render_input(frame: &mut Frame, area: Rect, app: &App) {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color));
 
-    let mut spans = vec![
-        Span::raw("> "),
-        Span::styled(&app.input_buffer, Style::default().fg(Color::White)),
-    ];
+    let raw_lines: Vec<&str> = app.input_buffer.split('\n').collect();
+    let mut input_lines: Vec<Line> = Vec::new();
 
-    // Contextual inline ghost text for expected parameters
-    if let Some(cmd) = maybe_cmd {
-        if app.cursor_idx >= app.input_buffer.len() {
-            let cmd_prefix = format!("/{}", cmd.name);
-            let raw_trimmed = app.input_buffer.trim();
-            let matches_cmd_name = raw_trimmed.eq_ignore_ascii_case(&cmd_prefix)
-                || cmd.aliases.iter().any(|a| raw_trimmed.eq_ignore_ascii_case(&format!("/{}", a)));
+    for (idx, raw_line) in raw_lines.iter().enumerate() {
+        let prefix = if idx == 0 { "> " } else { "  " };
+        let mut spans = vec![
+            Span::styled(prefix, Style::default().fg(Color::DarkGray)),
+            Span::styled(*raw_line, Style::default().fg(Color::Gray)),
+        ];
 
-            if matches_cmd_name {
-                let usage_params = cmd.usage.split_once(' ').map(|(_, p)| p).unwrap_or("");
-                if !usage_params.is_empty() {
-                    let ghost = if app.input_buffer.ends_with(' ') {
-                        usage_params.to_string()
-                    } else {
-                        format!(" {}", usage_params)
-                    };
-                    spans.push(Span::styled(
-                        ghost,
-                        Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
-                    ));
+        // Contextual inline ghost text on the last line for expected parameters
+        if idx == raw_lines.len().saturating_sub(1) {
+            if let Some(cmd) = maybe_cmd {
+                if app.cursor_idx >= app.input_buffer.len() {
+                    let cmd_prefix = format!("/{}", cmd.name);
+                    let raw_trimmed = app.input_buffer.trim();
+                    let matches_cmd_name = raw_trimmed.eq_ignore_ascii_case(&cmd_prefix)
+                        || cmd.aliases.iter().any(|a| raw_trimmed.eq_ignore_ascii_case(&format!("/{}", a)));
+
+                    if matches_cmd_name {
+                        let usage_params = cmd.usage.split_once(' ').map(|(_, p)| p).unwrap_or("");
+                        if !usage_params.is_empty() {
+                            let ghost = if app.input_buffer.ends_with(' ') {
+                                usage_params.to_string()
+                            } else {
+                                format!(" {}", usage_params)
+                            };
+                            spans.push(Span::styled(
+                                ghost,
+                                Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+                            ));
+                        }
+                    }
                 }
             }
         }
+        input_lines.push(Line::from(spans));
     }
 
-    let line = Line::from(spans);
-    let para = Paragraph::new(line).block(block);
+    let para = Paragraph::new(input_lines)
+        .block(block)
+        .wrap(Wrap { trim: false });
     frame.render_widget(para, area);
 
-    // Set cursor position inside the input block using visual char count
-    let visual_cursor_offset = if app.cursor_idx <= app.input_buffer.len() {
-        app.input_buffer[..app.cursor_idx].chars().count()
-    } else {
-        app.input_buffer.chars().count()
-    };
-    let cursor_x = area.x + 3 + visual_cursor_offset as u16;
-    let cursor_y = area.y + 1;
-    if cursor_x < area.x + area.width - 1 {
+    // 2D Cursor placement calculation with newline & width-wrap awareness
+    let inner_width = area.width.saturating_sub(4).max(10) as usize;
+    let mut cursor_row: u16 = 0;
+    let mut cursor_col: u16 = 0;
+    let mut char_count_so_far = 0;
+
+    let split_lines: Vec<&str> = app.input_buffer.split('\n').collect();
+    for (line_idx, line_str) in split_lines.iter().enumerate() {
+        let line_len = line_str.chars().count();
+        let is_last = line_idx == split_lines.len().saturating_sub(1);
+        if app.cursor_idx <= char_count_so_far + line_len || is_last {
+            let line_cursor_pos = app.cursor_idx.saturating_sub(char_count_so_far).min(line_len);
+            let wrapped_row = line_cursor_pos / inner_width;
+            let wrapped_col = line_cursor_pos % inner_width;
+            cursor_row += wrapped_row as u16;
+            cursor_col = wrapped_col as u16;
+            break;
+        } else {
+            let wrapped_rows = if line_len == 0 { 1 } else { (line_len + inner_width - 1) / inner_width };
+            cursor_row += wrapped_rows.max(1) as u16;
+            char_count_so_far += line_len + 1; // account for '\n'
+        }
+    }
+
+    let cursor_x = area.x + 3 + cursor_col;
+    let cursor_y = area.y + 1 + cursor_row;
+    if cursor_y < area.y + area.height - 1 && cursor_x < area.x + area.width - 1 {
         frame.set_cursor_position((cursor_x, cursor_y));
     }
 }
@@ -357,7 +427,7 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
 
     if let Some(status) = &app.sync_status {
         if status.is_syncing {
-            let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let spinner_chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
             let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
             spans.push(Span::styled(format!("{} Syncing ", spinner), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled(format!("{} ", status.progress_bar), Style::default().fg(Color::LightYellow).add_modifier(Modifier::BOLD)));

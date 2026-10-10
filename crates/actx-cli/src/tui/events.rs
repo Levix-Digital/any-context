@@ -75,6 +75,8 @@ pub fn handle_key_event(
         KeyCode::Enter => {
             if app.slash_palette_open && app.palette_navigated {
                 app.complete_selected_slash(true);
+            } else if key.modifiers.contains(KeyModifiers::SHIFT) || key.modifiers.contains(KeyModifiers::ALT) {
+                app.insert_char('\n');
             } else {
                 app.submit_input(agent_tx.clone());
             }
@@ -131,7 +133,13 @@ pub fn handle_key_event(
             app.delete_forward();
         }
         KeyCode::Char(c) => {
-            app.insert_char(c);
+            if c == 'j' && key.modifiers.contains(KeyModifiers::CONTROL) {
+                app.insert_char('\n');
+            } else if c == '\n' || c == '\r' {
+                app.insert_char('\n');
+            } else {
+                app.insert_char(c);
+            }
         }
         _ => {}
     }

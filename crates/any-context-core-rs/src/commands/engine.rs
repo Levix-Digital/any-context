@@ -232,7 +232,8 @@ impl CommandEngine {
         if let Some(arg) = search_arg {
             if arg == "--status" || arg == "--info" || arg == "-s" {
                 let curr = db
-                    .and_then(|d| d.get_setting("search_mode").ok().flatten())
+                    .as_ref()
+                    .and_then(|d| d.get_workspace_search_mode(&ctx.active_workspace).ok())
                     .unwrap_or_else(|| ctx.search_mode.clone());
                 return CommandResult::success(format!(
                     "🔍 Active Search Retrieval Depth for '{}': **{}**\n\n\
@@ -249,7 +250,7 @@ impl CommandEngine {
             if let Some(parsed) = SearchDepthMode::parse(arg) {
                 let valid_str = parsed.as_str();
                 if let Some(d) = &db {
-                    let _ = d.set_setting("search_mode", valid_str);
+                    let _ = d.set_workspace_search_mode(&ctx.active_workspace, valid_str);
                 }
                 let mut updates = CommandStateUpdates::default();
                 updates.search_mode = Some(valid_str.to_string());
@@ -292,7 +293,7 @@ impl CommandEngine {
         let db = NativeConfigDb::open_default().ok();
         let curr = db
             .as_ref()
-            .and_then(|d| d.get_setting("search_mode").ok().flatten())
+            .and_then(|d| d.get_workspace_search_mode(&ctx.active_workspace).ok())
             .unwrap_or_else(|| "auto".to_string());
 
         CommandResult::success(format!(
@@ -451,6 +452,9 @@ impl CommandEngine {
             }
             if let Ok(web) = db.get_workspace_web_search(&target_ws) {
                 updates.web_search_enabled = Some(web);
+            }
+            if let Ok(search) = db.get_workspace_search_mode(&target_ws) {
+                updates.search_mode = Some(search);
             }
 
             CommandResult::success(format!("Switched active workspace to: **{}**", target_ws))
@@ -1527,7 +1531,6 @@ impl CommandEngine {
     }
 
     fn execute_update(args: &[&str]) -> CommandResult {
-        let canonical_bin = actx_installer::get_canonical_bin_dir();
         let target_ver = args.iter().find_map(|a| {
             let clean = a.trim();
             if clean.is_empty() || clean == "--check" || clean == "-c" {
@@ -1542,30 +1545,29 @@ impl CommandEngine {
                 Some(clean.trim_start_matches('@'))
             }
         });
+
+        let target_hint = if let Some(v) = target_ver {
+            format!("@{}", v)
+        } else {
+            String::new()
+        };
+
         actx_installer::log_update_event(
             "INFO",
-            &format!(
-                "CommandEngine /update invoked: target_ver={:?}, canonical_bin={}",
-                target_ver,
-                canonical_bin.display()
-            ),
+            &format!("CommandEngine /update guidance issued for target: '{}'", target_hint),
         );
-        match actx_installer::execute_standalone_update(&canonical_bin, target_ver) {
-            Ok(msg) => {
-                actx_installer::log_update_event("SUCCESS", &format!("CommandEngine update succeeded: {}", msg));
-                CommandResult::success(format!(
-                    "✨ {}\n\n[>] Please exit and restart 'actx' to load the new version.",
-                    msg
-                ))
-            }
-            Err(e) => {
-                actx_installer::log_update_event("ERROR", &format!("CommandEngine update failed: {}", e));
-                CommandResult::error(format!(
-                    "❌ Update failed: {}\nRun 'actx --update' directly in the terminal to inspect network or permission details.",
-                    e
-                ))
-            }
-        }
+
+        CommandResult::success(format!(
+            "💡 **Atualização Segura do AnyContext**:\n\n\
+             Para atualizar o executável com total segurança, sem travas de arquivo ou corrupção do terminal:\n\
+             1. Encerre o chat atual (pressione `Esc` ou digite `/quit`)\n\
+             2. No terminal do seu sistema operacional, execute:\n\
+                ```\n\
+                actx --update{}\n\
+                ```\n\n\
+             Esse processo realiza o download do release oficial, verifica a integridade e aplica a substituição atômica de binários.",
+            target_hint
+        ))
     }
 
     fn execute_help() -> CommandResult {

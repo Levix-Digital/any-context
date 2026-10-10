@@ -127,6 +127,7 @@ impl NativeConfigDb {
                 name TEXT UNIQUE NOT NULL,
                 description TEXT,
                 grounding_mode TEXT NOT NULL DEFAULT 'strict',
+                search_mode TEXT NOT NULL DEFAULT 'auto',
                 model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
                 web_search_enabled INTEGER NOT NULL DEFAULT 0,
                 paths_json TEXT DEFAULT '[]',
@@ -230,6 +231,9 @@ impl NativeConfigDb {
         }
         if !Self::check_column(&conn, "workspaces", "grounding_mode") {
             let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN grounding_mode TEXT NOT NULL DEFAULT 'strict'", []);
+        }
+        if !Self::check_column(&conn, "workspaces", "search_mode") {
+            let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN search_mode TEXT NOT NULL DEFAULT 'auto'", []);
         }
         if !Self::check_column(&conn, "workspaces", "model") {
             let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN model TEXT NOT NULL DEFAULT 'gpt-4o-mini'", []);
@@ -986,6 +990,45 @@ impl NativeConfigDb {
         if Self::check_column(&conn, "workspaces", "grounding_mode") {
             let _ = conn.execute(
                 "UPDATE workspaces SET grounding_mode = ?1 WHERE name = ?2 COLLATE NOCASE",
+                params![valid_mode, workspace_name],
+            );
+        }
+        Ok(())
+    }
+
+    pub fn get_workspace_search_mode(&self, workspace_name: &str) -> Result<String> {
+        let conn = self.conn.lock().unwrap();
+        if Self::check_column(&conn, "workspaces", "search_mode") {
+            let ws_mode: Option<String> = conn
+                .query_row(
+                    "SELECT search_mode FROM workspaces WHERE name = ?1 COLLATE NOCASE",
+                    params![workspace_name],
+                    |r| r.get(0),
+                )
+                .ok()
+                .flatten();
+            if let Some(m) = ws_mode {
+                let trimmed = m.trim().to_lowercase();
+                if trimmed == "auto" || trimmed == "fast" || trimmed == "deep" {
+                    return Ok(trimmed);
+                }
+            }
+        }
+        // Auto default for new or unspecified workspaces
+        Ok("auto".to_string())
+    }
+
+    pub fn set_workspace_search_mode(&self, workspace_name: &str, mode: &str) -> Result<()> {
+        let clean = mode.trim().to_lowercase();
+        let valid_mode = match clean.as_str() {
+            "fast" => "fast",
+            "deep" => "deep",
+            _ => "auto",
+        };
+        let conn = self.conn.lock().unwrap();
+        if Self::check_column(&conn, "workspaces", "search_mode") {
+            let _ = conn.execute(
+                "UPDATE workspaces SET search_mode = ?1 WHERE name = ?2 COLLATE NOCASE",
                 params![valid_mode, workspace_name],
             );
         }

@@ -82,6 +82,10 @@ impl MenuState {
                 self.breadcrumbs = vec!["Menu Principal".to_string(), "Credenciais de API".to_string()];
                 self.items = build_keys_menu();
             }
+            "document_ai" => {
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI & Modelos Locais".to_string()];
+                self.items = build_document_ai_menu();
+            }
             _ => {
                 self.breadcrumbs = vec!["Menu Principal".to_string()];
                 self.items = build_main_menu(active_workspace, active_model);
@@ -150,6 +154,15 @@ impl MenuState {
         self.selected_idx = 0;
         self.breadcrumbs = vec!["Menu Principal".to_string(), "Credenciais de API".to_string()];
         self.items = build_keys_menu();
+    }
+
+    pub fn open_document_ai(&mut self) {
+        self.is_open = true;
+        self.current_menu_id = "document_ai".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI & Modelos Locais".to_string()];
+        self.items = build_document_ai_menu();
     }
 
     pub fn back(&mut self, active_workspace: &str, active_model: &str) -> bool {
@@ -236,6 +249,24 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
             icon: "🛡️".to_string(),
             badge: None,
             shortcut: Some("/mode".to_string()),
+            is_submenu: true,
+        },
+        MenuItem {
+            id: "search".to_string(),
+            title: "Profundidade de Busca (/search)".to_string(),
+            description: "Configurar modo de busca do workspace: Auto, Fast ou Deep".to_string(),
+            icon: "🎯".to_string(),
+            badge: None,
+            shortcut: Some("/search".to_string()),
+            is_submenu: true,
+        },
+        MenuItem {
+            id: "document_ai".to_string(),
+            title: "Document AI & Modelos Locais".to_string(),
+            description: "Classificação local <1µs, layout 2D spatial e download de modelos de visão".to_string(),
+            icon: "👁️".to_string(),
+            badge: Some("[Zero-Overhead]".to_string()),
+            shortcut: None,
             is_submenu: true,
         },
         MenuItem {
@@ -571,6 +602,65 @@ pub fn build_keys_menu() -> Vec<MenuItem> {
     ]
 }
 
+pub fn build_document_ai_menu() -> Vec<MenuItem> {
+    vec![
+        MenuItem {
+            id: "doc_ai_info:classifier".to_string(),
+            title: "Classificador de Consultas: Determinístico (<1µs / 0MB RAM)".to_string(),
+            description: "Roteia automaticamente entre Fast RAG e Deep Search sem cold start ou GPU".to_string(),
+            icon: "⚡".to_string(),
+            badge: Some("[Ativo / Padrão]".to_string()),
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "doc_ai_info:vision_spatial".to_string(),
+            title: "Layout & Visão Espacial: Heurística 2D (<5MB RAM)".to_string(),
+            description: "Parser nativo de PDFs, tabelas e bounding boxes geométricos sem dependência externa".to_string(),
+            icon: "📐".to_string(),
+            badge: Some("[Ativo / Padrão]".to_string()),
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "doc_ai_action:vision_cloud".to_string(),
+            title: "Visão via LLM Multimodal (Nuvem / Provedor Ativo)".to_string(),
+            description: "Usa Gemini Flash, Claude Sonnet ou GPT-4o configurados para inspeção de imagens".to_string(),
+            icon: "☁️".to_string(),
+            badge: Some("[Recomendado]".to_string()),
+            shortcut: Some("/model".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "doc_ai_action:local_vision".to_string(),
+            title: "Baixar / Ativar Visão Local SLM (Ollama minicpm-v / llava)".to_string(),
+            description: "Instruções para executar modelo local de visão para ambientes 100% air-gapped".to_string(),
+            icon: "📥".to_string(),
+            badge: Some("[Local Air-Gapped]".to_string()),
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "doc_ai_action:local_classifier".to_string(),
+            title: "Baixar / Acoplar Classificador Neural Local (BGE-Small / Mistral)".to_string(),
+            description: "Substitui o classificador heurístico por SLM neural local dedicado (~130MB a 1.2GB)".to_string(),
+            icon: "📥".to_string(),
+            badge: Some("[Opcional]".to_string()),
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "doc_ai_info:policy".to_string(),
+            title: "Política de Instalação: Leve e Instantânea por Padrão".to_string(),
+            description: "AnyContext não obriga download de 4GB no instalador para manter startup em milissegundos".to_string(),
+            icon: "🛡️".to_string(),
+            badge: Some("[Arquitetura]".to_string()),
+            shortcut: None,
+            is_submenu: false,
+        },
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -616,6 +706,8 @@ mod tests {
         assert!(main.iter().any(|i| i.id == "workspaces" && i.is_submenu));
         assert!(main.iter().any(|i| i.id == "sync" && i.is_submenu));
         assert!(main.iter().any(|i| i.id == "models" && i.is_submenu));
+        assert!(main.iter().any(|i| i.id == "search" && i.is_submenu));
+        assert!(main.iter().any(|i| i.id == "document_ai" && i.is_submenu));
         assert!(main.iter().any(|i| i.id == "exit"));
 
         let models = build_models_menu("mock");
@@ -639,6 +731,11 @@ mod tests {
         assert!(search.iter().any(|i| i.id == "search_action:auto"));
         assert!(search.iter().any(|i| i.id == "search_action:fast"));
         assert!(search.iter().any(|i| i.id == "search_action:deep"));
+
+        let doc_ai = build_document_ai_menu();
+        assert_eq!(doc_ai.len(), 6);
+        assert!(doc_ai.iter().any(|i| i.id == "doc_ai_info:classifier"));
+        assert!(doc_ai.iter().any(|i| i.id == "doc_ai_action:local_vision"));
 
         let sources = build_sources_menu("Default");
         assert_eq!(sources.len(), 3);
