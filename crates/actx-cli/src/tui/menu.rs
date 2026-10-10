@@ -84,7 +84,27 @@ impl MenuState {
             }
             "document_ai" => {
                 self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI & Modelos Locais".to_string()];
-                self.items = build_document_ai_menu();
+                self.items = build_document_ai_menu(None);
+            }
+            "doc_ai:ingestion" => {
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Classificação de Ingestão".to_string()];
+                self.items = build_doc_ai_ingestion_menu();
+            }
+            "doc_ai:scans" => {
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Sentinela de Scans".to_string()];
+                self.items = build_doc_ai_scans_menu();
+            }
+            "doc_ai:queries" => {
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Roteamento de Perguntas".to_string()];
+                self.items = build_doc_ai_queries_menu();
+            }
+            "doc_ai:vision" => {
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Visão de Documentos".to_string()];
+                self.items = build_doc_ai_vision_menu();
+            }
+            "doc_ai:store_status" => {
+                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Resumo de Armazenamento".to_string()];
+                self.items = build_doc_ai_store_menu();
             }
             _ => {
                 self.breadcrumbs = vec!["Menu Principal".to_string()];
@@ -156,13 +176,13 @@ impl MenuState {
         self.items = build_keys_menu();
     }
 
-    pub fn open_document_ai(&mut self) {
+    pub fn open_document_ai(&mut self, active_download_name: Option<&str>) {
         self.is_open = true;
         self.current_menu_id = "document_ai".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
         self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI & Modelos Locais".to_string()];
-        self.items = build_document_ai_menu();
+        self.items = build_document_ai_menu(active_download_name);
     }
 
     pub fn back(&mut self, active_workspace: &str, active_model: &str) -> bool {
@@ -170,11 +190,46 @@ impl MenuState {
             self.current_menu_id = prev_menu.clone();
             self.selected_idx = prev_idx;
 
-            if prev_menu == "main" {
-                self.breadcrumbs = vec!["Menu Principal".to_string()];
-                self.items = build_main_menu(active_workspace, active_model);
-            } else {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), prev_menu.clone()];
+            match prev_menu.as_str() {
+                "main" => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string()];
+                    self.items = build_main_menu(active_workspace, active_model);
+                }
+                "document_ai" => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI & Modelos Locais".to_string()];
+                    self.items = build_document_ai_menu(None);
+                }
+                "workspaces" => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Workspaces".to_string()];
+                    self.items = build_workspaces_menu(active_workspace);
+                }
+                "models" => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Modelos de IA".to_string()];
+                    self.items = build_models_menu(active_model);
+                }
+                "sync" => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Sincronização".to_string()];
+                    self.items = build_sync_menu();
+                }
+                "grounding" => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Grounding Strategy".to_string()];
+                    self.items = build_grounding_menu();
+                }
+                "search" => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Profundidade de Busca".to_string()];
+                    self.items = build_search_menu();
+                }
+                "sources" => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Fontes & Documentos".to_string()];
+                    self.items = build_sources_menu(active_workspace);
+                }
+                "keys" => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Credenciais de API".to_string()];
+                    self.items = build_keys_menu();
+                }
+                _ => {
+                    self.breadcrumbs = vec!["Menu Principal".to_string(), prev_menu];
+                }
             }
             true
         } else {
@@ -602,49 +657,94 @@ pub fn build_keys_menu() -> Vec<MenuItem> {
     ]
 }
 
-pub fn build_document_ai_menu() -> Vec<MenuItem> {
+pub fn build_document_ai_menu(active_download_name: Option<&str>) -> Vec<MenuItem> {
     let mut items = Vec::new();
 
-    // 1. Built-in instant engines
+    if let Some(name) = active_download_name {
+        items.push(MenuItem {
+            id: "model_action:cancel_active".to_string(),
+            title: format!("🛑 Cancelar Download de {}", name),
+            description: "Interrompe imediatamente o download e remove arquivos temporários do disco".to_string(),
+            icon: "🛑".to_string(),
+            badge: Some("[Em Progresso]".to_string()),
+            shortcut: Some("Esc".to_string()),
+            is_submenu: false,
+        });
+    }
+
     items.push(MenuItem {
-        id: "doc_ai_info:classifier".to_string(),
-        title: "Classificador de Consultas: Determinístico (<1µs / 0MB RAM)".to_string(),
-        description: "Roteia automaticamente entre Fast RAG e Deep Search sem cold start ou GPU".to_string(),
+        id: "doc_ai:ingestion".to_string(),
+        title: "📂 1. Classificação de Documentos (Ingestão)".to_string(),
+        description: "Tipologia e categorização estrutural de arquivos (faturas, relatórios, código) na indexação".to_string(),
+        icon: "📂".to_string(),
+        badge: Some("[Modular]".to_string()),
+        shortcut: None,
+        is_submenu: true,
+    });
+
+    items.push(MenuItem {
+        id: "doc_ai:scans".to_string(),
+        title: "👁️ 2. Sentinela de Scans & PDFs Rasterizados".to_string(),
+        description: "Detecta visualmente se uma página é foto/escaneamento antes de extrair texto ou layout".to_string(),
+        icon: "👁️".to_string(),
+        badge: Some("[Modular]".to_string()),
+        shortcut: None,
+        is_submenu: true,
+    });
+
+    items.push(MenuItem {
+        id: "doc_ai:queries".to_string(),
+        title: "🔍 3. Roteamento de Perguntas (Fast vs Deep)".to_string(),
+        description: "Classifica complexidade da consulta para busca direta (<100ms) ou raciocínio multi-etapa".to_string(),
+        icon: "🔍".to_string(),
+        badge: Some("[Modular]".to_string()),
+        shortcut: None,
+        is_submenu: true,
+    });
+
+    items.push(MenuItem {
+        id: "doc_ai:vision".to_string(),
+        title: "🖼️ 4. Visão de Documentos (OCR Visual Air-Gapped)".to_string(),
+        description: "Inspeção visual de gráficos, tabelas e diagramas (Nuvem Multimodal vs SLMs Locais)".to_string(),
+        icon: "🖼️".to_string(),
+        badge: Some("[Modular]".to_string()),
+        shortcut: None,
+        is_submenu: true,
+    });
+
+    items.push(MenuItem {
+        id: "doc_ai:store_status".to_string(),
+        title: "🛡️ 5. Resumo de Armazenamento & Fallbacks".to_string(),
+        description: "Relatório de modelos em disco, pasta local e garantias de zero quebra (ADR-110)".to_string(),
+        icon: "🛡️".to_string(),
+        badge: Some("[Arquitetura]".to_string()),
+        shortcut: None,
+        is_submenu: true,
+    });
+
+    items
+}
+
+pub fn build_doc_ai_ingestion_menu() -> Vec<MenuItem> {
+    let mut items = Vec::new();
+
+    items.push(MenuItem {
+        id: "doc_ai_info:heuristic_ingestion".to_string(),
+        title: "Heurística Estrutural Rust (<1µs / 0MB RAM)".to_string(),
+        description: "Padrão ativo de altíssima velocidade. Zero download e latência sub-microsegundo.".to_string(),
         icon: "⚡".to_string(),
         badge: Some("[Ativo / Padrão]".to_string()),
         shortcut: None,
         is_submenu: false,
     });
 
-    items.push(MenuItem {
-        id: "doc_ai_info:vision_spatial".to_string(),
-        title: "Layout & Visão Espacial: Heurística 2D (<5MB RAM)".to_string(),
-        description: "Parser nativo de PDFs, tabelas e bounding boxes geométricos sem dependência externa".to_string(),
-        icon: "📐".to_string(),
-        badge: Some("[Ativo / Padrão]".to_string()),
-        shortcut: None,
-        is_submenu: false,
-    });
-
-    items.push(MenuItem {
-        id: "doc_ai_action:vision_cloud".to_string(),
-        title: "Visão via Provedor Multimodal (Nuvem / Provedor Ativo)".to_string(),
-        description: "Usa Gemini Flash, Claude Sonnet ou GPT-4o configurados para inspeção de imagens".to_string(),
-        icon: "☁️".to_string(),
-        badge: Some("[Recomendado]".to_string()),
-        shortcut: Some("/model".to_string()),
-        is_submenu: false,
-    });
-
-    // 2. Real ONNX Models from Catalog
-    for spec in any_context_core_rs::ingestion::OnnxModelManager::catalog() {
+    if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec("laya-int8") {
         let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
         let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
-
         let (id, title, badge, icon) = if is_installed {
             (
                 format!("model_action:toggle:{}", spec.id),
-                format!("{}", spec.name),
+                spec.name.to_string(),
                 Some("[Instalado / Ativo]".to_string()),
                 "✔".to_string(),
             )
@@ -656,7 +756,6 @@ pub fn build_document_ai_menu() -> Vec<MenuItem> {
                 "📥".to_string(),
             )
         };
-
         items.push(MenuItem {
             id,
             title,
@@ -668,18 +767,179 @@ pub fn build_document_ai_menu() -> Vec<MenuItem> {
         });
     }
 
-    // 3. Fallback resilience guarantee
+    items
+}
+
+pub fn build_doc_ai_scans_menu() -> Vec<MenuItem> {
+    let mut items = Vec::new();
+
     items.push(MenuItem {
-        id: "doc_ai_info:resilience".to_string(),
-        title: "Resiliência de Fallbacks & Zero Quebra (ADR-110)".to_string(),
-        description: "Tolerância total a modelos ausentes: o sistema nunca falha e recai nas heurísticas nativas.".to_string(),
-        icon: "🛡️".to_string(),
-        badge: Some("[Arquitetura]".to_string()),
+        id: "doc_ai_info:heuristic_spatial".to_string(),
+        title: "Heurística 2D Espacial Rust (<5MB RAM)".to_string(),
+        description: "Parser nativo de bounding boxes e layout geométrico sem dependências externas.".to_string(),
+        icon: "📐".to_string(),
+        badge: Some("[Ativo / Padrão]".to_string()),
         shortcut: None,
         is_submenu: false,
     });
 
+    if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec("mobilenetv4-rvl-cdip") {
+        let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
+        let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
+        let (id, title, badge, icon) = if is_installed {
+            (
+                format!("model_action:toggle:{}", spec.id),
+                spec.name.to_string(),
+                Some("[Instalado / Ativo]".to_string()),
+                "✔".to_string(),
+            )
+        } else {
+            (
+                format!("model_action:download:{}", spec.id),
+                format!("Baixar / Acoplar {}", spec.name),
+                Some(format!("[Download (~{:.0} MB)]", mb)),
+                "📥".to_string(),
+            )
+        };
+        items.push(MenuItem {
+            id,
+            title,
+            description: format!("{} | Fallback: {}", spec.description, spec.fallback_description),
+            icon,
+            badge,
+            shortcut: None,
+            is_submenu: false,
+        });
+    }
+
     items
+}
+
+pub fn build_doc_ai_queries_menu() -> Vec<MenuItem> {
+    let mut items = Vec::new();
+
+    items.push(MenuItem {
+        id: "doc_ai_info:deterministic_router".to_string(),
+        title: "Classificador Determinístico RFC-042 (<1µs / 0MB RAM)".to_string(),
+        description: "Roteia consultas entre Fast RAG e Deep Search sem cold start ou consumo de memória.".to_string(),
+        icon: "⚡".to_string(),
+        badge: Some("[Ativo / Padrão]".to_string()),
+        shortcut: None,
+        is_submenu: false,
+    });
+
+    if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec("bge-small-onnx") {
+        let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
+        let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
+        let (id, title, badge, icon) = if is_installed {
+            (
+                format!("model_action:toggle:{}", spec.id),
+                spec.name.to_string(),
+                Some("[Instalado / Ativo]".to_string()),
+                "✔".to_string(),
+            )
+        } else {
+            (
+                format!("model_action:download:{}", spec.id),
+                format!("Baixar / Acoplar {}", spec.name),
+                Some(format!("[Download (~{:.0} MB)]", mb)),
+                "📥".to_string(),
+            )
+        };
+        items.push(MenuItem {
+            id,
+            title,
+            description: format!("{} | Fallback: {}", spec.description, spec.fallback_description),
+            icon,
+            badge,
+            shortcut: None,
+            is_submenu: false,
+        });
+    }
+
+    items
+}
+
+pub fn build_doc_ai_vision_menu() -> Vec<MenuItem> {
+    let mut items = Vec::new();
+
+    items.push(MenuItem {
+        id: "doc_ai_action:vision_cloud".to_string(),
+        title: "Visão via Provedor Multimodal (Nuvem / Provedor Ativo)".to_string(),
+        description: "Usa o modelo configurado (Gemini Flash, Claude Sonnet ou GPT-4o) para inspeção de imagens sem downloads.".to_string(),
+        icon: "☁️".to_string(),
+        badge: Some("[Nuvem Ativa]".to_string()),
+        shortcut: Some("/model".to_string()),
+        is_submenu: false,
+    });
+
+    for model_id in &["smolvlm-500m", "moondream2-int4"] {
+        if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
+            let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
+            let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
+            let (id, title, badge, icon) = if is_installed {
+                (
+                    format!("model_action:toggle:{}", spec.id),
+                    spec.name.to_string(),
+                    Some("[Instalado / Ativo]".to_string()),
+                    "✔".to_string(),
+                )
+            } else {
+                (
+                    format!("model_action:download:{}", spec.id),
+                    format!("Baixar / Acoplar {}", spec.name),
+                    Some(format!("[Download (~{:.0} MB)]", mb)),
+                    "📥".to_string(),
+                )
+            };
+            items.push(MenuItem {
+                id,
+                title,
+                description: format!("{} | Fallback: {}", spec.description, spec.fallback_description),
+                icon,
+                badge,
+                shortcut: None,
+                is_submenu: false,
+            });
+        }
+    }
+
+    items
+}
+
+pub fn build_doc_ai_store_menu() -> Vec<MenuItem> {
+    let summary = any_context_core_rs::ingestion::OnnxModelManager::inspect_store();
+    let total_mb = summary.total_bytes_on_disk as f64 / (1024.0 * 1024.0);
+
+    vec![
+        MenuItem {
+            id: "store_info:summary".to_string(),
+            title: format!("Modelos em Disco: {} de {} instalados ({:.1} MB)", summary.installed_count, summary.total_count, total_mb),
+            description: format!("Diretório local: {}", summary.models_dir.display()),
+            icon: "📊".to_string(),
+            badge: Some(format!("[{:.1} MB]", total_mb)),
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "store_info:dir".to_string(),
+            title: "Diretório de Armazenamento Local".to_string(),
+            description: format!("{}", summary.models_dir.display()),
+            icon: "📁".to_string(),
+            badge: None,
+            shortcut: None,
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "store_info:resilience".to_string(),
+            title: "Resiliência & Zero Quebra (ADR-110)".to_string(),
+            description: "O AnyContext nunca quebra por modelos ausentes. Heurísticas Rust assumem 100% da carga.".to_string(),
+            icon: "🛡️".to_string(),
+            badge: Some("[Garantia]".to_string()),
+            shortcut: None,
+            is_submenu: false,
+        },
+    ]
 }
 
 #[cfg(test)]
@@ -753,10 +1013,24 @@ mod tests {
         assert!(search.iter().any(|i| i.id == "search_action:fast"));
         assert!(search.iter().any(|i| i.id == "search_action:deep"));
 
-        let doc_ai = build_document_ai_menu();
-        assert!(doc_ai.len() >= 8);
-        assert!(doc_ai.iter().any(|i| i.id == "doc_ai_info:classifier"));
-        assert!(doc_ai.iter().any(|i| i.id.contains("laya-int8")));
+        let doc_ai = build_document_ai_menu(None);
+        assert_eq!(doc_ai.len(), 5);
+        assert!(doc_ai.iter().any(|i| i.id == "doc_ai:ingestion"));
+        assert!(doc_ai.iter().any(|i| i.id == "doc_ai:scans"));
+        assert!(doc_ai.iter().any(|i| i.id == "doc_ai:queries"));
+        assert!(doc_ai.iter().any(|i| i.id == "doc_ai:vision"));
+
+        let ingestion = build_doc_ai_ingestion_menu();
+        assert!(ingestion.iter().any(|i| i.id.contains("laya-int8")));
+
+        let scans = build_doc_ai_scans_menu();
+        assert!(scans.iter().any(|i| i.id.contains("mobilenetv4")));
+
+        let queries = build_doc_ai_queries_menu();
+        assert!(queries.iter().any(|i| i.id.contains("bge-small")));
+
+        let vision = build_doc_ai_vision_menu();
+        assert!(vision.iter().any(|i| i.id == "doc_ai_action:vision_cloud"));
 
         let sources = build_sources_menu("Default");
         assert_eq!(sources.len(), 3);

@@ -270,6 +270,14 @@ pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str
     let temp_archive = std::env::temp_dir().join(format!("actx_update_{}_{}", target_version, asset_name));
 
     if let Err(e) = download_release_asset(&target_version, asset_name, &temp_archive) {
+        if e.starts_with("ASSET_NOT_YET_AVAILABLE:") {
+            let msg = format!(
+                "Os pacotes executáveis para a versão {} ainda estão sendo preparados\n    pelos servidores de compilação (CI/CD) ou estão temporariamente indisponíveis.\n\n    💡 Dica: A compilação de novas releases leva alguns minutos após o lançamento.\n       Por favor, tente novamente em instantes com: actx --update\n       Acompanhe a publicação em: https://github.com/Levix-Digital/any-context-releases/releases/tag/{}",
+                target_version, target_version
+            );
+            log_update_event("WARN", &msg);
+            return Err(msg);
+        }
         let err_msg = format!("Download failed: {}", e);
         log_update_event("ERROR", &err_msg);
         return Err(err_msg);
@@ -316,7 +324,7 @@ pub fn run_standalone_update(base_dir: &Path, requested_version: Option<&str>) {
             println!("[>] Please restart 'actx' to launch the new version.\n");
         }
         Err(e) => {
-            eprintln!("\n[!] {}", e);
+            eprintln!("\n[!] {}\n", e);
         }
     }
 }

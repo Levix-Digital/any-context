@@ -28,6 +28,42 @@ pub struct ChatMessageItem {
     pub timestamp: String,
 }
 
+#[derive(Debug)]
+pub struct ActiveModelDownload {
+    pub model_id: String,
+    pub model_name: String,
+    pub total_bytes: u64,
+    pub downloaded_bytes: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    pub is_completed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub is_failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub error_msg: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    pub cancel_tx: tokio::sync::watch::Sender<bool>,
+    pub start_time: std::time::Instant,
+}
+
+#[derive(Debug, Clone)]
+pub struct OnboardingState {
+    pub step: usize, // 0 = Provider & Key, 1 = Document AI Profile, 2 = Initial Folder
+    pub selected_provider_idx: usize,
+    pub api_key_input: String,
+    pub selected_doc_ai_idx: usize, // 0 = Leve & Nuvem (0 MB), 1 = Local Air-Gapped (ONNX)
+    pub folder_input: String,
+    pub focus_input: bool,
+}
+
+impl OnboardingState {
+    pub fn new() -> Self {
+        Self {
+            step: 0,
+            selected_provider_idx: 0,
+            api_key_input: String::new(),
+            selected_doc_ai_idx: 0,
+            folder_input: String::new(),
+            focus_input: false,
+        }
+    }
+}
+
 pub struct App {
     pub running: bool,
     pub active_workspace: String,
@@ -46,6 +82,11 @@ pub struct App {
     pub auto_scroll: bool,
     pub max_scroll: u16,
 
+    // ReAct & Reasoning Accordion Scrolling
+    pub reasoning_scroll_offset: u16,
+    pub reasoning_auto_scroll: bool,
+    pub reasoning_max_scroll: u16,
+
     // Input & Prompt History
     pub input_buffer: String,
     pub cursor_idx: usize,
@@ -63,6 +104,12 @@ pub struct App {
     // Interactive Menu State
     pub menu_state: MenuState,
 
+    // Active Model Download Telemetry & Cancellation
+    pub active_model_download: Option<ActiveModelDownload>,
+
+    // Interactive Onboarding Wizard
+    pub onboarding_state: Option<OnboardingState>,
+
     // Agent handles & channels
     pub agent: Option<Arc<Agent>>,
     pub is_generating: bool,
@@ -79,6 +126,7 @@ pub struct App {
 impl App {
     pub fn tick(&mut self) {
         self.tick_count = self.tick_count.wrapping_add(1);
+        self.poll_model_download();
     }
 
     pub fn create_welcome_message(
@@ -122,6 +170,17 @@ impl App {
         let initial_sync_status = db.as_ref()
             .and_then(|d| d.get_sync_status(&workspace).ok().flatten());
 
+        let onboarding_completed = db.as_ref()
+            .and_then(|d| d.get_setting("onboarding_completed").ok().flatten())
+            .map(|v| v == "true")
+            .unwrap_or(false);
+
+        let onboarding_state = if !onboarding_completed && model == "mock" {
+            Some(OnboardingState::new())
+        } else {
+            None
+        };
+
         let app = Self {
             running: true,
             active_workspace: workspace,
@@ -137,6 +196,9 @@ impl App {
             scroll_offset: 0,
             auto_scroll: true,
             max_scroll: 0,
+            reasoning_scroll_offset: 0,
+            reasoning_auto_scroll: true,
+            reasoning_max_scroll: 0,
             input_buffer: String::new(),
             cursor_idx: 0,
             input_history: std::collections::HashMap::new(),
@@ -148,6 +210,8 @@ impl App {
             slash_matches: Vec::new(),
             palette_navigated: false,
             menu_state: MenuState::default(),
+            active_model_download: None,
+            onboarding_state,
             agent: agent.map(Arc::new),
             is_generating: false,
             sync_status: initial_sync_status,
@@ -534,7 +598,201 @@ impl App {
 
     pub fn open_document_ai_menu(&mut self) {
         self.slash_palette_open = false;
-        self.menu_state.open_document_ai();
+        let active_name = self.active_model_download.as_ref().map(|d| d.model_name.as_str());
+        self.menu_state.open_document_ai(active_name);
+    }
+
+    pub fn is_downloading_model(&self) -> bool {
+        self.active_model_download.is_some()
+    }
+
+    pub fn cancel_model_download(&mut self) {
+        if let Some(dl) = self.active_model_download.take() {
+            let _ = dl.cancel_tx.send(true);
+            let name = dl.model_name;
+            self.chat_history.push(ChatMessageItem {
+                role: MessageRole::System,
+                content: format!(
+                    "🛑 [Download Cancelado]\nO download de **{}** foi interrompido a seu pedido.\nNenhum arquivo temporário residual foi mantido no disco e o AnyContext continua operacional via heurística nativa.",
+                    name
+                ),
+                thinking: None,
+                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+            });
+            self.scroll_to_bottom();
+        }
+    }
+
+    pub fn start_model_download(&mut self, model_id: &str) {
+        if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
+            let spec_name = spec.name.to_string();
+            let spec_mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
+            let spec_file = spec.file_name.to_string();
+            let spec_clone = spec.clone();
+
+            let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+            let downloaded_bytes = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+            let is_completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let is_failed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let error_msg = std::sync::Arc::new(std::sync::Mutex::new(None));
+
+            let dl_bytes_bg = downloaded_bytes.clone();
+            let is_comp_bg = is_completed.clone();
+            let is_fail_bg = is_failed.clone();
+            let err_msg_bg = error_msg.clone();
+
+            let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<(u64, u64)>();
+
+            tokio::spawn(async move {
+                let dl_writer = dl_bytes_bg.clone();
+                let drain_handle = tokio::spawn(async move {
+                    while let Some((downloaded, _total)) = progress_rx.recv().await {
+                        dl_writer.store(downloaded, std::sync::atomic::Ordering::Relaxed);
+                    }
+                });
+
+                match any_context_core_rs::ingestion::OnnxModelManager::download_model_with_progress(
+                    &spec_clone,
+                    Some(progress_tx),
+                    Some(cancel_rx),
+                ).await {
+                    Ok(_) => {
+                        let _ = drain_handle.await;
+                        is_comp_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        let _ = drain_handle.await;
+                        *err_msg_bg.lock().unwrap() = Some(e);
+                        is_fail_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+            });
+
+            self.active_model_download = Some(ActiveModelDownload {
+                model_id: model_id.to_string(),
+                model_name: spec_name.clone(),
+                total_bytes: spec.size_bytes,
+                downloaded_bytes,
+                is_completed,
+                is_failed,
+                error_msg,
+                cancel_tx,
+                start_time: std::time::Instant::now(),
+            });
+
+            self.chat_history.push(ChatMessageItem {
+                role: MessageRole::System,
+                content: format!(
+                    "📥 [Download de Modelo ONNX Iniciado]\nIniciando download assíncrono de **{}** (~{:.0} MB)...\nArquivo: `{}`\nDestino: `%LOCALAPPDATA%\\AnyContext\\models\\`\nO progresso é exibido no rodapé em tempo real. Pressione [Esc] para cancelar a qualquer momento.",
+                    spec_name, spec_mb, spec_file
+                ),
+                thinking: None,
+                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+            });
+            self.scroll_to_bottom();
+        }
+    }
+
+    pub fn poll_model_download(&mut self) {
+        if let Some(ref dl) = self.active_model_download {
+            use std::sync::atomic::Ordering;
+            if dl.is_completed.load(Ordering::Relaxed) {
+                let name = dl.model_name.clone();
+                let file_name = any_context_core_rs::ingestion::OnnxModelManager::find_spec(&dl.model_id)
+                    .map(|s| s.file_name)
+                    .unwrap_or("model.onnx");
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!(
+                        "✔ [Modelo Acoplado com Sucesso]\n**{}** foi instalado em disco e ativado!\nArquivo: `%LOCALAPPDATA%\\AnyContext\\models\\{}`.\nA partir de agora, o pipeline neural assume a execução.",
+                        name, file_name
+                    ),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.active_model_download = None;
+            } else if dl.is_failed.load(Ordering::Relaxed) {
+                let name = dl.model_name.clone();
+                let err_text = dl.error_msg.lock().unwrap().clone().unwrap_or_else(|| "Erro desconhecido".to_string());
+                if err_text.contains("cancelado") {
+                    self.chat_history.push(ChatMessageItem {
+                        role: MessageRole::System,
+                        content: format!(
+                            "🛑 [Download Cancelado]\nO download de **{}** foi cancelado. O AnyContext continua operacional via heurística nativa.",
+                            name
+                        ),
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+                } else {
+                    self.chat_history.push(ChatMessageItem {
+                        role: MessageRole::System,
+                        content: format!(
+                            "❌ [Falha no Download]\nNão foi possível baixar **{}**: {}.\nO AnyContext continuará operando via fallback determinístico sem interrupções.",
+                            name, err_text
+                        ),
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+                }
+                self.scroll_to_bottom();
+                self.active_model_download = None;
+            }
+        }
+    }
+
+    pub fn open_onboarding(&mut self) {
+        self.onboarding_state = Some(OnboardingState::new());
+        self.menu_state.is_open = false;
+    }
+
+    pub fn finish_onboarding(&mut self) {
+        if let Some(onboarding) = self.onboarding_state.take() {
+            let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+            let provider_names = ["gemini", "openai", "anthropic", "ollama", "mock"];
+            let default_models = ["gemini-2.5-flash", "gpt-4o-mini", "claude-3-5-sonnet", "llama3", "mock"];
+            let prov = provider_names.get(onboarding.selected_provider_idx).unwrap_or(&"gemini");
+            let model = default_models.get(onboarding.selected_provider_idx).unwrap_or(&"gemini-2.5-flash");
+
+            if let Some(ref d) = db {
+                let _ = d.set_setting("default_provider", prov);
+                let _ = d.set_setting("default_model", model);
+                let _ = d.set_setting("onboarding_completed", "true");
+
+                if !onboarding.api_key_input.trim().is_empty() {
+                    let key_setting = match *prov {
+                        "gemini" => "gemini_api_key",
+                        "openai" => "openai_api_key",
+                        "anthropic" => "anthropic_api_key",
+                        _ => "api_key",
+                    };
+                    let _ = d.set_setting(key_setting, onboarding.api_key_input.trim());
+                }
+
+                if onboarding.selected_doc_ai_idx == 0 {
+                    let _ = d.set_setting("enable_vision_llm", "true");
+                } else {
+                    let _ = d.set_setting("enable_vision_llm", "false");
+                }
+
+                if !onboarding.folder_input.trim().is_empty() {
+                    let _ = d.add_workspace_folder(&self.active_workspace, onboarding.folder_input.trim());
+                }
+            }
+
+            self.active_model = model.to_string();
+            self.chat_history.push(ChatMessageItem {
+                role: MessageRole::System,
+                content: format!(
+                    "✨ [AnyContext Configurado com Sucesso]\nProvedor: `{}` | Modelo: `{}` | Perfil Document AI: `{}`.\nTudo pronto! Digite sua pergunta ou use /menu para explorar recursos.",
+                    prov, model, if onboarding.selected_doc_ai_idx == 0 { "Leve & Nuvem" } else { "Local Air-Gapped" }
+                ),
+                thinking: None,
+                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+            });
+            self.scroll_to_bottom();
+        }
     }
 
     pub fn close_menu(&mut self) {
@@ -555,7 +813,10 @@ impl App {
 
     pub fn menu_select(&mut self) {
         if let Some(item) = self.menu_state.selected_item().cloned() {
-            if item.is_submenu {
+            if item.id == "model_action:cancel_active" {
+                self.cancel_model_download();
+                self.menu_state.is_open = false;
+            } else if item.is_submenu {
                 self.menu_state.open_submenu(&item.id, &self.active_workspace, &self.active_model);
             } else if item.id.starts_with("switch:") {
                 let target_ws = item.id.trim_start_matches("switch:");
@@ -608,27 +869,7 @@ impl App {
                 self.scroll_to_bottom();
                 self.menu_state.is_open = false;
             } else if let Some(model_id) = item.id.strip_prefix("model_action:download:") {
-                if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
-                    let spec_name = spec.name.to_string();
-                    let spec_mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
-                    let spec_file = spec.file_name.to_string();
-                    let spec_clone = spec.clone();
-
-                    self.chat_history.push(ChatMessageItem {
-                        role: MessageRole::System,
-                        content: format!(
-                            "📥 [Download de Modelo ONNX Iniciado]\nIniciando download assíncrono de **{}** (~{:.0} MB)...\nArquivo: `{}`\nDestino: `%LOCALAPPDATA%\\AnyContext\\models\\`\nO download prossegue em segundo plano sem travar a interface. O AnyContext continua totalmente operacional via fallback determinístico.",
-                            spec_name, spec_mb, spec_file
-                        ),
-                        thinking: None,
-                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                    });
-
-                    tokio::spawn(async move {
-                        let _ = any_context_core_rs::ingestion::OnnxModelManager::download_model(&spec_clone).await;
-                    });
-                }
-                self.scroll_to_bottom();
+                self.start_model_download(model_id);
                 self.menu_state.is_open = false;
             } else if let Some(model_id) = item.id.strip_prefix("model_action:toggle:") {
                 if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
@@ -774,6 +1015,12 @@ impl App {
             let mut parts = text.split_whitespace();
             let cmd_name = parts.next().unwrap_or("").trim_start_matches('/');
             let args: Vec<&str> = parts.collect();
+
+            if cmd_name.eq_ignore_ascii_case("onboarding") || cmd_name.eq_ignore_ascii_case("setup") {
+                self.open_onboarding();
+                crate::commands::dispatch_slash_command(cmd_name, &args, self);
+                return None;
+            }
 
             crate::commands::dispatch_slash_command(cmd_name, &args, self);
             return None;

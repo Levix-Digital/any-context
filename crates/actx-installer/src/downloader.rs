@@ -59,6 +59,7 @@ pub fn download_release_asset(
 
     let repos = [PRIMARY_REPO, FALLBACK_REPO];
     let mut last_err = String::new();
+    let mut had_404 = false;
     let mut successful_response = None;
 
     for repo in repos {
@@ -75,18 +76,33 @@ pub fn download_release_asset(
                 successful_response = Some(resp);
                 break;
             }
+            Ok(resp) if resp.status() == 404 => {
+                had_404 = true;
+                last_err = format!("Asset '{}' not yet available in release '{}'", asset_name, clean_tag);
+            }
             Ok(resp) => {
                 last_err = format!("Server returned HTTP {} from {}", resp.status(), repo);
             }
+            Err(ureq::Error::Status(404, _)) => {
+                had_404 = true;
+                last_err = format!("Asset '{}' not yet available in release '{}'", asset_name, clean_tag);
+            }
             Err(e) => {
-                last_err = format!("HTTPS download request failed for {}: {}", download_url, e);
+                if !had_404 {
+                    last_err = format!("Connection error: {}", e);
+                }
             }
         }
     }
 
     let response = match successful_response {
         Some(r) => r,
-        None => return Err(last_err),
+        None => {
+            if had_404 {
+                return Err(format!("ASSET_NOT_YET_AVAILABLE:{}:{}", clean_tag, asset_name));
+            }
+            return Err(last_err);
+        }
     };
 
     let total_size = response

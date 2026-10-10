@@ -44,6 +44,87 @@ pub fn handle_key_event(
         return;
     }
 
+    // If Onboarding Wizard is active, intercept navigation and input
+    if let Some(ref mut onboarding) = app.onboarding_state {
+        match key.code {
+            KeyCode::Esc => {
+                if onboarding.step > 0 {
+                    onboarding.step -= 1;
+                } else {
+                    app.onboarding_state = None;
+                }
+                return;
+            }
+            KeyCode::Tab => {
+                if onboarding.step == 0 {
+                    onboarding.focus_input = !onboarding.focus_input;
+                }
+                return;
+            }
+            KeyCode::Up => {
+                if onboarding.step == 0 && !onboarding.focus_input {
+                    if onboarding.selected_provider_idx > 0 {
+                        onboarding.selected_provider_idx -= 1;
+                    } else {
+                        onboarding.selected_provider_idx = 4;
+                    }
+                } else if onboarding.step == 1 {
+                    if onboarding.selected_doc_ai_idx > 0 {
+                        onboarding.selected_doc_ai_idx -= 1;
+                    } else {
+                        onboarding.selected_doc_ai_idx = 2;
+                    }
+                }
+                return;
+            }
+            KeyCode::Down => {
+                if onboarding.step == 0 && !onboarding.focus_input {
+                    if onboarding.selected_provider_idx < 4 {
+                        onboarding.selected_provider_idx += 1;
+                    } else {
+                        onboarding.selected_provider_idx = 0;
+                    }
+                } else if onboarding.step == 1 {
+                    if onboarding.selected_doc_ai_idx < 2 {
+                        onboarding.selected_doc_ai_idx += 1;
+                    } else {
+                        onboarding.selected_doc_ai_idx = 0;
+                    }
+                }
+                return;
+            }
+            KeyCode::Enter => {
+                if onboarding.step < 2 {
+                    onboarding.step += 1;
+                    onboarding.focus_input = false;
+                } else {
+                    app.finish_onboarding();
+                }
+                return;
+            }
+            KeyCode::Backspace => {
+                if onboarding.step == 0 {
+                    onboarding.focus_input = true;
+                    onboarding.api_key_input.pop();
+                } else if onboarding.step == 2 {
+                    onboarding.folder_input.pop();
+                }
+                return;
+            }
+            KeyCode::Char(c) => {
+                if onboarding.step == 0 {
+                    onboarding.focus_input = true;
+                    onboarding.api_key_input.push(c);
+                } else if onboarding.step == 2 {
+                    onboarding.folder_input.push(c);
+                }
+                return;
+            }
+            _ => {}
+        }
+        return;
+    }
+
     // If Interactive Menu is open, intercept navigation keys
     if app.menu_state.is_open {
         match key.code {
@@ -68,6 +149,8 @@ pub fn handle_key_event(
         KeyCode::Esc => {
             if app.slash_palette_open {
                 app.slash_palette_open = false;
+            } else if app.is_downloading_model() {
+                app.cancel_model_download();
             } else {
                 app.running = false;
             }
@@ -101,10 +184,22 @@ pub fn handle_key_event(
             }
         }
         KeyCode::PageUp => {
-            app.scroll_up(10);
+            if app.accordion_open && key.modifiers.contains(KeyModifiers::CONTROL) {
+                app.reasoning_auto_scroll = false;
+                app.reasoning_scroll_offset = app.reasoning_scroll_offset.saturating_sub(5);
+            } else {
+                app.scroll_up(10);
+            }
         }
         KeyCode::PageDown => {
-            app.scroll_down(10);
+            if app.accordion_open && key.modifiers.contains(KeyModifiers::CONTROL) {
+                app.reasoning_scroll_offset = (app.reasoning_scroll_offset + 5).min(app.reasoning_max_scroll);
+                if app.reasoning_scroll_offset >= app.reasoning_max_scroll {
+                    app.reasoning_auto_scroll = true;
+                }
+            } else {
+                app.scroll_down(10);
+            }
         }
         KeyCode::Home => {
             if key.modifiers.contains(KeyModifiers::CONTROL) {

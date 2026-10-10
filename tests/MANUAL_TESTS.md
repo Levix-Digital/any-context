@@ -7,6 +7,68 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 32 (v0.34.9 Harmonização Aurora Boreal, Canvas Borderless, Auto-Scroll ReAct, UX Amigável no Update, Cancelamento de Download de Modelos e Onboarding Wizard Neutro):
+- **Objetivo**: Comprovar que na versão `v0.34.9`:
+  1. **Harmonização de Cores Aurora Boreal**:
+     - Amarelos e vermelhos informativos foram removidos da TUI e substituídos pelos tons Glacial Cyan (`#00F0FF`), Cosmic Violet (`#A855F7`) e Brand Emerald (`#00E5A3`).
+     - Alertas vermelhos e amarelos reservados exclusivamente para erros reais e avisos de desconexão.
+     - Atalho `[Esc/Ctrl+C] Exit` mantido em vermelho conforme exceção explícita.
+  2. **Canvas de Chat Borderless**:
+     - A janela de conversa não possui bordas ou título, oferecendo visual limpo, espaçoso e contemporâneo.
+     - Indicador `⏸ Scroll Pausado [End p/ tempo real]` surge suavemente no rodapé caso o usuário pause a rolagem.
+  3. **Auto-Scroll no ReAct & Reasoning (`<think>`)**:
+     - A caixa de raciocínio rola automaticamente até a linha mais recente conforme o pensamento é gerado.
+     - Atalho `Ctrl+PgUp` e `Ctrl+PgDn` permite pausar e navegar pelo raciocínio manualmente.
+  4. **Mensagens Amigáveis no `actx --update`**:
+     - Ao buscar atualização durante a compilação do CI/CD (status 404), o AnyContext apresenta mensagem acolhedora e orientações claras com link oficial.
+  5. **Telemetria de Download de Modelos e Cancelamento Gracioso**:
+     - Download exibe spinner, nome do modelo, MBs transferidos e porcentagem no rodapé.
+     - Pressionar `Esc` aborta o download em tempo real, exclui o arquivo `.download.tmp` e informa no chat.
+  6. **Menu Document AI Reorganizado por Função**:
+     - Submenus dedicados: Ingestão de Documentos, Sentinela de Scans, Roteamento de Perguntas, Visão de Documentos e Resumo de Armazenamento.
+  7. **Onboarding Wizard Interativo Neutro**:
+     - Acionável por `/onboarding` ou `/setup` com 3 passos fluidos: Provedor de IA & Chave -> Perfil Document AI -> Pasta Inicial.
+     - Zero uso do rótulo `[Recomendado]`, deixando a escolha 100% neutra a critério do usuário.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.34.9`.
+
+2. **🎨 Verificação Visual da Paleta Aurora Boreal & Chat Borderless:**
+   - Inicie a TUI com `actx`.
+   - **Critérios de Aceitação**:
+     - A área de chat não possui molduras retangulares ou títulos cinzas/amarelos.
+     - O cabeçalho exibe `[WS: Default]` em verde esmeralda, `◐ THINKING` em violeta e spinner em ciano.
+     - O rodapé exibe `[F1 / /menu]` em ciano, `[Ctrl+T]` em violeta e `[Esc/Ctrl+C] Exit` em vermelho.
+
+3. **🧠 Teste de Auto-Scroll no ReAct & Reasoning:**
+   - Pressione `Ctrl+T` para abrir a caixa de raciocínio.
+   - Digite uma pergunta de busca profunda (ex: `/search deep` seguido de `"explique a arquitetura do AnyContext"`).
+   - **Critérios de Aceitação**:
+     - A caixa rola suavemente até o final conforme o modelo pensa.
+     - `Ctrl+PgUp` rola para cima no raciocínio e `Ctrl+PgDn` rola de volta para baixo.
+
+4. **📥 Teste de Telemetria de Download e Cancelamento com `Esc`:**
+   - Abra o menu interativo com `F1` ou `/menu`.
+   - Acesse `Document AI & Modelos Locais` -> `1. Ingestão de Documentos` -> Baixar modelo.
+   - **Critérios de Aceitação**:
+     - O rodapé exibe telemetria em tempo real: `📥 Baixando ⠋ <Model> X.X/Y.Y MB (Z%) [Esc p/ cancelar]`.
+     - Ao pressionar `Esc`, o download é interrompido imediatamente e o arquivo temporário é deletado sem travar a interface.
+
+5. **🚀 Teste do Onboarding Wizard Neutro:**
+   - Digite `/onboarding`.
+   - **Critérios de Aceitação**:
+     - O modal em 3 passos é aberto sobrepondo a tela.
+     - Nenhuma opção contém o rótulo `[Recomendado]`.
+     - `[Tab]` e `[↑/↓]` navegam entre campos, `[Enter]` avança e `[Esc]` volta passo.
+
+---
+
 ### 📌 Cenário 27 (v0.34.4 Estabilização de UX, Conclusão Direta Deep Search, Busca Isolada por Workspace, Spinner 8-Dot, Prompt Multilinhas, Auto-Consciência Global, Menu Document AI e Telemetria ReAct):
 - **Objetivo**: Comprovar que na versão `v0.34.4`:
   1. **Conclusão Direta e Paridade Linguística no Deep Search**:

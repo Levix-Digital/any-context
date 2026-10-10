@@ -249,8 +249,14 @@ impl OnnxModelManager {
         )
     }
 
-    /// Asynchronously downloads a model specification with streaming and atomic rename.
-    pub async fn download_model(spec: &OnnxModelSpec) -> Result<PathBuf, String> {
+    /// Asynchronously downloads a model specification with streaming, live progress and graceful cancellation.
+    pub async fn download_model_with_progress(
+        spec: &OnnxModelSpec,
+        progress_tx: Option<tokio::sync::mpsc::UnboundedSender<(u64, u64)>>,
+        cancel_rx: Option<tokio::sync::watch::Receiver<bool>>,
+    ) -> Result<PathBuf, String> {
+        use std::io::Write;
+
         let dest_dir = get_default_models_dir();
         std::fs::create_dir_all(&dest_dir)
             .map_err(|e| format!("Failed to create models directory {:?}: {}", dest_dir, e))?;
@@ -259,11 +265,11 @@ impl OnnxModelManager {
         let tmp_file = dest_dir.join(format!("{}.download.tmp", spec.file_name));
 
         let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(300))
+            .timeout(std::time::Duration::from_secs(600))
             .build()
             .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
-        let response = client
+        let mut response = client
             .get(spec.download_url)
             .send()
             .await
@@ -277,18 +283,50 @@ impl OnnxModelManager {
             ));
         }
 
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|e| format!("Failed to download model payload: {}", e))?;
+        let total_bytes = response.content_length().unwrap_or(spec.size_bytes);
+        let mut downloaded_bytes: u64 = 0;
 
-        std::fs::write(&tmp_file, &bytes)
-            .map_err(|e| format!("Failed to write temporary model file {:?}: {}", tmp_file, e))?;
+        let mut file = std::fs::File::create(&tmp_file)
+            .map_err(|e| format!("Failed to create temporary model file {:?}: {}", tmp_file, e))?;
+
+        while let Some(chunk) = response.chunk().await.map_err(|e| format!("Download stream error: {}", e))? {
+            if let Some(ref rx) = cancel_rx {
+                if *rx.borrow() {
+                    drop(file);
+                    let _ = std::fs::remove_file(&tmp_file);
+                    return Err("Download cancelado pelo usuário.".to_string());
+                }
+            }
+
+            file.write_all(&chunk)
+                .map_err(|e| format!("Failed to write chunk: {}", e))?;
+            downloaded_bytes += chunk.len() as u64;
+
+            if let Some(ref tx) = progress_tx {
+                let _ = tx.send((downloaded_bytes, total_bytes));
+            }
+        }
+
+        file.flush().map_err(|e| format!("Failed to flush file: {}", e))?;
+        drop(file);
+
+        // Check cancellation one final time before finalizing
+        if let Some(ref rx) = cancel_rx {
+            if *rx.borrow() {
+                let _ = std::fs::remove_file(&tmp_file);
+                return Err("Download cancelado pelo usuário.".to_string());
+            }
+        }
 
         std::fs::rename(&tmp_file, &dest_file)
             .map_err(|e| format!("Failed to finalize model file {:?}: {}", dest_file, e))?;
 
         Ok(dest_file)
+    }
+
+    /// Asynchronously downloads a model specification with standard streaming.
+    pub async fn download_model(spec: &OnnxModelSpec) -> Result<PathBuf, String> {
+        Self::download_model_with_progress(spec, None, None).await
     }
 }
 
