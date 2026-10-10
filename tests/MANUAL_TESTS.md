@@ -6526,3 +6526,32 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
        - O scanner em segundo plano detecta a exclusão/modificação e atualiza o estado para `⚡ [Sync: Changes detected (/sync)]`.
        - Se uma pasta inteira for renomeada ou removida de forma irrecuperável, a barra superior sinaliza imediatamente: `⚠️ [Sync: 1 folder(s) unreachable]`.
        - Ao rodar `/sync`, os arquivos deletados são purgados do LanceDB, os alterados são reindexados, e a barra retorna a `✔ Up to date`.
+
+---
+
+### 📌 Cenário 33 (Catálogo Canônico de Modelos ONNX Standalone, Telemetria de Download, Cancelamento Gracioso e Resiliência contra 404 - v0.34.10):
+- **Objetivo**: Comprovar que o Document AI opera com catálogo verificado de modelos ONNX de arquivo único (.onnx standalone), suporta streaming com telemetria percentual em tempo real, cancelamento seguro via `Esc` sem resíduos no disco, e resiliência absoluta sem quebras caso o download não seja realizado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📥 Teste de Download com Telemetria em Tempo Real:**
+   - Abra a TUI (`actx`) e pressione `F2` ou digite `/menu` -> `Document AI & Modelos Locais` -> `1. Classificação de Documentos (Ingestão)`.
+   - Selecione `Baixar / Acoplar Laya AI (mmBERT INT8 ONNX)`.
+   - **Critérios de Aceitação**:
+     - O download inicia imediatamente sem erro 404.
+     - O rodapé da TUI exibe o progresso em tempo real: `📥 Baixando ⠋ Laya AI (mmBERT INT8 ONNX) X.X/404.7 MB (Z%) [Esc p/ cancelar]`.
+     - A interface TUI continua totalmente responsiva e operacional.
+
+2. **🛑 Teste de Cancelamento Gracioso via [Esc]:**
+   - Durante o download de qualquer modelo (ex: `BGE-Small Query Classifier`), pressione `Esc`.
+   - **Critérios de Aceitação**:
+     - O download é imediatamente abortado.
+     - A TUI exibe mensagem no chat: `🛑 Download cancelado: BGE-Small Query Classifier (ONNX). Arquivos temporários removidos do disco.`
+     - Nenhum arquivo parcial corrompido permanece no diretório `%LOCALAPPDATA%\AnyContext\models\`.
+
+3. **🛡️ Teste de Preservação e Fallback Determinístico:**
+   - Acesse o submenu `5. Resumo de Armazenamento & Fallbacks` ou execute `/inspect`.
+   - **Critérios de Aceitação**:
+     - Para todos os modelos não baixados, o AnyContext exibe status claro de fallback determinístico ativo (`Heurística Estrutural Rust (<1µs / 0MB RAM)`).
+     - As buscas, ingestões e raciocínios prosseguem com 100% de funcionalidade sem falhas.
+

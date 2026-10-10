@@ -4,7 +4,7 @@
 //! - Laya AI (mmBERT INT8 ONNX) for dynamic document and form typology.
 //! - MobileNetV4 RVL-CDIP (ONNX) for scanned and rasterized page classification.
 //! - BGE-Small Query Classifier (ONNX) for sub-15ms local query complexity.
-//! - Moondream2 (1.8B INT4 ONNX) & SmolVLM (500M ONNX) for air-gapped document vision.
+//! - LayoutLMv3 Base (INT8 ONNX) & CLIP ViT Vision Encoder (INT8 ONNX) for document layout and air-gapped vision.
 //!
 //! Architectural Invariant: Full Fault Tolerance & Graceful Fallback.
 //! Missing or partially downloaded models NEVER crash or halt the pipeline.
@@ -54,8 +54,8 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         name: "Laya AI (mmBERT INT8 ONNX)",
         category: OnnxModelCategory::IngestionClassifier,
         file_name: "laya_mmbert_int8.onnx",
-        size_bytes: 220_200_960, // ~210 MB
-        download_url: "https://huggingface.co/convaiinnovations/laya/resolve/main/model_int8.onnx",
+        size_bytes: 424_348_081, // ~404 MB
+        download_url: "https://huggingface.co/tozp/laya-onnx/resolve/main/model_int8.onnx",
         description: "Classificação dinâmica de formulários, faturas e relatórios densos (~95% precisão, 60ms CPU)",
         fallback_description: "Classificador Heurístico / Determinístico (<1µs / 0MB RAM)",
     },
@@ -64,8 +64,8 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         name: "MobileNetV4 RVL-CDIP (ONNX)",
         category: OnnxModelCategory::ScannedClassifier,
         file_name: "mobilenetv4_rvl_cdip.onnx",
-        size_bytes: 14_680_064, // ~14 MB
-        download_url: "https://huggingface.co/Levix-Digital/document-ai-onnx/resolve/main/mobilenetv4_rvl_cdip.onnx",
+        size_bytes: 3_931_745, // ~3.9 MB
+        download_url: "https://huggingface.co/onnx-community/mobilenetv4_conv_small.e1200_r224_in1k/resolve/main/onnx/model_int8.onnx",
         description: "Sentinela visual para documentos 100% rasterizados ou escaneados (224x224, 8ms CPU)",
         fallback_description: "Heurística 2D Espacial Rust (<5MB RAM)",
     },
@@ -74,29 +74,29 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         name: "BGE-Small Query Classifier (ONNX)",
         category: OnnxModelCategory::QueryClassifier,
         file_name: "bge_small_query_int8.onnx",
-        size_bytes: 36_700_160, // ~35 MB
-        download_url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model_int8.onnx",
+        size_bytes: 133_093_490, // ~127 MB
+        download_url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx",
         description: "Classificação neural local da complexidade de perguntas (RFC-042, Fast vs Deep)",
         fallback_description: "Classificador Determinístico Sub-microsegundo (<1µs / 0MB RAM)",
     },
     OnnxModelSpec {
-        id: "moondream2-int4",
-        name: "Moondream2 1.8B (INT4 ONNX)",
-        category: OnnxModelCategory::DocumentVision,
-        file_name: "moondream2_int4.onnx",
-        size_bytes: 1_153_433_600, // ~1.1 GB
-        download_url: "https://huggingface.co/vikhyatk/moondream2/resolve/main/moondream2_int4.onnx",
-        description: "Extração visual e OCR denso air-gapped para formulários e diagramas técnicos",
-        fallback_description: "Heurística Espacial 2D & Tipográfica Rust (<5MB RAM)",
+        id: "layoutlmv3-int8",
+        name: "LayoutLMv3 Base (INT8 ONNX)",
+        category: OnnxModelCategory::IngestionClassifier,
+        file_name: "layoutlmv3_base_int8.onnx",
+        size_bytes: 127_001_085, // ~121 MB
+        download_url: "https://huggingface.co/onnx-community/layoutlmv3-base-ONNX/resolve/main/onnx/model_int8.onnx",
+        description: "Extração multimodal de layouts de documentos, formulários e tabelas complexas",
+        fallback_description: "Heurística Espacial 2D Agnóstica (<5MB RAM)",
     },
     OnnxModelSpec {
-        id: "smolvlm-500m",
-        name: "SmolVLM-500M (ONNX)",
+        id: "clip-vit-int8",
+        name: "CLIP ViT Vision Encoder (INT8 ONNX)",
         category: OnnxModelCategory::DocumentVision,
-        file_name: "smolvlm_500m_int8.onnx",
-        size_bytes: 503_316_480, // ~480 MB
-        download_url: "https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct/resolve/main/onnx/model.onnx",
-        description: "Visão local ultraleve para computadores corporativos modestos (~800MB RAM)",
+        file_name: "clip_vit_vision_int8.onnx",
+        size_bytes: 88_648_877, // ~84 MB
+        download_url: "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_int8.onnx",
+        description: "Extração visual densa e OCR air-gapped para gráficos e esquemas visuais",
         fallback_description: "Heurística Espacial 2D & Tipográfica Rust (<5MB RAM)",
     },
 ];
@@ -232,14 +232,9 @@ impl OnnxModelManager {
 
     /// Returns the active local vision SLM state.
     pub fn active_vision_state() -> (&'static str, &'static str, bool) {
-        if let Some(spec) = Self::find_spec("moondream2-int4") {
+        if let Some(spec) = Self::find_spec("clip-vit-int8") {
             if Self::is_installed(spec) {
-                return (spec.name, "SLM Local Air-Gapped ativo", true);
-            }
-        }
-        if let Some(spec) = Self::find_spec("smolvlm-500m") {
-            if Self::is_installed(spec) {
-                return (spec.name, "SLM Local Ultracompacto ativo", true);
+                return (spec.name, "Vision Encoder Local Air-Gapped ativo", true);
             }
         }
         (
@@ -266,6 +261,8 @@ impl OnnxModelManager {
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(600))
+            .user_agent("AnyContext/0.34.10 (Windows; x86_64)")
+            .redirect(reqwest::redirect::Policy::limited(10))
             .build()
             .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
@@ -340,8 +337,8 @@ mod tests {
         assert_eq!(catalog.len(), 5);
         assert!(catalog.iter().any(|m| m.id == "laya-int8"));
         assert!(catalog.iter().any(|m| m.id == "mobilenetv4-rvl-cdip"));
-        assert!(catalog.iter().any(|m| m.id == "moondream2-int4"));
-        assert!(catalog.iter().any(|m| m.id == "smolvlm-500m"));
+        assert!(catalog.iter().any(|m| m.id == "layoutlmv3-int8"));
+        assert!(catalog.iter().any(|m| m.id == "clip-vit-int8"));
         assert!(catalog.iter().any(|m| m.id == "bge-small-onnx"));
     }
 

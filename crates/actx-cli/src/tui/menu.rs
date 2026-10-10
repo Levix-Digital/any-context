@@ -738,33 +738,35 @@ pub fn build_doc_ai_ingestion_menu() -> Vec<MenuItem> {
         is_submenu: false,
     });
 
-    if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec("laya-int8") {
-        let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
-        let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
-        let (id, title, badge, icon) = if is_installed {
-            (
-                format!("model_action:toggle:{}", spec.id),
-                spec.name.to_string(),
-                Some("[Instalado / Ativo]".to_string()),
-                "✔".to_string(),
-            )
-        } else {
-            (
-                format!("model_action:download:{}", spec.id),
-                format!("Baixar / Acoplar {}", spec.name),
-                Some(format!("[Download (~{:.0} MB)]", mb)),
-                "📥".to_string(),
-            )
-        };
-        items.push(MenuItem {
-            id,
-            title,
-            description: format!("{} | Fallback: {}", spec.description, spec.fallback_description),
-            icon,
-            badge,
-            shortcut: None,
-            is_submenu: false,
-        });
+    for model_id in &["laya-int8", "layoutlmv3-int8"] {
+        if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
+            let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
+            let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
+            let (id, title, badge, icon) = if is_installed {
+                (
+                    format!("model_action:toggle:{}", spec.id),
+                    spec.name.to_string(),
+                    Some("[Instalado / Ativo]".to_string()),
+                    "✔".to_string(),
+                )
+            } else {
+                (
+                    format!("model_action:download:{}", spec.id),
+                    format!("Baixar / Acoplar {}", spec.name),
+                    Some(format!("[Download (~{:.0} MB)]", mb)),
+                    "📥".to_string(),
+                )
+            };
+            items.push(MenuItem {
+                id,
+                title,
+                description: format!("{} | Fallback: {}", spec.description, spec.fallback_description),
+                icon,
+                badge,
+                shortcut: None,
+                is_submenu: false,
+            });
+        }
     }
 
     items
@@ -873,7 +875,7 @@ pub fn build_doc_ai_vision_menu() -> Vec<MenuItem> {
         is_submenu: false,
     });
 
-    for model_id in &["smolvlm-500m", "moondream2-int4"] {
+    for model_id in &["clip-vit-int8"] {
         if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
             let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
             let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
