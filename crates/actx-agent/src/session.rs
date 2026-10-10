@@ -90,10 +90,12 @@ impl SqliteSessionStore {
 
         let conn = Connection::open(&p)
             .map_err(|e| AgentError::SessionStoreError(format!("Failed to open SQLite db: {}", e)))?;
+        let _ = conn.busy_timeout(std::time::Duration::from_secs(30));
 
         // Initialize schema
         conn.execute_batch(
             r#"
+            PRAGMA busy_timeout = 30000;
             PRAGMA journal_mode = WAL;
             PRAGMA synchronous = NORMAL;
 
