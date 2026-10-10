@@ -91,38 +91,44 @@ impl SqliteSessionStore {
         let conn = Connection::open(&p)
             .map_err(|e| AgentError::SessionStoreError(format!("Failed to open SQLite db: {}", e)))?;
         let _ = conn.busy_timeout(std::time::Duration::from_secs(30));
+        let _ = conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
 
-        // Initialize schema
-        conn.execute_batch(
-            r#"
-            PRAGMA busy_timeout = 30000;
-            PRAGMA journal_mode = WAL;
-            PRAGMA synchronous = NORMAL;
+        // Initialize schema with retry for concurrent test execution
+        let mut attempts = 0;
+        loop {
+            match conn.execute_batch(
+                r#"
+                CREATE TABLE IF NOT EXISTS actx_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
 
-            CREATE TABLE IF NOT EXISTS actx_sessions (
-                session_id TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
+                CREATE TABLE IF NOT EXISTS actx_session_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    name TEXT,
+                    tool_call_id TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES actx_sessions(session_id) ON DELETE CASCADE
+                );
 
-            CREATE TABLE IF NOT EXISTS actx_session_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT NOT NULL,
-                role TEXT NOT NULL,
-                content TEXT NOT NULL,
-                name TEXT,
-                tool_call_id TEXT,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (session_id) REFERENCES actx_sessions(session_id) ON DELETE CASCADE
-            );
+                CREATE INDEX IF NOT EXISTS idx_actx_messages_sess ON actx_session_messages(session_id, id);
 
-            CREATE INDEX IF NOT EXISTS idx_actx_messages_sess ON actx_session_messages(session_id, id);
-
-            -- Automatically scrub any orphaned tool messages or empty assistant messages from legacy sessions
-            DELETE FROM actx_session_messages WHERE role = 'tool' OR (role = 'assistant' AND (content IS NULL OR TRIM(content) = ''));
-            "#,
-        )
-        .map_err(|e| AgentError::SessionStoreError(format!("Schema initialization failed: {}", e)))?;
+                -- Automatically scrub any orphaned tool messages or empty assistant messages from legacy sessions
+                DELETE FROM actx_session_messages WHERE role = 'tool' OR (role = 'assistant' AND (content IS NULL OR TRIM(content) = ''));
+                "#,
+            ) {
+                Ok(_) => break,
+                Err(e) if attempts < 5 && e.to_string().contains("locked") => {
+                    attempts += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                Err(e) => return Err(AgentError::SessionStoreError(format!("Schema initialization failed: {}", e))),
+            }
+        }
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
