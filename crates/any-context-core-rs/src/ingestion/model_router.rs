@@ -201,12 +201,12 @@ impl IngestionModelRouter {
             VisionExecutionMode::Disabled => return Err("Vision disabled".to_string()),
         };
 
-        let system_prompt = "Você é um extrator de alta precisão de documentos e formulários corporativos. \
-Analise a página do documento e extraia com precisão todos os pares chave-valor, campos de formulário, \
-tabelas de itens e totais em Markdown limpo e estruturado. Não invente dados e preserve números, códigos e datas.";
+        let system_prompt = "You are a high-precision corporate document and form extractor. \
+Analyze the document page and accurately extract all key-value pairs, form fields, \
+item tables, and totals in clean, structured Markdown. Do not invent data and preserve numbers, codes, and dates.";
 
         let user_prompt = format!(
-            "Documento: {}\n\nTexto bruto/fragmentado extraído da página:\n{}\n\nExtraia os campos em formato limpo:",
+            "Document: {}\n\nRaw/fragmented text extracted from page:\n{}\n\nExtract the fields in clean structured format:",
             chunk.file_name,
             chunk.text.chars().take(2500).collect::<String>()
         );
@@ -239,12 +239,12 @@ tabelas de itens e totais em Markdown limpo e estruturado. Não invente dados e 
             VisionExecutionMode::Disabled => return Err("Vision disabled".to_string()),
         };
 
-        let system_prompt = "Você é um arquiteto de sistemas e especialista em diagramas técnicos. \
-Descreva tecnicamente este diagrama: liste os componentes, conexões de rede/mensageria entre eles, \
-contratos, portas e o fluxo principal de dados.";
+        let system_prompt = "You are a systems architect and technical diagram specialist. \
+Technically describe this diagram: list components, network/messaging connections between them, \
+contracts, ports, and the primary data flow.";
 
         let user_prompt = format!(
-            "Arquivo: {} (Resolução: {}x{} px)\nEspecificação visual:\n{}\n\nDescreva detalhadamente a arquitetura/diagrama ilustrado:",
+            "File: {} (Resolution: {}x{} px)\nVisual specification:\n{}\n\nDescribe the illustrated architecture/diagram in detail:",
             chunk.file_name, width, height, chunk.text
         );
 

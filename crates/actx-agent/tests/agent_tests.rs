@@ -86,7 +86,7 @@ async fn test_direct_response_without_tools() {
     let mock = Arc::new(TestMockProvider::new(vec![ChatResponse {
         id: "resp-1".to_string(),
         model: "mock".to_string(),
-        content: "Olá! Como posso ajudar você hoje?".to_string(),
+        content: "Hello! How can I help you today?".to_string(),
         thinking: None,
         tool_calls: vec![],
         finish_reason: Some(FinishReason::Stop),
@@ -101,8 +101,8 @@ async fn test_direct_response_without_tools() {
         .await
         .unwrap();
 
-    let resp = agent.run("Oi", None).await.unwrap();
-    assert_eq!(resp.content, "Olá! Como posso ajudar você hoje?");
+    let resp = agent.run("Hi", None).await.unwrap();
+    assert_eq!(resp.content, "Hello! How can I help you today?");
     assert_eq!(resp.total_turns, 1);
     assert_eq!(resp.tool_calls_count, 0);
 }
@@ -273,7 +273,7 @@ async fn test_in_memory_session_store_accumulation() {
         ChatResponse {
             id: "2".to_string(),
             model: "mock".to_string(),
-            content: "Você se chama Guilherme.".to_string(),
+            content: "Your name is Guilherme.".to_string(),
             thinking: None,
             tool_calls: vec![],
             finish_reason: Some(FinishReason::Stop),
@@ -291,7 +291,7 @@ async fn test_in_memory_session_store_accumulation() {
         .unwrap();
 
     let sid = "session-123";
-    agent.run("Quem é você?", Some(sid)).await.unwrap();
+    agent.run("Who are you?", Some(sid)).await.unwrap();
 
     let messages = store.get_messages(sid).await.unwrap();
     assert_eq!(messages.len(), 2);

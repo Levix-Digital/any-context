@@ -26,10 +26,10 @@ pub enum OnnxModelCategory {
 impl OnnxModelCategory {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::IngestionClassifier => "Classificador de Ingestão",
-            Self::ScannedClassifier => "Classificador de Scans",
-            Self::QueryClassifier => "Classificador de Consultas",
-            Self::DocumentVision => "Visão de Documentos",
+            Self::IngestionClassifier => "Ingestion Classifier",
+            Self::ScannedClassifier => "Scan Classifier",
+            Self::QueryClassifier => "Query Classifier",
+            Self::DocumentVision => "Document Vision",
         }
     }
 }
@@ -56,8 +56,8 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         file_name: "laya_mmbert_int8.onnx",
         size_bytes: 424_348_081, // ~404 MB
         download_url: "https://huggingface.co/tozp/laya-onnx/resolve/main/model_int8.onnx",
-        description: "Classificação dinâmica de formulários, faturas e relatórios densos (~95% precisão, 60ms CPU)",
-        fallback_description: "Classificador Heurístico / Determinístico (<1µs / 0MB RAM)",
+        description: "Dynamic classification of forms, invoices, and dense reports (~95% accuracy, 60ms CPU)",
+        fallback_description: "Heuristic / Deterministic Classifier (<1µs / 0MB RAM)",
     },
     OnnxModelSpec {
         id: "mobilenetv4-rvl-cdip",
@@ -66,8 +66,8 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         file_name: "mobilenetv4_rvl_cdip.onnx",
         size_bytes: 3_931_745, // ~3.9 MB
         download_url: "https://huggingface.co/onnx-community/mobilenetv4_conv_small.e1200_r224_in1k/resolve/main/onnx/model_int8.onnx",
-        description: "Sentinela visual para documentos 100% rasterizados ou escaneados (224x224, 8ms CPU)",
-        fallback_description: "Heurística 2D Espacial Rust (<5MB RAM)",
+        description: "Visual sentinel for 100% rasterized or scanned documents (224x224, 8ms CPU)",
+        fallback_description: "Rust 2D Spatial Heuristic (<5MB RAM)",
     },
     OnnxModelSpec {
         id: "bge-small-onnx",
@@ -76,8 +76,8 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         file_name: "bge_small_query_int8.onnx",
         size_bytes: 133_093_490, // ~127 MB
         download_url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx",
-        description: "Classificação neural local da complexidade de perguntas (RFC-042, Fast vs Deep)",
-        fallback_description: "Classificador Determinístico Sub-microsegundo (<1µs / 0MB RAM)",
+        description: "Local neural classification of query complexity (RFC-042, Fast vs Deep)",
+        fallback_description: "Sub-microsecond Deterministic Classifier (<1µs / 0MB RAM)",
     },
     OnnxModelSpec {
         id: "layoutlmv3-int8",
@@ -86,8 +86,8 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         file_name: "layoutlmv3_base_int8.onnx",
         size_bytes: 127_001_085, // ~121 MB
         download_url: "https://huggingface.co/onnx-community/layoutlmv3-base-ONNX/resolve/main/onnx/model_int8.onnx",
-        description: "Extração multimodal de layouts de documentos, formulários e tabelas complexas",
-        fallback_description: "Heurística Espacial 2D Agnóstica (<5MB RAM)",
+        description: "Multimodal layout extraction of complex documents, forms, and tables",
+        fallback_description: "Agnostic 2D Spatial Heuristic (<5MB RAM)",
     },
     OnnxModelSpec {
         id: "clip-vit-int8",
@@ -96,8 +96,8 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         file_name: "clip_vit_vision_int8.onnx",
         size_bytes: 88_648_877, // ~84 MB
         download_url: "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_int8.onnx",
-        description: "Extração visual densa e OCR air-gapped para gráficos e esquemas visuais",
-        fallback_description: "Heurística Espacial 2D & Tipográfica Rust (<5MB RAM)",
+        description: "Dense visual extraction and air-gapped OCR for charts and visual diagrams",
+        fallback_description: "Rust 2D Spatial & Typographic Heuristic (<5MB RAM)",
     },
 ];
 
@@ -206,12 +206,12 @@ impl OnnxModelManager {
     pub fn active_ingestion_classifier() -> (&'static str, &'static str, bool) {
         if let Some(spec) = Self::find_spec("laya-int8") {
             if Self::is_installed(spec) {
-                return (spec.name, "Ativo em runtime (~95% precisão, 60ms CPU)", true);
+                return (spec.name, "Active in runtime (~95% accuracy, 60ms CPU)", true);
             }
         }
         (
-            "Determinístico / Heurístico (<1µs / 0MB RAM)",
-            "Padrão ativo (Zero download / Latência sub-microsegundo)",
+            "Deterministic / Heuristic (<1µs / 0MB RAM)",
+            "Active default (Zero downloads / Sub-microsecond latency)",
             false,
         )
     }
@@ -220,12 +220,12 @@ impl OnnxModelManager {
     pub fn active_scanned_classifier() -> (&'static str, &'static str, bool) {
         if let Some(spec) = Self::find_spec("mobilenetv4-rvl-cdip") {
             if Self::is_installed(spec) {
-                return (spec.name, "Sentinela visual para scans ativo (~8ms CPU)", true);
+                return (spec.name, "Visual sentinel for scans active (~8ms CPU)", true);
             }
         }
         (
-            "Heurística 2D Espacial (<5MB RAM)",
-            "Padrão ativo (Rust puro / Zero download)",
+            "2D Spatial Heuristic (<5MB RAM)",
+            "Active default (Pure Rust / Zero downloads)",
             false,
         )
     }
@@ -234,12 +234,12 @@ impl OnnxModelManager {
     pub fn active_vision_state() -> (&'static str, &'static str, bool) {
         if let Some(spec) = Self::find_spec("clip-vit-int8") {
             if Self::is_installed(spec) {
-                return (spec.name, "Vision Encoder Local Air-Gapped ativo", true);
+                return (spec.name, "Local Air-Gapped Vision Encoder active", true);
             }
         }
         (
-            "Heurística 2D & Tipográfica (<5MB RAM)",
-            "Padrão ativo (Zero download / Instantâneo)",
+            "2D & Typographic Heuristic (<5MB RAM)",
+            "Active default (Zero downloads / Instant)",
             false,
         )
     }
@@ -261,7 +261,7 @@ impl OnnxModelManager {
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(600))
-            .user_agent("AnyContext/0.34.10 (Windows; x86_64)")
+            .user_agent("AnyContext/0.35.0 (Windows; x86_64)")
             .redirect(reqwest::redirect::Policy::limited(10))
             .build()
             .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
@@ -291,7 +291,7 @@ impl OnnxModelManager {
                 if *rx.borrow() {
                     drop(file);
                     let _ = std::fs::remove_file(&tmp_file);
-                    return Err("Download cancelado pelo usuário.".to_string());
+                    return Err("Download cancelled by user.".to_string());
                 }
             }
 
@@ -311,7 +311,7 @@ impl OnnxModelManager {
         if let Some(ref rx) = cancel_rx {
             if *rx.borrow() {
                 let _ = std::fs::remove_file(&tmp_file);
-                return Err("Download cancelado pelo usuário.".to_string());
+                return Err("Download cancelled by user.".to_string());
             }
         }
 

@@ -1584,14 +1584,14 @@ impl CommandEngine {
         );
 
         CommandResult::success(format!(
-            "💡 **Atualização Segura do AnyContext**:\n\n\
-             Para atualizar o executável com total segurança, sem travas de arquivo ou corrupção do terminal:\n\
-             1. Encerre o chat atual (pressione `Esc` ou digite `/quit`)\n\
-             2. No terminal do seu sistema operacional, execute:\n\
+            "💡 **Safe AnyContext Update**:\n\n\
+             To update the binary safely without file locks or terminal corruption:\n\
+             1. Exit the current chat session (press `Esc` or type `/quit`)\n\
+             2. In your OS terminal shell, run:\n\
                 ```\n\
                 actx --update{}\n\
                 ```\n\n\
-             Esse processo realiza o download do release oficial, verifica a integridade e aplica a substituição atômica de binários.",
+             This process downloads the official release, verifies integrity, and performs atomic binary replacement.",
             target_hint
         ))
     }

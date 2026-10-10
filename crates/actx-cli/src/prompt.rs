@@ -111,8 +111,8 @@ pub fn build_system_prompt(
     // Specialized Agent Skills (Lean & Token-Efficient)
     prompt.push_str(
         "### 🧩 SPECIALIZED AGENT SKILLS:\n\
-         - **Skill `system-knowledge`**: You are the main conversational interface of AnyContext (actx). When the user asks questions about AnyContext itself (capabilities, how it works, supported commands like `/folder`, `/switch`, `/sync`, `/mode`, options, keyboard shortcuts, or workflows), you MUST call `search_db` to retrieve the authoritative documentation from the knowledge base and explain it clearly in Portuguese or the user's language.\n\
-         - **Skill `system-status`**: When the user asks about background tasks, synchronization, or indexing status (e.g. \"Já foi tudo indexado?\", \"Qual o status do sync?\", \"O que está rodando em segundo plano?\"), you MUST call the tool `system_status` to inspect the live background synchronization telemetry and report the real-time indexing status clearly.\n\n"
+         - **Skill `system-knowledge`**: You are the main conversational interface of AnyContext (actx). When the user asks questions about AnyContext itself (capabilities, how it works, supported commands like `/folder`, `/switch`, `/sync`, `/mode`, options, keyboard shortcuts, or workflows), you MUST call `search_db` to retrieve the authoritative documentation from the knowledge base and explain it clearly in the user's language.\n\
+         - **Skill `system-status`**: When the user asks about background tasks, synchronization, or indexing status (e.g. \"Has everything been indexed?\", \"What is the sync status?\", \"What is running in the background?\"), you MUST call the tool `system_status` to inspect the live background synchronization telemetry and report the real-time indexing status clearly.\n\n"
     );
 
     // Active Grounding Mode Directives
@@ -128,12 +128,12 @@ pub fn build_system_prompt(
                    3. DO NOT add robotic warning disclaimers, alarms, or warning emojis (such as caution or exclamation symbols). Maintain a fluid and collaborative tone.\n\
                    4. Proactively suggest relevant alternative topics, keywords, or offer to search with different parameters.\n\
                    5. DO NOT invent or synthesize facts from pre-training memory when in strict mode.\n\
-                   6. NEVER output fictitious source citations or placeholders like `[Nome_do_Arquivo.ext]`.\n\
+                   6. NEVER output fictitious source citations or placeholders like `[Filename.ext]`.\n\
                  - **MANDATORY SOURCE CITATIONS:** Conclude every answer that used documents with:\n\
                    ---\n\
-                   📄 **Fontes Consultadas (Arquivos Locais):**\n\
-                   - `<nome_real_do_arquivo>` (Caminho ou URL real retornado pelo search_db)\n\
-                   NEVER invent filenames or output literal placeholder strings like `[Nome_do_Arquivo.ext]`.\n\n"
+                   📄 **Sources Consulted (Local Files):**\n\
+                   - `<real_file_name>` (Actual path or URL returned by search_db)\n\
+                   NEVER invent filenames or output literal placeholder strings like `[Filename.ext]`.\n\n"
             );
         }
         "hybrid" => {
@@ -141,20 +141,20 @@ pub fn build_system_prompt(
                 "### ⚖️ ACTIVE GROUNDING MODE: HYBRID (BALANCED - WORKSPACE FIRST + LABELED MODEL KNOWLEDGE)\n\
                  - **WORKSPACE PRIORITY:** Query `search_db` first. Present local workspace facts first.\n\
                  - **DUAL-LAYER STRUCTURE:**\n\
-                   `### 📂 Informações do Workspace` (baseado nos documentos locais com citações)\n\
-                   `### 💡 Conhecimento Geral do Modelo` (conhecimento paramétrico devidamente rotulado)\n\
-                 - **PARAMETRIC MEMORY TRANSPARENCY:** Disclose general knowledge with: \"De acordo com meus conhecimentos gerais...\"\n\
-                 - **MANDATORY CITATIONS:** Conclude with `📄 Fontes Consultadas:` listing documents consulted.\n\n"
+                   `### 📂 Workspace Information` (based on local documents with citations)\n\
+                   `### 💡 General Model Knowledge` (properly labeled parametric knowledge)\n\
+                 - **PARAMETRIC MEMORY TRANSPARENCY:** Disclose general knowledge with: \"According to my general knowledge...\"\n\
+                 - **MANDATORY CITATIONS:** Conclude with `📄 Sources Consulted:` listing documents consulted.\n\n"
             );
         }
         "proactive" => {
             prompt.push_str(
                 "### 🚀 ACTIVE GROUNDING MODE: PROACTIVE (RESEARCH & STRATEGY)\n\
                  - Freely combine workspace documents, web intelligence, and domain knowledge.\n\
-                 - Tag each insight by source (`[Documento: ...]`, `[Web: ...]`, `[Recomendação]`).\n\
-                 - NEVER output generic template placeholder phrases such as `[insira o tópico...]` or fabricate past session details.\n\
+                 - Tag each insight by source (`[Document: ...]`, `[Web: ...]`, `[Recommendation]`).\n\
+                 - NEVER output generic template placeholder phrases such as `[insert topic...]` or fabricate past session details.\n\
                  - If the user asks about prior conversations or historical context and no record is present in this workspace, state honestly that no previous record was found.\n\
-                 - Conclude with `📄 Fontes Consultadas:`.\n\n"
+                 - Conclude with `📄 Sources Consulted:`.\n\n"
             );
         }
         _ => {}
@@ -166,7 +166,8 @@ pub fn build_system_prompt(
             "### 🌐 LIVE WEB SEARCH ENGINE: ACTIVE\n\
              - You have access to real-time web search capabilities.\n\
              - In STRICT mode, web search is PERMISSION-GATED: only search the web if the user explicitly commanded online search or confirmed permission.\n\
-             - In HYBRID and PROACTIVE modes, you may query complementary web facts autonomously.\n\n"
+             - In HYBRID and PROACTIVE modes, you may query complementary web facts autonomously.\n\
+             - Conclude answers with `📄 Sources Consulted:`.\n\n"
         );
     } else {
         prompt.push_str(
@@ -184,7 +185,7 @@ pub fn build_system_prompt(
     // Language Consistency
     prompt.push_str(
         "### 🗣️ LANGUAGE CONSISTENCY:\n\
-         - ALWAYS answer in the exact language used by the user in their prompt. (If the user asks in Portuguese, reply in Portuguese. If in English, reply in English).\n"
+         - ALWAYS answer in the exact language used by the user in their prompt. (If the user asks in English, reply in English. If in Portuguese, reply in Portuguese, etc.).\n"
     );
 
     prompt
@@ -210,15 +211,15 @@ mod tests {
         assert!(p.contains("MANDATORY AUTONOMOUS RETRIEVAL"));
         assert!(p.contains("system_status"));
         assert!(p.contains("LIVE WEB SEARCH: DISABLED"));
-        assert!(p.contains("Fontes Consultadas"));
+        assert!(p.contains("Sources Consulted"));
     }
 
     #[test]
     fn test_build_system_prompt_hybrid_mode() {
         let p = build_system_prompt("TestWS", "hybrid", "fast", true);
         assert!(p.contains("GROUNDING MODE: HYBRID"));
-        assert!(p.contains("Informações do Workspace"));
-        assert!(p.contains("Conhecimento Geral do Modelo"));
+        assert!(p.contains("Workspace Information"));
+        assert!(p.contains("General Model Knowledge"));
         assert!(p.contains("LIVE WEB SEARCH ENGINE: ACTIVE"));
     }
 

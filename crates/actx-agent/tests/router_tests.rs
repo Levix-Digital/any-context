@@ -122,16 +122,16 @@ fn test_router_forced_modes() {
     let router = ChatModelRouter::default();
 
     // Fast query under forced Deep mode
-    let fast_query = "qual a porta padrão?";
+    let fast_query = "what is the default port?";
     let decision_deep = router.evaluate(fast_query, SearchMode::Deep);
     assert_eq!(decision_deep.mode, AgentExecutionMode::DeepSearch);
-    assert!(decision_deep.reason.contains("forçado pelo usuário"));
+    assert!(decision_deep.reason.contains("forced by user"));
 
     // Deep query under forced Fast mode
-    let deep_query = "explique a arquitetura sistêmica de ponta a ponta do orquestrador e seus trade-offs";
+    let deep_query = "explain the system architecture end-to-end and its trade-offs";
     let decision_fast = router.evaluate(deep_query, SearchMode::Fast);
     assert_eq!(decision_fast.mode, AgentExecutionMode::ReAct);
-    assert!(decision_fast.reason.contains("forçado pelo usuário"));
+    assert!(decision_fast.reason.contains("forced by user"));
 }
 
 #[test]

@@ -528,6 +528,10 @@ pub fn run_startup_splash_bootstrap() {
     if let Some(ref ls) = lance_store {
         ensure_global_knowledge_bootstrap(ls);
     }
+    // Always persist the current version to settings db so that future checks succeed even if LanceDB was unavailable
+    if let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() {
+        let _ = db.set_setting("global_knowledge_version", env!("CARGO_PKG_VERSION"));
+    }
     let _ = out.write_all(format!("\r  {} [2/3] System knowledge & BM25 hybrid lexicon indexed.      \n", theme.ansi_primary("✔")).as_bytes());
     let _ = out.flush();
 

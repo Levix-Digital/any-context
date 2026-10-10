@@ -1,0 +1,27 @@
+# GitHub Release Notes Configuration
+# Adheres to the canonical "What's Changed" format with conventional commit categorization.
+
+changelog:
+  categories:
+    - title: "🚀 Features & Enhancements"
+      labels:
+        - "feat"
+        - "feature"
+        - "enhancement"
+    - title: "🐛 Bug Fixes"
+      labels:
+        - "fix"
+        - "bug"
+        - "bugfix"
+    - title: "📝 Documentation"
+      labels:
+        - "docs"
+        - "documentation"
+    - title: "🔧 Maintenance & Performance"
+      labels:
+        - "chore"
+        - "perf"
+        - "refactor"
+        - "test"
+        - "ci"
+        - "build"

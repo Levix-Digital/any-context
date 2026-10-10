@@ -6555,3 +6555,43 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
      - Para todos os modelos não baixados, o AnyContext exibe status claro de fallback determinístico ativo (`Heurística Estrutural Rust (<1µs / 0MB RAM)`).
      - As buscas, ingestões e raciocínios prosseguem com 100% de funcionalidade sem falhas.
 
+---
+
+### 📌 Cenário 34: Global English Internationalization, Point-by-Point Braille Spinner, Default Collapsed ReAct Accordion, and Release Standard (v0.35.0):
+- **Objetivo**: Comprovar que a interface inteira do AnyContext (TUI, Onboarding, Menus, Prompt, Telemetria e Alertas) opera 100% em inglês global, que o spinner Braille gira de forma contínua ponto por ponto sem saltar, que a caixa de ReAct & Reasoning inicia recolhida por padrão, e que o formato padrão de releases do GitHub é suportado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🌐 Validação de Internacionalização Completa em Inglês:**
+   - Abra a TUI do AnyContext executando `actx`.
+   - Pressione `F1` ou `Esc` para abrir o Menu Principal.
+   - **Critérios de Aceitação**:
+     - O título é `⚙️ Interactive Menu ─ [Main Menu]`.
+     - Todos os itens de menu estão em inglês: `Workspaces & Context Folders`, `Synchronization & Reindexing`, `Monitored Sources & Web Portals`, `AI Models & LLM Providers`, `Grounding Strategy`, `Search Depth (/search)`, `Document AI & Local Models`, `Credentials & API Keys`, `Diagnostics & System Health`, `Conversation History`, `Clear Chat View`, `Exit AnyContext Session`.
+     - Badges estão em inglês: `[Active]`, `[SHA-256]`, `[Zero-Overhead]`, `[100% Rust]`, `[Fast]`, `[Full]`, `[Stop]`.
+     - O rodapé de navegação exibe: `[↑/↓] Navigate • [Enter/Tab] Select • [Esc/←] Back/Close`.
+   - Execute `/onboarding`:
+     - O Wizard exibe todos os 3 passos em inglês (`1. AI Provider & API Key`, `2. Document AI Profile`, `3. Initial Workspace Folder`).
+     - Nenhum texto ou placeholder permanece em português.
+
+2. **🌀 Validação do Spinner Braille Ponto-a-Ponto (Sem Engasgo ou Salto de Pontos):**
+   - Dispare uma ação assíncrona, como `/sync --force` ou faça uma pergunta complexa para raciocínio Deep Search.
+   - Observe a animação do spinner no rodapé da tela ou no cabeçalho:
+   - **Critérios de Aceitação**:
+     - O spinner percorre sequencialmente todos os pontos do perímetro (`["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]`) a cada tick.
+     - A rotação é perfeitamente suave, circular e contínua, sem pular posições intermediárias e sem a sensação de soluço/engasgo.
+
+3. **📦 Validação da Caixa ReAct & Reasoning Recolhida por Padrão:**
+   - Inicie uma nova sessão do `actx` e envie uma pergunta ao assistente.
+   - **Critérios de Aceitação**:
+     - Durante a execução, a caixa de ReAct & Reasoning aparece em seu estado recolhido (accordion fechado), exibindo o resumo em uma linha compacta `[+] 🧠 ReAct & Reasoning Trace (Ctrl+T to expand)`.
+     - A janela principal de conversa (Conversation) ocupa o espaço vertical integral da tela, proporcionando visibilidade máxima ao chat.
+     - Ao pressionar `Ctrl+T`, o accordion se expande revelando os passos detalhados de pensamento e chamadas de ferramenta. Pressionando `Ctrl+T` novamente, ele é recolhido com sucesso.
+
+4. **🚀 Validação do Padrão Oficial de Release Notes do GitHub:**
+   - Inspecione `.github/workflows/release.yml` e `.github/release.yml`:
+   - **Critérios de Aceitação**:
+     - As etapas de publicação contêm `generate_release_notes: true`.
+     - As notas de versão geradas pelo GitHub seguem a estrutura padrão com cabeçalho `## What's Changed`, commits convencionais mapeados por PR/autor (`* <feat/fix> by @<author> in #<pr>`), links de changelog comparativo e categorias semânticas (Features, Bug Fixes, Documentation, Maintenance).
+
+

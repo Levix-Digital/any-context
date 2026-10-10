@@ -272,7 +272,7 @@ pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str
     if let Err(e) = download_release_asset(&target_version, asset_name, &temp_archive) {
         if e.starts_with("ASSET_NOT_YET_AVAILABLE:") {
             let msg = format!(
-                "Os pacotes executáveis para a versão {} ainda estão sendo preparados\n    pelos servidores de compilação (CI/CD) ou estão temporariamente indisponíveis.\n\n    💡 Dica: A compilação de novas releases leva alguns minutos após o lançamento.\n       Por favor, tente novamente em instantes com: actx --update\n       Acompanhe a publicação em: https://github.com/Levix-Digital/any-context-releases/releases/tag/{}",
+                "Executable packages for release {} are still being built by CI/CD\n    or are temporarily unavailable.\n\n    💡 Tip: Automated builds typically take a few minutes after a release.\n       Please retry shortly with: actx --update\n       Track release status at: https://github.com/Levix-Digital/any-context-releases/releases/tag/{}",
                 target_version, target_version
             );
             log_update_event("WARN", &msg);

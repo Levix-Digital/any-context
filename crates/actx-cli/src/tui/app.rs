@@ -204,7 +204,7 @@ impl App {
             input_history: std::collections::HashMap::new(),
             history_index: None,
             current_draft: String::new(),
-            accordion_open: true,
+            accordion_open: false,
             slash_palette_open: false,
             slash_palette_idx: 0,
             slash_matches: Vec::new(),
@@ -613,7 +613,7 @@ impl App {
             self.chat_history.push(ChatMessageItem {
                 role: MessageRole::System,
                 content: format!(
-                    "🛑 [Download Cancelado]\nO download de **{}** foi interrompido a seu pedido.\nNenhum arquivo temporário residual foi mantido no disco e o AnyContext continua operacional via heurística nativa.",
+                    "🛑 [Download Cancelled]\nDownload of **{}** was stopped at your request.\nNo temporary files remain on disk, and AnyContext continues operating via native heuristics.",
                     name
                 ),
                 thinking: None,
@@ -683,7 +683,7 @@ impl App {
             self.chat_history.push(ChatMessageItem {
                 role: MessageRole::System,
                 content: format!(
-                    "📥 [Download de Modelo ONNX Iniciado]\nIniciando download assíncrono de **{}** (~{:.0} MB)...\nArquivo: `{}`\nDestino: `%LOCALAPPDATA%\\AnyContext\\models\\`\nO progresso é exibido no rodapé em tempo real. Pressione [Esc] para cancelar a qualquer momento.",
+                    "📥 [ONNX Model Download Started]\nStarting async download of **{}** (~{:.0} MB)...\nFile: `{}`\nDestination: `%LOCALAPPDATA%\\AnyContext\\models\\`\nReal-time progress is shown in the footer. Press [Esc] to cancel anytime.",
                     spec_name, spec_mb, spec_file
                 ),
                 thinking: None,
@@ -704,7 +704,7 @@ impl App {
                 self.chat_history.push(ChatMessageItem {
                     role: MessageRole::System,
                     content: format!(
-                        "✔ [Modelo Acoplado com Sucesso]\n**{}** foi instalado em disco e ativado!\nArquivo: `%LOCALAPPDATA%\\AnyContext\\models\\{}`.\nA partir de agora, o pipeline neural assume a execução.",
+                        "✔ [Model Successfully Attached]\n**{}** is installed on disk and active!\nFile: `%LOCALAPPDATA%\\AnyContext\\models\\{}`.\nNeural pipeline is now active for this task.",
                         name, file_name
                     ),
                     thinking: None,
@@ -714,12 +714,12 @@ impl App {
                 self.active_model_download = None;
             } else if dl.is_failed.load(Ordering::Relaxed) {
                 let name = dl.model_name.clone();
-                let err_text = dl.error_msg.lock().unwrap().clone().unwrap_or_else(|| "Erro desconhecido".to_string());
-                if err_text.contains("cancelado") {
+                let err_text = dl.error_msg.lock().unwrap().clone().unwrap_or_else(|| "Unknown error".to_string());
+                if err_text.contains("cancel") || err_text.contains("cancelado") {
                     self.chat_history.push(ChatMessageItem {
                         role: MessageRole::System,
                         content: format!(
-                            "🛑 [Download Cancelado]\nO download de **{}** foi cancelado. O AnyContext continua operacional via heurística nativa.",
+                            "🛑 [Download Cancelled]\nDownload of **{}** was cancelled. AnyContext continues operating via native heuristics.",
                             name
                         ),
                         thinking: None,
@@ -729,7 +729,7 @@ impl App {
                     self.chat_history.push(ChatMessageItem {
                         role: MessageRole::System,
                         content: format!(
-                            "❌ [Falha no Download]\nNão foi possível baixar **{}**: {}.\nO AnyContext continuará operando via fallback determinístico sem interrupções.",
+                            "❌ [Download Failed]\nCould not download **{}**: {}.\nAnyContext will continue operating via deterministic fallback without interruption.",
                             name, err_text
                         ),
                         thinking: None,
@@ -785,8 +785,8 @@ impl App {
             self.chat_history.push(ChatMessageItem {
                 role: MessageRole::System,
                 content: format!(
-                    "✨ [AnyContext Configurado com Sucesso]\nProvedor: `{}` | Modelo: `{}` | Perfil Document AI: `{}`.\nTudo pronto! Digite sua pergunta ou use /menu para explorar recursos.",
-                    prov, model, if onboarding.selected_doc_ai_idx == 0 { "Leve & Nuvem" } else { "Local Air-Gapped" }
+                    "✨ [AnyContext Successfully Configured]\nProvider: `{}` | Model: `{}` | Document AI Profile: `{}`.\nAll set! Type your question below or use /menu to explore features.",
+                    prov, model, if onboarding.selected_doc_ai_idx == 0 { "Lightweight Cloud" } else { "Local Air-Gapped" }
                 ),
                 thinking: None,
                 timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
@@ -862,7 +862,7 @@ impl App {
             } else if item.id == "doc_ai_action:vision_cloud" {
                 self.chat_history.push(ChatMessageItem {
                     role: MessageRole::System,
-                    content: "ℹ [Document AI: Visão via Nuvem/VPC]\nPara habilitar inspeção visual de alta precisão via Nuvem/VPC, selecione um modelo multimodal ativo usando /model (ex: gemini-1.5-pro, claude-3-5-sonnet ou gpt-4o). O AnyContext envia diagramas, layouts e imagens diretamente ao modelo configurado.".to_string(),
+                    content: "ℹ [Document AI: Cloud/VPC Vision]\nTo enable high-precision visual inspection via Cloud/VPC, select an active multimodal model using /model (e.g. gemini-1.5-pro, claude-3-5-sonnet, or gpt-4o). AnyContext sends diagrams, layouts, and images directly to the configured model.".to_string(),
                     thinking: None,
                     timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
                 });
@@ -876,7 +876,7 @@ impl App {
                     self.chat_history.push(ChatMessageItem {
                         role: MessageRole::System,
                         content: format!(
-                            "✔ [Modelo ONNX Ativo]\n**{}** está instalado em disco e ativo para {}.\nFallback resiliente automático: {}.",
+                            "✔ [ONNX Model Active]\n**{}** is installed on disk and active for {}.\nAutomatic resilient fallback: {}.",
                             spec.name, spec.category.as_str(), spec.fallback_description
                         ),
                         thinking: None,

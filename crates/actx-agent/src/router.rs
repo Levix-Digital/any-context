@@ -114,16 +114,16 @@ impl DeterministicClassifier {
 
         if word_count >= self.config.deep_min_words {
             score += 0.25;
-            reasons.push("extensão detalhada da consulta");
+            reasons.push("detailed query length");
         } else if word_count <= self.config.fast_max_words {
             score -= 0.15;
         }
 
-        // Multi-question or multi-aspect markers ("? ... ?", "e também", "além disso", "bem como", "quais e como")
+        // Multi-question or multi-aspect markers ("? ... ?", "and also", "as well as", etc.)
         let q_marks = query.chars().filter(|&c| c == '?').count();
         if q_marks >= 2 {
             score += 0.25;
-            reasons.push("múltiplas perguntas na mesma mensagem");
+            reasons.push("multiple questions in single prompt");
         }
 
         let lower = query.to_lowercase();
@@ -132,10 +132,10 @@ impl DeterministicClassifier {
             || lower.contains(" por que e como ") || lower.contains(" why and how ")
         {
             score += 0.20;
-            reasons.push("conjunções aditivas multi-aspecto");
+            reasons.push("multi-aspect additive conjunctions");
         }
 
-        // Comparative markers ("diferença entre", "compare", "versus", "vs", "prós e contras", "trade-offs")
+        // Comparative markers ("difference between", "compare", "versus", "vs", "pros and cons", "trade-offs")
         if lower.contains("diferença entre") || lower.contains("difference between")
             || lower.contains("compare") || lower.contains("comparar")
             || lower.contains(" versus ") || lower.contains(" vs ")
@@ -144,7 +144,7 @@ impl DeterministicClassifier {
             || lower.contains("qual a melhor abordagem") || lower.contains("which is better")
         {
             score += 0.35;
-            reasons.push("análise comparativa / trade-offs");
+            reasons.push("comparative analysis / trade-offs");
         }
 
         (score, reasons)
@@ -158,25 +158,25 @@ impl DeterministicClassifier {
 
         // Deep Lexical Triggers (PT & EN)
         let deep_triggers = [
-            ("arquitetura", "arquitetura sistêmica"),
+            ("arquitetura", "system architecture"),
             ("architecture", "system architecture"),
-            ("end-to-end", "fluxo end-to-end"),
-            ("ponta a ponta", "fluxo ponta a ponta"),
-            ("fluxo completo", "fluxo completo"),
-            ("ciclo de vida", "ciclo de vida"),
+            ("end-to-end", "end-to-end flow"),
+            ("ponta a ponta", "end-to-end flow"),
+            ("fluxo completo", "complete flow"),
+            ("ciclo de vida", "lifecycle"),
             ("lifecycle", "system lifecycle"),
-            ("auditoria", "auditoria"),
-            ("segurança", "análise de segurança"),
-            ("refatoração", "estratégia de refatoração"),
+            ("auditoria", "audit"),
+            ("segurança", "security analysis"),
+            ("refatoração", "refactoring strategy"),
             ("refactoring", "refactoring analysis"),
-            ("todas as ocorrências", "busca exaustiva de ocorrências"),
-            ("todas as referências", "busca de referências"),
-            ("quais módulos", "análise multi-módulo"),
-            ("quais arquivos", "análise multi-arquivo"),
-            ("como se relacionam", "correlação estrutural"),
-            ("impacto de mudar", "análise de impacto"),
-            ("passo a passo detalhado", "raciocínio passo a passo"),
-            ("diagnóstico completo", "diagnóstico abrangente"),
+            ("todas as ocorrências", "exhaustive occurrences lookup"),
+            ("todas as referências", "reference lookup"),
+            ("quais módulos", "multi-module analysis"),
+            ("quais arquivos", "multi-file analysis"),
+            ("como se relacionam", "structural correlation"),
+            ("impacto de mudar", "impact analysis"),
+            ("passo a passo detalhado", "step-by-step reasoning"),
+            ("diagnóstico completo", "comprehensive diagnostics"),
         ];
 
         for (trigger, label) in deep_triggers {
@@ -199,7 +199,7 @@ impl DeterministicClassifier {
         for trigger in fast_triggers {
             if lower.contains(trigger) {
                 score -= 0.30;
-                reasons.push("consulta pontual de busca rápida");
+                reasons.push("targeted fast lookup query");
             }
         }
 
@@ -251,9 +251,9 @@ impl ComplexityClassifier for DeterministicClassifier {
 
         let reason_str = if all_reasons.is_empty() {
             if complexity == QueryComplexity::Deep {
-                "Padrão de consulta complexa com múltiplas dependências".to_string()
+                "Complex multi-dependency query pattern".to_string()
             } else {
-                "Consulta direta pontual de baixa latência".to_string()
+                "Direct low-latency point query".to_string()
             }
         } else {
             all_reasons.join(", ")
@@ -305,23 +305,23 @@ impl ChatModelRouter {
             SearchMode::Fast => (
                 AgentExecutionMode::ReAct,
                 QueryComplexity::Fast,
-                format!("⚡ Modo Fast forçado pelo usuário (/search fast): {}", reason),
+                format!("⚡ Fast mode forced by user (/search fast): {}", reason),
             ),
             SearchMode::Deep => (
                 AgentExecutionMode::DeepSearch,
                 QueryComplexity::Deep,
-                format!("🧠 Modo Deep Search forçado pelo usuário (/search deep): {}", reason),
+                format!("🧠 Deep Search mode forced by user (/search deep): {}", reason),
             ),
             SearchMode::Auto => match complexity {
                 QueryComplexity::Deep => (
                     AgentExecutionMode::DeepSearch,
                     QueryComplexity::Deep,
-                    format!("🧠 Roteado autonomamente para Deep Search (score: {:.2}): {}", confidence, reason),
+                    format!("🧠 Autonomously routed to Deep Search (score: {:.2}): {}", confidence, reason),
                 ),
                 QueryComplexity::Fast => (
                     AgentExecutionMode::ReAct,
                     QueryComplexity::Fast,
-                    format!("⚡ Roteado autonomamente para Fast RAG (score: {:.2}): {}", confidence, reason),
+                    format!("⚡ Autonomously routed to Fast RAG (score: {:.2}): {}", confidence, reason),
                 ),
             },
         };

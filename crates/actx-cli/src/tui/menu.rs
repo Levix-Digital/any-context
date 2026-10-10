@@ -55,59 +55,59 @@ impl MenuState {
 
         match menu_id {
             "workspaces" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Workspaces".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Workspaces".to_string()];
                 self.items = build_workspaces_menu(active_workspace);
             }
             "models" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Modelos de IA".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "AI Models".to_string()];
                 self.items = build_models_menu(active_model);
             }
             "sync" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Sincronização".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Synchronization".to_string()];
                 self.items = build_sync_menu();
             }
             "grounding" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Grounding Strategy".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Grounding Strategy".to_string()];
                 self.items = build_grounding_menu();
             }
             "search" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Profundidade de Busca".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Search Depth".to_string()];
                 self.items = build_search_menu();
             }
             "sources" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Fontes & Documentos".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Sources & Documents".to_string()];
                 self.items = build_sources_menu(active_workspace);
             }
             "keys" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Credenciais de API".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "API Credentials".to_string()];
                 self.items = build_keys_menu();
             }
             "document_ai" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI & Modelos Locais".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI & Local Models".to_string()];
                 self.items = build_document_ai_menu(None);
             }
             "doc_ai:ingestion" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Classificação de Ingestão".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI".to_string(), "Ingestion Classification".to_string()];
                 self.items = build_doc_ai_ingestion_menu();
             }
             "doc_ai:scans" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Sentinela de Scans".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI".to_string(), "Scan Sentinel".to_string()];
                 self.items = build_doc_ai_scans_menu();
             }
             "doc_ai:queries" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Roteamento de Perguntas".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI".to_string(), "Query Routing".to_string()];
                 self.items = build_doc_ai_queries_menu();
             }
             "doc_ai:vision" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Visão de Documentos".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI".to_string(), "Document Vision".to_string()];
                 self.items = build_doc_ai_vision_menu();
             }
             "doc_ai:store_status" => {
-                self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI".to_string(), "Resumo de Armazenamento".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI".to_string(), "Storage Summary".to_string()];
                 self.items = build_doc_ai_store_menu();
             }
             _ => {
-                self.breadcrumbs = vec!["Menu Principal".to_string()];
+                self.breadcrumbs = vec!["Main Menu".to_string()];
                 self.items = build_main_menu(active_workspace, active_model);
             }
         }
@@ -118,7 +118,7 @@ impl MenuState {
         self.current_menu_id = "workspaces".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
-        self.breadcrumbs = vec!["Menu Principal".to_string(), "Workspaces".to_string()];
+        self.breadcrumbs = vec!["Main Menu".to_string(), "Workspaces".to_string()];
         self.items = build_workspaces_menu(active_workspace);
     }
 
@@ -127,7 +127,7 @@ impl MenuState {
         self.current_menu_id = "models".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
-        self.breadcrumbs = vec!["Menu Principal".to_string(), "Modelos de IA".to_string()];
+        self.breadcrumbs = vec!["Main Menu".to_string(), "AI Models".to_string()];
         self.items = build_models_menu(active_model);
     }
 
@@ -136,7 +136,7 @@ impl MenuState {
         self.current_menu_id = "sync".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
-        self.breadcrumbs = vec!["Menu Principal".to_string(), "Sincronização".to_string()];
+        self.breadcrumbs = vec!["Main Menu".to_string(), "Synchronization".to_string()];
         self.items = build_sync_menu();
     }
 
@@ -145,7 +145,7 @@ impl MenuState {
         self.current_menu_id = "grounding".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
-        self.breadcrumbs = vec!["Menu Principal".to_string(), "Grounding Strategy".to_string()];
+        self.breadcrumbs = vec!["Main Menu".to_string(), "Grounding Strategy".to_string()];
         self.items = build_grounding_menu();
     }
 
@@ -154,7 +154,7 @@ impl MenuState {
         self.current_menu_id = "search".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
-        self.breadcrumbs = vec!["Menu Principal".to_string(), "Profundidade de Busca".to_string()];
+        self.breadcrumbs = vec!["Main Menu".to_string(), "Search Depth".to_string()];
         self.items = build_search_menu();
     }
 
@@ -163,7 +163,7 @@ impl MenuState {
         self.current_menu_id = "sources".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
-        self.breadcrumbs = vec!["Menu Principal".to_string(), "Fontes & Documentos".to_string()];
+        self.breadcrumbs = vec!["Main Menu".to_string(), "Sources & Documents".to_string()];
         self.items = build_sources_menu(active_workspace);
     }
 
@@ -172,7 +172,7 @@ impl MenuState {
         self.current_menu_id = "keys".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
-        self.breadcrumbs = vec!["Menu Principal".to_string(), "Credenciais de API".to_string()];
+        self.breadcrumbs = vec!["Main Menu".to_string(), "API Credentials".to_string()];
         self.items = build_keys_menu();
     }
 
@@ -181,7 +181,7 @@ impl MenuState {
         self.current_menu_id = "document_ai".to_string();
         self.menu_history.clear();
         self.selected_idx = 0;
-        self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI & Modelos Locais".to_string()];
+        self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI & Local Models".to_string()];
         self.items = build_document_ai_menu(active_download_name);
     }
 
@@ -192,43 +192,43 @@ impl MenuState {
 
             match prev_menu.as_str() {
                 "main" => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string()];
+                    self.breadcrumbs = vec!["Main Menu".to_string()];
                     self.items = build_main_menu(active_workspace, active_model);
                 }
                 "document_ai" => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Document AI & Modelos Locais".to_string()];
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI & Local Models".to_string()];
                     self.items = build_document_ai_menu(None);
                 }
                 "workspaces" => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Workspaces".to_string()];
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "Workspaces".to_string()];
                     self.items = build_workspaces_menu(active_workspace);
                 }
                 "models" => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Modelos de IA".to_string()];
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "AI Models".to_string()];
                     self.items = build_models_menu(active_model);
                 }
                 "sync" => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Sincronização".to_string()];
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "Synchronization".to_string()];
                     self.items = build_sync_menu();
                 }
                 "grounding" => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Grounding Strategy".to_string()];
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "Grounding Strategy".to_string()];
                     self.items = build_grounding_menu();
                 }
                 "search" => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Profundidade de Busca".to_string()];
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "Search Depth".to_string()];
                     self.items = build_search_menu();
                 }
                 "sources" => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Fontes & Documentos".to_string()];
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "Sources & Documents".to_string()];
                     self.items = build_sources_menu(active_workspace);
                 }
                 "keys" => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string(), "Credenciais de API".to_string()];
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "API Credentials".to_string()];
                     self.items = build_keys_menu();
                 }
                 _ => {
-                    self.breadcrumbs = vec!["Menu Principal".to_string(), prev_menu];
+                    self.breadcrumbs = vec!["Main Menu".to_string(), prev_menu];
                 }
             }
             true
@@ -263,8 +263,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
     vec![
         MenuItem {
             id: "workspaces".to_string(),
-            title: "Workspaces & Pastas de Contexto".to_string(),
-            description: "Listar, alternar ou selecionar workspaces de contexto".to_string(),
+            title: "Workspaces & Context Folders".to_string(),
+            description: "List, switch, or select context workspaces".to_string(),
             icon: "📂".to_string(),
             badge: Some(format!("[{}]", active_workspace)),
             shortcut: Some("/switch".to_string()),
@@ -272,8 +272,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "sync".to_string(),
-            title: "Sincronização & Reindexação".to_string(),
-            description: "Executar sincronização incremental ou forçada de arquivos".to_string(),
+            title: "Synchronization & Reindexing".to_string(),
+            description: "Run incremental or forced file synchronization".to_string(),
             icon: "🔄".to_string(),
             badge: Some("[SHA-256]".to_string()),
             shortcut: Some("/sync".to_string()),
@@ -281,8 +281,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "sources".to_string(),
-            title: "Fontes Monitoradas & Portais Web".to_string(),
-            description: "Listar diretórios locais e URLs de documentação cadastradas".to_string(),
+            title: "Monitored Sources & Web Portals".to_string(),
+            description: "List local directories and indexed documentation URLs".to_string(),
             icon: "📁".to_string(),
             badge: None,
             shortcut: Some("/sources".to_string()),
@@ -290,8 +290,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "models".to_string(),
-            title: "Modelos de IA & Provedores LLM".to_string(),
-            description: "Selecionar modelo ativo (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Ollama, Mock)".to_string(),
+            title: "AI Models & LLM Providers".to_string(),
+            description: "Select active model (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Ollama, Mock)".to_string(),
             icon: "🤖".to_string(),
             badge: Some(format!("[{}]", active_model)),
             shortcut: Some("/model".to_string()),
@@ -299,8 +299,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "grounding".to_string(),
-            title: "Grounding Strategy (Ancoragem)".to_string(),
-            description: "Configurar política de fidelidade: Strict, Hybrid ou Proactive".to_string(),
+            title: "Grounding Strategy".to_string(),
+            description: "Configure grounding policy: Strict, Hybrid, or Proactive".to_string(),
             icon: "🛡️".to_string(),
             badge: None,
             shortcut: Some("/mode".to_string()),
@@ -308,8 +308,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "search".to_string(),
-            title: "Profundidade de Busca (/search)".to_string(),
-            description: "Configurar modo de busca do workspace: Auto, Fast ou Deep".to_string(),
+            title: "Search Depth (/search)".to_string(),
+            description: "Configure workspace search mode: Auto, Fast, or Deep".to_string(),
             icon: "🎯".to_string(),
             badge: None,
             shortcut: Some("/search".to_string()),
@@ -317,8 +317,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "document_ai".to_string(),
-            title: "Document AI & Modelos Locais".to_string(),
-            description: "Classificação local <1µs, layout 2D spatial e download de modelos de visão".to_string(),
+            title: "Document AI & Local Models".to_string(),
+            description: "Local classification <1µs, 2D spatial layout, and vision model downloads".to_string(),
             icon: "👁️".to_string(),
             badge: Some("[Zero-Overhead]".to_string()),
             shortcut: None,
@@ -326,8 +326,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "keys".to_string(),
-            title: "Credenciais & Chaves de API".to_string(),
-            description: "Auditar presença de chaves configuradas nos provedores".to_string(),
+            title: "Credentials & API Keys".to_string(),
+            description: "Audit presence of configured provider API keys".to_string(),
             icon: "🔑".to_string(),
             badge: None,
             shortcut: Some("/keys".to_string()),
@@ -335,8 +335,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "diagnostics".to_string(),
-            title: "Diagnóstico & Saúde do Sistema".to_string(),
-            description: "Inspecionar integridade da engine 100% Rust, SQLite e LanceDB".to_string(),
+            title: "Diagnostics & System Health".to_string(),
+            description: "Inspect health of 100% Rust engine, SQLite, and LanceDB".to_string(),
             icon: "🩺".to_string(),
             badge: Some("[100% Rust]".to_string()),
             shortcut: Some("/diagnostics".to_string()),
@@ -344,8 +344,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "history".to_string(),
-            title: "Histórico de Conversação".to_string(),
-            description: "Exibir contagem de turnos e status de memória da sessão".to_string(),
+            title: "Conversation History".to_string(),
+            description: "Display turn count and session memory status".to_string(),
             icon: "📜".to_string(),
             badge: None,
             shortcut: Some("/history".to_string()),
@@ -353,8 +353,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "clear".to_string(),
-            title: "Limpar Visualização do Chat".to_string(),
-            description: "Limpar o histórico visual mantendo o estado do motor".to_string(),
+            title: "Clear Chat View".to_string(),
+            description: "Clear visual chat history while preserving engine state".to_string(),
             icon: "🧹".to_string(),
             badge: None,
             shortcut: Some("/clear".to_string()),
@@ -362,8 +362,8 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
         },
         MenuItem {
             id: "exit".to_string(),
-            title: "Encerrar Sessão do AnyContext".to_string(),
-            description: "Salvar estado e fechar aplicativo restaurando o terminal".to_string(),
+            title: "Exit AnyContext Session".to_string(),
+            description: "Save state and exit application, restoring terminal".to_string(),
             icon: "🚪".to_string(),
             badge: None,
             shortcut: Some("/exit".to_string()),
@@ -385,13 +385,13 @@ pub fn build_workspaces_menu(active_workspace: &str) -> Vec<MenuItem> {
             id: format!("switch:{}", ws),
             title: format!("Workspace: {}", ws),
             description: if is_active {
-                "Workspace ativo no momento".to_string()
+                "Currently active workspace".to_string()
             } else {
-                format!("Alternar para o workspace '{}'", ws)
+                format!("Switch to workspace '{}'", ws)
             },
             icon: "📂".to_string(),
             badge: if is_active {
-                Some("[Ativo]".to_string())
+                Some("[Active]".to_string())
             } else {
                 None
             },
@@ -402,10 +402,10 @@ pub fn build_workspaces_menu(active_workspace: &str) -> Vec<MenuItem> {
 
     items.push(MenuItem {
         id: "workspace_tip".to_string(),
-        title: "💡 Excluir Workspace (Dica)".to_string(),
-        description: "Para excluir um workspace, use o comando: /switch --delete <nome>".to_string(),
+        title: "💡 Delete Workspace (Tip)".to_string(),
+        description: "To delete a workspace, run: /switch --delete <name>".to_string(),
         icon: "🗑️".to_string(),
-        badge: Some("[Dica]".to_string()),
+        badge: Some("[Tip]".to_string()),
         shortcut: None,
         is_submenu: false,
     });
@@ -415,17 +415,17 @@ pub fn build_workspaces_menu(active_workspace: &str) -> Vec<MenuItem> {
 
 pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
     let models = &[
-        ("gemini-3.8-flash", "Google - Baixíssima latência e multimodalidade"),
-        ("gpt-4o-mini", "OpenAI - Rápido, econômico e inteligente"),
-        ("gpt-4o", "OpenAI - Flagship multimodal de alta capacidade"),
-        ("claude-3-5-sonnet-20241022", "Anthropic - Raciocínio avançado e código"),
-        ("claude-3-5-haiku-20241022", "Anthropic - Ultrarrápido e eficiente"),
-        ("gemini-1.5-pro", "Google - Janela de contexto estendida"),
-        ("deepseek-chat", "DeepSeek - Excelente custo-benefício para código"),
-        ("deepseek-reasoner", "DeepSeek R1 - Raciocínio analítico passo-a-passo"),
-        ("llama-3.3-70b-versatile", "Groq - Inferência instantânea em hardware LPU"),
-        ("ollama/qwen2.5-coder", "Local - Modelo offline via endpoint Ollama local"),
-        ("mock", "Mock - Simulação instantânea offline para testes e demonstração"),
+        ("gemini-3.8-flash", "Google - Ultra-low latency and multimodality"),
+        ("gpt-4o-mini", "OpenAI - Fast, cost-efficient, and intelligent"),
+        ("gpt-4o", "OpenAI - High-capability multimodal flagship"),
+        ("claude-3-5-sonnet-20241022", "Anthropic - Advanced reasoning and coding"),
+        ("claude-3-5-haiku-20241022", "Anthropic - Ultra-fast and efficient"),
+        ("gemini-1.5-pro", "Google - Extended context window"),
+        ("deepseek-chat", "DeepSeek - High cost-benefit for coding"),
+        ("deepseek-reasoner", "DeepSeek R1 - Step-by-step analytical reasoning"),
+        ("llama-3.3-70b-versatile", "Groq - Instant inference on LPU hardware"),
+        ("ollama/qwen2.5-coder", "Local - Offline model via local Ollama endpoint"),
+        ("mock", "Mock - Instant offline simulation for testing and demos"),
     ];
 
     models
@@ -438,7 +438,7 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
                 description: desc.to_string(),
                 icon: "🤖".to_string(),
                 badge: if is_active {
-                    Some("[Ativo]".to_string())
+                    Some("[Active]".to_string())
                 } else {
                     None
                 },
@@ -453,28 +453,28 @@ pub fn build_sync_menu() -> Vec<MenuItem> {
     vec![
         MenuItem {
             id: "sync_action:incremental".to_string(),
-            title: "Sincronização Incremental (Padrão)".to_string(),
-            description: "Analisa apenas arquivos novos e modificados via hash SHA-256 ($0.00)".to_string(),
+            title: "Incremental Synchronization (Default)".to_string(),
+            description: "Only analyzes new and modified files via SHA-256 hash ($0.00)".to_string(),
             icon: "⚡".to_string(),
-            badge: Some("[Rápido]".to_string()),
+            badge: Some("[Fast]".to_string()),
             shortcut: Some("/sync".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "sync_action:force".to_string(),
-            title: "Sincronização Forçada (--force)".to_string(),
-            description: "Recalcula todos os hashes e reindexa integralmente o workspace".to_string(),
+            title: "Forced Synchronization (--force)".to_string(),
+            description: "Recalculates all hashes and fully re-indexes the workspace".to_string(),
             icon: "🔄".to_string(),
-            badge: Some("[Completo]".to_string()),
+            badge: Some("[Full]".to_string()),
             shortcut: Some("/sync --force".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "sync_action:cancel".to_string(),
-            title: "Cancelar Sincronização em Andamento".to_string(),
-            description: "Interrompe o worker de indexação/crawler e reseta o status".to_string(),
+            title: "Cancel In-Progress Sync".to_string(),
+            description: "Stops indexing/crawler worker and resets sync status".to_string(),
             icon: "🛑".to_string(),
-            badge: Some("[Parar]".to_string()),
+            badge: Some("[Stop]".to_string()),
             shortcut: Some("/sync cancel".to_string()),
             is_submenu: false,
         },
@@ -485,28 +485,28 @@ pub fn build_grounding_menu() -> Vec<MenuItem> {
     vec![
         MenuItem {
             id: "grounding_action:strict".to_string(),
-            title: "Strict Mode (100% Fatos Verificados)".to_string(),
-            description: "Respostas estritamente ancoradas nos documentos, zero especulação externa".to_string(),
+            title: "Strict Mode (100% Verified Facts)".to_string(),
+            description: "Responses strictly grounded in indexed documents, zero external speculation".to_string(),
             icon: "🔒".to_string(),
-            badge: Some("[Auditoria]".to_string()),
+            badge: Some("[Audit]".to_string()),
             shortcut: Some("/mode strict".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "grounding_action:hybrid".to_string(),
             title: "Hybrid Mode (Dual-Layer)".to_string(),
-            description: "Camada 1: fatos do workspace + Camada 2: sugestões externas identificadas".to_string(),
+            description: "Layer 1: workspace facts + Layer 2: identified external suggestions".to_string(),
             icon: "⚖️".to_string(),
-            badge: Some("[Equilibrado]".to_string()),
+            badge: Some("[Balanced]".to_string()),
             shortcut: Some("/mode hybrid".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "grounding_action:proactive".to_string(),
-            title: "Proactive Mode (Síntese & Recomendações)".to_string(),
-            description: "Síntese ampla, insights de pesquisa e recomendações proativas de fontes".to_string(),
+            title: "Proactive Mode (Synthesis & Recommendations)".to_string(),
+            description: "Broad synthesis, research insights, and proactive source recommendations".to_string(),
             icon: "💡".to_string(),
-            badge: Some("[Pesquisa]".to_string()),
+            badge: Some("[Research]".to_string()),
             shortcut: Some("/mode proactive".to_string()),
             is_submenu: false,
         },
@@ -517,28 +517,28 @@ pub fn build_search_menu() -> Vec<MenuItem> {
     vec![
         MenuItem {
             id: "search_action:auto".to_string(),
-            title: "Auto Search Depth (Padrão Inteligente)".to_string(),
-            description: "Alterna automaticamente entre busca rápida e reflexiva conforme a pergunta".to_string(),
+            title: "Auto Search Depth (Smart Default)".to_string(),
+            description: "Automatically switches between fast and reflexive search based on query complexity".to_string(),
             icon: "🎯".to_string(),
-            badge: Some("[Padrão]".to_string()),
+            badge: Some("[Default]".to_string()),
             shortcut: Some("/search auto".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "search_action:fast".to_string(),
             title: "Fast RAG (Single-Turn <50ms)".to_string(),
-            description: "Busca vetorial e lexical direta de latência ultra-baixa".to_string(),
+            description: "Direct ultra-low latency vector and lexical search".to_string(),
             icon: "⚡".to_string(),
-            badge: Some("[Ultra Rápido]".to_string()),
+            badge: Some("[Ultra Fast]".to_string()),
             shortcut: Some("/search fast".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "search_action:deep".to_string(),
             title: "Deep Search (Reflexive ReAct)".to_string(),
-            description: "Raciocínio multi-turn com decomposição de subtarefas e auto-correção".to_string(),
+            description: "Multi-turn reasoning with subtask decomposition and self-correction".to_string(),
             icon: "🧠".to_string(),
-            badge: Some("[Aprofundado]".to_string()),
+            badge: Some("[Deep]".to_string()),
             shortcut: Some("/search deep".to_string()),
             is_submenu: false,
         },
@@ -554,17 +554,17 @@ pub fn build_sources_menu(active_workspace: &str) -> Vec<MenuItem> {
     vec![
         MenuItem {
             id: "sources_action:active".to_string(),
-            title: format!("Fontes do Workspace '{}' ({})", active_workspace, total_active),
-            description: "Exibe todas as pastas e portais web indexados no workspace atual".to_string(),
+            title: format!("Workspace Sources '{}' ({})", active_workspace, total_active),
+            description: "Displays all folders and web portals indexed in the current workspace".to_string(),
             icon: "📂".to_string(),
-            badge: Some(format!("[{} fontes]", total_active)),
+            badge: Some(format!("[{} sources]", total_active)),
             shortcut: Some("/sources".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "sources_action:all".to_string(),
-            title: "Todas as Fontes & Workspaces (--all)".to_string(),
-            description: "Lista todas as pastas e URLs configuradas em todos os workspaces".to_string(),
+            title: "All Sources & Workspaces (--all)".to_string(),
+            description: "Lists all folders and URLs configured across all workspaces".to_string(),
             icon: "🌐".to_string(),
             badge: Some("[Global]".to_string()),
             shortcut: Some("/sources --all".to_string()),
@@ -572,8 +572,8 @@ pub fn build_sources_menu(active_workspace: &str) -> Vec<MenuItem> {
         },
         MenuItem {
             id: "sources_action:inspect".to_string(),
-            title: "Inspecionar Vetores LanceDB & Chunks (/inspect)".to_string(),
-            description: "Auditar integridade dos vetores, chunks e índices Apache Arrow".to_string(),
+            title: "Inspect LanceDB Vectors & Chunks (/inspect)".to_string(),
+            description: "Audit integrity of vectors, chunks, and Apache Arrow indices".to_string(),
             icon: "🔎".to_string(),
             badge: Some("[LanceDB]".to_string()),
             shortcut: Some("/inspect".to_string()),
@@ -586,33 +586,33 @@ pub fn build_keys_menu() -> Vec<MenuItem> {
     let db = NativeConfigDb::open_default().ok();
     let check = |provider: &str, env_var: &str| -> (&'static str, Option<String>) {
         if std::env::var(env_var).map(|v| !v.trim().is_empty()).unwrap_or(false) {
-            ("Configurada (Env)", Some("[Ativo]".to_string()))
+            ("Configured (Env)", Some("[Active]".to_string()))
         } else if let Some(ref d) = db {
             if let Ok(Some(k)) = d.get_api_key(provider) {
                 if !k.trim().is_empty() {
-                    return ("Configurada (Vault)", Some("[Ativo]".to_string()));
+                    return ("Configured (Vault)", Some("[Active]".to_string()));
                 }
             }
-            ("Não configurada", Some("[Ausente]".to_string()))
+            ("Not configured", Some("[Missing]".to_string()))
         } else {
-            ("Não configurada", Some("[Ausente]".to_string()))
+            ("Not configured", Some("[Missing]".to_string()))
         }
     };
 
     vec![
         MenuItem {
             id: "keys_action:audit".to_string(),
-            title: "Relatório de Auditoria de Credenciais".to_string(),
-            description: "Emite relatório detalhado no chat com status de cada provedor".to_string(),
+            title: "Credential Audit Report".to_string(),
+            description: "Outputs detailed report in chat with status of each provider".to_string(),
             icon: "📋".to_string(),
-            badge: Some("[Auditar]".to_string()),
+            badge: Some("[Audit]".to_string()),
             shortcut: Some("/keys".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "keys_info:gemini".to_string(),
             title: "Google Gemini (Gemini 3.8 Flash, 1.5 Pro)".to_string(),
-            description: format!("Chave: GEMINI_API_KEY - Status: {}", check("gemini", "GEMINI_API_KEY").0),
+            description: format!("Key: GEMINI_API_KEY - Status: {}", check("gemini", "GEMINI_API_KEY").0),
             icon: "🔑".to_string(),
             badge: check("gemini", "GEMINI_API_KEY").1,
             shortcut: None,
@@ -621,7 +621,7 @@ pub fn build_keys_menu() -> Vec<MenuItem> {
         MenuItem {
             id: "keys_info:openai".to_string(),
             title: "OpenAI (GPT-4o, o1, o3-mini)".to_string(),
-            description: format!("Chave: OPENAI_API_KEY - Status: {}", check("openai", "OPENAI_API_KEY").0),
+            description: format!("Key: OPENAI_API_KEY - Status: {}", check("openai", "OPENAI_API_KEY").0),
             icon: "🔑".to_string(),
             badge: check("openai", "OPENAI_API_KEY").1,
             shortcut: None,
@@ -630,7 +630,7 @@ pub fn build_keys_menu() -> Vec<MenuItem> {
         MenuItem {
             id: "keys_info:anthropic".to_string(),
             title: "Anthropic (Claude 3.5 Sonnet, Haiku)".to_string(),
-            description: format!("Chave: ANTHROPIC_API_KEY - Status: {}", check("anthropic", "ANTHROPIC_API_KEY").0),
+            description: format!("Key: ANTHROPIC_API_KEY - Status: {}", check("anthropic", "ANTHROPIC_API_KEY").0),
             icon: "🔑".to_string(),
             badge: check("anthropic", "ANTHROPIC_API_KEY").1,
             shortcut: None,
@@ -639,7 +639,7 @@ pub fn build_keys_menu() -> Vec<MenuItem> {
         MenuItem {
             id: "keys_info:deepseek".to_string(),
             title: "DeepSeek (DeepSeek V3, R1 Reasoner)".to_string(),
-            description: format!("Chave: DEEPSEEK_API_KEY - Status: {}", check("deepseek", "DEEPSEEK_API_KEY").0),
+            description: format!("Key: DEEPSEEK_API_KEY - Status: {}", check("deepseek", "DEEPSEEK_API_KEY").0),
             icon: "🔑".to_string(),
             badge: check("deepseek", "DEEPSEEK_API_KEY").1,
             shortcut: None,
@@ -648,7 +648,7 @@ pub fn build_keys_menu() -> Vec<MenuItem> {
         MenuItem {
             id: "keys_info:groq".to_string(),
             title: "Groq Cloud (Llama 3.3 70B LPU)".to_string(),
-            description: format!("Chave: GROQ_API_KEY - Status: {}", check("groq", "GROQ_API_KEY").0),
+            description: format!("Key: GROQ_API_KEY - Status: {}", check("groq", "GROQ_API_KEY").0),
             icon: "🔑".to_string(),
             badge: check("groq", "GROQ_API_KEY").1,
             shortcut: None,
@@ -663,10 +663,10 @@ pub fn build_document_ai_menu(active_download_name: Option<&str>) -> Vec<MenuIte
     if let Some(name) = active_download_name {
         items.push(MenuItem {
             id: "model_action:cancel_active".to_string(),
-            title: format!("🛑 Cancelar Download de {}", name),
-            description: "Interrompe imediatamente o download e remove arquivos temporários do disco".to_string(),
+            title: format!("🛑 Cancel Download of {}", name),
+            description: "Immediately aborts download and purges temporary files from disk".to_string(),
             icon: "🛑".to_string(),
-            badge: Some("[Em Progresso]".to_string()),
+            badge: Some("[In Progress]".to_string()),
             shortcut: Some("Esc".to_string()),
             is_submenu: false,
         });
@@ -674,8 +674,8 @@ pub fn build_document_ai_menu(active_download_name: Option<&str>) -> Vec<MenuIte
 
     items.push(MenuItem {
         id: "doc_ai:ingestion".to_string(),
-        title: "📂 1. Classificação de Documentos (Ingestão)".to_string(),
-        description: "Tipologia e categorização estrutural de arquivos (faturas, relatórios, código) na indexação".to_string(),
+        title: "📂 1. Document Classification (Ingestion)".to_string(),
+        description: "File typology and structural categorization (invoices, reports, code) during indexing".to_string(),
         icon: "📂".to_string(),
         badge: Some("[Modular]".to_string()),
         shortcut: None,
@@ -684,8 +684,8 @@ pub fn build_document_ai_menu(active_download_name: Option<&str>) -> Vec<MenuIte
 
     items.push(MenuItem {
         id: "doc_ai:scans".to_string(),
-        title: "👁️ 2. Sentinela de Scans & PDFs Rasterizados".to_string(),
-        description: "Detecta visualmente se uma página é foto/escaneamento antes de extrair texto ou layout".to_string(),
+        title: "👁️ 2. Scans & Rasterized PDF Sentinel".to_string(),
+        description: "Visually detects whether a page is a scan/photo before extracting text or layout".to_string(),
         icon: "👁️".to_string(),
         badge: Some("[Modular]".to_string()),
         shortcut: None,
@@ -694,8 +694,8 @@ pub fn build_document_ai_menu(active_download_name: Option<&str>) -> Vec<MenuIte
 
     items.push(MenuItem {
         id: "doc_ai:queries".to_string(),
-        title: "🔍 3. Roteamento de Perguntas (Fast vs Deep)".to_string(),
-        description: "Classifica complexidade da consulta para busca direta (<100ms) ou raciocínio multi-etapa".to_string(),
+        title: "🔍 3. Query Routing (Fast vs Deep)".to_string(),
+        description: "Classifies query complexity for direct lookup (<100ms) or multi-step reasoning".to_string(),
         icon: "🔍".to_string(),
         badge: Some("[Modular]".to_string()),
         shortcut: None,
@@ -704,8 +704,8 @@ pub fn build_document_ai_menu(active_download_name: Option<&str>) -> Vec<MenuIte
 
     items.push(MenuItem {
         id: "doc_ai:vision".to_string(),
-        title: "🖼️ 4. Visão de Documentos (OCR Visual Air-Gapped)".to_string(),
-        description: "Inspeção visual de gráficos, tabelas e diagramas (Nuvem Multimodal vs SLMs Locais)".to_string(),
+        title: "🖼️ 4. Document Vision (Air-Gapped Visual OCR)".to_string(),
+        description: "Visual inspection of charts, tables, and diagrams (Multimodal Cloud vs Local SLMs)".to_string(),
         icon: "🖼️".to_string(),
         badge: Some("[Modular]".to_string()),
         shortcut: None,
@@ -714,10 +714,10 @@ pub fn build_document_ai_menu(active_download_name: Option<&str>) -> Vec<MenuIte
 
     items.push(MenuItem {
         id: "doc_ai:store_status".to_string(),
-        title: "🛡️ 5. Resumo de Armazenamento & Fallbacks".to_string(),
-        description: "Relatório de modelos em disco, pasta local e garantias de zero quebra (ADR-110)".to_string(),
+        title: "🛡️ 5. Storage Summary & Fallbacks".to_string(),
+        description: "Report on on-disk models, local folder, and zero-breakage guarantees (ADR-110)".to_string(),
         icon: "🛡️".to_string(),
-        badge: Some("[Arquitetura]".to_string()),
+        badge: Some("[Architecture]".to_string()),
         shortcut: None,
         is_submenu: true,
     });
@@ -730,10 +730,10 @@ pub fn build_doc_ai_ingestion_menu() -> Vec<MenuItem> {
 
     items.push(MenuItem {
         id: "doc_ai_info:heuristic_ingestion".to_string(),
-        title: "Heurística Estrutural Rust (<1µs / 0MB RAM)".to_string(),
-        description: "Padrão ativo de altíssima velocidade. Zero download e latência sub-microsegundo.".to_string(),
+        title: "Rust Structural Heuristic (<1µs / 0MB RAM)".to_string(),
+        description: "Ultra-high speed active default. Zero downloads and sub-microsecond latency.".to_string(),
         icon: "⚡".to_string(),
-        badge: Some("[Ativo / Padrão]".to_string()),
+        badge: Some("[Active / Default]".to_string()),
         shortcut: None,
         is_submenu: false,
     });
@@ -746,13 +746,13 @@ pub fn build_doc_ai_ingestion_menu() -> Vec<MenuItem> {
                 (
                     format!("model_action:toggle:{}", spec.id),
                     spec.name.to_string(),
-                    Some("[Instalado / Ativo]".to_string()),
+                    Some("[Installed / Active]".to_string()),
                     "✔".to_string(),
                 )
             } else {
                 (
                     format!("model_action:download:{}", spec.id),
-                    format!("Baixar / Acoplar {}", spec.name),
+                    format!("Download / Attach {}", spec.name),
                     Some(format!("[Download (~{:.0} MB)]", mb)),
                     "📥".to_string(),
                 )
@@ -777,10 +777,10 @@ pub fn build_doc_ai_scans_menu() -> Vec<MenuItem> {
 
     items.push(MenuItem {
         id: "doc_ai_info:heuristic_spatial".to_string(),
-        title: "Heurística 2D Espacial Rust (<5MB RAM)".to_string(),
-        description: "Parser nativo de bounding boxes e layout geométrico sem dependências externas.".to_string(),
+        title: "Rust 2D Spatial Heuristic (<5MB RAM)".to_string(),
+        description: "Native bounding box and geometric layout parser without external dependencies.".to_string(),
         icon: "📐".to_string(),
-        badge: Some("[Ativo / Padrão]".to_string()),
+        badge: Some("[Active / Default]".to_string()),
         shortcut: None,
         is_submenu: false,
     });
@@ -792,13 +792,13 @@ pub fn build_doc_ai_scans_menu() -> Vec<MenuItem> {
             (
                 format!("model_action:toggle:{}", spec.id),
                 spec.name.to_string(),
-                Some("[Instalado / Ativo]".to_string()),
+                Some("[Installed / Active]".to_string()),
                 "✔".to_string(),
             )
         } else {
             (
                 format!("model_action:download:{}", spec.id),
-                format!("Baixar / Acoplar {}", spec.name),
+                format!("Download / Attach {}", spec.name),
                 Some(format!("[Download (~{:.0} MB)]", mb)),
                 "📥".to_string(),
             )
@@ -822,10 +822,10 @@ pub fn build_doc_ai_queries_menu() -> Vec<MenuItem> {
 
     items.push(MenuItem {
         id: "doc_ai_info:deterministic_router".to_string(),
-        title: "Classificador Determinístico RFC-042 (<1µs / 0MB RAM)".to_string(),
-        description: "Roteia consultas entre Fast RAG e Deep Search sem cold start ou consumo de memória.".to_string(),
+        title: "RFC-042 Deterministic Classifier (<1µs / 0MB RAM)".to_string(),
+        description: "Routes queries between Fast RAG and Deep Search without cold start or memory overhead.".to_string(),
         icon: "⚡".to_string(),
-        badge: Some("[Ativo / Padrão]".to_string()),
+        badge: Some("[Active / Default]".to_string()),
         shortcut: None,
         is_submenu: false,
     });
@@ -837,13 +837,13 @@ pub fn build_doc_ai_queries_menu() -> Vec<MenuItem> {
             (
                 format!("model_action:toggle:{}", spec.id),
                 spec.name.to_string(),
-                Some("[Instalado / Ativo]".to_string()),
+                Some("[Installed / Active]".to_string()),
                 "✔".to_string(),
             )
         } else {
             (
                 format!("model_action:download:{}", spec.id),
-                format!("Baixar / Acoplar {}", spec.name),
+                format!("Download / Attach {}", spec.name),
                 Some(format!("[Download (~{:.0} MB)]", mb)),
                 "📥".to_string(),
             )
@@ -867,10 +867,10 @@ pub fn build_doc_ai_vision_menu() -> Vec<MenuItem> {
 
     items.push(MenuItem {
         id: "doc_ai_action:vision_cloud".to_string(),
-        title: "Visão via Provedor Multimodal (Nuvem / Provedor Ativo)".to_string(),
-        description: "Usa o modelo configurado (Gemini Flash, Claude Sonnet ou GPT-4o) para inspeção de imagens sem downloads.".to_string(),
+        title: "Vision via Multimodal Provider (Cloud / Active Provider)".to_string(),
+        description: "Uses configured model (Gemini Flash, Claude Sonnet, or GPT-4o) for image inspection without downloads.".to_string(),
         icon: "☁️".to_string(),
-        badge: Some("[Nuvem Ativa]".to_string()),
+        badge: Some("[Active Cloud]".to_string()),
         shortcut: Some("/model".to_string()),
         is_submenu: false,
     });
@@ -883,13 +883,13 @@ pub fn build_doc_ai_vision_menu() -> Vec<MenuItem> {
                 (
                     format!("model_action:toggle:{}", spec.id),
                     spec.name.to_string(),
-                    Some("[Instalado / Ativo]".to_string()),
+                    Some("[Installed / Active]".to_string()),
                     "✔".to_string(),
                 )
             } else {
                 (
                     format!("model_action:download:{}", spec.id),
-                    format!("Baixar / Acoplar {}", spec.name),
+                    format!("Download / Attach {}", spec.name),
                     Some(format!("[Download (~{:.0} MB)]", mb)),
                     "📥".to_string(),
                 )
@@ -916,8 +916,8 @@ pub fn build_doc_ai_store_menu() -> Vec<MenuItem> {
     vec![
         MenuItem {
             id: "store_info:summary".to_string(),
-            title: format!("Modelos em Disco: {} de {} instalados ({:.1} MB)", summary.installed_count, summary.total_count, total_mb),
-            description: format!("Diretório local: {}", summary.models_dir.display()),
+            title: format!("Models on Disk: {} of {} installed ({:.1} MB)", summary.installed_count, summary.total_count, total_mb),
+            description: format!("Local directory: {}", summary.models_dir.display()),
             icon: "📊".to_string(),
             badge: Some(format!("[{:.1} MB]", total_mb)),
             shortcut: None,
@@ -925,7 +925,7 @@ pub fn build_doc_ai_store_menu() -> Vec<MenuItem> {
         },
         MenuItem {
             id: "store_info:dir".to_string(),
-            title: "Diretório de Armazenamento Local".to_string(),
+            title: "Local Storage Directory".to_string(),
             description: format!("{}", summary.models_dir.display()),
             icon: "📁".to_string(),
             badge: None,
@@ -934,10 +934,10 @@ pub fn build_doc_ai_store_menu() -> Vec<MenuItem> {
         },
         MenuItem {
             id: "store_info:resilience".to_string(),
-            title: "Resiliência & Zero Quebra (ADR-110)".to_string(),
-            description: "O AnyContext nunca quebra por modelos ausentes. Heurísticas Rust assumem 100% da carga.".to_string(),
+            title: "Resilience & Zero Breakage (ADR-110)".to_string(),
+            description: "AnyContext never fails due to missing models. Rust heuristics take 100% of the load.".to_string(),
             icon: "🛡️".to_string(),
-            badge: Some("[Garantia]".to_string()),
+            badge: Some("[Guarantee]".to_string()),
             shortcut: None,
             is_submenu: false,
         },
@@ -996,7 +996,7 @@ mod tests {
         let models = build_models_menu("mock");
         let mock_item = models.iter().find(|i| i.id == "model:mock");
         assert!(mock_item.is_some());
-        assert_eq!(mock_item.unwrap().badge, Some("[Ativo]".to_string()));
+        assert_eq!(mock_item.unwrap().badge, Some("[Active]".to_string()));
 
         let sync = build_sync_menu();
         assert_eq!(sync.len(), 3);

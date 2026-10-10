@@ -122,6 +122,7 @@ jobs:
             scripts/uninstall.sh
           tag_name: ${{ github.ref_name }}
           name: AnyContext ${{ github.ref_name }}
+          generate_release_notes: true
           token: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
           fail_on_unmatched_files: true
 
@@ -140,6 +141,7 @@ jobs:
             scripts/uninstall.ps1
           tag_name: ${{ github.ref_name }}
           name: AnyContext ${{ github.ref_name }}
+          generate_release_notes: true
           token: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
           fail_on_unmatched_files: true
 

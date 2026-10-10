@@ -104,8 +104,8 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
 
     let (sync_text, sync_style) = if let Some(status) = &app.sync_status {
         if status.is_syncing {
-            let spinner_chars = ["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"];
-            let spinner = spinner_chars[((app.tick_count * 2) as usize) % spinner_chars.len()];
+            let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
             (
                 format!("⚡ Syncing {} {}", spinner, status.progress_bar),
                 Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
@@ -326,11 +326,11 @@ fn render_input(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
     let title_line = if let Some(cmd) = maybe_cmd {
         Line::from(vec![
             Span::styled(" Prompt │ ", Style::default().fg(theme.text_muted)),
-            Span::styled(format!("Opções: {} ", cmd.usage), Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("Options: {} ", cmd.usage), Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
         ])
     } else {
         Line::from(vec![
-            Span::styled(" Prompt (Enter para enviar, Shift+Enter para nova linha, / para comandos) ", Style::default().fg(theme.text_muted)),
+            Span::styled(" Prompt (Enter to send, Shift+Enter for new line, / for commands) ", Style::default().fg(theme.text_muted)),
         ])
     };
 
@@ -466,8 +466,8 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
 
     if let Some(status) = &app.sync_status {
         if status.is_syncing {
-            let spinner_chars = ["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"];
-            let spinner = spinner_chars[((app.tick_count * 2) as usize) % spinner_chars.len()];
+            let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
             spans.push(Span::styled(format!("{} Syncing ", spinner), Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled(format!("{} ", status.progress_bar), Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
@@ -497,7 +497,7 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
 
     // Scroll Paused indicator
     if !app.auto_scroll && app.scroll_offset < app.max_scroll {
-        spans.push(Span::styled("⏸ Scroll Pausado [End p/ tempo real] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
+        spans.push(Span::styled("⏸ Scroll Paused [End for real-time] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)));
         spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
     }
 
@@ -515,10 +515,10 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
         let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
 
         spans.push(Span::styled(
-            format!("📥 Baixando {} {} {:.1}/{:.1} MB ({}%) ", spinner, dl.model_name, cur_mb, total_mb, percent),
+            format!("📥 Downloading {} {} {:.1}/{:.1} MB ({}%) ", spinner, dl.model_name, cur_mb, total_mb, percent),
             Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
         ));
-        spans.push(Span::styled("[Esc p/ cancelar] ", Style::default().fg(theme.reasoning)));
+        spans.push(Span::styled("[Esc to cancel] ", Style::default().fg(theme.reasoning)));
         spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
     }
 
@@ -548,7 +548,7 @@ fn render_interactive_menu(frame: &mut Frame, area: Rect, app: &App, theme: &UiT
     frame.render_widget(Clear, popup_area);
 
     let breadcrumbs = app.menu_state.breadcrumbs.join(" ➔ ");
-    let title = format!(" ⚙️  Menu Interativo ─ [{}] ", breadcrumbs);
+    let title = format!(" ⚙️  Interactive Menu ─ [{}] ", breadcrumbs);
 
     let main_block = Block::default()
         .title(title)
@@ -575,7 +575,7 @@ fn render_interactive_menu(frame: &mut Frame, area: Rect, app: &App, theme: &UiT
     let header_line = Line::from(vec![
         Span::styled("📂 Workspace: ", Style::default().fg(theme.text_muted)),
         Span::styled(&app.active_workspace, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-        Span::styled("  │  🤖 Modelo: ", Style::default().fg(theme.border_unfocused)),
+        Span::styled("  │  🤖 Model: ", Style::default().fg(theme.border_unfocused)),
         Span::styled(&app.active_model, Style::default().fg(theme.reasoning).add_modifier(Modifier::BOLD)),
     ]);
     frame.render_widget(Paragraph::new(header_line), chunks[0]);
@@ -642,13 +642,13 @@ fn render_interactive_menu(frame: &mut Frame, area: Rect, app: &App, theme: &UiT
         .menu_state
         .selected_item()
         .map(|it| it.description.as_str())
-        .unwrap_or("Selecione uma opção com [Enter] ou navegue com [↑/↓]");
+        .unwrap_or("Select an option with [Enter] or navigate with [↑/↓]");
 
     let desc_block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme.border_unfocused))
-        .title(" Detalhes ");
+        .title(" Details ");
 
     let desc_para = Paragraph::new(format!("ℹ️  {}", desc))
         .block(desc_block)
@@ -658,11 +658,11 @@ fn render_interactive_menu(frame: &mut Frame, area: Rect, app: &App, theme: &UiT
     // 4. Footer navigation keys
     let nav_keys = Line::from(vec![
         Span::styled("[↑/↓]", Style::default().fg(theme.accent)),
-        Span::styled(" Navegar  •  ", Style::default().fg(theme.text_muted)),
+        Span::styled(" Navigate  •  ", Style::default().fg(theme.text_muted)),
         Span::styled("[Enter/Tab]", Style::default().fg(theme.primary)),
-        Span::styled(" Selecionar  •  ", Style::default().fg(theme.text_muted)),
+        Span::styled(" Select  •  ", Style::default().fg(theme.text_muted)),
         Span::styled("[Esc/←]", Style::default().fg(theme.text_muted)),
-        Span::styled(" Voltar/Fechar", Style::default().fg(theme.text_muted)),
+        Span::styled(" Back/Close", Style::default().fg(theme.text_muted)),
     ]);
     frame.render_widget(Paragraph::new(nav_keys), chunks[3]);
 }
@@ -677,13 +677,13 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
     };
 
     let step_titles = [
-        "1. Provedor de IA & Chave de API",
-        "2. Perfil de Document AI & Visão",
-        "3. Pasta Inicial de Documentos (Opcional)",
+        "1. AI Provider & API Key",
+        "2. Document AI & Vision Profile",
+        "3. Initial Documents Folder (Optional)",
     ];
 
-    let current_step_title = step_titles.get(onboarding.step).unwrap_or(&"Configuração");
-    let main_title = format!(" 🚀 Assistente de Boas-Vindas AnyContext ─ Passo {}/3: {} ", onboarding.step + 1, current_step_title);
+    let current_step_title = step_titles.get(onboarding.step).unwrap_or(&"Setup");
+    let main_title = format!(" 🚀 AnyContext Welcome Setup ─ Step {}/3: {} ", onboarding.step + 1, current_step_title);
 
     let main_block = Block::default()
         .title(main_title)
@@ -732,11 +732,11 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
                 .split(chunks[1]);
 
             let providers = [
-                ("Google Gemini", "gemini-2.5-flash", "Velocidade otimizada e ampla janela de contexto nativa"),
-                ("OpenAI", "gpt-4o-mini", "Raciocínio ágil via ecossistema OpenAI"),
-                ("Anthropic Claude", "claude-3-5-sonnet", "Análise aprofundada e precisão analítica"),
-                ("Ollama (Local)", "llama3", "Modelos locais auto-hospedados (requer servidor Ollama ativo)"),
-                ("Mock Provider", "mock-agent", "Ambiente de desenvolvimento e testes sem consumo de tokens"),
+                ("Google Gemini", "gemini-2.5-flash", "Optimized latency and large native context window"),
+                ("OpenAI", "gpt-4o-mini", "Agile reasoning via OpenAI ecosystem"),
+                ("Anthropic Claude", "claude-3-5-sonnet", "Deep technical analysis and analytical accuracy"),
+                ("Ollama (Local)", "llama3", "Self-hosted local models (requires active Ollama server)"),
+                ("Mock Provider", "mock-agent", "Offline development and testing environment with zero token cost"),
             ];
 
             let items: Vec<ListItem> = providers
@@ -766,10 +766,10 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(if !onboarding.focus_input { Style::default().fg(theme.accent) } else { Style::default().fg(theme.border_unfocused) })
-                .title(" 1. Escolha seu Provedor de LLM ([↑/↓] para alternar) ");
+                .title(" 1. Choose your LLM Provider ([↑/↓] to toggle) ");
             frame.render_widget(List::new(items).block(prov_block), content_chunks[0]);
 
-            let key_title = " 2. Chave de API (Opcional se já configurada via ENV) ";
+            let key_title = " 2. API Key (Optional if already configured via environment variable) ";
             let key_block = Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
@@ -777,7 +777,7 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
                 .title(key_title);
 
             let masked_key = if onboarding.api_key_input.is_empty() {
-                "Digite ou cole sua chave aqui (ou pressione Enter para manter via ENV)...".to_string()
+                "Type or paste your key here (or press Enter to keep ENV)...".to_string()
             } else {
                 let len = onboarding.api_key_input.len();
                 if len > 8 {
@@ -796,9 +796,9 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
         1 => {
             // Document AI Profiles - Fully neutral, zero "[Recomendado]" bias
             let profiles = [
-                ("Visão Multimodal via Modelo Ativo", "Usa a visão nativa do LLM (Gemini/OpenAI/Claude). Zero download de pesos locais adicionais."),
-                ("Extração Nativa Ultraleve", "Extração de texto via bibliotecas nativas de código (PDF, Word, Excel, CSV). 0 MB em disco e inicialização instantânea."),
-                ("Pipelines Neurais ONNX Locais", "Modelos ONNX locais para classificação, roteamento semântico e OCR. Baixados sob demanda quando solicitados."),
+                ("Multimodal Vision via Active Model", "Uses native LLM vision (Gemini/OpenAI/Claude). Zero extra local weight downloads."),
+                ("Ultralight Native Extraction", "Text extraction via native fast libraries (PDF, Word, Excel, CSV). 0 MB disk and instant startup."),
+                ("Local ONNX Neural Pipelines", "Local ONNX models for classification, semantic routing, and OCR. Downloaded on demand when requested."),
             ];
 
             let items: Vec<ListItem> = profiles
@@ -815,7 +815,7 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
 
                     let line = Line::from(vec![
                         Span::styled(prefix, if is_sel { Style::default().fg(theme.accent).add_modifier(Modifier::BOLD) } else { Style::default().fg(theme.text_muted) }),
-                        Span::styled(format!("{:<34} ", title), if is_sel { Style::default().fg(theme.text_bright).add_modifier(Modifier::BOLD) } else { Style::default().fg(theme.text_body) }),
+                        Span::styled(format!("{:<36} ", title), if is_sel { Style::default().fg(theme.text_bright).add_modifier(Modifier::BOLD) } else { Style::default().fg(theme.text_body) }),
                         Span::styled(format!("• {}", desc), Style::default().fg(theme.text_muted)),
                     ]);
 
@@ -827,7 +827,7 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(theme.accent))
-                .title(" Selecione o Perfil de Document AI desejado ([↑/↓] para alternar) ");
+                .title(" Select desired Document AI Profile ([↑/↓] to toggle) ");
             frame.render_widget(List::new(items).block(doc_block), chunks[1]);
         }
         2 => {
@@ -836,10 +836,10 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(theme.accent))
-                .title(" Caminho da Pasta de Documentos Local (Opcional) ");
+                .title(" Local Documents Folder Path (Optional) ");
 
             let display_path = if onboarding.folder_input.is_empty() {
-                "Exemplo: C:\\Users\\SeuUsuario\\Documentos (deixe vazio para configurar depois)...".to_string()
+                "Example: C:\\Users\\YourUser\\Documents (leave empty to configure later)...".to_string()
             } else {
                 onboarding.folder_input.clone()
             };
@@ -857,9 +857,9 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
 
     // 3. Contextual Information
     let tip_text = match onboarding.step {
-        0 => "Dica: Suas chaves são salvas criptografadas e restritas ao seu usuário local em `%LOCALAPPDATA%\\AnyContext\\anycontext.db`. Você pode alterá-las a qualquer momento em `/keys` ou `/menu`.",
-        1 => "Dica: Nenhum download pesado é obrigatório. O AnyContext opera perfeitamente com zero arquivos extras em disco. Modelos neurais locais podem ser baixados a qualquer momento no `/menu`.",
-        2 => "Dica: O AnyContext sincroniza seus arquivos em background sem transferir dados privados para servidores externos. Você pode adicionar pastas e URLs a qualquer momento via `/sources`.",
+        0 => "Tip: Your keys are saved encrypted and restricted to your local user in `%LOCALAPPDATA%\\AnyContext\\anycontext.db`. You can change them anytime via `/keys` or `/menu`.",
+        1 => "Tip: No heavy downloads are required. AnyContext runs perfectly with zero extra files on disk. Local neural models can be downloaded anytime via `/menu`.",
+        2 => "Tip: AnyContext syncs your files in the background without sending private data to external servers. You can add folders and URLs anytime via `/sources`.",
         _ => "",
     };
 
@@ -867,19 +867,19 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme.border_unfocused))
-        .title(" Informações ");
+        .title(" Information ");
     frame.render_widget(Paragraph::new(format!("ℹ️  {}", tip_text)).style(Style::default().fg(theme.info)).block(tip_block), chunks[2]);
 
     // 4. Footer navigation keys
     let nav_spans = vec![
         Span::styled("[Tab]", Style::default().fg(theme.accent)),
-        Span::styled(" Alternar Campo  •  ", Style::default().fg(theme.text_muted)),
+        Span::styled(" Switch Field  •  ", Style::default().fg(theme.text_muted)),
         Span::styled("[↑/↓]", Style::default().fg(theme.accent)),
-        Span::styled(" Selecionar  •  ", Style::default().fg(theme.text_muted)),
+        Span::styled(" Select  •  ", Style::default().fg(theme.text_muted)),
         Span::styled("[Enter]", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-        Span::styled(if onboarding.step < 2 { " Avançar  •  " } else { " Concluir Setup  •  " }, Style::default().fg(theme.text_muted)),
+        Span::styled(if onboarding.step < 2 { " Next Step  •  " } else { " Complete Setup  •  " }, Style::default().fg(theme.text_muted)),
         Span::styled("[Esc]", Style::default().fg(theme.error)),
-        Span::styled(if onboarding.step > 0 { " Voltar Passo" } else { " Fechar" }, Style::default().fg(theme.text_muted)),
+        Span::styled(if onboarding.step > 0 { " Previous Step" } else { " Close" }, Style::default().fg(theme.text_muted)),
     ];
     frame.render_widget(Paragraph::new(Line::from(nav_spans)), chunks[3]);
 }
