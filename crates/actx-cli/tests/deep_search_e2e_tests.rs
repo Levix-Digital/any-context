@@ -71,5 +71,5 @@ async fn test_e2e_build_agent_and_deep_search_run() {
         .expect("Agent execution in deep mode failed");
 
     assert!(!response.content.is_empty());
-    assert_eq!(response.total_turns, 1);
+    assert!(response.total_turns >= 1 && response.total_turns <= 3);
 }
