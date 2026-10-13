@@ -481,4 +481,36 @@ fn test_sources_command_rename_and_deprecation_of_shared() {
     assert!(res_shared.message.contains("deprecated in AnyContext v0.36.0"));
 }
 
+#[test]
+fn test_profile_command_and_hardware_status() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext::default();
+
+    // 1. /profile without arguments lists available tiers with hardware detection
+    let res_list = CommandEngine::execute("profile", &[], &ctx);
+    assert!(res_list.success);
+    assert!(res_list.message.contains("Hardware & Intelligence Profiles"));
+    assert!(res_list.message.contains("air_gapped_power"));
+    assert!(res_list.message.contains("smart_balanced"));
+    assert!(res_list.message.contains("lite"));
+    assert_eq!(res_list.action, CommandAction::OpenMenu("profiles".to_string()));
+
+    // 2. /profile smart_balanced updates active profile
+    let res_switch = CommandEngine::execute("profile", &["smart_balanced"], &ctx);
+    assert!(res_switch.success);
+    assert!(res_switch.message.contains("Switched active intelligence profile to 'Smart Balanced'"));
+
+    // 3. /profile invalid returns friendly guidance
+    let res_err = CommandEngine::execute("profile", &["invalid_profile"], &ctx);
+    assert!(!res_err.success);
+    assert!(res_err.message.contains("Invalid profile tier"));
+
+    // 4. /status displays active profile and hardware metrics
+    let res_status = CommandEngine::execute("status", &[], &ctx);
+    assert!(res_status.success);
+    assert!(res_status.message.contains("Active Profile:"));
+    assert!(res_status.message.contains("Hardware Metrics:"));
+}
+
+
 

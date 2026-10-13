@@ -106,6 +106,10 @@ impl MenuState {
                 self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI".to_string(), "Storage Summary".to_string()];
                 self.items = build_doc_ai_store_menu();
             }
+            "profiles" | "profile" => {
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Hardware Profiles".to_string()];
+                self.items = build_profiles_menu();
+            }
             _ => {
                 self.breadcrumbs = vec!["Main Menu".to_string()];
                 self.items = build_main_menu(active_workspace, active_model);
@@ -185,6 +189,15 @@ impl MenuState {
         self.items = build_document_ai_menu(active_download_name);
     }
 
+    pub fn open_profiles(&mut self) {
+        self.is_open = true;
+        self.current_menu_id = "profiles".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Main Menu".to_string(), "Hardware Profiles".to_string()];
+        self.items = build_profiles_menu();
+    }
+
     pub fn back(&mut self, active_workspace: &str, active_model: &str) -> bool {
         if let Some((prev_menu, prev_idx)) = self.menu_history.pop() {
             self.current_menu_id = prev_menu.clone();
@@ -198,6 +211,10 @@ impl MenuState {
                 "document_ai" => {
                     self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI & Local Models".to_string()];
                     self.items = build_document_ai_menu(None);
+                }
+                "profiles" | "profile" => {
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "Hardware Profiles".to_string()];
+                    self.items = build_profiles_menu();
                 }
                 "workspaces" => {
                     self.breadcrumbs = vec!["Main Menu".to_string(), "Workspaces".to_string()];
@@ -322,6 +339,15 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
             icon: "👁️".to_string(),
             badge: Some("[Zero-Overhead]".to_string()),
             shortcut: None,
+            is_submenu: true,
+        },
+        MenuItem {
+            id: "profiles".to_string(),
+            title: "Hardware Profiles & Intelligence Tiers".to_string(),
+            description: "Configure tiered hardware pre-flight (Air-Gapped, Smart Balanced, Lite)".to_string(),
+            icon: "⚡".to_string(),
+            badge: Some("[Auto-Select]".to_string()),
+            shortcut: Some("/profile".to_string()),
             is_submenu: true,
         },
         MenuItem {
@@ -958,6 +984,70 @@ pub fn build_doc_ai_store_menu() -> Vec<MenuItem> {
     ]
 }
 
+pub fn build_profiles_menu() -> Vec<MenuItem> {
+    let db = NativeConfigDb::open_default().ok();
+    let metrics = any_context_core_rs::hardware::HardwareProfiler::probe_system(None);
+    let evals = any_context_core_rs::hardware::HardwareProfiler::evaluate_profiles(&metrics);
+    let active_profile_str = db.as_ref()
+        .and_then(|d| d.get_setting("active_profile").ok().flatten())
+        .unwrap_or_else(|| {
+            any_context_core_rs::hardware::HardwareProfiler::auto_select_recommended(&metrics).as_str().to_string()
+        });
+    let active_tier = any_context_core_rs::hardware::ProfileTier::parse_str(&active_profile_str)
+        .unwrap_or(any_context_core_rs::hardware::ProfileTier::SmartBalanced);
+
+    let mut items = Vec::new();
+
+    items.push(MenuItem {
+        id: "profile_info:hardware".to_string(),
+        title: format!(
+            "🖥️ Hardware: {:.1} GB RAM ({:.1} GB Free) │ {:.1} GB SSD ({} Cores)",
+            metrics.total_ram_gb(),
+            metrics.available_ram_gb(),
+            metrics.free_disk_gb(),
+            metrics.cpu_cores
+        ),
+        description: "Sub-5ms hardware pre-flight probe determining optimal tier compatibility.".to_string(),
+        icon: "🖥️".to_string(),
+        badge: Some("[Hardware]".to_string()),
+        shortcut: None,
+        is_submenu: false,
+    });
+
+    for eval in &evals {
+        let is_active = eval.tier == active_tier;
+        let badge_text = if is_active {
+            format!("{} [Active]", eval.status.badge())
+        } else {
+            format!("{} [Select]", eval.status.badge())
+        };
+        let disk_mb = eval.disk_required_bytes as f64 / (1024.0 * 1024.0);
+        let ram_mb = eval.estimated_ram_bytes as f64 / (1024.0 * 1024.0);
+
+        items.push(MenuItem {
+            id: format!("profile_action:{}", eval.tier.as_str()),
+            title: format!("{} {} (~{:.0} MB Disk)", eval.status.badge(), eval.tier.display_name(), disk_mb),
+            description: format!("{} │ RAM: ~{:.0} MB │ {}", eval.headline, ram_mb, eval.reason),
+            icon: "⚡".to_string(),
+            badge: Some(badge_text),
+            shortcut: Some(format!("/profile {}", eval.tier.as_str())),
+            is_submenu: false,
+        });
+    }
+
+    items.push(MenuItem {
+        id: "profile_action:inspect".to_string(),
+        title: "📊 Inspect Runtime Telemetry (/status)".to_string(),
+        description: "View real-time memory usage, active models on disk, and LanceDB chunk counts.".to_string(),
+        icon: "📊".to_string(),
+        badge: Some("[Telemetry]".to_string()),
+        shortcut: Some("/status".to_string()),
+        is_submenu: false,
+    });
+
+    items
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -991,6 +1081,15 @@ mod tests {
         assert!(still_open);
         assert_eq!(state.current_menu_id, "main");
 
+        // Profiles Submenu
+        state.open_submenu("profiles", "Default", "gpt-4o-mini");
+        assert_eq!(state.current_menu_id, "profiles");
+        assert_eq!(state.breadcrumbs.len(), 2);
+
+        let still_open = state.back("Default", "gpt-4o-mini");
+        assert!(still_open);
+        assert_eq!(state.current_menu_id, "main");
+
         // Back from main closes menu
         let still_open = state.back("Default", "gpt-4o-mini");
         assert!(!still_open);
@@ -1005,7 +1104,15 @@ mod tests {
         assert!(main.iter().any(|i| i.id == "models" && i.is_submenu));
         assert!(main.iter().any(|i| i.id == "search" && i.is_submenu));
         assert!(main.iter().any(|i| i.id == "document_ai" && i.is_submenu));
+        assert!(main.iter().any(|i| i.id == "profiles" && i.is_submenu));
         assert!(main.iter().any(|i| i.id == "exit"));
+
+        let profiles = build_profiles_menu();
+        assert!(profiles.iter().any(|i| i.id.starts_with("profile_info:hardware")));
+        assert!(profiles.iter().any(|i| i.id.contains("air_gapped_power")));
+        assert!(profiles.iter().any(|i| i.id.contains("smart_balanced")));
+        assert!(profiles.iter().any(|i| i.id.contains("lite")));
+        assert!(profiles.iter().any(|i| i.id == "profile_action:inspect"));
 
         let models = build_models_menu("mock");
         let mock_item = models.iter().find(|i| i.id == "model:mock");

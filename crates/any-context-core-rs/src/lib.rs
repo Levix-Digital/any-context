@@ -5,6 +5,7 @@ pub mod storage;
 pub mod commands;
 pub mod security;
 pub mod theme;
+pub mod hardware;
 
 pub use models::{ChunkPayload, SemanticEnvelope};
 pub use ingestion::{
@@ -27,3 +28,4 @@ pub use commands::{
 };
 pub use security::NativeSecurityEngine;
 pub use theme::{AuroraTheme, RgbColor};
+pub use hardware::{HardwareProfiler, ProfileTier, SemaphoreStatus, ProfileEvaluation, SystemMetrics};

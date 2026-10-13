@@ -602,6 +602,11 @@ impl App {
         self.menu_state.open_document_ai(active_name);
     }
 
+    pub fn open_profiles_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_profiles();
+    }
+
     pub fn is_downloading_model(&self) -> bool {
         self.active_model_download.is_some()
     }
@@ -907,6 +912,22 @@ impl App {
                 });
                 self.scroll_to_bottom();
                 self.menu_state.is_open = false;
+            } else if let Some(tier) = item.id.strip_prefix("profile_action:") {
+                if tier == "inspect" {
+                    crate::commands::dispatch_slash_command("status", &[], self);
+                } else {
+                    crate::commands::dispatch_slash_command("profile", &[tier], self);
+                }
+                self.menu_state.is_open = false;
+            } else if item.id.starts_with("profile_info:") {
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!("ℹ [{}]\n{}", item.title, item.description),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.menu_state.is_open = false;
             } else if item.id == "sources" {
                 self.open_sources_menu();
             } else if item.id == "keys" {
@@ -973,6 +994,7 @@ impl App {
                     "grounding" => self.open_grounding_menu(),
                     "search" => self.open_search_menu(),
                     "document_ai" => self.open_document_ai_menu(),
+                    "profiles" | "profile" => self.open_profiles_menu(),
                     "sources" => self.open_sources_menu(),
                     "keys" => self.open_keys_menu(),
                     _ => self.open_menu(),

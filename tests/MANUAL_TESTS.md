@@ -6663,5 +6663,57 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
      - A resposta explica detalhadamente o algoritmo de reconciliação fonética (Double Metaphone) e distância de Levenshtein (ADR-117) sem alucinações.
      - A resposta conclui com a citação formal: `📄 Sources Consulted: - SYSTEM_KNOWLEDGE.md (system://SYSTEM_KNOWLEDGE.md)`.
 
+### 📌 Cenário 36: Modular ONNX Engine, Hardware Pre-Flight Check & Semaphore-Tiered Installation Profiles (v0.37.0):
+- **Objetivo**: Comprovar que na versão `v0.37.0`:
+  1. O motor de inspeção de hardware (`HardwareProfiler`) avalia a máquina em sub-5ms e mapeia semáforos (🟢/🟡/🔴) com precisão.
+  2. O instalador (`actx-installer`) auto-seleciona de forma transparente o perfil verde mais potente (`Air-Gapped Power` em máquinas $\ge 16\text{ GB}$).
+  3. O comando `/profile` (alias `/preset`) permite alternar entre os perfis (`air_gapped_power`, `smart_balanced`, `lite`) e abre o submenu interativo na TUI.
+  4. O comando `/status` exibe telemetria em tempo real de hardware, perfil ativo e modelos no disco.
+  5. O Inviolable ADR-110 Zero-Breakage Guarantee garante fallback suave e instantâneo para heurísticas determinísticas sem crash.
+
+1. **⚡ Validação da Inspeção de Hardware Prévia no Instalador:**
+   - Execute o instalador com a flag `--preflight-only`:
+     ```bash
+     actx-installer --preflight-only
+     ```
+   - **Critérios de Aceitação**:
+     - Retorna em $< 10\text{ms}$ a medição real de memória física, espaço livre no SSD e contagem de núcleos.
+     - Lista os 3 perfis canônicos (`Air-Gapped Power`, `Smart Balanced`, `Lite`) com seus respectivos semáforos coloridos (🟢/🟡/🔴).
+     - Em máquinas com $\ge 16\text{ GB}$ de RAM, marca `[AUTO-SELECTED]` no perfil `Air-Gapped Power`.
+
+2. **🌌 Validação do Comando `/profile` (Multi-Surface CLI & TUI):**
+   - No terminal ou chat do AnyContext, execute:
+     ```text
+     /profile
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe o relatório de hardware e semáforos dos 3 perfis com badges e pegada de disco/RAM.
+     - Abre o submenu interativo `Hardware Profiles` na TUI (`[F1] -> Hardware Profiles`).
+     - Alterne para `Smart Balanced`:
+       ```text
+       /profile smart_balanced
+       ```
+     - O sistema confirma: `✔ Switched active intelligence profile to 'Smart Balanced' 🟢.` e persiste no SQLite `settings.db`.
+
+3. **📊 Validação da Telemetria Enriquecida via `/status`:**
+   - Execute:
+     ```text
+     /status
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe a seção `⚡ Intelligence Profile & Hardware Pre-Flight:`.
+     - Mostra `Active Profile`, `Total / Available RAM`, `Free SSD Storage` e `CPU Cores`.
+     - Mostra os semáforos de cada perfil e modelos ativos no disco.
+
+4. **🛡️ Validação da Garantia ADR-110 Zero-Breakage:**
+   - Em modo `Lite` ou sem modelos ONNX baixados no diretório local, execute uma pergunta no chat (`/search auto`):
+     ```text
+     What are the main features of AnyContext?
+     ```
+   - **Critérios de Aceitação**:
+     - O classificador determinístico em Rust puro assume 100% da carga sem emitir erros ou travar.
+     - A resposta é concluída com sucesso em $< 50\text{ms}$.
+
+
 
 

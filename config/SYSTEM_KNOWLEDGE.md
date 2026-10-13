@@ -1,6 +1,8 @@
 # 🌌 AnyContext System Knowledge & Technical Manual
-> **Version:** `v0.36.0`  
+> **Version:** `v0.37.0`  
 > **Core Engine:** 100% Native Rust Architecture (Zero Python/Node.js dependencies)  
+> **ONNX Inference:** Modular `actx-onnx` Engine with CPU Execution Provider  
+> **Hardware Governance:** Sub-5ms Pre-Flight Check with Semaphore Profiles (🟢/🟡/🔴)  
 > **UI Architecture:** Aurora Boreal Design System & Ratatui Interactive Terminal Interface  
 > **Storage Layer:** Apache Arrow Columnar Vector Tables (LanceDB) & SQLite Configuration Vault (`NativeConfigDb`)
 
@@ -281,4 +283,28 @@ On Windows and Unix systems, replacing an executing binary directly is blocked b
 4. On the subsequent boot, the old executable is cleaned up cleanly without process deadlocks.
 
 ---
-*End of AnyContext System Knowledge & Technical Manual (v0.36.0).*
+
+## Chapter 8: Hardware Profiles, Pre-Flight Semaphores & ONNX Engine (v0.37.0)
+
+### 8.1 Hardware Governance & Pre-Flight Semaphores
+AnyContext v0.37.0 introduces an instantaneous (<5ms) physical hardware profiler measuring total RAM, available RAM, free storage, and CPU cores. Profiles are classified into intuitive semaphore states:
+- 🟢 **Green (Optimal):** Hardware exceeds requirements without paging or swap overhead.
+- 🟡 **Yellow (Viable):** Operational, but memory usage should be monitored during bulk sync.
+- 🔴 **Red (Constrained):** Insufficient memory or disk; pure Rust heuristics automatically prioritized.
+
+### 8.2 Canonical Model Profiles (Kit de Models)
+1. **🌌 Air-Gapped Power (Optimal on $\ge 16\text{ GB}$ RAM):**
+   - Models: `mobilenetv4`, `clip-vit`, `layoutlmv3`, `bge-small`, `laya-int8` (~740 MB total disk).
+   - Autonomous offline document AI, scan sentinel, layout analysis, and query classification.
+2. **⚡ Smart Balanced (Optimal on $8\text{ GB}$ RAM):**
+   - Models: `mobilenetv4`, `layoutlmv3`, `bge-small` (~252 MB total disk).
+   - High cost-benefit query routing and scan detection.
+3. **🟢 Lite / Fast-Path (Default on $< 8\text{ GB}$ RAM or CI/VMs):**
+   - 0 MB extra downloads; 100% pure Rust deterministic heuristics (<1µs cold start, <45 MB RAM).
+
+### 8.3 Inviolable Zero-Breakage Guarantee (ADR-110)
+Under all profiles, if an ONNX model file is missing or corrupted, AnyContext seamlessly falls back to pure Rust deterministic heuristics without crash or user interruption.
+
+---
+*End of AnyContext System Knowledge & Technical Manual (v0.37.0).*
+

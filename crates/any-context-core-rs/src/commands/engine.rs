@@ -90,6 +90,9 @@ impl CommandEngine {
             "model" | "models" | "m" | "list-models" | "model-list" => {
                 Self::execute_model(args, ctx)
             }
+            "profile" | "profiles" | "preset" | "presets" => {
+                Self::execute_profile(args, ctx)
+            }
             "inspect" | "chunks" | "lance" => {
                 Self::execute_inspect(args, ctx)
             }
@@ -335,6 +338,92 @@ impl CommandEngine {
             CommandResult::success(format!("🧠 Deep Search Reflexive mode activated for query: '{}'", args.join(" ")))
                 .with_action(CommandAction::RebuildAgent)
                 .with_state_updates(updates)
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Hardware & Model Intelligence Profiles (Kit de Models - v0.37.0)
+    // -------------------------------------------------------------------------
+    fn execute_profile(args: &[&str], _ctx: &ExecutionContext) -> CommandResult {
+        let db = NativeConfigDb::open_default().ok();
+        let metrics = crate::hardware::HardwareProfiler::probe_system(None);
+        let evals = crate::hardware::HardwareProfiler::evaluate_profiles(&metrics);
+
+        if args.is_empty() {
+            let active_profile_str = db.as_ref()
+                .and_then(|d| d.get_setting("active_profile").ok().flatten())
+                .unwrap_or_else(|| {
+                    crate::hardware::HardwareProfiler::auto_select_recommended(&metrics).as_str().to_string()
+                });
+            let active_tier = crate::hardware::ProfileTier::parse_str(&active_profile_str)
+                .unwrap_or(crate::hardware::ProfileTier::SmartBalanced);
+
+            let mut msg = format!(
+                "🖥️ Hardware & Intelligence Profiles (Kit de Models):\n\
+                 • Detected Hardware: {:.1} GB RAM ({:.1} GB Available) │ {:.1} GB Free SSD ({} Cores)\n\
+                 • Active Profile:    {} (Current)\n\n\
+                 Available Profile Tiers:\n",
+                metrics.total_ram_gb(),
+                metrics.available_ram_gb(),
+                metrics.free_disk_gb(),
+                metrics.cpu_cores,
+                active_tier.display_name()
+            );
+
+            for e in &evals {
+                let marker = if e.tier == active_tier { " (active)" } else { "" };
+                let disk_mb = e.disk_required_bytes as f64 / (1024.0 * 1024.0);
+                let ram_mb = e.estimated_ram_bytes as f64 / (1024.0 * 1024.0);
+                msg.push_str(&format!(
+                    "  {} {} [Disk: {:.0} MB │ RAM: {:.0} MB]{}\n     ↳ {}\n",
+                    e.status.badge(),
+                    e.tier.as_str(),
+                    disk_mb,
+                    ram_mb,
+                    marker,
+                    e.headline
+                ));
+            }
+
+            msg.push_str("\nUsage: /profile <air_gapped_power|smart_balanced|lite>\nTip: Press [F1] -> Document AI & Profiles to manage profile models interactively.");
+
+            return CommandResult::success(msg)
+                .with_action(CommandAction::OpenMenu("profiles".to_string()));
+        }
+
+        let requested = args[0].trim();
+        if let Some(tier) = crate::hardware::ProfileTier::parse_str(requested) {
+            if let Some(ref d) = db {
+                let _ = d.set_setting("active_profile", tier.as_str());
+            }
+
+            let eval = evals.iter().find(|e| e.tier == tier);
+            let badge = eval.map(|e| e.status.badge()).unwrap_or("🟢");
+            let reason = eval.map(|e| e.reason.as_str()).unwrap_or("");
+
+            CommandResult::success(format!(
+                "✔ Switched active intelligence profile to '{}' {}.\n\
+                 • Description: {}\n\
+                 • Hardware Status: {}\n\
+                 • Required Models: {:?}\n\n\
+                 Tip: Run `/status` to inspect active runtime telemetry.",
+                tier.display_name(),
+                badge,
+                eval.map(|e| e.headline.as_str()).unwrap_or(""),
+                reason,
+                tier.target_models()
+            ))
+            .with_action(CommandAction::RebuildAgent)
+        } else {
+            CommandResult::error(format!(
+                "Invalid profile tier '{}'.\n\
+                 Available options:\n\
+                 • `air_gapped_power` (or `airgapped`): Full local neural suite (~740 MB disk)\n\
+                 • `smart_balanced`   (or `balanced`): Optimal query router & layout (~252 MB disk)\n\
+                 • `lite`             (or `fast`): Pure Rust deterministic heuristics (<50 MB RAM)\n\n\
+                 Usage: /profile <air_gapped_power|smart_balanced|lite>",
+                requested
+            ))
         }
     }
 
@@ -1361,12 +1450,26 @@ impl CommandEngine {
         let (vision_name, vision_desc, _) = crate::ingestion::OnnxModelManager::active_vision_state();
         let mb_on_disk = model_summary.total_bytes_on_disk as f64 / (1024.0 * 1024.0);
 
+        let metrics = crate::hardware::HardwareProfiler::probe_system(None);
+        let evals = crate::hardware::HardwareProfiler::evaluate_profiles(&metrics);
+        let active_profile_str = db.as_ref()
+            .and_then(|d| d.get_setting("active_profile").ok().flatten())
+            .unwrap_or_else(|| {
+                crate::hardware::HardwareProfiler::auto_select_recommended(&metrics).as_str().to_string()
+            });
+        let active_tier = crate::hardware::ProfileTier::parse_str(&active_profile_str)
+            .unwrap_or(crate::hardware::ProfileTier::SmartBalanced);
+        let active_eval = evals.iter().find(|e| e.tier == active_tier);
+        let sema_badge = active_eval.map(|e| e.status.badge()).unwrap_or("🟢");
+
         CommandResult::success(format!(
             "📊 AnyContext Native Core Operational Status:\n\
              • Workspace:        {} (Total workspaces: {})\n\
              • Target Model:     {}\n\
              • Grounding:        {}\n\
              • Search Depth:     {}\n\
+             • Active Profile:   {} (Readiness: {})\n\
+             • Hardware Metrics: {:.1} GB RAM ({:.1} GB Avail) │ {:.1} GB Free Disk ({} Cores)\n\
              • Web Search:       {}\n\
              • Local Folders:    {} attached\n\
              • Vector Chunks:    {} indexed (LanceDB)\n\
@@ -1381,6 +1484,12 @@ impl CommandEngine {
             ctx.active_model,
             ctx.grounding_mode.to_uppercase(),
             ctx.search_mode.to_uppercase(),
+            active_tier.display_name(),
+            sema_badge,
+            metrics.total_ram_gb(),
+            metrics.available_ram_gb(),
+            metrics.free_disk_gb(),
+            metrics.cpu_cores,
             if ctx.web_search_enabled { "ON" } else { "OFF" },
             folders_count,
             chunks_count,

@@ -45,6 +45,16 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **⚡ Modular ONNX Engine, Hardware Pre-Flight & Tiered Intelligence Profiles (`v0.37.0`)**:
+  - **Modular `actx-onnx` Crate**: Separates high-performance neural tensor inference into a standalone crate with CPU execution provider, HuggingFace tokenizers, and resilient feature flagging (`--features onnx`).
+  - **Sub-5ms Hardware Pre-Flight Semaphores**: Probes physical hardware (RAM total/available, free storage, CPU cores) in <5ms, presenting an intuitive semaphore (`🟢 Green` / `🟡 Yellow` / `🔴 Red`) and automatically configuring the most powerful green profile.
+  - **Tiered Model Profiles (Kit de Models)**:
+    - **🌌 Air-Gapped Power** (Default on $\ge 16\text{ GB}$ RAM): 5 canonical models (`mobilenetv4`, `clip-vit`, `layoutlmv3`, `bge-small`, `laya-int8`) for complete offline document AI, scan sentinel, layout reading, and neural query routing (~740 MB disk).
+    - **⚡ Smart Balanced** (Default on $8\text{ GB}$ RAM): 3 canonical models (`mobilenetv4`, `layoutlmv3`, `bge-small`) balancing neural routing with low memory footprint (~252 MB disk).
+    - **🟢 Lite / Fast-Path** (Default on $< 8\text{ GB}$ RAM, CI or VMs): 0 MB extra downloads, running 100% on pure Rust deterministic heuristics (<1µs cold start).
+  - **Multi-Surface `/profile` Command & TUI Menu**: Easily inspect, switch, and benchmark intelligence tiers via `/profile` or the interactive TUI menu (`[F1] -> Hardware Profiles`).
+  - **Inviolable ADR-110 Zero-Breakage Guarantee**: Missing or corrupted ONNX weights immediately fall back to pure Rust deterministic heuristics without crash or user interruption.
+
 - **🌌 Aurora Boreal Design System & Zero-Delay Fast Startup (`v0.34.6`)**:
   - **Modular Aurora Boreal Palette**: Implements the official Levix Digital design tokens (Emerald `#00E5A3`, Glacial Cyan `#00F0FF`, Cosmic Violet `#A855F7`, Polar Pink `#EC4899`, Solar Amber `#F59E0B`, Polar Crimson `#EF4444`) centralizing color definitions in `any-context-core-rs` so all present and future UIs (TUI, Headless CLI, Web, Desktop) inherit a unified, cohesive visual identity.
   - **Zero-Delay Fast Startup (< 50ms)**: Eliminates synchronous initialization bottlenecks. Regular daily runs query SQLite version in < 1ms and launch the TUI instantly without blocking on disk indexes.

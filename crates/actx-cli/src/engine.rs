@@ -289,12 +289,18 @@ pub fn build_agent_sync(
         }) as Arc<dyn actx_agent::DeepSearchRetriever>
     });
 
+    let models_dir = any_context_core_rs::storage::get_default_models_dir();
+    let bge_path = models_dir.join("bge_small_query_int8.onnx");
+    let onnx_classifier = Arc::new(any_context_core_rs::ingestion::OnnxComplexityClassifierAdapter::new(&bge_path));
+    let chat_router = Arc::new(actx_agent::ChatModelRouter::default().with_classifier(onnx_classifier));
+
     let mut builder = Agent::builder()
         .client(provider)
         .model(model)
         .system_prompt(system_prompt)
         .execution_mode(execution_mode)
         .search_mode(search_policy)
+        .router(chat_router)
         .max_turns(10)
         .tool(Arc::new(search_tool))
         .tool(Arc::new(status_tool));
