@@ -13,6 +13,7 @@ use crate::layout_extractor::OnnxLayoutExtractor;
 use crate::vision_encoder::OnnxVisionEncoder;
 
 /// Unified facade for local ONNX neural inference.
+#[derive(Debug, Clone)]
 pub struct OnnxEngine {
     pub query_classifier: OnnxQueryClassifier,
     pub scan_sentinel: OnnxScanSentinel,

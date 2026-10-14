@@ -440,7 +440,15 @@ pub fn build_workspaces_menu(active_workspace: &str) -> Vec<MenuItem> {
 }
 
 pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
+    let models_dir = any_context_core_rs::storage::get_default_models_dir();
+
     let models = &[
+        // Local ONNX Brain (Gemma 4 Family)
+        ("gemma-4-compact", "Local ONNX - Gemma 4 Compact INT4 (Edge Mobility, ~2.5GB RAM)"),
+        ("gemma-4-12b", "Local ONNX - Gemma 4 12B INT4 (Developer Sweet Spot, ~10GB RAM)"),
+        ("gemma-4-27b", "Local ONNX - Gemma 4 27B INT4 (Workstation High Reasoning, ~18.5GB RAM)"),
+        ("gemma-4-32b", "Local ONNX - Gemma 4 32B INT4 (Sovereign Frontier, ~25.5GB RAM)"),
+        // Cloud & Remote Providers
         ("gemini-3.8-flash", "Google - Ultra-low latency and multimodality"),
         ("gpt-4o-mini", "OpenAI - Fast, cost-efficient, and intelligent"),
         ("gpt-4o", "OpenAI - High-capability multimodal flagship"),
@@ -458,16 +466,43 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
         .iter()
         .map(|(m, desc)| {
             let is_active = m.eq_ignore_ascii_case(active_model);
+            let is_gemma = m.starts_with("gemma-4");
+            let badge = if is_active {
+                if is_gemma {
+                    let tier = actx_onnx::GemmaModelTier::from_model_name(m);
+                    let ready = tier.map(|t| models_dir.join(t.expected_filename()).exists()).unwrap_or(false);
+                    if ready {
+                        Some("[Active / ONNX Ready]".to_string())
+                    } else {
+                        Some("[Active / Fallback]".to_string())
+                    }
+                } else {
+                    Some("[Active]".to_string())
+                }
+            } else if is_gemma {
+                let tier = actx_onnx::GemmaModelTier::from_model_name(m);
+                let ready = tier.map(|t| models_dir.join(t.expected_filename()).exists()).unwrap_or(false);
+                if ready {
+                    Some("[Local Ready]".to_string())
+                } else {
+                    Some("[Not Installed]".to_string())
+                }
+            } else {
+                None
+            };
+
+            let icon = if is_gemma {
+                "🧠".to_string()
+            } else {
+                "🤖".to_string()
+            };
+
             MenuItem {
                 id: format!("model:{}", m),
                 title: m.to_string(),
                 description: desc.to_string(),
-                icon: "🤖".to_string(),
-                badge: if is_active {
-                    Some("[Active]".to_string())
-                } else {
-                    None
-                },
+                icon,
+                badge,
                 shortcut: None,
                 is_submenu: false,
             }
@@ -1109,12 +1144,18 @@ mod tests {
 
         let profiles = build_profiles_menu();
         assert!(profiles.iter().any(|i| i.id.starts_with("profile_info:hardware")));
+        assert!(profiles.iter().any(|i| i.id.contains("sovereign_ultra")));
+        assert!(profiles.iter().any(|i| i.id.contains("workstation_pro")));
         assert!(profiles.iter().any(|i| i.id.contains("air_gapped_power")));
         assert!(profiles.iter().any(|i| i.id.contains("smart_balanced")));
         assert!(profiles.iter().any(|i| i.id.contains("lite")));
         assert!(profiles.iter().any(|i| i.id == "profile_action:inspect"));
 
         let models = build_models_menu("mock");
+        assert!(models.iter().any(|i| i.id == "model:gemma-4-compact"));
+        assert!(models.iter().any(|i| i.id == "model:gemma-4-12b"));
+        assert!(models.iter().any(|i| i.id == "model:gemma-4-27b"));
+        assert!(models.iter().any(|i| i.id == "model:gemma-4-32b"));
         let mock_item = models.iter().find(|i| i.id == "model:mock");
         assert!(mock_item.is_some());
         assert_eq!(mock_item.unwrap().badge, Some("[Active]".to_string()));

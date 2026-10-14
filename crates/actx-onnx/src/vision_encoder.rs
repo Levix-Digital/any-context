@@ -6,6 +6,7 @@ use std::path::Path;
 use crate::session::ModelSession;
 
 /// Visual encoder for technical diagrams and non-text visual assets.
+#[derive(Debug, Clone)]
 pub struct OnnxVisionEncoder {
     session: Option<ModelSession>,
 }

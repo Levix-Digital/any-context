@@ -385,7 +385,7 @@ impl CommandEngine {
                 ));
             }
 
-            msg.push_str("\nUsage: /profile <air_gapped_power|smart_balanced|lite>\nTip: Press [F1] -> Document AI & Profiles to manage profile models interactively.");
+            msg.push_str("\nUsage: /profile <sovereign_ultra|workstation_pro|air_gapped_power|smart_balanced|lite>\nTip: Press [F1] -> Hardware Profiles to manage models interactively.");
 
             return CommandResult::success(msg)
                 .with_action(CommandAction::OpenMenu("profiles".to_string()));
@@ -405,7 +405,7 @@ impl CommandEngine {
                 "✔ Switched active intelligence profile to '{}' {}.\n\
                  • Description: {}\n\
                  • Hardware Status: {}\n\
-                 • Required Models: {:?}\n\n\
+                 • Target Suite: {:?}\n\n\
                  Tip: Run `/status` to inspect active runtime telemetry.",
                 tier.display_name(),
                 badge,
@@ -418,10 +418,12 @@ impl CommandEngine {
             CommandResult::error(format!(
                 "Invalid profile tier '{}'.\n\
                  Available options:\n\
-                 • `air_gapped_power` (or `airgapped`): Full local neural suite (~740 MB disk)\n\
-                 • `smart_balanced`   (or `balanced`): Optimal query router & layout (~252 MB disk)\n\
-                 • `lite`             (or `fast`): Pure Rust deterministic heuristics (<50 MB RAM)\n\n\
-                 Usage: /profile <air_gapped_power|smart_balanced|lite>",
+                 • `sovereign_ultra`  (or `sovereign`): Gemma 4 32B + Full Document AI (~19.2 GB disk, 64GB+ RAM)\n\
+                 • `workstation_pro`  (or `workstation`): Gemma 4 27B + Full Document AI (~15.7 GB disk, 32GB RAM)\n\
+                 • `air_gapped_power` (or `airgapped`): Gemma 4 12B + Full Document AI (~7.9 GB disk, 16GB RAM)\n\
+                 • `smart_balanced`   (or `balanced`): Gemma 4 Compact + Essential Document AI (~1.7 GB disk, 8GB RAM)\n\
+                 • `lite`             (or `cloud`): Pure Rust heuristics & Cloud APIs (0 MB disk, <45 MB RAM)\n\n\
+                 Usage: /profile <sovereign_ultra|workstation_pro|air_gapped_power|smart_balanced|lite>",
                 requested
             ))
         }
@@ -1295,7 +1297,24 @@ impl CommandEngine {
         let mut updates = CommandStateUpdates::default();
         updates.active_model = Some(target.to_string());
 
-        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**", ctx.active_workspace, target))
+        let extra_note = if target.starts_with("gemma-4") || target.starts_with("gemma") {
+            let tier_opt = actx_onnx::GemmaModelTier::from_model_name(target);
+            if let Some(tier) = tier_opt {
+                let models_dir = crate::storage::get_default_models_dir();
+                let model_file = models_dir.join(tier.expected_filename());
+                if model_file.exists() {
+                    " [Local ONNX: Ready]"
+                } else {
+                    " [Local ONNX: Weights not installed - fallback active]"
+                }
+            } else {
+                ""
+            }
+        } else {
+            ""
+        };
+
+        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**{}", ctx.active_workspace, target, extra_note))
             .with_action(CommandAction::RebuildAgent)
             .with_state_updates(updates)
     }
@@ -1303,19 +1322,26 @@ impl CommandEngine {
     fn execute_models_catalog(_args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         let models_text = format!(
             "🤖 Supported AI Providers & Models (Current: **{}**):\n\n\
+             🧠 Local ONNX Neural Brain (Gemma 4 Family):\n\
+             • gemma-4-compact    - Edge Mobility SLM (8GB RAM, ~2.5GB Peak)\n\
+             • gemma-4-12b        - Developer Sweet Spot (16GB RAM, ~10GB Peak)\n\
+             • gemma-4-27b        - Workstation High-Reasoning (32GB RAM, ~18.5GB Peak)\n\
+             • gemma-4-32b        - Sovereign Frontier LLM (64GB RAM, ~25.5GB Peak)\n\n\
              ⭐ Cloud Giants (Tier 1):\n\
+             • gemini-3.8-flash   - Google Ultra-low latency and multimodality\n\
+             • gemini-1.5-pro     - Google 2M Token Ultra-Long Context\n\
              • gpt-4o             - OpenAI Flagship Omnimodal\n\
              • gpt-4o-mini        - OpenAI Fast & Lightweight (Default)\n\
              • claude-3-5-sonnet  - Anthropic SOTA Code & Reasoning\n\
-             • gemini-1.5-pro     - Google 2M Token Ultra-Long Context\n\
-             • gemini-1.5-flash   - Google Sub-Second High Speed\n\n\
+             • claude-3-5-haiku   - Anthropic Ultra-Fast & Efficient\n\n\
              ⚡ High-Speed Open Inference:\n\
              • groq/llama-3.3-70b - Groq LPUs (500+ tok/s)\n\
              • deepseek-chat      - DeepSeek V3\n\
              • deepseek-reasoner  - DeepSeek R1 Thinking\n\n\
              🔒 100% Local & Free:\n\
              • local/ollama       - Ollama (http://localhost:11434/v1)\n\
-             • local/lm-studio    - LM Studio (http://localhost:1234/v1)\n\n\
+             • local/lm-studio    - LM Studio (http://localhost:1234/v1)\n\
+             • mock               - Instant Offline Simulation\n\n\
              Usage: /model <model_name>",
             ctx.active_model
         );

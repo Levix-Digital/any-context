@@ -498,7 +498,7 @@ fn test_profile_command_and_hardware_status() {
     // 2. /profile smart_balanced updates active profile
     let res_switch = CommandEngine::execute("profile", &["smart_balanced"], &ctx);
     assert!(res_switch.success);
-    assert!(res_switch.message.contains("Switched active intelligence profile to 'Smart Balanced'"));
+    assert!(res_switch.message.contains("Switched active intelligence profile to 'Smart Balanced"));
 
     // 3. /profile invalid returns friendly guidance
     let res_err = CommandEngine::execute("profile", &["invalid_profile"], &ctx);

@@ -6727,6 +6727,73 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
      - Todos os 14 testes passam com 100% de sucesso.
      - `test_is_first_run_or_upgrade_does_not_panic` roda em regime de aquecimento sem ultrapassar o teto defensivo de 1500ms.
 
+---
+
+### 📌 Cenário 38: Ativação dos Modelos ONNX nos Fluxos de Produção e Família Gemma 4 em 5 Tiers (v0.38.0):
+- **Objetivo**: Comprovar que na versão `v0.38.0`:
+  1. A matriz de hardware suporta com precisão os 5 tiers canônicos (`Sovereign Ultra`, `Workstation Pro`, `Air-Gapped Power`, `Smart Balanced`, `Lite`) com isolamento seguro de memória para a família Gemma 4 INT4.
+  2. Máquinas com 32GB de RAM são qualificadas para o perfil `Workstation Pro` (Gemma 4 27B), enquanto o modelo Gemma 4 32B INT4 é reservado estritamente para o tier `Sovereign Ultra` (64GB+), prevenindo swap thrashing.
+  3. A camada de percepção (`ScanSentinel`, `DocumentLayoutExtractor`, `DocumentVisionExtractor`) está ativa na ingestão (`QualityGate`, `IngestionModelRouter`) com fallback instantâneo via heurísticas em Rust puro (ADR-110).
+  4. O provedor `GemmaOnnxProvider` em `actx-lm` opera completions e streams offline, delegando ao fallback configurado caso os pesos não estejam instalados.
+  5. O catálogo `/model --list` e o menu TUI (`[F1] -> AI Models`) listam os 4 modelos Gemma 4 com badges dinâmicos de prontidão local.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **⚡ Validação da Matriz de Hardware em 5 Tiers no Pre-Flight:**
+   - Execute o instalador no terminal:
+     ```bash
+     actx-installer --preflight-only
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe a tabela de hardware com as 5 opções canônicas formatadas em MB e GB:
+       - `Sovereign Ultra (64GB+)` [Disk: ~19.2 GB │ Peak RAM: ~25.5 GB]
+       - `Workstation Pro (32GB)` [Disk: ~15.7 GB │ Peak RAM: ~18.5 GB]
+       - `Air-Gapped Power (16GB)` [Disk: ~7.9 GB │ Peak RAM: ~10.0 GB]
+       - `Smart Balanced (8GB)` [Disk: ~1.7 GB │ Peak RAM: ~2.5 GB]
+       - `Lite / Cloud (<8GB)` [Disk: ~0 MB │ Peak RAM: ~45 MB]
+     - O semáforo 🟢 marca automaticamente o perfil correspondente à capacidade da máquina.
+
+2. **🤖 Validação do Catálogo `/model --list` e Seleção de Modelo Gemma 4:**
+   - Inicie o AnyContext ou execute o comando `/model`:
+     ```text
+     /model --list
+     ```
+   - **Critérios de Aceitação**:
+     - A seção `🧠 Local ONNX Neural Brain (Gemma 4 Family)` lista os 4 modelos:
+       - `gemma-4-compact`
+       - `gemma-4-12b`
+       - `gemma-4-27b`
+       - `gemma-4-32b`
+     - Alterne para um modelo local:
+       ```text
+       /model gemma-4-12b
+       ```
+     - O sistema confirma:
+       `🤖 Active language model for 'Default' set to: **gemma-4-12b** [Local ONNX: Weights not installed - fallback active]` (ou `[Local ONNX: Ready]` se os pesos estiverem no disco).
+
+3. **📱 Validação da Interface TUI (`[F1] -> AI Models`):**
+   - Na TUI, abra o menu principal com `F1` ou `/menu`.
+   - Navegue até `AI Models & LLM Providers`.
+   - **Critérios de Aceitação**:
+     - Os modelos Gemma 4 aparecem no topo com ícone de cérebro `🧠`.
+     - Modelos sem pesos no disco exibem a badge `[Not Installed]` ou `[Active / Fallback]`.
+     - Modelos com pesos no disco exibem `[Local Ready]` ou `[Active / ONNX Ready]`.
+
+4. **🛡️ Validação da Ingestão Document AI e Garantia ADR-110:**
+   - Adicione e sincronize um documento ou imagem no workspace:
+     ```text
+     /sync
+     ```
+   - Faça uma pergunta sobre o documento:
+     ```text
+     /search auto "Resuma o documento"
+     ```
+   - **Critérios de Aceitação**:
+     - O `QualityGate` utiliza `ScanSentinel` para classificar páginas rasterizadas.
+     - O `IngestionModelRouter` preserva layouts e estruturas 2D.
+     - Na ausência de pesos neurais locais, o motor executa instantaneamente as heurísticas em Rust puro em sub-1µs, sem erros, panics ou interrupções no fluxo de trabalho.
+
+
 
 
 

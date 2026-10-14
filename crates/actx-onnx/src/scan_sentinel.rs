@@ -7,6 +7,7 @@ use std::path::Path;
 use crate::session::ModelSession;
 
 /// Sentinel for scanned / rasterized document pages.
+#[derive(Debug, Clone)]
 pub struct OnnxScanSentinel {
     session: Option<ModelSession>,
 }

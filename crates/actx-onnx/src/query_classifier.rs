@@ -33,6 +33,7 @@ impl OnnxIntent {
 }
 
 /// Neural query classifier backed by BGE-Small ONNX weights.
+#[derive(Debug, Clone)]
 pub struct OnnxQueryClassifier {
     session: Option<ModelSession>,
 }

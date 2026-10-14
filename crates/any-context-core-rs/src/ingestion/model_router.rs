@@ -6,24 +6,12 @@
 //! - Nível 3: Document AI & Hybrid Vision Dispatcher (Local SLM vs Corporate VPC vs Heuristic 2D).
 
 use std::sync::Arc;
-use async_trait::async_trait;
 use actx_lm::traits::LmProvider;
 use actx_lm::types::{ChatMessage, ChatRequest};
 use crate::models::ChunkPayload;
 use crate::ingestion::quality_gate::{QualityGate, QualityDecision, DocumentAiTarget};
 use crate::ingestion::chunkers::spatial_form::SpatialFormChunker;
-
-/// Strategy contract for specialized Document AI and Layout Models (LayoutLMv3, Laya, etc.)
-#[async_trait]
-pub trait DocumentLayoutExtractor: Send + Sync {
-    /// Extracts structured representation from a document page or complex form.
-    async fn extract_page(
-        &self,
-        file_path: &str,
-        page_num: usize,
-        content: &str,
-    ) -> Result<String, String>;
-}
+pub use crate::ingestion::traits::{DocumentLayoutExtractor, DocumentVisionExtractor};
 
 /// Vision Execution Mode for Document AI Level 3 processing.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +35,7 @@ pub struct IngestionModelRouter {
     pub quality_gate: QualityGate,
     pub spatial_chunker: SpatialFormChunker,
     pub layout_extractor: Option<Box<dyn DocumentLayoutExtractor>>,
+    pub vision_extractor: Option<Box<dyn DocumentVisionExtractor>>,
     pub vision_mode: VisionExecutionMode,
 }
 
@@ -62,6 +51,7 @@ impl IngestionModelRouter {
             quality_gate,
             spatial_chunker: SpatialFormChunker::default(),
             layout_extractor: None,
+            vision_extractor: None,
             vision_mode: VisionExecutionMode::Disabled,
         }
     }
@@ -73,6 +63,11 @@ impl IngestionModelRouter {
 
     pub fn with_layout_extractor(mut self, extractor: Box<dyn DocumentLayoutExtractor>) -> Self {
         self.layout_extractor = Some(extractor);
+        self
+    }
+
+    pub fn with_vision_extractor(mut self, extractor: Box<dyn DocumentVisionExtractor>) -> Self {
+        self.vision_extractor = Some(extractor);
         self
     }
 
@@ -162,6 +157,19 @@ impl IngestionModelRouter {
                     }
                 }
                 DocumentAiTarget::VisualDiagram { width, height } => {
+                    // Check if local neural visual extractor (e.g. CLIP ViT) is configured and active
+                    if let Some(extractor) = &self.vision_extractor {
+                        if extractor.is_neural_active() {
+                            if let Some(desc) = extractor.describe_visual_element(chunk.text.as_bytes()) {
+                                let mut enriched_chunk = chunk.clone();
+                                enriched_chunk.text = format!("// Context: {} > [Visual Feature Representation]\n\n{}\n\n{}", chunk.file_name, desc, chunk.text);
+                                enriched_chunk.content_type = "visual_diagram_enriched".to_string();
+                                processed.push(enriched_chunk);
+                                continue;
+                            }
+                        }
+                    }
+
                     // Check if vision is enabled
                     if self.is_vision_enabled() {
                         if let Some(provider) = lm_provider {

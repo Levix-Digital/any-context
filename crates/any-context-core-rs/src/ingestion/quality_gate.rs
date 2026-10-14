@@ -6,7 +6,9 @@
 //! dispatching dense complex forms and visual diagrams to Document AI.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 use crate::models::ChunkPayload;
+use crate::ingestion::traits::ScanSentinel;
 
 /// Represents the final decision emitted by the Quality Gate for a given chunk.
 #[derive(Debug, Clone, PartialEq)]
@@ -66,9 +68,19 @@ impl Default for QualityGateConfig {
 }
 
 /// Deterministic Quality Gate Engine.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct QualityGate {
     config: QualityGateConfig,
+    pub scan_sentinel: Option<Arc<dyn ScanSentinel>>,
+}
+
+impl std::fmt::Debug for QualityGate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QualityGate")
+            .field("config", &self.config)
+            .field("has_scan_sentinel", &self.scan_sentinel.is_some())
+            .finish()
+    }
 }
 
 impl Default for QualityGate {
@@ -79,7 +91,15 @@ impl Default for QualityGate {
 
 impl QualityGate {
     pub fn new(config: QualityGateConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            scan_sentinel: None,
+        }
+    }
+
+    pub fn with_scan_sentinel(mut self, sentinel: Arc<dyn ScanSentinel>) -> Self {
+        self.scan_sentinel = Some(sentinel);
+        self
     }
 
     /// Evaluates a single chunk and outputs a `QualityDecision`.
@@ -97,6 +117,23 @@ impl QualityGate {
                     page_num: chunk.start_line.max(1),
                 },
             };
+        }
+
+        if chunk.content_type == "pdf_page" || chunk.content_type == "scanned_doc" {
+            let img_count = if chunk.content_type == "scanned_doc" { 1 } else { 0 };
+            let (is_scan, _conf) = if let Some(sentinel) = &self.scan_sentinel {
+                sentinel.is_scanned_page(trimmed_body, img_count)
+            } else {
+                (chunk.content_type == "scanned_doc" || trimmed_body.is_empty(), 0.90)
+            };
+
+            if is_scan {
+                return QualityDecision::NeedsDocumentAi {
+                    target: DocumentAiTarget::ScannedPdfPage {
+                        page_num: chunk.start_line.max(1),
+                    },
+                };
+            }
         }
 
         if chunk.content_type == "visual_diagram" {

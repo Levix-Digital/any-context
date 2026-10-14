@@ -4,11 +4,13 @@ pub mod anthropic;
 pub mod gemini;
 pub mod mock;
 pub mod openai;
+pub mod gemma;
 
 pub use anthropic::AnthropicProvider;
 pub use gemini::GeminiProvider;
 pub use mock::MockLmProvider;
 pub use openai::OpenAiCompatibleProvider;
+pub use gemma::GemmaOnnxProvider;
 
 use std::sync::Arc;
 use crate::error::LmError;
@@ -31,6 +33,8 @@ pub enum ProviderKind {
     DeepSeek,
     /// OpenRouter Unified Gateway
     OpenRouter,
+    /// Local Gemma 4 ONNX quantized neural engine
+    GemmaOnnx { model_path: Option<String>, tier: actx_onnx::GemmaModelTier },
     /// Arbitrary custom OpenAI-compatible server (LM Studio, vLLM, LocalAI)
     CustomCompatible { name: String, base_url: String },
     /// Deterministic offline mock provider
@@ -103,6 +107,13 @@ impl ProviderKind {
                     message: "OpenRouter requires an API key".to_string(),
                 })?;
                 Ok(Arc::new(OpenAiCompatibleProvider::openrouter(key)))
+            }
+            ProviderKind::GemmaOnnx { model_path, tier } => {
+                let path = model_path
+                    .as_deref()
+                    .map(std::path::Path::new)
+                    .unwrap_or_else(|| std::path::Path::new(tier.expected_filename()));
+                Ok(Arc::new(GemmaOnnxProvider::new(path, *tier)))
             }
             ProviderKind::CustomCompatible { name, base_url } => {
                 let url = base_url_override.unwrap_or_else(|| base_url.clone());

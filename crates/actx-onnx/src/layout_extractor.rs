@@ -6,6 +6,7 @@ use std::path::Path;
 use crate::session::ModelSession;
 
 /// Multimodal layout extractor for complex forms, tables and fiscal documents.
+#[derive(Debug, Clone)]
 pub struct OnnxLayoutExtractor {
     session: Option<ModelSession>,
 }

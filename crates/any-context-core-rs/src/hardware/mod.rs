@@ -13,17 +13,23 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProfileTier {
-    /// Full offline local Document AI, Scan Sentinel and Deep Search.
+    /// Extreme sovereign intelligence for 64GB+ workstations (Gemma 4 32B + full Document AI).
+    SovereignUltra,
+    /// High-performance local reasoning for 32GB workstations (Gemma 4 27B + full Document AI).
+    WorkstationPro,
+    /// Balanced agentic reasoning for 16GB developer machines (Gemma 4 12B + full Document AI).
     AirGappedPower,
-    /// Balanced local query routing, scan sentinel and spatial layout.
+    /// Everyday mobility and compact reasoning for 8GB laptops (Gemma 4 Compact + essential Document AI).
     SmartBalanced,
-    /// Ultra-fast pure Rust deterministic heuristics with zero additional models.
+    /// Ultra-fast pure Rust deterministic heuristics with zero downloads (<45MB RAM, Cloud APIs).
     Lite,
 }
 
 impl ProfileTier {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Self::SovereignUltra => "sovereign_ultra",
+            Self::WorkstationPro => "workstation_pro",
             Self::AirGappedPower => "air_gapped_power",
             Self::SmartBalanced => "smart_balanced",
             Self::Lite => "lite",
@@ -32,35 +38,57 @@ impl ProfileTier {
 
     pub fn display_name(&self) -> &'static str {
         match self {
-            Self::AirGappedPower => "Air-Gapped Power",
-            Self::SmartBalanced => "Smart Balanced",
-            Self::Lite => "Lite (Fast-Path)",
+            Self::SovereignUltra => "Sovereign Ultra (64GB+)",
+            Self::WorkstationPro => "Workstation Pro (32GB)",
+            Self::AirGappedPower => "Air-Gapped Power (16GB)",
+            Self::SmartBalanced => "Smart Balanced (8GB)",
+            Self::Lite => "Lite / Cloud (<8GB)",
         }
     }
 
     pub fn parse_str(s: &str) -> Option<Self> {
         let clean = s.trim().to_lowercase();
         match clean.as_str() {
-            "air_gapped_power" | "airgapped" | "air-gapped" | "air" | "max" | "power" => Some(Self::AirGappedPower),
-            "smart_balanced" | "balanced" | "smart" | "medium" => Some(Self::SmartBalanced),
-            "lite" | "fast" | "fast-path" | "minimal" => Some(Self::Lite),
+            "sovereign_ultra" | "sovereign" | "ultra" | "64gb" | "sovereign-ultra" => Some(Self::SovereignUltra),
+            "workstation_pro" | "workstation" | "pro" | "32gb" | "workstation-pro" => Some(Self::WorkstationPro),
+            "air_gapped_power" | "airgapped" | "air-gapped" | "air" | "max" | "power" | "16gb" => Some(Self::AirGappedPower),
+            "smart_balanced" | "balanced" | "smart" | "medium" | "8gb" | "smart-balanced" => Some(Self::SmartBalanced),
+            "lite" | "fast" | "fast-path" | "minimal" | "none" | "cloud" => Some(Self::Lite),
             _ => None,
         }
     }
 
     pub fn target_models(&self) -> &'static [&'static str] {
         match self {
+            Self::SovereignUltra => &[
+                "mobilenetv4-rvl-cdip",
+                "clip-vit-int8",
+                "layoutlmv3-int8",
+                "bge-small-onnx",
+                "laya-int8",
+                "gemma-4-32b-int8",
+            ],
+            Self::WorkstationPro => &[
+                "mobilenetv4-rvl-cdip",
+                "clip-vit-int8",
+                "layoutlmv3-int8",
+                "bge-small-onnx",
+                "laya-int8",
+                "gemma-4-27b-int8",
+            ],
             Self::AirGappedPower => &[
                 "mobilenetv4-rvl-cdip",
                 "clip-vit-int8",
                 "layoutlmv3-int8",
                 "bge-small-onnx",
                 "laya-int8",
+                "gemma-4-12b-int8",
             ],
             Self::SmartBalanced => &[
                 "mobilenetv4-rvl-cdip",
                 "layoutlmv3-int8",
                 "bge-small-onnx",
+                "gemma-4-compact-int8",
             ],
             Self::Lite => &[],
         }
@@ -68,16 +96,20 @@ impl ProfileTier {
 
     pub fn disk_required_bytes(&self) -> u64 {
         match self {
-            Self::AirGappedPower => 740_000_000,
-            Self::SmartBalanced => 252_000_000,
+            Self::SovereignUltra => 19_200_000_000,
+            Self::WorkstationPro => 15_700_000_000,
+            Self::AirGappedPower => 7_900_000_000,
+            Self::SmartBalanced => 1_700_000_000,
             Self::Lite => 0,
         }
     }
 
     pub fn estimated_peak_ram_bytes(&self) -> u64 {
         match self {
-            Self::AirGappedPower => 850_000_000,
-            Self::SmartBalanced => 400_000_000,
+            Self::SovereignUltra => 25_500_000_000,
+            Self::WorkstationPro => 18_500_000_000,
+            Self::AirGappedPower => 10_000_000_000,
+            Self::SmartBalanced => 2_500_000_000,
             Self::Lite => 45_000_000,
         }
     }
@@ -174,31 +206,67 @@ impl HardwareProfiler {
         let total_ram_gb = metrics.total_ram_gb();
         let free_disk_gb = metrics.free_disk_gb();
 
-        let mut evals = Vec::with_capacity(3);
+        let mut evals = Vec::with_capacity(5);
 
-        // 1. AirGappedPower (~740 MB disk, ~850 MB peak RAM)
-        let (air_status, air_reason) = if (avail_ram_gb >= 5.5 || total_ram_gb >= 14.0) && free_disk_gb >= 4.0 {
-            (SemaphoreStatus::Green, "Optimal: System has generous RAM and SSD capacity.".to_string())
-        } else if total_ram_gb >= 7.0 && free_disk_gb >= 1.5 {
-            (SemaphoreStatus::Yellow, "Acceptable: Operates fine, but may compete during peak indexing.".to_string())
+        // 1. SovereignUltra (~19.2 GB disk, ~25.5 GB peak RAM, 64GB+ RAM)
+        let (sov_status, sov_reason) = if (avail_ram_gb >= 30.0 || total_ram_gb >= 56.0) && free_disk_gb >= 45.0 {
+            (SemaphoreStatus::Green, "Optimal: Workstation has high-capacity memory for Gemma 4 32B and full Document AI.".to_string())
+        } else if total_ram_gb >= 44.0 && free_disk_gb >= 25.0 {
+            (SemaphoreStatus::Yellow, "Acceptable: Operates fine on 48GB/64GB, tighter margin under concurrent tasks.".to_string())
         } else {
-            (SemaphoreStatus::Red, "Constrained: Insufficient RAM or disk space for full neural suite.".to_string())
+            (SemaphoreStatus::Red, "Constrained: Gemma 4 32B requires 64GB RAM to prevent swapping. Use Workstation Pro on 32GB.".to_string())
+        };
+
+        evals.push(ProfileEvaluation {
+            tier: ProfileTier::SovereignUltra,
+            status: sov_status,
+            headline: "Sovereign Frontier: Gemma 4 32B (INT4) + Full Local Document AI Suite".to_string(),
+            disk_required_bytes: ProfileTier::SovereignUltra.disk_required_bytes(),
+            estimated_ram_bytes: ProfileTier::SovereignUltra.estimated_peak_ram_bytes(),
+            reason: sov_reason,
+        });
+
+        // 2. WorkstationPro (~15.7 GB disk, ~18.5 GB peak RAM, 32GB RAM)
+        let (work_status, work_reason) = if (avail_ram_gb >= 16.0 || total_ram_gb >= 28.0) && free_disk_gb >= 25.0 {
+            (SemaphoreStatus::Green, "Optimal: Fits smoothly within 32GB RAM envelope with ample OS headroom.".to_string())
+        } else if total_ram_gb >= 20.0 && free_disk_gb >= 18.0 {
+            (SemaphoreStatus::Yellow, "Acceptable: Viable on 24GB-32GB machines.".to_string())
+        } else {
+            (SemaphoreStatus::Red, "Constrained: Gemma 4 27B requires 32GB RAM. Use Air-Gapped Power on 16GB.".to_string())
+        };
+
+        evals.push(ProfileEvaluation {
+            tier: ProfileTier::WorkstationPro,
+            status: work_status,
+            headline: "Workstation Reasoning: Gemma 4 27B (INT4) + Full Local Document AI Suite".to_string(),
+            disk_required_bytes: ProfileTier::WorkstationPro.disk_required_bytes(),
+            estimated_ram_bytes: ProfileTier::WorkstationPro.estimated_peak_ram_bytes(),
+            reason: work_reason,
+        });
+
+        // 3. AirGappedPower (~7.9 GB disk, ~10.0 GB peak RAM, 16GB RAM)
+        let (air_status, air_reason) = if (avail_ram_gb >= 6.5 || total_ram_gb >= 14.0) && free_disk_gb >= 12.0 {
+            (SemaphoreStatus::Green, "Optimal: Perfect balance for standard 16GB developer machines (Gemma 4 12B).".to_string())
+        } else if total_ram_gb >= 10.0 && free_disk_gb >= 8.0 {
+            (SemaphoreStatus::Yellow, "Acceptable: Operates fine, tighter margin on 12GB laptops.".to_string())
+        } else {
+            (SemaphoreStatus::Red, "Constrained: Gemma 4 12B requires 16GB RAM. Use Smart Balanced on 8GB.".to_string())
         };
 
         evals.push(ProfileEvaluation {
             tier: ProfileTier::AirGappedPower,
             status: air_status,
-            headline: "Full Local Document AI, Scan Sentinel & Deep Search".to_string(),
+            headline: "Developer Sweet Spot: Gemma 4 12B (INT4) + Full Local Document AI Suite".to_string(),
             disk_required_bytes: ProfileTier::AirGappedPower.disk_required_bytes(),
             estimated_ram_bytes: ProfileTier::AirGappedPower.estimated_peak_ram_bytes(),
             reason: air_reason,
         });
 
-        // 2. SmartBalanced (~252 MB disk, ~400 MB peak RAM)
-        let (smart_status, smart_reason) = if (avail_ram_gb >= 2.5 || total_ram_gb >= 7.0) && free_disk_gb >= 1.5 {
-            (SemaphoreStatus::Green, "Optimal: Perfect balance of speed, accuracy and low footprint.".to_string())
-        } else if free_disk_gb >= 0.8 && total_ram_gb >= 3.5 {
-            (SemaphoreStatus::Yellow, "Acceptable: Modest memory headroom.".to_string())
+        // 4. SmartBalanced (~1.7 GB disk, ~2.5 GB peak RAM, 8GB RAM)
+        let (smart_status, smart_reason) = if (avail_ram_gb >= 2.5 || total_ram_gb >= 7.0) && free_disk_gb >= 3.0 {
+            (SemaphoreStatus::Green, "Optimal: Ultra-efficient Gemma 4 Compact + essential Document AI for 8GB laptops.".to_string())
+        } else if free_disk_gb >= 1.5 && total_ram_gb >= 4.0 {
+            (SemaphoreStatus::Yellow, "Acceptable: Modest memory headroom on 4GB-6GB laptops.".to_string())
         } else {
             (SemaphoreStatus::Red, "Constrained: Recommend Lite profile for this machine.".to_string())
         };
@@ -206,20 +274,20 @@ impl HardwareProfiler {
         evals.push(ProfileEvaluation {
             tier: ProfileTier::SmartBalanced,
             status: smart_status,
-            headline: "Lightweight Document Sentinel, Spatial Tables & Neural Query Router".to_string(),
+            headline: "Everyday Mobility: Gemma 4 Compact (INT4) + Essential Document AI".to_string(),
             disk_required_bytes: ProfileTier::SmartBalanced.disk_required_bytes(),
             estimated_ram_bytes: ProfileTier::SmartBalanced.estimated_peak_ram_bytes(),
             reason: smart_reason,
         });
 
-        // 3. Lite (0 MB extra models, <50 MB RAM)
+        // 5. Lite (0 MB extra models, <45 MB RAM)
         evals.push(ProfileEvaluation {
             tier: ProfileTier::Lite,
             status: SemaphoreStatus::Green,
-            headline: "Instant Cold Boot, Zero Downloads & Pure Rust Deterministic Heuristics".to_string(),
+            headline: "Instant Cold Boot: Zero Downloads, Pure Rust Heuristics & Cloud Model APIs".to_string(),
             disk_required_bytes: ProfileTier::Lite.disk_required_bytes(),
             estimated_ram_bytes: ProfileTier::Lite.estimated_peak_ram_bytes(),
-            reason: "Universal: 100% compatible with every hardware configuration.".to_string(),
+            reason: "Universal: 100% compatible with every hardware configuration, CI/CD and VMs.".to_string(),
         });
 
         evals
@@ -353,17 +421,47 @@ mod tests {
 
     #[test]
     fn test_auto_select_recommended() {
-        // High-end machine
-        let high_metrics = SystemMetrics {
+        // 1. Sovereign 64GB machine
+        let ultra_metrics = SystemMetrics {
+            total_ram_bytes: 64 * 1024 * 1024 * 1024,
+            available_ram_bytes: 35 * 1024 * 1024 * 1024,
+            free_disk_bytes: 120 * 1024 * 1024 * 1024,
+            cpu_cores: 16,
+            target_drive_path: PathBuf::from("."),
+        };
+        assert_eq!(HardwareProfiler::auto_select_recommended(&ultra_metrics), ProfileTier::SovereignUltra);
+
+        // 2. Workstation 32GB machine
+        let pro_metrics = SystemMetrics {
+            total_ram_bytes: 32 * 1024 * 1024 * 1024,
+            available_ram_bytes: 19 * 1024 * 1024 * 1024,
+            free_disk_bytes: 80 * 1024 * 1024 * 1024,
+            cpu_cores: 12,
+            target_drive_path: PathBuf::from("."),
+        };
+        assert_eq!(HardwareProfiler::auto_select_recommended(&pro_metrics), ProfileTier::WorkstationPro);
+
+        // 3. 16GB developer machine
+        let power_metrics = SystemMetrics {
             total_ram_bytes: 16 * 1024 * 1024 * 1024,
             available_ram_bytes: 8 * 1024 * 1024 * 1024,
-            free_disk_bytes: 100 * 1024 * 1024 * 1024,
+            free_disk_bytes: 40 * 1024 * 1024 * 1024,
             cpu_cores: 8,
             target_drive_path: PathBuf::from("."),
         };
-        assert_eq!(HardwareProfiler::auto_select_recommended(&high_metrics), ProfileTier::AirGappedPower);
+        assert_eq!(HardwareProfiler::auto_select_recommended(&power_metrics), ProfileTier::AirGappedPower);
 
-        // Budget machine
+        // 4. 8GB balanced machine
+        let balanced_metrics = SystemMetrics {
+            total_ram_bytes: 8 * 1024 * 1024 * 1024,
+            available_ram_bytes: 4 * 1024 * 1024 * 1024,
+            free_disk_bytes: 20 * 1024 * 1024 * 1024,
+            cpu_cores: 4,
+            target_drive_path: PathBuf::from("."),
+        };
+        assert_eq!(HardwareProfiler::auto_select_recommended(&balanced_metrics), ProfileTier::SmartBalanced);
+
+        // 5. Budget machine / VM
         let low_metrics = SystemMetrics {
             total_ram_bytes: 4 * 1024 * 1024 * 1024,
             available_ram_bytes: 1 * 1024 * 1024 * 1024,

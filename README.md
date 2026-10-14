@@ -45,6 +45,19 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🧠 Ativação dos Modelos ONNX nos Fluxos de Produção & Família Gemma 4 em 5 Tiers (`v0.38.0`)**:
+  - **Decoupled Architecture**: Desacoplamento estrito entre a Camada de Percepção (Document AI: MobileNetV4, LayoutLMv3, BGE-Small, CLIP-ViT, Laya mmBERT ~740MB) e a Camada Generativa (Gemma 4 INT4).
+  - **5 Hardware Intelligence Tiers (Isolamento Antifragil de Memória)**:
+    - **👑 Sovereign Ultra** (Default em $\ge 64\text{ GB}$ RAM): Gemma 4 32B INT4 (~25.5GB Peak RAM) + Suíte Completa Document AI (19.2GB Disco).
+    - **💼 Workstation Pro** (Default em $32\text{ GB}$ RAM): Gemma 4 27B INT4 (~18.5GB Peak RAM) + Suíte Completa Document AI (15.7GB Disco).
+    - **🌌 Air-Gapped Power** (Default em $16\text{ GB}$ RAM): Gemma 4 12B INT4 (~10.0GB Peak RAM) + Suíte Completa Document AI (7.9GB Disco).
+    - **⚡ Smart Balanced** (Default em $8\text{ GB}$ RAM): Gemma 4 Compact INT4 (~2.5GB Peak RAM) + Document AI Essencial (1.7GB Disco).
+    - **🟢 Lite / Fast-Path** (Default em $< 8\text{ GB}$ RAM, CI ou VMs): 0 MB downloads, 100% heurísticas determinísticas em Rust puro (<1µs cold start) + Provedores Cloud/API.
+  - **Prevenção de Swap Thrashing**: Isolamento rigoroso do modelo 32B para 64GB+, prevenindo esgotamento de RAM e degradação de desempenho em máquinas de 32GB.
+  - **Perception Adapters no Core**: `OnnxScanSentinelAdapter` no `QualityGate` (classificação de páginas rasterizadas em sub-8ms), `OnnxLayoutExtractorAdapter` (preservação tabular 2D) e `OnnxVisionEncoderAdapter` (visual embeddings CLIP ViT) no `IngestionModelRouter`.
+  - **Provedor `GemmaOnnxProvider` em `actx-lm`**: Chat completions e streaming SSE local offline para a família Gemma 4, com fallback transparente para nuvem e garantia ADR-110 inviolável.
+  - **Multi-Surface Parity**: `/profile` dinâmico em 5 tiers, `/model --list` com badges dinâmicos de prontidão local e instalador com métricas formatadas em MB e GB.
+
 - **⚡ Modular ONNX Engine, Hardware Pre-Flight & Tiered Intelligence Profiles (`v0.37.0`)**:
   - **Modular `actx-onnx` Crate**: Separates high-performance neural tensor inference into a standalone crate with CPU execution provider, HuggingFace tokenizers, and resilient feature flagging (`--features onnx`).
   - **Sub-5ms Hardware Pre-Flight Semaphores**: Probes physical hardware (RAM total/available, free storage, CPU cores) in <5ms, presenting an intuitive semaphore (`🟢 Green` / `🟡 Yellow` / `🔴 Red`) and automatically configuring the most powerful green profile.
