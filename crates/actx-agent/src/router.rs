@@ -26,6 +26,12 @@ pub enum QueryIntent {
     Code,
     /// Cross-module system flows, architectural diagrams, or component lifecycle.
     Architecture,
+    /// CI/CD, Docker, scripts, environment variables, terminal commands, or deployment.
+    DevOpsInfra,
+    /// Database schema, SQL queries, LanceDB collections, migrations, or tables.
+    DataSchema,
+    /// Security audits, credentials, authentication, vulnerabilities, or compliance.
+    SecurityAudit,
     /// Business documents, legal contracts, medical reports, or fiscal records.
     Document,
     /// General knowledge, conversational greetings, or conceptual questions.
@@ -37,8 +43,23 @@ impl QueryIntent {
         match self {
             QueryIntent::Code => "code",
             QueryIntent::Architecture => "architecture",
+            QueryIntent::DevOpsInfra => "devops_infra",
+            QueryIntent::DataSchema => "data_schema",
+            QueryIntent::SecurityAudit => "security_audit",
             QueryIntent::Document => "document",
             QueryIntent::General => "general",
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            QueryIntent::Code => "Code & Syntax",
+            QueryIntent::Architecture => "Architecture & Topology",
+            QueryIntent::DevOpsInfra => "DevOps & Infrastructure",
+            QueryIntent::DataSchema => "Data & Schema",
+            QueryIntent::SecurityAudit => "Security & Audit",
+            QueryIntent::Document => "Document & Business",
+            QueryIntent::General => "General & Concepts",
         }
     }
 }
@@ -203,11 +224,41 @@ impl DeterministicClassifier {
             }
         }
 
-        // Intent detection
-        let intent = if lower.contains("arquitetura") || lower.contains("architecture")
+        // Intent detection (7 semantic domains)
+        let intent = if lower.contains("segurança") || lower.contains("security")
+            || lower.contains("vulnerabilidade") || lower.contains("vulnerability")
+            || lower.contains("cve") || lower.contains("segredo") || lower.contains("secret")
+            || lower.contains("api_key") || lower.contains("password") || lower.contains("senha")
+            || lower.contains("autenticação") || lower.contains("auth") || lower.contains("jwt")
+            || lower.contains("sanitização") || lower.contains("sanitiz") || lower.contains("injeção")
+            || lower.contains("injection") || lower.contains("lgpd") || lower.contains("gdpr")
+            || lower.contains("permissão") || lower.contains("permission")
+        {
+            QueryIntent::SecurityAudit
+        } else if lower.contains("docker") || lower.contains("dockerfile")
+            || lower.contains("github action") || lower.contains("workflow")
+            || lower.contains("ci/cd") || lower.contains("ci ") || lower.contains("cd ")
+            || lower.contains("deploy") || lower.contains("sccache")
+            || lower.contains("variável de ambiente") || lower.contains("env var")
+            || lower.contains("porta ") || lower.contains("port ") || lower.contains("bash")
+            || lower.contains("powershell") || lower.contains("terminal")
+            || lower.contains("kubernetes") || lower.contains("k8s")
+        {
+            QueryIntent::DevOpsInfra
+        } else if lower.contains("sql") || lower.contains("sqlite")
+            || lower.contains("lancedb") || lower.contains("postgres") || lower.contains("mysql")
+            || lower.contains("tabela") || lower.contains("table") || lower.contains("coluna")
+            || lower.contains("column") || lower.contains("schema") || lower.contains("esquema")
+            || lower.contains("migração") || lower.contains("migration") || lower.contains("primary key")
+            || lower.contains("foreign key") || lower.contains("relacional") || lower.contains("banco de dados")
+            || lower.contains("database")
+        {
+            QueryIntent::DataSchema
+        } else if lower.contains("arquitetura") || lower.contains("architecture")
             || lower.contains("fluxo") || lower.contains("pipeline")
             || lower.contains("diagrama") || lower.contains("hexagonal")
             || lower.contains("fsm") || lower.contains("orquestrador")
+            || lower.contains("topologia") || lower.contains("topology")
         {
             QueryIntent::Architecture
         } else if lower.contains("fn ") || lower.contains("def ") || lower.contains("class ")
@@ -216,12 +267,14 @@ impl DeterministicClassifier {
             || lower.contains("bug") || lower.contains("erro ") || lower.contains("error ")
             || lower.contains("panic") || lower.contains("exception") || lower.contains("test")
             || lower.contains("código") || lower.contains("code") || lower.contains("função")
+            || lower.contains("refatorar") || lower.contains("refactor") || lower.contains("cargo")
         {
             QueryIntent::Code
         } else if lower.contains("contrato") || lower.contains("fatura") || lower.contains("invoice")
             || lower.contains("cmr") || lower.contains("paciente") || lower.contains("prescrição")
             || lower.contains("balancete") || lower.contains("relatório") || lower.contains("artigo")
             || lower.contains("lei") || lower.contains("processo") || lower.contains("documento")
+            || lower.contains("pdf") || lower.contains("fiscal")
         {
             QueryIntent::Document
         } else {

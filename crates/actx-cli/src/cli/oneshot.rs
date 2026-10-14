@@ -334,7 +334,16 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 } else {
                     theme.ansi_warning("⚡ [ModelRouter: Fast RAG]")
                 };
-                println!("{} \x1b[2m(intent: {}, confidence: {:.0}%)\x1b[0m\n\x1b[2m  • {}\x1b[0m\n", badge, intent, confidence * 100.0, reason);
+                let intent_display = match intent.as_str() {
+                    "code" => "Code & Syntax",
+                    "architecture" => "Architecture & Topology",
+                    "devops_infra" => "DevOps & Infrastructure",
+                    "data_schema" => "Data & Schema",
+                    "security_audit" => "Security & Audit",
+                    "document" => "Document & Business",
+                    _ => "General & Concepts",
+                };
+                println!("{} \x1b[2m(Domain: {}, confidence: {:.0}%)\x1b[0m\n\x1b[2m  • {}\x1b[0m\n", badge, intent_display, confidence * 100.0, reason);
             }
             AgentEvent::Decomposition { sub_queries } => {
                 if in_thinking {

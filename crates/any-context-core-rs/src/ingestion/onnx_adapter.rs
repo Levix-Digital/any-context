@@ -33,6 +33,9 @@ impl ComplexityClassifier for OnnxComplexityClassifierAdapter {
         let i = match intent {
             OnnxIntent::Code => QueryIntent::Code,
             OnnxIntent::Architecture => QueryIntent::Architecture,
+            OnnxIntent::DevOpsInfra => QueryIntent::DevOpsInfra,
+            OnnxIntent::DataSchema => QueryIntent::DataSchema,
+            OnnxIntent::SecurityAudit => QueryIntent::SecurityAudit,
             OnnxIntent::Document => QueryIntent::Document,
             OnnxIntent::General => QueryIntent::General,
         };

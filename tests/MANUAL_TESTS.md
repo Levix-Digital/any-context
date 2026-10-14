@@ -6798,3 +6798,94 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
 
 
 
+
+---
+
+### 📌 Cenário 39: Ingestão Web com Jina Reader (r.jina.ai), RAG Fundamentado Puro & Matriz de 7 Domínios Semânticos (v0.39.0):
+- **Objetivo**: Comprovar que na versão `v0.39.0`:
+  1. O crawler de websites (`NativeWebCrawler`) utiliza `NativeJinaExtractor` para extrair Markdown de alta fidelidade a partir de portais de documentação e SPAs complexas (Docusaurus, React, Next.js), preservando títulos, tabelas e blocos de código com zero consumo de RAM local.
+  2. O princípio inviolável de RAG Fundamentado (*Grounded RAG*) é rigorosamente preservado: o modelo de inferência (família Gemma 4 ou nuvem) lê **exclusivamente do índice RAG nativo** (`NativeHybridPipeline`: LanceDB + BM25), sem consumo de páginas web cruas no prompt.
+  3. O `ChatModelRouter` classifica com precisão as consultas na matriz expandida de **7 domínios semânticos**: `Code`, `Architecture`, `DevOps & Infra`, `Data & Schema`, `Security & Audit`, `Document & Business`, `General`.
+  4. A TUI e o CLI exibem badges contextuais legíveis refletindo os 7 domínios semânticos no accordion de raciocínio e no modo headless.
+  5. Em caso de falha de conexão ou ambiente offline (ADR-110), o crawler faz fallback gracioso para extração HTML local sanitizada sem interromper o `/sync`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🌐 Ingestão de Website SPA via `/sync` com Jina Reader:**
+   - Inicie o AnyContext na TUI ou terminal:
+     ```text
+     actx
+     ```
+   - Registre uma documentação SPA no workspace:
+     ```text
+     /web add https://tokio.rs
+     ```
+   - Execute a sincronização:
+     ```text
+     /sync
+     ```
+   - **Critérios de Aceitação**:
+     - O crawler registra a extração da documentação via Jina Reader.
+     - As páginas são convertidas em chunks de Markdown com headers (`#`, `##`) e blocos de código preservados.
+     - O conteúdo é vetorizado no LanceDB e indexado no BM25.
+     - Perguntas sobre a documentação (ex: "Qual a função do tokio::select?") retornam respostas fundamentadas com proveniência (`[https://tokio.rs/...]`).
+
+2. **🧠 Validação da Matriz de 7 Domínios Semânticos no ChatModelRouter:**
+   - No terminal ou TUI, envie perguntas cobrindo cada um dos 7 domínios:
+     1. `Code`:
+        ```text
+        como refatorar esta struct em Rust usando async fn?
+        ```
+        *Badge esperada no accordion*: `(Domain: Code & Syntax)`
+     2. `Architecture`:
+        ```text
+        qual a topologia hexagonal e o fluxo de dados do core?
+        ```
+        *Badge esperada no accordion*: `(Domain: Architecture & Topology)`
+     3. `DevOps & Infra`:
+        ```text
+        como configurar o Dockerfile e o workflow de CI do GitHub Actions com sccache?
+        ```
+        *Badge esperada no accordion*: `(Domain: DevOps & Infrastructure)`
+     4. `Data & Schema`:
+        ```text
+        quais as colunas da tabela workspace_chunks e a primary key no SQLite?
+        ```
+        *Badge esperada no accordion*: `(Domain: Data & Schema)`
+     5. `Security & Audit`:
+        ```text
+        audite o código contra vulnerabilidade de injeção e vazamento de secret api_key
+        ```
+        *Badge esperada no accordion*: `(Domain: Security & Audit)`
+     6. `Document & Business`:
+        ```text
+        qual é a cláusula de confidencialidade do contrato e da fatura CMR?
+        ```
+        *Badge esperada no accordion*: `(Domain: Document & Business)`
+     7. `General`:
+        ```text
+        olá bom dia, como você está se sentindo hoje?
+        ```
+        *Badge esperada no accordion*: `(Domain: General & Concepts)`
+   - **Critérios de Aceitação**:
+     - Cada categoria reflete com precisão a intenção do usuário no cabeçalho do accordion de raciocínio.
+
+3. **🛡️ Resiliência e Fallback ADR-110 no Crawler:**
+   - Desconecte temporariamente a rede ou aponte para uma URL local inexistente:
+     ```text
+     /web add http://127.0.0.1:59999/offline
+     /sync
+     ```
+   - **Critérios de Aceitação**:
+     - O crawler emite um log de aviso sobre a falha da URL, mas **não sofre panic nem interrompe o sync dos outros arquivos locais**.
+     - O processo de sincronização é concluído com integridade.
+
+4. **⚡ Atalhos de Modo de Busca (`/fast` e `/deep`):**
+   - Execute os atalhos no chat:
+     ```text
+     /fast Qual a versão do AnyContext?
+     /deep Faça uma auditoria completa de concorrência no pipeline RAG
+     ```
+   - **Critérios de Aceitação**:
+     - A consulta `/fast` executa em turno único imediato com badge `⚡ [ModelRouter: Fast RAG]`.
+     - A consulta `/deep` inicia o ciclo reflexivo com decomposição em sub-tarefas e badge `🧠 [ModelRouter: Deep Search]`.

@@ -45,6 +45,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🌐 Ingestão Web com Jina Reader (`r.jina.ai`), RAG Fundamentado Puro & Matriz de 7 Domínios Semânticos (`v0.39.0`)**:
+  - **Jina Reader Exclusivo na Ingestão (`NativeJinaExtractor`)**: Extração de Markdown puro de altíssima fidelidade integrada diretamente ao `NativeWebCrawler` (`/sync`), renderizando documentações complexas e SPAs modernas (React, Docusaurus, Next.js, Vue) com títulos, tabelas e blocos de código preservados sem consumir RAM local (zero navegadores headless locais).
+  - **Preservação Inviolável do RAG Fundamentado (*Grounded RAG*)**: O modelo de inferência (família Gemma 4 local ou nuvem) lê **exclusivamente a partir do índice RAG nativo** (LanceDB + BM25 via `NativeHybridPipeline`). Não há injeção de páginas web avulsas em tempo real no prompt, assegurando proveniência e zero alucinação.
+  - **Matriz de 7 Domínios Semânticos no `ChatModelRouter`**: Classificação semântica em tempo real (<1µs na CPU) em 7 domínios canônicos: `Code`, `Architecture`, `DevOps & Infra`, `Data & Schema`, `Security & Audit`, `Document & Business`, `General`.
+  - **Telemetria Contextual na TUI & CLI**: Badges informativas exibidas no accordion de raciocínio da TUI e na CLI com intenção semântica, nível de confiança e razão explicável.
+  - **Resiliência e Fallback ADR-110**: Em caso de erro de rede ou ambiente offline, o crawler reverte transparentemente para extração HTML local sanitizada sem interromper o processo de sincronização.
+
 - **🧠 Ativação dos Modelos ONNX nos Fluxos de Produção & Família Gemma 4 em 5 Tiers (`v0.38.0`)**:
   - **Decoupled Architecture**: Desacoplamento estrito entre a Camada de Percepção (Document AI: MobileNetV4, LayoutLMv3, BGE-Small, CLIP-ViT, Laya mmBERT ~740MB) e a Camada Generativa (Gemma 4 INT4).
   - **5 Hardware Intelligence Tiers (Isolamento Antifragil de Memória)**:

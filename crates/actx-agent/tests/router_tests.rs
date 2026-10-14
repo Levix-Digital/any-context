@@ -153,6 +153,21 @@ fn test_router_intent_detection() {
     let d_doc = router.evaluate(q_doc, SearchMode::Auto);
     assert_eq!(d_doc.intent, QueryIntent::Document);
 
+    // DevOps & Infra Intent
+    let q_devops = "como configurar o Dockerfile e o workflow de CI/CD do GitHub Actions com sccache?";
+    let d_devops = router.evaluate(q_devops, SearchMode::Auto);
+    assert_eq!(d_devops.intent, QueryIntent::DevOpsInfra);
+
+    // Data & Schema Intent
+    let q_data = "quais as colunas da tabela workspace_chunks e a primary key no SQLite?";
+    let d_data = router.evaluate(q_data, SearchMode::Auto);
+    assert_eq!(d_data.intent, QueryIntent::DataSchema);
+
+    // Security & Audit Intent
+    let q_sec = "audite o código contra vulnerabilidade de injeção e vazamento de secret api_key";
+    let d_sec = router.evaluate(q_sec, SearchMode::Auto);
+    assert_eq!(d_sec.intent, QueryIntent::SecurityAudit);
+
     // General Intent
     let q_gen = "olá bom dia, como você está se sentindo hoje?";
     let d_gen = router.evaluate(q_gen, SearchMode::Auto);

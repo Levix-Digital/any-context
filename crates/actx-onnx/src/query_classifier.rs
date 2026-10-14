@@ -17,6 +17,9 @@ pub enum OnnxComplexity {
 pub enum OnnxIntent {
     Code,
     Architecture,
+    DevOpsInfra,
+    DataSchema,
+    SecurityAudit,
     Document,
     General,
 }
@@ -26,6 +29,9 @@ impl OnnxIntent {
         match self {
             Self::Code => "code",
             Self::Architecture => "architecture",
+            Self::DevOpsInfra => "devops_infra",
+            Self::DataSchema => "data_schema",
+            Self::SecurityAudit => "security_audit",
             Self::Document => "document",
             Self::General => "general",
         }
@@ -75,15 +81,30 @@ impl OnnxQueryClassifier {
     }
 
     fn detect_intent(q: &str) -> (OnnxIntent, f32) {
-        let code_keywords = [
-            "fn ", "function", "impl", "struct", "class", "def ", "import", "package",
-            "compile", "syntax", "refactor", "bug", "panic", "error[e", "git", "cargo",
-            "docker", "async", "tokio", "api", "endpoint", "código", "função", "método"
+        let sec_keywords = [
+            "security", "segurança", "vulnerability", "vulnerabilidade", "cve", "secret", "segredo",
+            "api_key", "password", "senha", "auth", "autenticação", "jwt", "sanitiz", "injection",
+            "injeção", "lgpd", "gdpr", "permission", "permissão"
+        ];
+        let devops_keywords = [
+            "docker", "dockerfile", "github action", "workflow", "ci/cd", "ci ", "cd ", "deploy",
+            "sccache", "environment variable", "variável de ambiente", "env var", "port ", "porta ",
+            "bash", "powershell", "terminal", "kubernetes", "k8s", "container"
+        ];
+        let data_keywords = [
+            "sql", "sqlite", "lancedb", "postgres", "mysql", "table", "tabela", "column", "coluna",
+            "schema", "esquema", "migration", "migração", "primary key", "foreign key", "relational",
+            "tabular", "database", "banco de dados"
         ];
         let arch_keywords = [
             "architecture", "flow", "diagram", "lifecycle", "pipeline", "monorepo",
             "hexagonal", "design", "component", "subsystem", "arquitetura", "fluxo",
-            "camada", "visão geral", "master plan", "roadmap", "rfc"
+            "camada", "visão geral", "master plan", "roadmap", "rfc", "fsm"
+        ];
+        let code_keywords = [
+            "fn ", "function", "impl", "struct", "class", "def ", "import", "package",
+            "compile", "syntax", "refactor", "bug", "panic", "error[e", "cargo",
+            "async", "tokio", "api", "endpoint", "código", "função", "método", "type "
         ];
         let doc_keywords = [
             "invoice", "contract", "legal", "policy", "clause", "tax", "report", "cmr",
@@ -91,24 +112,30 @@ impl OnnxQueryClassifier {
             "imposto", "prazo", "nota fiscal", "termo"
         ];
 
-        let mut code_hits = 0;
+        let mut sec_hits = 0;
+        let mut devops_hits = 0;
+        let mut data_hits = 0;
         let mut arch_hits = 0;
+        let mut code_hits = 0;
         let mut doc_hits = 0;
 
-        for kw in code_keywords {
-            if q.contains(kw) { code_hits += 1; }
-        }
-        for kw in arch_keywords {
-            if q.contains(kw) { arch_hits += 1; }
-        }
-        for kw in doc_keywords {
-            if q.contains(kw) { doc_hits += 1; }
-        }
+        for kw in sec_keywords { if q.contains(kw) { sec_hits += 1; } }
+        for kw in devops_keywords { if q.contains(kw) { devops_hits += 1; } }
+        for kw in data_keywords { if q.contains(kw) { data_hits += 1; } }
+        for kw in arch_keywords { if q.contains(kw) { arch_hits += 1; } }
+        for kw in code_keywords { if q.contains(kw) { code_hits += 1; } }
+        for kw in doc_keywords { if q.contains(kw) { doc_hits += 1; } }
 
-        if code_hits > arch_hits && code_hits > doc_hits {
-            (OnnxIntent::Code, 0.35 + (code_hits as f32 * 0.15).min(0.55))
-        } else if arch_hits >= code_hits && arch_hits > doc_hits {
+        if sec_hits > 0 {
+            (OnnxIntent::SecurityAudit, 0.45 + (sec_hits as f32 * 0.15).min(0.50))
+        } else if devops_hits > 0 && devops_hits >= code_hits {
+            (OnnxIntent::DevOpsInfra, 0.40 + (devops_hits as f32 * 0.15).min(0.50))
+        } else if data_hits > 0 && data_hits >= code_hits {
+            (OnnxIntent::DataSchema, 0.40 + (data_hits as f32 * 0.15).min(0.50))
+        } else if arch_hits > 0 && arch_hits >= code_hits {
             (OnnxIntent::Architecture, 0.40 + (arch_hits as f32 * 0.15).min(0.55))
+        } else if code_hits > 0 {
+            (OnnxIntent::Code, 0.35 + (code_hits as f32 * 0.15).min(0.55))
         } else if doc_hits > 0 {
             (OnnxIntent::Document, 0.35 + (doc_hits as f32 * 0.15).min(0.55))
         } else {

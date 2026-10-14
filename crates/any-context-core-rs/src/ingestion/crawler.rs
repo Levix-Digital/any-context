@@ -393,6 +393,7 @@ impl Default for CrawlerConfig {
 pub struct NativeWebCrawler {
     config: CrawlerConfig,
     client: reqwest::Client,
+    jina: Option<crate::ingestion::jina::NativeJinaExtractor>,
 }
 
 impl NativeWebCrawler {
@@ -404,11 +405,19 @@ impl NativeWebCrawler {
             .build()
             .map_err(|e| format!("Failed to initialize crawler HTTP client: {e}"))?;
 
-        Ok(Self { config, client })
+        let jina = crate::ingestion::jina::NativeJinaExtractor::new_default().ok();
+
+        Ok(Self { config, client, jina })
     }
 
     pub fn new_default() -> Result<Self, String> {
         Self::new(CrawlerConfig::default())
+    }
+
+    /// Configures or disables the Jina Reader extractor.
+    pub fn with_jina(mut self, jina: Option<crate::ingestion::jina::NativeJinaExtractor>) -> Self {
+        self.jina = jina;
+        self
     }
 
     /// Crawls the site starting from `start_url` using BFS, checking sitemaps and robots.txt.
@@ -500,7 +509,16 @@ impl NativeWebCrawler {
                 .or_else(|| Some(chrono::Utc::now().to_rfc3339()));
 
             let title = extract_title(&html).unwrap_or_else(|| curr_url_str.clone());
-            let clean_text = crate::ingestion::orchestrator::strip_html_tags(&html);
+
+            // High-fidelity extraction: try Jina Reader first (for SPAs, code blocks, tables, and markdown preservation)
+            let clean_text = if let Some(ref jina_ext) = self.jina {
+                match jina_ext.extract_markdown(&curr_url_str).await {
+                    Ok(md) if !md.trim().is_empty() => md,
+                    _ => crate::ingestion::orchestrator::strip_html_tags(&html),
+                }
+            } else {
+                crate::ingestion::orchestrator::strip_html_tags(&html)
+            };
 
             if !clean_text.trim().is_empty() {
                 crawled_pages.push(CrawledPage {

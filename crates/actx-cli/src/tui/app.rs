@@ -1123,9 +1123,18 @@ impl App {
                 } else {
                     "⚡ [ModelRouter: Fast RAG]"
                 };
+                let intent_display = match intent.as_str() {
+                    "code" => "Code & Syntax",
+                    "architecture" => "Architecture & Topology",
+                    "devops_infra" => "DevOps & Infrastructure",
+                    "data_schema" => "Data & Schema",
+                    "security_audit" => "Security & Audit",
+                    "document" => "Document & Business",
+                    _ => "General & Concepts",
+                };
                 self.current_thinking_buffer.push_str(&format!(
-                    "{} (Intent: {}, Conf: {:.0}%)\n• Reason: {}\n\n",
-                    badge, intent, confidence * 100.0, reason
+                    "{} (Domain: {}, Conf: {:.0}%)\n• Reason: {}\n\n",
+                    badge, intent_display, confidence * 100.0, reason
                 ));
             }
             AgentEvent::Decomposition { sub_queries } => {
