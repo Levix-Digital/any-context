@@ -6714,6 +6714,20 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
      - O classificador determinístico em Rust puro assume 100% da carga sem emitir erros ou travar.
      - A resposta é concluída com sucesso em $< 50\text{ms}$.
 
+---
+
+### 📌 Cenário 37: CI Fast-Path Timing Resilience & SQLite Warmup under Virtualized Runners (v0.37.0 CI Fix):
+- **Objetivo**: Comprovar que o teste `test_is_first_run_or_upgrade_does_not_panic` executa com determinismo absoluto em ambientes virtualizados de CI (GitHub Actions `windows-latest` e `ubuntu-latest`).
+- **Passo a Passo de Execução**:
+  1. Executar os testes da crate `actx-cli`:
+     ```bash
+     cargo test -p actx-cli --lib
+     ```
+  2. **Critérios de Aceitação**:
+     - Todos os 14 testes passam com 100% de sucesso.
+     - `test_is_first_run_or_upgrade_does_not_panic` roda em regime de aquecimento sem ultrapassar o teto defensivo de 1500ms.
+
+
 
 
 
