@@ -22,6 +22,11 @@ use self::events::handle_key_event;
 
 /// Launches the interactive full-screen TUI session.
 pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
+    // 0. Check if first-run or upgrade to display splash telemetry (Option C)
+    if crate::engine::is_first_run_or_upgrade() {
+        crate::engine::run_startup_splash_bootstrap();
+    }
+
     // 1. Resolve Provider and create agent via agnostic engine module
     let effective_ws = args.workspace.clone();
     let (provider, resolved_model) = match resolve_lm_provider(args.model.as_deref(), Some(&effective_ws)) {
@@ -34,7 +39,7 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|d| d.get_workspace_grounding_mode(&effective_ws).ok())
         .unwrap_or_else(|| "strict".to_string());
     let search_mode = db.as_ref()
-        .and_then(|d| d.get_setting("search_mode").ok().flatten())
+        .and_then(|d| d.get_workspace_search_mode(&effective_ws).ok())
         .unwrap_or_else(|| "auto".to_string());
     let web_search_enabled = db.as_ref()
         .and_then(|d| d.get_workspace_web_search(&effective_ws).ok())
@@ -47,6 +52,14 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut app = App::new(effective_ws, resolved_model, agent);
+
+    // Transparent background self-knowledge bootstrap / update into 'Global' workspace
+    tokio::task::spawn_blocking(|| {
+        let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
+        if let Ok(ls) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) {
+            crate::engine::ensure_global_knowledge_bootstrap(&ls);
+        }
+    });
 
     // 2. Setup Terminal in raw mode with alternate screen
     enable_raw_mode()?;
@@ -64,8 +77,8 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
         terminal.draw(|f| ui::render(f, &mut app))?;
 
         tokio::select! {
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(250)) => {
-                // Periodic tick for live background sync progress and animations
+            _ = tokio::time::sleep(tokio::time::Duration::from_millis(125)) => {
+                // Periodic tick for live background sync progress and animations (doubled speed)
                 app.tick();
             }
             maybe_event = reader.next() => {

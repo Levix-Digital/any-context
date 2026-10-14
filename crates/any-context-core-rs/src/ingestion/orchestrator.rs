@@ -14,9 +14,11 @@ use std::time::Instant;
 
 use sha2::{Digest, Sha256};
 
+use crate::ingestion::enricher::NativeContextualEnricher;
+use crate::ingestion::model_router::IngestionModelRouter;
 use crate::ingestion::router::IngestionRouter;
 use crate::ingestion::scanner::WorkspaceScanner;
-use crate::models::ChunkPayload;
+use crate::models::{ChunkPayload, SemanticEnvelope};
 use crate::retrieval::bm25::BM25Index;
 use crate::storage::lancedb::{NativeLanceStore, VectorRecord, DEFAULT_TABLE_NAME, DEFAULT_VECTOR_DIM};
 use crate::storage::sqlite::NativeConfigDb;
@@ -61,6 +63,9 @@ pub struct SyncResult {
     pub total_files: usize,
     pub indexed_files: usize,
     pub chunks_created: usize,
+    pub chunks_dropped_quality: usize,
+    pub documents_enriched_ai: usize,
+    pub quality_pass_rate: f32,
     pub deleted_files: usize,
     pub renamed_files: usize,
     pub errors: Vec<String>,
@@ -71,6 +76,7 @@ pub struct SyncResult {
 /// Pure Rust Ingestion & Vectorization Orchestrator.
 pub struct NativeSyncOrchestrator {
     router: IngestionRouter,
+    model_router: Arc<IngestionModelRouter>,
     scanner: WorkspaceScanner,
     lance_store: Arc<NativeLanceStore>,
     db: Arc<NativeConfigDb>,
@@ -83,6 +89,7 @@ impl NativeSyncOrchestrator {
         let lance_store = Arc::new(NativeLanceStore::open_default()?);
         Ok(Self {
             router: IngestionRouter::default(),
+            model_router: Arc::new(IngestionModelRouter::default()),
             scanner: WorkspaceScanner::default(),
             lance_store,
             db,
@@ -93,10 +100,16 @@ impl NativeSyncOrchestrator {
     pub fn new(lance_store: Arc<NativeLanceStore>, db: Arc<NativeConfigDb>) -> Self {
         Self {
             router: IngestionRouter::default(),
+            model_router: Arc::new(IngestionModelRouter::default()),
             scanner: WorkspaceScanner::default(),
             lance_store,
             db,
         }
+    }
+
+    pub fn with_model_router(mut self, model_router: Arc<IngestionModelRouter>) -> Self {
+        self.model_router = model_router;
+        self
     }
 
     /// Synchronous convenience entrypoint that manages its own Tokio execution if needed.
@@ -105,6 +118,7 @@ impl NativeSyncOrchestrator {
             // Already inside a Tokio runtime: spawn worker thread to avoid blocking or panic
             let orchestrator = Self {
                 router: self.router.clone(),
+                model_router: self.model_router.clone(),
                 scanner: self.scanner.clone(),
                 lance_store: self.lance_store.clone(),
                 db: self.db.clone(),
@@ -241,8 +255,8 @@ impl NativeSyncOrchestrator {
         }
 
         // 11. Early Exit if 100% Up to Date
-        let mut files_to_index: Vec<String> = diff.new_files;
-        files_to_index.extend(diff.modified_files);
+        let mut files_to_index: Vec<String> = diff.new_files.clone();
+        files_to_index.extend(diff.modified_files.clone());
         // Include renamed files in index list so their content is re-associated with new path
         for (_, new_p) in &diff.renamed_files {
             if !files_to_index.contains(new_p) {
@@ -256,9 +270,17 @@ impl NativeSyncOrchestrator {
             vec![]
         };
 
+        let enricher = NativeContextualEnricher::new(self.db.clone());
+
         if files_to_index.is_empty() && web_urls.is_empty() {
             if !diff.deleted_files.is_empty() || !diff.renamed_files.is_empty() {
                 let _ = bm25.save_to_file(bm25_path.to_str().unwrap_or(""));
+                let _ = self.db.record_sync_ledger(
+                    ws,
+                    &diff.deleted_files,
+                    &diff.new_files,
+                    &diff.modified_files,
+                );
             }
 
             let _ = self.db.update_sync_status(
@@ -272,7 +294,9 @@ impl NativeSyncOrchestrator {
                 None,
             );
             if options.verbose {
-                if diff.is_up_to_date {
+                if !diff.missing_folders.is_empty() {
+                    println!("⚠️ Workspace '{}' has unreachable folder(s): {}", ws, diff.missing_folders.join(", "));
+                } else if diff.is_up_to_date {
                     println!("✔ Workspace '{}' is 100% up-to-date (0 changes).", ws);
                 } else {
                     println!("✔ Workspace '{}' synchronized: {} files purged.", ws, diff.deleted_files.len());
@@ -284,6 +308,9 @@ impl NativeSyncOrchestrator {
                 total_files: diff.disk_files.len(),
                 indexed_files: 0,
                 chunks_created: 0,
+                chunks_dropped_quality: 0,
+                documents_enriched_ai: 0,
+                quality_pass_rate: 1.0,
                 deleted_files: diff.deleted_files.len(),
                 renamed_files: diff.renamed_files.len(),
                 errors: Vec::new(),
@@ -295,6 +322,8 @@ impl NativeSyncOrchestrator {
         let total_files = files_to_index.len();
         let mut indexed_count = 0;
         let mut total_chunks_created = 0;
+        let mut total_chunks_dropped_quality = 0;
+        let mut total_documents_enriched_ai = 0;
         let mut errors = Vec::new();
 
         // 12. Main Indexing Loop
@@ -315,12 +344,20 @@ impl NativeSyncOrchestrator {
                         None,
                         None,
                     );
+                    let pass_rate = if total_chunks_created + total_chunks_dropped_quality > 0 {
+                        (total_chunks_created as f32) / ((total_chunks_created + total_chunks_dropped_quality) as f32)
+                    } else {
+                        1.0
+                    };
                     return Ok(SyncResult {
                         workspace: ws.to_string(),
                         is_up_to_date: false,
                         total_files,
                         indexed_files: indexed_count,
                         chunks_created: total_chunks_created,
+                        chunks_dropped_quality: total_chunks_dropped_quality,
+                        documents_enriched_ai: total_documents_enriched_ai,
+                        quality_pass_rate: pass_rate,
                         deleted_files: diff.deleted_files.len(),
                         renamed_files: diff.renamed_files.len(),
                         errors,
@@ -350,7 +387,7 @@ impl NativeSyncOrchestrator {
             }
 
             // Chunk the file using high-speed native Rust router
-            let chunks = match self.router.chunk_file_native(file_path) {
+            let raw_chunks = match self.router.chunk_file_native(file_path) {
                 Ok(c) => c,
                 Err(e) => {
                     let err_msg = format!("Failed to chunk '{}': {}", file_path, e);
@@ -359,19 +396,44 @@ impl NativeSyncOrchestrator {
                 }
             };
 
+            // Ingestion ModelRouter: Quality Gate & Document AI Triage
+            let (mut approved_chunks, ai_candidates, dropped_noise) = self.model_router.triage_chunks(raw_chunks);
+            total_chunks_dropped_quality += dropped_noise;
+
+            if !ai_candidates.is_empty() {
+                total_documents_enriched_ai += 1;
+                let ai_chunks = self.model_router.process_document_ai_candidates(
+                    ai_candidates,
+                    lm_provider.as_ref(),
+                ).await;
+                approved_chunks.extend(ai_chunks);
+            }
+
+            let chunks = approved_chunks;
+
             let (mtime, size) = diff.disk_files.get(file_path).copied().unwrap_or((0.0, 0));
             let content_hash = compute_file_sha256(path_obj).unwrap_or_else(|_| "hash_err".to_string());
 
             if chunks.is_empty() {
-                // File was empty or only whitespace; record in SQLite cache so it doesn't get repeatedly checked
+                // File was empty, whitespace, or filtered as noise; record in SQLite cache so it doesn't get repeatedly checked
                 let _ = self.db.upsert_file_stat_cache(ws, file_path, mtime, size, Some(&content_hash));
                 indexed_count += 1;
                 continue;
             }
 
+            // Extract contextual envelope
+            let doc_sample = if let Ok(full_text) = std::fs::read_to_string(path_obj) {
+                full_text
+            } else {
+                chunks.iter().take(10).map(|c| c.text.as_str()).collect::<Vec<_>>().join("\n")
+            };
+            let envelope = enricher.extract_envelope(&doc_sample, &file_name, Some(file_path), None);
+
             // Vectorize and upsert chunks in batches
             match self.embed_and_upsert_chunks(
                 &chunks,
+                Some(&envelope),
+                &enricher,
                 ws,
                 file_path,
                 &file_name,
@@ -399,6 +461,7 @@ impl NativeSyncOrchestrator {
                 &web_urls,
                 ws,
                 pid,
+                &enricher,
                 &lm_provider,
                 &embedding_model,
                 &mut bm25,
@@ -408,6 +471,14 @@ impl NativeSyncOrchestrator {
 
         // 14. Persist Inverted BM25 Index to Disk
         let _ = bm25.save_to_file(bm25_path.to_str().unwrap_or(""));
+
+        // 15. Record Sync Ledger Diff in SQLite
+        let _ = self.db.record_sync_ledger(
+            ws,
+            &diff.deleted_files,
+            &diff.new_files,
+            &diff.modified_files,
+        );
 
         // 15. Finalize Telemetry: Set sync state to idle
         let _ = self.db.update_sync_status(
@@ -422,10 +493,16 @@ impl NativeSyncOrchestrator {
         );
 
         let duration_ms = start_time.elapsed().as_millis();
+        let pass_rate = if total_chunks_created + total_chunks_dropped_quality > 0 {
+            (total_chunks_created as f32) / ((total_chunks_created + total_chunks_dropped_quality) as f32)
+        } else {
+            1.0
+        };
+
         if options.verbose {
             println!(
-                "✔ Synchronization completed in {}ms: {} files indexed, {} chunks created, {} deleted.",
-                duration_ms, indexed_count, total_chunks_created, diff.deleted_files.len()
+                "✔ Synchronization completed in {}ms: {} files indexed, {} chunks created, {} noise filtered (pass rate: {:.1}%), {} deleted.",
+                duration_ms, indexed_count, total_chunks_created, total_chunks_dropped_quality, pass_rate * 100.0, diff.deleted_files.len()
             );
         }
 
@@ -435,6 +512,9 @@ impl NativeSyncOrchestrator {
             total_files,
             indexed_files: indexed_count,
             chunks_created: total_chunks_created,
+            chunks_dropped_quality: total_chunks_dropped_quality,
+            documents_enriched_ai: total_documents_enriched_ai,
+            quality_pass_rate: pass_rate,
             deleted_files: diff.deleted_files.len(),
             renamed_files: diff.renamed_files.len(),
             errors,
@@ -447,6 +527,8 @@ impl NativeSyncOrchestrator {
     async fn embed_and_upsert_chunks(
         &self,
         chunks: &[ChunkPayload],
+        envelope: Option<&SemanticEnvelope>,
+        enricher: &NativeContextualEnricher,
         workspace: &str,
         file_path: &str,
         file_name: &str,
@@ -472,15 +554,22 @@ impl NativeSyncOrchestrator {
 
         for (i, c) in chunks.iter().enumerate() {
             let id = format!("{}_{}", short_hash, i);
+            let text_to_embed = if let Some(env) = envelope {
+                enricher.apply_envelope_to_chunk(&c.text, env)
+            } else {
+                c.text.clone()
+            };
+
             bm25.add_chunk(
                 id.clone(),
-                c.text.clone(),
+                text_to_embed.clone(),
                 file_name.to_string(),
                 file_path.to_string(),
                 workspace.to_string(),
                 c.content_type.clone(),
+                Some(last_mod_str.clone()),
             );
-            chunk_texts.push(c.text.clone());
+            chunk_texts.push(text_to_embed);
             chunk_ids.push(id);
         }
 
@@ -501,6 +590,15 @@ impl NativeSyncOrchestrator {
         let mut records = Vec::with_capacity(chunks.len());
         for (i, c) in chunks.iter().enumerate() {
             let vector = vectors.get(i).cloned().unwrap_or_else(|| vec![0.0; DEFAULT_VECTOR_DIM]);
+            let (doc_summary, keywords) = if let Some(env) = envelope {
+                (
+                    Some(env.summary.clone()),
+                    Some(env.keywords.join(", ")),
+                )
+            } else {
+                (c.header_path.clone(), None)
+            };
+
             records.push(VectorRecord {
                 id: chunk_ids[i].clone(),
                 vector,
@@ -510,8 +608,8 @@ impl NativeSyncOrchestrator {
                 workspace: workspace.to_string(),
                 last_modified: Some(last_mod_str.clone()),
                 content_type: Some(c.content_type.clone()),
-                document_summary: c.header_path.clone(),
-                keywords: None,
+                document_summary: doc_summary,
+                keywords,
                 content_hash: Some(content_hash.to_string()),
             });
         }
@@ -522,22 +620,22 @@ impl NativeSyncOrchestrator {
         Ok(chunks.len())
     }
 
-    /// Crawls and vectorizes configured documentation web portals.
+    /// Crawls and vectorizes configured documentation web portals using recursive NativeWebCrawler.
     async fn sync_web_portals(
         &self,
         urls: &[String],
         workspace: &str,
         pid: u32,
+        enricher: &NativeContextualEnricher,
         lm_provider: &Option<Arc<dyn LmProvider>>,
         embedding_model: &str,
         bm25: &mut BM25Index,
         verbose: bool,
     ) -> Result<(), String> {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(12))
-            .user_agent("AnyContext/0.32.18")
-            .build()
-            .map_err(|e| e.to_string())?;
+        let crawler = match crate::ingestion::crawler::NativeWebCrawler::new_default() {
+            Ok(c) => c,
+            Err(e) => return Err(format!("Failed to initialize crawler: {e}")),
+        };
 
         for (u_idx, url) in urls.iter().enumerate() {
             let _ = self.db.update_sync_status(
@@ -555,42 +653,58 @@ impl NativeSyncOrchestrator {
                 println!("  🌐 Crawling Web Portal: {}", url);
             }
 
-            let resp = match client.get(url).send().await {
-                Ok(r) => r,
-                Err(_) => continue,
+            let pages = match crawler.crawl(url).await {
+                Ok(p) => p,
+                Err(e) => {
+                    if verbose {
+                        println!("  ⚠️ Crawl error on '{}': {}", url, e);
+                    }
+                    continue;
+                }
             };
 
-            let html = match resp.text().await {
-                Ok(t) => t,
-                Err(_) => continue,
-            };
+            for page in pages {
+                let chunks = match self.router.chunk_text_native(&page.url, &page.text) {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
 
-            // Simple text extraction: strip scripts, styles, and tags
-            let text = strip_html_tags(&html);
-            if text.trim().is_empty() {
-                continue;
+                if chunks.is_empty() {
+                    continue;
+                }
+
+                let mut hasher = Sha256::new();
+                hasher.update(page.text.as_bytes());
+                let hash_hex = format!("{:x}", hasher.finalize());
+
+                let envelope = enricher.extract_envelope(&page.text, &page.title, None, Some(&page.url));
+
+                let page_mtime = if let Some(ref lm) = page.lastmod {
+                    chrono::DateTime::parse_from_rfc3339(lm)
+                        .map(|dt| dt.timestamp() as f64)
+                        .or_else(|_| {
+                            chrono::NaiveDate::parse_from_str(lm, "%Y-%m-%d")
+                                .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() as f64)
+                        })
+                        .unwrap_or_else(|_| chrono::Utc::now().timestamp() as f64)
+                } else {
+                    chrono::Utc::now().timestamp() as f64
+                };
+
+                let _ = self.embed_and_upsert_chunks(
+                    &chunks,
+                    Some(&envelope),
+                    enricher,
+                    workspace,
+                    &page.url,
+                    &page.title,
+                    &hash_hex,
+                    page_mtime,
+                    lm_provider,
+                    embedding_model,
+                    bm25,
+                ).await;
             }
-
-            let chunks = match self.router.chunk_text_native(url, &text) {
-                Ok(c) => c,
-                Err(_) => continue,
-            };
-
-            let mut hasher = Sha256::new();
-            hasher.update(text.as_bytes());
-            let hash_hex = format!("{:x}", hasher.finalize());
-
-            let _ = self.embed_and_upsert_chunks(
-                &chunks,
-                workspace,
-                url,
-                url,
-                &hash_hex,
-                0.0,
-                lm_provider,
-                embedding_model,
-                bm25,
-            ).await;
         }
 
         Ok(())
@@ -684,7 +798,7 @@ fn generate_fallback_vectors(texts: &[String], dim: usize) -> Vec<Vec<f32>> {
 }
 
 /// Fast HTML tag stripper for web portal scraping without heavy external dependencies.
-fn strip_html_tags(html: &str) -> String {
+pub fn strip_html_tags(html: &str) -> String {
     let mut out = String::with_capacity(html.len() / 2);
     let mut in_tag = false;
     let mut in_script = false;
@@ -765,5 +879,61 @@ mod tests {
         assert!(text.contains("Hello World"));
         assert!(text.contains("Paragraph text"));
         assert!(!text.contains("console.log"));
+    }
+
+    #[tokio::test]
+    async fn test_orchestrator_enricher_and_ledger_integration() {
+        let temp_dir = std::env::temp_dir().join(format!("test_orch_env_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&temp_dir);
+
+        let db = Arc::new(NativeConfigDb::open_in_memory().unwrap());
+        let lance_store = Arc::new(NativeLanceStore::open(&temp_dir.join("lancedb")).unwrap());
+        let orchestrator = NativeSyncOrchestrator::new(lance_store, db.clone());
+        let enricher = NativeContextualEnricher::new(db.clone());
+
+        let chunks = vec![ChunkPayload {
+            id: "rank_0".to_string(),
+            text: "fn compute_vector_rank() -> f32 { 1.0 }".to_string(),
+            file_name: "rank.rs".to_string(),
+            file_path: "src/rank.rs".to_string(),
+            header_path: None,
+            start_line: 1,
+            end_line: 1,
+            content_type: "rust".to_string(),
+            chunk_index: 0,
+        }];
+
+        let env = enricher.extract_envelope(
+            "Rust Vector Rank Module computes cosine similarity and bm25 scoring for ranking.",
+            "rank.rs",
+            Some("src/rank.rs"),
+            None,
+        );
+
+        let mut bm25 = BM25Index::new(None, None);
+        let upserted = orchestrator.embed_and_upsert_chunks(
+            &chunks,
+            Some(&env),
+            &enricher,
+            "Default",
+            "src/rank.rs",
+            "rank.rs",
+            "mockhash123456",
+            1000.0,
+            &None,
+            "mock",
+            &mut bm25,
+        ).await.unwrap();
+
+        assert_eq!(upserted, 1);
+        assert_eq!(bm25.len(), 1);
+
+        // Test ledger recording
+        let added = vec!["src/rank.rs".to_string()];
+        orchestrator.db.record_sync_ledger("Default", &[], &added, &[]).unwrap();
+        let ledger = orchestrator.db.get_sync_ledger("Default").unwrap().expect("ledger exists");
+        assert_eq!(ledger.2, added);
+
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 }

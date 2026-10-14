@@ -1,6 +1,6 @@
 [package]
 name = "actx-cli"
-version = "0.32.19"
+version = "0.39.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "100% Native Rust CLI & TUI Interface for AnyContext"
@@ -17,6 +17,7 @@ path = "src/main.rs"
 actx-lm = { path = "../actx-lm" }
 actx-agent = { path = "../actx-agent" }
 actx-installer = { path = "../actx-installer" }
+actx-onnx = { path = "../actx-onnx" }
 any-context-core-rs = { path = "../any-context-core-rs" }
 clap = { version = "4.5", features = ["derive", "env"] }
 ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
@@ -29,3 +30,4 @@ dirs = "6.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2.5"

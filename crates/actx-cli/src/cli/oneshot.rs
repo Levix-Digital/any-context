@@ -284,7 +284,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         .and_then(|d| d.get_workspace_grounding_mode(&args.workspace).ok())
         .unwrap_or_else(|| "strict".to_string());
     let search_mode = db.as_ref()
-        .and_then(|d| d.get_setting("search_mode").ok().flatten())
+        .and_then(|d| d.get_workspace_search_mode(&args.workspace).ok())
         .unwrap_or_else(|| "auto".to_string());
     let web_search_enabled = db.as_ref()
         .and_then(|d| d.get_workspace_web_search(&args.workspace).ok())
@@ -302,34 +302,81 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
 
     let mut stdout = io::stdout();
     let mut in_thinking = false;
+    let theme = crate::theme::UiTheme::default();
 
     while let Some(event) = rx.recv().await {
         match event {
             AgentEvent::Thinking(token) => {
                 if !in_thinking {
-                    print!("\x1b[2m<think>\x1b[0m\n");
+                    print!("{}\x1b[2m<think>\x1b[0m\n", theme.core.text_muted.ansi_fg());
                     in_thinking = true;
                 }
-                print!("\x1b[2m{}\x1b[0m", token);
+                print!("{}\x1b[2m{}\x1b[0m", theme.core.text_muted.ansi_fg(), token);
                 let _ = stdout.flush();
             }
             AgentEvent::ToolStart { name, arguments, .. } => {
                 if in_thinking {
-                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
                     in_thinking = false;
                 }
-                println!("\x1b[33m🔧 [Tool Call: {}]\x1b[0m \x1b[2m{}\x1b[0m", name, arguments);
+                println!("{} \x1b[2m{}\x1b[0m", theme.ansi_accent(&format!("🔧 [Tool Call: {}]", name)), arguments);
             }
             AgentEvent::ToolEnd { name, result, is_error, .. } => {
                 if is_error {
-                    println!("\x1b[31m❌ [Tool Error: {}]: {}\x1b[0m", name, result);
+                    println!("{}: {}", theme.ansi_error(&format!("❌ [Tool Error: {}]", name)), result);
                 } else {
-                    println!("\x1b[32m✔ [Tool Done: {}]\x1b[0m", name);
+                    println!("{}", theme.ansi_primary(&format!("✔ [Tool Done: {}]", name)));
+                }
+            }
+            AgentEvent::RoutingDecision { mode, complexity, intent, confidence, reason } => {
+                let badge = if complexity == "Deep" || mode.contains("DeepSearch") {
+                    theme.ansi_reasoning("🧠 [ModelRouter: Deep Search]")
+                } else {
+                    theme.ansi_warning("⚡ [ModelRouter: Fast RAG]")
+                };
+                let intent_display = match intent.as_str() {
+                    "code" => "Code & Syntax",
+                    "architecture" => "Architecture & Topology",
+                    "devops_infra" => "DevOps & Infrastructure",
+                    "data_schema" => "Data & Schema",
+                    "security_audit" => "Security & Audit",
+                    "document" => "Document & Business",
+                    _ => "General & Concepts",
+                };
+                println!("{} \x1b[2m(Domain: {}, confidence: {:.0}%)\x1b[0m\n\x1b[2m  • {}\x1b[0m\n", badge, intent_display, confidence * 100.0, reason);
+            }
+            AgentEvent::Decomposition { sub_queries } => {
+                if in_thinking {
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
+                    in_thinking = false;
+                }
+                println!("{}", theme.ansi_accent("🌲 [Deep Search: Decomposing Query into Sub-Queries]"));
+                for (i, q) in sub_queries.iter().enumerate() {
+                    println!("   \x1b[2m{}.\x1b[0m {}", i + 1, q);
+                }
+                println!();
+            }
+            AgentEvent::IterationStart { iteration, max_iterations } => {
+                if in_thinking {
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
+                    in_thinking = false;
+                }
+                println!("{} \x1b[2mBatch Retrieval & Reflection...\x1b[0m", theme.ansi_warning(&format!("🔄 [Deep Search Iteration {}/{}]", iteration, max_iterations)));
+            }
+            AgentEvent::GapAnalysis { is_sufficient, missing_aspects } => {
+                if in_thinking {
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
+                    in_thinking = false;
+                }
+                if is_sufficient {
+                    println!("{} \x1b[2mSynthesizing grounded answer...\x1b[0m\n", theme.ansi_primary("✔ [Evidence Complete]"));
+                } else {
+                    println!("{} Missing aspects: {}\n", theme.ansi_warning("🔎 [Gap Analysis]"), missing_aspects.join(", "));
                 }
             }
             AgentEvent::Delta(token) => {
                 if in_thinking {
-                    print!("\x1b[2m</think>\x1b[0m\n\n");
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
                     in_thinking = false;
                 }
                 print!("{}", token);
@@ -337,19 +384,18 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             }
             AgentEvent::Done { .. } => {
                 if in_thinking {
-                    print!("\x1b[2m</think>\x1b[0m\n");
+                    print!("{}\x1b[2m</think>\x1b[0m\n", theme.core.text_muted.ansi_fg());
                 }
                 println!();
             }
             AgentEvent::Error(err) => {
-                eprintln!("\n\x1b[31mError: {}\x1b[0m", err);
+                eprintln!("\n{}", theme.ansi_error(&format!("Error: {}", err)));
             }
-            _ => {}
         }
     }
 
     if let Ok(Err(err)) = handle.await {
-        eprintln!("\n\x1b[31mError: {}\x1b[0m", err);
+        eprintln!("\n{}", theme.ansi_error(&format!("Error: {}", err)));
     }
     Ok(())
 }

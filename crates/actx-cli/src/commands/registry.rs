@@ -60,8 +60,8 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     SlashCommand {
         name: "sources",
         aliases: &["source", "list-sources", "src"],
-        description: "Lists indexed local folders and web documentation sources",
-        usage: "/sources [--all]",
+        description: "Lists and manages indexed local folders and web documentation sources",
+        usage: "/sources [--all | rename <target> <new_name>]",
         category: "Sources",
     },
     SlashCommand {
@@ -134,8 +134,6 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         usage: "/update [--check]",
         category: "System",
     },
-    // Temporarily hidden until RFC-042 Deep Search engine is fully operational
-    /*
     SlashCommand {
         name: "fast",
         aliases: &[],
@@ -146,7 +144,7 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     SlashCommand {
         name: "deep",
         aliases: &[],
-        description: "Executes next query using Deep Search Reflexive mode",
+        description: "Executes next query using Deep Search Reflexive mode (RFC-042)",
         usage: "/deep <query>",
         category: "RAG",
     },
@@ -157,7 +155,13 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         usage: "/search [auto|fast|deep]",
         category: "RAG",
     },
-    */
+    SlashCommand {
+        name: "router",
+        aliases: &["routing"],
+        description: "Inspects Chat ModelRouter policy, complexity thresholds, and intent triage",
+        usage: "/router",
+        category: "RAG",
+    },
     SlashCommand {
         name: "inspect",
         aliases: &["chunks", "lance"],
@@ -196,22 +200,15 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     SlashCommand {
         name: "link",
         aliases: &[],
-        description: "Link shared source across workspaces",
-        usage: "/link <source> [target_ws]",
+        description: "Attach folder or web URL to workspace",
+        usage: "/link <path_or_url> [target_ws]",
         category: "Sources",
     },
     SlashCommand {
         name: "unlink",
         aliases: &[],
-        description: "Unlink shared source from workspace",
-        usage: "/unlink <source>",
-        category: "Sources",
-    },
-    SlashCommand {
-        name: "shared",
-        aliases: &[],
-        description: "List reusable indexed shared sources",
-        usage: "/shared",
+        description: "Detach folder or web URL from workspace",
+        usage: "/unlink <path_or_url>",
         category: "Sources",
     },
     SlashCommand {

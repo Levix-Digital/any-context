@@ -14,7 +14,7 @@ pub mod types;
 pub use client::{LmClient, LmClientBuilder};
 pub use error::LmError;
 pub use providers::{
-    AnthropicProvider, GeminiProvider, MockLmProvider, OpenAiCompatibleProvider, ProviderKind,
+    AnthropicProvider, GeminiProvider, GemmaOnnxProvider, MockLmProvider, OpenAiCompatibleProvider, ProviderKind,
 };
 pub use traits::{BoxedChunkStream, LmProvider, StreamResult};
 pub use types::{

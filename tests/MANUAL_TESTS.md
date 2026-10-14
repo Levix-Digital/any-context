@@ -7,6 +7,339 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 32 (v0.34.9 Harmonização Aurora Boreal, Canvas Borderless, Auto-Scroll ReAct, UX Amigável no Update, Cancelamento de Download de Modelos e Onboarding Wizard Neutro):
+- **Objetivo**: Comprovar que na versão `v0.34.9`:
+  1. **Harmonização de Cores Aurora Boreal**:
+     - Amarelos e vermelhos informativos foram removidos da TUI e substituídos pelos tons Glacial Cyan (`#00F0FF`), Cosmic Violet (`#A855F7`) e Brand Emerald (`#00E5A3`).
+     - Alertas vermelhos e amarelos reservados exclusivamente para erros reais e avisos de desconexão.
+     - Atalho `[Esc/Ctrl+C] Exit` mantido em vermelho conforme exceção explícita.
+  2. **Canvas de Chat Borderless**:
+     - A janela de conversa não possui bordas ou título, oferecendo visual limpo, espaçoso e contemporâneo.
+     - Indicador `⏸ Scroll Pausado [End p/ tempo real]` surge suavemente no rodapé caso o usuário pause a rolagem.
+  3. **Auto-Scroll no ReAct & Reasoning (`<think>`)**:
+     - A caixa de raciocínio rola automaticamente até a linha mais recente conforme o pensamento é gerado.
+     - Atalho `Ctrl+PgUp` e `Ctrl+PgDn` permite pausar e navegar pelo raciocínio manualmente.
+  4. **Mensagens Amigáveis no `actx --update`**:
+     - Ao buscar atualização durante a compilação do CI/CD (status 404), o AnyContext apresenta mensagem acolhedora e orientações claras com link oficial.
+  5. **Telemetria de Download de Modelos e Cancelamento Gracioso**:
+     - Download exibe spinner, nome do modelo, MBs transferidos e porcentagem no rodapé.
+     - Pressionar `Esc` aborta o download em tempo real, exclui o arquivo `.download.tmp` e informa no chat.
+  6. **Menu Document AI Reorganizado por Função**:
+     - Submenus dedicados: Ingestão de Documentos, Sentinela de Scans, Roteamento de Perguntas, Visão de Documentos e Resumo de Armazenamento.
+  7. **Onboarding Wizard Interativo Neutro**:
+     - Acionável por `/onboarding` ou `/setup` com 3 passos fluidos: Provedor de IA & Chave -> Perfil Document AI -> Pasta Inicial.
+     - Zero uso do rótulo `[Recomendado]`, deixando a escolha 100% neutra a critério do usuário.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.34.9`.
+
+2. **🎨 Verificação Visual da Paleta Aurora Boreal & Chat Borderless:**
+   - Inicie a TUI com `actx`.
+   - **Critérios de Aceitação**:
+     - A área de chat não possui molduras retangulares ou títulos cinzas/amarelos.
+     - O cabeçalho exibe `[WS: Default]` em verde esmeralda, `◐ THINKING` em violeta e spinner em ciano.
+     - O rodapé exibe `[F1 / /menu]` em ciano, `[Ctrl+T]` em violeta e `[Esc/Ctrl+C] Exit` em vermelho.
+
+3. **🧠 Teste de Auto-Scroll no ReAct & Reasoning:**
+   - Pressione `Ctrl+T` para abrir a caixa de raciocínio.
+   - Digite uma pergunta de busca profunda (ex: `/search deep` seguido de `"explique a arquitetura do AnyContext"`).
+   - **Critérios de Aceitação**:
+     - A caixa rola suavemente até o final conforme o modelo pensa.
+     - `Ctrl+PgUp` rola para cima no raciocínio e `Ctrl+PgDn` rola de volta para baixo.
+
+4. **📥 Teste de Telemetria de Download e Cancelamento com `Esc`:**
+   - Abra o menu interativo com `F1` ou `/menu`.
+   - Acesse `Document AI & Modelos Locais` -> `1. Ingestão de Documentos` -> Baixar modelo.
+   - **Critérios de Aceitação**:
+     - O rodapé exibe telemetria em tempo real: `📥 Baixando ⠋ <Model> X.X/Y.Y MB (Z%) [Esc p/ cancelar]`.
+     - Ao pressionar `Esc`, o download é interrompido imediatamente e o arquivo temporário é deletado sem travar a interface.
+
+5. **🚀 Teste do Onboarding Wizard Neutro:**
+   - Digite `/onboarding`.
+   - **Critérios de Aceitação**:
+     - O modal em 3 passos é aberto sobrepondo a tela.
+     - Nenhuma opção contém o rótulo `[Recomendado]`.
+     - `[Tab]` e `[↑/↓]` navegam entre campos, `[Enter]` avança e `[Esc]` volta passo.
+
+---
+
+### 📌 Cenário 27 (v0.34.4 Estabilização de UX, Conclusão Direta Deep Search, Busca Isolada por Workspace, Spinner 8-Dot, Prompt Multilinhas, Auto-Consciência Global, Menu Document AI e Telemetria ReAct):
+- **Objetivo**: Comprovar que na versão `v0.34.4`:
+  1. **Conclusão Direta e Paridade Linguística no Deep Search**:
+     - Perguntas feitas em português (ou outro idioma) no Deep Search retornam estritamente a conclusão direta ancorada nos fatos, no idioma do usuário, sem preâmbulos narrativos em inglês ("Here is a summary of the findings...", etc.).
+  2. **Isolamento de `/search` por Workspace**:
+     - O modo `/search` (`auto`, `fast`, `deep`) é persistido independentemente por workspace no SQLite. Alterar `/search deep` no workspace A não afeta o workspace B.
+  3. **Spinner Braille de 8 Pontos (4 Pontos de Altura) e Giro Duplo**:
+     - O spinner de sincronização na TUI utiliza o conjunto braille de 8 pontos (`["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]`) e roda a cada 125ms com sensação de alta velocidade.
+  4. **Instruções Seguras de `/update`**:
+     - O comando `/update` orienta de forma segura a execução no terminal do sistema operacional via `actx --update`, sem corromper o buffer ou prompt em raw mode.
+  5. **Prompt de Entrada Multilinhas com Atalhos e Cursor 2D**:
+     - A caixa de entrada se expande dinamicamente de 3 até 8 linhas conforme o texto cresce ou quebra.
+     - Atalhos `Shift+Enter`, `Alt+Enter` e `Ctrl+J` inserem quebra de linha `\n`.
+     - O cursor pisca exatamente no caractere correspondente em duas dimensões `(x, y)`.
+  6. **Badge AI Contextual e Tipografia em Cinza**:
+     - As respostas da IA exibem o prefixo `[AI - <Workspace>]` com o nome do workspace em `LightCyan`.
+     - O texto digitado pelo usuário e a borda do prompt utilizam tons neutros de cinza (`Color::Gray` e `Color::DarkGray`), combinando harmoniosamente com a janela de conversa.
+  7. **Auto-Consciência Global Persistente com Force-Sync Transparente**:
+     - Em segundo plano, no primeiro start e após cada atualização de versão, o help e documentação são indexados transparentemente no workspace `Global`.
+  8. **Menu Document AI e Modelos Locais**:
+     - O `/menu` possui o submenu `Document AI & Modelos Locais` detalhando a política determinística leve (<1µs, 0MB RAM), layout espacial (<5MB RAM) e instruções para download opcional de SLMs de visão e classificadores neurais locais.
+  9. **Telemetria Enriquecida no Accordion de ReAct**:
+     - Ao abrir o accordion (`Ctrl+T`), as mensagens exibem cores distintas e estruturadas para ModelRouter, Subqueries, Iterações, Análise de Gaps e Ferramentas.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.34.4`.
+
+2. **🌐 Teste de Idioma no Deep Search:**
+   - No chat interativo ou via CLI:
+     ```text
+     actx -q "qual o impacto arquitetural do ModelRouter no AnyContext?"
+     ```
+   - **Critérios de Aceitação**:
+     - A resposta final sintetizada é retornada em português fluido.
+     - Zero preâmbulos desnecessários em inglês ("Here is what was found...").
+     - A conclusão vai direto ao ponto com evidências ancoradas.
+
+3. **📂 Teste de Isolamento de `/search` por Workspace:**
+   - Alterne para um workspace de teste e altere o modo:
+     ```text
+     /switch ProjetoA
+     /search deep
+     /switch ProjetoB
+     /search fast
+     /switch ProjetoA
+     /search
+     ```
+   - **Critérios de Aceitação**:
+     - O `ProjetoA` mantém o modo `deep`.
+     - O `ProjetoB` mantém o modo `fast`.
+     - O SQLite persiste o estado independentemente por workspace.
+
+4. **⌨️ Teste do Prompt Multilinhas e Cursor 2D:**
+   - Abra a TUI com `actx`.
+   - Digite uma linha de texto e pressione `Shift+Enter` (ou `Alt+Enter` / `Ctrl+J`).
+   - Digite uma segunda e terceira linha.
+   - **Critérios de Aceitação**:
+     - A caixa de entrada se expande de 3 para 5 linhas sem sobrepor o chat.
+     - O cursor acompanha a nova linha e se movimenta corretamente com as setas do teclado.
+     - O texto é renderizado em cinza neutro e a borda em cinza escuro.
+
+5. **🏷️ Teste do Badge AI com Nome do Workspace:**
+   - Envie uma mensagem no chat (ex: `"olá"`).
+   - **Critérios de Aceitação**:
+     - A resposta do assistente inicia com `[AI - Default]` (ou nome do workspace ativo), com `Default` destacado em ciano suave.
+
+6. **👁️ Teste do Submenu Document AI & Modelos Locais:**
+   - Pressione `/` e selecione `/menu` (ou digite `/menu`).
+   - Selecione a opção `Document AI & Modelos Locais`.
+   - **Critérios de Aceitação**:
+     - O submenu abre com as opções de Classificador Determinístico, Visão Espacial 2D, e instruções para modelos locais e nuvem.
+     - Ao selecionar a opção de visão local, uma mensagem instrutiva clara é exibida no chat.
+
+7. **⚡ Teste do Spinner 8-Dot & Velocidade:**
+   - Dispare uma sincronização com `/sync --force`.
+   - **Critérios de Aceitação**:
+     - O spinner no cabeçalho e rodapé gira com 8 pontos braille (`⣾⣽⣻⢿⡿⣟⣯⣷`) e rotação visivelmente mais rápida (125ms).
+
+---
+
+### 📌 Cenário 26 (v0.34.3 Chat ModelRouter, Classificação Dinâmica de Complexidade de Queries & Roteamento Orientado a Intenção):
+- **Objetivo**: Comprovar que na versão `v0.34.3`:
+  1. **Classificação Determinística de Complexidade em Sub-1µs e Custo Zero de Tokens**:
+     - O `ChatModelRouter` analisa cada prompt do usuário localmente em CPU em menos de 1 microssegundo (< 1µs), consumindo 0 tokens de LLM e zero chamadas a APIs na nuvem para a decisão de roteamento.
+     - Perguntas curtas e pontuais (ex: *"onde fica o timeout?", "qual a versão atual?"*) são classificadas como `Fast` (ReAct padrão de baixa latência).
+     - Perguntas com múltiplos tópicos, comparações de prós/contras, análise arquitetural ponta a ponta ou que contenham mais de 25 palavras são classificadas como `Deep` (Deep Search reflexivo RFC-042).
+  2. **Roteamento Dinâmico no Modo `/search auto`**:
+     - No modo padrão `/search auto`, o agente alterna de forma autônoma e fluida entre ReAct e DeepSearch baseado no resultado da avaliação estrutural da consulta.
+     - Os modos forçados `/search fast` e `/search deep` continuam operando como overrides determinísticos de alta prioridade.
+  3. **Detecção de Intenção e Telemetria em Tempo Real (TUI & CLI)**:
+     - O sistema identifica a intenção do usuário (`Code`, `Architecture`, `Document` ou `General`) com pontuação de confiança calibrada.
+     - O evento tipado `AgentEvent::RoutingDecision` é emitido imediatamente no início do turno, antes do streaming do primeiro token.
+     - A interface TUI e a CLI exibem badges visuais explicativos (`🧠 [ModelRouter: Deep Search]` ou `⚡ [ModelRouter: Fast RAG]`) detalhando intenção, confiança e motivo da decisão.
+  4. **Comando Universal `/router` (Paridade Multi-Superfície)**:
+     - O comando `/router` (ou `/routing`) inspeciona e exibe a política ativa, o modo de pesquisa configurado, e os parâmetros e limiares do classificador determinístico.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.34.3`.
+
+2. **⚡ Teste de Consulta Simples (Fast RAG):**
+   - Inicie o chat interativo com `actx` ou execute em modo one-shot:
+     ```text
+     actx -q "qual linha define a porta 8080?"
+     ```
+   - **Critérios de Aceitação**:
+     - O badge de telemetria exibe `⚡ [ModelRouter: Fast RAG]` com intenção `Code` e confiança >= 0.85.
+     - O agente responde rapidamente através do loop ReAct padrão de baixa latência.
+
+3. **🧠 Teste de Consulta Complexa (Deep Search Dinâmico no `/search auto`):**
+   - No modo padrão `/search auto`, envie uma pergunta comparativa ou multi-aspecto:
+     ```text
+     actx -q "compare a arquitetura do LanceDB com o SQLite no AnyContext, quais são os prós e contras de cada um e como eles se integram ponta a ponta?"
+     ```
+   - **Critérios de Aceitação**:
+     - O classificador identifica automaticamente complexidade `Deep` com intenção `Architecture`.
+     - O badge de telemetria exibe `🧠 [ModelRouter: Deep Search]` com o motivo (ex: marcadores comparativos ou extensão).
+     - O agente aciona o loop reflexivo de Deep Search (decomposição, gap analysis e síntese).
+
+4. **⚙️ Teste de Inspeção de Política com `/router`:**
+   - No chat interativo da TUI ou CLI, digite:
+     ```text
+     /router
+     ```
+   - **Critérios de Aceitação**:
+     - O AnyContext renderiza o painel de status do ModelRouter com:
+       - Active Search Mode (`auto`, `fast`, ou `deep`)
+       - Classifier Engine (`Deterministic (Lexical & Structural)`)
+       - Latency Guarantee (`< 1µs per query`)
+       - LLM Token Cost (`0 tokens (100% local CPU)`)
+       - Supported Intents (`Code`, `Architecture`, `Document`, `General`)
+
+5. **🧪 Execução Completa dos Testes Automatizados:**
+   - Execute no terminal:
+     ```text
+     cargo test --workspace
+     ```
+   - **Critério de Aceitação**: Todos os testes compilam e passam com 100% de sucesso (incluindo a suite `router_tests.rs`).
+
+---
+
+### 📌 Cenário 25 (v0.34.2 ModelRouter na Ingestão, Quality Gate Determinístico Sub-0.1ms & Reconstrução Espacial 2D de Formulários Multidomínio):
+- **Objetivo**: Comprovar que na versão `v0.34.2`:
+  1. **Filtragem Determinística de Ruído via Quality Gate (Sub-0.1ms)**:
+     - Chunks contendo delimitadores repetitivos (ex: `-------------------`), fragmentos sintáticos degenerados (`}`, `};`) ou arquivos corrompidos/binários são identificados e descartados instantaneamente sem onerar o banco vetorial LanceDB nem o índice BM25.
+     - Código-fonte íntegro e documentação técnica recebem escores altos e transitam sem penalidade para o índice vetorial.
+     - O comando `actx --sync` exibe telemetria de qualidade no resumo: contagem de chunks de ruído filtrados e percentual de taxa de aprovação (`pass rate`).
+  2. **Reconstrução Espacial 2D de Formulários e Tabelas Multidomínio (`SpatialFormChunker`)**:
+     - Documentos com estruturas tabulares ou blocos de formulários (como os relatórios de expedição e CMR do caso `IKEAShipments`, prescrições médicas em hospitais, peças jurídicas ou balancetes contábeis) são preservados com pareamento semântico chave-valor (`- **Campo**: Valor`) de forma 100% agnóstica de domínio.
+     - Células e linhas de tabelas não perdem a associação com o cabeçalho original.
+  3. **Ingestion ModelRouter e Fallback Leve (Zero Cloud / Low Spec)**:
+     - O sistema opera por padrão no modo de visão desligado (`Disabled`), recorrendo ao motor heurístico espacial 2D em Rust puro (< 5MB de memória RAM, sem necessidade de GPU ou download de modelos pesados), viabilizando execução ágil em qualquer computador corporativo cliente.
+     - Suporta integração com extratores especializados de layout (`DocumentLayoutExtractor`) e modelos multimodais corporativos via VPC.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.34.2`.
+
+2. **🧹 Teste de Rejeição de Ruído e Telemetria no Sync:**
+   - Crie um arquivo `delimitador.txt` contendo apenas linhas de hífens (`--------------------------------------------------`).
+   - Crie um arquivo `codigo.rs` com uma função válida em Rust.
+   - Execute `actx --sync` no workspace de teste.
+   - **Critérios de Aceitação**:
+     - O arquivo de ruído tem seus chunks descartados pelo Quality Gate.
+     - O sumário final do sync exibe métrica auditável de chunks descartados (`noise filtered`) e `pass rate` < 100%.
+
+3. **📐 Teste de Reconstrução de Formulário / Tabela Complexa (Caso IKEAShipments):**
+   - No workspace com documento PDF ou markdown com formulário denso:
+     ```text
+     | 1 Sender: Nordic Freight Lines AB | 2 Consignee: IKEA Distribution Center Almhult |
+     | 16 Carrier: Scandinavian Logistics Express | 24 Gross Weight: 14500 kg |
+     ```
+   - Sincronize o workspace e faça uma pergunta na CLI ou TUI:
+     ```text
+     actx -q "Qual é o consignee e o gross weight do carregamento?"
+     ```
+   - **Critérios de Aceitação**:
+     - O AnyContext responde com precisão citando `IKEA Distribution Center Almhult` e `14500 kg`.
+     - A resposta referencia o documento e o chunk enriquecido de formulário (`document_form`).
+
+4. **🧪 Execução Completa dos Testes Automatizados:**
+   - Execute no terminal:
+     ```text
+     cargo test --workspace
+     ```
+   - **Critério de Aceitação**: Todos os testes compilam e passam com 100% de sucesso (191+ testes OK).
+
+---
+
+### 📌 Cenário 22 (v0.33.0 Paridade Integral 100% Rust Core, Ingestão Office .docx/.pptx, Web Crawler com Sitemaps, Web Search Multiprovedor e Purga Completa do Código Legado Python):
+- **Objetivo**: Comprovar que na versão `v0.33.0`:
+  1. **Purga Completa do Código Legado Python e Arquitetura 100% Rust Nativo**:
+     - O repositório e o artefato de distribuição foram 100% desvinculados de runtimes Python, `src/any_context/`, `requirements.txt`, PyInstaller specs e Maturin/PyO3 fallbacks.
+     - O binário compilado único (`actx.exe` no Windows, `actx` no Linux/macOS) executa instantaneamente com cold-boot < 10ms.
+  2. **Ingestão Nativa de Arquivos Office (.docx e .pptx)**:
+     - O `OfficeChunker` extrai e indexa textos, títulos, tabelas, seções e notas de apresentações PowerPoint e documentos Word diretamente via streaming XML nativo (`zip` + `quick-xml`).
+  3. **Crawler Web Nativo com Suporte a Sitemaps e RFC 9309 (`NativeWebCrawler`)**:
+     - Sincronização web autônoma com parsing de `sitemap.xml` / `sitemap_index.xml`, controle de taxa de requisições, detecção de links recursivos via BFS e conformidade estrita com `robots.txt`.
+  4. **Motor de Busca Web Multiprovedor (`NativeWebSearchEngine`)**:
+     - Disponibilização da ferramenta `web_search` para o agente ReAct quando o modo web estiver habilitado (`/web on`), suportando Tavily, Serper e fallback DuckDuckGo.
+  5. **Presets de Recuperação Semântica RAG (`RetrievalPreset`)**:
+     - Suporte a estratégias otimizadas de recuperação RAG: `Turbo` (baixa latência com BM25 preferencial), `Balanced` (híbrido balanceado) e `Deep` (vetores densos + BM25 expandido + rerank).
+  6. **Ledger de Sincronização e Envelopamento Contextual (`SemanticEnvelope`)**:
+     - Registro transacional de cada operação de sincronização na tabela `workspace_sync_ledger` e metadados contextuais persistidos no SQLite.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.33.0`.
+
+2. **🦀 Teste de Ingestão de Documento Office (.docx / .pptx):**
+   - Crie ou copie um arquivo `.docx` ou `.pptx` em uma pasta vinculada ao workspace ativo.
+   - Execute a sincronização nativa:
+     ```text
+     actx --sync
+     ```
+   - **Critérios de Aceitação**:
+     - O `OfficeChunker` processa o arquivo sem invocar nenhum interpretador externo ou serviço COM/Office.
+     - Os chunks extraídos contêm parágrafos e tabelas do documento indexados no LanceDB e BM25.
+     - Realize uma consulta sobre o conteúdo do documento com `actx -q "<pergunta sobre o arquivo>"`. A resposta cita com precisão o arquivo `.docx`/`.pptx` como fonte.
+
+3. **🌐 Teste de Descoberta Web via Crawler com Sitemap:**
+   - Adicione uma URL ou portal web ao workspace com sitemap disponível:
+     ```text
+     actx
+     /web add https://docs.rs/quick-xml/latest/quick_xml/
+     ```
+   - Dispare a sincronização do portal:
+     ```text
+     /sync
+     ```
+   - **Critérios de Aceitação**:
+     - O `NativeWebCrawler` rastreia as páginas e indexa o conteúdo no LanceDB.
+     - Não ocorre travamento da TUI durante a extração.
+
+4. **🔍 Teste de Busca Web Integrada no Chat (`/web on`):**
+   - Na TUI interativa:
+     ```text
+     /web on
+     ```
+   - Faça uma pergunta de atualidades externas (ex: sobre a cotação do dólar ou notícias recentes):
+     - **Critérios de Aceitação**:
+       - O agente invoca a ferramenta nativa `web_search` se as credenciais estiverem configuradas ou relata a tentativa via fallback.
+       - As respostas incluem as fontes encontradas na web.
+
+5. **🧹 Validação de Purga Total do Código Python:**
+   - Verifique que a pasta `src/any_context` e arquivos `.py` não existem no repositório.
+   - O workspace compila e roda todos os testes com pureza 100% Rust (`cargo test --workspace`).
+
+---
+
 ### 📌 Cenário 21 (v0.32.19 Transição 100% Rust - Orquestrador Nativo de Ingestão e Sincronização Zero-Python):
 - **Objetivo**: Comprovar que na versão `v0.32.19`:
   1. **Orquestrador de Ingestão e Sincronização 100% Rust Puro (`NativeSyncOrchestrator`)**:
@@ -5820,3 +6153,739 @@
 3. **🔍 Verificar Persistência no LanceDB:**
    - Faça uma pergunta de busca sobre uma página recém-atualizada do site.
    - **Critério de Sucesso:** A resposta utiliza os vetores atualizados com precisão absoluta.
+
+---
+
+### 📌 Cenário 22 (v0.33.1): Validação da Higiene e Integridade do Monorepo 100% Rust
+
+- **Objetivo**: Comprovar que a release `v0.33.1`:
+  1. Operacionaliza 100% do AnyContext em Rust nativo sem qualquer dependência ou arquivo de runtime legado em Python.
+  2. Garante que `config/app_settings.py` e artefatos mortos foram completamente expurgados do repositório.
+  3. Comprova que `actx --diagnostics` e `actx -v` funcionam de forma ultra-rápida (< 10ms) reportando zero dependências de Python ou Bun.
+  4. Valida a imunidade do processo de auto-atualização (`actx --update`), finalizando o swap atômico sem falhas de arquivo inexistente.
+- **Pré-requisito**: Binário instalado na versão `v0.33.1` (`actx -v` exibindo `v0.33.1` ou `0.33.1`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🧹 Validação de Ausência de Código Python de Runtime:**
+   - Abra um terminal no repositório do AnyContext e liste arquivos Python rastreados:
+     ```bash
+     git ls-files "*.py"
+     ```
+   - **Critério de Aceitação:** O arquivo legado `config/app_settings.py` NÃO existe mais. Apenas utilitários administrativos isolados (como `scripts/levix_license_tool.py`) podem existir, sem nenhum código de execução de runtime da aplicação.
+
+2. **⚡ Validação do Diagnóstico de Saúde Nativo:**
+   - Execute o diagnóstico da aplicação:
+     ```bash
+     actx --diagnostics
+     ```
+   - **Critério de Aceitação:** O terminal renderiza:
+     ```text
+     === AnyContext (actx) Native Rust Diagnostics ===
+     Version:    v0.33.1
+     Engine:     100% Native Rust (crates/actx-cli)
+     Runtimes:   Zero Python, Zero Bun/Node dependencies
+     Database:   ... (Connected)
+     Vectors:    LanceDB Columnar Arrow Engine (Ready)
+     Status:     Healthy & Operational
+     ```
+
+3. **🦀 Validação da Suíte de Testes Rust do Workspace:**
+   - Execute a suíte de testes do workspace:
+     ```bash
+     cargo test --workspace
+     ```
+   - **Critério de Aceitação:** Todos os testes unitários e de integração de todos os crates (`actx-cli`, `actx-installer`, `any-context-core-rs`, `actx-agent`, `actx-lm`) compilam e passam com 100% de sucesso (`test result: ok. 0 failed`).
+
+4. **🔄 Validação do Processo de Auto-Atualização Sem Quebra:**
+   - Execute a atualização em um terminal:
+     ```bash
+     actx --update
+     ```
+   - **Critério de Aceitação:** O instalador nativo baixa o pacote de release, extrai os componentes no diretório de staging, valida os cabeçalhos PE/ELF e finaliza o swap atômico com sucesso (`[OK] AnyContext successfully updated`), sem qualquer falha do tipo `Binary file does not exist: actx-core.exe`.
+
+---
+
+### 📌 Cenário 23 (v0.34.0): Validação do Motor Deep Search Agêntico Reflexivo e Roteamento Adaptativo (RFC-042)
+
+- **Objetivo**: Comprovar ponta a ponta o funcionamento do Motor Deep Search reflexivo nativo em Rust (`crates/actx-agent/src/deep_search.rs`), validando decomposição ortogonal de perguntas, recuperação híbrida em lote (`LanceDB` + `BM25`), loop de reflexão com análise de lacunas (*gap queries*), *early stopping*, síntese com citações exatas de código (`[arquivo:linhas]`) e os comandos `/deep`, `/fast` e `/search`.
+- **Pré-requisito**: AnyContext compilado e atualizado para a versão `v0.34.0` ou branch de desenvolvimento `dev`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🦀 Validação da Suíte Completa de Testes Nativos de Deep Search:**
+   - Execute no terminal do repositório os testes unitários e de integração de Deep Search:
+     ```bash
+     cargo test -p actx-agent --test deep_search_tests
+     cargo test -p actx-cli --test deep_search_e2e_tests
+     ```
+   - **Critério de Aceitação:** Todos os testes passam 100% verdes (`13/13 passed` em `actx-agent`, `3/3 passed` em `actx-cli`), comprovando os parsers de listas JSON, decomposição de queries, early stopping, mitigação de loop infinito e integração com o dispatcher de comandos.
+
+2. **🔍 Validação do Roteador de Comandos Slash (`/search`, `/deep`, `/fast`):**
+   - Inicie o terminal interativo do AnyContext:
+     ```bash
+     actx
+     ```
+   - No prompt de comando, teste a configuração de profundidade de busca:
+     ```text
+     /search deep
+     ```
+   - **Critério de Aceitação:** O terminal responde confirmando a alteração da política de busca do workspace:
+     ```text
+     Search Depth Mode set to 'deep' for workspace '...'.
+     ```
+   - Teste o comando `/search fast` e `/search auto`:
+     ```text
+     /search auto
+     ```
+   - **Critério de Aceitação:** A política é atualizada e persistida no banco SQLite `settings.db`.
+
+3. **🧠 Execução de Busca Profunda com Decomposição e Reflexão (`/deep`):**
+   - No chat interativo, execute uma pergunta arquitetural complexa usando o prefixo `/deep`:
+     ```text
+     /deep Como funciona a ingestão de documentos, chunking e recuperação híbrida no AnyContext?
+     ```
+   - **Critério de Aceitação:**
+     - O sistema emite eventos em tempo real informando a decomposição da pergunta em sub-perguntas ortogonais (`AgentEvent::Decomposition`).
+     - O sistema executa a busca paralela em lote (`retrieve_hybrid_batch_async`) no LanceDB e BM25.
+     - O loop reflexivo avalia as evidências acumuladas, gerando *gap queries* ou disparando *early stopping* ao atingir cobertura suficiente.
+     - A resposta final sintetizada é exibida estruturada com títulos claros e proveniência precisa de arquivos e linhas (`[crates/.../scanner.rs:10-50]`).
+
+4. **⚡ Execução de Pergunta em Modo Rápido (`/fast`):**
+   - No chat interativo, execute uma pergunta objetiva usando o prefixo `/fast`:
+     ```text
+     /fast Qual a versão atual do AnyContext?
+     ```
+   - **Critério de Aceitação:** O sistema responde diretamente em turno único de baixa latência sem iniciar o loop reflexivo de múltiplas iterações.
+
+---
+
+### 📌 Cenário 24 (v0.34.1): Validação da Aceleração de CI/CD com Sccache e Otimizações de Perfil de Release
+
+- **Objetivo**: Comprovar a eficácia da infraestrutura de CI/CD acelerada com `sccache` (`mozilla-actions/sccache-action`), flags de compilação release otimizadas no `Cargo.toml` (`[profile.release]`), persistência granular de objetos compilados no backend de cache do GitHub Actions e integridade total dos binários distribuídos.
+- **Pré-requisito**: AnyContext atualizado para `v0.34.1` ou execução do pipeline de GitHub Actions nos branches `dev`/`main` ou tags de release.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação:** O binário responde imediatamente com `actx 0.34.1` sem latência ou erros.
+
+2. **⚡ Validação da Suíte Completa de Testes Nativos do Workspace:**
+   - Execute no terminal do repositório a suíte completa de testes:
+     ```bash
+     cargo test --workspace
+     ```
+   - **Critério de Aceitação:** Todos os testes unitários e de integração de todos os 5 crates (`actx-cli`, `actx-installer`, `any-context-core-rs`, `actx-agent`, `actx-lm`) compilam e passam 100% verdes (`test result: ok. 0 failed`).
+
+3. **📊 Inspeção dos Logs de CI e Telemetria do Sccache:**
+   - Acesse os logs da execução do GitHub Actions para a release `v0.34.1`:
+     ```bash
+     gh run view --log --job=<job_id>
+     ```
+   - Inspecione a etapa `Show sccache statistics`:
+   - **Critérios de Aceitação:**
+     - O executável do `sccache` reporta estatísticas detalhadas de compilação.
+     - As chamadas de compilação de C/C++ (Tree-sitter e SQLite) e Rust são interceptadas pelo `sccache`.
+     - O tempo total de execução no runner Windows é significativamente reduzido, e a etapa `Rust Dependency Cache` opera com `cache-targets: false`.
+
+4. **🔄 Validação de Auto-Atualização Atômica (`actx --update`):**
+   - Execute a atualização no terminal:
+     ```bash
+     actx --update
+     ```
+   - **Critério de Aceitação:** O instalador detecta a release `v0.34.1`, efetua o download do pacote zip de release, extrai os binários e realiza o swap atômico sem corrupção (`[OK] AnyContext successfully updated to v0.34.1`).
+
+---
+
+### 📌 Cenário 25 (v0.34.2): Triagem de Qualidade de Ingestão e Document AI ModelRouter
+- **Objetivo**: Comprovar a capacidade do `QualityGate` e do `IngestionModelRouter` de avaliar a qualidade de chunks sintáticos, rejeitar ruídos de baixa entropia ou binários e triar páginas complexas.
+- **Passo a Passo**:
+  1. Iniciar ingestão com arquivos contendo ruído binário, chaves soltas e diagramas visuais.
+  2. Verificar que ruídos sintáticos degenerados recebem rejeição com métricas documentadas.
+- **Critério de Aceitação**: Taxa de rejeição determinística registrada nas métricas do orquestrador com sub-milissegundo de latência.
+
+---
+
+### 📌 Cenário 26 (v0.34.3): Telemetria Expandida de Raciocínio ReAct e Deep Search
+- **Objetivo**: Validar a emissão granular de eventos de raciocínio, subqueries decompostas, gaps de informação e chamadas de ferramenta no painel Accordion.
+- **Passo a Passo**:
+  1. Executar query com `/search deep`.
+  2. Observar a emissão em tempo real de eventos tipados (`AgentEvent`).
+- **Critério de Aceitação**: A TUI renderiza as etapas de raciocínio de forma legível e com cores distintas sem truncar o fluxo do usuário.
+
+---
+
+### 📌 Cenário 27 (v0.34.4): Paridade Linguística, Prompt Multilinhas e Identidade Visual por Workspace
+- **Objetivo**: Comprovar a síntese estrita no idioma do usuário, a expansão multilinhas da caixa de texto do prompt com `Shift+Enter` e o prefixo `[AI - <Workspace>]`.
+- **Passo a Passo**:
+  1. Digitar pergunta em português no modo Deep Search e verificar que a conclusão é estritamente em português.
+  2. Inserir quebras de linha com `Shift+Enter` e verificar que o cursor e a altura da caixa de texto se ajustam dinamicamente.
+  3. Verificar que as respostas são prefixadas com `[AI - NomeDoWorkspace]`.
+- **Critério de Aceitação**: Formatação visual impecável, navegação 2D no prompt e preservação de auto-ajuda com sincronização transparente.
+
+---
+
+### 📌 Cenário 28 (v0.34.5): Validação Cumulativa de Fidelidade Semântica de Chunks e RAG em Documentos Fiscais e Logísticos Complexos (T4 e CMR)
+- **Objetivo**: Comprovar que o AnyContext v0.34.5 preserva integralmente a geometria 2D e o conteúdo relacional de formulários com tabelas em Markdown, eliminando a corrupção de dados por falsas chaves e viabilizando respostas factuais com 100% de precisão.
+- **Pré-requisitos**: Documentos de teste fiscais canadenses (`T4-2025.pdf`) e logísticos internacionais (`CMR for Single Pickup Report.pdf`) disponíveis nos workspaces correspondentes.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão do Binário:**
+   - Execute no terminal:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe `actx 0.34.5`.
+
+2. **🔄 Sincronização Forçada de Auto-Cura dos Workspaces:**
+   - Execute no terminal:
+     ```bash
+     actx -w TaxReturn sync --force
+     actx -w IKEAShipments sync --force
+     ```
+   - **Critérios de Aceitação**:
+     - O orquestrador purga os vetores corrompidos legados e reindexa com 100% de pass rate (`0 noise filtered`).
+     - No `TaxReturn`, 1 arquivo indexado gera 3 chunks estruturados preservando tabelas Markdown completas.
+     - No `IKEAShipments`, todos os relatórios são reindexados sem divisão destrutiva de destinatários e transportadoras.
+
+3. **🔍 Consulta de Alta Precisão em Formulário Fiscal (T4):**
+   - Execute:
+     ```bash
+     actx -w TaxReturn -q "qual o valor de employment income no T4?"
+     ```
+   - **Critério de Aceitação**: O LLM responde explicitamente que o rendimento de emprego (Box 14) é de **58792,60**, citando `T4-2025.pdf`.
+   - Execute:
+     ```bash
+     actx -w TaxReturn -q "qual o valor da caixa 22 no formulário T4?"
+     ```
+   - **Critério de Aceitação**: O LLM responde explicitamente que o imposto retido na fonte (Box 22) é de **7976,60**, citando `T4-2025.pdf`.
+   - Execute:
+     ```bash
+     actx -w TaxReturn -q "quem é o empregador e quem é o funcionário no documento T4?"
+     ```
+   - **Critério de Aceitação**: O LLM identifica com precisão que o empregador é **IKEA Canada Ltd. Partnership** e o funcionário é **Levi Silveira**.
+
+4. 🚛 Consulta de Alta Precisão em Relatórios Logísticos (CMR):
+   - Execute:
+     ```bash
+     actx -w IKEAShipments -q "quais são as transportadoras e destinos nos relatórios CMR?"
+     ```
+   - Critério de Aceitação: O LLM lista transportadoras (ex.: LANDSTAR INWAY INC, RAINBOW GREENHOUSES INC.) e destinatários (IKEA CALGARY) com seus respectivos endereços de forma perfeitamente discriminada, sem inverter rótulos ou truncar o fluxo.
+
+---
+
+### 📌 Cenário 29 (v0.34.6): Validação da Identidade Cromática Aurora Boreal e Startup Fast-Path (< 50ms) / Splash Loader (Opção C)
+- **Objetivo**: Comprovar que o AnyContext v0.34.6:
+  1. Adota com fidelidade os tokens de design da Levix Digital (Aurora Boreal: Esmeralda `#00E5A3`, Ciano Glacial `#00F0FF`, Violeta Cósmico `#A855F7`, Rosa Polar `#EC4899`, Âmbar Solar `#F59E0B`, Carmesim `#EF4444`, Noite Polar `#0B0F19`) em toda a TUI interativa e no CLI headless com escape ANSI TrueColor de 24-bits.
+  2. Implementa a arquitetura de inicialização de latência zero (Opção C): abertura diária instantânea via Fast-Path (< 50ms) sem travas de I/O de disco, e Splash Loader com telemetria de 3 etapas no console padrão durante o primeiro uso ou após atualização.
+  3. Garante desacoplamento modular absoluto do tema no crate `any-context-core-rs`, viabilizando herança uniforme em futuras interfaces.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão do Binário:**
+   - Execute no terminal:
+     ```bash
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente `actx 0.34.6`.
+
+2. **⚡ Validação de Abertura Fast-Path (< 50ms):**
+   - Execute:
+     ```bash
+     actx --diagnostics
+     ```
+   - **Critérios de Aceitação**:
+     - Retorna em menos de 50 milissegundos indicando `Version: v0.34.6`, `Vectors: LanceDB Columnar Arrow Engine (Ready)` e `Status: Healthy & Operational`.
+     - Iniciar a TUI (`actx`) no dia-a-dia abre instantaneamente a interface de terminal sem delays perceptíveis de indexação bloqueante.
+
+3. **🌌 Validação de Telemetria TrueColor ANSI no Modo Headless:**
+   - Execute uma consulta no terminal:
+     ```bash
+     actx -w TaxReturn -q "qual o valor total do imposto de renda deduzido no T4?"
+     ```
+   - **Critérios de Aceitação**:
+     - O badge do ModelRouter exibe `⚡ [ModelRouter: Fast RAG]` nas cores de destaque Aurora Boreal.
+     - As chamadas de ferramentas exibem `🔧 [Tool Call: search_db]` em Ciano Glacial e `✔ [Tool Done: search_db]` em Esmeralda Boreal.
+     - A resposta final preserva a precisão factual ($7,976.60) com alta legibilidade.
+
+4. **✨ Validação do Splash Loader de Primeiro Uso / Upgrade (Opção C):**
+   - No primeiro boot ou após atualizar o executável para uma versão superior:
+   - **Critérios de Aceitação**:
+     - O terminal exibe o banner Aurora Boreal: `✨ AnyContext v0.34.6` e `🌌 Initializing Aurora Engine & System Knowledge...`.
+     - A telemetria avança progressivamente pelas 3 etapas com spinner de carregamento e confirmação `✔`:
+       - `[1/3] Verifying native SQLite & LanceDB vector stores... [OK]`
+       - `[2/3] Indexing system knowledge & BM25 hybrid lexicon... [OK]`
+       - `[3/3] Warming up workspace engine & model routing... [OK]`
+     - O console transiciona de forma limpa para a TUI interativa.
+     - Nas aberturas subsequentes, o splash não reaparece e o Fast-Path assume imediatamente.
+
+
+
+
+
+---
+
+### 📌 Cenário 30 (v0.34.7): Validação do Catálogo ONNX Nativo, Fallbacks Resilientes, Indicador Search Mode no Header e Diálogo Fluido Humanizado
+
+#### 🎯 Objetivo
+Garantir que a versão `v0.34.7` forneça catálogo e repositório real de modelos ONNX em disco (`%LOCALAPPDATA%\AnyContext\models\`), com fallbacks à prova de quebra (tolerância incondicional a ausência de modelos), indicador de profundidade de busca (`Search: AUTO|FAST|DEEP`) visível no cabeçalho superior e sincronizado por workspace, spinner Braille acelerado e em sentido horário, e respostas fluidas e conversacionais sem frases enlatadas ou emojis de alerta (`⚠️`).
+
+#### 🧪 Procedimento e Casos de Teste
+
+1. **📦 Validação do Submenu "Document AI & Modelos Locais" e Catálogo ONNX:**
+   - Abra a TUI (`actx`) e pressione `[F1]` ou digite `/menu`.
+   - Navegue até a opção `Document AI & Modelos Locais` e pressione `[Enter]`.
+   - **Critérios de Aceitação**:
+     - O submenu lista os motores padrão nativos e os modelos ONNX reais:
+       - `Laya AI (mmBERT INT8 ONNX)` (~210 MB)
+       - `MobileNetV4 RVL-CDIP (ONNX)` (~14 MB)
+       - `BGE-Small Query Classifier (ONNX)` (~35 MB)
+       - `Moondream2 1.8B (INT4 ONNX)` (~1.1 GB)
+       - `SmolVLM-500M (ONNX)` (~480 MB)
+     - Se o modelo não estiver em disco, o badge exibe `[Download (~X MB)]`.
+     - Ao pressionar `[Enter]` em um modelo ausente, uma mensagem de sistema no chat confirma o início do download em background para `%LOCALAPPDATA%\AnyContext\models\`. A aplicação continua responsiva sem congelamento.
+     - Ao pressionar `[Enter]` em um modelo instalado, o badge exibe `[Instalado / Ativo]`.
+
+2. **🛡️ Validação da Resiliência de Fallbacks (Tolerância a Modelos Ausentes):**
+   - Sem nenhum modelo ONNX baixado na máquina:
+     - Execute `/status`.
+     - **Critérios de Aceitação**:
+       - O relatório exibe `Local AI Models` detalhando:
+         - `Ingestion Classifier: Determinístico / Heurístico (<1µs / 0MB RAM) [Padrão ativo]`
+         - `Scanned Classifier: Heurística 2D Espacial (<5MB RAM) [Padrão ativo]`
+         - `Document Vision: Heurística 2D & Tipográfica (<5MB RAM) [Padrão ativo]`
+         - `Models Directory: C:\Users\...\AppData\Local\AnyContext\models (0 models / 0.0 MB)`
+       - A indexação e o RAG continuam funcionando perfeitamente sem erros ou travamentos.
+
+3. **🏷️ Validação do Indicador de Search Mode no Header da TUI e Troca por Workspace:**
+   - Observe a barra de status superior na TUI:
+     - O cabeçalho exibe `─ [Search: AUTO] ─` (ou `FAST`/`DEEP`) formatado nas cores Aurora Boreal.
+   - Alterne o modo com `/search fast`:
+     - O cabeçalho atualiza imediatamente para `─ [Search: FAST] ─` em Verde Boreal (`#00E5A3`).
+   - Alterne para um workspace diferente (`/switch Teste`):
+     - As preferências do workspace `Teste` são recarregadas instantaneamente do SQLite e o indicador no header reflete o modo daquele workspace.
+
+4. **🌀 Validação do Spinner Braille Horário e Velocidade Acelerada:**
+   - Dispare uma sincronização (`/sync --force`):
+     - **Critérios de Aceitação**:
+       - O spinner Braille roda em sentido horário: `["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"]`.
+       - A velocidade de animação é visivelmente ágil (2x a velocidade anterior).
+
+5. **💬 Validação do Tom Conversacional Humano (Sem Disclaimer Robótico nem ⚠️):**
+   - No workspace ativo, faça uma pergunta sobre um tema sabidamente ausente nos documentos (ex: *"Qual o código do website HTML deste projeto?"* ou *"Quais as novidades de imigração para 2026?"*).
+   - **Critérios de Aceitação**:
+     - O agente responde diretamente e com naturalidade: *"Não foram encontrados códigos de website, como HTML, CSS ou JavaScript, relacionados ao projeto."*.
+     - A resposta **NÃO** contém a frase enlatada *"⚠️ Essa informação não consta nos documentos deste workspace."* nem emojis de aviso de erro.
+     - O tom é fluido, colaborativo e direto como um colega de equipe humano.
+
+---
+
+## 🧪 Cenário 31: Validação do Smart Path Healing, Proveniência Temporal no RAG, Cascade de Metadados Web e Detecção Ativa de Alterações de Fontes (v0.34.8)
+
+**Objetivo**: Validar a resiliência a caminhos alterados em drives de nuvem (Smart Path Healing), a injeção e respeito rigoroso à Regra Universal de Informação Mais Recente via metadados de modificação nos chunks de RAG, a cascata histórica de metadados web com checagem condicional HTTP 304, e os novos alertas de saúde de fontes e alterações pendentes no cabeçalho e rodapé da TUI.
+
+### Pré-requisitos
+- AnyContext CLI compilado em versão `v0.34.8` (`actx --version`).
+- Ter pelo menos um workspace com pastas locais e fontes web configuradas.
+
+### Procedimento de Teste
+
+1. **🩹 Validação do Smart Path Healing em Pastas Locais / Google Drive:**
+   - Adicione uma pasta com caminho desviado ou que sofreu reorganização estrutural (ex: adicionando `/Documentos/` no caminho onde a pasta real não possui essa subpasta, ex: `G:/My Drive/Documentos/Levix Digital/AnyContext`).
+   - Execute `/folder` ou inicialize a TUI no workspace:
+     - **Critérios de Aceitação**:
+       - O motor de cura de caminhos (`try_heal_path`) inspeciona variações fonéticas e estruturais (removendo subpastas intermediárias, normalizando barras e maiúsculas/minúsculas).
+       - O comando `/folder` reporta com sucesso: `🔄 auto-resolved from 'G:/My Drive/Documentos/Levix Digital/AnyContext'`.
+       - O banco SQLite (`workspace_folders`) é auto-reparado com o caminho real e canônico.
+       - Nenhum erro de `❌ Directory does not exist` falso-positivo é emitido quando o diretório existe fisicamente no disco.
+
+2. **⏳ Validação da Proveniência Temporal de Chunks e Regra de Recência no RAG:**
+   - Adicione dois documentos que contenham informações divergentes ou concorrentes sobre o mesmo tópico com datas de modificação distintas (ex: `Doc_v1_2023.md` e `Doc_v2_2026.md`).
+   - Execute `/sync` e pergunte ao assistente sobre a informação divergente.
+   - **Critérios de Aceitação**:
+     - Cada chunk recuperado pelo pipeline de RAG injeta o carimbo `| Modified: YYYY-MM-DD HH:MM:SS UTC` no cabeçalho do contexto enviado ao LLM.
+     - O LLM prioriza categoricamente a versão de data mais recente de acordo com a Regra de Informação Mais Recente, indicando a evolução temporal dos dados de forma límpida e precisa.
+
+3. **🌐 Validação da Cascata Histórica de Metadados Web e HTTP 304 Not Modified:**
+   - Adicione uma documentação web via `/web https://...`.
+   - Execute `/sync`:
+     - O crawler executa os 5 níveis da cascata de metadados recuperados (Meta tags HTML / Schema.org JSON-LD `dateModified`, regex de rodapé `Date modified`, padrão de URL `/YYYY/MM/DD/`, cabeçalho HTTP `Last-Modified` e fallback UTC).
+   - Execute `/sync` novamente:
+     - O crawler dispara requisição `HEAD` ou `GET` condicional com `If-None-Match` e `If-Modified-Since`.
+     - O servidor web responde `304 Not Modified`, evitando download desnecessário de corpos de página em menos de 50ms.
+
+4. **⚡ Validação da Detecção Ativa de Alterações e Alertas de Saúde na TUI:**
+   - Mova ou delete um arquivo de uma das pastas rastreadas pelo workspace ativo.
+   - Observe o cabeçalho e rodapé da TUI:
+     - **Critérios de Aceitação**:
+       - O scanner em segundo plano detecta a exclusão/modificação e atualiza o estado para `⚡ [Sync: Changes detected (/sync)]`.
+       - Se uma pasta inteira for renomeada ou removida de forma irrecuperável, a barra superior sinaliza imediatamente: `⚠️ [Sync: 1 folder(s) unreachable]`.
+       - Ao rodar `/sync`, os arquivos deletados são purgados do LanceDB, os alterados são reindexados, e a barra retorna a `✔ Up to date`.
+
+---
+
+### 📌 Cenário 33 (Catálogo Canônico de Modelos ONNX Standalone, Telemetria de Download, Cancelamento Gracioso e Resiliência contra 404 - v0.34.10):
+- **Objetivo**: Comprovar que o Document AI opera com catálogo verificado de modelos ONNX de arquivo único (.onnx standalone), suporta streaming com telemetria percentual em tempo real, cancelamento seguro via `Esc` sem resíduos no disco, e resiliência absoluta sem quebras caso o download não seja realizado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📥 Teste de Download com Telemetria em Tempo Real:**
+   - Abra a TUI (`actx`) e pressione `F2` ou digite `/menu` -> `Document AI & Modelos Locais` -> `1. Classificação de Documentos (Ingestão)`.
+   - Selecione `Baixar / Acoplar Laya AI (mmBERT INT8 ONNX)`.
+   - **Critérios de Aceitação**:
+     - O download inicia imediatamente sem erro 404.
+     - O rodapé da TUI exibe o progresso em tempo real: `📥 Baixando ⠋ Laya AI (mmBERT INT8 ONNX) X.X/404.7 MB (Z%) [Esc p/ cancelar]`.
+     - A interface TUI continua totalmente responsiva e operacional.
+
+2. **🛑 Teste de Cancelamento Gracioso via [Esc]:**
+   - Durante o download de qualquer modelo (ex: `BGE-Small Query Classifier`), pressione `Esc`.
+   - **Critérios de Aceitação**:
+     - O download é imediatamente abortado.
+     - A TUI exibe mensagem no chat: `🛑 Download cancelado: BGE-Small Query Classifier (ONNX). Arquivos temporários removidos do disco.`
+     - Nenhum arquivo parcial corrompido permanece no diretório `%LOCALAPPDATA%\AnyContext\models\`.
+
+3. **🛡️ Teste de Preservação e Fallback Determinístico:**
+   - Acesse o submenu `5. Resumo de Armazenamento & Fallbacks` ou execute `/inspect`.
+   - **Critérios de Aceitação**:
+     - Para todos os modelos não baixados, o AnyContext exibe status claro de fallback determinístico ativo (`Heurística Estrutural Rust (<1µs / 0MB RAM)`).
+     - As buscas, ingestões e raciocínios prosseguem com 100% de funcionalidade sem falhas.
+
+---
+
+### 📌 Cenário 34: Global English Internationalization, Point-by-Point Braille Spinner, Default Collapsed ReAct Accordion, and Release Standard (v0.35.0):
+- **Objetivo**: Comprovar que a interface inteira do AnyContext (TUI, Onboarding, Menus, Prompt, Telemetria e Alertas) opera 100% em inglês global, que o spinner Braille gira de forma contínua ponto por ponto sem saltar, que a caixa de ReAct & Reasoning inicia recolhida por padrão, e que o formato padrão de releases do GitHub é suportado.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🌐 Validação de Internacionalização Completa em Inglês:**
+   - Abra a TUI do AnyContext executando `actx`.
+   - Pressione `F1` ou `Esc` para abrir o Menu Principal.
+   - **Critérios de Aceitação**:
+     - O título é `⚙️ Interactive Menu ─ [Main Menu]`.
+     - Todos os itens de menu estão em inglês: `Workspaces & Context Folders`, `Synchronization & Reindexing`, `Monitored Sources & Web Portals`, `AI Models & LLM Providers`, `Grounding Strategy`, `Search Depth (/search)`, `Document AI & Local Models`, `Credentials & API Keys`, `Diagnostics & System Health`, `Conversation History`, `Clear Chat View`, `Exit AnyContext Session`.
+     - Badges estão em inglês: `[Active]`, `[SHA-256]`, `[Zero-Overhead]`, `[100% Rust]`, `[Fast]`, `[Full]`, `[Stop]`.
+     - O rodapé de navegação exibe: `[↑/↓] Navigate • [Enter/Tab] Select • [Esc/←] Back/Close`.
+   - Execute `/onboarding`:
+     - O Wizard exibe todos os 3 passos em inglês (`1. AI Provider & API Key`, `2. Document AI Profile`, `3. Initial Workspace Folder`).
+     - Nenhum texto ou placeholder permanece em português.
+
+2. **🌀 Validação do Spinner Braille Ponto-a-Ponto (Sem Engasgo ou Salto de Pontos):**
+   - Dispare uma ação assíncrona, como `/sync --force` ou faça uma pergunta complexa para raciocínio Deep Search.
+   - Observe a animação do spinner no rodapé da tela ou no cabeçalho:
+   - **Critérios de Aceitação**:
+     - O spinner percorre sequencialmente todos os pontos do perímetro (`["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]`) a cada tick.
+     - A rotação é perfeitamente suave, circular e contínua, sem pular posições intermediárias e sem a sensação de soluço/engasgo.
+
+3. **📦 Validação da Caixa ReAct & Reasoning Recolhida por Padrão:**
+   - Inicie uma nova sessão do `actx` e envie uma pergunta ao assistente.
+   - **Critérios de Aceitação**:
+     - Durante a execução, a caixa de ReAct & Reasoning aparece em seu estado recolhido (accordion fechado), exibindo o resumo em uma linha compacta `[+] 🧠 ReAct & Reasoning Trace (Ctrl+T to expand)`.
+     - A janela principal de conversa (Conversation) ocupa o espaço vertical integral da tela, proporcionando visibilidade máxima ao chat.
+     - Ao pressionar `Ctrl+T`, o accordion se expande revelando os passos detalhados de pensamento e chamadas de ferramenta. Pressionando `Ctrl+T` novamente, ele é recolhido com sucesso.
+
+4. **🚀 Validação do Padrão Oficial de Release Notes do GitHub:**
+   - Inspecione `.github/workflows/release.yml` e `.github/release.yml`:
+   - **Critérios de Aceitação**:
+     - As etapas de publicação contêm `generate_release_notes: true`.
+     - As notas de versão geradas pelo GitHub seguem a estrutura padrão com cabeçalho `## What's Changed`, commits convencionais mapeados por PR/autor (`* <feat/fix> by @<author> in #<pr>`), links de changelog comparativo e categorias semânticas (Features, Bug Fixes, Documentation, Maintenance).
+
+---
+
+### 📌 Cenário 35: Intelligent Source Naming, Decoupled SQLite Alias, Shared Sources Deprecation & Canonical System Knowledge Manual (v0.36.0):
+- **Objetivo**: Comprovar que na versão `v0.36.0`:
+  1. Fontes locais e portais web recebem nomes inteligentes e amigáveis gerados automaticamente (ex: `"Tokio Docs"`, `"GitHub: repo"`, manifesto de projeto ou diretório folha).
+  2. O usuário pode renomear fontes a qualquer momento via terminal (`/sources rename <target_ou_numero> <novo_nome>`) e via TUI modal ao teclar `[Enter]` na lista de fontes, atualizando o `display_name` no SQLite em $O(1)$ (< 1ms) sem reescrever ou invalidar chunks no LanceDB ($0.00 custo de embedding).
+  3. O workspace `Shared Sources` e o comando `/shared` foram totalmente descontinuados, garantindo isolamento puro entre workspaces e zero risco de context bleed no RAG Top-K.
+  4. O manual técnico canônico em 7 capítulos (`config/SYSTEM_KNOWLEDGE.md`) está compilado no binário e indexado automaticamente no workspace `Global` do LanceDB e BM25 no startup, respondendo perguntas técnicas sobre a arquitetura com precisão semântica imediata.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🏷️ Validação de Nomes Inteligentes Automáticos:**
+   - Adicione um repositório ou documentação web ao workspace:
+     ```text
+     /web https://docs.rs/tokio/latest/tokio/index.html
+     ```
+   - Liste as fontes cadastradas:
+     ```text
+     /sources
+     ```
+   - **Critérios de Aceitação**:
+     - A fonte web não exibe a URL crua como título principal; ela aparece como `1. 🌐 Tokio Docs (https://docs.rs/tokio/latest/tokio/index.html)`.
+     - O rodapé exibe a dica: `💡 Tip: Use '/sources rename <number_or_name> <new_name>' to customize display aliases ($0.00 cost, 0 vector chunks rewritten).`.
+
+2. **✏️ Validação da Renomeação Desacoplada O(1) via Terminal:**
+   - Execute o comando de renomeação usando o número da fonte ou nome atual:
+     ```text
+     /sources rename 1 "Tokio Async Engine"
+     ```
+   - **Critérios de Aceitação**:
+     - Retorna confirmação instantânea em < 1ms:
+       ```text
+       ✔ Source '1' renamed to 'Tokio Async Engine'.
+         Workspace: Default
+         Chunks impacted in LanceDB: 0 (Decoupled relational alias)
+       ```
+     - Ao executar `/sources`, a lista exibe `1. 🌐 Tokio Async Engine (https://docs.rs/tokio/latest/tokio/index.html)`.
+     - Nenhuma operação de re-indexação ou re-embedding é disparada no LanceDB.
+
+3. **🖥️ Validação da Edição de Nome via Menu Interativo TUI:**
+   - Abra a lista de fontes via `/sources` (sem argumentos) ou `F1 -> Sources`.
+   - Navegue com as setas do teclado até a fonte desejada (ex: `1. 🌐 Tokio Async Engine`) e pressione `[Enter]`.
+   - **Critérios de Aceitação**:
+     - O campo de entrada (input buffer) é automaticamente pré-preenchido com `/sources rename "Tokio Async Engine" `.
+     - Uma mensagem informativa de sistema no chat orienta o usuário: `✏️ Rename Source: 'Tokio Async Engine' - Type the new display name and press [Enter] to save instantly.`.
+     - O usuário digita o novo nome (ex: `Tokio Production Core`) e pressiona `[Enter]`.
+     - O nome é salvo instantaneamente no SQLite e a interface reflete a nova nomenclatura.
+
+4. **🚫 Validação da Descontinuação Completa de Shared Sources:**
+   - Tente executar o comando descontinuado `/shared`:
+     ```text
+     /shared
+     ```
+   - **Critérios de Aceitação**:
+     - O AnyContext retorna uma mensagem clara de erro informando a descontinuação:
+       `❌ The '/shared' command and Shared Sources workspace have been deprecated in AnyContext v0.36.0. Workspaces are now strictly isolated environments.`
+     - O comando `/shared` não aparece no menu interativo nem na lista de `/help`.
+     - As buscas vetoriais no workspace ativo realizam recuperação estritamente isolada sem contaminação entre projetos.
+
+5. **📖 Validação da Autoconsciência via Manual Canônico (`SYSTEM_KNOWLEDGE.md`):**
+   - No chat do AnyContext, faça uma pergunta sobre a arquitetura interna do sistema:
+     ```text
+     How does Smart Path Healing work in AnyContext?
+     ```
+   - **Critérios de Aceitação**:
+     - O assistente executa `search_db` e recupera chunks do arquivo `system://SYSTEM_KNOWLEDGE.md` no workspace `Global`.
+     - A resposta explica detalhadamente o algoritmo de reconciliação fonética (Double Metaphone) e distância de Levenshtein (ADR-117) sem alucinações.
+     - A resposta conclui com a citação formal: `📄 Sources Consulted: - SYSTEM_KNOWLEDGE.md (system://SYSTEM_KNOWLEDGE.md)`.
+
+### 📌 Cenário 36: Modular ONNX Engine, Hardware Pre-Flight Check & Semaphore-Tiered Installation Profiles (v0.37.0):
+- **Objetivo**: Comprovar que na versão `v0.37.0`:
+  1. O motor de inspeção de hardware (`HardwareProfiler`) avalia a máquina em sub-5ms e mapeia semáforos (🟢/🟡/🔴) com precisão.
+  2. O instalador (`actx-installer`) auto-seleciona de forma transparente o perfil verde mais potente (`Air-Gapped Power` em máquinas $\ge 16\text{ GB}$).
+  3. O comando `/profile` (alias `/preset`) permite alternar entre os perfis (`air_gapped_power`, `smart_balanced`, `lite`) e abre o submenu interativo na TUI.
+  4. O comando `/status` exibe telemetria em tempo real de hardware, perfil ativo e modelos no disco.
+  5. O Inviolable ADR-110 Zero-Breakage Guarantee garante fallback suave e instantâneo para heurísticas determinísticas sem crash.
+
+1. **⚡ Validação da Inspeção de Hardware Prévia no Instalador:**
+   - Execute o instalador com a flag `--preflight-only`:
+     ```bash
+     actx-installer --preflight-only
+     ```
+   - **Critérios de Aceitação**:
+     - Retorna em $< 10\text{ms}$ a medição real de memória física, espaço livre no SSD e contagem de núcleos.
+     - Lista os 3 perfis canônicos (`Air-Gapped Power`, `Smart Balanced`, `Lite`) com seus respectivos semáforos coloridos (🟢/🟡/🔴).
+     - Em máquinas com $\ge 16\text{ GB}$ de RAM, marca `[AUTO-SELECTED]` no perfil `Air-Gapped Power`.
+
+2. **🌌 Validação do Comando `/profile` (Multi-Surface CLI & TUI):**
+   - No terminal ou chat do AnyContext, execute:
+     ```text
+     /profile
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe o relatório de hardware e semáforos dos 3 perfis com badges e pegada de disco/RAM.
+     - Abre o submenu interativo `Hardware Profiles` na TUI (`[F1] -> Hardware Profiles`).
+     - Alterne para `Smart Balanced`:
+       ```text
+       /profile smart_balanced
+       ```
+     - O sistema confirma: `✔ Switched active intelligence profile to 'Smart Balanced' 🟢.` e persiste no SQLite `settings.db`.
+
+3. **📊 Validação da Telemetria Enriquecida via `/status`:**
+   - Execute:
+     ```text
+     /status
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe a seção `⚡ Intelligence Profile & Hardware Pre-Flight:`.
+     - Mostra `Active Profile`, `Total / Available RAM`, `Free SSD Storage` e `CPU Cores`.
+     - Mostra os semáforos de cada perfil e modelos ativos no disco.
+
+4. **🛡️ Validação da Garantia ADR-110 Zero-Breakage:**
+   - Em modo `Lite` ou sem modelos ONNX baixados no diretório local, execute uma pergunta no chat (`/search auto`):
+     ```text
+     What are the main features of AnyContext?
+     ```
+   - **Critérios de Aceitação**:
+     - O classificador determinístico em Rust puro assume 100% da carga sem emitir erros ou travar.
+     - A resposta é concluída com sucesso em $< 50\text{ms}$.
+
+---
+
+### 📌 Cenário 37: CI Fast-Path Timing Resilience & SQLite Warmup under Virtualized Runners (v0.37.0 CI Fix):
+- **Objetivo**: Comprovar que o teste `test_is_first_run_or_upgrade_does_not_panic` executa com determinismo absoluto em ambientes virtualizados de CI (GitHub Actions `windows-latest` e `ubuntu-latest`).
+- **Passo a Passo de Execução**:
+  1. Executar os testes da crate `actx-cli`:
+     ```bash
+     cargo test -p actx-cli --lib
+     ```
+  2. **Critérios de Aceitação**:
+     - Todos os 14 testes passam com 100% de sucesso.
+     - `test_is_first_run_or_upgrade_does_not_panic` roda em regime de aquecimento sem ultrapassar o teto defensivo de 1500ms.
+
+---
+
+### 📌 Cenário 38: Ativação dos Modelos ONNX nos Fluxos de Produção e Família Gemma 4 em 5 Tiers (v0.38.0):
+- **Objetivo**: Comprovar que na versão `v0.38.0`:
+  1. A matriz de hardware suporta com precisão os 5 tiers canônicos (`Sovereign Ultra`, `Workstation Pro`, `Air-Gapped Power`, `Smart Balanced`, `Lite`) com isolamento seguro de memória para a família Gemma 4 INT4.
+  2. Máquinas com 32GB de RAM são qualificadas para o perfil `Workstation Pro` (Gemma 4 27B), enquanto o modelo Gemma 4 32B INT4 é reservado estritamente para o tier `Sovereign Ultra` (64GB+), prevenindo swap thrashing.
+  3. A camada de percepção (`ScanSentinel`, `DocumentLayoutExtractor`, `DocumentVisionExtractor`) está ativa na ingestão (`QualityGate`, `IngestionModelRouter`) com fallback instantâneo via heurísticas em Rust puro (ADR-110).
+  4. O provedor `GemmaOnnxProvider` em `actx-lm` opera completions e streams offline, delegando ao fallback configurado caso os pesos não estejam instalados.
+  5. O catálogo `/model --list` e o menu TUI (`[F1] -> AI Models`) listam os 4 modelos Gemma 4 com badges dinâmicos de prontidão local.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **⚡ Validação da Matriz de Hardware em 5 Tiers no Pre-Flight:**
+   - Execute o instalador no terminal:
+     ```bash
+     actx-installer --preflight-only
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe a tabela de hardware com as 5 opções canônicas formatadas em MB e GB:
+       - `Sovereign Ultra (64GB+)` [Disk: ~19.2 GB │ Peak RAM: ~25.5 GB]
+       - `Workstation Pro (32GB)` [Disk: ~15.7 GB │ Peak RAM: ~18.5 GB]
+       - `Air-Gapped Power (16GB)` [Disk: ~7.9 GB │ Peak RAM: ~10.0 GB]
+       - `Smart Balanced (8GB)` [Disk: ~1.7 GB │ Peak RAM: ~2.5 GB]
+       - `Lite / Cloud (<8GB)` [Disk: ~0 MB │ Peak RAM: ~45 MB]
+     - O semáforo 🟢 marca automaticamente o perfil correspondente à capacidade da máquina.
+
+2. **🤖 Validação do Catálogo `/model --list` e Seleção de Modelo Gemma 4:**
+   - Inicie o AnyContext ou execute o comando `/model`:
+     ```text
+     /model --list
+     ```
+   - **Critérios de Aceitação**:
+     - A seção `🧠 Local ONNX Neural Brain (Gemma 4 Family)` lista os 4 modelos:
+       - `gemma-4-compact`
+       - `gemma-4-12b`
+       - `gemma-4-27b`
+       - `gemma-4-32b`
+     - Alterne para um modelo local:
+       ```text
+       /model gemma-4-12b
+       ```
+     - O sistema confirma:
+       `🤖 Active language model for 'Default' set to: **gemma-4-12b** [Local ONNX: Weights not installed - fallback active]` (ou `[Local ONNX: Ready]` se os pesos estiverem no disco).
+
+3. **📱 Validação da Interface TUI (`[F1] -> AI Models`):**
+   - Na TUI, abra o menu principal com `F1` ou `/menu`.
+   - Navegue até `AI Models & LLM Providers`.
+   - **Critérios de Aceitação**:
+     - Os modelos Gemma 4 aparecem no topo com ícone de cérebro `🧠`.
+     - Modelos sem pesos no disco exibem a badge `[Not Installed]` ou `[Active / Fallback]`.
+     - Modelos com pesos no disco exibem `[Local Ready]` ou `[Active / ONNX Ready]`.
+
+4. **🛡️ Validação da Ingestão Document AI e Garantia ADR-110:**
+   - Adicione e sincronize um documento ou imagem no workspace:
+     ```text
+     /sync
+     ```
+   - Faça uma pergunta sobre o documento:
+     ```text
+     /search auto "Resuma o documento"
+     ```
+   - **Critérios de Aceitação**:
+     - O `QualityGate` utiliza `ScanSentinel` para classificar páginas rasterizadas.
+     - O `IngestionModelRouter` preserva layouts e estruturas 2D.
+     - Na ausência de pesos neurais locais, o motor executa instantaneamente as heurísticas em Rust puro em sub-1µs, sem erros, panics ou interrupções no fluxo de trabalho.
+
+
+
+
+
+
+
+---
+
+### 📌 Cenário 39: Ingestão Web com Jina Reader (r.jina.ai), RAG Fundamentado Puro & Matriz de 7 Domínios Semânticos (v0.39.0):
+- **Objetivo**: Comprovar que na versão `v0.39.0`:
+  1. O crawler de websites (`NativeWebCrawler`) utiliza `NativeJinaExtractor` para extrair Markdown de alta fidelidade a partir de portais de documentação e SPAs complexas (Docusaurus, React, Next.js), preservando títulos, tabelas e blocos de código com zero consumo de RAM local.
+  2. O princípio inviolável de RAG Fundamentado (*Grounded RAG*) é rigorosamente preservado: o modelo de inferência (família Gemma 4 ou nuvem) lê **exclusivamente do índice RAG nativo** (`NativeHybridPipeline`: LanceDB + BM25), sem consumo de páginas web cruas no prompt.
+  3. O `ChatModelRouter` classifica com precisão as consultas na matriz expandida de **7 domínios semânticos**: `Code`, `Architecture`, `DevOps & Infra`, `Data & Schema`, `Security & Audit`, `Document & Business`, `General`.
+  4. A TUI e o CLI exibem badges contextuais legíveis refletindo os 7 domínios semânticos no accordion de raciocínio e no modo headless.
+  5. Em caso de falha de conexão ou ambiente offline (ADR-110), o crawler faz fallback gracioso para extração HTML local sanitizada sem interromper o `/sync`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🌐 Ingestão de Website SPA via `/sync` com Jina Reader:**
+   - Inicie o AnyContext na TUI ou terminal:
+     ```text
+     actx
+     ```
+   - Registre uma documentação SPA no workspace:
+     ```text
+     /web add https://tokio.rs
+     ```
+   - Execute a sincronização:
+     ```text
+     /sync
+     ```
+   - **Critérios de Aceitação**:
+     - O crawler registra a extração da documentação via Jina Reader.
+     - As páginas são convertidas em chunks de Markdown com headers (`#`, `##`) e blocos de código preservados.
+     - O conteúdo é vetorizado no LanceDB e indexado no BM25.
+     - Perguntas sobre a documentação (ex: "Qual a função do tokio::select?") retornam respostas fundamentadas com proveniência (`[https://tokio.rs/...]`).
+
+2. **🧠 Validação da Matriz de 7 Domínios Semânticos no ChatModelRouter:**
+   - No terminal ou TUI, envie perguntas cobrindo cada um dos 7 domínios:
+     1. `Code`:
+        ```text
+        como refatorar esta struct em Rust usando async fn?
+        ```
+        *Badge esperada no accordion*: `(Domain: Code & Syntax)`
+     2. `Architecture`:
+        ```text
+        qual a topologia hexagonal e o fluxo de dados do core?
+        ```
+        *Badge esperada no accordion*: `(Domain: Architecture & Topology)`
+     3. `DevOps & Infra`:
+        ```text
+        como configurar o Dockerfile e o workflow de CI do GitHub Actions com sccache?
+        ```
+        *Badge esperada no accordion*: `(Domain: DevOps & Infrastructure)`
+     4. `Data & Schema`:
+        ```text
+        quais as colunas da tabela workspace_chunks e a primary key no SQLite?
+        ```
+        *Badge esperada no accordion*: `(Domain: Data & Schema)`
+     5. `Security & Audit`:
+        ```text
+        audite o código contra vulnerabilidade de injeção e vazamento de secret api_key
+        ```
+        *Badge esperada no accordion*: `(Domain: Security & Audit)`
+     6. `Document & Business`:
+        ```text
+        qual é a cláusula de confidencialidade do contrato e da fatura CMR?
+        ```
+        *Badge esperada no accordion*: `(Domain: Document & Business)`
+     7. `General`:
+        ```text
+        olá bom dia, como você está se sentindo hoje?
+        ```
+        *Badge esperada no accordion*: `(Domain: General & Concepts)`
+   - **Critérios de Aceitação**:
+     - Cada categoria reflete com precisão a intenção do usuário no cabeçalho do accordion de raciocínio.
+
+3. **🛡️ Resiliência e Fallback ADR-110 no Crawler:**
+   - Desconecte temporariamente a rede ou aponte para uma URL local inexistente:
+     ```text
+     /web add http://127.0.0.1:59999/offline
+     /sync
+     ```
+   - **Critérios de Aceitação**:
+     - O crawler emite um log de aviso sobre a falha da URL, mas **não sofre panic nem interrompe o sync dos outros arquivos locais**.
+     - O processo de sincronização é concluído com integridade.
+
+4. **⚡ Atalhos de Modo de Busca (`/fast` e `/deep`):**
+   - Execute os atalhos no chat:
+     ```text
+     /fast Qual a versão do AnyContext?
+     /deep Faça uma auditoria completa de concorrência no pipeline RAG
+     ```
+   - **Critérios de Aceitação**:
+     - A consulta `/fast` executa em turno único imediato com badge `⚡ [ModelRouter: Fast RAG]`.
+     - A consulta `/deep` inicia o ciclo reflexivo com decomposição em sub-tarefas e badge `🧠 [ModelRouter: Deep Search]`.

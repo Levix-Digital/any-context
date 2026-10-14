@@ -5,6 +5,7 @@ members = [
     "crates/actx-lm",
     "crates/actx-agent",
     "crates/actx-cli",
+    "crates/actx-onnx",
 ]
 resolver = "2"
 
@@ -12,3 +13,9 @@ resolver = "2"
 opt-level = 0
 debug = 1
 
+[profile.release]
+opt-level = 3
+codegen-units = 16
+lto = "off"
+strip = true
+debug = false

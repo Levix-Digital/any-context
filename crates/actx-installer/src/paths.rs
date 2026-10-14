@@ -50,15 +50,15 @@ pub fn get_canonical_bin_dir() -> PathBuf {
     }
 }
 
-/// Returns the expected executable name for the heavy core engine.
+/// Returns the expected executable name for the native core engine.
 pub fn get_core_exe_name() -> &'static str {
     #[cfg(target_os = "windows")]
     {
-        "actx-core.exe"
+        "actx.exe"
     }
     #[cfg(not(target_os = "windows"))]
     {
-        "actx-core"
+        "actx"
     }
 }
 
@@ -148,7 +148,7 @@ mod tests {
     fn test_core_and_shim_names() {
         let core = get_core_exe_name();
         let shim = get_shim_exe_name();
-        assert!(core.contains("actx-core"));
+        assert!(core.contains("actx"));
         assert!(shim.contains("actx"));
     }
 

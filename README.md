@@ -16,7 +16,7 @@
 
 [![Release](https://img.shields.io/github/v/release/Levix-Digital/any-context?color=blue&label=release)](https://github.com/Levix-Digital/any-context/releases)
 [![License](https://img.shields.io/badge/license-Community%20%2F%20Enterprise-green.svg)](https://github.com/Levix-Digital/any-context)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
 [![Privacy](https://img.shields.io/badge/privacy-100%25%20Offline%20First-success.svg)](https://lmstudio.ai/)
 [![Architecture & TecDoc](https://img.shields.io/badge/docs-TecDoc%20(Architecture)-blueviolet.svg)](TECDOC.md)
 
@@ -45,6 +45,70 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🌐 Ingestão Web com Jina Reader (`r.jina.ai`), RAG Fundamentado Puro & Matriz de 7 Domínios Semânticos (`v0.39.0`)**:
+  - **Jina Reader Exclusivo na Ingestão (`NativeJinaExtractor`)**: Extração de Markdown puro de altíssima fidelidade integrada diretamente ao `NativeWebCrawler` (`/sync`), renderizando documentações complexas e SPAs modernas (React, Docusaurus, Next.js, Vue) com títulos, tabelas e blocos de código preservados sem consumir RAM local (zero navegadores headless locais).
+  - **Preservação Inviolável do RAG Fundamentado (*Grounded RAG*)**: O modelo de inferência (família Gemma 4 local ou nuvem) lê **exclusivamente a partir do índice RAG nativo** (LanceDB + BM25 via `NativeHybridPipeline`). Não há injeção de páginas web avulsas em tempo real no prompt, assegurando proveniência e zero alucinação.
+  - **Matriz de 7 Domínios Semânticos no `ChatModelRouter`**: Classificação semântica em tempo real (<1µs na CPU) em 7 domínios canônicos: `Code`, `Architecture`, `DevOps & Infra`, `Data & Schema`, `Security & Audit`, `Document & Business`, `General`.
+  - **Telemetria Contextual na TUI & CLI**: Badges informativas exibidas no accordion de raciocínio da TUI e na CLI com intenção semântica, nível de confiança e razão explicável.
+  - **Resiliência e Fallback ADR-110**: Em caso de erro de rede ou ambiente offline, o crawler reverte transparentemente para extração HTML local sanitizada sem interromper o processo de sincronização.
+
+- **🧠 Ativação dos Modelos ONNX nos Fluxos de Produção & Família Gemma 4 em 5 Tiers (`v0.38.0`)**:
+  - **Decoupled Architecture**: Desacoplamento estrito entre a Camada de Percepção (Document AI: MobileNetV4, LayoutLMv3, BGE-Small, CLIP-ViT, Laya mmBERT ~740MB) e a Camada Generativa (Gemma 4 INT4).
+  - **5 Hardware Intelligence Tiers (Isolamento Antifragil de Memória)**:
+    - **👑 Sovereign Ultra** (Default em $\ge 64\text{ GB}$ RAM): Gemma 4 32B INT4 (~25.5GB Peak RAM) + Suíte Completa Document AI (19.2GB Disco).
+    - **💼 Workstation Pro** (Default em $32\text{ GB}$ RAM): Gemma 4 27B INT4 (~18.5GB Peak RAM) + Suíte Completa Document AI (15.7GB Disco).
+    - **🌌 Air-Gapped Power** (Default em $16\text{ GB}$ RAM): Gemma 4 12B INT4 (~10.0GB Peak RAM) + Suíte Completa Document AI (7.9GB Disco).
+    - **⚡ Smart Balanced** (Default em $8\text{ GB}$ RAM): Gemma 4 Compact INT4 (~2.5GB Peak RAM) + Document AI Essencial (1.7GB Disco).
+    - **🟢 Lite / Fast-Path** (Default em $< 8\text{ GB}$ RAM, CI ou VMs): 0 MB downloads, 100% heurísticas determinísticas em Rust puro (<1µs cold start) + Provedores Cloud/API.
+  - **Prevenção de Swap Thrashing**: Isolamento rigoroso do modelo 32B para 64GB+, prevenindo esgotamento de RAM e degradação de desempenho em máquinas de 32GB.
+  - **Perception Adapters no Core**: `OnnxScanSentinelAdapter` no `QualityGate` (classificação de páginas rasterizadas em sub-8ms), `OnnxLayoutExtractorAdapter` (preservação tabular 2D) e `OnnxVisionEncoderAdapter` (visual embeddings CLIP ViT) no `IngestionModelRouter`.
+  - **Provedor `GemmaOnnxProvider` em `actx-lm`**: Chat completions e streaming SSE local offline para a família Gemma 4, com fallback transparente para nuvem e garantia ADR-110 inviolável.
+  - **Multi-Surface Parity**: `/profile` dinâmico em 5 tiers, `/model --list` com badges dinâmicos de prontidão local e instalador com métricas formatadas em MB e GB.
+
+- **⚡ Modular ONNX Engine, Hardware Pre-Flight & Tiered Intelligence Profiles (`v0.37.0`)**:
+  - **Modular `actx-onnx` Crate**: Separates high-performance neural tensor inference into a standalone crate with CPU execution provider, HuggingFace tokenizers, and resilient feature flagging (`--features onnx`).
+  - **Sub-5ms Hardware Pre-Flight Semaphores**: Probes physical hardware (RAM total/available, free storage, CPU cores) in <5ms, presenting an intuitive semaphore (`🟢 Green` / `🟡 Yellow` / `🔴 Red`) and automatically configuring the most powerful green profile.
+  - **Tiered Model Profiles (Kit de Models)**:
+    - **🌌 Air-Gapped Power** (Default on $\ge 16\text{ GB}$ RAM): 5 canonical models (`mobilenetv4`, `clip-vit`, `layoutlmv3`, `bge-small`, `laya-int8`) for complete offline document AI, scan sentinel, layout reading, and neural query routing (~740 MB disk).
+    - **⚡ Smart Balanced** (Default on $8\text{ GB}$ RAM): 3 canonical models (`mobilenetv4`, `layoutlmv3`, `bge-small`) balancing neural routing with low memory footprint (~252 MB disk).
+    - **🟢 Lite / Fast-Path** (Default on $< 8\text{ GB}$ RAM, CI or VMs): 0 MB extra downloads, running 100% on pure Rust deterministic heuristics (<1µs cold start).
+  - **Multi-Surface `/profile` Command & TUI Menu**: Easily inspect, switch, and benchmark intelligence tiers via `/profile` or the interactive TUI menu (`[F1] -> Hardware Profiles`).
+  - **Inviolable ADR-110 Zero-Breakage Guarantee**: Missing or corrupted ONNX weights immediately fall back to pure Rust deterministic heuristics without crash or user interruption.
+
+- **🌌 Aurora Boreal Design System & Zero-Delay Fast Startup (`v0.34.6`)**:
+  - **Modular Aurora Boreal Palette**: Implements the official Levix Digital design tokens (Emerald `#00E5A3`, Glacial Cyan `#00F0FF`, Cosmic Violet `#A855F7`, Polar Pink `#EC4899`, Solar Amber `#F59E0B`, Polar Crimson `#EF4444`) centralizing color definitions in `any-context-core-rs` so all present and future UIs (TUI, Headless CLI, Web, Desktop) inherit a unified, cohesive visual identity.
+  - **Zero-Delay Fast Startup (< 50ms)**: Eliminates synchronous initialization bottlenecks. Regular daily runs query SQLite version in < 1ms and launch the TUI instantly without blocking on disk indexes.
+  - **Intelligent Splash Telemetry (Option C)**: On first-run or post-upgrade, displays a sleek Aurora Boreal terminal progress loader with live step-by-step telemetry before entering full-screen mode.
+  - **TrueColor ANSI Headless Logs**: CLI queries, tool executions, and Deep Search streams now render with high-contrast, crystal-clear 24-bit TrueColor typography.
+
+- **📑 RAG Semantic Fidelity & Ingestion 2D Layout Sacred Preservation (`v0.34.5`)**:
+  - **Sacred 2D Layout Preservation**: Complex documents with tabular geometry (Canadian T4 tax returns, CMR shipment reports, commercial invoices) maintain structured Markdown tables with exact cell relationships without destructive key-value column collapse.
+  - **QualityGate Structured Table Exemption**: Eliminates false-positive `DenseComplexForm` classifications by identifying valid Markdown table delimiters (`| --- |`), allowing high-fidelity text to bypass lossy spatial fallbacks directly into LanceDB and BM25.
+  - **Conservative Form Pairing**: Restricts key-value extraction strictly to explicit headers (`Property | Value`, `Field | Value`) or inline colons (`Label: Value`), completely preventing financial amounts or company names from being inverted as dictionary keys.
+  - **Calibrated RRF Hybrid Retrieval Threshold**: Aligns `min_score` to `0.005` in reciprocal rank fusion ($k=60$), ensuring cross-lingual semantic vector matches (e.g. Portuguese queries over English/French forms) pass ranking filters smoothly.
+  - **Transparent In-Memory Decryption**: Seamless hardware-bound on-the-fly decryption (`NativeSecurityEngine`) for legacy encrypted chunks (`enc::`), eliminating sparse lexical retrieval blindspots.
+
+- **🎨 UX Stabilization, Deep Search Direct Conclusion, Multiline Prompt & Document AI (`v0.34.4`)**:
+  - **Deep Search Direct Conclusion & Language Parity**: Deep Search synthesized outputs now provide direct, grounded conclusions without conversational preambles or narrative transitions, strictly matching the user query's language (e.g. Portuguese).
+  - **Per-Workspace Search Retrieval Depth**: Persists `/search` depth mode (`auto`, `fast`, `deep`) independently per workspace in SQLite, preventing global cross-talk and honoring workspace autonomy.
+  - **8-Dot Braille Spinner & 125ms Event Loop**: Upgraded background sync spinner to 8-dot braille (`⣾⣽⣻⢿⡿⣟⣯⣷`) and halved TUI event loop tick to 125ms for fluid, responsive visual feedback.
+  - **Dynamic Multiline Prompt Input**: Expandable prompt box (3 to 8 lines) with auto-wrap, precise 2D cursor `(x, y)` navigation, and newline insertion shortcuts (`Shift+Enter`, `Alt+Enter`, `Ctrl+J`).
+  - **Workspace Context Badge & Neutral Typography**: AI message tags now explicitly display the active workspace (`[AI - <Workspace>]`), with user text in neutral gray and dark gray borders matching the conversation viewport.
+  - **Transparent Persistent Self-Knowledge**: Automatically force-syncs and updates system help and guides in the `"Global"` workspace in LanceDB on startup and version upgrades.
+  - **Document AI & Local Models Menu**: Interactive submenu in `/menu` detailing zero-overhead deterministic classification (<1µs), 2D spatial layout heuristics (<5MB RAM), and air-gapped local SLM vision instructions (`minicpm-v`/`llava`).
+  - **Enriched ReAct Telemetry Hierarchy**: Color-coded, structured telemetry in the `<think>` accordion (`Ctrl+T`) distinguishing routing decisions, query decomposition, reflection iterations, and tool executions.
+
+- **🧠 Chat ModelRouter, Dynamic Query Complexity & Intent Routing (`v0.34.3`)**:
+  - **Deterministic Zero-Token Classifier**: Evaluates user query complexity and structural intent 100% on local CPU in sub-1 microsecond (< 1µs), consuming exactly zero LLM tokens ($0.00) and avoiding external classification roundtrips.
+  - **Autonomous Dynamic Triage (`/search auto`)**: Dynamically routes simple questions (*"onde fica o timeout?", "qual a versão atual?"*) to low-latency ReAct single-turn execution, while automatically escalating multi-faceted comparative queries (*"compare A com B, prós e contras e fluxo ponta a ponta"*) to Deep Search reflective multi-turn loops (RFC-042).
+  - **Real-Time Visual Badges & Intent Telemetry**: Instantly emits `AgentEvent::RoutingDecision` before streaming the first token, surfacing informative badges (`🧠 [ModelRouter: Deep Search]` / `⚡ [ModelRouter: Fast RAG]`) in both the TUI and one-shot CLI with detected intent (`Code`, `Architecture`, `Document`, `General`), confidence, and explainable rationale.
+  - **Multi-Surface `/router` Status Command**: Inspect active routing policies, classification guarantees, and threshold metrics via `/router` (alias `/routing`).
+- **🦀 100% Native Rust Parity & Complete Python Purge (`v0.33.0`)**:
+  - **Complete Legacy Python Purge**: Eradicated all legacy Python codebase (`src/any_context/`), PyInstaller specs, requirements, and virtualenv tooling. AnyContext is now 100% native Rust from end to end, compiling into a lean, single-file native executable with sub-10ms startup.
+  - **Native Office Ingestion (`OfficeChunker`)**: Pure native extraction and chunking for Microsoft Word (`.docx`) and PowerPoint (`.pptx`) archives using streaming XML parsing (`zip` + `quick-xml`), preserving headings, tables, slide titles, and presentation speaker notes.
+  - **Autonomous Web Crawler & Sitemap Engine (`NativeWebCrawler`)**: High-performance recursive crawler featuring XML sitemap & sitemap index traversal (`sitemap.xml`), strict RFC 9309 `robots.txt` compliance, rate-limiting, and direct LanceDB/BM25 ingestion.
+  - **Multi-Provider Web Search (`NativeWebSearchEngine`)**: Embedded native web search tool supporting Tavily, Serper, and DuckDuckGo fallback, wired directly to the agent's ReAct tool execution engine when web search is enabled (`/web on`).
+  - **Semantic Envelope & Retrieval Presets**: Enriched document indexing with contextual metadata envelopes (`SemanticEnvelope`) and `workspace_sync_ledger` in SQLite, complemented by tiered retrieval presets (`Turbo`, `Balanced`, `Deep`).
 - **🦀 100% Native Rust Transition & Zero-Python Sync Orchestrator (`v0.32.19`)**:
   - **Zero Python Runtime Dependencies**: Complete deprecation and elimination of Python runtimes, `actx-core.exe`, and PyInstaller bundles. All scanning, AST/Markdown chunking, vectorization, and LanceDB/BM25 ingestion run directly through the compiled native Rust core engine.
   - **Native Differential Scanner (`NativeSyncOrchestrator`)**: Sub-30ms incremental scans with cryptographic SHA-256 stat caching in SQLite (`workspace_files_stat_cache`). Instant $0.00 detection and metadata update for renamed and moved files without re-embedding.
@@ -108,34 +172,32 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Unified Rust-First Pipeline (`NativeHybridPipeline`)**: Unifies LanceDB Apache Arrow columnar vector search, Okapi BM25 inverted lexical index, and Reciprocal Rank Fusion (RRF k=60) inside a zero-copy, sub-3ms native Rust engine (`crates/any-context-core-rs/src/retrieval/pipeline.rs`).
   - **RFC-042 Deep Search Batching (`retrieve_hybrid_batch`)**: Concurrently executes 2 to 4 orthogonal sub-queries on Tokio worker threads with cross-query SHA-256 deduplication and accumulated RRF multi-query boosting.
   - **Source-Fair Round-Robin & Density Budgeting**: Native allocation balancing multi-source workspace distributions with strict character density limits and token ceiling preservation (`token_budget.rs`).
-  - **Zero-GIL Interoperability (`PyHybridPipeline`, `PyHybridSearchRequest`, `PyHybridSearchResult`)**: PyO3 bindings with GIL release (`py.allow_threads`) and seamless fallback for legacy Python callers.
+  - **High-Throughput Vector & Lexical Fusion**: Sub-millisecond rank fusion with zero-allocation iterators, thread-safe asynchronous execution, and zero overhead.
 - **🤖 Native Rust ReAct Agent & Orchestrator (`actx-agent`) (`v0.30.38`)**:
-  - **Deterministic ReAct Finite State Machine (FSM)**: Standalone, modular Rust crate (`crates/actx-agent`) providing deterministic multi-turn tool calling and reasoning loops without heavy third-party framework dependencies (e.g. LangGraph).
-  - **Polymorphic Tool Registry & Defensive Self-Healing**: Thread-safe async tool registry supporting both pure Rust closures and Python callables with defensive JSON argument parsing and model self-healing on parameter errors.
-  - **Uncompressed SQLite Session Persistence**: Native SQLite session store (`SqliteSessionStore`) with configurable sliding window history (30 turns) and instant WAL transactions, eliminating opaque zlib compression and database locks.
+  - **Deterministic ReAct Finite State Machine (FSM)**: Standalone, modular Rust crate (`crates/actx-agent`) providing deterministic multi-turn tool calling and reasoning loops without heavy third-party framework dependencies.
+  - **Polymorphic Tool Registry & Defensive Self-Healing**: Thread-safe async tool registry supporting pure Rust closures and tools (`search_db`, `system_status`, `web_search`) with defensive JSON argument parsing and model self-healing on parameter errors.
+  - **Uncompressed SQLite Session Persistence**: Native SQLite session store (`SqliteSessionStore`) with configurable sliding window history (30 turns) and instant WAL transactions, eliminating opaque compression and database locks.
   - **Real-Time Event Streaming Pipeline**: Granular event emitter (`AgentEvent`) broadcasting thinking blocks, tool calls/returns, text deltas, and execution metadata for reactive UI rendering.
-  - **RFC-042 Deep Search Foundations**: Core Pydantic models (`deep_search_models.py`) supporting query decomposition into orthogonal sub-queries, iterative information gap analysis, and adaptive routing (`/fast` vs `/deep`).
-  - **Thread-Safe PyO3 Bridge (`PyAgentEngine`, `PyAgentResponse`, `PyAgentEvent`)**: Complete interoperability with Python execution environments, releasing the GIL during asynchronous I/O (`py.allow_threads`) to ensure deadlock-free tool execution.
+  - **Deep Search & Information Synthesis**: Native execution decomposing queries into orthogonal sub-queries, iterative information gap analysis, and adaptive routing (`/fast` vs `/deep`).
 - **🧠 Universal Language Model Engine (`actx-lm`) (`v0.30.37`)**:
   - **Agnostic LLM & SLM Façade**: Standalone, modular Rust crate (`crates/actx-lm`) implementing the Strategy and Façade design patterns for seamless inference across cloud giants (OpenAI, Anthropic Claude with Thinking blocks, Google Gemini) and local Small Language Models (Ollama, LM Studio, llama.cpp, vLLM).
-  - **Zero-Framework Bloat**: Built from the ground up without heavy external orchestration frameworks (e.g. LangChain), achieving sub-millisecond dispatch, minimal dependency footprint, and thread-safe async execution (`Send + Sync`).
+  - **Zero-Framework Bloat**: Built from the ground up without heavy external orchestration frameworks, achieving sub-millisecond dispatch, minimal dependency footprint, and thread-safe async execution (`Send + Sync`).
   - **Zero-Latency SSE Streaming**: High-performance Server-Sent Events (SSE) streaming decoder yielding real-time tokens (`StreamChunk::Token`), extended reasoning thoughts (`StreamChunk::Reasoning`), and function calling tool deltas.
   - **Universal OpenAI-Compatible Strategy**: Single, highly-configurable adapter providing instant compatibility with Groq, DeepSeek, OpenRouter, Together AI, Mistral, and local Ollama instances (`http://localhost:11434/v1`) with zero API key requirement.
-  - **Python Interoperability (`PyLmClient`)**: Native bindings in `any-context-core-rs` enabling progressive migration and seamless access from Python scripts and tests.
 - **🦀 Native Rust Storage & Vector Engine (LanceDB + Rusqlite) (`v0.30.36`)**:
   - **Zero-Copy Apache Arrow Columnar Storage**: Vector chunks, dense embeddings (up to 3072 dimensions), and rich metadata are managed directly in native Rust (`any-context-core-rs`) using `lancedb 0.39` and `arrow 58`.
   - **High-Throughput Vector Similarity Search**: Pure native vector nearest neighbor search with calibrated cosine distance metrics ($S = \frac{1}{1 + \max(0, d)}$) and atomic batch upserts running within an isolated multi-threaded Tokio runtime.
-  - **Thread-Safe SQLite Configuration Store (`NativeConfigDb`)**: Pure native Rusqlite layer enforcing mandatory high-concurrency PRAGMAs (`WAL`, `busy_timeout=30000`, `synchronous=NORMAL`, `foreign_keys=ON`), workspace lifecycle CRUD, settings key-value persistence, and microsecond differential file hash sync tracking with zero Python GIL contention.
-  - **Clean Code & SOLID Architecture**: Modular, decoupled storage design exposing complete PyO3 bindings (`PyLanceStore`, `PyConfigDb`) for seamless, zero-friction integration.
+  - **Thread-Safe SQLite Configuration Store (`NativeConfigDb`)**: Pure native Rusqlite layer enforcing mandatory high-concurrency PRAGMAs (`WAL`, `busy_timeout=30000`, `synchronous=NORMAL`, `foreign_keys=ON`), workspace lifecycle CRUD, settings key-value persistence, and microsecond differential file hash sync tracking with zero lock contention.
+  - **Clean Code & SOLID Architecture**: Modular, decoupled storage design exposing complete native Rust APIs (`NativeLanceStore`, `NativeConfigDb`) for high-concurrency ingestion and retrieval.
 - **⚡ 100% LanceDB Columnar Vector Engine (Apache Arrow / Rust)**:
   - **Sub-5ms Vector Queries**: Powered by native Rust SIMD vector distance routines, eliminating database locks and enabling instant retrieval across 500,000+ chunks.
   - **Zero Database Locks**: Columnar Apache Arrow dataset architecture eliminates SQLite write-lock contentions on Windows.
   - **Live Dataset Inspection (`/inspect` ou `/chunks`)**: Directly inspect live vector records, record counts, and snippet previews for both document context and session memory.
   - **Instant $0.00 Transfers & Renames**: Data source transfers and workspace renames execute on LanceDB datasets in `< 50ms` with zero token expenditure.
-- **🚀 Sub-Second Cold Boot Runtime & Dual-Binary Architecture (`--onedir`)**:
-  - **Sub-Second Engine Startup**: Pre-extracts Python runtime libraries into `%LOCALAPPDATA%\actx\bin\_internal` (Windows) or `~/.local/bin/_internal` (Linux) on installation/update, eliminating the 2.7+ second decompression delay on every launch and bringing engine boot down from 2.8s to `< 0.2s`.
-  - **Instant Execution Launcher Shim**: Native launcher (`actx.exe` on Windows, compiled C ELF `actx` on Linux) executes version checks (`actx -v`) in `< 50ms` (< 2ms direct) by reading cached `version.txt` without loading the 248MB Python engine.
-- **🦀 100% Pure Native Rust Cross-Platform Installer & Launcher Shim (`actx-installer`) (`v0.30.35`)**:
+- **🚀 Sub-Millisecond Cold Boot & Single Autonomous Executable**:
+  - **Sub-10ms Engine Startup**: Instantaneous native execution without dynamic runtime decompression, bringing engine boot down to `< 10ms` and memory footprint to `< 40MB`.
+  - **Instant Execution Launcher Shim**: Native launcher (`actx.exe` on Windows, compiled ELF `actx` on Linux) executes version checks (`actx -v`) in `< 2ms` directly by reading cached `version.txt`.
+- **🦀 100% Pure Native Rust Cross-Platform Installer & Atomic Updater (`actx-installer`) (`v0.30.35`)**:
   - **Pure Native Rust Binary Architecture**: Replaced legacy PowerShell scripts, C# `.NET 4.0` `csc.exe` compilations, and bash workarounds with a compiled, standalone native Rust installer and launcher shim (`crates/actx-installer`).
   - **Direct HTTPS Web Downloads (Zero `gh` CLI Dependency)**: Downloads releases directly via high-speed HTTPS from GitHub Releases, guaranteeing universal accessibility for all public users without requiring the GitHub CLI (`gh`).
   - **Pre-Flight Binary Verification Engine**: Validates binary headers (`MZ` on Windows, `ELF` on Linux, `Mach-O` on macOS) and minimum file sizes before performing atomic swaps, completely eliminating corrupted ZIP-over-EXE overwrites (`Win32 Error 193 - Not a valid application`).
@@ -402,18 +464,18 @@ Traditional AI tools require you to manually copy and paste files into web chats
 - **🔄 Instant Zero-Cost Source Transfer (`/transfer` & `/config`)**:
   - Move folders and web portals between workspaces in sub-50ms with **$0.00 in embedding API costs**.
   - Dynamically updates vector metadata tags in ChromaDB and SQLite without re-indexing or re-crawling.
-- **🖥️ OpenTUI Canonical Terminal Interface (`actx`)**:
-  - OpenTUI é a **interface padrão interativa** ao executar `actx` no terminal, desenvolvida com **OpenTUI (`@opentui/core` + `@opentui/react`)** e Zig/React: chat rolável fluido, herança de background transparente nativo do terminal, Banner ASCII Art clássico, identificadores `👤 You:` e `🤖 AI [modelo]:`, e barra de status inferior de 1 linha.
-  - **100% Thin Client & Paridade Hexagonal com Futuro Tauri Desktop**: Todo comando de barra e prompt passa diretamente pelo motor central de despacho em Python via RPC Bridge (`client.executeCommand`). Nenhuma regra de negócio fica presa no front-end, garantindo que o OpenTUI e o futuro app Desktop Desktop Tauri compartilhem rigorosamente as mesmas mensagens e comportamento.
-  - **Frozen Full-Screen Scroll Engine**: Rolagem nativa fluida em tela cheia com **rodinha do mouse**, teclas `PgUp` / `PgDn`, `Shift + ↑` / `↓` e auto-scroll reativo em streaming.
-  - **⚡ Real-Time Progressive Engine Startup Telemetry**: Árvore progressiva de telemetria de boot (`┌─ ⚡ Engine Startup Telemetry`) com animação de spinner braille em tempo real e cadência perceptual em cascata suave. Acompanha o spawn do runtime Python, conexão com SQLite, vinculação do modelo de IA, conexão do workspace e verificação do índice vetorial.
-  - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os 32 comandos internos canônicos.
-  - **Zero-Port Stdio RPC Bridge & Sub-Process DLL Isolation**: Comunicação local em sub-milissegundo com o backend AnyContext via NDJSON, sem portas de rede ou avisos de firewall, com isolamento total de variáveis de bootloader (`_MEIPASS`, `PATH`).
+- **🖥️ Interactive Terminal UI (Ratatui / `actx`)**:
+  - **Interface Interativa Padrão**: Desenvolvida 100% em Rust nativo utilizando **Ratatui (0.29) + Crossterm (0.28)**: chat rolável fluido, background transparente nativo do terminal, banner clássico, identificadores claros e barra de status quad-status no cabeçalho.
+  - **100% Pure Rust & Paridade Hexagonal**: Todo comando e prompt é despachado pelo motor central de domínio (`CommandEngine`) e pelo orquestrador de agentes (`actx-agent`), garantindo coerência estrita entre o modo interativo e o modo headless.
+  - **Full-Screen Scroll & Viewport Isolation**: Rolagem nativa fluida em tela cheia com rodinha do mouse, teclas `PgUp` / `PgDn`, `Shift + ↑` / `↓` e auto-scroll reativo em streaming.
+  - **⚡ Telemetria em Tempo Real**: Barra de status superior com badges de Workspace, Modelo, Modo de Grounding e Web Search, além de spinner Braille reativo e indicador de sincronização em segundo plano.
+  - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os comandos internos.
+  - **Accordion de Raciocínio (`Ctrl+T`)**: Visualizador dobrável de tokens `<think>` e chamadas de ferramentas do agente ReAct.
 - **⚡ Headless Developer CLI & One-Shot Prompt Engine**:
   - One-shot execution para scripts, cronjobs & automação: `actx "sua pergunta aqui"` ou `actx -p "..."`.
   - Suporte completo a pipes Unix/PowerShell: `cat document.txt | actx "resuma os pontos principais"`.
-  - Flags de alta performance: `actx -v` (< 50ms via launcher shim), `actx --rpc`, `actx --mcp`, `actx --diagnostics`, `actx --logs`.
-  - Flags de atualização direta: `actx --update` (atualização direta com barra de progresso no terminal), `actx --check-update`, `actx --releases`, `actx --rollback`.
+  - Flags de alta performance: `actx -v` (< 2ms via launcher shim), `actx --diagnostics`, `actx --logs`.
+  - Flags de atualização direta: `actx --update` (atualização atômica direta com barra de progresso no terminal), `actx --check-update`, `actx --rollback`.
 
 - **🗑️ Interactive Workspace Deletion with Safety Confirmation (`/menu` & `/switch --delete`)**:
   - Exclusão segura e interativa de workspaces com listagem do total de fontes e modal de confirmação explícito (`Yes, permanently delete` vs `Cancel` com foco seguro).
@@ -531,14 +593,14 @@ actx-installer --update      # Check and apply latest update
 actx-installer --rollback    # Rollback to previous version if needed
 ```
 
-### Option 2: Install via Python / `uv` / `pip`
+### Option 2: Build from Source via Cargo (Rust)
 
 ```bash
 git clone https://github.com/Levix-Digital/any-context.git
 cd any-context
-pip install -e .
+cargo build --release -p actx-cli -p actx-installer
 ```
-*(Available terminal aliases: `actx`, `anycontext`, `any-context`, `ac`)*
+*(The native binaries will be generated at `target/release/actx` and `target/release/actx-installer`)*
 
 ---
 
@@ -559,6 +621,9 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/drive`** | `--add`, `--remove <id>`, `--list`, `--sync`, `/cloud` | Gerencia e sincroniza conexões com Google Drive e OneDrive. |
 | **`/mode`** | `strict`, `hybrid`, `proactive`, `--global` | Configura o Grounding Mode da IA: **`Strict`** (100% ancorado nos docs), **`Hybrid`** (equilíbrio dual-layer) ou **`Proactive`** (pesquisa e síntese). |
 | **`/search`** | `auto`, `fast`, `deep`, `/fast`, `/deep` | Configura o Search Depth Mode (RFC-042): **`Auto`** (heurística dinâmica), **`Fast`** (baixa latência) ou **`Deep`** (recuperação exaustiva). |
+| **`/router`** | `/routing` | Inspeciona a política ativa de roteamento, o modo de pesquisa e as métricas do classificador determinístico (< 1µs). |
+| **`/deep`** | `[query]` | Dispara busca profunda reflexiva multi-turno (RFC-042) com decomposição de sub-perguntas, análise de lacunas (*gap queries*) e síntese com citações de código. |
+| **`/fast`** | `[query]` | Força resposta rápida em turno único com recuperação padrão de baixa latência. |
 
 | **`/web-search`** | `--on`, `--off`, `--status`, `--global`, `/ws` | Toggle real-time live web search per workspace with domain portal prioritization and source discrimination. |
 | **`/link`** | `<src> [dst]`, `--list`, `--unlink <src>` | Link or unlink reusable indexed sources across workspaces with zero API cost ($0.00). |
@@ -826,6 +891,25 @@ Unlike basic web scrapers that blindly download noisy HTML or crawl randomly, An
 
 ---
 
+## 🧠 Motor Deep Search Agêntico Reflexivo (RFC-042)
+
+Inspirado nos conceitos arquiteturais do projeto de referência [`zilliztech/deep-searcher`](https://github.com/zilliztech/deep-searcher), o AnyContext implementa um motor de pesquisa profunda **100% nativo em Rust** (`crates/actx-agent/src/deep_search.rs`) perfeitamente integrado ao pipeline híbrido (`LanceDB` + `BM25 Okapi` + `RRF` $k=60$):
+
+1. **Decomposição Ortogonal (`SUB_QUERY_PROMPT`)**:
+   - Questões complexas ou exploratórias são automaticamente decompostas pelo LLM em até 4 sub-perguntas independentes e ortogonais, cobrindo diferentes facetas do problema.
+2. **Recuperação Híbrida em Lote Paralela (`retrieve_hybrid_batch_async`)**:
+   - As sub-perguntas são disparadas concorrentemente contra o banco vetorial LanceDB (Apache Arrow) e o índice léxico BM25 Okapi em memória, consolidando candidatos via Reciprocal Rank Fusion ($k=60$) com deduplicação criptográfica SHA-256.
+3. **Loop Reflexivo & Análise de Lacunas (`REFLECT_PROMPT`)**:
+   - A cada iteração (até um teto determinístico de 3 ciclos), o agente analisa as evidências já acumuladas em relação à pergunta original e detecta lacunas de conhecimento.
+   - Caso encontre pontos cegos, gera novas *gap queries* direcionadas para a próxima iteração.
+   - Se todas as informações necessárias já tiverem sido recuperadas, dispara *early stopping* imediatamente, poupando tokens e latência.
+4. **Síntese Final com Proveniência em Nível de Linha (`SUMMARY_PROMPT`)**:
+   - Os chunks validados são estruturados com identificação exata de arquivo e linhas (`[crates/actx-agent/src/deep_search.rs:45-80]`), instruindo o modelo a citar fontes verificáveis em cada parágrafo.
+5. **Telemetria Reativa para TUI e CLI**:
+   - Emissão contínua de eventos tipados em tempo real (`AgentEvent::Decomposition`, `AgentEvent::IterationStart`, `AgentEvent::GapAnalysis`), renderizando a árvore de reflexão visualmente no terminal.
+
+---
+
 ## ⚙️ Configuration & Environment Settings
 
 AnyContext uses an intelligent **3-tier configuration resolution hierarchy**:
@@ -995,7 +1079,7 @@ To cleanly remove AnyContext, restore PATH variables, purge legacy databases, an
   *Or locally:* `./scripts/uninstall.sh`
 
 > [!NOTE]
-> The uninstaller prompts whether to preserve or wipe your configured workspaces and vector databases (`%LOCALAPPDATA%\AnyContext` or `~/.local/share/any-context`), purges any legacy database files, cleans your User PATH variable, and automatically uninstalls residual Python `pip` wrappers.
+> The uninstaller prompts whether to preserve or wipe your configured workspaces and vector databases (`%LOCALAPPDATA%\AnyContext` or `~/.local/share/any-context`), purges any legacy database files, cleans your User PATH variable, and removes all native AnyContext executables cleanly.
 
 ---
 

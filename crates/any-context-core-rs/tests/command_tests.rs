@@ -387,7 +387,7 @@ fn test_inspect_transparent_decryption() {
     let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
     let lance = any_context_core_rs::storage::NativeLanceStore::open(&lance_path).expect("open lance");
 
-    let sec = any_context_core_rs::security::NativeSecurityEngine::new(Some("test_inspect_decrypt_node"));
+    let sec = any_context_core_rs::security::NativeSecurityEngine::get_instance();
     let plaintext_secret = "Top Secret Architectural Source Code";
     let encrypted_payload = sec.encrypt_text(plaintext_secret);
     assert!(encrypted_payload.starts_with("enc::"));
@@ -395,7 +395,7 @@ fn test_inspect_transparent_decryption() {
     let rec = any_context_core_rs::storage::VectorRecord {
         id: "crypto_chunk_1".to_string(),
         vector: vec![0.0; 1536],
-        text: encrypted_payload,
+        text: encrypted_payload.clone(),
         file_name: "secret.rs".to_string(),
         file_path: "src/secret.rs".to_string(),
         workspace: ws.to_string(),
@@ -406,34 +406,36 @@ fn test_inspect_transparent_decryption() {
         content_hash: None,
     };
 
-    let _ = lance.upsert_records(vec![rec], Some("workspace_chunks"), Some(1536));
+    lance.upsert_records(vec![rec], Some("workspace_chunks"), Some(1536)).expect("upsert failed in test_inspect_transparent_decryption");
 
     let res_full = CommandEngine::execute("inspect", &["--full"], &ctx);
     assert!(res_full.success);
-    // Should NOT contain the encrypted prefix
-    assert!(!res_full.message.contains("enc::"));
+    // Should NOT contain the raw encrypted ciphertext payload
+    assert!(!res_full.message.contains(&encrypted_payload));
     // Should contain the decrypted plaintext
     assert!(res_full.message.contains(plaintext_secret));
+
+    let _ = lance.delete_by_workspace(ws, None);
 }
 
 #[test]
 fn test_update_command_syntax_and_audit_logging() {
     let ctx = ExecutionContext::default();
 
-    // 1. /update@v99.99.99 syntax recognized by router
+    // 1. /update@v99.99.99 syntax recognized by router and yields safe guidance
     let res1 = CommandEngine::execute("update@v99.99.99", &[], &ctx);
     assert!(!res1.message.contains("Unknown command"));
-    assert!(res1.message.contains("Update failed") || res1.message.contains("updated to"));
+    assert!(res1.message.contains("actx --update@v99.99.99"));
 
     // 2. /update with @v99.99.99 argument recognized
     let res2 = CommandEngine::execute("update", &["@v99.99.99"], &ctx);
     assert!(!res2.message.contains("Unknown command"));
-    assert!(res2.message.contains("Update failed") || res2.message.contains("updated to"));
+    assert!(res2.message.contains("actx --update@v99.99.99"));
 
     // 3. /update with --version=v99.99.99 argument recognized
     let res3 = CommandEngine::execute("update", &["--version=v99.99.99"], &ctx);
     assert!(!res3.message.contains("Unknown command"));
-    assert!(res3.message.contains("Update failed") || res3.message.contains("updated to"));
+    assert!(res3.message.contains("actx --update@v99.99.99"));
 
     // 4. Verify update.log contains audit traces
     let logs_dir = actx_installer::paths::get_canonical_logs_dir();
@@ -442,5 +444,73 @@ fn test_update_command_syntax_and_audit_logging() {
     let log_content = std::fs::read_to_string(&update_log).unwrap_or_default();
     assert!(log_content.contains("v99.99.99"), "update.log should record requested target version tag");
 }
+
+#[test]
+fn test_sources_command_rename_and_deprecation_of_shared() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ws_name = format!("SourcesCmdWS_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+    let ctx = ExecutionContext {
+        active_workspace: ws_name.clone(),
+        ..Default::default()
+    };
+
+    // 1. Initial list empty
+    let res_list = CommandEngine::execute("sources", &["active"], &ctx);
+    assert!(res_list.success);
+    assert!(res_list.message.contains(&format!("Data Sources configured for workspace '{}'", ws_name)));
+
+    // 2. Add folder and web URL
+    let _ = CommandEngine::execute("web", &["https://docs.rs/tokio/latest/tokio/index.html"], &ctx);
+    let res_after_add = CommandEngine::execute("sources", &["active"], &ctx);
+    assert!(res_after_add.success);
+    assert!(res_after_add.message.contains("Tokio Docs"));
+
+    // 3. Rename source via /sources rename
+    let res_rename = CommandEngine::execute("sources", &["rename", "Tokio Docs", "Tokio Engine Core"], &ctx);
+    assert!(res_rename.success);
+    assert!(res_rename.message.contains("renamed to 'Tokio Engine Core'"));
+    assert!(res_rename.message.contains("Chunks impacted in LanceDB: 0"));
+
+    // 4. Verify display name updated
+    let res_check = CommandEngine::execute("sources", &["active"], &ctx);
+    assert!(res_check.message.contains("Tokio Engine Core"));
+
+    // 5. Verify /shared deprecation error
+    let res_shared = CommandEngine::execute("shared", &[], &ctx);
+    assert!(!res_shared.success);
+    assert!(res_shared.message.contains("deprecated in AnyContext v0.36.0"));
+}
+
+#[test]
+fn test_profile_command_and_hardware_status() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext::default();
+
+    // 1. /profile without arguments lists available tiers with hardware detection
+    let res_list = CommandEngine::execute("profile", &[], &ctx);
+    assert!(res_list.success);
+    assert!(res_list.message.contains("Hardware & Intelligence Profiles"));
+    assert!(res_list.message.contains("air_gapped_power"));
+    assert!(res_list.message.contains("smart_balanced"));
+    assert!(res_list.message.contains("lite"));
+    assert_eq!(res_list.action, CommandAction::OpenMenu("profiles".to_string()));
+
+    // 2. /profile smart_balanced updates active profile
+    let res_switch = CommandEngine::execute("profile", &["smart_balanced"], &ctx);
+    assert!(res_switch.success);
+    assert!(res_switch.message.contains("Switched active intelligence profile to 'Smart Balanced"));
+
+    // 3. /profile invalid returns friendly guidance
+    let res_err = CommandEngine::execute("profile", &["invalid_profile"], &ctx);
+    assert!(!res_err.success);
+    assert!(res_err.message.contains("Invalid profile tier"));
+
+    // 4. /status displays active profile and hardware metrics
+    let res_status = CommandEngine::execute("status", &[], &ctx);
+    assert!(res_status.success);
+    assert!(res_status.message.contains("Active Profile:"));
+    assert!(res_status.message.contains("Hardware Metrics:"));
+}
+
 
 

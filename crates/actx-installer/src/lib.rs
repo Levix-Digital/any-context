@@ -1,6 +1,7 @@
 pub mod atomic_swap;
 pub mod downloader;
 pub mod extractor;
+pub mod hardware;
 pub mod paths;
 pub mod validator;
 
@@ -148,7 +149,9 @@ pub fn run_installer_workflow(args: &[String]) {
         println!("  --update                 Check for and apply latest updates via HTTPS");
         println!("  --rollback               Rollback to previous installation if available");
         println!("  --version=<tag>          Install a specific version tag (e.g., --version=v0.30.35)");
-        println!("  --dir=<path>             Custom installation directory\n");
+        println!("  --dir=<path>             Custom installation directory");
+        println!("  --profile=<tier>         Select intelligence profile (air_gapped_power, smart_balanced, lite)");
+        println!("  --preflight-only         Probe hardware capabilities, print semaphores and exit\n");
         return;
     }
 
@@ -160,6 +163,26 @@ pub fn run_installer_workflow(args: &[String]) {
         .unwrap_or_else(get_canonical_bin_dir);
 
     println!("[*] Installation target directory: {}", target_dir.display());
+
+    // Hardware Pre-Flight Check (<5ms)
+    let metrics = hardware::probe_system(&target_dir);
+    let evals = hardware::evaluate_profiles(&metrics);
+    let auto_tier = hardware::auto_select_recommended(&metrics);
+
+    let explicit_tier = args
+        .iter()
+        .find(|a| a.starts_with("--profile="))
+        .and_then(|a| a.split('=').nth(1))
+        .and_then(hardware::InstallerProfileTier::parse_str);
+
+    let selected_tier = explicit_tier.unwrap_or(auto_tier);
+
+    if args.iter().any(|a| a == "--preflight-only" || a == "--preflight") {
+        hardware::print_preflight_summary(&metrics, selected_tier, &evals);
+        return;
+    }
+
+    hardware::print_preflight_summary(&metrics, selected_tier, &evals);
 
     if args.iter().any(|a| a == "--update") {
         run_standalone_update(&target_dir, None);
@@ -231,6 +254,12 @@ pub fn run_installer_workflow(args: &[String]) {
     configure_system_path(&target_dir);
 
     println!("\n[OK] AnyContext {} installed successfully!", target_version);
+    println!("⚡ Intelligence Profile Configured: {} ({})", selected_tier.display_name(), selected_tier.as_str());
+    if selected_tier != hardware::InstallerProfileTier::Lite {
+        let mb = selected_tier.disk_required_bytes() as f64 / (1024.0 * 1024.0);
+        println!("   ↳ Target ONNX Models: ~{:.0} MB disk footprint", mb);
+        println!("   ↳ Manage profiles or models anytime via: actx (F1 -> Profiles) or /profile");
+    }
     println!("[>] Open a new terminal and run '{}' or 'actx --tui' to start.\n", get_shim_exe_name());
 }
 
@@ -270,6 +299,14 @@ pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str
     let temp_archive = std::env::temp_dir().join(format!("actx_update_{}_{}", target_version, asset_name));
 
     if let Err(e) = download_release_asset(&target_version, asset_name, &temp_archive) {
+        if e.starts_with("ASSET_NOT_YET_AVAILABLE:") {
+            let msg = format!(
+                "Executable packages for release {} are still being built by CI/CD\n    or are temporarily unavailable.\n\n    💡 Tip: Automated builds typically take a few minutes after a release.\n       Please retry shortly with: actx --update\n       Track release status at: https://github.com/Levix-Digital/any-context-releases/releases/tag/{}",
+                target_version, target_version
+            );
+            log_update_event("WARN", &msg);
+            return Err(msg);
+        }
         let err_msg = format!("Download failed: {}", e);
         log_update_event("ERROR", &err_msg);
         return Err(err_msg);
@@ -316,7 +353,7 @@ pub fn run_standalone_update(base_dir: &Path, requested_version: Option<&str>) {
             println!("[>] Please restart 'actx' to launch the new version.\n");
         }
         Err(e) => {
-            eprintln!("\n[!] {}", e);
+            eprintln!("\n[!] {}\n", e);
         }
     }
 }

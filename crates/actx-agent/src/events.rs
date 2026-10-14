@@ -29,6 +29,15 @@ pub enum AgentEvent {
     /// Streaming text delta for the final response
     Delta(String),
 
+    /// Dynamic routing decision emitted by ChatModelRouter
+    RoutingDecision {
+        mode: String,
+        complexity: String,
+        intent: String,
+        confidence: f32,
+        reason: String,
+    },
+
     /// RFC-042 Deep Search: Query decomposition into orthogonal sub-queries
     Decomposition {
         sub_queries: Vec<String>,

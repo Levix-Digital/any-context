@@ -28,6 +28,42 @@ pub struct ChatMessageItem {
     pub timestamp: String,
 }
 
+#[derive(Debug)]
+pub struct ActiveModelDownload {
+    pub model_id: String,
+    pub model_name: String,
+    pub total_bytes: u64,
+    pub downloaded_bytes: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    pub is_completed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub is_failed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub error_msg: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    pub cancel_tx: tokio::sync::watch::Sender<bool>,
+    pub start_time: std::time::Instant,
+}
+
+#[derive(Debug, Clone)]
+pub struct OnboardingState {
+    pub step: usize, // 0 = Provider & Key, 1 = Document AI Profile, 2 = Initial Folder
+    pub selected_provider_idx: usize,
+    pub api_key_input: String,
+    pub selected_doc_ai_idx: usize, // 0 = Leve & Nuvem (0 MB), 1 = Local Air-Gapped (ONNX)
+    pub folder_input: String,
+    pub focus_input: bool,
+}
+
+impl OnboardingState {
+    pub fn new() -> Self {
+        Self {
+            step: 0,
+            selected_provider_idx: 0,
+            api_key_input: String::new(),
+            selected_doc_ai_idx: 0,
+            folder_input: String::new(),
+            focus_input: false,
+        }
+    }
+}
+
 pub struct App {
     pub running: bool,
     pub active_workspace: String,
@@ -46,6 +82,11 @@ pub struct App {
     pub auto_scroll: bool,
     pub max_scroll: u16,
 
+    // ReAct & Reasoning Accordion Scrolling
+    pub reasoning_scroll_offset: u16,
+    pub reasoning_auto_scroll: bool,
+    pub reasoning_max_scroll: u16,
+
     // Input & Prompt History
     pub input_buffer: String,
     pub cursor_idx: usize,
@@ -63,6 +104,12 @@ pub struct App {
     // Interactive Menu State
     pub menu_state: MenuState,
 
+    // Active Model Download Telemetry & Cancellation
+    pub active_model_download: Option<ActiveModelDownload>,
+
+    // Interactive Onboarding Wizard
+    pub onboarding_state: Option<OnboardingState>,
+
     // Agent handles & channels
     pub agent: Option<Arc<Agent>>,
     pub is_generating: bool,
@@ -71,11 +118,15 @@ pub struct App {
     pub sync_status: Option<any_context_core_rs::storage::WorkspaceSyncStatus>,
     pub last_sync_poll: std::time::Instant,
     pub tick_count: u64,
+    pub source_health_warning: Option<String>,
+    pub changes_detected: bool,
+    pub last_health_check: std::time::Instant,
 }
 
 impl App {
     pub fn tick(&mut self) {
         self.tick_count = self.tick_count.wrapping_add(1);
+        self.poll_model_download();
     }
 
     pub fn create_welcome_message(
@@ -102,7 +153,7 @@ impl App {
             .and_then(|d| d.get_workspace_grounding_mode(&workspace).ok())
             .unwrap_or_else(|| "strict".to_string());
         let search_mode = db.as_ref()
-            .and_then(|d| d.get_setting("search_mode").ok().flatten())
+            .and_then(|d| d.get_workspace_search_mode(&workspace).ok())
             .unwrap_or_else(|| "auto".to_string());
         let web_search_enabled = db.as_ref()
             .and_then(|d| d.get_workspace_web_search(&workspace).ok())
@@ -119,6 +170,17 @@ impl App {
         let initial_sync_status = db.as_ref()
             .and_then(|d| d.get_sync_status(&workspace).ok().flatten());
 
+        let onboarding_completed = db.as_ref()
+            .and_then(|d| d.get_setting("onboarding_completed").ok().flatten())
+            .map(|v| v == "true")
+            .unwrap_or(false);
+
+        let onboarding_state = if !onboarding_completed && model == "mock" {
+            Some(OnboardingState::new())
+        } else {
+            None
+        };
+
         let app = Self {
             running: true,
             active_workspace: workspace,
@@ -134,22 +196,30 @@ impl App {
             scroll_offset: 0,
             auto_scroll: true,
             max_scroll: 0,
+            reasoning_scroll_offset: 0,
+            reasoning_auto_scroll: true,
+            reasoning_max_scroll: 0,
             input_buffer: String::new(),
             cursor_idx: 0,
             input_history: std::collections::HashMap::new(),
             history_index: None,
             current_draft: String::new(),
-            accordion_open: true,
+            accordion_open: false,
             slash_palette_open: false,
             slash_palette_idx: 0,
             slash_matches: Vec::new(),
             palette_navigated: false,
             menu_state: MenuState::default(),
+            active_model_download: None,
+            onboarding_state,
             agent: agent.map(Arc::new),
             is_generating: false,
             sync_status: initial_sync_status,
             last_sync_poll: std::time::Instant::now(),
             tick_count: 0,
+            source_health_warning: None,
+            changes_detected: false,
+            last_health_check: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(10)).unwrap_or_else(std::time::Instant::now),
         };
 
         app
@@ -162,6 +232,37 @@ impl App {
         self.last_sync_poll = std::time::Instant::now();
         if let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() {
             self.sync_status = db.get_sync_status(&self.active_workspace).unwrap_or(None);
+        }
+        self.check_source_health();
+    }
+
+    pub fn check_source_health(&mut self) {
+        if self.last_health_check.elapsed() < std::time::Duration::from_secs(4) {
+            return;
+        }
+        self.last_health_check = std::time::Instant::now();
+
+        if let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() {
+            let folders = db.get_workspace_folders(&self.active_workspace).unwrap_or_default();
+            let mut missing_count = 0;
+            for f in &folders {
+                let p = std::path::Path::new(f);
+                if !p.exists() && any_context_core_rs::storage::path_healer::try_heal_path(p).is_none() {
+                    missing_count += 1;
+                }
+            }
+
+            if missing_count > 0 {
+                self.source_health_warning = Some(format!("⚠️ {} folder(s) unreachable", missing_count));
+                self.changes_detected = false;
+            } else {
+                self.source_health_warning = None;
+
+                let cached_files = db.get_workspace_files_stat_cache(&self.active_workspace).unwrap_or_default();
+                let scanner = any_context_core_rs::ingestion::scanner::WorkspaceScanner::new();
+                let diff = scanner.scan_and_diff_native(&folders, &cached_files);
+                self.changes_detected = !diff.is_up_to_date && diff.missing_folders.is_empty();
+            }
         }
     }
 
@@ -383,8 +484,22 @@ impl App {
         let current_history = std::mem::take(&mut self.chat_history);
         self.workspace_chat_buffers.insert(self.active_workspace.clone(), current_history);
 
-        // 2. Set new active workspace
+        // 2. Set new active workspace and reload its persistent configuration
         self.active_workspace = target_ws.to_string();
+        if let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() {
+            if let Ok(s) = db.get_workspace_search_mode(target_ws) {
+                self.search_mode = s;
+            }
+            if let Ok(m) = db.get_workspace_model(target_ws) {
+                self.active_model = m;
+            }
+            if let Ok(g) = db.get_workspace_grounding_mode(target_ws) {
+                self.grounding_mode = g;
+            }
+            if let Ok(w) = db.get_workspace_web_search(target_ws) {
+                self.web_search_enabled = w;
+            }
+        }
 
         // 3. Reset ephemeral stream/thinking buffers and scroll
         self.current_stream_buffer.clear();
@@ -481,6 +596,210 @@ impl App {
         self.menu_state.open_keys();
     }
 
+    pub fn open_document_ai_menu(&mut self) {
+        self.slash_palette_open = false;
+        let active_name = self.active_model_download.as_ref().map(|d| d.model_name.as_str());
+        self.menu_state.open_document_ai(active_name);
+    }
+
+    pub fn open_profiles_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_profiles();
+    }
+
+    pub fn is_downloading_model(&self) -> bool {
+        self.active_model_download.is_some()
+    }
+
+    pub fn cancel_model_download(&mut self) {
+        if let Some(dl) = self.active_model_download.take() {
+            let _ = dl.cancel_tx.send(true);
+            let name = dl.model_name;
+            self.chat_history.push(ChatMessageItem {
+                role: MessageRole::System,
+                content: format!(
+                    "🛑 [Download Cancelled]\nDownload of **{}** was stopped at your request.\nNo temporary files remain on disk, and AnyContext continues operating via native heuristics.",
+                    name
+                ),
+                thinking: None,
+                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+            });
+            self.scroll_to_bottom();
+        }
+    }
+
+    pub fn start_model_download(&mut self, model_id: &str) {
+        if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
+            let spec_name = spec.name.to_string();
+            let spec_mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
+            let spec_file = spec.file_name.to_string();
+            let spec_clone = spec.clone();
+
+            let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+            let downloaded_bytes = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+            let is_completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let is_failed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let error_msg = std::sync::Arc::new(std::sync::Mutex::new(None));
+
+            let dl_bytes_bg = downloaded_bytes.clone();
+            let is_comp_bg = is_completed.clone();
+            let is_fail_bg = is_failed.clone();
+            let err_msg_bg = error_msg.clone();
+
+            let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<(u64, u64)>();
+
+            tokio::spawn(async move {
+                let dl_writer = dl_bytes_bg.clone();
+                let drain_handle = tokio::spawn(async move {
+                    while let Some((downloaded, _total)) = progress_rx.recv().await {
+                        dl_writer.store(downloaded, std::sync::atomic::Ordering::Relaxed);
+                    }
+                });
+
+                match any_context_core_rs::ingestion::OnnxModelManager::download_model_with_progress(
+                    &spec_clone,
+                    Some(progress_tx),
+                    Some(cancel_rx),
+                ).await {
+                    Ok(_) => {
+                        let _ = drain_handle.await;
+                        is_comp_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        let _ = drain_handle.await;
+                        *err_msg_bg.lock().unwrap() = Some(e);
+                        is_fail_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+            });
+
+            self.active_model_download = Some(ActiveModelDownload {
+                model_id: model_id.to_string(),
+                model_name: spec_name.clone(),
+                total_bytes: spec.size_bytes,
+                downloaded_bytes,
+                is_completed,
+                is_failed,
+                error_msg,
+                cancel_tx,
+                start_time: std::time::Instant::now(),
+            });
+
+            self.chat_history.push(ChatMessageItem {
+                role: MessageRole::System,
+                content: format!(
+                    "📥 [ONNX Model Download Started]\nStarting async download of **{}** (~{:.0} MB)...\nFile: `{}`\nDestination: `%LOCALAPPDATA%\\AnyContext\\models\\`\nReal-time progress is shown in the footer. Press [Esc] to cancel anytime.",
+                    spec_name, spec_mb, spec_file
+                ),
+                thinking: None,
+                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+            });
+            self.scroll_to_bottom();
+        }
+    }
+
+    pub fn poll_model_download(&mut self) {
+        if let Some(ref dl) = self.active_model_download {
+            use std::sync::atomic::Ordering;
+            if dl.is_completed.load(Ordering::Relaxed) {
+                let name = dl.model_name.clone();
+                let file_name = any_context_core_rs::ingestion::OnnxModelManager::find_spec(&dl.model_id)
+                    .map(|s| s.file_name)
+                    .unwrap_or("model.onnx");
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!(
+                        "✔ [Model Successfully Attached]\n**{}** is installed on disk and active!\nFile: `%LOCALAPPDATA%\\AnyContext\\models\\{}`.\nNeural pipeline is now active for this task.",
+                        name, file_name
+                    ),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.active_model_download = None;
+            } else if dl.is_failed.load(Ordering::Relaxed) {
+                let name = dl.model_name.clone();
+                let err_text = dl.error_msg.lock().unwrap().clone().unwrap_or_else(|| "Unknown error".to_string());
+                if err_text.contains("cancel") || err_text.contains("cancelado") {
+                    self.chat_history.push(ChatMessageItem {
+                        role: MessageRole::System,
+                        content: format!(
+                            "🛑 [Download Cancelled]\nDownload of **{}** was cancelled. AnyContext continues operating via native heuristics.",
+                            name
+                        ),
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+                } else {
+                    self.chat_history.push(ChatMessageItem {
+                        role: MessageRole::System,
+                        content: format!(
+                            "❌ [Download Failed]\nCould not download **{}**: {}.\nAnyContext will continue operating via deterministic fallback without interruption.",
+                            name, err_text
+                        ),
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+                }
+                self.scroll_to_bottom();
+                self.active_model_download = None;
+            }
+        }
+    }
+
+    pub fn open_onboarding(&mut self) {
+        self.onboarding_state = Some(OnboardingState::new());
+        self.menu_state.is_open = false;
+    }
+
+    pub fn finish_onboarding(&mut self) {
+        if let Some(onboarding) = self.onboarding_state.take() {
+            let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+            let provider_names = ["gemini", "openai", "anthropic", "ollama", "mock"];
+            let default_models = ["gemini-2.5-flash", "gpt-4o-mini", "claude-3-5-sonnet", "llama3", "mock"];
+            let prov = provider_names.get(onboarding.selected_provider_idx).unwrap_or(&"gemini");
+            let model = default_models.get(onboarding.selected_provider_idx).unwrap_or(&"gemini-2.5-flash");
+
+            if let Some(ref d) = db {
+                let _ = d.set_setting("default_provider", prov);
+                let _ = d.set_setting("default_model", model);
+                let _ = d.set_setting("onboarding_completed", "true");
+
+                if !onboarding.api_key_input.trim().is_empty() {
+                    let key_setting = match *prov {
+                        "gemini" => "gemini_api_key",
+                        "openai" => "openai_api_key",
+                        "anthropic" => "anthropic_api_key",
+                        _ => "api_key",
+                    };
+                    let _ = d.set_setting(key_setting, onboarding.api_key_input.trim());
+                }
+
+                if onboarding.selected_doc_ai_idx == 0 {
+                    let _ = d.set_setting("enable_vision_llm", "true");
+                } else {
+                    let _ = d.set_setting("enable_vision_llm", "false");
+                }
+
+                if !onboarding.folder_input.trim().is_empty() {
+                    let _ = d.add_workspace_folder(&self.active_workspace, onboarding.folder_input.trim());
+                }
+            }
+
+            self.active_model = model.to_string();
+            self.chat_history.push(ChatMessageItem {
+                role: MessageRole::System,
+                content: format!(
+                    "✨ [AnyContext Successfully Configured]\nProvider: `{}` | Model: `{}` | Document AI Profile: `{}`.\nAll set! Type your question below or use /menu to explore features.",
+                    prov, model, if onboarding.selected_doc_ai_idx == 0 { "Lightweight Cloud" } else { "Local Air-Gapped" }
+                ),
+                thinking: None,
+                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+            });
+            self.scroll_to_bottom();
+        }
+    }
+
     pub fn close_menu(&mut self) {
         self.menu_state.is_open = false;
     }
@@ -499,7 +818,10 @@ impl App {
 
     pub fn menu_select(&mut self) {
         if let Some(item) = self.menu_state.selected_item().cloned() {
-            if item.is_submenu {
+            if item.id == "model_action:cancel_active" {
+                self.cancel_model_download();
+                self.menu_state.is_open = false;
+            } else if item.is_submenu {
                 self.menu_state.open_submenu(&item.id, &self.active_workspace, &self.active_model);
             } else if item.id.starts_with("switch:") {
                 let target_ws = item.id.trim_start_matches("switch:");
@@ -539,8 +861,72 @@ impl App {
             } else if item.id == "sources_action:inspect" {
                 crate::commands::dispatch_slash_command("inspect", &[], self);
                 self.menu_state.is_open = false;
+            } else if let Some(_source_id) = item.id.strip_prefix("source_item:") {
+                let name_part = item.title.split('.').nth(1).unwrap_or(&item.title);
+                let clean_name = name_part.trim().trim_start_matches("📁").trim_start_matches("🌐").trim();
+                self.input_buffer = format!("/sources rename \"{}\" ", clean_name);
+                self.cursor_idx = self.input_buffer.len();
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!("✏️ Rename Source: '{}'\nType the new display name and press [Enter] to save instantly.", clean_name),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.menu_state.is_open = false;
             } else if item.id == "keys_action:audit" {
                 crate::commands::dispatch_slash_command("keys", &["audit"], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "doc_ai_action:vision_cloud" {
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: "ℹ [Document AI: Cloud/VPC Vision]\nTo enable high-precision visual inspection via Cloud/VPC, select an active multimodal model using /model (e.g. gemini-1.5-pro, claude-3-5-sonnet, or gpt-4o). AnyContext sends diagrams, layouts, and images directly to the configured model.".to_string(),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.menu_state.is_open = false;
+            } else if let Some(model_id) = item.id.strip_prefix("model_action:download:") {
+                self.start_model_download(model_id);
+                self.menu_state.is_open = false;
+            } else if let Some(model_id) = item.id.strip_prefix("model_action:toggle:") {
+                if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
+                    self.chat_history.push(ChatMessageItem {
+                        role: MessageRole::System,
+                        content: format!(
+                            "✔ [ONNX Model Active]\n**{}** is installed on disk and active for {}.\nAutomatic resilient fallback: {}.",
+                            spec.name, spec.category.as_str(), spec.fallback_description
+                        ),
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+                }
+                self.scroll_to_bottom();
+                self.menu_state.is_open = false;
+            } else if item.id.starts_with("doc_ai_info:") {
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!("ℹ [{}]\n{}", item.title, item.description),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
+                self.menu_state.is_open = false;
+            } else if let Some(tier) = item.id.strip_prefix("profile_action:") {
+                if tier == "inspect" {
+                    crate::commands::dispatch_slash_command("status", &[], self);
+                } else {
+                    crate::commands::dispatch_slash_command("profile", &[tier], self);
+                }
+                self.menu_state.is_open = false;
+            } else if item.id.starts_with("profile_info:") {
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!("ℹ [{}]\n{}", item.title, item.description),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+                self.scroll_to_bottom();
                 self.menu_state.is_open = false;
             } else if item.id == "sources" {
                 self.open_sources_menu();
@@ -607,6 +993,8 @@ impl App {
                     "sync" => self.open_sync_menu(),
                     "grounding" => self.open_grounding_menu(),
                     "search" => self.open_search_menu(),
+                    "document_ai" => self.open_document_ai_menu(),
+                    "profiles" | "profile" => self.open_profiles_menu(),
                     "sources" => self.open_sources_menu(),
                     "keys" => self.open_keys_menu(),
                     _ => self.open_menu(),
@@ -662,6 +1050,12 @@ impl App {
             let mut parts = text.split_whitespace();
             let cmd_name = parts.next().unwrap_or("").trim_start_matches('/');
             let args: Vec<&str> = parts.collect();
+
+            if cmd_name.eq_ignore_ascii_case("onboarding") || cmd_name.eq_ignore_ascii_case("setup") {
+                self.open_onboarding();
+                crate::commands::dispatch_slash_command(cmd_name, &args, self);
+                return None;
+            }
 
             crate::commands::dispatch_slash_command(cmd_name, &args, self);
             return None;
@@ -723,6 +1117,45 @@ impl App {
                     self.current_thinking_buffer.push_str(&format!("✔ [Tool Done: {}]\n", name));
                 }
             }
+            AgentEvent::RoutingDecision { mode, complexity, intent, confidence, reason } => {
+                let badge = if complexity == "Deep" || mode.contains("DeepSearch") {
+                    "🧠 [ModelRouter: Deep Search]"
+                } else {
+                    "⚡ [ModelRouter: Fast RAG]"
+                };
+                let intent_display = match intent.as_str() {
+                    "code" => "Code & Syntax",
+                    "architecture" => "Architecture & Topology",
+                    "devops_infra" => "DevOps & Infrastructure",
+                    "data_schema" => "Data & Schema",
+                    "security_audit" => "Security & Audit",
+                    "document" => "Document & Business",
+                    _ => "General & Concepts",
+                };
+                self.current_thinking_buffer.push_str(&format!(
+                    "{} (Domain: {}, Conf: {:.0}%)\n• Reason: {}\n\n",
+                    badge, intent_display, confidence * 100.0, reason
+                ));
+            }
+            AgentEvent::Decomposition { sub_queries } => {
+                self.status = AppStatus::Thinking;
+                self.current_thinking_buffer.push_str("\n🌲 [Deep Search: Decomposing Query into Sub-Queries]:\n");
+                for (i, q) in sub_queries.iter().enumerate() {
+                    self.current_thinking_buffer.push_str(&format!("  {}. {}\n", i + 1, q));
+                }
+                self.current_thinking_buffer.push('\n');
+            }
+            AgentEvent::IterationStart { iteration, max_iterations } => {
+                self.status = AppStatus::Thinking;
+                self.current_thinking_buffer.push_str(&format!("🔄 [Deep Search Iteration {}/{}]: Batch Retrieval & Reflection...\n", iteration, max_iterations));
+            }
+            AgentEvent::GapAnalysis { is_sufficient, missing_aspects } => {
+                if is_sufficient {
+                    self.current_thinking_buffer.push_str("✔ [Evidence Sufficient]: Synthesizing grounded response with citations.\n\n");
+                } else {
+                    self.current_thinking_buffer.push_str(&format!("🔎 [Gap Analysis - Missing Aspects]: {}\n\n", missing_aspects.join(", ")));
+                }
+            }
             AgentEvent::Delta(token) => {
                 self.status = AppStatus::Streaming;
                 self.current_stream_buffer.push_str(&token);
@@ -756,7 +1189,6 @@ impl App {
                 self.is_generating = false;
                 self.status = AppStatus::Error(err);
             }
-            _ => {}
         }
     }
 

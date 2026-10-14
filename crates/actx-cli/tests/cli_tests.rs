@@ -101,13 +101,13 @@ async fn test_app_state_and_slash_dispatch() {
     assert_eq!(app.active_workspace, "test-workspace");
     assert_eq!(app.active_model, "gpt-4o-mini");
     assert_eq!(app.status, AppStatus::Idle);
-    assert!(app.accordion_open);
+    assert!(!app.accordion_open);
 
     // Toggle accordion
     app.toggle_accordion();
-    assert!(!app.accordion_open);
-    app.toggle_accordion();
     assert!(app.accordion_open);
+    app.toggle_accordion();
+    assert!(!app.accordion_open);
 
     // Typing and cursor
     app.insert_char('/');

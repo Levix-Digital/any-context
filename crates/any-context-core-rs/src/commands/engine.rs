@@ -39,6 +39,9 @@ impl CommandEngine {
             "search" | "search-mode" | "depth" | "sm" => {
                 Self::execute_search_mode(args, ctx)
             }
+            "router" | "routing" => {
+                Self::execute_router_status(args, ctx)
+            }
             "fast" => {
                 Self::execute_fast_shortcut(args, ctx)
             }
@@ -86,6 +89,9 @@ impl CommandEngine {
             }
             "model" | "models" | "m" | "list-models" | "model-list" => {
                 Self::execute_model(args, ctx)
+            }
+            "profile" | "profiles" | "preset" | "presets" => {
+                Self::execute_profile(args, ctx)
             }
             "inspect" | "chunks" | "lance" => {
                 Self::execute_inspect(args, ctx)
@@ -148,8 +154,8 @@ impl CommandEngine {
             "ocr" | "scan" => {
                 Self::execute_ocr()
             }
-            "shared" => {
-                Self::execute_shared(ctx)
+            "shared" | "shared-sources" => {
+                CommandResult::error("The '/shared' command and Shared Sources workspace have been deprecated in AnyContext v0.36.0. Workspaces are now strictly isolated environments.")
             }
             "help" | "commands" | "slash" => {
                 Self::execute_help()
@@ -229,7 +235,8 @@ impl CommandEngine {
         if let Some(arg) = search_arg {
             if arg == "--status" || arg == "--info" || arg == "-s" {
                 let curr = db
-                    .and_then(|d| d.get_setting("search_mode").ok().flatten())
+                    .as_ref()
+                    .and_then(|d| d.get_workspace_search_mode(&ctx.active_workspace).ok())
                     .unwrap_or_else(|| ctx.search_mode.clone());
                 return CommandResult::success(format!(
                     "🔍 Active Search Retrieval Depth for '{}': **{}**\n\n\
@@ -246,16 +253,24 @@ impl CommandEngine {
             if let Some(parsed) = SearchDepthMode::parse(arg) {
                 let valid_str = parsed.as_str();
                 if let Some(d) = &db {
-                    let _ = d.set_setting("search_mode", valid_str);
+                    let _ = d.set_workspace_search_mode(&ctx.active_workspace, valid_str);
                 }
                 let mut updates = CommandStateUpdates::default();
                 updates.search_mode = Some(valid_str.to_string());
 
+                let explanation = match parsed {
+                    SearchDepthMode::Auto => "• Autonomous ModelRouter: evaluates each prompt in sub-1ms and routes to Fast RAG or Deep Search.",
+                    SearchDepthMode::Fast => "• Fast RAG: forced single-turn low-latency hybrid retrieval (<50ms).",
+                    SearchDepthMode::Deep => "• Deep Search: forced multi-turn reflexive reasoning with orthogonal decomposition (RFC-042).",
+                };
+
                 CommandResult::success(format!(
                     "🔍 Search Depth Policy (Retrieval Depth) for '{}' set to: **{}**\n\
+                     {}\n\
                      • Agent RAG policy updated to {} retrieval mode.",
                     ctx.active_workspace,
                     valid_str.to_uppercase(),
+                    explanation,
                     valid_str.to_uppercase()
                 ))
                 .with_action(CommandAction::RebuildAgent)
@@ -275,6 +290,31 @@ impl CommandEngine {
             CommandResult::success("Opening search depth menu...")
                 .with_action(CommandAction::OpenMenu("search".to_string()))
         }
+    }
+
+    fn execute_router_status(_args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+        let db = NativeConfigDb::open_default().ok();
+        let curr = db
+            .as_ref()
+            .and_then(|d| d.get_workspace_search_mode(&ctx.active_workspace).ok())
+            .unwrap_or_else(|| "auto".to_string());
+
+        CommandResult::success(format!(
+            "🧭 Chat ModelRouter Status (Workspace '{}'):\n\
+             • Active Search Depth Policy: **{}**\n\
+             • Classifier: Deterministic Multilingual Semantic Classifier (<1µs on CPU)\n\
+             • Triage Engine: Fast RAG vs Deep Search (RFC-042)\n\
+             • Domain Intent Detection: Code, Architecture, Document, General\n\
+             • Routing SLA: Sub-1ms, zero token cost\n\
+             Usage:\n\
+             • `/search auto`: Enable autonomous query complexity routing.\n\
+             • `/search fast`: Force Fast RAG mode for all queries.\n\
+             • `/search deep`: Force Deep Search mode for all queries.\n\
+             • `/fast <query>`: Shortcut to run a single query in Fast RAG mode.\n\
+             • `/deep <query>`: Shortcut to run a single query in Deep Search mode.",
+            ctx.active_workspace,
+            curr.to_uppercase()
+        ))
     }
 
     fn execute_fast_shortcut(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
@@ -298,6 +338,94 @@ impl CommandEngine {
             CommandResult::success(format!("🧠 Deep Search Reflexive mode activated for query: '{}'", args.join(" ")))
                 .with_action(CommandAction::RebuildAgent)
                 .with_state_updates(updates)
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Hardware & Model Intelligence Profiles (Kit de Models - v0.37.0)
+    // -------------------------------------------------------------------------
+    fn execute_profile(args: &[&str], _ctx: &ExecutionContext) -> CommandResult {
+        let db = NativeConfigDb::open_default().ok();
+        let metrics = crate::hardware::HardwareProfiler::probe_system(None);
+        let evals = crate::hardware::HardwareProfiler::evaluate_profiles(&metrics);
+
+        if args.is_empty() {
+            let active_profile_str = db.as_ref()
+                .and_then(|d| d.get_setting("active_profile").ok().flatten())
+                .unwrap_or_else(|| {
+                    crate::hardware::HardwareProfiler::auto_select_recommended(&metrics).as_str().to_string()
+                });
+            let active_tier = crate::hardware::ProfileTier::parse_str(&active_profile_str)
+                .unwrap_or(crate::hardware::ProfileTier::SmartBalanced);
+
+            let mut msg = format!(
+                "🖥️ Hardware & Intelligence Profiles (Kit de Models):\n\
+                 • Detected Hardware: {:.1} GB RAM ({:.1} GB Available) │ {:.1} GB Free SSD ({} Cores)\n\
+                 • Active Profile:    {} (Current)\n\n\
+                 Available Profile Tiers:\n",
+                metrics.total_ram_gb(),
+                metrics.available_ram_gb(),
+                metrics.free_disk_gb(),
+                metrics.cpu_cores,
+                active_tier.display_name()
+            );
+
+            for e in &evals {
+                let marker = if e.tier == active_tier { " (active)" } else { "" };
+                let disk_mb = e.disk_required_bytes as f64 / (1024.0 * 1024.0);
+                let ram_mb = e.estimated_ram_bytes as f64 / (1024.0 * 1024.0);
+                msg.push_str(&format!(
+                    "  {} {} [Disk: {:.0} MB │ RAM: {:.0} MB]{}\n     ↳ {}\n",
+                    e.status.badge(),
+                    e.tier.as_str(),
+                    disk_mb,
+                    ram_mb,
+                    marker,
+                    e.headline
+                ));
+            }
+
+            msg.push_str("\nUsage: /profile <sovereign_ultra|workstation_pro|air_gapped_power|smart_balanced|lite>\nTip: Press [F1] -> Hardware Profiles to manage models interactively.");
+
+            return CommandResult::success(msg)
+                .with_action(CommandAction::OpenMenu("profiles".to_string()));
+        }
+
+        let requested = args[0].trim();
+        if let Some(tier) = crate::hardware::ProfileTier::parse_str(requested) {
+            if let Some(ref d) = db {
+                let _ = d.set_setting("active_profile", tier.as_str());
+            }
+
+            let eval = evals.iter().find(|e| e.tier == tier);
+            let badge = eval.map(|e| e.status.badge()).unwrap_or("🟢");
+            let reason = eval.map(|e| e.reason.as_str()).unwrap_or("");
+
+            CommandResult::success(format!(
+                "✔ Switched active intelligence profile to '{}' {}.\n\
+                 • Description: {}\n\
+                 • Hardware Status: {}\n\
+                 • Target Suite: {:?}\n\n\
+                 Tip: Run `/status` to inspect active runtime telemetry.",
+                tier.display_name(),
+                badge,
+                eval.map(|e| e.headline.as_str()).unwrap_or(""),
+                reason,
+                tier.target_models()
+            ))
+            .with_action(CommandAction::RebuildAgent)
+        } else {
+            CommandResult::error(format!(
+                "Invalid profile tier '{}'.\n\
+                 Available options:\n\
+                 • `sovereign_ultra`  (or `sovereign`): Gemma 4 32B + Full Document AI (~19.2 GB disk, 64GB+ RAM)\n\
+                 • `workstation_pro`  (or `workstation`): Gemma 4 27B + Full Document AI (~15.7 GB disk, 32GB RAM)\n\
+                 • `air_gapped_power` (or `airgapped`): Gemma 4 12B + Full Document AI (~7.9 GB disk, 16GB RAM)\n\
+                 • `smart_balanced`   (or `balanced`): Gemma 4 Compact + Essential Document AI (~1.7 GB disk, 8GB RAM)\n\
+                 • `lite`             (or `cloud`): Pure Rust heuristics & Cloud APIs (0 MB disk, <45 MB RAM)\n\n\
+                 Usage: /profile <sovereign_ultra|workstation_pro|air_gapped_power|smart_balanced|lite>",
+                requested
+            ))
         }
     }
 
@@ -415,6 +543,9 @@ impl CommandEngine {
             }
             if let Ok(web) = db.get_workspace_web_search(&target_ws) {
                 updates.web_search_enabled = Some(web);
+            }
+            if let Ok(search) = db.get_workspace_search_mode(&target_ws) {
+                updates.search_mode = Some(search);
             }
 
             CommandResult::success(format!("Switched active workspace to: **{}**", target_ws))
@@ -721,24 +852,67 @@ impl CommandEngine {
             Err(e) => return CommandResult::error(format!("Failed to open config database: {}", e)),
         };
 
+        // Subcommand: /sources rename <number_or_name> <new_display_name>
+        if args[0].eq_ignore_ascii_case("rename") {
+            if args.len() < 3 {
+                return CommandResult::error("Usage: /sources rename <number_id_or_name> <new_display_name>");
+            }
+
+            let (target_ident, new_name): (String, String) = if args.len() == 3 {
+                (args[1].trim().trim_matches('"').to_string(), args[2].trim().trim_matches('"').to_string())
+            } else if args[1].parse::<usize>().is_ok() {
+                (args[1].trim().to_string(), args[2..].join(" ").trim().trim_matches('"').to_string())
+            } else {
+                let rest = args[1..].join(" ");
+                let rest_trimmed = rest.trim();
+                if rest_trimmed.starts_with('"') {
+                    if let Some(end_quote) = rest_trimmed[1..].find('"') {
+                        let ident = rest_trimmed[1..1 + end_quote].trim().to_string();
+                        let remainder = rest_trimmed[1 + end_quote + 1..].trim().trim_matches('"').to_string();
+                        (ident, remainder)
+                    } else {
+                        (args[1].trim().trim_matches('"').to_string(), args[2..].join(" ").trim().trim_matches('"').to_string())
+                    }
+                } else {
+                    (args[1].trim().trim_matches('"').to_string(), args[2..].join(" ").trim().trim_matches('"').to_string())
+                }
+            };
+
+            if new_name.is_empty() {
+                return CommandResult::error("Usage: /sources rename <number_id_or_name> <new_display_name>");
+            }
+
+            match db.rename_workspace_source(&ctx.active_workspace, &target_ident, &new_name) {
+                Ok(true) => {
+                    return CommandResult::success(format!(
+                        "✔ Source '{}' renamed to '{}'.\n  Workspace: {}\n  Chunks impacted in LanceDB: 0 (Decoupled relational alias)",
+                        target_ident, new_name, ctx.active_workspace
+                    ));
+                }
+                Ok(false) => {
+                    return CommandResult::error(format!(
+                        "⚠️ Source '{}' not found in workspace '{}'.\nTip: Run `/sources` to list registered source numbers and names.",
+                        target_ident, ctx.active_workspace
+                    ));
+                }
+                Err(e) => return CommandResult::error(format!("Failed to rename source: {}", e)),
+            }
+        }
+
         let is_all = args.iter().any(|a| *a == "--all" || *a == "-a" || *a == "all");
         if is_all {
             let ws_names = db.list_workspace_names().unwrap_or_else(|_| vec![ctx.active_workspace.clone()]);
             let mut msg = format!("📂 All Configured Workspaces & Sources ({} workspaces):\n\n", ws_names.len());
             for ws in &ws_names {
-                let folders = db.get_workspace_folders(ws).unwrap_or_default();
-                let urls = db.get_workspace_web_urls(ws).unwrap_or_default();
-                let total = folders.len() + urls.len();
+                let sources = db.list_workspace_sources(ws).unwrap_or_default();
                 let is_active = ws.eq_ignore_ascii_case(&ctx.active_workspace);
                 let active_tag = if is_active { " (active)" } else { "" };
-                msg.push_str(&format!("• Workspace '{}'{} - {} source(s):\n", ws, active_tag, total));
-                for f in &folders {
-                    msg.push_str(&format!("  📁 {}\n", f));
+                msg.push_str(&format!("• Workspace '{}'{} - {} source(s):\n", ws, active_tag, sources.len()));
+                for (idx, s) in sources.iter().enumerate() {
+                    let icon = if s.source_type == "folder" { "📁" } else { "🌐" };
+                    msg.push_str(&format!("  {}. {} {} ({})\n", idx + 1, icon, s.display_name, s.raw_target));
                 }
-                for u in &urls {
-                    msg.push_str(&format!("  🌐 {}\n", u));
-                }
-                if total == 0 {
+                if sources.is_empty() {
                     msg.push_str("  (no sources registered)\n");
                 }
                 msg.push('\n');
@@ -746,25 +920,30 @@ impl CommandEngine {
             return CommandResult::success(msg);
         }
 
-        let folders = db.get_workspace_folders(&ctx.active_workspace).unwrap_or_default();
-        let web_sources = db.get_workspace_web_urls(&ctx.active_workspace).unwrap_or_default();
+        let sources = db.list_workspace_sources(&ctx.active_workspace).unwrap_or_default();
+        let folders: Vec<_> = sources.iter().filter(|s| s.source_type == "folder").collect();
+        let urls: Vec<_> = sources.iter().filter(|s| s.source_type == "web_url").collect();
 
         let mut out = format!("📂 Data Sources configured for workspace '{}':\n", ctx.active_workspace);
         out.push_str("📁 Local Folders:\n");
         if folders.is_empty() {
             out.push_str("  (none configured. Use `/folder --add <path>` or `/folder <path>`)\n");
         } else {
-            for f in &folders {
-                out.push_str(&format!("  • {}\n", f));
+            for (idx, f) in folders.iter().enumerate() {
+                out.push_str(&format!("  {}. 📁 {} ({})\n", idx + 1, f.display_name, f.raw_target));
             }
         }
         out.push_str("\n🌐 Web Documentation Portals:\n");
-        if web_sources.is_empty() {
+        if urls.is_empty() {
             out.push_str("  (none configured. Use `/web --add <url>` or `/web <url>`)\n");
         } else {
-            for w in &web_sources {
-                out.push_str(&format!("  • {}\n", w));
+            for (idx, u) in urls.iter().enumerate() {
+                let num = folders.len() + idx + 1;
+                out.push_str(&format!("  {}. 🌐 {} ({})\n", num, u.display_name, u.raw_target));
             }
+        }
+        if !sources.is_empty() {
+            out.push_str("\n💡 Tip: Use `/sources rename <number_or_name> <new_name>` to customize display aliases ($0.00 cost, 0 vector chunks rewritten).");
         }
         CommandResult::success(out)
     }
@@ -793,10 +972,20 @@ impl CommandEngine {
             if args.len() < 2 {
                 return CommandResult::error("❌ Specify folder path: `/folder --remove <path>`");
             }
-            let path_str = args[1..].join(" ");
-            match db.remove_workspace_folder(&ctx.active_workspace, &path_str) {
-                Ok(true) => CommandResult::success(format!("📁 Removed folder from workspace '{}':\n  {}", ctx.active_workspace, path_str)),
-                Ok(false) => CommandResult::error(format!("⚠️ Folder '{}' was not attached to workspace '{}'.", path_str, ctx.active_workspace)),
+            let raw_path = args[1..].join(" ");
+            let clean_path = raw_path.trim().trim_matches('\'').trim_matches('"');
+            let path = Path::new(clean_path);
+            let canonical_str = path.canonicalize()
+                .map(|p| p.to_string_lossy().trim_start_matches(r"\\?\").to_string())
+                .unwrap_or_else(|_| clean_path.to_string());
+
+            let mut removed = db.remove_workspace_folder(&ctx.active_workspace, &canonical_str);
+            if removed.as_ref().ok() != Some(&true) && canonical_str != clean_path {
+                removed = db.remove_workspace_folder(&ctx.active_workspace, clean_path);
+            }
+            match removed {
+                Ok(true) => CommandResult::success(format!("📁 Removed folder from workspace '{}':\n  {}", ctx.active_workspace, clean_path)),
+                Ok(false) => CommandResult::error(format!("⚠️ Folder '{}' was not attached to workspace '{}'.", clean_path, ctx.active_workspace)),
                 Err(e) => CommandResult::error(format!("❌ Error removing folder: {}", e)),
             }
         } else {
@@ -811,17 +1000,23 @@ impl CommandEngine {
             let path_str = path_parts.join(" ");
             let clean_path_str = path_str.trim().trim_matches('\'').trim_matches('"');
             let path = Path::new(clean_path_str);
-            if !path.exists() {
+            let (path_buf, was_healed) = if path.exists() {
+                (path.to_path_buf(), false)
+            } else if let Some(healed) = crate::storage::try_heal_path(path) {
+                (healed, true)
+            } else {
                 return CommandResult::error(format!("❌ Directory does not exist: {}", clean_path_str));
-            }
-            let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+            };
+            let canonical = path_buf.canonicalize().unwrap_or_else(|_| path_buf.clone());
             let canonical_str = canonical.to_string_lossy().to_string();
             let clean_canonical_str = canonical_str.trim_start_matches(r"\\?\").to_string();
 
             match db.add_workspace_folder(&ctx.active_workspace, &clean_canonical_str) {
                 Ok(_) => {
                     let mut msg = format!("📁 Added folder to workspace '{}':\n  {}", ctx.active_workspace, clean_canonical_str);
-                    if clean_path_str == "." {
+                    if was_healed {
+                        msg.push_str(&format!(" (🔄 auto-resolved from '{}')", clean_path_str));
+                    } else if clean_path_str == "." {
                         msg.push_str(" (resolved from current working directory)");
                     }
                     match Self::spawn_sync_worker(&ctx.active_workspace, false, Some(&clean_canonical_str)) {
@@ -1102,7 +1297,24 @@ impl CommandEngine {
         let mut updates = CommandStateUpdates::default();
         updates.active_model = Some(target.to_string());
 
-        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**", ctx.active_workspace, target))
+        let extra_note = if target.starts_with("gemma-4") || target.starts_with("gemma") {
+            let tier_opt = actx_onnx::GemmaModelTier::from_model_name(target);
+            if let Some(tier) = tier_opt {
+                let models_dir = crate::storage::get_default_models_dir();
+                let model_file = models_dir.join(tier.expected_filename());
+                if model_file.exists() {
+                    " [Local ONNX: Ready]"
+                } else {
+                    " [Local ONNX: Weights not installed - fallback active]"
+                }
+            } else {
+                ""
+            }
+        } else {
+            ""
+        };
+
+        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**{}", ctx.active_workspace, target, extra_note))
             .with_action(CommandAction::RebuildAgent)
             .with_state_updates(updates)
     }
@@ -1110,19 +1322,26 @@ impl CommandEngine {
     fn execute_models_catalog(_args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         let models_text = format!(
             "🤖 Supported AI Providers & Models (Current: **{}**):\n\n\
+             🧠 Local ONNX Neural Brain (Gemma 4 Family):\n\
+             • gemma-4-compact    - Edge Mobility SLM (8GB RAM, ~2.5GB Peak)\n\
+             • gemma-4-12b        - Developer Sweet Spot (16GB RAM, ~10GB Peak)\n\
+             • gemma-4-27b        - Workstation High-Reasoning (32GB RAM, ~18.5GB Peak)\n\
+             • gemma-4-32b        - Sovereign Frontier LLM (64GB RAM, ~25.5GB Peak)\n\n\
              ⭐ Cloud Giants (Tier 1):\n\
+             • gemini-3.8-flash   - Google Ultra-low latency and multimodality\n\
+             • gemini-1.5-pro     - Google 2M Token Ultra-Long Context\n\
              • gpt-4o             - OpenAI Flagship Omnimodal\n\
              • gpt-4o-mini        - OpenAI Fast & Lightweight (Default)\n\
              • claude-3-5-sonnet  - Anthropic SOTA Code & Reasoning\n\
-             • gemini-1.5-pro     - Google 2M Token Ultra-Long Context\n\
-             • gemini-1.5-flash   - Google Sub-Second High Speed\n\n\
+             • claude-3-5-haiku   - Anthropic Ultra-Fast & Efficient\n\n\
              ⚡ High-Speed Open Inference:\n\
              • groq/llama-3.3-70b - Groq LPUs (500+ tok/s)\n\
              • deepseek-chat      - DeepSeek V3\n\
              • deepseek-reasoner  - DeepSeek R1 Thinking\n\n\
              🔒 100% Local & Free:\n\
              • local/ollama       - Ollama (http://localhost:11434/v1)\n\
-             • local/lm-studio    - LM Studio (http://localhost:1234/v1)\n\n\
+             • local/lm-studio    - LM Studio (http://localhost:1234/v1)\n\
+             • mock               - Instant Offline Simulation\n\n\
              Usage: /model <model_name>",
             ctx.active_model
         );
@@ -1174,11 +1393,12 @@ impl CommandEngine {
             return CommandResult::success(lines.join("\n"));
         }
 
+        let ws_clean = ctx.active_workspace.replace('\'', "''");
         let where_clause = if let Some(q) = filter_query {
             let clean_q = q.replace('\'', "''");
-            format!("(content_type LIKE '%{clean_q}%' OR file_name LIKE '%{clean_q}%' OR file_path LIKE '%{clean_q}%' OR text LIKE '%{clean_q}%')")
+            format!("workspace = '{ws_clean}' AND (content_type LIKE '%{clean_q}%' OR file_name LIKE '%{clean_q}%' OR file_path LIKE '%{clean_q}%' OR text LIKE '%{clean_q}%')")
         } else {
-            "length(text) > 0".to_string()
+            format!("workspace = '{ws_clean}' AND length(text) > 0")
         };
 
         let samples = lance.search_metadata(&where_clause, limit.max(20), Some(&ctx.active_workspace), None).unwrap_or_default();
@@ -1250,24 +1470,64 @@ impl CommandEngine {
             .and_then(|l| l.count_records(Some(&ctx.active_workspace), None).ok())
             .unwrap_or(0);
 
+        let model_summary = crate::ingestion::OnnxModelManager::inspect_store();
+        let (classifier_name, classifier_desc, _) = crate::ingestion::OnnxModelManager::active_ingestion_classifier();
+        let (scanned_name, scanned_desc, _) = crate::ingestion::OnnxModelManager::active_scanned_classifier();
+        let (vision_name, vision_desc, _) = crate::ingestion::OnnxModelManager::active_vision_state();
+        let mb_on_disk = model_summary.total_bytes_on_disk as f64 / (1024.0 * 1024.0);
+
+        let metrics = crate::hardware::HardwareProfiler::probe_system(None);
+        let evals = crate::hardware::HardwareProfiler::evaluate_profiles(&metrics);
+        let active_profile_str = db.as_ref()
+            .and_then(|d| d.get_setting("active_profile").ok().flatten())
+            .unwrap_or_else(|| {
+                crate::hardware::HardwareProfiler::auto_select_recommended(&metrics).as_str().to_string()
+            });
+        let active_tier = crate::hardware::ProfileTier::parse_str(&active_profile_str)
+            .unwrap_or(crate::hardware::ProfileTier::SmartBalanced);
+        let active_eval = evals.iter().find(|e| e.tier == active_tier);
+        let sema_badge = active_eval.map(|e| e.status.badge()).unwrap_or("🟢");
+
         CommandResult::success(format!(
             "📊 AnyContext Native Core Operational Status:\n\
-             • Workspace:      {} (Total workspaces: {})\n\
-             • Target Model:   {}\n\
-             • Grounding:      {}\n\
-             • Search Depth:   {}\n\
-             • Web Search:     {}\n\
-             • Local Folders:  {} attached\n\
-             • Vector Chunks:  {} indexed (LanceDB)\n\
-             • Health:         ● HEALTHY & READY",
+             • Workspace:        {} (Total workspaces: {})\n\
+             • Target Model:     {}\n\
+             • Grounding:        {}\n\
+             • Search Depth:     {}\n\
+             • Active Profile:   {} (Readiness: {})\n\
+             • Hardware Metrics: {:.1} GB RAM ({:.1} GB Avail) │ {:.1} GB Free Disk ({} Cores)\n\
+             • Web Search:       {}\n\
+             • Local Folders:    {} attached\n\
+             • Vector Chunks:    {} indexed (LanceDB)\n\
+             • Local AI Models:\n\
+               - Ingestion Classifier: {} [{}]\n\
+               - Scanned Classifier:   {} [{}]\n\
+               - Document Vision:      {} [{}]\n\
+               - Models Directory:     {} ({} models / {:.1} MB)\n\
+             • Health:           ● HEALTHY & READY",
             ctx.active_workspace,
             ws_count,
             ctx.active_model,
             ctx.grounding_mode.to_uppercase(),
             ctx.search_mode.to_uppercase(),
+            active_tier.display_name(),
+            sema_badge,
+            metrics.total_ram_gb(),
+            metrics.available_ram_gb(),
+            metrics.free_disk_gb(),
+            metrics.cpu_cores,
             if ctx.web_search_enabled { "ON" } else { "OFF" },
             folders_count,
-            chunks_count
+            chunks_count,
+            classifier_name,
+            classifier_desc,
+            scanned_name,
+            scanned_desc,
+            vision_name,
+            vision_desc,
+            model_summary.models_dir.display(),
+            model_summary.installed_count,
+            mb_on_disk
         ))
     }
 
@@ -1480,7 +1740,6 @@ impl CommandEngine {
     }
 
     fn execute_update(args: &[&str]) -> CommandResult {
-        let canonical_bin = actx_installer::get_canonical_bin_dir();
         let target_ver = args.iter().find_map(|a| {
             let clean = a.trim();
             if clean.is_empty() || clean == "--check" || clean == "-c" {
@@ -1495,30 +1754,29 @@ impl CommandEngine {
                 Some(clean.trim_start_matches('@'))
             }
         });
+
+        let target_hint = if let Some(v) = target_ver {
+            format!("@{}", v)
+        } else {
+            String::new()
+        };
+
         actx_installer::log_update_event(
             "INFO",
-            &format!(
-                "CommandEngine /update invoked: target_ver={:?}, canonical_bin={}",
-                target_ver,
-                canonical_bin.display()
-            ),
+            &format!("CommandEngine /update guidance issued for target: '{}'", target_hint),
         );
-        match actx_installer::execute_standalone_update(&canonical_bin, target_ver) {
-            Ok(msg) => {
-                actx_installer::log_update_event("SUCCESS", &format!("CommandEngine update succeeded: {}", msg));
-                CommandResult::success(format!(
-                    "✨ {}\n\n[>] Please exit and restart 'actx' to load the new version.",
-                    msg
-                ))
-            }
-            Err(e) => {
-                actx_installer::log_update_event("ERROR", &format!("CommandEngine update failed: {}", e));
-                CommandResult::error(format!(
-                    "❌ Update failed: {}\nRun 'actx --update' directly in the terminal to inspect network or permission details.",
-                    e
-                ))
-            }
-        }
+
+        CommandResult::success(format!(
+            "💡 **Safe AnyContext Update**:\n\n\
+             To update the binary safely without file locks or terminal corruption:\n\
+             1. Exit the current chat session (press `Esc` or type `/quit`)\n\
+             2. In your OS terminal shell, run:\n\
+                ```\n\
+                actx --update{}\n\
+                ```\n\n\
+             This process downloads the official release, verifies integrity, and performs atomic binary replacement.",
+            target_hint
+        ))
     }
 
     fn execute_help() -> CommandResult {
@@ -1778,15 +2036,5 @@ Available Commands (UI-Agnostic Engine):
             "🔎 OCR Engine Status: Native Rust Image Metadata & Tesseract Pipeline Operational.\n\
              High-speed OCR parsing is active for scanned PDF and image context.".to_string()
         )
-    }
-
-    fn execute_shared(ctx: &ExecutionContext) -> CommandResult {
-        CommandResult::success(format!(
-            "🌐 Shared Reusable Sources in AnyContext:\n\
-             • Workspace: {}\n\
-             • Shared Sources: No external shared links configured.\n\
-             Tip: Use '/link <source> <target_workspace>' to share folders across workspaces.",
-            ctx.active_workspace
-        ))
     }
 }

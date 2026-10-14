@@ -17,6 +17,92 @@ use crate::retrieval::query::QueryPreprocessor;
 use crate::retrieval::token_budget::estimate_token_count;
 use actx_lm::traits::LmProvider;
 
+/// Preset profiles for hybrid retrieval and RAG candidate boundaries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RetrievalPreset {
+    Turbo,
+    Balanced,
+    Deep,
+}
+
+impl Default for RetrievalPreset {
+    fn default() -> Self {
+        Self::Balanced
+    }
+}
+
+impl RetrievalPreset {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().trim() {
+            "turbo" | "fast" => Self::Turbo,
+            "deep" | "deep_research" | "research" => Self::Deep,
+            _ => Self::Balanced,
+        }
+    }
+
+    pub fn candidate_pool_k(&self) -> usize {
+        match self {
+            Self::Turbo => 50,
+            Self::Balanced => 100,
+            Self::Deep => 150,
+        }
+    }
+
+    pub fn top_k(&self) -> usize {
+        match self {
+            Self::Turbo => 10,
+            Self::Balanced => 20,
+            Self::Deep => 40,
+        }
+    }
+
+    pub fn min_score(&self) -> f64 {
+        match self {
+            Self::Turbo => 0.012,
+            Self::Balanced => 0.008,
+            Self::Deep => 0.005,
+        }
+    }
+
+    pub fn max_chunks_per_source(&self) -> usize {
+        match self {
+            Self::Turbo => 2,
+            Self::Balanced => 3,
+            Self::Deep => 5,
+        }
+    }
+
+    pub fn max_density_chars(&self) -> usize {
+        match self {
+            Self::Turbo => 20_000,
+            Self::Balanced => 40_000,
+            Self::Deep => 60_000,
+        }
+    }
+
+    pub fn rrf_k(&self) -> usize {
+        60
+    }
+
+    pub fn build_request(&self, query_text: impl Into<String>, workspace: Option<String>) -> HybridSearchRequest {
+        HybridSearchRequest {
+            sub_query_id: None,
+            query_text: query_text.into(),
+            query_vector: None,
+            workspace,
+            target_workspaces: Vec::new(),
+            linked_sources: Vec::new(),
+            top_k: self.top_k(),
+            candidate_pool_k: self.candidate_pool_k(),
+            min_score: self.min_score(),
+            max_chunks_per_source: self.max_chunks_per_source(),
+            max_density_chars: self.max_density_chars(),
+            table_name: "workspace_chunks".to_string(),
+            rrf_k: self.rrf_k(),
+        }
+    }
+}
+
 /// Request payload for native hybrid retrieval.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HybridSearchRequest {
@@ -33,6 +119,12 @@ pub struct HybridSearchRequest {
     pub max_density_chars: usize,
     pub table_name: String,
     pub rrf_k: usize,
+}
+
+impl HybridSearchRequest {
+    pub fn from_preset(preset: RetrievalPreset, query_text: impl Into<String>, workspace: Option<String>) -> Self {
+        preset.build_request(query_text, workspace)
+    }
 }
 
 impl Default for HybridSearchRequest {
@@ -70,6 +162,7 @@ pub struct HybridSearchResult {
     pub sparse_score: Option<f32>,
     pub token_count: usize,
     pub matched_subqueries: Vec<String>,
+    pub last_modified: Option<String>,
 }
 
 /// Unified Native Hybrid Retrieval and Reranking Pipeline.
@@ -164,12 +257,13 @@ impl NativeHybridPipeline {
         file_path: String,
         workspace: String,
         content_type: String,
+        last_modified: Option<String>,
     ) {
         // Ensure index is loaded
         let _ = self.get_or_load_bm25(table_name);
         let mut writer = self.bm25_indices.write().unwrap();
         if let Some(idx) = writer.get_mut(table_name) {
-            idx.add_chunk(id, text, file_name, file_path, workspace, content_type);
+            idx.add_chunk(id, text, file_name, file_path, workspace, content_type, last_modified);
         }
     }
 
@@ -364,44 +458,6 @@ impl NativeHybridPipeline {
                     }
                 }
             }
-
-            // Linked shared sources search
-            if !req.linked_sources.is_empty() {
-                let clauses: Vec<String> = req
-                    .linked_sources
-                    .iter()
-                    .map(|l| format!("file_path LIKE '%{l}%'"))
-                    .collect();
-                let filter_expr = clauses.join(" OR ");
-                if let Ok(matches) = self
-                    .lance_store
-                    .search_vector_async(
-                        q_vec.clone(),
-                        req.candidate_pool_k * 2,
-                        None,
-                        Some(&filter_expr),
-                        Some(&req.table_name),
-                    )
-                    .await
-                {
-                    for sc in matches {
-                        let cid = if !sc.id.is_empty() {
-                            sc.id.clone()
-                        } else {
-                            format!(
-                                "{}::{}",
-                                sc.file_path,
-                                &sc.text.chars().take(80).collect::<String>()
-                            )
-                        };
-                        if let Some(existing) = raw_candidates_map.get_mut(&cid) {
-                            existing.score = existing.score.max(sc.score);
-                        } else {
-                            raw_candidates_map.insert(cid, sc);
-                        }
-                    }
-                }
-            }
         }
 
         // 7. Order dense candidates
@@ -442,7 +498,7 @@ impl NativeHybridPipeline {
             let dense_entry = dense_map.remove(&chunk_id);
             let sparse_score = sparse_score_map.get(&chunk_id).copied();
 
-            let (file_name, file_path, workspace, text, content_type, content_hash, dense_score) =
+            let (file_name, file_path, workspace, text, content_type, content_hash, dense_score, last_modified) =
                 if let Some(ref d) = dense_entry {
                     (
                         d.file_name.clone(),
@@ -452,6 +508,7 @@ impl NativeHybridPipeline {
                         d.content_type.clone().unwrap_or_else(|| "Local Document".to_string()),
                         d.content_hash.clone().unwrap_or_default(),
                         Some(d.score),
+                        d.last_modified.clone(),
                     )
                 } else if let Some(doc) = bm25_index.get_doc_by_id(&chunk_id) {
                     (
@@ -462,21 +519,43 @@ impl NativeHybridPipeline {
                         doc.content_type.clone(),
                         String::new(),
                         None,
+                        doc.last_modified.clone(),
                     )
                 } else {
                     continue;
                 };
 
-            let token_count = estimate_token_count(&text);
+            let clear_text = if text.starts_with("enc::") {
+                let sec = crate::security::NativeSecurityEngine::get_instance();
+                sec.decrypt_text(&text)
+            } else {
+                text
+            };
+
+            let token_count = estimate_token_count(&clear_text);
             let is_guaranteed = guaranteed_file_cids.contains(&chunk_id);
-            let final_score = if is_guaranteed { 1.0 } else { res.score };
+
+            // Subtle recency boost: recent chunks receive a micro-boost to cleanly break score ties
+            let recency_boost = if let Some(ref lm) = last_modified {
+                if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(lm) {
+                    let now = chrono::Utc::now();
+                    let days_old = (now - dt.with_timezone(&chrono::Utc)).num_days().max(0) as f64;
+                    0.01 / (1.0 + (days_old / 30.0))
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            };
+
+            let final_score = if is_guaranteed { 1.0 } else { res.score + recency_boost };
 
             results.push(HybridSearchResult {
                 chunk_id,
                 file_name,
                 file_path,
                 workspace,
-                text,
+                text: clear_text,
                 content_type,
                 content_hash,
                 score: final_score,
@@ -484,6 +563,7 @@ impl NativeHybridPipeline {
                 sparse_score,
                 token_count,
                 matched_subqueries: vec![sub_query_tag.clone()],
+                last_modified,
             });
         }
 
@@ -707,6 +787,7 @@ mod tests {
             "/src/retrieval/pipeline.rs".to_string(),
             "Default".to_string(),
             "Local Document".to_string(),
+            Some("2026-10-10T12:00:00Z".to_string()),
         );
 
         let bm25 = p.get_or_load_bm25("workspace_chunks");
@@ -728,6 +809,7 @@ mod tests {
             "/src/auth.rs".to_string(),
             "Default".to_string(),
             "Local Document".to_string(),
+            Some("2026-10-10T12:00:00Z".to_string()),
         );
 
         pipeline.add_chunk_to_bm25(
@@ -738,6 +820,7 @@ mod tests {
             "/src/db.rs".to_string(),
             "Default".to_string(),
             "Local Document".to_string(),
+            Some("2026-10-09T10:00:00Z".to_string()),
         );
 
         let req1 = HybridSearchRequest {
@@ -764,5 +847,26 @@ mod tests {
         assert!(top_match.matched_subqueries.contains(&"sub-2".to_string()));
 
         let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_retrieval_presets() {
+        let p_turbo = RetrievalPreset::from_str("turbo");
+        assert_eq!(p_turbo, RetrievalPreset::Turbo);
+        assert_eq!(p_turbo.top_k(), 10);
+        assert_eq!(p_turbo.candidate_pool_k(), 50);
+
+        let p_deep = RetrievalPreset::from_str("deep_research");
+        assert_eq!(p_deep, RetrievalPreset::Deep);
+        assert_eq!(p_deep.top_k(), 40);
+        assert_eq!(p_deep.candidate_pool_k(), 150);
+
+        let p_bal = RetrievalPreset::from_str("other");
+        assert_eq!(p_bal, RetrievalPreset::Balanced);
+
+        let req = HybridSearchRequest::from_preset(p_turbo, "auth logic", Some("Security".to_string()));
+        assert_eq!(req.top_k, 10);
+        assert_eq!(req.candidate_pool_k, 50);
+        assert_eq!(req.workspace.as_deref(), Some("Security"));
     }
 }

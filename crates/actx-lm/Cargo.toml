@@ -1,6 +1,6 @@
 [package]
 name = "actx-lm"
-version = "0.32.19"
+version = "0.39.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Universal, lightweight, and modular Language Model (LLM & SLM) façade and streaming provider engine for Rust"
@@ -15,6 +15,7 @@ futures = "0.3"
 async-trait = "0.1"
 thiserror = "2.0"
 bytes = "1.7"
+actx-onnx = { path = "../actx-onnx" }
 
 [dev-dependencies]
 tokio = { version = "1.40", features = ["rt-multi-thread", "macros"] }

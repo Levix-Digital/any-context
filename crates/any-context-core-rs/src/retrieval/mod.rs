@@ -6,6 +6,7 @@ pub mod hybrid;
 pub mod query;
 pub mod token_budget;
 pub mod pipeline;
+pub mod web_search;
 
 pub use tokenizer::tokenize;
 pub use bm25::{BM25Index, DocRecord, Posting};
@@ -14,4 +15,5 @@ pub use diversifier::{RankedChunk, apply_source_diversification, apply_density_b
 pub use hybrid::HybridRetrieverEngine;
 pub use query::{QueryPreprocessor, ProcessedQuery, extract_temporal_clauses_native, expand_query_temporal_native, extract_filename_mentions_native};
 pub use token_budget::{estimate_token_count, truncate_to_token_ceiling, get_embedding_token_limit_rs};
-pub use pipeline::{NativeHybridPipeline, HybridSearchRequest, HybridSearchResult};
+pub use pipeline::{NativeHybridPipeline, HybridSearchRequest, HybridSearchResult, RetrievalPreset};
+pub use web_search::{NativeWebSearchEngine, WebSearchResult, parse_duckduckgo_html};

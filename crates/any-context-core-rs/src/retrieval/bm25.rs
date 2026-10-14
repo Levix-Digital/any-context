@@ -20,6 +20,7 @@ pub struct DocRecord {
     pub workspace: String,
     pub content_type: String,
     pub token_count: u32,
+    pub last_modified: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +62,7 @@ impl BM25Index {
         file_path: String,
         workspace: String,
         content_type: String,
+        last_modified: Option<String>,
     ) {
         // If document already exists, remove it first to allow clean update
         if self.doc_id_to_idx.contains_key(&id) {
@@ -79,6 +81,7 @@ impl BM25Index {
             workspace,
             content_type,
             token_count,
+            last_modified,
         });
         self.doc_id_to_idx.insert(id, doc_idx);
 
@@ -358,6 +361,7 @@ mod tests {
             ".env".to_string(),
             "Default".to_string(),
             "Configuration / Env".to_string(),
+            Some("2026-10-10T12:00:00Z".to_string()),
         );
 
         index.add_chunk(
@@ -367,6 +371,7 @@ mod tests {
             "readme.md".to_string(),
             "Default".to_string(),
             "Markdown Document".to_string(),
+            None,
         );
 
         // Search for exact technical term
@@ -387,6 +392,7 @@ mod tests {
             "deploy.sh".to_string(),
             "WorkspaceA".to_string(),
             "Shell Script".to_string(),
+            None,
         );
 
         index.add_chunk(
@@ -396,6 +402,7 @@ mod tests {
             "deploy.sh".to_string(),
             "WorkspaceB".to_string(),
             "Shell Script".to_string(),
+            None,
         );
 
         let res_a = index.search("server", 5, Some("WorkspaceA"));
@@ -417,6 +424,7 @@ mod tests {
             "Dockerfile".to_string(),
             "Default".to_string(),
             "Container / Build Definition".to_string(),
+            None,
         );
 
         let tmp_path = std::env::temp_dir().join("bm25_test_index.bin");
