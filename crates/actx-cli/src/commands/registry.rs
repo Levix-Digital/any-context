@@ -58,6 +58,20 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         category: "Engine",
     },
     SlashCommand {
+        name: "profile",
+        aliases: &["profiles"],
+        description: "Inspects or switches hardware profile tier (sovereign_ultra, workstation_pro, etc.)",
+        usage: "/profile [tier]",
+        category: "Engine",
+    },
+    SlashCommand {
+        name: "preset",
+        aliases: &["presets", "kit", "kits"],
+        description: "Applies smart workspace preset (offline, balanced, frontier, privacy)",
+        usage: "/preset [offline|balanced|frontier|privacy]",
+        category: "Workspace",
+    },
+    SlashCommand {
         name: "sources",
         aliases: &["source", "list-sources", "src"],
         description: "Lists and manages indexed local folders and web documentation sources",

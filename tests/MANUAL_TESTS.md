@@ -6889,3 +6889,93 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
    - **Critérios de Aceitação**:
      - A consulta `/fast` executa em turno único imediato com badge `⚡ [ModelRouter: Fast RAG]`.
      - A consulta `/deep` inicia o ciclo reflexivo com decomposição em sub-tarefas e badge `🧠 [ModelRouter: Deep Search]`.
+
+---
+
+### 📌 Cenário 40: Ativação Operacional do Gemma 4 Local ONNX, Guardrails de Hardware Estilo LM Studio e Presets Seguros de Workspace (v0.40.0):
+- **Objetivo**: Comprovar que na versão `v0.40.0`:
+  1. A infraestrutura neural local do Gemma 4 ONNX está operacionalmente conectada ao motor de inferência do CLI (`resolve_lm_provider`) com resolução canônica de pesos em `%LOCALAPPDATA%/actx/models/`.
+  2. Guardrails de Hardware Ativos (Estilo LM Studio) operam em tempo real (<5ms): modelos locais que excedem a capacidade de memória física da máquina são rigorosamente bloqueados por padrão contra Out-Of-Memory (OOM) e swap thrashing, permitindo override apenas mediante a flag explícita `--force` (`/model gemma-4-32b --force`).
+  3. O menu interativo de modelos da TUI (`[F1]` ou `/model`) exibe badges visuais com semáforo de memória (`🟢 [Compatível]`, `🟡 [Risco de Swap]`, `🔴 [Hardware Insuficiente - Exige X GB]`).
+  4. O comando `/preset` (alias `/kit`) configura de forma atômica e segura os modos de operação do workspace (`offline`, `balanced`, `frontier`, `privacy`), selecionando automaticamente o maior modelo local seguro para a máquina detectada sem riscos de travamento.
+  5. A soberania de escolha do usuário é preservada de forma inviolável: a escolha do modelo é estática durante a conversa, sem trocas dinâmicas arbitrárias de modelo por turno, mantendo a triagem inteligente focada exclusivamente na profundidade do RAG (`Fast RAG` vs `Deep Search`).
+  6. Em caso de ausência dos arquivos de pesos ONNX (garantia ADR-110), a execução é degradada graciosamente para fallback simulado/mock seguro com zero interrupção ou panic.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **🛡️ Teste de Guardrails de Hardware no Comando `/model` (LM Studio Style):**
+   - Inicie o AnyContext:
+     ```text
+     actx
+     ```
+   - Em uma máquina com memória RAM inferior a 44 GB (ex: 8GB, 16GB ou 32GB), tente selecionar o modelo frontier local de 32B:
+     ```text
+     /model gemma-4-32b
+     ```
+   - **Critérios de Aceitação**:
+     - O sistema **bloqueia** a seleção com mensagem defensiva enfática:
+       `❌ [Hardware Warning - LM Studio Style]`
+     - O erro informa a RAM exigida (~25.5 GB), a RAM total e disponível detectadas na máquina, o risco de OOM / congelamento do SO por swap thrashing, e sugere o modelo local seguro recomendado (ex: `gemma-4-12b` ou `gemma-4-compact`).
+     - O erro instrui claramente como forçar a execução se desejado: `/model gemma-4-32b --force`.
+
+2. **⚠️ Teste de Override Explícito com `--force`:**
+   - Execute o comando de seleção forçada:
+     ```text
+     /model gemma-4-32b --force
+     ```
+   - **Critérios de Aceitação**:
+     - O comando aplica a seleção do modelo no workspace.
+     - É exibido aviso em amarelo demarcando o override forçado:
+       `🤖 Active language model for 'Default' set to: gemma-4-32b ⚠️ [Hardware Warning: Overridden via --force on ...GB RAM]`.
+
+3. **🎛️ Teste do Menu Interativo de Modelos na TUI (Badges de Semáforo):**
+   - Abra o menu de modelos digitando `/model` sem argumentos ou pressionando `[F1]` -> `AI Models & LLM Providers`.
+   - Navegue pela lista de modelos com as setas do teclado.
+   - **Critérios de Aceitação**:
+     - Cada modelo da família Gemma 4 exibe o ícone de semáforo correspondente à RAM física da máquina:
+       - Modelos confortáveis exibem `🟢` e badge `[🟢 Compatível]`.
+       - Modelos no limite da RAM disponível exibem `🟡` e badge `[🟡 Risco de Swap]`.
+       - Modelos que excedem a RAM física exibem `🔴` e badge `[🔴 Hardware Insuficiente - Exige X GB]`.
+     - Modelos de nuvem permanecem desimpedidos com ícone `🤖`.
+
+4. **🔒 Teste de Presets de Workspace (`/preset` ou `/kit`):**
+   - Teste a ajuda contextual dos presets:
+     ```text
+     /preset
+     ```
+     *Deve listar `offline`, `balanced`, `frontier`, `privacy` e indicar o modelo local seguro calculado para a máquina.*
+   - Aplique o preset offline:
+     ```text
+     /preset offline
+     ```
+     *Critérios de Aceitação*:
+     - Modos reconfigurados atomicamente: Modelo local seguro (🟢), Grounding `Strict`, Web Search `Disabled` e Search Depth `Fast`.
+     - Custo de tokens reportado como `$0.00 / Zero Network Leaks`.
+   - Aplique o preset equilibrado:
+     ```text
+     /preset balanced
+     ```
+     *Critérios de Aceitação*:
+     - Modelo configurado para `gpt-4o-mini`, Grounding `Hybrid`, Web Search `Enabled` e Search Depth `Auto`.
+   - Aplique o preset frontier:
+     ```text
+     /preset frontier
+     ```
+     *Critérios de Aceitação*:
+     - Modelo configurado para `claude-3-7-sonnet`, Grounding `Proactive`, Web Search `Enabled` e Search Depth `Deep`.
+   - Teste o alias `/kit`:
+     ```text
+     /kit privacy
+     ```
+     *Critérios de Aceitação*:
+     - Opera exatamente como `/preset privacy`, configurando modelo seguro local, modo strict e web search desativada.
+
+5. **⚡ Teste de Execução e Fallback Seguro (ADR-110 Zero Breakage):**
+   - Com o preset offline ativo, envie uma mensagem de chat:
+     ```text
+     Explique o conceito de indexação vetorial com RAG
+     ```
+   - **Critérios de Aceitação**:
+     - Se os pesos ONNX estiverem presentes em `%LOCALAPPDATA%/actx/models/`, a inferência neural executa localmente.
+     - Se os pesos ONNX ainda não tiverem sido baixados pelo instalador, a camada de fallback ADR-110 entra em ação de forma resiliente, gerando resposta sem provocar panic, queda do binário ou erros de conexão à nuvem.
+

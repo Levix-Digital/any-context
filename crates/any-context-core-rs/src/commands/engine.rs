@@ -90,8 +90,11 @@ impl CommandEngine {
             "model" | "models" | "m" | "list-models" | "model-list" => {
                 Self::execute_model(args, ctx)
             }
-            "profile" | "profiles" | "preset" | "presets" => {
+            "profile" | "profiles" => {
                 Self::execute_profile(args, ctx)
+            }
+            "preset" | "presets" | "kit" | "kits" => {
+                Self::execute_preset(args, ctx)
             }
             "inspect" | "chunks" | "lance" => {
                 Self::execute_inspect(args, ctx)
@@ -1289,10 +1292,52 @@ impl CommandEngine {
             return Self::execute_models_catalog(args, ctx);
         }
 
-        let target = args[0].trim();
+        let force = args.iter().any(|a| *a == "--force" || *a == "-f");
+        let non_flag_args: Vec<&str> = args.iter().copied().filter(|a| !a.starts_with('-')).collect();
+        let target = match non_flag_args.first() {
+            Some(t) => t.trim(),
+            None => {
+                return CommandResult::error("Please specify a model name. Example: /model gemma-4-12b");
+            }
+        };
+
+        // Guardrail de Hardware (LM Studio style)
+        let metrics = crate::hardware::HardwareProfiler::probe_system(None);
+        let safety = crate::hardware::HardwareProfiler::validate_model_safety(target, &metrics);
+
+        let hardware_badge = match &safety {
+            crate::hardware::HardwareSafetyVerdict::Unsafe { required_ram_gb, total_ram_gb, recommended_model, .. } => {
+                if !force {
+                    return CommandResult::error(format!(
+                        "❌ [Hardware Warning - LM Studio Style]\n\
+                         The local model '{}' requires ~{:.1} GB of RAM.\n\
+                         Your system has {:.1} GB total RAM ({:.1} GB available).\n\
+                         Loading this model will likely trigger severe OS swap thrashing, terminal freezing, or Out-Of-Memory (OOM) termination.\n\n\
+                         💡 Recommended safe local model for your hardware: '{}'\n\
+                         To proceed anyway at your own risk, execute:\n\
+                         /model {} --force",
+                        target, required_ram_gb, total_ram_gb, metrics.available_ram_gb(), recommended_model, target
+                    ));
+                } else {
+                    format!(" ⚠️ [Hardware Warning: Overridden via --force on {:.1}GB RAM]", total_ram_gb)
+                }
+            }
+            crate::hardware::HardwareSafetyVerdict::Tight { required_ram_gb, available_ram_gb, .. } => {
+                format!(" 🟡 [Hardware Notice: Tight memory margin - requires ~{:.1}GB, {:.1}GB free]", required_ram_gb, available_ram_gb)
+            }
+            crate::hardware::HardwareSafetyVerdict::Safe { .. } => {
+                if target.starts_with("gemma-4") || target.starts_with("gemma") {
+                    " 🟢 [Hardware Compatible]".to_string()
+                } else {
+                    String::new()
+                }
+            }
+        };
+
         let db = NativeConfigDb::open_default().ok();
         if let Some(d) = &db {
             let _ = d.set_setting("active_model", target);
+            let _ = d.set_workspace_model(&ctx.active_workspace, target);
         }
         let mut updates = CommandStateUpdates::default();
         updates.active_model = Some(target.to_string());
@@ -1314,9 +1359,148 @@ impl CommandEngine {
             ""
         };
 
-        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**{}", ctx.active_workspace, target, extra_note))
+        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**{}{}", ctx.active_workspace, target, extra_note, hardware_badge))
             .with_action(CommandAction::RebuildAgent)
             .with_state_updates(updates)
+    }
+
+    fn execute_preset(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+        let db = NativeConfigDb::open_default().ok();
+        let metrics = crate::hardware::HardwareProfiler::probe_system(None);
+        let rec_gemma = crate::hardware::HardwareProfiler::recommended_local_gemma(&metrics);
+
+        if args.is_empty() {
+            let msg = format!(
+                "🎛️ Workspace Intelligence & Operational Presets:\n\n\
+                 • offline   - 100% On-Device, zero cloud calls, zero token cost.\n\
+                               ↳ Sets model to '{}' (recommended for your {:.1}GB RAM), strict grounding, web-search off.\n\
+                 • balanced  - Balanced cost-performance cloud reasoning.\n\
+                               ↳ Sets model to 'gpt-4o-mini', hybrid grounding, auto search depth, web-search on.\n\
+                 • frontier  - Maximum analytical reasoning and architecture synthesis.\n\
+                               ↳ Sets model to 'claude-3-7-sonnet', proactive grounding, deep search, web-search on.\n\
+                 • privacy   - Corporate air-gapped data isolation.\n\
+                               ↳ Sets model to '{}', strict grounding, web-search off.\n\n\
+                 Usage: /preset <offline|balanced|frontier|privacy>\n\
+                 Alias: /kit <name>",
+                rec_gemma,
+                metrics.total_ram_gb(),
+                rec_gemma
+            );
+            return CommandResult::success(msg);
+        }
+
+        let choice = args[0].trim().to_lowercase();
+
+        match choice.as_str() {
+            "offline" | "local" => {
+                if let Some(ref d) = db {
+                    let _ = d.set_workspace_model(&ctx.active_workspace, rec_gemma);
+                    let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, "strict");
+                    let _ = d.set_workspace_web_search(&ctx.active_workspace, false);
+                    let _ = d.set_workspace_search_mode(&ctx.active_workspace, "fast");
+                    let _ = d.set_setting("active_model", rec_gemma);
+                }
+                let mut updates = CommandStateUpdates::default();
+                updates.active_model = Some(rec_gemma.to_string());
+                updates.grounding_mode = Some("strict".to_string());
+                updates.web_search_enabled = Some(false);
+                updates.search_mode = Some("fast".to_string());
+
+                CommandResult::success(format!(
+                    "🔒 Switched workspace '{}' to **Offline-Local-Free** preset:\n\
+                     • Model:          {} 🟢 (safe for your {:.1}GB RAM)\n\
+                     • Grounding Mode: Strict\n\
+                     • Web Search:     Disabled (Air-Gapped)\n\
+                     • Token Cost:     $0.00 / Zero Network Leaks",
+                    ctx.active_workspace, rec_gemma, metrics.total_ram_gb()
+                ))
+                .with_action(CommandAction::RebuildAgent)
+                .with_state_updates(updates)
+            }
+            "balanced" | "hybrid" => {
+                let model = "gpt-4o-mini";
+                if let Some(ref d) = db {
+                    let _ = d.set_workspace_model(&ctx.active_workspace, model);
+                    let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, "hybrid");
+                    let _ = d.set_workspace_web_search(&ctx.active_workspace, true);
+                    let _ = d.set_workspace_search_mode(&ctx.active_workspace, "auto");
+                    let _ = d.set_setting("active_model", model);
+                }
+                let mut updates = CommandStateUpdates::default();
+                updates.active_model = Some(model.to_string());
+                updates.grounding_mode = Some("hybrid".to_string());
+                updates.web_search_enabled = Some(true);
+                updates.search_mode = Some("auto".to_string());
+
+                CommandResult::success(format!(
+                    "⚡ Switched workspace '{}' to **Hybrid-Balanced** preset:\n\
+                     • Model:          {}\n\
+                     • Grounding Mode: Hybrid\n\
+                     • Search Depth:   Auto (Fast RAG / Deep Search)\n\
+                     • Web Search:     Enabled",
+                    ctx.active_workspace, model
+                ))
+                .with_action(CommandAction::RebuildAgent)
+                .with_state_updates(updates)
+            }
+            "frontier" | "max" | "power" => {
+                let model = "claude-3-7-sonnet";
+                if let Some(ref d) = db {
+                    let _ = d.set_workspace_model(&ctx.active_workspace, model);
+                    let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, "proactive");
+                    let _ = d.set_workspace_web_search(&ctx.active_workspace, true);
+                    let _ = d.set_workspace_search_mode(&ctx.active_workspace, "deep");
+                    let _ = d.set_setting("active_model", model);
+                }
+                let mut updates = CommandStateUpdates::default();
+                updates.active_model = Some(model.to_string());
+                updates.grounding_mode = Some("proactive".to_string());
+                updates.web_search_enabled = Some(true);
+                updates.search_mode = Some("deep".to_string());
+
+                CommandResult::success(format!(
+                    "👑 Switched workspace '{}' to **Maximum-Frontier** preset:\n\
+                     • Model:          {}\n\
+                     • Grounding Mode: Proactive\n\
+                     • Search Depth:   Deep Search\n\
+                     • Web Search:     Enabled",
+                    ctx.active_workspace, model
+                ))
+                .with_action(CommandAction::RebuildAgent)
+                .with_state_updates(updates)
+            }
+            "privacy" | "enterprise" => {
+                if let Some(ref d) = db {
+                    let _ = d.set_workspace_model(&ctx.active_workspace, rec_gemma);
+                    let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, "strict");
+                    let _ = d.set_workspace_web_search(&ctx.active_workspace, false);
+                    let _ = d.set_workspace_search_mode(&ctx.active_workspace, "fast");
+                    let _ = d.set_setting("active_model", rec_gemma);
+                }
+                let mut updates = CommandStateUpdates::default();
+                updates.active_model = Some(rec_gemma.to_string());
+                updates.grounding_mode = Some("strict".to_string());
+                updates.web_search_enabled = Some(false);
+                updates.search_mode = Some("fast".to_string());
+
+                CommandResult::success(format!(
+                    "🛡️ Switched workspace '{}' to **Enterprise-Privacy** preset:\n\
+                     • Model:          {} 🟢\n\
+                     • Grounding Mode: Strict\n\
+                     • Web Search:     Disabled (Zero Outbound Network)\n\
+                     • Telemetry:      Isolated",
+                    ctx.active_workspace, rec_gemma
+                ))
+                .with_action(CommandAction::RebuildAgent)
+                .with_state_updates(updates)
+            }
+            _ => {
+                CommandResult::error(format!(
+                    "Invalid preset '{}'. Available presets: offline, balanced, frontier, privacy.\nExample: /preset offline",
+                    choice
+                ))
+            }
+        }
     }
 
     fn execute_models_catalog(_args: &[&str], ctx: &ExecutionContext) -> CommandResult {

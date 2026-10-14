@@ -512,5 +512,96 @@ fn test_profile_command_and_hardware_status() {
     assert!(res_status.message.contains("Hardware Metrics:"));
 }
 
+#[test]
+fn test_model_command_hardware_guardrail_and_force() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ws_name = format!("GuardrailWS_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+    let ctx = ExecutionContext {
+        active_workspace: ws_name.clone(),
+        ..Default::default()
+    };
+
+    // 1. Cloud model always succeeds without guardrail block
+    let res_cloud = CommandEngine::execute("model", &["gpt-4o-mini"], &ctx);
+    assert!(res_cloud.success);
+    assert!(res_cloud.message.contains("gpt-4o-mini"));
+
+    // 2. Test gemma-4-32b:
+    // If the machine has < 44GB RAM, it should block without --force, and succeed with --force
+    let metrics = any_context_core_rs::hardware::HardwareProfiler::probe_system(None);
+    if metrics.total_ram_gb() < 44.0 {
+        let res_block = CommandEngine::execute("model", &["gemma-4-32b"], &ctx);
+        assert!(!res_block.success, "Should block gemma-4-32b without --force on <44GB RAM");
+        assert!(res_block.message.contains("Hardware Warning - LM Studio Style"));
+        assert!(res_block.message.contains("--force"));
+
+        // With --force, override succeeds
+        let res_forced = CommandEngine::execute("model", &["gemma-4-32b", "--force"], &ctx);
+        assert!(res_forced.success, "Should succeed with --force");
+        assert!(res_forced.message.contains("gemma-4-32b"));
+        assert!(res_forced.message.contains("Hardware Warning: Overridden"));
+    }
+
+    // 3. Compact should be safe on any system with >= 4GB RAM
+    if metrics.total_ram_gb() >= 4.0 {
+        let res_compact = CommandEngine::execute("model", &["gemma-4-compact"], &ctx);
+        assert!(res_compact.success);
+        assert!(res_compact.message.contains("gemma-4-compact"));
+    }
+}
+
+#[test]
+fn test_preset_command_execution() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ws_name = format!("PresetWS_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+    let ctx = ExecutionContext {
+        active_workspace: ws_name.clone(),
+        ..Default::default()
+    };
+
+    // 1. /preset without args displays available presets
+    let res_info = CommandEngine::execute("preset", &[], &ctx);
+    assert!(res_info.success);
+    assert!(res_info.message.contains("Workspace Intelligence & Operational Presets"));
+    assert!(res_info.message.contains("offline"));
+    assert!(res_info.message.contains("balanced"));
+    assert!(res_info.message.contains("frontier"));
+    assert!(res_info.message.contains("privacy"));
+
+    // 2. /preset offline sets safe local model and air-gapped settings
+    let res_off = CommandEngine::execute("preset", &["offline"], &ctx);
+    assert!(res_off.success);
+    assert!(res_off.message.contains("Offline-Local-Free"));
+    assert_eq!(res_off.state_updates.web_search_enabled, Some(false));
+    assert_eq!(res_off.state_updates.grounding_mode, Some("strict".to_string()));
+    assert_eq!(res_off.state_updates.search_mode, Some("fast".to_string()));
+
+    // 3. /preset balanced sets gpt-4o-mini and hybrid settings
+    let res_bal = CommandEngine::execute("preset", &["balanced"], &ctx);
+    assert!(res_bal.success);
+    assert!(res_bal.message.contains("Hybrid-Balanced"));
+    assert_eq!(res_bal.state_updates.active_model, Some("gpt-4o-mini".to_string()));
+    assert_eq!(res_bal.state_updates.grounding_mode, Some("hybrid".to_string()));
+    assert_eq!(res_bal.state_updates.web_search_enabled, Some(true));
+    assert_eq!(res_bal.state_updates.search_mode, Some("auto".to_string()));
+
+    // 4. /preset frontier sets claude-3-7-sonnet and proactive settings
+    let res_front = CommandEngine::execute("preset", &["frontier"], &ctx);
+    assert!(res_front.success);
+    assert!(res_front.message.contains("Maximum-Frontier"));
+    assert_eq!(res_front.state_updates.active_model, Some("claude-3-7-sonnet".to_string()));
+    assert_eq!(res_front.state_updates.grounding_mode, Some("proactive".to_string()));
+    assert_eq!(res_front.state_updates.web_search_enabled, Some(true));
+    assert_eq!(res_front.state_updates.search_mode, Some("deep".to_string()));
+
+    // 5. /kit alias works identical to /preset
+    let res_alias = CommandEngine::execute("kit", &["privacy"], &ctx);
+    assert!(res_alias.success);
+    assert!(res_alias.message.contains("Enterprise-Privacy"));
+    assert_eq!(res_alias.state_updates.web_search_enabled, Some(false));
+    assert_eq!(res_alias.state_updates.grounding_mode, Some("strict".to_string()));
+    assert_eq!(res_alias.state_updates.search_mode, Some("fast".to_string()));
+}
+
 
 

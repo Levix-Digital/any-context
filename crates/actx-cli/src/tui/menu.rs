@@ -441,6 +441,7 @@ pub fn build_workspaces_menu(active_workspace: &str) -> Vec<MenuItem> {
 
 pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
     let models_dir = any_context_core_rs::storage::get_default_models_dir();
+    let metrics = any_context_core_rs::hardware::HardwareProfiler::probe_system(None);
 
     let models = &[
         // Local ONNX Brain (Gemma 4 Family)
@@ -466,15 +467,31 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
         .iter()
         .map(|(m, desc)| {
             let is_active = m.eq_ignore_ascii_case(active_model);
-            let is_gemma = m.starts_with("gemma-4");
+            let is_gemma = m.starts_with("gemma-4") || m.starts_with("gemma");
+            let safety = any_context_core_rs::hardware::HardwareProfiler::validate_model_safety(m, &metrics);
+
             let badge = if is_active {
                 if is_gemma {
                     let tier = actx_onnx::GemmaModelTier::from_model_name(m);
                     let ready = tier.map(|t| models_dir.join(t.expected_filename()).exists()).unwrap_or(false);
-                    if ready {
-                        Some("[Active / ONNX Ready]".to_string())
-                    } else {
-                        Some("[Active / Fallback]".to_string())
+                    match safety {
+                        any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => {
+                            if ready {
+                                Some("[Active 🟢 Compatível / Pronto]".to_string())
+                            } else {
+                                Some("[Active 🟢 Compatível / Fallback]".to_string())
+                            }
+                        }
+                        any_context_core_rs::hardware::HardwareSafetyVerdict::Tight { .. } => {
+                            if ready {
+                                Some("[Active 🟡 Risco de Swap / Pronto]".to_string())
+                            } else {
+                                Some("[Active 🟡 Risco de Swap / Fallback]".to_string())
+                            }
+                        }
+                        any_context_core_rs::hardware::HardwareSafetyVerdict::Unsafe { required_ram_gb, total_ram_gb, .. } => {
+                            Some(format!("[Active 🔴 Excede RAM ({:.0}G/{:.0}G)]", required_ram_gb, total_ram_gb))
+                        }
                     }
                 } else {
                     Some("[Active]".to_string())
@@ -482,17 +499,35 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
             } else if is_gemma {
                 let tier = actx_onnx::GemmaModelTier::from_model_name(m);
                 let ready = tier.map(|t| models_dir.join(t.expected_filename()).exists()).unwrap_or(false);
-                if ready {
-                    Some("[Local Ready]".to_string())
-                } else {
-                    Some("[Not Installed]".to_string())
+                match safety {
+                    any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => {
+                        if ready {
+                            Some("[🟢 Compatível]".to_string())
+                        } else {
+                            Some("[🟢 Compatível (Instalar)]".to_string())
+                        }
+                    }
+                    any_context_core_rs::hardware::HardwareSafetyVerdict::Tight { .. } => {
+                        if ready {
+                            Some("[🟡 Risco de Swap]".to_string())
+                        } else {
+                            Some("[🟡 Risco de Swap (Instalar)]".to_string())
+                        }
+                    }
+                    any_context_core_rs::hardware::HardwareSafetyVerdict::Unsafe { required_ram_gb, .. } => {
+                        Some(format!("[🔴 Hardware Insuficiente - Exige {:.0}GB]", required_ram_gb))
+                    }
                 }
             } else {
                 None
             };
 
             let icon = if is_gemma {
-                "🧠".to_string()
+                match safety {
+                    any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => "🟢",
+                    any_context_core_rs::hardware::HardwareSafetyVerdict::Tight { .. } => "🟡",
+                    any_context_core_rs::hardware::HardwareSafetyVerdict::Unsafe { .. } => "🔴",
+                }.to_string()
             } else {
                 "🤖".to_string()
             };
