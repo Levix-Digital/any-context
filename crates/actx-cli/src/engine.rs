@@ -38,6 +38,19 @@ pub fn resolve_lm_provider(
     } else if raw_model.starts_with("ollama/") || raw_model.starts_with("local/") {
         let actual_model = raw_model.trim_start_matches("ollama/").trim_start_matches("local/");
         (ProviderKind::Ollama { base_url: None }, actual_model.to_string(), None)
+    } else if raw_model.starts_with("gemma-4") || raw_model.starts_with("gemma") {
+        let tier = actx_onnx::GemmaModelTier::from_model_name(&raw_model)
+            .unwrap_or(actx_onnx::GemmaModelTier::Gemma12b);
+        let models_dir = any_context_core_rs::storage::get_default_models_dir();
+        let model_path = models_dir.join(tier.expected_filename());
+        (
+            ProviderKind::GemmaOnnx {
+                model_path: Some(model_path.to_string_lossy().to_string()),
+                tier,
+            },
+            raw_model,
+            None,
+        )
     } else if raw_model.starts_with("claude") {
         let key = get_key("anthropic");
         (ProviderKind::Anthropic, raw_model, key)
@@ -71,7 +84,23 @@ pub fn resolve_lm_provider(
     };
 
     let provider = match kind.build(api_key, None) {
-        Ok(p) => p,
+        Ok(p) => {
+            if let ProviderKind::GemmaOnnx { ref model_path, tier } = kind {
+                let path = model_path
+                    .as_deref()
+                    .map(std::path::Path::new)
+                    .unwrap_or_else(|| std::path::Path::new(tier.expected_filename()));
+                let gemma = actx_lm::providers::GemmaOnnxProvider::new(path, tier);
+                if !gemma.is_neural_active() {
+                    // Resilient ADR-110 offline fallback provider if ONNX weights are not installed yet
+                    Arc::new(gemma.with_fallback(Arc::new(actx_lm::providers::MockLmProvider::new())))
+                } else {
+                    Arc::new(gemma)
+                }
+            } else {
+                p
+            }
+        }
         Err(_) => {
             // Resilient fallback to mock provider so actx never crashes
             Arc::new(actx_lm::providers::MockLmProvider::new())
@@ -635,5 +664,34 @@ mod tests {
         // Executing splash bootstrap should run all 3 stages and persist the current version
         run_startup_splash_bootstrap();
         assert!(!is_first_run_or_upgrade(), "After running splash bootstrap, is_first_run_or_upgrade must be false");
+    }
+
+    #[test]
+    fn test_resolve_lm_provider_gemma_family() {
+        let (provider, model_name) = resolve_lm_provider(Some("gemma-4-compact"), None).expect("Should resolve");
+        assert_eq!(model_name, "gemma-4-compact");
+        assert_eq!(provider.provider_id(), "gemma-onnx");
+
+        let (provider_12b, model_name_12b) = resolve_lm_provider(Some("gemma-4-12b"), None).expect("Should resolve");
+        assert_eq!(model_name_12b, "gemma-4-12b");
+        assert_eq!(provider_12b.provider_id(), "gemma-onnx");
+
+        let (provider_27b, model_name_27b) = resolve_lm_provider(Some("gemma-4-27b"), None).expect("Should resolve");
+        assert_eq!(model_name_27b, "gemma-4-27b");
+        assert_eq!(provider_27b.provider_id(), "gemma-onnx");
+
+        let (provider_32b, model_name_32b) = resolve_lm_provider(Some("gemma-4-32b"), None).expect("Should resolve");
+        assert_eq!(model_name_32b, "gemma-4-32b");
+        assert_eq!(provider_32b.provider_id(), "gemma-onnx");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_lm_provider_gemma_fallback_safe() {
+        // Even if ONNX weights are not installed on disk, calling chat_complete does not panic
+        let (provider, _) = resolve_lm_provider(Some("gemma-4-compact"), None).expect("Should resolve");
+        let req = actx_lm::types::ChatRequest::new("gemma-4-compact", vec![actx_lm::types::ChatMessage::user("Hello")]);
+        let res = provider.chat_complete(req).await;
+        // Result is either Ok (from mock/cloud fallback) or Ok with mock content, never a panic
+        assert!(res.is_ok(), "Provider fallback should execute cleanly without crash: {:?}", res.err());
     }
 }

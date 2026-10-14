@@ -148,6 +148,50 @@ pub struct ProfileEvaluation {
     pub reason: String,
 }
 
+/// Safety verdict for running a specific model on the physical hardware (LM Studio style).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HardwareSafetyVerdict {
+    /// Safe (🟢): Fits comfortably in physical memory with ample OS headroom.
+    Safe {
+        model_name: String,
+        required_ram_gb: f32,
+        total_ram_gb: f32,
+    },
+    /// Tight (🟡): Viable, but high memory pressure. May swap if heavy background apps are open.
+    Tight {
+        model_name: String,
+        required_ram_gb: f32,
+        total_ram_gb: f32,
+        available_ram_gb: f32,
+    },
+    /// Unsafe (🔴): Exceeds physical RAM! Running this model will trigger severe swap thrashing, system freezing, or OOM kill.
+    Unsafe {
+        model_name: String,
+        required_ram_gb: f32,
+        total_ram_gb: f32,
+        recommended_model: String,
+    },
+}
+
+impl HardwareSafetyVerdict {
+    pub fn is_safe(&self) -> bool {
+        matches!(self, Self::Safe { .. })
+    }
+
+    pub fn is_unsafe(&self) -> bool {
+        matches!(self, Self::Unsafe { .. })
+    }
+
+    pub fn status(&self) -> SemaphoreStatus {
+        match self {
+            Self::Safe { .. } => SemaphoreStatus::Green,
+            Self::Tight { .. } => SemaphoreStatus::Yellow,
+            Self::Unsafe { .. } => SemaphoreStatus::Red,
+        }
+    }
+}
+
 /// System physical metrics probed at runtime or install time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
@@ -303,6 +347,137 @@ impl HardwareProfiler {
         }
         ProfileTier::Lite
     }
+
+    /// Returns the recommended local Gemma 4 model for the current hardware metrics.
+    pub fn recommended_local_gemma(metrics: &SystemMetrics) -> &'static str {
+        let total = metrics.total_ram_gb();
+        let avail = metrics.available_ram_gb();
+
+        if total >= 56.0 || avail >= 30.0 {
+            "gemma-4-32b"
+        } else if total >= 28.0 || avail >= 16.0 {
+            "gemma-4-27b"
+        } else if total >= 14.0 || avail >= 6.5 {
+            "gemma-4-12b"
+        } else {
+            "gemma-4-compact"
+        }
+    }
+
+    /// Evaluates if a given model is safe to run on the system (LM Studio style).
+    /// Cloud models are always Safe. Local models are validated against physical RAM.
+    pub fn validate_model_safety(model_name: &str, metrics: &SystemMetrics) -> HardwareSafetyVerdict {
+        let clean = model_name.trim().to_lowercase();
+        let is_gemma = clean.starts_with("gemma-4") || clean.starts_with("gemma");
+
+        if !is_gemma {
+            return HardwareSafetyVerdict::Safe {
+                model_name: model_name.to_string(),
+                required_ram_gb: 0.05,
+                total_ram_gb: metrics.total_ram_gb() as f32,
+            };
+        }
+
+        let total = metrics.total_ram_gb() as f32;
+        let avail = metrics.available_ram_gb() as f32;
+        let recommended = Self::recommended_local_gemma(metrics).to_string();
+
+        if clean.contains("32b") || clean.contains("32") {
+            let required = 25.5f32;
+            if total < 44.0 {
+                HardwareSafetyVerdict::Unsafe {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                    recommended_model: recommended,
+                }
+            } else if avail < 22.0 {
+                HardwareSafetyVerdict::Tight {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                    available_ram_gb: avail,
+                }
+            } else {
+                HardwareSafetyVerdict::Safe {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                }
+            }
+        } else if clean.contains("27b") || clean.contains("27") {
+            let required = 18.5f32;
+            if total < 22.0 {
+                HardwareSafetyVerdict::Unsafe {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                    recommended_model: recommended,
+                }
+            } else if avail < 15.0 {
+                HardwareSafetyVerdict::Tight {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                    available_ram_gb: avail,
+                }
+            } else {
+                HardwareSafetyVerdict::Safe {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                }
+            }
+        } else if clean.contains("12b") || clean.contains("12") {
+            let required = 10.0f32;
+            if total < 12.0 {
+                HardwareSafetyVerdict::Unsafe {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                    recommended_model: recommended,
+                }
+            } else if avail < 6.0 {
+                HardwareSafetyVerdict::Tight {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                    available_ram_gb: avail,
+                }
+            } else {
+                HardwareSafetyVerdict::Safe {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                }
+            }
+        } else {
+            // Compact (~2.5 GB RAM)
+            let required = 2.5f32;
+            if total < 4.0 {
+                HardwareSafetyVerdict::Unsafe {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                    recommended_model: "lite / cloud".to_string(),
+                }
+            } else if avail < 1.8 {
+                HardwareSafetyVerdict::Tight {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                    available_ram_gb: avail,
+                }
+            } else {
+                HardwareSafetyVerdict::Safe {
+                    model_name: model_name.to_string(),
+                    required_ram_gb: required,
+                    total_ram_gb: total,
+                }
+            }
+        }
+    }
+
 
     // --- Private OS Probers ---
 
@@ -471,4 +646,36 @@ mod tests {
         };
         assert_eq!(HardwareProfiler::auto_select_recommended(&low_metrics), ProfileTier::Lite);
     }
+
+    #[test]
+    fn test_validate_model_safety() {
+        let metrics_16gb = SystemMetrics {
+            total_ram_bytes: 16 * 1024 * 1024 * 1024,
+            available_ram_bytes: 8 * 1024 * 1024 * 1024,
+            free_disk_bytes: 40 * 1024 * 1024 * 1024,
+            cpu_cores: 8,
+            target_drive_path: PathBuf::from("."),
+        };
+
+        // Cloud models always Safe
+        let v_cloud = HardwareProfiler::validate_model_safety("claude-3-5-sonnet", &metrics_16gb);
+        assert!(v_cloud.is_safe());
+
+        // Gemma 4 12B is Safe on 16GB
+        let v_12b = HardwareProfiler::validate_model_safety("gemma-4-12b", &metrics_16gb);
+        assert!(v_12b.is_safe());
+
+        // Gemma 4 27B and 32B are Unsafe on 16GB
+        let v_27b = HardwareProfiler::validate_model_safety("gemma-4-27b", &metrics_16gb);
+        assert!(v_27b.is_unsafe());
+
+        let v_32b = HardwareProfiler::validate_model_safety("gemma-4-32b", &metrics_16gb);
+        assert!(v_32b.is_unsafe());
+        if let HardwareSafetyVerdict::Unsafe { recommended_model, .. } = v_32b {
+            assert_eq!(recommended_model, "gemma-4-12b");
+        } else {
+            panic!("Expected Unsafe verdict");
+        }
+    }
 }
+

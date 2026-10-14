@@ -542,7 +542,7 @@ impl App {
                 "sync", "sources", "models", "keys", "history", "billing",
                 "reset-memory", "paste", "check-update", "ocr", "shared",
                 "help", "info", "inspect", "onboarding", "switch", "model",
-                "mode", "source", "workspace", "search"
+                "mode", "source", "workspace", "search", "preset", "kit", "profile"
             ];
 
             if execute_if_zero_args && zero_arg_commands.contains(&name) {

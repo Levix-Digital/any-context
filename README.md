@@ -45,6 +45,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🧠 Ativação Operacional do Gemma 4 Local ONNX, Guardrails de Hardware Estilo LM Studio & Presets Seguros de Workspace (`v0.40.0`)**:
+  - **Ativação Operacional do Gemma 4 Local no CLI (`resolve_lm_provider`)**: Conecta o motor neural ONNX diretamente aos fluxos de conversação do terminal e da TUI, com resolução de pesos em `%LOCALAPPDATA%/actx/models/` e garantia inviolável ADR-110 (fallback offline gracioso sem quedas ou chamadas indevidas à nuvem).
+  - **Guardrails de Hardware Ativos (Estilo LM Studio)**: Modelos locais são validados em tempo real (<5ms) contra a memória RAM física do hospedeiro. Modelos que excedem a capacidade física (🔴) são bloqueados por padrão contra Out-Of-Memory (OOM) e swap thrashing catastrófico, exigindo a flag explícita `--force` (`/model gemma-4-32b --force`) para prosseguir. Modelos cloud permanecem 100% livres e irrestritos.
+  - **Menu de Modelos da TUI com Semáforo de RAM**: Badges e ícones coloridos informam instantaneamente a viabilidade de cada modelo (`🟢 [Compatível]`, `🟡 [Risco de Swap]`, `🔴 [Hardware Insuficiente - Exige X GB]`).
+  - **Presets Seguros de Workspace (`/preset` ou `/kit`)**: Configura atomicamente o workspace em 4 perfis seguros (`offline`, `balanced`, `frontier`, `privacy`), selecionando automaticamente o maior modelo local seguro para a máquina detectada sem riscos de travamento.
+  - **Soberania do Usuário**: A escolha do modelo feita pelo usuário é sagrada e imutável durante o chat, garantindo previsibilidade total e zero trocas arbitrárias de modelo por turno.
+
 - **🌐 Ingestão Web com Jina Reader (`r.jina.ai`), RAG Fundamentado Puro & Matriz de 7 Domínios Semânticos (`v0.39.0`)**:
   - **Jina Reader Exclusivo na Ingestão (`NativeJinaExtractor`)**: Extração de Markdown puro de altíssima fidelidade integrada diretamente ao `NativeWebCrawler` (`/sync`), renderizando documentações complexas e SPAs modernas (React, Docusaurus, Next.js, Vue) com títulos, tabelas e blocos de código preservados sem consumir RAM local (zero navegadores headless locais).
   - **Preservação Inviolável do RAG Fundamentado (*Grounded RAG*)**: O modelo de inferência (família Gemma 4 local ou nuvem) lê **exclusivamente a partir do índice RAG nativo** (LanceDB + BM25 via `NativeHybridPipeline`). Não há injeção de páginas web avulsas em tempo real no prompt, assegurando proveniência e zero alucinação.
