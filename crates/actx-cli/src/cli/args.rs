@@ -58,6 +58,10 @@ pub struct CliArgs {
     #[arg(short = 'm', long = "model")]
     pub model: Option<String>,
 
+    /// Target hardware acceleration device (e.g. auto, dml, directml, metal, cuda, vulkan, cpu)
+    #[arg(long = "device", alias = "gpu", alias = "accelerator")]
+    pub device: Option<String>,
+
     /// Subcommands for daemons, protocols, and headless maintenance
     #[command(subcommand)]
     pub command: Option<CliCommand>,

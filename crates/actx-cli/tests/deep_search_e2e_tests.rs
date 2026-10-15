@@ -29,6 +29,7 @@ fn test_command_engine_search_depth_dispatch() {
         grounding_mode: "hybrid".to_string(),
         search_mode: "auto".to_string(),
         web_search_enabled: false,
+        ..Default::default()
     };
 
     // 1. /search deep

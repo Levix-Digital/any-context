@@ -93,6 +93,9 @@ impl CommandEngine {
             "download" | "dl" | "get-model" => {
                 Self::execute_download(args, ctx)
             }
+            "device" | "gpu" | "accelerator" => {
+                Self::execute_device(args, ctx)
+            }
             "profile" | "profiles" => {
                 Self::execute_profile(args, ctx)
             }
@@ -1656,6 +1659,74 @@ impl CommandEngine {
         .with_action(CommandAction::StartDownload(spec.id.to_string()))
     }
 
+    fn execute_device(args: &[&str], _ctx: &ExecutionContext) -> CommandResult {
+        let metrics = crate::hardware::HardwareProfiler::probe_system(None);
+        let target = args.first().copied().map(str::trim);
+
+        if let Some(target_str) = target {
+            if let Some(device) = actx_onnx::ExecutionDevice::parse_str(target_str) {
+                let mut updates = CommandStateUpdates::default();
+                updates.execution_device = Some(device.as_str().to_string());
+                return CommandResult::success(format!(
+                    "🚀 Hardware acceleration target switched to: **{}** (`{}`)\n\n\
+                     • Active Adapter: {}\n\
+                     • Multi-threading SIMD fallback: Active if device memory allocation fails.",
+                    device.display_name(),
+                    device.as_str(),
+                    metrics.acceleration_summary()
+                ))
+                .with_action(CommandAction::SetDevice(device.as_str().to_string()))
+                .with_state_updates(updates);
+            } else {
+                return CommandResult::error(format!(
+                    "Unrecognized device '{}'. Valid options are:\n\
+                     • `auto`: Automatically select optimal system accelerator\n\
+                     • `dml` or `directml`: Microsoft DirectX 12 Machine Learning (Windows)\n\
+                     • `metal` or `coreml`: Apple Silicon Metal / CoreML Engine (macOS)\n\
+                     • `cuda`: NVIDIA CUDA / TensorRT (Linux & Windows)\n\
+                     • `vulkan`: Khronos Vulkan Compute (Cross-Platform)\n\
+                     • `cpu`: Pure CPU SIMD multi-threading",
+                    target_str
+                ));
+            }
+        }
+
+        // List detected accelerators and status
+        let mut out = format!(
+            "🚀 **AnyContext Tri-Cross-Platform Hardware Acceleration Matrix**\n\n\
+             📊 **System Status**:\n\
+             • Host Architecture: {}\n\
+             • CPU Cores: {}\n\
+             • Recommended Target: **{}**\n\
+             • Active Device Summary: {}\n\n\
+             | Index | Device Name | Vendor | Backend | Dedicated VRAM | Discrete? |\n\
+             | :--- | :--- | :--- | :--- | :--- | :--- |\n",
+            std::env::consts::OS,
+            metrics.cpu_cores,
+            metrics.recommended_execution_device().display_name(),
+            metrics.acceleration_summary()
+        );
+
+        if metrics.accelerators.is_empty() {
+            out.push_str("| 0 | Host CPU SIMD Vectorization | Generic | CPU | Shared System RAM | No (Pure Host) |\n");
+        } else {
+            for (idx, acc) in metrics.accelerators.iter().enumerate() {
+                out.push_str(&format!(
+                    "| {} | {} | {} | {} | {:.1} GB | {} |\n",
+                    idx,
+                    acc.name,
+                    acc.vendor.display_name(),
+                    acc.backend.as_str().to_uppercase(),
+                    acc.vram_gb(),
+                    if acc.is_discrete { "Yes (Dedicated)" } else { "No (Integrated/UMA)" }
+                ));
+            }
+        }
+
+        out.push_str("\n💡 Run `/device <target>` (e.g. `/device dml`, `/device metal`, `/device cuda`, `/device cpu`) to switch execution targets.");
+        CommandResult::success(out)
+    }
+
     // -------------------------------------------------------------------------
     // Inspection & Status
     // -------------------------------------------------------------------------
@@ -2098,6 +2169,8 @@ Available Commands (UI-Agnostic Engine):
   /web-search [on|off] Toggle real-time Web Search
   /model [name]        Inspect or select active LLM model
   /models              Display catalog of supported AI providers
+  /device [target]     Switch hardware acceleration: auto, dml, metal, cuda, cpu
+  /download [tier]     Download ONNX model weights (compact, 12b, 27b, 32b)
   /sync [--force]      Synchronize workspace documents and hashes
   /sources             List attached folders and web portals
   /folder              Add, list, or remove local folders

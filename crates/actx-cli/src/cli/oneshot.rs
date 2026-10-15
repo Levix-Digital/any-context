@@ -32,6 +32,9 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         println!("Runtimes:   Zero Python, Zero Bun/Node dependencies");
         println!("Workspace:  {} (Total: {})", args.workspace, ws_count);
         println!("Target Lm:  {}", args.model.as_deref().unwrap_or("gpt-4o-mini"));
+        let metrics = any_context_core_rs::hardware::HardwareProfiler::probe_system(None);
+        println!("Hardware:   {} Cores, {:.1} GB RAM ({:.1} GB Free)", metrics.cpu_cores, metrics.total_ram_gb(), metrics.available_ram_gb());
+        println!("Accel:      {}", metrics.acceleration_summary());
         println!("Database:   {} (Connected)", db_path.display());
         println!("Vectors:    LanceDB Columnar Arrow Engine (Ready)");
         println!("Status:     Healthy & Operational");

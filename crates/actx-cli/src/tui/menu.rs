@@ -110,6 +110,10 @@ impl MenuState {
                 self.breadcrumbs = vec!["Main Menu".to_string(), "Hardware Profiles".to_string()];
                 self.items = build_profiles_menu();
             }
+            "devices" | "device" | "gpu" => {
+                self.breadcrumbs = vec!["Main Menu".to_string(), "Hardware Acceleration".to_string()];
+                self.items = build_devices_menu();
+            }
             _ => {
                 self.breadcrumbs = vec!["Main Menu".to_string()];
                 self.items = build_main_menu(active_workspace, active_model);
@@ -198,6 +202,15 @@ impl MenuState {
         self.items = build_profiles_menu();
     }
 
+    pub fn open_devices(&mut self) {
+        self.is_open = true;
+        self.current_menu_id = "devices".to_string();
+        self.menu_history.clear();
+        self.selected_idx = 0;
+        self.breadcrumbs = vec!["Main Menu".to_string(), "Hardware Acceleration".to_string()];
+        self.items = build_devices_menu();
+    }
+
     pub fn back(&mut self, active_workspace: &str, active_model: &str) -> bool {
         if let Some((prev_menu, prev_idx)) = self.menu_history.pop() {
             self.current_menu_id = prev_menu.clone();
@@ -243,6 +256,10 @@ impl MenuState {
                 "keys" => {
                     self.breadcrumbs = vec!["Main Menu".to_string(), "API Credentials".to_string()];
                     self.items = build_keys_menu();
+                }
+                "devices" | "device" | "gpu" => {
+                    self.breadcrumbs = vec!["Main Menu".to_string(), "Hardware Acceleration".to_string()];
+                    self.items = build_devices_menu();
                 }
                 _ => {
                     self.breadcrumbs = vec!["Main Menu".to_string(), prev_menu];
@@ -348,6 +365,15 @@ pub fn build_main_menu(active_workspace: &str, active_model: &str) -> Vec<MenuIt
             icon: "⚡".to_string(),
             badge: Some("[Auto-Select]".to_string()),
             shortcut: Some("/profile".to_string()),
+            is_submenu: true,
+        },
+        MenuItem {
+            id: "devices".to_string(),
+            title: "Hardware Acceleration & GPUs".to_string(),
+            description: "DirectML (Win), Metal (macOS), CUDA/Vulkan (Linux), CPU fallback".to_string(),
+            icon: "🚀".to_string(),
+            badge: Some("[Tri-Platform]".to_string()),
+            shortcut: Some("/device".to_string()),
             is_submenu: true,
         },
         MenuItem {
@@ -1118,6 +1144,66 @@ pub fn build_profiles_menu() -> Vec<MenuItem> {
     items
 }
 
+pub fn build_devices_menu() -> Vec<MenuItem> {
+    let metrics = any_context_core_rs::hardware::HardwareProfiler::probe_system(None);
+    vec![
+        MenuItem {
+            id: "device:auto".to_string(),
+            title: "Auto (Optimal Platform Accelerator)".to_string(),
+            description: format!("Automatically detect and select best hardware accelerator (Recommended: {})", metrics.recommended_execution_device().display_name()),
+            icon: "⚡".to_string(),
+            badge: Some("[Auto]".to_string()),
+            shortcut: Some("/device auto".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "device:dml".to_string(),
+            title: "DirectML GPU (DirectX 12)".to_string(),
+            description: "Windows native acceleration (NVIDIA, AMD, Intel Arc, Qualcomm Snapdragon X)".to_string(),
+            icon: "🪟".to_string(),
+            badge: Some("[DirectML]".to_string()),
+            shortcut: Some("/device dml".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "device:metal".to_string(),
+            title: "Metal / CoreML (Apple Silicon)".to_string(),
+            description: "macOS M1-M4 unified memory architecture (zero-copy PCIe, 25-50 tok/s)".to_string(),
+            icon: "🍎".to_string(),
+            badge: Some("[Metal]".to_string()),
+            shortcut: Some("/device metal".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "device:cuda".to_string(),
+            title: "NVIDIA CUDA / TensorRT".to_string(),
+            description: "Dedicated workstation and cloud VPC GPU acceleration (Linux & Windows)".to_string(),
+            icon: "🟢".to_string(),
+            badge: Some("[CUDA]".to_string()),
+            shortcut: Some("/device cuda".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "device:vulkan".to_string(),
+            title: "Khronos Vulkan Compute".to_string(),
+            description: "Open cross-platform compute pipeline for AMD, Intel, and Linux servers".to_string(),
+            icon: "🌋".to_string(),
+            badge: Some("[Vulkan]".to_string()),
+            shortcut: Some("/device vulkan".to_string()),
+            is_submenu: false,
+        },
+        MenuItem {
+            id: "device:cpu".to_string(),
+            title: "Pure CPU SIMD Multi-Threading".to_string(),
+            description: "Deterministic AVX2/AVX-512 vectorization with zero GPU memory overhead".to_string(),
+            icon: "💻".to_string(),
+            badge: Some("[CPU SIMD]".to_string()),
+            shortcut: Some("/device cpu".to_string()),
+            is_submenu: false,
+        },
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1175,7 +1261,17 @@ mod tests {
         assert!(main.iter().any(|i| i.id == "search" && i.is_submenu));
         assert!(main.iter().any(|i| i.id == "document_ai" && i.is_submenu));
         assert!(main.iter().any(|i| i.id == "profiles" && i.is_submenu));
+        assert!(main.iter().any(|i| i.id == "devices" && i.is_submenu));
         assert!(main.iter().any(|i| i.id == "exit"));
+
+        let devices = build_devices_menu();
+        assert_eq!(devices.len(), 6);
+        assert!(devices.iter().any(|i| i.id == "device:auto"));
+        assert!(devices.iter().any(|i| i.id == "device:dml"));
+        assert!(devices.iter().any(|i| i.id == "device:metal"));
+        assert!(devices.iter().any(|i| i.id == "device:cuda"));
+        assert!(devices.iter().any(|i| i.id == "device:vulkan"));
+        assert!(devices.iter().any(|i| i.id == "device:cpu"));
 
         let profiles = build_profiles_menu();
         assert!(profiles.iter().any(|i| i.id.starts_with("profile_info:hardware")));

@@ -14,6 +14,7 @@ pub mod layout_extractor;
 pub mod vision_encoder;
 pub mod gemma;
 pub mod engine;
+pub mod device;
 
 pub use session::ModelSession;
 pub use query_classifier::{OnnxComplexity, OnnxIntent, OnnxQueryClassifier};
@@ -22,3 +23,4 @@ pub use layout_extractor::OnnxLayoutExtractor;
 pub use vision_encoder::OnnxVisionEncoder;
 pub use gemma::{GemmaModelTier, GemmaTokenizer, OnnxGemmaEngine};
 pub use engine::OnnxEngine;
+pub use device::{AcceleratorBackend, AcceleratorVendor, ExecutionDevice, GpuDevice};

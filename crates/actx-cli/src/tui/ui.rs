@@ -157,6 +157,8 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
         Span::styled(sync_text, sync_style),
         Span::styled("] ─ [Model: ", Style::default().fg(theme.border_unfocused)),
         Span::styled(&app.active_model, Style::default().fg(theme.reasoning)),
+        Span::styled("] ─ [Acc: ", Style::default().fg(theme.border_unfocused)),
+        Span::styled(app.execution_device_badge(), Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
         Span::styled("] ─ [Grounding: ", Style::default().fg(theme.border_unfocused)),
         Span::styled(app.grounding_mode.to_uppercase(), Style::default().fg(grounding_color).add_modifier(Modifier::BOLD)),
         Span::styled("] ─ [Search: ", Style::default().fg(theme.border_unfocused)),

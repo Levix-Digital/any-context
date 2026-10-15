@@ -7,6 +7,88 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 42 (v0.42.0 Matriz Tri-Cross-Platform de Aceleração por Hardware no actx-onnx com DirectML, Metal, CUDA, Vulkan e Fallback Gracioso CPU SIMD):
+- **Objetivo**: Comprovar que na versão `v0.42.0`:
+  1. **Sondagem Nativa de Hardware e Diagnóstico Headless**:
+     - `actx --diag` exibe a tabela de aceleração por hardware com GPUs detectadas, memória dedicada/unificada (VRAM), fabricante e dispositivo recomendado.
+     - A sondagem é ultrarrápida (<0.2ms) e não bloqueia a inicialização do executável.
+  2. **Flag Global `--device` no Modo Headless**:
+     - `actx --device <auto|dml|metal|cuda|vulkan|cpu>` aceita e propaga a seleção do dispositivo de execução diretamente na inferência.
+     - Caso o usuário selecione um dispositivo indisponível ou ocorra erro de driver, o sistema executa o fallback transparente para CPU SIMD sem interromper ou quebrar o processo (Garantia ADR-110).
+  3. **Slash Command `/device` (aliases `/gpu`, `/accelerator`) na TUI**:
+     - `/device` exibe a tabela formatada com o dispositivo ativo, recomendação do sistema e lista completa de aceleradores disponíveis.
+     - `/device <dispositivo>` (ex: `/device dml` ou `/device cpu`) altera o dispositivo de execução em tempo de execução sem reiniciar a sessão.
+  4. **Badge Dinâmica no Cabeçalho Superior da TUI**:
+     - O topo da TUI exibe o indicador em tempo real da aceleração ativa: `[Acc: 🚀 DirectML: <GPU>]`, `[Acc: 🚀 Metal: <Chip>]` ou `[Acc: 💻 CPU SIMD]`.
+  5. **Menu Interativo `[F1] -> Hardware Acceleration & GPUs`**:
+     - Permite navegar e selecionar visualmente o dispositivo de execução preferido com feedback imediato no chat.
+  6. **Conformidade Hexagonal e Arquitetural Rigorosa**:
+     - Toda a sondagem e lógica de decisão residem no Core (`any-context-core-rs`); adaptadores de UI apenas despacham comandos e formatam dados.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.42.0`.
+
+2. **🔍 Diagnóstico de Hardware e GPUs (`actx --diag`):**
+   - Execute no terminal:
+     ```text
+     actx --diag
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe a seção `⚡ Hardware Acceleration & GPUs`.
+     - Lista as GPUs físicas instaladas com nome, fabricante (ex: NVIDIA, AMD, Intel, Apple), VRAM dedicada e backend recomendado (ex: DirectML no Windows, Metal no macOS, CUDA/Vulkan no Linux).
+     - No caso de ausência de GPU compatível, reporta claramente o fallback ativo para CPU SIMD.
+
+3. **💻 Teste da Flag Headless `--device`:**
+   - Execute uma consulta especificando `--device cpu`:
+     ```text
+     actx --device cpu "Olá, confirme o dispositivo em uso"
+     ```
+   - **Critério de Aceitação**: A execução é concluída utilizando CPU multi-threading com sucesso.
+   - Execute com `--device dml` (ou `--device auto`):
+     ```text
+     actx --device auto "Teste de aceleração de hardware"
+     ```
+   - **Critério de Aceitação**: O sistema seleciona o backend acelerado disponível sem gerar erros ou exceções.
+
+4. **💬 Teste do Slash Command Interativo na TUI (`/device`):**
+   - Inicie a TUI executando `actx`.
+   - Observe o cabeçalho superior (header).
+   - **Critério de Aceitação**: O badge `[Acc: ...]` é visível (ex: `[Acc: 🚀 DirectML: RTX ...]` ou `[Acc: 💻 CPU SIMD]`).
+   - No prompt de chat, digite:
+     ```text
+     /device
+     ```
+   - **Critério de Aceitação**: Renderiza no histórico do chat a tabela com o dispositivo atualmente ativo, dispositivo recomendado e lista de aceleradores disponíveis no hospedeiro.
+   - Digite `/device cpu`:
+     ```text
+     /device cpu
+     ```
+   - **Critérios de Aceitação**:
+     - O sistema confirma a alternância para `CPU (Multi-Threaded SIMD)`.
+     - O cabeçalho da TUI atualiza imediatamente o badge para `[Acc: 💻 CPU SIMD]`.
+   - Digite `/device auto`:
+     ```text
+     /device auto
+     ```
+   - **Critérios de Aceitação**:
+     - O sistema retorna para a seleção automática acelerada e atualiza o cabeçalho.
+
+5. **📋 Teste do Menu Interativo `[F1] -> Hardware Acceleration & GPUs`:**
+   - Pressione `[F1]` ou digite `/menu` e selecione `Hardware Acceleration & GPUs`.
+   - Navegue com as setas entre as opções disponíveis (Auto, DirectML/Metal/CUDA, CPU SIMD).
+   - Selecione uma opção e pressione `[Enter]`.
+   - **Critérios de Aceitação**:
+     - O menu fecha e aplica a configuração no `ExecutionContext`.
+     - O badge do cabeçalho reflete a escolha instantaneamente.
+
+---
+
 ### 📌 Cenário 41 (v0.41.0 Downloader Assistido de Pesos Gemma 4 ONNX no CLI e TUI com Pre-Flight Checks e Telemetria em Tempo Real):
 - **Objetivo**: Comprovar que na versão `v0.41.0`:
   1. **Subcomando Headless (`actx download`)**:

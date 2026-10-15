@@ -850,6 +850,46 @@ fn test_download_cli_args_parsing() {
     assert!(find_command("get-model").is_some());
 }
 
+#[test]
+fn test_device_cli_args_parsing_and_dispatch() {
+    use clap::Parser;
+
+    // 1. CLI flag --device dml
+    let args1 = CliArgs::parse_from(["actx", "--device", "dml"]);
+    assert_eq!(args1.device.as_deref(), Some("dml"));
+
+    // 2. CLI flag --device metal
+    let args2 = CliArgs::parse_from(["actx", "--device", "metal"]);
+    assert_eq!(args2.device.as_deref(), Some("metal"));
+
+    // 3. CLI flag --device cpu
+    let args3 = CliArgs::parse_from(["actx", "--device", "cpu"]);
+    assert_eq!(args3.device.as_deref(), Some("cpu"));
+
+    // 4. Slash command lookup
+    assert!(find_command("device").is_some());
+    assert!(find_command("gpu").is_some());
+    assert!(find_command("accelerator").is_some());
+
+    // 5. App interactive device dispatching
+    let mut app = App::new("Default".to_string(), "mock".to_string(), None).with_device(Some("cpu"));
+    assert_eq!(app.execution_device, actx_onnx::ExecutionDevice::Cpu);
+    assert_eq!(app.execution_device_badge(), "💻 CPU SIMD");
+
+    // Dispatch /device dml
+    actx_cli::commands::dispatch_slash_command("device", &["dml"], &mut app);
+    assert_eq!(app.execution_device, actx_onnx::ExecutionDevice::DirectML { adapter_index: 0 });
+
+    // Open devices submenu and select cpu
+    app.open_devices_menu();
+    assert!(app.menu_state.is_open);
+    assert_eq!(app.menu_state.current_menu_id, "devices");
+
+    // Dispatch /device cpu
+    actx_cli::commands::dispatch_slash_command("device", &["cpu"], &mut app);
+    assert_eq!(app.execution_device, actx_onnx::ExecutionDevice::Cpu);
+}
+
 
 
 

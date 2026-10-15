@@ -121,6 +121,7 @@ pub struct App {
     pub source_health_warning: Option<String>,
     pub changes_detected: bool,
     pub last_health_check: std::time::Instant,
+    pub execution_device: actx_onnx::ExecutionDevice,
 }
 
 impl App {
@@ -220,9 +221,48 @@ impl App {
             source_health_warning: None,
             changes_detected: false,
             last_health_check: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(10)).unwrap_or_else(std::time::Instant::now),
+            execution_device: actx_onnx::ExecutionDevice::Auto,
         };
 
         app
+    }
+
+    pub fn with_device(mut self, device: Option<&str>) -> Self {
+        if let Some(dev_str) = device {
+            if let Some(dev) = actx_onnx::ExecutionDevice::parse_str(dev_str) {
+                self.execution_device = dev;
+            }
+        }
+        self
+    }
+
+    pub fn set_execution_device(&mut self, dev_str: &str) {
+        if let Some(dev) = actx_onnx::ExecutionDevice::parse_str(dev_str) {
+            self.execution_device = dev;
+        }
+    }
+
+    pub fn execution_device_badge(&self) -> String {
+        match self.execution_device {
+            actx_onnx::ExecutionDevice::Auto => {
+                let metrics = any_context_core_rs::hardware::HardwareProfiler::probe_system(None);
+                if let Some(gpu) = metrics.primary_accelerator() {
+                    gpu.badge()
+                } else {
+                    "💻 CPU SIMD".to_string()
+                }
+            }
+            actx_onnx::ExecutionDevice::DirectML { adapter_index } => format!("🚀 DirectML (GPU {})", adapter_index),
+            actx_onnx::ExecutionDevice::MetalCoreML => "🚀 Metal (Apple Silicon)".to_string(),
+            actx_onnx::ExecutionDevice::Cuda { device_id } => format!("🚀 CUDA (GPU {})", device_id),
+            actx_onnx::ExecutionDevice::Vulkan { device_id } => format!("🚀 Vulkan (GPU {})", device_id),
+            actx_onnx::ExecutionDevice::Cpu => "💻 CPU SIMD".to_string(),
+        }
+    }
+
+    pub fn open_devices_menu(&mut self) {
+        self.slash_palette_open = false;
+        self.menu_state.open_devices();
     }
 
     pub fn poll_sync_status(&mut self) {
@@ -542,7 +582,8 @@ impl App {
                 "sync", "sources", "models", "keys", "history", "billing",
                 "reset-memory", "paste", "check-update", "ocr", "shared",
                 "help", "info", "inspect", "onboarding", "switch", "model",
-                "mode", "source", "workspace", "search", "preset", "kit", "profile"
+                "mode", "source", "workspace", "search", "preset", "kit", "profile",
+                "device", "gpu", "accelerator"
             ];
 
             if execute_if_zero_args && zero_arg_commands.contains(&name) {
@@ -950,6 +991,12 @@ impl App {
                 });
                 self.scroll_to_bottom();
                 self.menu_state.is_open = false;
+            } else if item.id.starts_with("device:") {
+                let target_dev = item.id.trim_start_matches("device:");
+                crate::commands::dispatch_slash_command("device", &[target_dev], self);
+                self.menu_state.is_open = false;
+            } else if item.id == "devices" {
+                self.open_devices_menu();
             } else if item.id == "sources" {
                 self.open_sources_menu();
             } else if item.id == "keys" {
@@ -977,6 +1024,7 @@ impl App {
             grounding_mode: self.grounding_mode.clone(),
             search_mode: self.search_mode.clone(),
             web_search_enabled: self.web_search_enabled,
+            execution_device: self.execution_device.as_str().to_string(),
         }
     }
 
@@ -992,6 +1040,9 @@ impl App {
         }
         if let Some(w) = res.state_updates.web_search_enabled {
             self.web_search_enabled = w;
+        }
+        if let Some(ref dev) = res.state_updates.execution_device {
+            self.set_execution_device(dev);
         }
 
         match res.action {
@@ -1017,6 +1068,7 @@ impl App {
                     "search" => self.open_search_menu(),
                     "document_ai" => self.open_document_ai_menu(),
                     "profiles" | "profile" => self.open_profiles_menu(),
+                    "devices" | "device" | "gpu" => self.open_devices_menu(),
                     "sources" => self.open_sources_menu(),
                     "keys" => self.open_keys_menu(),
                     _ => self.open_menu(),
@@ -1031,6 +1083,9 @@ impl App {
             }
             any_context_core_rs::commands::CommandAction::StartDownload(ref model_id) => {
                 self.start_model_download(model_id);
+            }
+            any_context_core_rs::commands::CommandAction::SetDevice(ref dev) => {
+                self.set_execution_device(dev);
             }
             any_context_core_rs::commands::CommandAction::None => {
                 if let Some(ref ws) = res.state_updates.active_workspace {

@@ -7,6 +7,7 @@
 //! - CLIP ViT Vision Encoder
 
 use std::path::Path;
+use crate::device::ExecutionDevice;
 use crate::query_classifier::{OnnxComplexity, OnnxIntent, OnnxQueryClassifier};
 use crate::scan_sentinel::OnnxScanSentinel;
 use crate::layout_extractor::OnnxLayoutExtractor;
@@ -19,11 +20,17 @@ pub struct OnnxEngine {
     pub scan_sentinel: OnnxScanSentinel,
     pub layout_extractor: OnnxLayoutExtractor,
     pub vision_encoder: OnnxVisionEncoder,
+    pub device: ExecutionDevice,
 }
 
 impl OnnxEngine {
     /// Initializes the ONNX engine by scanning the canonical models directory.
     pub fn init(models_dir: &Path) -> Self {
+        Self::with_device(models_dir, ExecutionDevice::Auto)
+    }
+
+    /// Initializes the ONNX engine with an explicit hardware execution device.
+    pub fn with_device(models_dir: &Path, device: ExecutionDevice) -> Self {
         let bge_path = models_dir.join("bge_small_query_int8.onnx");
         let mobilenet_path = models_dir.join("mobilenetv4_rvl_cdip.onnx");
         let layout_path = models_dir.join("layoutlmv3_base_int8.onnx");
@@ -34,7 +41,16 @@ impl OnnxEngine {
             scan_sentinel: OnnxScanSentinel::new(&mobilenet_path),
             layout_extractor: OnnxLayoutExtractor::new(&layout_path),
             vision_encoder: OnnxVisionEncoder::new(&clip_path),
+            device,
         }
+    }
+
+    pub fn set_device(&mut self, device: ExecutionDevice) {
+        self.device = device;
+    }
+
+    pub fn device(&self) -> ExecutionDevice {
+        self.device
     }
 
     /// Returns the number of currently installed, verified neural models.

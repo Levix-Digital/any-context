@@ -45,6 +45,20 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **⚡ Matriz Tri-Cross-Platform de Aceleração por Hardware no `actx-onnx` (DirectML, Metal, CUDA, Vulkan & CPU SIMD) (`v0.42.0`)**:
+  - **Aceleração Nativa Tri-Plataforma**: Habilita execução neural acelerada por GPU para a família Gemma 4 ONNX:
+    - **Windows**: Microsoft DirectML (DXGI 1.2 / DirectX 12) com suporte universal a GPUs NVIDIA GeForce / RTX, AMD Radeon e Intel Arc / Iris Xe.
+    - **macOS**: Apple Silicon Unified Memory Architecture (UMA) via Metal Performance Shaders (MPS) e CoreML.
+    - **Linux**: NVIDIA CUDA / TensorRT e Vulkan Compute para ambientes abertos e data centers.
+  - **Fallback Gracioso CPU SIMD (Garantia ADR-110)**: Em sistemas sem GPU dedicada, drivers ausentes ou falha de alocação de VRAM, o motor reverte de forma transparente e imediata para CPU SIMD multi-threading otimizada (AVX2, AVX-512, NEON), garantindo custo $0.00, estabilidade absoluta e zero falhas de execução.
+  - **Sondagem Ultrarrápida (<0.2ms)**: Detecção de adaptadores de hardware via COM FFI nativo (Windows DXGI), Apple Silicon sysctl e Linux DRM subsystem com zero impacto no tempo de inicialização.
+  - **Paridade Multi-Superfície**:
+    - **CLI Headless**: Flag `--device <auto|dml|metal|cuda|vulkan|cpu>` para override em consultas e scripts (`actx --device dml "resuma o documento"`).
+    - **Diagnóstico de Hardware**: `actx --diag` exibe tabela com GPUs detectadas, memória de vídeo (VRAM), fabricante e backend ativo.
+    - **Slash Command na TUI**: `/device` (e aliases `/gpu`, `/accelerator`) para listar adaptadores e alternar o dispositivo ativo em tempo de execução.
+    - **Badge em Tempo Real no Header da TUI**: Indicador dinâmico de hardware no cabeçalho superior: `[Acc: 🚀 DirectML: RTX 4070 Ti]`, `[Acc: 🚀 Metal: Apple M3 Max (UMA)]` ou `[Acc: 💻 CPU SIMD]`.
+    - **Menu `[F1]`**: Submenu `Hardware Acceleration & GPUs` para seleção interativa de aceleradores.
+
 - **📥 Downloader Assistido de Pesos Gemma 4 ONNX no CLI & TUI (`v0.41.0`)**:
   - **Download Assistido de Pesos Locais (`actx download <tier>`)**: Subcomando headless de terminal e slash command interativo (`/download <tier>`, `/dl`, `/get-model`) para baixar e instalar localmente os modelos da família Gemma 4 (`compact`, `12b`, `27b`, `32b`) com barra de progresso visual, velocidade em tempo real (MB/s), tempo estimado (ETA) e cancelamento instantâneo via Ctrl+C ou `[Esc]`.
   - **Pre-Flight Checks de Segurança em Camadas**: Verificação automática de espaço livre em disco com margem de segurança de 500MB e guardrails de hardware para RAM física. Impede downloads inviáveis por falta de armazenamento ou estouro de memória, com suporte à flag `--force` para override consciente.

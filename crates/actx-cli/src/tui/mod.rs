@@ -51,7 +51,7 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let mut app = App::new(effective_ws, resolved_model, agent);
+    let mut app = App::new(effective_ws, resolved_model, agent).with_device(args.device.as_deref());
 
     // Transparent background self-knowledge bootstrap / update into 'Global' workspace
     tokio::task::spawn_blocking(|| {

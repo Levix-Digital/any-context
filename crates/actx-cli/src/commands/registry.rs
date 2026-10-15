@@ -79,6 +79,13 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         category: "Engine",
     },
     SlashCommand {
+        name: "device",
+        aliases: &["gpu", "accelerator"],
+        description: "Inspects or switches hardware acceleration (auto, dml, metal, cuda, vulkan, cpu)",
+        usage: "/device [auto|dml|metal|cuda|vulkan|cpu]",
+        category: "Engine",
+    },
+    SlashCommand {
         name: "sources",
         aliases: &["source", "list-sources", "src"],
         description: "Lists and manages indexed local folders and web documentation sources",

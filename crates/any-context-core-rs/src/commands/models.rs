@@ -22,6 +22,8 @@ pub enum CommandAction {
     RebuildAgent,
     /// Request UI to begin downloading an ONNX model spec by ID or tier
     StartDownload(String),
+    /// Set hardware execution device for neural models
+    SetDevice(String),
 }
 
 /// Reactive state updates emitted by command execution to be reflected by presentation adapters.
@@ -37,6 +39,8 @@ pub struct CommandStateUpdates {
     pub search_mode: Option<String>,
     /// Real-time web search status toggle, if changed
     pub web_search_enabled: Option<bool>,
+    /// Target hardware acceleration device, if changed
+    pub execution_device: Option<String>,
 }
 
 /// Standardized domain result returned by `CommandEngine::execute`.
@@ -91,6 +95,10 @@ impl CommandResult {
     }
 }
 
+fn default_execution_device() -> String {
+    "auto".to_string()
+}
+
 /// UI-agnostic execution context supplied by presentation adapters to `CommandEngine`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionContext {
@@ -104,6 +112,9 @@ pub struct ExecutionContext {
     pub search_mode: String,
     /// Whether real-time web search is active
     pub web_search_enabled: bool,
+    /// Target hardware acceleration device ("auto", "dml", "metal", "cuda", "vulkan", "cpu")
+    #[serde(default = "default_execution_device")]
+    pub execution_device: String,
 }
 
 impl Default for ExecutionContext {
@@ -114,6 +125,7 @@ impl Default for ExecutionContext {
             grounding_mode: "strict".to_string(),
             search_mode: "auto".to_string(),
             web_search_enabled: false,
+            execution_device: "auto".to_string(),
         }
     }
 }
