@@ -62,6 +62,10 @@ pub struct CliArgs {
     #[arg(long = "device", alias = "gpu", alias = "accelerator")]
     pub device: Option<String>,
 
+    /// Neural cross-encoder re-ranking mode (auto, on, off)
+    #[arg(long = "rerank", alias = "reranker")]
+    pub rerank: Option<String>,
+
     /// Subcommands for daemons, protocols, and headless maintenance
     #[command(subcommand)]
     pub command: Option<CliCommand>,

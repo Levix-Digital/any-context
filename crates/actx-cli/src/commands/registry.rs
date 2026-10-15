@@ -86,6 +86,13 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         category: "Engine",
     },
     SlashCommand {
+        name: "rerank",
+        aliases: &["reranker"],
+        description: "Inspects or configures local Cross-Encoder ONNX re-ranking (auto, on, off)",
+        usage: "/rerank [auto|on|off|status]",
+        category: "Engine",
+    },
+    SlashCommand {
         name: "sources",
         aliases: &["source", "list-sources", "src"],
         description: "Lists and manages indexed local folders and web documentation sources",

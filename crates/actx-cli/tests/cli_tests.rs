@@ -890,6 +890,45 @@ fn test_device_cli_args_parsing_and_dispatch() {
     assert_eq!(app.execution_device, actx_onnx::ExecutionDevice::Cpu);
 }
 
+#[test]
+fn test_rerank_cli_args_parsing_and_dispatch() {
+    use clap::Parser;
+
+    // 1. CLI flag --rerank on
+    let args1 = CliArgs::parse_from(["actx", "--rerank", "on"]);
+    assert_eq!(args1.rerank.as_deref(), Some("on"));
+
+    // 2. CLI flag --rerank off
+    let args2 = CliArgs::parse_from(["actx", "--rerank", "off"]);
+    assert_eq!(args2.rerank.as_deref(), Some("off"));
+
+    // 3. CLI flag --rerank auto (with alias --reranker)
+    let args3 = CliArgs::parse_from(["actx", "--reranker", "auto"]);
+    assert_eq!(args3.rerank.as_deref(), Some("auto"));
+
+    // 4. Slash command lookup
+    assert!(find_command("rerank").is_some());
+    assert!(find_command("reranker").is_some());
+
+    // 5. App interactive rerank dispatching
+    let mut app = App::new("Default".to_string(), "mock".to_string(), None).with_rerank_mode(Some("auto"));
+    assert_eq!(app.rerank_mode, "auto");
+
+    // Dispatch /rerank off
+    actx_cli::commands::dispatch_slash_command("rerank", &["off"], &mut app);
+    assert_eq!(app.rerank_mode, "off");
+    assert_eq!(app.rerank_badge(), "🚫 Off");
+
+    // Dispatch /rerank on
+    actx_cli::commands::dispatch_slash_command("rerank", &["on"], &mut app);
+    assert_eq!(app.rerank_mode, "on");
+
+    // Dispatch /rerank auto
+    actx_cli::commands::dispatch_slash_command("rerank", &["auto"], &mut app);
+    assert_eq!(app.rerank_mode, "auto");
+}
+
+
 
 
 

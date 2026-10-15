@@ -111,6 +111,13 @@ pub fn resolve_lm_provider(
     Ok((provider, model_name))
 }
 
+/// Returns a cross-encoder ONNX reranker instance backed by `bge_reranker_small_int8.onnx`.
+pub fn create_default_reranker() -> Arc<actx_onnx::OnnxReranker> {
+    let models_dir = any_context_core_rs::storage::get_default_models_dir();
+    let reranker_path = models_dir.join("bge_reranker_small_int8.onnx");
+    Arc::new(actx_onnx::OnnxReranker::new(&reranker_path))
+}
+
 /// Builds an active `Agent` configured for the specified workspace and model synchronously.
 pub fn build_agent_sync(
     provider: Arc<dyn LmProvider>,
@@ -125,9 +132,11 @@ pub fn build_agent_sync(
         .map(|s| Arc::new(s) as Arc<dyn actx_agent::SessionStore>);
 
     let system_prompt = crate::prompt::build_system_prompt(workspace, grounding_mode, search_mode, web_search_enabled);
+    let reranker = create_default_reranker();
 
     let ws_for_tool = workspace.to_string();
     let provider_for_search = provider.clone();
+    let reranker_for_tool = reranker.clone();
     let search_tool = actx_agent::NativeTool::new(
         "search_db",
         "Searches for relevant documents, source code, and knowledge context in the active workspace.",
@@ -144,6 +153,7 @@ pub fn build_agent_sync(
         move |args: serde_json::Value| {
             let ws = ws_for_tool.clone();
             let tool_provider = provider_for_search.clone();
+            let tool_reranker = reranker_for_tool.clone();
             async move {
                 let query = args.get("query")
                     .and_then(|v| v.as_str())
@@ -161,10 +171,17 @@ pub fn build_agent_sync(
 
                 ensure_global_knowledge_bootstrap(&lance_store);
 
-                let pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
+                let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+                let rerank_mode = db.as_ref()
+                    .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
+                    .unwrap_or_else(|| "auto".to_string());
+
+                let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
                     lance_store,
                     Some(tool_provider),
                 );
+                pipeline.set_reranker(Some(tool_reranker));
+                pipeline.set_rerank_mode(&rerank_mode);
 
                 let req = any_context_core_rs::retrieval::HybridSearchRequest {
                     query_text: query.to_string(),
@@ -175,6 +192,7 @@ pub fn build_agent_sync(
                     max_density_chars: 12_000,
                     min_score: 0.005,
                     table_name: "workspace_chunks".to_string(),
+                    rerank_mode: Some(rerank_mode),
                     ..Default::default()
                 };
 
@@ -289,6 +307,7 @@ pub fn build_agent_sync(
             lance_store: ls.clone(),
             lm_provider: provider.clone(),
             workspace: workspace.to_string(),
+            reranker: reranker.clone(),
         }) as Arc<dyn actx_agent::DeepSearchRetriever>
     });
 
@@ -298,6 +317,7 @@ pub fn build_agent_sync(
             lm_provider: provider.clone(),
             workspace: workspace.to_string(),
             system_prompt: system_prompt.clone(),
+            reranker: reranker.clone(),
         }) as Arc<dyn actx_agent::DeterministicRetriever>
     });
 
@@ -583,15 +603,23 @@ struct PipelineBatchRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
     lm_provider: Arc<dyn LmProvider>,
     workspace: String,
+    reranker: Arc<actx_onnx::OnnxReranker>,
 }
 
 #[actx_agent::async_trait]
 impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
     async fn retrieve_batch(&self, queries: &[String]) -> Result<Vec<actx_agent::RetrievedChunk>, actx_agent::AgentError> {
-        let pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
+        let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+        let rerank_mode = db.as_ref()
+            .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
+            .unwrap_or_else(|| "auto".to_string());
+
+        let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
             self.lance_store.clone(),
             Some(self.lm_provider.clone()),
         );
+        pipeline.set_reranker(Some(self.reranker.clone()));
+        pipeline.set_rerank_mode(&rerank_mode);
 
         let requests: Vec<_> = queries
             .iter()
@@ -604,6 +632,7 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
                 max_density_chars: 16_000,
                 min_score: 0.02,
                 table_name: "workspace_chunks".to_string(),
+                rerank_mode: Some(rerank_mode.clone()),
                 ..Default::default()
             })
             .collect();
@@ -637,15 +666,23 @@ struct PipelineDeterministicRetriever {
     lm_provider: Arc<dyn LmProvider>,
     workspace: String,
     system_prompt: String,
+    reranker: Arc<actx_onnx::OnnxReranker>,
 }
 
 #[actx_agent::async_trait]
 impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
     async fn retrieve_and_format(&self, query: &str) -> Result<actx_agent::DeterministicRetrievalOutput, actx_agent::AgentError> {
-        let pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
+        let db = NativeConfigDb::open_default().ok();
+        let rerank_mode = db.as_ref()
+            .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
+            .unwrap_or_else(|| "auto".to_string());
+
+        let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
             self.lance_store.clone(),
             Some(self.lm_provider.clone()),
         );
+        pipeline.set_reranker(Some(self.reranker.clone()));
+        pipeline.set_rerank_mode(&rerank_mode);
 
         let req = any_context_core_rs::retrieval::HybridSearchRequest {
             query_text: query.to_string(),
@@ -656,6 +693,7 @@ impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
             max_density_chars: 14_000,
             min_score: 0.005,
             table_name: "workspace_chunks".to_string(),
+            rerank_mode: Some(rerank_mode),
             ..Default::default()
         };
 

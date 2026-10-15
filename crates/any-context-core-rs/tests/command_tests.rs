@@ -649,5 +649,40 @@ fn test_download_command_execution() {
     }
 }
 
+#[test]
+fn test_rerank_command_execution() {
+    let ctx = ExecutionContext::default();
+
+    // 1. /rerank status view
+    let res_status = CommandEngine::execute("rerank", &[], &ctx);
+    assert!(res_status.success);
+    assert!(res_status.message.contains("Two-Stage Neural Retrieval & Re-ranking Status"));
+    assert!(res_status.message.contains("Stage 1 (High Recall)"));
+    assert!(res_status.message.contains("Stage 2 (High Precision)"));
+
+    // 2. /rerank on
+    let res_on = CommandEngine::execute("rerank", &["on"], &ctx);
+    assert!(res_on.success);
+    assert_eq!(res_on.state_updates.rerank_mode, Some("on".to_string()));
+    assert!(res_on.message.contains("mode set to: **ON**"));
+
+    // 3. /rerank off
+    let res_off = CommandEngine::execute("rerank", &["off"], &ctx);
+    assert!(res_off.success);
+    assert_eq!(res_off.state_updates.rerank_mode, Some("off".to_string()));
+    assert!(res_off.message.contains("mode set to: **OFF**"));
+
+    // 4. /rerank auto
+    let res_auto = CommandEngine::execute("rerank", &["auto"], &ctx);
+    assert!(res_auto.success);
+    assert_eq!(res_auto.state_updates.rerank_mode, Some("auto".to_string()));
+    assert!(res_auto.message.contains("mode set to: **AUTO**"));
+
+    // 5. /rerank with invalid option
+    let res_invalid = CommandEngine::execute("rerank", &["invalid_opt"], &ctx);
+    assert!(!res_invalid.success);
+    assert!(res_invalid.message.contains("Unrecognized rerank option"));
+}
+
 
 

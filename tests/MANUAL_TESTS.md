@@ -7,6 +7,72 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 44 (v0.44.0 Two-Stage Neural Retrieval com Re-Ranking Local Cross-Encoder ONNX, Aceleração por Hardware e Fallback Gracioso ADR-110):
+- **Objetivo**: Comprovar que na versão `v0.44.0`:
+  1. **Recuperação em Dois Estágios (Two-Stage Neural Retrieval Pipeline)**:
+     - **Estágio 1 (Recall Híbrido)**: Fusão RRF ($k=60$) no LanceDB unindo busca vetorial densa e lexical esparsa (Okapi BM25) para capturar um pool inicial abrangente de 30-40 candidatos.
+     - **Estágio 2 (Precision Neural Re-Ranking)**: Cross-encoder local `bge-reranker-small` ONNX (~45.2 MB) avalia a atenção cruzada bidirecional token-a-token entre a pergunta e os documentos candidatos, produzindo scores calibrados por Sigmoid em $[0.0, 1.0]$.
+  2. **ADR-110 Zero-Breakage Invariant & Fallback Gracioso**:
+     - Quando os pesos ONNX não estão instalados em `%LOCALAPPDATA%/actx/models/`, a ordenação RRF do primeiro estágio é preservada de forma 100% transparente com zero erros, falhas ou chamadas de rede.
+  3. **Flag Headless `--rerank` e Alias `--reranker`**:
+     - `actx --rerank <auto|on|off> "sua pergunta"` aceita e aplica os modos de rerank em consultas one-shot de linha de comando e automações de CI/CD.
+  4. **Subcomando `actx download reranker` (e `/download reranker`)**:
+     - Permite inspecionar (`actx download --check`) e baixar os pesos do cross-encoder `bge-reranker-small` (~45.2 MB) com checagem de integridade e barra de progresso em tempo real.
+  5. **Slash Command `/rerank` na TUI e Persistência SQLite**:
+     - `/rerank on`: Força o re-ranking neural ativo (com aviso informativo caso os pesos estejam ausentes).
+     - `/rerank off`: Desativa o re-ranking neural, utilizando puramente RRF de latência mínima.
+     - `/rerank auto`: Ativa o re-ranking dinâmico conforme a presença de pesos.
+     - `/rerank`: Exibe a telemetria e o status atual do reranker.
+  6. **Badge Reativo no Cabeçalho Superior da TUI**:
+     - O cabeçalho exibe em tempo real o estado do reranker: `[Rerank: ⚡ ONNX: bge-small]`, `[Rerank: ⚡ RRF (Fallback)]` ou `[Rerank: 🚫 Off]`.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.44.0`.
+
+2. **📥 Validação do Catálogo e Download do Reranker:**
+   - Execute a inspeção dos modelos locais:
+     ```text
+     actx download --check
+     ```
+   - **Critério de Aceitação**: O modelo `bge-reranker-small` (~45.2 MB) aparece listado na categoria `ReRanker`.
+   - Baixe os pesos do reranker (ou simule o download):
+     ```text
+     actx download reranker
+     ```
+   - **Critério de Aceitação**: O download é concluído com sucesso e o arquivo `bge_reranker_small_int8.onnx` é gravado no diretório de modelos.
+
+3. **⚡ Teste Headless com `--rerank`:**
+   - Execute uma consulta com `--rerank on`:
+     ```text
+     actx "como funciona o timeout da aplicação?" --rerank on
+     ```
+   - Execute uma consulta com `--rerank off`:
+     ```text
+     actx "como funciona o timeout da aplicação?" --rerank off
+     ```
+   - **Critério de Aceitação**: Ambos os comandos executam com sucesso, demonstrando recuperação robusta e zero interrupção.
+
+4. **🖥️ Teste na TUI Interativa:**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - Verifique o cabeçalho superior:
+     - Deve exibir a badge `[Rerank: ⚡ ONNX: bge-small]` (ou `[Rerank: ⚡ RRF (Fallback)]` caso os pesos não estejam presentes).
+   - Teste alternar o modo via slash command:
+     - Digite `/rerank off` e pressione [Enter].
+     - **Critério de Aceitação**: A badge no header muda instantaneamente para `[Rerank: 🚫 Off]`.
+     - Digite `/rerank auto` e pressione [Enter].
+     - **Critério de Aceitação**: A badge volta para o modo dinâmico.
+
+---
+
 ### 📌 Cenário 43 (v0.43.0 RAG Determinístico Backend-First, U-Shaped Reordering, Isolamento XML e Zero Hallucination Gate):
 - **Objetivo**: Comprovar que na versão `v0.43.0`:
   1. **RAG Determinístico 1-Hop Orquestrado pelo Backend**:

@@ -287,6 +287,11 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
 
     // 3. Resolve Provider & Build Agent
     let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+    if let Some(ref rk) = args.rerank {
+        if let Some(ref d) = db {
+            let _ = d.set_setting("rerank_mode", rk);
+        }
+    }
     let grounding_mode = db.as_ref()
         .and_then(|d| d.get_workspace_grounding_mode(&args.workspace).ok())
         .unwrap_or_else(|| "strict".to_string());
@@ -497,7 +502,7 @@ pub async fn handle_download(tier_opt: Option<&str>, force: bool, check: bool) {
                 Some(s) => s,
                 None => {
                     eprintln!("❌ Unknown model tier '{}'.", t);
-                    eprintln!("Available tiers: 'compact' (~1.8GB), '12b' (~6.7GB), '27b' (~14.8GB), '32b' (~20.2GB)");
+                    eprintln!("Available tiers: 'compact' (~1.8GB), '12b' (~6.7GB), '27b' (~14.8GB), '32b' (~20.2GB), 'reranker' (~45MB)");
                     eprintln!("Run 'actx download --check' to inspect all supported models.");
                     std::process::exit(1);
                 }

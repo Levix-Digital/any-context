@@ -122,6 +122,7 @@ pub struct App {
     pub changes_detected: bool,
     pub last_health_check: std::time::Instant,
     pub execution_device: actx_onnx::ExecutionDevice,
+    pub rerank_mode: String,
 }
 
 impl App {
@@ -159,6 +160,9 @@ impl App {
         let web_search_enabled = db.as_ref()
             .and_then(|d| d.get_workspace_web_search(&workspace).ok())
             .unwrap_or(false);
+        let rerank_mode = db.as_ref()
+            .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
+            .unwrap_or_else(|| "auto".to_string());
 
         let initial_history = vec![Self::create_welcome_message(
             &workspace,
@@ -222,9 +226,32 @@ impl App {
             changes_detected: false,
             last_health_check: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(10)).unwrap_or_else(std::time::Instant::now),
             execution_device: actx_onnx::ExecutionDevice::Auto,
+            rerank_mode,
         };
 
         app
+    }
+
+    pub fn with_rerank_mode(mut self, rerank: Option<&str>) -> Self {
+        if let Some(r) = rerank {
+            self.rerank_mode = r.to_lowercase();
+        }
+        self
+    }
+
+    pub fn rerank_badge(&self) -> String {
+        if self.rerank_mode == "off" {
+            "🚫 Off".to_string()
+        } else {
+            let (_name, _detail, is_onnx) = any_context_core_rs::ingestion::model_manager::OnnxModelManager::active_reranker_state();
+            if is_onnx {
+                "⚡ ONNX: bge-small".to_string()
+            } else if self.rerank_mode == "on" {
+                "⚡ RRF (Model Missing)".to_string()
+            } else {
+                "⚡ RRF (Fallback)".to_string()
+            }
+        }
     }
 
     pub fn with_device(mut self, device: Option<&str>) -> Self {
@@ -583,7 +610,7 @@ impl App {
                 "reset-memory", "paste", "check-update", "ocr", "shared",
                 "help", "info", "inspect", "onboarding", "switch", "model",
                 "mode", "source", "workspace", "search", "preset", "kit", "profile",
-                "device", "gpu", "accelerator"
+                "device", "gpu", "accelerator", "rerank"
             ];
 
             if execute_if_zero_args && zero_arg_commands.contains(&name) {
@@ -1025,6 +1052,7 @@ impl App {
             search_mode: self.search_mode.clone(),
             web_search_enabled: self.web_search_enabled,
             execution_device: self.execution_device.as_str().to_string(),
+            rerank_mode: self.rerank_mode.clone(),
         }
     }
 
@@ -1043,6 +1071,9 @@ impl App {
         }
         if let Some(ref dev) = res.state_updates.execution_device {
             self.set_execution_device(dev);
+        }
+        if let Some(ref rk) = res.state_updates.rerank_mode {
+            self.rerank_mode = rk.clone();
         }
 
         match res.action {

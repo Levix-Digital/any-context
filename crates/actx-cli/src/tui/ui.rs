@@ -148,6 +148,19 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
         )
     };
 
+    let (rerank_text, rerank_style) = if app.rerank_mode == "off" {
+        ("🚫 Off".to_string(), Style::default().fg(theme.text_muted))
+    } else {
+        let (_name, _detail, is_onnx) = any_context_core_rs::ingestion::model_manager::OnnxModelManager::active_reranker_state();
+        if is_onnx {
+            ("⚡ ONNX: bge-small".to_string(), Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        } else if app.rerank_mode == "on" {
+            ("⚡ RRF (Model Missing)".to_string(), Style::default().fg(theme.warning))
+        } else {
+            ("⚡ RRF (Fallback)".to_string(), Style::default().fg(theme.info))
+        }
+    };
+
     let title = Line::from(vec![
         Span::styled("AnyContext ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
         Span::styled(format!("v{} ", env!("CARGO_PKG_VERSION")), Style::default().fg(theme.text_muted)),
@@ -163,6 +176,8 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
         Span::styled(app.grounding_mode.to_uppercase(), Style::default().fg(grounding_color).add_modifier(Modifier::BOLD)),
         Span::styled("] ─ [Search: ", Style::default().fg(theme.border_unfocused)),
         Span::styled(app.search_mode.to_uppercase(), Style::default().fg(search_color).add_modifier(Modifier::BOLD)),
+        Span::styled("] ─ [Rerank: ", Style::default().fg(theme.border_unfocused)),
+        Span::styled(rerank_text, rerank_style),
         Span::styled("] ─ [Web: ", Style::default().fg(theme.border_unfocused)),
         Span::styled(web_text, web_style),
         Span::styled("] ─ ", Style::default().fg(theme.border_unfocused)),

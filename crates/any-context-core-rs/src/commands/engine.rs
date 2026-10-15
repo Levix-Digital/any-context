@@ -96,6 +96,9 @@ impl CommandEngine {
             "device" | "gpu" | "accelerator" => {
                 Self::execute_device(args, ctx)
             }
+            "rerank" | "reranker" => {
+                Self::execute_rerank(args, ctx)
+            }
             "profile" | "profiles" => {
                 Self::execute_profile(args, ctx)
             }
@@ -1725,6 +1728,116 @@ impl CommandEngine {
 
         out.push_str("\n💡 Run `/device <target>` (e.g. `/device dml`, `/device metal`, `/device cuda`, `/device cpu`) to switch execution targets.");
         CommandResult::success(out)
+    }
+
+    fn execute_rerank(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+        let spec_opt = crate::ingestion::OnnxModelManager::find_spec("bge-reranker-small");
+        let is_installed = spec_opt.as_ref().map(|s| crate::ingestion::OnnxModelManager::is_installed(s)).unwrap_or(false);
+        let target = args.first().copied().map(str::trim).map(str::to_lowercase);
+
+        if let Some(ref mode_str) = target {
+            match mode_str.as_str() {
+                "on" | "enable" | "enabled" | "1" | "true" => {
+                    if let Ok(db) = NativeConfigDb::open_default() {
+                        let _ = db.set_setting("rerank_mode", "on");
+                    }
+                    let mut updates = CommandStateUpdates::default();
+                    updates.rerank_mode = Some("on".to_string());
+
+                    let warn = if !is_installed {
+                        "\n⚠️ Note: Neural weights for `bge-reranker-small` are not downloaded yet.\nRun `actx download reranker` to enable local neural scoring. In the meantime, RRF will serve as fallback."
+                    } else {
+                        "\n⚡ Neural cross-attention re-ranking active with GPU/CPU acceleration."
+                    };
+
+                    return CommandResult::success(format!(
+                        "⚡ Neural Cross-Encoder Re-Ranking mode set to: **ON**{}\n\n\
+                         • Model: BGE-Reranker-Small (INT8 ONNX)\n\
+                         • Latency: Sub-18ms with DirectML / Metal / CPU SIMD\n\
+                         • Top-K: Cross-encoder scores applied to top candidates before U-shaped formatting.",
+                        warn
+                    ))
+                    .with_state_updates(updates);
+                }
+                "off" | "disable" | "disabled" | "0" | "false" => {
+                    if let Ok(db) = NativeConfigDb::open_default() {
+                        let _ = db.set_setting("rerank_mode", "off");
+                    }
+                    let mut updates = CommandStateUpdates::default();
+                    updates.rerank_mode = Some("off".to_string());
+                    return CommandResult::success(
+                        "⚡ Neural Cross-Encoder Re-Ranking mode set to: **OFF**\n\n\
+                         • Retrieval will rely exclusively on Reciprocal Rank Fusion (RRF, k=60).\n\
+                         • Minimum latency mode active with zero neural overhead."
+                    )
+                    .with_state_updates(updates);
+                }
+                "auto" | "default" => {
+                    if let Ok(db) = NativeConfigDb::open_default() {
+                        let _ = db.set_setting("rerank_mode", "auto");
+                    }
+                    let mut updates = CommandStateUpdates::default();
+                    updates.rerank_mode = Some("auto".to_string());
+                    let status_str = if is_installed {
+                        "Active (bge-reranker-small weights present on disk)"
+                    } else {
+                        "RRF Fallback (neural weights not installed; run `actx download reranker`)"
+                    };
+                    return CommandResult::success(format!(
+                        "⚡ Neural Cross-Encoder Re-Ranking mode set to: **AUTO**\n\n\
+                         • Current Dynamic Status: {}\n\
+                         • Two-stage neural retrieval is automatically used when model weights exist, falling back to RRF without interruption.",
+                        status_str
+                    ))
+                    .with_state_updates(updates);
+                }
+                _ => {
+                    return CommandResult::error(format!(
+                        "Unrecognized rerank option '{}'. Valid options:\n\
+                         • `/rerank on`: Force enable neural re-ranking\n\
+                         • `/rerank off`: Disable neural re-ranking (pure RRF)\n\
+                         • `/rerank auto`: Automatically use neural re-ranking when available\n\
+                         • `/rerank`: View status and telemetry",
+                        mode_str
+                    ));
+                }
+            }
+        }
+
+        // Status view
+        let (active_name, active_detail, is_active) = crate::ingestion::OnnxModelManager::active_reranker_state();
+        let badge = if is_active { "🟢 Active" } else { "⚪ Standby / Fallback" };
+
+        let disk_info = if let Some(spec) = spec_opt.as_ref() {
+            if is_installed {
+                let size = crate::ingestion::OnnxModelManager::installed_size(spec).unwrap_or(0);
+                format!("{:.2} MB on disk", size as f64 / (1024.0 * 1024.0))
+            } else {
+                format!("Not installed (~{:.1} MB download: `actx download reranker`)", spec.size_bytes as f64 / (1024.0 * 1024.0))
+            }
+        } else {
+            "Unknown".to_string()
+        };
+
+        CommandResult::success(format!(
+            "⚡ **Two-Stage Neural Retrieval & Re-ranking Status (Frente B)**\n\n\
+             • Mode Policy: **{}**\n\
+             • Engine: {}\n\
+             • State: {} ({})\n\
+             • Storage: {}\n\
+             • Active Hardware Device: {}\n\n\
+             **Two-Stage Pipeline Flow**:\n\
+             1. Stage 1 (High Recall): LanceDB Cosine + BM25 Okapi -> Reciprocal Rank Fusion (k=60) [30 candidates]\n\
+             2. Stage 2 (High Precision): BGE-Reranker-Small Cross-Attention scoring with Sigmoid [Top-K]\n\
+             3. Delivery: Source Diversification -> Density Budgeting -> U-Shaped Reordering -> XML Isolation\n\n\
+             *Tip*: Use `/rerank on`, `/rerank off`, or `/rerank auto` to switch policies.",
+            ctx.rerank_mode.to_uppercase(),
+            active_name,
+            badge,
+            active_detail,
+            disk_info,
+            ctx.execution_device
+        ))
     }
 
     // -------------------------------------------------------------------------

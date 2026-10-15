@@ -41,6 +41,8 @@ pub struct CommandStateUpdates {
     pub web_search_enabled: Option<bool>,
     /// Target hardware acceleration device, if changed
     pub execution_device: Option<String>,
+    /// Neural reranking mode ("auto", "on", "off"), if changed
+    pub rerank_mode: Option<String>,
 }
 
 /// Standardized domain result returned by `CommandEngine::execute`.
@@ -99,6 +101,10 @@ fn default_execution_device() -> String {
     "auto".to_string()
 }
 
+fn default_rerank_mode() -> String {
+    "auto".to_string()
+}
+
 /// UI-agnostic execution context supplied by presentation adapters to `CommandEngine`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionContext {
@@ -115,6 +121,9 @@ pub struct ExecutionContext {
     /// Target hardware acceleration device ("auto", "dml", "metal", "cuda", "vulkan", "cpu")
     #[serde(default = "default_execution_device")]
     pub execution_device: String,
+    /// Active neural reranker mode ("auto", "on", "off")
+    #[serde(default = "default_rerank_mode")]
+    pub rerank_mode: String,
 }
 
 impl Default for ExecutionContext {
@@ -126,6 +135,7 @@ impl Default for ExecutionContext {
             search_mode: "auto".to_string(),
             web_search_enabled: false,
             execution_device: "auto".to_string(),
+            rerank_mode: "auto".to_string(),
         }
     }
 }
