@@ -90,6 +90,9 @@ impl CommandEngine {
             "model" | "models" | "m" | "list-models" | "model-list" => {
                 Self::execute_model(args, ctx)
             }
+            "download" | "dl" | "get-model" => {
+                Self::execute_download(args, ctx)
+            }
             "profile" | "profiles" => {
                 Self::execute_profile(args, ctx)
             }
@@ -1530,6 +1533,127 @@ impl CommandEngine {
             ctx.active_model
         );
         CommandResult::success(models_text)
+    }
+
+    fn execute_download(args: &[&str], _ctx: &ExecutionContext) -> CommandResult {
+        let check = args.iter().any(|a| *a == "--check" || *a == "-c" || *a == "check");
+        let force = args.iter().any(|a| *a == "--force" || *a == "-f" || *a == "force");
+        let list = args.iter().any(|a| *a == "--list" || *a == "-l" || *a == "list");
+
+        let non_flag_args: Vec<&str> = args
+            .iter()
+            .copied()
+            .filter(|a| !a.starts_with('-') && *a != "check" && *a != "list" && *a != "force")
+            .collect();
+
+        let target = non_flag_args.first().copied();
+
+        if check || (target.is_none() && list) {
+            let summary = crate::ingestion::OnnxModelManager::inspect_store();
+            let metrics = crate::hardware::HardwareProfiler::probe_system(None);
+            let total_mb = summary.total_bytes_on_disk as f64 / (1024.0 * 1024.0);
+
+            let mut out = format!(
+                "📦 **AnyContext ONNX Model Store Status**\n\
+                 📁 Directory: `{}`\n\
+                 📊 Installed: {} of {} models ({:.1} MB on disk)\n\n\
+                 | Tier / Model ID | Category | Size | Status | Hardware Compatibility |\n\
+                 | :--- | :--- | :--- | :--- | :--- |\n",
+                summary.models_dir.display(),
+                summary.installed_count,
+                summary.total_count,
+                total_mb
+            );
+
+            for item in &summary.models {
+                let safety = crate::hardware::HardwareProfiler::validate_model_safety(&item.id, &metrics);
+                let (compat_badge, icon) = match safety {
+                    crate::hardware::HardwareSafetyVerdict::Safe { .. } => ("Safe / Compatible", "🟢"),
+                    crate::hardware::HardwareSafetyVerdict::Tight { .. } => ("Tight / Swap Risk", "🟡"),
+                    crate::hardware::HardwareSafetyVerdict::Unsafe { .. } => ("Exceeds RAM", "🔴"),
+                };
+
+                let (status_badge, size_str) = if item.is_installed {
+                    let mb = item.disk_size_bytes as f64 / (1024.0 * 1024.0);
+                    ("🟢 Installed", format!("{:.1} MB", mb))
+                } else {
+                    let nom_mb = item.expected_size_bytes as f64 / (1024.0 * 1024.0);
+                    if nom_mb >= 1000.0 {
+                        ("⚪ Not Installed", format!("~{:.2} GB", nom_mb / 1024.0))
+                    } else {
+                        ("⚪ Not Installed", format!("~{:.0} MB", nom_mb))
+                    }
+                };
+
+                out.push_str(&format!(
+                    "| `{}` | {} | {} | {} | {} {} |\n",
+                    item.id,
+                    item.category,
+                    size_str,
+                    status_badge,
+                    icon,
+                    compat_badge
+                ));
+            }
+
+            out.push_str("\n💡 Run `/download <tier>` (e.g. `/download 12b`) to install weights.\nAdd `--force` to bypass hardware guardrails.");
+            return CommandResult::success(out);
+        }
+
+        let target_str = match target {
+            Some(t) => t.trim(),
+            None => {
+                return CommandResult::success(
+                    "📥 **AnyContext Gemma 4 ONNX Model Downloader**\n\n\
+                     Available Gemma 4 tiers:\n\
+                     • `compact` (gemma-4-compact, ~1.85 GB) - Edge Mobility SLM (8GB RAM, ~2.5GB Peak)\n\
+                     • `12b` (gemma-4-12b, ~7.50 GB) - Developer Sweet Spot (16GB RAM, ~10GB Peak)\n\
+                     • `27b` (gemma-4-27b, ~17.20 GB) - Workstation High-Reasoning (32GB RAM, ~18.5GB Peak)\n\
+                     • `32b` (gemma-4-32b, ~20.20 GB) - Sovereign Frontier LLM (64GB RAM, ~25.5GB Peak)\n\n\
+                     Usage:\n\
+                       `/download <tier>` (e.g. `/download 12b` or `/download compact`)\n\
+                       `/download --check` (inspect local model storage and RAM safety)\n\
+                       `/download <tier> --force` (override RAM safety guardrail)"
+                );
+            }
+        };
+
+        let spec = match crate::ingestion::OnnxModelManager::resolve_spec(target_str) {
+            Some(s) => s,
+            None => {
+                return CommandResult::error(format!(
+                    "❌ Model or tier '{}' not recognized.\n\
+                     Available Gemma 4 tiers: `compact`, `12b`, `27b`, `32b`.\n\
+                     Other ONNX models: `clip-vit-int8`, `doc-layout-yolo`.\n\
+                     Run `/download --check` to see the full catalog.",
+                    target_str
+                ));
+            }
+        };
+
+        if crate::ingestion::OnnxModelManager::is_installed(spec) && !force {
+            return CommandResult::success(format!(
+                "✔ Model **{}** is already downloaded and ready on disk!\n\
+                 File: `%LOCALAPPDATA%\\AnyContext\\models\\{}`\n\n\
+                 • To set as active conversation model, execute: `/model {}`\n\
+                 • To force re-download, execute: `/download {} --force`",
+                spec.name, spec.file_name, spec.id, spec.id
+            ));
+        }
+
+        if let Err(err_msg) = crate::ingestion::OnnxModelManager::check_download_safety(spec, force) {
+            return CommandResult::error(err_msg);
+        }
+
+        let size_gb = spec.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+        let force_note = if force { " *(Guardrails bypassed via --force)*" } else { "" };
+        CommandResult::success(format!(
+            "📥 Pre-flight safety checks passed! Starting async download of **{}** (~{:.2} GB)...{}\n\
+             File: `{}`\n\
+             Progress is displayed in the footer. Press [Esc] anytime to cancel.",
+            spec.name, size_gb, force_note, spec.file_name
+        ))
+        .with_action(CommandAction::StartDownload(spec.id.to_string()))
     }
 
     // -------------------------------------------------------------------------

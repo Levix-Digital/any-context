@@ -187,6 +187,10 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 // Future RPC bridge runner
                 return Ok(());
             }
+            CliCommand::Download { tier, force, check } => {
+                handle_download(tier.as_deref(), *force, *check).await;
+                return Ok(());
+            }
         }
     }
 
@@ -441,3 +445,142 @@ fn handle_update(target_ver: Option<&str>) {
     let bin_dir = actx_installer::paths::get_canonical_bin_dir();
     actx_installer::run_standalone_update(&bin_dir, clean);
 }
+
+pub async fn handle_download(tier_opt: Option<&str>, force: bool, check: bool) {
+    use any_context_core_rs::ingestion::model_manager::{OnnxModelManager, DownloadProgressInfo};
+    use any_context_core_rs::hardware::HardwareProfiler;
+    use std::io::Write;
+
+    let metrics = HardwareProfiler::probe_system(None);
+    let summary = OnnxModelManager::inspect_store();
+
+    if check {
+        println!("=== AnyContext Local ONNX Model Store ===");
+        println!("Models Directory: {}", summary.models_dir.display());
+        println!("Installed: {} of {} models ({:.2} GB on disk)\n",
+            summary.installed_count, summary.total_count, summary.total_bytes_on_disk as f64 / 1e9);
+
+        println!("{:<20} {:<34} {:<15} {:<16} {:<24}",
+            "ID", "Name", "Nominal Size", "Status", "Hardware Verdict");
+        println!("{}", "-".repeat(110));
+
+        for spec in OnnxModelManager::catalog() {
+            let is_installed = OnnxModelManager::is_installed(spec);
+            let size_str = format!("{:.2} GB", spec.size_bytes as f64 / 1e9);
+            let status_str = if is_installed {
+                "✔ Installed".to_string()
+            } else {
+                "❌ Missing".to_string()
+            };
+
+            let safety = HardwareProfiler::validate_model_safety(spec.id, &metrics);
+            let verdict_str = match safety {
+                any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => "🟢 [Compatível]".to_string(),
+                any_context_core_rs::hardware::HardwareSafetyVerdict::Tight { .. } => "🟡 [Risco de Swap]".to_string(),
+                any_context_core_rs::hardware::HardwareSafetyVerdict::Unsafe { required_ram_gb, total_ram_gb, .. } => {
+                    format!("🔴 [Excede RAM: {:.0}G/{:.0}G]", required_ram_gb, total_ram_gb)
+                }
+            };
+
+            println!("{:<20} {:<34} {:<15} {:<16} {:<24}",
+                spec.id, spec.name, size_str, status_str, verdict_str);
+        }
+        return;
+    }
+
+    let target_spec = match tier_opt {
+        Some(t) => {
+            match OnnxModelManager::resolve_spec(t) {
+                Some(s) => s,
+                None => {
+                    eprintln!("❌ Unknown model tier '{}'.", t);
+                    eprintln!("Available tiers: 'compact' (~1.8GB), '12b' (~6.7GB), '27b' (~14.8GB), '32b' (~20.2GB)");
+                    eprintln!("Run 'actx download --check' to inspect all supported models.");
+                    std::process::exit(1);
+                }
+            }
+        }
+        None => {
+            let recommended = HardwareProfiler::recommended_local_gemma(&metrics);
+            println!("💡 No model tier specified.");
+            println!("Based on your system ({:.1} GB RAM), the recommended local model is: '{}'.",
+                metrics.total_ram_gb(), recommended);
+            println!("To download, run: actx download {}", recommended.trim_start_matches("gemma-4-"));
+            println!("Or run 'actx download --check' to view all available tiers.");
+            return;
+        }
+    };
+
+    if OnnxModelManager::is_installed(target_spec) {
+        println!("✔ Model '{}' is already fully installed at: {}",
+            target_spec.name, OnnxModelManager::model_path(target_spec).display());
+        println!("🤖 You can use it right now with: actx /model {}", target_spec.id);
+        return;
+    }
+
+    // Pre-flight safety check
+    if let Err(err_msg) = OnnxModelManager::check_download_safety(target_spec, force) {
+        eprintln!("{}", err_msg);
+        std::process::exit(1);
+    }
+
+    println!("📥 Starting download of '{}' (~{:.2} GB)...",
+        target_spec.name, target_spec.size_bytes as f64 / 1e9);
+    println!("File:        {}", target_spec.file_name);
+    println!("Destination: {}", OnnxModelManager::model_path(target_spec).display());
+    println!("Press Ctrl+C anytime to cancel.\n");
+
+    let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<(u64, u64)>();
+    let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+
+    // Ctrl+C cancellation handler
+    let cancel_tx_sig = cancel_tx.clone();
+    tokio::spawn(async move {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            let _ = cancel_tx_sig.send(true);
+        }
+    });
+
+    let spec_clone = target_spec.clone();
+    let download_task = tokio::spawn(async move {
+        OnnxModelManager::download_model_with_progress(&spec_clone, Some(progress_tx), Some(cancel_rx)).await
+    });
+
+    let start_time = std::time::Instant::now();
+    let mut last_draw = std::time::Instant::now();
+
+    while let Some((downloaded, total)) = progress_rx.recv().await {
+        if last_draw.elapsed() >= std::time::Duration::from_millis(100) || downloaded >= total {
+            let info = DownloadProgressInfo::compute(downloaded, total, start_time.elapsed());
+            let bar_width: usize = 30;
+            let filled = ((info.percentage / 100.0) * bar_width as f32).round() as usize;
+            let empty = bar_width.saturating_sub(filled);
+            let bar: String = "█".repeat(filled) + &"░".repeat(empty);
+
+            let dl_gb = downloaded as f64 / 1e9;
+            let tot_gb = total as f64 / 1e9;
+
+            print!("\r[{}] {:>5.1}% ({:.2}/{:.2} GB) │ {:>9} │ ETA: {:<6}",
+                bar, info.percentage, dl_gb, tot_gb, info.formatted_speed(), info.formatted_eta());
+            let _ = std::io::stdout().flush();
+            last_draw = std::time::Instant::now();
+        }
+    }
+
+    match download_task.await {
+        Ok(Ok(dest)) => {
+            println!("\n\n✔ Download complete! Successfully verified and installed at: {}", dest.display());
+            println!("🤖 Activate in interactive session: /model {}", target_spec.id);
+            println!("⚡ Run one-shot query: actx \"your query\" --model {}", target_spec.id);
+        }
+        Ok(Err(e)) => {
+            eprintln!("\n\n❌ Download failed: {}", e);
+            std::process::exit(1);
+        }
+        Err(join_err) => {
+            eprintln!("\n\n❌ Download task error: {}", join_err);
+            std::process::exit(1);
+        }
+    }
+}
+

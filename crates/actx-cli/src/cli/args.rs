@@ -104,6 +104,21 @@ pub enum CliCommand {
     /// Emits system diagnostic report and telemetry
     #[command(alias = "diag", alias = "perf", alias = "health", alias = "diagnistics")]
     Diagnostics,
+    /// Downloads or inspects local ONNX model weights (Gemma 4 family and Document AI)
+    #[command(alias = "get-model", alias = "dl")]
+    Download {
+        /// Model tier or alias to download (e.g. compact, 12b, 27b, 32b, all)
+        #[arg(index = 1)]
+        tier: Option<String>,
+
+        /// Force download even if hardware RAM safety guardrail warns of memory risk
+        #[arg(short, long)]
+        force: bool,
+
+        /// Inspect on-disk status, sizes, and hardware compatibility without downloading
+        #[arg(short, long)]
+        check: bool,
+    },
 }
 
 impl CliArgs {

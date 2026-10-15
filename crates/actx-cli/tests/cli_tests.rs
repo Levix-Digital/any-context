@@ -804,6 +804,52 @@ fn test_update_flag_and_version_target_parsing() {
     assert!(args4.is_headless());
 }
 
+#[test]
+fn test_download_cli_args_parsing() {
+    use clap::Parser;
+
+    // 1. actx download without args
+    let args1 = CliArgs::parse_from(["actx", "download"]);
+    match &args1.command {
+        Some(CliCommand::Download { tier, force, check }) => {
+            assert_eq!(tier, &None);
+            assert!(!force);
+            assert!(!check);
+        }
+        _ => panic!("Expected CliCommand::Download"),
+    }
+    assert!(args1.is_headless());
+
+    // 2. actx download 12b --force
+    let args2 = CliArgs::parse_from(["actx", "download", "12b", "--force"]);
+    match &args2.command {
+        Some(CliCommand::Download { tier, force, check }) => {
+            assert_eq!(tier.as_deref(), Some("12b"));
+            assert!(*force);
+            assert!(!*check);
+        }
+        _ => panic!("Expected CliCommand::Download"),
+    }
+    assert!(args2.is_headless());
+
+    // 3. actx download --check
+    let args3 = CliArgs::parse_from(["actx", "download", "--check"]);
+    match &args3.command {
+        Some(CliCommand::Download { tier, force, check }) => {
+            assert_eq!(tier, &None);
+            assert!(!*force);
+            assert!(*check);
+        }
+        _ => panic!("Expected CliCommand::Download"),
+    }
+    assert!(args3.is_headless());
+
+    // 4. Verify slash command lookup for /download and /dl
+    assert!(find_command("download").is_some());
+    assert!(find_command("dl").is_some());
+    assert!(find_command("get-model").is_some());
+}
+
 
 
 

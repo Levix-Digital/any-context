@@ -20,6 +20,8 @@ pub enum CommandAction {
     SwitchWorkspace(String),
     /// Request UI to rebuild its background agent orchestrator
     RebuildAgent,
+    /// Request UI to begin downloading an ONNX model spec by ID or tier
+    StartDownload(String),
 }
 
 /// Reactive state updates emitted by command execution to be reflected by presentation adapters.

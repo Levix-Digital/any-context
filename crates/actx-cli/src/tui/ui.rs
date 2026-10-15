@@ -504,18 +504,37 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
     // Real-time Model Download Telemetry
     if let Some(ref dl) = app.active_model_download {
         let cur_bytes = dl.downloaded_bytes.load(std::sync::atomic::Ordering::Relaxed);
-        let percent = if dl.total_bytes > 0 {
-            ((cur_bytes as f64 / dl.total_bytes as f64) * 100.0).clamp(0.0, 100.0) as u32
-        } else {
-            0
-        };
-        let cur_mb = cur_bytes as f64 / (1024.0 * 1024.0);
-        let total_mb = dl.total_bytes as f64 / (1024.0 * 1024.0);
+        let progress_info = any_context_core_rs::ingestion::model_manager::DownloadProgressInfo::compute(
+            cur_bytes,
+            dl.total_bytes,
+            dl.start_time.elapsed(),
+        );
         let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
         let spinner = spinner_chars[(app.tick_count as usize) % spinner_chars.len()];
 
+        let display_str = if progress_info.total_bytes > 0 {
+            format!(
+                "📥 Downloading {} {} {:.1}/{:.1} MB ({:.0}%) • {} • ETA: {} ",
+                spinner,
+                dl.model_name,
+                progress_info.downloaded_mb(),
+                progress_info.total_mb(),
+                progress_info.percentage,
+                progress_info.formatted_speed(),
+                progress_info.formatted_eta(),
+            )
+        } else {
+            format!(
+                "📥 Downloading {} {} {:.1} MB • {} ",
+                spinner,
+                dl.model_name,
+                progress_info.downloaded_mb(),
+                progress_info.formatted_speed(),
+            )
+        };
+
         spans.push(Span::styled(
-            format!("📥 Downloading {} {} {:.1}/{:.1} MB ({}%) ", spinner, dl.model_name, cur_mb, total_mb, percent),
+            display_str,
             Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::styled("[Esc to cancel] ", Style::default().fg(theme.reasoning)));

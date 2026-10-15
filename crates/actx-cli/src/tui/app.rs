@@ -629,7 +629,7 @@ impl App {
     }
 
     pub fn start_model_download(&mut self, model_id: &str) {
-        if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
+        if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::resolve_spec(model_id) {
             let spec_name = spec.name.to_string();
             let spec_mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
             let spec_file = spec.file_name.to_string();
@@ -703,14 +703,21 @@ impl App {
             use std::sync::atomic::Ordering;
             if dl.is_completed.load(Ordering::Relaxed) {
                 let name = dl.model_name.clone();
-                let file_name = any_context_core_rs::ingestion::OnnxModelManager::find_spec(&dl.model_id)
-                    .map(|s| s.file_name)
-                    .unwrap_or("model.onnx");
+                let spec_opt = any_context_core_rs::ingestion::OnnxModelManager::resolve_spec(&dl.model_id);
+                let (file_name, is_language_model) = match spec_opt {
+                    Some(s) => (s.file_name, s.category == any_context_core_rs::ingestion::OnnxModelCategory::LanguageModel),
+                    None => ("model.onnx", false),
+                };
+                let action_hint = if is_language_model {
+                    format!("\nTo switch your active conversation model to this model, run:\n  `/model {}`", dl.model_id)
+                } else {
+                    "\nNeural pipeline is now active for this task.".to_string()
+                };
                 self.chat_history.push(ChatMessageItem {
                     role: MessageRole::System,
                     content: format!(
-                        "✔ [Model Successfully Attached]\n**{}** is installed on disk and active!\nFile: `%LOCALAPPDATA%\\AnyContext\\models\\{}`.\nNeural pipeline is now active for this task.",
-                        name, file_name
+                        "✔ [Model Successfully Installed]\n**{}** is installed on disk and ready!\nFile: `%LOCALAPPDATA%\\AnyContext\\models\\{}`.{}",
+                        name, file_name, action_hint
                     ),
                     thinking: None,
                     timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
@@ -833,7 +840,22 @@ impl App {
                 self.menu_state.is_open = false;
             } else if item.id.starts_with("model:") {
                 let target_m = item.id.trim_start_matches("model:");
-                crate::commands::dispatch_slash_command("model", &[target_m], self);
+                let is_gemma = target_m.starts_with("gemma-4") || target_m.starts_with("gemma");
+                let is_installed = if is_gemma {
+                    if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::resolve_spec(target_m) {
+                        any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec)
+                    } else {
+                        false
+                    }
+                } else {
+                    true
+                };
+
+                if is_gemma && !is_installed {
+                    crate::commands::dispatch_slash_command("download", &[target_m], self);
+                } else {
+                    crate::commands::dispatch_slash_command("model", &[target_m], self);
+                }
                 self.menu_state.is_open = false;
             } else if item.id == "sync_action:incremental" {
                 crate::commands::dispatch_slash_command("sync", &["--incremental"], self);
@@ -887,7 +909,7 @@ impl App {
                 self.scroll_to_bottom();
                 self.menu_state.is_open = false;
             } else if let Some(model_id) = item.id.strip_prefix("model_action:download:") {
-                self.start_model_download(model_id);
+                crate::commands::dispatch_slash_command("download", &[model_id], self);
                 self.menu_state.is_open = false;
             } else if let Some(model_id) = item.id.strip_prefix("model_action:toggle:") {
                 if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec(model_id) {
@@ -1006,6 +1028,9 @@ impl App {
             }
             any_context_core_rs::commands::CommandAction::RebuildAgent => {
                 self.rebuild_agent();
+            }
+            any_context_core_rs::commands::CommandAction::StartDownload(ref model_id) => {
+                self.start_model_download(model_id);
             }
             any_context_core_rs::commands::CommandAction::None => {
                 if let Some(ref ws) = res.state_updates.active_workspace {

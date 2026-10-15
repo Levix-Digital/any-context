@@ -7,6 +7,87 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 41 (v0.41.0 Downloader Assistido de Pesos Gemma 4 ONNX no CLI e TUI com Pre-Flight Checks e Telemetria em Tempo Real):
+- **Objetivo**: Comprovar que na versão `v0.41.0`:
+  1. **Subcomando Headless (`actx download`)**:
+     - `actx download --check` exibe a tabela de modelos ONNX com status de instalação e compatibilidade de RAM.
+     - `actx download <tier>` (ex: `compact` ou `12b`) executa o download com barra de progresso visual, velocidade em MB/s e tempo restante estimado (ETA).
+     - `Ctrl+C` aborta o download limpando o arquivo temporário `.download.tmp`.
+  2. **Pre-Flight Checks de Segurança em Camadas**:
+     - O sistema valida o espaço livre em disco com margem de segurança de 500MB antes de iniciar a transferência.
+     - O guardrail de hardware protege contra Out-Of-Memory e swap thrashing se a RAM física for insuficiente para o modelo solicitado, exigindo `--force` para override.
+  3. **Slash Command na TUI (`/download`, `/dl`, `/get-model`)**:
+     - `/download --check` exibe a tabela de modelos diretamente no histórico do chat.
+     - `/download 12b` inicia o download em segundo plano com telemetria contínua exibida no rodapé.
+     - Teclar `[Esc]` durante o download cancela imediatamente a requisição sem travar a interface.
+  4. **Menu Interativo `[F1]` com Auto-Download**:
+     - Ao acessar `[F1] -> Models` e teclar `[Enter]` sobre um modelo não instalado (badge `(Instalar)`), a TUI despacha automaticamente o download passando pelos pre-flight checks de segurança.
+  5. **Conformidade Hexagonal Absoluta**:
+     - Zero regras de negócio ou checagens diretas de hardware na interface; toda a validação de segurança e cálculo de telemetria é executada pelo Core (`any-context-core-rs`).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.41.0`.
+
+2. **🔍 Inspeção de Armazenamento Headless (`actx download --check`):**
+   - Execute no terminal:
+     ```text
+     actx download --check
+     ```
+   - **Critérios de Aceitação**:
+     - Exibe o cabeçalho `AnyContext ONNX Model Store Status` com o diretório local `%LOCALAPPDATA%\AnyContext\models`.
+     - Exibe a tabela com as colunas `Tier / Model ID`, `Category`, `Size`, `Status` e `Hardware Compatibility`.
+     - Mostra os 4 modelos da família Gemma 4 (`gemma-4-compact`, `gemma-4-12b`, `gemma-4-27b`, `gemma-4-32b`) com semáforo de RAM correspondente à máquina real.
+
+3. **🛡️ Teste de Guardrail de Hardware e Override com `--force`:**
+   - Execute o download de um tier que exceda a RAM física do sistema sem `--force` (ex: `actx download 32b` em máquina de 16GB ou 32GB):
+     ```text
+     actx download 32b
+     ```
+   - **Critério de Aceitação**: O download é bloqueado preventivamente com mensagem explicativa detalhando a RAM requerida vs disponível e instrução de uso de `--force`.
+   - Teste o comando com `--force`:
+     ```text
+     actx download 32b --force
+     ```
+   - **Critério de Aceitação**: O guardrail é sobrescrito conscientemente e a requisição prossegue. Pressione `Ctrl+C` para abortar imediatamente.
+
+4. **💬 Teste do Slash Command Interativo na TUI (`/download` e `/dl`):**
+   - Inicie a TUI executando `actx`.
+   - No prompt de chat, digite:
+     ```text
+     /download
+     ```
+   - **Critério de Aceitação**: Exibe o guia acolhedor dos 4 tiers Gemma 4 (`compact`, `12b`, `27b`, `32b`) e exemplos de uso.
+   - Digite `/download --check`:
+     ```text
+     /download --check
+     ```
+   - **Critério de Aceitação**: Renderiza no histórico do chat a tabela formatada do repositório local e compatibilidade de hardware.
+   - Dispare o download de um tier (ex: `/dl compact`):
+     ```text
+     /dl compact
+     ```
+   - **Critérios de Aceitação**:
+     - O chat informa que os pre-flight checks foram aprovados e que o download assíncrono foi iniciado.
+     - O rodapé da TUI exibe o spinner e a telemetria em tempo real: `📥 Downloading ⠋ Gemma 4 Compact (INT4 ONNX) X.X/Y.Y MB (Z%) • W.W MB/s • ETA: MMm SSs [Esc to cancel]`.
+     - Pressione `[Esc]`: o download é cancelado graciosamente e uma notificação de cancelamento é registrada no histórico.
+
+5. **📋 Teste do Menu Interativo `[F1]` com Disparo Automático:**
+   - Pressione `[F1]` ou digite `/menu` e selecione `Models`.
+   - Navegue com as setas até um modelo Gemma 4 não instalado com badge `[🟢 Compatível (Instalar)]` ou `[🟡 Risco de Swap (Instalar)]`.
+   - Pressione `[Enter]`.
+   - **Critérios de Aceitação**:
+     - O menu fecha e o download é iniciado imediatamente em segundo plano via `CommandEngine`.
+     - A barra de progresso no rodapé passa a reportar os bytes transferidos, velocidade e ETA.
+     - Pressionar `[Esc]` cancela o download graciosamente.
+
+---
+
 ### 📌 Cenário 32 (v0.34.9 Harmonização Aurora Boreal, Canvas Borderless, Auto-Scroll ReAct, UX Amigável no Update, Cancelamento de Download de Modelos e Onboarding Wizard Neutro):
 - **Objetivo**: Comprovar que na versão `v0.34.9`:
   1. **Harmonização de Cores Aurora Boreal**:

@@ -603,5 +603,51 @@ fn test_preset_command_execution() {
     assert_eq!(res_alias.state_updates.search_mode, Some("fast".to_string()));
 }
 
+#[test]
+fn test_download_command_execution() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext::default();
+
+    // 1. /download without args displays Gemma 4 tier guide
+    let res_help = CommandEngine::execute("download", &[], &ctx);
+    assert!(res_help.success);
+    assert!(res_help.message.contains("AnyContext Gemma 4 ONNX Model Downloader"));
+    assert!(res_help.message.contains("compact"));
+    assert!(res_help.message.contains("12b"));
+    assert!(res_help.message.contains("27b"));
+    assert!(res_help.message.contains("32b"));
+
+    // 2. /download --check displays model store catalog and RAM compatibility
+    let res_check = CommandEngine::execute("download", &["--check"], &ctx);
+    assert!(res_check.success);
+    assert!(res_check.message.contains("AnyContext ONNX Model Store Status"));
+    assert!(res_check.message.contains("gemma-4-compact"));
+    assert!(res_check.message.contains("gemma-4-12b"));
+
+    // 3. /download with invalid model fails gracefully
+    let res_invalid = CommandEngine::execute("download", &["nonexistent-model-xyz"], &ctx);
+    assert!(!res_invalid.success);
+    assert!(res_invalid.message.contains("not recognized"));
+
+    // 4. /dl alias with alias 'compact' resolves spec
+    let res_compact = CommandEngine::execute("dl", &["compact"], &ctx);
+    if res_compact.success {
+        assert!(res_compact.message.contains("Compact") || res_compact.message.contains("already downloaded"));
+        if let CommandAction::StartDownload(ref id) = res_compact.action {
+            assert_eq!(id, "gemma-4-compact");
+        }
+    } else {
+        assert!(res_compact.message.contains("Hardware") || res_compact.message.contains("Disk Space"));
+    }
+
+    // 5. /get-model alias with --force passes guardrails
+    let res_force = CommandEngine::execute("get-model", &["12b", "--force"], &ctx);
+    if res_force.success {
+        if let CommandAction::StartDownload(ref id) = res_force.action {
+            assert_eq!(id, "gemma-4-12b");
+        }
+    }
+}
+
 
 

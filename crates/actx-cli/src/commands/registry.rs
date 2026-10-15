@@ -72,6 +72,13 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         category: "Workspace",
     },
     SlashCommand {
+        name: "download",
+        aliases: &["dl", "get-model"],
+        description: "Downloads or verifies local Gemma 4 ONNX model weights with hardware checks",
+        usage: "/download [compact|12b|27b|32b|all] [--force]",
+        category: "Engine",
+    },
+    SlashCommand {
         name: "sources",
         aliases: &["source", "list-sources", "src"],
         description: "Lists and manages indexed local folders and web documentation sources",

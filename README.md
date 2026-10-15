@@ -45,6 +45,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **📥 Downloader Assistido de Pesos Gemma 4 ONNX no CLI & TUI (`v0.41.0`)**:
+  - **Download Assistido de Pesos Locais (`actx download <tier>`)**: Subcomando headless de terminal e slash command interativo (`/download <tier>`, `/dl`, `/get-model`) para baixar e instalar localmente os modelos da família Gemma 4 (`compact`, `12b`, `27b`, `32b`) com barra de progresso visual, velocidade em tempo real (MB/s), tempo estimado (ETA) e cancelamento instantâneo via Ctrl+C ou `[Esc]`.
+  - **Pre-Flight Checks de Segurança em Camadas**: Verificação automática de espaço livre em disco com margem de segurança de 500MB e guardrails de hardware para RAM física. Impede downloads inviáveis por falta de armazenamento ou estouro de memória, com suporte à flag `--force` para override consciente.
+  - **Inspeção de Armazenamento Local (`actx download --check` / `/download --check`)**: Tabela completa exibindo todos os modelos ONNX suportados, diretório local (`%LOCALAPPDATA%\AnyContext\models\`), status de instalação e compatibilidade de hardware em tempo real.
+  - **Menu TUI Inteligente (`[F1] -> Models`)**: Ao pressionar `[Enter]` em um modelo local ainda não instalado, a TUI inicia automaticamente o download em segundo plano com feedback imediato e barra de progresso ativa no rodapé.
+  - **Arquitetura Hexagonal Rigorosa (Zero Regras de Negócio na UI)**: Toda a lógica de verificação de disco, profilagem de RAM, resolução de aliases e cálculo de telemetria reside no Core (`any-context-core-rs`), mantendo as interfaces de apresentação desacopladas e resilientes.
+
 - **🧠 Ativação Operacional do Gemma 4 Local ONNX, Guardrails de Hardware Estilo LM Studio & Presets Seguros de Workspace (`v0.40.0`)**:
   - **Ativação Operacional do Gemma 4 Local no CLI (`resolve_lm_provider`)**: Conecta o motor neural ONNX diretamente aos fluxos de conversação do terminal e da TUI, com resolução de pesos em `%LOCALAPPDATA%/actx/models/` e garantia inviolável ADR-110 (fallback offline gracioso sem quedas ou chamadas indevidas à nuvem).
   - **Guardrails de Hardware Ativos (Estilo LM Studio)**: Modelos locais são validados em tempo real (<5ms) contra a memória RAM física do hospedeiro. Modelos que excedem a capacidade física (🔴) são bloqueados por padrão contra Out-Of-Memory (OOM) e swap thrashing catastrófico, exigindo a flag explícita `--force` (`/model gemma-4-32b --force`) para prosseguir. Modelos cloud permanecem 100% livres e irrestritos.
@@ -637,6 +644,7 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/transfer`** | `<src_ws> <tgt_ws> <path_or_url>` | Instant zero-cost transfer of folders or web portals between workspaces. |
 | **`/rename`** | `<old_ws> <new_ws>` | Atomic zero-cost workspace renaming ($0.00). |
 | **`/model`** | `<name>`, `--list`, `-l` | Open key-aware AI model selector across 9 providers or list available models. |
+| **`/download`** | `<tier>`, `--check`, `--force`, `/dl`, `/get-model` | Baixa e instala pesos Gemma 4 ONNX (`compact`, `12b`, `27b`, `32b`) com pre-flight checks, velocidade (MB/s), ETA e cancelamento `[Esc]`. |
 | **`@model <msg>`** | — | One-shot prompt to a specific model without changing session defaults. |
 | **`/api-keys`** | `/keys` | Step-by-step guide with portal links to obtain API keys. |
 | **`/ocr`** | `image`, `scan` | View Image & Scanned PDF OCR parsing status. |
@@ -652,6 +660,61 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/help [cmd]`** | `/h`, `[cmd] --help`, `[cmd] -h` | Open the interactive manual index or get help for a specific command. |
 | **`/exit`** | `/q`, `exit`, `quit` | Save structured 5-dimension long-term memory and exit gracefully. |
 | **`Ctrl+C`** | — | Interrupt AI generation immediately or prompt graceful exit. |
+
+---
+
+## 📥 Download e Gerenciamento Assistido de Pesos Locais (Gemma 4 ONNX)
+
+O **AnyContext `v0.41.0`** introduz um pipeline unificado e assistido para download e instalação local dos modelos quantizados da família **Gemma 4 ONNX**. Com verificação de integridade em camadas, o AnyContext protege seu sistema contra falta de espaço em disco e travamentos por estouro de memória RAM física (*Out-Of-Memory* e *swap thrashing*).
+
+### 🎯 Tiers Suportados da Família Gemma 4
+
+| Tier / Alias | Modelo Canônico | Tamanho em Disco | Memória RAM Exigida | Perfil Recomendado |
+| :--- | :--- | :--- | :--- | :--- |
+| **`compact`** (ou `2b`, `3b`) | `gemma-4-compact` | **~1.85 GB** | $\ge 8\text{ GB}$ (Pico ~2.5GB) | ⚡ Smart Balanced / Laptops |
+| **`12b`** | `gemma-4-12b` | **~7.50 GB** | $\ge 16\text{ GB}$ (Pico ~10GB) | 🌌 Air-Gapped Power / Dev |
+| **`27b`** | `gemma-4-27b` | **~17.20 GB** | $\ge 32\text{ GB}$ (Pico ~18.5GB) | 💼 Workstation Pro |
+| **`32b`** | `gemma-4-32b` | **~20.20 GB** | $\ge 64\text{ GB}$ (Pico ~25.5GB) | 👑 Sovereign Ultra |
+
+---
+
+### 💻 1. Uso Headless no Terminal (`actx download`)
+
+Baixe e instale modelos diretamente do terminal sem abrir a TUI:
+
+```bash
+# Inspeciona os modelos instalados e a compatibilidade do hardware
+actx download --check
+
+# Baixa o modelo recomendado para sua máquina com telemetria visual
+actx download compact
+
+# Baixa um modelo específico (ex: 12B)
+actx download 12b
+
+# Força o download mesmo se a RAM física for inferior ao recomendado
+actx download 32b --force
+```
+
+Durante o download headless, o terminal exibe:
+```text
+[████████████████░░░░░░░░░░░░░░]  53.4% (3.61/6.75 GB) │  18.4 MB/s │ ETA: 2m 50s
+```
+
+---
+
+### 💬 2. Uso Interativo na TUI (`/download` e Menu `[F1]`)
+
+No chat interativo, execute downloads em segundo plano enquanto continua navegando:
+
+- **Slash Command**: `/download 12b` (ou `/dl compact`, `/get-model 27b`).
+- **Verificação de Status**: `/download --check` exibe a tabela de armazenamento e semáforo de RAM diretamente no histórico.
+- **Menu Interativo `[F1]`**: Ao acessar `[F1] -> Models` e teclar `[Enter]` em um modelo local com status `(Instalar)`, o download é disparado automaticamente com validação prévia de segurança.
+- **Telemetria no Rodapé**:
+  ```text
+  📥 Downloading ⠋ Gemma 4 12B (INT4 ONNX) 3610.2/6750.0 MB (53%) • 18.4 MB/s • ETA: 2m 50s [Esc to cancel]
+  ```
+- **Cancelamento Gracioso**: Pressione `[Esc]` a qualquer momento para abortar o download e remover arquivos temporários imediatamente.
 
 ---
 
