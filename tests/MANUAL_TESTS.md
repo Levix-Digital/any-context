@@ -3230,7 +3230,7 @@
   2. **XML Universal**: O parser identifica tags pai-filho, preserva o fechamento sintático dos nós XML e gera breadcrumbs hierárquicos precisos (`// Context: <arquivo>.xml > root > parent > item`). Elementos gigantescos são quebrados graciosamente via `split_oversized_code`, e arquivos malformados contam com fallback resiliente sem pânico.
   3. **JSON Estruturado & JSONL**: O parser JSON decompõe arrays em fatias e objetos em agrupamentos de chaves com formatação legível para embeddings (`// Context: <arquivo>.json > root > {key1, key2}`). Arquivos `.jsonl` agrupam registros por janela de linhas (`// Context: <arquivo>.jsonl > lines X..Y`).
   4. **YAML Multi-Documento**: O parser YAML detecta delimitadores `---`, extrai rótulos de recursos (ex: `Deployment: api`, `Service: web`), agrupa mapeamentos e sequências e emite chunks semânticos autocontidos.
-  5. **Política Estrita de Produto Global**: O motor é 100% agnóstico e universal, sem nenhuma regra, heurística ou formatação específica de país (zero XML fiscal brasileiro).
+  5. **Política Estrita de Produto Global (Calgary, Alberta, Canadá)**: O motor é 100% agnóstico e universal, sem nenhuma regra, heurística, tributação ou formatação específica de país.
   6. O indexador (`indexer.py`) cataloga os chunks com seus respectivos `content_type`s semânticos: `XML Structured Document`, `JSON Structured Data` e `YAML Configuration`.
 - **Pré-requisito**: Versão `v0.30.7` instalada.
 

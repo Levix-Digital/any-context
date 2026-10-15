@@ -244,7 +244,7 @@ let clear_text = if text.starts_with("enc::") {
    - **Seção 106**: "Arquitetura de Ingestão de Alta Fidelidade Semântica e Preservação de Layout 2D".
    - **ADR-113**: "Eliminação de Inversão Heurística em Chunker Tabular e Preservação Incondicional de Formatos Markdown 2D".
 2. **`README.md`**:
-   - Atualizar a seção sobre capacidade de processamento de formulários fiscais (T4, W-2, IRPF) e logísticos (CMR, Invoices), detalhando que a geometria 2D é preservada com exatidão semântica.
+   - Atualizar a seção sobre capacidade de processamento de formulários fiscais e financeiros (T4, W-2, GST/HST) e logísticos (CMR, Invoices), detalhando que a geometria 2D é preservada com exatidão semântica.
 3. **`MANUAL_TESTS.md`**:
    - Adicionar o **Cenário 28: Validação Cumulativa de Fidelidade Semântica de Chunks e RAG em Documentos Fiscais e Logísticos Complexos (T4 e CMR)**.
    - Preservar integralmente todos os Cenários de 1 a 27 sem truncamento.

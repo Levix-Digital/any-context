@@ -2640,7 +2640,7 @@ graph TD
 
 1. **Strict Global Product Policy**:
    - AnyContext is an uncompromisingly **Global Product**. The core engine is 100% universal, domain-agnostic, and format-neutral.
-   - It contains strictly **zero country-specific implementations** (no Brazilian tax/fiscal XML models such as NF-e, NFC-e, CT-e, MDF-e, 44-digit access keys, or country-specific tax rules).
+   - It contains strictly **zero country-specific implementations** (no country-specific tax rules, localized fiscal models, proprietary access keys, or regional government schemas).
    - All structured files are parsed purely according to their standard syntactic grammar specifications (W3C XML, ECMA-404 JSON, YAML 1.2, TOML v1.0).
 
 2. **Universal XML Chunker (`xml.rs` via `quick-xml 0.37`)**:
@@ -6260,8 +6260,8 @@ flowchart TD
 ### 1. Visão Geral e Princípios Fundamentais
 A versão `v0.33.0` conclui a transição arquitetural de longo prazo do AnyContext, transformando o projeto em um ecossistema **100% nativo em Rust**, eliminando todos os arquivos de código legado em Python (`src/any_context/`, `main.py`, `launcher/`, `requirements.txt`, PyInstaller spec files).
 
-#### 🌍 Princípio Global e Internacional Irrevogável
-O AnyContext é uma plataforma estritamente **global, mundial e internacional**. O codebase proíbe a inclusão de especificidades fiscais ou tributárias regionalizadas (como NF-e, NFC-e brasileiras). Toda a ingestão, tokenização, extração estruturada e recuperação são projetadas para operar agnosticamento em qualquer idioma, formato ou país.
+#### 🌍 Princípio Global e Internacional Irrevogável (Calgary, Alberta, Canadá)
+O AnyContext é uma plataforma estritamente **global, mundial e internacional**, concebida e desenvolvida em Calgary, Alberta, Canadá. O codebase proíbe terminantemente a inclusão de especificidades fiscais, tributárias, legais ou governamentais regionalizadas de qualquer país. Toda a ingestão, tokenização, extração estruturada e recuperação são projetadas para operar de forma 100% universal e agnóstica em qualquer ecossistema de dados.
 
 ### 2. Módulos e Funcionalidades Portadas em Rust Puro
 
