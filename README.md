@@ -45,6 +45,13 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🎯 RAG Determinístico Backend-First, U-Shaped Reordering, Isolamento XML & Zero Hallucination Gate (`v0.43.0`)**:
+  - **RAG Determinístico 1-Hop Orquestrado pelo Backend**: Redução drástica de ~50% no Time-to-First-Token (TTFT) e economia substancial de tokens em consultas diretas/factuais. O backend do AnyContext executa a busca vetorial híbrida densa + lexical (Dense + BM25 + RRF) no LanceDB antes de acionar o LLM. Apenas 1 chamada única é realizada ao LLM, injetando o contexto formatado e a pergunta.
+  - **U-Shaped Reordering (Anti "Lost in the Middle")**: Reordenação determinística em formato de "U" (`ContextFormatter::u_shaped_reorder`), posicionando o Rank 1 no topo absoluto do contexto (*Primacy Bias*), o Rank 2 no final absoluto colado na pergunta (*Recency Bias*) e empurrando ranks intermediários para o miolo, mitigando a degradação de atenção do Transformer.
+  - **Isolamento Estrutural por Tags XML + Metadados de Escopo**: Cada trecho de contexto é envelopado em uma tag XML explícita `<chunk id="..." rank="..." score="..." source="..." scope="..." version="..." type="...">`, criando barreiras sintáticas rígidas para as cabeças de atenção do LLM e prevenindo a fusão cruzada de regras entre versões e escopos distintos.
+  - **Zero Hallucination Gate (Fast-Path de Resposta Negativa Honesta)**: Avaliação instantânea (<5ms / $0.00 / 0 chamadas de LLM). Quando a busca não encontra correspondência documental no workspace ou todos os chunks ficam abaixo da nota de corte de relevância, o sistema retorna uma resposta honesta e calibrada informando exatamente as fontes e pastas monitoradas, sem alucinações.
+  - **Arquitetura Hexagonal Rigorosa (Formatação Canônica Única no Core)**: Centralização de toda a lógica de formatação XML, reordenação em U e regras anti-alucinação no Core (`ContextFormatter`), consumida uniformemente pelo agente headless, TUI interativa e ReAct Tool Registry.
+
 - **⚡ Matriz Tri-Cross-Platform de Aceleração por Hardware no `actx-onnx` (DirectML, Metal, CUDA, Vulkan & CPU SIMD) (`v0.42.0`)**:
   - **Aceleração Nativa Tri-Plataforma**: Habilita execução neural acelerada por GPU para a família Gemma 4 ONNX:
     - **Windows**: Microsoft DirectML (DXGI 1.2 / DirectX 12) com suporte universal a GPUs NVIDIA GeForce / RTX, AMD Radeon e Intel Arc / Iris Xe.

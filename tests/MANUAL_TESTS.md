@@ -7,6 +7,62 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 43 (v0.43.0 RAG Determinístico Backend-First, U-Shaped Reordering, Isolamento XML e Zero Hallucination Gate):
+- **Objetivo**: Comprovar que na versão `v0.43.0`:
+  1. **RAG Determinístico 1-Hop Orquestrado pelo Backend**:
+     - Em `SearchMode::Fast` ou quando o `ChatModelRouter` detecta complexidade simples, o AnyContext executa a busca vetorial híbrida densa + lexical (`NativeHybridPipeline`) no LanceDB antes de acionar o LLM.
+     - A resposta é obtida com apenas 1 chamada ao LLM (1-hop), reduzindo drasticamente o Time-to-First-Token (~50% mais rápido) e economizando tokens de raciocínio intermediário.
+  2. **U-Shaped Reordering (Anti Lost in the Middle)**:
+     - Os chunks recuperados são reordenados deterministicamente em U: Rank 1 no início absoluto (Primacy), Rank 2 no final absoluto adjacente à pergunta (Recency) e ranks intermediários no meio.
+     - A mitigação do esquecimento contextual do Transformer é verificável nas fontes priorizadas na resposta.
+  3. **Isolamento Estrutural por Tags XML + Metadados de Escopo**:
+     - Cada chunk é delimitado por `<chunk id="..." rank="..." score="..." source="..." scope="..." version="..." type="...">` com fechamento explícito `</chunk>`.
+     - Evita a fusão cruzada de regras, portas e timeouts entre documentos de versões diferentes (ex: v1 legado vs v2 produção).
+  4. **Zero Hallucination Gate (Fast-Path de Resposta Negativa Honesta)**:
+     - Quando a consulta busca por termos inexistentes no workspace ou cuja relevância é nula (<0.005), o sistema emite resposta imediata (<5ms, custo $0.00) informando as pastas e fontes monitoradas sem alucinar fatos nem consumir chamadas de LLM.
+  5. **Higiene da Memória de Sessão**:
+     - O histórico de conversas no SQLite armazena unicamente a pergunta do usuário e a resposta limpa do assistente, blindando o banco contra o inchaço de templates XML.
+  6. **Conformidade Hexagonal e Paridade Multi-Superfície**:
+     - Formatação única no Core (`any-context-core-rs::retrieval::ContextFormatter`), consumida igualmente por CLI headless e TUI interativa.
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Validação de Versão Atualizada:**
+   - Execute no terminal:
+     ```text
+     actx -v
+     ```
+   - **Critério de Aceitação**: Exibe estritamente a nova versão `actx 0.43.0`.
+
+2. **⚡ Teste do RAG Determinístico 1-Hop com U-Shaped Reordering:**
+   - Em um workspace indexado com documentos, execute uma pergunta direta:
+     ```text
+     actx "Qual é a configuração de timeout da aplicação?"
+     ```
+   - **Critérios de Aceitação**:
+     - A resposta começa a ser gerada imediatamente com redução visível de TTFT (1-hop stream direto sem turnos extras de ferramenta no prompt).
+     - As citações correspondem aos chunks de maior relevância posicionados nas extremidades do contexto.
+
+3. **🛡️ Teste do Zero Hallucination Gate (Fast-Path de Resposta Negativa):**
+   - Execute uma consulta sobre um tema completamente alienígena à base de conhecimento:
+     ```text
+     actx "Qual é o diâmetro da lua de Júpiter Europa segundo os manuais deste projeto?"
+     ```
+   - **Critérios de Aceitação**:
+     - Resposta instantânea (<10ms).
+     - O AnyContext declara honestamente que a informação não foi localizada nos documentos monitorados pelo workspace, listando as fontes indexadas e sem inventar dados.
+     - 0 chamadas de LLM realizadas para a resposta negativa.
+
+4. **🖥️ Teste na TUI Interativa:**
+   - Inicie a TUI:
+     ```text
+     actx
+     ```
+   - Digite uma pergunta direta no prompt.
+   - **Critério de Aceitação**: Resposta transmitida em tempo real via streaming, com histórico de conversa preservado limpo (sem tags XML no buffer de mensagens).
+
+---
+
 ### 📌 Cenário 42 (v0.42.0 Matriz Tri-Cross-Platform de Aceleração por Hardware no actx-onnx com DirectML, Metal, CUDA, Vulkan e Fallback Gracioso CPU SIMD):
 - **Objetivo**: Comprovar que na versão `v0.42.0`:
   1. **Sondagem Nativa de Hardware e Diagnóstico Headless**:

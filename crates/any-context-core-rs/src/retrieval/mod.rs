@@ -7,6 +7,7 @@ pub mod query;
 pub mod token_budget;
 pub mod pipeline;
 pub mod web_search;
+pub mod prompt;
 
 pub use tokenizer::tokenize;
 pub use bm25::{BM25Index, DocRecord, Posting};
@@ -17,3 +18,4 @@ pub use query::{QueryPreprocessor, ProcessedQuery, extract_temporal_clauses_nati
 pub use token_budget::{estimate_token_count, truncate_to_token_ceiling, get_embedding_token_limit_rs};
 pub use pipeline::{NativeHybridPipeline, HybridSearchRequest, HybridSearchResult, RetrievalPreset};
 pub use web_search::{NativeWebSearchEngine, WebSearchResult, parse_duckduckgo_html};
+pub use prompt::ContextFormatter;

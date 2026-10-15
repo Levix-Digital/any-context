@@ -31,6 +31,30 @@ pub use tool::{NativeTool, Tool, ToolRegistry};
 pub use actx_lm::traits::LmProvider;
 pub use async_trait::async_trait;
 use std::sync::Arc;
+use std::time::Instant;
+use futures::StreamExt;
+use actx_lm::types::{ChatMessage, ChatRequest, FinishReason};
+
+/// Abstract contract for asynchronous single-query deterministic RAG retrieval.
+#[async_trait]
+pub trait DeterministicRetriever: Send + Sync {
+    /// Retrieves relevant chunks and formats them into a complete prompt or calibrated negative response.
+    async fn retrieve_and_format(&self, query: &str) -> Result<DeterministicRetrievalOutput, AgentError>;
+}
+
+/// Output from a deterministic retrieval evaluation.
+#[derive(Debug, Clone)]
+pub enum DeterministicRetrievalOutput {
+    /// Context was found, reordered in U, and enveloped in XML tags, ready for 1-hop execution.
+    ContextReady {
+        formatted_prompt: String,
+        chunk_count: usize,
+    },
+    /// Zero chunks or below threshold; provides an honest negative response without LLM calls ($0.00 / 0 turns).
+    ZeroContext {
+        message: String,
+    },
+}
 
 /// Default retriever delegating to a tool in the ToolRegistry (e.g. "search_db")
 pub struct ToolBasedRetriever {
@@ -78,6 +102,7 @@ impl DeepSearchRetriever for ToolBasedRetriever {
 pub struct Agent {
     orchestrator: Arc<ReActOrchestrator>,
     deep_search_orchestrator: Option<Arc<DeepSearchOrchestrator>>,
+    deterministic_retriever: Option<Arc<dyn DeterministicRetriever>>,
     execution_mode: AgentExecutionMode,
     search_mode: SearchMode,
     router: Arc<ChatModelRouter>,
@@ -111,6 +136,62 @@ impl Agent {
             if let Some(ref dso) = self.deep_search_orchestrator {
                 return dso.run(input, session_id, None).await;
             }
+        } else if self.deterministic_retriever.is_some()
+            && (decision.mode == AgentExecutionMode::Direct
+                || self.search_mode == SearchMode::Fast
+                || decision.complexity == router::QueryComplexity::Fast)
+        {
+            let det_retriever = self.deterministic_retriever.clone().unwrap();
+            let start_time = Instant::now();
+            match det_retriever.retrieve_and_format(input).await? {
+                DeterministicRetrievalOutput::ZeroContext { message } => {
+                    if let (Some(sid), Some(store)) = (session_id, self.orchestrator.session_store()) {
+                        let _ = store.append_messages(sid, &[
+                            ChatMessage::user(input),
+                            ChatMessage::assistant(&message),
+                        ]).await;
+                    }
+                    return Ok(AgentResponse {
+                        content: message,
+                        tool_calls_count: 0,
+                        total_turns: 0,
+                        finish_reason: Some(FinishReason::Stop),
+                        execution_time_ms: start_time.elapsed().as_millis() as u64,
+                    });
+                }
+                DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _ } => {
+                    let mut messages = Vec::new();
+                    if let (Some(sid), Some(store)) = (session_id, self.orchestrator.session_store()) {
+                        let prior = store.get_messages(sid).await.unwrap_or_default();
+                        messages.extend(prior);
+                    }
+                    messages.push(ChatMessage::user(&formatted_prompt));
+
+                    let mut req = ChatRequest::new(&self.orchestrator.config().model, messages);
+                    if let Some(t) = self.orchestrator.config().temperature {
+                        req = req.with_temperature(t);
+                    }
+
+                    let res = self.orchestrator.client().chat_complete(req).await
+                        .map_err(AgentError::LmError)?;
+                    let content = res.content;
+
+                    if let (Some(sid), Some(store)) = (session_id, self.orchestrator.session_store()) {
+                        let _ = store.append_messages(sid, &[
+                            ChatMessage::user(input),
+                            ChatMessage::assistant(&content),
+                        ]).await;
+                    }
+
+                    return Ok(AgentResponse {
+                        content,
+                        tool_calls_count: 0,
+                        total_turns: 1,
+                        finish_reason: res.finish_reason,
+                        execution_time_ms: start_time.elapsed().as_millis() as u64,
+                    });
+                }
+            }
         }
         self.orchestrator.run(input, session_id, None).await
     }
@@ -142,6 +223,112 @@ impl Agent {
                     let _ = tx.send(AgentEvent::Error(e.to_string()));
                 }
                 res
+            });
+            return (rx, handle);
+        }
+
+        if self.deterministic_retriever.is_some()
+            && (decision.mode == AgentExecutionMode::Direct
+                || self.search_mode == SearchMode::Fast
+                || decision.complexity == router::QueryComplexity::Fast)
+        {
+            let det_retriever = self.deterministic_retriever.clone().unwrap();
+            let client = self.orchestrator.client().clone();
+            let session_store = self.orchestrator.session_store().cloned();
+            let config = self.orchestrator.config().clone();
+            let tx_clone = tx.clone();
+            let inp_clone = inp.clone();
+
+            let handle = tokio::spawn(async move {
+                let start_time = Instant::now();
+                match det_retriever.retrieve_and_format(&inp_clone).await {
+                    Ok(DeterministicRetrievalOutput::ZeroContext { message }) => {
+                        let _ = tx_clone.send(AgentEvent::Delta(message.clone()));
+                        let _ = tx_clone.send(AgentEvent::Done {
+                            total_turns: 0,
+                            total_tokens: Some(0),
+                        });
+                        if let (Some(sid), Some(ref store)) = (session_id.as_deref(), session_store.as_ref()) {
+                            let _ = store.append_messages(sid, &[
+                                ChatMessage::user(&inp_clone),
+                                ChatMessage::assistant(&message),
+                            ]).await;
+                        }
+                        Ok(AgentResponse {
+                            content: message,
+                            tool_calls_count: 0,
+                            total_turns: 0,
+                            finish_reason: Some(FinishReason::Stop),
+                            execution_time_ms: start_time.elapsed().as_millis() as u64,
+                        })
+                    }
+                    Ok(DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _ }) => {
+                        let mut messages = Vec::new();
+                        if let (Some(sid), Some(ref store)) = (session_id.as_deref(), session_store.as_ref()) {
+                            let prior = store.get_messages(sid).await.unwrap_or_default();
+                            messages.extend(prior);
+                        }
+                        messages.push(ChatMessage::user(&formatted_prompt));
+
+                        let mut req = ChatRequest::new(&config.model, messages);
+                        if let Some(t) = config.temperature {
+                            req = req.with_temperature(t);
+                        }
+
+                        let mut response_content = String::new();
+                        let mut finish_reason = None;
+
+                        match client.chat_stream(req).await {
+                            Ok(mut stream) => {
+                                while let Some(chunk_res) = stream.next().await {
+                                    if let Ok(chunk) = chunk_res {
+                                        match chunk {
+                                            actx_lm::types::StreamChunk::Token(token) => {
+                                                response_content.push_str(&token);
+                                                let _ = tx_clone.send(AgentEvent::Delta(token));
+                                            }
+                                            actx_lm::types::StreamChunk::Reasoning(reasoning) => {
+                                                let _ = tx_clone.send(AgentEvent::Thinking(reasoning));
+                                            }
+                                            actx_lm::types::StreamChunk::Completed { finish_reason: fr, .. } => {
+                                                finish_reason = fr;
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                }
+                                let _ = tx_clone.send(AgentEvent::Done {
+                                    total_turns: 1,
+                                    total_tokens: Some(response_content.split_whitespace().count()),
+                                });
+
+                                if let (Some(sid), Some(ref store)) = (session_id.as_deref(), session_store.as_ref()) {
+                                    let _ = store.append_messages(sid, &[
+                                        ChatMessage::user(&inp_clone),
+                                        ChatMessage::assistant(&response_content),
+                                    ]).await;
+                                }
+
+                                Ok(AgentResponse {
+                                    content: response_content,
+                                    tool_calls_count: 0,
+                                    total_turns: 1,
+                                    finish_reason,
+                                    execution_time_ms: start_time.elapsed().as_millis() as u64,
+                                })
+                            }
+                            Err(e) => {
+                                let err_msg = format!("LLM stream error: {e}");
+                                let _ = tx_clone.send(AgentEvent::Error(err_msg.clone()));
+                                Err(AgentError::LmError(e))
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx_clone.send(AgentEvent::Error(e.to_string()));
+                        Err(e)
+                    }
+                }
             });
             return (rx, handle);
         }
@@ -182,6 +369,7 @@ pub struct AgentBuilder {
     config: AgentConfig,
     deep_search_config: Option<DeepSearchConfig>,
     deep_search_retriever: Option<Arc<dyn DeepSearchRetriever>>,
+    deterministic_retriever: Option<Arc<dyn DeterministicRetriever>>,
     router: Option<Arc<ChatModelRouter>>,
 }
 
@@ -250,6 +438,11 @@ impl AgentBuilder {
         self
     }
 
+    pub fn deterministic_retriever(mut self, retriever: Arc<dyn DeterministicRetriever>) -> Self {
+        self.deterministic_retriever = Some(retriever);
+        self
+    }
+
     /// Build the configured agent synchronously
     pub fn build_sync(self) -> Result<Agent, AgentError> {
         let client = self
@@ -299,6 +492,7 @@ impl AgentBuilder {
         Ok(Agent {
             orchestrator,
             deep_search_orchestrator,
+            deterministic_retriever: self.deterministic_retriever,
             execution_mode: self.config.execution_mode,
             search_mode,
             router,

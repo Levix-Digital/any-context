@@ -3,6 +3,7 @@ use actx_agent::{Agent, AgentExecutionMode, SearchMode};
 use actx_lm::providers::ProviderKind;
 use actx_lm::traits::LmProvider;
 use any_context_core_rs::storage::NativeConfigDb;
+use any_context_core_rs::retrieval::ContextFormatter;
 
 /// Resolves an LmClient based on persistent SQLite database configuration,
 /// environment variables, or explicit overrides. Interface-agnostic.
@@ -179,24 +180,7 @@ pub fn build_agent_sync(
 
                 match pipeline.search_single_async(&req).await {
                     Ok(results) if !results.is_empty() => {
-                        let mut out = Vec::new();
-                        for r in results {
-                            let type_str = if r.content_type.is_empty() { "Document" } else { &r.content_type };
-                            let mod_str = match &r.last_modified {
-                                Some(lm) if !lm.is_empty() => format!(" | Modified: {}", lm),
-                                _ => String::new(),
-                            };
-                            out.push(format!(
-                                "• [{}] (Score: {:.2}, Source: {}, Type: {}{}):\n{}",
-                                r.file_name,
-                                r.score,
-                                r.file_path,
-                                type_str,
-                                mod_str,
-                                r.text
-                            ));
-                        }
-                        Ok(out.join("\n\n"))
+                        Ok(ContextFormatter::format_tool_result_payload(&results, query))
                     }
                     Ok(_) => {
                         let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
@@ -207,26 +191,16 @@ pub fn build_agent_sync(
                             .and_then(|d| d.get_workspace_web_urls(&ws).ok())
                             .unwrap_or_default();
 
-                        if !folders.is_empty() || !web_urls.is_empty() {
-                            let mut sources = Vec::new();
-                            if !folders.is_empty() {
-                                sources.push(format!("folders: [{}]", folders.join(", ")));
-                            }
-                            if !web_urls.is_empty() {
-                                sources.push(format!("web portals: [{}]", web_urls.join(", ")));
-                            }
-                            Ok(format!(
-                                "Active workspace '{}' monitors {}. No indexed document chunks matched query '{}'.",
-                                ws,
-                                sources.join("; "),
-                                query
-                            ))
-                        } else {
-                            Ok(format!(
-                                "No indexed document chunks found in workspace '{}' for query '{}'.",
-                                ws, query
-                            ))
-                        }
+                        let zero_eval = ContextFormatter::evaluate_zero_hallucination(
+                            &[],
+                            &ws,
+                            &folders,
+                            &web_urls,
+                            query,
+                        );
+                        Ok(zero_eval.unwrap_or_else(|| {
+                            format!("No indexed document chunks found in workspace '{}' for query '{}'.", ws, query)
+                        }))
                     }
                     Err(e) => {
                         Ok(format!("Search query returned 0 results: {e}"))
@@ -308,14 +282,23 @@ pub fn build_agent_sync(
     };
 
     let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
-    let lance_store_for_deep = any_context_core_rs::storage::NativeLanceStore::open(&lance_path).ok().map(Arc::new);
+    let lance_store_for_retrieval = any_context_core_rs::storage::NativeLanceStore::open(&lance_path).ok().map(Arc::new);
 
-    let deep_search_retriever = lance_store_for_deep.map(|ls| {
+    let deep_search_retriever = lance_store_for_retrieval.as_ref().map(|ls| {
         Arc::new(PipelineBatchRetriever {
-            lance_store: ls,
+            lance_store: ls.clone(),
             lm_provider: provider.clone(),
             workspace: workspace.to_string(),
         }) as Arc<dyn actx_agent::DeepSearchRetriever>
+    });
+
+    let deterministic_retriever = lance_store_for_retrieval.as_ref().map(|ls| {
+        Arc::new(PipelineDeterministicRetriever {
+            lance_store: ls.clone(),
+            lm_provider: provider.clone(),
+            workspace: workspace.to_string(),
+            system_prompt: system_prompt.clone(),
+        }) as Arc<dyn actx_agent::DeterministicRetriever>
     });
 
     let models_dir = any_context_core_rs::storage::get_default_models_dir();
@@ -338,6 +321,10 @@ pub fn build_agent_sync(
         builder = builder
             .deep_search_retriever(retriever)
             .deep_search_config(actx_agent::DeepSearchConfig::default());
+    }
+
+    if let Some(retriever) = deterministic_retriever {
+        builder = builder.deterministic_retriever(retriever);
     }
 
     if web_search_enabled {
@@ -638,6 +625,72 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
                     })
                     .collect();
                 Ok(chunks)
+            }
+            Err(e) => Err(actx_agent::AgentError::Internal(e)),
+        }
+    }
+}
+
+/// Native Hybrid RAG deterministic retriever adapter for 1-hop Fast/Auto execution
+struct PipelineDeterministicRetriever {
+    lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
+    lm_provider: Arc<dyn LmProvider>,
+    workspace: String,
+    system_prompt: String,
+}
+
+#[actx_agent::async_trait]
+impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
+    async fn retrieve_and_format(&self, query: &str) -> Result<actx_agent::DeterministicRetrievalOutput, actx_agent::AgentError> {
+        let pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(
+            self.lance_store.clone(),
+            Some(self.lm_provider.clone()),
+        );
+
+        let req = any_context_core_rs::retrieval::HybridSearchRequest {
+            query_text: query.to_string(),
+            workspace: Some(self.workspace.clone()),
+            target_workspaces: vec!["Global".to_string()],
+            top_k: 6,
+            candidate_pool_k: 30,
+            max_density_chars: 14_000,
+            min_score: 0.005,
+            table_name: "workspace_chunks".to_string(),
+            ..Default::default()
+        };
+
+        match pipeline.search_single_async(&req).await {
+            Ok(results) => {
+                let db = NativeConfigDb::open_default().ok();
+                let folders = db.as_ref()
+                    .and_then(|d| d.get_workspace_folders(&self.workspace).ok())
+                    .unwrap_or_default();
+                let web_urls = db.as_ref()
+                    .and_then(|d| d.get_workspace_web_urls(&self.workspace).ok())
+                    .unwrap_or_default();
+
+                if let Some(zero_msg) = ContextFormatter::evaluate_zero_hallucination(
+                    &results,
+                    &self.workspace,
+                    &folders,
+                    &web_urls,
+                    query,
+                ) {
+                    return Ok(actx_agent::DeterministicRetrievalOutput::ZeroContext { message: zero_msg });
+                }
+
+                let chunk_count = results.len();
+                let formatted_prompt = ContextFormatter::format_deterministic_prompt(
+                    &results,
+                    query,
+                    &self.system_prompt,
+                    &self.workspace,
+                );
+
+                Ok(actx_agent::DeterministicRetrievalOutput::ContextReady {
+                    formatted_prompt,
+                    chunk_count,
+                })
             }
             Err(e) => Err(actx_agent::AgentError::Internal(e)),
         }

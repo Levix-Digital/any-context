@@ -48,6 +48,18 @@ impl ReActOrchestrator {
         &self.tools
     }
 
+    pub fn client(&self) -> &Arc<dyn LmProvider> {
+        &self.client
+    }
+
+    pub fn session_store(&self) -> Option<&Arc<dyn SessionStore>> {
+        self.session_store.as_ref()
+    }
+
+    pub fn config(&self) -> &AgentConfig {
+        &self.config
+    }
+
     /// Synchronous/async execution of the agent loop to completion
     pub async fn run(
         &self,
