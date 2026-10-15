@@ -15,6 +15,7 @@ pub mod vision_encoder;
 pub mod gemma;
 pub mod engine;
 pub mod device;
+pub mod reranker;
 
 pub use session::ModelSession;
 pub use query_classifier::{OnnxComplexity, OnnxIntent, OnnxQueryClassifier};
@@ -24,3 +25,4 @@ pub use vision_encoder::OnnxVisionEncoder;
 pub use gemma::{GemmaModelTier, GemmaTokenizer, OnnxGemmaEngine};
 pub use engine::OnnxEngine;
 pub use device::{AcceleratorBackend, AcceleratorVendor, ExecutionDevice, GpuDevice};
+pub use reranker::OnnxReranker;

@@ -99,6 +99,7 @@ impl RetrievalPreset {
             max_density_chars: self.max_density_chars(),
             table_name: "workspace_chunks".to_string(),
             rrf_k: self.rrf_k(),
+            rerank_mode: None,
         }
     }
 }
@@ -119,6 +120,8 @@ pub struct HybridSearchRequest {
     pub max_density_chars: usize,
     pub table_name: String,
     pub rrf_k: usize,
+    #[serde(default)]
+    pub rerank_mode: Option<String>,
 }
 
 impl HybridSearchRequest {
@@ -143,6 +146,7 @@ impl Default for HybridSearchRequest {
             max_density_chars: 40_000,
             table_name: "workspace_chunks".to_string(),
             rrf_k: 60,
+            rerank_mode: None,
         }
     }
 }
@@ -171,6 +175,8 @@ pub struct NativeHybridPipeline {
     lance_store: Arc<NativeLanceStore>,
     bm25_indices: Arc<RwLock<HashMap<String, BM25Index>>>,
     lm_client: Option<Arc<dyn LmProvider>>,
+    reranker: Option<Arc<actx_onnx::OnnxReranker>>,
+    rerank_mode: String,
 }
 
 impl NativeHybridPipeline {
@@ -183,6 +189,8 @@ impl NativeHybridPipeline {
             lance_store,
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
             lm_client: None,
+            reranker: None,
+            rerank_mode: "auto".to_string(),
         })
     }
 
@@ -194,12 +202,34 @@ impl NativeHybridPipeline {
             lance_store,
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
             lm_client,
+            reranker: None,
+            rerank_mode: "auto".to_string(),
         }
     }
 
     /// Sets the optional language model client for native on-the-fly embeddings.
     pub fn set_lm_client(&mut self, lm_client: Option<Arc<dyn LmProvider>>) {
         self.lm_client = lm_client;
+    }
+
+    /// Sets the optional cross-encoder neural reranker.
+    pub fn set_reranker(&mut self, reranker: Option<Arc<actx_onnx::OnnxReranker>>) {
+        self.reranker = reranker;
+    }
+
+    /// Returns a reference to the active reranker, if present.
+    pub fn reranker(&self) -> Option<&Arc<actx_onnx::OnnxReranker>> {
+        self.reranker.as_ref()
+    }
+
+    /// Sets the global reranking mode ("auto", "on", "off").
+    pub fn set_rerank_mode(&mut self, mode: &str) {
+        self.rerank_mode = mode.to_string();
+    }
+
+    /// Returns the global reranking mode.
+    pub fn rerank_mode(&self) -> &str {
+        &self.rerank_mode
     }
 
     /// Returns the database root directory path.
@@ -572,7 +602,25 @@ impl NativeHybridPipeline {
             results.retain(|c| c.score >= req.min_score);
         }
 
-        // Sort descending by score
+        // Stage 2: Neural Cross-Encoder Re-Ranking (Frente B)
+        let should_rerank = self.rerank_mode != "off" && req.rerank_mode.as_deref() != Some("off");
+        if should_rerank {
+            if let Some(ref reranker) = self.reranker {
+                if reranker.is_neural_active() && !results.is_empty() {
+                    let candidate_texts: Vec<String> = results.iter().map(|c| c.text.clone()).collect();
+                    let neural_scores = reranker.score_batch(&req.query_text, &candidate_texts);
+                    if !neural_scores.is_empty() && neural_scores.len() == results.len() {
+                        for (idx, chunk) in results.iter_mut().enumerate() {
+                            if !guaranteed_file_cids.contains(&chunk.chunk_id) {
+                                chunk.score = neural_scores[idx] as f64;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort descending by score (neural cross-encoder or RRF fallback)
         results.sort_by(|a, b| {
             b.score
                 .partial_cmp(&a.score)
@@ -693,12 +741,28 @@ impl NativeHybridPipeline {
         let first_req = &requests[0];
         let mut candidates: Vec<HybridSearchResult> = dedup_map.into_values().collect();
 
-        // 3. Filter by min_score if set
+        // Filter by min_score if set
         if first_req.min_score > 0.0 {
             candidates.retain(|c| c.score >= first_req.min_score);
         }
 
-        // Sort descending by accumulated RRF score
+        // Stage 2: Neural Cross-Encoder Re-Ranking (Frente B)
+        let should_rerank = self.rerank_mode != "off" && first_req.rerank_mode.as_deref() != Some("off");
+        if should_rerank {
+            if let Some(ref reranker) = self.reranker {
+                if reranker.is_neural_active() && !candidates.is_empty() {
+                    let candidate_texts: Vec<String> = candidates.iter().map(|c| c.text.clone()).collect();
+                    let neural_scores = reranker.score_batch(&first_req.query_text, &candidate_texts);
+                    if !neural_scores.is_empty() && neural_scores.len() == candidates.len() {
+                        for (idx, chunk) in candidates.iter_mut().enumerate() {
+                            chunk.score = neural_scores[idx] as f64;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort descending by accumulated score (neural or RRF fallback)
         candidates.sort_by(|a, b| {
             b.score
                 .partial_cmp(&a.score)
@@ -868,5 +932,30 @@ mod tests {
         assert_eq!(req.top_k, 10);
         assert_eq!(req.candidate_pool_k, 50);
         assert_eq!(req.workspace.as_deref(), Some("Security"));
+    }
+
+    #[test]
+    fn test_pipeline_reranking_fallback_and_scoring() {
+        let temp_dir = std::env::temp_dir().join(format!("actx_test_rerank_{}", std::process::id()));
+        let mut pipeline = NativeHybridPipeline::open(&temp_dir).unwrap();
+
+        assert_eq!(pipeline.rerank_mode(), "auto");
+        pipeline.set_rerank_mode("off");
+        assert_eq!(pipeline.rerank_mode(), "off");
+        pipeline.set_rerank_mode("on");
+        assert_eq!(pipeline.rerank_mode(), "on");
+
+        // Reranker is initially None, so it must fall back to RRF with zero errors
+        assert!(pipeline.reranker().is_none());
+
+        // Attach an OnnxReranker pointing to a non-existent path -> is_neural_active is false -> fallback to RRF
+        let dummy_reranker = actx_onnx::OnnxReranker::new(std::path::Path::new("missing_weights.onnx"));
+        assert!(!dummy_reranker.is_neural_active());
+        pipeline.set_reranker(Some(std::sync::Arc::new(dummy_reranker)));
+
+        assert!(pipeline.reranker().is_some());
+        assert!(!pipeline.reranker().unwrap().is_neural_active());
+
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 }

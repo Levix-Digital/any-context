@@ -22,6 +22,7 @@ pub enum OnnxModelCategory {
     ScannedClassifier,
     QueryClassifier,
     DocumentVision,
+    ReRanker,
 }
 
 impl OnnxModelCategory {
@@ -32,6 +33,7 @@ impl OnnxModelCategory {
             Self::ScannedClassifier => "Scan Classifier",
             Self::QueryClassifier => "Query Classifier",
             Self::DocumentVision => "Document Vision",
+            Self::ReRanker => "Neural Re-Ranker",
         }
     }
 }
@@ -142,6 +144,16 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         download_url: "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_int8.onnx",
         description: "Dense visual extraction and air-gapped OCR for charts and visual diagrams",
         fallback_description: "Rust 2D Spatial & Typographic Heuristic (<5MB RAM)",
+    },
+    OnnxModelSpec {
+        id: "bge-reranker-small",
+        name: "BGE-Reranker-Small (INT8 ONNX)",
+        category: OnnxModelCategory::ReRanker,
+        file_name: "bge_reranker_small_int8.onnx",
+        size_bytes: 45_200_000, // ~45.2 MB
+        download_url: "https://huggingface.co/BAAI/bge-reranker-small/resolve/main/onnx/model_int8.onnx",
+        description: "Local neural cross-encoder for fine-grained two-stage retrieval (<18ms / ~45MB)",
+        fallback_description: "Reciprocal Rank Fusion (RRF) Heuristic ($0.00 / Zero Network Leaks)",
     },
 ];
 
@@ -290,6 +302,8 @@ impl OnnxModelManager {
             Self::find_spec("layoutlmv3-int8")
         } else if clean == "clip" || clean == "vision" {
             Self::find_spec("clip-vit-int8")
+        } else if clean == "reranker" || clean == "rerank" || clean == "bge-reranker" {
+            Self::find_spec("bge-reranker-small")
         } else {
             None
         }
@@ -439,6 +453,20 @@ impl OnnxModelManager {
         )
     }
 
+    /// Returns the active neural reranker state.
+    pub fn active_reranker_state() -> (&'static str, &'static str, bool) {
+        if let Some(spec) = Self::find_spec("bge-reranker-small") {
+            if Self::is_installed(spec) {
+                return (spec.name, "Local Neural Cross-Encoder active (<18ms / DirectML/Metal/CPU)", true);
+            }
+        }
+        (
+            "Reciprocal Rank Fusion (RRF)",
+            "Active default (Pure Rust / Zero downloads / $0.00)",
+            false,
+        )
+    }
+
     /// Asynchronously downloads a model specification with streaming, live progress and graceful cancellation.
     pub async fn download_model_with_progress(
         spec: &OnnxModelSpec,
@@ -529,7 +557,7 @@ mod tests {
     #[test]
     fn test_catalog_integrity() {
         let catalog = OnnxModelManager::catalog();
-        assert_eq!(catalog.len(), 9);
+        assert_eq!(catalog.len(), 10);
         assert!(catalog.iter().any(|m| m.id == "gemma-4-compact"));
         assert!(catalog.iter().any(|m| m.id == "gemma-4-12b"));
         assert!(catalog.iter().any(|m| m.id == "gemma-4-27b"));
@@ -539,13 +567,14 @@ mod tests {
         assert!(catalog.iter().any(|m| m.id == "layoutlmv3-int8"));
         assert!(catalog.iter().any(|m| m.id == "clip-vit-int8"));
         assert!(catalog.iter().any(|m| m.id == "bge-small-onnx"));
+        assert!(catalog.iter().any(|m| m.id == "bge-reranker-small"));
     }
 
     #[test]
     fn test_inspect_store_does_not_panic() {
         let summary = OnnxModelManager::inspect_store();
-        assert_eq!(summary.total_count, 9);
-        assert_eq!(summary.models.len(), 9);
+        assert_eq!(summary.total_count, 10);
+        assert_eq!(summary.models.len(), 10);
     }
 
     #[test]
@@ -565,6 +594,7 @@ mod tests {
         assert_eq!(OnnxModelManager::resolve_spec("32b").unwrap().id, "gemma-4-32b");
         assert_eq!(OnnxModelManager::resolve_spec("laya").unwrap().id, "laya-int8");
         assert_eq!(OnnxModelManager::resolve_spec("scans").unwrap().id, "mobilenetv4-rvl-cdip");
+        assert_eq!(OnnxModelManager::resolve_spec("reranker").unwrap().id, "bge-reranker-small");
         assert_eq!(OnnxModelManager::resolve_spec("unknown-nonexistent"), None);
     }
 

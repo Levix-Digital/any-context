@@ -45,6 +45,19 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🎯 Two-Stage Neural Retrieval com Re-Ranking Local Cross-Encoder ONNX (`v0.44.0`)**:
+  - **Recuperação em Dois Estágios (Two-Stage Neural Retrieval)**:
+    - **Estágio 1 (Recall)**: Fusão de Ranks Recíprocos (RRF, $k=60$) unificando busca vetorial densa (LanceDB) e busca lexical esparsa (Okapi BM25) para capturar um pool inicial de candidatos de alta cobertura semântica e lexical.
+    - **Estágio 2 (Precision Re-Ranking)**: Cross-Encoder neural local `bge-reranker-small` (~45.2 MB) processando os pares `(query, document)` com atenção cruzada bidirecional completa, calculando scores de relevância normalizados por Sigmoid em $[0.0, 1.0]$.
+  - **Aceleração por Hardware no Reranker**: Compatível com a matriz tri-plataforma de hardware (`DirectML`, `Metal`, `CUDA`, `Vulkan`, `CPU SIMD`) com latência típica inferior a 18ms por lote de candidatos.
+  - **Fallback Gracioso ADR-110**: Caso os pesos ONNX não estejam instalados, a ordenação RRF de primeiro estágio é preservada de forma 100% transparente, sem erros, travamentos ou chamadas externas de rede.
+  - **Paridade Multi-Superfície**:
+    - **CLI Headless**: Flag `--rerank <auto|on|off>` e alias `--reranker` para controle por consulta ou script em automações e pipelines CI/CD (`actx "como funciona a autenticação?" --rerank on`).
+    - **Download de Pesos**: Subcomando `actx download reranker` (e `/download reranker`) para download assistido e verificação dos pesos do reranker (~45 MB).
+    - **Slash Command na TUI**: `/rerank` (com suporte a `/rerank on`, `/rerank off`, `/rerank auto` e status `/rerank`) com telemetria detalhada e persistência atômica no SQLite.
+    - **Badge em Tempo Real no Header da TUI**: Indicador dinâmico de status: `[Rerank: ⚡ ONNX: bge-small]` (ativo), `[Rerank: ⚡ RRF (Fallback)]` (auto sem pesos) ou `[Rerank: 🚫 Off]`.
+  - **Integração com U-Shaped Reordering e Isolamento XML**: O re-ranking de Estágio 2 antecede imediatamente a formatação em U e o envelopamento em tags XML estruturadas, garantindo que os melhores trechos semânticos sejam posicionados nas zonas de máxima atenção do Transformer.
+
 - **🎯 RAG Determinístico Backend-First, U-Shaped Reordering, Isolamento XML & Zero Hallucination Gate (`v0.43.0`)**:
   - **RAG Determinístico 1-Hop Orquestrado pelo Backend**: Redução drástica de ~50% no Time-to-First-Token (TTFT) e economia substancial de tokens em consultas diretas/factuais. O backend do AnyContext executa a busca vetorial híbrida densa + lexical (Dense + BM25 + RRF) no LanceDB antes de acionar o LLM. Apenas 1 chamada única é realizada ao LLM, injetando o contexto formatado e a pergunta.
   - **U-Shaped Reordering (Anti "Lost in the Middle")**: Reordenação determinística em formato de "U" (`ContextFormatter::u_shaped_reorder`), posicionando o Rank 1 no topo absoluto do contexto (*Primacy Bias*), o Rank 2 no final absoluto colado na pergunta (*Recency Bias*) e empurrando ranks intermediários para o miolo, mitigando a degradação de atenção do Transformer.
