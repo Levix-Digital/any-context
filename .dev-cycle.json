@@ -16,5 +16,21 @@
     "python-binding"
   ],
   "canonical_datastore": "%LOCALAPPDATA%/actx/data/catalog.db",
-  "releases_repo": "Levix-Digital/any-context-releases"
+  "releases_repo": "Levix-Digital/any-context-releases",
+  "drift_rules": [
+    {
+      "tech": "langchain",
+      "conflict_msg": "Proposal suggests introducing or using 'LangChain', but baseline plan mandates its purge/removal in favor of pure Rust native architecture."
+    },
+    {
+      "tech": "langgraph",
+      "conflict_msg": "Proposal suggests using 'LangGraph', but baseline plan mandates its replacement with a native Rust FSM."
+    },
+    {
+      "tech": "banco paralelo",
+      "negative_markers": ["single source", "single database", "settings.db", "paridade"],
+      "proposal_allow": [],
+      "conflict_msg": "Proposal hints at parallel databases ('banco paralelo'), violating Single Source of Truth (`settings.db`)."
+    }
+  ]
 }
