@@ -568,10 +568,23 @@ fn test_preset_command_execution() {
     assert!(res_info.message.contains("frontier"));
     assert!(res_info.message.contains("privacy"));
 
-    // 2. /preset offline sets safe local model and air-gapped settings
-    let res_off = CommandEngine::execute("preset", &["offline"], &ctx);
+    // 2. /preset offline refuses a cloud model (local Gemma 4 is planned) and changes nothing
+    let res_refused = CommandEngine::execute("preset", &["offline"], &ctx);
+    assert!(!res_refused.success);
+    assert!(res_refused.message.contains("ollama/"));
+    assert_eq!(res_refused.state_updates.active_model, None);
+    assert_eq!(res_refused.state_updates.web_search_enabled, None);
+
+    // 2b. With a local Ollama model it keeps the model and applies the isolated settings
+    let local_ctx = ExecutionContext {
+        active_workspace: ws_name.clone(),
+        active_model: "ollama/qwen2.5".to_string(),
+        ..Default::default()
+    };
+    let res_off = CommandEngine::execute("preset", &["offline"], &local_ctx);
     assert!(res_off.success);
-    assert!(res_off.message.contains("Offline-Local-Free"));
+    assert!(res_off.message.contains("Offline-Local"));
+    assert_eq!(res_off.state_updates.active_model, None);
     assert_eq!(res_off.state_updates.web_search_enabled, Some(false));
     assert_eq!(res_off.state_updates.grounding_mode, Some("strict".to_string()));
     assert_eq!(res_off.state_updates.search_mode, Some("fast".to_string()));
@@ -595,7 +608,7 @@ fn test_preset_command_execution() {
     assert_eq!(res_front.state_updates.search_mode, Some("deep".to_string()));
 
     // 5. /kit alias works identical to /preset
-    let res_alias = CommandEngine::execute("kit", &["privacy"], &ctx);
+    let res_alias = CommandEngine::execute("kit", &["privacy"], &local_ctx);
     assert!(res_alias.success);
     assert!(res_alias.message.contains("Enterprise-Privacy"));
     assert_eq!(res_alias.state_updates.web_search_enabled, Some(false));
