@@ -11,8 +11,9 @@
 //! Missing, corrupt or unloadable weights make `score_batch` return an empty vector,
 //! signalling the pipeline to keep the Stage-1 RRF ordering.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::device::ExecutionDevice;
 use crate::runtime::{self, OnnxSession, TensorOutput};
@@ -24,6 +25,28 @@ pub const DEFAULT_MAX_LENGTH: usize = 512;
 pub const BATCH_SIZE: usize = 16;
 /// Tokenizer file expected next to `model.onnx`.
 pub const TOKENIZER_FILE_NAME: &str = "tokenizer.json";
+
+/// Outcome of the most recent load attempt per model path, shared by every reranker instance
+/// in the process so status surfaces can report a failed load without holding the instance.
+static LOAD_OUTCOMES: OnceLock<Mutex<HashMap<PathBuf, Result<(), String>>>> = OnceLock::new();
+
+fn record_load_outcome(model_path: &Path, outcome: Result<(), String>) {
+    let map = LOAD_OUTCOMES.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(mut guard) = map.lock() {
+        guard.insert(model_path.to_path_buf(), outcome);
+    }
+}
+
+/// Error recorded by the most recent load attempt of `model_path` in this process, if it failed.
+/// `None` when the model loaded successfully or no load was attempted yet.
+pub fn recorded_load_error(model_path: &Path) -> Option<String> {
+    let map = LOAD_OUTCOMES.get()?;
+    let guard = map.lock().ok()?;
+    match guard.get(model_path) {
+        Some(Err(e)) => Some(e.clone()),
+        _ => None,
+    }
+}
 
 struct LoadedReranker {
     session: OnnxSession,
@@ -134,26 +157,32 @@ impl OnnxReranker {
     fn loaded(&self) -> Result<&LoadedReranker, &String> {
         self.state
             .get_or_init(|| {
-                if !self.weights_present() {
-                    return Err(format!(
-                        "Reranker weights for '{}' not found (expected {} and {})",
-                        self.model_id,
-                        self.model_path.display(),
-                        self.tokenizer_path.display()
-                    ));
-                }
-                let session = runtime::load_session(&self.model_path, &self.model_id)?;
-                if !session.has_input("input_ids") || !session.has_input("attention_mask") {
-                    return Err(format!(
-                        "Model '{}' is not a supported cross-encoder (inputs: {:?})",
-                        self.model_id,
-                        session.input_names()
-                    ));
-                }
-                let tokenizer = tokenizer::load_pair_tokenizer(&self.tokenizer_path, self.max_length)?;
-                Ok(LoadedReranker { session, tokenizer })
+                let outcome = self.load();
+                record_load_outcome(&self.model_path, outcome.as_ref().map(|_| ()).map_err(|e| e.clone()));
+                outcome
             })
             .as_ref()
+    }
+
+    fn load(&self) -> Result<LoadedReranker, String> {
+        if !self.weights_present() {
+            return Err(format!(
+                "Reranker weights for '{}' not found (expected {} and {})",
+                self.model_id,
+                self.model_path.display(),
+                self.tokenizer_path.display()
+            ));
+        }
+        let session = runtime::load_session(&self.model_path, &self.model_id)?;
+        if !session.has_input("input_ids") || !session.has_input("attention_mask") {
+            return Err(format!(
+                "Model '{}' is not a supported cross-encoder (inputs: {:?})",
+                self.model_id,
+                session.input_names()
+            ));
+        }
+        let tokenizer = tokenizer::load_pair_tokenizer(&self.tokenizer_path, self.max_length)?;
+        Ok(LoadedReranker { session, tokenizer })
     }
 
     /// Records the requested device. Inference always runs on `effective_device()`.

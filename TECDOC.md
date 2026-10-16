@@ -7555,3 +7555,15 @@ flowchart LR
 - Executável com as mesmas dependências da v0.44.0; o runtime viaja e é atualizado junto com ele.
 - Documentação e interface passam a refletir fielmente o que é neural, heurístico ou planejado.
 - Base pronta para a Frente C (embeddings locais ONNX) reutilizar `OnnxSession` e `PairTokenizer`.
+
+#### 130.10 Correções da revisão do PR #326
+
+| # | Correção |
+|---|---|
+| R1 | **Busca multi-consulta**: cada sub-consulta faz o rerank contra o próprio texto e protege os matches por nome de arquivo; o lote apenas acumula os scores. O segundo rerank (que sobrescrevia os matches garantidos e repetia a inferência) e o `min_score` aplicado sobre scores do cross-encoder foram removidos. |
+| R2 | **Cabeça e cauda do Estágio 2**: itens protegidos não ocupam vagas do cross-encoder; a cauda não avaliada é reescalada para ficar estritamente abaixo do menor score reavaliado, preservando a ordem RRF relativa. |
+| R3 | **Atualização respeita o perfil escolhido**: `actx --update` usa o `active_profile` (`/profile`), depois o perfil gravado na instalação (`install_profile.txt`) e só então a recomendação de hardware. Lite nunca baixa modelos. |
+| R4 | **Status honesto**: `/rerank` e o badge da TUI mostram RRF quando a carga do modelo falhou no processo (pesos corrompidos ou runtime incompatível), via `actx_onnx::reranker::recorded_load_error`. |
+| R5 | **Downloads interrompidos** removem o `.download.tmp` em qualquer erro (stream, escrita ou cancelamento). |
+| R6 | **Requisitos de disco dos perfis** passam a ser a soma dos pesos realmente instalados (Gemma 4 é planejado e não conta); os headlines marcam Gemma 4 como *planned*. |
+| R7 | **Badge da TUI** guarda o estado do reranker por 3 s, sem acesso ao disco a cada quadro. |

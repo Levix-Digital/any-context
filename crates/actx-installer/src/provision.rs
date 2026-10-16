@@ -84,6 +84,7 @@ fn download_verified(spec: &ModelDownloadSpec, dest: &Path, show_progress: bool)
     pb.set_message(spec.file_name.to_string());
 
     let mut reader = response.into_reader();
+    let mut tmp_guard = PartialDownloadGuard::new(&tmp);
     let mut out = File::create(&tmp).map_err(|e| format!("cannot create {}: {e}", tmp.display()))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 256 * 1024];
@@ -117,7 +118,32 @@ fn download_verified(spec: &ModelDownloadSpec, dest: &Path, show_progress: bool)
         let _ = std::fs::remove_file(dest);
     }
     std::fs::rename(&tmp, dest).map_err(|e| format!("cannot finalize {}: {e}", dest.display()))?;
+    tmp_guard.disarm();
     Ok(())
+}
+
+/// Removes a partially written download on every early return; disarmed once the file is final.
+struct PartialDownloadGuard {
+    path: PathBuf,
+    armed: bool,
+}
+
+impl PartialDownloadGuard {
+    fn new(path: &Path) -> Self {
+        Self { path: path.to_path_buf(), armed: true }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for PartialDownloadGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
 }
 
 /// Prints a concise, non-fatal summary of a provisioning pass.

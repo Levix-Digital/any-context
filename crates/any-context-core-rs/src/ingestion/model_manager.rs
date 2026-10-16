@@ -12,7 +12,7 @@
 //! Architectural Invariant: Full Fault Tolerance & Graceful Fallback (ADR-110).
 //! Missing or partially downloaded models NEVER crash or halt the pipeline.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use crate::storage::get_default_models_dir;
 
@@ -632,10 +632,18 @@ impl OnnxModelManager {
     }
 
     /// Neural re-ranker state (Name, Detail, Is_Neural). Neural only when the selected model's
-    /// files are installed AND the bundled ONNX Runtime library is present.
+    /// files are installed, the bundled ONNX Runtime library is present AND no load attempt of
+    /// those weights has failed in this process.
     pub fn active_reranker_state() -> (&'static str, &'static str, bool) {
         let spec = Self::active_reranker_spec();
         if Self::is_installed(spec) {
+            if actx_onnx::reranker::recorded_load_error(&Self::model_path(spec)).is_some() {
+                return (
+                    "Reciprocal Rank Fusion (RRF)",
+                    "Fallback: the re-ranker failed to load (corrupt weights or incompatible ONNX Runtime; run `actx download reranker` to repair)",
+                    false,
+                );
+            }
             if actx_onnx::runtime::runtime_library_present() {
                 return (spec.name, "Neural cross-encoder active (ONNX Runtime, CPU)", true);
             }
@@ -718,6 +726,7 @@ impl OnnxModelManager {
             return Err(format!("Model repository returned HTTP status {}: {}", response.status(), file.url));
         }
 
+        let mut tmp_guard = PartialDownloadGuard::new(&tmp_file);
         let mut out = std::fs::File::create(&tmp_file)
             .map_err(|e| format!("Failed to create temporary model file {:?}: {}", tmp_file, e))?;
         let mut hasher = Sha256::new();
@@ -766,12 +775,37 @@ impl OnnxModelManager {
         }
         std::fs::rename(&tmp_file, &dest_file)
             .map_err(|e| format!("Failed to finalize model file {:?}: {}", dest_file, e))?;
+        tmp_guard.disarm();
         Ok(written)
     }
 
     /// Asynchronously downloads a model specification with standard streaming.
     pub async fn download_model(spec: &OnnxModelSpec) -> Result<PathBuf, String> {
         Self::download_model_with_progress(spec, None, None).await
+    }
+}
+
+/// Removes a partially written download on every early return; disarmed once the file is final.
+struct PartialDownloadGuard {
+    path: PathBuf,
+    armed: bool,
+}
+
+impl PartialDownloadGuard {
+    fn new(path: &Path) -> Self {
+        Self { path: path.to_path_buf(), armed: true }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for PartialDownloadGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = std::fs::remove_file(&self.path);
+        }
     }
 }
 
