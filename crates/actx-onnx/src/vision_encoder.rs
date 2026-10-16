@@ -1,6 +1,8 @@
-//! ONNX Dense Visual Encoder for Technical Diagrams & Charts (CLIP ViT).
+//! Visual encoder for diagrams & charts (not yet neural).
 //!
-//! Generates dense visual embeddings for embedded figures, charts, and diagrams.
+//! CLIP ViT weights can be downloaded, but neural visual encoding is not implemented yet
+//! (ADR-130). No synthetic description is ever produced; callers keep the native chunk or
+//! use the configured multimodal LLM provider.
 
 use std::path::Path;
 use crate::session::ModelSession;
@@ -8,28 +10,27 @@ use crate::session::ModelSession;
 /// Visual encoder for technical diagrams and non-text visual assets.
 #[derive(Debug, Clone)]
 pub struct OnnxVisionEncoder {
-    session: Option<ModelSession>,
+    weights: Option<ModelSession>,
 }
 
 impl OnnxVisionEncoder {
     pub fn new(model_path: &Path) -> Self {
-        let session = ModelSession::open(model_path, "clip-vit-int8").ok();
-        Self { session }
+        let weights = ModelSession::open(model_path, "clip-vit-int8").ok();
+        Self { weights }
     }
 
+    /// Always `false`: neural visual encoding is not implemented yet (ADR-130).
     pub fn is_neural_active(&self) -> bool {
-        self.session.as_ref().map(|s| s.is_valid).unwrap_or(false)
+        false
     }
 
-    /// Processes visual image bytes into a descriptive contextual representation.
-    pub fn describe_visual_element(&self, image_bytes: &[u8]) -> Option<String> {
-        if !self.is_neural_active() || image_bytes.is_empty() {
-            return None;
-        }
+    /// True when CLIP ViT weights are present on disk (not executed yet).
+    pub fn weights_present(&self) -> bool {
+        self.weights.as_ref().map(|s| s.is_valid).unwrap_or(false)
+    }
 
-        Some(format!(
-            "[Visual Diagram / Chart Asset: {} bytes encoded via CLIP ViT]",
-            image_bytes.len()
-        ))
+    /// Always `None` until a real visual encoder exists.
+    pub fn describe_visual_element(&self, _image_bytes: &[u8]) -> Option<String> {
+        None
     }
 }

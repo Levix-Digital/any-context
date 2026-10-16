@@ -148,17 +148,15 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
         )
     };
 
-    let (rerank_text, rerank_style) = if app.rerank_mode == "off" {
-        ("🚫 Off".to_string(), Style::default().fg(theme.text_muted))
+    let rerank_text = app.rerank_badge();
+    let rerank_style = if app.rerank_mode == "off" {
+        Style::default().fg(theme.text_muted)
+    } else if rerank_text.contains("ONNX") {
+        Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
+    } else if app.rerank_mode == "on" {
+        Style::default().fg(theme.warning)
     } else {
-        let (_name, _detail, is_onnx) = any_context_core_rs::ingestion::model_manager::OnnxModelManager::active_reranker_state();
-        if is_onnx {
-            ("⚡ ONNX: bge-small".to_string(), Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
-        } else if app.rerank_mode == "on" {
-            ("⚡ RRF (Model Missing)".to_string(), Style::default().fg(theme.warning))
-        } else {
-            ("⚡ RRF (Fallback)".to_string(), Style::default().fg(theme.info))
-        }
+        Style::default().fg(theme.info)
     };
 
     let title = Line::from(vec![

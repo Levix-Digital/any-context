@@ -292,6 +292,20 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             let _ = d.set_setting("rerank_mode", rk);
         }
     }
+    if let Some(ref model) = args.rerank_model {
+        use any_context_core_rs::ingestion::{OnnxModelCategory, OnnxModelManager};
+        match OnnxModelManager::resolve_spec(model)
+            .filter(|s| s.category == OnnxModelCategory::ReRanker && s.is_available())
+        {
+            // Per-run override: never persisted (use `/rerank model <id>` to persist).
+            Some(spec) => std::env::set_var("ACTX_RERANKER_MODEL", spec.id),
+            None => {
+                let ids: Vec<&str> = OnnxModelManager::rerankers().map(|r| r.id).collect();
+                eprintln!("❌ Unknown re-ranker model '{}'. Available: {}", model, ids.join(", "));
+                std::process::exit(2);
+            }
+        }
+    }
     let grounding_mode = db.as_ref()
         .and_then(|d| d.get_workspace_grounding_mode(&args.workspace).ok())
         .unwrap_or_else(|| "strict".to_string());
@@ -474,8 +488,14 @@ pub async fn handle_download(tier_opt: Option<&str>, force: bool, check: bool) {
 
         for spec in OnnxModelManager::catalog() {
             let is_installed = OnnxModelManager::is_installed(spec);
-            let size_str = format!("{:.2} GB", spec.size_bytes as f64 / 1e9);
-            let status_str = if is_installed {
+            let size_str = if spec.is_available() {
+                format!("{:.2} GB", spec.size_bytes as f64 / 1e9)
+            } else {
+                "—".to_string()
+            };
+            let status_str = if !spec.is_available() {
+                "🕓 Planned".to_string()
+            } else if is_installed {
                 "✔ Installed".to_string()
             } else {
                 "❌ Missing".to_string()
@@ -501,28 +521,30 @@ pub async fn handle_download(tier_opt: Option<&str>, force: bool, check: bool) {
             match OnnxModelManager::resolve_spec(t) {
                 Some(s) => s,
                 None => {
-                    eprintln!("❌ Unknown model tier '{}'.", t);
-                    eprintln!("Available tiers: 'compact' (~1.8GB), '12b' (~6.7GB), '27b' (~14.8GB), '32b' (~20.2GB), 'reranker' (~45MB)");
+                    eprintln!("❌ Unknown model '{}'.", t);
+                    eprintln!("Examples: 'reranker' (~129 MB), 'reranker-m3' (~561 MB), 'laya', 'layout', 'scans', 'vision'.");
                     eprintln!("Run 'actx download --check' to inspect all supported models.");
                     std::process::exit(1);
                 }
             }
         }
         None => {
-            let recommended = HardwareProfiler::recommended_local_gemma(&metrics);
-            println!("💡 No model tier specified.");
-            println!("Based on your system ({:.1} GB RAM), the recommended local model is: '{}'.",
-                metrics.total_ram_gb(), recommended);
-            println!("To download, run: actx download {}", recommended.trim_start_matches("gemma-4-"));
-            println!("Or run 'actx download --check' to view all available tiers.");
+            println!("💡 No model specified.");
+            println!("Models are installed automatically with your hardware profile. To repair or add one, run e.g.:");
+            println!("  actx download reranker");
+            println!("Run 'actx download --check' to view the full catalog.");
             return;
         }
     };
 
-    if OnnxModelManager::is_installed(target_spec) {
-        println!("✔ Model '{}' is already fully installed at: {}",
+    if !target_spec.is_available() {
+        println!("🕓 {}", OnnxModelManager::planned_message(target_spec));
+        return;
+    }
+
+    if OnnxModelManager::is_installed(target_spec) && !force {
+        println!("✔ Model '{}' is already installed and verified at: {}",
             target_spec.name, OnnxModelManager::model_path(target_spec).display());
-        println!("🤖 You can use it right now with: actx /model {}", target_spec.id);
         return;
     }
 

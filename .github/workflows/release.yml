@@ -72,6 +72,43 @@ jobs:
         shell: bash
         run: ${SCCACHE_PATH} --show-stats
 
+      # ADR-130 / D15: ship the official Microsoft ONNX Runtime (CPU) inside the release package.
+      - name: Bundle ONNX Runtime (official Microsoft CPU build, SHA-256 verified)
+        shell: bash
+        run: bash scripts/fetch_onnxruntime.sh dist
+
+      # ADR-130: the executable must keep zero link-time dependencies on ONNX Runtime / DirectML / MSVCP.
+      - name: Verify executable imports (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          python -m pip install --quiet pefile
+          python - <<'EOF'
+          import pefile, sys
+          forbidden = {"onnxruntime.dll", "directml.dll", "d3d12.dll", "dxgi.dll", "msvcp140.dll", "msvcp140_1.dll", "vcruntime140_1.dll"}
+          for exe in ["target/release/actx.exe", "target/release/actx-installer.exe"]:
+              pe = pefile.PE(exe)
+              imports = {e.dll.decode().lower() for e in pe.DIRECTORY_ENTRY_IMPORT}
+              bad = sorted(imports & forbidden)
+              print(exe, "imports:", sorted(imports))
+              if bad:
+                  sys.exit(f"{exe} must not import {bad}")
+          EOF
+
+      - name: Verify executable imports (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          readelf -d target/release/actx | grep NEEDED
+          if readelf -d target/release/actx | grep -qi onnxruntime; then
+            echo "actx must not link onnxruntime at load time"; exit 1
+          fi
+
+      - name: Verify model catalog URLs (live, ADR-118 / ADR-130)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: cargo test --release -p any-context-core-rs --lib catalog_urls -- --ignored
+
       - name: Package Release Assets (Windows)
         if: runner.os == 'Windows'
         shell: bash
@@ -81,13 +118,14 @@ jobs:
           cp target/release/actx-installer.exe dist/actx-installer.exe
           cp dist/actx.exe dist/actx-windows-x86_64.exe
           cp dist/actx.exe dist/actx-core.exe
+          test -f dist/onnxruntime.dll
 
           if command -v 7z >/dev/null 2>&1; then
-            (cd dist && 7z a -tzip -mx=3 actx-windows-x86_64.zip actx.exe actx-core.exe actx-installer.exe)
+            (cd dist && 7z a -tzip -mx=3 actx-windows-x86_64.zip actx.exe actx-core.exe actx-installer.exe onnxruntime.dll)
           elif command -v tar >/dev/null 2>&1; then
-            tar -a -cf dist/actx-windows-x86_64.zip -C dist actx.exe actx-core.exe actx-installer.exe
+            tar -a -cf dist/actx-windows-x86_64.zip -C dist actx.exe actx-core.exe actx-installer.exe onnxruntime.dll
           else
-            powershell -Command "Compress-Archive -Path 'dist/actx.exe','dist/actx-core.exe','dist/actx-installer.exe' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
+            powershell -Command "Compress-Archive -Path 'dist/actx.exe','dist/actx-core.exe','dist/actx-installer.exe','dist/onnxruntime.dll' -DestinationPath 'dist/actx-windows-x86_64.zip' -Force"
           fi
 
       - name: Package Release Assets (Linux)
@@ -99,7 +137,8 @@ jobs:
           cp target/release/actx-installer dist/actx-installer
           cp dist/actx dist/actx-linux-x86_64
           cp dist/actx dist/actx-core
-          tar -czf dist/actx-linux-x86_64.tar.gz -C dist actx actx-core actx-installer
+          test -f dist/libonnxruntime.so
+          tar -czf dist/actx-linux-x86_64.tar.gz -C dist actx actx-core actx-installer libonnxruntime.so
 
       - name: Normalize line endings for Unix scripts
         if: runner.os == 'Linux'

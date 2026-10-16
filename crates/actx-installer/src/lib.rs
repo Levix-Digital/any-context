@@ -3,6 +3,7 @@ pub mod downloader;
 pub mod extractor;
 pub mod hardware;
 pub mod paths;
+pub mod provision;
 pub mod validator;
 
 use std::path::Path;
@@ -253,11 +254,18 @@ pub fn run_installer_workflow(args: &[String]) {
     // Configure system PATH if not present
     configure_system_path(&target_dir);
 
+    // Provision the models this profile executes (neural re-ranker). Never fatal (ADR-110).
+    let auto_models = selected_tier.auto_provisioned_models();
+    if !auto_models.is_empty() && !provision::provisioning_disabled() {
+        println!("[*] Installing local models for the '{}' profile...", selected_tier.as_str());
+        let report = provision::provision_models(&hardware::resolve_default_models_dir(), auto_models, true);
+        provision::print_report(&report);
+    }
+
     println!("\n[OK] AnyContext {} installed successfully!", target_version);
     println!("⚡ Intelligence Profile Configured: {} ({})", selected_tier.display_name(), selected_tier.as_str());
     if selected_tier != hardware::InstallerProfileTier::Lite {
-        let mb = selected_tier.disk_required_bytes() as f64 / (1024.0 * 1024.0);
-        println!("   ↳ Target ONNX Models: ~{:.0} MB disk footprint", mb);
+        println!("   ↳ Neural re-ranking: multilingual cross-encoder (ONNX Runtime, CPU) ready");
         println!("   ↳ Manage profiles or models anytime via: actx (F1 -> Profiles) or /profile");
     }
     println!("[>] Open a new terminal and run '{}' or 'actx --tui' to start.\n", get_shim_exe_name());
@@ -337,6 +345,20 @@ pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str
 
     configure_system_path(base_dir);
     heal_executing_and_shadowed_binaries(base_dir, &target_version);
+
+    // Transparent provisioning for upgrades from versions without a neural re-ranker:
+    // quiet (safe inside the TUI), logged, never fatal (ADR-110).
+    let tier = hardware::auto_select_recommended(&hardware::probe_system(base_dir));
+    let auto_models = tier.auto_provisioned_models();
+    if !auto_models.is_empty() && !provision::provisioning_disabled() {
+        let report = provision::provision_models(&hardware::resolve_default_models_dir(), auto_models, false);
+        for f in &report.installed {
+            log_update_event("INFO", &format!("Model provisioned: {}", f));
+        }
+        for (f, e) in &report.failed {
+            log_update_event("WARN", &format!("Model provisioning failed for {}: {} (RRF fallback stays active)", f, e));
+        }
+    }
 
     let ok_msg = format!("AnyContext successfully updated to {} in {}", target_version, base_dir.display());
     log_update_event("SUCCESS", &ok_msg);

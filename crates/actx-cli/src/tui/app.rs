@@ -245,7 +245,8 @@ impl App {
         } else {
             let (_name, _detail, is_onnx) = any_context_core_rs::ingestion::model_manager::OnnxModelManager::active_reranker_state();
             if is_onnx {
-                "⚡ ONNX: bge-small".to_string()
+                let spec = any_context_core_rs::ingestion::OnnxModelManager::active_reranker_spec();
+                format!("⚡ ONNX: {} (CPU)", any_context_core_rs::ingestion::reranker_short_label(spec))
             } else if self.rerank_mode == "on" {
                 "⚡ RRF (Model Missing)".to_string()
             } else {

@@ -1579,7 +1579,9 @@ impl CommandEngine {
                     crate::hardware::HardwareSafetyVerdict::Unsafe { .. } => ("Exceeds RAM", "🔴"),
                 };
 
-                let (status_badge, size_str) = if item.is_installed {
+                let (status_badge, size_str) = if item.planned {
+                    ("🕓 Planned (no download yet)", "—".to_string())
+                } else if item.is_installed {
                     let mb = item.disk_size_bytes as f64 / (1024.0 * 1024.0);
                     ("🟢 Installed", format!("{:.1} MB", mb))
                 } else {
@@ -1602,7 +1604,7 @@ impl CommandEngine {
                 ));
             }
 
-            out.push_str("\n💡 Run `/download <tier>` (e.g. `/download 12b`) to install weights.\nAdd `--force` to bypass hardware guardrails.");
+            out.push_str("\n💡 Models are installed automatically with your hardware profile. Use `/download <model>` (e.g. `/download reranker`) only to repair or add a model.");
             return CommandResult::success(out);
         }
 
@@ -1610,16 +1612,16 @@ impl CommandEngine {
             Some(t) => t.trim(),
             None => {
                 return CommandResult::success(
-                    "📥 **AnyContext Gemma 4 ONNX Model Downloader**\n\n\
-                     Available Gemma 4 tiers:\n\
-                     • `compact` (gemma-4-compact, ~1.85 GB) - Edge Mobility SLM (8GB RAM, ~2.5GB Peak)\n\
-                     • `12b` (gemma-4-12b, ~7.50 GB) - Developer Sweet Spot (16GB RAM, ~10GB Peak)\n\
-                     • `27b` (gemma-4-27b, ~17.20 GB) - Workstation High-Reasoning (32GB RAM, ~18.5GB Peak)\n\
-                     • `32b` (gemma-4-32b, ~20.20 GB) - Sovereign Frontier LLM (64GB RAM, ~25.5GB Peak)\n\n\
+                    "📥 **AnyContext Local Model Downloader**\n\n\
+                     Models are verified (size + SHA-256) and normally installed automatically with your profile.\n\n\
+                     • `reranker` (mmarco-reranker, ~129 MB) - Default multilingual cross-encoder\n\
+                     • `reranker-m3` (bge-reranker-v2-m3, ~561 MB) - Higher-quality cross-encoder (32GB+)\n\
+                     • `laya`, `layout`, `scans`, `vision`, `bge` - Document AI weights (components run heuristics for now)\n\
+                     • Gemma 4 local generation (`compact`, `12b`, `27b`, `32b`) is planned: no download yet\n\n\
                      Usage:\n\
-                       `/download <tier>` (e.g. `/download 12b` or `/download compact`)\n\
-                       `/download --check` (inspect local model storage and RAM safety)\n\
-                       `/download <tier> --force` (override RAM safety guardrail)"
+                       `/download <model>` (e.g. `/download reranker`)\n\
+                       `/download --check` (inspect local model storage)\n\
+                       `/download <model> --force` (re-download / override guardrails)"
                 );
             }
         };
@@ -1628,22 +1630,26 @@ impl CommandEngine {
             Some(s) => s,
             None => {
                 return CommandResult::error(format!(
-                    "❌ Model or tier '{}' not recognized.\n\
-                     Available Gemma 4 tiers: `compact`, `12b`, `27b`, `32b`.\n\
-                     Other ONNX models: `clip-vit-int8`, `doc-layout-yolo`.\n\
+                    "❌ Model '{}' not recognized.\n\
+                     Examples: `reranker`, `reranker-m3`, `laya`, `layout`, `scans`, `vision`.\n\
                      Run `/download --check` to see the full catalog.",
                     target_str
                 ));
             }
         };
 
+        if !spec.is_available() {
+            return CommandResult::success(crate::ingestion::OnnxModelManager::planned_message(spec));
+        }
+
         if crate::ingestion::OnnxModelManager::is_installed(spec) && !force {
             return CommandResult::success(format!(
-                "✔ Model **{}** is already downloaded and ready on disk!\n\
-                 File: `%LOCALAPPDATA%\\AnyContext\\models\\{}`\n\n\
-                 • To set as active conversation model, execute: `/model {}`\n\
+                "✔ Model **{}** is already installed and verified.\n\
+                 Location: `{}`\n\n\
                  • To force re-download, execute: `/download {} --force`",
-                spec.name, spec.file_name, spec.id, spec.id
+                spec.name,
+                crate::ingestion::OnnxModelManager::model_path(spec).display(),
+                spec.id
             ));
         }
 
@@ -1670,13 +1676,19 @@ impl CommandEngine {
             if let Some(device) = actx_onnx::ExecutionDevice::parse_str(target_str) {
                 let mut updates = CommandStateUpdates::default();
                 updates.execution_device = Some(device.as_str().to_string());
+                let inference_note = if device.is_supported_for_inference() {
+                    "• Local inference runs on the CPU (ONNX Runtime CPU Execution Provider)."
+                } else {
+                    "• ⚠️ GPU execution providers are planned: local inference keeps running on the CPU in this version."
+                };
                 return CommandResult::success(format!(
-                    "🚀 Hardware acceleration target switched to: **{}** (`{}`)\n\n\
-                     • Active Adapter: {}\n\
-                     • Multi-threading SIMD fallback: Active if device memory allocation fails.",
+                    "🚀 Preferred acceleration target set to: **{}** (`{}`)\n\n\
+                     • Detected Adapter: {}\n\
+                     {}",
                     device.display_name(),
                     device.as_str(),
-                    metrics.acceleration_summary()
+                    metrics.acceleration_summary(),
+                    inference_note
                 ))
                 .with_action(CommandAction::SetDevice(device.as_str().to_string()))
                 .with_state_updates(updates);
@@ -1731,72 +1743,113 @@ impl CommandEngine {
     }
 
     fn execute_rerank(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
-        let spec_opt = crate::ingestion::OnnxModelManager::find_spec("bge-reranker-small");
-        let is_installed = spec_opt.as_ref().map(|s| crate::ingestion::OnnxModelManager::is_installed(s)).unwrap_or(false);
+        use crate::ingestion::OnnxModelManager;
+
         let target = args.first().copied().map(str::trim).map(str::to_lowercase);
+        let spec = OnnxModelManager::active_reranker_spec();
+        let is_installed = OnnxModelManager::is_installed(spec);
+        let runtime_present = actx_onnx::runtime::runtime_library_present();
+
+        let persist_mode = |mode: &str| {
+            if let Ok(db) = NativeConfigDb::open_default() {
+                let _ = db.set_setting("rerank_mode", mode);
+            }
+            let mut updates = CommandStateUpdates::default();
+            updates.rerank_mode = Some(mode.to_string());
+            updates
+        };
+        let availability_note = || -> String {
+            if !is_installed {
+                format!(
+                    "\n⚠️ Weights for `{}` are not installed yet; RRF serves as fallback. They are installed with your profile, or run `actx download reranker`.",
+                    spec.id
+                )
+            } else if !runtime_present {
+                "\n⚠️ The ONNX Runtime library is missing next to the executable; RRF serves as fallback. Reinstall or update AnyContext to restore it.".to_string()
+            } else {
+                format!("\n⚡ Neural cross-encoder `{}` ready (ONNX Runtime, CPU).", spec.id)
+            }
+        };
 
         if let Some(ref mode_str) = target {
             match mode_str.as_str() {
                 "on" | "enable" | "enabled" | "1" | "true" => {
-                    if let Ok(db) = NativeConfigDb::open_default() {
-                        let _ = db.set_setting("rerank_mode", "on");
-                    }
-                    let mut updates = CommandStateUpdates::default();
-                    updates.rerank_mode = Some("on".to_string());
-
-                    let warn = if !is_installed {
-                        "\n⚠️ Note: Neural weights for `bge-reranker-small` are not downloaded yet.\nRun `actx download reranker` to enable local neural scoring. In the meantime, RRF will serve as fallback."
-                    } else {
-                        "\n⚡ Neural cross-attention re-ranking active with GPU/CPU acceleration."
-                    };
-
+                    let updates = persist_mode("on");
                     return CommandResult::success(format!(
                         "⚡ Neural Cross-Encoder Re-Ranking mode set to: **ON**{}\n\n\
-                         • Model: BGE-Reranker-Small (INT8 ONNX)\n\
-                         • Latency: Sub-18ms with DirectML / Metal / CPU SIMD\n\
-                         • Top-K: Cross-encoder scores applied to top candidates before U-shaped formatting.",
-                        warn
+                         • Model: {}\n\
+                         • Execution: ONNX Runtime on CPU (top {} candidates re-scored per query)",
+                        availability_note(),
+                        spec.name,
+                        crate::retrieval::pipeline::MAX_RERANK_CANDIDATES
                     ))
                     .with_state_updates(updates);
                 }
                 "off" | "disable" | "disabled" | "0" | "false" => {
-                    if let Ok(db) = NativeConfigDb::open_default() {
-                        let _ = db.set_setting("rerank_mode", "off");
-                    }
-                    let mut updates = CommandStateUpdates::default();
-                    updates.rerank_mode = Some("off".to_string());
+                    let updates = persist_mode("off");
                     return CommandResult::success(
                         "⚡ Neural Cross-Encoder Re-Ranking mode set to: **OFF**\n\n\
-                         • Retrieval will rely exclusively on Reciprocal Rank Fusion (RRF, k=60).\n\
-                         • Minimum latency mode active with zero neural overhead."
+                         • Retrieval relies exclusively on Reciprocal Rank Fusion (RRF, k=60).\n\
+                         • Minimum latency mode with zero neural overhead."
                     )
                     .with_state_updates(updates);
                 }
                 "auto" | "default" => {
-                    if let Ok(db) = NativeConfigDb::open_default() {
-                        let _ = db.set_setting("rerank_mode", "auto");
-                    }
-                    let mut updates = CommandStateUpdates::default();
-                    updates.rerank_mode = Some("auto".to_string());
-                    let status_str = if is_installed {
-                        "Active (bge-reranker-small weights present on disk)"
-                    } else {
-                        "RRF Fallback (neural weights not installed; run `actx download reranker`)"
-                    };
+                    let updates = persist_mode("auto");
                     return CommandResult::success(format!(
-                        "⚡ Neural Cross-Encoder Re-Ranking mode set to: **AUTO**\n\n\
-                         • Current Dynamic Status: {}\n\
-                         • Two-stage neural retrieval is automatically used when model weights exist, falling back to RRF without interruption.",
-                        status_str
+                        "⚡ Neural Cross-Encoder Re-Ranking mode set to: **AUTO**{}\n\n\
+                         • Two-stage neural retrieval is used whenever the model and runtime are available, falling back to RRF without interruption.",
+                        availability_note()
                     ))
                     .with_state_updates(updates);
+                }
+                "model" => {
+                    let Some(model_arg) = args.get(1).map(|s| s.trim()) else {
+                        let mut out = String::from("Available re-ranker models:\n");
+                        for r in OnnxModelManager::rerankers() {
+                            let marker = if r.id == spec.id { " (active)" } else { "" };
+                            let state = if OnnxModelManager::is_installed(r) { "installed" } else { "not installed" };
+                            out.push_str(&format!(
+                                "  • `{}`{} — {} (~{:.0} MB, {})\n",
+                                r.id, marker, r.name, r.size_bytes as f64 / (1024.0 * 1024.0), state
+                            ));
+                        }
+                        out.push_str("\nUsage: `/rerank model <id>`");
+                        return CommandResult::success(out);
+                    };
+                    let chosen = OnnxModelManager::resolve_spec(model_arg)
+                        .filter(|s| s.category == crate::ingestion::OnnxModelCategory::ReRanker && s.is_available());
+                    let Some(chosen) = chosen else {
+                        let ids: Vec<&str> = OnnxModelManager::rerankers().map(|r| r.id).collect();
+                        return CommandResult::error(format!(
+                            "Unknown re-ranker model '{}'. Available: {}",
+                            model_arg,
+                            ids.join(", ")
+                        ));
+                    };
+                    OnnxModelManager::set_active_reranker(chosen.id);
+                    let note = if OnnxModelManager::is_installed(chosen) {
+                        "Weights installed; the new model is used from the next query.".to_string()
+                    } else {
+                        format!(
+                            "⚠️ Weights not installed yet (~{:.0} MB). Run `actx download {}`; until then RRF serves as fallback.",
+                            chosen.size_bytes as f64 / (1024.0 * 1024.0),
+                            chosen.id
+                        )
+                    };
+                    return CommandResult::success(format!(
+                        "⚡ Re-ranker model set to **{}** (`{}`).\n{}",
+                        chosen.name, chosen.id, note
+                    ))
+                    .with_action(CommandAction::RebuildAgent);
                 }
                 _ => {
                     return CommandResult::error(format!(
                         "Unrecognized rerank option '{}'. Valid options:\n\
                          • `/rerank on`: Force enable neural re-ranking\n\
                          • `/rerank off`: Disable neural re-ranking (pure RRF)\n\
-                         • `/rerank auto`: Automatically use neural re-ranking when available\n\
+                         • `/rerank auto`: Use neural re-ranking when available\n\
+                         • `/rerank model [id]`: List or select the cross-encoder model\n\
                          • `/rerank`: View status and telemetry",
                         mode_str
                     ));
@@ -1805,40 +1858,57 @@ impl CommandEngine {
         }
 
         // Status view
-        let (active_name, active_detail, is_active) = crate::ingestion::OnnxModelManager::active_reranker_state();
-        let badge = if is_active { "🟢 Active" } else { "⚪ Standby / Fallback" };
-
-        let disk_info = if let Some(spec) = spec_opt.as_ref() {
-            if is_installed {
-                let size = crate::ingestion::OnnxModelManager::installed_size(spec).unwrap_or(0);
-                format!("{:.2} MB on disk", size as f64 / (1024.0 * 1024.0))
-            } else {
-                format!("Not installed (~{:.1} MB download: `actx download reranker`)", spec.size_bytes as f64 / (1024.0 * 1024.0))
-            }
+        let (active_name, active_detail, is_active) = OnnxModelManager::active_reranker_state();
+        let badge = if is_active { "🟢 Neural" } else { "⚪ RRF Fallback" };
+        let disk_info = if is_installed {
+            let size = OnnxModelManager::installed_size(spec).unwrap_or(0);
+            format!("{:.2} MB on disk", size as f64 / (1024.0 * 1024.0))
         } else {
-            "Unknown".to_string()
+            format!("Not installed (~{:.1} MB: `actx download reranker`)", spec.size_bytes as f64 / (1024.0 * 1024.0))
+        };
+        let runtime_info = match actx_onnx::runtime::runtime_library_path() {
+            Some(p) if p.is_file() => format!("ONNX Runtime library found ({})", p.display()),
+            Some(p) => format!("ONNX Runtime library missing (expected at {})", p.display()),
+            None => "ONNX Runtime library location unknown".to_string(),
+        };
+        let latency = crate::retrieval::pipeline::last_rerank_latency_ms()
+            .map(|ms| format!("{} ms (last neural pass in this session)", ms))
+            .unwrap_or_else(|| "n/a (no neural pass yet in this session)".to_string());
+        let requested_device = &ctx.execution_device;
+        let device_note = match actx_onnx::ExecutionDevice::parse_str(requested_device) {
+            Some(d) if !d.is_supported_for_inference() => format!("CPU (requested `{}`; GPU execution providers are planned)", requested_device),
+            _ => "CPU (ONNX Runtime CPU Execution Provider)".to_string(),
         };
 
         CommandResult::success(format!(
-            "⚡ **Two-Stage Neural Retrieval & Re-ranking Status (Frente B)**\n\n\
+            "⚡ **Two-Stage Neural Retrieval & Re-ranking Status**\n\n\
              • Mode Policy: **{}**\n\
+             • Model: {} (`{}`)\n\
              • Engine: {}\n\
              • State: {} ({})\n\
              • Storage: {}\n\
-             • Active Hardware Device: {}\n\n\
+             • Runtime: {}\n\
+             • Inference Device: {}\n\
+             • Latency: {}\n\n\
              **Two-Stage Pipeline Flow**:\n\
-             1. Stage 1 (High Recall): LanceDB Cosine + BM25 Okapi -> Reciprocal Rank Fusion (k=60) [30 candidates]\n\
-             2. Stage 2 (High Precision): BGE-Reranker-Small Cross-Attention scoring with Sigmoid [Top-K]\n\
+             1. Stage 1 (High Recall): LanceDB Cosine + BM25 Okapi -> Reciprocal Rank Fusion (k=60)\n\
+             2. Stage 2 (High Precision): cross-encoder re-scores the top {} candidates (sigmoid scores in [0,1])\n\
              3. Delivery: Source Diversification -> Density Budgeting -> U-Shaped Reordering -> XML Isolation\n\n\
-             *Tip*: Use `/rerank on`, `/rerank off`, or `/rerank auto` to switch policies.",
+             *Tip*: `/rerank on|off|auto` switches the policy; `/rerank model` lists models.",
             ctx.rerank_mode.to_uppercase(),
+            spec.name,
+            spec.id,
             active_name,
             badge,
             active_detail,
             disk_info,
-            ctx.execution_device
+            runtime_info,
+            device_note,
+            latency,
+            crate::retrieval::pipeline::MAX_RERANK_CANDIDATES
         ))
     }
+
 
     // -------------------------------------------------------------------------
     // Inspection & Status

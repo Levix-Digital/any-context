@@ -1,10 +1,8 @@
-//! Central ONNX Neural Engine for AnyContext.
+//! Central facade over the local inference components.
 //!
-//! Orchestrates the lifecycle of all local ONNX specialized models:
-//! - BGE-Small Query Classifier
-//! - MobileNetV4 Scan Sentinel
-//! - LayoutLMv3 / Laya mmBERT Layout Extractor
-//! - CLIP ViT Vision Encoder
+//! Component status (ADR-130):
+//! - Cross-Encoder Re-Ranker: neural (ONNX Runtime, CPU).
+//! - Query Classifier, Scan Sentinel, Layout Extractor, Vision Encoder: heuristic.
 
 use std::path::Path;
 use crate::device::ExecutionDevice;
@@ -14,7 +12,31 @@ use crate::layout_extractor::OnnxLayoutExtractor;
 use crate::vision_encoder::OnnxVisionEncoder;
 use crate::reranker::OnnxReranker;
 
-/// Unified facade for local ONNX neural inference.
+/// Default re-ranker model directory inside the models store.
+pub const DEFAULT_RERANKER_DIR: &str = "mmarco-reranker";
+
+/// Execution status of a local inference component.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComponentStatus {
+    /// Real neural inference through ONNX Runtime.
+    Neural,
+    /// Deterministic Rust heuristic.
+    Heuristic,
+    /// Neural path expected but currently unavailable (weights or runtime missing).
+    Fallback,
+}
+
+impl ComponentStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Neural => "neural",
+            Self::Heuristic => "heuristic",
+            Self::Fallback => "fallback",
+        }
+    }
+}
+
+/// Unified facade for local inference components.
 #[derive(Debug, Clone)]
 pub struct OnnxEngine {
     pub query_classifier: OnnxQueryClassifier,
@@ -26,25 +48,19 @@ pub struct OnnxEngine {
 }
 
 impl OnnxEngine {
-    /// Initializes the ONNX engine by scanning the canonical models directory.
+    /// Initializes the engine by scanning the canonical models directory.
     pub fn init(models_dir: &Path) -> Self {
         Self::with_device(models_dir, ExecutionDevice::Auto)
     }
 
-    /// Initializes the ONNX engine with an explicit hardware execution device.
+    /// Initializes the engine with an explicit requested execution device.
     pub fn with_device(models_dir: &Path, device: ExecutionDevice) -> Self {
-        let bge_path = models_dir.join("bge_small_query_int8.onnx");
-        let mobilenet_path = models_dir.join("mobilenetv4_rvl_cdip.onnx");
-        let layout_path = models_dir.join("layoutlmv3_base_int8.onnx");
-        let clip_path = models_dir.join("clip_vit_vision_int8.onnx");
-        let reranker_path = models_dir.join("bge_reranker_small_int8.onnx");
-
         Self {
-            query_classifier: OnnxQueryClassifier::new(&bge_path),
-            scan_sentinel: OnnxScanSentinel::new(&mobilenet_path),
-            layout_extractor: OnnxLayoutExtractor::new(&layout_path),
-            vision_encoder: OnnxVisionEncoder::new(&clip_path),
-            reranker: OnnxReranker::with_device(&reranker_path, device),
+            query_classifier: OnnxQueryClassifier::new(&models_dir.join("bge_small_query_int8.onnx")),
+            scan_sentinel: OnnxScanSentinel::new(&models_dir.join("mobilenetv4_rvl_cdip.onnx")),
+            layout_extractor: OnnxLayoutExtractor::new(&models_dir.join("layoutlmv3_base_int8.onnx")),
+            vision_encoder: OnnxVisionEncoder::new(&models_dir.join("clip_vit_vision_int8.onnx")),
+            reranker: OnnxReranker::with_device(&models_dir.join(DEFAULT_RERANKER_DIR).join("model.onnx"), device),
             device,
         }
     }
@@ -58,40 +74,54 @@ impl OnnxEngine {
         self.device
     }
 
-    /// Returns the number of currently installed, verified neural models.
+    /// Number of components currently running real neural inference.
     pub fn active_models_count(&self) -> usize {
-        let mut count = 0;
-        if self.query_classifier.is_neural_active() { count += 1; }
-        if self.scan_sentinel.is_neural_active() { count += 1; }
-        if self.layout_extractor.is_neural_active() { count += 1; }
-        if self.vision_encoder.is_neural_active() { count += 1; }
-        if self.reranker.is_neural_active() { count += 1; }
-        count
+        self.summary().iter().filter(|(_, s)| *s == ComponentStatus::Neural).count()
     }
 
-    /// Returns a status breakdown for telemetry and UI badges.
-    pub fn summary(&self) -> Vec<(&'static str, bool)> {
+    /// Status breakdown for telemetry and UI badges.
+    pub fn summary(&self) -> Vec<(&'static str, ComponentStatus)> {
+        let reranker = if self.reranker.is_neural_active() {
+            ComponentStatus::Neural
+        } else {
+            ComponentStatus::Fallback
+        };
         vec![
-            ("BGE-Small Query Classifier", self.query_classifier.is_neural_active()),
-            ("MobileNetV4 Scan Sentinel", self.scan_sentinel.is_neural_active()),
-            ("LayoutLMv3 Layout Extractor", self.layout_extractor.is_neural_active()),
-            ("CLIP ViT Vision Encoder", self.vision_encoder.is_neural_active()),
-            ("BGE-Reranker-Small (Cross-Encoder)", self.reranker.is_neural_active()),
+            ("Query Classifier", ComponentStatus::Heuristic),
+            ("Scan Sentinel", ComponentStatus::Heuristic),
+            ("Layout Extractor", ComponentStatus::Heuristic),
+            ("Vision Encoder", ComponentStatus::Heuristic),
+            ("Cross-Encoder Re-Ranker", reranker),
         ]
     }
 
-    /// Evaluates query complexity and intent via neural model or deterministic fallback.
+    /// Evaluates query complexity and intent (deterministic heuristic).
     pub fn classify_query(&self, query: &str) -> (OnnxComplexity, OnnxIntent, f32, String) {
         self.query_classifier.classify_query(query)
     }
 
-    /// Evaluates scanned page status via MobileNetV4 or 2D spatial fallback.
+    /// Evaluates scanned page status (deterministic heuristic).
     pub fn is_scanned_page(&self, raw_text: &str, image_count: usize) -> (bool, f32) {
         self.scan_sentinel.is_scanned_page(raw_text, image_count)
     }
 
-    /// Re-ranks a batch of candidate chunks against the query using local cross-attention.
+    /// Re-ranks candidate chunks with the cross-encoder; empty result means RRF fallback.
     pub fn rerank(&self, query: &str, candidates: &[String]) -> Vec<f32> {
         self.reranker.score_batch(query, candidates)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_summary_without_weights_is_honest() {
+        let engine = OnnxEngine::init(Path::new("definitely_missing_models_dir"));
+        assert_eq!(engine.active_models_count(), 0);
+        let summary = engine.summary();
+        assert_eq!(summary.len(), 5);
+        assert!(summary[..4].iter().all(|(_, s)| *s == ComponentStatus::Heuristic));
+        assert_eq!(summary[4].1, ComponentStatus::Fallback);
     }
 }

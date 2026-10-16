@@ -45,7 +45,18 @@ Traditional AI tools require you to manually copy and paste files into web chats
 
 ## 🚀 Key Features & Superpowers
 
+- **🧠 Runtime ONNX Real & Cross-Encoder Multilíngue de Verdade (`v0.45.0`)**:
+  - **Inferência neural real**: o Estágio 2 do Two-Stage Retrieval agora executa um cross-encoder de verdade via ONNX Runtime oficial da Microsoft (1.31, CPU). Até a v0.44.0 esse estágio era uma heurística lexical.
+  - **Modelo padrão multilíngue**: `mmarco-mMiniLMv2-L12` (~129 MB, inclui português, Apache-2.0). Opção de maior qualidade para máquinas com 32GB+: `bge-reranker-v2-m3` (~561 MB).
+  - **Zero configuração**: o ONNX Runtime vem **dentro do pacote** do AnyContext e o reranker é **instalado automaticamente** com o seu perfil (instalação e atualização). Nada para baixar ou configurar manualmente; no perfil **Lite** nada é baixado e o AnyContext usa RRF.
+  - **Desempenho medido (CPU, 4 threads)**: ~0,3 s para reordenar 30 trechos; o modelo carrega na primeira consulta (~0,6 s), nunca no início do programa.
+  - **Sempre abre, sempre responde (ADR-110)**: sem o modelo ou sem a biblioteca do runtime, o reranker cai para RRF e `/rerank` mostra o motivo.
+  - **Comandos**: `/rerank` (status com modelo, runtime, dispositivo e latência real), `/rerank model [id]` (listar/selecionar o modelo), `--rerank-model <id>` (apenas para uma execução), `actx download reranker` (reparo).
+  - **Downloads verificados**: todos os modelos do catálogo têm revisão fixada no Hugging Face e verificação de tamanho + SHA-256; links inexistentes foram removidos.
+  - **Transparência técnica**: classificador de consultas, sentinela de digitalizações, extrator de layout e encoder visual agora são exibidos como **heurísticos** (eram apresentados como neurais); a geração local com Gemma 4 e a aceleração por GPU aparecem como **planejadas**. Detalhes na [ADR-130](TECDOC.md#adr-130-runtime-onnx-real-ort-load-dynamic-cross-encoder-multilingue-mmarco-e-retificacao-das-adrs-118123125127129-v0450).
+
 - **🎯 Two-Stage Neural Retrieval com Re-Ranking Local Cross-Encoder ONNX (`v0.44.0`)**:
+  > ⚠️ **Retificado na v0.45.0**: na v0.44.0 o Estágio 2 era uma heurística lexical, o modelo `bge-reranker-small` não existe no Hugging Face e não havia aceleração por GPU nem a latência de 18ms anunciada. O cross-encoder real chegou na v0.45.0 (acima).
   - **Recuperação em Dois Estágios (Two-Stage Neural Retrieval)**:
     - **Estágio 1 (Recall)**: Fusão de Ranks Recíprocos (RRF, $k=60$) unificando busca vetorial densa (LanceDB) e busca lexical esparsa (Okapi BM25) para capturar um pool inicial de candidatos de alta cobertura semântica e lexical.
     - **Estágio 2 (Precision Re-Ranking)**: Cross-Encoder neural local `bge-reranker-small` (~45.2 MB) processando os pares `(query, document)` com atenção cruzada bidirecional completa, calculando scores de relevância normalizados por Sigmoid em $[0.0, 1.0]$.
@@ -66,6 +77,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Arquitetura Hexagonal Rigorosa (Formatação Canônica Única no Core)**: Centralização de toda a lógica de formatação XML, reordenação em U e regras anti-alucinação no Core (`ContextFormatter`), consumida uniformemente pelo agente headless, TUI interativa e ReAct Tool Registry.
 
 - **⚡ Matriz Tri-Cross-Platform de Aceleração por Hardware no `actx-onnx` (DirectML, Metal, CUDA, Vulkan & CPU SIMD) (`v0.42.0`)**:
+  > ⚠️ **Retificado na v0.45.0**: a detecção de GPUs é real, mas nenhum Execution Provider de GPU é usado; toda inferência local roda na CPU e não há binário para macOS. GPU está planejada (ADR-130).
   - **Aceleração Nativa Tri-Plataforma**: Habilita execução neural acelerada por GPU para a família Gemma 4 ONNX:
     - **Windows**: Microsoft DirectML (DXGI 1.2 / DirectX 12) com suporte universal a GPUs NVIDIA GeForce / RTX, AMD Radeon e Intel Arc / Iris Xe.
     - **macOS**: Apple Silicon Unified Memory Architecture (UMA) via Metal Performance Shaders (MPS) e CoreML.
@@ -80,6 +92,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
     - **Menu `[F1]`**: Submenu `Hardware Acceleration & GPUs` para seleção interativa de aceleradores.
 
 - **📥 Downloader Assistido de Pesos Gemma 4 ONNX no CLI & TUI (`v0.41.0`)**:
+  > ⚠️ **Retificado na v0.45.0**: os links do Gemma 4 apontavam para repositórios inexistentes e não há runtime generativo local. O Gemma 4 local está **planejado**; o downloader segue válido para os demais modelos, agora com SHA-256.
   - **Download Assistido de Pesos Locais (`actx download <tier>`)**: Subcomando headless de terminal e slash command interativo (`/download <tier>`, `/dl`, `/get-model`) para baixar e instalar localmente os modelos da família Gemma 4 (`compact`, `12b`, `27b`, `32b`) com barra de progresso visual, velocidade em tempo real (MB/s), tempo estimado (ETA) e cancelamento instantâneo via Ctrl+C ou `[Esc]`.
   - **Pre-Flight Checks de Segurança em Camadas**: Verificação automática de espaço livre em disco com margem de segurança de 500MB e guardrails de hardware para RAM física. Impede downloads inviáveis por falta de armazenamento ou estouro de memória, com suporte à flag `--force` para override consciente.
   - **Inspeção de Armazenamento Local (`actx download --check` / `/download --check`)**: Tabela completa exibindo todos os modelos ONNX suportados, diretório local (`%LOCALAPPDATA%\AnyContext\models\`), status de instalação e compatibilidade de hardware em tempo real.
@@ -87,6 +100,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Arquitetura Hexagonal Rigorosa (Zero Regras de Negócio na UI)**: Toda a lógica de verificação de disco, profilagem de RAM, resolução de aliases e cálculo de telemetria reside no Core (`any-context-core-rs`), mantendo as interfaces de apresentação desacopladas e resilientes.
 
 - **🧠 Ativação Operacional do Gemma 4 Local ONNX, Guardrails de Hardware Estilo LM Studio & Presets Seguros de Workspace (`v0.40.0`)**:
+  > ⚠️ **Retificado na v0.45.0**: a geração local com Gemma 4 não estava funcional (respostas simuladas). Os modelos `gemma-4-*` usam o provedor de fallback até a geração local existir (ADR-130).
   - **Ativação Operacional do Gemma 4 Local no CLI (`resolve_lm_provider`)**: Conecta o motor neural ONNX diretamente aos fluxos de conversação do terminal e da TUI, com resolução de pesos em `%LOCALAPPDATA%/actx/models/` e garantia inviolável ADR-110 (fallback offline gracioso sem quedas ou chamadas indevidas à nuvem).
   - **Guardrails de Hardware Ativos (Estilo LM Studio)**: Modelos locais são validados em tempo real (<5ms) contra a memória RAM física do hospedeiro. Modelos que excedem a capacidade física (🔴) são bloqueados por padrão contra Out-Of-Memory (OOM) e swap thrashing catastrófico, exigindo a flag explícita `--force` (`/model gemma-4-32b --force`) para prosseguir. Modelos cloud permanecem 100% livres e irrestritos.
   - **Menu de Modelos da TUI com Semáforo de RAM**: Badges e ícones coloridos informam instantaneamente a viabilidade de cada modelo (`🟢 [Compatível]`, `🟡 [Risco de Swap]`, `🔴 [Hardware Insuficiente - Exige X GB]`).
@@ -101,6 +115,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Resiliência e Fallback ADR-110**: Em caso de erro de rede ou ambiente offline, o crawler reverte transparentemente para extração HTML local sanitizada sem interromper o processo de sincronização.
 
 - **🧠 Ativação dos Modelos ONNX nos Fluxos de Produção & Família Gemma 4 em 5 Tiers (`v0.38.0`)**:
+  > ⚠️ **Retificado na v0.45.0**: os componentes de Document AI e o roteador de consultas executam heurísticas determinísticas; os pesos podem ser baixados, mas ainda não são executados (ADR-130).
   - **Decoupled Architecture**: Desacoplamento estrito entre a Camada de Percepção (Document AI: MobileNetV4, LayoutLMv3, BGE-Small, CLIP-ViT, Laya mmBERT ~740MB) e a Camada Generativa (Gemma 4 INT4).
   - **5 Hardware Intelligence Tiers (Isolamento Antifragil de Memória)**:
     - **👑 Sovereign Ultra** (Default em $\ge 64\text{ GB}$ RAM): Gemma 4 32B INT4 (~25.5GB Peak RAM) + Suíte Completa Document AI (19.2GB Disco).
@@ -678,7 +693,8 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 | **`/transfer`** | `<src_ws> <tgt_ws> <path_or_url>` | Instant zero-cost transfer of folders or web portals between workspaces. |
 | **`/rename`** | `<old_ws> <new_ws>` | Atomic zero-cost workspace renaming ($0.00). |
 | **`/model`** | `<name>`, `--list`, `-l` | Open key-aware AI model selector across 9 providers or list available models. |
-| **`/download`** | `<tier>`, `--check`, `--force`, `/dl`, `/get-model` | Baixa e instala pesos Gemma 4 ONNX (`compact`, `12b`, `27b`, `32b`) com pre-flight checks, velocidade (MB/s), ETA e cancelamento `[Esc]`. |
+| **`/download`** | `<model>`, `--check`, `--force`, `/dl`, `/get-model` | Repara ou adiciona modelos locais verificados (tamanho + SHA-256), ex.: `reranker`, `reranker-m3`. Os modelos do perfil já são instalados automaticamente; Gemma 4 local aparece como planejado. |
+| **`/rerank`** | `on`, `off`, `auto`, `model [id]` | Status do re-ranking neural (modelo, runtime, dispositivo, latência real), política on/off/auto e seleção do cross-encoder. |
 | **`@model <msg>`** | — | One-shot prompt to a specific model without changing session defaults. |
 | **`/api-keys`** | `/keys` | Step-by-step guide with portal links to obtain API keys. |
 | **`/ocr`** | `image`, `scan` | View Image & Scanned PDF OCR parsing status. |
@@ -698,6 +714,8 @@ Inside the interactive chat (`actx`), use these powerful slash commands:
 ---
 
 ## 📥 Download e Gerenciamento Assistido de Pesos Locais (Gemma 4 ONNX)
+
+> ⚠️ **Atualização v0.45.0**: a geração local com Gemma 4 está **planejada** — os links abaixo apontavam para repositórios inexistentes e foram removidos; `actx download compact|12b|27b|32b` agora informa que o modelo é planejado. O fluxo de download (pre-flight, progresso, cancelamento) continua válido para os modelos disponíveis, como `actx download reranker`, agora com verificação de SHA-256. Os modelos do seu perfil são instalados automaticamente pelo instalador.
 
 O **AnyContext `v0.41.0`** introduz um pipeline unificado e assistido para download e instalação local dos modelos quantizados da família **Gemma 4 ONNX**. Com verificação de integridade em camadas, o AnyContext protege seu sistema contra falta de espaço em disco e travamentos por estouro de memória RAM física (*Out-Of-Memory* e *swap thrashing*).
 

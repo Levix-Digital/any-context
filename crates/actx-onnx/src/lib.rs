@@ -1,12 +1,14 @@
-//! # 🧠 `actx-onnx`: Specialized Local ONNX Neural Inference Crate
+//! # 🧠 `actx-onnx`: Local ONNX Inference Crate
 //!
-//! Governs the execution of standalone local ONNX models:
-//! - BGE-Small Query Classifier (RFC-042 Dynamic Complexity)
-//! - MobileNetV4 RVL-CDIP (Scanned Page Sentinel)
-//! - LayoutLMv3 Base & Laya mmBERT (Multimodal Layout & Tables)
-//! - CLIP ViT Vision Encoder (Dense Visual Diagrams)
-//! - Gemma 4 Family Tensor Runner (Compact, 12B, 27B, 32B INT4)
+//! Component status in this build (ADR-130):
+//! - Cross-Encoder Re-Ranker (mmarco-mMiniLMv2 / bge-reranker-v2-m3): **neural**, ONNX Runtime on CPU
+//!   (requires the `runtime` feature).
+//! - Query Classifier, Scan Sentinel, Layout Extractor, Vision Encoder: **heuristic**
+//!   (deterministic Rust; downloaded weights are not executed yet).
+//! - Gemma 4 local generation: **planned** (no generative runtime yet).
 
+pub mod runtime;
+pub mod tokenizer;
 pub mod session;
 pub mod query_classifier;
 pub mod scan_sentinel;
@@ -23,6 +25,7 @@ pub use scan_sentinel::OnnxScanSentinel;
 pub use layout_extractor::OnnxLayoutExtractor;
 pub use vision_encoder::OnnxVisionEncoder;
 pub use gemma::{GemmaModelTier, GemmaTokenizer, OnnxGemmaEngine};
-pub use engine::OnnxEngine;
+pub use engine::{ComponentStatus, OnnxEngine, DEFAULT_RERANKER_DIR};
 pub use device::{AcceleratorBackend, AcceleratorVendor, ExecutionDevice, GpuDevice};
 pub use reranker::OnnxReranker;
+pub use runtime::{runtime_available, OnnxSession, TensorOutput};

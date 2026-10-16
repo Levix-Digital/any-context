@@ -75,7 +75,7 @@ impl ScanSentinel for OnnxScanSentinelAdapter {
         if !has_text_stream && has_image_stream {
             Some(ScanAssessment {
                 is_scan: true,
-                confidence: if self.inner.is_neural_active() { 0.98 } else { 0.88 },
+                confidence: 0.88,
                 detected_typology: Some("scanned_document".to_string()),
             })
         } else {
@@ -171,7 +171,7 @@ mod tests {
         assert_eq!(comp, QueryComplexity::Fast);
         assert_eq!(intent, QueryIntent::General);
         assert!(score > 0.0);
-        assert!(reason.contains("Deterministic Fallback"));
+        assert!(reason.contains("Heuristic Router"));
     }
 
     #[test]

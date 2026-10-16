@@ -1,6 +1,6 @@
 [package]
 name = "actx-installer"
-version = "0.44.0"
+version = "0.45.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Native cross-platform installer, atomic updater, and launcher shim for AnyContext"
@@ -16,6 +16,9 @@ indicatif = "0.17"
 dirs = "5.0"
 sha2 = "0.10"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[dev-dependencies]
+tempfile = "3.10"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = ["Win32_Storage_FileSystem"] }

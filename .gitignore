@@ -44,3 +44,5 @@ brain/
 .venv/
 venv/
 __pycache__/
+# ONNX Runtime library fetched for local/CI neural tests (ADR-130)
+.ort/

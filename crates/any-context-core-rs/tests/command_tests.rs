@@ -608,45 +608,62 @@ fn test_download_command_execution() {
     std::env::set_var("ACTX_TEST_MODE", "1");
     let ctx = ExecutionContext::default();
 
-    // 1. /download without args displays Gemma 4 tier guide
+    // 1. /download without args displays the verified model guide (ADR-130)
     let res_help = CommandEngine::execute("download", &[], &ctx);
     assert!(res_help.success);
-    assert!(res_help.message.contains("AnyContext Gemma 4 ONNX Model Downloader"));
-    assert!(res_help.message.contains("compact"));
-    assert!(res_help.message.contains("12b"));
-    assert!(res_help.message.contains("27b"));
-    assert!(res_help.message.contains("32b"));
+    assert!(res_help.message.contains("AnyContext Local Model Downloader"));
+    assert!(res_help.message.contains("reranker"));
+    assert!(res_help.message.contains("planned"));
 
-    // 2. /download --check displays model store catalog and RAM compatibility
+    // 2. /download --check displays the store; Gemma 4 entries are listed as planned
     let res_check = CommandEngine::execute("download", &["--check"], &ctx);
     assert!(res_check.success);
     assert!(res_check.message.contains("AnyContext ONNX Model Store Status"));
     assert!(res_check.message.contains("gemma-4-compact"));
-    assert!(res_check.message.contains("gemma-4-12b"));
+    assert!(res_check.message.contains("mmarco-reranker"));
+    assert!(res_check.message.contains("Planned"));
 
     // 3. /download with invalid model fails gracefully
     let res_invalid = CommandEngine::execute("download", &["nonexistent-model-xyz"], &ctx);
     assert!(!res_invalid.success);
     assert!(res_invalid.message.contains("not recognized"));
 
-    // 4. /dl alias with alias 'compact' resolves spec
+    // 4. /dl compact: planned model never starts a download
     let res_compact = CommandEngine::execute("dl", &["compact"], &ctx);
-    if res_compact.success {
-        assert!(res_compact.message.contains("Compact") || res_compact.message.contains("already downloaded"));
-        if let CommandAction::StartDownload(ref id) = res_compact.action {
-            assert_eq!(id, "gemma-4-compact");
+    assert!(res_compact.message.contains("planned"));
+    assert!(!matches!(res_compact.action, CommandAction::StartDownload(_)));
+
+    // 5. /get-model 12b --force: still planned, never downloads
+    let res_force = CommandEngine::execute("get-model", &["12b", "--force"], &ctx);
+    assert!(!matches!(res_force.action, CommandAction::StartDownload(_)));
+
+    // 6. /download reranker resolves the verified cross-encoder
+    let res_rr = CommandEngine::execute("download", &["reranker"], &ctx);
+    if res_rr.success {
+        if let CommandAction::StartDownload(ref id) = res_rr.action {
+            assert_eq!(id, "mmarco-reranker");
         }
     } else {
-        assert!(res_compact.message.contains("Hardware") || res_compact.message.contains("Disk Space"));
+        assert!(res_rr.message.contains("disk space") || res_rr.message.contains("Disk"));
     }
+}
 
-    // 5. /get-model alias with --force passes guardrails
-    let res_force = CommandEngine::execute("get-model", &["12b", "--force"], &ctx);
-    if res_force.success {
-        if let CommandAction::StartDownload(ref id) = res_force.action {
-            assert_eq!(id, "gemma-4-12b");
-        }
-    }
+#[test]
+fn test_rerank_model_selection() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let ctx = ExecutionContext::default();
+
+    let list = CommandEngine::execute("rerank", &["model"], &ctx);
+    assert!(list.success);
+    assert!(list.message.contains("mmarco-reranker"));
+    assert!(list.message.contains("bge-reranker-v2-m3"));
+
+    let bad = CommandEngine::execute("rerank", &["model", "not-a-model"], &ctx);
+    assert!(!bad.success);
+    assert!(bad.message.contains("Unknown re-ranker model"));
+
+    let gemma = CommandEngine::execute("rerank", &["model", "gemma-4-compact"], &ctx);
+    assert!(!gemma.success, "Only re-ranker models may be selected");
 }
 
 #[test]

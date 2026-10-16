@@ -92,118 +92,117 @@ impl SemaphoreStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+/// A verified downloadable model file (mirrors `any-context-core-rs` `ONNX_CATALOG`, ADR-130).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelDownloadSpec {
     pub id: &'static str,
+    /// Path relative to the models directory (`/`-separated).
     pub file_name: &'static str,
     pub size_bytes: u64,
+    /// Upstream URL pinned to an immutable revision.
     pub download_url: &'static str,
+    /// Lowercase hex SHA-256 of the file.
+    pub sha256: &'static str,
     pub description: &'static str,
 }
 
+/// Document AI weights (their components currently run deterministic heuristics).
 pub static ALL_MODELS: [ModelDownloadSpec; 5] = [
     ModelDownloadSpec {
         id: "mobilenetv4-rvl-cdip",
-        file_name: "mobilenetv4_rvl_cdip_int8.onnx",
-        size_bytes: 3_900_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/mobilenetv4_rvl_cdip_int8.onnx",
-        description: "Document Scan Sentinel & RVL-CDIP 16-class classifier",
+        file_name: "mobilenetv4_rvl_cdip.onnx",
+        size_bytes: 3_931_745,
+        download_url: "https://huggingface.co/onnx-community/mobilenetv4_conv_small.e1200_r224_in1k/resolve/e832d3b2b2fd988f41063559c6ea30df281f4e05/onnx/model_int8.onnx",
+        sha256: "9930547d7d61660d667b72069f0fa75b706b3e0b04645cf99f76416a82fa99a3",
+        description: "Scanned-page sentinel weights",
     },
     ModelDownloadSpec {
         id: "layoutlmv3-int8",
         file_name: "layoutlmv3_base_int8.onnx",
-        size_bytes: 121_000_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/layoutlmv3_base_int8.onnx",
-        description: "2D Spatial Form & Layout LMv3 Transformer",
+        size_bytes: 127_001_085,
+        download_url: "https://huggingface.co/onnx-community/layoutlmv3-base-ONNX/resolve/43d4a6517dc9b9a5eb3d538a158161ead8d028b9/onnx/model_int8.onnx",
+        sha256: "5f75612d2c2cd3b23826b7fcbed33e11f39d6acda1fe66fa091a0392b18a9013",
+        description: "Layout extraction weights",
     },
     ModelDownloadSpec {
         id: "bge-small-onnx",
         file_name: "bge_small_query_int8.onnx",
-        size_bytes: 127_000_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/bge_small_query_int8.onnx",
-        description: "Neural Query Complexity Router (<15ms)",
+        size_bytes: 133_093_490,
+        download_url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/onnx/model.onnx",
+        sha256: "828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35",
+        description: "Query routing weights",
     },
     ModelDownloadSpec {
         id: "clip-vit-int8",
         file_name: "clip_vit_vision_int8.onnx",
-        size_bytes: 84_000_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/clip_vit_vision_int8.onnx",
-        description: "CLIP ViT-B/32 Visual Feature Embedding Engine",
+        size_bytes: 88_648_877,
+        download_url: "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/vision_model_int8.onnx",
+        sha256: "0ab0c1b3ace708e539633af1744d5a95247fe4e14d3e08ff197ef82a6cb9bd93",
+        description: "Visual encoder weights",
     },
     ModelDownloadSpec {
         id: "laya-int8",
         file_name: "laya_mmbert_int8.onnx",
-        size_bytes: 404_000_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/laya_mmbert_int8.onnx",
-        description: "Heavy Multi-Modal Document Representation BERT",
+        size_bytes: 424_348_081,
+        download_url: "https://huggingface.co/tozp/laya-onnx/resolve/0d1f7ebf46a3ea04ec4424df602f96ddefb66766/model_int8.onnx",
+        sha256: "d337ce1b1cbca907a4063223517af6db7e89f5c9e8d6a2f6a289babc256f4469",
+        description: "Document typology weights",
     },
 ];
 
-pub static GEMMA_32B_SPEC: ModelDownloadSpec = ModelDownloadSpec {
-    id: "gemma-4-32b-int8",
-    file_name: "gemma_4_32b_int8.onnx",
-    size_bytes: 18_500_000_000,
-    download_url: "https://huggingface.co/google/gemma-4-32b-it-onnx/resolve/main/cpu-int4-rtn-block-32/model.onnx",
-    description: "Gemma 4 32B (INT4) Sovereign Frontier Enterprise LLM",
-};
-
-pub static GEMMA_27B_SPEC: ModelDownloadSpec = ModelDownloadSpec {
-    id: "gemma-4-27b-int8",
-    file_name: "gemma_4_27b_int8.onnx",
-    size_bytes: 15_000_000_000,
-    download_url: "https://huggingface.co/google/gemma-4-27b-it-onnx/resolve/main/cpu-int4-rtn-block-32/model.onnx",
-    description: "Gemma 4 27B (INT4) Workstation High-Reasoning LLM",
-};
-
-pub static GEMMA_12B_SPEC: ModelDownloadSpec = ModelDownloadSpec {
-    id: "gemma-4-12b-int8",
-    file_name: "gemma_4_12b_int8.onnx",
-    size_bytes: 7_200_000_000,
-    download_url: "https://huggingface.co/google/gemma-4-12b-it-onnx/resolve/main/cpu-int4-rtn-block-32/model.onnx",
-    description: "Gemma 4 12B (INT4) Developer Agentic Sweet-Spot LLM",
-};
-
-pub static GEMMA_COMPACT_SPEC: ModelDownloadSpec = ModelDownloadSpec {
-    id: "gemma-4-compact-int8",
-    file_name: "gemma_4_compact_int8.onnx",
-    size_bytes: 1_500_000_000,
-    download_url: "https://huggingface.co/google/gemma-4-compact-it-onnx/resolve/main/cpu-int4-rtn-block-32/model.onnx",
-    description: "Gemma 4 Compact (INT4) Edge Mobility SLM",
-};
-
-pub static SOVEREIGN_MODELS: [ModelDownloadSpec; 6] = [
-    ALL_MODELS[0],
-    ALL_MODELS[1],
-    ALL_MODELS[2],
-    ALL_MODELS[3],
-    ALL_MODELS[4],
-    GEMMA_32B_SPEC,
+/// Default multilingual cross-encoder (model + tokenizer), provisioned automatically
+/// with every non-Lite profile so neural re-ranking works without user action (D15).
+pub static RERANKER_FILES: [ModelDownloadSpec; 2] = [
+    ModelDownloadSpec {
+        id: "mmarco-reranker",
+        file_name: "mmarco-reranker/model.onnx",
+        size_bytes: 118_620_016,
+        download_url: "https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1/resolve/1427fd652930e4ba29e8149678df786c240d8825/onnx/model_quint8_avx2.onnx",
+        sha256: "6c2513767fb63d008a4377bef7a7a3555433d9436342bb53e35a3a72ffc52d4b",
+        description: "Multilingual cross-encoder re-ranker (model)",
+    },
+    ModelDownloadSpec {
+        id: "mmarco-reranker",
+        file_name: "mmarco-reranker/tokenizer.json",
+        size_bytes: 17_082_660,
+        download_url: "https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1/resolve/1427fd652930e4ba29e8149678df786c240d8825/tokenizer.json",
+        sha256: "62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626",
+        description: "Multilingual cross-encoder re-ranker (tokenizer)",
+    },
 ];
 
-pub static WORKSTATION_MODELS: [ModelDownloadSpec; 6] = [
-    ALL_MODELS[0],
-    ALL_MODELS[1],
-    ALL_MODELS[2],
-    ALL_MODELS[3],
-    ALL_MODELS[4],
-    GEMMA_27B_SPEC,
+// Gemma 4 local generation is planned (ADR-130): no profile downloads Gemma weights.
+
+pub static SOVEREIGN_MODELS: [ModelDownloadSpec; 7] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
+    RERANKER_FILES[0], RERANKER_FILES[1],
 ];
 
-pub static POWER_MODELS: [ModelDownloadSpec; 6] = [
-    ALL_MODELS[0],
-    ALL_MODELS[1],
-    ALL_MODELS[2],
-    ALL_MODELS[3],
-    ALL_MODELS[4],
-    GEMMA_12B_SPEC,
+pub static WORKSTATION_MODELS: [ModelDownloadSpec; 7] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
+    RERANKER_FILES[0], RERANKER_FILES[1],
 ];
 
-pub static BALANCED_MODELS: [ModelDownloadSpec; 4] = [
-    ALL_MODELS[0],
-    ALL_MODELS[1],
-    ALL_MODELS[2],
-    GEMMA_COMPACT_SPEC,
+pub static POWER_MODELS: [ModelDownloadSpec; 7] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
+    RERANKER_FILES[0], RERANKER_FILES[1],
 ];
+
+pub static BALANCED_MODELS: [ModelDownloadSpec; 5] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2],
+    RERANKER_FILES[0], RERANKER_FILES[1],
+];
+
+impl InstallerProfileTier {
+    /// Files installed automatically for this profile. Only components that execute real
+    /// inference are provisioned (today: the cross-encoder re-ranker); Lite installs nothing.
+    pub fn auto_provisioned_models(&self) -> &'static [ModelDownloadSpec] {
+        match self {
+            Self::Lite => &[],
+            _ => &RERANKER_FILES,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SystemMetrics {
@@ -545,10 +544,10 @@ mod tests {
         assert_eq!(InstallerProfileTier::parse_str("none"), Some(InstallerProfileTier::Lite));
         assert_eq!(InstallerProfileTier::parse_str("unknown_xyz"), None);
 
-        assert_eq!(InstallerProfileTier::SovereignUltra.target_models().len(), 6);
-        assert_eq!(InstallerProfileTier::WorkstationPro.target_models().len(), 6);
-        assert_eq!(InstallerProfileTier::AirGappedPower.target_models().len(), 6);
-        assert_eq!(InstallerProfileTier::SmartBalanced.target_models().len(), 4);
+        assert_eq!(InstallerProfileTier::SovereignUltra.target_models().len(), 7);
+        assert_eq!(InstallerProfileTier::WorkstationPro.target_models().len(), 7);
+        assert_eq!(InstallerProfileTier::AirGappedPower.target_models().len(), 7);
+        assert_eq!(InstallerProfileTier::SmartBalanced.target_models().len(), 5);
         assert_eq!(InstallerProfileTier::Lite.target_models().len(), 0);
     }
 

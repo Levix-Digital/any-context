@@ -1,157 +1,242 @@
-//! ONNX-Powered Cross-Encoder Neural Re-Ranker (`bge-reranker-small`).
+//! ONNX Cross-Encoder Neural Re-Ranker (ADR-130).
 //!
-//! Evaluates `(query, document)` pairs with bidirectional cross-attention,
-//! generating fine-grained semantic relevance scores to elevate the most relevant
-//! chunks to the top of the context window.
+//! Scores `(query, document)` pairs with a real cross-encoder executed by ONNX Runtime
+//! (CPU Execution Provider). The default model is `mmarco-mMiniLMv2-L12-H384-v1`
+//! (multilingual, XLM-RoBERTa); `bge-reranker-v2-m3` uses the same code path.
+//!
+//! Each model lives in its own directory containing `model.onnx` and `tokenizer.json`.
+//! The ONNX session is loaded lazily on the first scoring call, never at startup.
 //!
 //! Architectural Invariant: ADR-110 Zero-Breakage Guarantee.
-//! When weights are not downloaded, falls back smoothly to RRF scoring.
+//! Missing, corrupt or unloadable weights make `score_batch` return an empty vector,
+//! signalling the pipeline to keep the Stage-1 RRF ordering.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
+
 use crate::device::ExecutionDevice;
-use crate::session::ModelSession;
+use crate::runtime::{self, OnnxSession, TensorOutput};
+use crate::tokenizer::{self, PairTokenizer};
 
-/// Standalone Cross-Encoder Re-Ranker backed by BGE-Reranker-Small ONNX weights.
-#[derive(Debug, Clone)]
+/// Maximum tokens per `(query, document)` pair.
+pub const DEFAULT_MAX_LENGTH: usize = 512;
+/// Pairs scored per ONNX Runtime call.
+pub const BATCH_SIZE: usize = 16;
+/// Tokenizer file expected next to `model.onnx`.
+pub const TOKENIZER_FILE_NAME: &str = "tokenizer.json";
+
+struct LoadedReranker {
+    session: OnnxSession,
+    tokenizer: PairTokenizer,
+}
+
+/// Cross-encoder re-ranker backed by ONNX weights on disk.
+#[derive(Clone)]
 pub struct OnnxReranker {
-    session: Option<ModelSession>,
+    model_path: PathBuf,
+    tokenizer_path: PathBuf,
+    model_id: String,
+    max_length: usize,
     device: ExecutionDevice,
+    state: Arc<OnceLock<Result<LoadedReranker, String>>>,
+}
+
+impl std::fmt::Debug for OnnxReranker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OnnxReranker")
+            .field("model_id", &self.model_id)
+            .field("model_path", &self.model_path)
+            .field("device", &self.device)
+            .field("loaded", &self.state.get().map(|r| r.is_ok()))
+            .finish()
+    }
 }
 
 impl OnnxReranker {
-    /// Initializes the reranker with default Auto execution device.
+    /// Creates a reranker for `model_path`, reading `tokenizer.json` from the same directory.
     pub fn new(model_path: &Path) -> Self {
         Self::with_device(model_path, ExecutionDevice::Auto)
     }
 
-    /// Initializes the reranker with an explicit hardware execution device.
+    /// Creates a reranker with an explicit requested execution device.
     pub fn with_device(model_path: &Path, device: ExecutionDevice) -> Self {
-        let session = ModelSession::open(model_path, "bge-reranker-small-onnx").ok();
-        Self { session, device }
+        let tokenizer_path = model_path
+            .parent()
+            .map(|p| p.join(TOKENIZER_FILE_NAME))
+            .unwrap_or_else(|| PathBuf::from(TOKENIZER_FILE_NAME));
+        let model_id = model_path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .unwrap_or("reranker")
+            .to_string();
+        Self::with_paths(model_path, &tokenizer_path, &model_id, device)
     }
 
-    /// Creates an instance directly from an optional session.
-    pub fn from_session(session: Option<ModelSession>, device: ExecutionDevice) -> Self {
-        Self { session, device }
+    /// Creates a reranker from explicit model and tokenizer paths.
+    pub fn with_paths(model_path: &Path, tokenizer_path: &Path, model_id: &str, device: ExecutionDevice) -> Self {
+        Self {
+            model_path: model_path.to_path_buf(),
+            tokenizer_path: tokenizer_path.to_path_buf(),
+            model_id: model_id.to_string(),
+            max_length: DEFAULT_MAX_LENGTH,
+            device,
+            state: Arc::new(OnceLock::new()),
+        }
     }
 
-    /// Returns true if the neural model session is active and valid.
+    /// Overrides the per-pair token budget (useful for small fixtures and benchmarks).
+    pub fn with_max_length(mut self, max_length: usize) -> Self {
+        self.max_length = max_length.max(8);
+        self.state = Arc::new(OnceLock::new());
+        self
+    }
+
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+
+    pub fn model_path(&self) -> &Path {
+        &self.model_path
+    }
+
+    /// True when both weight files exist on disk (does not load them).
+    pub fn weights_present(&self) -> bool {
+        let non_empty = |p: &Path| std::fs::metadata(p).map(|m| m.is_file() && m.len() > 0).unwrap_or(false);
+        non_empty(&self.model_path) && non_empty(&self.tokenizer_path)
+    }
+
+    /// True when neural scoring is expected to run: ONNX Runtime is linked, weights are
+    /// present and no load attempt has failed. A failed load flips this to `false`.
     pub fn is_neural_active(&self) -> bool {
-        self.session.as_ref().map(|s| s.is_valid).unwrap_or(false)
+        if !runtime::runtime_library_present() || !self.weights_present() {
+            return false;
+        }
+        !matches!(self.state.get(), Some(Err(_)))
     }
 
-    /// Sets the active hardware execution device.
+    /// Error recorded by the last load attempt, if any.
+    pub fn load_error(&self) -> Option<String> {
+        match self.state.get() {
+            Some(Err(e)) => Some(e.clone()),
+            _ => None,
+        }
+    }
+
+    /// Loads the ONNX session and tokenizer if not already loaded.
+    pub fn ensure_loaded(&self) -> Result<(), String> {
+        match self.loaded() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.clone()),
+        }
+    }
+
+    fn loaded(&self) -> Result<&LoadedReranker, &String> {
+        self.state
+            .get_or_init(|| {
+                if !self.weights_present() {
+                    return Err(format!(
+                        "Reranker weights for '{}' not found (expected {} and {})",
+                        self.model_id,
+                        self.model_path.display(),
+                        self.tokenizer_path.display()
+                    ));
+                }
+                let session = runtime::load_session(&self.model_path, &self.model_id)?;
+                if !session.has_input("input_ids") || !session.has_input("attention_mask") {
+                    return Err(format!(
+                        "Model '{}' is not a supported cross-encoder (inputs: {:?})",
+                        self.model_id,
+                        session.input_names()
+                    ));
+                }
+                let tokenizer = tokenizer::load_pair_tokenizer(&self.tokenizer_path, self.max_length)?;
+                Ok(LoadedReranker { session, tokenizer })
+            })
+            .as_ref()
+    }
+
+    /// Records the requested device. Inference always runs on `effective_device()`.
     pub fn set_device(&mut self, device: ExecutionDevice) {
         self.device = device;
     }
 
-    /// Returns the currently configured execution device.
+    /// Requested execution device (as configured by the user).
     pub fn device(&self) -> ExecutionDevice {
         self.device
     }
 
-    /// Scores a batch of candidate documents against a single query.
-    ///
-    /// Returns a vector of normalized scores in range [0.0, 1.0].
-    /// If neural weights are absent, returns an empty vector indicating fallback.
+    /// Device where inference actually executes in this build (CPU only, ADR-130).
+    pub fn effective_device(&self) -> ExecutionDevice {
+        self.device.effective()
+    }
+
+    /// Scores candidates against the query. Returns scores in `[0.0, 1.0]`, one per
+    /// candidate, or an empty vector when neural scoring is unavailable (RRF fallback).
     pub fn score_batch(&self, query: &str, candidates: &[String]) -> Vec<f32> {
-        if candidates.is_empty() {
+        if candidates.is_empty() || !self.is_neural_active() {
             return Vec::new();
         }
+        self.try_score_batch(query, candidates).unwrap_or_default()
+    }
 
-        if !self.is_neural_active() {
-            return Vec::new();
-        }
-
-        let q_clean = query.trim();
+    /// Like `score_batch`, but surfaces the failure reason.
+    pub fn try_score_batch(&self, query: &str, candidates: &[String]) -> Result<Vec<f32>, String> {
+        let loaded = self.loaded().map_err(|e| e.clone())?;
+        let query = query.trim();
         let mut scores = Vec::with_capacity(candidates.len());
 
-        for doc in candidates {
-            let score = self.score_pair(q_clean, doc);
-            scores.push(score);
+        for chunk in candidates.chunks(BATCH_SIZE) {
+            let batch = loaded.tokenizer.encode_pairs(query, chunk)?;
+            if batch.batch_size != chunk.len() || batch.seq_len == 0 {
+                return Err(format!("Tokenizer produced an invalid batch for '{}'", self.model_id));
+            }
+            let mut inputs = vec![
+                ("input_ids".to_string(), batch.input_ids),
+                ("attention_mask".to_string(), batch.attention_mask),
+            ];
+            if loaded.session.has_input("token_type_ids") {
+                inputs.push(("token_type_ids".to_string(), batch.token_type_ids));
+            }
+            let output = loaded.session.run_i64([batch.batch_size, batch.seq_len], inputs)?;
+            scores.extend(Self::logits_to_scores(&output, chunk.len())?);
         }
 
-        scores
+        Ok(scores)
     }
 
-    /// Computes a cross-attention relevance score for a single (query, document) pair.
+    /// Scores a single pair; returns `0.0` when neural scoring is unavailable.
     pub fn score_pair(&self, query: &str, document: &str) -> f32 {
-        if query.is_empty() || document.is_empty() {
-            return 0.0;
-        }
-
-        // Tokenize pair into [CLS] query [SEP] document [SEP] representation
-        let (tokens_q, tokens_doc) = Self::tokenize_pair(query, document);
-        
-        // Compute cross-attention interaction and term density
-        let raw_logit = Self::compute_cross_attention_logit(&tokens_q, &tokens_doc);
-        
-        // Normalize via Sigmoid into [0.0, 1.0]
-        Self::sigmoid(raw_logit)
+        self.score_batch(query, &[document.to_string()]).first().copied().unwrap_or(0.0)
     }
 
-    /// Tokenizes query and document into normalized lowercase subword tokens.
-    pub fn tokenize_pair(query: &str, document: &str) -> (Vec<String>, Vec<String>) {
-        let q_tokens: Vec<String> = query
-            .split_whitespace()
-            .map(|s| s.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase())
-            .filter(|s| !s.is_empty())
-            .take(128)
-            .collect();
-
-        let doc_tokens: Vec<String> = document
-            .split_whitespace()
-            .map(|s| s.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase())
-            .filter(|s| !s.is_empty())
-            .take(384)
-            .collect();
-
-        (q_tokens, doc_tokens)
+    /// Converts raw model outputs into calibrated relevance probabilities.
+    /// `[batch]` / `[batch, 1]` logits use a sigmoid; `[batch, 2]` uses softmax (positive class).
+    pub fn logits_to_scores(output: &TensorOutput, batch: usize) -> Result<Vec<f32>, String> {
+        if batch == 0 {
+            return Ok(Vec::new());
+        }
+        if output.data.len() == batch {
+            Ok(output.data.iter().map(|&x| Self::sigmoid(x)).collect())
+        } else if output.data.len() == batch * 2 {
+            Ok(output
+                .data
+                .chunks(2)
+                .map(|row| {
+                    let m = row[0].max(row[1]);
+                    let (e0, e1) = ((row[0] - m).exp(), (row[1] - m).exp());
+                    e1 / (e0 + e1)
+                })
+                .collect())
+        } else {
+            Err(format!(
+                "Unexpected reranker output shape {:?} for batch of {}",
+                output.shape, batch
+            ))
+        }
     }
 
-    /// Computes the cross-attention logit based on semantic overlap and contextual co-occurrence.
-    fn compute_cross_attention_logit(q_tokens: &[String], doc_tokens: &[String]) -> f32 {
-        if q_tokens.is_empty() || doc_tokens.is_empty() {
-            return -5.0; // Very low logit -> near 0.0 after sigmoid
-        }
-
-        let mut matches = 0.0f32;
-        let mut exact_bigram_matches = 0.0f32;
-        let mut positional_weight = 0.0f32;
-
-        for (q_idx, q_tok) in q_tokens.iter().enumerate() {
-            let mut found_in_doc = false;
-            for (d_idx, d_tok) in doc_tokens.iter().enumerate() {
-                if q_tok == d_tok {
-                    matches += 1.0;
-                    found_in_doc = true;
-                    // Early chunk matches receive higher attention weight (Primacy in chunk)
-                    let pos_factor = 1.0 / (1.0 + (d_idx as f32 * 0.01));
-                    positional_weight += pos_factor;
-                    break;
-                }
-            }
-
-            // Check adjacent bigrams
-            if found_in_doc && q_idx + 1 < q_tokens.len() {
-                let next_q = &q_tokens[q_idx + 1];
-                for d_idx in 0..doc_tokens.len().saturating_sub(1) {
-                    if &doc_tokens[d_idx] == q_tok && &doc_tokens[d_idx + 1] == next_q {
-                        exact_bigram_matches += 1.5;
-                    }
-                }
-            }
-        }
-
-        let coverage = matches / (q_tokens.len() as f32).max(1.0);
-        let density = matches / (doc_tokens.len() as f32).max(1.0);
-
-        // Cross-Encoder formula combining token coverage, bigram collocation and density
-        let logit = (coverage * 4.0) + (exact_bigram_matches * 0.8) + (density * 2.0) + (positional_weight * 0.2) - 2.0;
-        logit
-    }
-
-    /// Standard Sigmoid activation function to map real logits to [0.0, 1.0].
+    /// Standard sigmoid mapping real logits to `[0.0, 1.0]`.
     #[inline]
     pub fn sigmoid(x: f32) -> f32 {
         1.0 / (1.0 + (-x).exp())
@@ -164,10 +249,26 @@ mod tests {
 
     #[test]
     fn test_reranker_missing_file_fallback() {
-        let reranker = OnnxReranker::new(Path::new("non_existent_reranker.onnx"));
+        let reranker = OnnxReranker::new(Path::new("missing_dir/model.onnx"));
         assert!(!reranker.is_neural_active());
         let scores = reranker.score_batch("test query", &["doc 1".to_string(), "doc 2".to_string()]);
         assert!(scores.is_empty(), "Should return empty vector to signal fallback to RRF");
+    }
+
+    #[test]
+    fn test_reranker_corrupt_weights_never_active_after_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let model = dir.path().join("model.onnx");
+        let mut bytes = vec![0x08, 0x07, 0x12, 0x04];
+        bytes.resize(2048, 0xAB);
+        std::fs::write(&model, &bytes).unwrap();
+        std::fs::write(dir.path().join(TOKENIZER_FILE_NAME), "{}").unwrap();
+
+        let reranker = OnnxReranker::new(&model);
+        assert!(reranker.score_batch("q", &["d".to_string()]).is_empty());
+        assert!(reranker.ensure_loaded().is_err());
+        assert!(!reranker.is_neural_active(), "Dummy bytes must never be reported as neural");
+        assert!(reranker.load_error().is_some());
     }
 
     #[test]
@@ -178,34 +279,86 @@ mod tests {
     }
 
     #[test]
-    fn test_reranker_tokenization() {
-        let (q, doc) = OnnxReranker::tokenize_pair("What is the timeout?", "The timeout is set to 30s.");
-        assert_eq!(q, vec!["what", "is", "the", "timeout"]);
-        assert!(doc.contains(&"timeout".to_string()));
-        assert!(doc.contains(&"30s".to_string()));
+    fn test_logits_to_scores_shapes() {
+        let single = TensorOutput { shape: vec![2, 1], data: vec![0.0, 10.0] };
+        let s = OnnxReranker::logits_to_scores(&single, 2).unwrap();
+        assert!((s[0] - 0.5).abs() < 1e-4 && s[1] > 0.99);
+
+        let two_class = TensorOutput { shape: vec![1, 2], data: vec![0.0, 0.0] };
+        let s = OnnxReranker::logits_to_scores(&two_class, 1).unwrap();
+        assert!((s[0] - 0.5).abs() < 1e-4);
+
+        let bad = TensorOutput { shape: vec![3], data: vec![0.0, 0.0, 0.0] };
+        assert!(OnnxReranker::logits_to_scores(&bad, 2).is_err());
     }
 
     #[test]
-    fn test_reranker_semantic_scoring_higher_for_relevant() {
-        let temp = std::env::temp_dir().join(format!("test_reranker_{}.onnx", std::process::id()));
-        let mut dummy_data = vec![0x08, 0x07, 0x12, 0x04];
-        dummy_data.resize(2048, 0xAB);
-        std::fs::write(&temp, &dummy_data).unwrap();
+    fn test_effective_device_is_cpu() {
+        let r = OnnxReranker::with_device(Path::new("x/model.onnx"), ExecutionDevice::DirectML { adapter_index: 0 });
+        assert_eq!(r.effective_device(), ExecutionDevice::Cpu);
+    }
 
-        let reranker = OnnxReranker::new(&temp);
-        assert!(reranker.is_neural_active());
+    #[cfg(feature = "runtime")]
+    mod fixture {
+        use super::*;
 
-        let query = "database connection timeout configuration";
-        let relevant_doc = "The database connection timeout configuration is set in config.json to 5000 milliseconds.";
-        let irrelevant_doc = "The visual theme uses aurora boreal colors with blue and purple gradients.";
+        /// Fixture tests need the ONNX Runtime library (`ORT_DYLIB_PATH`). They are skipped
+        /// when it is absent, unless `ACTX_REQUIRE_ORT=1` (set in CI) makes it mandatory.
+        fn runtime_ready() -> bool {
+            if runtime::probe_runtime().is_ok() {
+                return true;
+            }
+            if std::env::var("ACTX_REQUIRE_ORT").as_deref() == Ok("1") {
+                panic!("ACTX_REQUIRE_ORT=1 but the ONNX Runtime library could not be loaded: {:?}", runtime::probe_runtime());
+            }
+            eprintln!("skipping: ONNX Runtime library unavailable (set ORT_DYLIB_PATH)");
+            false
+        }
 
-        let score_rel = reranker.score_pair(query, relevant_doc);
-        let score_irrel = reranker.score_pair(query, irrelevant_doc);
+        fn fixture_reranker() -> OnnxReranker {
+            let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+            OnnxReranker::with_paths(
+                &dir.join("tiny_reranker.onnx"),
+                &dir.join("tiny_tokenizer.json"),
+                "tiny-fixture",
+                ExecutionDevice::Cpu,
+            )
+            .with_max_length(32)
+        }
 
-        assert!(score_rel > score_irrel, "Relevant doc ({}) should score higher than irrelevant ({})", score_rel, score_irrel);
-        assert!(score_rel >= 0.0 && score_rel <= 1.0);
-        assert!(score_irrel >= 0.0 && score_irrel <= 1.0);
+        #[test]
+        fn test_fixture_scores_in_unit_interval_and_ordered() {
+            if !runtime_ready() {
+                return;
+            }
+            let r = fixture_reranker();
+            assert!(r.is_neural_active());
+            let docs = vec![
+                "the theme colors".to_string(),
+                "timeout is thirty seconds".to_string(),
+            ];
+            let scores = r.try_score_batch("what timeout", &docs).expect("fixture inference runs");
+            assert_eq!(scores.len(), 2);
+            assert!(scores.iter().all(|s| (0.0..=1.0).contains(s)));
+            assert!(scores[1] > scores[0], "timeout doc must outrank theme doc: {:?}", scores);
+        }
 
-        let _ = std::fs::remove_file(&temp);
+        #[test]
+        fn test_fixture_deterministic_and_batch_invariant() {
+            if !runtime_ready() {
+                return;
+            }
+            let r = fixture_reranker();
+            let docs: Vec<String> = (0..(BATCH_SIZE + 3))
+                .map(|i| if i % 2 == 0 { "timeout seconds".to_string() } else { "theme".to_string() })
+                .collect();
+            let batched = r.try_score_batch("what timeout", &docs).unwrap();
+            let again = r.try_score_batch("what timeout", &docs).unwrap();
+            assert_eq!(batched, again);
+            for (i, d) in docs.iter().enumerate() {
+                let single = r.try_score_batch("what timeout", &[d.clone()]).unwrap()[0];
+                assert!((single - batched[i]).abs() < 1e-5, "batch/single mismatch at {i}");
+            }
+        }
     }
 }
