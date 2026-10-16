@@ -1,33 +1,43 @@
 ---
-plan_id: "anycontext_master_roadmap_v0_30_37"
-project: "AnyContext"
-title: "Roadmap Integrado: Python -> Rust, ModelRouter & Kit de Models"
-version: "v0.30.37"
-status: "active"
-session_id: "9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372"
-created_at: "2026-09-25T12:55:54.605698"
-updated_at: "2026-09-25T13:01:10.906061"
-supersedes: ""
-superseded_by: ""
+plan_id: anycontext_master_roadmap_v0_30_37
+project: any-context
+title: 'Roadmap Integrado: Python -> Rust, ModelRouter & Kit de Models'
+version: v0.30.37
+status: superseded
+author: Levi Silveira
+created_at: '2026-09-25T12:55:54'
+updated_at: '2026-09-25T13:38:49'
+session_id: 9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372
 tags:
-  - "roadmap"
-  - "rust_refactor"
-  - "model_router"
-  - "kit_de_models"
-  - "actx_lm"
+- roadmap
+- rust_refactor
+- model_router
+- kit_de_models
+- actx_lm
+supersedes: null
+superseded_by: anycontext_master_roadmap_v0_30_38_rfc042
+parent_plan_id: null
 milestones:
-  - name: "Prioridade 2B"
-    completed: false
-  - name: "Prioridade 3"
-    completed: false
-  - name: "Prioridade 4"
-    completed: false
-  - name: "Marco 2"
-    completed: false
-  - name: "Marco 3"
-    completed: false
-  - name: "Kit de Models"
-    completed: false
+- name: Prioridade 2B
+  done: false
+- name: Prioridade 3
+  done: false
+- name: Prioridade 4
+  done: false
+- name: Marco 2
+  done: false
+- name: Marco 3
+  done: false
+- name: Kit de Models
+  done: false
+status_log:
+- at: '2026-09-25T13:01:04'
+  note: 'Milestone ''Prioridade 2B'': Iniciando exploracao'
+- at: '2026-09-25T13:38:49'
+  note: Superseded by anycontext_master_roadmap_v0_30_38_rfc042
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
 ---
 
 # 🗺️ Roadmap Integrado de Engenharia (Python -> Rust -> ModelRouter -> Kit de Models)

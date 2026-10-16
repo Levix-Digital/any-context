@@ -1,3 +1,40 @@
+---
+plan_id: anycontext_aurora_boreal_design_system_fast_startup_telemetry_opção_c
+project: any-context
+title: Aurora Boreal Design System & Fast Startup Telemetry (Opção C)
+version: v0.34.6
+status: completed
+author: Levi Silveira
+created_at: '2026-10-10T11:06:32'
+updated_at: '2026-10-10T11:06:32'
+session_id: a94494e0-08bb-4378-888d-a3bde8673537
+tags:
+- aurora_boreal
+- theme
+- design_system
+- fast_startup
+- splash_telemetry
+- v0_34_6
+supersedes: null
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: Marco 1 - Core Theme Module
+  done: false
+- name: Marco 2 - CLI & TUI Aurora Adapter
+  done: false
+- name: Marco 3 - Fast Startup & Splash Loader
+  done: false
+- name: Marco 4 - Validacao & Testes
+  done: false
+- name: Marco 5 - Dual-Doc & Release
+  done: false
+status_log:
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # Blueprint Técnico - AnyContext v0.34.6: Aurora Boreal Design System & Fast Startup (Opção C)
 
 **Versão Alvo**: `v0.34.6`  

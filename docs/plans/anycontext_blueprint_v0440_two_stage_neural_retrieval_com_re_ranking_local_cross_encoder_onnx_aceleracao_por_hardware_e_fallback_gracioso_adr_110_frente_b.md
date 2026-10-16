@@ -1,3 +1,46 @@
+---
+plan_id: anycontext_blueprint_v0440_two_stage_neural_retrieval_com_re_ranking_local_cross_encoder_onnx_aceleracao_por_hardware_e_fallback_gracioso_adr_110_frente_b
+project: any-context
+title: 'Blueprint v0.44.0: Two-Stage Neural Retrieval com Re-ranking Local (Cross-Encoder ONNX), Aceleracao por Hardware e Fallback Gracioso ADR-110 (Frente B)'
+version: v0.44.0
+status: superseded
+author: Levi Silveira
+created_at: '2026-10-15T15:45:34'
+updated_at: '2026-10-15T20:27:24'
+session_id: 892b3bbe-aef4-4caa-87ac-803d8b5cf1a1
+tags:
+- rag
+- reranker
+- cross-encoder
+- onnx
+- directml
+- metal
+- rrf
+- frente-b
+supersedes: anycontext_blueprint_v0430_rag_determinístico_backend_first_u_shaped_reordering_e_isolamento_estrutural_em_xml
+superseded_by: anycontext_blueprint_v0450_frente_c0_runtime_onnx_real_e_reranker_cross_encoder
+parent_plan_id: null
+milestones:
+- name: 'Marco 1: Motor Neural Cross-Encoder no actx-onnx'
+  done: false
+- name: 'Marco 2: Hook Two-Stage Retrieval no Core'
+  done: false
+- name: 'Marco 3: Comandos de Rerank e Catalogo de Download'
+  done: false
+- name: 'Marco 4: Adaptacao das Superficies CLI e TUI'
+  done: false
+- name: 'Marco 5: Testes Automatizados'
+  done: false
+- name: 'Marco 6: Dual-Doc MANUAL_TESTS e Release v0.44.0'
+  done: false
+status_log:
+- at: '2026-10-15T20:27:24'
+  note: Superseded by anycontext_blueprint_v0450_frente_c0_runtime_onnx_real_e_reranker_cross_encoder
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: AnyContext v0.44.0
 ## Two-Stage Neural Retrieval com Re-ranking Local (Cross-Encoder ONNX), Aceleração por Hardware e Fallback Gracioso ADR-110 (Frente B)
 

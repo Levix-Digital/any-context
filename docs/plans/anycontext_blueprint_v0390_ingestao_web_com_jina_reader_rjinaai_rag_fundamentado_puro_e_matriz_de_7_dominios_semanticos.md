@@ -1,3 +1,54 @@
+---
+plan_id: anycontext_blueprint_v0390_ingestao_web_com_jina_reader_rjinaai_rag_fundamentado_puro_e_matriz_de_7_dominios_semanticos
+project: any-context
+title: 'Blueprint v0.39.0: Ingestao Web com Jina Reader (r.jina.ai), RAG Fundamentado Puro e Matriz de 7 Dominios Semanticos'
+version: v0.39.0
+status: superseded
+author: Levi Silveira
+created_at: '2026-10-14T13:23:39'
+updated_at: '2026-10-14T16:25:55'
+session_id: 01fd77a2-4853-4967-b572-f0ce69495ea0
+tags:
+- jina_reader
+- web_crawler
+- grounded_rag
+- 7_semantic_domains
+- chat_model_router
+- v0390
+supersedes: null
+superseded_by: anycontext_blueprint_v0400_ativacao_operacional_do_gemma_4_local_onnx_e_presets_estaticos_de_workspace
+parent_plan_id: null
+milestones:
+- name: 'Marco 1: NativeJinaExtractor'
+  done: true
+- name: 'Marco 2: Crawler Integration'
+  done: true
+- name: 'Marco 3: 7 Dominios Semanticos'
+  done: true
+- name: 'Marco 4: TUI Badges'
+  done: true
+- name: 'Marco 5: Dual-Doc e Release v0.39.0'
+  done: true
+status_log:
+- at: '2026-10-14T14:43:48'
+  note: 'Milestone ''Marco 1: NativeJinaExtractor'': Entregue na v0.39.0'
+- at: '2026-10-14T14:43:54'
+  note: 'Milestone ''Marco 2: Crawler Integration'': Entregue na v0.39.0'
+- at: '2026-10-14T14:43:55'
+  note: 'Milestone ''Marco 3: 7 Dominios Semanticos'': Entregue na v0.39.0'
+- at: '2026-10-14T14:43:57'
+  note: 'Milestone ''Marco 4: TUI Badges'': Entregue na v0.39.0'
+- at: '2026-10-14T14:43:58'
+  note: 'Milestone ''Marco 5: Dual-Doc e Release v0.39.0'': Entregue na v0.39.0'
+- at: '2026-10-14T14:44:21'
+  note: v0.39.0 released and published to production with all assets verified
+- at: '2026-10-14T16:25:55'
+  note: Superseded by anycontext_blueprint_v0400_ativacao_operacional_do_gemma_4_local_onnx_e_presets_estaticos_de_workspace
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: Ingestão Web com Jina Reader (r.jina.ai), RAG Fundamentado Puro & Matriz de 7 Domínios Semânticos no Chat (v0.39.0)
 
 ## 📌 Metadados do Plano

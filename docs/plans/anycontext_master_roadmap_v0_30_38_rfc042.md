@@ -1,3 +1,57 @@
+---
+plan_id: anycontext_master_roadmap_v0_30_38_rfc042
+project: any-context
+title: 'Roadmap Integrado: Python -> Rust, RFC-042 Deep Search, ModelRouter & Kit de Models'
+version: v0.30.38
+status: in_progress
+author: Levi Silveira
+created_at: '2026-09-25T13:38:49'
+updated_at: '2026-10-13T16:02:58'
+session_id: 9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372
+tags:
+- roadmap
+- rust_refactor
+- rfc042
+- deep_search
+- actx_agent
+- model_router
+- kit_de_models
+supersedes: anycontext_master_roadmap_v0_30_37
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: Prioridade 2B
+  done: true
+- name: Prioridade 3
+  done: true
+- name: Prioridade 4
+  done: true
+- name: Marco 2
+  done: true
+- name: Marco 3
+  done: true
+- name: RFC-042 Deep Search
+  done: true
+- name: Kit de Models
+  done: false
+status_log:
+- at: '2026-09-25T14:14:56'
+  note: 'Milestone ''Prioridade 2B'': actx-agent FSM, Polymorphic Tool Registry, SQLite Sessions, PyO3 bindings e modelos RFC-042 implementados e 100% testados (370/370 tests pass)'
+- at: '2026-10-10T07:26:25'
+  note: 'Milestone ''Marco 2'': Concluido na release v0.34.2 com ModelRouter, QualityGate deterministico sub-0.1ms, SpatialFormChunker 2D multidominio e 191 testes 100% PASS'
+- at: '2026-10-10T08:14:56'
+  note: 'Milestone ''Marco 3'': Marco 3 concluído: Chat ModelRouter com classificação dinâmica em sub-1µs e custo zero de tokens, roteamento de intenção e comandos /router e /search auto integrados (v0.34.3)'
+- at: '2026-10-10T09:10:43'
+  note: 'Milestone ''RFC-042 Deep Search'': RFC-042 Deep Search e v0.34.4 concluídos com conclusão direta, paridade de idioma e suite 100% verde'
+- at: '2026-10-13T16:02:57'
+  note: 'Milestone ''Prioridade 3'': Entregue na v0.30.39 e calibrado na v0.34.5'
+- at: '2026-10-13T16:02:58'
+  note: 'Milestone ''Prioridade 4'': Entregue na v0.31.0 e v0.33.0 com CLI/TUI Ratatui 100% Rust'
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 🗺️ Roadmap Integrado de Engenharia (Python -> Rust -> RFC-042 Deep Search -> ModelRouter -> Kit de Models)
 
 ## 📌 Metadados do Plano

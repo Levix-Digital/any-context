@@ -1,3 +1,72 @@
+---
+plan_id: anycontext_blueprint_v0450_frente_c0_runtime_onnx_real_e_reranker_cross_encoder
+project: any-context
+title: 'Blueprint v0.45.0 (Frente C0): Runtime ONNX Real (ort load-dynamic + tokenizers), Cross-Encoder Multilingue mmarco e Retificacao de Honestidade Tecnica (ADR-130)'
+version: v0.45.0
+status: in_progress
+author: Levi Silveira
+created_at: '2026-10-15T21:03:23'
+updated_at: '2026-10-15T21:55:03'
+session_id: 8abbc3bf-d4c0-43cc-a5ef-84b7f6e30e4a
+tags:
+- frente_c0
+- onnx_runtime
+- ort
+- load_dynamic
+- tokenizers
+- reranker
+- cross_encoder
+- mmarco
+- adr_130
+- honestidade_tecnica
+- catalogo_sha256
+- zero_links_quebrados
+- gemma4_fatos
+- runtime_no_pacote
+supersedes: null
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: M0 Runtime base
+  done: true
+- name: M1 Catalogo verificado
+  done: true
+- name: M2 Reranker real
+  done: true
+- name: M3 Retificacao no codigo
+  done: true
+- name: M4 Superficies
+  done: true
+- name: M5 Testes e NFR
+  done: true
+- name: M6 Dual-Doc
+  done: true
+- name: M7 Testes manuais
+  done: true
+- name: M8 Release
+  done: false
+status_log:
+- at: '2026-10-15T21:54:51'
+  note: 'Milestone ''M0 Runtime base'': ort 2.0.0-rc.14 load-dynamic + tokenizers 0.23 atras da feature runtime; carga explicita init_from; imports do exe identicos a v0.44 (commit ff042d4)'
+- at: '2026-10-15T21:54:52'
+  note: 'Milestone ''M1 Catalogo verificado'': Catalogo multi-arquivo com revisao fixada, tamanho e SHA-256; Gemma Planned; catalog_urls 13/13 OK'
+- at: '2026-10-15T21:54:54'
+  note: 'Milestone ''M2 Reranker real'': mmarco-mMiniLMv2-L12 real via ONNX Runtime CPU; spawn_blocking; top-30; p50 298ms/30 candidatos'
+- at: '2026-10-15T21:54:56'
+  note: 'Milestone ''M3 Retificacao no codigo'': Gemma planned/fallback, heuristicas rotuladas, GPU planned, instalador com URLs verificadas e provisionamento do reranker'
+- at: '2026-10-15T21:54:57'
+  note: 'Milestone ''M4 Superficies'': /rerank status+model, --rerank-model, badges TUI, menus, /download e /device honestos; release.yml com ORT no pacote'
+- at: '2026-10-15T21:54:59'
+  note: 'Milestone ''M5 Testes e NFR'': cargo test --workspace 349 passed/0 failed; real reranker e catalog_urls OK; imports verificados'
+- at: '2026-10-15T21:55:00'
+  note: 'Milestone ''M6 Dual-Doc'': ADR-130 + notas de retificacao 118/123/125/127/129 + README v0.45.0'
+- at: '2026-10-15T21:55:03'
+  note: 'Milestone ''M7 Testes manuais'': Cenario 45 (14 passos) no topo de MANUAL_TESTS.md'
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: AnyContext v0.45.0
 ## Frente C0 — Runtime ONNX Real (`ort` + `tokenizers`), Cross-Encoder Multilíngue de Verdade e Retificação de Honestidade Técnica
 

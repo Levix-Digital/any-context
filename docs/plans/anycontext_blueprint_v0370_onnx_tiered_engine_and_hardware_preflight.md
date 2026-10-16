@@ -1,3 +1,45 @@
+---
+plan_id: anycontext_blueprint_v0370_onnx_tiered_engine_and_hardware_preflight
+project: any-context
+title: AnyContext v0.37.0 - Motor ONNX Modular (actx-onnx), Hardware Pre-Flight Check e Perfis de Instalacao em Semaforo
+version: v0.37.0
+status: superseded
+author: Levi Silveira
+created_at: '2026-10-13T16:02:40'
+updated_at: '2026-10-14T11:40:05'
+session_id: 8fb3473d-42d7-4347-8045-3b7426451cde
+tags:
+- onnx
+- actx_onnx
+- hardware_preflight
+- kit_de_models
+- profiles
+- installer
+- roadmap
+supersedes: null
+superseded_by: anycontext_anycontext_v0380_ativacao_dos_modelos_onnx_nos_fluxos_de_producao_consolidacao_da_fase_3
+parent_plan_id: null
+milestones:
+- name: Marco 1 Hardware Profiler
+  done: false
+- name: Marco 2 Crate actx-onnx
+  done: false
+- name: Marco 3 Feature Flag Core
+  done: false
+- name: Marco 4 Instalador Auto-Selecao
+  done: false
+- name: Marco 5 Multi-Surface TUI
+  done: false
+- name: Marco 6 Dual-Doc e Testes
+  done: false
+status_log:
+- at: '2026-10-14T11:40:05'
+  note: Superseded by anycontext_anycontext_v0380_ativacao_dos_modelos_onnx_nos_fluxos_de_producao_consolidacao_da_fase_3
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: AnyContext v0.37.0
 ## Motor ONNX Modular (`crates/actx-onnx`), Hardware Pre-Flight Check e Perfis de Instalação em Semáforo (Kit de Models)
 

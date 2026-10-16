@@ -1,3 +1,43 @@
+---
+plan_id: anycontext_blueprint_v0430_rag_determinístico_backend_first_u_shaped_reordering_e_isolamento_estrutural_em_xml
+project: any-context
+title: 'Blueprint v0.43.0: RAG Determinístico Backend-First, U-Shaped Reordering e Isolamento Estrutural em XML'
+version: v0.43.0
+status: superseded
+author: Levi Silveira
+created_at: '2026-10-15T10:37:30'
+updated_at: '2026-10-15T15:45:34'
+session_id: df47900f-597a-4d3f-be8b-6ceaac73a0f4
+tags:
+- rag
+- deterministic
+- u-shaped
+- xml-isolation
+- zero-hallucination
+- v0.43.0
+- core
+supersedes: anycontext_blueprint_v0420_matriz_tri_cross_platform_de_aceleracao_por_hardware_directml_metalcoreml_cudavulkan_no_actx_onnx
+superseded_by: anycontext_blueprint_v0440_two_stage_neural_retrieval_com_re_ranking_local_cross_encoder_onnx_aceleracao_por_hardware_e_fallback_gracioso_adr_110_frente_b
+parent_plan_id: null
+milestones:
+- name: 'Marco 1: Formatador Canonico no Core'
+  done: false
+- name: 'Marco 2: Despacho Deterministico CLI e TUI'
+  done: false
+- name: 'Marco 3: Blindagem da Ferramenta search_db'
+  done: false
+- name: 'Marco 4: Testes Automatizados'
+  done: false
+- name: 'Marco 5: Dual-Doc MANUAL_TESTS e Release v0.43.0'
+  done: false
+status_log:
+- at: '2026-10-15T15:45:34'
+  note: Superseded by anycontext_blueprint_v0440_two_stage_neural_retrieval_com_re_ranking_local_cross_encoder_onnx_aceleracao_por_hardware_e_fallback_gracioso_adr_110_frente_b
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: AnyContext v0.43.0
 ## RAG Determinístico Backend-First, U-Shaped Reordering, Isolamento Estrutural em XML e Zero Hallucination Gate (Frente A)
 

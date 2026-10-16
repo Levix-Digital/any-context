@@ -1,3 +1,52 @@
+---
+plan_id: anycontext_blueprint_v0410_downloader_assistido_de_pesos_gemma_4_onnx_na_tui_e_cli_actx_download_tier
+project: any-context
+title: 'Blueprint v0.41.0: Downloader Assistido de Pesos Gemma 4 ONNX na TUI e CLI (actx download <tier>)'
+version: v0.41.0
+status: superseded
+author: Levi Silveira
+created_at: '2026-10-15T08:22:07'
+updated_at: '2026-10-15T09:17:45'
+session_id: df47900f-597a-4d3f-be8b-6ceaac73a0f4
+tags:
+- gemma4
+- onnx
+- downloader
+- cli
+- tui
+- progress
+- hardware_profiler
+- kit_de_models
+supersedes: anycontext_blueprint_v0400_ativacao_operacional_do_gemma_4_local_onnx_guardrails_de_hardware_estilo_lm_studio_e_presets_seguros_de_workspace
+superseded_by: anycontext_blueprint_v0420_matriz_tri_cross_platform_de_aceleracao_por_hardware_directml_metalcoreml_cudavulkan_no_actx_onnx
+parent_plan_id: null
+milestones:
+- name: 'Marco 1: Catalogo e Pre-Flight no Core'
+  done: true
+- name: 'Marco 2: Subcomando CLI actx download'
+  done: true
+- name: 'Marco 3: Slash Command /download na TUI e Menu'
+  done: true
+- name: 'Marco 4: Testes Automatizados'
+  done: true
+- name: 'Marco 5: Dual-Doc MANUAL_TESTS e Release v0.41.0'
+  done: false
+status_log:
+- at: '2026-10-15T08:54:47'
+  note: 'Milestone ''Marco 1: Catalogo e Pre-Flight no Core'': Catalogo expandido com 4 tiers Gemma 4 e pre-flight checks de disco e RAM'
+- at: '2026-10-15T08:54:53'
+  note: 'Milestone ''Marco 2: Subcomando CLI actx download'': Subcomando headless actx download com barra visual, MB/s e ETA implementado e testado'
+- at: '2026-10-15T08:55:02'
+  note: 'Milestone ''Marco 3: Slash Command /download na TUI e Menu'': Comando /download, acao CommandAction::StartDownload, telemetria no rodape e auto-download no menu [F1]'
+- at: '2026-10-15T08:55:12'
+  note: 'Milestone ''Marco 4: Testes Automatizados'': 100% dos testes verdes no workspace (175 core + 24 commands + 35 actx-cli)'
+- at: '2026-10-15T09:17:45'
+  note: Superseded by anycontext_blueprint_v0420_matriz_tri_cross_platform_de_aceleracao_por_hardware_directml_metalcoreml_cudavulkan_no_actx_onnx
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: AnyContext v0.41.0
 ## Downloader Assistido de Pesos Gemma 4 ONNX na TUI e CLI (`actx download <tier>`)
 

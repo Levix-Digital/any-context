@@ -1,3 +1,60 @@
+---
+plan_id: any_context_blueprint_v03214_bm25_safe_deserialization_sync_progress_bar_and_agent_awareness
+project: any-context
+title: 'Blueprint v0.32.14: Deserialização Segura BM25, Barra de Progresso /sync na TUI e Auto-Consciência de Background do Agente'
+version: v0.32.14
+status: superseded
+author: Levi Silveira
+created_at: '2026-10-06T12:53:02'
+updated_at: '2026-10-06T14:39:19'
+session_id: 19321f47-165d-446a-8872-6d03b214fa63
+tags: []
+supersedes: null
+superseded_by: any_context_blueprint_v03215_live_scanning_progress_bar_reactive_tui_footer_telemetry
+parent_plan_id: null
+milestones:
+- name: 'M1: Desserialização Bounded e Panic-Safe no Core Rust'
+  done: true
+- name: 'M2: Autorrecuperação de Índices e Sanitização Local'
+  done: true
+- name: 'M3: Tabela Canônica de Telemetria de Sincronização'
+  done: true
+- name: 'M4: Barra de Progresso Reativa no Rodapé da TUI'
+  done: true
+- name: 'M5: Ferramenta Nativa system_status e Auto-Consciência do Agente'
+  done: true
+- name: 'M6: Suíte de Testes Automatizados no Rust e Python'
+  done: true
+- name: 'M7: Dual-Doc e Testes Manuais Acumulativos'
+  done: true
+- name: 'M8: Publicação da Release v0.32.14 e CI Watch'
+  done: true
+status_log:
+- at: '2026-10-06T13:19:37'
+  note: 'Milestone ''M1: Desserialização Bounded e Panic-Safe no Core Rust'': Implementado bincode bounded a 150MB, panic safe catch_unwind e gravação atômica via temp-rename'
+- at: '2026-10-06T13:19:45'
+  note: 'Milestone ''M2: Autorrecuperação de Índices e Sanitização Local'': Implementado isolamento em .corrupt.<timestamp>, fallback em memória e saneamento de arquivos corrompidos'
+- at: '2026-10-06T13:19:46'
+  note: 'Milestone ''M3: Tabela Canônica de Telemetria de Sincronização'': Adicionada tabela workspace_sync_status no SQLite Rust e Python, atualizada pelos workers'
+- at: '2026-10-06T13:19:47'
+  note: 'Milestone ''M4: Barra de Progresso Reativa no Rodapé da TUI'': Adicionado polling de 250ms na TUI e render_footer com barra e estado up to date'
+- at: '2026-10-06T13:19:48'
+  note: 'Milestone ''M5: Ferramenta Nativa system_status e Auto-Consciência do Agente'': Criada tool system_status e Skill system-status instruindo modelo a relatar telemetria'
+- at: '2026-10-06T13:19:49'
+  note: 'Milestone ''M6: Suíte de Testes Automatizados no Rust e Python'': cargo test --workspace 100% verde (127+8+1 testes) e unit tests Python passando'
+- at: '2026-10-06T13:19:50'
+  note: 'Milestone ''M7: Dual-Doc e Testes Manuais Acumulativos'': Atualizados README.md, TECDOC.md (ADR-096 e ADR-097) e adicionado Cenário 15 em MANUAL_TESTS.md'
+- at: '2026-10-06T13:45:57'
+  note: 'Milestone ''M8: Publicação da Release v0.32.14 e CI Watch'': Release v0.32.14 publicada com sucesso no GitHub Actions (build 37518214630) com todos os 12 ativos no repositório Levix-Digital/any-context-releases'
+- at: '2026-10-06T13:46:01'
+  note: Release v0.32.14 finalizada e publicada com sucesso com todos os 8 marcos cumpridos
+- at: '2026-10-06T14:39:19'
+  note: Superseded by any_context_blueprint_v03215_live_scanning_progress_bar_reactive_tui_footer_telemetry
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # Blueprint v0.32.14: Deserialização Segura BM25, Barra de Progresso /sync na TUI e Auto-Consciência de Background do Agente
 
 ## 1. Visão Geral & Escopo Unificado (v0.32.14)

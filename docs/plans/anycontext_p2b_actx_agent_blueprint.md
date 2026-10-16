@@ -1,3 +1,42 @@
+---
+plan_id: anycontext_p2b_actx_agent_blueprint
+project: any-context
+title: 'Blueprint Prioridade 2B: Orquestrador ReAct Nativo em Rust (actx-agent) com Preparação RFC-042'
+version: v0.30.38
+status: active
+author: Levi Silveira
+created_at: '2026-09-25T13:39:43'
+updated_at: '2026-09-25T13:39:43'
+session_id: 9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372
+tags:
+- blueprint
+- prioridade_2b
+- actx_agent
+- react
+- fsm
+- rfc042
+supersedes: null
+superseded_by: null
+parent_plan_id: anycontext_master_roadmap_v0_30_38_rfc042
+milestones:
+- name: Crate actx-agent
+  done: false
+- name: FSM ReAct
+  done: false
+- name: ToolRegistry
+  done: false
+- name: PyO3 Bindings
+  done: false
+- name: Dual-Doc
+  done: false
+- name: Testes
+  done: false
+status_log:
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📋 Blueprint Técnico - Prioridade 2B: Orquestrador ReAct Nativo em Rust (`actx-agent`)
 
 ## 1. 🎯 Objetivo & Decisões Arquiteturais (ADR)

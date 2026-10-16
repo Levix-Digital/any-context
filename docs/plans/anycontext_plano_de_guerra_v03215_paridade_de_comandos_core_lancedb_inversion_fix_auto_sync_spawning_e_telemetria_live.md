@@ -1,3 +1,55 @@
+---
+plan_id: anycontext_plano_de_guerra_v03215_paridade_de_comandos_core_lancedb_inversion_fix_auto_sync_spawning_e_telemetria_live
+project: any-context
+title: 'Plano de Guerra v0.32.15: Paridade de Comandos Core, LanceDB Inversion Fix, Auto-Sync Spawning e Telemetria Live'
+version: v0.32.15
+status: completed
+author: Levi Silveira
+created_at: '2026-10-06T16:34:14'
+updated_at: '2026-10-06T17:00:12'
+session_id: 19321f47-165d-446a-8872-6d03b214fa63
+tags:
+- war_plan
+- parity
+- rust_commands
+- auto_sync
+- telemetry
+- lancedb_fix
+- modal_loop_fix
+supersedes: any_context_blueprint_v03215_live_scanning_progress_bar_reactive_tui_footer_telemetry
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: 'M1: Correcoes Criticas e LanceDB'
+  done: true
+- name: 'M2: Telemetria Reativa e Spinner'
+  done: true
+- name: 'M3: Paridade Hexagonal de Comandos Core'
+  done: true
+- name: 'M4: Suite de Testes Automatizados'
+  done: true
+- name: 'M5: Dual-Doc e Cenario 16'
+  done: true
+- name: 'M6: Verificacao Gate 8 e Release v0.32.15'
+  done: true
+status_log:
+- at: '2026-10-06T16:34:32'
+  note: 'Milestone ''M1: Correcoes Criticas e LanceDB'': Corrigida ordem dos argumentos LanceDB (count_records), resolvido loop modal incremental e sanitizacao de caminhos Windows (\\?\\).'
+- at: '2026-10-06T16:34:33'
+  note: 'Milestone ''M2: Telemetria Reativa e Spinner'': Calculo dinamico em db_store.py/sqlite.rs, callbacks de scanning no crawler/ingestor e spinner Braille a 250ms na TUI.'
+- at: '2026-10-06T16:34:34'
+  note: 'Milestone ''M3: Paridade Hexagonal de Comandos Core'': Implementacao de spawn_sync_worker, auto-spawn em /folder e /web, /keys audit/modal, /config dashboard, /purge metadata cleanup, /vision, /logs tail real e /inspect --full.'
+- at: '2026-10-06T16:34:35'
+  note: 'Milestone ''M4: Suite de Testes Automatizados'': 127 testes unitarios do Core, 15 testes de comandos em command_tests.rs, 14 testes CLI em cli_tests.rs, e testes de integracao Python 100% verdes.'
+- at: '2026-10-06T16:34:37'
+  note: 'Milestone ''M5: Dual-Doc e Cenario 16'': Documentacao completa em README.md, TECDOC.md (ADR-098 e ADR-099) e Cenario 16 acumulativo nao-truncado.'
+- at: '2026-10-06T17:00:12'
+  note: 'Milestone ''M6: Verificacao Gate 8 e Release v0.32.15'': CI/CD no GitHub Actions completou 100% verde (Run ID: 37541081744). Todos os 12 binarios e scripts publicados com sucesso em Levix-Digital/any-context-releases.'
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # Blueprint v0.32.15: Live Scanning Progress Bar, Paridade de Comandos Core & Telemetria TUI
 
 ## 1. Contexto & Causa Raiz

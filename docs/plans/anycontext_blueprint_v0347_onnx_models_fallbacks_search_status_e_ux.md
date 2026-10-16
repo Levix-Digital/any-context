@@ -1,3 +1,33 @@
+---
+plan_id: anycontext_blueprint_v0347_onnx_models_fallbacks_search_status_e_ux
+project: any-context
+title: 'Blueprint v0.34.7: ONNX Models, Fallbacks, Search Status e UX'
+version: v0.34.7
+status: completed
+author: Levi Silveira
+created_at: '2026-10-10T11:53:47'
+updated_at: '2026-10-10T11:53:47'
+session_id: a94494e0-08bb-4378-888d-a3bde8673537
+tags:
+- v0.34.7
+- onnx
+- models
+- fallbacks
+- search_mode
+- tui
+- spinner
+- conversational_tone
+- ci_fix
+supersedes: null
+superseded_by: null
+parent_plan_id: null
+milestones: []
+status_log:
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: AnyContext v0.34.7
 ## Repositório ONNX Nativo, Resiliência de Fallbacks, Indicador de Search Mode, Spinner Horário e Tom Conversacional Humano
 
