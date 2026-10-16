@@ -79,6 +79,7 @@ The headless path resolves grounding mode, search mode and web search from the w
 
 ## Decisions
 
+- [ADR-0077](../adr/0077-native-ratatui-cli-tui.md): a single native `actx` executable with Ratatui and Crossterm.
 - [ADR-0091](../adr/0091-hermetic-workspace-isolation-atomic-exe-swap.md): `/sync` runs in a dedicated `--sync-worker` process.
 - [ADR-0093](../adr/0093-sync-worker-stdio-isolation-chain-of-responsibility.md): worker output isolated in log files.
 - [ADR-0103](../adr/0103-windows-multi-binary-self-update.md): `@` version delimiters preprocessed before Clap.

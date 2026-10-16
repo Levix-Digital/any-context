@@ -87,6 +87,7 @@ Settings are strictly per workspace: there is no global fallback for workspace s
 
 ## Decisions
 
+- [ADR-0078](../adr/0078-relational-workspace-folders.md): `workspace_folders` is the only source of folder paths; legacy `paths_json` is migrated once.
 - [ADR-0082](../adr/0082-sqlite-session-memory-identity-injection.md): per-workspace session memory in SQLite.
 - [ADR-0086](../adr/0086-non-blocking-lancedb-safe-runtime-drop.md): `safe_block_on` and safe runtime destruction.
 - [ADR-0088](../adr/0088-conversational-session-boundary.md): only user prompts and final answers are persisted.

@@ -89,6 +89,8 @@ The main menu (`F1`) leads to workspaces, models (with hardware compatibility ba
 
 ## Decisions
 
+- [ADR-0077](../adr/0077-native-ratatui-cli-tui.md): Ratatui and Crossterm as the canonical interface.
+- [ADR-0079](../adr/0079-utf8-safe-input-auto-scroll.md): UTF-8 safe input editing and the auto-scrolling chat viewport.
 - [ADR-0080](../adr/0080-workspace-isolated-prompt-history.md): prompt history on `Up`/`Down`, per workspace.
 - [ADR-0081](../adr/0081-tui-header-status-telemetry.md) and [ADR-0085](../adr/0085-grounding-vs-search-depth-decoupling.md): status indicators in the header.
 - [ADR-0089](../adr/0089-tui-error-surfacing-search-depth-concealment.md): agent errors are always rendered.

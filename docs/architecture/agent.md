@@ -120,6 +120,7 @@ Answers follow the language of the user's question.
 
 ## Decisions
 
+- [ADR-0075](../adr/0075-native-rust-agent-fsm.md): native Rust agent with an explicit state machine instead of LangGraph.
 - [ADR-0082](../adr/0082-sqlite-session-memory-identity-injection.md): SQLite session per workspace, memory directives and the `search_db` tool.
 - [ADR-0085](../adr/0085-grounding-vs-search-depth-decoupling.md): grounding mode and search depth are independent.
 - [ADR-0088](../adr/0088-conversational-session-boundary.md): only user prompts and final answers are persisted.
