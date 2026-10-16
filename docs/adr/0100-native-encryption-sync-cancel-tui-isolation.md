@@ -8,7 +8,7 @@ subsystems: [storage, commands, tui]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: []
+amended_by: [131]
 ---
 
 # ADR-0100: Native Encryption-at-Rest Interoperability, Background Worker Cancellation and TUI Screen Isolation

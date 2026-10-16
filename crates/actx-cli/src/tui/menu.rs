@@ -502,20 +502,20 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
                     match safety {
                         any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => {
                             if ready {
-                                Some("[Active 🟢 Compatível / Pronto]".to_string())
+                                Some("[Active 🟢 Compatible / Ready]".to_string())
                             } else {
-                                Some("[Active 🟢 Compatível / Fallback]".to_string())
+                                Some("[Active 🟢 Compatible / Fallback]".to_string())
                             }
                         }
                         any_context_core_rs::hardware::HardwareSafetyVerdict::Tight { .. } => {
                             if ready {
-                                Some("[Active 🟡 Risco de Swap / Pronto]".to_string())
+                                Some("[Active 🟡 Swap Risk / Ready]".to_string())
                             } else {
-                                Some("[Active 🟡 Risco de Swap / Fallback]".to_string())
+                                Some("[Active 🟡 Swap Risk / Fallback]".to_string())
                             }
                         }
                         any_context_core_rs::hardware::HardwareSafetyVerdict::Unsafe { required_ram_gb, total_ram_gb, .. } => {
-                            Some(format!("[Active 🔴 Excede RAM ({:.0}G/{:.0}G)]", required_ram_gb, total_ram_gb))
+                            Some(format!("[Active 🔴 Exceeds RAM ({:.0}G/{:.0}G)]", required_ram_gb, total_ram_gb))
                         }
                     }
                 } else {
@@ -527,20 +527,20 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
                 match safety {
                     any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => {
                         if ready {
-                            Some("[🟢 Compatível]".to_string())
+                            Some("[🟢 Compatible]".to_string())
                         } else {
-                            Some("[🟢 Compatível (Planned)]".to_string())
+                            Some("[🟢 Compatible (Planned)]".to_string())
                         }
                     }
                     any_context_core_rs::hardware::HardwareSafetyVerdict::Tight { .. } => {
                         if ready {
-                            Some("[🟡 Risco de Swap]".to_string())
+                            Some("[🟡 Swap Risk]".to_string())
                         } else {
-                            Some("[🟡 Risco de Swap (Planned)]".to_string())
+                            Some("[🟡 Swap Risk (Planned)]".to_string())
                         }
                     }
                     any_context_core_rs::hardware::HardwareSafetyVerdict::Unsafe { required_ram_gb, .. } => {
-                        Some(format!("[🔴 Hardware Insuficiente - Exige {:.0}GB]", required_ram_gb))
+                        Some(format!("[🔴 Insufficient Hardware - Requires {:.0}GB]", required_ram_gb))
                     }
                 }
             } else {

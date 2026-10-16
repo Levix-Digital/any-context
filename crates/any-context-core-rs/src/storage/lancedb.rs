@@ -302,6 +302,11 @@ impl NativeLanceStore {
         let mut keywords_list = Vec::with_capacity(num_records);
         let mut hashes = Vec::with_capacity(num_records);
 
+        // Field-level encryption at rest: `text`, `document_summary` and `keywords` are stored as
+        // AES-GCM-256 `enc::` payloads with the hardware-bound key; `extract_scored_results`
+        // decrypts them on read. Ids, vectors and filterable metadata stay in clear text.
+        let sec = crate::security::NativeSecurityEngine::get_instance();
+
         for r in records {
             ids.push(r.id);
             if r.vector.len() == d {
@@ -311,14 +316,14 @@ impl NativeLanceStore {
                 padded.resize(d, 0.0);
                 flat_vectors.extend(padded);
             }
-            texts.push(r.text);
+            texts.push(sec.encrypt_text(&r.text));
             file_names.push(r.file_name);
             file_paths.push(r.file_path.replace('\\', "/"));
             workspaces.push(r.workspace);
             last_modifieds.push(r.last_modified.unwrap_or_default());
             content_types.push(r.content_type.unwrap_or_else(|| "Local Document".into()));
-            doc_summaries.push(r.document_summary.unwrap_or_default());
-            keywords_list.push(r.keywords.unwrap_or_default());
+            doc_summaries.push(sec.encrypt_text(&r.document_summary.unwrap_or_default()));
+            keywords_list.push(sec.encrypt_text(&r.keywords.unwrap_or_default()));
             hashes.push(r.content_hash.unwrap_or_default());
         }
 
@@ -586,6 +591,42 @@ impl NativeLanceStore {
         })
     }
 
+    /// Deletes the chunks whose `file_path` is exactly `file_path` (no folder prefix match).
+    /// Used for web pages, where one URL can be a path prefix of another page's URL.
+    pub fn delete_by_exact_path(
+        &self,
+        file_path: &str,
+        workspace: Option<&str>,
+        table_name: Option<&str>,
+    ) -> Result<(), String> {
+        let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
+        if !self.table_exists(tname)? {
+            return Ok(());
+        }
+
+        self.safe_block_on(async {
+            let table = self
+                .conn
+                .open_table(tname)
+                .execute()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            let clean_fp = file_path.replace('\\', "/").replace('\'', "''");
+            let mut clause = format!("file_path = '{clean_fp}'");
+            if let Some(ws) = workspace {
+                let clean_ws = ws.replace('\'', "''");
+                clause = format!("workspace = '{clean_ws}' AND {clause}");
+            }
+
+            table
+                .delete(clause.as_str())
+                .await
+                .map_err(|e| format!("Delete by exact path failed: {e}"))?;
+            Ok(())
+        })
+    }
+
     pub fn delete_by_id(&self, chunk_id: &str, table_name: Option<&str>) -> Result<(), String> {
         let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
         if !self.table_exists(tname)? {
@@ -818,10 +859,15 @@ mod tests {
         let count = store.upsert_records(records, Some("tokio_chunks"), Some(4)).expect("upsert in tokio");
         assert_eq!(count, 1);
 
-        let hits = store.search_metadata("text LIKE '%safety%'", 5, Some("TokioWS"), Some("tokio_chunks"))
+        let hits = store.search_metadata("file_name LIKE '%tokio%'", 5, Some("TokioWS"), Some("tokio_chunks"))
             .expect("search_metadata in tokio");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].id, "tokio_c1");
+        // Text is encrypted at rest (no plaintext match on disk) and decrypted on read.
+        assert_eq!(hits[0].text, "Tokio worker thread safety test chunk");
+        let raw_hits = store.search_metadata("text LIKE '%safety%'", 5, Some("TokioWS"), Some("tokio_chunks"))
+            .expect("raw text search");
+        assert!(raw_hits.is_empty(), "chunk text must not be stored in plaintext");
 
         let vec_hits = store.search_vector(vec![0.5; 4], 1, Some("TokioWS"), None, Some("tokio_chunks"))
             .expect("search_vector in tokio");

@@ -7366,3 +7366,64 @@ Garantir que a versão `v0.34.7` forneça catálogo e repositório real de model
      - Se os pesos ONNX estiverem presentes em `%LOCALAPPDATA%/actx/models/`, a inferência neural executa localmente.
      - Se os pesos ONNX ainda não tiverem sido baixados pelo instalador, a camada de fallback ADR-110 entra em ação de forma resiliente, gerando resposta sem provocar panic, queda do binário ou erros de conexão à nuvem.
 
+---
+
+### 📌 Scenario 41: Fixes for Defects Found During the Documentation Migration (API Key Persistence, Web Re-Sync Duplicates, Encryption at Rest, Query Embeddings, Local Presets, English Prompts):
+
+1. **🔑 API keys persist on a fresh database:**
+   - Remove (or rename) `%LOCALAPPDATA%\AnyContext\config\settings.db` to start from a new database, open `actx` and run:
+     ```text
+     /keys openai sk-...
+     ```
+   - Exit, unset `OPENAI_API_KEY` in the shell, open `actx` again and run `/config`.
+   - **Acceptance Criteria**:
+     - The command answers `API key saved for provider 'openai' (active in runtime & persisted to SQLite)`.
+     - After the restart the OpenAI key is still configured.
+
+2. **🌐 Re-syncing a web source never duplicates chunks:**
+   - Add a documentation site and sync twice:
+     ```text
+     /web add https://docs.rs/tokio/latest/tokio/
+     /sync
+     /inspect
+     /sync
+     /inspect
+     ```
+   - **Acceptance Criteria**:
+     - The workspace chunk count reported by `/inspect` is the same after the second `/sync`.
+     - Pages whose content did not change are not re-embedded (the second sync is faster).
+
+3. **🔒 Chunk text is encrypted at rest:**
+   - Index a folder with a distinctive sentence, for example a file containing `ZEBRA-CANARY-4711`, then run `/inspect ZEBRA`.
+   - Search the LanceDB files for the sentence (PowerShell):
+     ```powershell
+     Select-String -Path "$env:LOCALAPPDATA\AnyContext\data\context_db\lancedb\workspace_chunks.lance\data\*" -Pattern "ZEBRA-CANARY-4711" -SimpleMatch
+     ```
+   - **Acceptance Criteria**:
+     - `/inspect ZEBRA` lists the chunk with readable, decrypted text.
+     - `Select-String` finds no plaintext match in the LanceDB data files.
+     - Questions about the sentence are still answered from the document.
+
+4. **🧭 Query vectors match the index embedding model:**
+   - With an Anthropic model active (`/model claude-...`) and an OpenAI key stored, sync a folder and ask a question whose wording differs from the document text.
+   - **Acceptance Criteria**:
+     - The answer cites the relevant document (dense search works even though the chat provider cannot embed).
+
+5. **🔒 Offline and privacy presets require a local model:**
+   - With a cloud model active, run `/preset offline`.
+   - Then select a local Ollama model and run it again:
+     ```text
+     /model ollama/qwen2.5
+     /preset offline
+     /kit privacy
+     ```
+   - **Acceptance Criteria**:
+     - With the cloud model the command fails, explains that local Gemma 4 generation is planned, suggests `/model ollama/<model>` and changes nothing.
+     - With the Ollama model both presets succeed, keep `ollama/qwen2.5`, and set Grounding `Strict`, Search `Fast` and Web Search `Disabled`.
+
+6. **🇬🇧 English interface and prompts:**
+   - Ask a question that has no answer in the workspace, and open the model menu (`[F1]` → models) and `actx download --check`.
+   - **Acceptance Criteria**:
+     - The "not found" answer is in English and suggests `/web-search on` (not `/web on`).
+     - Hardware badges read `Compatible`, `Swap Risk`, `Exceeds RAM` or `Insufficient Hardware - Requires X GB`.
+     - Answers to questions asked in Portuguese are still written in Portuguese.

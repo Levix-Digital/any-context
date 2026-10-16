@@ -96,10 +96,10 @@ Document AI candidates are resolved by `process_document_ai_candidates`, in orde
 ### Embedding and writing
 
 - Chunk ids are `<first 12 hex chars of the file SHA-256>_<index>`.
-- The embedding model comes from, in order: the explicit override, `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, the workspace model, the default model, then `text-embedding-3-small`.
+- `resolve_embedding_provider(db, model_override, workspace)` picks the embedding model from, in order: the explicit override, `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, the workspace model, the default model, then `text-embedding-3-small`. The [retrieval pipeline](retrieval.md) uses the same function for query vectors, so queries and chunks share one vector space.
 - The provider is chosen from the model name: `mock*` uses the mock provider; `gemini*` uses Gemini `text-embedding-004` when a Gemini key is stored; `ollama*`/`local*` use `nomic-embed-text` on `http://localhost:11434/v1`; otherwise OpenAI `text-embedding-3-small` when an OpenAI key is stored, else the mock provider.
 - If embedding fails, or there is no provider, the chunks get deterministic pseudo-vectors derived from the SHA-256 of the text, so a sync never fails for lack of an API key (but semantic search quality then depends on BM25).
-- Records are upserted into the LanceDB table `workspace_chunks` with `last_modified` (RFC 3339 from the file modification time), content type, summary, keywords and content hash.
+- Records are upserted into the LanceDB table `workspace_chunks` with `last_modified` (RFC 3339 from the file modification time), content type, summary, keywords and content hash; text, summary and keywords are encrypted by the store (see [storage](storage.md)).
 
 ### Web sources
 
@@ -107,8 +107,8 @@ Document AI candidates are resolved by `process_document_ai_candidates`, in orde
 
 - Page text comes from Jina Reader (`https://r.jina.ai/<url>` with `Accept: text/markdown`, 15 s timeout, 50,000 character limit, optional `JINA_API_KEY`), falling back to stripping HTML tags when Jina fails or returns nothing.
 - The modification date follows a cascade: page metadata (`extract_web_metadata`: meta tags, JSON-LD, `<time>`, footer patterns, date in the URL), sitemap `<lastmod>`, the HTTP `Last-Modified` header, and finally the crawl time.
-- Pages are chunked with `IngestionRouter::chunk_text_native` (Markdown chunker when the text has headings) and written like files, keyed by URL.
-- Web sources are re-crawled on every full sync. `check_url_modified` (HTTP `HEAD` with `If-None-Match`/`If-Modified-Since`) exists in the crawler but the sync pass does not call it today.
+- Each page goes through `index_web_page`: it is chunked with `IngestionRouter::chunk_text_native` (Markdown chunker when the text has headings) and its text is hashed (SHA-256). A page whose URL is already indexed with the same content hash is skipped; otherwise the previous chunks of that page are deleted (exact URL only, never its sub-pages) from LanceDB and BM25, and the new chunks are written, keyed by URL.
+- Web sources are re-crawled on every full sync, but only new or changed pages are re-embedded. Pages that disappeared from the site keep their last indexed chunks. `check_url_modified` (HTTP `HEAD` with `If-None-Match`/`If-Modified-Since`) exists in the crawler but the sync pass does not use it.
 
 ### Cancellation and telemetry
 
@@ -133,3 +133,5 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0116](../adr/0116-path-healing-temporal-metadata-change-detection.md): path healing, web temporal metadata cascade and change detection.
 - [ADR-0124](../adr/0124-jina-reader-web-ingestion-seven-domains.md): Jina Reader for web pages, used only at ingestion time.
 - [ADR-0123](../adr/0123-onnx-production-activation-gemma-4-tiers.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): ONNX perception adapters, which today run as heuristics.
+- [ADR-0131](../adr/0131-field-level-encryption-on-every-lancedb-write.md): chunk fields encrypted on every write.
+- [ADR-0132](../adr/0132-query-vectors-use-the-ingestion-embedding-provider-and-model.md): one embedding resolver for chunks and queries.

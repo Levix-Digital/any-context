@@ -147,6 +147,18 @@ impl BM25Index {
         removed
     }
 
+    /// Purges the chunks whose file path or URL is exactly `file_path` (no folder prefix match).
+    pub fn remove_by_exact_file(&mut self, file_path: &str) -> usize {
+        let norm_target = file_path.replace('\\', "/");
+        let before = self.docs.len();
+        self.docs.retain(|d| d.file_path.replace('\\', "/") != norm_target);
+        let removed = before - self.docs.len();
+        if removed > 0 {
+            self.rebuild_postings();
+        }
+        removed
+    }
+
     /// Clears and rebuilds inverted postings map following deletions.
     fn rebuild_postings(&mut self) {
         self.doc_id_to_idx.clear();

@@ -8,7 +8,7 @@ subsystems: [cli, model-catalog, commands, tui]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: [130]
+amended_by: [130, 133]
 ---
 
 # ADR-0125: Operational Activation of Local Gemma 4 ONNX in the CLI Engine, LM Studio-Style Hardware Guardrails and Safe Workspace Presets

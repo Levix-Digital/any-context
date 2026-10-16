@@ -77,7 +77,7 @@ Every file URL is pinned to an upstream revision and carries its exact size and 
 | `SmartBalanced` | MobileNetV4, LayoutLMv3, BGE-Small, `mmarco-reranker`, Gemma 4 Compact (planned) | ≥ 2.5 GB available or ≥ 7 GB total |
 | `Lite` | nothing | always |
 
-Each profile also needs its disk requirement plus 1 GB of headroom for green (0.25 GB for yellow); the disk requirement is the sum of the *available* models it installs, so planned Gemma models do not count. `evaluate_profiles` returns a green, yellow or red evaluation with a reason for every profile, and `auto_select_recommended` picks the most capable green profile. `recommended_local_gemma` maps RAM to a Gemma tier for the `/preset offline` command.
+Each profile also needs its disk requirement plus 1 GB of headroom for green (0.25 GB for yellow); the disk requirement is the sum of the *available* models it installs, so planned Gemma models do not count. `evaluate_profiles` returns a green, yellow or red evaluation with a reason for every profile, and `auto_select_recommended` picks the most capable green profile. `recommended_local_gemma` maps RAM to the Gemma tier that would fit the machine and is used in safety recommendations; the presets no longer select Gemma (see [ADR-0133](../adr/0133-offline-and-privacy-presets-require-a-working-local-model.md)). Every id a profile lists must exist in the catalog, which a unit test checks.
 
 ### Model safety verdicts
 
