@@ -1,20 +1,33 @@
 ---
 id: 97
-title: Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar & Native Agent Background Awareness
+title: Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar and Native Agent Background Awareness
 status: accepted
-date: unknown
-version: null
-subsystems: []
+date: '2026-10-06'
+version: v0.32.14
+subsystems: [storage, tui, agent]
 supersedes: []
 superseded_by: []
 amends: []
 amended_by: []
 ---
 
-# ADR-0097: Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar & Native Agent Background Awareness
+# ADR-0097: Canonical SQLite Sync Telemetry, Live TUI Footer Progress Bar and Native Agent Background Awareness
 
-- **Status**: Accepted & Implemented (`v0.32.14`).
-- **Context**: Users lacked visual feedback on background synchronization progress in the TUI footer, and the AI agent was unaware of background indexing tasks, leading to false negative responses when asked about indexing progress.
-- **Decision**: Create a shared `workspace_sync_status` table in SQLite; connect a 250ms asynchronous polling loop in the TUI event loop to display live progress in `render_footer`; register a native `system_status` agent tool reading SQLite telemetry and LanceDB chunks; and instruct the agent via a lean system prompt skill to report real-time background status autonomously.
+## Context
 
----
+Users had no visual feedback on background synchronization in the TUI footer, and the agent did not know about background indexing, so it answered questions about indexing progress with false negatives.
+
+## Decision
+
+- Create a shared `workspace_sync_status` table in SQLite.
+- Add a 250 ms asynchronous polling loop to the TUI event loop that shows live progress in `render_footer`.
+- Register a native `system_status` agent tool that reads the SQLite telemetry and the LanceDB chunk count.
+- Instruct the agent through a lean system prompt skill to report background status on its own.
+
+## Alternatives Considered
+
+Not recorded.
+
+## Consequences
+
+- Sync progress is visible in the footer and to the agent from one source of truth.
