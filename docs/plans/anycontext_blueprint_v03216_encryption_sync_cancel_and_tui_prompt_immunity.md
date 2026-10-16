@@ -1,3 +1,25 @@
+---
+plan_id: anycontext_blueprint_v03216_encryption_sync_cancel_and_tui_prompt_immunity
+project: any-context
+title: 'Blueprint v0.32.16: Transparent Vector Decryption, Sync Cancellation, Session Directory Navigation & TUI Prompt Immunity'
+version: null
+status: completed
+author: Levi Silveira
+created_at: '2026-10-08T09:17:35'
+updated_at: '2026-10-08T09:17:35'
+session_id: null
+tags: []
+supersedes: null
+superseded_by: null
+parent_plan_id: null
+milestones: []
+status_log:
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  status: completed
+  note: Plan file had no entry in the plan-memory database; metadata added during migration
+---
+
 # Blueprint v0.32.16: Transparent Vector Decryption, Sync Cancellation, Session Directory Navigation & TUI Prompt Immunity
 
 ## 1. Contexto & Causa Raiz

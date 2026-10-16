@@ -1,3 +1,38 @@
+---
+plan_id: anycontext_blueprint_v0420_matriz_tri_cross_platform_de_aceleracao_por_hardware_directml_metalcoreml_cudavulkan_no_actx_onnx
+project: any-context
+title: 'Blueprint v0.42.0: Matriz Tri-Cross-Platform de Aceleracao por Hardware (DirectML, Metal/CoreML, CUDA/Vulkan) no actx-onnx'
+version: v0.42.0
+status: superseded
+author: Levi Silveira
+created_at: '2026-10-15T09:17:45'
+updated_at: '2026-10-15T10:37:30'
+session_id: df47900f-597a-4d3f-be8b-6ceaac73a0f4
+tags: []
+supersedes: anycontext_blueprint_v0410_downloader_assistido_de_pesos_gemma_4_onnx_na_tui_e_cli_actx_download_tier
+superseded_by: anycontext_blueprint_v0430_rag_determinístico_backend_first_u_shaped_reordering_e_isolamento_estrutural_em_xml
+parent_plan_id: null
+milestones:
+- name: 'Marco 1: Profilagem Tri-Cross-Platform no Core'
+  done: false
+- name: 'Marco 2: Abstracao de Execution Providers no actx-onnx'
+  done: false
+- name: 'Marco 3: Fiacao no actx-lm e Telemetria de Tokens/s'
+  done: false
+- name: 'Marco 4: CLI Flag --device Slash Command /device e Menu TUI'
+  done: false
+- name: 'Marco 5: Testes Automatizados'
+  done: false
+- name: 'Marco 6: Dual-Doc TECDOC e Release v0.42.0'
+  done: false
+status_log:
+- at: '2026-10-15T10:37:30'
+  note: Superseded by anycontext_blueprint_v0430_rag_determinístico_backend_first_u_shaped_reordering_e_isolamento_estrutural_em_xml
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint AnyContext v0.42.0: Matriz Tri-Cross-Platform de Aceleração por GPU & Hardware (DirectML, Metal/CoreML, CUDA/Vulkan) no `actx-onnx`
 
 > **Status**: Proposto / Em Validação de Gate (Gate 3)  

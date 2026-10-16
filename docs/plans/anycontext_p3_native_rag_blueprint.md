@@ -1,3 +1,46 @@
+---
+plan_id: anycontext_p3_native_rag_blueprint
+project: any-context
+title: 'Blueprint de Engenharia: Prioridade 3 - Pipeline RAG e Reranking Nativo em Rust'
+version: v0.30.39
+status: completed
+author: Levi Silveira
+created_at: '2026-09-25T15:41:37'
+updated_at: '2026-09-25T16:27:11'
+session_id: 9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372
+tags:
+- rust
+- rag
+- retrieval
+- bm25
+- lancedb
+- rrf
+- deep-search
+- rfc042
+supersedes: null
+superseded_by: null
+parent_plan_id: anycontext_master_roadmap_v0_30_38_rfc042
+milestones:
+- name: 'Etapa 1: Módulo pipeline.rs em Rust'
+  done: true
+- name: 'Etapa 2: Batch Retrieval RFC-042'
+  done: true
+- name: 'Etapa 3: Bindings PyO3 PyHybridPipeline'
+  done: true
+- name: 'Etapa 4: Integração ParallelRetriever'
+  done: true
+- name: 'Etapa 5: Testes Unitários e E2E'
+  done: true
+- name: 'Etapa 6: Dual-Doc e Testes Manuais'
+  done: true
+- name: 'Etapa 7: Verificação Gate 8 e Release'
+  done: true
+status_log:
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: Prioridade 3 - Pipeline RAG e Reranking Nativo em Rust (`NativeHybridPipeline` & `retrieve_hybrid_batch`)
 
 > **Protocolo**: `dev-cycle-protocol` v2.0  

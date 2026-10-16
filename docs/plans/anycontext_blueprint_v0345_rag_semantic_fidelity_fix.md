@@ -1,3 +1,55 @@
+---
+plan_id: anycontext_blueprint_v0345_rag_semantic_fidelity_fix
+project: any-context
+title: 'Recuperação de Integridade Semântica do RAG: Preservação de Layout 2D e Descriptografia BM25'
+version: v0.34.5
+status: in_progress
+author: Levi Silveira
+created_at: '2026-10-10T09:32:07'
+updated_at: '2026-10-10T10:07:49'
+session_id: a94494e0-08bb-4378-888d-a3bde8673537
+tags:
+- rag
+- semantic_fidelity
+- quality_gate
+- spatial_form
+- bm25
+- pdf
+- lancedb
+supersedes: null
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: quality_gate_fix
+  done: true
+- name: spatial_form_fix
+  done: true
+- name: model_router_preservation
+  done: true
+- name: bm25_decryption
+  done: true
+- name: dual_doc
+  done: true
+- name: e2e_verification
+  done: true
+status_log:
+- at: '2026-10-10T10:07:43'
+  note: 'Milestone ''quality_gate_fix'': QualityGate atualizado para isentar tabelas Markdown estruturadas'
+- at: '2026-10-10T10:07:45'
+  note: 'Milestone ''spatial_form_fix'': SpatialFormChunker pareia somente cabeçalhos explícitos e colons'
+- at: '2026-10-10T10:07:46'
+  note: 'Milestone ''model_router_preservation'': ModelRouter preserva texto e tabelas nativas no fallback'
+- at: '2026-10-10T10:07:47'
+  note: 'Milestone ''bm25_decryption'': NativeHybridPipeline descriptografa transparentemente e calibra min_score 0.005'
+- at: '2026-10-10T10:07:48'
+  note: 'Milestone ''dual_doc'': TECDOC Seção 106 + ADR-113, README e MANUAL_TESTS Cenário 28 atualizados'
+- at: '2026-10-10T10:07:49'
+  note: 'Milestone ''e2e_verification'': E2E TaxReturn (T4 rendimento ,792.60 e imposto ,976.60) e IKEAShipments (CMR transportadoras e destinos) validados com 100% de precisão'
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # AnyContext Technical Blueprint v0.34.5
 ## Recuperação de Integridade Semântica do RAG: Preservação de Layout 2D, Eliminação de Corrupção de Chunks e Descriptografia Transparente no BM25
 

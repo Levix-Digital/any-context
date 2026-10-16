@@ -1,3 +1,44 @@
+---
+plan_id: anycontext_anycontext_v0380_ativacao_onnx_em_producao_e_cerebro_local_autonomo_gemma_4
+project: any-context
+title: AnyContext v0.38.0 - Ativacao ONNX em Producao e Cerebro Local Autonomo Gemma 4
+version: v0.38.0
+status: active
+author: Levi Silveira
+created_at: '2026-10-14T12:07:57'
+updated_at: '2026-10-14T12:07:57'
+session_id: 01fd77a2-4853-4967-b572-f0ce69495ea0
+tags:
+- onnx
+- gemma4
+- production_flows
+- phase3
+- model_router
+- quality_gate
+- scan_sentinel
+- layout_extractor
+- clip_vit
+- 5_profiles
+supersedes: anycontext_anycontext_v0380_ativacao_dos_modelos_onnx_nos_fluxos_de_producao_consolidacao_da_fase_3
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: 'Marco 1: Expansao HardwareProfiler'
+  done: false
+- name: 'Marco 2: Adapters Percepcao Core'
+  done: false
+- name: 'Marco 3: Motor Gemma 4 actx-onnx'
+  done: false
+- name: 'Marco 4: Multi-Surface e TUI'
+  done: false
+- name: 'Marco 5: Dual-Doc e Testes'
+  done: false
+status_log:
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: AnyContext v0.38.0
 ## Ativação dos Modelos ONNX nos Fluxos de Produção & Cérebro Local Autônomo com a Família Gemma 4
 

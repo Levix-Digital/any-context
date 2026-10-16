@@ -1,3 +1,43 @@
+---
+plan_id: any_context_sync_worker_background_stdio_isolation_and_chain_of_responsibility_ingestion_engine
+project: any-context
+title: Sync Worker Background Stdio Isolation and Chain of Responsibility Ingestion Engine
+version: 0.32.11
+status: completed
+author: Levi Silveira
+created_at: '2026-10-04T14:07:37'
+updated_at: '2026-10-04T15:54:27'
+session_id: null
+tags:
+- sync
+- tui
+- stdio
+- chain-of-responsibility
+- isolation
+supersedes: null
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: 'M1: Rust Process Isolation'
+  done: false
+- name: 'M2: Chain of Responsibility'
+  done: false
+- name: 'M3: False-Positive Suppression'
+  done: false
+- name: 'M4: Automated Tests'
+  done: false
+- name: 'M5: Dual-Doc'
+  done: false
+- name: 'M6: Release v0.32.11'
+  done: false
+status_log:
+- at: '2026-10-04T15:54:27'
+  note: Implementado e publicado na release v0.32.11 com ADR-093, Chain of Responsibility e Cenário 12
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 🏗️ AnyContext Architecture Blueprint: Sync Worker Background Stdio Isolation & Chain of Responsibility Synchronization Engine (v0.32.11)
 
 > **Document ID**: `anycontext_blueprint_v03211_sync_worker_isolation_and_chain_of_responsibility`  

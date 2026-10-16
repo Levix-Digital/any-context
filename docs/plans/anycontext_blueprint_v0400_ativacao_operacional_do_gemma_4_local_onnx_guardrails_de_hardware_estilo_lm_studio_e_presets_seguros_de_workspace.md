@@ -1,3 +1,44 @@
+---
+plan_id: anycontext_blueprint_v0400_ativacao_operacional_do_gemma_4_local_onnx_guardrails_de_hardware_estilo_lm_studio_e_presets_seguros_de_workspace
+project: any-context
+title: 'Blueprint v0.40.0: Ativacao Operacional do Gemma 4 Local ONNX, Guardrails de Hardware Estilo LM Studio e Presets Seguros de Workspace'
+version: v0.40.0
+status: superseded
+author: Levi Silveira
+created_at: '2026-10-14T16:38:18'
+updated_at: '2026-10-15T08:22:07'
+session_id: 01fd77a2-4853-4967-b572-f0ce69495ea0
+tags:
+- gemma4
+- onnx
+- guardrails
+- hardware
+- lm_studio_style
+- presets
+- workspace
+- dev_cycle
+supersedes: anycontext_blueprint_v0400_ativacao_operacional_do_gemma_4_local_onnx_e_presets_estaticos_de_workspace
+superseded_by: anycontext_blueprint_v0410_downloader_assistido_de_pesos_gemma_4_onnx_na_tui_e_cli_actx_download_tier
+parent_plan_id: null
+milestones:
+- name: 'Marco 1: Guardrail de Hardware no Core'
+  done: false
+- name: 'Marco 2: Despacho do Gemma 4 no engine.rs'
+  done: false
+- name: 'Marco 3: Comando /preset Inteligente'
+  done: false
+- name: 'Marco 4: Paridade na TUI e Testes Automatizados'
+  done: false
+- name: 'Marco 5: Dual-Doc MANUAL_TESTS e Release v0.40.0'
+  done: false
+status_log:
+- at: '2026-10-15T08:22:07'
+  note: Superseded by anycontext_blueprint_v0410_downloader_assistido_de_pesos_gemma_4_onnx_na_tui_e_cli_actx_download_tier
+- at: '2026-10-16T10:47:35'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: AnyContext v0.40.0
 ## Ativação Operacional do Gemma 4 Local ONNX, Guardrails de Hardware Estilo LM Studio & Presets Seguros de Workspace
 

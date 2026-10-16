@@ -1,3 +1,49 @@
+---
+plan_id: anycontext_blueprint_v0342_modelrouter_ingestion_quality_gate
+project: any-context
+title: 'Blueprint Marco 2 (Fase 2): ModelRouter, Quality Gate, Laya AI & Document AI Híbrido (v0.34.2)'
+version: v0.34.2
+status: active
+author: Levi Silveira
+created_at: '2026-10-10T06:51:50'
+updated_at: '2026-10-10T06:51:50'
+session_id: a94494e0-08bb-4378-888d-a3bde8673537
+tags:
+- ingestion
+- model_router
+- quality_gate
+- laya_ai
+- document_ai
+- moondream2
+- ikeashipments
+- rust
+- vpc
+supersedes: null
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: 'M1: Modulo quality_gate.rs'
+  done: false
+- name: 'M2: Modulo spatial_form_chunker.rs agnostico'
+  done: false
+- name: 'M3: Modulo model_router.rs com Laya AI e MobileNet'
+  done: false
+- name: 'M4: Hooks de Visao Hibrida Local vs VPC'
+  done: false
+- name: 'M5: Integracao NativeSyncOrchestrator'
+  done: false
+- name: 'M6: Suite de Testes e Benchmark IKEAShipments'
+  done: false
+- name: 'M7: Dual-Doc TECDOC e MANUAL_TESTS'
+  done: false
+- name: 'M8: Gate 8 e Release v0.34.2'
+  done: false
+status_log:
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint de Engenharia: Marco 2 (Fase 2) — ModelRouter na Ingestão, Quality Gate, Laya AI & Document AI Híbrido (v0.34.2)
 
 ## 📌 Metadados do Plano

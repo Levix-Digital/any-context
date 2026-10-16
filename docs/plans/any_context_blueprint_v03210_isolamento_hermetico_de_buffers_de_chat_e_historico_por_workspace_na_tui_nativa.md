@@ -1,3 +1,44 @@
+---
+plan_id: any_context_blueprint_v03210_isolamento_hermetico_de_buffers_de_chat_e_historico_por_workspace_na_tui_nativa
+project: any-context
+title: 'Blueprint v0.32.10: Isolamento Hermetico de Buffers de Chat e Historico por Workspace na TUI Nativa'
+version: v0.32.10
+status: completed
+author: Levi Silveira
+created_at: '2026-10-04T13:28:33'
+updated_at: '2026-10-04T15:54:22'
+session_id: 09953e71-964e-4480-b790-66a5d4797cd7
+tags:
+- workspace
+- chat_isolation
+- tui
+- ratatui
+- view_buffer
+- session_store
+supersedes: any_context_normalizacao_definitiva_workspace_folders_e_ci_watch
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: 'M1: Estrutura de Buffers por Workspace no App'
+  done: false
+- name: 'M2: Metodo Atomico switch_to_workspace em App'
+  done: false
+- name: 'M3: Integracao com clear e reset-memory'
+  done: false
+- name: 'M4: Suite de Testes Automatizados no Rust'
+  done: false
+- name: 'M5: Atualizacao Dual-Doc e Testes Manuais'
+  done: false
+- name: 'M6: Release v0.32.10 e CI Watch'
+  done: false
+status_log:
+- at: '2026-10-04T15:54:22'
+  note: Implementado e publicado na release v0.32.10 com ADR-092 e Cenário 11
+- at: '2026-10-16T10:47:34'
+  by: Levi Silveira
+  note: Migrated from the local plan-memory database to docs/plans
+---
+
 # 📐 Blueprint v0.32.10: Isolamento Hermético de Buffers de Chat e Histórico por Workspace na TUI Nativa (crates/actx-cli)
 
 ## 📌 Metadados do Plano
