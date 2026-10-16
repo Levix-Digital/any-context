@@ -108,9 +108,9 @@ impl ContextFormatter {
         for (display_rank, chunk) in reordered.iter().enumerate() {
             let (scope, version) = Self::infer_scope_and_version(&chunk.file_path, &chunk.file_name);
             let pos_label = match display_rank {
-                0 => "POSIÇÃO 1 (ZONA DE ALTA ATENÇÃO - PRIMACY)",
-                r if r == reordered.len() - 1 => "ÚLTIMA POSIÇÃO (ZONA DE ALTA ATENÇÃO - RECENCY)",
-                _ => "POSIÇÃO INTERMEDIÁRIA",
+                0 => "POSITION 1 (HIGH-ATTENTION ZONE - PRIMACY)",
+                r if r == reordered.len() - 1 => "LAST POSITION (HIGH-ATTENTION ZONE - RECENCY)",
+                _ => "MIDDLE POSITION",
             };
 
             let clean_content_type = if chunk.content_type.is_empty() {
@@ -179,12 +179,13 @@ impl ContextFormatter {
 r#"<system_instructions>
 {}
 
-REGRAS RÍGIDAS DE ISOLAMENTO DE CONTEXTO (ANTI-ALUCINAÇÃO):
-1. Cada tag <chunk> representa um trecho autônomo com atributos "scope", "version" e "source".
-2. NUNCA misture números, timeouts, portas ou regras de dois blocos <chunk> que possuam "scope" ou "version" distintos.
-3. Responda baseando-se estritamente nas evidências documentais de <retrieved_context>.
-4. Cite os arquivos ou IDs de fonte ao responder (ex: docs/config.toml ou [chk_1]).
-5. Se a resposta exata não constar no escopo correto, declare com precisão que a informação não foi encontrada no workspace '{workspace}'.
+STRICT CONTEXT ISOLATION RULES (ANTI-HALLUCINATION):
+1. Each <chunk> tag is a self-contained excerpt with "scope", "version" and "source" attributes.
+2. NEVER mix numbers, timeouts, ports or rules from two <chunk> blocks whose "scope" or "version" differ.
+3. Answer strictly from the documentary evidence in <retrieved_context>.
+4. Cite the source files or IDs in your answer (e.g. docs/config.toml or [chk_1]).
+5. If the exact answer is not in the right scope, state precisely that the information was not found in the workspace '{workspace}'.
+6. Answer in the language of the user's question.
 </system_instructions>
 
 {}
@@ -210,8 +211,8 @@ r#"<tool_result name="search_db">
 {}
 
   <query_anchor>
-    Lembrete da consulta original: "{}"
-    Instrução: Sintetize os resultados isolando estritamente os atributos de versão e escopo, citando os arquivos fontes correspondentes.
+    Original query reminder: "{}"
+    Instruction: Synthesize the results keeping version and scope attributes strictly separate, citing the corresponding source files.
   </query_anchor>
 </tool_result>"#,
             xml_context,
@@ -237,24 +238,24 @@ r#"<tool_result name="search_db">
 
         let mut sources_desc = Vec::new();
         if !monitored_folders.is_empty() {
-            sources_desc.push(format!("pastas locais: [{}]", monitored_folders.join(", ")));
+            sources_desc.push(format!("local folders: [{}]", monitored_folders.join(", ")));
         }
         if !monitored_urls.is_empty() {
-            sources_desc.push(format!("portais web: [{}]", monitored_urls.join(", ")));
+            sources_desc.push(format!("web sources: [{}]", monitored_urls.join(", ")));
         }
 
         let monitored_summary = if !sources_desc.is_empty() {
-            format!(" O workspace monitora {}.", sources_desc.join(" e "))
+            format!(" The workspace monitors {}.", sources_desc.join(" and "))
         } else {
             String::new()
         };
 
         Some(format!(
-            "Não foram encontradas informações ou documentos correspondentes à consulta '{}' no workspace '{}'.{}\n\n\
-            💡 Sugestões:\n\
-            • Sincronize novas pastas ou arquivos usando `/folder <caminho>` ou `actx --sync`.\n\
-            • Ative a busca na Web via `/web on` para consultar fontes externas na internet.\n\
-            • Tente reformular sua pergunta com outros termos ou nomes de arquivos.",
+            "No information or documents matching the query '{}' were found in the workspace '{}'.{}\n\n\
+            💡 Suggestions:\n\
+            • Index more folders or files with `/folder <path>` or `actx --sync`.\n\
+            • Turn on web search with `/web-search on` to consult external sources.\n\
+            • Try rephrasing the question with other terms or file names.",
             query.trim(),
             workspace,
             monitored_summary
@@ -347,8 +348,8 @@ mod tests {
         assert!(xml.ends_with("</retrieved_context>"));
         assert!(xml.contains("<chunk id=\"chk_1\""));
         assert!(xml.contains("<chunk id=\"chk_2\""));
-        assert!(xml.contains("POSIÇÃO 1 (ZONA DE ALTA ATENÇÃO - PRIMACY)"));
-        assert!(xml.contains("ÚLTIMA POSIÇÃO (ZONA DE ALTA ATENÇÃO - RECENCY)"));
+        assert!(xml.contains("POSITION 1 (HIGH-ATTENTION ZONE - PRIMACY)"));
+        assert!(xml.contains("LAST POSITION (HIGH-ATTENTION ZONE - RECENCY)"));
     }
 
     #[test]

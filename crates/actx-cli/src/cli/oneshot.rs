@@ -509,10 +509,10 @@ pub async fn handle_download(tier_opt: Option<&str>, force: bool, check: bool) {
 
             let safety = HardwareProfiler::validate_model_safety(spec.id, &metrics);
             let verdict_str = match safety {
-                any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => "🟢 [Compatível]".to_string(),
-                any_context_core_rs::hardware::HardwareSafetyVerdict::Tight { .. } => "🟡 [Risco de Swap]".to_string(),
+                any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => "🟢 [Compatible]".to_string(),
+                any_context_core_rs::hardware::HardwareSafetyVerdict::Tight { .. } => "🟡 [Swap Risk]".to_string(),
                 any_context_core_rs::hardware::HardwareSafetyVerdict::Unsafe { required_ram_gb, total_ram_gb, .. } => {
-                    format!("🔴 [Excede RAM: {:.0}G/{:.0}G]", required_ram_gb, total_ram_gb)
+                    format!("🔴 [Exceeds RAM: {:.0}G/{:.0}G]", required_ram_gb, total_ram_gb)
                 }
             };
 
