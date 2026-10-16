@@ -23,7 +23,7 @@
 **AnyContext** is the universal intelligence layer for your personal and professional data. Built with an uncompromising focus on **privacy, speed, and versatility**, AnyContext connects your local folders, scanned documents, and web portals directly to the world's most capable Artificial Intelligence models.
 
 > 📖 **Looking for Deep Engineering & Architecture Details?**  
-> Check our exhaustive technical manual: 👉 **[`TECDOC.md`](TECDOC.md)** (covers 2-Phase RAG, ChromaDB parallel scanning, 5-tier date resolution, SQLite memory, REST API schemas, and MCP specs).
+> Check the technical documentation: 👉 **[`TECDOC.md`](TECDOC.md)** (architecture overview, one page per subsystem in [`docs/architecture`](docs/architecture) and the Architecture Decision Records in [`docs/adr`](docs/adr)).
 
 Whether you are a **lawyer reviewing hundreds of contract pages**, a **consultant managing immigration dossiers**, a **researcher navigating scientific publications**, or an **enterprise deploying a secure in-VPC context server**, AnyContext operates **100% on your terms and infrastructure**.
 
@@ -53,7 +53,7 @@ Traditional AI tools require you to manually copy and paste files into web chats
   - **Sempre abre, sempre responde (ADR-110)**: sem o modelo ou sem a biblioteca do runtime, o reranker cai para RRF e `/rerank` mostra o motivo.
   - **Comandos**: `/rerank` (status com modelo, runtime, dispositivo e latência real), `/rerank model [id]` (listar/selecionar o modelo), `--rerank-model <id>` (apenas para uma execução), `actx download reranker` (reparo).
   - **Downloads verificados**: todos os modelos do catálogo têm revisão fixada no Hugging Face e verificação de tamanho + SHA-256; links inexistentes foram removidos.
-  - **Transparência técnica**: classificador de consultas, sentinela de digitalizações, extrator de layout e encoder visual agora são exibidos como **heurísticos** (eram apresentados como neurais); a geração local com Gemma 4 e a aceleração por GPU aparecem como **planejadas**. Detalhes na [ADR-130](TECDOC.md#adr-130-runtime-onnx-real-ort-load-dynamic-cross-encoder-multilingue-mmarco-e-retificacao-das-adrs-118123125127129-v0450).
+  - **Transparência técnica**: classificador de consultas, sentinela de digitalizações, extrator de layout e encoder visual agora são exibidos como **heurísticos** (eram apresentados como neurais); a geração local com Gemma 4 e a aceleração por GPU aparecem como **planejadas**. Detalhes na [ADR-130](docs/adr/0130-real-onnx-runtime-multilingual-cross-encoder.md).
 
 - **🎯 Two-Stage Neural Retrieval com Re-Ranking Local Cross-Encoder ONNX (`v0.44.0`)**:
   > ⚠️ **Retificado na v0.45.0**: na v0.44.0 o Estágio 2 era uma heurística lexical, o modelo `bge-reranker-small` não existe no Hugging Face e não havia aceleração por GPU nem a latência de 18ms anunciada. O cross-encoder real chegou na v0.45.0 (acima).
