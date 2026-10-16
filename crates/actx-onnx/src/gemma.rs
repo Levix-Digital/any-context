@@ -87,10 +87,19 @@ impl GemmaTokenizer {
     }
 }
 
-/// Offline ONNX execution engine for Gemma 4 models with hardware acceleration.
+/// Message returned by every generation call until a local generative runtime exists.
+pub const LOCAL_GENERATION_PLANNED: &str =
+    "Local Gemma 4 generation is planned and not available in this build. AnyContext uses your configured fallback provider instead.";
+
+/// Gemma 4 local generation engine (planned, ADR-130).
+///
+/// Real Gemma 4 ONNX exports are multi-graph and multi-shard and require a full generative
+/// loop (tokenization, KV-cache, sampling) that does not exist yet. Until then this engine
+/// never reports itself as active and every generation call returns a clear error, so
+/// providers fall back to the configured model (ADR-110).
 #[derive(Debug, Clone)]
 pub struct OnnxGemmaEngine {
-    session: Option<ModelSession>,
+    weights: Option<ModelSession>,
     model_path: PathBuf,
     tier: GemmaModelTier,
     tokenizer: GemmaTokenizer,
@@ -103,9 +112,9 @@ impl OnnxGemmaEngine {
     }
 
     pub fn with_device(model_path: &Path, tier: GemmaModelTier, device: ExecutionDevice) -> Self {
-        let session = ModelSession::open(model_path, tier.as_str()).ok();
+        let weights = ModelSession::open(model_path, tier.as_str()).ok();
         Self {
-            session,
+            weights,
             model_path: model_path.to_path_buf(),
             tier,
             tokenizer: GemmaTokenizer,
@@ -113,8 +122,14 @@ impl OnnxGemmaEngine {
         }
     }
 
+    /// Always `false`: local generation is planned (ADR-130).
     pub fn is_neural_active(&self) -> bool {
-        self.session.as_ref().map(|s| s.is_valid).unwrap_or(false)
+        false
+    }
+
+    /// True when a weight file exists at the configured path (it is not executed).
+    pub fn weights_present(&self) -> bool {
+        self.weights.as_ref().map(|s| s.is_valid).unwrap_or(false)
     }
 
     pub fn tier(&self) -> GemmaModelTier {
@@ -133,62 +148,24 @@ impl OnnxGemmaEngine {
         self.device = device;
     }
 
-    /// Generates text completion synchronously from a prompt.
-    pub fn generate(&self, prompt: &str, _max_tokens: usize) -> Result<String, String> {
-        if !self.is_neural_active() {
-            return Err(format!(
-                "Gemma 4 model weights not found or invalid at: {}. Please install via 'actx-installer' or switch to a cloud model profile.",
-                self.model_path.display()
-            ));
-        }
-
-        // Active ONNX neural generation with device acceleration telemetry
-        let formatted = self.tokenizer.format_prompt(None, prompt);
-        let response = format!(
-            "[Local {} Inference ({} - 38.4 tok/s)]: Processed prompt ({} chars) via ONNX runtime.",
-            self.tier.display_name(),
-            self.device.display_name(),
-            formatted.len()
-        );
-        Ok(response)
+    /// Chat template used once local generation exists.
+    pub fn tokenizer(&self) -> &GemmaTokenizer {
+        &self.tokenizer
     }
 
-    /// Streams generation tokens through a callback closure.
+    /// Always returns an error: local generation is planned (ADR-130).
+    pub fn generate(&self, _prompt: &str, _max_tokens: usize) -> Result<String, String> {
+        Err(format!("{} ({})", LOCAL_GENERATION_PLANNED, self.tier.display_name()))
+    }
+
+    /// Always returns an error without emitting tokens: local generation is planned (ADR-130).
     pub fn generate_stream<F: FnMut(&str) -> Result<(), String>>(
         &self,
-        prompt: &str,
+        _prompt: &str,
         _max_tokens: usize,
-        mut on_token: F,
+        _on_token: F,
     ) -> Result<(), String> {
-        if !self.is_neural_active() {
-            return Err(format!(
-                "Gemma 4 model weights not found or invalid at: {}. Please install via 'actx-installer' or switch to a cloud model profile.",
-                self.model_path.display()
-            ));
-        }
-
-        let _formatted = self.tokenizer.format_prompt(None, prompt);
-        let dev_str = self.device.as_str();
-        let tokens = [
-            "[Local ",
-            self.tier.as_str(),
-            " (",
-            dev_str,
-            ")]: ",
-            "Generating ",
-            "accelerated ",
-            "streaming ",
-            "response ",
-            "via ",
-            "ONNX ",
-            "engine.",
-        ];
-
-        for token in tokens {
-            on_token(token)?;
-        }
-
-        Ok(())
+        Err(format!("{} ({})", LOCAL_GENERATION_PLANNED, self.tier.display_name()))
     }
 }
 
@@ -225,34 +202,35 @@ mod tests {
 
         let res = engine.generate("Hello", 100);
         assert!(res.is_err());
-        assert!(res.unwrap_err().contains("Gemma 4 model weights not found"));
+        assert!(res.unwrap_err().contains("planned"));
 
         let stream_res = engine.generate_stream("Hello", 100, |_t| Ok(()));
         assert!(stream_res.is_err());
     }
 
     #[test]
-    fn test_gemma_engine_with_stub_session() {
-        let temp = std::env::temp_dir().join(format!("test_gemma_{}.onnx", std::process::id()));
+    fn test_gemma_engine_reports_unavailable_even_with_weight_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("gemma_4_compact_int8.onnx");
         let mut dummy = vec![0x08, 0x01, 0x12, 0x04];
         dummy.resize(2048, 0xBB);
-        std::fs::write(&temp, &dummy).unwrap();
+        std::fs::write(&path, &dummy).unwrap();
 
-        let engine = OnnxGemmaEngine::new(&temp, GemmaModelTier::Compact);
-        assert!(engine.is_neural_active());
+        let engine = OnnxGemmaEngine::new(&path, GemmaModelTier::Compact);
+        assert!(engine.weights_present());
+        assert!(!engine.is_neural_active(), "A weight file must never be reported as local inference");
 
         let gen_res = engine.generate("Explain Rust", 50);
-        assert!(gen_res.is_ok());
-        assert!(gen_res.unwrap().contains("Local Gemma 4 Compact (INT4) Inference"));
+        let err = gen_res.unwrap_err();
+        assert!(err.contains("planned"));
+        assert!(!err.contains("tok/s"));
 
         let mut collected = Vec::new();
         let stream_res = engine.generate_stream("Explain Rust", 50, |tok| {
             collected.push(tok.to_string());
             Ok(())
         });
-        assert!(stream_res.is_ok());
-        assert!(!collected.is_empty());
-
-        let _ = std::fs::remove_file(&temp);
+        assert!(stream_res.is_err());
+        assert!(collected.is_empty(), "No synthetic tokens may be emitted");
     }
 }

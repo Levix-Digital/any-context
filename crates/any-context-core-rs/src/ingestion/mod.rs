@@ -20,7 +20,7 @@ pub use crawler::{NativeWebCrawler, CrawlerConfig, CrawledPage, SitemapEntry, Ro
 pub use jina::{NativeJinaExtractor, JinaExtractorConfig};
 pub use quality_gate::{QualityGate, QualityGateConfig, QualityDecision, QualityRejectionReason, DocumentAiTarget};
 pub use model_router::{IngestionModelRouter, DocumentLayoutExtractor, VisionExecutionMode};
-pub use model_manager::{OnnxModelManager, OnnxModelSpec, OnnxModelCategory, ModelStoreSummary, ModelStatusItem, ONNX_CATALOG};
+pub use model_manager::{OnnxModelManager, OnnxModelSpec, OnnxModelCategory, ModelAvailability, ModelFile, ModelStoreSummary, ModelStatusItem, ONNX_CATALOG, DEFAULT_RERANKER_ID, reranker_short_label};
 pub use onnx_adapter::{
     OnnxComplexityClassifierAdapter,
     OnnxScanSentinelAdapter,

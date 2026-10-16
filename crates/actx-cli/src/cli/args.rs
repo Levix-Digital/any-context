@@ -66,6 +66,10 @@ pub struct CliArgs {
     #[arg(long = "rerank", alias = "reranker")]
     pub rerank: Option<String>,
 
+    /// Cross-encoder model for this run only (e.g. mmarco-reranker, bge-reranker-v2-m3)
+    #[arg(long = "rerank-model")]
+    pub rerank_model: Option<String>,
+
     /// Subcommands for daemons, protocols, and headless maintenance
     #[command(subcommand)]
     pub command: Option<CliCommand>,

@@ -54,14 +54,9 @@ impl InstallerProfileTier {
         }
     }
 
+    /// Disk needed by the weights this profile installs (Gemma 4 is planned and not downloaded).
     pub fn disk_required_bytes(&self) -> u64 {
-        match self {
-            Self::SovereignUltra => 19_200_000_000,
-            Self::WorkstationPro => 15_700_000_000,
-            Self::AirGappedPower => 7_900_000_000,
-            Self::SmartBalanced => 1_700_000_000,
-            Self::Lite => 0,
-        }
+        self.target_models().iter().map(|m| m.size_bytes).sum()
     }
 
     pub fn estimated_peak_ram_bytes(&self) -> u64 {
@@ -92,118 +87,117 @@ impl SemaphoreStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+/// A verified downloadable model file (mirrors `any-context-core-rs` `ONNX_CATALOG`, ADR-130).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelDownloadSpec {
     pub id: &'static str,
+    /// Path relative to the models directory (`/`-separated).
     pub file_name: &'static str,
     pub size_bytes: u64,
+    /// Upstream URL pinned to an immutable revision.
     pub download_url: &'static str,
+    /// Lowercase hex SHA-256 of the file.
+    pub sha256: &'static str,
     pub description: &'static str,
 }
 
+/// Document AI weights (their components currently run deterministic heuristics).
 pub static ALL_MODELS: [ModelDownloadSpec; 5] = [
     ModelDownloadSpec {
         id: "mobilenetv4-rvl-cdip",
-        file_name: "mobilenetv4_rvl_cdip_int8.onnx",
-        size_bytes: 3_900_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/mobilenetv4_rvl_cdip_int8.onnx",
-        description: "Document Scan Sentinel & RVL-CDIP 16-class classifier",
+        file_name: "mobilenetv4_rvl_cdip.onnx",
+        size_bytes: 3_931_745,
+        download_url: "https://huggingface.co/onnx-community/mobilenetv4_conv_small.e1200_r224_in1k/resolve/e832d3b2b2fd988f41063559c6ea30df281f4e05/onnx/model_int8.onnx",
+        sha256: "9930547d7d61660d667b72069f0fa75b706b3e0b04645cf99f76416a82fa99a3",
+        description: "Scanned-page sentinel weights",
     },
     ModelDownloadSpec {
         id: "layoutlmv3-int8",
         file_name: "layoutlmv3_base_int8.onnx",
-        size_bytes: 121_000_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/layoutlmv3_base_int8.onnx",
-        description: "2D Spatial Form & Layout LMv3 Transformer",
+        size_bytes: 127_001_085,
+        download_url: "https://huggingface.co/onnx-community/layoutlmv3-base-ONNX/resolve/43d4a6517dc9b9a5eb3d538a158161ead8d028b9/onnx/model_int8.onnx",
+        sha256: "5f75612d2c2cd3b23826b7fcbed33e11f39d6acda1fe66fa091a0392b18a9013",
+        description: "Layout extraction weights",
     },
     ModelDownloadSpec {
         id: "bge-small-onnx",
         file_name: "bge_small_query_int8.onnx",
-        size_bytes: 127_000_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/bge_small_query_int8.onnx",
-        description: "Neural Query Complexity Router (<15ms)",
+        size_bytes: 133_093_490,
+        download_url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/onnx/model.onnx",
+        sha256: "828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35",
+        description: "Query routing weights",
     },
     ModelDownloadSpec {
         id: "clip-vit-int8",
         file_name: "clip_vit_vision_int8.onnx",
-        size_bytes: 84_000_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/clip_vit_vision_int8.onnx",
-        description: "CLIP ViT-B/32 Visual Feature Embedding Engine",
+        size_bytes: 88_648_877,
+        download_url: "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/vision_model_int8.onnx",
+        sha256: "0ab0c1b3ace708e539633af1744d5a95247fe4e14d3e08ff197ef82a6cb9bd93",
+        description: "Visual encoder weights",
     },
     ModelDownloadSpec {
         id: "laya-int8",
         file_name: "laya_mmbert_int8.onnx",
-        size_bytes: 404_000_000,
-        download_url: "https://huggingface.co/anycontext/models/resolve/main/laya_mmbert_int8.onnx",
-        description: "Heavy Multi-Modal Document Representation BERT",
+        size_bytes: 424_348_081,
+        download_url: "https://huggingface.co/tozp/laya-onnx/resolve/0d1f7ebf46a3ea04ec4424df602f96ddefb66766/model_int8.onnx",
+        sha256: "d337ce1b1cbca907a4063223517af6db7e89f5c9e8d6a2f6a289babc256f4469",
+        description: "Document typology weights",
     },
 ];
 
-pub static GEMMA_32B_SPEC: ModelDownloadSpec = ModelDownloadSpec {
-    id: "gemma-4-32b-int8",
-    file_name: "gemma_4_32b_int8.onnx",
-    size_bytes: 18_500_000_000,
-    download_url: "https://huggingface.co/google/gemma-4-32b-it-onnx/resolve/main/cpu-int4-rtn-block-32/model.onnx",
-    description: "Gemma 4 32B (INT4) Sovereign Frontier Enterprise LLM",
-};
-
-pub static GEMMA_27B_SPEC: ModelDownloadSpec = ModelDownloadSpec {
-    id: "gemma-4-27b-int8",
-    file_name: "gemma_4_27b_int8.onnx",
-    size_bytes: 15_000_000_000,
-    download_url: "https://huggingface.co/google/gemma-4-27b-it-onnx/resolve/main/cpu-int4-rtn-block-32/model.onnx",
-    description: "Gemma 4 27B (INT4) Workstation High-Reasoning LLM",
-};
-
-pub static GEMMA_12B_SPEC: ModelDownloadSpec = ModelDownloadSpec {
-    id: "gemma-4-12b-int8",
-    file_name: "gemma_4_12b_int8.onnx",
-    size_bytes: 7_200_000_000,
-    download_url: "https://huggingface.co/google/gemma-4-12b-it-onnx/resolve/main/cpu-int4-rtn-block-32/model.onnx",
-    description: "Gemma 4 12B (INT4) Developer Agentic Sweet-Spot LLM",
-};
-
-pub static GEMMA_COMPACT_SPEC: ModelDownloadSpec = ModelDownloadSpec {
-    id: "gemma-4-compact-int8",
-    file_name: "gemma_4_compact_int8.onnx",
-    size_bytes: 1_500_000_000,
-    download_url: "https://huggingface.co/google/gemma-4-compact-it-onnx/resolve/main/cpu-int4-rtn-block-32/model.onnx",
-    description: "Gemma 4 Compact (INT4) Edge Mobility SLM",
-};
-
-pub static SOVEREIGN_MODELS: [ModelDownloadSpec; 6] = [
-    ALL_MODELS[0],
-    ALL_MODELS[1],
-    ALL_MODELS[2],
-    ALL_MODELS[3],
-    ALL_MODELS[4],
-    GEMMA_32B_SPEC,
+/// Default multilingual cross-encoder (model + tokenizer), provisioned automatically
+/// with every non-Lite profile so neural re-ranking works without user action (D15).
+pub static RERANKER_FILES: [ModelDownloadSpec; 2] = [
+    ModelDownloadSpec {
+        id: "mmarco-reranker",
+        file_name: "mmarco-reranker/model.onnx",
+        size_bytes: 118_620_016,
+        download_url: "https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1/resolve/1427fd652930e4ba29e8149678df786c240d8825/onnx/model_quint8_avx2.onnx",
+        sha256: "6c2513767fb63d008a4377bef7a7a3555433d9436342bb53e35a3a72ffc52d4b",
+        description: "Multilingual cross-encoder re-ranker (model)",
+    },
+    ModelDownloadSpec {
+        id: "mmarco-reranker",
+        file_name: "mmarco-reranker/tokenizer.json",
+        size_bytes: 17_082_660,
+        download_url: "https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1/resolve/1427fd652930e4ba29e8149678df786c240d8825/tokenizer.json",
+        sha256: "62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626",
+        description: "Multilingual cross-encoder re-ranker (tokenizer)",
+    },
 ];
 
-pub static WORKSTATION_MODELS: [ModelDownloadSpec; 6] = [
-    ALL_MODELS[0],
-    ALL_MODELS[1],
-    ALL_MODELS[2],
-    ALL_MODELS[3],
-    ALL_MODELS[4],
-    GEMMA_27B_SPEC,
+// Gemma 4 local generation is planned (ADR-130): no profile downloads Gemma weights.
+
+pub static SOVEREIGN_MODELS: [ModelDownloadSpec; 7] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
+    RERANKER_FILES[0], RERANKER_FILES[1],
 ];
 
-pub static POWER_MODELS: [ModelDownloadSpec; 6] = [
-    ALL_MODELS[0],
-    ALL_MODELS[1],
-    ALL_MODELS[2],
-    ALL_MODELS[3],
-    ALL_MODELS[4],
-    GEMMA_12B_SPEC,
+pub static WORKSTATION_MODELS: [ModelDownloadSpec; 7] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
+    RERANKER_FILES[0], RERANKER_FILES[1],
 ];
 
-pub static BALANCED_MODELS: [ModelDownloadSpec; 4] = [
-    ALL_MODELS[0],
-    ALL_MODELS[1],
-    ALL_MODELS[2],
-    GEMMA_COMPACT_SPEC,
+pub static POWER_MODELS: [ModelDownloadSpec; 7] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
+    RERANKER_FILES[0], RERANKER_FILES[1],
 ];
+
+pub static BALANCED_MODELS: [ModelDownloadSpec; 5] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2],
+    RERANKER_FILES[0], RERANKER_FILES[1],
+];
+
+impl InstallerProfileTier {
+    /// Files installed automatically for this profile. Only components that execute real
+    /// inference are provisioned (today: the cross-encoder re-ranker); Lite installs nothing.
+    pub fn auto_provisioned_models(&self) -> &'static [ModelDownloadSpec] {
+        match self {
+            Self::Lite => &[],
+            _ => &RERANKER_FILES,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SystemMetrics {
@@ -367,6 +361,14 @@ fn probe_disk(_path: &Path) -> u64 {
     50 * 1024 * 1024 * 1024
 }
 
+/// Free-disk headroom (beyond the profile's weights) for a Green / Yellow rating.
+const GREEN_DISK_HEADROOM_GB: f64 = 1.0;
+const YELLOW_DISK_HEADROOM_GB: f64 = 0.25;
+
+fn disk_fits(free_disk_gb: f64, tier: InstallerProfileTier, headroom_gb: f64) -> bool {
+    free_disk_gb >= tier.disk_required_bytes() as f64 / (1024.0 * 1024.0 * 1024.0) + headroom_gb
+}
+
 pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     let avail_ram_gb = metrics.available_ram_gb();
     let total_ram_gb = metrics.total_ram_gb();
@@ -374,10 +376,10 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
 
     let mut evals = Vec::with_capacity(5);
 
-    // 1. SovereignUltra (~19.2 GB disk, ~25.5 GB peak RAM, 64GB+ RAM)
-    let (sov_status, sov_reason) = if (avail_ram_gb >= 30.0 || total_ram_gb >= 56.0) && free_disk_gb >= 45.0 {
+    // 1. SovereignUltra (~25.5 GB peak RAM, 64GB+ RAM)
+    let (sov_status, sov_reason) = if (avail_ram_gb >= 30.0 || total_ram_gb >= 56.0) && disk_fits(free_disk_gb, InstallerProfileTier::SovereignUltra, GREEN_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Green, "Optimal: Workstation has high-capacity memory for Gemma 4 32B and full Document AI.")
-    } else if total_ram_gb >= 44.0 && free_disk_gb >= 25.0 {
+    } else if total_ram_gb >= 44.0 && disk_fits(free_disk_gb, InstallerProfileTier::SovereignUltra, YELLOW_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Yellow, "Acceptable: Operates fine on 48GB/64GB, tighter margin under concurrent tasks.")
     } else {
         (SemaphoreStatus::Red, "Constrained: Gemma 4 32B requires 64GB RAM to prevent swapping. Use Workstation Pro on 32GB.")
@@ -386,14 +388,14 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     evals.push(ProfileEvaluation {
         tier: InstallerProfileTier::SovereignUltra,
         status: sov_status,
-        headline: "Sovereign Frontier: Gemma 4 32B (INT4) + Full Local Document AI Suite",
+        headline: "Sovereign Frontier: Gemma 4 32B (planned) + Full Local Document AI Suite",
         reason: sov_reason.to_string(),
     });
 
-    // 2. WorkstationPro (~15.7 GB disk, ~18.5 GB peak RAM, 32GB RAM)
-    let (work_status, work_reason) = if (avail_ram_gb >= 16.0 || total_ram_gb >= 28.0) && free_disk_gb >= 25.0 {
+    // 2. WorkstationPro (~18.5 GB peak RAM, 32GB RAM)
+    let (work_status, work_reason) = if (avail_ram_gb >= 16.0 || total_ram_gb >= 28.0) && disk_fits(free_disk_gb, InstallerProfileTier::WorkstationPro, GREEN_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Green, "Optimal: Fits smoothly within 32GB RAM envelope with ample OS headroom.")
-    } else if total_ram_gb >= 20.0 && free_disk_gb >= 18.0 {
+    } else if total_ram_gb >= 20.0 && disk_fits(free_disk_gb, InstallerProfileTier::WorkstationPro, YELLOW_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Yellow, "Acceptable: Viable on 24GB-32GB machines.")
     } else {
         (SemaphoreStatus::Red, "Constrained: Gemma 4 27B requires 32GB RAM. Use Air-Gapped Power on 16GB.")
@@ -402,14 +404,14 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     evals.push(ProfileEvaluation {
         tier: InstallerProfileTier::WorkstationPro,
         status: work_status,
-        headline: "Workstation Reasoning: Gemma 4 27B (INT4) + Full Local Document AI Suite",
+        headline: "Workstation Reasoning: Gemma 4 27B (planned) + Full Local Document AI Suite",
         reason: work_reason.to_string(),
     });
 
-    // 3. AirGappedPower (~7.9 GB disk, ~10.0 GB peak RAM, 16GB RAM)
-    let (air_status, air_reason) = if (avail_ram_gb >= 6.5 || total_ram_gb >= 14.0) && free_disk_gb >= 12.0 {
+    // 3. AirGappedPower (~10.0 GB peak RAM, 16GB RAM)
+    let (air_status, air_reason) = if (avail_ram_gb >= 6.5 || total_ram_gb >= 14.0) && disk_fits(free_disk_gb, InstallerProfileTier::AirGappedPower, GREEN_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Green, "Optimal: Perfect balance for standard 16GB developer machines (Gemma 4 12B).")
-    } else if total_ram_gb >= 10.0 && free_disk_gb >= 8.0 {
+    } else if total_ram_gb >= 10.0 && disk_fits(free_disk_gb, InstallerProfileTier::AirGappedPower, YELLOW_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Yellow, "Acceptable: Operates fine, tighter margin on 12GB laptops.")
     } else {
         (SemaphoreStatus::Red, "Constrained: Gemma 4 12B requires 16GB RAM. Use Smart Balanced on 8GB.")
@@ -418,14 +420,14 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     evals.push(ProfileEvaluation {
         tier: InstallerProfileTier::AirGappedPower,
         status: air_status,
-        headline: "Developer Sweet Spot: Gemma 4 12B (INT4) + Full Local Document AI Suite",
+        headline: "Developer Sweet Spot: Gemma 4 12B (planned) + Full Local Document AI Suite",
         reason: air_reason.to_string(),
     });
 
-    // 4. SmartBalanced (~1.7 GB disk, ~2.5 GB peak RAM, 8GB RAM)
-    let (bal_status, bal_reason) = if (avail_ram_gb >= 2.5 || total_ram_gb >= 7.0) && free_disk_gb >= 3.0 {
+    // 4. SmartBalanced (~2.5 GB peak RAM, 8GB RAM)
+    let (bal_status, bal_reason) = if (avail_ram_gb >= 2.5 || total_ram_gb >= 7.0) && disk_fits(free_disk_gb, InstallerProfileTier::SmartBalanced, GREEN_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Green, "Optimal: Ultra-efficient Gemma 4 Compact + essential Document AI for 8GB laptops.")
-    } else if free_disk_gb >= 1.5 && total_ram_gb >= 4.0 {
+    } else if disk_fits(free_disk_gb, InstallerProfileTier::SmartBalanced, YELLOW_DISK_HEADROOM_GB) && total_ram_gb >= 4.0 {
         (SemaphoreStatus::Yellow, "Acceptable: Modest memory headroom on 4GB-6GB laptops.")
     } else {
         (SemaphoreStatus::Red, "Constrained: Recommend Lite profile for this machine.")
@@ -434,7 +436,7 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     evals.push(ProfileEvaluation {
         tier: InstallerProfileTier::SmartBalanced,
         status: bal_status,
-        headline: "Everyday Mobility: Gemma 4 Compact (INT4) + Essential Document AI",
+        headline: "Everyday Mobility: Gemma 4 Compact (planned) + Essential Document AI",
         reason: bal_reason.to_string(),
     });
 
@@ -545,10 +547,10 @@ mod tests {
         assert_eq!(InstallerProfileTier::parse_str("none"), Some(InstallerProfileTier::Lite));
         assert_eq!(InstallerProfileTier::parse_str("unknown_xyz"), None);
 
-        assert_eq!(InstallerProfileTier::SovereignUltra.target_models().len(), 6);
-        assert_eq!(InstallerProfileTier::WorkstationPro.target_models().len(), 6);
-        assert_eq!(InstallerProfileTier::AirGappedPower.target_models().len(), 6);
-        assert_eq!(InstallerProfileTier::SmartBalanced.target_models().len(), 4);
+        assert_eq!(InstallerProfileTier::SovereignUltra.target_models().len(), 7);
+        assert_eq!(InstallerProfileTier::WorkstationPro.target_models().len(), 7);
+        assert_eq!(InstallerProfileTier::AirGappedPower.target_models().len(), 7);
+        assert_eq!(InstallerProfileTier::SmartBalanced.target_models().len(), 5);
         assert_eq!(InstallerProfileTier::Lite.target_models().len(), 0);
     }
 
@@ -607,11 +609,11 @@ mod tests {
         assert_eq!(evals_mid[3].status, SemaphoreStatus::Green); // SmartBalanced
         assert_eq!(auto_select_recommended(&mid_spec), InstallerProfileTier::SmartBalanced);
 
-        // Low-end machine: 4 GB RAM, 1 GB Disk
+        // Low-end machine: 4 GB RAM, 512 MB Disk
         let low_spec = SystemMetrics {
             total_ram_bytes: 4 * 1024 * 1024 * 1024,
             available_ram_bytes: 1024 * 1024 * 1024,
-            free_disk_bytes: 1024 * 1024 * 1024,
+            free_disk_bytes: 512 * 1024 * 1024,
             cpu_cores: 2,
         };
         let evals_low = evaluate_profiles(&low_spec);
@@ -621,6 +623,31 @@ mod tests {
         assert_eq!(evals_low[3].status, SemaphoreStatus::Red);
         assert_eq!(evals_low[4].status, SemaphoreStatus::Green);
         assert_eq!(auto_select_recommended(&low_spec), InstallerProfileTier::Lite);
+    }
+
+    #[test]
+    fn test_disk_requirements_match_installed_weights() {
+        // Planned Gemma weights are never downloaded, so no profile needs gigabytes of disk.
+        for tier in [
+            InstallerProfileTier::SovereignUltra,
+            InstallerProfileTier::WorkstationPro,
+            InstallerProfileTier::AirGappedPower,
+            InstallerProfileTier::SmartBalanced,
+        ] {
+            let expected: u64 = tier.target_models().iter().map(|m| m.size_bytes).sum();
+            assert_eq!(tier.disk_required_bytes(), expected);
+            assert!(tier.disk_required_bytes() < 1_000_000_000);
+        }
+        assert_eq!(InstallerProfileTier::Lite.disk_required_bytes(), 0);
+
+        // 16 GB RAM with only 2 GB free disk still fits a model-backed profile.
+        let tight_disk = SystemMetrics {
+            total_ram_bytes: 16 * 1024 * 1024 * 1024,
+            available_ram_bytes: 8 * 1024 * 1024 * 1024,
+            free_disk_bytes: 2 * 1024 * 1024 * 1024,
+            cpu_cores: 8,
+        };
+        assert_ne!(auto_select_recommended(&tight_disk), InstallerProfileTier::Lite);
     }
 }
 

@@ -51,6 +51,18 @@ jobs:
           cache-all-crates: "true"
           cache-targets: "false"
 
+      # ADR-130: neural tests need the official ONNX Runtime library (loaded dynamically).
+      - name: Provision ONNX Runtime (official Microsoft CPU build)
+        shell: bash
+        run: |
+          bash scripts/fetch_onnxruntime.sh .ort
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "ORT_DYLIB_PATH=$(cygpath -w "$PWD/.ort/onnxruntime.dll")" >> "$GITHUB_ENV"
+          else
+            echo "ORT_DYLIB_PATH=$PWD/.ort/libonnxruntime.so" >> "$GITHUB_ENV"
+          fi
+          echo "ACTX_REQUIRE_ORT=1" >> "$GITHUB_ENV"
+
       - name: Run Workspace Tests
         run: cargo test --workspace --verbose
 

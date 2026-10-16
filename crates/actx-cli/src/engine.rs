@@ -91,13 +91,10 @@ pub fn resolve_lm_provider(
                     .as_deref()
                     .map(std::path::Path::new)
                     .unwrap_or_else(|| std::path::Path::new(tier.expected_filename()));
+                // Local Gemma 4 generation is planned (ADR-130): always route to the offline
+                // fallback provider so nothing is fabricated and nothing leaks to the network.
                 let gemma = actx_lm::providers::GemmaOnnxProvider::new(path, tier);
-                if !gemma.is_neural_active() {
-                    // Resilient ADR-110 offline fallback provider if ONNX weights are not installed yet
-                    Arc::new(gemma.with_fallback(Arc::new(actx_lm::providers::MockLmProvider::new())))
-                } else {
-                    Arc::new(gemma)
-                }
+                Arc::new(gemma.with_fallback(Arc::new(actx_lm::providers::MockLmProvider::new())))
             } else {
                 p
             }
@@ -111,11 +108,12 @@ pub fn resolve_lm_provider(
     Ok((provider, model_name))
 }
 
-/// Returns a cross-encoder ONNX reranker instance backed by `bge_reranker_small_int8.onnx`.
+/// Returns the cross-encoder selected in settings (default `mmarco-reranker`).
+/// The ONNX session is created lazily on first use; missing weights or runtime mean RRF fallback.
 pub fn create_default_reranker() -> Arc<actx_onnx::OnnxReranker> {
-    let models_dir = any_context_core_rs::storage::get_default_models_dir();
-    let reranker_path = models_dir.join("bge_reranker_small_int8.onnx");
-    Arc::new(actx_onnx::OnnxReranker::new(&reranker_path))
+    let spec = any_context_core_rs::ingestion::OnnxModelManager::active_reranker_spec();
+    let model_path = any_context_core_rs::ingestion::OnnxModelManager::model_path(spec);
+    Arc::new(actx_onnx::OnnxReranker::new(&model_path))
 }
 
 /// Builds an active `Agent` configured for the specified workspace and model synchronously.

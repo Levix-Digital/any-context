@@ -1,7 +1,7 @@
-//! Model Session Lifecycle & ONNX Binary Validation.
+//! On-disk ONNX weight file descriptor.
 //!
-//! Provides safe, bounded loading of standalone ONNX models from disk,
-//! validating file integrity, headers, and memory mapping without panics.
+//! `ModelSession` only inspects a weight file (existence, size, header bytes); it does NOT
+//! execute the model. Real inference sessions live in [`crate::runtime::OnnxSession`] (ADR-130).
 
 use std::fs::File;
 use std::io::Read;

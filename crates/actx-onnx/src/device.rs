@@ -162,6 +162,17 @@ impl ExecutionDevice {
     pub fn is_gpu(&self) -> bool {
         !matches!(self, Self::Cpu)
     }
+
+    /// Device where local inference actually executes in this build.
+    /// GPU Execution Providers are planned; every request currently runs on the CPU (ADR-130).
+    pub fn effective(&self) -> Self {
+        Self::Cpu
+    }
+
+    /// True when the requested device is honoured as-is by this build.
+    pub fn is_supported_for_inference(&self) -> bool {
+        matches!(self, Self::Auto | Self::Cpu)
+    }
 }
 
 #[cfg(test)]

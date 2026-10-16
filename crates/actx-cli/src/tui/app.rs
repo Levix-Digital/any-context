@@ -123,6 +123,9 @@ pub struct App {
     pub last_health_check: std::time::Instant,
     pub execution_device: actx_onnx::ExecutionDevice,
     pub rerank_mode: String,
+    /// Neural re-ranker label (`None` = RRF) cached for the header, refreshed every few seconds
+    /// so render frames do not hit the filesystem.
+    neural_rerank_label: std::sync::Mutex<Option<(std::time::Instant, Option<String>)>>,
 }
 
 impl App {
@@ -227,6 +230,7 @@ impl App {
             last_health_check: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(10)).unwrap_or_else(std::time::Instant::now),
             execution_device: actx_onnx::ExecutionDevice::Auto,
             rerank_mode,
+            neural_rerank_label: std::sync::Mutex::new(None),
         };
 
         app
@@ -241,17 +245,32 @@ impl App {
 
     pub fn rerank_badge(&self) -> String {
         if self.rerank_mode == "off" {
-            "🚫 Off".to_string()
-        } else {
-            let (_name, _detail, is_onnx) = any_context_core_rs::ingestion::model_manager::OnnxModelManager::active_reranker_state();
-            if is_onnx {
-                "⚡ ONNX: bge-small".to_string()
-            } else if self.rerank_mode == "on" {
-                "⚡ RRF (Model Missing)".to_string()
-            } else {
-                "⚡ RRF (Fallback)".to_string()
+            return "🚫 Off".to_string();
+        }
+        match self.neural_rerank_label() {
+            Some(label) => format!("⚡ ONNX: {} (CPU)", label),
+            None if self.rerank_mode == "on" => "⚡ RRF (Model Missing)".to_string(),
+            None => "⚡ RRF (Fallback)".to_string(),
+        }
+    }
+
+    /// Short label of the active neural re-ranker, or `None` when RRF serves as fallback.
+    /// Probing touches the filesystem, so the result is cached for `RERANK_STATE_TTL`.
+    fn neural_rerank_label(&self) -> Option<String> {
+        const RERANK_STATE_TTL: std::time::Duration = std::time::Duration::from_secs(3);
+        let mut cache = self.neural_rerank_label.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((at, ref label)) = *cache {
+            if at.elapsed() < RERANK_STATE_TTL {
+                return label.clone();
             }
         }
+        use any_context_core_rs::ingestion::OnnxModelManager;
+        let (_name, _detail, is_onnx) = OnnxModelManager::active_reranker_state();
+        let label = is_onnx.then(|| {
+            any_context_core_rs::ingestion::reranker_short_label(OnnxModelManager::active_reranker_spec()).to_string()
+        });
+        *cache = Some((std::time::Instant::now(), label.clone()));
+        label
     }
 
     pub fn with_device(mut self, device: Option<&str>) -> Self {

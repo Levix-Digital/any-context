@@ -3,6 +3,7 @@ pub mod downloader;
 pub mod extractor;
 pub mod hardware;
 pub mod paths;
+pub mod provision;
 pub mod validator;
 
 use std::path::Path;
@@ -68,7 +69,7 @@ pub fn run_launcher_or_update_workflow(args: &[String], current_exe: &Path) {
                 None
             }
         });
-        run_standalone_update(&base_dir, target_ver);
+        run_standalone_update(&base_dir, target_ver, None);
         return;
     }
 
@@ -185,7 +186,7 @@ pub fn run_installer_workflow(args: &[String]) {
     hardware::print_preflight_summary(&metrics, selected_tier, &evals);
 
     if args.iter().any(|a| a == "--update") {
-        run_standalone_update(&target_dir, None);
+        run_standalone_update(&target_dir, None, explicit_tier);
         return;
     }
 
@@ -252,19 +253,58 @@ pub fn run_installer_workflow(args: &[String]) {
 
     // Configure system PATH if not present
     configure_system_path(&target_dir);
+    persist_install_profile(&target_dir, selected_tier);
+
+    // Provision the models this profile executes (neural re-ranker). Never fatal (ADR-110).
+    let auto_models = selected_tier.auto_provisioned_models();
+    if !auto_models.is_empty() && !provision::provisioning_disabled() {
+        println!("[*] Installing local models for the '{}' profile...", selected_tier.as_str());
+        let report = provision::provision_models(&hardware::resolve_default_models_dir(), auto_models, true);
+        provision::print_report(&report);
+    }
 
     println!("\n[OK] AnyContext {} installed successfully!", target_version);
     println!("⚡ Intelligence Profile Configured: {} ({})", selected_tier.display_name(), selected_tier.as_str());
     if selected_tier != hardware::InstallerProfileTier::Lite {
-        let mb = selected_tier.disk_required_bytes() as f64 / (1024.0 * 1024.0);
-        println!("   ↳ Target ONNX Models: ~{:.0} MB disk footprint", mb);
+        println!("   ↳ Neural re-ranking: multilingual cross-encoder (ONNX Runtime, CPU) ready");
         println!("   ↳ Manage profiles or models anytime via: actx (F1 -> Profiles) or /profile");
     }
     println!("[>] Open a new terminal and run '{}' or 'actx --tui' to start.\n", get_shim_exe_name());
 }
 
+/// File (next to the binaries) recording the profile chosen at install time.
+const INSTALL_PROFILE_FILE: &str = "install_profile.txt";
+
+/// Records the profile chosen at install time so updates honour it (never fatal).
+pub fn persist_install_profile(base_dir: &Path, tier: hardware::InstallerProfileTier) {
+    let _ = std::fs::write(base_dir.join(INSTALL_PROFILE_FILE), tier.as_str());
+}
+
+/// Reads the profile recorded by [`persist_install_profile`], if any.
+pub fn read_install_profile(base_dir: &Path) -> Option<hardware::InstallerProfileTier> {
+    let raw = std::fs::read_to_string(base_dir.join(INSTALL_PROFILE_FILE)).ok()?;
+    hardware::InstallerProfileTier::parse_str(&raw)
+}
+
+/// Profile whose models an update provisions: the user's explicit choice (`profile`, e.g. the
+/// `active_profile` setting), then the profile recorded at install time, and only when the user
+/// never chose one, the hardware recommendation.
+pub fn resolve_update_profile(
+    base_dir: &Path,
+    profile: Option<hardware::InstallerProfileTier>,
+) -> hardware::InstallerProfileTier {
+    profile
+        .or_else(|| read_install_profile(base_dir))
+        .unwrap_or_else(|| hardware::auto_select_recommended(&hardware::probe_system(base_dir)))
+}
+
 /// Executes a self-update returning a Result for UI-agnostic callers.
-pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str>) -> Result<String, String> {
+/// `profile` is the user's chosen profile, if known; it decides which models are provisioned.
+pub fn execute_standalone_update(
+    base_dir: &Path,
+    requested_version: Option<&str>,
+    profile: Option<hardware::InstallerProfileTier>,
+) -> Result<String, String> {
     log_update_event(
         "INFO",
         &format!(
@@ -338,16 +378,34 @@ pub fn execute_standalone_update(base_dir: &Path, requested_version: Option<&str
     configure_system_path(base_dir);
     heal_executing_and_shadowed_binaries(base_dir, &target_version);
 
+    // Transparent provisioning for upgrades from versions without a neural re-ranker:
+    // quiet (safe inside the TUI), logged, never fatal (ADR-110). A Lite choice provisions nothing.
+    let tier = resolve_update_profile(base_dir, profile);
+    let auto_models = tier.auto_provisioned_models();
+    if !auto_models.is_empty() && !provision::provisioning_disabled() {
+        let report = provision::provision_models(&hardware::resolve_default_models_dir(), auto_models, false);
+        for f in &report.installed {
+            log_update_event("INFO", &format!("Model provisioned: {}", f));
+        }
+        for (f, e) in &report.failed {
+            log_update_event("WARN", &format!("Model provisioning failed for {}: {} (RRF fallback stays active)", f, e));
+        }
+    }
+
     let ok_msg = format!("AnyContext successfully updated to {} in {}", target_version, base_dir.display());
     log_update_event("SUCCESS", &ok_msg);
     Ok(ok_msg)
 }
 
 /// Executes a self-update from the active installation directory with stdout progress.
-pub fn run_standalone_update(base_dir: &Path, requested_version: Option<&str>) {
+pub fn run_standalone_update(
+    base_dir: &Path,
+    requested_version: Option<&str>,
+    profile: Option<hardware::InstallerProfileTier>,
+) {
     println!("\n[*] Checking for AnyContext updates...");
 
-    match execute_standalone_update(base_dir, requested_version) {
+    match execute_standalone_update(base_dir, requested_version, profile) {
         Ok(msg) => {
             println!("\n[OK] {}", msg);
             println!("[>] Please restart 'actx' to launch the new version.\n");
@@ -631,6 +689,22 @@ if ($userPath -notlike "$bin;*" -and $userPath -ne $bin) {{
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn test_update_profile_honours_user_choice_over_hardware() {
+        let dir = tempfile::tempdir().unwrap();
+        // An explicit choice (the `active_profile` setting) always wins.
+        assert_eq!(
+            resolve_update_profile(dir.path(), Some(hardware::InstallerProfileTier::Lite)),
+            hardware::InstallerProfileTier::Lite
+        );
+        // Otherwise the profile recorded at install time is used instead of re-probing hardware.
+        persist_install_profile(dir.path(), hardware::InstallerProfileTier::Lite);
+        assert_eq!(read_install_profile(dir.path()), Some(hardware::InstallerProfileTier::Lite));
+        let tier = resolve_update_profile(dir.path(), None);
+        assert_eq!(tier, hardware::InstallerProfileTier::Lite);
+        assert!(tier.auto_provisioned_models().is_empty());
+    }
+
     use super::*;
 
     #[test]

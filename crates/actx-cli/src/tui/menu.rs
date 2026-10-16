@@ -466,15 +466,14 @@ pub fn build_workspaces_menu(active_workspace: &str) -> Vec<MenuItem> {
 }
 
 pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
-    let models_dir = any_context_core_rs::storage::get_default_models_dir();
     let metrics = any_context_core_rs::hardware::HardwareProfiler::probe_system(None);
 
     let models = &[
         // Local ONNX Brain (Gemma 4 Family)
-        ("gemma-4-compact", "Local ONNX - Gemma 4 Compact INT4 (Edge Mobility, ~2.5GB RAM)"),
-        ("gemma-4-12b", "Local ONNX - Gemma 4 12B INT4 (Developer Sweet Spot, ~10GB RAM)"),
-        ("gemma-4-27b", "Local ONNX - Gemma 4 27B INT4 (Workstation High Reasoning, ~18.5GB RAM)"),
-        ("gemma-4-32b", "Local ONNX - Gemma 4 32B INT4 (Sovereign Frontier, ~25.5GB RAM)"),
+        ("gemma-4-compact", "Planned - Local Gemma 4 Compact generation (not available yet; uses the fallback provider)"),
+        ("gemma-4-12b", "Planned - Local Gemma 4 12B generation (not available yet; uses the fallback provider)"),
+        ("gemma-4-27b", "Planned - Local Gemma 4 27B generation (not available yet; uses the fallback provider)"),
+        ("gemma-4-32b", "Planned - Local Gemma 4 32B generation (not available yet; uses the fallback provider)"),
         // Cloud & Remote Providers
         ("gemini-3.8-flash", "Google - Ultra-low latency and multimodality"),
         ("gpt-4o-mini", "OpenAI - Fast, cost-efficient, and intelligent"),
@@ -498,8 +497,8 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
 
             let badge = if is_active {
                 if is_gemma {
-                    let tier = actx_onnx::GemmaModelTier::from_model_name(m);
-                    let ready = tier.map(|t| models_dir.join(t.expected_filename()).exists()).unwrap_or(false);
+                    // Local Gemma 4 generation is planned (ADR-130): never "ready", always the fallback provider.
+                    let ready = false;
                     match safety {
                         any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => {
                             if ready {
@@ -523,21 +522,21 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
                     Some("[Active]".to_string())
                 }
             } else if is_gemma {
-                let tier = actx_onnx::GemmaModelTier::from_model_name(m);
-                let ready = tier.map(|t| models_dir.join(t.expected_filename()).exists()).unwrap_or(false);
+                // Local Gemma 4 generation is planned (ADR-130): never "ready", always the fallback provider.
+                    let ready = false;
                 match safety {
                     any_context_core_rs::hardware::HardwareSafetyVerdict::Safe { .. } => {
                         if ready {
                             Some("[🟢 Compatível]".to_string())
                         } else {
-                            Some("[🟢 Compatível (Instalar)]".to_string())
+                            Some("[🟢 Compatível (Planned)]".to_string())
                         }
                     }
                     any_context_core_rs::hardware::HardwareSafetyVerdict::Tight { .. } => {
                         if ready {
                             Some("[🟡 Risco de Swap]".to_string())
                         } else {
-                            Some("[🟡 Risco de Swap (Instalar)]".to_string())
+                            Some("[🟡 Risco de Swap (Planned)]".to_string())
                         }
                     }
                     any_context_core_rs::hardware::HardwareSafetyVerdict::Unsafe { required_ram_gb, .. } => {
@@ -1159,36 +1158,36 @@ pub fn build_devices_menu() -> Vec<MenuItem> {
         MenuItem {
             id: "device:dml".to_string(),
             title: "DirectML GPU (DirectX 12)".to_string(),
-            description: "Windows native acceleration (NVIDIA, AMD, Intel Arc, Qualcomm Snapdragon X)".to_string(),
+            description: "Planned GPU execution provider (Windows). Local inference runs on the CPU in this version.".to_string(),
             icon: "🪟".to_string(),
-            badge: Some("[DirectML]".to_string()),
+            badge: Some("[Planned]".to_string()),
             shortcut: Some("/device dml".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "device:metal".to_string(),
             title: "Metal / CoreML (Apple Silicon)".to_string(),
-            description: "macOS M1-M4 unified memory architecture (zero-copy PCIe, 25-50 tok/s)".to_string(),
+            description: "Planned GPU execution provider (macOS builds not published yet). Inference runs on the CPU.".to_string(),
             icon: "🍎".to_string(),
-            badge: Some("[Metal]".to_string()),
+            badge: Some("[Planned]".to_string()),
             shortcut: Some("/device metal".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "device:cuda".to_string(),
             title: "NVIDIA CUDA / TensorRT".to_string(),
-            description: "Dedicated workstation and cloud VPC GPU acceleration (Linux & Windows)".to_string(),
+            description: "Planned GPU execution provider (NVIDIA). Local inference runs on the CPU in this version.".to_string(),
             icon: "🟢".to_string(),
-            badge: Some("[CUDA]".to_string()),
+            badge: Some("[Planned]".to_string()),
             shortcut: Some("/device cuda".to_string()),
             is_submenu: false,
         },
         MenuItem {
             id: "device:vulkan".to_string(),
             title: "Khronos Vulkan Compute".to_string(),
-            description: "Open cross-platform compute pipeline for AMD, Intel, and Linux servers".to_string(),
+            description: "Planned GPU execution provider. Local inference runs on the CPU in this version.".to_string(),
             icon: "🌋".to_string(),
-            badge: Some("[Vulkan]".to_string()),
+            badge: Some("[Planned]".to_string()),
             shortcut: Some("/device vulkan".to_string()),
             is_submenu: false,
         },

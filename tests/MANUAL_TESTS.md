@@ -7,6 +7,108 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Cenário 45 (v0.45.0 Runtime ONNX Real, Cross-Encoder Multilíngue mmarco, Provisionamento Transparente e Retificação de Honestidade Técnica — ADR-130):
+- **Objetivo**: Comprovar que na versão `v0.45.0`:
+  1. O Estágio 2 do Two-Stage Retrieval executa um **cross-encoder real** (`mmarco-mMiniLMv2-L12`) via ONNX Runtime oficial (CPU), carregado de forma preguiçosa.
+  2. O ONNX Runtime chega **dentro do pacote** e o reranker é **instalado automaticamente** com o perfil, sem nenhuma configuração do usuário.
+  3. O `actx` **sempre abre**: sem runtime ou sem pesos, o reranker cai para RRF e `/rerank` explica o motivo (ADR-110).
+  4. Nenhuma parte da interface apresenta heurísticas como neurais nem exibe telemetria fictícia (Gemma 4 local e GPU aparecem como planejados).
+- **Pré-requisitos**: Windows 10/11 x64 ou Linux x64; conexão com a internet durante a instalação; um workspace com documentos parecidos entre si (ex.: um arquivo descrevendo o "serviço de pagamento v2" com timeout de 30 segundos e outro descrevendo a "v1 legada" com 120 segundos).
+
+#### 📋 Passo a Passo de Execução:
+
+1. **📄 Versão:**
+   ```text
+   actx -v
+   ```
+   - **Critério de Aceitação**: Exibe `actx 0.45.0`.
+
+2. **📦 Runtime no pacote (Windows):**
+   ```powershell
+   Get-ChildItem "$env:LOCALAPPDATA\actx\bin" | Select-Object Name, Length
+   ```
+   - **Critério de Aceitação**: A pasta contém `onnxruntime.dll` (~17 MB) ao lado de `actx.exe`. No Linux, `libonnxruntime.so` ao lado de `actx`.
+
+3. **🧠 Reranker instalado automaticamente:**
+   ```text
+   actx download --check
+   ```
+   - **Critério de Aceitação**: `mmarco-reranker` aparece como **Installed** (~129 MB) sem que nenhum download manual tenha sido feito (perfil diferente de Lite). `bge-reranker-v2-m3` aparece como disponível (~561 MB). Os quatro `gemma-4-*` aparecem como **🕓 Planned** com tamanho `—`. Não existe `bge-reranker-small`.
+
+4. **⚡ Status do reranker na TUI:**
+   - Inicie `actx` e observe o cabeçalho.
+   - **Critério de Aceitação**: O badge mostra `[Rerank: ⚡ ONNX: mmarco-L12 (CPU)]`.
+   - Digite `/rerank` e pressione [Enter].
+   - **Critério de Aceitação**: Exibe modelo `mmarco-reranker`, estado `🟢 Neural`, a linha `Runtime: ONNX Runtime library found (...)`, `Inference Device: CPU` e `Latency: n/a` antes da primeira consulta.
+
+5. **🔎 Consulta real com re-ranking:**
+   - Faça uma pergunta em português sobre o tema dos documentos (ex.: *"Qual é o timeout padrão do serviço de pagamento v2?"*).
+   - Digite `/rerank` novamente.
+   - **Critério de Aceitação**: A resposta cita o documento da v2; `/rerank` agora mostra `Latency: <número> ms` (tipicamente centenas de ms em CPU). A primeira consulta pode demorar cerca de 1 s a mais (carga do modelo); as seguintes não.
+
+6. **🆚 Comparação on/off (headless):**
+   ```text
+   actx "Qual é o timeout padrão do serviço de pagamento v2?" --rerank on
+   actx "Qual é o timeout padrão do serviço de pagamento v2?" --rerank off
+   ```
+   - **Critério de Aceitação**: Ambos executam sem erros; com `on` o trecho mais relevante tende a aparecer primeiro nas citações.
+
+7. **🔁 Seleção de modelo:**
+   ```text
+   /rerank model
+   /rerank model bge-reranker-v2-m3
+   ```
+   - **Critério de Aceitação**: O primeiro lista os dois modelos com `(active)` no `mmarco-reranker`. O segundo confirma a troca e avisa que os pesos não estão instalados (~561 MB), mantendo o RRF até `actx download reranker-m3`. Volte com `/rerank model mmarco-reranker`.
+   ```text
+   actx "teste" --rerank-model modelo-inexistente
+   ```
+   - **Critério de Aceitação**: Mensagem `Unknown re-ranker model` listando os modelos disponíveis e código de saída diferente de zero.
+
+8. **🛟 Fallback sem runtime (ADR-110):**
+   - Feche o `actx`, renomeie `onnxruntime.dll` para `onnxruntime.dll.bak` e abra o `actx` novamente.
+   - **Critério de Aceitação**: O programa abre normalmente; o badge mostra `[Rerank: ⚡ RRF (Fallback)]`; `/rerank` informa `ONNX Runtime library missing (expected at ...)`. Restaure o nome do arquivo.
+
+9. **🛟 Fallback sem pesos e reparo:**
+   - Renomeie a pasta `%LOCALAPPDATA%\AnyContext\models\mmarco-reranker` e abra o `actx`.
+   - **Critério de Aceitação**: Badge `RRF (Fallback)`; `/rerank` sugere `actx download reranker`.
+   ```text
+   actx download reranker
+   ```
+   - **Critério de Aceitação**: Baixa 2 arquivos (modelo + tokenizer) com barra de progresso, valida SHA-256 e o badge volta a `ONNX: mmarco-L12 (CPU)`.
+
+10. **🕓 Gemma 4 planejado:**
+    ```text
+    actx download compact
+    ```
+    - **Critério de Aceitação**: Mensagem informando que o modelo é planejado, sem tráfego de rede.
+    - Na TUI, `/model gemma-4-compact` e uma pergunta qualquer.
+    - **Critério de Aceitação**: Nenhuma resposta contém `tok/s` ou "Local Gemma 4 ... Inference"; a resposta vem do provedor de fallback configurado.
+
+11. **🖥️ Dispositivo honesto:**
+    ```text
+    actx --device dml "teste"
+    ```
+    - Na TUI: `/device dml`.
+    - **Critério de Aceitação**: Aviso de que execution providers de GPU estão planejados e que a inferência continua na CPU. No menu `[F1] -> Hardware Acceleration & GPUs`, DirectML/Metal/CUDA/Vulkan aparecem com `[Planned]`.
+
+12. **🧾 Document AI heurístico:**
+    - Abra `[F1]` → Document AI / Models.
+    - **Critério de Aceitação**: Classificador, sentinela de digitalizações, layout e visão aparecem como heurísticos (mesmo que os pesos estejam instalados); nenhum chunk novo indexado contém `<!-- onnx-layout: preserved -->` ou `encoded via CLIP ViT`.
+
+13. **📥 Instalador (perfil Lite vs. padrão):**
+    ```powershell
+    actx-installer --preflight-only
+    ```
+    - **Critério de Aceitação**: Exibe os perfis sem baixar nada.
+    - Em uma máquina/VM limpa, execute a instalação padrão.
+    - **Critério de Aceitação**: Após instalar o binário, aparece `[*] Installing local models for the '<perfil>' profile...` seguido de `[OK] Model installed and verified: mmarco-reranker/model.onnx` e `.../tokenizer.json`. Com `--profile=lite`, nenhum modelo é baixado. Com `ACTX_SKIP_MODEL_DOWNLOAD=1`, o provisionamento é pulado.
+
+14. **🔄 Atualização a partir da v0.44.0:**
+    - Em uma instalação v0.44.0, execute `actx --update`.
+    - **Critério de Aceitação**: Após a atualização, `onnxruntime.dll` está na pasta `bin` e o `mmarco-reranker` foi provisionado (registrado no log de atualização em `logs/`), sem nenhuma pergunta ao usuário.
+
+---
+
 ### 📌 Cenário 44 (v0.44.0 Two-Stage Neural Retrieval com Re-Ranking Local Cross-Encoder ONNX, Aceleração por Hardware e Fallback Gracioso ADR-110):
 - **Objetivo**: Comprovar que na versão `v0.44.0`:
   1. **Recuperação em Dois Estágios (Two-Stage Neural Retrieval Pipeline)**:

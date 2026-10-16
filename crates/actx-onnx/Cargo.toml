@@ -1,6 +1,6 @@
 [package]
 name = "actx-onnx"
-version = "0.44.0"
+version = "0.45.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Specialized local ONNX neural execution engine and runtime adapters for AnyContext"
@@ -11,6 +11,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.40", features = ["sync", "macros", "rt"] }
 tracing = { version = "0.1", optional = true }
+# ADR-130: real ONNX Runtime inference (CPU Execution Provider) behind the `runtime` feature.
+# `load-dynamic`: the ONNX Runtime library ships next to the executable and is loaded lazily,
+# so the binary keeps zero link-time dependencies on onnxruntime / DirectML / MSVCP140.
+ort = { version = "=2.0.0-rc.14", optional = true, default-features = false, features = ["std", "load-dynamic"] }
+tokenizers = { version = "0.23", optional = true, default-features = false, features = ["onig"] }
+
+[features]
+default = []
+runtime = ["dep:ort", "dep:tokenizers"]
 
 [dev-dependencies]
 tempfile = "3.10"

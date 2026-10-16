@@ -169,6 +169,90 @@ pub struct HybridSearchResult {
     pub last_modified: Option<String>,
 }
 
+/// Maximum candidates re-scored by the cross-encoder per query (ADR-130).
+pub const MAX_RERANK_CANDIDATES: usize = 30;
+
+static LAST_RERANK_LATENCY_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u64::MAX);
+
+/// Wall-clock latency of the most recent neural re-ranking pass in this process, if any.
+pub fn last_rerank_latency_ms() -> Option<u64> {
+    match LAST_RERANK_LATENCY_MS.load(std::sync::atomic::Ordering::Relaxed) {
+        u64::MAX => None,
+        v => Some(v),
+    }
+}
+
+/// Scores `texts` with the cross-encoder on a blocking thread so the async executor
+/// (and the TUI) never stall on CPU inference. `None` means "keep RRF ordering".
+async fn neural_rerank_scores(
+    reranker: &Arc<actx_onnx::OnnxReranker>,
+    query: &str,
+    texts: Vec<String>,
+) -> Option<Vec<f32>> {
+    if texts.is_empty() || !reranker.is_neural_active() {
+        return None;
+    }
+    let expected = texts.len();
+    let reranker = Arc::clone(reranker);
+    let query = query.to_string();
+    let started = std::time::Instant::now();
+    let scores = tokio::task::spawn_blocking(move || reranker.score_batch(&query, &texts))
+        .await
+        .ok()?;
+    if scores.len() != expected {
+        return None;
+    }
+    LAST_RERANK_LATENCY_MS.store(started.elapsed().as_millis() as u64, std::sync::atomic::Ordering::Relaxed);
+    Some(scores)
+}
+
+/// Applies Stage-2 re-ranking to the best `MAX_RERANK_CANDIDATES` unprotected items (by current
+/// score). Re-scored items receive calibrated `[0,1]` scores; the remaining tail is rescaled to
+/// stay strictly below every re-scored item while keeping its relative RRF order. `protected` ids
+/// keep their original score untouched and do not consume cross-encoder slots.
+async fn apply_neural_rerank(
+    reranker: &Arc<actx_onnx::OnnxReranker>,
+    query: &str,
+    items: &mut [HybridSearchResult],
+    protected: &std::collections::HashSet<String>,
+) {
+    if items.is_empty() {
+        return;
+    }
+    items.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    let head: Vec<usize> = (0..items.len())
+        .filter(|&i| !protected.contains(&items[i].chunk_id))
+        .take(MAX_RERANK_CANDIDATES)
+        .collect();
+    let texts: Vec<String> = head.iter().map(|&i| items[i].text.clone()).collect();
+    let Some(scores) = neural_rerank_scores(reranker, query, texts).await else {
+        return;
+    };
+
+    let mut rescored = vec![false; items.len()];
+    let mut min_head = f64::MAX;
+    for (&i, &s) in head.iter().zip(&scores) {
+        items[i].score = s as f64;
+        rescored[i] = true;
+        min_head = min_head.min(s as f64);
+    }
+    let is_tail = |i: usize, c: &HybridSearchResult| !rescored[i] && !protected.contains(&c.chunk_id);
+    let tail_max = items
+        .iter()
+        .enumerate()
+        .filter(|(i, c)| is_tail(*i, c))
+        .map(|(_, c)| c.score)
+        .fold(0.0_f64, f64::max);
+    if tail_max > 0.0 {
+        let ceiling = min_head * 0.5;
+        for i in 0..items.len() {
+            if is_tail(i, &items[i]) {
+                items[i].score = ceiling * (items[i].score / tail_max).max(0.0);
+            }
+        }
+    }
+}
+
 /// Unified Native Hybrid Retrieval and Reranking Pipeline.
 pub struct NativeHybridPipeline {
     db_path: PathBuf,
@@ -606,17 +690,8 @@ impl NativeHybridPipeline {
         let should_rerank = self.rerank_mode != "off" && req.rerank_mode.as_deref() != Some("off");
         if should_rerank {
             if let Some(ref reranker) = self.reranker {
-                if reranker.is_neural_active() && !results.is_empty() {
-                    let candidate_texts: Vec<String> = results.iter().map(|c| c.text.clone()).collect();
-                    let neural_scores = reranker.score_batch(&req.query_text, &candidate_texts);
-                    if !neural_scores.is_empty() && neural_scores.len() == results.len() {
-                        for (idx, chunk) in results.iter_mut().enumerate() {
-                            if !guaranteed_file_cids.contains(&chunk.chunk_id) {
-                                chunk.score = neural_scores[idx] as f64;
-                            }
-                        }
-                    }
-                }
+                let protected: std::collections::HashSet<String> = guaranteed_file_cids.iter().cloned().collect();
+                apply_neural_rerank(reranker, &req.query_text, &mut results, &protected).await;
             }
         }
 
@@ -719,7 +794,7 @@ impl NativeHybridPipeline {
                 };
 
                 if let Some(existing) = dedup_map.get_mut(&key) {
-                    // Accumulate RRF score across sub-queries (RFC-042 multi-query boost)
+                    // Accumulate per-sub-query scores (RRF or cross-encoder; RFC-042 multi-query boost)
                     existing.score += chunk.score;
                     if !existing.matched_subqueries.contains(&sub_label) {
                         existing.matched_subqueries.push(sub_label.clone());
@@ -741,26 +816,10 @@ impl NativeHybridPipeline {
         let first_req = &requests[0];
         let mut candidates: Vec<HybridSearchResult> = dedup_map.into_values().collect();
 
-        // Filter by min_score if set
-        if first_req.min_score > 0.0 {
-            candidates.retain(|c| c.score >= first_req.min_score);
-        }
-
-        // Stage 2: Neural Cross-Encoder Re-Ranking (Frente B)
-        let should_rerank = self.rerank_mode != "off" && first_req.rerank_mode.as_deref() != Some("off");
-        if should_rerank {
-            if let Some(ref reranker) = self.reranker {
-                if reranker.is_neural_active() && !candidates.is_empty() {
-                    let candidate_texts: Vec<String> = candidates.iter().map(|c| c.text.clone()).collect();
-                    let neural_scores = reranker.score_batch(&first_req.query_text, &candidate_texts);
-                    if !neural_scores.is_empty() && neural_scores.len() == candidates.len() {
-                        for (idx, chunk) in candidates.iter_mut().enumerate() {
-                            chunk.score = neural_scores[idx] as f64;
-                        }
-                    }
-                }
-            }
-        }
+        // Each sub-query already applied `min_score` (on RRF scores) and Stage-2 re-ranking
+        // against its own text, protecting guaranteed filename matches. Accumulated scores are
+        // therefore not re-filtered or re-scored here: doing so would compare RRF thresholds
+        // against cross-encoder scores, overwrite pinned matches and repeat CPU inference.
 
         // Sort descending by accumulated score (neural or RRF fallback)
         candidates.sort_by(|a, b| {
@@ -957,5 +1016,106 @@ mod tests {
         assert!(!pipeline.reranker().unwrap().is_neural_active());
 
         let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    fn result(id: &str, text: &str, score: f64) -> HybridSearchResult {
+        HybridSearchResult {
+            chunk_id: id.to_string(),
+            file_name: format!("{id}.md"),
+            file_path: format!("docs/{id}.md"),
+            workspace: "Default".to_string(),
+            text: text.to_string(),
+            content_type: "markdown".to_string(),
+            content_hash: String::new(),
+            score,
+            dense_score: None,
+            sparse_score: None,
+            token_count: 4,
+            matched_subqueries: Vec::new(),
+            last_modified: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_apply_neural_rerank_without_weights_keeps_rrf_order() {
+        let reranker = std::sync::Arc::new(actx_onnx::OnnxReranker::new(std::path::Path::new("missing/model.onnx")));
+        let mut items = vec![result("a", "theme colors", 0.03), result("b", "timeout seconds", 0.02)];
+        apply_neural_rerank(&reranker, "what timeout", &mut items, &std::collections::HashSet::new()).await;
+        assert_eq!(items[0].chunk_id, "a");
+        assert_eq!(items[0].score, 0.03);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_apply_neural_rerank_with_fixture_reorders_and_protects() {
+        if actx_onnx::runtime::probe_runtime().is_err() {
+            if std::env::var("ACTX_REQUIRE_ORT").as_deref() == Ok("1") {
+                panic!("ACTX_REQUIRE_ORT=1 but ONNX Runtime could not be loaded");
+            }
+            eprintln!("skipping: ONNX Runtime library unavailable (set ORT_DYLIB_PATH)");
+            return;
+        }
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../actx-onnx/tests/fixtures");
+        let reranker = std::sync::Arc::new(
+            actx_onnx::OnnxReranker::with_paths(
+                &fixtures.join("tiny_reranker.onnx"),
+                &fixtures.join("tiny_tokenizer.json"),
+                "tiny-fixture",
+                actx_onnx::ExecutionDevice::Cpu,
+            )
+            .with_max_length(32),
+        );
+        let mut items = vec![
+            result("theme", "the theme colors", 0.03),
+            result("timeout", "timeout is thirty seconds", 0.02),
+            result("pinned", "legacy theme", 0.95),
+        ];
+        let protected: std::collections::HashSet<String> = ["pinned".to_string()].into_iter().collect();
+        apply_neural_rerank(&reranker, "what timeout", &mut items, &protected).await;
+
+        let score = |id: &str| items.iter().find(|c| c.chunk_id == id).unwrap().score;
+        assert!(score("timeout") > score("theme"), "neural score must lift the timeout chunk");
+        assert_eq!(score("pinned"), 0.95, "guaranteed filename matches keep their score");
+        assert!(last_rerank_latency_ms().is_some());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_apply_neural_rerank_protected_skip_slots_and_tail_stays_below() {
+        if actx_onnx::runtime::probe_runtime().is_err() {
+            if std::env::var("ACTX_REQUIRE_ORT").as_deref() == Ok("1") {
+                panic!("ACTX_REQUIRE_ORT=1 but ONNX Runtime could not be loaded");
+            }
+            eprintln!("skipping: ONNX Runtime library unavailable (set ORT_DYLIB_PATH)");
+            return;
+        }
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../actx-onnx/tests/fixtures");
+        let reranker = std::sync::Arc::new(
+            actx_onnx::OnnxReranker::with_paths(
+                &fixtures.join("tiny_reranker.onnx"),
+                &fixtures.join("tiny_tokenizer.json"),
+                "tiny-fixture",
+                actx_onnx::ExecutionDevice::Cpu,
+            )
+            .with_max_length(32),
+        );
+        // Two pinned matches on top, MAX_RERANK_CANDIDATES regular candidates and one tail item.
+        let mut items = vec![result("pin-a", "legacy theme", 1.0), result("pin-b", "legacy colors", 1.0)];
+        for i in 0..MAX_RERANK_CANDIDATES {
+            items.push(result(&format!("c{i}"), "timeout is thirty seconds", 0.5 - i as f64 * 0.001));
+        }
+        items.push(result("tail", "the theme colors", 0.4));
+        let protected: std::collections::HashSet<String> =
+            ["pin-a".to_string(), "pin-b".to_string()].into_iter().collect();
+        apply_neural_rerank(&reranker, "what timeout", &mut items, &protected).await;
+
+        let score = |id: &str| items.iter().find(|c| c.chunk_id == id).unwrap().score;
+        assert_eq!(score("pin-a"), 1.0);
+        assert_eq!(score("pin-b"), 1.0);
+        // Pinned matches do not consume cross-encoder slots: the last regular candidate is re-scored.
+        let last = format!("c{}", MAX_RERANK_CANDIDATES - 1);
+        assert_ne!(score(&last), 0.5 - (MAX_RERANK_CANDIDATES - 1) as f64 * 0.001);
+        let min_head = (0..MAX_RERANK_CANDIDATES)
+            .map(|i| score(&format!("c{i}")))
+            .fold(f64::MAX, f64::min);
+        assert!(score("tail") < min_head, "unscored tail must stay below every re-scored item");
     }
 }
