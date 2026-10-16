@@ -1,22 +1,46 @@
 {
   "project_name": "any-context",
-  "core_path": "crates/any-context-core-rs",
-  "doc_files": {
-    "user_doc": "README.md",
-    "tec_doc": "TECDOC.md",
-    "manual_tests": "tests/MANUAL_TESTS.md"
+  "architecture": {
+    "core_path": "crates/any-context-core-rs",
+    "surfaces": [
+      "cli",
+      "tui"
+    ],
+    "canonical_datastore": "%LOCALAPPDATA%/AnyContext/config/settings.db",
+    "style": "hexagonal",
+    "forbidden_core_imports": [
+      "actx_cli",
+      "ratatui",
+      "crossterm",
+      "clap"
+    ]
   },
   "test_commands": [
     "cargo test --workspace"
   ],
-  "surfaces": [
-    "cli",
-    "tui",
-    "mcp",
-    "python-binding"
-  ],
-  "canonical_datastore": "%LOCALAPPDATA%/actx/data/catalog.db",
-  "releases_repo": "Levix-Digital/any-context-releases",
+  "docs": {
+    "user_doc": "README.md",
+    "tec_doc": "TECDOC.md"
+  },
+  "tests": {
+    "manual_tests": "tests/MANUAL_TESTS.md"
+  },
+  "devops": {
+    "releases_repo": "Levix-Digital/any-context-releases",
+    "integration_branch": "dev",
+    "production_branch": "main",
+    "release_candidates": true,
+    "version_files": [
+      "version.txt",
+      "crates/any-context-core-rs/Cargo.toml",
+      "crates/actx-cli/Cargo.toml",
+      "crates/actx-agent/Cargo.toml",
+      "crates/actx-lm/Cargo.toml",
+      "crates/actx-onnx/Cargo.toml",
+      "crates/actx-installer/Cargo.toml"
+    ],
+    "observability": "cli"
+  },
   "drift_rules": [
     {
       "tech": "langchain",
@@ -28,7 +52,12 @@
     },
     {
       "tech": "banco paralelo",
-      "negative_markers": ["single source", "single database", "settings.db", "paridade"],
+      "negative_markers": [
+        "single source",
+        "single database",
+        "settings.db",
+        "paridade"
+      ],
       "proposal_allow": [],
       "conflict_msg": "Proposal hints at parallel databases ('banco paralelo'), violating Single Source of Truth (`settings.db`)."
     }
