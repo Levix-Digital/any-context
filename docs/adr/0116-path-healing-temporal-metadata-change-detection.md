@@ -1,59 +1,54 @@
 ---
 id: 116
-title: Smart Path Healing, Recuperação das Regras Temporais Históricas (Metadata Freshness Cascade + HTTP 304) e Detecção Ativa de Alterações de Fontes
+title: Smart Path Healing, Restored Temporal Metadata Rules (Freshness Cascade and HTTP 304) and Active Source Change Detection
 status: accepted
 date: '2026-10-10'
-version: null
-subsystems: []
+version: v0.34.8
+subsystems: [storage, ingestion, retrieval, tui]
 supersedes: []
 superseded_by: []
 amends: []
 amended_by: []
 ---
 
-# ADR-0116: Smart Path Healing, Recuperação das Regras Temporais Históricas (Metadata Freshness Cascade + HTTP 304) e Detecção Ativa de Alterações de Fontes
+# ADR-0116: Smart Path Healing, Restored Temporal Metadata Rules (Freshness Cascade and HTTP 304) and Active Source Change Detection
 
-- **Status**: Aprovado & Implementado (`v0.34.8`).
-- **Contexto**:
-  1. Caminhos de diretórios remotos e locais no Google Drive (`G:/`) ou pastas locais sofriam com falhas de resolução quando havia pequenas discrepâncias de montagem (por exemplo, inclusão indevida de `/Documentos/` quando a pasta está diretamente na raiz do Drive).
-  2. A "Universal Temporal Recency Rule" declarada no prompt não conseguia ser executada com fidelidade pelo LLM porque os chunks entregues pela ferramenta `search_db` descartavam a data e hora nos cabeçalhos (`Modified: ...`), embora o LanceDB persistisse `last_modified`.
-  3. No crawler web, páginas eram indexadas com `mtime: 0.0` (época UNIX 1970) e sem suporte a requisições leves de checagem ou extração de metadados de páginas HTML e HTTP.
-  4. A TUI exibia fixamente `✔ Up to date` mesmo quando pastas monitoradas estavam inacessíveis ou quando arquivos haviam sido movidos, criados ou deletados.
-- **Decisões**:
-  1. **Smart Path Healing Engine (`any_context_core_rs::storage::path_healer`)**:
-     - Implementação da função pura `try_heal_path(p: &Path) -> Option<PathBuf>` que testa heurísticas de resolução:
-       * Remoção e adição de `/Documentos/` e `/Documents/`.
-       * Remoção de `/OneDrive/`.
-       * Normalização de barras `/` e `\`.
-       * Busca pelo diretório folha na raiz ou árvore de pastas do volume montado.
-     - Auto-cura transparente no `NativeConfigDb::get_workspace_folders`: se o caminho gravado não existir mas a pasta for curada, atualiza automaticamente a tabela `workspace_folders` no SQLite.
-     - Validação e auto-resolução no comando `/folder` com notificação clara ao usuário.
-  2. **Recuperação da Cascata de Metadados Temporais para Web (`extract_web_metadata`)**:
-     - Restauração integral da lógica histórica em Rust nativo:
-       * Tier 1: HTML Meta tags (`article:modified_time`, `dcterms.modified`, `dc.date.modified`, `article:published_time`, `dcterms.issued`), JSON-LD schema.org (`dateModified`, `datePublished`) e `<time datetime="...">`.
-       * Tier 2: Padrões de rodapé (`Date modified:`, `Last modified:`, `Last updated:`, `Page details`).
-       * Tier 3: Padrões de data na URL (`/YYYY/MM/DD/`).
-       * Tier 4: Campo `<lastmod>` de XML Sitemaps.
-       * Tier 5: Cabeçalho HTTP `Last-Modified` (RFC 2822 / 7231).
-       * Tier 6: Timestamp de crawl corrente `Utc::now()` (nunca hardcoded `0.0`).
-  3. **Verificação Leve de Fontes Web sem Download do Corpo (RFC 7232)**:
-     - Implementação de `check_url_modified` com HTTP `HEAD` e cabeçalhos condicionais `If-None-Match` (`ETag`) e `If-Modified-Since` (`Last-Modified`).
-     - Resposta `304 Not Modified` avaliada em < 50ms para confirmar `Up to date` sem tráfego de dados.
-  4. **Propagação de `last_modified` Ponta-a-Ponta no RAG e Formatação para o LLM**:
-     - Adicionado `pub last_modified: Option<String>` em `DocRecord` (BM25) e `HybridSearchResult`.
-     - Injeção explícita de `| Modified: <timestamp>` no cabeçalho de cada chunk retornado pela tool `search_db`:
-       `• [{file_name}] (Score: {score:.2}, Source: {file_path}, Type: {content_type} | Modified: {timestamp}):`
-     - Micro-boost de recência no ranking de busca para desempate límpido de pontuação a favor de versões mais recentes.
-  5. **Detecção Ativa de Alterações & Diagnóstico de Saúde de Fontes na TUI**:
-     - `DiffResult` no `WorkspaceScanner` agora rastreia `missing_folders: Vec<String>`.
-     - Verificação leve periódica na TUI (`check_source_health`):
-       * Pastas inacessíveis: exibe `⚠️ [Sync: X folder(s) unreachable]` no Header e no Footer.
-       * Mudanças detectadas: exibe `⚡ [Sync: Changes detected (/sync)]` no Header e Footer.
-       * Fontes sincronizadas: exibe `✔ Up to date`.
-     - Purga de arquivos movidos ou deletados do LanceDB e BM25 durante a execução de `/sync`.
-- **Consequências**:
-  - Eliminação de erros de pasta não encontrada quando a pasta existe no Google Drive.
-  - O LLM agora tem visibilidade total da data e hora de cada documento e aplica a regra de recência com 100% de consistência.
-  - Usuário tem feedback visual imediato de integridade e alterações das fontes.
+## Context
 
----
+1. Paths to Google Drive (`G:/`) or local folders failed to resolve when there were small mount differences (for example an extra `/Documentos/` when the folder is directly at the root of the drive).
+2. The "Universal Temporal Recency Rule" in the prompt could not be applied faithfully by the LLM, because the chunks returned by the `search_db` tool dropped the date and time from their headers (`Modified: ...`), although LanceDB stored `last_modified`.
+3. The web crawler indexed pages with `mtime: 0.0` (the 1970 UNIX epoch) and had no lightweight change check and no metadata extraction from HTML pages and HTTP.
+4. The TUI always showed `✔ Up to date`, even when monitored folders were unreachable or files had been moved, created or deleted.
+
+## Decision
+
+1. **Smart Path Healing engine (`any_context_core_rs::storage::path_healer`)**:
+   - A pure function `try_heal_path(p: &Path) -> Option<PathBuf>` tries resolution heuristics: removing and adding `/Documentos/` and `/Documents/`, removing `/OneDrive/`, normalizing `/` and `\` separators, and searching for the leaf directory at the root or in the folder tree of the mounted volume.
+   - Transparent self-healing in `NativeConfigDb::get_workspace_folders`: when the stored path does not exist but the folder can be healed, the `workspace_folders` table in SQLite is updated automatically.
+   - Validation and auto-resolution in the `/folder` command, with a clear notice to the user.
+2. **Restored temporal metadata cascade for the web (`extract_web_metadata`)**, ported to native Rust:
+   - Tier 1: HTML meta tags (`article:modified_time`, `dcterms.modified`, `dc.date.modified`, `article:published_time`, `dcterms.issued`), JSON-LD schema.org (`dateModified`, `datePublished`) and `<time datetime="...">`.
+   - Tier 2: footer patterns (`Date modified:`, `Last modified:`, `Last updated:`, `Page details`).
+   - Tier 3: date patterns in the URL (`/YYYY/MM/DD/`).
+   - Tier 4: the `<lastmod>` field of XML sitemaps.
+   - Tier 5: the HTTP `Last-Modified` header (RFC 2822 / 7231).
+   - Tier 6: the current crawl timestamp `Utc::now()` (never a hard-coded `0.0`).
+3. **Lightweight web source check without downloading the body (RFC 7232)**: `check_url_modified` sends HTTP `HEAD` with the conditional headers `If-None-Match` (`ETag`) and `If-Modified-Since` (`Last-Modified`); a `304 Not Modified` answer, evaluated in under 50 ms, confirms `Up to date` without data transfer.
+4. **End-to-end `last_modified` propagation and LLM formatting**:
+   - Add `pub last_modified: Option<String>` to `DocRecord` (BM25) and `HybridSearchResult`.
+   - Inject `| Modified: <timestamp>` into the header of every chunk returned by `search_db`: `• [{file_name}] (Score: {score:.2}, Source: {file_path}, Type: {content_type} | Modified: {timestamp}):`
+   - Add a recency micro-boost to the ranking to break score ties in favor of newer versions.
+5. **Active change detection and source health in the TUI**:
+   - `DiffResult` in `WorkspaceScanner` tracks `missing_folders: Vec<String>`.
+   - A periodic lightweight check in the TUI (`check_source_health`) shows `⚠️ [Sync: X folder(s) unreachable]` for unreachable folders, `⚡ [Sync: Changes detected (/sync)]` when changes are detected, and `✔ Up to date` when sources are in sync, in both header and footer.
+   - Files that were moved or deleted are purged from LanceDB and BM25 during `/sync`.
+
+## Alternatives Considered
+
+Not recorded.
+
+## Consequences
+
+- No more "folder not found" errors when the folder exists on Google Drive.
+- The LLM sees the date and time of every document and applies the recency rule consistently.
+- The user gets immediate visual feedback on source health and changes.

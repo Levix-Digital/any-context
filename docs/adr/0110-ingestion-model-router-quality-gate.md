@@ -1,29 +1,38 @@
 ---
 id: 110
-title: ModelRouter na Ingestão, Quality Gate Determinístico & Reconstrução Espacial de Formulários (RFC-043)
+title: Ingestion ModelRouter, Deterministic Quality Gate and Spatial Form Reconstruction (RFC-043)
 status: accepted
 date: '2026-10-10'
-version: null
-subsystems: []
+version: v0.34.2
+subsystems: [ingestion, chunkers]
 supersedes: []
 superseded_by: []
 amends: []
 amended_by: []
 ---
 
-# ADR-0110: ModelRouter na Ingestão, Quality Gate Determinístico & Reconstrução Espacial de Formulários (RFC-043)
+# ADR-0110: Ingestion ModelRouter, Deterministic Quality Gate and Spatial Form Reconstruction (RFC-043)
 
-- **Status**: Aprovado & Implementado (`v0.34.2`).
-- **Contexto**: Documentos com formulários densos, tabelas multi-colunares ou páginas digitalizadas (scans) sofriam severa perda de associação semântica em pipelines RAG padrão, enquanto arquivos com delimitadores repetitivos e fragmentos soltos poluíam os rankings do BM25 e vetoriais com ruído semântico.
-- **Decisão**:
-  1. Criar o módulo `crates/any-context-core-rs/src/ingestion/quality_gate.rs` com heurísticas matemáticas estritamente determinísticas executadas em menos de 0.1ms por chunk, descartando ruídos de baixa entropia e encaminhando tabelas densas para tratamento de layout.
-  2. Implementar `SpatialFormChunker` em `crates/any-context-core-rs/src/ingestion/chunkers/spatial_form.rs` para extração 2D tipográfica agnóstica de domínio, garantindo acurácia sem dependência de vocabulários específicos de indústria.
-  3. Criar `IngestionModelRouter` em `crates/any-context-core-rs/src/ingestion/model_router.rs` orquestrando o pipeline de 3 níveis com suporte a `VisionExecutionMode` (`Disabled`, `LocalSlm`, `CorporateVpc`) e fallback puro em Rust (< 5MB de memória RAM, sem necessidade de GPU ou download de modelos pesados).
-  4. Integrar o `model_router` no `NativeSyncOrchestrator` estendendo `SyncResult` com métricas auditáveis: `chunks_dropped_quality`, `documents_enriched_ai` e `quality_pass_rate`.
-- **Consequências**:
-  - Eliminação de 100% do ruído estrutural e fragmentos degenerados no índice vetorial do LanceDB e Okapi BM25.
-  - Reconstrução precisa de documentos tabulares complexos e formulários, incluindo os casos de uso críticos do benchmark `IKEAShipments`.
-  - Execução ultra-leve viabilizando operação fluida em máquinas corporativas modestas (Intel Core i5/i7, 8GB-16GB RAM, gráficos integrados).
-  - 100% de cobertura de testes automatizados unitários e de integração verdes no workspace.
+## Context
 
----
+Documents with dense forms, multi-column tables or scanned pages lost their semantic associations in standard RAG pipelines, while files with repetitive delimiters and loose fragments polluted the BM25 and vector rankings with noise.
+
+## Decision
+
+1. Create `crates/any-context-core-rs/src/ingestion/quality_gate.rs` with strictly deterministic mathematical heuristics that run in under 0.1 ms per chunk, discard low-entropy noise and send dense tables to layout handling.
+2. Implement `SpatialFormChunker` in `crates/any-context-core-rs/src/ingestion/chunkers/spatial_form.rs` for domain-agnostic 2D typographic extraction, accurate without relying on industry-specific vocabularies.
+3. Create `IngestionModelRouter` in `crates/any-context-core-rs/src/ingestion/model_router.rs`, orchestrating the three-level pipeline with `VisionExecutionMode` (`Disabled`, `LocalSlm`, `CorporateVpc`) and a pure Rust fallback (under 5 MB of RAM, no GPU and no heavy model download).
+4. Integrate the model router into `NativeSyncOrchestrator`, extending `SyncResult` with auditable metrics: `chunks_dropped_quality`, `documents_enriched_ai` and `quality_pass_rate`.
+
+Later ADRs refer to this pure Rust fallback as the "ADR-110 Zero-Breakage Guarantee".
+
+## Alternatives Considered
+
+Not recorded.
+
+## Consequences
+
+- Structural noise and degenerate fragments are removed from the LanceDB and Okapi BM25 indexes.
+- Complex tabular documents and forms are reconstructed accurately, including the critical cases of the `IKEAShipments` benchmark.
+- Very light execution, suitable for modest corporate machines (Intel Core i5/i7, 8-16 GB RAM, integrated graphics).
+- Unit and integration tests green across the workspace.

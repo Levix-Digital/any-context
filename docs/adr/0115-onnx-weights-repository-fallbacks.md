@@ -1,47 +1,50 @@
 ---
 id: 115
-title: Repositório de Pesos ONNX Nativo, Fallbacks Resilientes, Indicador Search Mode no Header e Tom Conversacional Humano
+title: Native ONNX Weights Repository, Resilient Fallbacks, Search Mode Header Indicator and Human Conversational Tone
 status: accepted
 date: '2026-10-10'
-version: null
-subsystems: []
+version: v0.34.7
+subsystems: [model-catalog, tui, agent, ci-release]
 supersedes: []
 superseded_by: []
 amends: []
 amended_by: []
 ---
 
-# ADR-0115: Repositório de Pesos ONNX Nativo, Fallbacks Resilientes, Indicador Search Mode no Header e Tom Conversacional Humano
+# ADR-0115: Native ONNX Weights Repository, Resilient Fallbacks, Search Mode Header Indicator and Human Conversational Tone
 
-- **Status**: Aprovado & Implementado (`v0.34.7`).
-- **Contexto**: 
-  1. A TUI exibia opções genéricas mencionando Ollama para visão e classificação, divergindo do design do AnyContext focado em inferência nativa embarcada via ONNX Runtime e heurísticas 2D.
-  2. A ausência de modelos parciais não podia quebrar a indexação ou execução.
-  3. O indicador de modo de busca (`AUTO`, `FAST`, `DEEP`) estava ausente na barra superior e sua persistência não era recarregada ao alternar workspaces no menu.
-  4. O spinner Braille girava em sentido anti-horário e com velocidade lenta.
-  5. Respostas com ausência de fatos continham disclaimers robóticos rígidos (`⚠️ Essa informação não consta...`), gerando falsa impressão de erro.
-  6. O teste unitário de temporização no CI do Windows (`windows-latest`) apresentava flakiness sob jitter de I/O virtualizado.
-- **Decisões**:
-  1. **Repositório de Pesos ONNX Nativo (`OnnxModelManager`)**:
-     - Diretório padronizado em `%LOCALAPPDATA%\AnyContext\models\` (Windows) e `~/.local/share/any-context/models/` (Linux).
-     - Catálogo canônico com nomes e especificações reais: `Laya AI (mmBERT INT8 ONNX)`, `MobileNetV4 RVL-CDIP (ONNX)`, `BGE-Small Query Classifier (ONNX)`, `Moondream2 1.8B (INT4 ONNX)` e `SmolVLM-500M (ONNX)`.
-     - Download assíncrono não-bloqueante acionado via teclado no submenu "Document AI & Modelos Locais" com streaming HTTP e escrita atômica via arquivo temporário.
-  2. **Matriz de Tolerância a Falhas & Fallbacks**:
-     - Se nenhum modelo ONNX for baixado, o sistema opera 100% no motor determinístico e heurística espacial 2D em Rust puro (<5MB RAM).
-     - Presença parcial de modelos opera normalmente sem pânico nem quebra.
-     - O comando `/status` detalha a integridade em tempo real dos modelos e diretório local.
-  3. **Indicador Search Mode no Header da TUI & Isolamento por Workspace**:
-     - Adicionado `[Search: AUTO|FAST|DEEP]` com tokens da paleta Aurora Boreal (`theme.info`, `theme.primary`, `theme.magenta`).
-     - Atualizado `switch_to_workspace` em `App` para recarregar o `search_mode` do SQLite `NativeConfigDb` imediatamente na troca.
-  4. **Spinner Braille Horário 2x**:
-     - Invertida a sequência para a rotação horária canônica `["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"]` com aceleração `(app.tick_count * 2) % len`.
-  5. **Tom Conversacional Humano**:
-     - Erradicação de `⚠️ Essa informação não consta nos documentos deste workspace` de `prompt.rs` e `AGENT.md`.
-     - O agente responde naturalmente e de forma direta como um colega de equipe, sem alarmes.
-  6. **Resiliência de CI no Runner do Windows**:
-     - Ajustado o teto de temporização no teste de inicialização para `< 500ms`, garantindo 100% de estabilidade sob I/O virtualizado em runners compartilhados.
-- **Consequências**:
-  - Interface fluida, natural, auditável e informativa em tempo real.
-  - Zero dependência externa obrigatória; download sob demanda com fallbacks perfeitos.
-  - 100% dos testes verdes e CI resiliente.
----
+## Context
+
+1. The TUI offered generic options mentioning Ollama for vision and classification, which diverged from the AnyContext design based on embedded inference through ONNX Runtime and 2D heuristics.
+2. Missing models must not break indexing or execution.
+3. The search mode indicator (`AUTO`, `FAST`, `DEEP`) was missing from the top bar, and its persisted value was not reloaded when switching workspaces from the menu.
+4. The Braille spinner rotated counter-clockwise and slowly.
+5. Answers without supporting facts contained rigid, robotic disclaimers (a "⚠️ This information is not in ..." warning), which looked like errors.
+6. The timing unit test on the Windows CI runner (`windows-latest`) was flaky under virtualized I/O jitter.
+
+## Decision
+
+1. **Native ONNX weights repository (`OnnxModelManager`)**:
+   - Standard directory `%LOCALAPPDATA%\AnyContext\models\` (Windows) and `~/.local/share/any-context/models/` (Linux).
+   - Canonical catalog with real names and specifications: `Laya AI (mmBERT INT8 ONNX)`, `MobileNetV4 RVL-CDIP (ONNX)`, `BGE-Small Query Classifier (ONNX)`, `Moondream2 1.8B (INT4 ONNX)` and `SmolVLM-500M (ONNX)`.
+   - Non-blocking asynchronous download, triggered from the keyboard in the "Document AI and Local Models" submenu, with HTTP streaming and an atomic write through a temporary file.
+2. **Fault tolerance and fallback matrix**:
+   - With no ONNX model downloaded, the system runs entirely on the deterministic engine and the pure Rust 2D spatial heuristics (under 5 MB RAM).
+   - With some models present, everything works normally without panics.
+   - `/status` reports the real-time integrity of the models and the local directory.
+3. **Search mode indicator in the TUI header and per-workspace isolation**:
+   - Add `[Search: AUTO|FAST|DEEP]` using the Aurora Borealis palette tokens (`theme.info`, `theme.primary`, `theme.magenta`).
+   - Update `switch_to_workspace` in `App` to reload `search_mode` from SQLite (`NativeConfigDb`) immediately on switch.
+4. **Clockwise Braille spinner at 2x speed**: reverse the sequence to the canonical clockwise rotation `["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"]`, accelerated with `(app.tick_count * 2) % len`.
+5. **Human conversational tone**: remove the "this information is not in this workspace's documents" warning from `prompt.rs` and `AGENT.md`; the agent answers naturally and directly, like a teammate, without alarms.
+6. **CI resilience on the Windows runner**: raise the timing ceiling of the startup test to `< 500ms`, keeping it stable under virtualized I/O on shared runners.
+
+## Alternatives Considered
+
+Not recorded.
+
+## Consequences
+
+- Fluid, natural, auditable interface with real-time information.
+- No mandatory external dependency; models are downloaded on demand with full fallbacks.
+- All tests green and a resilient CI.

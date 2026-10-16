@@ -1,41 +1,45 @@
 ---
 id: 121
-title: Modular ONNX Crate (`crates/actx-onnx`), Hardware Pre-Flight Check & Semaphore-Tiered Installation Profiles
+title: Modular ONNX Crate (actx-onnx), Hardware Pre-Flight Check and Semaphore-Tiered Installation Profiles
 status: accepted
 date: '2026-10-13'
 version: v0.37.0
-subsystems: []
+subsystems: [onnx, model-catalog, installer]
 supersedes: []
 superseded_by: []
 amends: []
 amended_by: []
 ---
 
-# ADR-0121: Modular ONNX Crate (`crates/actx-onnx`), Hardware Pre-Flight Check & Semaphore-Tiered Installation Profiles
+# ADR-0121: Modular ONNX Crate (actx-onnx), Hardware Pre-Flight Check and Semaphore-Tiered Installation Profiles
 
-- **Status**: Implemented & Verified
-- **Date**: 2026-10-13
-- **Context**:
-  1. AnyContext previously cataloged canonical ONNX models (MobileNetV4, CLIP-ViT, LayoutLMv3, BGE-Small, Laya) and managed downloads, but inference remained gated behind pure Rust deterministic heuristics without tensor runtime bindings.
-  2. Installing or selecting models required high cognitive overhead from standard users, while demanding fine-grained governance from power users and security-conscious enterprise teams.
-  3. Coupling the ONNX runtime directly into `any-context-core-rs` risked increasing compile times, binary size, and deployment friction on resource-constrained platforms.
-- **Decision**:
-  1. **Modular Inference Crate (`crates/actx-onnx`)**:
-     - Created independent crate `crates/actx-onnx` implementing `OnnxQueryClassifier`, `OnnxScanSentinel`, `OnnxLayoutExtractor`, and `OnnxVisionEncoder`.
-     - Coupled to Core strictly via Rust traits and Inversion of Control with Cargo feature flag `onnx = ["dep:actx-onnx"]`.
-     - Preserves ADR-110 Zero-Breakage Guarantee: missing or corrupted ONNX weights immediately fall back to pure Rust deterministic heuristics without crash.
-  2. **Sub-5ms Hardware Pre-Flight Check**:
-     - `HardwareProfiler` probes physical RAM (total/available) and free storage via native OS APIs (Windows `GlobalMemoryStatusEx` / `GetDiskFreeSpaceExW`, Linux `/proc/meminfo`, macOS `sysctl`).
-     - Maps capabilities to Semaphore states (🟢 Green / 🟡 Yellow / 🔴 Red) across 3 canonical profiles:
-       - **🌌 Air-Gapped Power** ($\ge 16\text{ GB}$ RAM): 5 models (~740 MB disk).
-       - **⚡ Smart Balanced** ($8\text{ GB}$ RAM): 3 models (~252 MB disk).
-       - **🟢 Lite / Fast-Path** ($< 8\text{ GB}$ RAM, CI/VMs): 0 MB downloads, 100% pure Rust heuristics (<1µs cold start).
-     - Auto-selects the most powerful Green profile silently while enabling power users to customize selections.
-  3. **Multi-Surface Commands & TUI Menu**:
-     - Added `/profile` (alias `/preset`) command to switch tiers, inspect semaphores, and trigger model downloads.
-     - Enriched `/status` command and added interactive TUI submenu (`[F1] -> Hardware Profiles`).
-     - Added `--profile=<tier>` and `--preflight-only` flags to `actx-installer`.
-- **Consequences**:
-  - Zero cognitive friction for general users with instant optimal hardware profile selection.
-  - Complete architectural decoupling between Core business logic and neural tensor inference runtimes.
-  - Full air-gapped autonomy for high-spec workstations and ultra-lightweight efficiency for CI/Docker environments.
+## Context
+
+1. AnyContext cataloged canonical ONNX models (MobileNetV4, CLIP-ViT, LayoutLMv3, BGE-Small, Laya) and managed their downloads, but inference was still pure Rust deterministic heuristics without tensor runtime bindings.
+2. Installing or selecting models demanded too much from standard users, while power users and security-conscious enterprise teams wanted fine-grained control.
+3. Coupling the ONNX runtime directly into `any-context-core-rs` risked longer compile times, a larger binary and deployment friction on constrained platforms.
+
+## Decision
+
+1. **Modular inference crate (`crates/actx-onnx`)**:
+   - An independent crate implementing `OnnxQueryClassifier`, `OnnxScanSentinel`, `OnnxLayoutExtractor` and `OnnxVisionEncoder`.
+   - Coupled to the core only through Rust traits and inversion of control, behind the Cargo feature `onnx = ["dep:actx-onnx"]`.
+   - Keeps the ADR-110 Zero-Breakage Guarantee: missing or corrupted ONNX weights fall back immediately to the pure Rust deterministic heuristics without crashing.
+2. **Sub-5 ms hardware pre-flight check**:
+   - `HardwareProfiler` probes physical RAM (total and available) and free storage through native OS APIs (Windows `GlobalMemoryStatusEx` / `GetDiskFreeSpaceExW`, Linux `/proc/meminfo`, macOS `sysctl`).
+   - Capabilities map to semaphore states (green, yellow, red) across three canonical profiles: **Air-Gapped Power** (16 GB RAM or more): five models (about 740 MB on disk); **Smart Balanced** (8 GB RAM): three models (about 252 MB); **Lite / Fast-Path** (under 8 GB RAM, CI, VMs): no downloads, pure Rust heuristics (under 1 µs cold start).
+   - The most powerful green profile is selected silently, and power users can customize the selection.
+3. **Multi-surface commands and TUI menu**:
+   - `/profile` (alias `/preset`) switches tiers, shows the semaphores and triggers model downloads.
+   - `/status` is enriched and an interactive TUI submenu is added (`[F1] -> Hardware Profiles`).
+   - `actx-installer` gains the `--profile=<tier>` and `--preflight-only` flags.
+
+## Alternatives Considered
+
+Not recorded.
+
+## Consequences
+
+- No friction for general users, who get the best hardware profile automatically.
+- Core business logic is fully decoupled from neural tensor inference runtimes.
+- Full air-gapped autonomy on high-end workstations and very light operation in CI and Docker.

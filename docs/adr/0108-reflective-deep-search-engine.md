@@ -1,29 +1,36 @@
 ---
 id: 108
-title: Motor Deep Search Agêntico Reflexivo e Roteamento Adaptativo (RFC-042)
+title: Reflective Agentic Deep Search Engine and Adaptive Routing (RFC-042)
 status: accepted
 date: '2026-10-09'
-version: null
-subsystems: []
+version: v0.34.0
+subsystems: [agent, retrieval, tui]
 supersedes: []
 superseded_by: []
 amends: []
 amended_by: []
 ---
 
-# ADR-0108: Motor Deep Search Agêntico Reflexivo e Roteamento Adaptativo (RFC-042)
+# ADR-0108: Reflective Agentic Deep Search Engine and Adaptive Routing (RFC-042)
 
-- **Status**: Aprovado & Implementado (`v0.34.0`).
-- **Contexto**: Consultas complexas em bases de documentação corporativas frequentemente falham em abordagens RAG de turno único (*single-turn*), pois perguntas multifacetadas requerem investigação iterativa, refinamento de termos e síntese de evidências dispersas em múltiplos módulos e arquivos.
-- **Decisão**:
-  1. Implementar o `DeepSearchOrchestrator` em `crates/actx-agent/src/deep_search.rs`, estruturado em 4 etapas (Decomposição Ortogonal, Recuperação Híbrida em Lote, Análise de Lacunas/Reflexão e Síntese Final).
-  2. Integrar o trait assíncrono `DeepSearchRetriever` com o `NativeHybridPipeline` existente (`LanceDB` + `BM25 Okapi` + `RRF` $k=60$), preservando deduplicação por hash de conteúdo e proveniência exata de linhas.
-  3. Adicionar eventos reativos tipados (`AgentEvent::Decomposition`, `AgentEvent::IterationStart`, `AgentEvent::GapAnalysis`) para que as interfaces (TUI e CLI) informem ao usuário a evolução da investigação em tempo real.
-  4. Disponibilizar os comandos de atalho `/deep`, `/fast` e a persistência de configuração `/search` em todas as superfícies de comando.
-- **Consequências**:
-  - Respostas substancialmente mais ricas, precisas e embasadas para investigações arquiteturais complexas.
-  - Eliminação de alucinações através do descarte de chunks não correlatos e citação estrita de arquivos e intervalos de linhas.
-  - Preservação da latência ultrarrápida (graças ao paralelismo de Rust e *early stopping* quando as informações acumuladas são suficientes).
-  - 100% de cobertura com testes unitários e de integração verdes em todo o workspace.
+## Context
 
----
+Complex questions over corporate documentation often fail with single-turn RAG: multi-faceted questions need iterative investigation, term refinement and synthesis of evidence spread across many modules and files.
+
+## Decision
+
+1. Implement `DeepSearchOrchestrator` in `crates/actx-agent/src/deep_search.rs` with four stages: orthogonal decomposition, batched hybrid retrieval, gap analysis (reflection) and final synthesis.
+2. Connect the async `DeepSearchRetriever` trait to the existing `NativeHybridPipeline` (LanceDB + Okapi BM25 + RRF with k = 60), keeping content-hash deduplication and exact line provenance.
+3. Add typed reactive events (`AgentEvent::Decomposition`, `AgentEvent::IterationStart`, `AgentEvent::GapAnalysis`) so the TUI and CLI show the progress of the investigation in real time.
+4. Provide the `/deep` and `/fast` shortcuts and the persisted `/search` setting on every command surface.
+
+## Alternatives Considered
+
+Not recorded.
+
+## Consequences
+
+- Much richer, more precise and better grounded answers to complex architectural questions.
+- Fewer hallucinations, by discarding unrelated chunks and citing exact files and line ranges.
+- Latency stays low thanks to Rust parallelism and early stopping once the accumulated evidence is sufficient.
+- Unit and integration tests green across the workspace.

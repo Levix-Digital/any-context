@@ -1,32 +1,39 @@
 ---
 id: 112
-title: Estabilização de UX, Paridade Linguística Deep Search, Prompt Multilinhas e Auto-Conhecimento Transparente
+title: UX Stabilization, Deep Search Language Parity, Multi-Line Prompt and Transparent Self-Knowledge
 status: accepted
 date: '2026-10-10'
-version: null
-subsystems: []
+version: v0.34.4
+subsystems: [agent, tui, storage]
 supersedes: []
 superseded_by: []
 amends: []
 amended_by: []
 ---
 
-# ADR-0112: Estabilização de UX, Paridade Linguística Deep Search, Prompt Multilinhas e Auto-Conhecimento Transparente
+# ADR-0112: UX Stabilization, Deep Search Language Parity, Multi-Line Prompt and Transparent Self-Knowledge
 
-- **Status**: Aprovado & Implementado (`v0.34.4`).
-- **Contexto**: A evolução do AnyContext para suporte a Deep Search e múltiplos modos exigia refinamento fino em detalhes de interação humana (acessibilidade de teclado, fidelidade de idioma, legibilidade de telemetria) e garantia de que manuais de auto-ajuda permaneçam indexados entre versões.
-- **Decisões**:
-  1. **Sanitização de Conclusão Deep Search**: Reforçar as instruções do `SUMMARY_PROMPT` em `actx-agent/src/deep_search.rs` e adicionar `sanitize_direct_conclusion` para podar metanarrativas reflexivas.
-  2. **Persistência de `search_mode`**: Adicionar a coluna `search_mode` na tabela `workspaces` com migração automática transparente e suporte nos comandos `/search` e `/switch`.
-  3. **Event Loop TUI a 125ms & 8-Dot Spinner**: Aumentar a cadência visual de sincronização em segundo plano reduzindo a latência do loop para 125ms com glifos `⣾⣽⣻⢿⡿⣟⣯⣷`.
-  4. **Instrução de Atualização Segura**: Substituir chamada in-process de atualização por instrução segura para terminal do SO (`actx --update`), prevenindo colisões de I/O em raw-mode.
-  5. **Input Multilinhas Flexível**: Adicionar suporte a múltiplas linhas no buffer de entrada (`\n`), captura de `Shift+Enter` / `Alt+Enter` / `Ctrl+J`, cálculo dinâmico de altura (`clamp(3, 8)`) e cursor 2D `(x, y)`.
-  6. **Identidade Visual por Workspace**: Prefixar respostas com `[AI - <Workspace>]` na cor de destaque suave `Color::LightCyan` e renderizar texto digitado pelo usuário em `Color::Gray`.
-  7. **Auto-Consciência Versão-Ciente**: Armazenar `global_knowledge_version` em `app_settings` no SQLite e disparar sincronização transparente do `Global` em segundo plano quando a versão for atualizada.
-  8. **Document AI no Menu**: Incluir itens explicativos e de ação para modelos locais e visão espacial em `actx-cli/src/tui/menu.rs`.
-- **Consequências**:
-  - Eliminação completa de respostas em inglês para perguntas feitas em português no Deep Search.
-  - O usuário visualiza com clareza em qual workspace a IA está atuando e o que o motor está executando nos bastidores.
-  - Nenhuma perda de auto-consciência em relação aos comandos e funcionamento do sistema após updates.
+## Context
 
----
+With Deep Search and several modes in place, AnyContext needed refinement in human interaction details (keyboard accessibility, answer language fidelity, readable telemetry) and a guarantee that the self-help manuals stay indexed across versions.
+
+## Decision
+
+1. **Deep Search conclusion sanitization**: strengthen the `SUMMARY_PROMPT` instructions in `actx-agent/src/deep_search.rs` and add `sanitize_direct_conclusion` to strip reflective meta-narrative.
+2. **Persisted `search_mode`**: add a `search_mode` column to the `workspaces` table with a transparent automatic migration, supported by `/search` and `/switch`.
+3. **125 ms TUI event loop and 8-dot spinner**: reduce the loop latency to 125 ms for background sync feedback, using the glyphs `⣾⣽⣻⢿⡿⣟⣯⣷`.
+4. **Safe update instruction**: replace the in-process update call with an instruction to run `actx --update` in the OS terminal, avoiding I/O collisions in raw mode.
+5. **Flexible multi-line input**: support multiple lines (`\n`) in the input buffer, capture `Shift+Enter` / `Alt+Enter` / `Ctrl+J`, compute the height dynamically (`clamp(3, 8)`) and track a 2D `(x, y)` cursor.
+6. **Per-workspace visual identity**: prefix answers with `[AI - <Workspace>]` in the soft accent color `Color::LightCyan` and render the user's text in `Color::Gray`.
+7. **Version-aware self-knowledge**: store `global_knowledge_version` in `app_settings` in SQLite and trigger a transparent background sync of the `Global` workspace when the version changes.
+8. **Document AI in the menu**: add explanatory and action items for local models and spatial vision in `actx-cli/src/tui/menu.rs`.
+
+## Alternatives Considered
+
+Not recorded.
+
+## Consequences
+
+- Deep Search no longer answers in English to questions asked in Portuguese.
+- Users can see which workspace the AI is acting on and what the engine is doing behind the scenes.
+- Self-knowledge about commands and behavior is not lost after updates.

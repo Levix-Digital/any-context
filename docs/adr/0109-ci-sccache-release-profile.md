@@ -1,28 +1,35 @@
 ---
 id: 109
-title: Aceleração de CI/CD com Sccache e Otimizações de Perfil de Release
+title: CI/CD Acceleration with Sccache and Release Profile Optimizations
 status: accepted
 date: '2026-10-09'
-version: null
-subsystems: []
+version: v0.34.1
+subsystems: [ci-release]
 supersedes: []
 superseded_by: []
 amends: []
 amended_by: []
 ---
 
-# ADR-0109: Aceleração de CI/CD com Sccache e Otimizações de Perfil de Release
+# ADR-0109: CI/CD Acceleration with Sccache and Release Profile Optimizations
 
-- **Status**: Aprovado & Implementado (`v0.34.1`).
-- **Contexto**: A compilação limpa do ecossistema Rust (com LanceDB, Apache Arrow, DataFusion e Tree-sitter em C) demandava ~50 minutos no runner Windows do GitHub Actions, gerando atrito e lentidão no ciclo de release.
-- **Decisão**:
-  1. Configurar `mozilla-actions/sccache-action@v0.0.11` com `SCCACHE_GHA_ENABLED: "true"` e `RUSTC_WRAPPER: "sccache"` nos workflows `release.yml` e `e2e-tests.yml`.
-  2. Ajustar `swatinem/rust-cache` para `cache-targets: "false"`, focando exclusivamente no cache do registro de crates.
-  3. Adicionar permissão explícita `actions: write` aos workflows.
-  4. Adicionar perfil `[profile.release]` no `Cargo.toml` com `opt-level = 3`, `codegen-units = 16`, `lto = "off"`, `strip = true` e `debug = false`.
-- **Consequências**:
-  - Eliminação de recompilações desnecessárias de dependências externas após bumps de versão.
-  - Redução drástica do tempo de execução dos pipelines no GitHub Actions.
-  - Rastreabilidade via telemetria nativa `${SCCACHE_PATH} --show-stats` nos logs da esteira.
+## Context
 
----
+A clean build of the Rust workspace (LanceDB, Apache Arrow, DataFusion and the C-based Tree-sitter grammars) took about 50 minutes on the GitHub Actions Windows runner, slowing down the release cycle.
+
+## Decision
+
+1. Configure `mozilla-actions/sccache-action@v0.0.11` with `SCCACHE_GHA_ENABLED: "true"` and `RUSTC_WRAPPER: "sccache"` in the `release.yml` and `e2e-tests.yml` workflows.
+2. Set `swatinem/rust-cache` to `cache-targets: "false"`, caching only the crate registry.
+3. Grant the workflows the explicit `actions: write` permission.
+4. Add a `[profile.release]` to `Cargo.toml` with `opt-level = 3`, `codegen-units = 16`, `lto = "off"`, `strip = true` and `debug = false`.
+
+## Alternatives Considered
+
+Not recorded.
+
+## Consequences
+
+- External dependencies are no longer recompiled after version bumps.
+- Much shorter pipeline run times on GitHub Actions.
+- Cache effectiveness is visible in the logs through `${SCCACHE_PATH} --show-stats`.
