@@ -1,3 +1,37 @@
+---
+plan_id: anycontext_roadmap_pos_v0450_proximas_frentes
+project: any-context
+title: 'Roadmap pós-v0.45.0: Próximas Frentes de Desenvolvimento'
+version: v0.46.0
+status: active
+author: 'Claude (cloud session, PR #328)'
+created_at: '2026-10-16T10:45:40'
+updated_at: '2026-10-16T10:52:10'
+session_id: null
+tags:
+- roadmap
+- frente_c
+- frente_d
+- backlog
+- handoff
+supersedes: null
+superseded_by: null
+parent_plan_id: null
+milestones:
+- name: Frente C (v0.46.0)
+  done: false
+- name: Frente D (v0.47.0)
+  done: false
+status_log:
+- at: '2026-10-16T10:45:40'
+  by: Claude (cloud session)
+  status: active
+  note: 'Roadmap handoff added in PR #328'
+- at: '2026-10-16T10:52:10'
+  by: Levi Silveira
+  note: Frontmatter added (plan-memory shared plan format)
+---
+
 # 🗺️ Roadmap pós-v0.45.0: Próximas Frentes de Desenvolvimento
 
 - **Data**: 2026-10-16
