@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "levix-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Levix-Digital/ai-code-agent-skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "dev-skills@levix-agent-skills": true
+  }
+}
