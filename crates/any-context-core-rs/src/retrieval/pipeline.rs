@@ -169,6 +169,9 @@ pub struct HybridSearchResult {
     pub last_modified: Option<String>,
 }
 
+/// Query embedding model used until `set_embedding` is called.
+pub const DEFAULT_QUERY_EMBEDDING_MODEL: &str = "text-embedding-3-small";
+
 /// Maximum candidates re-scored by the cross-encoder per query (ADR-130).
 pub const MAX_RERANK_CANDIDATES: usize = 30;
 
@@ -259,6 +262,7 @@ pub struct NativeHybridPipeline {
     lance_store: Arc<NativeLanceStore>,
     bm25_indices: Arc<RwLock<HashMap<String, BM25Index>>>,
     lm_client: Option<Arc<dyn LmProvider>>,
+    embedding_model: String,
     reranker: Option<Arc<actx_onnx::OnnxReranker>>,
     rerank_mode: String,
 }
@@ -273,6 +277,7 @@ impl NativeHybridPipeline {
             lance_store,
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
             lm_client: None,
+            embedding_model: DEFAULT_QUERY_EMBEDDING_MODEL.to_string(),
             reranker: None,
             rerank_mode: "auto".to_string(),
         })
@@ -286,6 +291,7 @@ impl NativeHybridPipeline {
             lance_store,
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
             lm_client,
+            embedding_model: DEFAULT_QUERY_EMBEDDING_MODEL.to_string(),
             reranker: None,
             rerank_mode: "auto".to_string(),
         }
@@ -294,6 +300,19 @@ impl NativeHybridPipeline {
     /// Sets the optional language model client for native on-the-fly embeddings.
     pub fn set_lm_client(&mut self, lm_client: Option<Arc<dyn LmProvider>>) {
         self.lm_client = lm_client;
+    }
+
+    /// Sets the embedding provider and model used for query vectors. They must match the ones
+    /// used at ingestion time (see `ingestion::resolve_embedding_provider`), otherwise query and
+    /// chunk vectors live in different spaces.
+    pub fn set_embedding(&mut self, lm_client: Option<Arc<dyn LmProvider>>, model: impl Into<String>) {
+        self.lm_client = lm_client;
+        self.embedding_model = model.into();
+    }
+
+    /// Embedding model used for query vectors.
+    pub fn embedding_model(&self) -> &str {
+        &self.embedding_model
     }
 
     /// Sets the optional cross-encoder neural reranker.
@@ -533,7 +552,7 @@ impl NativeHybridPipeline {
         let query_vec = if let Some(ref v) = req.query_vector {
             Some(v.clone())
         } else if let Some(ref lm) = self.lm_client {
-            match lm.embed("text-embedding-3-small", &[req.query_text.clone()]).await {
+            match lm.embed(&self.embedding_model, &[req.query_text.clone()]).await {
                 Ok(vecs) if !vecs.is_empty() => Some(vecs[0].clone()),
                 _ => None,
             }

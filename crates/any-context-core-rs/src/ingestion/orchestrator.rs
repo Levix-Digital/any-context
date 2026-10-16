@@ -664,42 +664,10 @@ impl NativeSyncOrchestrator {
             };
 
             for page in pages {
-                let chunks = match self.router.chunk_text_native(&page.url, &page.text) {
-                    Ok(c) => c,
-                    Err(_) => continue,
-                };
-
-                if chunks.is_empty() {
-                    continue;
-                }
-
-                let mut hasher = Sha256::new();
-                hasher.update(page.text.as_bytes());
-                let hash_hex = format!("{:x}", hasher.finalize());
-
-                let envelope = enricher.extract_envelope(&page.text, &page.title, None, Some(&page.url));
-
-                let page_mtime = if let Some(ref lm) = page.lastmod {
-                    chrono::DateTime::parse_from_rfc3339(lm)
-                        .map(|dt| dt.timestamp() as f64)
-                        .or_else(|_| {
-                            chrono::NaiveDate::parse_from_str(lm, "%Y-%m-%d")
-                                .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() as f64)
-                        })
-                        .unwrap_or_else(|_| chrono::Utc::now().timestamp() as f64)
-                } else {
-                    chrono::Utc::now().timestamp() as f64
-                };
-
-                let _ = self.embed_and_upsert_chunks(
-                    &chunks,
-                    Some(&envelope),
-                    enricher,
+                let _ = self.index_web_page(
+                    &page,
                     workspace,
-                    &page.url,
-                    &page.title,
-                    &hash_hex,
-                    page_mtime,
+                    enricher,
                     lm_provider,
                     embedding_model,
                     bm25,
@@ -710,55 +678,136 @@ impl NativeSyncOrchestrator {
         Ok(())
     }
 
+    /// Indexes one crawled page. Returns `Ok(false)` when the page was skipped (no chunks, or
+    /// already indexed with the same content hash) and `Ok(true)` when it was (re)indexed.
+    /// A changed page first loses its previous chunks, so re-crawls never accumulate duplicates.
+    async fn index_web_page(
+        &self,
+        page: &crate::ingestion::crawler::CrawledPage,
+        workspace: &str,
+        enricher: &NativeContextualEnricher,
+        lm_provider: &Option<Arc<dyn LmProvider>>,
+        embedding_model: &str,
+        bm25: &mut BM25Index,
+    ) -> Result<bool, String> {
+        let chunks = self.router.chunk_text_native(&page.url, &page.text)?;
+        if chunks.is_empty() {
+            return Ok(false);
+        }
+
+        let mut hasher = Sha256::new();
+        hasher.update(page.text.as_bytes());
+        let hash_hex = format!("{:x}", hasher.finalize());
+
+        // Unchanged page: its chunks are already indexed under this URL and content hash.
+        let clean_url = page.url.replace('\'', "''");
+        let unchanged_clause = format!("file_path = '{clean_url}' AND content_hash = '{hash_hex}'");
+        let already_indexed = self
+            .lance_store
+            .search_metadata_async(&unchanged_clause, 1, Some(workspace), None)
+            .await
+            .map(|hits| hits.iter().any(|h| h.workspace == workspace))
+            .unwrap_or(false);
+        if already_indexed {
+            return Ok(false);
+        }
+
+        // New or changed page: drop its previous chunks (exact URL only, never sub-pages).
+        self.lance_store.delete_by_exact_path(&page.url, Some(workspace), None)?;
+        bm25.remove_by_exact_file(&page.url);
+
+        let envelope = enricher.extract_envelope(&page.text, &page.title, None, Some(&page.url));
+
+        let page_mtime = if let Some(ref lm) = page.lastmod {
+            chrono::DateTime::parse_from_rfc3339(lm)
+                .map(|dt| dt.timestamp() as f64)
+                .or_else(|_| {
+                    chrono::NaiveDate::parse_from_str(lm, "%Y-%m-%d")
+                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() as f64)
+                })
+                .unwrap_or_else(|_| chrono::Utc::now().timestamp() as f64)
+        } else {
+            chrono::Utc::now().timestamp() as f64
+        };
+
+        self.embed_and_upsert_chunks(
+            &chunks,
+            Some(&envelope),
+            enricher,
+            workspace,
+            &page.url,
+            &page.title,
+            &hash_hex,
+            page_mtime,
+            lm_provider,
+            embedding_model,
+            bm25,
+        ).await?;
+        Ok(true)
+    }
+
     /// Resolves active embedding model and concrete provider strategy.
     fn resolve_embedding_provider(
         &self,
         model_override: Option<&str>,
         workspace: &str,
     ) -> (Option<Arc<dyn LmProvider>>, String) {
-        let model = model_override
-            .map(|s| s.to_string())
-            .or_else(|| std::env::var("ACTX_EMBEDDING_MODEL").ok())
-            .or_else(|| std::env::var("ACTX_MODEL").ok())
-            .or_else(|| self.db.get_workspace_model(workspace).ok())
-            .or_else(|| self.db.get_default_model().ok())
-            .unwrap_or_else(|| "text-embedding-3-small".to_string());
-
-        let raw = model.trim().to_lowercase();
-
-        if raw.starts_with("mock") {
-            return (Some(Arc::new(MockLmProvider::new())), "mock-embed".to_string());
-        }
-
-        if raw.starts_with("gemini") {
-            if let Ok(Some(key)) = self.db.get_api_key("gemini") {
-                let provider = GeminiProvider::new(key);
-                return (Some(Arc::new(provider)), "text-embedding-004".to_string());
-            }
-        }
-
-        if raw.starts_with("ollama") || raw.starts_with("local") {
-            let provider = OpenAiCompatibleProvider::new(
-                "ollama",
-                "http://localhost:11434/v1".to_string(),
-                None,
-            );
-            return (Some(Arc::new(provider)), "nomic-embed-text".to_string());
-        }
-
-        // Default OpenAI embedding provider
-        if let Ok(Some(key)) = self.db.get_api_key("openai") {
-            let provider = OpenAiCompatibleProvider::new(
-                "openai",
-                "https://api.openai.com/v1".to_string(),
-                Some(key),
-            );
-            return (Some(Arc::new(provider)), "text-embedding-3-small".to_string());
-        }
-
-        // Deterministic fallback mock provider
-        (Some(Arc::new(MockLmProvider::new())), "text-embedding-3-small".to_string())
+        resolve_embedding_provider(&self.db, model_override, workspace)
     }
+}
+
+/// Resolves the embedding provider and model for a workspace.
+///
+/// Ingestion (chunk vectors) and retrieval (query vectors) must both use this function so a
+/// query is embedded with the same model, and therefore in the same vector space, as the index.
+/// Order: explicit override, `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, workspace model, default model.
+pub fn resolve_embedding_provider(
+    db: &NativeConfigDb,
+    model_override: Option<&str>,
+    workspace: &str,
+) -> (Option<Arc<dyn LmProvider>>, String) {
+    let model = model_override
+        .map(|s| s.to_string())
+        .or_else(|| std::env::var("ACTX_EMBEDDING_MODEL").ok())
+        .or_else(|| std::env::var("ACTX_MODEL").ok())
+        .or_else(|| db.get_workspace_model(workspace).ok())
+        .or_else(|| db.get_default_model().ok())
+        .unwrap_or_else(|| "text-embedding-3-small".to_string());
+
+    let raw = model.trim().to_lowercase();
+
+    if raw.starts_with("mock") {
+        return (Some(Arc::new(MockLmProvider::new())), "mock-embed".to_string());
+    }
+
+    if raw.starts_with("gemini") {
+        if let Ok(Some(key)) = db.get_api_key("gemini") {
+            let provider = GeminiProvider::new(key);
+            return (Some(Arc::new(provider)), "text-embedding-004".to_string());
+        }
+    }
+
+    if raw.starts_with("ollama") || raw.starts_with("local") {
+        let provider = OpenAiCompatibleProvider::new(
+            "ollama",
+            "http://localhost:11434/v1".to_string(),
+            None,
+        );
+        return (Some(Arc::new(provider)), "nomic-embed-text".to_string());
+    }
+
+    // Default OpenAI embedding provider
+    if let Ok(Some(key)) = db.get_api_key("openai") {
+        let provider = OpenAiCompatibleProvider::new(
+            "openai",
+            "https://api.openai.com/v1".to_string(),
+            Some(key),
+        );
+        return (Some(Arc::new(provider)), "text-embedding-3-small".to_string());
+    }
+
+    // Deterministic fallback mock provider
+    (Some(Arc::new(MockLmProvider::new())), "text-embedding-3-small".to_string())
 }
 
 /// Reads file and computes SHA-256 hex string.
@@ -879,6 +928,60 @@ mod tests {
         assert!(text.contains("Hello World"));
         assert!(text.contains("Paragraph text"));
         assert!(!text.contains("console.log"));
+    }
+
+    #[tokio::test]
+    async fn test_recrawled_web_page_never_duplicates_chunks() {
+        let temp_dir = std::env::temp_dir().join(format!("test_orch_web_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let _ = std::fs::create_dir_all(&temp_dir);
+
+        let db = Arc::new(NativeConfigDb::open_in_memory().unwrap());
+        let lance_store = Arc::new(NativeLanceStore::open(&temp_dir.join("lancedb")).unwrap());
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db.clone());
+        let enricher = NativeContextualEnricher::new(db.clone());
+        let mut bm25 = BM25Index::new(None, None);
+
+        let page = |url: &str, text: &str| crate::ingestion::crawler::CrawledPage {
+            url: url.to_string(),
+            title: "Docs".to_string(),
+            text: text.to_string(),
+            lastmod: None,
+            etag: None,
+            content_type: None,
+        };
+        let parent = "https://docs.example.com/guide";
+        let child = "https://docs.example.com/guide/install";
+        let count = |path: &str| {
+            lance_store
+                .search_metadata(&format!("file_path = '{path}'"), 1000, Some("WebWS"), None)
+                .unwrap()
+                .len()
+        };
+
+        let v1 = "# Guide\n\nThe service listens on port 8080 and reads its configuration from settings.toml at startup.";
+        let sub = "# Install\n\nRun the installer, then open a new terminal and start the application with actx.";
+        assert!(orchestrator.index_web_page(&page(child, sub), "WebWS", &enricher, &None, "mock", &mut bm25).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25).await.unwrap());
+        let parent_chunks = count(parent);
+        let child_chunks = count(child);
+        assert!(parent_chunks > 0 && child_chunks > 0);
+
+        // Same content again: skipped, nothing appended.
+        assert!(!orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25).await.unwrap());
+        assert_eq!(count(parent), parent_chunks);
+
+        // Changed content: old chunks replaced, and the sub-page under the same URL prefix is untouched.
+        let v2 = "# Guide\n\nThe service now listens on port 9090 and reads its configuration from config.toml at startup.";
+        assert!(orchestrator.index_web_page(&page(parent, v2), "WebWS", &enricher, &None, "mock", &mut bm25).await.unwrap());
+        let hits = lance_store
+            .search_metadata(&format!("file_path = '{parent}'"), 1000, Some("WebWS"), None)
+            .unwrap();
+        assert!(hits.iter().all(|h| !h.text.contains("8080")), "stale chunks of the old page version remain");
+        assert!(hits.iter().any(|h| h.text.contains("9090")));
+        assert_eq!(count(child), child_chunks);
+
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 
     #[tokio::test]

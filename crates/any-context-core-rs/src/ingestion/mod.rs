@@ -14,7 +14,7 @@ pub mod jina;
 pub use router::IngestionRouter;
 pub use traits::{Chunker, ScanSentinel, ScanAssessment, DocumentVisionExtractor};
 pub use scanner::{WorkspaceScanner, DiffResult};
-pub use orchestrator::{NativeSyncOrchestrator, SyncOptions, SyncResult};
+pub use orchestrator::{NativeSyncOrchestrator, SyncOptions, SyncResult, resolve_embedding_provider};
 pub use enricher::NativeContextualEnricher;
 pub use crawler::{NativeWebCrawler, CrawlerConfig, CrawledPage, SitemapEntry, RobotsPolicy};
 pub use jina::{NativeJinaExtractor, JinaExtractorConfig};
