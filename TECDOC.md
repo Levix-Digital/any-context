@@ -79,6 +79,9 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0133](docs/adr/0133-offline-and-privacy-presets-require-a-working-local-model.md) | Offline and privacy presets require a working local model | accepted |  | 2026-10-16 |
+| [ADR-0132](docs/adr/0132-query-vectors-use-the-ingestion-embedding-provider-and-model.md) | Query vectors use the ingestion embedding provider and model | accepted |  | 2026-10-16 |
+| [ADR-0131](docs/adr/0131-field-level-encryption-on-every-lancedb-write.md) | Field-level encryption on every LanceDB write | accepted |  | 2026-10-16 |
 | [ADR-0130](docs/adr/0130-real-onnx-runtime-multilingual-cross-encoder.md) | Real ONNX Runtime (ort load-dynamic), Multilingual mmarco Cross-Encoder and Rectification of ADRs 118/123/125/127/129 | accepted | v0.45.0 | 2026-10-15 |
 | [ADR-0129](docs/adr/0129-two-stage-retrieval-cross-encoder-reranking.md) | Two-Stage Neural Retrieval with Local ONNX Cross-Encoder Re-Ranking, Hardware Acceleration and Graceful ADR-110 Fallback | accepted | v0.44.0 | 2026-10-15 |
 | [ADR-0128](docs/adr/0128-backend-first-deterministic-dual-rag.md) | Dual RAG Architecture with Backend-First Deterministic Retrieval, U-Shaped Reordering and XML Structural Isolation | accepted | v0.43.0 | 2026-10-15 |

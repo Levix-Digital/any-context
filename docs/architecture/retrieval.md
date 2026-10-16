@@ -61,7 +61,7 @@ flowchart TD
 2. **Preprocessing**: `QueryPreprocessor::process` extracts file name mentions, date clauses (as LanceDB filter expressions) and an expanded query with canonical date tokens for BM25.
 3. **File name matches**: chunks whose `file_name` or `file_path` contains a mentioned name (combined with the date clauses when present) get score 1.0 and are *protected*: they keep that score through re-ranking.
 4. **Temporal matches**: chunks matching the date clauses get at least 0.95.
-5. **Dense search**: the query is embedded with the session's language model provider (model name `text-embedding-3-small`) unless a vector is supplied. When the provider cannot embed, dense search is skipped and ranking relies on the metadata matches and BM25.
+5. **Dense search**: the query is embedded with the provider and model set by `set_embedding` (the CLI passes the result of `ingestion::resolve_embedding_provider`, the same resolver the sync uses for chunk vectors; default model `text-embedding-3-small`) unless a vector is supplied. When embedding fails, dense search is skipped and ranking relies on the metadata matches and BM25.
 6. **BM25**: `BM25Index::search` over the expanded query, filtered to the workspace (chunks of the `Global` workspace always pass the filter).
 7. **Fusion**: `reciprocal_rank_fusion(dense_ids, sparse_ids, rrf_k)`; each result gets a recency micro-boost of `0.01 / (1 + days_old / 30)` to break ties in favor of newer chunks. Texts stored encrypted (`enc::` prefix) are decrypted here.
 8. **Threshold**: results below `min_score` are dropped (on RRF scores).
@@ -90,7 +90,8 @@ flowchart TD
 - Stored as `bm25_index.bin` (for `workspace_chunks`) or `bm25_<table>.bin` in the LanceDB directory.
 - Written atomically (temporary file and rename); loaded with a bounded, panic-safe bincode deserialization.
 - A file that fails to load is renamed to `<file>.corrupt.<timestamp>`, logged to `bm25_quarantine.log`, and replaced by an empty index.
-- Entries are added and removed by chunk id, file path or workspace during [ingestion](ingestion.md).
+- Entries are added and removed by chunk id, file path (with or without sub-paths) or workspace during [ingestion](ingestion.md).
+- The file stores chunk text in plaintext, because lexical search needs the terms; LanceDB keeps the encrypted copy (see [storage](storage.md)).
 
 ### Context formatting
 
@@ -124,3 +125,4 @@ flowchart TD
 - [ADR-0128](../adr/0128-backend-first-deterministic-dual-rag.md): U-shaped reordering, XML isolation, query anchor and Zero Hallucination Gate.
 - [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md): two-stage retrieval with cross-encoder re-ranking and `auto`/`on`/`off` modes.
 - [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): real ONNX re-ranking of at most 30 candidates, protected file-name matches and tail rescaling.
+- [ADR-0132](../adr/0132-query-vectors-use-the-ingestion-embedding-provider-and-model.md): query vectors use the ingestion embedding provider and model.

@@ -64,7 +64,7 @@ The headless path resolves grounding mode, search mode and web search from the w
 3. Creates the re-ranker for the active re-ranker model (`create_default_reranker`); its ONNX session loads lazily on first use.
 4. Registers `search_db` and `system_status`, and `web_search` when web search is enabled (see [Agent Runtime](agent.md)).
 5. Sets the execution mode (`DeepSearch` for `/search deep`, otherwise `ReAct`), the search policy and `max_turns(10)`.
-6. Plugs in `PipelineBatchRetriever` (Deep Search) and `PipelineDeterministicRetriever` (one-hop RAG) when LanceDB opens, both using the [retrieval pipeline](retrieval.md) with the `rerank_mode` setting.
+6. Resolves the query embedding once (`resolve_query_embedding`, which calls `ingestion::resolve_embedding_provider`) and plugs in `PipelineBatchRetriever` (Deep Search) and `PipelineDeterministicRetriever` (one-hop RAG) when LanceDB opens; they and `search_db` use the [retrieval pipeline](retrieval.md) with that embedding and the `rerank_mode` setting.
 7. Attaches the `ChatModelRouter` with the query classifier adapter.
 
 ### Startup and self-knowledge

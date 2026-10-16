@@ -46,7 +46,8 @@ On macOS the LanceDB default is `~/Library/Application Support/AnyContext/data/c
 
 - One table, `workspace_chunks` (`DEFAULT_TABLE_NAME`), with 1536-dimension vectors (`DEFAULT_VECTOR_DIM`) and the columns `id`, `vector`, `text`, `file_name`, `file_path`, `workspace`, `last_modified`, `content_type`, `document_summary`, `keywords`, `content_hash`.
 - Every workspace shares the table and is separated by the `workspace` column; the virtual `Global` workspace holds the system documentation and is included in every workspace filter.
-- `upsert_records` appends a record batch (`table.add`); callers delete the old chunks of a file before re-adding it.
+- `upsert_records` appends a record batch (`table.add`) and encrypts `text`, `document_summary` and `keywords` first (see Encryption at rest); callers delete the old chunks of a file before re-adding it.
+- `delete_by_file` deletes a path and everything under it (folder prefix); `delete_by_exact_path` deletes one exact path, which web pages use because one URL can be a prefix of another.
 - `search_vector_async` (similarity search with an optional workspace filter and extra filter expression), `search_metadata_async` (filter-only queries such as file name or date clauses), `count_records`, `delete_by_workspace`, `delete_by_file` and `delete_by_id`.
 - The store owns an internal Tokio runtime. Synchronous methods use `safe_block_on`, which runs the future on a scoped thread when the caller is already inside a runtime. `Drop` destroys the internal runtime on a separate thread in that case, so a store can be dropped from async code without a panic.
 
@@ -67,7 +68,7 @@ On macOS the LanceDB default is `~/Library/Application Support/AnyContext/data/c
 | `app_settings` | Key-value settings: `active_workspace`, `active_model`, `default_model`, `default_provider`, `active_profile`, `rerank_mode`, `reranker_model`, `enable_vision_llm`, `onboarding_completed`, `global_knowledge_version`. |
 | `api_keys` | Provider API keys saved with `/keys` (`provider`, `api_key`). |
 
-`get_api_key` reads the provider's environment variable first (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`) and then the `api_keys` table when it exists. `ensure_tables` does not create `api_keys`, so on a database created from scratch `set_api_key` fails silently and a key saved with `/keys` only lives in the process environment until the application exits; databases that already have the table (created by older versions) persist keys normally.
+`get_api_key` reads the provider's environment variable first (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`) and then the `api_keys` table. `set_api_key` upserts the key by provider; `/keys` also exports it to the process environment and reports when it could not be saved.
 
 Settings are strictly per workspace: there is no global fallback for workspace settings.
 
@@ -77,7 +78,9 @@ Settings are strictly per workspace: there is no global fallback for workspace s
 
 ### Encryption at rest
 
-`NativeSecurityEngine` derives a 256-bit AES-GCM key with PBKDF2-HMAC-SHA256 (100,000 rounds) from a machine identifier (`ACTX_MACHINE_ID`, or the Windows MachineGuid, Linux `/etc/machine-id` or macOS IOPlatformUUID, falling back to the host name) combined with a fixed domain salt and pepper. Encrypted values are base64 strings with the `enc::` prefix; `decrypt_text` returns plain values unchanged. The parameters match the earlier Python implementation, so data encrypted by older versions stays readable on the same machine. Today the retrieval pipeline decrypts `enc::` texts when it reads them; the ingestion pipeline writes chunk text unencrypted.
+`NativeSecurityEngine` derives a 256-bit AES-GCM key with PBKDF2-HMAC-SHA256 (100,000 rounds) from a machine identifier (`ACTX_MACHINE_ID`, or the Windows MachineGuid, Linux `/etc/machine-id` or macOS IOPlatformUUID, falling back to the host name) combined with a fixed domain salt and pepper. Encrypted values are base64 strings with the `enc::` prefix; `decrypt_text` returns plain values unchanged. The parameters match the earlier Python implementation, so data encrypted by older versions stays readable on the same machine.
+
+Every LanceDB write encrypts `text`, `document_summary` and `keywords` (`upsert_records`), and every read decrypts them (`extract_scored_results`), so callers always see plaintext. Ids, vectors, names, paths, workspace, dates, content type and content hash stay in clear text for filtering; SQL filters on the encrypted columns therefore never match, and `/inspect <filter>` matches decrypted text in memory instead. Rows written before encryption was enabled stay plaintext until their source is re-indexed (`actx sync --force`). The data is bound to the machine identifier, and the BM25 index file (see [retrieval](retrieval.md)) still keeps chunk text in plaintext for lexical search.
 
 ## Interfaces
 
@@ -100,3 +103,4 @@ Settings are strictly per workspace: there is no global fallback for workspace s
 - [ADR-0112](../adr/0112-ux-stabilization-deep-search-multiline-prompt.md): `search_mode` column and `global_knowledge_version` setting.
 - [ADR-0116](../adr/0116-path-healing-temporal-metadata-change-detection.md): path healing.
 - [ADR-0120](../adr/0120-source-display-names-shared-sources-removal.md): `workspace_sources` display names.
+- [ADR-0131](../adr/0131-field-level-encryption-on-every-lancedb-write.md): field-level encryption on every LanceDB write.
