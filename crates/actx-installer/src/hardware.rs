@@ -54,14 +54,9 @@ impl InstallerProfileTier {
         }
     }
 
+    /// Disk needed by the weights this profile installs (Gemma 4 is planned and not downloaded).
     pub fn disk_required_bytes(&self) -> u64 {
-        match self {
-            Self::SovereignUltra => 19_200_000_000,
-            Self::WorkstationPro => 15_700_000_000,
-            Self::AirGappedPower => 7_900_000_000,
-            Self::SmartBalanced => 1_700_000_000,
-            Self::Lite => 0,
-        }
+        self.target_models().iter().map(|m| m.size_bytes).sum()
     }
 
     pub fn estimated_peak_ram_bytes(&self) -> u64 {
@@ -366,6 +361,14 @@ fn probe_disk(_path: &Path) -> u64 {
     50 * 1024 * 1024 * 1024
 }
 
+/// Free-disk headroom (beyond the profile's weights) for a Green / Yellow rating.
+const GREEN_DISK_HEADROOM_GB: f64 = 1.0;
+const YELLOW_DISK_HEADROOM_GB: f64 = 0.25;
+
+fn disk_fits(free_disk_gb: f64, tier: InstallerProfileTier, headroom_gb: f64) -> bool {
+    free_disk_gb >= tier.disk_required_bytes() as f64 / (1024.0 * 1024.0 * 1024.0) + headroom_gb
+}
+
 pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     let avail_ram_gb = metrics.available_ram_gb();
     let total_ram_gb = metrics.total_ram_gb();
@@ -373,10 +376,10 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
 
     let mut evals = Vec::with_capacity(5);
 
-    // 1. SovereignUltra (~19.2 GB disk, ~25.5 GB peak RAM, 64GB+ RAM)
-    let (sov_status, sov_reason) = if (avail_ram_gb >= 30.0 || total_ram_gb >= 56.0) && free_disk_gb >= 45.0 {
+    // 1. SovereignUltra (~25.5 GB peak RAM, 64GB+ RAM)
+    let (sov_status, sov_reason) = if (avail_ram_gb >= 30.0 || total_ram_gb >= 56.0) && disk_fits(free_disk_gb, InstallerProfileTier::SovereignUltra, GREEN_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Green, "Optimal: Workstation has high-capacity memory for Gemma 4 32B and full Document AI.")
-    } else if total_ram_gb >= 44.0 && free_disk_gb >= 25.0 {
+    } else if total_ram_gb >= 44.0 && disk_fits(free_disk_gb, InstallerProfileTier::SovereignUltra, YELLOW_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Yellow, "Acceptable: Operates fine on 48GB/64GB, tighter margin under concurrent tasks.")
     } else {
         (SemaphoreStatus::Red, "Constrained: Gemma 4 32B requires 64GB RAM to prevent swapping. Use Workstation Pro on 32GB.")
@@ -385,14 +388,14 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     evals.push(ProfileEvaluation {
         tier: InstallerProfileTier::SovereignUltra,
         status: sov_status,
-        headline: "Sovereign Frontier: Gemma 4 32B (INT4) + Full Local Document AI Suite",
+        headline: "Sovereign Frontier: Gemma 4 32B (planned) + Full Local Document AI Suite",
         reason: sov_reason.to_string(),
     });
 
-    // 2. WorkstationPro (~15.7 GB disk, ~18.5 GB peak RAM, 32GB RAM)
-    let (work_status, work_reason) = if (avail_ram_gb >= 16.0 || total_ram_gb >= 28.0) && free_disk_gb >= 25.0 {
+    // 2. WorkstationPro (~18.5 GB peak RAM, 32GB RAM)
+    let (work_status, work_reason) = if (avail_ram_gb >= 16.0 || total_ram_gb >= 28.0) && disk_fits(free_disk_gb, InstallerProfileTier::WorkstationPro, GREEN_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Green, "Optimal: Fits smoothly within 32GB RAM envelope with ample OS headroom.")
-    } else if total_ram_gb >= 20.0 && free_disk_gb >= 18.0 {
+    } else if total_ram_gb >= 20.0 && disk_fits(free_disk_gb, InstallerProfileTier::WorkstationPro, YELLOW_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Yellow, "Acceptable: Viable on 24GB-32GB machines.")
     } else {
         (SemaphoreStatus::Red, "Constrained: Gemma 4 27B requires 32GB RAM. Use Air-Gapped Power on 16GB.")
@@ -401,14 +404,14 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     evals.push(ProfileEvaluation {
         tier: InstallerProfileTier::WorkstationPro,
         status: work_status,
-        headline: "Workstation Reasoning: Gemma 4 27B (INT4) + Full Local Document AI Suite",
+        headline: "Workstation Reasoning: Gemma 4 27B (planned) + Full Local Document AI Suite",
         reason: work_reason.to_string(),
     });
 
-    // 3. AirGappedPower (~7.9 GB disk, ~10.0 GB peak RAM, 16GB RAM)
-    let (air_status, air_reason) = if (avail_ram_gb >= 6.5 || total_ram_gb >= 14.0) && free_disk_gb >= 12.0 {
+    // 3. AirGappedPower (~10.0 GB peak RAM, 16GB RAM)
+    let (air_status, air_reason) = if (avail_ram_gb >= 6.5 || total_ram_gb >= 14.0) && disk_fits(free_disk_gb, InstallerProfileTier::AirGappedPower, GREEN_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Green, "Optimal: Perfect balance for standard 16GB developer machines (Gemma 4 12B).")
-    } else if total_ram_gb >= 10.0 && free_disk_gb >= 8.0 {
+    } else if total_ram_gb >= 10.0 && disk_fits(free_disk_gb, InstallerProfileTier::AirGappedPower, YELLOW_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Yellow, "Acceptable: Operates fine, tighter margin on 12GB laptops.")
     } else {
         (SemaphoreStatus::Red, "Constrained: Gemma 4 12B requires 16GB RAM. Use Smart Balanced on 8GB.")
@@ -417,14 +420,14 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     evals.push(ProfileEvaluation {
         tier: InstallerProfileTier::AirGappedPower,
         status: air_status,
-        headline: "Developer Sweet Spot: Gemma 4 12B (INT4) + Full Local Document AI Suite",
+        headline: "Developer Sweet Spot: Gemma 4 12B (planned) + Full Local Document AI Suite",
         reason: air_reason.to_string(),
     });
 
-    // 4. SmartBalanced (~1.7 GB disk, ~2.5 GB peak RAM, 8GB RAM)
-    let (bal_status, bal_reason) = if (avail_ram_gb >= 2.5 || total_ram_gb >= 7.0) && free_disk_gb >= 3.0 {
+    // 4. SmartBalanced (~2.5 GB peak RAM, 8GB RAM)
+    let (bal_status, bal_reason) = if (avail_ram_gb >= 2.5 || total_ram_gb >= 7.0) && disk_fits(free_disk_gb, InstallerProfileTier::SmartBalanced, GREEN_DISK_HEADROOM_GB) {
         (SemaphoreStatus::Green, "Optimal: Ultra-efficient Gemma 4 Compact + essential Document AI for 8GB laptops.")
-    } else if free_disk_gb >= 1.5 && total_ram_gb >= 4.0 {
+    } else if disk_fits(free_disk_gb, InstallerProfileTier::SmartBalanced, YELLOW_DISK_HEADROOM_GB) && total_ram_gb >= 4.0 {
         (SemaphoreStatus::Yellow, "Acceptable: Modest memory headroom on 4GB-6GB laptops.")
     } else {
         (SemaphoreStatus::Red, "Constrained: Recommend Lite profile for this machine.")
@@ -433,7 +436,7 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     evals.push(ProfileEvaluation {
         tier: InstallerProfileTier::SmartBalanced,
         status: bal_status,
-        headline: "Everyday Mobility: Gemma 4 Compact (INT4) + Essential Document AI",
+        headline: "Everyday Mobility: Gemma 4 Compact (planned) + Essential Document AI",
         reason: bal_reason.to_string(),
     });
 
@@ -606,11 +609,11 @@ mod tests {
         assert_eq!(evals_mid[3].status, SemaphoreStatus::Green); // SmartBalanced
         assert_eq!(auto_select_recommended(&mid_spec), InstallerProfileTier::SmartBalanced);
 
-        // Low-end machine: 4 GB RAM, 1 GB Disk
+        // Low-end machine: 4 GB RAM, 512 MB Disk
         let low_spec = SystemMetrics {
             total_ram_bytes: 4 * 1024 * 1024 * 1024,
             available_ram_bytes: 1024 * 1024 * 1024,
-            free_disk_bytes: 1024 * 1024 * 1024,
+            free_disk_bytes: 512 * 1024 * 1024,
             cpu_cores: 2,
         };
         let evals_low = evaluate_profiles(&low_spec);
@@ -620,6 +623,31 @@ mod tests {
         assert_eq!(evals_low[3].status, SemaphoreStatus::Red);
         assert_eq!(evals_low[4].status, SemaphoreStatus::Green);
         assert_eq!(auto_select_recommended(&low_spec), InstallerProfileTier::Lite);
+    }
+
+    #[test]
+    fn test_disk_requirements_match_installed_weights() {
+        // Planned Gemma weights are never downloaded, so no profile needs gigabytes of disk.
+        for tier in [
+            InstallerProfileTier::SovereignUltra,
+            InstallerProfileTier::WorkstationPro,
+            InstallerProfileTier::AirGappedPower,
+            InstallerProfileTier::SmartBalanced,
+        ] {
+            let expected: u64 = tier.target_models().iter().map(|m| m.size_bytes).sum();
+            assert_eq!(tier.disk_required_bytes(), expected);
+            assert!(tier.disk_required_bytes() < 1_000_000_000);
+        }
+        assert_eq!(InstallerProfileTier::Lite.disk_required_bytes(), 0);
+
+        // 16 GB RAM with only 2 GB free disk still fits a model-backed profile.
+        let tight_disk = SystemMetrics {
+            total_ram_bytes: 16 * 1024 * 1024 * 1024,
+            available_ram_bytes: 8 * 1024 * 1024 * 1024,
+            free_disk_bytes: 2 * 1024 * 1024 * 1024,
+            cpu_cores: 8,
+        };
+        assert_ne!(auto_select_recommended(&tight_disk), InstallerProfileTier::Lite);
     }
 }
 

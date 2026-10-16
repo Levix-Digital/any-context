@@ -465,7 +465,13 @@ fn handle_check_update() {
 fn handle_update(target_ver: Option<&str>) {
     let clean = target_ver.map(|t| t.trim_start_matches('@'));
     let bin_dir = actx_installer::paths::get_canonical_bin_dir();
-    actx_installer::run_standalone_update(&bin_dir, clean);
+    // Honour the profile the user chose (`/profile`) so updates never provision models a
+    // Lite user opted out of.
+    let profile = any_context_core_rs::storage::NativeConfigDb::open_default()
+        .ok()
+        .and_then(|db| db.get_setting("active_profile").ok().flatten())
+        .and_then(|p| actx_installer::hardware::InstallerProfileTier::parse_str(&p));
+    actx_installer::run_standalone_update(&bin_dir, clean, profile);
 }
 
 pub async fn handle_download(tier_opt: Option<&str>, force: bool, check: bool) {
