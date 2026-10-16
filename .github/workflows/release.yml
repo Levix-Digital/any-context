@@ -5,6 +5,14 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+  # Called by tag-on-merge.yml for the final release (a tag pushed with GITHUB_TOKEN does
+  # not trigger this workflow on its own).
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build and publish
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -18,6 +26,11 @@ jobs:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
+      # The tag being released: the pushed tag, or the input of a workflow_call.
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      PUBLISH: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/') }}
+      # vX.Y.Z-rc.N tags are release candidates: published as pre-releases, never as latest.
+      IS_RC: ${{ contains(inputs.tag || github.ref_name, '-rc') }}
     strategy:
       fail-fast: false
       matrix:
@@ -32,6 +45,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Free Aggressive Disk Space (Linux)
         if: runner.os == 'Linux'
@@ -147,7 +162,7 @@ jobs:
           sed -i 's/\r$//' scripts/uninstall.sh
 
       - name: Publish Linux Release Assets
-        if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Linux'
+        if: env.PUBLISH == 'true' && runner.os == 'Linux'
         uses: softprops/action-gh-release@v2
         with:
           repository: Levix-Digital/any-context-releases
@@ -159,14 +174,16 @@ jobs:
             dist/actx-core
             scripts/install.sh
             scripts/uninstall.sh
-          tag_name: ${{ github.ref_name }}
-          name: AnyContext ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: AnyContext ${{ env.RELEASE_TAG }}
+          prerelease: ${{ env.IS_RC == 'true' }}
+          make_latest: ${{ env.IS_RC != 'true' }}
           generate_release_notes: true
           token: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
           fail_on_unmatched_files: true
 
       - name: Publish Windows Release Assets
-        if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
+        if: env.PUBLISH == 'true' && runner.os == 'Windows'
         uses: softprops/action-gh-release@v2
         with:
           repository: Levix-Digital/any-context-releases
@@ -178,14 +195,16 @@ jobs:
             dist/actx-core.exe
             scripts/install.ps1
             scripts/uninstall.ps1
-          tag_name: ${{ github.ref_name }}
-          name: AnyContext ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: AnyContext ${{ env.RELEASE_TAG }}
+          prerelease: ${{ env.IS_RC == 'true' }}
+          make_latest: ${{ env.IS_RC != 'true' }}
           generate_release_notes: true
           token: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
           fail_on_unmatched_files: true
 
       - name: Upload Binary Artifact (CI Debugging)
-        if: "!startsWith(github.ref, 'refs/tags/')"
+        if: env.PUBLISH != 'true'
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
