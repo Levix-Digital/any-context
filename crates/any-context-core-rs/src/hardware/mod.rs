@@ -68,7 +68,7 @@ impl ProfileTier {
                 "bge-small-onnx",
                 "mmarco-reranker",
                 "laya-int8",
-                "gemma-4-32b-int8",
+                "gemma-4-32b",
             ],
             Self::WorkstationPro => &[
                 "mobilenetv4-rvl-cdip",
@@ -77,7 +77,7 @@ impl ProfileTier {
                 "bge-small-onnx",
                 "mmarco-reranker",
                 "laya-int8",
-                "gemma-4-27b-int8",
+                "gemma-4-27b",
             ],
             Self::AirGappedPower => &[
                 "mobilenetv4-rvl-cdip",
@@ -86,14 +86,14 @@ impl ProfileTier {
                 "bge-small-onnx",
                 "mmarco-reranker",
                 "laya-int8",
-                "gemma-4-12b-int8",
+                "gemma-4-12b",
             ],
             Self::SmartBalanced => &[
                 "mobilenetv4-rvl-cdip",
                 "layoutlmv3-int8",
                 "bge-small-onnx",
                 "mmarco-reranker",
-                "gemma-4-compact-int8",
+                "gemma-4-compact",
             ],
             Self::Lite => &[],
         }
@@ -867,6 +867,25 @@ impl HardwareProfiler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_profile_target_models_exist_in_catalog() {
+        for tier in [
+            ProfileTier::SovereignUltra,
+            ProfileTier::WorkstationPro,
+            ProfileTier::AirGappedPower,
+            ProfileTier::SmartBalanced,
+            ProfileTier::Lite,
+        ] {
+            for id in tier.target_models() {
+                assert!(
+                    crate::ingestion::OnnxModelManager::find_spec(id).is_some(),
+                    "profile {:?} lists '{}', which is not a catalog id",
+                    tier, id
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_hardware_profiler_probe() {

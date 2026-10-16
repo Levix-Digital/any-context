@@ -1373,59 +1373,74 @@ impl CommandEngine {
             .with_state_updates(updates)
     }
 
+    /// True for models that generate on this machine today (an Ollama-served model).
+    /// Local Gemma 4 generation is planned (ADR-0130), so `gemma*` models do not qualify.
+    fn is_working_local_model(model: &str) -> bool {
+        let m = model.trim().to_lowercase();
+        m.starts_with("ollama/") || m.starts_with("local/")
+    }
+
+    /// Applies the network-isolated settings shared by the `offline` and `privacy` presets,
+    /// keeping the workspace's local model. Refuses (changing nothing) when the active model is
+    /// not a working local model, instead of switching to a planned model that cannot answer.
+    fn apply_local_preset(ctx: &ExecutionContext, title: &str, icon: &str) -> CommandResult {
+        let model = ctx.active_model.trim().to_string();
+        if !Self::is_working_local_model(&model) {
+            return CommandResult::error(format!(
+                "The '{}' preset needs a model that runs on this machine, and the active model '{}' does not.
+                 Local Gemma 4 generation is planned and not available yet.
+                 Select a local model served by Ollama first, for example `/model ollama/qwen2.5`, then run the preset again.
+                 Nothing was changed.",
+                title, model
+            ));
+        }
+        if let Ok(d) = NativeConfigDb::open_default() {
+            let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, "strict");
+            let _ = d.set_workspace_web_search(&ctx.active_workspace, false);
+            let _ = d.set_workspace_search_mode(&ctx.active_workspace, "fast");
+        }
+        let mut updates = CommandStateUpdates::default();
+        updates.grounding_mode = Some("strict".to_string());
+        updates.web_search_enabled = Some(false);
+        updates.search_mode = Some("fast".to_string());
+
+        CommandResult::success(format!(
+            "{} Switched workspace '{}' to the **{}** preset:
+             • Model:          {} (local)
+             • Grounding Mode: Strict
+             • Search Depth:   Fast RAG
+             • Web Search:     Disabled (no outbound web search)",
+            icon, ctx.active_workspace, title, model
+        ))
+        .with_action(CommandAction::RebuildAgent)
+        .with_state_updates(updates)
+    }
+
     fn execute_preset(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         let db = NativeConfigDb::open_default().ok();
-        let metrics = crate::hardware::HardwareProfiler::probe_system(None);
-        let rec_gemma = crate::hardware::HardwareProfiler::recommended_local_gemma(&metrics);
 
         if args.is_empty() {
-            let msg = format!(
-                "🎛️ Workspace Intelligence & Operational Presets:\n\n\
-                 • offline   - 100% On-Device, zero cloud calls, zero token cost.\n\
-                               ↳ Sets model to '{}' (recommended for your {:.1}GB RAM), strict grounding, web-search off.\n\
-                 • balanced  - Balanced cost-performance cloud reasoning.\n\
-                               ↳ Sets model to 'gpt-4o-mini', hybrid grounding, auto search depth, web-search on.\n\
-                 • frontier  - Maximum analytical reasoning and architecture synthesis.\n\
-                               ↳ Sets model to 'claude-3-7-sonnet', proactive grounding, deep search, web-search on.\n\
-                 • privacy   - Corporate air-gapped data isolation.\n\
-                               ↳ Sets model to '{}', strict grounding, web-search off.\n\n\
-                 Usage: /preset <offline|balanced|frontier|privacy>\n\
-                 Alias: /kit <name>",
-                rec_gemma,
-                metrics.total_ram_gb(),
-                rec_gemma
-            );
+            let msg = "🎛️ Workspace Intelligence & Operational Presets:
+
+                 • offline   - On-device answers with a local Ollama model, no web search.
+                               ↳ Keeps your local model (e.g. 'ollama/qwen2.5'), strict grounding, fast search, web-search off.
+                 • balanced  - Balanced cost-performance cloud reasoning.
+                               ↳ Sets model to 'gpt-4o-mini', hybrid grounding, auto search depth, web-search on.
+                 • frontier  - Maximum analytical reasoning and architecture synthesis.
+                               ↳ Sets model to 'claude-3-7-sonnet', proactive grounding, deep search, web-search on.
+                 • privacy   - Corporate data isolation with a local Ollama model.
+                               ↳ Same settings as offline.
+
+                 Local Gemma 4 generation is planned; select a local model first with /model ollama/<model>.
+                 Usage: /preset <offline|balanced|frontier|privacy>
+                 Alias: /kit <name>".to_string();
             return CommandResult::success(msg);
         }
 
         let choice = args[0].trim().to_lowercase();
 
         match choice.as_str() {
-            "offline" | "local" => {
-                if let Some(ref d) = db {
-                    let _ = d.set_workspace_model(&ctx.active_workspace, rec_gemma);
-                    let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, "strict");
-                    let _ = d.set_workspace_web_search(&ctx.active_workspace, false);
-                    let _ = d.set_workspace_search_mode(&ctx.active_workspace, "fast");
-                    let _ = d.set_setting("active_model", rec_gemma);
-                }
-                let mut updates = CommandStateUpdates::default();
-                updates.active_model = Some(rec_gemma.to_string());
-                updates.grounding_mode = Some("strict".to_string());
-                updates.web_search_enabled = Some(false);
-                updates.search_mode = Some("fast".to_string());
-
-                CommandResult::success(format!(
-                    "🔒 Switched workspace '{}' to **Offline-Local-Free** preset:\n\
-                     • Model:          {} 🟢 (safe for your {:.1}GB RAM)\n\
-                     • Grounding Mode: Strict\n\
-                     • Web Search:     Disabled (Air-Gapped)\n\
-                     • Token Cost:     $0.00 / Zero Network Leaks",
-                    ctx.active_workspace, rec_gemma, metrics.total_ram_gb()
-                ))
-                .with_action(CommandAction::RebuildAgent)
-                .with_state_updates(updates)
-            }
+            "offline" | "local" => Self::apply_local_preset(ctx, "Offline-Local", "🔒"),
             "balanced" | "hybrid" => {
                 let model = "gpt-4o-mini";
                 if let Some(ref d) = db {
@@ -1478,31 +1493,7 @@ impl CommandEngine {
                 .with_action(CommandAction::RebuildAgent)
                 .with_state_updates(updates)
             }
-            "privacy" | "enterprise" => {
-                if let Some(ref d) = db {
-                    let _ = d.set_workspace_model(&ctx.active_workspace, rec_gemma);
-                    let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, "strict");
-                    let _ = d.set_workspace_web_search(&ctx.active_workspace, false);
-                    let _ = d.set_workspace_search_mode(&ctx.active_workspace, "fast");
-                    let _ = d.set_setting("active_model", rec_gemma);
-                }
-                let mut updates = CommandStateUpdates::default();
-                updates.active_model = Some(rec_gemma.to_string());
-                updates.grounding_mode = Some("strict".to_string());
-                updates.web_search_enabled = Some(false);
-                updates.search_mode = Some("fast".to_string());
-
-                CommandResult::success(format!(
-                    "🛡️ Switched workspace '{}' to **Enterprise-Privacy** preset:\n\
-                     • Model:          {} 🟢\n\
-                     • Grounding Mode: Strict\n\
-                     • Web Search:     Disabled (Zero Outbound Network)\n\
-                     • Telemetry:      Isolated",
-                    ctx.active_workspace, rec_gemma
-                ))
-                .with_action(CommandAction::RebuildAgent)
-                .with_state_updates(updates)
-            }
+            "privacy" | "enterprise" => Self::apply_local_preset(ctx, "Enterprise-Privacy", "🛡️"),
             _ => {
                 CommandResult::error(format!(
                     "Invalid preset '{}'. Available presets: offline, balanced, frontier, privacy.\nExample: /preset offline",
@@ -1956,14 +1947,26 @@ impl CommandEngine {
         }
 
         let ws_clean = ctx.active_workspace.replace('\'', "''");
-        let where_clause = if let Some(q) = filter_query {
-            let clean_q = q.replace('\'', "''");
-            format!("workspace = '{ws_clean}' AND (content_type LIKE '%{clean_q}%' OR file_name LIKE '%{clean_q}%' OR file_path LIKE '%{clean_q}%' OR text LIKE '%{clean_q}%')")
-        } else {
-            format!("workspace = '{ws_clean}' AND length(text) > 0")
-        };
+        let where_clause = format!("workspace = '{ws_clean}' AND length(text) > 0");
 
-        let samples = lance.search_metadata(&where_clause, limit.max(20), Some(&ctx.active_workspace), None).unwrap_or_default();
+        // Chunk text is encrypted at rest, so a text filter cannot run inside LanceDB:
+        // scan a bounded sample and match the decrypted fields in memory.
+        let samples = if let Some(q) = filter_query {
+            let needle = q.to_lowercase();
+            lance
+                .search_metadata(&where_clause, 2000, Some(&ctx.active_workspace), None)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|r| {
+                    r.text.to_lowercase().contains(&needle)
+                        || r.file_name.to_lowercase().contains(&needle)
+                        || r.file_path.to_lowercase().contains(&needle)
+                        || r.content_type.as_deref().unwrap_or("").to_lowercase().contains(&needle)
+                })
+                .collect::<Vec<_>>()
+        } else {
+            lance.search_metadata(&where_clause, limit.max(20), Some(&ctx.active_workspace), None).unwrap_or_default()
+        };
 
         if !samples.is_empty() {
             use std::collections::HashMap;
@@ -2175,9 +2178,10 @@ impl CommandEngine {
                 _ => "",
             };
 
-            if let Some(d) = &db {
-                let _ = d.set_api_key(&clean_p, key);
-            }
+            let persist_error = match &db {
+                Some(d) => d.set_api_key(&clean_p, key).err().map(|e| e.to_string()),
+                None => Some("settings database unavailable".to_string()),
+            };
             if !env_var.is_empty() {
                 std::env::set_var(env_var, key);
             } else {
@@ -2185,6 +2189,13 @@ impl CommandEngine {
                 std::env::set_var(&custom_env, key);
             }
 
+            if let Some(err) = persist_error {
+                return CommandResult::success(format!(
+                    "⚠️ API key for provider '**{}**' is active for this session only: it could not be saved to SQLite ({}).",
+                    provider, err
+                ))
+                .with_action(CommandAction::RebuildAgent);
+            }
             return CommandResult::success(format!(
                 "🔑 API key saved for provider '**{}**' (active in runtime & persisted to SQLite).",
                 provider

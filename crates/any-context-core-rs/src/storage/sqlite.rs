@@ -247,7 +247,11 @@ impl NativeConfigDb {
                 updated_at TEXT NOT NULL,
                 UNIQUE(workspace, raw_target)
             );
-            CREATE INDEX IF NOT EXISTS idx_workspace_sources_ws ON workspace_sources(workspace);",
+            CREATE INDEX IF NOT EXISTS idx_workspace_sources_ws ON workspace_sources(workspace);
+            CREATE TABLE IF NOT EXISTS api_keys (
+                provider TEXT PRIMARY KEY,
+                api_key TEXT NOT NULL
+            );",
         )?;
 
         // Ensure columns exist on legacy databases
@@ -2105,6 +2109,15 @@ mod tests {
         assert!(ws.is_some());
         let def = ws.unwrap();
         assert_eq!(def.name, "Default");
+    }
+
+    #[test]
+    fn test_api_key_persists_on_fresh_database() {
+        let db = NativeConfigDb::open_in_memory().expect("open memory db");
+        db.set_api_key("acme", "sk-test-123").expect("set key on a fresh database");
+        assert_eq!(db.get_api_key("acme").expect("get key"), Some("sk-test-123".to_string()));
+        db.set_api_key("acme", "sk-test-456").expect("update key");
+        assert_eq!(db.get_all_api_keys().expect("all keys").get("acme"), Some(&"sk-test-456".to_string()));
     }
 
     #[test]
