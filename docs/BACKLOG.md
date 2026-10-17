@@ -80,6 +80,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: query_classifier.rs, scan sentinel, layout extractor and vision encoder run deterministic heuristics. Document AI weights are already downloaded by the profiles; real inference is missing.
 
+### IMP-004: Tag-on-merge workflow and devops.version_files
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, check_ci_policy.py during BUG-001 (v0.45.1)
+- **Plan**: -
+- **Description**: No workflow creates the final vX.Y.Z tag when main receives the release merge (templates/tag-on-merge.yml); today the maintainer tags by hand. devops.version_files is empty in .dev-cycle.json, so gate 8 cannot check that all crates and version.txt agree.
+
 ## Adjustments
 
 ### ADJ-001: Recalibrate hardware profile RAM to what actually runs
@@ -109,5 +116,19 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, BUG-001 docs phase (v0.45.1)
 - **Plan**: -
 - **Description**: manual_tests.py validate reports 306 problems: the suite is the legacy accumulative per-version log (Portuguese, 'Cenario N' headings) instead of curated per-feature tests with '### MT-<AREA>-NNN' headings and result lines. Gate 8 and release-candidate runs depend on the new format.
+
+### ADJ-005: Run the test workflow on pull requests into dev
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-10-17, check_ci_policy.py during BUG-001 (v0.45.1)
+- **Plan**: -
+- **Description**: e2e-tests.yml triggers on pull_request to main, push to dev and workflow_dispatch only, so PRs into dev merge without CI (PR #336 needed a manual dispatch). Add dev to pull_request.branches (devops-release templates/ci.yml).
+
+### ADJ-006: Release candidate tags must publish GitHub pre-releases
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-10-17, check_ci_policy.py during BUG-001 (v0.45.1)
+- **Plan**: -
+- **Description**: release.yml does not mark -rc tags as prerelease (prerelease: contains(tag, '-rc')), so v0.45.1-rc.1 would be published as a final release.
 
 ## Closed
