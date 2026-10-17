@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-17T19:19:54'
-updated_at: '2026-10-17T19:30:54'
+updated_at: '2026-10-17T19:50:57'
 session_id: null
 tags:
 - retrieval
@@ -19,9 +19,13 @@ backlog_items:
 - BUG-008
 milestones:
 - name: M1 Formatter fix
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Claude
 - name: M2 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Claude
 - name: M3 Review and PR
   done: false
 status_log:
@@ -37,6 +41,12 @@ status_log:
   by: Claude
   status: in_progress
   note: Approved by the user on 2026-10-17
+- at: '2026-10-17T19:50:55'
+  by: Claude
+  note: 'Milestone ''M1 Formatter fix'' completed: infer_version replaces infer_scope_and_version; cargo test --workspace green'
+- at: '2026-10-17T19:50:57'
+  by: Claude
+  note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0139, retrieval page, MT-ANS-006; docs, readme and manual test checks clean'
 ---
 
 # Scope and version attributes are guessed from path substrings
