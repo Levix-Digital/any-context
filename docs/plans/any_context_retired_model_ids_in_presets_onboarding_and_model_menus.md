@@ -4,10 +4,10 @@ project: any-context
 title: Retired model ids in presets, onboarding and model menus
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Levi Silveira
 created_at: '2026-10-17T10:38:09'
-updated_at: '2026-10-17T11:36:48'
+updated_at: '2026-10-17T12:03:35'
 session_id: null
 tags:
 - models
@@ -40,7 +40,9 @@ milestones:
   done_at: '2026-10-17'
   by: Levi Silveira
 - name: M6 Review and pull request
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 status_log:
 - at: '2026-10-17T10:38:09'
   by: Levi Silveira
@@ -73,6 +75,17 @@ status_log:
   by: Levi Silveira
   status: in_progress
   note: Implementation on fix/retired-model-ids
+- at: '2026-10-17T12:03:33'
+  by: Levi Silveira
+  note: 'Milestone ''M6 Review and pull request'' completed: PR #345 merged into dev (98b5ef0)'
+- at: '2026-10-17T12:03:33'
+  by: Levi Silveira
+  status: completed
+  note: All milestones completed
+- at: '2026-10-17T12:03:36'
+  by: Levi Silveira
+  status: completed
+  note: 'Delivered in PR #345'
 ---
 
 # Retired model ids in presets, onboarding and model menus
