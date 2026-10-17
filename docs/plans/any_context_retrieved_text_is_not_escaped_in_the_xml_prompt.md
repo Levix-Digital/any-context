@@ -4,10 +4,10 @@ project: any-context
 title: Retrieved text is not escaped in the XML prompt
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Levi Silveira
 created_at: '2026-10-17T10:00:49'
-updated_at: '2026-10-17T10:12:53'
+updated_at: '2026-10-17T12:30:00'
 session_id: null
 tags:
 - retrieval
@@ -29,7 +29,9 @@ milestones:
   done_at: '2026-10-17'
   by: Levi Silveira
 - name: M3 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 status_log:
 - at: '2026-10-17T10:00:49'
   by: Levi Silveira
@@ -49,6 +51,17 @@ status_log:
 - at: '2026-10-17T10:12:53'
   by: Levi Silveira
   note: Milestone 'M1 Formatter fix' completed
+- at: '2026-10-17T12:30:00'
+  by: Levi Silveira
+  note: 'Milestone ''M3 Review and PR'' completed: PR #343 merged into dev (f425b17)'
+- at: '2026-10-17T12:30:00'
+  by: Levi Silveira
+  status: completed
+  note: All milestones completed
+- at: '2026-10-17T12:30:00'
+  by: Levi Silveira
+  status: completed
+  note: 'Delivered in PR #343'
 ---
 
 ---

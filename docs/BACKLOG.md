@@ -34,13 +34,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Deep Search requests use `min_score: 0.02`, applied to RRF scores before re-ranking. A chunk found only by the dense search or only by BM25 scores at most 1/61 ≈ 0.0164, so it is discarded unless the recency boost (BUG-005) lifts it. Supersedes IMP-001.
 
-### BUG-007: Retrieved text is not escaped in the XML prompt
-- **Severity**: high
-- **Status**: in_progress
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: any_context_retrieved_text_is_not_escaped_in_the_xml_prompt
-- **Description**: `ContextFormatter::format_xml_chunks` writes chunk text and attribute values (file path, file name) into the XML prompt without escaping. Indexed content containing `</chunk>`, `</retrieved_context>` or quotes (this repository's own docs, crawled web pages) breaks the chunk boundaries the prompt relies on and opens a prompt-injection path.
-
 ### BUG-008: Scope and version attributes are guessed from path substrings
 - **Severity**: medium
 - **Status**: open
@@ -359,3 +352,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_retired_model_ids_in_presets_onboarding_and_model_menus
 - **Closed**: 2026-10-17, plan any_context_retired_model_ids_in_presets_onboarding_and_model_menus, PR #345
 - **Description**: Every Claude id in the product is retired (claude-3-7-sonnet in /preset frontier, claude-3-5-sonnet in onboarding, claude-3-5-* in the models menu and /models), and so are gemini-1.5-pro, llama-3.3-70b-versatile (Groq, shut down 2026-08-16) and deepseek-chat/deepseek-reasoner (2026-07-24); o1 and o3-mini shut down on 2026-10-23 and gpt-4o-mini on 2027-01-14. Current Claude models also reject the temperature/top_p the Anthropic provider always sends, and Groq ids are routed to the wrong provider or sent with the groq/ prefix. Choosing these models fails on the first question.
+
+### BUG-007: Retrieved text is not escaped in the XML prompt
+- **Severity**: high
+- **Status**: done
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: any_context_retrieved_text_is_not_escaped_in_the_xml_prompt
+- **Closed**: 2026-10-17, plan any_context_retrieved_text_is_not_escaped_in_the_xml_prompt, PR #343
+- **Description**: `ContextFormatter::format_xml_chunks` writes chunk text and attribute values (file path, file name) into the XML prompt without escaping. Indexed content containing `</chunk>`, `</retrieved_context>` or quotes (this repository's own docs, crawled web pages) breaks the chunk boundaries the prompt relies on and opens a prompt-injection path.
