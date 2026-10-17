@@ -4,10 +4,10 @@ project: any-context
 title: Scope and version attributes are guessed from path substrings
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Claude
 created_at: '2026-10-17T19:19:54'
-updated_at: '2026-10-17T19:50:57'
+updated_at: '2026-10-17T21:09:15'
 session_id: null
 tags:
 - retrieval
@@ -27,7 +27,9 @@ milestones:
   done_at: '2026-10-17'
   by: Claude
 - name: M3 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Claude
 status_log:
 - at: '2026-10-17T19:19:54'
   by: Claude
@@ -47,6 +49,13 @@ status_log:
 - at: '2026-10-17T19:50:57'
   by: Claude
   note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0140, retrieval page, MT-ANS-006; docs, readme and manual test checks clean'
+- at: '2026-10-17T21:09:15'
+  by: Claude
+  note: 'Milestone ''M3 Review and PR'' completed: PR #351 merged into dev'
+- at: '2026-10-17T21:09:15'
+  by: Claude
+  status: completed
+  note: All milestones completed
 ---
 
 # Scope and version attributes are guessed from path substrings
