@@ -83,6 +83,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: BM25 stores the enveloped text (`[Context: ... | Keywords: ...]` plus the chunk), while LanceDB stores the raw chunk. Chunks found only by BM25 reach the prompt with the envelope; chunks found by the dense search reach it without.
 
+### BUG-012: Agent prompt names tools that do not exist
+- **Severity**: medium
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: `config/AGENT.md` tells the model to call `add_web_source`, `list_web_sources`, `remove_web_source` and `search_db(search_session_memory=True)`, but only `search_db(query)` and `system_status` are registered. It also says the model must always call `search_db` first, while the deterministic path sends the retrieved chunks with no tools available.
+
 ## Features
 
 ### FEAT-001: actx profile install command
@@ -112,6 +119,104 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
 - **Plan**: -
 - **Description**: release.yml only builds Linux x86_64 and Windows x86_64.
+
+### FEAT-005: Embedding model independent of the chat model, with stale-workspace status
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: The embedding model is derived from the workspace chat model (see BUG-003). Make it a setting of its own, global by default, and record on each workspace the model it was indexed with. Changing it must warn the user strongly that every workspace needs a resync, mark each affected workspace as outdated in its status and guide the resync. A per-workspace embedding override was discussed and left out for now (main case: a sensitive workspace on a local model); recording the model per workspace keeps it possible later. Related to IMP-004.
+
+### FEAT-006: Individual sources: single local files and single web pages
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Allow adding a single file (not only folders) and a single web page (not only a crawled URL prefix) to a workspace, without indexing the same content twice when the file already sits inside a registered folder.
+
+### FEAT-007: Document mode: work on one whole file
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Let the user pick a file in the workspace and summarize or analyze it as a whole. Top-k retrieval cannot cover a whole document, so questions such as "summarize this file" are answered from a few chunks today.
+
+### FEAT-008: Cloud drive connectors
+- **Priority**: low
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Sources from cloud drives (folders and individual files). No drive connector exists today. Discussion item.
+
+### FEAT-009: Per-workspace instructions (system prompt)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Let the user write instructions for the model per workspace. They must sit below the grounding and safety rules, never override them, and have a size limit.
+
+### FEAT-010: Token usage and context window fill in the status bar
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Show the tokens used per model and how full the context window is, including custom models outside the catalog. Discussion notes: providers report token usage in their responses; the context window size is not available from every provider, so custom models may need it entered by the user. Tokens sent over the network and tokens processed locally can be shown apart.
+
+### FEAT-011: Local diagnostic bundle and /feedback with confirmation
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: A way to get concrete feedback on how the app behaves without breaking the no-telemetry promise of the README: a local diagnostic bundle (logs, versions, configuration, with sensitive data masked) that the user reviews and sends, and a `/feedback <text>` command that shows exactly what leaves the machine and only sends after confirmation. Nothing is sent by default; offline and privacy presets keep everything local.
+
+### FEAT-012: Opt-in crash reporting for beta and release-candidate builds
+- **Priority**: low
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Crash and error reports collected only in beta/RC builds, off by default, with a global kill switch (such as `DO_NOT_TRACK` or an enterprise policy) and always off under the offline and privacy presets. Discussion item: must not conflict with the air-gapped positioning.
+
+### FEAT-013: Minimal user profile
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: A short profile (name, language, role, answer style) collected during onboarding, with the rest in settings, always available to the agent so answers fit the user. Automatic learning of user traits from conversations was discussed and left out for now (wrong inferences, preferences mixed with grounded facts, privacy).
+
+### FEAT-014: Explicit user memories
+- **Priority**: low
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Preferences the user asks the agent to keep ("remember that...", `/remember`), or that the agent proposes to keep and the user confirms, stored locally in a visible and editable list, scoped globally or per workspace. Nothing is saved silently.
+
+### FEAT-015: Tools to list and read sources, folders and files
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Agent tools and UI commands to list a workspace's sources, browse folders and files and read a file or a range of it, so the user does not need to leave AnyContext. Limited to registered sources and read-only. Full web browsing was discussed and left out; reading pages through the existing web reader covers it.
+
+### FEAT-016: Open a cited chunk at its file and line
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Jump from a citation in an answer to the cited file and line. Depends on BUG-010.
+
+### FEAT-017: Exact text search over sources
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: A grep-style search for exact identifiers and strings across a workspace's sources, as a complement to semantic search.
+
+### FEAT-018: AnyContext MCP server
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Expose AnyContext workspaces through an MCP server so other agents and IDEs can query them. There is no API or MCP surface today. Discussion item.
 
 ## Improvements
 
@@ -177,6 +282,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, v0.45.0, RAG best-practices review
 - **Plan**: -
 - **Description**: The deterministic path places the system instructions inside the user message (`<system_instructions>`) after the session history, so the instructions are repeated per turn and cannot benefit from provider prompt caching.
+
+### IMP-011: Review all prompts and organize them into skills
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Description**: Prompts live in five places (`config/AGENT.md`, `actx-cli/src/prompt.rs`, `retrieval/prompt.rs`, the Deep Search prompts in `deep_search.rs`, `config/SYSTEM_KNOWLEDGE.md`) with overlapping and conflicting rules, for example four citation formats (`[chk_1]`, `[path:45-60]`, citation footers, file names). Goal: a minimal base agent prompt, with each function (deterministic RAG, agentic search, Deep Search, source management) moved into a skill loaded when needed, and every prompt reviewed for ambiguity and contradictions. There is no skill mechanism today.
 
 ## Adjustments
 
