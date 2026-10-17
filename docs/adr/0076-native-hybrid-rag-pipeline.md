@@ -8,7 +8,7 @@ subsystems: [retrieval]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: []
+amended_by: [138]
 ---
 
 # ADR-0076: Native Rust Hybrid RAG Pipeline and RFC-042 Batch Retrieval Engine
