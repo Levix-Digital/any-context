@@ -79,6 +79,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0137](docs/adr/0137-chat-model-catalog-with-retired-model-ids-resolved-to-succes.md) | Chat model catalog with retired model ids resolved to successors | accepted | v0.45.1 | 2026-10-17 |
 | [ADR-0136](docs/adr/0136-neutralizing-reserved-prompt-tags-in-retrieved-text.md) | Neutralizing reserved prompt tags in retrieved text | accepted | v0.45.1 | 2026-10-17 |
 | [ADR-0135](docs/adr/0135-automatic-encryption-of-lancedb-rows-stored-in-plaintext.md) | Automatic encryption of LanceDB rows stored in plaintext | accepted | v0.45.1 | 2026-10-17 |
 | [ADR-0134](docs/adr/0134-release-candidates-and-tagging-on-merge-into-main.md) | Release candidates and tagging on merge into main | accepted |  | 2026-10-16 |

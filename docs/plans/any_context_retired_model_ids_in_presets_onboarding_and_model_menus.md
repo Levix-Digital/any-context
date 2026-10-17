@@ -4,10 +4,10 @@ project: any-context
 title: Retired model ids in presets, onboarding and model menus
 kind: bug
 version: v0.45.1
-status: active
+status: in_progress
 author: Levi Silveira
 created_at: '2026-10-17T10:38:09'
-updated_at: '2026-10-17T10:40:41'
+updated_at: '2026-10-17T11:36:48'
 session_id: null
 tags:
 - models
@@ -20,15 +20,25 @@ backlog_items:
 - BUG-002
 milestones:
 - name: M1 Evidence
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M2 Catalog
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M3 Resolution and adapters
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M4 Surfaces
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M5 Documentation and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M6 Review and pull request
   done: false
 status_log:
@@ -44,75 +54,25 @@ status_log:
   by: Levi Silveira
   status: active
   note: Plan updated
----
-
----
-plan_id: any_context_retired_model_ids_in_presets_onboarding_and_model_menus
-project: any-context
-title: Retired model ids in presets, onboarding and model menus
-kind: bug
-version: v0.45.1
-status: planned
-author: Levi Silveira
-created_at: '2026-10-17T10:38:09'
-updated_at: '2026-10-17T10:40:22'
-session_id: null
-tags:
-- models
-- providers
-- presets
-supersedes: null
-superseded_by: null
-parent_plan_id: null
-backlog_items:
-- BUG-002
-milestones:
-- name: M1 Evidence
-  done: false
-- name: M2 Catalog
-  done: false
-- name: M3 Resolution and adapters
-  done: false
-- name: M4 Surfaces
-  done: false
-- name: M5 Documentation and manual tests
-  done: false
-- name: M6 Review and pull request
-  done: false
-status_log:
-- at: '2026-10-17T10:38:09'
+- at: '2026-10-17T11:36:34'
   by: Levi Silveira
-  status: draft
-  note: Plan created
-- at: '2026-10-17T10:40:22'
+  note: Milestone 'M1 Evidence' completed
+- at: '2026-10-17T11:36:35'
   by: Levi Silveira
-  status: planned
-  note: Plan updated
----
-
----
-plan_id: any_context_retired_model_ids_in_presets_onboarding_and_model_menus
-project: any-context
-title: Retired model ids in presets, onboarding and model menus
-kind: bug
-version: v0.45.1
-status: draft
-author: Levi Silveira
-created_at: '2026-10-17T10:38:09'
-updated_at: '2026-10-17T10:38:09'
-session_id: null
-tags: []
-supersedes: null
-superseded_by: null
-parent_plan_id: null
-backlog_items:
-- BUG-002
-milestones: []
-status_log:
-- at: '2026-10-17T10:38:09'
+  note: Milestone 'M2 Catalog' completed
+- at: '2026-10-17T11:36:37'
   by: Levi Silveira
-  status: draft
-  note: Plan created
+  note: Milestone 'M3 Resolution and adapters' completed
+- at: '2026-10-17T11:36:39'
+  by: Levi Silveira
+  note: Milestone 'M4 Surfaces' completed
+- at: '2026-10-17T11:36:41'
+  by: Levi Silveira
+  note: Milestone 'M5 Documentation and manual tests' completed
+- at: '2026-10-17T11:36:48'
+  by: Levi Silveira
+  status: in_progress
+  note: Implementation on fix/retired-model-ids
 ---
 
 # Retired model ids in presets, onboarding and model menus
@@ -300,3 +260,15 @@ Branch: `fix/retired-model-ids` from `dev`.
 4. **M4 Surfaces**: `/preset`, `/models`, models menu, onboarding, defaults and the notice in the CLI and TUI read the catalog; update the tests that use the old ids.
 5. **M5 Documentation and manual tests**: section 6 and the manual tests in section 5; `check_docs.py`, `check_readme.py`, `manual_tests.py validate`.
 6. **M6 Review and pull request**: code review, `software-design` checklist and `check_design.py`; pull request into `dev` naming BUG-002 (and BUG-013 as the related item left out); CI green.
+
+## 9. Implementation notes (2026-10-17)
+
+Changes from the approved plan, found during implementation:
+
+- **OpenAI flagship successor is `gpt-6-sol`, not `gpt-6.1-sol`.** OpenAI's GPT-6 guide states that GPT-6.1 Sol and GPT-6 Astra support Chat Completions but tool calling requires the Responses API, while GPT-6 Sol and GPT-6 Luna support function calling on Chat Completions with `reasoning_effort: "none"`. The agent needs tools, so `o1`, `o1-pro`, `o3-mini` map to `gpt-6-sol` and the catalog offers `gpt-6-sol`. `gpt-4o` stays out of the retired table (served until 2027-01-14).
+- **H1 confirmed**: GPT-6 models reject `temperature`/`top_p` unless reasoning effort is `none`; `max_tokens` is deprecated in favour of `max_completion_tokens`. The OpenAI adapter now sends `reasoning_effort: "none"` and `max_completion_tokens` for `gpt-6-luna*`/`gpt-6-sol*`, no sampling parameters for other `gpt-6*` and o-series models, and the classic fields for every other OpenAI-compatible provider. H2 (DeepSeek, Groq) has no documented change; it is covered by MT-ANS-004 in the release candidate run.
+- **Model-not-found message**: the six duplicated 401/403/429 chains in the Anthropic, OpenAI-compatible and Gemini chat calls were replaced by `LmError::from_http_status`, which also produces the 404 message.
+- **No debug log for dropped sampling parameters**: `actx-lm` has no logging dependency; adding one for a debug line was not worth it. The behavior is covered by the serialization tests.
+- **`ResolvedLm.configured`**: besides the provider model, resolution returns the id as the user selects it (successor applied, `groq/` kept), so the TUI header and later rebuilds keep routing correctly.
+- **Onboarding Ollama default is `ollama/llama3`** (was `llama3`, which had no routing prefix and fell through to the first provider with a key).
+- **Docs**: ADR-0137 amends ADR-0125; MT-CONF-003 updated, MT-ANS-004 extended to the catalog models, MT-CONF-004 added.

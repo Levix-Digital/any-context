@@ -1420,20 +1420,23 @@ impl CommandEngine {
         let db = NativeConfigDb::open_default().ok();
 
         if args.is_empty() {
-            let msg = "🎛️ Workspace Intelligence & Operational Presets:
+            let msg = format!("🎛️ Workspace Intelligence & Operational Presets:
 
                  • offline   - On-device answers with a local Ollama model, no web search.
                                ↳ Keeps your local model (e.g. 'ollama/qwen2.5'), strict grounding, fast search, web-search off.
                  • balanced  - Balanced cost-performance cloud reasoning.
-                               ↳ Sets model to 'gpt-4o-mini', hybrid grounding, auto search depth, web-search on.
+                               ↳ Sets model to '{}', hybrid grounding, auto search depth, web-search on.
                  • frontier  - Maximum analytical reasoning and architecture synthesis.
-                               ↳ Sets model to 'claude-3-7-sonnet', proactive grounding, deep search, web-search on.
+                               ↳ Sets model to '{}', proactive grounding, deep search, web-search on.
                  • privacy   - Corporate data isolation with a local Ollama model.
                                ↳ Same settings as offline.
 
                  Local Gemma 4 generation is planned; select a local model first with /model ollama/<model>.
                  Usage: /preset <offline|balanced|frontier|privacy>
-                 Alias: /kit <name>".to_string();
+                 Alias: /kit <name>",
+                crate::llm_catalog::BALANCED_PRESET_MODEL,
+                crate::llm_catalog::FRONTIER_PRESET_MODEL,
+            );
             return CommandResult::success(msg);
         }
 
@@ -1442,7 +1445,7 @@ impl CommandEngine {
         match choice.as_str() {
             "offline" | "local" => Self::apply_local_preset(ctx, "Offline-Local", "🔒"),
             "balanced" | "hybrid" => {
-                let model = "gpt-4o-mini";
+                let model = crate::llm_catalog::BALANCED_PRESET_MODEL;
                 if let Some(ref d) = db {
                     let _ = d.set_workspace_model(&ctx.active_workspace, model);
                     let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, "hybrid");
@@ -1468,7 +1471,7 @@ impl CommandEngine {
                 .with_state_updates(updates)
             }
             "frontier" | "max" | "power" => {
-                let model = "claude-3-7-sonnet";
+                let model = crate::llm_catalog::FRONTIER_PRESET_MODEL;
                 if let Some(ref d) = db {
                     let _ = d.set_workspace_model(&ctx.active_workspace, model);
                     let _ = d.set_workspace_grounding_mode(&ctx.active_workspace, "proactive");
@@ -1504,30 +1507,25 @@ impl CommandEngine {
     }
 
     fn execute_models_catalog(_args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+        use crate::llm_catalog::{chat_models, ChatProvider};
+
+        let section = |title: &str, providers: &[ChatProvider]| -> String {
+            let mut out = format!("{title}\n");
+            for model in chat_models().iter().filter(|m| providers.contains(&m.provider)) {
+                out.push_str(&format!("• {:<26} - {} {}\n", model.id, model.provider.label(), model.summary));
+            }
+            out
+        };
+
         let models_text = format!(
-            "🤖 Supported AI Providers & Models (Current: **{}**):\n\n\
-             🧠 Local ONNX Neural Brain (Gemma 4 Family):\n\
-             • gemma-4-compact    - Edge Mobility SLM (8GB RAM, ~2.5GB Peak)\n\
-             • gemma-4-12b        - Developer Sweet Spot (16GB RAM, ~10GB Peak)\n\
-             • gemma-4-27b        - Workstation High-Reasoning (32GB RAM, ~18.5GB Peak)\n\
-             • gemma-4-32b        - Sovereign Frontier LLM (64GB RAM, ~25.5GB Peak)\n\n\
-             ⭐ Cloud Giants (Tier 1):\n\
-             • gemini-3.8-flash   - Google Ultra-low latency and multimodality\n\
-             • gemini-1.5-pro     - Google 2M Token Ultra-Long Context\n\
-             • gpt-4o             - OpenAI Flagship Omnimodal\n\
-             • gpt-4o-mini        - OpenAI Fast & Lightweight (Default)\n\
-             • claude-3-5-sonnet  - Anthropic SOTA Code & Reasoning\n\
-             • claude-3-5-haiku   - Anthropic Ultra-Fast & Efficient\n\n\
-             ⚡ High-Speed Open Inference:\n\
-             • groq/llama-3.3-70b - Groq LPUs (500+ tok/s)\n\
-             • deepseek-chat      - DeepSeek V3\n\
-             • deepseek-reasoner  - DeepSeek R1 Thinking\n\n\
-             🔒 100% Local & Free:\n\
-             • local/ollama       - Ollama (http://localhost:11434/v1)\n\
-             • local/lm-studio    - LM Studio (http://localhost:1234/v1)\n\
-             • mock               - Instant Offline Simulation\n\n\
-             Usage: /model <model_name>",
-            ctx.active_model
+            "🤖 Supported AI Providers & Models (Current: **{}**):\n\n{}\n{}\n{}\nAny Ollama model works as ollama/<model>.\nUsage: /model <model_name>",
+            ctx.active_model,
+            section("🧠 Local ONNX Neural Brain (Gemma 4 Family):", &[ChatProvider::LocalGemma]),
+            section(
+                "⭐ Cloud Providers:",
+                &[ChatProvider::Gemini, ChatProvider::OpenAi, ChatProvider::Anthropic, ChatProvider::DeepSeek, ChatProvider::Groq],
+            ),
+            section("🔒 100% Local & Free:", &[ChatProvider::Ollama, ChatProvider::Mock]),
         );
         CommandResult::success(models_text)
     }

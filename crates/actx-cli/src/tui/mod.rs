@@ -29,10 +29,11 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. Resolve Provider and create agent via agnostic engine module
     let effective_ws = args.workspace.clone();
-    let (provider, resolved_model) = match resolve_lm_provider(args.model.as_deref(), Some(&effective_ws)) {
-        Ok((prov, m)) => (Some(prov), m),
-        Err(_) => (None, "mock".to_string()),
-    };
+    let (provider, resolved_model, configured_model, model_notice) =
+        match resolve_lm_provider(args.model.as_deref(), Some(&effective_ws)) {
+            Ok(resolved) => (Some(resolved.provider), resolved.model, resolved.configured, resolved.notice),
+            Err(_) => (None, "mock".to_string(), "mock".to_string(), None),
+        };
 
     let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
     let grounding_mode = db.as_ref()
@@ -57,9 +58,12 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut app = App::new(effective_ws, resolved_model, agent)
+    let mut app = App::new(effective_ws, configured_model, agent)
         .with_device(args.device.as_deref())
         .with_rerank_mode(args.rerank.as_deref());
+    if let Some(notice) = model_notice {
+        app.push_system_notice(notice);
+    }
 
     // Transparent background self-knowledge bootstrap / update into 'Global' workspace
     tokio::task::spawn_blocking(|| {

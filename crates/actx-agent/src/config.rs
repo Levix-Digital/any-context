@@ -41,7 +41,7 @@ impl std::str::FromStr for SearchMode {
 /// Runtime configuration for agent execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
-    /// Identifier of the model to execute (e.g. "gpt-4o", "claude-3-5-sonnet", "qwen2.5-coder")
+    /// Identifier of the model to execute (e.g. "gpt-6-luna", "claude-opus-5-5", "ollama/qwen2.5-coder")
     pub model: String,
 
     /// Maximum ReAct turns allowed before forced termination

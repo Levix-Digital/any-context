@@ -76,7 +76,7 @@ Input starting with `/` goes to `dispatch_slash_command`, which builds an `Execu
 
 ### Menus and onboarding
 
-The main menu (`F1`) leads to workspaces, models (with hardware compatibility badges), sync, grounding, search depth, sources, API keys, Document AI (ingestion, scans, query routing, vision, storage summary), hardware profiles and devices. `/onboarding` (or `/setup`) opens a three-step wizard: language model provider and API key, Document AI profile, and an optional first documents folder; it records `onboarding_completed`. The wizard opens automatically at startup when onboarding was never completed and the resolved model is the mock provider (no credentials yet).
+The main menu (`F1`) leads to workspaces, models (with hardware compatibility badges), sync, grounding, search depth, sources, API keys, Document AI (ingestion, scans, query routing, vision, storage summary), hardware profiles and devices. `/onboarding` (or `/setup`) opens a three-step wizard: language model provider and API key, Document AI profile, and an optional first documents folder; it saves the provider's model from the chat model catalog (`llm_catalog::onboarding_default`) and records `onboarding_completed`. The models menu lists `llm_catalog::chat_models()`, and a notice about a retired model id from model resolution is shown as a system message. The wizard opens automatically at startup when onboarding was never completed and the resolved model is the mock provider (no credentials yet).
 
 ### Theme
 
@@ -106,4 +106,5 @@ The main menu (`F1`) leads to workspaces, models (with hardware compatibility ba
 - [ADR-0117](../adr/0117-aurora-palette-borderless-canvas-onboarding.md): palette harmonization, borderless chat, reasoning auto-scroll, download cancellation, onboarding.
 - [ADR-0119](../adr/0119-english-interface-spinner-release-notes.md): English interface, point-by-point spinner, collapsed accordion.
 - [ADR-0126](../adr/0126-assisted-gemma-weights-downloader.md): download telemetry in the footer.
+- [ADR-0137](../adr/0137-chat-model-catalog-with-retired-model-ids-resolved-to-succes.md): models menu and onboarding read the chat model catalog.
 - [ADR-0127](../adr/0127-cross-platform-hardware-acceleration-matrix.md) and [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md): device and re-rank badges.

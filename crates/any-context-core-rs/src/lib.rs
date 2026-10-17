@@ -6,6 +6,7 @@ pub mod commands;
 pub mod security;
 pub mod theme;
 pub mod hardware;
+pub mod llm_catalog;
 
 pub use models::{ChunkPayload, SemanticEnvelope};
 pub use ingestion::{

@@ -765,18 +765,11 @@ fn render_onboarding(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) 
                 ])
                 .split(chunks[1]);
 
-            let providers = [
-                ("Google Gemini", "gemini-2.5-flash", "Optimized latency and large native context window"),
-                ("OpenAI", "gpt-4o-mini", "Agile reasoning via OpenAI ecosystem"),
-                ("Anthropic Claude", "claude-3-5-sonnet", "Deep technical analysis and analytical accuracy"),
-                ("Ollama (Local)", "llama3", "Self-hosted local models (requires active Ollama server)"),
-                ("Mock Provider", "mock-agent", "Offline development and testing environment with zero token cost"),
-            ];
-
-            let items: Vec<ListItem> = providers
+            let items: Vec<ListItem> = crate::tui::app::ONBOARDING_PROVIDERS
                 .iter()
                 .enumerate()
-                .map(|(i, (name, model, note))| {
+                .map(|(i, (_, provider, name, note))| {
+                    let model = any_context_core_rs::llm_catalog::onboarding_default(*provider);
                     let is_sel = i == onboarding.selected_provider_idx;
                     let prefix = if is_sel { "▸ " } else { "  " };
                     let style = if is_sel {

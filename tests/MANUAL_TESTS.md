@@ -108,9 +108,24 @@ How to record a run: in each test of the current run, mark exactly one box of th
   2. Run `/preset offline` with the cloud model still active.
   3. Run `/model ollama/<model>`, then `/preset offline` and `/kit privacy`.
 - **Expected**:
-  - `balanced` sets `gpt-4o-mini`, hybrid grounding, auto search and web search on; `frontier` sets `claude-3-7-sonnet`, proactive grounding, deep search and web search on; the header updates at once.
+  - `balanced` sets `gpt-6-luna`, hybrid grounding, auto search and web search on; `frontier` sets `claude-opus-5-5`, proactive grounding, deep search and web search on; the header updates at once.
   - With a cloud model, `offline` fails, explains that local Gemma 4 is planned, suggests `/model ollama/<model>` and changes nothing.
   - With the Ollama model, both presets succeed, keep the model, and set strict grounding, fast search and web search off.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
+### MT-CONF-004: A retired model id is replaced with its successor
+
+- **Covers**: model resolution, chat model catalog
+- **Prerequisites**: an Anthropic key
+- **Steps**:
+  1. Run `/model claude-3-7-sonnet` and ask a question.
+  2. Restart `actx` in the same workspace and ask again.
+  3. Run `actx "a question" -w <workspace>` in a terminal.
+- **Expected**:
+  - Step 1 shows "Model `claude-3-7-sonnet` is no longer offered by its provider; using `claude-opus-5-5`. Choose another with /model." once; the header shows `claude-opus-5-5` and the answer comes from Anthropic.
+  - Steps 2 and 3 answer with `claude-opus-5-5`; the CLI prints the same notice before the answer.
+  - The onboarding wizard (`/onboarding`) lists `gemini-2.5-flash`, `gpt-6-luna`, `claude-sonnet-5-5`, `ollama/llama3` and `mock`.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
@@ -339,12 +354,13 @@ How to record a run: in each test of the current run, mark exactly one box of th
 
 ### MT-ANS-004: Every provider answers and streams
 
-- **Covers**: language model providers
+- **Covers**: language model providers, chat model catalog
 - **Prerequisites**: keys for the providers you use; Ollama for the local case
 - **Steps**:
-  1. For each of OpenAI, Anthropic, Gemini, DeepSeek, Groq and `ollama/<model>`, select it with `/model` and ask a question that needs the workspace.
+  1. For each cloud model in `/model list` (`gemini-3.8-flash`, `gemini-2.5-pro`, `gpt-6-luna`, `gpt-6-sol`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `deepseek-flash`, `deepseek-v4-pro`, `groq/openai/gpt-oss-120b`) and for `ollama/<model>`, select it with `/model` and ask a question that needs the workspace, once with `/search fast` and once with `/search deep`.
 - **Expected**:
-  - Every answer streams token by token, uses the workspace documents and finishes without HTTP errors.
+  - Every answer streams token by token, uses the workspace documents and finishes without HTTP errors (no 400 about `temperature`, `top_p`, `max_tokens` or tools).
+  - `/model claude-unknown-model` followed by a question answers with "model `claude-unknown-model` is not available from anthropic; choose another with /model".
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

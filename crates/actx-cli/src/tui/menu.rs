@@ -468,29 +468,17 @@ pub fn build_workspaces_menu(active_workspace: &str) -> Vec<MenuItem> {
 pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
     let metrics = any_context_core_rs::hardware::HardwareProfiler::probe_system(None);
 
-    let models = &[
-        // Local ONNX Brain (Gemma 4 Family)
-        ("gemma-4-compact", "Planned - Local Gemma 4 Compact generation (not available yet; uses the fallback provider)"),
-        ("gemma-4-12b", "Planned - Local Gemma 4 12B generation (not available yet; uses the fallback provider)"),
-        ("gemma-4-27b", "Planned - Local Gemma 4 27B generation (not available yet; uses the fallback provider)"),
-        ("gemma-4-32b", "Planned - Local Gemma 4 32B generation (not available yet; uses the fallback provider)"),
-        // Cloud & Remote Providers
-        ("gemini-3.8-flash", "Google - Ultra-low latency and multimodality"),
-        ("gpt-4o-mini", "OpenAI - Fast, cost-efficient, and intelligent"),
-        ("gpt-4o", "OpenAI - High-capability multimodal flagship"),
-        ("claude-3-5-sonnet-20241022", "Anthropic - Advanced reasoning and coding"),
-        ("claude-3-5-haiku-20241022", "Anthropic - Ultra-fast and efficient"),
-        ("gemini-1.5-pro", "Google - Extended context window"),
-        ("deepseek-chat", "DeepSeek - High cost-benefit for coding"),
-        ("deepseek-reasoner", "DeepSeek R1 - Step-by-step analytical reasoning"),
-        ("llama-3.3-70b-versatile", "Groq - Instant inference on LPU hardware"),
-        ("ollama/qwen2.5-coder", "Local - Offline model via local Ollama endpoint"),
-        ("mock", "Mock - Instant offline simulation for testing and demos"),
-    ];
+    use any_context_core_rs::llm_catalog::{chat_models, ChatProvider};
 
-    models
+    chat_models()
         .iter()
-        .map(|(m, desc)| {
+        .map(|model| {
+            let m = model.id;
+            let desc = if model.provider == ChatProvider::LocalGemma {
+                model.summary.to_string()
+            } else {
+                format!("{} - {}", model.provider.label(), model.summary)
+            };
             let is_active = m.eq_ignore_ascii_case(active_model);
             let is_gemma = m.starts_with("gemma-4") || m.starts_with("gemma");
             let safety = any_context_core_rs::hardware::HardwareProfiler::validate_model_safety(m, &metrics);
@@ -560,7 +548,7 @@ pub fn build_models_menu(active_model: &str) -> Vec<MenuItem> {
             MenuItem {
                 id: format!("model:{}", m),
                 title: m.to_string(),
-                description: desc.to_string(),
+                description: desc,
                 icon,
                 badge,
                 shortcut: None,

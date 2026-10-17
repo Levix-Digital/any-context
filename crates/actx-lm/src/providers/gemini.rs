@@ -187,24 +187,7 @@ impl LmProvider for GeminiProvider {
         let status = resp.status();
         if !status.is_success() {
             let error_text = resp.text().await.unwrap_or_default();
-            if status.as_u16() == 401 || status.as_u16() == 403 {
-                return Err(LmError::Auth {
-                    provider: "gemini".to_string(),
-                    message: error_text,
-                });
-            } else if status.as_u16() == 429 {
-                return Err(LmError::RateLimit {
-                    provider: "gemini".to_string(),
-                    message: error_text,
-                    retry_after_secs: None,
-                });
-            } else {
-                return Err(LmError::ProviderError {
-                    provider: "gemini".to_string(),
-                    status: status.as_u16(),
-                    message: error_text,
-                });
-            }
+            return Err(LmError::from_http_status("gemini", status.as_u16(), &request.model, error_text));
         }
 
         let parsed: GeminiResponse = resp.json().await?;
@@ -285,24 +268,7 @@ impl LmProvider for GeminiProvider {
         let status = resp.status();
         if !status.is_success() {
             let error_text = resp.text().await.unwrap_or_default();
-            if status.as_u16() == 401 || status.as_u16() == 403 {
-                return Err(LmError::Auth {
-                    provider: "gemini".to_string(),
-                    message: error_text,
-                });
-            } else if status.as_u16() == 429 {
-                return Err(LmError::RateLimit {
-                    provider: "gemini".to_string(),
-                    message: error_text,
-                    retry_after_secs: None,
-                });
-            } else {
-                return Err(LmError::ProviderError {
-                    provider: "gemini".to_string(),
-                    status: status.as_u16(),
-                    message: error_text,
-                });
-            }
+            return Err(LmError::from_http_status("gemini", status.as_u16(), &request.model, error_text));
         }
 
         let byte_stream = resp.bytes_stream();

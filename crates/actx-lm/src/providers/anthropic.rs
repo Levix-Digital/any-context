@@ -110,11 +110,13 @@ impl AnthropicProvider {
             body["system"] = serde_json::json!(system_prompts.join("\n\n"));
         }
 
-        if let Some(t) = request.params.temperature {
-            body["temperature"] = serde_json::json!(t);
-        }
-        if let Some(p) = request.params.top_p {
-            body["top_p"] = serde_json::json!(p);
+        if accepts_sampling_params(&request.model) {
+            // Claude 4.x models reject `temperature` and `top_p` together; `temperature` wins.
+            if let Some(t) = request.params.temperature {
+                body["temperature"] = serde_json::json!(t);
+            } else if let Some(p) = request.params.top_p {
+                body["top_p"] = serde_json::json!(p);
+            }
         }
         if let Some(ref s) = request.params.stop {
             body["stop_sequences"] = serde_json::json!(s);
@@ -137,6 +139,23 @@ impl AnthropicProvider {
 
         body
     }
+}
+
+/// Claude families that reject `temperature`/`top_p` (any value, or any non-default value):
+/// sending them returns HTTP 400, so they are left out for these models.
+const NO_SAMPLING_PREFIXES: &[&str] = &[
+    "claude-opus-5",
+    "claude-sonnet-5",
+    "claude-haiku-5",
+    "claude-fable-",
+    "claude-mythos-",
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+];
+
+fn accepts_sampling_params(model: &str) -> bool {
+    let model = model.trim().to_ascii_lowercase();
+    !NO_SAMPLING_PREFIXES.iter().any(|p| model.starts_with(p))
 }
 
 #[derive(Deserialize)]
@@ -213,24 +232,7 @@ impl LmProvider for AnthropicProvider {
         let status = resp.status();
         if !status.is_success() {
             let error_text = resp.text().await.unwrap_or_default();
-            if status.as_u16() == 401 || status.as_u16() == 403 {
-                return Err(LmError::Auth {
-                    provider: "anthropic".to_string(),
-                    message: error_text,
-                });
-            } else if status.as_u16() == 429 {
-                return Err(LmError::RateLimit {
-                    provider: "anthropic".to_string(),
-                    message: error_text,
-                    retry_after_secs: None,
-                });
-            } else {
-                return Err(LmError::ProviderError {
-                    provider: "anthropic".to_string(),
-                    status: status.as_u16(),
-                    message: error_text,
-                });
-            }
+            return Err(LmError::from_http_status("anthropic", status.as_u16(), &request.model, error_text));
         }
 
         let parsed: AnthropicResponse = resp.json().await?;
@@ -308,24 +310,7 @@ impl LmProvider for AnthropicProvider {
         let status = resp.status();
         if !status.is_success() {
             let error_text = resp.text().await.unwrap_or_default();
-            if status.as_u16() == 401 || status.as_u16() == 403 {
-                return Err(LmError::Auth {
-                    provider: "anthropic".to_string(),
-                    message: error_text,
-                });
-            } else if status.as_u16() == 429 {
-                return Err(LmError::RateLimit {
-                    provider: "anthropic".to_string(),
-                    message: error_text,
-                    retry_after_secs: None,
-                });
-            } else {
-                return Err(LmError::ProviderError {
-                    provider: "anthropic".to_string(),
-                    status: status.as_u16(),
-                    message: error_text,
-                });
-            }
+            return Err(LmError::from_http_status("anthropic", status.as_u16(), &request.model, error_text));
         }
 
         let byte_stream = resp.bytes_stream();
@@ -391,5 +376,34 @@ impl LmProvider for AnthropicProvider {
         });
 
         Ok(Box::pin(mapped_stream))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::ChatMessage;
+
+    fn body_for(model: &str) -> serde_json::Value {
+        let provider = AnthropicProvider::new("test-key");
+        let request = ChatRequest::new(model, vec![ChatMessage::user("Hi")]).with_temperature(0.0);
+        provider.serialize_request(&request, false)
+    }
+
+    #[test]
+    fn current_claude_models_get_no_sampling_params() {
+        for model in ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-1"] {
+            let body = body_for(model);
+            assert!(body.get("temperature").is_none(), "{model} must not get temperature");
+            assert!(body.get("top_p").is_none(), "{model} must not get top_p");
+            assert_eq!(body["model"], model);
+        }
+    }
+
+    #[test]
+    fn older_claude_models_get_temperature_without_top_p() {
+        let body = body_for("claude-sonnet-4-6");
+        assert_eq!(body["temperature"], serde_json::json!(0.0));
+        assert!(body.get("top_p").is_none(), "temperature and top_p together are rejected");
     }
 }

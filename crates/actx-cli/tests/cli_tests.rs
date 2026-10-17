@@ -189,11 +189,21 @@ async fn test_app_state_and_slash_dispatch() {
     let keys_msg = app.chat_history.last().expect("keys item");
     assert!(keys_msg.content.contains("Provider Credentials Audit"));
 
-    // Test /model claude-3-5
+    // Test /model with a current Claude model
+    app.input_buffer = "/model claude-sonnet-5-5".to_string();
+    app.cursor_idx = app.input_buffer.len();
+    app.submit_input(tx.clone());
+    assert_eq!(app.active_model, "claude-sonnet-5-5");
+
+    // A retired model id is replaced by its successor and the user is told (BUG-002)
     app.input_buffer = "/model claude-3-5-sonnet".to_string();
     app.cursor_idx = app.input_buffer.len();
     app.submit_input(tx.clone());
-    assert_eq!(app.active_model, "claude-3-5-sonnet");
+    assert_eq!(app.active_model, "claude-sonnet-5-5");
+    assert!(app
+        .chat_history
+        .iter()
+        .any(|m| m.content.contains("claude-3-5-sonnet") && m.content.contains("no longer offered")));
 
     // Test /models without args (opens models interactive modal)
     app.input_buffer = "/models".to_string();

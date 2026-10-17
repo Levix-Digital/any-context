@@ -31,7 +31,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         println!("Engine:     100% Native Rust (crates/actx-cli)");
         println!("Runtimes:   Zero Python, Zero Bun/Node dependencies");
         println!("Workspace:  {} (Total: {})", args.workspace, ws_count);
-        println!("Target Lm:  {}", args.model.as_deref().unwrap_or("gpt-4o-mini"));
+        println!("Target Lm:  {}", args.model.as_deref().unwrap_or(any_context_core_rs::llm_catalog::DEFAULT_CHAT_MODEL));
         let metrics = any_context_core_rs::hardware::HardwareProfiler::probe_system(None);
         println!("Hardware:   {} Cores, {:.1} GB RAM ({:.1} GB Free)", metrics.cpu_cores, metrics.total_ram_gb(), metrics.available_ram_gb());
         println!("Accel:      {}", metrics.acceleration_summary());
@@ -123,7 +123,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 println!("Engine:     100% Native Rust (crates/actx-cli)");
                 println!("Runtimes:   Zero Python, Zero Bun/Node dependencies");
                 println!("Workspace:  {} (Total: {})", args.workspace, ws_count);
-                println!("Target Lm:  {}", args.model.as_deref().unwrap_or("gpt-4o-mini"));
+                println!("Target Lm:  {}", args.model.as_deref().unwrap_or(any_context_core_rs::llm_catalog::DEFAULT_CHAT_MODEL));
                 println!("Database:   {} (Connected)", db_path.display());
                 println!("Vectors:    LanceDB Columnar Arrow Engine (Ready)");
                 println!("Status:     Healthy & Operational");
@@ -258,7 +258,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         println!("Engine:     100% Native Rust (crates/actx-cli)");
         println!("Runtimes:   Zero Python, Zero Bun/Node dependencies");
         println!("Workspace:  {} (Total: {})", args.workspace, ws_count);
-        println!("Target Lm:  {}", args.model.as_deref().unwrap_or("gpt-4o-mini"));
+        println!("Target Lm:  {}", args.model.as_deref().unwrap_or(any_context_core_rs::llm_catalog::DEFAULT_CHAT_MODEL));
         println!("Database:   {} (Connected)", db_path.display());
         println!("Vectors:    LanceDB Columnar Arrow Engine (Ready)");
         println!("Status:     Healthy & Operational");
@@ -316,10 +316,13 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
         .and_then(|d| d.get_workspace_web_search(&args.workspace).ok())
         .unwrap_or(false);
 
-    let (provider, model_name) = resolve_lm_provider(args.model.as_deref(), Some(&args.workspace))
+    let resolved = resolve_lm_provider(args.model.as_deref(), Some(&args.workspace))
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    if let Some(ref notice) = resolved.notice {
+        eprintln!("{}", crate::theme::UiTheme::default().ansi_warning(notice));
+    }
 
-    let agent = build_agent(provider, &model_name, &args.workspace, &grounding_mode, &search_mode, web_search_enabled).await
+    let agent = build_agent(resolved.provider, &resolved.model, &args.workspace, &grounding_mode, &search_mode, web_search_enabled).await
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     // 4. Stream response to stdout
