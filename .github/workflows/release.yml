@@ -161,6 +161,8 @@ jobs:
             scripts/uninstall.sh
           tag_name: ${{ github.ref_name }}
           name: AnyContext ${{ github.ref_name }}
+          # Release candidates (vX.Y.Z-rc.N) are pre-releases: never offered as 'latest' to users.
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
           generate_release_notes: true
           token: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
           fail_on_unmatched_files: true
@@ -180,6 +182,8 @@ jobs:
             scripts/uninstall.ps1
           tag_name: ${{ github.ref_name }}
           name: AnyContext ${{ github.ref_name }}
+          # Release candidates (vX.Y.Z-rc.N) are pre-releases: never offered as 'latest' to users.
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
           generate_release_notes: true
           token: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
           fail_on_unmatched_files: true
