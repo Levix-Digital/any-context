@@ -15,16 +15,16 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-004: Source round-robin puts diversity above relevance and breaks the U-shaped order
 - **Severity**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
+- **Plan**: any_context_retrieval_order_follows_relevance
 - **Description**: `search_single_async` returns chunks in the order produced by `apply_source_diversification` (round-robin across sources), and `ContextFormatter::format_xml_chunks` applies the U-shaped reordering to that order. The second-best chunk can land in the middle of the context while a weak chunk sits next to the user query. The round-robin also only reorders candidates that were already retrieved (dense + BM25 over the whole index), so it does not widen document coverage; its first pass gives every source one slot before any second chunk, so a low-scoring chunk from another source can displace a strong second chunk from the same source. Decision (2026-10-17): remove the round-robin and keep the per-source cap (`max_chunks_per_source`) applied in score order, in both `search_single_async` and `retrieve_hybrid_batch_async`; revisit the cap once hierarchical chunking (Frente D) and the evaluation (IMP-008) exist.
 
 ### BUG-005: Recency boost overrides relevance across sources
 - **Severity**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
+- **Plan**: any_context_retrieval_order_follows_relevance
 - **Description**: The recency boost in `search_single_async` adds up to 0.01 to the RRF score, while the best possible single-list RRF score is 1/61 ≈ 0.0164, so a recently modified file far down the rankings can outrank an older file ranked first. The intent was a tie-breaker between chunks of the same source, but all chunks of a file or web page share the same `last_modified`, and sync deletes the old chunks of a changed source, so the boost has no effect inside a source and only acts across sources. It also changes which candidates reach the cross-encoder.
 
 ### BUG-006: Deep Search minimum score discards single-list hits
