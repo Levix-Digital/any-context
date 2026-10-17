@@ -247,7 +247,12 @@ impl NativeConfigDb {
                 updated_at TEXT NOT NULL,
                 UNIQUE(workspace, raw_target)
             );
-            CREATE INDEX IF NOT EXISTS idx_workspace_sources_ws ON workspace_sources(workspace);",
+            CREATE INDEX IF NOT EXISTS idx_workspace_sources_ws ON workspace_sources(workspace);
+
+            CREATE TABLE IF NOT EXISTS api_keys (
+                provider TEXT PRIMARY KEY,
+                api_key TEXT NOT NULL
+            );",
         )?;
 
         // Ensure columns exist on legacy databases
@@ -2270,5 +2275,14 @@ mod tests {
         assert!(removed);
         let sources_after = db.list_workspace_sources("Default").expect("list sources");
         assert_eq!(sources_after.len(), 1);
+    }
+
+    /// BUG-003 regression: a fresh database persists API keys (the `api_keys` table was never created).
+    #[test]
+    fn test_fresh_database_persists_api_keys() {
+        let db = NativeConfigDb::open_in_memory().expect("open");
+        db.set_api_key("acme-gateway", "first-key").expect("save key on a fresh database");
+        db.set_api_key("ACME-Gateway", " second-key ").expect("update key");
+        assert_eq!(db.get_api_key("acme-gateway").expect("get"), Some("second-key".to_string()));
     }
 }
