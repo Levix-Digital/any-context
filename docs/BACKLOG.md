@@ -8,9 +8,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-001: Data indexed before field encryption stays in plaintext
 - **Severity**: high
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-16, v0.45.0, PR #333
-- **Plan**: -
+- **Plan**: any_context_data_indexed_before_field_encryption_stays_in_plaintext
 - **Description**: Chunks written to LanceDB before field-level encryption on every write (ADR-0131) remain unencrypted on disk until the workspace is re-indexed with actx --sync --force. Nothing tells the user, while the README states that indexed text is encrypted.
 
 ### BUG-002: Frontier preset selects an outdated model id
@@ -290,6 +290,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Prompts live in five places (`config/AGENT.md`, `actx-cli/src/prompt.rs`, `retrieval/prompt.rs`, the Deep Search prompts in `deep_search.rs`, `config/SYSTEM_KNOWLEDGE.md`) with overlapping and conflicting rules, for example four citation formats (`[chk_1]`, `[path:45-60]`, citation footers, file names). Goal: a minimal base agent prompt, with each function (deterministic RAG, agentic search, Deep Search, source management) moved into a skill loaded when needed, and every prompt reviewed for ambiguity and contradictions. There is no skill mechanism today.
 
+### IMP-012: Encrypt the BM25 index file at rest
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, BUG-001 planning, 2026-10-17
+- **Plan**: -
+- **Description**: bm25_index.bin keeps chunk text in plaintext because lexical search needs the terms (ADR-0131 consequence), so the indexed text is not fully encrypted on disk. Options: encrypt the serialized file with the hardware-bound key and decrypt on load, or store only hashed terms.
+
 ## Adjustments
 
 ### ADJ-001: Update the outdated .clinerules
@@ -334,5 +341,5 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: duplicate
 - **Found**: 2026-10-16, v0.45.0, PR #333
 - **Plan**: -
-- **Description**: Deep Search keeps results with a minimum score of 0.02, which looks low and may let irrelevant chunks into the combined answer.
 - **Closed**: 2026-10-17, duplicate of BUG-006 (the threshold is above the maximum single-list RRF score)
+- **Description**: Deep Search keeps results with a minimum score of 0.02, which looks low and may let irrelevant chunks into the combined answer.
