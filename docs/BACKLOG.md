@@ -20,6 +20,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Ingestion derives the embedding model from the workspace chat model (orchestrator.rs resolve_embedding_provider). After /model changes it, the next incremental sync embeds new or changed files with another model while unchanged files keep the old vectors, so one workspace holds vectors from two spaces. Needs the per-workspace embedding model record planned for Frente C, or a forced reindex on change.
 
+### BUG-003: API keys saved with /keys are lost on a fresh database
+- **Severity**: high
+- **Status**: in_progress
+- **Found**: 2026-10-17, BUG-001 implementation (v0.45.0)
+- **Plan**: anycontext_bugfix_v0451_query_embedding_model
+- **Description**: NativeConfigDb::ensure_tables never creates the api_keys table, so set_api_key fails on databases not inherited from the legacy Python version; /keys ignores the error (commands/engine.rs) and the key only lives in the process environment until restart. Fixed in the BUG-001 branch by an additive CREATE TABLE IF NOT EXISTS.
+
 ## Features
 
 ### FEAT-001: actx profile install command
@@ -95,5 +102,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-16, v0.45.0 (roadmap handoff, PR #328)
 - **Plan**: -
 - **Description**: Decide the fate of implementation_plan_subscription_tiers.md (BillingManager tiers) and BLUEPRINT_PRIORITY_4_CLI_TUI.md (verify what is still pending), verify the state of RFC-042 (retrieve_hybrid_batch, /fast, /deep already exist), and mark the released v0.45.0 C0 plan M8 Release done/completed.
+
+### ADJ-004: Migrate tests/MANUAL_TESTS.md to the curated quality-assurance format
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, BUG-001 docs phase (v0.45.1)
+- **Plan**: -
+- **Description**: manual_tests.py validate reports 306 problems: the suite is the legacy accumulative per-version log (Portuguese, 'Cenario N' headings) instead of curated per-feature tests with '### MT-<AREA>-NNN' headings and result lines. Gate 8 and release-candidate runs depend on the new format.
 
 ## Closed

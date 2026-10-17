@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Levi Silveira
 created_at: '2026-10-17T07:06:04'
-updated_at: '2026-10-17T07:13:02'
+updated_at: '2026-10-17T07:33:37'
 session_id: null
 tags: []
 supersedes: null
@@ -15,15 +15,24 @@ superseded_by: null
 parent_plan_id: null
 backlog_items:
 - BUG-001
+- BUG-003
 milestones:
 - name: M1 Shared resolver
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M2 Query embedder and pipeline
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M3 Adapters
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M4 Docs and manual test
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M5 Release
   done: false
 status_log:
@@ -39,6 +48,21 @@ status_log:
   by: Levi Silveira
   status: in_progress
   note: Approved by the user (gate 3); implementation started
+- at: '2026-10-17T07:25:40'
+  by: Levi Silveira
+  note: 'Backlog items added: BUG-003'
+- at: '2026-10-17T07:33:30'
+  by: Levi Silveira
+  note: Milestone 'M1 Shared resolver' completed
+- at: '2026-10-17T07:33:34'
+  by: Levi Silveira
+  note: Milestone 'M2 Query embedder and pipeline' completed
+- at: '2026-10-17T07:33:35'
+  by: Levi Silveira
+  note: Milestone 'M3 Adapters' completed
+- at: '2026-10-17T07:33:37'
+  by: Levi Silveira
+  note: Milestone 'M4 Docs and manual test' completed
 ---
 
 # Dense query embedding ignores the workspace embedding model
@@ -51,6 +75,11 @@ Bug plan for patch `v0.45.1` (`dev-cycle-protocol` Phases 1 and 2). Discovery on
 - **Severity**: high
 - **Found**: 2026-10-16, v0.45.0 (roadmap handoff, PR #328)
 - **Description**: retrieval/pipeline.rs:536 always embeds the query with text-embedding-3-small, while ingestion resolves the model per workspace (ingestion/orchestrator.rs:198). A workspace indexed with another model gets query vectors in another space or dimension and dense search silently degrades or fails. Fix in Frente C or earlier as patch v0.45.1.
+
+### BUG-003: API keys saved with /keys are lost on a fresh database
+- **Severity**: high
+- **Found**: 2026-10-17, BUG-001 implementation (v0.45.0)
+- **Description**: NativeConfigDb::ensure_tables never creates the api_keys table, so set_api_key fails on databases not inherited from the legacy Python version; /keys ignores the error (commands/engine.rs) and the key only lives in the process environment until restart. Fixed in the BUG-001 branch by an additive CREATE TABLE IF NOT EXISTS.
 
 ## 1. Reproduction
 
@@ -106,6 +135,8 @@ Deliberately left out:
 - The mixed-space problem after a model change (BUG-002).
 - The `Global` workspace, which is bootstrapped with zero vectors (`engine.rs:482`) and stays BM25-only.
 
+**BUG-003 (found during implementation).** `NativeConfigDb::ensure_tables` never creates `api_keys`, so on a fresh database `set_api_key` fails and `/keys` (which ignores the error) keeps the key only in the process environment. The embedding resolver reads keys through `get_api_key`, so the fix is in scope: an additive `CREATE TABLE IF NOT EXISTS api_keys (provider TEXT PRIMARY KEY, api_key TEXT NOT NULL)` in `ensure_tables`, compatible with legacy databases that already have the table.
+
 No ADR: this restores the documented intent (query and ingestion use the same model) without a new architectural decision. The retrieval section of `TECDOC.md` is corrected in place.
 
 ## 4. Affected surfaces and files
@@ -115,6 +146,7 @@ No ADR: this restores the documented intent (query and ingestion use the same mo
   - `src/ingestion/orchestrator.rs` (calls the shared resolver).
   - `src/retrieval/pipeline.rs` (`QueryEmbedder`, per-workspace dense search, status).
   - `src/retrieval/mod.rs` (exports).
+- Storage: `src/storage/sqlite.rs` (`api_keys` table, BUG-003).
 - Adapters: `actx-cli/src/engine.rs`. The `search_workspace` tool, `PipelineBatchRetriever` and `PipelineDeterministicRetriever` build `WorkspaceQueryEmbedder` instead of passing the chat provider.
 - Surfaces: `cli` and `tui` (behavior only, no interface change). `mcp` and `python-binding` do not construct the pipeline (verified by search). No command, flag or file format changes.
 
@@ -128,6 +160,7 @@ Automated tests (`cargo test --workspace`):
   - Assert that a failing embedder for one workspace leaves that workspace on BM25 without failing the query.
   - Before the fix, the same scenario with a provider that returns `Unsupported` yields no dense candidates.
 - **Resolver** (`embedding.rs` tests): the workspace-model → `(provider_id, model)` mapping for `gemini*`, `ollama/*`, `claude*` with and without an OpenAI key, `mock*`, and the env overrides. These lock the behavior moved from the orchestrator.
+- **BUG-003 regression** (`sqlite.rs` tests): a fresh database saves and updates an API key.
 - **Status**: `last_query_embedding_status()` reports the model on success and the error on failure.
 
 Manual test: prepend **Scenario 46 (v0.45.1)** to `tests/MANUAL_TESTS.md`.
