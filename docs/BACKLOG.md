@@ -6,12 +6,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-002: Frontier preset selects an outdated model id
-- **Severity**: medium
-- **Status**: open
+### BUG-002: Retired model ids in presets, onboarding and model menus
+- **Severity**: high
+- **Status**: planned
 - **Found**: 2026-10-16, v0.45.0, PR #333
-- **Plan**: -
-- **Description**: /preset frontier sets the model claude-3-7-sonnet, which may no longer be a valid model id for the Anthropic API; the preset could then fail on the first question.
+- **Plan**: any_context_retired_model_ids_in_presets_onboarding_and_model_menus
+- **Description**: Every Claude id in the product is retired (claude-3-7-sonnet in /preset frontier, claude-3-5-sonnet in onboarding, claude-3-5-* in the models menu and /models), and so are gemini-1.5-pro, llama-3.3-70b-versatile (Groq, shut down 2026-08-16) and deepseek-chat/deepseek-reasoner (2026-07-24); o1 and o3-mini shut down on 2026-10-23 and gpt-4o-mini on 2027-01-14. Current Claude models also reject the temperature/top_p the Anthropic provider always sends, and Groq ids are routed to the wrong provider or sent with the groq/ prefix. Choosing these models fails on the first question.
 
 ### BUG-003: Changing a workspace chat model mixes embedding spaces on the next sync
 - **Severity**: medium
@@ -82,6 +82,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, v0.45.0, product ideas review
 - **Plan**: -
 - **Description**: `config/AGENT.md` tells the model to call `add_web_source`, `list_web_sources`, `remove_web_source` and `search_db(search_session_memory=True)`, but only `search_db(query)` and `system_status` are registered. It also says the model must always call `search_db` first, while the deterministic path sends the retrieved chunks with no tools available.
+
+### BUG-013: Gemini embedding model text-embedding-004 is shut down
+- **Severity**: high
+- **Status**: open
+- **Found**: 2026-10-17, 2026-10-17, BUG-002 discovery
+- **Plan**: -
+- **Description**: Google shut down text-embedding-004 on 2026-01-14, so ingestion and query embedding for Gemini workspaces fail, and the dense search is skipped without a message (IMP-003). The successor is gemini-embedding-2. Changing the embedding model needs a reindex of the affected workspaces; plan it with BUG-003, FEAT-005 and IMP-004.
 
 ## Features
 

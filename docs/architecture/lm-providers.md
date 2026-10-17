@@ -54,13 +54,30 @@ Which provider and model a workspace uses is resolved by the [CLI](cli.md) (`res
 
 ### Model resolution in the application
 
-`resolve_lm_provider(model_override, workspace)` picks the model from, in order, the explicit override, `ACTX_MODEL`, the workspace model, the default model and `gpt-4o-mini`, then chooses the provider by prefix:
+`resolve_lm_provider(model_override, workspace)` picks the model from, in order, the explicit override, `ACTX_MODEL`, the workspace model, the default model and the catalog default (`gpt-6-luna`).
+
+A retired model id is then replaced with its successor from the chat model catalog (`any_context_core_rs::llm_catalog::successor_of`, exact ids only). The replacement logs a `warn` line and returns a notice: the CLI prints it, and the TUI shows it as a system message. The stored setting is not changed.
+
+The provider is chosen by prefix:
 
 - `mock*` → mock; `ollama/<model>` or `local/<model>` → Ollama; `gemma*` → Gemma (always wrapped with the mock fallback);
-- `claude*` → Anthropic; `gemini*` → Gemini; `deepseek*` → DeepSeek; `groq*` → Groq; `gpt*`, `o1*`, `o3*` → OpenAI;
+- `claude*` → Anthropic; `gemini*` → Gemini; `deepseek*` → DeepSeek; `groq/<model>` → Groq; `gpt*`, `o1*`, `o3*` → OpenAI;
 - anything else → the first provider with a configured key (OpenAI, Anthropic, Gemini, DeepSeek, Groq), otherwise the mock provider.
 
+The `ollama/`, `local/` and `groq/` prefixes are removed before the request. The result is `ResolvedLm { provider, model, configured, notice }`: `model` is the id sent to the provider, and `configured` is the id kept in the UI.
+
 When the selected provider has no key, answers come from the mock provider, which echoes the request (`Mock response to: ...`).
+
+### Request rules per model
+
+- **Anthropic**: `temperature` and `top_p` are left out for the families that reject them (`claude-opus-5*`, `claude-sonnet-5*`, `claude-haiku-5*`, `claude-fable-*`, `claude-mythos-*`, `claude-opus-4-7*`, `claude-opus-4-8*`); older ids still get them.
+- **OpenAI** (only the `openai` provider):
+  - `gpt-6-luna*` and `gpt-6-sol*` get `reasoning_effort: "none"`, which keeps sampling parameters and function calling, plus `max_completion_tokens`.
+  - Other `gpt-6*` models and the o-series get no sampling parameters, plus `max_completion_tokens`.
+  - Older models keep `max_tokens`.
+- **Other OpenAI-compatible providers** (Groq, DeepSeek, Ollama, OpenRouter, custom) keep `temperature`, `top_p` and `max_tokens`.
+
+A failed chat request maps its HTTP status with `LmError::from_http_status`: 401/403 → `Auth`, 429 → `RateLimit`, and 404 → "model `<id>` is not available from `<provider>`; choose another with /model".
 
 ### Streaming and tools
 
@@ -82,3 +99,4 @@ Streaming adapters decode SSE frames into `StreamChunk`s: answer tokens, reasoni
 - [ADR-0123](../adr/0123-onnx-production-activation-gemma-4-tiers.md): `GemmaOnnxProvider` with fallback delegation.
 - [ADR-0125](../adr/0125-local-gemma-activation-hardware-guardrails.md): Gemma models routed by `resolve_lm_provider`, offline fallback when weights are missing.
 - [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): Gemma 4 planned; the provider always uses the fallback.
+- [ADR-0137](../adr/0137-chat-model-catalog-with-retired-model-ids-resolved-to-succes.md): chat model catalog, retired ids resolved to successors, request rules per model.

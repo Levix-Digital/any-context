@@ -128,6 +128,16 @@ pub struct App {
     neural_rerank_label: std::sync::Mutex<Option<(std::time::Instant, Option<String>)>>,
 }
 
+/// Providers offered by the onboarding wizard: settings key, catalog provider, display name and note.
+/// The model saved for each one is `llm_catalog::onboarding_default`.
+pub const ONBOARDING_PROVIDERS: &[(&str, any_context_core_rs::llm_catalog::ChatProvider, &str, &str)] = &[
+    ("gemini", any_context_core_rs::llm_catalog::ChatProvider::Gemini, "Google Gemini", "Optimized latency and large native context window"),
+    ("openai", any_context_core_rs::llm_catalog::ChatProvider::OpenAi, "OpenAI", "Agile reasoning via OpenAI ecosystem"),
+    ("anthropic", any_context_core_rs::llm_catalog::ChatProvider::Anthropic, "Anthropic Claude", "Deep technical analysis and analytical accuracy"),
+    ("ollama", any_context_core_rs::llm_catalog::ChatProvider::Ollama, "Ollama (Local)", "Self-hosted local models (requires active Ollama server)"),
+    ("mock", any_context_core_rs::llm_catalog::ChatProvider::Mock, "Mock Provider", "Offline development and testing environment with zero token cost"),
+];
+
 impl App {
     pub fn tick(&mut self) {
         self.tick_count = self.tick_count.wrapping_add(1);
@@ -520,17 +530,31 @@ impl App {
     }
 
     pub fn rebuild_agent(&mut self) {
-        if let Ok((provider, _)) = crate::engine::resolve_lm_provider(Some(&self.active_model), Some(&self.active_workspace)) {
+        if let Ok(resolved) = crate::engine::resolve_lm_provider(Some(&self.active_model), Some(&self.active_workspace)) {
             let ws = self.active_workspace.clone();
-            let model = self.active_model.clone();
             let mode = self.grounding_mode.clone();
             let search = self.search_mode.clone();
             let web = self.web_search_enabled;
 
-            if let Ok(new_agent) = crate::engine::build_agent_sync(provider, &model, &ws, &mode, &search, web) {
+            if let Some(notice) = resolved.notice {
+                self.active_model = resolved.configured;
+                self.push_system_notice(notice);
+            }
+
+            if let Ok(new_agent) = crate::engine::build_agent_sync(resolved.provider, &resolved.model, &ws, &mode, &search, web) {
                 self.agent = Some(Arc::new(new_agent));
             }
         }
+    }
+
+    /// Adds a system message to the chat, such as the notice for a retired model id.
+    pub fn push_system_notice(&mut self, content: String) {
+        self.chat_history.push(ChatMessageItem {
+            role: MessageRole::System,
+            content,
+            thinking: None,
+            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+        });
     }
 
     pub fn load_session_history_for_workspace(&mut self) {
@@ -849,10 +873,11 @@ impl App {
     pub fn finish_onboarding(&mut self) {
         if let Some(onboarding) = self.onboarding_state.take() {
             let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
-            let provider_names = ["gemini", "openai", "anthropic", "ollama", "mock"];
-            let default_models = ["gemini-2.5-flash", "gpt-4o-mini", "claude-3-5-sonnet", "llama3", "mock"];
-            let prov = provider_names.get(onboarding.selected_provider_idx).unwrap_or(&"gemini");
-            let model = default_models.get(onboarding.selected_provider_idx).unwrap_or(&"gemini-2.5-flash");
+            let (prov, provider) = ONBOARDING_PROVIDERS
+                .get(onboarding.selected_provider_idx)
+                .map(|(name, provider, _, _)| (name, *provider))
+                .unwrap_or((&"gemini", any_context_core_rs::llm_catalog::ChatProvider::Gemini));
+            let model = &any_context_core_rs::llm_catalog::onboarding_default(provider);
 
             if let Some(ref d) = db {
                 let _ = d.set_setting("default_provider", prov);

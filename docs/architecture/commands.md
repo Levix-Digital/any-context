@@ -69,8 +69,9 @@ The command name is trimmed, stripped of the leading `/` and lower-cased. A `@<v
 
 - `/model <id>` accepts cloud models immediately; local models are checked by `HardwareProfiler` and rejected when unsafe for the machine unless `--force` is given (see [Model Catalog and Hardware Profiling](model-catalog.md)).
 - `/download <id|alias>` resolves the catalog entry, runs the disk and RAM pre-flight checks and, when they pass, returns `CommandAction::StartDownload(id)`; the UI performs the download. Planned models (local Gemma 4) are refused.
+- `/model list` and the TUI models menu show the chat model catalog (`any_context_core_rs::llm_catalog`), the same list `/preset` and onboarding take their models from. A retired model id stored or typed by the user is replaced with its successor when the model is resolved, with a notice ([Language Model Providers](lm-providers.md)).
 - `/rerank [auto|on|off|status]` persists `rerank_mode`; `/rerank model <id>` persists `reranker_model`.
-- `/preset offline|balanced|frontier|privacy` reconfigures the workspace: `balanced` sets `gpt-4o-mini`, hybrid grounding, auto search and web search on; `frontier` sets `claude-3-7-sonnet`, proactive grounding, deep search and web search on; `offline` and `privacy` keep the active model and set strict grounding, fast search and web search off, but only when the active model runs locally (`ollama/<model>` or `local/<model>`). With any other model they fail, explain that local Gemma 4 generation is planned, suggest `/model ollama/<model>` and change nothing.
+- `/preset offline|balanced|frontier|privacy` reconfigures the workspace: `balanced` sets `gpt-6-luna`, hybrid grounding, auto search and web search on; `frontier` sets `claude-opus-5-5`, proactive grounding, deep search and web search on; `offline` and `privacy` keep the active model and set strict grounding, fast search and web search off, but only when the active model runs locally (`ollama/<model>` or `local/<model>`). With any other model they fail, explain that local Gemma 4 generation is planned, suggest `/model ollama/<model>` and change nothing.
 
 ## Interfaces
 
@@ -93,3 +94,4 @@ The command name is trimmed, stripped of the leading `/` and lower-cased. A `@<v
 - [ADR-0126](../adr/0126-assisted-gemma-weights-downloader.md): `/download` and `CommandAction::StartDownload`.
 - [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): `/rerank` modes and model selection.
 - [ADR-0133](../adr/0133-offline-and-privacy-presets-require-a-working-local-model.md): offline and privacy presets require a working local model.
+- [ADR-0137](../adr/0137-chat-model-catalog-with-retired-model-ids-resolved-to-succes.md): `/preset` and `/model list` read the chat model catalog.

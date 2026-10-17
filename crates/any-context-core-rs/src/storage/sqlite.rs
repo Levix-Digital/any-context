@@ -1181,7 +1181,7 @@ impl NativeConfigDb {
         }
 
         // 3. Fallback
-        Ok("gpt-4o-mini".to_string())
+        Ok(crate::llm_catalog::DEFAULT_CHAT_MODEL.to_string())
     }
 
     pub fn set_default_model(&self, model: &str) -> Result<()> {

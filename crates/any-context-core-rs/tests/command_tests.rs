@@ -589,25 +589,39 @@ fn test_preset_command_execution() {
     assert_eq!(res_off.state_updates.grounding_mode, Some("strict".to_string()));
     assert_eq!(res_off.state_updates.search_mode, Some("fast".to_string()));
 
-    // 3. /preset balanced sets gpt-4o-mini and hybrid settings
+    // 3. /preset balanced sets gpt-6-luna and hybrid settings
     let res_bal = CommandEngine::execute("preset", &["balanced"], &ctx);
     assert!(res_bal.success);
     assert!(res_bal.message.contains("Hybrid-Balanced"));
-    assert_eq!(res_bal.state_updates.active_model, Some("gpt-4o-mini".to_string()));
+    assert_eq!(res_bal.state_updates.active_model, Some("gpt-6-luna".to_string()));
     assert_eq!(res_bal.state_updates.grounding_mode, Some("hybrid".to_string()));
     assert_eq!(res_bal.state_updates.web_search_enabled, Some(true));
     assert_eq!(res_bal.state_updates.search_mode, Some("auto".to_string()));
 
-    // 4. /preset frontier sets claude-3-7-sonnet and proactive settings
+    // 4. /preset frontier sets claude-opus-5-5 and proactive settings; never a retired id (BUG-002)
     let res_front = CommandEngine::execute("preset", &["frontier"], &ctx);
     assert!(res_front.success);
     assert!(res_front.message.contains("Maximum-Frontier"));
-    assert_eq!(res_front.state_updates.active_model, Some("claude-3-7-sonnet".to_string()));
+    assert_eq!(res_front.state_updates.active_model, Some("claude-opus-5-5".to_string()));
+    for res in [&res_bal, &res_front] {
+        let model = res.state_updates.active_model.as_deref().unwrap_or_default();
+        assert_eq!(any_context_core_rs::llm_catalog::successor_of(model), None, "{model} is retired");
+    }
     assert_eq!(res_front.state_updates.grounding_mode, Some("proactive".to_string()));
     assert_eq!(res_front.state_updates.web_search_enabled, Some(true));
     assert_eq!(res_front.state_updates.search_mode, Some("deep".to_string()));
 
-    // 5. /kit alias works identical to /preset
+    // 5. /model list shows every catalog model and no retired id
+    let res_list = CommandEngine::execute("model", &["list"], &ctx);
+    assert!(res_list.success);
+    for model in any_context_core_rs::llm_catalog::chat_models() {
+        assert!(res_list.message.contains(model.id), "/model list is missing {}", model.id);
+    }
+    for retired in ["claude-3-5-sonnet", "claude-3-7-sonnet", "gemini-1.5-pro", "deepseek-chat", "llama-3.3-70b"] {
+        assert!(!res_list.message.contains(retired), "/model list still offers {retired}");
+    }
+
+    // 6. /kit alias works identical to /preset
     let res_alias = CommandEngine::execute("kit", &["privacy"], &local_ctx);
     assert!(res_alias.success);
     assert!(res_alias.message.contains("Enterprise-Privacy"));

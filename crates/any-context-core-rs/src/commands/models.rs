@@ -130,7 +130,7 @@ impl Default for ExecutionContext {
     fn default() -> Self {
         Self {
             active_workspace: "Default".to_string(),
-            active_model: "gpt-4o-mini".to_string(),
+            active_model: crate::llm_catalog::DEFAULT_CHAT_MODEL.to_string(),
             grounding_mode: "strict".to_string(),
             search_mode: "auto".to_string(),
             web_search_enabled: false,

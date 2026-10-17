@@ -160,14 +160,20 @@ impl OpenAiCompatibleProvider {
             "stream": stream,
         });
 
-        if let Some(t) = request.params.temperature {
-            json["temperature"] = serde_json::json!(t);
+        let rules = OpenAiModelRules::for_model(&self.provider_name, &request.model);
+        if let Some(effort) = rules.reasoning_effort {
+            json["reasoning_effort"] = serde_json::json!(effort);
         }
-        if let Some(p) = request.params.top_p {
-            json["top_p"] = serde_json::json!(p);
+        if rules.sampling {
+            if let Some(t) = request.params.temperature {
+                json["temperature"] = serde_json::json!(t);
+            }
+            if let Some(p) = request.params.top_p {
+                json["top_p"] = serde_json::json!(p);
+            }
         }
         if let Some(m) = request.params.max_tokens {
-            json["max_tokens"] = serde_json::json!(m);
+            json[rules.max_tokens_field] = serde_json::json!(m);
         }
         if let Some(ref s) = request.params.stop {
             json["stop"] = serde_json::json!(s);
@@ -198,6 +204,36 @@ impl OpenAiCompatibleProvider {
         }
 
         json
+    }
+}
+
+/// Request fields that depend on the OpenAI model family (Chat Completions).
+#[derive(Debug, PartialEq, Eq)]
+struct OpenAiModelRules {
+    /// Whether `temperature` and `top_p` may be sent.
+    sampling: bool,
+    /// `max_tokens`, or `max_completion_tokens` for reasoning models.
+    max_tokens_field: &'static str,
+    /// `reasoning_effort` to send, if any.
+    reasoning_effort: Option<&'static str>,
+}
+
+impl OpenAiModelRules {
+    fn for_model(provider_name: &str, model: &str) -> Self {
+        let plain = Self { sampling: true, max_tokens_field: "max_tokens", reasoning_effort: None };
+        if provider_name != "openai" {
+            return plain;
+        }
+        let model = model.trim().to_ascii_lowercase();
+        if model.starts_with("gpt-6-luna") || model.starts_with("gpt-6-sol") {
+            // Effort `none` keeps sampling parameters and function calling available on Chat Completions.
+            Self { sampling: true, max_tokens_field: "max_completion_tokens", reasoning_effort: Some("none") }
+        } else if model.starts_with("gpt-6") || ["o1", "o3", "o4"].iter().any(|p| model.starts_with(p)) {
+            // GPT-6 Astra, GPT-6.1 Sol and the o-series reject sampling parameters and `max_tokens`.
+            Self { sampling: false, max_tokens_field: "max_completion_tokens", reasoning_effort: None }
+        } else {
+            plain
+        }
     }
 }
 
@@ -319,24 +355,7 @@ impl LmProvider for OpenAiCompatibleProvider {
         let status = resp.status();
         if !status.is_success() {
             let error_text = resp.text().await.unwrap_or_default();
-            if status.as_u16() == 401 || status.as_u16() == 403 {
-                return Err(LmError::Auth {
-                    provider: self.provider_name.clone(),
-                    message: error_text,
-                });
-            } else if status.as_u16() == 429 {
-                return Err(LmError::RateLimit {
-                    provider: self.provider_name.clone(),
-                    message: error_text,
-                    retry_after_secs: None,
-                });
-            } else {
-                return Err(LmError::ProviderError {
-                    provider: self.provider_name.clone(),
-                    status: status.as_u16(),
-                    message: error_text,
-                });
-            }
+            return Err(LmError::from_http_status(&self.provider_name, status.as_u16(), &request.model, error_text));
         }
 
         let parsed: OpenAiChatCompletionResponse = resp.json().await?;
@@ -407,24 +426,7 @@ impl LmProvider for OpenAiCompatibleProvider {
         let status = resp.status();
         if !status.is_success() {
             let error_text = resp.text().await.unwrap_or_default();
-            if status.as_u16() == 401 || status.as_u16() == 403 {
-                return Err(LmError::Auth {
-                    provider: self.provider_name.clone(),
-                    message: error_text,
-                });
-            } else if status.as_u16() == 429 {
-                return Err(LmError::RateLimit {
-                    provider: self.provider_name.clone(),
-                    message: error_text,
-                    retry_after_secs: None,
-                });
-            } else {
-                return Err(LmError::ProviderError {
-                    provider: self.provider_name.clone(),
-                    status: status.as_u16(),
-                    message: error_text,
-                });
-            }
+            return Err(LmError::from_http_status(&self.provider_name, status.as_u16(), &request.model, error_text));
         }
 
         let byte_stream = resp.bytes_stream();
@@ -553,5 +555,50 @@ impl LmProvider for OpenAiCompatibleProvider {
 
         let parsed: OpenAiEmbeddingResponse = resp.json().await?;
         Ok(parsed.data.into_iter().map(|d| d.embedding).collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::ChatMessage;
+
+    fn body_for(provider: OpenAiCompatibleProvider, model: &str) -> serde_json::Value {
+        let request = ChatRequest::new(model, vec![ChatMessage::user("Hi")]);
+        provider.serialize_request(&request, false)
+    }
+
+    #[test]
+    fn gpt6_luna_and_sol_use_effort_none_and_max_completion_tokens() {
+        for model in ["gpt-6-luna", "gpt-6-sol"] {
+            let body = body_for(OpenAiCompatibleProvider::openai("k"), model);
+            assert_eq!(body["reasoning_effort"], "none", "{model}");
+            assert_eq!(body["max_completion_tokens"], serde_json::json!(4096), "{model}");
+            assert!(body.get("max_tokens").is_none(), "{model}");
+            assert!(body.get("temperature").is_some(), "{model} keeps temperature with effort none");
+        }
+    }
+
+    #[test]
+    fn reasoning_only_openai_models_get_no_sampling_params() {
+        for model in ["gpt-6.1-sol", "gpt-6-astra", "o3"] {
+            let body = body_for(OpenAiCompatibleProvider::openai("k"), model);
+            assert!(body.get("temperature").is_none(), "{model}");
+            assert!(body.get("top_p").is_none(), "{model}");
+            assert!(body.get("reasoning_effort").is_none(), "{model}");
+            assert_eq!(body["max_completion_tokens"], serde_json::json!(4096), "{model}");
+        }
+    }
+
+    #[test]
+    fn other_openai_compatible_providers_keep_the_classic_fields() {
+        let body = body_for(OpenAiCompatibleProvider::groq("k"), "openai/gpt-oss-120b");
+        assert_eq!(body["max_tokens"], serde_json::json!(4096));
+        assert!(body.get("temperature").is_some());
+        assert!(body.get("reasoning_effort").is_none());
+
+        let legacy = body_for(OpenAiCompatibleProvider::openai("k"), "gpt-4o-mini");
+        assert_eq!(legacy["max_tokens"], serde_json::json!(4096));
+        assert!(legacy.get("reasoning_effort").is_none());
     }
 }

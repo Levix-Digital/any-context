@@ -5,16 +5,41 @@ use actx_lm::traits::LmProvider;
 use any_context_core_rs::storage::NativeConfigDb;
 use any_context_core_rs::retrieval::ContextFormatter;
 
+/// Provider and model chosen by `resolve_lm_provider`.
+pub struct ResolvedLm {
+    pub provider: Arc<dyn LmProvider>,
+    /// Model id sent to the provider (routing prefixes such as `groq/` removed).
+    pub model: String,
+    /// Model id as the user selects it (retired ids already replaced, routing prefix kept).
+    pub configured: String,
+    /// Set when the configured model is retired and was replaced by its successor; shown to the user.
+    pub notice: Option<String>,
+}
+
+/// Replaces a retired model id with its successor from the catalog (stored settings are not changed).
+fn map_retired_model(model: &str) -> (String, Option<String>) {
+    match any_context_core_rs::llm_catalog::successor_of(model) {
+        Some(successor) => {
+            tracing::warn!(retired = %model, successor = %successor, "retired model id mapped to its successor");
+            let notice = format!(
+                "Model `{model}` is no longer offered by its provider; using `{successor}`. Choose another with /model."
+            );
+            (successor.to_string(), Some(notice))
+        }
+        None => (model.to_string(), None),
+    }
+}
+
 /// Resolves an LmClient based on persistent SQLite database configuration,
 /// environment variables, or explicit overrides. Interface-agnostic.
 pub fn resolve_lm_provider(
     model_override: Option<&str>,
     workspace: Option<&str>,
-) -> Result<(Arc<dyn LmProvider>, String), String> {
+) -> Result<ResolvedLm, String> {
     let db = NativeConfigDb::open_default().ok();
 
     // 1. Resolve effective model:
-    // model_override > ACTX_MODEL env > workspace model from DB > default model from DB > "gpt-4o-mini"
+    // model_override > ACTX_MODEL env > workspace model from DB > default model from DB > catalog default
     let effective_model = model_override
         .map(|s| s.to_string())
         .or_else(|| std::env::var("ACTX_MODEL").ok())
@@ -26,9 +51,10 @@ pub fn resolve_lm_provider(
             }
         })
         .or_else(|| db.as_ref().and_then(|d| d.get_default_model().ok()))
-        .unwrap_or_else(|| "gpt-4o-mini".to_string());
+        .unwrap_or_else(|| any_context_core_rs::llm_catalog::DEFAULT_CHAT_MODEL.to_string());
 
-    let raw_model = effective_model.trim().to_string();
+    let (raw_model, notice) = map_retired_model(effective_model.trim());
+    let configured = raw_model.clone();
 
     let get_key = |provider: &str| -> Option<String> {
         db.as_ref().and_then(|d| d.get_api_key(provider).ok().flatten())
@@ -61,9 +87,9 @@ pub fn resolve_lm_provider(
     } else if raw_model.starts_with("deepseek") {
         let key = get_key("deepseek");
         (ProviderKind::DeepSeek, raw_model, key)
-    } else if raw_model.starts_with("groq") {
+    } else if let Some(groq_model) = raw_model.strip_prefix("groq/") {
         let key = get_key("groq");
-        (ProviderKind::Groq, raw_model, key)
+        (ProviderKind::Groq, groq_model.to_string(), key)
     } else if raw_model.starts_with("gpt") || raw_model.starts_with("o1") || raw_model.starts_with("o3") {
         let key = get_key("openai");
         (ProviderKind::OpenAi, raw_model, key)
@@ -105,7 +131,7 @@ pub fn resolve_lm_provider(
         }
     };
 
-    Ok((provider, model_name))
+    Ok(ResolvedLm { provider, model: model_name, configured, notice })
 }
 
 /// Embedding provider and model for query vectors: the same resolution the sync worker uses
@@ -776,27 +802,44 @@ mod tests {
 
     #[test]
     fn test_resolve_lm_provider_gemma_family() {
-        let (provider, model_name) = resolve_lm_provider(Some("gemma-4-compact"), None).expect("Should resolve");
-        assert_eq!(model_name, "gemma-4-compact");
-        assert_eq!(provider.provider_id(), "gemma-onnx");
+        for model in ["gemma-4-compact", "gemma-4-12b", "gemma-4-27b", "gemma-4-32b"] {
+            let resolved = resolve_lm_provider(Some(model), None).expect("Should resolve");
+            assert_eq!(resolved.model, model);
+            assert_eq!(resolved.provider.provider_id(), "gemma-onnx");
+            assert!(resolved.notice.is_none());
+        }
+    }
 
-        let (provider_12b, model_name_12b) = resolve_lm_provider(Some("gemma-4-12b"), None).expect("Should resolve");
-        assert_eq!(model_name_12b, "gemma-4-12b");
-        assert_eq!(provider_12b.provider_id(), "gemma-onnx");
+    #[test]
+    fn test_resolve_lm_provider_maps_retired_model_with_notice() {
+        let resolved = resolve_lm_provider(Some("claude-3-7-sonnet"), None).expect("Should resolve");
+        assert_eq!(resolved.model, "claude-opus-5-5");
+        let notice = resolved.notice.expect("a retired model must produce a notice");
+        assert!(notice.contains("claude-3-7-sonnet") && notice.contains("claude-opus-5-5"));
+    }
 
-        let (provider_27b, model_name_27b) = resolve_lm_provider(Some("gemma-4-27b"), None).expect("Should resolve");
-        assert_eq!(model_name_27b, "gemma-4-27b");
-        assert_eq!(provider_27b.provider_id(), "gemma-onnx");
+    #[test]
+    fn test_resolve_lm_provider_current_model_has_no_notice() {
+        let resolved = resolve_lm_provider(Some("claude-opus-5-5"), None).expect("Should resolve");
+        assert_eq!(resolved.model, "claude-opus-5-5");
+        assert!(resolved.notice.is_none());
+    }
 
-        let (provider_32b, model_name_32b) = resolve_lm_provider(Some("gemma-4-32b"), None).expect("Should resolve");
-        assert_eq!(model_name_32b, "gemma-4-32b");
-        assert_eq!(provider_32b.provider_id(), "gemma-onnx");
+    #[test]
+    fn test_resolve_lm_provider_strips_groq_prefix() {
+        let resolved = resolve_lm_provider(Some("groq/openai/gpt-oss-120b"), None).expect("Should resolve");
+        assert_eq!(resolved.model, "openai/gpt-oss-120b");
+
+        // The retired Groq id from the old models menu has no groq/ prefix; it maps to the Groq successor.
+        let legacy = resolve_lm_provider(Some("llama-3.3-70b-versatile"), None).expect("Should resolve");
+        assert_eq!(legacy.model, "openai/gpt-oss-120b");
+        assert!(legacy.notice.is_some());
     }
 
     #[tokio::test]
     async fn test_resolve_lm_provider_gemma_fallback_safe() {
         // Even if ONNX weights are not installed on disk, calling chat_complete does not panic
-        let (provider, _) = resolve_lm_provider(Some("gemma-4-compact"), None).expect("Should resolve");
+        let provider = resolve_lm_provider(Some("gemma-4-compact"), None).expect("Should resolve").provider;
         let req = actx_lm::types::ChatRequest::new("gemma-4-compact", vec![actx_lm::types::ChatMessage::user("Hello")]);
         let res = provider.chat_complete(req).await;
         // Result is either Ok (from mock/cloud fallback) or Ok with mock content, never a panic
