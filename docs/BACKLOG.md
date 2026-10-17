@@ -6,13 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-002: Retired model ids in presets, onboarding and model menus
-- **Severity**: high
-- **Status**: planned
-- **Found**: 2026-10-16, v0.45.0, PR #333
-- **Plan**: any_context_retired_model_ids_in_presets_onboarding_and_model_menus
-- **Description**: Every Claude id in the product is retired (claude-3-7-sonnet in /preset frontier, claude-3-5-sonnet in onboarding, claude-3-5-* in the models menu and /models), and so are gemini-1.5-pro, llama-3.3-70b-versatile (Groq, shut down 2026-08-16) and deepseek-chat/deepseek-reasoner (2026-07-24); o1 and o3-mini shut down on 2026-10-23 and gpt-4o-mini on 2027-01-14. Current Claude models also reject the temperature/top_p the Anthropic provider always sends, and Groq ids are routed to the wrong provider or sent with the groq/ prefix. Choosing these models fails on the first question.
-
 ### BUG-003: Changing a workspace chat model mixes embedding spaces on the next sync
 - **Severity**: medium
 - **Status**: open
@@ -358,3 +351,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_data_indexed_before_field_encryption_stays_in_plaintext
 - **Closed**: 2026-10-17, plan any_context_data_indexed_before_field_encryption_stays_in_plaintext, PR #342
 - **Description**: Chunks written to LanceDB before field-level encryption on every write (ADR-0131) remain unencrypted on disk until the workspace is re-indexed with actx --sync --force. Nothing tells the user, while the README states that indexed text is encrypted.
+
+### BUG-002: Retired model ids in presets, onboarding and model menus
+- **Severity**: high
+- **Status**: done
+- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Plan**: any_context_retired_model_ids_in_presets_onboarding_and_model_menus
+- **Closed**: 2026-10-17, plan any_context_retired_model_ids_in_presets_onboarding_and_model_menus, PR #345
+- **Description**: Every Claude id in the product is retired (claude-3-7-sonnet in /preset frontier, claude-3-5-sonnet in onboarding, claude-3-5-* in the models menu and /models), and so are gemini-1.5-pro, llama-3.3-70b-versatile (Groq, shut down 2026-08-16) and deepseek-chat/deepseek-reasoner (2026-07-24); o1 and o3-mini shut down on 2026-10-23 and gpt-4o-mini on 2027-01-14. Current Claude models also reject the temperature/top_p the Anthropic provider always sends, and Groq ids are routed to the wrong provider or sent with the groq/ prefix. Choosing these models fails on the first question.
