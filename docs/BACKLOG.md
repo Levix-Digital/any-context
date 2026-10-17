@@ -6,13 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-003: Changing a workspace chat model mixes embedding spaces on the next sync
-- **Severity**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
-- **Description**: resolve_embedding_provider (ingestion/orchestrator.rs) derives the embedding model from the workspace chat model. After /model changes it, the next incremental sync embeds new or changed files with another provider/model while unchanged files keep their old vectors, and queries use the new model, so part of the workspace becomes unreachable by dense search. Needs the per-workspace embedding model record planned for Frente C, or a forced reindex when the embedding target changes.
-
 ### BUG-004: Source round-robin puts diversity above relevance and breaks the U-shaped order
 - **Severity**: medium
 - **Status**: open
@@ -68,13 +61,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, v0.45.0, product ideas review
 - **Plan**: -
 - **Description**: `config/AGENT.md` tells the model to call `add_web_source`, `list_web_sources`, `remove_web_source` and `search_db(search_session_memory=True)`, but only `search_db(query)` and `system_status` are registered. It also says the model must always call `search_db` first, while the deterministic path sends the retrieved chunks with no tools available.
-
-### BUG-013: Gemini embedding model text-embedding-004 is shut down
-- **Severity**: high
-- **Status**: in_progress
-- **Found**: 2026-10-17, 2026-10-17, BUG-002 discovery
-- **Plan**: any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
-- **Description**: Google shut down text-embedding-004 on 2026-01-14, so ingestion and query embedding for Gemini workspaces fail, and the dense search is skipped without a message (IMP-003). The successor is gemini-embedding-2. Changing the embedding model needs a reindex of the affected workspaces; plan it with BUG-003, FEAT-005 and IMP-004.
 
 ### BUG-014: Failed embedding calls store pseudo-vectors next to real ones
 - **Severity**: medium
@@ -374,3 +360,19 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_retrieved_text_is_not_escaped_in_the_xml_prompt
 - **Closed**: 2026-10-17, plan any_context_retrieved_text_is_not_escaped_in_the_xml_prompt, PR #343
 - **Description**: `ContextFormatter::format_xml_chunks` writes chunk text and attribute values (file path, file name) into the XML prompt without escaping. Indexed content containing `</chunk>`, `</retrieved_context>` or quotes (this repository's own docs, crawled web pages) breaks the chunk boundaries the prompt relies on and opens a prompt-injection path.
+
+### BUG-003: Changing a workspace chat model mixes embedding spaces on the next sync
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
+- **Closed**: 2026-10-17, plan any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
+- **Description**: resolve_embedding_provider (ingestion/orchestrator.rs) derives the embedding model from the workspace chat model. After /model changes it, the next incremental sync embeds new or changed files with another provider/model while unchanged files keep their old vectors, and queries use the new model, so part of the workspace becomes unreachable by dense search. Needs the per-workspace embedding model record planned for Frente C, or a forced reindex when the embedding target changes.
+
+### BUG-013: Gemini embedding model text-embedding-004 is shut down
+- **Severity**: high
+- **Status**: done
+- **Found**: 2026-10-17, 2026-10-17, BUG-002 discovery
+- **Plan**: any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
+- **Closed**: 2026-10-17, plan any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
+- **Description**: Google shut down text-embedding-004 on 2026-01-14, so ingestion and query embedding for Gemini workspaces fail, and the dense search is skipped without a message (IMP-003). The successor is gemini-embedding-2. Changing the embedding model needs a reindex of the affected workspaces; plan it with BUG-003, FEAT-005 and IMP-004.
