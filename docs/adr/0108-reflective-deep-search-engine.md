@@ -8,7 +8,7 @@ subsystems: [agent, retrieval, tui]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: []
+amended_by: [141]
 ---
 
 # ADR-0108: Reflective Agentic Deep Search Engine and Adaptive Routing (RFC-042)

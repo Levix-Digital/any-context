@@ -8,7 +8,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-009: Deep Search synthesis bypasses the canonical context formatter
 - **Severity**: medium
-- **Status**: planned
+- **Status**: in_progress
 - **Found**: 2026-10-17, v0.45.0, RAG best-practices review
 - **Plan**: any_context_deep_search_synthesis_bypasses_the_canonical_context_formatter
 - **Description**: The Deep Search `SUMMARY_PROMPT` places the original query before the chunks and lists them as plain `--- CHUNK n ---` blocks, without U-shaped reordering, XML isolation, scope/version attributes or a query anchor. It is the mode that gathers the most chunks from several sub-queries.

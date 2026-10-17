@@ -185,7 +185,7 @@ fn parse_last_modified(value: &Option<String>) -> Option<chrono::DateTime<chrono
 
 /// Relevance order: score descending; on an exact tie, newer `last_modified` first (missing or
 /// invalid dates last). Recency never changes a score, so it cannot lift a chunk past a better one.
-fn compare_by_relevance(a: &HybridSearchResult, b: &HybridSearchResult) -> std::cmp::Ordering {
+pub(crate) fn compare_by_relevance(a: &HybridSearchResult, b: &HybridSearchResult) -> std::cmp::Ordering {
     b.score
         .partial_cmp(&a.score)
         .unwrap_or(std::cmp::Ordering::Equal)

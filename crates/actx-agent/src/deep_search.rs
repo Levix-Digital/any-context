@@ -26,7 +26,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// Normalized document chunk retrieved across lexical and vector sources
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct RetrievedChunk {
     pub id: String,
     pub file_name: String,
@@ -37,6 +37,12 @@ pub struct RetrievedChunk {
     pub text: String,
     pub score: f64,
     pub matched_queries: Vec<String>,
+    /// Content type reported by the index (e.g. `Markdown`); empty when unknown.
+    #[serde(default)]
+    pub content_type: String,
+    /// Last modification date of the source (RFC 3339), when known.
+    #[serde(default)]
+    pub last_modified: Option<String>,
 }
 
 /// Abstract contract for asynchronous batch chunk retrieval
@@ -44,6 +50,26 @@ pub struct RetrievedChunk {
 pub trait DeepSearchRetriever: Send + Sync {
     /// Retrieve relevant document chunks for a batch of sub-queries concurrently
     async fn retrieve_batch(&self, queries: &[String]) -> Result<Vec<RetrievedChunk>, AgentError>;
+}
+
+/// Builds the final synthesis prompt from the accepted chunks and the user's question.
+///
+/// The application injects the canonical formatter of the core (`CanonicalSynthesisFormatter`);
+/// `DefaultSynthesisFormatter` is used when none is injected.
+pub trait SynthesisPromptFormatter: Send + Sync {
+    fn format_synthesis_prompt(&self, chunks: &[RetrievedChunk], query: &str) -> String;
+}
+
+/// Fallback synthesis prompt for library use and tests: chunks in the given order, query last.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DefaultSynthesisFormatter;
+
+impl SynthesisPromptFormatter for DefaultSynthesisFormatter {
+    fn format_synthesis_prompt(&self, chunks: &[RetrievedChunk], query: &str) -> String {
+        SUMMARY_PROMPT
+            .replace("{original_query}", query)
+            .replace("{chunks_text}", &format_full_chunks(chunks))
+    }
 }
 
 /// Runtime configuration for the Deep Search engine
@@ -120,15 +146,13 @@ Please provide a comprehensive, accurate, and direct conclusion answering the us
 CRITICAL GROUNDING & LANGUAGE RULES:
 1. STRICT LANGUAGE MATCHING: You MUST write the final response strictly in the EXACT same language as the user's Original Query (e.g., if the user wrote in Portuguese, answer 100% in Portuguese).
 2. DIRECT CONCLUSION ONLY: Deliver ONLY the direct, grounded answer or conclusion. DO NOT include preambles, introductory filler (e.g., "Based on the evidence...", "Here is the response..."), meta-explanations of your research process, or repetition of explored sub-queries.
-3. PRECISE PROVENANCE: Rely strictly on the provided evidence chunks. Whenever citing information or code, cite exact source provenance with file names and line ranges, e.g. `[path/to/file.rs:45-60]`.
+3. PRECISE PROVENANCE: Rely strictly on the provided evidence chunks. Whenever citing information or code, cite the source file shown in the chunk header.
 4. If specific details are not found in the chunks, explicitly state the limitation.
-
-Original Query: {original_query}
 
 Retrieved Chunks:
 {chunks_text}
 
-Conclusion:"#;
+Original Query: {original_query}"#;
 
 // ============================================================================
 // PARSER UTILITIES (Resilient JSON / Markdown / Python extraction)
@@ -255,6 +279,7 @@ pub struct DeepSearchOrchestrator {
     config: DeepSearchConfig,
     agent_config: AgentConfig,
     session_store: Option<Arc<dyn SessionStore>>,
+    synthesis_formatter: Arc<dyn SynthesisPromptFormatter>,
 }
 
 impl DeepSearchOrchestrator {
@@ -271,7 +296,14 @@ impl DeepSearchOrchestrator {
             config,
             agent_config,
             session_store,
+            synthesis_formatter: Arc::new(DefaultSynthesisFormatter),
         }
+    }
+
+    /// Replaces the formatter that builds the final synthesis prompt.
+    pub fn with_synthesis_formatter(mut self, formatter: Arc<dyn SynthesisPromptFormatter>) -> Self {
+        self.synthesis_formatter = formatter;
+        self
     }
 
     /// Execute the full Deep Search workflow
@@ -436,11 +468,9 @@ impl DeepSearchOrchestrator {
         // --------------------------------------------------------------------
         // PHASE 3: Grounded Synthesis with Provenance
         // --------------------------------------------------------------------
-        let full_chunks_text = self.format_full_chunks(&all_accepted_chunks);
-
-        let summary_prompt = SUMMARY_PROMPT
-            .replace("{original_query}", input)
-            .replace("{chunks_text}", &full_chunks_text);
+        let summary_prompt = self
+            .synthesis_formatter
+            .format_synthesis_prompt(&all_accepted_chunks, input);
 
         let mut synthesis_messages = working_history;
         synthesis_messages.push(ChatMessage::user(summary_prompt));
@@ -524,29 +554,30 @@ impl DeepSearchOrchestrator {
         }
         out
     }
+}
 
-    fn format_full_chunks(&self, chunks: &[RetrievedChunk]) -> String {
-        if chunks.is_empty() {
-            return "No relevant documentation chunks found in the workspace.".to_string();
-        }
-        let mut out = String::new();
-        for (i, c) in chunks.iter().enumerate() {
-            let header = c.header_path.as_deref().unwrap_or(&c.file_name);
-            let lines = match (c.start_line, c.end_line) {
-                (Some(s), Some(e)) => format!(":{s}-{e}"),
-                _ => String::new(),
-            };
-            out.push_str(&format!(
-                "--- CHUNK {} [{}{}] (Context: {}) ---\n{}\n\n",
-                i + 1,
-                c.file_path,
-                lines,
-                header,
-                c.text
-            ));
-        }
-        out
+/// Plain-text chunk listing used by `DefaultSynthesisFormatter`.
+fn format_full_chunks(chunks: &[RetrievedChunk]) -> String {
+    if chunks.is_empty() {
+        return "No relevant documentation chunks found in the workspace.".to_string();
     }
+    let mut out = String::new();
+    for (i, c) in chunks.iter().enumerate() {
+        let header = c.header_path.as_deref().unwrap_or(&c.file_name);
+        let lines = match (c.start_line, c.end_line) {
+            (Some(s), Some(e)) => format!(":{s}-{e}"),
+            _ => String::new(),
+        };
+        out.push_str(&format!(
+            "--- CHUNK {} [{}{}] (Context: {}) ---\n{}\n\n",
+            i + 1,
+            c.file_path,
+            lines,
+            header,
+            c.text
+        ));
+    }
+    out
 }
 
 /// Sanitizes any remaining metadata or section headers, ensuring only the direct conclusion is returned.

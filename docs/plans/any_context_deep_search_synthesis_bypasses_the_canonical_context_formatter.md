@@ -4,10 +4,10 @@ project: any-context
 title: Deep Search synthesis bypasses the canonical context formatter
 kind: bug
 version: v0.45.1
-status: active
+status: in_progress
 author: Claude
 created_at: '2026-10-17T22:07:45'
-updated_at: '2026-10-17T22:18:00'
+updated_at: '2026-10-17T22:23:08'
 session_id: null
 tags:
 - deep-search
@@ -37,6 +37,10 @@ status_log:
   by: Claude
   status: active
   note: Plan updated
+- at: '2026-10-17T22:23:08'
+  by: Claude
+  status: in_progress
+  note: Approved by the user on 2026-10-17
 ---
 
 # Deep Search synthesis bypasses the canonical context formatter
