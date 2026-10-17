@@ -25,6 +25,13 @@
   "tests": {
     "manual_tests": "tests/MANUAL_TESTS.md"
   },
+  "backlog": {
+    "file": "docs/BACKLOG.md",
+    "blocking_severities": [
+      "critical",
+      "high"
+    ]
+  },
   "devops": {
     "releases_repo": "Levix-Digital/any-context-releases",
     "integration_branch": "dev",
