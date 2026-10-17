@@ -297,6 +297,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: bm25_index.bin keeps chunk text in plaintext because lexical search needs the terms (ADR-0131 consequence), so the indexed text is not fully encrypted on disk. Options: encrypt the serialized file with the hardware-bound key and decrypt on load, or store only hashed terms.
 
+### IMP-013: Compact and prune LanceDB after deletes and forced reindexes
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, BUG-001 implementation, 2026-10-17
+- **Plan**: -
+- **Description**: Deletes and actx sync --force only write deletion markers and new versions, so replaced chunk data (including removed or changed documents) stays on disk in old Lance versions until a compaction and prune runs. Only the plaintext migration (ADR-0135) prunes today. Add periodic optimize (compact + prune) after syncs that delete rows.
+
 ## Adjustments
 
 ### ADJ-001: Update the outdated .clinerules

@@ -7,7 +7,7 @@ version: v0.45.1
 status: planned
 author: Levi Silveira
 created_at: '2026-10-17T09:25:05'
-updated_at: '2026-10-17T09:26:53'
+updated_at: '2026-10-17T09:49:28'
 session_id: null
 tags:
 - storage
@@ -21,11 +21,17 @@ backlog_items:
 - BUG-001
 milestones:
 - name: M1 Store migration
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M2 Triggers
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M3 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M4 Review and PR
   done: false
 status_log:
@@ -37,6 +43,15 @@ status_log:
   by: Levi Silveira
   status: planned
   note: Plan updated
+- at: '2026-10-17T09:36:44'
+  by: Levi Silveira
+  note: Milestone 'M1 Store migration' completed
+- at: '2026-10-17T09:48:37'
+  by: Levi Silveira
+  note: Milestone 'M2 Triggers' completed
+- at: '2026-10-17T09:49:28'
+  by: Levi Silveira
+  note: Milestone 'M3 Docs and manual tests' completed
 ---
 
 # Data indexed before field encryption stays in plaintext
