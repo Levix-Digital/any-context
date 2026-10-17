@@ -4,10 +4,10 @@ project: any-context
 title: Embedding target changes mix vector spaces and the Gemini embedding model is shut down
 kind: bug
 version: v0.45.1
-status: active
+status: in_progress
 author: Levi Silveira
 created_at: '2026-10-17T11:36:04'
-updated_at: '2026-10-17T11:44:08'
+updated_at: '2026-10-17T12:13:35'
 session_id: null
 tags:
 - embeddings
@@ -22,15 +22,25 @@ backlog_items:
 - BUG-013
 milestones:
 - name: M1 Evidence
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M2 Target and record
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M3 Reindex rule and sync
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M4 Query side and Gemini adapter
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M5 Documentation and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M6 Review and pull request
   done: false
 status_log:
@@ -46,6 +56,21 @@ status_log:
   by: Levi Silveira
   status: active
   note: Approved by the user on 2026-10-17
+- at: '2026-10-17T11:47:46'
+  by: Levi Silveira
+  note: 'Milestone ''M1 Evidence'' completed: H1 confirmed from docs, H2 refuted, IMP-014 captured'
+- at: '2026-10-17T12:12:40'
+  by: Levi Silveira
+  note: Milestone 'M2 Target and record' completed
+- at: '2026-10-17T12:13:30'
+  by: Levi Silveira
+  note: Milestone 'M3 Reindex rule and sync' completed
+- at: '2026-10-17T12:13:33'
+  by: Levi Silveira
+  note: Milestone 'M4 Query side and Gemini adapter' completed
+- at: '2026-10-17T12:13:35'
+  by: Levi Silveira
+  note: Milestone 'M5 Documentation and manual tests' completed
 ---
 
 # Embedding target changes mix vector spaces and the Gemini embedding model is shut down
@@ -102,8 +127,9 @@ Logs: the sync and query paths discard the provider error (`Err(_) =>` in both),
 
 ### Hypotheses to confirm before the fix is final
 
-- **H1**: `batchEmbedContents` for `gemini-embedding-2` accepts the output size per request item in the shape the current API reference documents (the config object, or the deprecated per-item `outputDimensionality`), and returns 1536 values. The official batch examples found during discovery use `gemini-embedding-001`. Confirmed in step 1 of section 8 with a real call; the request shape follows whatever the call proves.
-- **H2**: truncated `gemini-embedding-2` vectors aren't unit length, so they must be L2-normalized before storing and before querying for L2 distance to rank like cosine similarity. Confirmed in step 1 by measuring the norm of the returned vector.
+- **H1 (confirmed from the documentation, 2026-10-17)**: the embeddings guide's REST example for `gemini-embedding-2` sets `output_dimensionality` next to `content` in the request body, and its `batchEmbedContents` example sends `requests[]` with `model` and `content` per item. The adapter therefore sends `outputDimensionality: 1536` in each request item. Calling the real API needs a key, and the agent doesn't take one from `settings.db`, so the live call is MT-SYNC-007 on the release candidate.
+- **H2 (refuted, 2026-10-17)**: the embeddings guide says gemini-embedding-2 "auto-normalizes truncated dimensions (e.g., 768, 1536)" (manual normalization is only for `gemini-embedding-001`). The adapter doesn't normalize.
+- **Also found**: gemini-embedding-2 rejects `task_type` and expects text prefixes for asymmetric retrieval. The fix sends raw text, as today. Adding the prefixes is a quality change and is captured as **IMP-014**.
 
 ## 3. Fix design (`software-design`)
 
@@ -170,7 +196,7 @@ In `NativeSyncOrchestrator::sync`, right after step 4:
 
 - `Reindex` turns the pass into a **full workspace** force pass (purge vectors, BM25 and the stat cache of the whole workspace, as `options.force` does today). It does that even when the sync was scoped to one folder (`target_folder`), because a scoped pass can't make the workspace consistent. Verbose output and `SyncResult` say so.
 - The record is written (`set_workspace_embedding_target`) only **after** the pass completes without cancellation. A cancelled or failed reindex leaves the old record, so the next sync tries again. Each pass purges before embedding, so a half-finished reindex never survives as a mix that looks finished.
-- `SyncResult` gets `embedding_reindex: Option<String>` (for example `"openai/text-embedding-3-small → gemini/gemini-embedding-2"`). The CLI sync summary and the TUI sync status line show it: "Embedding model changed (A → B): the workspace was reindexed."
+- `SyncResult` gets `embedding_reindex: Option<String>`. The message ("Embedding model changed (A → B): the whole workspace is reindexed.") is written to the sync status detail and the verbose sync output. The sync runs in a background worker, so the user-facing warning comes in advance: `pending_reindex_notice(db, workspace)` lets `/model` and `/sync` add "Embedding model changes (A → B): the next sync reindexes the whole workspace." (implementation note: chosen over a TUI status-line change, which only shows the progress bar).
 
 ### 3.4 Queries between the change and the next sync
 
@@ -178,7 +204,7 @@ The CLI's `resolve_embedding_provider` call for queries (`crates/actx-cli/src/en
 
 ### 3.5 Gemini adapter (BUG-013)
 
-`GeminiProvider::embed` sends the output size per request item in the shape confirmed by H1, set from a constant `GEMINI_EMBEDDING_DIM = 1536` (equal to `DEFAULT_VECTOR_DIM`, asserted in a test). It L2-normalizes each returned vector if H2 is confirmed. The adapter owns the size because it's part of the wire request. The core only passes the model id.
+`GeminiProvider::embed` sends the output size per request item in the shape confirmed by H1, set from a constant `GEMINI_EMBEDDING_DIM = 1536` (equal to `DEFAULT_VECTOR_DIM`, asserted in a test). The adapter owns the size because it's part of the wire request. The core only passes the model id.
 
 ### 3.6 Deliberately not done
 
@@ -197,9 +223,9 @@ ADR-0138 "Record the embedding target per workspace and reindex on change": opti
 |---|---|
 | `crates/any-context-core-rs/src/ingestion/orchestrator.rs` (and `ingestion/mod.rs` exports) | `EmbeddingTarget`, resolver return type, Gemini and mock targets, `decide_reindex`, `legacy_target`, `resolve_query_embedding_provider`, sync step 4b, record after success, `SyncResult.embedding_reindex` |
 | `crates/any-context-core-rs/src/storage/sqlite.rs` | `embedding_target` column (create + additive migration), get/set methods |
-| `crates/actx-lm/src/providers/gemini.rs` | output size per request, normalization, `GEMINI_EMBEDDING_DIM` |
+| `crates/actx-lm/src/providers/gemini.rs` | output size per request, `GEMINI_EMBEDDING_DIM` |
 | `crates/actx-cli/src/engine.rs` | query embedding through `resolve_query_embedding_provider` |
-| CLI sync summary (`crates/actx-cli/src/cli/…` sync/oneshot) and TUI sync status (`crates/actx-cli/src/tui/…`) | show `embedding_reindex` |
+| `crates/any-context-core-rs/src/commands/engine.rs` | `/model` and `/sync` show `pending_reindex_notice` (`/preset` is left alone: its models stay on the OpenAI embedding target, and the BUG-002 branch rewrites those lines) |
 | `crates/any-context-core-rs/src/retrieval/pipeline.rs` | doc comment of `set_embedding` only |
 
 Surfaces: the sync output (CLI and TUI) gains one message. No command, flag, configuration key or file format changes. The `settings.db` schema gains one nullable column.
@@ -217,15 +243,15 @@ Automated (`cargo test --workspace`, native runner and CI):
 3. `decide_reindex` table test: Keep / Adopt (empty workspace) / Adopt (legacy == current, OpenAI) / Reindex (recorded differs) / Reindex (legacy differs).
 4. No-key fallback resolves to `mock/mock-embed`, and adding an OpenAI key changes the target.
 5. Scoped sync (`target_folder`) with a pending reindex purges and re-embeds the whole workspace.
-6. Cancelled reindex: the record is unchanged afterwards (cancellation hook already used by MT-SYNC-003 tests).
+6. Cancelled reindex: the record is written only on the completed paths of `run` (early exit and end of pass), not on the cancellation return. Implementation note: there is no deterministic hook to cancel a pass mid-run from a test, so this is verified by review and by MT-SYNC-003 rather than by an automated test.
 7. `sqlite.rs`: the column is added to an old database without it (open a database created with the pre-fix `CREATE TABLE`), get/set round trip, NULL by default.
-8. `gemini.rs`: request body serialization contains the output size for every item; normalization of a returned vector (unit test on the pure helper, no network); `GEMINI_EMBEDDING_DIM == DEFAULT_VECTOR_DIM`.
+8. `gemini.rs`: request body serialization contains the model and the output size for every item (pure helper, no network); `GEMINI_EMBEDDING_DIM == DEFAULT_VECTOR_DIM` (asserted in the core, which depends on `actx-lm`).
 9. Query side: `resolve_query_embedding_provider` prefers the recorded target, and falls back for a dead target or a missing key.
 
 Manual (`tests/MANUAL_TESTS.md`, section "Sources and Sync"), edited in place:
 
 - **New MT-SYNC-006: Changing the model reindexes the workspace once.** Sync with an OpenAI model, `/model` to a Gemini model, sync. Expected: the "embedding model changed" message, every file re-embedded, a question about an old document answered from it. A second sync reports 0 changes.
-- **New MT-SYNC-007: A workspace indexed before the upgrade with a Gemini model is repaired.** With a v0.45.0 Gemini workspace, install the candidate and sync. Expected: one automatic reindex, then dense results (a question answered from a passage with no shared keywords). This is the evidence for H1/H2 with the real API.
+- **New MT-SYNC-007: A workspace indexed before the upgrade with a Gemini model is repaired.** With a v0.45.0 Gemini workspace, install the candidate and sync. Expected: one automatic reindex, then dense results (a question answered from a passage with no shared keywords). This is the live-API evidence for H1.
 
 Acceptance criteria: the tests above pass on the native runner and in CI; MT-SYNC-006 and MT-SYNC-007 pass on the release candidate; no second reindex happens on a sync after a completed one.
 
@@ -234,7 +260,7 @@ Acceptance criteria: the tests above pass on the native runner and in CI; MT-SYN
 - `docs/architecture/ingestion.md`, "Embedding and writing": the target record, the reindex rule, the legacy inference rule, `gemini-embedding-2` at 1536 dimensions, the mock target. Steps of the sync pass: add step 4b.
 - `docs/architecture/retrieval.md`, dense search: queries prefer the recorded target.
 - `docs/architecture/storage.md`: the `workspaces.embedding_target` column.
-- `docs/architecture/lm-providers.md`: Gemini embedding output size and normalization.
+- `docs/architecture/lm-providers.md`: Gemini embedding model and output size.
 - New ADR-0138 (section 3.7); `build_index.py` and `check_docs.py` with zero errors.
 - README: a short line in the troubleshooting or models section: "Changing the chat model can change the embedding model; the next sync reindexes the workspace automatically, which costs one embedding pass." Run `check_readme.py`.
 
@@ -250,9 +276,9 @@ Acceptance criteria: the tests above pass on the native runner and in CI; MT-SYN
 
 ## 8. Execution steps and milestones
 
-1. **M1 Evidence**: call `batchEmbedContents` for `text-embedding-004` (quote the shutdown error) and for `gemini-embedding-2` with output size 1536; confirm H1 (request shape, 1536 values) and H2 (vector norm). `grep` for other hard-coded embedding ids.
+1. **M1 Evidence**: confirm H1 and H2 from the official documentation (done: H1 confirmed, H2 refuted, IMP-014 captured); `grep` for other hard-coded embedding ids (done: only `resolve_embedding_provider`, the retrieval default `DEFAULT_QUERY_EMBEDDING_MODEL` and the token-limit table, which already falls back to 2048 tokens for any `gemini*` id).
 2. **M2 Target and record**: `EmbeddingTarget`, resolver changes (Gemini, mock), SQLite column and methods, tests 4, 7.
 3. **M3 Reindex rule and sync**: `decide_reindex`, `legacy_target`, sync step 4b, record after success, `SyncResult.embedding_reindex`, tests 1, 2, 3, 5, 6.
-4. **M4 Query side and Gemini adapter**: `resolve_query_embedding_provider`, CLI wiring, Gemini output size and normalization, CLI/TUI message, tests 8, 9.
+4. **M4 Query side and Gemini adapter**: `resolve_query_embedding_provider`, CLI wiring, Gemini output size, CLI/TUI message, tests 8, 9.
 5. **M5 Documentation and manual tests**: architecture pages, ADR-0138, README line, MT-SYNC-006/007, `check_docs.py`, `check_readme.py`, `manual_tests.py validate`.
 6. **M6 Review and pull request**: code review, `software-design` checklist, `check_design.py`, pull request into `dev` listing BUG-003, BUG-013 and the captured BUG-014, CI green.

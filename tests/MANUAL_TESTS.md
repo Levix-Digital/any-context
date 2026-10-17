@@ -225,6 +225,36 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-SYNC-006: Changing the model reindexes the workspace once
+
+- **Covers**: /model, /sync, embedding target record
+- **Prerequisites**: OpenAI and Gemini keys saved with `/keys`; a workspace with a folder of a few documents, synced with an OpenAI model
+- **Steps**:
+  1. Run `/model gemini-2.5-flash`.
+  2. Run `/sync --incremental` without changing any file.
+  3. Ask a question answered only by one of the documents, phrased without its key words.
+  4. Run `/sync --incremental` again.
+- **Expected**:
+  - Step 1 warns that the next sync reindexes the whole workspace (`openai/text-embedding-3-small → gemini/gemini-embedding-2`).
+  - Step 2 re-embeds every file, although none changed; the sync log shows the "Embedding model changed" line.
+  - Step 3 is answered from that document.
+  - Step 4 reports the workspace as up to date, with no second reindex.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
+### MT-SYNC-007: A Gemini workspace indexed by an older version is repaired
+
+- **Covers**: Gemini embeddings (`gemini-embedding-2`), legacy workspaces
+- **Prerequisites**: a Gemini key; a workspace synced with a Gemini model by a version before the embedding target record (for example v0.45.0)
+- **Steps**:
+  1. Install the candidate and run `/sync --incremental` on that workspace.
+  2. Ask a question answered by a passage that shares no key words with the question.
+- **Expected**:
+  - Step 1 reindexes the whole workspace once, without embedding errors in the sync log.
+  - Step 2 is answered from that passage (dense search works with the real Gemini API).
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ## Document Formats
 
 ### MT-DOC-001: PDFs with tables and forms are answered exactly

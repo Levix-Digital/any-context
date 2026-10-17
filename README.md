@@ -131,6 +131,8 @@ Only new and changed files are processed on each sync. Folders that moved slight
 
 Local Gemma 4 models are listed as planned and cannot be used yet.
 
+Search embeddings come from the provider of the selected model (OpenAI, Gemini, Ollama), or from OpenAI when that provider has no key. When a model change switches the embedding provider, `/model` warns you and the next sync reindexes the whole workspace once, which costs one embedding pass.
+
 ### Other commands
 
 `/config` (settings overview), `/logs` (recent log lines), `/diagnostics` (system health), `/menu` or `F1` (interactive menu), `/clear` (clear the screen), `/cd` and `/pwd` (working folder), `/version`, `/check-update`, `/update`, `/help`, `/exit`.
@@ -208,6 +210,7 @@ To uninstall, download and run the uninstaller from the [releases page](https://
 | "No information or documents matching the query" | The workspace has no relevant indexed content yet: check `/sources` and `/status`, wait for the sync to finish, or rephrase. |
 | A folder shows as unreachable | The path no longer exists; add it again with `/folder <path>`. |
 | The sync seems stuck | Check the footer or `/status`; read `sync_<workspace>.log` in the logs folder; `/cancel` and `/sync --incremental` again. |
+| Answers miss documents indexed before you switched models | Run `/sync --force` once to re-embed the workspace with the current embedding model. |
 | `/rerank` shows `RRF (Fallback)` | The local re-ranker is not installed or could not load: run `actx download reranker`, and on Windows install the Visual C++ Redistributable. |
 | `actx --update` says the packages are still being built | A release was just published; try again in a few minutes. |
 | An old version still runs after updating | Open a new terminal; the updater also replaces copies of `actx` found elsewhere in your `PATH`. |

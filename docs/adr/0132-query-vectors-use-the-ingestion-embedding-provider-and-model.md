@@ -8,7 +8,7 @@ subsystems: [retrieval, ingestion, cli]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: []
+amended_by: [138]
 ---
 
 # ADR-0132: Query vectors use the ingestion embedding provider and model
