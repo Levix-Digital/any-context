@@ -4571,6 +4571,8 @@ To execute Python callables from native Rust Tokio threads without deadlocks:
 
 ## 76. Native Rust Hybrid RAG Pipeline & RFC-042 Batch Retrieval Engine (`v0.30.39`)
 
+> ⚠️ **Rectification note (v0.45.1, BUG-001)**: the dense query vector is no longer produced by the chat provider with a fixed `text-embedding-3-small` model. `NativeHybridPipeline` receives a `QueryEmbedder` port; the default `WorkspaceQueryEmbedder` resolves each target workspace through `embedding::resolve_embedding_target`, the same function ingestion uses, so each workspace is searched with a query vector from the embedding space it was indexed in (one embedding call per distinct provider/model). If the embedding fails, that workspace falls back to BM25 only (ADR-110) and the outcome is recorded in `retrieval::last_query_embedding_status()`.
+
 ### 1. Architectural Vision & Context
 
 Prior to `v0.30.39`, the retrieval orchestration in AnyContext operated within Python (`ParallelRetriever`):

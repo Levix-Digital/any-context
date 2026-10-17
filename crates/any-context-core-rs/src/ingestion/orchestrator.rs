@@ -23,9 +23,8 @@ use crate::retrieval::bm25::BM25Index;
 use crate::storage::lancedb::{NativeLanceStore, VectorRecord, DEFAULT_TABLE_NAME, DEFAULT_VECTOR_DIM};
 use crate::storage::sqlite::NativeConfigDb;
 
-use actx_lm::providers::mock::MockLmProvider;
-use actx_lm::providers::openai::OpenAiCompatibleProvider;
-use actx_lm::providers::gemini::GeminiProvider;
+use crate::embedding::resolve_embedding_target;
+
 use actx_lm::traits::LmProvider;
 
 /// Configuration options for workspace synchronization.
@@ -716,48 +715,8 @@ impl NativeSyncOrchestrator {
         model_override: Option<&str>,
         workspace: &str,
     ) -> (Option<Arc<dyn LmProvider>>, String) {
-        let model = model_override
-            .map(|s| s.to_string())
-            .or_else(|| std::env::var("ACTX_EMBEDDING_MODEL").ok())
-            .or_else(|| std::env::var("ACTX_MODEL").ok())
-            .or_else(|| self.db.get_workspace_model(workspace).ok())
-            .or_else(|| self.db.get_default_model().ok())
-            .unwrap_or_else(|| "text-embedding-3-small".to_string());
-
-        let raw = model.trim().to_lowercase();
-
-        if raw.starts_with("mock") {
-            return (Some(Arc::new(MockLmProvider::new())), "mock-embed".to_string());
-        }
-
-        if raw.starts_with("gemini") {
-            if let Ok(Some(key)) = self.db.get_api_key("gemini") {
-                let provider = GeminiProvider::new(key);
-                return (Some(Arc::new(provider)), "text-embedding-004".to_string());
-            }
-        }
-
-        if raw.starts_with("ollama") || raw.starts_with("local") {
-            let provider = OpenAiCompatibleProvider::new(
-                "ollama",
-                "http://localhost:11434/v1".to_string(),
-                None,
-            );
-            return (Some(Arc::new(provider)), "nomic-embed-text".to_string());
-        }
-
-        // Default OpenAI embedding provider
-        if let Ok(Some(key)) = self.db.get_api_key("openai") {
-            let provider = OpenAiCompatibleProvider::new(
-                "openai",
-                "https://api.openai.com/v1".to_string(),
-                Some(key),
-            );
-            return (Some(Arc::new(provider)), "text-embedding-3-small".to_string());
-        }
-
-        // Deterministic fallback mock provider
-        (Some(Arc::new(MockLmProvider::new())), "text-embedding-3-small".to_string())
+        let target = resolve_embedding_target(&self.db, model_override, workspace);
+        (Some(target.provider), target.model)
     }
 }
 

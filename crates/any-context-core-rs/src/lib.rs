@@ -1,4 +1,5 @@
 pub mod models;
+pub mod embedding;
 pub mod ingestion;
 pub mod retrieval;
 pub mod storage;

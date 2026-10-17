@@ -7,6 +7,32 @@
 
 ## 🎯 Testes Pendentes de Validação Humana
 
+### 📌 Scenario 46 (v0.45.1 Query embedding follows the workspace embedding model — BUG-001):
+- **Goal**: Prove that in `v0.45.1` dense (semantic) search works whatever the workspace chat model is, because the query is embedded with the same provider and model the workspace was indexed with, and that a missing embedding provider only drops the query to BM25.
+- **Prerequisites**: An OpenAI API key; optionally a Gemini API key. A folder with two documents that share no keywords with the test question, for example `billing.md` ("Invoices are issued on the first business day of each month.") and `holidays.md` ("The office is closed on public holidays.").
+
+#### 📋 Execution Steps:
+
+1. **📄 Version:**
+   ```text
+   actx -v
+   ```
+   - **Acceptance Criteria**: Shows `actx 0.45.1`.
+
+2. **🔑 Workspace with a non-OpenAI chat model (Anthropic) and an OpenAI key:**
+   - In the TUI, save the OpenAI key with `/keys`, create a workspace, add the folder with `/folder`, wait for the sync to finish, then switch the chat model with `/model claude-…` (any Claude model).
+   - Ask: `When do customers receive their bills?`
+   - **Acceptance Criteria**: The answer cites `billing.md`, although the question shares no keyword with it ("bills" vs "Invoices"). In `v0.45.0` this question found nothing with a Claude model.
+
+3. **♊ Workspace with a Gemini chat model (optional):**
+   - Save a Gemini key, create a new workspace with `/model gemini-…` **before** adding the folder, add the folder and wait for the sync.
+   - Ask the same question.
+   - **Acceptance Criteria**: The answer cites `billing.md`.
+
+4. **🛡️ Fallback without an embedding provider:**
+   - Remove the OpenAI and Gemini keys, keep a Claude chat key, and ask `invoices first business day`.
+   - **Acceptance Criteria**: `actx` answers without errors, citing `billing.md` through keyword search (BM25). Nothing crashes or hangs.
+
 ### 📌 Cenário 45 (v0.45.0 Runtime ONNX Real, Cross-Encoder Multilíngue mmarco, Provisionamento Transparente e Retificação de Honestidade Técnica — ADR-130):
 - **Objetivo**: Comprovar que na versão `v0.45.0`:
   1. O Estágio 2 do Two-Stage Retrieval executa um **cross-encoder real** (`mmarco-mMiniLMv2-L12`) via ONNX Runtime oficial (CPU), carregado de forma preguiçosa.

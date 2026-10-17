@@ -15,7 +15,8 @@ use crate::retrieval::rrf::reciprocal_rank_fusion;
 use crate::retrieval::diversifier::{RankedChunk, apply_source_diversification, apply_density_budget};
 use crate::retrieval::query::QueryPreprocessor;
 use crate::retrieval::token_budget::estimate_token_count;
-use actx_lm::traits::LmProvider;
+use crate::embedding::resolve_embedding_target;
+use crate::storage::sqlite::NativeConfigDb;
 
 /// Preset profiles for hybrid retrieval and RAG candidate boundaries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -253,12 +254,76 @@ async fn apply_neural_rerank(
     }
 }
 
+/// Port: embeds a query in the embedding space a workspace was indexed with.
+#[async_trait::async_trait]
+pub trait QueryEmbedder: Send + Sync {
+    /// Identity of the workspace's embedding space; workspaces sharing it share one query vector.
+    fn space_key(&self, workspace: &str) -> String;
+
+    /// Embeds `text` with the workspace's embedding provider and model.
+    async fn embed_query(&self, workspace: &str, text: &str) -> Result<Vec<f32>, String>;
+}
+
+/// Default [`QueryEmbedder`]: resolves each workspace's embedding target exactly as ingestion does.
+pub struct WorkspaceQueryEmbedder {
+    db: Arc<NativeConfigDb>,
+}
+
+impl WorkspaceQueryEmbedder {
+    pub fn new(db: Arc<NativeConfigDb>) -> Self {
+        Self { db }
+    }
+}
+
+#[async_trait::async_trait]
+impl QueryEmbedder for WorkspaceQueryEmbedder {
+    fn space_key(&self, workspace: &str) -> String {
+        let (provider, model) = resolve_embedding_target(&self.db, None, workspace).space_key();
+        format!("{provider}/{model}")
+    }
+
+    async fn embed_query(&self, workspace: &str, text: &str) -> Result<Vec<f32>, String> {
+        let target = resolve_embedding_target(&self.db, None, workspace);
+        let vecs = target
+            .provider
+            .embed(&target.model, &[text.to_string()])
+            .await
+            .map_err(|e| e.to_string())?;
+        vecs.into_iter()
+            .next()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| "provider returned an empty embedding".to_string())
+    }
+}
+
+/// Outcome of the most recent query embedding in this process.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueryEmbeddingStatus {
+    /// The query was embedded in `space`.
+    Embedded { space: String },
+    /// Embedding failed; the workspaces of `space` fell back to BM25 only (ADR-110).
+    Failed { space: String, error: String },
+}
+
+static LAST_QUERY_EMBEDDING: std::sync::Mutex<Option<QueryEmbeddingStatus>> = std::sync::Mutex::new(None);
+
+/// Outcome of the most recent query embedding in this process, if any.
+pub fn last_query_embedding_status() -> Option<QueryEmbeddingStatus> {
+    LAST_QUERY_EMBEDDING.lock().ok().and_then(|s| s.clone())
+}
+
+fn record_query_embedding(status: QueryEmbeddingStatus) {
+    if let Ok(mut slot) = LAST_QUERY_EMBEDDING.lock() {
+        *slot = Some(status);
+    }
+}
+
 /// Unified Native Hybrid Retrieval and Reranking Pipeline.
 pub struct NativeHybridPipeline {
     db_path: PathBuf,
     lance_store: Arc<NativeLanceStore>,
     bm25_indices: Arc<RwLock<HashMap<String, BM25Index>>>,
-    lm_client: Option<Arc<dyn LmProvider>>,
+    query_embedder: Option<Arc<dyn QueryEmbedder>>,
     reranker: Option<Arc<actx_onnx::OnnxReranker>>,
     rerank_mode: String,
 }
@@ -272,28 +337,28 @@ impl NativeHybridPipeline {
             db_path: p,
             lance_store,
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
-            lm_client: None,
+            query_embedder: None,
             reranker: None,
             rerank_mode: "auto".to_string(),
         })
     }
 
-    /// Creates pipeline with an existing [`NativeLanceStore`] and optional [`LmProvider`].
-    pub fn new(lance_store: Arc<NativeLanceStore>, lm_client: Option<Arc<dyn LmProvider>>) -> Self {
+    /// Creates pipeline with an existing [`NativeLanceStore`] and optional [`QueryEmbedder`].
+    pub fn new(lance_store: Arc<NativeLanceStore>, query_embedder: Option<Arc<dyn QueryEmbedder>>) -> Self {
         let p = lance_store.db_path().to_path_buf();
         Self {
             db_path: p,
             lance_store,
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
-            lm_client,
+            query_embedder,
             reranker: None,
             rerank_mode: "auto".to_string(),
         }
     }
 
-    /// Sets the optional language model client for native on-the-fly embeddings.
-    pub fn set_lm_client(&mut self, lm_client: Option<Arc<dyn LmProvider>>) {
-        self.lm_client = lm_client;
+    /// Sets the optional query embedder used for dense search.
+    pub fn set_query_embedder(&mut self, query_embedder: Option<Arc<dyn QueryEmbedder>>) {
+        self.query_embedder = query_embedder;
     }
 
     /// Sets the optional cross-encoder neural reranker.
@@ -529,21 +594,40 @@ impl NativeHybridPipeline {
             }
         }
 
-        // 5. Query Vector Resolution (Passed in or computed via actx-lm)
-        let query_vec = if let Some(ref v) = req.query_vector {
-            Some(v.clone())
-        } else if let Some(ref lm) = self.lm_client {
-            match lm.embed("text-embedding-3-small", &[req.query_text.clone()]).await {
-                Ok(vecs) if !vecs.is_empty() => Some(vecs[0].clone()),
-                _ => None,
-            }
-        } else {
-            None
-        };
+        // 5. Query Vector Resolution: passed in, or embedded in each workspace's own embedding space
+        let mut space_vectors: HashMap<String, Option<Vec<f32>>> = HashMap::new();
+        let mut target_vectors = Vec::with_capacity(targets.len());
+        for (ws_name, limit) in &targets {
+            let query_vec = if let Some(ref v) = req.query_vector {
+                Some(v.clone())
+            } else if let Some(ref embedder) = self.query_embedder {
+                let space = embedder.space_key(ws_name);
+                if let Some(cached) = space_vectors.get(&space) {
+                    cached.clone()
+                } else {
+                    // ADR-110: a failed embedding leaves this workspace on BM25 only, but is recorded.
+                    let embedded = match embedder.embed_query(ws_name, &req.query_text).await {
+                        Ok(v) => {
+                            record_query_embedding(QueryEmbeddingStatus::Embedded { space: space.clone() });
+                            Some(v)
+                        }
+                        Err(error) => {
+                            record_query_embedding(QueryEmbeddingStatus::Failed { space: space.clone(), error });
+                            None
+                        }
+                    };
+                    space_vectors.insert(space, embedded.clone());
+                    embedded
+                }
+            } else {
+                None
+            };
+            target_vectors.push((ws_name, *limit, query_vec));
+        }
 
         // 6. Dense Vector Similarity Search
-        if let Some(q_vec) = query_vec {
-            for (ws_name, limit) in &targets {
+        for (ws_name, limit, query_vec) in target_vectors {
+            if let Some(q_vec) = query_vec {
                 let ws_filter = if ws_name == "Default" {
                     None
                 } else {
@@ -551,7 +635,7 @@ impl NativeHybridPipeline {
                 };
                 if let Ok(matches) = self
                     .lance_store
-                    .search_vector_async(q_vec.clone(), *limit, ws_filter, None, Some(&req.table_name))
+                    .search_vector_async(q_vec, limit, ws_filter, None, Some(&req.table_name))
                     .await
                 {
                     for sc in matches {
@@ -1117,5 +1201,116 @@ mod tests {
             .map(|i| score(&format!("c{i}")))
             .fold(f64::MAX, f64::min);
         assert!(score("tail") < min_head, "unscored tail must stay below every re-scored item");
+    }
+
+    /// Test double: each workspace has its own embedding space and query vector.
+    struct SpaceEmbedder {
+        spaces: HashMap<&'static str, (&'static str, Result<Vec<f32>, String>)>,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl QueryEmbedder for SpaceEmbedder {
+        fn space_key(&self, workspace: &str) -> String {
+            self.spaces[workspace].0.to_string()
+        }
+
+        async fn embed_query(&self, workspace: &str, _text: &str) -> Result<Vec<f32>, String> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.spaces[workspace].1.clone()
+        }
+    }
+
+    fn record(id: &str, workspace: &str, vector: Vec<f32>) -> crate::storage::lancedb::VectorRecord {
+        crate::storage::lancedb::VectorRecord {
+            id: id.to_string(),
+            vector,
+            text: format!("chunk {id}"),
+            file_name: format!("{id}.md"),
+            file_path: format!("docs/{id}.md"),
+            workspace: workspace.to_string(),
+            last_modified: None,
+            content_type: Some("markdown".to_string()),
+            document_summary: None,
+            keywords: None,
+            content_hash: None,
+        }
+    }
+
+    fn dense_scores(results: &[HybridSearchResult]) -> HashMap<String, f32> {
+        results
+            .iter()
+            .filter_map(|r| r.dense_score.map(|s| (r.chunk_id.clone(), s)))
+            .collect()
+    }
+
+    /// BUG-001 regression: each workspace is searched with a query vector from its own embedding
+    /// space, one embedding per space, and a failed embedding only drops that workspace to BM25.
+    #[test]
+    fn test_dense_search_embeds_query_per_workspace_space() {
+        let temp_dir = std::env::temp_dir().join(format!("actx_test_query_space_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let mut pipeline = NativeHybridPipeline::open(&temp_dir).unwrap();
+        pipeline.set_rerank_mode("off");
+        pipeline
+            .lance_store
+            .upsert_records(
+                vec![
+                    record("a1", "Alpha", vec![1.0, 0.0, 0.0, 0.0]),
+                    record("a2", "Alpha", vec![0.0, 1.0, 0.0, 0.0]),
+                    record("b1", "Beta", vec![0.0, 0.0, 1.0, 0.0]),
+                    record("b2", "Beta", vec![0.0, 0.0, 0.0, 1.0]),
+                ],
+                Some("workspace_chunks"),
+                Some(4),
+            )
+            .unwrap();
+
+        let req = HybridSearchRequest {
+            query_text: "where is the configuration".to_string(),
+            workspace: Some("Alpha".to_string()),
+            target_workspaces: vec!["Beta".to_string(), "Gamma".to_string()],
+            top_k: 10,
+            candidate_pool_k: 10,
+            rerank_mode: Some("off".to_string()),
+            ..Default::default()
+        };
+
+        let embedder = Arc::new(SpaceEmbedder {
+            spaces: HashMap::from([
+                ("Alpha", ("space-a", Ok(vec![1.0, 0.0, 0.0, 0.0]))),
+                ("Gamma", ("space-a", Ok(vec![1.0, 0.0, 0.0, 0.0]))),
+                ("Beta", ("space-b", Ok(vec![0.0, 0.0, 1.0, 0.0]))),
+            ]),
+            calls: std::sync::atomic::AtomicUsize::new(0),
+        });
+        pipeline.set_query_embedder(Some(embedder.clone()));
+        let scores = dense_scores(&pipeline.search(req.clone()).unwrap());
+        assert!(scores["a1"] > scores["a2"], "Alpha must use its own query vector: {scores:?}");
+        assert!(scores["b1"] > scores["b2"], "Beta must use its own query vector: {scores:?}");
+        assert_eq!(embedder.calls.load(std::sync::atomic::Ordering::SeqCst), 2, "one embedding per space");
+
+        let failing = Arc::new(SpaceEmbedder {
+            spaces: HashMap::from([
+                ("Alpha", ("space-a", Ok(vec![1.0, 0.0, 0.0, 0.0]))),
+                ("Gamma", ("space-a", Ok(vec![1.0, 0.0, 0.0, 0.0]))),
+                ("Beta", ("space-b", Err("embedding unsupported".to_string()))),
+            ]),
+            calls: std::sync::atomic::AtomicUsize::new(0),
+        });
+        pipeline.set_query_embedder(Some(failing));
+        let scores = dense_scores(&pipeline.search(req).unwrap());
+        assert!(scores.contains_key("a1"), "Alpha keeps dense search: {scores:?}");
+        assert!(!scores.contains_key("b1") && !scores.contains_key("b2"), "Beta falls back to BM25: {scores:?}");
+        assert_eq!(
+            last_query_embedding_status(),
+            Some(QueryEmbeddingStatus::Failed {
+                space: "space-b".to_string(),
+                error: "embedding unsupported".to_string(),
+            })
+        );
+
+        drop(pipeline);
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 }
