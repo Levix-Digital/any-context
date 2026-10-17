@@ -65,6 +65,7 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     tokio::task::spawn_blocking(|| {
         let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
         if let Ok(ls) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) {
+            crate::engine::encrypt_legacy_chunks(&ls);
             crate::engine::ensure_global_knowledge_bootstrap(&ls);
         }
     });
