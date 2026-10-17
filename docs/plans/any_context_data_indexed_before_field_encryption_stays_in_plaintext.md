@@ -4,10 +4,10 @@ project: any-context
 title: Data indexed before field encryption stays in plaintext
 kind: bug
 version: v0.45.1
-status: planned
+status: completed
 author: Levi Silveira
 created_at: '2026-10-17T09:25:05'
-updated_at: '2026-10-17T09:49:28'
+updated_at: '2026-10-17T10:23:09'
 session_id: null
 tags:
 - storage
@@ -33,7 +33,9 @@ milestones:
   done_at: '2026-10-17'
   by: Levi Silveira
 - name: M4 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 status_log:
 - at: '2026-10-17T09:25:05'
   by: Levi Silveira
@@ -52,6 +54,13 @@ status_log:
 - at: '2026-10-17T09:49:28'
   by: Levi Silveira
   note: Milestone 'M3 Docs and manual tests' completed
+- at: '2026-10-17T10:23:09'
+  by: Levi Silveira
+  note: 'Milestone ''M4 Review and PR'' completed: PR #342 merged into dev (585283c)'
+- at: '2026-10-17T10:23:09'
+  by: Levi Silveira
+  status: completed
+  note: All milestones completed
 ---
 
 # Data indexed before field encryption stays in plaintext
