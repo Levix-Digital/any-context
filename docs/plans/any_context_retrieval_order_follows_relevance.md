@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-17T18:50:49'
-updated_at: '2026-10-17T18:56:48'
+updated_at: '2026-10-17T19:24:17'
 session_id: null
 tags:
 - retrieval
@@ -22,9 +22,13 @@ backlog_items:
 - BUG-006
 milestones:
 - name: M1 Ranking fix
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Claude
 - name: M2 Docs and ADR
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Claude
 - name: M3 Review and PR
   done: false
 status_log:
@@ -43,6 +47,12 @@ status_log:
   by: Claude
   status: in_progress
   note: Approved by the user on 2026-10-17 with BUG-006 included (option a)
+- at: '2026-10-17T19:24:15'
+  by: Claude
+  note: 'Milestone ''M1 Ranking fix'' completed: Regression tests failed before the fix; cargo test --workspace green'
+- at: '2026-10-17T19:24:17'
+  by: Claude
+  note: 'Milestone ''M2 Docs and ADR'' completed: ADR-0139 (renumbered after ADR-0138 landed on dev), retrieval.md; check_docs 0 errors'
 ---
 
 # Retrieval order follows relevance: per-source cap in score order and recency as a tie-breaker
