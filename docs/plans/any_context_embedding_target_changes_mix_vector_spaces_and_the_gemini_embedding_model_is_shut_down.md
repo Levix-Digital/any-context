@@ -4,10 +4,10 @@ project: any-context
 title: Embedding target changes mix vector spaces and the Gemini embedding model is shut down
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Levi Silveira
 created_at: '2026-10-17T11:36:04'
-updated_at: '2026-10-17T12:13:35'
+updated_at: '2026-10-17T12:51:08'
 session_id: null
 tags:
 - embeddings
@@ -42,7 +42,9 @@ milestones:
   done_at: '2026-10-17'
   by: Levi Silveira
 - name: M6 Review and pull request
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 status_log:
 - at: '2026-10-17T11:36:04'
   by: Levi Silveira
@@ -71,6 +73,13 @@ status_log:
 - at: '2026-10-17T12:13:35'
   by: Levi Silveira
   note: Milestone 'M5 Documentation and manual tests' completed
+- at: '2026-10-17T12:51:08'
+  by: Levi Silveira
+  note: 'Milestone ''M6 Review and pull request'' completed: PR #347 merged into dev'
+- at: '2026-10-17T12:51:08'
+  by: Levi Silveira
+  status: completed
+  note: All milestones completed
 ---
 
 # Embedding target changes mix vector spaces and the Gemini embedding model is shut down
