@@ -6,13 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-001: Data indexed before field encryption stays in plaintext
-- **Severity**: high
-- **Status**: planned
-- **Found**: 2026-10-16, v0.45.0, PR #333
-- **Plan**: any_context_data_indexed_before_field_encryption_stays_in_plaintext
-- **Description**: Chunks written to LanceDB before field-level encryption on every write (ADR-0131) remain unencrypted on disk until the workspace is re-indexed with actx --sync --force. Nothing tells the user, while the README states that indexed text is encrypted.
-
 ### BUG-002: Frontier preset selects an outdated model id
 - **Severity**: medium
 - **Status**: open
@@ -350,3 +343,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-17, duplicate of BUG-006 (the threshold is above the maximum single-list RRF score)
 - **Description**: Deep Search keeps results with a minimum score of 0.02, which looks low and may let irrelevant chunks into the combined answer.
+
+### BUG-001: Data indexed before field encryption stays in plaintext
+- **Severity**: high
+- **Status**: done
+- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Plan**: any_context_data_indexed_before_field_encryption_stays_in_plaintext
+- **Closed**: 2026-10-17, plan any_context_data_indexed_before_field_encryption_stays_in_plaintext, PR #342
+- **Description**: Chunks written to LanceDB before field-level encryption on every write (ADR-0131) remain unencrypted on disk until the workspace is re-indexed with actx --sync --force. Nothing tells the user, while the README states that indexed text is encrypted.
