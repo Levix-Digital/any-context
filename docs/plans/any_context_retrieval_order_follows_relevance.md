@@ -4,10 +4,10 @@ project: any-context
 title: 'Retrieval order follows relevance: per-source cap in score order and recency as a tie-breaker'
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Claude
 created_at: '2026-10-17T18:50:49'
-updated_at: '2026-10-17T19:24:17'
+updated_at: '2026-10-17T20:21:25'
 session_id: null
 tags:
 - retrieval
@@ -30,7 +30,9 @@ milestones:
   done_at: '2026-10-17'
   by: Claude
 - name: M3 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Claude
 status_log:
 - at: '2026-10-17T18:50:49'
   by: Claude
@@ -53,6 +55,17 @@ status_log:
 - at: '2026-10-17T19:24:17'
   by: Claude
   note: 'Milestone ''M2 Docs and ADR'' completed: ADR-0139 (renumbered after ADR-0138 landed on dev), retrieval.md; check_docs 0 errors'
+- at: '2026-10-17T20:21:04'
+  by: Claude
+  note: 'Milestone ''M3 Review and PR'' completed: PR #349 merged into dev (9b06e5c)'
+- at: '2026-10-17T20:21:04'
+  by: Claude
+  status: completed
+  note: All milestones completed
+- at: '2026-10-17T20:21:25'
+  by: Claude
+  status: completed
+  note: 'PR #349 merged into dev (9b06e5c)'
 ---
 
 # Retrieval order follows relevance: per-source cap in score order and recency as a tie-breaker
