@@ -147,6 +147,27 @@ struct GeminiError {
     message: String,
 }
 
+/// Vector size requested from Gemini embedding models. It matches the fixed LanceDB vector
+/// dimension (`DEFAULT_VECTOR_DIM` in the core); gemini-embedding-2 normalizes truncated sizes.
+pub const GEMINI_EMBEDDING_DIM: usize = 1536;
+
+/// Body of a `batchEmbedContents` request: one item per text, each with the output size.
+fn batch_embed_request_body(model_id: &str, texts: &[String]) -> serde_json::Value {
+    let requests: Vec<serde_json::Value> = texts
+        .iter()
+        .map(|t| {
+            serde_json::json!({
+                "model": model_id,
+                "content": {
+                    "parts": [{ "text": t }]
+                },
+                "outputDimensionality": GEMINI_EMBEDDING_DIM
+            })
+        })
+        .collect();
+    serde_json::json!({ "requests": requests })
+}
+
 #[derive(Deserialize)]
 struct GeminiBatchEmbedResponse {
     embeddings: Vec<GeminiEmbeddingContent>,
@@ -342,19 +363,7 @@ impl LmProvider for GeminiProvider {
             self.base_url, model_id, self.api_key
         );
 
-        let requests: Vec<serde_json::Value> = texts
-            .iter()
-            .map(|t| {
-                serde_json::json!({
-                    "model": model_id,
-                    "content": {
-                        "parts": [{ "text": t }]
-                    }
-                })
-            })
-            .collect();
-
-        let body = serde_json::json!({ "requests": requests });
+        let body = batch_embed_request_body(&model_id, texts);
 
         let resp = self
             .http_client
@@ -383,4 +392,22 @@ fn uuid_timestamp() -> u128 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn batch_embed_request_sets_model_and_output_size_per_item() {
+        let texts = vec!["first".to_string(), "second".to_string()];
+        let body = batch_embed_request_body("models/gemini-embedding-2", &texts);
+        let requests = body["requests"].as_array().expect("requests array");
+        assert_eq!(requests.len(), 2);
+        for (req, text) in requests.iter().zip(&texts) {
+            assert_eq!(req["model"], "models/gemini-embedding-2");
+            assert_eq!(req["content"]["parts"][0]["text"], text.as_str());
+            assert_eq!(req["outputDimensionality"], GEMINI_EMBEDDING_DIM);
+        }
+    }
 }

@@ -3,7 +3,7 @@
 //! Provides thread-safe connections, automatic WAL mode, 30s busy timeout,
 //! and standard schema management for workspaces, settings, and file synchronization hashes.
 
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, OptionalExtension, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -143,6 +143,7 @@ impl NativeConfigDb {
                 model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
                 web_search_enabled INTEGER NOT NULL DEFAULT 0,
                 paths_json TEXT DEFAULT '[]',
+                embedding_target TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -269,6 +270,9 @@ impl NativeConfigDb {
         }
         if !Self::check_column(&conn, "workspaces", "web_search_enabled") {
             let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN web_search_enabled INTEGER NOT NULL DEFAULT 0", []);
+        }
+        if !Self::check_column(&conn, "workspaces", "embedding_target") {
+            let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN embedding_target TEXT", []);
         }
 
         if !Self::check_column(&conn, "workspace_web_urls", "title") {
@@ -1247,6 +1251,37 @@ impl NativeConfigDb {
         Ok(())
     }
 
+    /// Embedding target (`provider/model`) that built the workspace's vectors (ADR-0138).
+    /// `None` when the workspace does not exist, `Some(None)` when nothing is recorded yet.
+    pub fn get_workspace_embedding_target(&self, workspace_name: &str) -> Result<Option<Option<String>>> {
+        let conn = self.conn.lock().unwrap();
+        if !Self::check_column(&conn, "workspaces", "embedding_target") {
+            return Ok(None);
+        }
+        let row: Option<Option<String>> = conn
+            .query_row(
+                "SELECT embedding_target FROM workspaces WHERE name = ?1 COLLATE NOCASE",
+                params![workspace_name],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(row.map(|v| v.filter(|s| !s.trim().is_empty())))
+    }
+
+    /// Records the embedding target of the workspace's vectors (`None` clears it).
+    /// Returns `false` when the workspace does not exist.
+    pub fn set_workspace_embedding_target(&self, workspace_name: &str, target: Option<&str>) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        if !Self::check_column(&conn, "workspaces", "embedding_target") {
+            return Ok(false);
+        }
+        let n = conn.execute(
+            "UPDATE workspaces SET embedding_target = ?1 WHERE name = ?2 COLLATE NOCASE",
+            params![target, workspace_name],
+        )?;
+        Ok(n > 0)
+    }
+
     pub fn get_workspace_grounding_mode(&self, workspace_name: &str) -> Result<String> {
         let conn = self.conn.lock().unwrap();
         if Self::check_column(&conn, "workspaces", "grounding_mode") {
@@ -2101,6 +2136,41 @@ fn uuid_simple() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn embedding_target_column_is_added_to_legacy_databases() {
+        let path = std::env::temp_dir().join(format!("actx_embedding_target_{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        {
+            // Workspaces table as created before v0.45.1, without `embedding_target`.
+            let conn = Connection::open(&path).expect("open legacy db");
+            conn.execute_batch(
+                "CREATE TABLE workspaces (
+                    id TEXT PRIMARY KEY,
+                    name TEXT UNIQUE NOT NULL,
+                    description TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                INSERT INTO workspaces (id, name, created_at, updated_at) VALUES ('ws_legacy', 'Legacy', 'x', 'x');",
+            )
+            .expect("legacy schema");
+        }
+        let db = NativeConfigDb::open(&path).expect("open migrated db");
+        assert_eq!(db.get_workspace_embedding_target("Legacy").expect("get"), Some(None));
+        assert!(db.set_workspace_embedding_target("legacy", Some("openai/text-embedding-3-small")).expect("set"));
+        assert_eq!(
+            db.get_workspace_embedding_target("Legacy").expect("get"),
+            Some(Some("openai/text-embedding-3-small".to_string()))
+        );
+        assert!(db.set_workspace_embedding_target("Legacy", None).expect("clear"));
+        assert_eq!(db.get_workspace_embedding_target("Legacy").expect("get"), Some(None));
+        // Unknown workspace: nothing to read or write.
+        assert_eq!(db.get_workspace_embedding_target("Missing").expect("get"), None);
+        assert!(!db.set_workspace_embedding_target("Missing", Some("mock/mock-embed")).expect("set"));
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+    }
 
     #[test]
     fn test_sqlite_open_in_memory_and_default_workspace() {

@@ -812,6 +812,8 @@ impl CommandEngine {
             vec![]
         };
 
+        let reindex_note = crate::ingestion::pending_reindex_notice(&db, &ctx.active_workspace);
+
         match Self::spawn_sync_worker(&ctx.active_workspace, force, target_folder.as_deref()) {
             Ok((pid, log_path)) => {
                 let mut msg = if force {
@@ -834,6 +836,9 @@ impl CommandEngine {
                             msg.push_str(&format!("     • {}\n", u));
                         }
                     }
+                }
+                if let Some(note) = reindex_note {
+                    msg.push_str(&format!("  • ⚠️ {}\n", note));
                 }
                 msg.push_str(&format!(
                     "\n📝 Worker log: {}\nCrawling, HTML extraction, and LanceDB vector indexing are running in the background.\nYou can continue chatting or run `/sources` to inspect registered sources.",
@@ -1368,7 +1373,13 @@ impl CommandEngine {
             ""
         };
 
-        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**{}{}", ctx.active_workspace, target, extra_note, hardware_badge))
+        let reindex_note = db
+            .as_ref()
+            .and_then(|d| crate::ingestion::pending_reindex_notice(d, &ctx.active_workspace))
+            .map(|n| format!("\n⚠️ {}", n))
+            .unwrap_or_default();
+
+        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**{}{}{}", ctx.active_workspace, target, extra_note, hardware_badge, reindex_note))
             .with_action(CommandAction::RebuildAgent)
             .with_state_updates(updates)
     }
