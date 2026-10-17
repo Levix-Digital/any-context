@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-17T22:07:45'
-updated_at: '2026-10-17T22:23:08'
+updated_at: '2026-10-17T22:52:28'
 session_id: null
 tags:
 - deep-search
@@ -20,9 +20,13 @@ backlog_items:
 - BUG-009
 milestones:
 - name: M1 Port and adapter
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Claude
 - name: M2 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Claude
 - name: M3 Review and PR
   done: false
 status_log:
@@ -41,6 +45,12 @@ status_log:
   by: Claude
   status: in_progress
   note: Approved by the user on 2026-10-17
+- at: '2026-10-17T22:52:26'
+  by: Claude
+  note: 'Milestone ''M1 Port and adapter'' completed: SynthesisPromptFormatter port, CanonicalSynthesisFormatter adapter, CLI injection; cargo test --workspace green (410 passed)'
+- at: '2026-10-17T22:52:28'
+  by: Claude
+  note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0141, agent and retrieval pages, MT-ANS-002 and MT-ANS-006; docs, readme, manual test and design checks clean'
 ---
 
 # Deep Search synthesis bypasses the canonical context formatter
