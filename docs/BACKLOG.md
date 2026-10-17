@@ -50,9 +50,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-007: Retrieved text is not escaped in the XML prompt
 - **Severity**: high
-- **Status**: open
+- **Status**: in_progress
 - **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
+- **Plan**: any_context_retrieved_text_is_not_escaped_in_the_xml_prompt
 - **Description**: `ContextFormatter::format_xml_chunks` writes chunk text and attribute values (file path, file name) into the XML prompt without escaping. Indexed content containing `</chunk>`, `</retrieved_context>` or quotes (this repository's own docs, crawled web pages) breaks the chunk boundaries the prompt relies on and opens a prompt-injection path.
 
 ### BUG-008: Scope and version attributes are guessed from path substrings
@@ -334,5 +334,5 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: duplicate
 - **Found**: 2026-10-16, v0.45.0, PR #333
 - **Plan**: -
-- **Description**: Deep Search keeps results with a minimum score of 0.02, which looks low and may let irrelevant chunks into the combined answer.
 - **Closed**: 2026-10-17, duplicate of BUG-006 (the threshold is above the maximum single-list RRF score)
+- **Description**: Deep Search keeps results with a minimum score of 0.02, which looks low and may let irrelevant chunks into the combined answer.
