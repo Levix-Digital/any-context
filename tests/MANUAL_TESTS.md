@@ -501,10 +501,25 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Prerequisites**: a file containing a unique phrase such as `ZEBRA-CANARY-4711`
 - **Steps**:
   1. Index it, then run `/inspect ZEBRA`.
-  2. Search the index files: `Select-String -Path "$env:LOCALAPPDATA\AnyContext\data\context_db\lancedb\workspace_chunks.lance\data\*" -Pattern "ZEBRA-CANARY-4711" -SimpleMatch` (Linux: `grep -r ZEBRA-CANARY-4711 ~/.local/share/any-context/data/context_db/lancedb/workspace_chunks.lance/data`).
+  2. Search the vector table files: `Get-ChildItem "$env:LOCALAPPDATA\AnyContext\data\context_db\lancedb\workspace_chunks.lance" -Recurse -File | Select-String -Pattern "ZEBRA-CANARY-4711" -SimpleMatch -List` (Linux: `grep -rl ZEBRA-CANARY-4711 ~/.local/share/any-context/data/context_db/lancedb/workspace_chunks.lance`).
 - **Expected**:
   - `/inspect` shows the decrypted chunk and questions about it are answered.
-  - The search in the LanceDB data files finds no plaintext match.
+  - The search in the vector table files finds no plaintext match.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
+### MT-DATA-004: Data indexed by an older version is encrypted after upgrading
+
+- **Covers**: automatic encryption of chunks stored in plaintext
+- **Prerequisites**: AnyContext v0.44.0 installed; a folder with a file containing `ZEBRA-CANARY-4711`
+- **Steps**:
+  1. With v0.44.0, index the folder, then run the table search of MT-DATA-001 step 2 and note that it finds the phrase.
+  2. Install the candidate without changing the file, open `actx` (do not sync) and wait a few seconds.
+  3. Run the table search again, then run `/inspect ZEBRA` and ask a question about the file.
+  4. Run `actx --sync` from a terminal.
+- **Expected**:
+  - Step 3: the search finds no plaintext match; `/inspect` shows the decrypted chunk and the question is answered.
+  - Step 4: the sync reports no chunks to encrypt (no "Encrypted N chunks" line) and does not re-index the unchanged file.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

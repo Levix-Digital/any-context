@@ -8,7 +8,7 @@ subsystems: [storage, ingestion]
 supersedes: []
 superseded_by: []
 amends: [100]
-amended_by: []
+amended_by: [135]
 ---
 
 # ADR-0131: Field-level encryption on every LanceDB write

@@ -216,7 +216,7 @@ For anything else, run `actx --diagnostics` and look at the logs folder.
 
 ## Privacy
 
-- Your files, index, settings and memory stay on your machine. The indexed text is encrypted with a key bound to this machine.
+- Your files, index, settings and memory stay on your machine. The text, summaries and keywords stored in the vector index are encrypted with a key bound to this machine, including data indexed by older versions, which is encrypted automatically after upgrading. The keyword search index keeps the words in plaintext.
 - When you use a cloud model, your question and the relevant excerpts of your documents are sent to that provider. With a local Ollama model, nothing leaves your machine.
 - Website sources are fetched through the Jina Reader service (`r.jina.ai`) to turn pages into clean text; web search, when turned on, sends your query to the search provider.
 - AnyContext sends no usage telemetry.

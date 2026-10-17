@@ -10,13 +10,29 @@ use arrow_schema::{DataType, Field, Schema};
 use futures::TryStreamExt;
 use lancedb::connection::Connection;
 use lancedb::query::{ExecutableQuery, QueryBase};
-use lancedb::table::Table;
+use lancedb::table::optimize::Duration;
+use lancedb::table::{CompactionOptions, OptimizeAction, Table};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub const DEFAULT_TABLE_NAME: &str = "workspace_chunks";
 pub const DEFAULT_VECTOR_DIM: usize = 1536;
+
+/// Rows with a protected field still in plaintext (written before every write was encrypted).
+const PLAINTEXT_ROWS_FILTER: &str = "(text <> '' AND text NOT LIKE 'enc::%') \
+    OR (document_summary IS NOT NULL AND document_summary <> '' AND document_summary NOT LIKE 'enc::%') \
+    OR (keywords IS NOT NULL AND keywords <> '' AND keywords NOT LIKE 'enc::%')";
+const ENCRYPTION_MIGRATION_BATCH_ROWS: usize = 1000;
+
+/// Outcome of `NativeLanceStore::encrypt_plaintext_rows`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EncryptionMigrationReport {
+    /// Rows rewritten with their protected fields encrypted.
+    pub rows_encrypted: usize,
+    /// Old dataset versions (which held the plaintext) were removed.
+    pub versions_pruned: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VectorRecord {
@@ -287,6 +303,35 @@ impl NativeLanceStore {
         let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
         let d = dim.unwrap_or(DEFAULT_VECTOR_DIM);
         let num_records = records.len();
+        let records = records
+            .into_iter()
+            .map(|mut r| {
+                r.file_path = r.file_path.replace('\\', "/");
+                r
+            })
+            .collect();
+        let (batch, schema) = Self::build_record_batch(records, d)?;
+
+        let table = self.get_or_create_table(tname, d)?;
+
+        self.safe_block_on(async {
+            let batch_iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
+            let reader: Box<dyn arrow_array::RecordBatchReader + Send> = Box::new(batch_iter);
+            table
+                .add(reader)
+                .execute()
+                .await
+                .map_err(|e| format!("Failed to insert records into LanceDB: {e}"))?;
+            Ok(num_records)
+        })
+    }
+
+    /// Builds the Arrow batch written to LanceDB, encrypting the protected fields.
+    fn build_record_batch(
+        records: Vec<VectorRecord>,
+        d: usize,
+    ) -> Result<(RecordBatch, Arc<Schema>), String> {
+        let num_records = records.len();
         let schema = Self::get_schema(d);
 
         // Build Arrow Arrays column by column
@@ -318,7 +363,7 @@ impl NativeLanceStore {
             }
             texts.push(sec.encrypt_text(&r.text));
             file_names.push(r.file_name);
-            file_paths.push(r.file_path.replace('\\', "/"));
+            file_paths.push(r.file_path);
             workspaces.push(r.workspace);
             last_modifieds.push(r.last_modified.unwrap_or_default());
             content_types.push(r.content_type.unwrap_or_else(|| "Local Document".into()));
@@ -363,18 +408,115 @@ impl NativeLanceStore {
         )
         .map_err(|e| format!("Failed to create Arrow RecordBatch: {e}"))?;
 
-        let table = self.get_or_create_table(tname, d)?;
+        Ok((batch, schema))
+    }
+
+    /// Encrypts the rows that still hold `text`, `document_summary` or `keywords` in plaintext
+    /// (written before every write was encrypted) and removes the old dataset files that kept
+    /// the plaintext on disk. Rows are rewritten in place with their vectors; nothing is
+    /// re-embedded. Idempotent: with no plaintext row left it only runs one count.
+    pub fn encrypt_plaintext_rows(
+        &self,
+        table_name: Option<&str>,
+    ) -> Result<EncryptionMigrationReport, String> {
+        let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
+        if !self.table_exists(tname)? {
+            return Ok(EncryptionMigrationReport::default());
+        }
 
         self.safe_block_on(async {
-            let batch_iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
-            let reader: Box<dyn arrow_array::RecordBatchReader + Send> = Box::new(batch_iter);
-            table
-                .add(reader)
+            let table = self
+                .conn
+                .open_table(tname)
                 .execute()
                 .await
-                .map_err(|e| format!("Failed to insert records into LanceDB: {e}"))?;
-            Ok(num_records)
+                .map_err(|e| e.to_string())?;
+
+            let mut remaining = Self::count_plaintext_rows(&table).await?;
+            if remaining == 0 {
+                return Ok(EncryptionMigrationReport::default());
+            }
+            let dim = Self::table_vector_dim(&table).await?;
+            let mut report = EncryptionMigrationReport::default();
+
+            while remaining > 0 {
+                let mut stream = table
+                    .query()
+                    .only_if(PLAINTEXT_ROWS_FILTER)
+                    .limit(ENCRYPTION_MIGRATION_BATCH_ROWS)
+                    .execute()
+                    .await
+                    .map_err(|e| format!("Reading plaintext rows failed: {e}"))?;
+                let mut records = Vec::new();
+                while let Some(batch) = stream.try_next().await.map_err(|e| e.to_string())? {
+                    records.extend(Self::extract_vector_records(&batch)?);
+                }
+
+                // Chunk ids repeat across paths and workspaces, so rows are matched on all three
+                // columns; a duplicate source key would make the merge ambiguous.
+                let mut seen = std::collections::HashSet::new();
+                records.retain(|r| seen.insert((r.id.clone(), r.workspace.clone(), r.file_path.clone())));
+
+                let (batch, schema) = Self::build_record_batch(records, dim)?;
+                let reader: Box<dyn arrow_array::RecordBatchReader + Send> =
+                    Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema));
+                let mut merge = table.merge_insert(&["id", "workspace", "file_path"]);
+                merge.when_matched_update_all(None);
+                let merged = merge
+                    .execute(reader)
+                    .await
+                    .map_err(|e| format!("Encrypting plaintext rows failed: {e}"))?;
+                report.rows_encrypted += merged.num_updated_rows as usize;
+
+                let left = Self::count_plaintext_rows(&table).await?;
+                if left >= remaining {
+                    return Err(format!(
+                        "Encrypting plaintext rows made no progress ({left} rows still in plaintext)"
+                    ));
+                }
+                remaining = left;
+            }
+
+            // Updated rows only get deletion markers in their old fragments, and older versions
+            // keep referencing those files: compact every fragment with deletions, then drop
+            // every version but the current one so the plaintext leaves the disk.
+            table
+                .optimize(OptimizeAction::Compact {
+                    options: CompactionOptions {
+                        materialize_deletions_threshold: 0.0,
+                        ..CompactionOptions::default()
+                    },
+                    remap_options: None,
+                })
+                .await
+                .map_err(|e| format!("Compacting the encrypted table failed: {e}"))?;
+            table
+                .optimize(OptimizeAction::Prune {
+                    older_than: Some(Duration::zero()),
+                    delete_unverified: Some(false),
+                    error_if_tagged_old_versions: Some(false),
+                })
+                .await
+                .map_err(|e| format!("Pruning plaintext table versions failed: {e}"))?;
+            report.versions_pruned = true;
+
+            Ok(report)
         })
+    }
+
+    async fn count_plaintext_rows(table: &Table) -> Result<usize, String> {
+        table
+            .count_rows(Some(PLAINTEXT_ROWS_FILTER.to_string()))
+            .await
+            .map_err(|e| format!("Counting plaintext rows failed: {e}"))
+    }
+
+    async fn table_vector_dim(table: &Table) -> Result<usize, String> {
+        let schema = table.schema().await.map_err(|e| e.to_string())?;
+        match schema.field_with_name("vector").map(|f| f.data_type().clone()) {
+            Ok(DataType::FixedSizeList(_, dim)) => Ok(dim as usize),
+            _ => Err("Table has no fixed-size 'vector' column".to_string()),
+        }
     }
 
     /// Performs vector similarity search with optional workspace filtering asynchronously.
@@ -650,6 +792,67 @@ impl NativeLanceStore {
         })
     }
 
+    /// Reads full rows (vector included) with the stored values as they are, without decrypting.
+    fn extract_vector_records(batch: &RecordBatch) -> Result<Vec<VectorRecord>, String> {
+        let string_col = |name: &str| -> Result<&StringArray, String> {
+            batch
+                .column_by_name(name)
+                .ok_or(format!("Missing '{name}' column"))?
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or(format!("Failed downcast '{name}'"))
+        };
+        let optional = |col: &StringArray, i: usize| -> Option<String> {
+            (!col.is_null(i)).then(|| col.value(i).to_string())
+        };
+
+        let vector_col = batch
+            .column_by_name("vector")
+            .ok_or("Missing 'vector' column")?
+            .as_any()
+            .downcast_ref::<FixedSizeListArray>()
+            .ok_or("Failed downcast 'vector'")?;
+        let (id, text, file_name, file_path, workspace) = (
+            string_col("id")?,
+            string_col("text")?,
+            string_col("file_name")?,
+            string_col("file_path")?,
+            string_col("workspace")?,
+        );
+        let (last_modified, content_type, summary, keywords, hash) = (
+            string_col("last_modified")?,
+            string_col("content_type")?,
+            string_col("document_summary")?,
+            string_col("keywords")?,
+            string_col("content_hash")?,
+        );
+
+        let mut records = Vec::with_capacity(batch.num_rows());
+        for i in 0..batch.num_rows() {
+            let values = vector_col.value(i);
+            let vector = values
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .ok_or("Failed downcast 'vector' values")?
+                .values()
+                .to_vec();
+            records.push(VectorRecord {
+                id: id.value(i).to_string(),
+                vector,
+                text: text.value(i).to_string(),
+                file_name: file_name.value(i).to_string(),
+                file_path: file_path.value(i).to_string(),
+                workspace: workspace.value(i).to_string(),
+                last_modified: optional(last_modified, i),
+                content_type: optional(content_type, i),
+                document_summary: optional(summary, i),
+                keywords: optional(keywords, i),
+                content_hash: optional(hash, i),
+            });
+        }
+        Ok(records)
+    }
+
     fn extract_scored_results(batch: &RecordBatch) -> Result<Vec<ScoredVectorResult>, String> {
         let num_rows = batch.num_rows();
         let mut results = Vec::with_capacity(num_rows);
@@ -748,6 +951,53 @@ impl NativeLanceStore {
 
     pub fn get_db_path(&self) -> &Path {
         &self.db_path
+    }
+}
+
+#[cfg(test)]
+impl NativeLanceStore {
+    /// Writes rows the way versions before ADR-0131 did: protected fields in plaintext.
+    pub(crate) fn write_plaintext_rows_for_test(
+        &self,
+        table_name: Option<&str>,
+        d: usize,
+        records: Vec<VectorRecord>,
+    ) {
+        let schema = Self::get_schema(d);
+        let col = |f: &dyn Fn(&VectorRecord) -> Option<String>| -> Arc<StringArray> {
+            Arc::new(StringArray::from(records.iter().map(f).collect::<Vec<_>>()))
+        };
+        let vectors: Vec<f32> = records.iter().flat_map(|r| r.vector.clone()).collect();
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                col(&|r| Some(r.id.clone())),
+                Arc::new(FixedSizeListArray::new(
+                    Arc::new(Field::new("item", DataType::Float32, true)),
+                    d as i32,
+                    Arc::new(Float32Array::from(vectors)),
+                    None,
+                )),
+                col(&|r| Some(r.text.clone())),
+                col(&|r| Some(r.file_name.clone())),
+                col(&|r| Some(r.file_path.clone())),
+                col(&|r| Some(r.workspace.clone())),
+                col(&|r| r.last_modified.clone()),
+                col(&|r| r.content_type.clone()),
+                col(&|r| r.document_summary.clone()),
+                col(&|r| r.keywords.clone()),
+                col(&|r| r.content_hash.clone()),
+            ],
+        )
+        .expect("plaintext batch");
+        let table = self
+            .get_or_create_table(table_name.unwrap_or(DEFAULT_TABLE_NAME), d)
+            .expect("table");
+        self.safe_block_on(async {
+            let reader: Box<dyn arrow_array::RecordBatchReader + Send> =
+                Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema));
+            table.add(reader).execute().await.expect("raw add");
+        });
     }
 }
 
@@ -875,5 +1125,124 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
-}
 
+    const CANARY: &str = "ZEBRA-CANARY-4711";
+
+    fn temp_store(tag: &str) -> (PathBuf, NativeLanceStore) {
+        let dir = std::env::temp_dir().join(format!("actx_test_lance_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = NativeLanceStore::open(&dir).expect("open lance store");
+        (dir, store)
+    }
+
+    fn legacy_record(id: &str, path: &str, workspace: &str, summary: Option<&str>) -> VectorRecord {
+        VectorRecord {
+            id: id.into(),
+            vector: vec![0.25; 4],
+            text: format!("Legacy chunk {CANARY} of {path}"),
+            file_name: "legacy.md".into(),
+            file_path: path.into(),
+            workspace: workspace.into(),
+            last_modified: Some("2026-10-01".into()),
+            content_type: Some("Markdown".into()),
+            document_summary: summary.map(String::from),
+            keywords: Some(format!("legacy, {CANARY}")),
+            content_hash: Some(format!("hash_{id}")),
+        }
+    }
+
+    fn files_containing(dir: &Path, needle: &[u8]) -> Vec<PathBuf> {
+        let mut found = Vec::new();
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(current) = stack.pop() {
+            for entry in std::fs::read_dir(&current).expect("read dir").flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if std::fs::read(&path)
+                    .map(|bytes| bytes.windows(needle.len()).any(|w| w == needle))
+                    .unwrap_or(false)
+                {
+                    found.push(path);
+                }
+            }
+        }
+        found
+    }
+
+    #[test]
+    fn test_encrypt_plaintext_rows_migrates_legacy_rows() {
+        let (dir, store) = temp_store("legacy_migration");
+        let table = "legacy_chunks";
+        // The same chunk id in two paths and two workspaces, a Windows path written before
+        // path normalization, and a row without summary.
+        store.write_plaintext_rows_for_test(
+            Some(table),
+            4,
+            vec![
+                legacy_record("abc_0", "docs/a.md", "Default", Some("Summary A")),
+                legacy_record("abc_0", "docs/b.md", "Default", Some("Summary B")),
+                legacy_record("abc_0", "docs/a.md", "Other", None),
+                legacy_record("win_0", "C:\\docs\\w.md", "Default", Some("Summary W")),
+            ],
+        );
+        let before = store.search_metadata("text LIKE '%ZEBRA-CANARY%'", 10, None, Some(table)).expect("before");
+        assert_eq!(before.len(), 4, "legacy rows are stored in plaintext");
+        assert!(!files_containing(&dir, CANARY.as_bytes()).is_empty(), "plaintext is on disk before the migration");
+
+        let report = store.encrypt_plaintext_rows(Some(table)).expect("migration");
+        assert_eq!(report, EncryptionMigrationReport { rows_encrypted: 4, versions_pruned: true });
+
+        assert_eq!(store.count_records(None, Some(table)).expect("count"), 4);
+        let raw = store.search_metadata("text LIKE '%ZEBRA-CANARY%' OR keywords LIKE '%ZEBRA-CANARY%'", 10, None, Some(table)).expect("raw");
+        assert!(raw.is_empty(), "protected fields must be encrypted");
+        let leaked = files_containing(&dir, CANARY.as_bytes());
+        assert!(leaked.is_empty(), "plaintext left on disk in {leaked:?}");
+
+        let mut rows = store.search_metadata("id <> ''", 10, None, Some(table)).expect("rows");
+        rows.sort_by(|a, b| (&a.workspace, &a.file_path).cmp(&(&b.workspace, &b.file_path)));
+        let keys: Vec<_> = rows.iter().map(|r| (r.id.as_str(), r.workspace.as_str(), r.file_path.as_str())).collect();
+        assert_eq!(
+            keys,
+            vec![
+                ("win_0", "Default", "C:\\docs\\w.md"),
+                ("abc_0", "Default", "docs/a.md"),
+                ("abc_0", "Default", "docs/b.md"),
+                ("abc_0", "Other", "docs/a.md"),
+            ]
+        );
+        let a = rows.iter().find(|r| r.workspace == "Default" && r.file_path == "docs/a.md").expect("row a");
+        assert_eq!(a.text, format!("Legacy chunk {CANARY} of docs/a.md"));
+        assert_eq!(a.document_summary.as_deref(), Some("Summary A"));
+        assert_eq!(a.keywords.as_deref(), Some(format!("legacy, {CANARY}").as_str()));
+        let hits = store.search_vector(vec![0.25; 4], 4, None, None, Some(table)).expect("vector search");
+        assert_eq!(hits.len(), 4);
+        assert!(hits.iter().all(|h| h.distance < 1e-6), "vectors are unchanged");
+
+        assert_eq!(store.encrypt_plaintext_rows(Some(table)).expect("second run"), EncryptionMigrationReport::default());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_encrypt_plaintext_rows_missing_table_is_noop() {
+        let (dir, store) = temp_store("legacy_missing");
+        let report = store.encrypt_plaintext_rows(Some("absent_chunks")).expect("noop");
+        assert_eq!(report, EncryptionMigrationReport::default());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_encrypt_plaintext_rows_keeps_encrypted_rows() {
+        let (dir, store) = temp_store("legacy_encrypted");
+        let table = "encrypted_chunks";
+        store
+            .upsert_records(vec![legacy_record("enc_0", "docs/e.md", "Default", Some("Summary E"))], Some(table), Some(4))
+            .expect("upsert");
+        let report = store.encrypt_plaintext_rows(Some(table)).expect("noop");
+        assert_eq!(report, EncryptionMigrationReport::default());
+        let rows = store.search_metadata("id = 'enc_0'", 1, None, Some(table)).expect("rows");
+        assert_eq!(rows[0].text, format!("Legacy chunk {CANARY} of docs/e.md"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

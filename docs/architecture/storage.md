@@ -14,7 +14,7 @@ LanceDB vector store, SQLite settings and session database, path healing and enc
 - Resolve the canonical data, log and model directories per operating system, with overrides for tests and custom installs.
 - Make the synchronous storage API safe to call from inside and outside Tokio runtimes.
 - Heal folder paths that moved slightly (path healing).
-- Decrypt chunk text encrypted at rest with the hardware-bound key.
+- Encrypt chunk text at rest with the hardware-bound key, migrate rows stored in plaintext by older versions, and decrypt on read.
 
 The BM25 index file lives in the LanceDB directory but its format belongs to [retrieval](retrieval.md).
 
@@ -47,6 +47,7 @@ On macOS the LanceDB default is `~/Library/Application Support/AnyContext/data/c
 - One table, `workspace_chunks` (`DEFAULT_TABLE_NAME`), with 1536-dimension vectors (`DEFAULT_VECTOR_DIM`) and the columns `id`, `vector`, `text`, `file_name`, `file_path`, `workspace`, `last_modified`, `content_type`, `document_summary`, `keywords`, `content_hash`.
 - Every workspace shares the table and is separated by the `workspace` column; the virtual `Global` workspace holds the system documentation and is included in every workspace filter.
 - `upsert_records` appends a record batch (`table.add`) and encrypts `text`, `document_summary` and `keywords` first (see Encryption at rest); callers delete the old chunks of a file before re-adding it.
+- `encrypt_plaintext_rows` encrypts the rows older versions stored in plaintext and removes the old dataset files that held them (see Encryption at rest).
 - `delete_by_file` deletes a path and everything under it (folder prefix); `delete_by_exact_path` deletes one exact path, which web pages use because one URL can be a prefix of another.
 - `search_vector_async` (similarity search with an optional workspace filter and extra filter expression), `search_metadata_async` (filter-only queries such as file name or date clauses), `count_records`, `delete_by_workspace`, `delete_by_file` and `delete_by_id`.
 - The store owns an internal Tokio runtime. Synchronous methods use `safe_block_on`, which runs the future on a scoped thread when the caller is already inside a runtime. `Drop` destroys the internal runtime on a separate thread in that case, so a store can be dropped from async code without a panic.
@@ -80,7 +81,15 @@ Settings are strictly per workspace: there is no global fallback for workspace s
 
 `NativeSecurityEngine` derives a 256-bit AES-GCM key with PBKDF2-HMAC-SHA256 (100,000 rounds) from a machine identifier (`ACTX_MACHINE_ID`, or the Windows MachineGuid, Linux `/etc/machine-id` or macOS IOPlatformUUID, falling back to the host name) combined with a fixed domain salt and pepper. Encrypted values are base64 strings with the `enc::` prefix; `decrypt_text` returns plain values unchanged. The parameters match the earlier Python implementation, so data encrypted by older versions stays readable on the same machine.
 
-Every LanceDB write encrypts `text`, `document_summary` and `keywords` (`upsert_records`), and every read decrypts them (`extract_scored_results`), so callers always see plaintext. Ids, vectors, names, paths, workspace, dates, content type and content hash stay in clear text for filtering; SQL filters on the encrypted columns therefore never match, and `/inspect <filter>` matches decrypted text in memory instead. Rows written before encryption was enabled stay plaintext until their source is re-indexed (`actx sync --force`). The data is bound to the machine identifier, and the BM25 index file (see [retrieval](retrieval.md)) still keeps chunk text in plaintext for lexical search.
+Every LanceDB write encrypts `text`, `document_summary` and `keywords` (`upsert_records`), and every read decrypts them (`extract_scored_results`), so callers always see plaintext. Ids, vectors, names, paths, workspace, dates, content type and content hash stay in clear text for filtering; SQL filters on the encrypted columns therefore never match, and `/inspect <filter>` matches decrypted text in memory instead. The data is bound to the machine identifier, and the BM25 index file (see [retrieval](retrieval.md)) still keeps chunk text in plaintext for lexical search.
+
+Rows written before every write was encrypted are migrated automatically by `encrypt_plaintext_rows`, which runs at startup (TUI background task and CLI startup) and at the start of every sync:
+
+1. Count the rows where `text`, `document_summary` or `keywords` is non-empty and does not start with `enc::`; with none, stop (the steady state costs one count).
+2. Read them with their vectors in batches of 1,000 and rewrite them encrypted with `merge_insert` keyed on `(id, workspace, file_path)`, update only (chunk ids repeat across paths and workspaces). Nothing is re-embedded. A batch that encrypts nothing stops with an error.
+3. Compact the table with `materialize_deletions_threshold = 0.0` and prune every version except the current one (`delete_unverified = false`): updated rows only get deletion markers and older versions keep the old files, so this is what removes the plaintext from disk.
+
+Pruning drops Lance time travel to earlier versions. Regular deletes and forced re-indexes do not compact or prune, so their old versions stay on disk until the next migration.
 
 ## Interfaces
 
@@ -104,3 +113,4 @@ Every LanceDB write encrypts `text`, `document_summary` and `keywords` (`upsert_
 - [ADR-0116](../adr/0116-path-healing-temporal-metadata-change-detection.md): path healing.
 - [ADR-0120](../adr/0120-source-display-names-shared-sources-removal.md): `workspace_sources` display names.
 - [ADR-0131](../adr/0131-field-level-encryption-on-every-lancedb-write.md): field-level encryption on every LanceDB write.
+- [ADR-0135](../adr/0135-automatic-encryption-of-lancedb-rows-stored-in-plaintext.md): automatic encryption of rows stored in plaintext, with compaction and pruning.
