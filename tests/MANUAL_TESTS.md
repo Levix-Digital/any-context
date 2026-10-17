@@ -407,6 +407,19 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-ANS-006: Answers combine files on one subject and keep versions apart
+
+- **Covers**: context formatting, chunk version labels
+- **Prerequisites**: a workspace with a folder `api-gateway/docs` holding `timeouts.md` ("The request timeout is 30 seconds."), `billing.md` ("Invoices are retried every 6 hours."), `v1/limits.md` ("A team can have at most 10 users.") and `v2/limits.md` ("A team can have at most 50 users.")
+- **Steps**:
+  1. Run `/sync`, then with `/search fast` ask "What is the request timeout and how often are invoices retried?".
+  2. Ask "How many users can a team have?".
+- **Expected**:
+  - Answer 1 gives both values (30 seconds, every 6 hours) and cites `timeouts.md` and `billing.md`.
+  - Answer 2 gives 10 users for v1 and 50 users for v2, each with its source, without merging them or silently picking one.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ## Local Re-Ranking and Models
 
 ### MT-MOD-001: The local re-ranker improves ordering and reports its state
