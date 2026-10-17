@@ -8,10 +8,17 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-001: Dense query embedding ignores the workspace embedding model
 - **Severity**: high
-- **Status**: open
+- **Status**: in_progress
 - **Found**: 2026-10-16, v0.45.0 (roadmap handoff, PR #328)
-- **Plan**: -
+- **Plan**: anycontext_bugfix_v0451_query_embedding_model
 - **Description**: retrieval/pipeline.rs:536 always embeds the query with text-embedding-3-small, while ingestion resolves the model per workspace (ingestion/orchestrator.rs:198). A workspace indexed with another model gets query vectors in another space or dimension and dense search silently degrades or fails. Fix in Frente C or earlier as patch v0.45.1.
+
+### BUG-002: Changing a workspace chat model mixes embedding spaces on the next sync
+- **Severity**: medium
+- **Status**: open
+- **Found**: 2026-10-17, BUG-001 discovery (v0.45.0)
+- **Plan**: -
+- **Description**: Ingestion derives the embedding model from the workspace chat model (orchestrator.rs resolve_embedding_provider). After /model changes it, the next incremental sync embeds new or changed files with another model while unchanged files keep the old vectors, so one workspace holds vectors from two spaces. Needs the per-workspace embedding model record planned for Frente C, or a forced reindex on change.
 
 ## Features
 
