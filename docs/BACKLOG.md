@@ -6,13 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-008: Scope and version attributes are guessed from path substrings
-- **Severity**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: any_context_scope_and_version_attributes_are_guessed_from_path_substrings
-- **Description**: `ContextFormatter::infer_scope_and_version` labels chunks by substring matches on the path: `latest` becomes scope `test`, `author` becomes `auth`, `environment` becomes `config`, `rapid` becomes `api`, `dev2` becomes version `v2`. The prompt tells the model never to combine chunks with different scope or version, so wrong labels can block a correct answer.
-
 ### BUG-009: Deep Search synthesis bypasses the canonical context formatter
 - **Severity**: medium
 - **Status**: open
@@ -379,3 +372,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_retrieval_order_follows_relevance
 - **Closed**: 2026-10-17, PR #349 (plan any_context_retrieval_order_follows_relevance)
 - **Description**: Deep Search requests use `min_score: 0.02`, applied to RRF scores before re-ranking. A chunk found only by the dense search or only by BM25 scores at most 1/61 ≈ 0.0164, so it is discarded unless the recency boost (BUG-005) lifts it. Supersedes IMP-001.
+
+### BUG-008: Scope and version attributes are guessed from path substrings
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: any_context_scope_and_version_attributes_are_guessed_from_path_substrings
+- **Closed**: 2026-10-17, plan any_context_scope_and_version_attributes_are_guessed_from_path_substrings, PR #351
+- **Description**: `ContextFormatter::infer_scope_and_version` labels chunks by substring matches on the path: `latest` becomes scope `test`, `author` becomes `auth`, `environment` becomes `config`, `rapid` becomes `api`, `dev2` becomes version `v2`. The prompt tells the model never to combine chunks with different scope or version, so wrong labels can block a correct answer.
