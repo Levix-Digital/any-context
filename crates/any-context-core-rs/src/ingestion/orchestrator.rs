@@ -71,6 +71,8 @@ pub struct SyncResult {
     pub errors: Vec<String>,
     pub duration_ms: u128,
     pub cancelled: bool,
+    /// Chunks indexed before encryption at rest that this pass encrypted in place.
+    pub chunks_encrypted_legacy: usize,
 }
 
 /// Pure Rust Ingestion & Vectorization Orchestrator.
@@ -161,7 +163,21 @@ impl NativeSyncOrchestrator {
             None,
         );
 
+        // Rows indexed before every write was encrypted are encrypted in place (ADR-0135).
+        // A failure is reported in the result and retried on the next pass.
+        let mut legacy_encryption_errors = Vec::new();
+        let chunks_encrypted_legacy = match self.lance_store.encrypt_plaintext_rows(None) {
+            Ok(report) => report.rows_encrypted,
+            Err(e) => {
+                legacy_encryption_errors.push(format!("Encrypting chunks stored in plaintext failed: {e}"));
+                0
+            }
+        };
+
         if options.verbose {
+            if chunks_encrypted_legacy > 0 {
+                println!("🔒 Encrypted {} chunks stored before encryption at rest.", chunks_encrypted_legacy);
+            }
             println!("🦀 [AnyContext Native Rust Ingestion Pipeline]");
             println!("  • Workspace: {}", ws);
             println!("  • Force Reindex: {}", options.force);
@@ -313,9 +329,10 @@ impl NativeSyncOrchestrator {
                 quality_pass_rate: 1.0,
                 deleted_files: diff.deleted_files.len(),
                 renamed_files: diff.renamed_files.len(),
-                errors: Vec::new(),
+                errors: legacy_encryption_errors,
                 duration_ms: start_time.elapsed().as_millis(),
                 cancelled: false,
+                chunks_encrypted_legacy,
             });
         }
 
@@ -324,7 +341,7 @@ impl NativeSyncOrchestrator {
         let mut total_chunks_created = 0;
         let mut total_chunks_dropped_quality = 0;
         let mut total_documents_enriched_ai = 0;
-        let mut errors = Vec::new();
+        let mut errors = legacy_encryption_errors;
 
         // 12. Main Indexing Loop
         for (idx, file_path) in files_to_index.iter().enumerate() {
@@ -363,6 +380,7 @@ impl NativeSyncOrchestrator {
                         errors,
                         duration_ms: start_time.elapsed().as_millis(),
                         cancelled: true,
+                        chunks_encrypted_legacy,
                     });
                 }
             }
@@ -520,6 +538,7 @@ impl NativeSyncOrchestrator {
             errors,
             duration_ms,
             cancelled: false,
+            chunks_encrypted_legacy,
         })
     }
 
@@ -928,6 +947,52 @@ mod tests {
         assert!(text.contains("Hello World"));
         assert!(text.contains("Paragraph text"));
         assert!(!text.contains("console.log"));
+    }
+
+    #[tokio::test]
+    async fn test_sync_encrypts_chunks_stored_in_plaintext() {
+        let temp_dir = std::env::temp_dir().join(format!("test_orch_legacy_enc_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let docs_dir = temp_dir.join("docs");
+        let _ = std::fs::create_dir_all(&docs_dir);
+
+        let db = Arc::new(NativeConfigDb::open_in_memory().unwrap());
+        let lance_store = Arc::new(NativeLanceStore::open(&temp_dir.join("lancedb")).unwrap());
+        lance_store.write_plaintext_rows_for_test(
+            None,
+            crate::storage::lancedb::DEFAULT_VECTOR_DIM,
+            vec![VectorRecord {
+                id: "legacy_0".into(),
+                vector: vec![0.5; crate::storage::lancedb::DEFAULT_VECTOR_DIM],
+                text: "Chunk indexed by an older version".into(),
+                file_name: "old.md".into(),
+                file_path: "docs/old.md".into(),
+                workspace: "LegacyWS".into(),
+                last_modified: None,
+                content_type: None,
+                document_summary: Some("Old summary".into()),
+                keywords: None,
+                content_hash: Some("legacy".into()),
+            }],
+        );
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db);
+        let opts = SyncOptions {
+            workspace: "LegacyWS".to_string(),
+            target_folder: Some(docs_dir.to_string_lossy().to_string()),
+            model: Some("mock".to_string()),
+            ..SyncOptions::default()
+        };
+
+        let first = orchestrator.run(&opts).await.unwrap();
+        assert_eq!(first.chunks_encrypted_legacy, 1);
+        assert!(first.errors.is_empty(), "{:?}", first.errors);
+        let raw = lance_store.search_metadata("text LIKE '%older version%'", 10, None, None).unwrap();
+        assert!(raw.is_empty(), "the legacy chunk must be encrypted on disk");
+
+        let second = orchestrator.run(&opts).await.unwrap();
+        assert_eq!(second.chunks_encrypted_legacy, 0);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[tokio::test]

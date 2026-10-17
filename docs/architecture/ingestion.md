@@ -57,18 +57,19 @@ flowchart LR
 `NativeSyncOrchestrator::run` performs one pass for one workspace (`SyncOptions { workspace, force, target_folder, verbose, model }`). `run_sync` is the synchronous entry point; when it is called inside a Tokio runtime it runs the pass on a separate thread with its own runtime.
 
 1. Mark the workspace as syncing in the `workspace_sync_status` table (stage `scanning`, worker PID).
-2. Resolve the folders: only `target_folder` when it is set (a `/folder <path>` sync); otherwise the folders registered for the workspace, or the current directory when none is registered.
-3. Load `bm25_index.bin` from the LanceDB directory, or start an empty index.
-4. Resolve the embedding provider (see below).
-5. With `force`, delete the workspace's vectors and BM25 entries (or only the target folder's) and clear the stat cache.
-6. Scan and diff against the SQLite stat cache (`WorkspaceScanner::scan_and_diff_native`).
-7. Apply renames, deletions and modifications: the chunks of deleted, renamed and modified files are removed from LanceDB and BM25 before re-indexing.
-8. If nothing changed and the workspace has no web sources, record the ledger and return early as up to date.
-9. For each file to index: check for cooperative cancellation, update progress (stage `files`), chunk it, triage the chunks, build the document envelope, embed and upsert. Files that yield no chunks are still recorded in the stat cache so they are not re-read on every pass.
-10. Crawl the workspace's web sources (only for full workspace syncs, not folder-scoped ones).
-11. Save the BM25 index, record the sync ledger (`record_sync_ledger`) and set the status back to `idle`.
+2. Encrypt the chunks an older version stored in plaintext (`NativeLanceStore::encrypt_plaintext_rows`, see [storage](storage.md)); the count goes to `SyncResult::chunks_encrypted_legacy` and is printed by verbose syncs, and a failure goes to `SyncResult::errors` and is retried on the next pass.
+3. Resolve the folders: only `target_folder` when it is set (a `/folder <path>` sync); otherwise the folders registered for the workspace, or the current directory when none is registered.
+4. Load `bm25_index.bin` from the LanceDB directory, or start an empty index.
+5. Resolve the embedding provider (see below).
+6. With `force`, delete the workspace's vectors and BM25 entries (or only the target folder's) and clear the stat cache.
+7. Scan and diff against the SQLite stat cache (`WorkspaceScanner::scan_and_diff_native`).
+8. Apply renames, deletions and modifications: the chunks of deleted, renamed and modified files are removed from LanceDB and BM25 before re-indexing.
+9. If nothing changed and the workspace has no web sources, record the ledger and return early as up to date.
+10. For each file to index: check for cooperative cancellation, update progress (stage `files`), chunk it, triage the chunks, build the document envelope, embed and upsert. Files that yield no chunks are still recorded in the stat cache so they are not re-read on every pass.
+11. Crawl the workspace's web sources (only for full workspace syncs, not folder-scoped ones).
+12. Save the BM25 index, record the sync ledger (`record_sync_ledger`) and set the status back to `idle`.
 
-`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
+`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, `chunks_encrypted_legacy`, errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
 
 ### Scanning and change detection
 
@@ -134,4 +135,5 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0124](../adr/0124-jina-reader-web-ingestion-seven-domains.md): Jina Reader for web pages, used only at ingestion time.
 - [ADR-0123](../adr/0123-onnx-production-activation-gemma-4-tiers.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): ONNX perception adapters, which today run as heuristics.
 - [ADR-0131](../adr/0131-field-level-encryption-on-every-lancedb-write.md): chunk fields encrypted on every write.
+- [ADR-0135](../adr/0135-automatic-encryption-of-lancedb-rows-stored-in-plaintext.md): chunks stored in plaintext encrypted at the start of every sync.
 - [ADR-0132](../adr/0132-query-vectors-use-the-ingestion-embedding-provider-and-model.md): one embedding resolver for chunks and queries.

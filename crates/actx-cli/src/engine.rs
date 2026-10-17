@@ -438,6 +438,12 @@ pub async fn build_agent(
     build_agent_sync(provider, model, workspace, grounding_mode, search_mode, web_search_enabled)
 }
 
+/// Encrypts the chunks an older version stored in plaintext (ADR-0135). Silent at startup:
+/// a failure is retried and reported by the next sync.
+pub fn encrypt_legacy_chunks(lance_store: &any_context_core_rs::storage::NativeLanceStore) {
+    let _ = lance_store.encrypt_plaintext_rows(None);
+}
+
 /// Ensures that the 'Global' workspace in LanceDB contains AnyContext system documentation.
 /// If no chunks exist under 'Global' or if the application version was upgraded, it automatically
 /// chunks and indexes the embedded documentation and updates the BM25 index for zero-token self-knowledge.
@@ -588,6 +594,7 @@ pub fn run_startup_splash_bootstrap() {
     let _ = out.write_all(format!("  {} [2/3] Indexing system knowledge & BM25 hybrid lexicon...", theme.ansi_warning("⣾")).as_bytes());
     let _ = out.flush();
     if let Some(ref ls) = lance_store {
+        encrypt_legacy_chunks(ls);
         ensure_global_knowledge_bootstrap(ls);
     }
     // Always persist the current version to settings db so that future checks succeed even if LanceDB was unavailable

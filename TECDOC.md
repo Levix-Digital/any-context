@@ -79,6 +79,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0135](docs/adr/0135-automatic-encryption-of-lancedb-rows-stored-in-plaintext.md) | Automatic encryption of LanceDB rows stored in plaintext | accepted | v0.45.1 | 2026-10-17 |
 | [ADR-0134](docs/adr/0134-release-candidates-and-tagging-on-merge-into-main.md) | Release candidates and tagging on merge into main | accepted |  | 2026-10-16 |
 | [ADR-0133](docs/adr/0133-offline-and-privacy-presets-require-a-working-local-model.md) | Offline and privacy presets require a working local model | accepted |  | 2026-10-16 |
 | [ADR-0132](docs/adr/0132-query-vectors-use-the-ingestion-embedding-provider-and-model.md) | Query vectors use the ingestion embedding provider and model | accepted |  | 2026-10-16 |
