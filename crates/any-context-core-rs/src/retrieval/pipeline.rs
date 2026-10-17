@@ -1137,4 +1137,90 @@ mod tests {
             .fold(f64::MAX, f64::min);
         assert!(score("tail") < min_head, "unscored tail must stay below every re-scored item");
     }
+
+    /// BM25-only pipeline (no embedding provider): every hit is a single-list hit scored 1/(60 + rank).
+    fn bm25_pipeline(name: &str, chunks: &[(&str, &str, &str, &str)]) -> (NativeHybridPipeline, PathBuf) {
+        let temp_dir = std::env::temp_dir().join(format!("actx_test_{name}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let pipeline = NativeHybridPipeline::open(&temp_dir).unwrap();
+        for (id, text, file, modified) in chunks {
+            pipeline.add_chunk_to_bm25(
+                "workspace_chunks",
+                id.to_string(),
+                text.to_string(),
+                file.to_string(),
+                format!("/docs/{file}"),
+                "Default".to_string(),
+                "Local Document".to_string(),
+                Some(modified.to_string()),
+            );
+        }
+        (pipeline, temp_dir)
+    }
+
+    fn assert_descending(results: &[HybridSearchResult]) {
+        let order: Vec<(&str, f64)> = results.iter().map(|r| (r.chunk_id.as_str(), r.score)).collect();
+        assert!(
+            results.windows(2).all(|w| w[0].score >= w[1].score),
+            "results must be in descending score order: {order:?}"
+        );
+    }
+
+    const SAME_DAY: &str = "2026-10-10T12:00:00Z";
+
+    fn two_source_chunks() -> Vec<(&'static str, &'static str, &'static str, &'static str)> {
+        vec![
+            ("a1", "kestrel kestrel kestrel kestrel nesting", "alpha.md", SAME_DAY),
+            ("a2", "kestrel kestrel kestrel nesting habits", "alpha.md", SAME_DAY),
+            ("a3", "kestrel kestrel nesting habits of birds", "alpha.md", SAME_DAY),
+            ("b1", "kestrel nesting habits of small birds of prey", "beta.md", SAME_DAY),
+        ]
+    }
+
+    #[test]
+    fn search_single_returns_descending_scores_across_sources() {
+        let (pipeline, dir) = bm25_pipeline("order_single", &two_source_chunks());
+        let results = pipeline
+            .search(HybridSearchRequest { query_text: "kestrel".to_string(), ..Default::default() })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results.len(), 4);
+        assert_descending(&results);
+        assert_eq!(results[0].chunk_id, "a1");
+        assert_eq!(results[1].chunk_id, "a2", "the second best chunk stays second");
+    }
+
+    #[test]
+    fn batch_returns_descending_scores() {
+        let (pipeline, dir) = bm25_pipeline("order_batch", &two_source_chunks());
+        let results = pipeline
+            .retrieve_hybrid_batch(vec![HybridSearchRequest { query_text: "kestrel".to_string(), ..Default::default() }])
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results.len(), 4);
+        assert_descending(&results);
+        assert_eq!(results[1].chunk_id, "a2");
+    }
+
+    #[test]
+    fn recency_does_not_outrank_relevance() {
+        let today = chrono::Utc::now().to_rfc3339();
+        let (pipeline, dir) = bm25_pipeline(
+            "recency",
+            &[
+                ("old", "osprey osprey osprey migration", "old.md", "2020-01-01T00:00:00Z"),
+                ("new", "osprey migration routes over the northern coast", "new.md", today.as_str()),
+            ],
+        );
+        let results = pipeline
+            .search(HybridSearchRequest { query_text: "osprey".to_string(), ..Default::default() })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results[0].chunk_id, "old", "the better match wins regardless of age");
+        assert_eq!(results[0].score, 1.0 / 61.0, "scores are plain RRF scores");
+        assert_eq!(results[1].score, 1.0 / 62.0);
+    }
 }
