@@ -3,6 +3,7 @@ pub mod router;
 pub mod chunkers;
 pub mod scanner;
 pub mod orchestrator;
+pub mod embedding;
 pub mod enricher;
 pub mod crawler;
 pub mod quality_gate;
@@ -14,7 +15,11 @@ pub mod jina;
 pub use router::IngestionRouter;
 pub use traits::{Chunker, ScanSentinel, ScanAssessment, DocumentVisionExtractor};
 pub use scanner::{WorkspaceScanner, DiffResult};
-pub use orchestrator::{NativeSyncOrchestrator, SyncOptions, SyncResult, resolve_embedding_provider};
+pub use orchestrator::{NativeSyncOrchestrator, SyncOptions, SyncResult};
+pub use embedding::{
+    EmbeddingTarget, ReindexDecision, decide_reindex, legacy_target, pending_reindex_notice,
+    resolve_embedding_provider, resolve_query_embedding_provider,
+};
 pub use enricher::NativeContextualEnricher;
 pub use crawler::{NativeWebCrawler, CrawlerConfig, CrawledPage, SitemapEntry, RobotsPolicy};
 pub use jina::{NativeJinaExtractor, JinaExtractorConfig};

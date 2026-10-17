@@ -58,7 +58,7 @@ On macOS the LanceDB default is `~/Library/Application Support/AnyContext/data/c
 
 | Table | Content |
 |---|---|
-| `workspaces` | Name, description and per-workspace settings: `grounding_mode` (default `strict`), `search_mode` (default `auto`), `model` (default `gpt-4o-mini`), `web_search_enabled`. |
+| `workspaces` | Name, description and per-workspace settings: `grounding_mode` (default `strict`), `search_mode` (default `auto`), `model` (default `gpt-4o-mini`), `web_search_enabled`, `embedding_target` (`provider/model` that built the workspace's vectors, NULL until the first completed sync; see [ingestion](ingestion.md)). |
 | `workspace_folders`, `workspace_web_urls` | Monitored folders and web sources per workspace. |
 | `workspace_sources` | Display names for sources (`display_name`, `canonical_slug`), resolved without touching LanceDB. |
 | `workspace_sync_status` | Live sync telemetry: syncing flag, worker PID, current/total items, stage, item name, progress bar, error. |
@@ -114,3 +114,4 @@ Pruning drops Lance time travel to earlier versions. Regular deletes and forced 
 - [ADR-0120](../adr/0120-source-display-names-shared-sources-removal.md): `workspace_sources` display names.
 - [ADR-0131](../adr/0131-field-level-encryption-on-every-lancedb-write.md): field-level encryption on every LanceDB write.
 - [ADR-0135](../adr/0135-automatic-encryption-of-lancedb-rows-stored-in-plaintext.md): automatic encryption of rows stored in plaintext, with compaction and pruning.
+- [ADR-0138](../adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md): `workspaces.embedding_target` column.

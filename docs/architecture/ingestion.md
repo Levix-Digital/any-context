@@ -58,18 +58,18 @@ flowchart LR
 
 1. Mark the workspace as syncing in the `workspace_sync_status` table (stage `scanning`, worker PID).
 2. Encrypt the chunks an older version stored in plaintext (`NativeLanceStore::encrypt_plaintext_rows`, see [storage](storage.md)); the count goes to `SyncResult::chunks_encrypted_legacy` and is printed by verbose syncs, and a failure goes to `SyncResult::errors` and is retried on the next pass.
-3. Resolve the folders: only `target_folder` when it is set (a `/folder <path>` sync); otherwise the folders registered for the workspace, or the current directory when none is registered.
-4. Load `bm25_index.bin` from the LanceDB directory, or start an empty index.
-5. Resolve the embedding provider (see below).
-6. With `force`, delete the workspace's vectors and BM25 entries (or only the target folder's) and clear the stat cache.
+3. Resolve the embedding target and decide whether the stored vectors can be kept (see "Embedding target and reindex" below). A reindex turns the pass into a forced pass over the whole workspace, even when it was scoped to one folder, and writes its message to the sync status.
+4. Resolve the folders: only `target_folder` when it is set (a `/folder <path>` sync) and no reindex is due; otherwise the folders registered for the workspace, or the current directory when none is registered.
+5. Load `bm25_index.bin` from the LanceDB directory, or start an empty index.
+6. With `force` (or a reindex), delete the workspace's vectors and BM25 entries (or only the target folder's) and clear the stat cache.
 7. Scan and diff against the SQLite stat cache (`WorkspaceScanner::scan_and_diff_native`).
 8. Apply renames, deletions and modifications: the chunks of deleted, renamed and modified files are removed from LanceDB and BM25 before re-indexing.
 9. If nothing changed and the workspace has no web sources, record the ledger and return early as up to date.
 10. For each file to index: check for cooperative cancellation, update progress (stage `files`), chunk it, triage the chunks, build the document envelope, embed and upsert. Files that yield no chunks are still recorded in the stat cache so they are not re-read on every pass.
 11. Crawl the workspace's web sources (only for full workspace syncs, not folder-scoped ones).
-12. Save the BM25 index, record the sync ledger (`record_sync_ledger`) and set the status back to `idle`.
+12. Save the BM25 index, record the sync ledger (`record_sync_ledger`), set the status back to `idle` and record the embedding target. A cancelled pass returns before this step, so it keeps the previous target and an interrupted reindex runs again on the next pass.
 
-`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, `chunks_encrypted_legacy`, errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
+`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, `chunks_encrypted_legacy`, `embedding_reindex` (the reindex message, when one ran), errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
 
 ### Scanning and change detection
 
@@ -97,10 +97,23 @@ Document AI candidates are resolved by `process_document_ai_candidates`, in orde
 ### Embedding and writing
 
 - Chunk ids are `<first 12 hex chars of the file SHA-256>_<index>`.
-- `resolve_embedding_provider(db, model_override, workspace)` picks the embedding model from, in order: the explicit override, `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, the workspace model, the default model, then `text-embedding-3-small`. The [retrieval pipeline](retrieval.md) uses the same function for query vectors, so queries and chunks share one vector space.
-- The provider is chosen from the model name: `mock*` uses the mock provider; `gemini*` uses Gemini `text-embedding-004` when a Gemini key is stored; `ollama*`/`local*` use `nomic-embed-text` on `http://localhost:11434/v1`; otherwise OpenAI `text-embedding-3-small` when an OpenAI key is stored, else the mock provider.
+- `resolve_embedding_provider(db, model_override, workspace)` (`ingestion/embedding.rs`) picks the model name from, in order: the explicit override, `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, the workspace (chat) model, the default model, then `text-embedding-3-small`. It returns the provider and an `EmbeddingTarget` (`provider/model`).
+- The target is chosen from the model name: `mock*` gives `mock/mock-embed`; `gemini*` gives `gemini/gemini-embedding-2` when a Gemini key is stored; `ollama*`/`local*` give `ollama/nomic-embed-text` on `http://localhost:11434/v1`; otherwise `openai/text-embedding-3-small`. When the chosen provider has no key, it falls back to OpenAI when an OpenAI key is stored, else to `mock/mock-embed`.
 - If embedding fails, or there is no provider, the chunks get deterministic pseudo-vectors derived from the SHA-256 of the text, so a sync never fails for lack of an API key (but semantic search quality then depends on BM25).
 - Records are upserted into the LanceDB table `workspace_chunks` with `last_modified` (RFC 3339 from the file modification time), content type, summary, keywords and content hash; text, summary and keywords are encrypted by the store (see [storage](storage.md)).
+
+### Embedding target and reindex
+
+The column `workspaces.embedding_target` records the target that built the workspace's vectors. `decide_reindex` compares it with the current target at the start of every pass:
+
+| Recorded target | Decision |
+|---|---|
+| equal to the current one | keep |
+| different | reindex the whole workspace |
+| none, no chunk stored | adopt the current target |
+| none, chunks stored (indexed before the record existed) | compare with `legacy_target`, the answer of the earlier resolver: the same target except Gemini, which was `text-embedding-004`. Equal: adopt; different: reindex |
+
+The reindex needs no confirmation; its message ("Embedding model changed (A → B): the whole workspace is reindexed.") goes to the sync status, the verbose output and `SyncResult::embedding_reindex`. `pending_reindex_notice` lets `/model` and `/sync` warn in advance. A workspace without a row in `workspaces` can't record a target and is left as it is. Queries prefer the recorded target until the reindex runs (see [retrieval](retrieval.md)).
 
 ### Web sources
 
@@ -137,3 +150,4 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0131](../adr/0131-field-level-encryption-on-every-lancedb-write.md): chunk fields encrypted on every write.
 - [ADR-0135](../adr/0135-automatic-encryption-of-lancedb-rows-stored-in-plaintext.md): chunks stored in plaintext encrypted at the start of every sync.
 - [ADR-0132](../adr/0132-query-vectors-use-the-ingestion-embedding-provider-and-model.md): one embedding resolver for chunks and queries.
+- [ADR-0138](../adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md): embedding target recorded per workspace, automatic reindex when it changes, Gemini `gemini-embedding-2`.

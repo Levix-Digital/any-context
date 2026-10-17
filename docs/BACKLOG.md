@@ -8,9 +8,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-003: Changing a workspace chat model mixes embedding spaces on the next sync
 - **Severity**: medium
-- **Status**: open
+- **Status**: in_progress
 - **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
+- **Plan**: any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
 - **Description**: resolve_embedding_provider (ingestion/orchestrator.rs) derives the embedding model from the workspace chat model. After /model changes it, the next incremental sync embeds new or changed files with another provider/model while unchanged files keep their old vectors, and queries use the new model, so part of the workspace becomes unreachable by dense search. Needs the per-workspace embedding model record planned for Frente C, or a forced reindex when the embedding target changes.
 
 ### BUG-004: Source round-robin puts diversity above relevance and breaks the U-shaped order
@@ -71,10 +71,17 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-013: Gemini embedding model text-embedding-004 is shut down
 - **Severity**: high
-- **Status**: open
+- **Status**: in_progress
 - **Found**: 2026-10-17, 2026-10-17, BUG-002 discovery
-- **Plan**: -
+- **Plan**: any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
 - **Description**: Google shut down text-embedding-004 on 2026-01-14, so ingestion and query embedding for Gemini workspaces fail, and the dense search is skipped without a message (IMP-003). The successor is gemini-embedding-2. Changing the embedding model needs a reindex of the affected workspaces; plan it with BUG-003, FEAT-005 and IMP-004.
+
+### BUG-014: Failed embedding calls store pseudo-vectors next to real ones
+- **Severity**: medium
+- **Status**: open
+- **Found**: 2026-10-17, 2026-10-17, BUG-003 discovery
+- **Plan**: -
+- **Description**: embed_and_upsert (ingestion/orchestrator.rs) replaces a failed provider.embed call with SHA-256 pseudo-vectors (generate_fallback_vectors) and writes them to the same table as real vectors, without telling the user or marking the file. A transient API error (rate limit, network) leaves those files unreachable by dense search until they change on disk. Decide between failing the file so the next sync retries it, or marking it for re-embedding; keep the ADR-110 no-key fallback. Related to IMP-003.
 
 ## Features
 
@@ -289,6 +296,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, BUG-001 implementation, 2026-10-17
 - **Plan**: -
 - **Description**: Deletes and actx sync --force only write deletion markers and new versions, so replaced chunk data (including removed or changed documents) stays on disk in old Lance versions until a compaction and prune runs. Only the plaintext migration (ADR-0135) prunes today. Add periodic optimize (compact + prune) after syncs that delete rows.
+
+### IMP-014: Asymmetric retrieval prefixes for gemini-embedding-2
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-17, 2026-10-17, BUG-003/BUG-013 M1 evidence
+- **Plan**: -
+- **Description**: Google's embeddings guide says gemini-embedding-2 rejects task_type and expects text prefixes instead: 'task: search result | query: {content}' for queries and 'title: {title} | text: {content}' (title: none) for documents. The Gemini adapter sends raw text for both today, which works but leaves retrieval quality on the table. Add the prefixes per role (query vs document) through the embedding port, and measure with IMP-008. Changing them changes the vector space, so it reuses the BUG-003 embedding target record (a new target key) to trigger the reindex.
 
 ## Adjustments
 

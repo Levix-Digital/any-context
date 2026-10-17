@@ -134,11 +134,14 @@ pub fn resolve_lm_provider(
     Ok(ResolvedLm { provider, model: model_name, configured, notice })
 }
 
-/// Embedding provider and model for query vectors: the same resolution the sync worker uses
-/// for chunk vectors (`ingestion::resolve_embedding_provider`).
+/// Embedding provider and model for query vectors: the target recorded by the last completed
+/// sync, or the resolution the sync worker uses for chunk vectors (ADR-0132, ADR-0138).
 pub fn resolve_query_embedding(workspace: &str) -> (Option<Arc<dyn LmProvider>>, String) {
     match NativeConfigDb::open_default() {
-        Ok(db) => any_context_core_rs::ingestion::resolve_embedding_provider(&db, None, workspace),
+        Ok(db) => {
+            let (provider, target) = any_context_core_rs::ingestion::resolve_query_embedding_provider(&db, workspace);
+            (provider, target.model)
+        }
         Err(_) => (None, any_context_core_rs::retrieval::pipeline::DEFAULT_QUERY_EMBEDDING_MODEL.to_string()),
     }
 }
