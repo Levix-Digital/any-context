@@ -4,10 +4,10 @@ project: any-context
 title: 'Retrieval order follows relevance: per-source cap in score order and recency as a tie-breaker'
 kind: bug
 version: v0.45.1
-status: active
+status: in_progress
 author: Claude
 created_at: '2026-10-17T18:50:49'
-updated_at: '2026-10-17T18:52:12'
+updated_at: '2026-10-17T18:56:48'
 session_id: null
 tags:
 - retrieval
@@ -19,6 +19,7 @@ parent_plan_id: null
 backlog_items:
 - BUG-004
 - BUG-005
+- BUG-006
 milestones:
 - name: M1 Ranking fix
   done: false
@@ -35,6 +36,13 @@ status_log:
   by: Claude
   status: active
   note: Plan updated
+- at: '2026-10-17T18:56:11'
+  by: Claude
+  note: 'Backlog items added: BUG-006'
+- at: '2026-10-17T18:56:48'
+  by: Claude
+  status: in_progress
+  note: Approved by the user on 2026-10-17 with BUG-006 included (option a)
 ---
 
 # Retrieval order follows relevance: per-source cap in score order and recency as a tie-breaker
@@ -53,6 +61,11 @@ Bug plan: discovery and planning of the backlog items below (`dev-cycle-protocol
 - **Found**: 2026-10-17, v0.45.0, RAG best-practices review
 - **Description**: The recency boost in `search_single_async` adds up to 0.01 to the RRF score, while the best possible single-list RRF score is 1/61 ≈ 0.0164, so a recently modified file far down the rankings can outrank an older file ranked first. The intent was a tie-breaker between chunks of the same source, but all chunks of a file or web page share the same `last_modified`, and sync deletes the old chunks of a changed source, so the boost has no effect inside a source and only acts across sources. It also changes which candidates reach the cross-encoder.
 
+### BUG-006: Deep Search minimum score discards single-list hits
+- **Severity**: medium
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Description**: Deep Search requests use `min_score: 0.02`, applied to RRF scores before re-ranking. A chunk found only by the dense search or only by BM25 scores at most 1/61 ≈ 0.0164, so it is discarded unless the recency boost (BUG-005) lifts it. Supersedes IMP-001.
+
 ## 1. Reproduction
 
 Both defects are deterministic ranking logic in `crates/any-context-core-rs/src/retrieval/` (no logs involved), reproduced on `dev` at `a8c1d5b` (v0.45.0 code).
@@ -68,7 +81,9 @@ Both defects are deterministic ranking logic in `crates/any-context-core-rs/src/
 
 File B, 29 positions below, outranks file A. The boost is applied before the `min_score` filter and before the top-30 cut that feeds the cross-encoder, so it also decides which candidates are re-ranked.
 
-The regression tests in section 5 reproduce both cases and fail before the fix.
+**BUG-006.** The Deep Search adapter (`PipelineBatchRetriever` in `actx-cli/src/engine.rs`) sends every sub-query with `min_score: 0.02`. A chunk found by only one list scores at most 1/61 ≈ 0.0164 and is dropped unless the boost lifts it (above, file B passes only because of its boost). A chunk found by both lists passes only while 1/(60+a) + 1/(60+b) ≥ 0.02, roughly when both ranks are below 40. Once the boost is removed (BUG-005), no single-list hit reaches Deep Search at all, so the two fixes ship together (decision at approval, 2026-10-17).
+
+The regression tests in section 5 reproduce the three cases and fail before the fix.
 
 ## 2. Evidence and root cause
 
@@ -81,7 +96,9 @@ Confirmed facts (code read on `dev`):
 - Callers: `engine.rs` `search_db` tool (`top_k` 5), Deep Search batch (`top_k` 8) and the deterministic retriever (`top_k` 6) all use the default `max_chunks_per_source = 3`.
 - The recency boost is added in step 10 of `search_single_async` to every non-guaranteed result: `final_score = res.score + recency_boost`. ADR-0116 introduced it "to break score ties in favor of newer versions". All chunks of a file or web page share one `last_modified`, and sync deletes the old chunks of a changed source, so inside a source the boost is a constant; across sources it is up to 0.01 on a scale whose single-list maximum is 0.0164, so it acts as a ranking signal, not a tie-breaker.
 
-Root cause: two ordering steps that were meant as secondary adjustments (fair source representation, recency tie-break) override the primary relevance order that the rest of the pipeline (density budget, U-shaped placement) relies on.
+- The other two callers use `min_score: 0.005`, below the lowest RRF score a candidate can have inside the pool (1/(60 + `candidate_pool_k`) ≥ 1/100), so for them the threshold never cuts a candidate of the pool; Deep Search is the only caller whose threshold does.
+
+Root cause: two ordering steps that were meant as secondary adjustments (fair source representation, recency tie-break) override the primary relevance order that the rest of the pipeline (density budget, U-shaped placement) relies on. The Deep Search threshold was set above the single-list RRF maximum, and the boost hid it for recent files.
 
 ## 3. Fix design (`software-design`)
 
@@ -103,13 +120,14 @@ Principle: the relevance score is the only ranking signal; source fairness and r
 
 Exact ties do occur in RRF (a chunk at ranks (i, j) and another at (j, i), or two chunks at the same rank of a single list in different sub-queries) and between guaranteed file-name matches (all 1.0), which is where newer versions should win, keeping ADR-0116's intent.
 
+**3.3 Deep Search minimum score (BUG-006).** Add `pub const RRF_MIN_SCORE: f64 = 0.005` to the core (`retrieval/pipeline.rs`, re-exported), documented as the RRF floor that keeps every candidate of a pool of up to 140 per list (1/(60 + 140) = 0.005); it is a guard against empty matches, not a relevance cutoff (a calibrated cutoff on cross-encoder scores is IMP-007). The three adapters in `actx-cli/src/engine.rs` use the constant in place of their literals; Deep Search moves from 0.02 to 0.005, the other two keep their value. To make the Deep Search request testable, its construction moves from the `retrieve_batch` closure into a small function `deep_search_request(query, workspace, rerank_mode) -> HybridSearchRequest` in the same file.
+
 **Deliberately left out:**
 
-- Lowering the Deep Search `min_score` of 0.02 (BUG-006). See section 7, risk R1: it is a decision for plan approval.
 - Score scale and `rank` attribute (ADJ-005), cross-encoder cutoff (IMP-007), retuning `max_chunks_per_source` (revisit after Frente D and IMP-008, as recorded in BUG-004).
 - Temporal query handling (`QueryPreprocessor` temporal clauses and the LanceDB temporal filter) is unchanged; questions that ask for recent content keep using it.
 
-**ADR**: ADR-0138 "Retrieval order follows relevance: score-ordered per-source cap and recency tie-break", superseding the round-robin part of ADR-0076 and the micro-boost part of ADR-0116. Alternatives recorded: keep round-robin and re-sort afterwards (still lets a weak chunk displace a strong one); hard cap (empties slots in single-source workspaces); multiplicative or smaller recency boost (still a ranking signal with no calibration, since IMP-008 does not exist yet); remove recency entirely (loses the newer-version tie-break of ADR-0116).
+**ADR**: ADR-0138 "Retrieval order follows relevance: score-ordered per-source cap and recency tie-break", superseding the round-robin part of ADR-0076 and the micro-boost part of ADR-0116, and recording `RRF_MIN_SCORE` as an empty-match guard on the RRF scale. Alternatives recorded: keep round-robin and re-sort afterwards (still lets a weak chunk displace a strong one); hard cap (empties slots in single-source workspaces); multiplicative or smaller recency boost (still a ranking signal with no calibration, since IMP-008 does not exist yet); remove recency entirely (loses the newer-version tie-break of ADR-0116).
 
 ## 4. Affected surfaces and files
 
@@ -122,7 +140,9 @@ No change to the `cli` or `tui` surfaces, commands, settings, file formats or st
 | `crates/any-context-core-rs/src/retrieval/pipeline.rs` | Remove the recency boost, add `compare_by_relevance`, use it in the three sorts, call `apply_source_cap` in both paths; tests. |
 | `docs/architecture/retrieval.md` | Steps 7 and 10, batch search paragraph, module table, flowchart, decisions list. |
 | `docs/adr/0138-...md` and the ADR index | New ADR; ADR-0076 and ADR-0116 get a note pointing to it. |
-| `docs/BACKLOG.md` | BUG-004 and BUG-005 follow the plan status. |
+| `crates/any-context-core-rs/src/retrieval/mod.rs` (again) | Re-export `RRF_MIN_SCORE`. |
+| `crates/actx-cli/src/engine.rs` | `deep_search_request` extracted, the three adapters use `RRF_MIN_SCORE`; test. |
+| `docs/BACKLOG.md` | BUG-004, BUG-005 and BUG-006 follow the plan status. |
 
 Other places with the same defect: none found. `apply_threshold` and `apply_density_budget` preserve order; `ContextFormatter` is correct given a score-ordered input.
 
@@ -141,6 +161,9 @@ Regression tests, written first and failing on the current code:
   - `search_single_returns_descending_scores_across_sources`: BM25-only pipeline (no embedding provider, as in the existing tests) with several files and several matching chunks each; assert the output is in non-increasing score order and no source exceeds the cap while others are available.
   - `recency_does_not_outrank_relevance`: two BM25-only chunks in different files, the better match with an old `last_modified` and the weaker with today's date; the better match comes first and the scores equal the plain RRF scores.
   - `batch_returns_descending_scores`: same assertion for `retrieve_hybrid_batch`.
+  - `batch_keeps_single_list_hits_at_rrf_min_score`: BM25-only chunk (no embedding provider, so every hit is single-list) in a batch request with `min_score: RRF_MIN_SCORE` is returned; `rrf_min_score_keeps_whole_pool`: `1/(60 + 140) >= RRF_MIN_SCORE`.
+- `actx-cli/src/engine.rs`:
+  - `deep_search_request_keeps_single_list_hits`: the request built for Deep Search has `min_score <= 1/(rrf_k + candidate_pool_k)` (fails with 0.02).
 - Existing `u_shaped_reorder` and `format_xml_chunks` tests stay as they are.
 
 Full run: `cargo test --workspace` green before leaving Phase 5.
@@ -149,17 +172,18 @@ Manual tests: no new test. MT-ANS-001 (strict grounding) and MT-MOD-001 (re-rank
 
 ## 6. Documentation (`architecture-docs`, `user-docs`)
 
-- `docs/architecture/retrieval.md`, edited in place: step 7 without the micro-boost; step 10 describing the per-source cap in score order with backfill; ordering rule (score, then recency on ties) stated once; batch search paragraph; module table entry for `diversifier.rs`; flowchart labels (`RRF k=60`, `Per-source cap`); ADR-0138 in the decisions list. Run `build_index.py` and `check_docs.py` (zero errors).
+- `docs/architecture/retrieval.md`, edited in place: step 7 without the micro-boost; step 8 and the request parameters table with `RRF_MIN_SCORE` (Deep Search 0.005); step 10 describing the per-source cap in score order with backfill; ordering rule (score, then recency on ties) stated once; batch search paragraph; module table entry for `diversifier.rs`; flowchart labels (`RRF k=60`, `Per-source cap`); ADR-0138 in the decisions list. Run `build_index.py` and `check_docs.py` (zero errors).
 - ADR-0138 as described in section 3; short supersession notes in ADR-0076 and ADR-0116.
 - README: no user-visible behavior is documented at this level; `check_readme.py` only to confirm.
 
 ## 7. Release, migration and rollback (`devops-release`)
 
-- **Version**: patch, ships in the next release (v0.45.1 line). Release notes: "Retrieved context now follows relevance order: the per-source limit no longer pushes a weaker chunk ahead of a stronger one, and file recency only breaks exact ties."
+- **Version**: patch, ships in the next release (v0.45.1 line). Release notes: "Retrieved context now follows relevance order: the per-source limit no longer pushes a weaker chunk ahead of a stronger one, file recency only breaks exact ties, and Deep Search no longer discards chunks found by only one of the dense and keyword searches."
 - **Data**: nothing stored changes; no reindex or migration. The fix applies to the next question.
 - **Rollback**: revert the merge commit; no data to restore.
 - **Observability**: no new logs; ranking is covered by the automated tests.
-- **R1 (needs a decision at approval)**: Deep Search requests use `min_score: 0.02` on RRF scores (BUG-006). Today the boost lifts recent single-list hits above 0.02; without it, every chunk found by only one of the two lists is dropped from Deep Search (single-list maximum 0.0164). The fix therefore makes BUG-006 worse for recently modified files. Options: (a) include BUG-006 in this plan and give Deep Search the same `min_score` as the other callers (0.005); (b) ship BUG-004/005 alone and fix BUG-006 right after.
+- **R1 (resolved at approval, 2026-10-17)**: removing the boost (BUG-005) alone would make Deep Search drop every single-list hit, because of its `min_score: 0.02` (BUG-006). BUG-006 was added to this plan (option a), so both ship together.
+- **R2**: Deep Search now keeps more, weaker candidates before its `top_k` (8) cut; the cross-encoder still orders them per sub-query, and the per-source cap and density budget still bound the context. Calibrated pruning is IMP-007.
 
 ## 8. Execution steps and milestones
 
@@ -169,6 +193,7 @@ Branch: `fix/retrieval-relevance-order` from `dev`; pull request into `dev`.
 1. Write the regression tests of section 5 and confirm they fail.
 2. Implement `apply_source_cap` and switch both call sites; update the re-export.
 3. Remove the recency boost, add `compare_by_relevance` and use it in the three sorts.
+3b. Add `RRF_MIN_SCORE`, extract `deep_search_request` and use the constant in the three adapters.
 4. `cargo test --workspace` green; `cargo clippy` clean on the core crate.
 
 **M2 Docs and ADR**
@@ -177,4 +202,4 @@ Branch: `fix/retrieval-relevance-order` from `dev`; pull request into `dev`.
 **M3 Review and PR**
 6. Review the diff (code review, `software-design` checklist, `check_design.py`).
 7. Commit (Conventional Commits), push, open the pull request into `dev`, follow CI to green; the user merges.
-8. On merge: complete the plan, which closes BUG-004 and BUG-005 as done in the backlog.
+8. On merge: complete the plan, which closes BUG-004, BUG-005 and BUG-006 as done in the backlog.
