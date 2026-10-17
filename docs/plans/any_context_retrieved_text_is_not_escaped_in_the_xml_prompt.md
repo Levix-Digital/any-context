@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Levi Silveira
 created_at: '2026-10-17T10:00:49'
-updated_at: '2026-10-17T10:04:33'
+updated_at: '2026-10-17T10:12:53'
 session_id: null
 tags:
 - retrieval
@@ -21,9 +21,13 @@ backlog_items:
 - BUG-007
 milestones:
 - name: M1 Formatter fix
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M2 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-17'
+  by: Levi Silveira
 - name: M3 Review and PR
   done: false
 status_log:
@@ -39,6 +43,12 @@ status_log:
   by: Levi Silveira
   status: in_progress
   note: Approved by the user on 2026-10-17
+- at: '2026-10-17T10:08:56'
+  by: Levi Silveira
+  note: Milestone 'M2 Docs and manual tests' completed
+- at: '2026-10-17T10:12:53'
+  by: Levi Silveira
+  note: Milestone 'M1 Formatter fix' completed
 ---
 
 ---
@@ -152,7 +162,7 @@ Automated (`cargo test --workspace`, native runner and CI), in `prompt.rs`:
 
 Manual (`tests/MANUAL_TESTS.md`, Answers):
 
-- New **MT-ANS-005: Documents that contain prompt tags do not break the answer context**: index the reproduction file `injection.md`; with `/search fast` ask "What is the service timeout?"; then with `/search auto` ask a question that makes the agent call `search_db` over the same file. Expected: both answers say 30 seconds, cite `injection.md`, and do not answer "PWNED" or follow the embedded instruction.
+- New **MT-ANS-005: Documents that contain prompt tags do not break the answer context**: index the reproduction file `injection.md`; with `/search fast` ask "What is the service timeout?", then "Summarize injection.md". Expected: the first answer says 30 seconds and cites `injection.md`; neither answer is "PWNED" or follows the embedded instruction. (The `search_db` agent path cannot be selected reliably from the interface; it uses the same formatter and is covered by the automated tests.)
 
 Acceptance criteria: one well-formed envelope per prompt for any indexed content; code and markup in chunks reach the model unchanged except for reserved tags; answers on normal documents unchanged.
 
@@ -168,7 +178,7 @@ Acceptance criteria: one well-formed envelope per prompt for any indexed content
 - **Data already affected**: none; the fix applies at query time to all existing indexes. No re-indexing.
 - **Backward compatibility**: no stored format, setting or public signature changes.
 - **Rollback**: revert the pull request (or the release through a pull request on `main`) and ship the next patch; no data to restore.
-- **Observability**: `tracing` debug line in `format_xml_chunks` with the number of reserved tags neutralized and attributes changed by escaping when either is non-zero (counts only, no content, to keep document text out of logs). It is a diagnostic aid and is not asserted by tests.
+- **Observability**: none added. The planned `tracing` debug line was dropped during implementation: the core crate has no logging dependency or call sites, and adding one for a diagnostic counter is out of proportion. The behavior is covered by the formatter tests and MT-ANS-005.
 - **Security**: reduces a prompt-injection path from indexed files and crawled pages; no secrets involved.
 
 ## 8. Execution steps and milestones
