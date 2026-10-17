@@ -63,7 +63,7 @@ The bootstrap scripts download `actx-installer` from the latest release and run 
 3. Ensure `PATH`, then `heal_executing_and_shadowed_binaries`: every other `actx` found in `PATH` (for example `~/.cargo/bin/actx.exe`) is replaced too, with a 15-attempt copy loop to survive antivirus or indexer locks.
 4. Provision models for the profile chosen by the user: the `active_profile` setting (`/profile`), then `install_profile.txt`, and only then the hardware recommendation. Lite never downloads models. Provisioning is quiet and logged.
 
-`actx --check-update` compares the latest tag with the running version as semantic version tuples. Inside the TUI, `/update` only explains how to run the update from the terminal.
+`actx --check-update` compares the latest tag with the running version as semantic version tuples. Inside the TUI, `/update` only explains how to run the update from the terminal. The bootstrap scripts, the installer and `--check-update` use `/releases/latest`, which never returns a release candidate (pre-release); a candidate is installed only by naming its tag (`actx-installer --version=<tag>`, `actx --update@<tag>`).
 
 ### Launcher mode
 

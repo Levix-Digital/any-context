@@ -1,1210 +1,231 @@
-# 🧠 AnyContext (`actx`)
+# AnyContext (`actx`)
 
-> **Transform any file, folder, website, or drive into a living, real-time AI context.**
+AnyContext is a terminal assistant that answers questions from your own folders, documents and documentation sites.
 
-```text
-  ___               ____ ___  _   _ _____ _____ _  _______ 
- / _ \ _ __  _   _ / ___/ _ \| \ | |_   _| ____\ \/ /_   _|
-| |_| | '_ \| | | | |  | | | |  \| | | | |  _|  \  /  | |  
-|  _  | | | | |_| | |__| |_| | |\  | | | | |___ /  \  | |  
-|_| |_|_| |_|\__, |\____\___/|_| \_| |_| |_____/_/\_\ |_|  
-             |___/                                         
-  🚀 AnyContext (actx)  |  Levix Digital
-  ⚡ Agnostic AI Agent with Isolated Workspaces & Long-Term Memory
-  🔒 100% Local & Offline-First Privacy
+You point it at the material you work with; it indexes everything on your machine and answers with citations to the files it used. Each project lives in its own workspace with its own sources, settings and conversation memory, and the language model can be a cloud provider or a model running locally through Ollama.
+
+[![Release](https://img.shields.io/github/v/release/Levix-Digital/any-context-releases?label=release)](https://github.com/Levix-Digital/any-context-releases/releases/latest)
+
+## Features
+
+- **Ask questions about your files**: source code, Markdown, PDF (including tables and forms), Word, PowerPoint, Excel, CSV, JSON, YAML and many more formats, with answers that cite the files used.
+- **Index documentation websites**: add a URL and AnyContext crawls the site, including single-page documentation portals.
+- **Workspaces**: separate projects with their own sources, model, answer settings and memory.
+- **Fast answers or deep research**: simple questions get one quick search; complex ones are broken into sub-questions, searched in several rounds and answered with a combined summary.
+- **Honest grounding**: in strict mode answers come only from your documents, and AnyContext says plainly when the answer is not there.
+- **Local re-ranking**: an optional multilingual model on your machine reorders search results for more precise answers.
+- **Long-term memory**: each workspace remembers earlier conversations.
+- **Full-screen terminal interface** with live sync progress, plus one-shot commands for scripts.
+
+## Requirements
+
+- Windows 10/11 (x86_64) or Linux (x86_64).
+- One of:
+  - an API key for OpenAI, Anthropic, Google Gemini, DeepSeek or Groq; or
+  - [Ollama](https://ollama.com) running locally with a model pulled, for fully local answers.
+- On Windows, the Microsoft Visual C++ Redistributable for the local re-ranker (AnyContext works without it, with slightly less precise ranking).
+- Internet access for installation, updates, cloud models and web sources.
+
+## Installation
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/Levix-Digital/any-context/main/install.ps1 | iex
 ```
 
-[![Release](https://img.shields.io/github/v/release/Levix-Digital/any-context?color=blue&label=release)](https://github.com/Levix-Digital/any-context/releases)
-[![License](https://img.shields.io/badge/license-Community%20%2F%20Enterprise-green.svg)](https://github.com/Levix-Digital/any-context)
-[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
-[![Privacy](https://img.shields.io/badge/privacy-100%25%20Offline%20First-success.svg)](https://lmstudio.ai/)
-[![Architecture & TecDoc](https://img.shields.io/badge/docs-TecDoc%20(Architecture)-blueviolet.svg)](TECDOC.md)
-
-**AnyContext** is the universal intelligence layer for your personal and professional data. Built with an uncompromising focus on **privacy, speed, and versatility**, AnyContext connects your local folders, scanned documents, and web portals directly to the world's most capable Artificial Intelligence models.
-
-> 📖 **Looking for Deep Engineering & Architecture Details?**  
-> Check the technical documentation: 👉 **[`TECDOC.md`](TECDOC.md)** (architecture overview, one page per subsystem in [`docs/architecture`](docs/architecture) and the Architecture Decision Records in [`docs/adr`](docs/adr)).
-
-Whether you are a **lawyer reviewing hundreds of contract pages**, a **consultant managing immigration dossiers**, a **researcher navigating scientific publications**, or an **enterprise deploying a secure in-VPC context server**, AnyContext operates **100% on your terms and infrastructure**.
-
----
-
-## 🌟 Why AnyContext? (In Plain English)
-
-Traditional AI tools require you to manually copy and paste files into web chats, exposing your confidential documents to external clouds and forgetting past conversations the moment you close the tab.
-
-**AnyContext changes everything:**
-
-1. **You Point to Your Folders**: Point AnyContext to any folder on your computer (PDFs, Word docs, Excel spreadsheets, images, text files, or source code).
-2. **Instant Local Memory**: AnyContext reads and organizes your documents locally into an ultra-fast columnar vector database (**LanceDB / Apache Arrow in Rust**).
-3. **Ask Anything Naturally**: Open the terminal and ask questions in plain English or Portuguese (*"What is the renewal deadline in contract 42?"*, *"Compare the tax policies across our 2025 financial reports"*).
-4. **Cites Real Sources**: The AI answers accurately, quoting the exact file name, page, and chunk where the information was found.
-5. **Zero Cloud Lock-In**: Choose from **9 leading AI providers** (OpenAI, Claude, Gemini, DeepSeek, Groq, Mistral, xAI Grok, OpenRouter) or run **100% offline and free** using local models (LM Studio / Ollama).
-
----
-
-## 🚀 Key Features & Superpowers
-
-- **🧠 Runtime ONNX Real & Cross-Encoder Multilíngue de Verdade (`v0.45.0`)**:
-  - **Inferência neural real**: o Estágio 2 do Two-Stage Retrieval agora executa um cross-encoder de verdade via ONNX Runtime oficial da Microsoft (1.31, CPU). Até a v0.44.0 esse estágio era uma heurística lexical.
-  - **Modelo padrão multilíngue**: `mmarco-mMiniLMv2-L12` (~129 MB, inclui português, Apache-2.0). Opção de maior qualidade para máquinas com 32GB+: `bge-reranker-v2-m3` (~561 MB).
-  - **Zero configuração**: o ONNX Runtime vem **dentro do pacote** do AnyContext e o reranker é **instalado automaticamente** com o seu perfil (instalação e atualização). Nada para baixar ou configurar manualmente; no perfil **Lite** nada é baixado e o AnyContext usa RRF.
-  - **Desempenho medido (CPU, 4 threads)**: ~0,3 s para reordenar 30 trechos; o modelo carrega na primeira consulta (~0,6 s), nunca no início do programa.
-  - **Sempre abre, sempre responde (ADR-110)**: sem o modelo ou sem a biblioteca do runtime, o reranker cai para RRF e `/rerank` mostra o motivo.
-  - **Comandos**: `/rerank` (status com modelo, runtime, dispositivo e latência real), `/rerank model [id]` (listar/selecionar o modelo), `--rerank-model <id>` (apenas para uma execução), `actx download reranker` (reparo).
-  - **Downloads verificados**: todos os modelos do catálogo têm revisão fixada no Hugging Face e verificação de tamanho + SHA-256; links inexistentes foram removidos.
-  - **Transparência técnica**: classificador de consultas, sentinela de digitalizações, extrator de layout e encoder visual agora são exibidos como **heurísticos** (eram apresentados como neurais); a geração local com Gemma 4 e a aceleração por GPU aparecem como **planejadas**. Detalhes na [ADR-130](docs/adr/0130-real-onnx-runtime-multilingual-cross-encoder.md).
-
-- **🎯 Two-Stage Neural Retrieval com Re-Ranking Local Cross-Encoder ONNX (`v0.44.0`)**:
-  > ⚠️ **Retificado na v0.45.0**: na v0.44.0 o Estágio 2 era uma heurística lexical, o modelo `bge-reranker-small` não existe no Hugging Face e não havia aceleração por GPU nem a latência de 18ms anunciada. O cross-encoder real chegou na v0.45.0 (acima).
-  - **Recuperação em Dois Estágios (Two-Stage Neural Retrieval)**:
-    - **Estágio 1 (Recall)**: Fusão de Ranks Recíprocos (RRF, $k=60$) unificando busca vetorial densa (LanceDB) e busca lexical esparsa (Okapi BM25) para capturar um pool inicial de candidatos de alta cobertura semântica e lexical.
-    - **Estágio 2 (Precision Re-Ranking)**: Cross-Encoder neural local `bge-reranker-small` (~45.2 MB) processando os pares `(query, document)` com atenção cruzada bidirecional completa, calculando scores de relevância normalizados por Sigmoid em $[0.0, 1.0]$.
-  - **Aceleração por Hardware no Reranker**: Compatível com a matriz tri-plataforma de hardware (`DirectML`, `Metal`, `CUDA`, `Vulkan`, `CPU SIMD`) com latência típica inferior a 18ms por lote de candidatos.
-  - **Fallback Gracioso ADR-110**: Caso os pesos ONNX não estejam instalados, a ordenação RRF de primeiro estágio é preservada de forma 100% transparente, sem erros, travamentos ou chamadas externas de rede.
-  - **Paridade Multi-Superfície**:
-    - **CLI Headless**: Flag `--rerank <auto|on|off>` e alias `--reranker` para controle por consulta ou script em automações e pipelines CI/CD (`actx "como funciona a autenticação?" --rerank on`).
-    - **Download de Pesos**: Subcomando `actx download reranker` (e `/download reranker`) para download assistido e verificação dos pesos do reranker (~45 MB).
-    - **Slash Command na TUI**: `/rerank` (com suporte a `/rerank on`, `/rerank off`, `/rerank auto` e status `/rerank`) com telemetria detalhada e persistência atômica no SQLite.
-    - **Badge em Tempo Real no Header da TUI**: Indicador dinâmico de status: `[Rerank: ⚡ ONNX: bge-small]` (ativo), `[Rerank: ⚡ RRF (Fallback)]` (auto sem pesos) ou `[Rerank: 🚫 Off]`.
-  - **Integração com U-Shaped Reordering e Isolamento XML**: O re-ranking de Estágio 2 antecede imediatamente a formatação em U e o envelopamento em tags XML estruturadas, garantindo que os melhores trechos semânticos sejam posicionados nas zonas de máxima atenção do Transformer.
-
-- **🎯 RAG Determinístico Backend-First, U-Shaped Reordering, Isolamento XML & Zero Hallucination Gate (`v0.43.0`)**:
-  - **RAG Determinístico 1-Hop Orquestrado pelo Backend**: Redução drástica de ~50% no Time-to-First-Token (TTFT) e economia substancial de tokens em consultas diretas/factuais. O backend do AnyContext executa a busca vetorial híbrida densa + lexical (Dense + BM25 + RRF) no LanceDB antes de acionar o LLM. Apenas 1 chamada única é realizada ao LLM, injetando o contexto formatado e a pergunta.
-  - **U-Shaped Reordering (Anti "Lost in the Middle")**: Reordenação determinística em formato de "U" (`ContextFormatter::u_shaped_reorder`), posicionando o Rank 1 no topo absoluto do contexto (*Primacy Bias*), o Rank 2 no final absoluto colado na pergunta (*Recency Bias*) e empurrando ranks intermediários para o miolo, mitigando a degradação de atenção do Transformer.
-  - **Isolamento Estrutural por Tags XML + Metadados de Escopo**: Cada trecho de contexto é envelopado em uma tag XML explícita `<chunk id="..." rank="..." score="..." source="..." scope="..." version="..." type="...">`, criando barreiras sintáticas rígidas para as cabeças de atenção do LLM e prevenindo a fusão cruzada de regras entre versões e escopos distintos.
-  - **Zero Hallucination Gate (Fast-Path de Resposta Negativa Honesta)**: Avaliação instantânea (<5ms / $0.00 / 0 chamadas de LLM). Quando a busca não encontra correspondência documental no workspace ou todos os chunks ficam abaixo da nota de corte de relevância, o sistema retorna uma resposta honesta e calibrada informando exatamente as fontes e pastas monitoradas, sem alucinações.
-  - **Arquitetura Hexagonal Rigorosa (Formatação Canônica Única no Core)**: Centralização de toda a lógica de formatação XML, reordenação em U e regras anti-alucinação no Core (`ContextFormatter`), consumida uniformemente pelo agente headless, TUI interativa e ReAct Tool Registry.
-
-- **⚡ Matriz Tri-Cross-Platform de Aceleração por Hardware no `actx-onnx` (DirectML, Metal, CUDA, Vulkan & CPU SIMD) (`v0.42.0`)**:
-  > ⚠️ **Retificado na v0.45.0**: a detecção de GPUs é real, mas nenhum Execution Provider de GPU é usado; toda inferência local roda na CPU e não há binário para macOS. GPU está planejada (ADR-130).
-  - **Aceleração Nativa Tri-Plataforma**: Habilita execução neural acelerada por GPU para a família Gemma 4 ONNX:
-    - **Windows**: Microsoft DirectML (DXGI 1.2 / DirectX 12) com suporte universal a GPUs NVIDIA GeForce / RTX, AMD Radeon e Intel Arc / Iris Xe.
-    - **macOS**: Apple Silicon Unified Memory Architecture (UMA) via Metal Performance Shaders (MPS) e CoreML.
-    - **Linux**: NVIDIA CUDA / TensorRT e Vulkan Compute para ambientes abertos e data centers.
-  - **Fallback Gracioso CPU SIMD (Garantia ADR-110)**: Em sistemas sem GPU dedicada, drivers ausentes ou falha de alocação de VRAM, o motor reverte de forma transparente e imediata para CPU SIMD multi-threading otimizada (AVX2, AVX-512, NEON), garantindo custo $0.00, estabilidade absoluta e zero falhas de execução.
-  - **Sondagem Ultrarrápida (<0.2ms)**: Detecção de adaptadores de hardware via COM FFI nativo (Windows DXGI), Apple Silicon sysctl e Linux DRM subsystem com zero impacto no tempo de inicialização.
-  - **Paridade Multi-Superfície**:
-    - **CLI Headless**: Flag `--device <auto|dml|metal|cuda|vulkan|cpu>` para override em consultas e scripts (`actx --device dml "resuma o documento"`).
-    - **Diagnóstico de Hardware**: `actx --diag` exibe tabela com GPUs detectadas, memória de vídeo (VRAM), fabricante e backend ativo.
-    - **Slash Command na TUI**: `/device` (e aliases `/gpu`, `/accelerator`) para listar adaptadores e alternar o dispositivo ativo em tempo de execução.
-    - **Badge em Tempo Real no Header da TUI**: Indicador dinâmico de hardware no cabeçalho superior: `[Acc: 🚀 DirectML: RTX 4070 Ti]`, `[Acc: 🚀 Metal: Apple M3 Max (UMA)]` ou `[Acc: 💻 CPU SIMD]`.
-    - **Menu `[F1]`**: Submenu `Hardware Acceleration & GPUs` para seleção interativa de aceleradores.
-
-- **📥 Downloader Assistido de Pesos Gemma 4 ONNX no CLI & TUI (`v0.41.0`)**:
-  > ⚠️ **Retificado na v0.45.0**: os links do Gemma 4 apontavam para repositórios inexistentes e não há runtime generativo local. O Gemma 4 local está **planejado**; o downloader segue válido para os demais modelos, agora com SHA-256.
-  - **Download Assistido de Pesos Locais (`actx download <tier>`)**: Subcomando headless de terminal e slash command interativo (`/download <tier>`, `/dl`, `/get-model`) para baixar e instalar localmente os modelos da família Gemma 4 (`compact`, `12b`, `27b`, `32b`) com barra de progresso visual, velocidade em tempo real (MB/s), tempo estimado (ETA) e cancelamento instantâneo via Ctrl+C ou `[Esc]`.
-  - **Pre-Flight Checks de Segurança em Camadas**: Verificação automática de espaço livre em disco com margem de segurança de 500MB e guardrails de hardware para RAM física. Impede downloads inviáveis por falta de armazenamento ou estouro de memória, com suporte à flag `--force` para override consciente.
-  - **Inspeção de Armazenamento Local (`actx download --check` / `/download --check`)**: Tabela completa exibindo todos os modelos ONNX suportados, diretório local (`%LOCALAPPDATA%\AnyContext\models\`), status de instalação e compatibilidade de hardware em tempo real.
-  - **Menu TUI Inteligente (`[F1] -> Models`)**: Ao pressionar `[Enter]` em um modelo local ainda não instalado, a TUI inicia automaticamente o download em segundo plano com feedback imediato e barra de progresso ativa no rodapé.
-  - **Arquitetura Hexagonal Rigorosa (Zero Regras de Negócio na UI)**: Toda a lógica de verificação de disco, profilagem de RAM, resolução de aliases e cálculo de telemetria reside no Core (`any-context-core-rs`), mantendo as interfaces de apresentação desacopladas e resilientes.
-
-- **🧠 Ativação Operacional do Gemma 4 Local ONNX, Guardrails de Hardware Estilo LM Studio & Presets Seguros de Workspace (`v0.40.0`)**:
-  > ⚠️ **Retificado na v0.45.0**: a geração local com Gemma 4 não estava funcional (respostas simuladas). Os modelos `gemma-4-*` usam o provedor de fallback até a geração local existir (ADR-130).
-  - **Ativação Operacional do Gemma 4 Local no CLI (`resolve_lm_provider`)**: Conecta o motor neural ONNX diretamente aos fluxos de conversação do terminal e da TUI, com resolução de pesos em `%LOCALAPPDATA%/actx/models/` e garantia inviolável ADR-110 (fallback offline gracioso sem quedas ou chamadas indevidas à nuvem).
-  - **Guardrails de Hardware Ativos (Estilo LM Studio)**: Modelos locais são validados em tempo real (<5ms) contra a memória RAM física do hospedeiro. Modelos que excedem a capacidade física (🔴) são bloqueados por padrão contra Out-Of-Memory (OOM) e swap thrashing catastrófico, exigindo a flag explícita `--force` (`/model gemma-4-32b --force`) para prosseguir. Modelos cloud permanecem 100% livres e irrestritos.
-  - **Menu de Modelos da TUI com Semáforo de RAM**: Badges e ícones coloridos informam instantaneamente a viabilidade de cada modelo (`🟢 [Compatível]`, `🟡 [Risco de Swap]`, `🔴 [Hardware Insuficiente - Exige X GB]`).
-  - **Presets Seguros de Workspace (`/preset` ou `/kit`)**: Configura atomicamente o workspace em 4 perfis seguros (`offline`, `balanced`, `frontier`, `privacy`), selecionando automaticamente o maior modelo local seguro para a máquina detectada sem riscos de travamento.
-  - **Soberania do Usuário**: A escolha do modelo feita pelo usuário é sagrada e imutável durante o chat, garantindo previsibilidade total e zero trocas arbitrárias de modelo por turno.
-
-- **🌐 Ingestão Web com Jina Reader (`r.jina.ai`), RAG Fundamentado Puro & Matriz de 7 Domínios Semânticos (`v0.39.0`)**:
-  - **Jina Reader Exclusivo na Ingestão (`NativeJinaExtractor`)**: Extração de Markdown puro de altíssima fidelidade integrada diretamente ao `NativeWebCrawler` (`/sync`), renderizando documentações complexas e SPAs modernas (React, Docusaurus, Next.js, Vue) com títulos, tabelas e blocos de código preservados sem consumir RAM local (zero navegadores headless locais).
-  - **Preservação Inviolável do RAG Fundamentado (*Grounded RAG*)**: O modelo de inferência (família Gemma 4 local ou nuvem) lê **exclusivamente a partir do índice RAG nativo** (LanceDB + BM25 via `NativeHybridPipeline`). Não há injeção de páginas web avulsas em tempo real no prompt, assegurando proveniência e zero alucinação.
-  - **Matriz de 7 Domínios Semânticos no `ChatModelRouter`**: Classificação semântica em tempo real (<1µs na CPU) em 7 domínios canônicos: `Code`, `Architecture`, `DevOps & Infra`, `Data & Schema`, `Security & Audit`, `Document & Business`, `General`.
-  - **Telemetria Contextual na TUI & CLI**: Badges informativas exibidas no accordion de raciocínio da TUI e na CLI com intenção semântica, nível de confiança e razão explicável.
-  - **Resiliência e Fallback ADR-110**: Em caso de erro de rede ou ambiente offline, o crawler reverte transparentemente para extração HTML local sanitizada sem interromper o processo de sincronização.
-
-- **🧠 Ativação dos Modelos ONNX nos Fluxos de Produção & Família Gemma 4 em 5 Tiers (`v0.38.0`)**:
-  > ⚠️ **Retificado na v0.45.0**: os componentes de Document AI e o roteador de consultas executam heurísticas determinísticas; os pesos podem ser baixados, mas ainda não são executados (ADR-130).
-  - **Decoupled Architecture**: Desacoplamento estrito entre a Camada de Percepção (Document AI: MobileNetV4, LayoutLMv3, BGE-Small, CLIP-ViT, Laya mmBERT ~740MB) e a Camada Generativa (Gemma 4 INT4).
-  - **5 Hardware Intelligence Tiers (Isolamento Antifragil de Memória)**:
-    - **👑 Sovereign Ultra** (Default em $\ge 64\text{ GB}$ RAM): Gemma 4 32B INT4 (~25.5GB Peak RAM) + Suíte Completa Document AI (19.2GB Disco).
-    - **💼 Workstation Pro** (Default em $32\text{ GB}$ RAM): Gemma 4 27B INT4 (~18.5GB Peak RAM) + Suíte Completa Document AI (15.7GB Disco).
-    - **🌌 Air-Gapped Power** (Default em $16\text{ GB}$ RAM): Gemma 4 12B INT4 (~10.0GB Peak RAM) + Suíte Completa Document AI (7.9GB Disco).
-    - **⚡ Smart Balanced** (Default em $8\text{ GB}$ RAM): Gemma 4 Compact INT4 (~2.5GB Peak RAM) + Document AI Essencial (1.7GB Disco).
-    - **🟢 Lite / Fast-Path** (Default em $< 8\text{ GB}$ RAM, CI ou VMs): 0 MB downloads, 100% heurísticas determinísticas em Rust puro (<1µs cold start) + Provedores Cloud/API.
-  - **Prevenção de Swap Thrashing**: Isolamento rigoroso do modelo 32B para 64GB+, prevenindo esgotamento de RAM e degradação de desempenho em máquinas de 32GB.
-  - **Perception Adapters no Core**: `OnnxScanSentinelAdapter` no `QualityGate` (classificação de páginas rasterizadas em sub-8ms), `OnnxLayoutExtractorAdapter` (preservação tabular 2D) e `OnnxVisionEncoderAdapter` (visual embeddings CLIP ViT) no `IngestionModelRouter`.
-  - **Provedor `GemmaOnnxProvider` em `actx-lm`**: Chat completions e streaming SSE local offline para a família Gemma 4, com fallback transparente para nuvem e garantia ADR-110 inviolável.
-  - **Multi-Surface Parity**: `/profile` dinâmico em 5 tiers, `/model --list` com badges dinâmicos de prontidão local e instalador com métricas formatadas em MB e GB.
-
-- **⚡ Modular ONNX Engine, Hardware Pre-Flight & Tiered Intelligence Profiles (`v0.37.0`)**:
-  - **Modular `actx-onnx` Crate**: Separates high-performance neural tensor inference into a standalone crate with CPU execution provider, HuggingFace tokenizers, and resilient feature flagging (`--features onnx`).
-  - **Sub-5ms Hardware Pre-Flight Semaphores**: Probes physical hardware (RAM total/available, free storage, CPU cores) in <5ms, presenting an intuitive semaphore (`🟢 Green` / `🟡 Yellow` / `🔴 Red`) and automatically configuring the most powerful green profile.
-  - **Tiered Model Profiles (Kit de Models)**:
-    - **🌌 Air-Gapped Power** (Default on $\ge 16\text{ GB}$ RAM): 5 canonical models (`mobilenetv4`, `clip-vit`, `layoutlmv3`, `bge-small`, `laya-int8`) for complete offline document AI, scan sentinel, layout reading, and neural query routing (~740 MB disk).
-    - **⚡ Smart Balanced** (Default on $8\text{ GB}$ RAM): 3 canonical models (`mobilenetv4`, `layoutlmv3`, `bge-small`) balancing neural routing with low memory footprint (~252 MB disk).
-    - **🟢 Lite / Fast-Path** (Default on $< 8\text{ GB}$ RAM, CI or VMs): 0 MB extra downloads, running 100% on pure Rust deterministic heuristics (<1µs cold start).
-  - **Multi-Surface `/profile` Command & TUI Menu**: Easily inspect, switch, and benchmark intelligence tiers via `/profile` or the interactive TUI menu (`[F1] -> Hardware Profiles`).
-  - **Inviolable ADR-110 Zero-Breakage Guarantee**: Missing or corrupted ONNX weights immediately fall back to pure Rust deterministic heuristics without crash or user interruption.
-
-- **🌌 Aurora Boreal Design System & Zero-Delay Fast Startup (`v0.34.6`)**:
-  - **Modular Aurora Boreal Palette**: Implements the official Levix Digital design tokens (Emerald `#00E5A3`, Glacial Cyan `#00F0FF`, Cosmic Violet `#A855F7`, Polar Pink `#EC4899`, Solar Amber `#F59E0B`, Polar Crimson `#EF4444`) centralizing color definitions in `any-context-core-rs` so all present and future UIs (TUI, Headless CLI, Web, Desktop) inherit a unified, cohesive visual identity.
-  - **Zero-Delay Fast Startup (< 50ms)**: Eliminates synchronous initialization bottlenecks. Regular daily runs query SQLite version in < 1ms and launch the TUI instantly without blocking on disk indexes.
-  - **Intelligent Splash Telemetry (Option C)**: On first-run or post-upgrade, displays a sleek Aurora Boreal terminal progress loader with live step-by-step telemetry before entering full-screen mode.
-  - **TrueColor ANSI Headless Logs**: CLI queries, tool executions, and Deep Search streams now render with high-contrast, crystal-clear 24-bit TrueColor typography.
-
-- **📑 RAG Semantic Fidelity & Ingestion 2D Layout Sacred Preservation (`v0.34.5`)**:
-  - **Sacred 2D Layout Preservation**: Complex documents with tabular geometry (Canadian T4 tax returns, CMR shipment reports, commercial invoices) maintain structured Markdown tables with exact cell relationships without destructive key-value column collapse.
-  - **QualityGate Structured Table Exemption**: Eliminates false-positive `DenseComplexForm` classifications by identifying valid Markdown table delimiters (`| --- |`), allowing high-fidelity text to bypass lossy spatial fallbacks directly into LanceDB and BM25.
-  - **Conservative Form Pairing**: Restricts key-value extraction strictly to explicit headers (`Property | Value`, `Field | Value`) or inline colons (`Label: Value`), completely preventing financial amounts or company names from being inverted as dictionary keys.
-  - **Calibrated RRF Hybrid Retrieval Threshold**: Aligns `min_score` to `0.005` in reciprocal rank fusion ($k=60$), ensuring cross-lingual semantic vector matches (e.g. Portuguese queries over English/French forms) pass ranking filters smoothly.
-  - **Transparent In-Memory Decryption**: Seamless hardware-bound on-the-fly decryption (`NativeSecurityEngine`) for legacy encrypted chunks (`enc::`), eliminating sparse lexical retrieval blindspots.
-
-- **🎨 UX Stabilization, Deep Search Direct Conclusion, Multiline Prompt & Document AI (`v0.34.4`)**:
-  - **Deep Search Direct Conclusion & Language Parity**: Deep Search synthesized outputs now provide direct, grounded conclusions without conversational preambles or narrative transitions, strictly matching the user query's language (e.g. Portuguese).
-  - **Per-Workspace Search Retrieval Depth**: Persists `/search` depth mode (`auto`, `fast`, `deep`) independently per workspace in SQLite, preventing global cross-talk and honoring workspace autonomy.
-  - **8-Dot Braille Spinner & 125ms Event Loop**: Upgraded background sync spinner to 8-dot braille (`⣾⣽⣻⢿⡿⣟⣯⣷`) and halved TUI event loop tick to 125ms for fluid, responsive visual feedback.
-  - **Dynamic Multiline Prompt Input**: Expandable prompt box (3 to 8 lines) with auto-wrap, precise 2D cursor `(x, y)` navigation, and newline insertion shortcuts (`Shift+Enter`, `Alt+Enter`, `Ctrl+J`).
-  - **Workspace Context Badge & Neutral Typography**: AI message tags now explicitly display the active workspace (`[AI - <Workspace>]`), with user text in neutral gray and dark gray borders matching the conversation viewport.
-  - **Transparent Persistent Self-Knowledge**: Automatically force-syncs and updates system help and guides in the `"Global"` workspace in LanceDB on startup and version upgrades.
-  - **Document AI & Local Models Menu**: Interactive submenu in `/menu` detailing zero-overhead deterministic classification (<1µs), 2D spatial layout heuristics (<5MB RAM), and air-gapped local SLM vision instructions (`minicpm-v`/`llava`).
-  - **Enriched ReAct Telemetry Hierarchy**: Color-coded, structured telemetry in the `<think>` accordion (`Ctrl+T`) distinguishing routing decisions, query decomposition, reflection iterations, and tool executions.
-
-- **🧠 Chat ModelRouter, Dynamic Query Complexity & Intent Routing (`v0.34.3`)**:
-  - **Deterministic Zero-Token Classifier**: Evaluates user query complexity and structural intent 100% on local CPU in sub-1 microsecond (< 1µs), consuming exactly zero LLM tokens ($0.00) and avoiding external classification roundtrips.
-  - **Autonomous Dynamic Triage (`/search auto`)**: Dynamically routes simple questions (*"onde fica o timeout?", "qual a versão atual?"*) to low-latency ReAct single-turn execution, while automatically escalating multi-faceted comparative queries (*"compare A com B, prós e contras e fluxo ponta a ponta"*) to Deep Search reflective multi-turn loops (RFC-042).
-  - **Real-Time Visual Badges & Intent Telemetry**: Instantly emits `AgentEvent::RoutingDecision` before streaming the first token, surfacing informative badges (`🧠 [ModelRouter: Deep Search]` / `⚡ [ModelRouter: Fast RAG]`) in both the TUI and one-shot CLI with detected intent (`Code`, `Architecture`, `Document`, `General`), confidence, and explainable rationale.
-  - **Multi-Surface `/router` Status Command**: Inspect active routing policies, classification guarantees, and threshold metrics via `/router` (alias `/routing`).
-- **🦀 100% Native Rust Parity & Complete Python Purge (`v0.33.0`)**:
-  - **Complete Legacy Python Purge**: Eradicated all legacy Python codebase (`src/any_context/`), PyInstaller specs, requirements, and virtualenv tooling. AnyContext is now 100% native Rust from end to end, compiling into a lean, single-file native executable with sub-10ms startup.
-  - **Native Office Ingestion (`OfficeChunker`)**: Pure native extraction and chunking for Microsoft Word (`.docx`) and PowerPoint (`.pptx`) archives using streaming XML parsing (`zip` + `quick-xml`), preserving headings, tables, slide titles, and presentation speaker notes.
-  - **Autonomous Web Crawler & Sitemap Engine (`NativeWebCrawler`)**: High-performance recursive crawler featuring XML sitemap & sitemap index traversal (`sitemap.xml`), strict RFC 9309 `robots.txt` compliance, rate-limiting, and direct LanceDB/BM25 ingestion.
-  - **Multi-Provider Web Search (`NativeWebSearchEngine`)**: Embedded native web search tool supporting Tavily, Serper, and DuckDuckGo fallback, wired directly to the agent's ReAct tool execution engine when web search is enabled (`/web on`).
-  - **Semantic Envelope & Retrieval Presets**: Enriched document indexing with contextual metadata envelopes (`SemanticEnvelope`) and `workspace_sync_ledger` in SQLite, complemented by tiered retrieval presets (`Turbo`, `Balanced`, `Deep`).
-- **🦀 100% Native Rust Transition & Zero-Python Sync Orchestrator (`v0.32.19`)**:
-  - **Zero Python Runtime Dependencies**: Complete deprecation and elimination of Python runtimes, `actx-core.exe`, and PyInstaller bundles. All scanning, AST/Markdown chunking, vectorization, and LanceDB/BM25 ingestion run directly through the compiled native Rust core engine.
-  - **Native Differential Scanner (`NativeSyncOrchestrator`)**: Sub-30ms incremental scans with cryptographic SHA-256 stat caching in SQLite (`workspace_files_stat_cache`). Instant $0.00 detection and metadata update for renamed and moved files without re-embedding.
-  - **Headless Worker & TUI Background Integration**: Native `--sync-worker` background process mode spawned transparently by `/sync` and `/folder` commands, with real-time status badges in the TUI header (`[Sync: ⚡ Syncing ...]`) and footer (`✔ Up to date`).
-- **⚡ Targeted Version Updating, Persistent TUI Sync Indicators & Windows Binary Healing (`v0.32.18`)**:
-  - **Universal Tagged Update Syntax (`actx --update@<version>`)**: Added first-class support for targeted version upgrades and downgrades via CLI flags (`actx --update@v0.32.17`, `actx -u@v0.32.17`, `actx update@v0.32.17`, `actx update --version v0.32.17`) and interactive TUI commands (`/update@v0.32.17`), with transparent version normalization and dedicated audit logging in `%LOCALAPPDATA%\AnyContext\logs\update.log`.
-  - **Persistent Workspace Sync Status (Header & Footer Parity)**: The Rust TUI now continuously displays the active synchronization status badge in both the Top Header (`[Sync: ✔ Up to date]` / `[Sync: ⚡ Syncing <bar>]`) and Bottom Footer (`✔ Up to date │ ` / `⚡ Syncing <bar> │ `), restoring full visual feedback parity with earlier TUI versions.
-  - **Windows NT Binary Replacement & Shadowing Immunity**: Resolved executable file locking and bash path hash invalidation on Windows NT (`bash: No such file or directory`) using a 15-attempt backoff retry loop on binary replacement, and automated detection and synchronization of shadowed binaries across `PATH` and `~/.cargo/bin/actx.exe`.
-- **🔒 Native Vector Decryption, Sync Cancellation, Session Directory Navigation & TUI Prompt Immunity (`v0.32.16`)**:
-  - **Native Transparent Encryption-at-Rest (`NativeSecurityEngine`)**: Implemented 100% interoperable AES-GCM-256 and PBKDF2-HMAC-SHA256 decryption in the Rust Core matching Python's hardware-bound machine key signature. `/inspect --full` and native RAG pipelines seamlessly decrypt on-the-fly, completely eliminating raw `enc::...` ciphertexts from inspection and retrieval across Linux, Windows, and macOS.
-  - **Sync Cancellation Subsystem (`/sync cancel`)**: Users can now immediately halt background synchronization or crawling tasks via `/sync cancel`, `/cancel`, or the TUI sync menu (`[F1]`), safely terminating the background worker process tree and resetting status to `[cancelled]`.
-  - **Dynamic Session Directory Navigation (`/cd` and `/pwd`)**: Introduced `/pwd` to inspect the process current working directory and `/cd <path>` to navigate to other project directories at runtime within the TUI session, with `/folder .` clearly reporting the resolved absolute directory.
-  - **TUI Screen & BM25 Concurrency Hardening**: Eliminated raw `eprintln!` stdout/stderr leaks to preserve 100% visual cleanliness in Ratatui's interactive `Prompt` widget, added graceful handling of 0-byte BM25 files, and implemented backoff retry logic for concurrent atomic writes on Windows.
-- **⚡ 100% Core Command Parity, Auto-Sync Spawning & Live Scanning Telemetry (`v0.32.15`)**:
-  - **Full Rust Hexagonal Command Parity**: Completed 100% feature parity across all 24 slash commands between Python reference and the native Rust Core (`CommandEngine`). `/folder` and `/web` auto-spawn background synchronization and crawler workers immediately; `/keys` persists credentials to SQLite and sets process runtime environment; `/config` renders the complete system configuration dashboard; `/purge` cleans LanceDB vectors and SQLite file metadata cache; `/vision` persists multimodal preferences; `/logs` reads live logs directly from disk; and `/inspect` outputs taxonomy and non-truncated chunk previews.
-  - **LanceDB Columnar Count Parameter Fix**: Resolved parameter order swap in `NativeLanceStore::count_records`, ensuring accurate chunk metrics across all 17+ workspaces and eliminating AI false negative answers.
-  - **TUI Footer Live Braille Spinner & Discovery Telemetry**: Replaced static frozen footer state with a responsive 250ms Braille spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) and live item discovery progress (`[scanning... X items found]`).
-  - **Menu Incremental Sync Action Unblocked**: Fixed interactive menu dispatch for incremental synchronization, guaranteeing instant background worker invocation without modal re-opening loops.
-- **🛡️ Bounded BM25 Deserialization, Live Sync Progress Bar & Agent Background Telemetry (`v0.32.14`)**:
-  - **Panic-Safe BM25 Deserialization & Self-Healing**: Configured bincode with a strict 150MB allocation bound, wrapped index loading in `catch_unwind`, enforced atomic file persistence via temp-and-rename, and implemented automatic quarantine (`.corrupt.<timestamp>`) with clean memory fallback. This permanently prevents catastrophic memory allocation panics (`memory allocation of X bytes failed`).
-  - **Live TUI Footer Sync Progress Bar**: The bottom footer dynamically displays real-time synchronization progress (`⚡ Syncing [████░░░░] 50% (15/30 files)` and `✔ Up to date`) driven by an asynchronous 250ms polling loop connected to canonical SQLite telemetry (`workspace_sync_status`), preserving chat focus while giving full transparency.
-  - **Native Agent Background Awareness (`system_status`)**: Equipped the AI agent with the native tool `system_status` and the lean `Skill system-status` directive. When asked *"Já foi tudo indexado?"* or querying background tasks, the agent autonomously inspects SQLite sync status and LanceDB chunk counts rather than returning false negative responses.
-- **✨ Clean Screen Startup Buffer & Long-Term Memory Decoupling (`v0.32.13`)**:
-  - **Pristine Session Startup**: The terminal TUI now always opens with a 100% clean chat screen buffer displaying only the active workspace's welcome banner, eliminating unwanted dumps of past session turns onto the terminal on Linux, Windows, and macOS.
-  - **Decoupled Long-Term Memory**: Past conversations remain safely preserved in the relational SQLite session store (`actx_session_messages`), ensuring the AI agent retains full conversational context across sessions without visual screen clutter.
-  - **Enhanced `/history` Inspectability**: Running `/history` displays an informative summary of long-term memory messages stored in SQLite on demand without dumping raw messages into the viewport, and `/history --clear` purges both the visual screen and SQLite long-term storage in a single atomic action.
-- **🛡️ Test Isolation Sandbox, Universal Command Option Hinting & Skill-Based Self-Knowledge (`v0.32.12`)**:
-  - **Hermetic Test Isolation**: Storage engines (`settings.db`, `lancedb`, logs) automatically redirect to a sandbox directory in `temp_dir` whenever `ACTX_TEST_MODE=1` or test harnesses execute, rendering the user's canonical `%LOCALAPPDATA%\AnyContext` storage completely immune to test pollution.
-  - **Universal Contextual Option Hinting**: The terminal TUI now dynamically displays expected command options and flags via interactive inline ghost text (`> /switch <name> | --delete <name> | --list`), reactive border titles (`Prompt │ Opções: ...`), enriched slash palette syntax preview, and interactive tips in the Workspaces menu (`/menu`), eliminating manual reading without adding new commands.
-  - **Zero-Token Skill-Based System Self-Knowledge**: Equipped the AI agent with the lightweight `system-knowledge` skill and multi-workspace target retrieval across `"Global"`. Official User Documentation (`README.md`) and command specifications are automatically bootstrapped into the virtual `"Global"` workspace in LanceDB on startup, enabling instantaneous, accurate answers to questions about AnyContext without bloating baseline system prompt token budgets.
-- **🔄 Sync Worker Background Stdio Isolation & Chain of Responsibility Ingestion (`v0.32.11`)**:
-  - **Zero Viewport Leaks**: Background synchronization worker child processes are launched with complete stdio redirection to dedicated log files (`logs/sync_<workspace>.log`) and `CREATE_NO_WINDOW` on Windows, eliminating 100% of terminal screen corruption during `/sync` and `/sync --force`.
-  - **Chain of Responsibility Multi-Source Ingestion**: Modular pipeline architecture (`LocalFolderSyncHandler`, `WebPortalSyncHandler`, `CloudDriveSyncHandler`) ensuring each source category evaluates and syncs independently. Workspaces configured solely with web documentation portals skip local folder scanning cleanly with zero false-positive error alerts.
-- **🗂️ Virtual Tab Workspace Chat Buffer Isolation & Viewport Lifecycle (`v0.32.10`)**:
-  - **Hermetic In-Memory Chat Isolation**: Each workspace retains its own isolated conversational buffer (`workspace_chat_buffers`) in RAM. Switching between workspaces immediately saves current viewport state and restores the target workspace's messages without cross-workspace leakage or ghost messages.
-  - **Clean Viewport Lifecycle**: Workspace transitions sanitize active streaming buffers, reasoning traces, and viewport scroll offsets, welcoming new workspaces with clean, branded status headers.
-  - **Synchronized Visual & Database Memory Clears**: Commands `/reset-memory` and `/switch --delete` trigger atomic frontend screen clears (`CommandAction::ClearChat`) in parity with SQLite session purges.
-- **🔒 Hermetic Workspace Settings, Background Unified Sync & Windows Atomic Update (`v0.32.9`)**:
-  - **Hermetic SQLite Workspace Settings Isolation**: Workspace configuration (`grounding_mode`, `model`, `web_search_enabled`) is persisted strictly in the relational `workspaces` table with auto-migrations. New workspaces initialize in `STRICT` mode with `gpt-4o-mini` and `web_search: 0`, completely preventing global setting leakage across workspaces.
-  - **Real Multi-Source Background Synchronization (`/sync`)**: Replaced instantaneous mocks with real background worker execution (`--sync-worker`), reliably scraping and indexing registered web portals (>1,500 pages) and local file trees into LanceDB vector datasets.
-  - **Windows Atomic Self-Update Swap**: Solved Windows file locking (`OS error 32 / ERROR_SHARING_VIOLATION`) during `actx --update` and `/update` via atomic executable rename (`.exe` -> `.exe.old`), target placement, and automatic cleanup of obsolete binaries.
-  - **Pure Canonical Paths & Zero Dev/Venv Fallbacks**: Completely eradicated virtual environment (`.venv`) and source repo checks from `actx-installer`, guaranteeing standardized deployment across Windows (`%LOCALAPPDATA%\actx\bin`), Linux (`~/.local/bin`), and macOS.
-  - **Hardened PROACTIVE Grounding**: Enforced system prompt safeguards against generic placeholder templates (`[insira o tópico...]`) and ungrounded statements.
-- **🛡️ Strict Grounding Parity, Real-Time Token Streaming & Single Canonical LanceDB (`v0.32.7`)**:
-  - **Single Canonical LanceDB Path (Zero Legacy Paths)**: Consolidates all vector datasets and BM25 indices into exactly ONE canonical location (`<app_data_root>/data/context_db/lancedb`, e.g., `%LOCALAPPDATA%\AnyContext\data\context_db\lancedb` on Windows), eradicating all legacy path guessing, fragmentation, and directory conflicts.
-  - **Strict Grounding Strategy & `AGENT.md` Engine**: The native Rust CLI embeds and enforces authoritative system prompt directives (`config/AGENT.md`) with zero parametric memory hallucination in `STRICT` mode, autonomous `search_db` execution, explicit citation footers (`📄 Fontes Consultadas`), and temporal recency precedence.
-  - **Per-Workspace Grounding & Web Persistence**: Workspace modes (`/mode strict|hybrid|proactive` and `/web on|off`) are persisted transactionally in SQLite (`settings.db`) per workspace and automatically restored across reboots and switches.
-  - **Real-Time Token & Reasoning Streaming**: Finite state machine streams tokens directly into the terminal or TUI viewport via `chat_stream()`, eliminating burst output and rendering thoughts dynamically.
-  - **Active ReAct & Reasoning `<think>` Accordion (`Ctrl+T`)**: Live view of model reasoning and tool execution lifecycle with backward history discovery.
-  - **Global Query Flag (`-q`, `--query`)**: Standardized international flag for direct queries (`actx -q "..."`), with positional argument support (`actx "..."`) and backward-compatible alias (`-p, --prompt`).
-- **🖥️ 100% Native Rust CLI & Full-Screen Interactive TUI (`v0.32.3`)**:
-  - **Single Autonomous Executable (`actx.exe` / `actx`)**: Completely eliminates Python, Node.js, and Bun runtime dependencies from the standard user distribution. Instant cold startup in `< 10ms` with `< 40MB` memory footprint.
-  - **Top Header Quad-Status Telemetry**: Real-time display of `Workspace`, `Model`, `Grounding Mode` (`STRICT`, `HYBRID`, `PROACTIVE`), and `Web Search` (`ON`/`OFF`), dynamically updated via slash commands.
-  - **Readline-Style Prompt History (`Up` / `Down`)**: Recalls past user prompts and slash commands isolated per workspace, seamlessly restoring draft text without hijacking chat scroll.
-  - **Persistent Long-Term Memory & Native Agent Self-Awareness**: Retains multi-turn conversation context across sessions in local SQLite (`actx_sessions`), fully self-aware with native context search tools (`search_db`).
-  - **Interactive Full-Screen TUI (Ratatui 0.29 + Crossterm 0.28)**: Running `actx` in an interactive terminal opens directly into a sleek terminal UI with header status telemetry, colored conversation bubbles, and auto-scrolling viewport (`PageUp`/`PageDown`/`Home`/`End`/Mouse).
-  - **Collapsible ReAct & Reasoning Accordion (`Ctrl+T`)**: Extended reasoning tokens (`<think>`) and internal tool logs are contained in an expandable top drawer, eliminating viewport jitter during generation.
-  - **Floating Slash Commands Palette**: Typing `/` triggers a floating popup modal with real-time prefix filtering and keyboard navigation across all operational commands (`/help`, `/workspace`, `/sync`, `/model`, `/mode`, `/web`, `/clear`, `/status`, `/exit`, etc.).
-  - **Headless Terminal Fast-Path**: Direct command queries (`actx "query"`), prompt flags (`-p`), piped stdin (`cat log.txt | actx`), and daemons (`serve`, `mcp`, `rpc`) execute immediately in terminal stdout without opening full-screen mode.
-- **⚡ Native Hybrid RAG & Batch Retrieval Engine (`v0.30.39`)**:
-  - **Unified Rust-First Pipeline (`NativeHybridPipeline`)**: Unifies LanceDB Apache Arrow columnar vector search, Okapi BM25 inverted lexical index, and Reciprocal Rank Fusion (RRF k=60) inside a zero-copy, sub-3ms native Rust engine (`crates/any-context-core-rs/src/retrieval/pipeline.rs`).
-  - **RFC-042 Deep Search Batching (`retrieve_hybrid_batch`)**: Concurrently executes 2 to 4 orthogonal sub-queries on Tokio worker threads with cross-query SHA-256 deduplication and accumulated RRF multi-query boosting.
-  - **Source-Fair Round-Robin & Density Budgeting**: Native allocation balancing multi-source workspace distributions with strict character density limits and token ceiling preservation (`token_budget.rs`).
-  - **High-Throughput Vector & Lexical Fusion**: Sub-millisecond rank fusion with zero-allocation iterators, thread-safe asynchronous execution, and zero overhead.
-- **🤖 Native Rust ReAct Agent & Orchestrator (`actx-agent`) (`v0.30.38`)**:
-  - **Deterministic ReAct Finite State Machine (FSM)**: Standalone, modular Rust crate (`crates/actx-agent`) providing deterministic multi-turn tool calling and reasoning loops without heavy third-party framework dependencies.
-  - **Polymorphic Tool Registry & Defensive Self-Healing**: Thread-safe async tool registry supporting pure Rust closures and tools (`search_db`, `system_status`, `web_search`) with defensive JSON argument parsing and model self-healing on parameter errors.
-  - **Uncompressed SQLite Session Persistence**: Native SQLite session store (`SqliteSessionStore`) with configurable sliding window history (30 turns) and instant WAL transactions, eliminating opaque compression and database locks.
-  - **Real-Time Event Streaming Pipeline**: Granular event emitter (`AgentEvent`) broadcasting thinking blocks, tool calls/returns, text deltas, and execution metadata for reactive UI rendering.
-  - **Deep Search & Information Synthesis**: Native execution decomposing queries into orthogonal sub-queries, iterative information gap analysis, and adaptive routing (`/fast` vs `/deep`).
-- **🧠 Universal Language Model Engine (`actx-lm`) (`v0.30.37`)**:
-  - **Agnostic LLM & SLM Façade**: Standalone, modular Rust crate (`crates/actx-lm`) implementing the Strategy and Façade design patterns for seamless inference across cloud giants (OpenAI, Anthropic Claude with Thinking blocks, Google Gemini) and local Small Language Models (Ollama, LM Studio, llama.cpp, vLLM).
-  - **Zero-Framework Bloat**: Built from the ground up without heavy external orchestration frameworks, achieving sub-millisecond dispatch, minimal dependency footprint, and thread-safe async execution (`Send + Sync`).
-  - **Zero-Latency SSE Streaming**: High-performance Server-Sent Events (SSE) streaming decoder yielding real-time tokens (`StreamChunk::Token`), extended reasoning thoughts (`StreamChunk::Reasoning`), and function calling tool deltas.
-  - **Universal OpenAI-Compatible Strategy**: Single, highly-configurable adapter providing instant compatibility with Groq, DeepSeek, OpenRouter, Together AI, Mistral, and local Ollama instances (`http://localhost:11434/v1`) with zero API key requirement.
-- **🦀 Native Rust Storage & Vector Engine (LanceDB + Rusqlite) (`v0.30.36`)**:
-  - **Zero-Copy Apache Arrow Columnar Storage**: Vector chunks, dense embeddings (up to 3072 dimensions), and rich metadata are managed directly in native Rust (`any-context-core-rs`) using `lancedb 0.39` and `arrow 58`.
-  - **High-Throughput Vector Similarity Search**: Pure native vector nearest neighbor search with calibrated cosine distance metrics ($S = \frac{1}{1 + \max(0, d)}$) and atomic batch upserts running within an isolated multi-threaded Tokio runtime.
-  - **Thread-Safe SQLite Configuration Store (`NativeConfigDb`)**: Pure native Rusqlite layer enforcing mandatory high-concurrency PRAGMAs (`WAL`, `busy_timeout=30000`, `synchronous=NORMAL`, `foreign_keys=ON`), workspace lifecycle CRUD, settings key-value persistence, and microsecond differential file hash sync tracking with zero lock contention.
-  - **Clean Code & SOLID Architecture**: Modular, decoupled storage design exposing complete native Rust APIs (`NativeLanceStore`, `NativeConfigDb`) for high-concurrency ingestion and retrieval.
-- **⚡ 100% LanceDB Columnar Vector Engine (Apache Arrow / Rust)**:
-  - **Sub-5ms Vector Queries**: Powered by native Rust SIMD vector distance routines, eliminating database locks and enabling instant retrieval across 500,000+ chunks.
-  - **Zero Database Locks**: Columnar Apache Arrow dataset architecture eliminates SQLite write-lock contentions on Windows.
-  - **Live Dataset Inspection (`/inspect` ou `/chunks`)**: Directly inspect live vector records, record counts, and snippet previews for both document context and session memory.
-  - **Instant $0.00 Transfers & Renames**: Data source transfers and workspace renames execute on LanceDB datasets in `< 50ms` with zero token expenditure.
-- **🚀 Sub-Millisecond Cold Boot & Single Autonomous Executable**:
-  - **Sub-10ms Engine Startup**: Instantaneous native execution without dynamic runtime decompression, bringing engine boot down to `< 10ms` and memory footprint to `< 40MB`.
-  - **Instant Execution Launcher Shim**: Native launcher (`actx.exe` on Windows, compiled ELF `actx` on Linux) executes version checks (`actx -v`) in `< 2ms` directly by reading cached `version.txt`.
-- **🦀 100% Pure Native Rust Cross-Platform Installer & Atomic Updater (`actx-installer`) (`v0.30.35`)**:
-  - **Pure Native Rust Binary Architecture**: Replaced legacy PowerShell scripts, C# `.NET 4.0` `csc.exe` compilations, and bash workarounds with a compiled, standalone native Rust installer and launcher shim (`crates/actx-installer`).
-  - **Direct HTTPS Web Downloads (Zero `gh` CLI Dependency)**: Downloads releases directly via high-speed HTTPS from GitHub Releases, guaranteeing universal accessibility for all public users without requiring the GitHub CLI (`gh`).
-  - **Pre-Flight Binary Verification Engine**: Validates binary headers (`MZ` on Windows, `ELF` on Linux, `Mach-O` on macOS) and minimum file sizes before performing atomic swaps, completely eliminating corrupted ZIP-over-EXE overwrites (`Win32 Error 193 - Not a valid application`).
-  - **Atomic Swap & Rollback Guarantee**: Transacts payload updates using OS-level directory pointer moves with automatic rollback if post-swap validation fails.
-  - **Zero Console Glyph Degradation**: Purged UTF-16 surrogate emojis that degraded into `??` in Windows OEM consoles (CP437/CP850/CP1252), standardizing on clean, professional ASCII status markers (`[*]`, `[OK]`, `[!]`, `[>]`).
-  - **Modular Desktop Component Preparation**: Unified foundation structured to orchestrate multiple application modules (Core, TUI, and Desktop GUI).
-- **🦀 Universal Native Rust Token Estimator & Density Budgeting Engine (`v0.30.34`)**:
-  - **Zero-Dependency Token Estimator**: Implemented high-throughput $O(n)$ Unicode sub-word and symbol estimator in native Rust (`token_budget.rs`), correlated >95% with BPE tokenizers while eliminating runtime dependencies on `tiktoken` and avoiding heavy vocabulary dictionaries in memory.
-  - **Failsafe Semantic Ceiling Truncation**: Automatically enforces model context limits (OpenAI 8191, Gemini 2048, Nomic 2048, MiniLM 512) and truncates exceeding chunks cleanly at line and sentence boundaries without mid-word corruption.
-  - **Language-Neutral Density Architecture**: Purged hardcoded Portuguese stop words in semantic keyword extraction and standardized retrieval density truncation notices on universal international English conventions.
-- **🦀 100% Native Rust Execution Architecture & Python Fallback Purge (`v0.30.33`)**:
-  - **Elimination of Duplicate Python Fallbacks**: Completely expurgated redundant Python regex fallback engines and duplicate parsing branches from `query_preprocessor.py` and `router.py`.
-  - **Rust as Single Source of Truth**: Mandates `any-context-core-rs` as an absolute, non-negotiable core dependency across all environments, eliminating maintenance drift, code duplication, and ghost logic.
-  - **Ultra-Lean Bridge Layer**: Python modules operate as razor-thin PyO3 wrappers (< 25 LOC), delegating 100% of execution directly to native Rust.
-- **🦀 Native Rust Universal Query Preprocessor & Temporal Engine (`v0.30.32`)**:
-  - **Single-Pass Sub-Millisecond Preprocessing**: Replaces multi-pass monolithic regex scanning with an ultra-fast, language-agnostic single-pass preprocessor implemented in native Rust (`any-context-core-rs`). Preprocesses user queries in `0.010ms` (~100,000 ops/sec) with zero DFA lookaround compilation overhead.
-  - **Global Language-Agnostic Standards**: Purged hardcoded language dictionaries (`MONTH_MAP`) and local grammatical patterns. The core engine strictly adheres to global standards: ISO 8601 (`YYYY-MM-DD`, `YYYY/MM/DD`), International numeric (`DD/MM/YYYY`, `DD-MM-YYYY`, `DD.MM.YYYY`), Short numeric (`DD/MM`, `MM/DD`), and English RFC month names (`September 3, 2026`, `3 Sep 2026`, `January 2026`).
-  - **LLM-Directed Multilingual Date Grounding**: Leverages the LLM's natural multilingual intelligence by directing it in `search_db` tool schema to supply dates in standard ISO (`YYYY-MM-DD`), maintaining a clean, zero-bloat Rust core.
-- **🔄 Synchronous Atomic Update Pipeline & Launcher Shim Process Lifecycle Guard (`v0.30.31`)**:
-  - **Zero-Window Prompt Retention**: When updating via `actx --check-update` or `/update`, the launcher shim (`actx.exe` / `actx`) holds the shell prompt synchronously until all engine components (`actx-core.exe`, `_internal`, `version.txt`) are completely downloaded, verified, and atomically swapped into place. Eliminates premature terminal release and the subsequent transient `❌ Error: AnyContext core engine ('actx-core.exe') not found` error.
-  - **Atomic NTFS Directory Pointer Swap (`< 50ms`)**: Replaced slow recursive file copying (`Copy-Item -Recurse`) with atomic directory and binary moves (`Directory.Move` / MFT metadata pointer update), eliminating file locks and completing the 250MB payload swap in milliseconds.
-  - **Shim Handoff Exit Protocol**: Clean exit protocol where `actx-core.exe` unpacks the update into `_internal_staging`, writes `pending_update.json`, and exits with specialized code `42`. The waiting native parent launcher shim intercepts exit code `42`, finalizes the directory swap, validates `actx-core.exe` existence, and emits the success confirmation before terminating.
-  - **Git Bash Shell Wrapper Hardening**: Updated Git Bash wrapper script to invoke the native parent launcher shim (`actx.exe`) instead of bypassing it directly to `actx-core.exe`, guaranteeing terminal prompt retention across CMD, PowerShell, Windows Terminal, and Git Bash.
-- **🦀 Native Rust Workspace File Scanner & High-Performance Differential Sync (`v0.30.30`)**:
-  - **Native Rust File Scanner (`WorkspaceScanner`)**: Ported the entire recursive directory traversal and file discovery engine from Python (`os.walk`) to high-speed native Rust (`walkdir = "2.5"`). Ignores `.git`, `node_modules`, temporary lock files, and minified bundles at the native filesystem layer, achieving **up to 50x faster scanning speeds** on large workspaces with zero Python GIL contention.
-  - **Microsecond Differential Change Detection (`scan_and_diff`)**: Native Rust computation of new, modified, deleted, and zero-cost renamed files ($0.00) directly against SQLite stat caches with sub-millisecond precision.
-  - **Hexagonal Architecture Cleanup**: Completely purged legacy aliases and zombie wrappers (`index_folder`), strictly enforcing `run_index_folder` as the canonical domain service across CLI, OpenTUI, REST API, and MCP Server.
-- **💬 Collaborative Dialogue Supremacy, Dead-End Disclaimer Elimination & Full-Turn Epistemic Purging (`v0.30.29`)**:
-  - **Collaborative Dialogue Primacy (`clarification-dialogue`)**: Subordinated rigid absence disclaimers to the dialogue skill. On broad or multi-record user queries (e.g., *"Quais foram as entregas da IKEA?"*), the model is strictly forbidden from emitting a cold dead-end absence disclaimer; it summarizes identified records and proactively inquires about formatting preferences (chronological table, carrier grouping, or specific shipment details).
-  - **Constructive Guidance on Missing Data**: When a topic is genuinely absent from workspace documents, the model never leaves the user at a dead end; it summarizes available workspace categories and asks constructive guiding questions to help reframe the search.
-  - **Full-Turn Epistemic Cycle Purging (`core/agent.py`)**: Upgraded `_prune_messages_for_llm` to purge the entire turn cycle (`HumanMessage`, `AIMessage(tool_calls=...)`, `ToolMessage`, and `AIMessage`) when a prior turn ended in absence, eliminating orphan tool calls and allowing retries of the same question to execute fresh searches.
-  - **Self-Update Race Condition Immunity (`launcher/actx_shim.cs`)**: Added a 1.5-second retry tolerance loop in `actx.exe` for background update swaps, ensuring that launching `actx` immediately after an update never encounters transient "engine not found" errors.
-- **🌐 Universal Cross-Workspace Knowledge Retrieval, Runtime Credential Export & Unrestricted BM25 System Discovery (`v0.30.28`)**:
-  - **Runtime Credential Environment Export (`core/utils.py`)**: `get_api_key()` automatically exports resolved provider keys to `os.environ["OPENAI_API_KEY"]` (and corresponding provider variables). This completely immunizes dynamic property getters across third-party libraries (LlamaIndex, OpenAI, LangChain) from crashing on uninitialized environment reads.
-  - **Safe Introspection in Vector Indexing**: Replaced dynamic property evaluation `if Settings.embed_model is None:` with non-invasive attribute inspection `getattr(Settings, "_embed_model", None) is None: configure_embedding_model()`, ensuring the embedding model is configured before indexing begins.
-  - **Universal BM25 System Discovery in Rust (`crates/any-context-core-rs/src/retrieval/bm25.rs`)**: Updated the Rust BM25 filter to never exclude documents from `workspace="Global"` (`doc.workspace != ws && doc.workspace != "Global"`). Lexical search seamlessly matches system help chunks (`help_registry`, `readme`) even when querying from deep within any project workspace.
-  - **Balanced RRF System Queries (`retriever.py`)**: `ParallelRetriever` passes `workspace=None` for system queries and applies target workspace filtering in Python, guaranteeing that Global system help chunks participate fairly in RRF ranking and aren't crowded out by local project chunks.
-- **🛡️ Terminal Stream Isolation, Background Thread Silence & Pre-Flight Embedding Credential Guards (`v0.30.27`)**:
-  - **Zero Terminal Buffer Pollution**: Eradicated all raw console `print()` calls within background worker threads and bootstrap routines (`src/any_context/help/bootstrap.py`), routing exceptions to internal observability logging (`obs.debug`). This eliminates visual corruption, line shifts, and stray error dumps over the OpenTUI ASCII banner and startup telemetry tree.
-  - **Pre-Flight Credential Guard**: Automatically inspects provider credentials before triggering system help vector ingestion. When running in environments where API keys have not yet been configured, the bootstrap worker skips indexing silently and gracefully without triggering unhandled OpenAI/LlamaIndex exceptions.
-  - **Launcher Process Concurrency Isolation**: Decoupled background indexing from the CLI launcher (`entrypoint.py`), ensuring the launcher process never competes for terminal `stdout` handles while the OpenTUI frontend is actively rendering.
-- **🎯 Caller-Aware Output Modulation & Decomposed Agent Skills (`v0.30.26`)**:
-  - **Consumer-Adapted Response Persona**: Automatically detects the consuming interface (`caller_type`: `"human"` vs `"mcp"`). When chatting with human users in OpenTUI, Terminal CLI, or WebUI, the AI acts as a collaborative partner: on broad or multi-record questions, it summarizes findings and proactively inquires about the user's formatting preferences (chronological table, breakdown by entity, or specific record detail) instead of arbitrarily dumping unrequested structures. When serving programmatic tool callers (MCP for Cursor, Claude Desktop, Antigravity), it emits direct, dense, and objective factual payloads with zero conversational fillers.
-  - **Modular Skills Architecture (`src/any_context/skills/`)**: Deconstructed monolithic `AGENT.md` guidelines into atomic, extensible skills (`clarification-dialogue`, `mcp-direct-response`, `temporal-grounding`, `panoramic-synthesis`). `SkillRegistry` dynamically selects caller-compatible skills, saving prompt token budget and sharpening transformer attention.
-  - **Global System Help Namespace & Cross-Workspace Retrieval**: Established `Global` as an internal, protected system namespace in LanceDB (`workspace="Global"`). Automatically queries the Help Registry and user manual alongside the active workspace, answering commands and workflows (`/transfer`, `/mode`, `/sync`) anywhere with zero cross-workspace leaks.
-  - **Version-Aware Atomic Auto-Reindexing**: Automatically detects application version bumps (`v0.30.x`) and documentation mutations on startup, refreshing the system help vector index in background thread in `< 500ms` with zero UI latency, while strictly preserving `TECDOC.md` as private engineering documentation.
-- **🛡️ Robust Anti-Nesting Recursive Self-Updater & Stale Lock Protection (`v0.30.25`)**:
-  - **Recursive Directory Merge**: Replaced naive directory moves with a recursive, file-level directory merger (`merge_directory_contents`) in `updater.py` across Windows and Unix platforms, guaranteeing PyInstaller onedir distribution folders (`_internal`) are never nested inside an existing directory (`_internal/_internal`) even when target directories exist.
-  - **Dynamic Collision-Free Backup Paths**: Replaced static `_internal_old` backup targets with unique timestamped/PID paths (`_internal_old_<timestamp>_<pid>`), eradicating `FileExistsError` (WinError 183) during atomic swaps on Windows NTFS when runtime DLLs remain briefly locked in memory.
-  - **PowerShell Fallback Hardening & Defensive Installation**: Hardened the asynchronous background PowerShell loop with container-aware copy/move operations and added proactive cleanup of stale backup folders in `scripts/install.ps1`.
-- **🎯 Dynamic Active Workspace Resolution & Strict Tool Isolation in Multiturn RAG (`v0.30.24`)**:
-  - **Zero Cross-Workspace Leaks**: Implemented an authoritative 4-tier workspace resolution hierarchy (`explicit arg` -> `ContextVar active_workspace` -> `ConfigDBStore settings.db` -> `"Default"`). When the LLM omits the optional `workspace` parameter during tool calls, `search_db` automatically and strictly queries the active caller session workspace instead of falling back blindly to `"Default"`.
-  - **Pydantic v2 Type Integrity**: Annotated all tool parameters as `Optional[str] = None` to ensure robust validation when JSON payloads contain `{"workspace": null}`.
-  - **Universal Tool Argument Parity**: Added full argument parity supporting both `prompt_text` and `query` interchangeably across all LangGraph agent and direct MCP tool executions.
-- **🛡️ Epistemic State Machine & Dual-Layer Negative Echo Elimination (`v0.30.23`)**:
-  - **Typed Epistemic Categorization**: Formally categorizes all AI responses (`EpistemicState`: `GROUNDED_FACTUAL`, `FACTUAL_ABSENCE`, `CLARIFICATION`, `CONVERSATIONAL`) into metadata tags on conversation checkpoints.
-  - **Runtime Epistemic Hygiene**: Prunes historical factual absence disclaimers from the LLM prompt payload during multi-turn conversations, preserving full screen history in SQLite while freeing transformer self-attention from past negative attractors.
-  - **Temporal Epistemic Independence Directive**: Empowers the LLM with full cognitive freshness to evaluate follow-up queries independently without false continuity bias.
-- **🧠 3-Level Hierarchical Memory Cascade & In-Context Echo Immunity (`v0.30.22`)**:
-  - **15-Turn SQLite Session Rollover (`MAX_ACTIVE_SESSION_TURNS = 15`)**: Caps active conversation checkpoints in `checkpoints.db` strictly at 15 turns (~30 messages). When a session grows past 15 turns, older completed turns are sliced at clean `HumanMessage` turn boundaries and dispatched asynchronously to LanceDB.
-  - **100% Silent Background Cascade**: Dispatches older turns to a thread-safe daemon worker that generates structured 5-dimension summaries (Directives, Architecture, Symbols, Context, Pending Tasks) in `session_memory.lance` with zero UI latency and zero terminal noise. When 30 summaries accumulate, the oldest 15 are automatically compressed into a permanent Level 3 Meta-Summary.
-  - **Inference Sliding Window (`max_history_messages = 10`)**: At model call-time, `_prune_messages_for_llm` provides a sliding window of the last 10 messages (~5 completed turns) plus the active turn. This permanently resolves the **transformer attention attractor / echo-chamber failure**, preventing dozens of past negative disclaimers from overpowering transformer attention on fresh 72KB+ document chunks.
-- **🛡️ Multi-Turn Checkpoint Context Integrity & Clarification Grounding (`v0.30.21`)**:
-  - **Zero-Drop Multi-Turn Tool Preservation**: Fixed `_prune_historical_tool_messages` in `ResilientSqliteSaver` by introducing explicit turn demarcation (`idx < last_human_idx`). Historical tool messages from prior turns are compacted to save token budget, while current-turn tool messages (containing thousands of retrieved characters) remain 100% intact, eliminating zero-context failures on turn 2+.
-  - **Strict Grounding & Skill Harmonization**: Refined strict grounding mode directives in `grounding_strategies.py` and `utils.py` to differentiate total topical absence from broad/vague queries, empowering the `clarification-dialogue` skill to guide the user collaboratively instead of aborting with robotic negative disclaimers.
-  - **Screen-Only `/clear` Isolation**: Preserved 100% of conversation history in SQLite across UI clears, keeping conversational long-term memory intact while allowing users to clean their visual terminal buffer at will.
-- **💬 Modular Agent Skills, Proactive Clarification & Short Date Grounding (`v0.30.20`)**:
-  - **Modular Skills Architecture (`src/any_context/skills/`)**: Deconstructs monolithic system prompts into isolated, extensible behavioral skills (`SKILL.md` with YAML frontmatter) managed by a centralized `SkillRegistry` and dynamically injected into the conversational runtime.
-  - **Zero-Hallucination Clarification Dialogue (`clarification-dialogue`)**: Replaces arbitrary guesses with proactive collaborative guidance. When queries lack crucial parameters (such as dates without years, ambiguous filenames, or overly broad requests), the agent engages in transparent, natural dialogue ("como duas pessoas se entendendo") to eliminate false premises.
-  - **Year-Agnostic Short Numeric Date Grounding**: Added native resolution for short dates (`DD/MM` and `MM/DD`, e.g., `02/09`, `2/9`) with negative lookarounds, generating canonical path filters (`%/{mm}/{dd}/%`, `%{dd}-{mm}%`) and query expansion tokens that reliably pinpoint documents even when the year is omitted in conversation.
-  - **Hermetic Rust BM25 Workspace Purge**: Synchronized workspace deletions in `LanceDBStore` with native Rust BM25 (`engine.remove_by_workspace`), eliminating stale accumulated index remnants and guaranteeing clean 1:1 parity between vector storage and lexical search on re-sync.
-  - **Full-Content Inspection (`/inspect <filter> --full`)**: Enhanced the vector store inspection command with chunk character counts and the `--full` (`-f`) flag, allowing immediate terminal/TUI inspection of entire 6,000+ character atomic document pages without truncation.
-- **🎯 Intelligent Temporal Query Expansion, Filename Grounding & Atomic PDF Pages (`v0.30.19`)**:
-  - **Conversational Date Normalization (`expand_query_temporal`)**: Automatically bridges the gap between natural language questions in Portuguese or English (e.g., *"Quais são os agendamentos para 3 de Setembro de 2026?"*, *"September 3"*) and tabular/ISO data (`2026-09-03`, `03/09/2026`), injecting canonical tokens directly into native Rust BM25 search.
-  - **Deterministic Filename Grounding & Boost**: When a user explicitly mentions a file name (e.g., `I.CMR_ONE_PICKUP.pdf` or `extraction_summary.csv`), the retriever pinpoints that exact document, combines it with any detected date filters, applies a $1.0$ priority score, and guarantees slots in the Top-K context.
-  - **Atomic Page PDF Chunking**: Elevated the single-page chunking threshold in `any-context-core-rs` to 8,000 characters (~1,600 tokens), guaranteeing that single-page forms, bills of lading, and multi-column invoices remain intact as atomic units (`Page 1`, `Page 2`) without slicing headers and recipients across fragmented chunks.
-- **📄 Native Rust 2D Spatial PDF Ingestion & Layout Reconstruction (`v0.30.18` - Marco 1)**:
-  - **Universal 2D Spatial Grid & Form Reconstruction**: Eliminates naive stream text concatenation by intercepting transformation matrices (`cm`, `Tm`, `Td`, `TD`, `T*`) and font encodings in `any-context-core-rs` to compute exact $(X, Y)$ page coordinates for every character and word fragment.
-  - **Dynamic Line Banding & Column Separation**: Groups spans sharing vertical levels ($Y \pm \Delta Y$) and detects column gaps ($\Delta X \ge 1.5 \times \text{font\_size}$), converting complex asymmetric multi-column forms (such as international CMR transport documents, multi-column invoices, and shipment checklists) into native Markdown tables (`| Col 1 | Col 2 | ... |`).
-  - **Zero Domain-Specific Bias (100% Agnostic)**: Operates purely on affine geometry, dynamic bounding boxes, and dominant body font size weighting. Resolves complex juxtaposed entities (such as Consignee `IKEA CALGARY` vs Carrier `BISON TRANSPORT INC.`) without keyword rules, regex hacks, or hardcoded templates.
-  - **Recursive Form XObject Support**: Automatically traverses nested `/XObject` streams with `/Subtype /Form`, ensuring zero layout loss on modern enterprise and reporting PDFs.
-- **🔄 Non-Blocking Self-Update & CLI/TUI Progress Parity (`v0.30.17`)**:
-  - **CLI Fast-Path Execution**: Running `actx --update` (as well as `--check-update`, `--releases`, `--rollback`, `--update@<tag>`) outside the application directly executes the CLI updater in the terminal with live download progress in MB and percentages, bypassing OpenTUI launch entirely.
-  - **OpenTUI Real-Time Progress Bar**: In-app updates (`/update`) execute asynchronously on a background worker thread, displaying a live progress badge in the StatusBar (`📥 Updating [====    ] 22.4 MB / 48.1 MB (46%)`) without freezing the user interface or RPC bridge loop.
-  - **Universal Update Telemetry (REST & RPC Parity)**: Exposes real-time update metrics across the RPC bridge (`get_state`) and the REST API (`GET /v1/system/update/status`).
-- **🔍 100% Native Rust Hybrid Retriever: Okapi BM25, Universal Tokenizer & Reciprocal Rank Fusion (`v0.30.16` - Marco 6)**:
-  - **Zero Python Retrieval Fallback**: Completely eliminated legacy Python retrieval filters (`filters.py`) and zombie dependencies. 100% of BM25 tokenization, inverted indexing, lexical scoring, rank fusion, multi-source diversification, and density budgeting are executed natively in compiled Rust (`any-context-core-rs`).
-  - **Native Okapi BM25 Engine**: Full-text inverted index in native Rust with industry-standard BM25 parameters ($k_1 = 1.2, b = 0.75$), self-contained document text, and sub-millisecond binary serialization (`bm25_index.bin`) persisted alongside the workspace's LanceDB dataset.
-  - **Universal Multilingual & Code-Aware Tokenizer (Unicode UAX #29)**: Global-first tokenizer supporting universal Unicode script segmentation, diacritic folding (Latin, Portuguese, Spanish, French, German), full non-Latin script retention (Cyrillic, Arabic, Hebrew, Greek, CJK), and deep programming identifier decomposition (`camelCase`, `PascalCase`, `snake_case`, `SCREAMING_SNAKE_CASE`, `kebab-case`, dates, and file paths).
-  - **Reciprocal Rank Fusion (RRF with $k=60$)**: Mathematical rank fusion ($RRF\_Score(d) = \sum \frac{1}{60 + r_m(d)}$) with deterministic score tie-breaking, seamlessly unifying LanceDB dense semantic vector search with Okapi BM25 keyword matching with zero calibration or manual weight tuning required.
-  - **Source-Fair Round-Robin & Density Budgeting in Rust**: Fair multi-source representation ensuring no single document or URL dominates the candidate window, with strict character density budgeting (`max_density_chars`) enforced natively before returning chunks to the conversational agent.
-- **📝 100% Native Rust Ingestion & Universal Text/Script/Web Chunker (`v0.30.15`)**:
-  - **Zero Python Fallback Guarantee**: Completely eliminated legacy Python chunking (`SentenceSplitter`), `image_ocr_ingestor.py`, and regex fallbacks. 100% of local documents, scripts, configuration files, and web pages are processed natively in Rust with zero GIL overhead.
-  - **Native Rust `TextChunker`**: High-performance semantic line-and-paragraph windowing for plain text (`.txt`, `.text`, `.log`), shell scripts (`.sh`, `.bash`, `.ps1`, `.bat`, `.cmd`), SQL scripts (`.sql`), configurations (`.env`, `.ini`, `.cfg`, `.conf`, `.properties`), and container/build files (`Dockerfile`, `Makefile`).
-  - **100% Native Web URL Routing**: Directly routes web documentation URLs (`http://*`, `https://*`) and HTML files (`.html`, `.htm`) through native Rust chunkers with accurate context breadcrumbs (`// Context: <url> > <section>`).
-  - **Deterministic Taxonomies**: Enriches LanceDB metadata with explicit taxonomies: `Plain Text Document`, `SQL Script`, `Shell Script`, `Configuration / Env`, `Container / Build Definition`, and `Web Documentation`.
-- **📄 Native Rust Smart Cascade for PDF & Scanned Images: lopdf, OCR Gate & Vision LLM Hook (`v0.30.10` - Marco 5)**:
-  - **100% Native Rust Cascata Inteligente**: Replaces heavy, memory-intensive Python PDF and OCR libraries (`pypdf`, `pdfplumber`, `pymupdf`, `pytesseract`) with a pure, high-performance 3-tier cascade in `any-context-core-rs` using `lopdf` and `image`.
-  - **Tier 1 (Vector/Layout Text Extraction via `lopdf`)**: Deconstructs PDF documents page-by-page directly in native Rust, extracting layout text streams with page-level context breadcrumbs (`// Context: <file>.pdf > Page <N> > rows X..Y`). Evaluates a strict text density gate ($\ge 50$ chars). Scanned or visual pages ($< 50$ chars) automatically cascade to Tier 2.
-  - **Tier 2 (Native OS Tesseract OCR Gate with Portable Zero-Elevation Auto-Provisioning)**: Decodes images (`.png`, `.jpg`, `.jpeg`, `.webp`) and scanned PDF pages in pure Rust (`image` crate), dispatching OCR directly to the native operating system `tesseract` binary via `std::process::Command` without Python wrapper overhead. Prioritizes isolated portable installations in user-space (`%LOCALAPPDATA%\actx\bin\tesseract`) with dynamic `TESSDATA_PREFIX` propagation, requiring zero UAC administrator elevation. Generates searchable text chunks tagged as `PDF Scanned Document (OCR)` or `Image Document (OCR Scan)`.
-  - **Tier 3 (Vision LLM Hook & Structured Visual Fallback)**: For complex diagrams, architecture blueprints, flowcharts, or UI mockups with low OCR density ($< 30$ chars), automatically generates structured visual descriptions (`[Visual Diagram: ... | Resolution: WxH | Aspect: ...]`) under taxonomy `Visual Diagram / Image (Vision AI)`. Enables dynamic multimodal vision grounding when `/vision on` is active or structured fallback offline.
-  - **Zero-Elevation OCR Provisioning & Observability Commands**: Dedicated `/vision [on|off|status]` and `/ocr [status|install|<path>]` commands in CLI/TUI to inspect and control multimodal hooks, auto-provision portable Tesseract with zero elevation, and test direct file extraction.
-- **📊 Universal Tabular & Financial Chunker: CSV, TSV, Excel (.xlsx, .xls), ODS & OFX (`v0.30.9` - Marco 4)**:
-  - **Native Rust `TabularChunker`**: High-speed, SIMD-accelerated tabular data and financial transaction chunking in `any-context-core-rs` via `csv` and `calamine`, bypassing heavy external Python runtimes (`openpyxl`, `pandas`) entirely.
-  - **Automatic Header Propagation**: Injects original table column schemas (`[Col1, Col2, Col3]`) and line spans (`// Context: <file> > [headers] > rows X..Y`) into every sliced chunk, guaranteeing dense embedding models preserve full relational context on row 5,000+.
-  - **Multi-Sheet Spreadsheet Deconstruction**: Reads modern `.xlsx` (OpenXML), legacy `.xls` (BIFF8 binary), and OpenDocument `.ods` spreadsheets, iterating across all workbook sheets with isolated sheet breadcrumbs (`// Context: <file> > Sheet: "Q3" > [headers] > rows X..Y`) and typed cell formatting.
-  - **Global OFX Financial Statement Parsing**: Fully parses international banking and credit card statements (OFX 1.x SGML and OFX 2.x XML), extracting account descriptors (Bank ID, Account ID, Currency, Balance) and formatting `<STMTTRN>` transactions into structured markdown tables for expense analysis and financial auditing.
-  - **Strict Global Product Architecture**: Neutral, domain-agnostic, and 100% free of country-specific banking or tax constraints.
-- **📦 Universal Structured Data Chunker: XML, JSON, JSONL, YAML & TOML (`v0.30.8`)**:
-  - **Native Rust `StructuredDataChunker`**: Expands AnyContext's Rust core engine (`any-context-core-rs`) with specialized high-speed parsers for XML (`.xml`), JSON (`.json`), JSON Lines (`.jsonl`, `.ndjson`), YAML (`.yaml`, `.yml`), and TOML (`.toml`).
-  - **Hierarchical XML Breadcrumbs & Syntactic Closing Guarantees**: Parses XML DOM trees natively via `quick-xml`, ensuring closing tags are preserved, tracking tag hierarchy breadcrumbs (`// Context: <file> > root > parent > item`), grouping small repeating siblings together, and decomposing oversized elements with `split_oversized_code` and resilient fallback.
-  - **Structured JSON & JSONL Chunking**: Decomposes JSON arrays and objects into readable chunks with formatted indentation, emitting clear key-path headers (`// Context: <file> > root > {key1, key2}`). Groups streaming `.jsonl` lines into windowed line-range blocks (`// Context: <file> > lines X..Y`).
-  - **Multi-Document YAML & Resource Extraction**: Detects document boundaries (`---`), automatically identifies Kubernetes and cloud resources (e.g. `Deployment: api`, `Service: web`), groups mappings and sequences, and formats clean semantic YAML blocks for vector retrieval.
-  - **Native TOML Table & Config Chunking**: Decomposes modern project manifests and configs (`Cargo.toml`, `pyproject.toml`, `ruff.toml`) into table-level semantic blocks (`[package]`, `[dependencies]`, `[[bin]]`), extracting resource names and grouping dense key-value pairs without arbitrary fracturing.
-  - **Strict Global Product Architecture**: Completely universal and domain-agnostic; 100% free of country-specific rules or formats (zero country-specific tax or invoice logic).
-- **📱 Scripting & Mobile AST Ecosystems: Kotlin, Swift, Ruby, PHP, Lua & Dart (`v0.30.6`)**:
-  - **14 Native AST Language Ecosystems**: Expands AnyContext's Rust AST code engine (`any-context-core-rs` via `tree-sitter`) from 8 to 14 language ecosystems, covering the world's most widely used mobile, scripting, and web back-end stacks.
-  - **Kotlin (`.kt`, `.kts`)**: Complete AST decomposition of classes, objects, companion objects, member functions, properties, and Gradle build logic (`build.gradle.kts`), preserving KDoc documentation comments.
-  - **Swift (`.swift`)**: Native iOS, macOS, and server Swift parsing distinguishing `class`, `struct`, `actor`, `enum`, `protocol`, and `extension` declarations, capturing method bodies and `///` doc comments.
-  - **Ruby (`.rb`)**: AST intelligence for Rails and Ruby scripts, parsing `class`, `module`, `singleton_class` (`class << self`), instance methods, and class methods (`def self.method`).
-  - **PHP (`.php`, `.phtml`)**: Native support for modern PHP classes, interfaces, traits, enums, methods, functions, and PHPDoc annotations (`/** ... */`).
-  - **Lua (`.lua`)**: Prototype- and function-level parsing for Neovim configs, game scripts, and Nginx Lua, detecting global functions, module methods (`function M:method()`), local functions, and function assignments.
-  - **Dart (`.dart`)**: Native Flutter client parsing for classes, widgets, enums, mixins, extensions, class member methods, and top-level functions with doc comment associations.
-  - **Standardized Context Symbol Breadcrumbs**: Injects rich semantic headers (`// Context: <file> > <class/struct> > <method> [lines X-Y]`) across all 6 languages, powering pinpoint accuracy during AI code navigation and refactoring.
-- **🌐 Universal API Schemas, Cloud/IaC & Project Manifests Ingestion (`v0.30.5`)**:
-  - **API Contracts & Schemas**: Native discovery and vector indexing for Protocol Buffers (`.proto` / gRPC), GraphQL schemas (`.graphql`, `.gql`), and Apache Thrift (`.thrift`), enabling architectural understanding across cross-service microservice boundaries.
-  - **Cloud & Infrastructure as Code (IaC)**: Full support for Terraform (`.tf`, `.tfvars`), HashiCorp HCL (`.hcl`), and Azure Bicep (`.bicep`).
-  - **Extensionless Automation & Container Files (`SUPPORTED_FILENAMES`)**: Discovers and indexes build and container manifests without extensions (`Dockerfile`, `Containerfile`, `Jenkinsfile`, `Makefile`, `Procfile`).
-  - **Project & Dependency Manifests**: Indexes Go modules (`go.mod`, `go.sum`), Gradle build scripts (`.gradle`), Java application properties (`.properties`), and reStructuredText documentation (`.rst`).
-  - **Semantic LanceDB Taxonomies**: Enriches LanceDB metadata with explicit `content_type` labels (e.g. `Protocol Buffer Schema`, `Terraform / IaC`, `Container Definition`, `Go Module Definition`).
-- **🛡️ Ingestion Shield: 3-Tier Hierarchical AST Code Splitting & Dynamic Embedding Limits (`v0.30.4`)**:
-  - **3-Tier Hierarchical Code Splitter (`splitter.rs`) in Rust**: Deterministic code chunking across all 7 tree-sitter AST parsers (Go, Rust, C/C++, TypeScript, Java, C#, Python) that splits at paragraphs (`\n\n`), falls back to lines (`\n`), and handles long single-line tokens via safe character windows, strictly guaranteeing no chunk ever exceeds `max_chunk_chars`.
-  - **Dynamic Model Embedding Token Ceilings**: Runtime catalog mapping embedding providers to their authoritative token limits (e.g. 8,191 for OpenAI, 2,048 for Gemini, 512 for MiniLM) with automatic safety margins, eliminating `400 Invalid 'input': maximum input length is 8192 tokens` errors.
-  - **Build Artifact & Minified File Exclusion**: Automatically ignores build folders (`dist`, `build`, `out`, `target`, `vendor`, `node_modules`, `coverage`) and minified bundles (`*.min.js`, `*.min.css`, `*.map`), preventing non-source noise from polluting the LanceDB vector space.
-  - **Fail-Safe Pre-Embed Barrier**: Validates chunk token estimates before sending API batches, cleanly truncating any extreme outliers.
-- **🦀 Native Rust Ingestion Engine (`any-context-core-rs`), Multi-Language AST Code Parsing & Hierarchical Markdown (`v0.30.3`)**:
-  - **100% Rust Core Ingestion Engine**: Built with `any-context-core-rs` compiled via PyO3, executing file format dispatch, syntax parsing, and chunk generation in sub-millisecond native C/Rust speed with zero Python GIL overhead.
-  - **Polymorphic Ingestion Router**: A source-agnostic router (`IngestionRouter`) serving all workspace source categories (Local Folders, Cloud Drives, and Web Portals), dynamically inspecting MIME types and extensions to route files to specialized chunkers.
-  - **Multi-Language AST-Aware Code Chunker (`tree-sitter`)**: Native AST code parsing for 8 major programming language ecosystems:
-    - **Go** (`.go`): Native parsing of structs, interfaces, functions, methods with explicit receivers (`func (s *Server) Start()`), and package/import clauses.
-    - **Rust** (`.rs`): Structs, enums, traits, standalone functions, inherent and trait implementation blocks (`impl Trait for Type`), and module-level docs.
-    - **C & C++** (`.c`, `.h`, `.cpp`, `.hpp`, `.cc`, `.cxx`, `.c++`, `.hh`, `.hxx`): Classes, structs, recursive namespace scopes (`namespace A > class B`), template declarations, functions, preprocessor includes, and macros.
-    - **TypeScript & JavaScript** (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`): React/TSX components, arrow functions, interfaces, type aliases, classes, and exported declarations.
-    - **Java** (`.java`): Spring Boot services, classes, interfaces, records, enums, `@` annotations, constructors, and Javadoc.
-    - **C#** (`.cs`): ASP.NET Core controllers, classes, structs, records, interfaces, namespaces, `[...]` attributes, and `///` XML documentation.
-    - **Python** (`.py`, `.pyw`, `.pyi`): Classes, functions, methods, decorators `@`, and docstrings.
-    - **Intelligent Chunking & Breadcrumbs**: Injects rich semantic breadcrumbs (`// Context: path > class > method [lines X-Y]`), preserves decorators/annotations intact, and splits oversized classes into an Overview chunk plus dedicated method chunks without arbitrary code fracturing.
-  - **Hierarchical Markdown Header Chunker**: Leverages `pulldown-cmark` in Rust to decompose Markdown documents (`.md`, `.rst`, `.markdown`) by syntactic heading levels (`#`, `##`, `###`), preserving full context breadcrumbs (`// Context: # Architecture > ## Database`) across chunks and preventing paragraph fracturing or token loss.
-  - **Strangler Fig Migration Baseline**: Establishes the high-performance Rust foundation that incrementally replaces legacy ingestion parsers, followed by Structured Data (XML, JSON, YAML) in Marco 3 and LanceDB encapsulation in native Rust.
-- **🎯 Temporal Hybrid Retrieval, Citation Provenance & Instant StatusBar Deletion Alerts (`v0.29.4`)**:
-  - **Temporal Hybrid Retrieval (Dual Dense-Vector + Lexical LanceDB)**: Solves the semantic dilution of exact dates (e.g. `2026-09-01`, `1 de setembro de 2026`) in dense vector embeddings. Automatically detects ISO, Brazilian/European (DD/MM/YYYY) and natural language date patterns (PT/EN), executing sub-25ms path and metadata scans in LanceDB and boosting matching chunks to the top candidate pool (score 0.95), guaranteeing accurate retrieval of specific daily forms, checklists, and shipments over older generic reports.
-  - **Conversational Citation Provenance Preservation**: Enhances historical message pruning to preserve active document sources on the immediate prior turn while purging only expurgated files registered in `workspace_sync_ledger.deleted_sources`. Enables the assistant to reliably answer follow-up provenance questions (e.g. *"Qual arquivo foi a fonte dessa informação?"*) without triggering Strict Mode false negatives.
-  - **Mandatory Turn Citation Directives**: Injects strict citation formatting mandates across all grounding strategies (Strict, Hybrid, Proactive), ensuring the model (especially `gpt-4o-mini`) always concludes answers with a structured `📄 Fontes Consultadas:` block.
-  - **Zero-Polling Instant StatusBar Deletion Detection (`🟡 X deleted • /sync`)**: Connects `switch_workspace` and interactive user operations (`_stream_chat`, `get_state`, `execute_command`) to debounced sub-30ms stat cache checks, immediately reflecting file additions/deletions on the StatusBar with correct visual styling (yellow warning badge without misleading green checkmarks) with zero continuous background polling overhead.
-- **🔄 Workspace Sync Ledger & Historical Citation Sanitization (`v0.29.3`)**:
-  - **Factual Memory Consistency on Deleted Files**: When files are deleted and synced, AnyContext records the mutation in a persistent `workspace_sync_ledger` SQLite table and injects explicit negative constraints into the agent's system prompt, strictly forbidding the AI from citing or using purged documents even if they were synthesized in earlier turns of the conversation history.
-  - **Historical Citation Pruning**: Strips stale `📄 Fontes Consultadas` blocks from prior assistant turns at LLM call-time while preserving 100% of dialog, numbers, calculations, and conversational reasoning, preventing the model from regurgitating obsolete file paths.
-  - **Sub-30ms Tab Switch Change Detection**: Performs an ultra-fast stat-cache disk check exclusively when switching workspace tabs (`/switch`) or launching, alerting the user via the StatusBar (`🟡 X deleted • /sync`) with zero background polling overhead and zero idle token waste.
-  - **Continuous Long-Term Memory Preservation**: Rejects session wiping or thread destruction across restarts, ensuring deep, continuous multi-turn assistant context while maintaining strict factual document consistency.
-- **🔄 Transactional Indexing Lifecycle, Instant Deletion Purge & Zero-Ghost Guarantee (`v0.29.2`)**:
-  - **Instant Deletion Purge (At-Once)**: Deleted files are expurgated immediately from LanceDB upon `/sync` or background sync, permanently eliminating "ghost" records and preventing AI answers from stale, deleted files.
-  - **Purge-Before-Embed Deduplication**: Modified files have their outdated chunks atomic-purged from LanceDB prior to embedding, keeping chunk counts 100% clean and preventing duplicate accumulation ($0.00 cost, zero token waste).
-  - **Atomic Force Full Re-indexing (`/sync --force`)**: Atomically purges existing document chunks and clears file cache, ensuring clean, idempotent vector rebuilds across all sources (local folders, web portals, cloud drives).
-  - **Cross-Platform SQL Path Normalization**: Hardened LanceDB SQL where clauses with cross-platform forward-slash normalization (`/`), resolving silent DataFusion SQL escape failures on Windows paths with backslashes.
-  - **Strict Rename Guardrails**: Prevents archive extraction and subdirectory unzipping from triggering false rename heuristics.
-- **📑 Virtual Tab Workspace Isolation & View Hygiene (`v0.29.0`)**:
-  - **Tabbed Chat Isolation**: Switching workspaces (`/switch`) immediately swaps the visible chat viewport to that workspace's dedicated conversation buffer while preserving other workspaces' conversations intact in memory.
-  - **Visual Hygiene Without Induced Amnesia**: The `/clear` (or `/cls`) command clears only the active workspace's visual screen buffer (restoring the signature ASCII Full Glory Banner) while keeping 100% of conversation turns preserved in the session accumulator.
-  - **Isolated LanceDB Teardown**: Upon session exit (`/exit`), all touched workspaces are automatically summarized (Level 1) and consolidated (Level 3) into their respective records in the LanceDB `session_memory` dataset.
-- **🗃️ LanceDB Single Source of Truth Inventory & Zero-Noise `/switch` (`v0.29.1`)**:
-  - **LanceDB Definitive Authority**: All workspace source telemetry (web pages, local folder files, cloud drives, and vector chunks) is resolved dynamically and directly from LanceDB columnar vector storage in sub-millisecond zero-copy queries, eliminating reliance on static or desynchronized SQLite counters.
-  - **Rich Content Type Web Accounting**: Correctly indexes and accounts for all web pages regardless of AI temporal classifier categorization (`Canonical Service / Documentation`, `Historical News / Press Release`, etc.), preventing re-crawl token waste on multi-thousand page portals like government and enterprise sites.
-  - **Local Folder File Resolution**: Dynamically aggregates distinct indexed files per configured folder prefix (`• 📁 <path> • X file(s) indexed`) directly from columnar Arrow projections.
-  - **Zero-Noise `/switch`**: Seamlessly switch between workspaces (`/switch <name>`) or open the switch modal (`/switch`) with zero chat pollution or banner spam, preserving pure dialogue viewport cleanliness.
-- **🌐 LanceDB Single Source of Truth Web Engine & Resilient Crawler**:
-  - **Zero Split-Brain Desynchronization**: Eradicated legacy secondary SQLite cache tables. LanceDB is the 100% single source of truth for both web page caching, hashes, and vector chunks.
-  - **Sub-5ms Zero-Copy Cache Scans**: Apache Arrow columnar projections (`select(['file_path', 'content_hash', 'last_modified'])`) verify page modifications instantly without deserializing dense embedding vectors.
-  - **Automatic Canonical Redirect & Trailing Slash Normalization**: Automatically detects canonical HTTP 301/302 redirects when registering portals without trailing slashes (e.g. `/stable/book` -> `/stable/book/`), ensuring relative chapter links (`ch01-...html`) resolve to the proper subpath instead of truncating parent directories. Fully resilient across Linux, WSL, and Windows.
-  - **Prioritized Deep Scraping & $0 Resync**: Multi-page documentation portals (e.g. The Rust Book) are recursively scraped and indexed in the background with progress reporting and instant $0.00 zero-token re-sync skips.
-  - **Zero Dropped Jobs**: Eliminates race conditions when adding web sources (`/web --add`) immediately after workspace creation, automatically queuing pending resync passes.
-- **🛡️ Hermetic Triple Sandboxing & Production Data Immunity**:
-  - **Zero Database or Vector Contamination**: Automated test runners execute under strict, multi-tier isolation (`ACTX_SETTINGS_DB`, `ACTX_CONTEXT_DB`, `ACTX_MEMORY_DB`) with hard safety barriers in `paths.py` protecting `settings.db`, LanceDB vector storage, and session memory against automated test runners.
-  - **Automatic Cascade Test Purge**: Production startup automatically cascade-purges any test workspace fixtures tagged with `created_by = 'test'` across all 9 database tables, eliminating lingering test workspaces and test source folders completely.
-- **🛡️ Session Process Immunology & Clean Terminal Teardown**:
-  - **Terminal Screen Integrity & Zero Ghost TUIs**: In `/update` or `actx --update`, requesting to close active sessions terminates all AnyContext instances safely only after download verification, completely tears down the OpenTUI console renderer (restoring canonical cooked mode, cursor visibility, and terminal echo), and exits cleanly to the shell, eliminating desynchronized prompt leaks, ghost TUIs, and frozen cursor locks.
-- **🛡️ Auto-Healing Conversation Sanitizer & OpenAI Tool Call Shield**:
-  - **Zero Error 400 Invalid Request**: Interrupted session turns or tool cancellations automatically synthesize compliant response messages for orphan tool calls, eliminating permanent SQLite checkpoint corruption.
-- **🔐 Persistent Configuration & Seamless Cross-Version Retention**:
-  - **Zero Repeated Onboarding**: Upgrading AnyContext (`actx --update` or installer) automatically retains all configured workspaces, custom AI models, and API keys. The onboarding modal is never triggered if an active API key or provider is already configured.
-  - **Triple-Layer Persistence Immunity**: Configuration state is anchored across `system_config` table, `context_settings` table, and SQLite `api_keys` store with automatic self-healing.
-  - **Preserved Uninstallation**: Uninstalling with data preservation keeps your workspaces, vector database, configured models, and API keys 100% intact for future installations.
-- **🕒 Temporal RAG & Metadata Freshness Engine**:
-  - **5-Tier Web Date Resolution**: Automatically extracts publication and update dates via OpenGraph/Schema.org, visible in-page text/footers (`Page details YYYY-MM-DD`, `Date modified:`), URL date patterns (`/2023/06/...`), HTTP `Last-Modified` headers, and crawl timestamps.
-  - **Content Classification**: Distinguishes between `Canonical Service / Documentation` (authoritative current rules), `Historical News / Press Release` (past announcements), and `Local Document`.
-  - **Filesystem Timestamps**: Automatically tags all local files with `last_modified_date` and `creation_date`.
-  - **Time-Aware Chunk Headers**: Injects `Source: ... | Workspace: ... | Last Modified: YYYY-MM-DD | Type: ...` into every chunk.
-  - **Recency Primacy & Conflict Resolution**: The AI agent evaluates timestamps and status notices, ensuring that current rules (`Status: Paused`) always supersede older historical announcements.
-- **🔬 2-Phase High-Precision RAG & Context Calibration Engine**:
-  - **🎯 Semantic Precision & Zero Cross-Domain Noise (Contextual Retrieval)**: The system captures the overarching theme and domain keywords of each document and web page before reading paragraphs. Searches on a specific subject never pull unrelated files (like financial or IT docs in legal questions).
-  - **Phase 1 (Deep Candidate Pool Scanning)**: Evaluates a broad initial pool of **100+ candidate chunks** across thousands of indexed pages and files, guaranteeing 100% recall coverage.
-  - **Phase 2 (Balanced Multi-Source Diversity)**: Balanced round-robin distribution ensures fair representation across all documents and web portals (up to 3 chunks per source), preventing a single large file from monopolizing the context window.
-  - **⚡ Ultra-Fast Parallel Multi-Source Search**: Concurrently searches the active workspace, linked Shared Sources, and Global knowledge bases on all CPU cores, fusing results in sub-10ms.
-  - **"Lost in the Middle" Prevention & Context Calibration**: By injecting **15-20 high-density chunks (~10,000-15,000 tokens)** rather than 40+ noisy chunks, AnyContext prevents attention degradation, eliminates hallucinations, reduces latency by 3x, and stays well within provider rate limits.
-  - **🧹 Smart Conversation Flow & Zero Token Overflows**: Automatically compacts past search dumps in multi-turn conversations, keeping dialogue fast and prompt size permanently optimized (~10,000 tokens) even after dozens of consecutive questions.
-  - **🔄 Resilient Auto-Retry with Exponential Backoff**: Automatic transparent recovery from AI provider rate limits (TPM/RPM 429 errors) across all 9 supported providers with millisecond backoff loops, ensuring zero disruption during heavy research sessions.
-  - **🎛️ Dynamic Retrieval Presets Matrix**:
-    | Preset | Pool no LanceDB | Chunks Injetados | Tokens de Contexto | Melhor uso |
-    | :--- | :---: | :---: | :---: | :--- |
-    | **⚡ Turbo** | 50 candidatos | 10 chunks | ~5.000 tokens | **Velocidade máxima:** perguntas rápidas, fatos pontuais, dúvidas do dia a dia. |
-    | **⚖️ Balanced** *(Padrão)* | 100 candidatos | 20 chunks | ~10.000 a 15.000 tokens | **Equilíbrio perfeito:** alta precisão factual sem ruído (o padrão ideal). |
-    | **🔬 Deep Research** | 150 candidatos | 40 chunks | ~30.000 a 40.000 tokens | **Auditoria pesada:** comparar cláusulas de 10 contratos ou analisar dossiês complexos. |
-- **🛡️ Strict Context Grounding & Zero Pre-Training Hallucination**:
-  - Answers are strictly anchored to the retrieved workspace chunks.
-  - The AI is forbidden from using outdated 2023 pre-training weights to answer current factual, legal, or regulatory questions.
-  - Cross-lingual domain translation: Automatically translates Portuguese prompts into targeted English domain keywords when searching English documentation.
-- **🧠 3-Level Structured Long-Term Memory (5 Dimensions)**:
-  - **Level 1 (Structured 5-Dimension Session Summary)**: Extracted upon `/exit` or `/q` across 5 clear dimensions:
-    1. 👤 *User Directives & Preferences* (rules, workflow habits).
-    2. 🏗️ *Technical Architecture & Key Decisions* (parameters, constants, schemas).
-    3. 📁 *Files, Code Symbols & Databases* (files touched, functions, tables).
-    4. 📌 *Critical Context & Problem Resolution* (root-cause diagnoses, bug fixes).
-    5. 🚀 *Pending Tasks & Next Steps* (roadmap milestones, open tasks).
-  - **Level 2 (Active Rolling Window)**: Retains recent active messages in SQLite graph state.
-  - **Level 3 (Consolidated Meta-Summarization)**: Consolidates older memory vectors into high-level indices.
-  - **1024-Token Memory Chunks**: Expanded chunking (`chunk_size=1024`, `chunk_overlap=200`) preserves deep technical reasoning.
-- **📂 Decoupled Workspace Architecture & Empty Workspaces**:
-  - Workspaces are isolated logical scopes for privacy and contextual boundaries.
-  - Creating a workspace is completely separate from attaching folders: create empty workspaces anytime via `/switch <name>` or `/workspace add <name>` (ideal for web documentation portals, market research, or agent tasks).
-  - Attach local folders or web URLs whenever you want via `/config` or `/web add`.
-- **🏛️ 3-Tier AI Context Architecture (Company Global & Shared Sources)**:
-  - **1. 🏢 Institutional Global (`Global`)**: Organization-wide knowledge base curatable by admins and automatically inherited in RAG search across authorized project workspaces.
-  - **2. 📦 Reusable Shared Sources Library (`Shared Sources`)**: Dedicated central library workspace for reusable frameworks, codebases, and documentation portals linked across project workspaces on-demand in < 50ms with **$0.00 in embedding costs** via `/link` and `/shared`.
-  - **3. 📁 Scoped Active Workspaces**: Dedicated project-specific boundaries guaranteeing zero cross-department data leakage.
-- **🛒 Universal Schema.org & E-Commerce Rating Extraction**:
-  - Automatic extraction of `Product` and `IndividualProduct` structured metadata (`<script type="application/ld+json">`) including star ratings, review counts, prices, and stock status across Walmart, Amazon, Mercado Livre, Shopify, VTEX, WooCommerce, etc.
-  - Retains HTML semantic tags (`<form>`, `<header>`, `<aside>`, `<dl>`) so visible review badges (e.g. `4.844 out of 5 stars. 1199 reviews`) and buy box pricing are never discarded.
-- **🔓 100% Unlocked Community Edition CLI**: Full local power for individual users at zero cost:
-  - Unlimited local workspaces and folders.
-  - Deep recursive subfolder scanning.
-  - **Interactive 2-Phase Web Crawler & Sitemap Engine** (`/web add`): Fast discovery phase maps all internal URLs and XML sitemaps, presenting estimated page counts before concurrent multi-threaded crawling.
-  - Image & Scanned PDF OCR parsing (`/ocr`).
-  - ChromaDB local vector storage & SQLite long-term memory.
-  - Access to all 9 supported AI model providers.
-- **🤖 9 Leading AI Providers with Verified Low-Tier Models**:
-  - **OpenAI**: `gpt-4o-mini`, `gpt-4o`, `gpt-4-turbo`, `gpt-3.5-turbo`.
-  - **Anthropic Claude**: `claude-haiku-4-5-20251001`, `claude-sonnet-4-5-20250929`, `claude-sonnet-4-6`, `claude-opus-4-5-20251101`.
-  - **Google Gemini**: `gemini-flash-latest`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-pro-latest`.
-  - **DeepSeek**: `deepseek-chat` (DeepSeek V3 - High Intelligence at $0.14/M tokens).
-  - **Groq Cloud**: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`, `gemma2-9b-it`.
-  - **Mistral AI**: `mistral-small-latest`, `open-mistral-nemo`, `mistral-large-latest`.
-  - **xAI Grok**: `grok-2-1212`, `grok-2`, `grok-beta`.
-  - **OpenRouter**: `openrouter/auto`, `meta-llama/llama-3.3-70b-instruct:free`, `google/gemini-flash-1.5-8b`.
-  - **Local Offline (Free & Private)**: `local-model` via LM Studio or Ollama (`http://localhost:1234/v1`).
-- **🎉 Zero-Friction First-Time Onboarding & Surface Parity**:
-  - Automatically detects fresh installations or factory resets (`actx --factory-reset`).
-  - Launches an interactive setup wizard across OpenTUI (`actx`) and headless environments.
-  - One-click configuration for **OpenAI Cloud** (`gpt-4o-mini` & `text-embedding-3-small`), **Local Offline Server** (LM Studio / Ollama at $0.00), or **Custom Provider Gateway**.
-- **📋 Multi-line & Long-Prompt Input Engine**:
-  - **Direct Bracketed Paste (`Ctrl+V`)**: Seamlessly paste multi-line contract clauses, meeting transcripts, or large code snippets without premature command submission.
-  - **Universal Line Break (`Ctrl + J` / `Esc` then `Enter`)**: Insert clean newlines with visual continuation prompts (`... `) anytime while typing.
-  - **Shell-Style Line Continuation (`\` + `Enter`)**: End any line with a backslash `\` and press Enter to naturally continue your prompt on the next line.
-  - **Triple Quotes (`""" ... """` or `''' ... '''`)**: Start a prompt with `"""` to enter multi-line block mode and submit by closing with `"""` or `/send`.
-  - **Dedicated `/paste` Capture Mode**: Type `/paste` or `/multiline` to open an explicit capture buffer with abort (`/cancel`) protection.
-- **🔄 Instant Zero-Cost Source Transfer (`/transfer` & `/config`)**:
-  - Move folders and web portals between workspaces in sub-50ms with **$0.00 in embedding API costs**.
-  - Dynamically updates vector metadata tags in ChromaDB and SQLite without re-indexing or re-crawling.
-- **🖥️ Interactive Terminal UI (Ratatui / `actx`)**:
-  - **Interface Interativa Padrão**: Desenvolvida 100% em Rust nativo utilizando **Ratatui (0.29) + Crossterm (0.28)**: chat rolável fluido, background transparente nativo do terminal, banner clássico, identificadores claros e barra de status quad-status no cabeçalho.
-  - **100% Pure Rust & Paridade Hexagonal**: Todo comando e prompt é despachado pelo motor central de domínio (`CommandEngine`) e pelo orquestrador de agentes (`actx-agent`), garantindo coerência estrita entre o modo interativo e o modo headless.
-  - **Full-Screen Scroll & Viewport Isolation**: Rolagem nativa fluida em tela cheia com rodinha do mouse, teclas `PgUp` / `PgDn`, `Shift + ↑` / `↓` e auto-scroll reativo em streaming.
-  - **⚡ Telemetria em Tempo Real**: Barra de status superior com badges de Workspace, Modelo, Modo de Grounding e Web Search, além de spinner Braille reativo e indicador de sincronização em segundo plano.
-  - **Slash Command Palette (`/`)**: Ao teclar `/`, uma paleta flutuante abre automaticamente com filtro fuzzy em tempo real e navegação por setas para todos os comandos internos.
-  - **Accordion de Raciocínio (`Ctrl+T`)**: Visualizador dobrável de tokens `<think>` e chamadas de ferramentas do agente ReAct.
-- **⚡ Headless Developer CLI & One-Shot Prompt Engine**:
-  - One-shot execution para scripts, cronjobs & automação: `actx "sua pergunta aqui"` ou `actx -p "..."`.
-  - Suporte completo a pipes Unix/PowerShell: `cat document.txt | actx "resuma os pontos principais"`.
-  - Flags de alta performance: `actx -v` (< 2ms via launcher shim), `actx --diagnostics`, `actx --logs`.
-  - Flags de atualização direta: `actx --update` (atualização atômica direta com barra de progresso no terminal), `actx --check-update`, `actx --rollback`.
-
-- **🗑️ Interactive Workspace Deletion with Safety Confirmation (`/menu` & `/switch --delete`)**:
-  - Exclusão segura e interativa de workspaces com listagem do total de fontes e modal de confirmação explícito (`Yes, permanently delete` vs `Cancel` com foco seguro).
-  - Proteção de workspaces do sistema (`Default`, `Global`, `Shared Sources`) e fallback automático para `Default`.
-
-- **🧹 Clean Markdown Observability & TUI ANSI-Shield Engine (`v0.28.73`)**:
-  - **Zero Terminal Buffer Corruption**: Refactored `/logs`, `/spans`, and `/diagnostics` to emit 100% clean GitHub Flavored Markdown with monospaced fenced code blocks (` ```text `), permanently eliminating raw ANSI escape sequences (`\033[...]`) that caused cell positioning corruption and scattered characters in OpenTUI.
-  - **OpenTUI Frontend ANSI Sanitization**: Implemented `stripAnsi()` across user, system, and assistant messages, rendering immune against control characters from external processes.
-  - **Cross-Platform CI/CD Build Hardening**: Hardened `launcher/build_shim.py` with `UTF-8` reconfiguration and ASCII status indicators, eliminating `UnicodeEncodeError` under Windows runner `cp1252` environments.
-  - **Multi-Interface Parity**: Integrated `/logs`, `/spans`, and `/diagnostics` directly into CLI interactive chat loop dispatching.
-
-- **🌐 Resilient Web Ingestion & Decompression Engine (`v0.28.72`)**:
-  - **Tolerant HTTP Stream Decompression**: Native support for `Content-Encoding: gzip`, `deflate` and `.xml.gz` sitemaps using `zlib.decompressobj(32 + zlib.MAX_WBITS)`. Gracefully handles truncated, partial, or interrupted network streams without failing with low-level `Error -5 incomplete stream`.
-  - **Self-Healing Web Source Addition**: Transparent auto-recovery and retry loops in `SourceService` and `CommandDispatcher` for web portals (including CDNs like Akamai and Cloudflare).
-  - **Structured Command Error Telemetry**: All slash command exceptions and full tracebacks are automatically logged to `system_logs` in `settings.db` and queryable via `/logs`.
-
-- **🩹 RAG Self-Healing Ingestion Engine**:
-  - Invalidação automática de cache desatualizado no SQLite caso arquivos físicos existam no disco mas chunks estejam ausentes no LanceDB, garantindo reindexação imediata e respostas precisas com citação de fontes.
-
-- **⚡ Non-Blocking Background Synchronization & Micro-Bar Status Dock (`/sync`)**:
-  - Sincronização desacoplada em threads em segundo plano (`BackgroundSyncManager`) que libera o prompt `👤 You:` imediatamente para conversação sem travar o teclado.
-  - Micro-barra de blocos unicode em tempo real (`⚡ Syncing [████░░░░] 50% (15/30 files)`) na barra inferior (`bottom_toolbar`).
-  - Sincronização mestre unificada em todas as fontes (pastas locais, portais web, cloud drives) com modo verbose estruturado para auditoria completa (`/sync --verbose`).
-- **🎯 Typo-Resilient Slash Command Interception**:
-  - Mistyped commands (e.g. `/check-updaete`, `/swich`, `/modeel`, `/sinc`) are caught by the intelligent fuzzy matcher and suggest the correct command without wasting AI tokens.
-- **🔄 Universal 3-Option Interactive Self-Updater & Clean Teardown (`/update` & `/check-update`)**:
-  - **Unified Cross-Platform Experience**: Disparar `/update` no OpenTUI Desktop ou CLI apresenta de forma consistente e transparente as mesmas 3 opções tanto no Windows quanto no Linux e macOS:
-    1. `⚡ Update in background (Recommended)`: Baixa a atualização atomicamente em segundo plano enquanto a sessão atual continua operando normalmente; a nova versão assume no próximo lançamento.
-    2. `⏹️ Close session(s) and update now`: Baixa o binário, encerra a sessão ativa (ou todas as sessões se houver múltiplos terminais ou instâncias MCP em execução) e realiza o teardown gracioso do terminal em 800ms, deixando o usuário pronto no terminal para executar `actx` já na nova versão.
-    3. `🔙 Cancel update`: Aborta o processo de atualização de forma segura e retorna imediatamente à conversa.
-  - **Multi-Instance Intelligence & Clean Terminal Teardown**: Substituição atômica de binários com proteção absoluta do estado do terminal (restauração de cooked mode, cursor visível e prompt desimpedido).
-- **🌐 REST API Server Mode (`actx --serve`)**:
-  - High-performance FastAPI server with interactive Swagger UI at `http://127.0.0.1:8000/docs`.
-- **🔌 Model Context Protocol (MCP) Server (`actx --mcp`)**:
-  - Native JSON-RPC stdio implementation for **Claude Desktop**, **Cursor IDE**, and **Antigravity**.
-- **📘 Permanent Self-Help System**:
-  - The AI agent has full access to this documentation. You can ask in chat: *"Como eu adiciono um site ao meu workspace?"* or *"Quais comandos estão disponíveis?"*.
-- **⚡ Sub-2ms Native Launcher Shim Architecture & Clean Versioning (`v0.28.71`)**:
-  - Implementação de Launcher Shim nativo autônomo (`actx.exe` / `actx` < 20KB) compilado diretamente para código de máquina nativo (via `csc.exe` no Windows ou `gcc` no Linux), sem dependência de máquina virtual ou overhead de extração do PyInstaller.
-  - O comando `actx -v` / `actx --version` responde instantaneamente em **< 2 milissegundos** exibindo a versão no padrão limpo e direto da indústria (`v0.28.71`), exatamente como `node -v` ou `agy --version`.
-  - Delegação transparente de comandos completos e interfaces interativas (`actx`, `actx --tui`, `actx --mcp`) para o motor core (`actx-core.exe`).
-  - Suíte de testes automatizados expandida para 207 testes (100% PASS).
-
-- **🖥️ OpenTUI Syntax Repair & CI Frontend Verification Gate (`v0.28.70`)**:
-  - Correção cirúrgica de sintaxe no componente React principal [`app.tsx`](file:///C:/Users/guilh/source/repos/any-context/src/any_context/tui/app.tsx) do OpenTUI, fechando blocos de callback de erro e restaurando a inicialização instantânea do comando `actx --tui`.
-  - Integração do verificador estático do Bun (`bun run check` / `tsc --noEmit`) ao pipeline oficial do GitHub Actions (`.github/workflows/e2e-tests.yml`), impedindo regressões visuais ou de sintaxe no frontend antes de qualquer merge.
-  - Adição de teste unitário automatizado (`test_tui_syntax.py`) elevando a suíte para 203 testes 100% aprovados.
-
-- **🛡️ Provenance-Based Workspace Immunity, Pre-Migration Snapshots, and Persistent Logging Architecture (`v0.28.79`)**:
-  - **Imunidade Absoluta por Proveniência (`created_by`)**: Adição de rastreamento de autoria na tabela `workspaces`. Workspaces criados por usuários (`created_by = 'user'`) são 100% imunes a qualquer rotina de expurgo ou migração automática, independente do seu nome (mesmo que chamado `TestWorkspace` ou iniciando com `test_`).
-  - **Snapshots de Segurança Pré-Migração**: O Core realiza backup automático do banco de dados SQLite (`settings.db.bak`) antes de executar qualquer instrução DDL ou migração estrutural.
-  - **Logs Persistentes de Instalação, Atualização e Migração**: Registro estruturado e persistente em disco em `%LOCALAPPDATA%\AnyContext\logs\` (`install.log`, `update.log`, `migration.log`), permitindo auditoria ponta a ponta de downloads, processos em execução, substituições atômicas e alterações de schema.
-
-- **🛡️ Test Sandbox Isolation, Auto-Purge of Legacy Workspaces, and Hexagonal Model Authority (`v0.28.78`)**:
-  - **Imunidade Total do Banco de Dados**: A suíte inteira de testes automatizados (`tests/run_all.py` e testes individuais) executa em sandbox temporário isolado (`ACTX_SETTINGS_DB`), garantindo que nenhum teste contamine o banco de produção do usuário.
-  - **Auto-Expurgo Seguro de Workspaces Residuais**: Inicialização do Core (`_init_db`) expurga apenas workspaces órfãos comprovadamente criados por testes (`created_by = 'test'` e sem fontes associadas), protegendo totalmente o usuário.
-  - **Paridade Hexagonal no OpenTUI (RPC Bridge)**: A barra de status e o backend RPC delegam a resolução e persistência de modelos para o `ModelService`, garantindo inicialização limpa com `🤖 GPT-4o Mini` no workspace `Default` e isolamento por workspace.
-
-- **🛡️ 100% Native Standard Test Suite & CI/CD Pipeline Hardening (`v0.28.69`)**:
-  - Eliminação de dependências externas de teste em ambiente de execução: migração e padronização integral dos testes unitários para `unittest.TestCase` nativo do Python (com zero dependências do `pytest` para execução).
-  - Resolução definitiva de erros de importação no GitHub Actions CI/CD (`ModuleNotFoundError: No module named 'pytest'`).
-  - Descoberta automatizada do módulo de testes `unit/ingestion` (crawler e progresso em tempo real) com 100% dos 200 testes aprovados.
-
-- **⚡ Background Web Crawler Real-time Progress & Instant Completion Notifications (`v0.28.68`)**:
-  - Feedback visual imediato e contínuo durante a raspagem web em background (`⚡ Crawling [████░░░░] 50% (15/30 pages)`), eliminando o estado prematuro de `✔ Up to date` enquanto o crawler ainda está indexando.
-  - Notificações de conclusão emitidas em tempo real em todas as interfaces (CLI, OpenTUI e RPC Bridge) indicando o total exato de páginas web e arquivos indexados.
-
-- **🤖 Factory Default Model Isolation (`gpt-4o-mini`) per Workspace (`v0.28.67`)**:
-  - Todo e qualquer novo workspace criado no sistema (seja no primeiro uso, via `/switch`, REST API ou MCP Server) é inicializado rigorosamente com o modelo padrão de fábrica `gpt-4o-mini`.
-  - O modelo configurado em um workspace é isolado e persistido de forma independente, impedindo contaminações indesejadas de modelos mais caros para workspaces recém-criados.
-
-
-  - Resposta instantânea de linha de comando (`actx -v` / `actx --version` em < 5ms) via roteamento imediato sem carregamento de banco de dados ou variáveis de ambiente.
-  - Verificação de atualizações (`print_startup_update_notice`) desacoplada em segundo plano de forma 100% assíncrona, eliminando qualquer travamento por latência de rede no início do terminal.
-  - Telemetria visual de micro-etapas de boot exibida logo abaixo do banner (`[08ms] 🔌 SQLite Config Store active`, `[19ms] 📂 Workspace connected`, `[29ms] 🤖 AI Model engine linked`, `[36ms] 🚀 Ready in 0.04s`), transmitindo sensação imediata de velocidade, precisão e responsividade.
-
-
-- **⏱️ Deep Observability Engine & Time Watching (`/logs`, `/diagnostics`, `/spans`, `actx --diag`)**:
-  - Rastreamento cirúrgico de latência (*time watching*) com precisão de microssegundos em todas as operações críticas do sistema (recuperação vetorial RAG, comandos slash, raspagem web, sincronização em background e chamadas de inferência).
-  - Tabela persistente SQLite com auto-purga e métricas estatísticas consolidadas (`avg_ms`, `min_ms`, `max_ms`, `count`, `status`).
-  - Painel de diagnósticos integrado acessível via linha de comando (`actx --diag`, `actx --logs`) ou no chat interativo (`/diagnostics`, `/logs`, `/spans`, `/perf`), permitindo identificar gargalos de tempo instantaneamente.
-
-- **🔒 Hardware-Bound AES-GCM-256 Vector Storage Encryption & OS Isolation (`v0.28.16`)**:
-
-  - Armazenamento nativo em diretórios padrão do sistema operacional (`%LOCALAPPDATA%\AnyContext\` no Windows, `~/Library/Application Support/AnyContext/` no Mac, `~/.local/share/any-context/` no Linux).
-  - Criptografia local em repouso: textos de documentos, resumos contextuais e palavras-chave são cifrados no disco com **AES-GCM-256** amarrado ao ID exclusivo de hardware da máquina (Hardware Binding).
-  - Proteção total contra cópia indevida ou extração de bases de dados fora do AnyContext com velocidade instantânea via aceleração por hardware (CPU AES-NI).
-
----
-
-## ⚡ Quick Start & Installation
-
-### Option 1: Native Rust Installer (Recommended - No Python or GitHub CLI Required!)
-
-The fastest and most reliable way to install AnyContext is using the native, compiled Rust installer (`actx-installer`). It automatically detects your operating system, streams the latest release via direct HTTPS, verifies binary integrity, and provisions your environment in seconds.
-
-- **Windows (PowerShell)**:
-  ```powershell
-  irm https://raw.githubusercontent.com/Levix-Digital/any-context/main/install.ps1 | iex
-  ```
-  *(Or download [`actx-installer.exe`](https://github.com/Levix-Digital/any-context/releases/latest/download/actx-installer.exe) directly and run `.\actx-installer.exe`)*
-
-- **Linux / macOS (Bash)**:
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/install.sh | bash
-  ```
-  *(Or download [`actx-installer`](https://github.com/Levix-Digital/any-context/releases/latest/download/actx-installer), `chmod +x actx-installer`, and run `./actx-installer`)*
-
-#### Standalone Installer CLI Flags
-The native Rust installer can also be run directly with explicit control:
-```bash
-actx-installer               # Install or update to latest release
-actx-installer --install     # Clean install or repair
-actx-installer --update      # Check and apply latest update
-actx-installer --rollback    # Rollback to previous version if needed
-```
-
-### Option 2: Build from Source via Cargo (Rust)
+Linux:
 
 ```bash
-git clone https://github.com/Levix-Digital/any-context.git
-cd any-context
-cargo build --release -p actx-cli -p actx-installer
+curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/install.sh | bash
 ```
-*(The native binaries will be generated at `target/release/actx` and `target/release/actx-installer`)*
 
----
-
-## 💬 In-Chat Slash Commands Reference
-
-Inside the interactive chat (`actx`), use these powerful slash commands:
-
-| Command | Standard Options / Flags | Description |
-| :--- | :--- | :--- |
-| **`Ctrl+V` (Paste)** | — | Paste multi-line text with line breaks without premature submission. |
-| **`[Ctrl + J]`** | `[Esc] + Enter` | Universal terminal newline shortcut (Linefeed). |
-| **`\` + `[Enter]`** | — | Trailing backslash shell-style line continuation. |
-| **`""" ... """`** | `''' ... '''` | Multi-line block delimiter (close with `"""` or `/send`). |
-| **`/paste`** | `/multiline` | Open dedicated multi-line paste capture mode. |
-| **`/sync`** | `--folder`, `--web`, `--drive`, `--all`, `--force`, `--status`, `--bg` | **Sincronizador Mestre Unificado**: Sincroniza todas as fontes (pastas, web, drives) do workspace ativo ou todas de uma vez (`--all`). |
-| **`/folder`** | `--add <path>`, `--remove <path>`, `--list`, `--sync` | Gerencia e sincroniza exclusivamente pastas locais do workspace. |
-| **`/web`** | `--add <url>`, `--remove <url>`, `--list`, `--sync` | Gerencia, rastreia e sincroniza exclusivamente portais e páginas web. |
-| **`/drive`** | `--add`, `--remove <id>`, `--list`, `--sync`, `/cloud` | Gerencia e sincroniza conexões com Google Drive e OneDrive. |
-| **`/mode`** | `strict`, `hybrid`, `proactive`, `--global` | Configura o Grounding Mode da IA: **`Strict`** (100% ancorado nos docs), **`Hybrid`** (equilíbrio dual-layer) ou **`Proactive`** (pesquisa e síntese). |
-| **`/search`** | `auto`, `fast`, `deep`, `/fast`, `/deep` | Configura o Search Depth Mode (RFC-042): **`Auto`** (heurística dinâmica), **`Fast`** (baixa latência) ou **`Deep`** (recuperação exaustiva). |
-| **`/router`** | `/routing` | Inspeciona a política ativa de roteamento, o modo de pesquisa e as métricas do classificador determinístico (< 1µs). |
-| **`/deep`** | `[query]` | Dispara busca profunda reflexiva multi-turno (RFC-042) com decomposição de sub-perguntas, análise de lacunas (*gap queries*) e síntese com citações de código. |
-| **`/fast`** | `[query]` | Força resposta rápida em turno único com recuperação padrão de baixa latência. |
-
-| **`/web-search`** | `--on`, `--off`, `--status`, `--global`, `/ws` | Toggle real-time live web search per workspace with domain portal prioritization and source discrimination. |
-| **`/link`** | `<src> [dst]`, `--list`, `--unlink <src>` | Link or unlink reusable indexed sources across workspaces with zero API cost ($0.00). |
-| **`/transfer`** | `<src_ws> <tgt_ws> <path_or_url>` | Instant zero-cost transfer of folders or web portals between workspaces. |
-| **`/rename`** | `<old_ws> <new_ws>` | Atomic zero-cost workspace renaming ($0.00). |
-| **`/model`** | `<name>`, `--list`, `-l` | Open key-aware AI model selector across 9 providers or list available models. |
-| **`/download`** | `<model>`, `--check`, `--force`, `/dl`, `/get-model` | Repara ou adiciona modelos locais verificados (tamanho + SHA-256), ex.: `reranker`, `reranker-m3`. Os modelos do perfil já são instalados automaticamente; Gemma 4 local aparece como planejado. |
-| **`/rerank`** | `on`, `off`, `auto`, `model [id]` | Status do re-ranking neural (modelo, runtime, dispositivo, latência real), política on/off/auto e seleção do cross-encoder. |
-| **`@model <msg>`** | — | One-shot prompt to a specific model without changing session defaults. |
-| **`/api-keys`** | `/keys` | Step-by-step guide with portal links to obtain API keys. |
-| **`/ocr`** | `image`, `scan` | View Image & Scanned PDF OCR parsing status. |
-| **`/config`** | `-c` | Open interactive settings menu (Workspaces, AI Models, API Keys). |
-| **`/billing`** | `--plans`, `-p` | View subscription tiers, capabilities, and license status. |
-| **`[↑] / [↓]`** | — | Navigate through past prompts & commands in the active workspace. |
-| **`/history`** | `--clear`, `--limit <n>` | Display or clear input history for the active workspace. |
-| **`/update`** | `--check`, `-c`, `--force` | Check for updates and download/install the latest release. |
-| **`/reset-memory`**| `--force`, `--all` | Purge conversation session memory for active or all workspaces. |
-| **`/clear`** | `/cls` | Clear terminal screen and redraw the clean signature banner. |
-| **`/factory-reset`**| `--force` | Reset all settings, workspaces, API keys, and databases to clean factory state. |
-| **`/version`** | `/v` | Display current AnyContext version. |
-| **`/help [cmd]`** | `/h`, `[cmd] --help`, `[cmd] -h` | Open the interactive manual index or get help for a specific command. |
-| **`/exit`** | `/q`, `exit`, `quit` | Save structured 5-dimension long-term memory and exit gracefully. |
-| **`Ctrl+C`** | — | Interrupt AI generation immediately or prompt graceful exit. |
-
----
-
-## 📥 Download e Gerenciamento Assistido de Pesos Locais (Gemma 4 ONNX)
-
-> ⚠️ **Atualização v0.45.0**: a geração local com Gemma 4 está **planejada** — os links abaixo apontavam para repositórios inexistentes e foram removidos; `actx download compact|12b|27b|32b` agora informa que o modelo é planejado. O fluxo de download (pre-flight, progresso, cancelamento) continua válido para os modelos disponíveis, como `actx download reranker`, agora com verificação de SHA-256. Os modelos do seu perfil são instalados automaticamente pelo instalador.
-
-O **AnyContext `v0.41.0`** introduz um pipeline unificado e assistido para download e instalação local dos modelos quantizados da família **Gemma 4 ONNX**. Com verificação de integridade em camadas, o AnyContext protege seu sistema contra falta de espaço em disco e travamentos por estouro de memória RAM física (*Out-Of-Memory* e *swap thrashing*).
-
-### 🎯 Tiers Suportados da Família Gemma 4
-
-| Tier / Alias | Modelo Canônico | Tamanho em Disco | Memória RAM Exigida | Perfil Recomendado |
-| :--- | :--- | :--- | :--- | :--- |
-| **`compact`** (ou `2b`, `3b`) | `gemma-4-compact` | **~1.85 GB** | $\ge 8\text{ GB}$ (Pico ~2.5GB) | ⚡ Smart Balanced / Laptops |
-| **`12b`** | `gemma-4-12b` | **~7.50 GB** | $\ge 16\text{ GB}$ (Pico ~10GB) | 🌌 Air-Gapped Power / Dev |
-| **`27b`** | `gemma-4-27b` | **~17.20 GB** | $\ge 32\text{ GB}$ (Pico ~18.5GB) | 💼 Workstation Pro |
-| **`32b`** | `gemma-4-32b` | **~20.20 GB** | $\ge 64\text{ GB}$ (Pico ~25.5GB) | 👑 Sovereign Ultra |
-
----
-
-### 💻 1. Uso Headless no Terminal (`actx download`)
-
-Baixe e instale modelos diretamente do terminal sem abrir a TUI:
+The installer downloads the latest release, checks your hardware, picks a profile (it installs the local re-ranker model on machines with enough memory) and adds `actx` to your `PATH`. Open a new terminal and check:
 
 ```bash
-# Inspeciona os modelos instalados e a compatibilidade do hardware
-actx download --check
-
-# Baixa o modelo recomendado para sua máquina com telemetria visual
-actx download compact
-
-# Baixa um modelo específico (ex: 12B)
-actx download 12b
-
-# Força o download mesmo se a RAM física for inferior ao recomendado
-actx download 32b --force
+actx --version
 ```
 
-Durante o download headless, o terminal exibe:
-```text
-[████████████████░░░░░░░░░░░░░░]  53.4% (3.61/6.75 GB) │  18.4 MB/s │ ETA: 2m 50s
-```
-
----
-
-### 💬 2. Uso Interativo na TUI (`/download` e Menu `[F1]`)
-
-No chat interativo, execute downloads em segundo plano enquanto continua navegando:
-
-- **Slash Command**: `/download 12b` (ou `/dl compact`, `/get-model 27b`).
-- **Verificação de Status**: `/download --check` exibe a tabela de armazenamento e semáforo de RAM diretamente no histórico.
-- **Menu Interativo `[F1]`**: Ao acessar `[F1] -> Models` e teclar `[Enter]` em um modelo local com status `(Instalar)`, o download é disparado automaticamente com validação prévia de segurança.
-- **Telemetria no Rodapé**:
-  ```text
-  📥 Downloading ⠋ Gemma 4 12B (INT4 ONNX) 3610.2/6750.0 MB (53%) • 18.4 MB/s • ETA: 2m 50s [Esc to cancel]
-  ```
-- **Cancelamento Gracioso**: Pressione `[Esc]` a qualquer momento para abortar o download e remover arquivos temporários imediatamente.
-
----
-
-## 🔬 Deep-Dive: A Ciência do Motor RAG do AnyContext
-
-O AnyContext foi projetado com uma arquitetura de RAG em **duas fases distintas**, resolvendo os dois maiores desafios da inteligência artificial moderna: **alcance amplo em grandes volumes de dados** e **precisão cirúrgica sem dispersão de atenção**.
-
-```mermaid
-graph TD
-    A["📚 10.000+ Páginas & Arquivos no Workspace"] --> B["⚡ Etapa 1: Busca Paralela na CPU (ThreadPoolExecutor)<br/>(Escaneia pool de 100+ candidatos no ChromaDB em < 15ms)"]
-    B --> C["⚖️ Etapa 2: Diversificação Source-Fair Round-Robin<br/>(Filtra a nata de 15-20 chunks mais densos sem ruído)"]
-    C --> D["🧠 LLM Prompt Calibrado (~10.000 tokens)<br/>(Foco cirúrgico, zero alucinação, 3x mais rápido)"]
-    D --> E["💬 Resposta Instantânea & Fundamentada"]
-```
-
-### 1. Profundidade de Busca vs. Injeção no Modelo
-- **Busca Vetorial Ampla (ChromaDB):** A busca nunca é rasa. O ChromaDB avalia **100% dos documentos indexados**, avaliando similaridade semântica em um pool inicial amplo de **100 candidatos**.
-- **Injeção Calibrada na LLM:** Apenas a "nata" dos trechos de maior relevância entra no prompt do modelo.
-
-### 2. O Fenômeno *"Lost in the Middle"* (Por que mais chunks podem prejudicar a precisão)
-- **A Escala Real de 10.000 Tokens:** 10.000 tokens equivalem a **~7.500 palavras** ou cerca de **15 a 20 páginas de livro densamente digitadas**. Para responder a uma pergunta pontual (ex: *"Quem deve assinar o waiver?"*), a resposta exata ocupa de 300 a 600 tokens (1 a 2 páginas).
-- **O Perigo de Injetar 50.000+ Tokens:** Prompts gigantescos contendo 40 a 50 chunks brutos introduzem dezenas de páginas irrelevantes (horários, cardápios, avisos gerais). Pesquisas científicas de ponta (incluindo Stanford) comprovam que LLMs sofrem de **degradação de atenção no meio do contexto**, perdendo trechos cruciais e gerando alucinações.
-- **Precisão por Calibração:** Ao entregar **15 a 20 chunks mais densos**, a IA foca 100% no que importa, reduz o tempo de resposta em 3x e economiza até 90% em créditos de API.
-
-### 3. Algoritmo *Source-Fair Round-Robin* (Diversificação Multi-Fonte)
-Para garantir que um documento gigante de 500 páginas não monopolize todas as vagas de resposta:
-- O algoritmo balanceia a seleção pegando no máximo 2 a 3 trechos de cada arquivo ou página web diferente.
-- Em workspaces com 50 PDFs ou 20 portais web, **todas as fontes relevantes têm representação garantida** no contexto final.
-
-### 4. Resiliência a Rate Limits (TPM / RPM) com Backoff Exponencial
-- Todos os 9 provedores de IA (OpenAI, Anthropic Claude, Gemini, Groq, DeepSeek, Mistral, xAI) impõem limites de **Tokens por Minuto (TPM)** e **Requisições por Minuto (RPM)**.
-- O AnyContext conta com **`max_retries=5` e Backoff Exponencial automático**: caso um provedor retorne **HTTP 429 (Rate Limit)** em rajadas de perguntas, o sistema aguarda silenciosamente as frações de segundo necessárias e conclui a resposta sem que você veja erro na tela.
-
-### 5. Pruning de Histórico em Runtime (`PruningChatModelWrapper`)
-- O histórico da conversa preserva 100% das perguntas do usuário e conclusões da IA (`User` ➔ `AI`), mas intercepta e poda os blocos de texto bruto de buscas passadas (`ToolMessage`) em runtime para `"[Prior workspace context retrieved and synthesized in conversation history]"`.
-- O prompt enviado à LLM se mantém permanentemente entre ~5.000 e 12.000 tokens, eliminando o erro de estouro de 128.000 tokens em conversas de 100+ turnos.
-
-### 6. Higiene Epistêmica de Histórico & Máquina de Estados de Turno (`v0.30.23`)
-- **Eliminação do Viés de Auto-Confirmação Negativa (*Attention Echo Chamber*):**
-  Quando uma busca passada não localizava um arquivo (ex: antes de sincronizar um novo PDF ou por pergunta pontual), a resposta negativa da IA (`⚠️ Essa informação não consta...`) ficava retida no histórico conversacional. Isso induzia a atenção do Transformer a auto-confirmar sua negação passada mesmo após novos arquivos serem indexados.
-- **Defesa em Duas Camadas:**
-  1. **Camada 1 (Máquina de Estados Epistêmica em Runtime):** Cada turno é categorizado formalmente (`EpistemicState`: `GROUNDED_FACTUAL`, `FACTUAL_ABSENCE`, `CLARIFICATION`, `CONVERSATIONAL`). Em turnos posteriores, disclaimers de ausência legítima passada são filtrados do payload enviado à LLM, mantendo o histórico visual 100% íntegro na tela do usuário no SQLite, mas entregando à IA uma mente limpa e livre de viés negativo.
-  2. **Camada 2 (Diretriz de Independência Epistêmica Temporal):** O modelo é instruído no System Prompt e no cabeçalho de Grounding de que o repositório é vivo e dinâmico, garantindo que arquivos recém-adicionados ao workspace sejam imediatamente lidos e respondidos no mesmo chat sem bloqueios.
-
-### 🎛️ Matriz Dinâmica de Presets de RAG
-
-| Preset | Pool no ChromaDB | Chunks Injetados | Tokens de Contexto | Melhor uso |
-| :--- | :---: | :---: | :---: | :--- |
-| **⚡ Turbo** | 50 candidatos | 10 chunks | ~5.000 tokens | **Velocidade máxima:** perguntas rápidas, fatos pontuais, dúvidas do dia a dia. |
-| **⚖️ Balanced** *(Padrão)* | 100 candidatos | 20 chunks | ~10.000 a 15.000 tokens | **Equilíbrio perfeito:** alta precisão factual sem ruído (o padrão ideal). |
-| **🔬 Deep Research** | 150 candidatos | 40 chunks | ~30.000 a 40.000 tokens | **Auditoria pesada:** comparar cláusulas de 10 contratos ou analisar dossiês complexos. |
-
-### 🛡️ Modos de Grounding, Busca Web & Matriz Dinâmica de Prioridades (`/mode` & `/web-search`)
-
-O AnyContext adota uma arquitetura determinística de **Injeção de Estratégias por Turno (*Strategy Pattern*)** que protege o agente contra *prompt dilution* (degradação de foco em conversas longas). Cada turno de conversa recebe dinamicamente um cabeçalho ultracompacto (~35-45 tokens) contendo a matriz exata de precedência de fontes, priorização de portais web registrados e a **Regra Universal de Recência Temporal (*Universal Temporal Recency Rule*)**:
-
-> **⏱️ Regra Universal de Recência Temporal (Critério de Desempate):**
-> Quando múltiplas fontes coexistem dentro do **mesmo nível de prioridade** (ex: um documento do VectorDB e um portal web registrado no Tier 0; ou a busca na web aberta e o conhecimento paramétrico no Tier 1; ou todos os canais fundidos no modo Proativo), **a fonte com timestamp/data mais recente SEMPRE prevalece como a verdade factual**, sobrepondo dados legados ou desatualizados.
-
-#### 📊 Matriz de Prioridades 3 × 2 (Grounding 3 × Web 2 = 6 Estados)
-
-| Modo | Web Search | Precedência de Fontes | Protocolo de Ausência & Regra de Recência no Mesmo Tier |
-| :--- | :---: | :--- | :--- |
-| **🛡️ Strict** *(Auditoria / Jurídico)* | **OFF** | • **Prioridade 0:** VectorDB exclusivo.<br>• **Proibida:** Memória Paramétrica (0% alucinação).<br>• **Desativada:** Busca Web. | Responde 100% pelos docs locais. Se houver divergência entre arquivos: **o mais recente prevalece**.<br>**Ausência:** Declara estritamente: `⚠️ Essa informação não consta nos documentos deste workspace.` |
-| **🛡️ Strict** *(Auditoria / Jurídico)* | **ON** | • **Prioridade 0:** VectorDB.<br>• **Prioridade 1 (Gated):** Portais Registrados e Web Aberta.<br>• **Proibida:** Memória Paramétrica (0% alucinação). | **Gate de Permissão Obrigatório:** O agente é proibido de buscar na web de forma autônoma no turno inicial. Se o dado não constar nos arquivos locais, para e pergunta:<br>`⚠️ Essa informação não consta nos documentos deste workspace. Deseja que eu faça uma busca na internet sobre '[tópico]'?`<br>*Apenas após o 'sim' explícito a busca web é realizada.* Entre fontes no mesmo tier, **a mais recente sempre prevalece**. |
-| **⚖️ Hybrid** *(Equilibrado / Padrão)* | **OFF** | • **Prioridade 0:** VectorDB (Docs locais primeiro).<br>• **Prioridade 1:** Conhecimento Geral do Modelo.<br>• **Desativada:** Busca Web. | Fatos do workspace têm primazia. Resposta em duas camadas estruturadas: `### 📂 Informações do Workspace` e `### 💡 Sugestões / Conhecimento Geral do Modelo`. Arquivo mais recente prevalece no Tier 0. |
-| **⚖️ Hybrid** *(Equilibrado / Padrão)* | **ON** | • **Prioridade 0:** VectorDB & Portais Web Registrados do Workspace.<br>• **Prioridade 1:** Busca na Web Aberta & Conhecimento Geral do Modelo. | Busca na web executada **autonomamente** se o workspace estiver incompleto. Prioriza portais registrados (`target_domain`) antes da web global. No Tier 0 ou Tier 1, **a informação mais recente sempre prevalece**. |
-| **🚀 Proactive** *(Pesquisa & Estratégia)* | **OFF** | • **Prioridade 0:** VectorDB & Conhecimento Estratégico do Modelo.<br>• **Desativada:** Busca Web. | Fusão de documentos locais com antecipação de riscos, próximos passos e visão estratégica. A norma ou dado mais recente prevalece. |
-| **🚀 Proactive** *(Pesquisa & Estratégia)* | **ON** | • **Prioridade 0 (Fusão Total em Tempo Real):** VectorDB + Portais Web + Web Search ao Vivo + Raciocínio Proativo. | Execução autônoma e contínua de RAG + Web. **Total fusão temporal:** a fonte com data mais recente em qualquer canal prevalece. Sugere ativamente novas URLs autoritativas com `/web add <url>`. |
-
-### 🖥️ Top Header Quint-Status Telemetry (`v0.32.4`)
-
-A interface TUI exibe no cabeçalho superior todas as dimensões vitais de execução de forma permanente e reativa:
-```text
-AnyContext v0.32.4 ─ [WS: Default] ─ [Model: gemini-2.5-flash] ─ [Grounding: STRICT] ─ [Search: AUTO] ─ [Web: OFF] ─ ● IDLE
-```
-- **`[WS: <name>]`**: Workspace ativo (selecionável via `/switch`).
-- **`[Model: <model>]`**: Modelo LLM/SLM conectado (selecionável via `/model`).
-- **`[Grounding: <MODE>]`**: Estratégia de grounding (`STRICT`, `HYBRID`, `PROACTIVE`), configurada via `/mode`.
-- **`[Search: <DEPTH>]`**: Profundidade de recuperação vetorial RAG RFC-042 (`AUTO`, `FAST`, `DEEP`), configurada via `/search`.
-- **`[Web: ON|OFF]`**: Status da busca web em tempo real, alternada via `/web-search`.
-
----
-
-
-
-## 💡 Real-World Usage Examples (For Technical & Non-Technical Users)
-
-### ⚖️ 1. Legal / Contract Risk Analysis (Non-Technical)
-```text
-You [LegalDocs | gpt-4o-mini]: Qual é o prazo de vigência e as penalidades por quebra de confidencialidade no Contrato Acme?
-
-🤖 AI [gpt-4o-mini]:
-🔍 [Search] Searching strictly within Workspace: 'LegalDocs' (top 8 chunks)...
-📚 Reading retrieved documents...
-
-De acordo com o arquivo 'Contrato_Acme_2025.docx' (Modificado em: 2026-08-12):
-- **Prazo de Vigência**: 24 meses contados a partir da data de assinatura (Cláusula 8.1).
-- **Penalidade por Quebra**: Multa não compensatória de R$ 100.000,00 (cem mil reais), sem prejuízo de perdas e danos apurados judicialmente (Cláusula 12.4).
-- **Aviso Prévio**: A rescisão imotivada exige notificação prévia de 30 dias (Cláusula 8.3).
-```
-
-### 🛂 2. Temporal Immigration / Government Portal Verification (Non-Technical)
-```text
-You [Immigration | gpt-4o-mini]: Qual o status atual do Start-up Visa Program do Canadá?
-
-🤖 AI [gpt-4o-mini]:
-🔍 [Search] Searching strictly within Workspace: 'Immigration' (top 8 chunks)...
-📚 Reading retrieved documents...
-
-De acordo com a página oficial 'Start-up Visa Program - Canada.ca' (Última modificação: 2026-07-21 | Tipo: Canonical Service):
-- **Status Operacional**: O programa está atualmente **PAUSADO (Paused)** para novas aplicações.
-- **Regra em Vigor**: Apenas candidatos com certificado de compromisso válido emitido em 2025 podem submeter suas aplicações (prazo limite: 30 de junho de 2026).
-- **Permissão de Trabalho**: Solicitantes com visto de trabalho ativo vinculado ao programa podem solicitar extensão durante o processamento da residência permanente.
-
-*(Nota: Comunicados de imprensa anteriores de junho de 2023 sobre expansão de vagas representavam iniciativas históricas da época, sendo atualmente sobrepostos pela regra de pausa em vigor).*
-```
-
-### 🧠 3. Cross-Session Long-Term Memory Recall (Business & Management)
-```text
-# Session 1:
-You [FinTech | gpt-4o-mini]: Vamos adotar a arquitetura SQLite WAL com migrações gerenciadas via Alembic para a release v2.0.
-🤖 AI [gpt-4o-mini]: Excelente decisão! Registrado: SQLite WAL mode com Alembic para a v2.0.
-You [FinTech | gpt-4o-mini]: /exit
-🧠 [Hierarchical Memory - Level 1] Generating structured 5-dimension session summary block...
-✔ Session memory persisted!
-
-# Session 2 (Days later):
-You [FinTech | gpt-4o-mini]: O que decidimos na última conversa sobre o banco de dados da release v2.0?
-🤖 AI [gpt-4o-mini]:
-🔍 [Search] Searching session memory records for workspace 'FinTech'...
-
-Na sessão anterior, decidimos as seguintes diretrizes técnicas para a **release v2.0**:
-1. **Engine**: SQLite configurado em modo **WAL (Write-Ahead Logging)** para suporte a leitura/escrita concorrente.
-2. **Migrações**: Gerenciamento de esquema estruturado via **Alembic**.
-```
-
-### 💻 4. Developer / Software Engineering Codebase Analysis (Technical)
-```text
-You [BackendAPI | deepseek-chat]: Como funciona o fluxo de autenticação por tokens na rota /v1/auth/login?
-
-🤖 AI [deepseek-chat]:
-🔍 [Search] Searching strictly within Workspace: 'BackendAPI' (top 8 chunks)...
-
-Conforme implementado no arquivo `src/any_context/server/routes.py` (Modificado em: 2026-08-18):
-1. A rota recebe `POST /v1/auth/login` com payload `{"username": "...", "password": "..."}`.
-2. O método `ConfigDBStore.verify_user_password()` valida o hash PBKDF2 com salt de 100.000 iterações.
-3. Se válido, gera um Bearer Token com prefixo `actx_sec_` e expiração de 30 dias, retornando o papel do usuário (`Admin`, `Analyst` ou `Viewer`).
-```
-
-### 🛒 5. E-Commerce & Product Comparison (Structured Ratings & Reviews)
-```text
-You [Mercado | gpt-4o-mini]: Desses produtos de limpeza de vidros, qual tem a melhor avaliação e o melhor custo-benefício?
-
-🤖 AI [gpt-4o-mini]:
-🔍 [Search] Searching strictly within Workspace: 'Mercado' (top 8 chunks)...
-📚 Reading retrieved documents...
-
-Com base nas páginas de produtos indexadas:
-
-1. **CleanGlass Pro Spray (23 fl oz)**:
-   - **Avaliação**: **4.844 de 5 estrelas** (baseado em **1.199 avaliações**).
-   - **Preço**: **USD $3.98** ($0.17 / fl oz).
-   - **Status**: Em estoque.
-
-2. **Great Value Glass Cleaner Spray Bottle (32 fl oz)**:
-   - **Avaliação**: **4.200 de 5 estrelas** (baseado em **450 avaliações**).
-   - **Preço**: **USD $2.48** ($0.08 / fl oz).
-   - **Status**: Em estoque.
-
-**Conclusão e Custo-Benefício:**
-- **Melhor Avaliação Absoluta**: O **CleanGlass Pro** possui a maior nota de satisfação (**4.844 estrelas** com alto volume de 1.199 avaliações).
-- **Melhor Custo-Benefício por Volume**: O **Great Value** custa menos da metade por fl oz ($0.08 vs $0.17), mantendo uma nota sólida de 4.2 estrelas.
-```
-
-### 6. Viewing Workspace Tree Structure (`/sync --verbose`)
-```text
-You [AnyContextProject | gpt-4o-mini]: /sync --verbose
-
-📂 Workspace: AnyContextProject
-├── 📁 Storage Locations (1 configured)
-│   └── G:\My Drive\Documentos\AnyContext
-├── 🔍 Subfolder Deep Scan
-│   └── Discovered 12 files across 4 subdirectories
-├── 📖 Document Chunks (12 total loaded)
-│   ├── contract_template.docx (2 chunks)
-│   ├── financial_report.xlsx (3 chunks)
-│   └── architecture_notes.pdf (7 chunks)
-├── 📘 Permanent System Context: Embedded README.md
-└── ⚡ ChromaDB Collection: 'context_docs' synchronized and ready!
-```
-
----
-
-## 🌐 Intelligent Web Ingestion & Deep Recursive Crawler Engine
-
-AnyContext includes a built-in, zero-dependency, concurrent web ingestion engine designed to transform documentation portals, government archives, legal bases, and technical wikis into living AI context.
-
-Unlike basic web scrapers that blindly download noisy HTML or crawl randomly, AnyContext is engineered specifically for **high-precision Retrieval-Augmented Generation (RAG)**:
-
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        ANYCONTEXT WEB INGESTION LIFECYCLE                              │
-├─────────────────┬─────────────────┬──────────────────┬─────────────────┬───────────────┤
-│  1. Discovery   │  2. Resolution  │   3. Proximity   │  4. Concurrent  │ 5. Ingestion  │
-│  & Normalization│  & Sitemaps     │     Ranking      │    Extraction   │   Pipeline    │
-├─────────────────┼─────────────────┼──────────────────┼─────────────────┼───────────────┤
-│ • Strip .html   │ • sitemapindex  │ • Landing (10k)  │ • Multi-threaded│ • Chunk 500/50│
-│ • Infer Prefix  │ • Keyword Match │ • Section (2k)   │ • Strip Boiler  │ • OpenAI Embed│
-│ • Extract Links │ • Filter .xml   │ • Keywords (300) │ • Markdown AST  │ • ChromaDB    │
-└─────────────────┴─────────────────┴──────────────────┴─────────────────┴───────────────┘
-```
-
-### 🧠 How It Works Under the Hood:
-
-1. **Semantic Path Normalization**:
-   - When given a URL like `https://www.canada.ca/en/immigration-refugees-citizenship.html` or `https://docs.python.org/3/library/os.html`, the crawler automatically strips file extensions (`.html`, `.htm`, `.php`, `.asp`, `.aspx`) to derive the true semantic directory path (e.g. `/en/immigration-refugees-citizenship/`).
-   - All sub-pages and child forms under that section are accurately recognized and grouped under **Section Pages**.
-
-2. **Recursive Sitemap & `sitemapindex` Resolution**:
-   - Locates `sitemap.xml` and traverses nested sitemap catalogs (`<sitemapindex>`).
-   - Tokenizes path keywords (e.g. `immigration`, `refugees`, `citizenship`, `docs`, `api`) to prioritize sub-sitemaps matching your target subject, while discarding raw `.xml` URLs in favor of clean `.html` content pages.
-
-3. **Semantic Proximity & Relevance Ranking (`_rank_url`)**:
-   - Web portals often contain tens of thousands of unrelated pages. AnyContext ranks all discovered URLs by semantic distance before ingestion:
-     - 🥇 **Landing / Start URL** (Priority 10,000)
-     - 🥈 **Direct Section Children** (Priority 2,000)
-     - 🥉 **Direct In-Page Links** (Priority 500)
-     - 🏅 **Keyword & Component Matches** (Priority 300 per matching slug)
-     - ⚪ **Generic Domain URLs** (Placed at the bottom of the batch)
-   - When you pick **Top 50** or **Top 250**, you always receive the most relevant guides, articles, and documentation pages first.
-
-4. **Clean Semantic HTML Extraction**:
-   - Strips boilerplate noise: navigation bars, footers, cookie notices, JavaScript, styles, and advertising banners.
-   - Preserves semantic structure: Markdown headings (`#`, `##`), tables, bullet points, and code blocks.
-
-5. **SentenceSplitter & Batch Vector Embedding**:
-   - Splits content into 500-token semantic chunks with 50-token overlap (`SentenceSplitter`).
-   - Generates embeddings in rate-limited micro-batches (`embed_batch_size=32`) to prevent OpenAI TPM / HTTP 429 throttling.
-   - Commits vectors atomically directly into isolated ChromaDB collections.
-
-6. **Strict Workspace Privacy & Scope Isolation**:
-   - Web vectors are tagged with strict workspace metadata. Queries in workspace `Legal` cannot bleed into workspace `Marketing`.
-
----
-
-## 🧠 Motor Deep Search Agêntico Reflexivo (RFC-042)
-
-Inspirado nos conceitos arquiteturais do projeto de referência [`zilliztech/deep-searcher`](https://github.com/zilliztech/deep-searcher), o AnyContext implementa um motor de pesquisa profunda **100% nativo em Rust** (`crates/actx-agent/src/deep_search.rs`) perfeitamente integrado ao pipeline híbrido (`LanceDB` + `BM25 Okapi` + `RRF` $k=60$):
-
-1. **Decomposição Ortogonal (`SUB_QUERY_PROMPT`)**:
-   - Questões complexas ou exploratórias são automaticamente decompostas pelo LLM em até 4 sub-perguntas independentes e ortogonais, cobrindo diferentes facetas do problema.
-2. **Recuperação Híbrida em Lote Paralela (`retrieve_hybrid_batch_async`)**:
-   - As sub-perguntas são disparadas concorrentemente contra o banco vetorial LanceDB (Apache Arrow) e o índice léxico BM25 Okapi em memória, consolidando candidatos via Reciprocal Rank Fusion ($k=60$) com deduplicação criptográfica SHA-256.
-3. **Loop Reflexivo & Análise de Lacunas (`REFLECT_PROMPT`)**:
-   - A cada iteração (até um teto determinístico de 3 ciclos), o agente analisa as evidências já acumuladas em relação à pergunta original e detecta lacunas de conhecimento.
-   - Caso encontre pontos cegos, gera novas *gap queries* direcionadas para a próxima iteração.
-   - Se todas as informações necessárias já tiverem sido recuperadas, dispara *early stopping* imediatamente, poupando tokens e latência.
-4. **Síntese Final com Proveniência em Nível de Linha (`SUMMARY_PROMPT`)**:
-   - Os chunks validados são estruturados com identificação exata de arquivo e linhas (`[crates/actx-agent/src/deep_search.rs:45-80]`), instruindo o modelo a citar fontes verificáveis em cada parágrafo.
-5. **Telemetria Reativa para TUI e CLI**:
-   - Emissão contínua de eventos tipados em tempo real (`AgentEvent::Decomposition`, `AgentEvent::IterationStart`, `AgentEvent::GapAnalysis`), renderizando a árvore de reflexão visualmente no terminal.
-
----
-
-## ⚙️ Configuration & Environment Settings
-
-AnyContext uses an intelligent **3-tier configuration resolution hierarchy**:
-
-```
-1. Operating System Environment Variables  (export OPENAI_API_KEY=...)
-2. Local .env File                         (Loaded automatically via .env.example)
-3. Local SQLite Secure Database            (Managed interactively via /config)
-```
-
-### Using the `.env` File (For Developers & Power Users)
-
-Copy the official [`.env.example`](file:///C:/Users/guilh/source/repos/any-context/.env.example) to `.env` in your project root:
+You can also download [`actx-installer`](https://github.com/Levix-Digital/any-context-releases/releases/latest) from the releases page and run it with options:
+
+| Option | Effect |
+|---|---|
+| `--profile=<tier>` | Choose the profile instead of the recommended one (`lite` installs no local models) |
+| `--preflight-only` | Show the hardware check and the recommended profile, then exit |
+| `--version=<tag>` | Install a specific release |
+| `--dir=<path>` | Install into another folder |
+
+## Quick Start
+
+1. Start the interface:
+   ```bash
+   actx
+   ```
+   On the first run without an API key, a setup wizard asks for a model provider and key. You can open it again with `/onboarding`.
+2. Add a folder to the current workspace (indexing starts in the background and the footer shows progress):
+   ```text
+   /folder C:\Projects\my-app
+   ```
+3. Ask a question:
+   ```text
+   How does the export command handle large files?
+   ```
+4. Or ask from any terminal without opening the interface:
+   ```bash
+   actx "Which settings does the export command read?"
+   ```
+
+## Usage
+
+### Workspaces
+
+| Command | What it does |
+|---|---|
+| `/switch` | List workspaces |
+| `/switch <name>` | Switch to a workspace (it is created if it does not exist) |
+| `/switch --delete <name>` | Delete a workspace and its indexed data |
+| `/rename <old> <new>` | Rename a workspace |
+| `/transfer <from> <to> <path-or-url>` | Move a source to another workspace |
+
+### Sources and indexing
+
+| Command | What it does |
+|---|---|
+| `/folder <path>` | Add a local folder and index it |
+| `/folder --remove <path>` | Remove a folder |
+| `/web <url>` | Add a website and crawl it on the next sync |
+| `/web --remove <url>` | Remove a website |
+| `/sources` | List the workspace's sources |
+| `/sources rename <number-or-name> <new name>` | Give a source a friendlier name |
+| `/sync` | Open the sync menu; `/sync --incremental` indexes what changed in every source and `/sync --force` re-indexes everything |
+| `/cancel` | Stop the running sync |
+| `/status`, `/info`, `/inspect` | Show index health, statistics and sample chunks (`/inspect <text>` filters them) |
+
+Only new and changed files are processed on each sync. Folders that moved slightly (for example between `Documents` folders or cloud drive mounts) are found again automatically.
+
+### Answers
+
+| Command | What it does |
+|---|---|
+| `/mode strict` | Answer only from the workspace's documents (default) |
+| `/mode hybrid` | Workspace facts first, then clearly labeled general knowledge |
+| `/mode proactive` | Combine documents, web results and general knowledge, each labeled |
+| `/search auto` | Choose quick or deep research per question (default) |
+| `/search fast`, `/search deep` | Always use quick answers or deep research |
+| `/fast <question>`, `/deep <question>` | Use one mode for a single question |
+| `/web-search on` / `off` | Allow live web search for this workspace |
+| `/history` | Show the workspace's stored conversation |
+| `/reset-memory` | Forget the workspace's conversation |
+
+### Models
+
+| Command | What it does |
+|---|---|
+| `/model` | Choose the language model (cloud models, or `ollama/<model>` for a local one) |
+| `/keys <provider> <key>` | Save an API key (`openai`, `anthropic`, `gemini`, `deepseek`, `groq`, `openrouter`, `mistral`) |
+| `/preset balanced` / `frontier` | Apply a ready-made combination of model, answer mode and search depth |
+| `/preset offline` / `privacy` | With a local Ollama model selected: strict answers, quick search, no web search |
+| `/rerank auto` / `on` / `off` | Control local re-ranking; `/rerank` shows its status |
+| `/download reranker` | Install or repair the local re-ranker model |
+| `/profile` | Show or change the hardware profile |
+
+Local Gemma 4 models are listed as planned and cannot be used yet.
+
+### Other commands
+
+`/config` (settings overview), `/logs` (recent log lines), `/diagnostics` (system health), `/menu` or `F1` (interactive menu), `/clear` (clear the screen), `/cd` and `/pwd` (working folder), `/version`, `/check-update`, `/update`, `/help`, `/exit`.
+
+### Keyboard
+
+| Keys | Action |
+|---|---|
+| `Enter` | Send |
+| `Shift+Enter`, `Alt+Enter`, `Ctrl+J` | New line |
+| `Up` / `Down` | Previous prompts of this workspace |
+| `Tab` | Complete a command |
+| `PageUp` / `PageDown`, mouse wheel | Scroll the conversation (`End` returns to live output) |
+| `Ctrl+T` | Show or hide the reasoning and tool panel |
+| `F1` or `Ctrl+M` | Menu |
+| `Esc` | Close a menu or cancel a model download |
+| `Ctrl+C` | Exit |
+
+### Command line
+
+| Command | What it does |
+|---|---|
+| `actx "<question>"` | Answer one question and print it (`-w <workspace>` and `-m <model>` to choose) |
+| `actx --sync [--folder <path>] [--force]` | Index the current workspace |
+| `actx download [reranker] [--check]` | Install local models or list them with a hardware check |
+| `actx --rerank <auto\|on\|off>` | Set the re-rank mode |
+| `actx --diagnostics` | Print versions, paths and hardware |
+| `actx --check-update`, `actx --update` | Check for or install the latest release (`actx --update@v1.2.3` for a specific one) |
+
+## Configuration
+
+Most settings are per workspace and change through commands (`/model`, `/mode`, `/search`, `/web-search`). API keys can also come from environment variables, which take priority over saved keys:
+
+| Variable | Use |
+|---|---|
+| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY` | Model provider keys |
+| `TAVILY_API_KEY`, `SERPER_API_KEY` | Better web search results (DuckDuckGo is used without a key) |
+| `JINA_API_KEY` | Higher limits for website extraction |
+| `ACTX_MODEL` | Model for this shell, overriding the workspace setting |
+| `ACTX_EMBEDDING_MODEL` | Model used to index and search (re-index after changing it) |
+| `ACTX_CONTEXT_DB`, `ACTX_SETTINGS_DB`, `ACTX_MODELS_DIR` | Custom locations for the index, settings and models |
+| `ACTX_SKIP_MODEL_DOWNLOAD=1` | Install or update without downloading local models |
+
+Where AnyContext keeps its data:
+
+| Data | Windows | Linux |
+|---|---|---|
+| Program | `%LOCALAPPDATA%\actx\bin` | `~/.local/bin` |
+| Settings and memory | `%LOCALAPPDATA%\AnyContext\config` | `~/.local/share/any-context/config` |
+| Index | `%LOCALAPPDATA%\AnyContext\data` | `~/.local/share/any-context/data` |
+| Local models | `%LOCALAPPDATA%\AnyContext\models` | `~/.local/share/any-context/models` |
+| Logs | `%LOCALAPPDATA%\AnyContext\logs` | `~/.local/share/any-context/logs` |
+
+## Updating and Uninstalling
+
+Update from a terminal (not from inside the interface):
 
 ```bash
-# AI Model Provider Keys
-OPENAI_API_KEY=sk-proj-...
-ANTHROPIC_API_KEY=sk-ant-...
-GEMINI_API_KEY=AIzaSy...
-DEEPSEEK_API_KEY=sk-...
-GROQ_API_KEY=gsk_...
-MISTRAL_API_KEY=mistral_...
-XAI_API_KEY=xai-...
-OPENROUTER_API_KEY=sk-or-v1-...
-
-# Web Research & Search
-TAVILY_API_KEY=tvly-...
-
-# Observability & Agent Tracing (LangSmith)
-LANGSMITH_TRACING=true
-LANGSMITH_ENDPOINT=https://api.smith.langchain.com
-LANGSMITH_API_KEY=lsv2_pt_...
-LANGSMITH_PROJECT="AnyContext"
-
-# Server Mode & Enterprise License Key
-ANYCONTEXT_LICENSE_KEY=ACTX.eyJjbGllbnQiOiJBY21lIn0...
+actx --update
 ```
 
----
-
-## 🏢 Server Mode & Enterprise VPC Deployment (`actx --serve`)
-
-AnyContext includes a production-ready **REST API Server** for corporate intranets, VPCs, and external applications.
-
-### 1. Launching the Server
-```bash
-# Local development server:
-actx --serve --port 8000 --host 127.0.0.1
-
-# Enterprise In-VPC Listener (All network interfaces):
-actx --serve --host 0.0.0.0 --port 8000
-```
-Access the interactive OpenAPI / Swagger UI at: **`http://127.0.0.1:8000/docs`**.
-
-Key API Endpoints include:
-- `POST /v1/chat` — Streaming & non-streaming AI Agent queries with RAG, session memory, and optional `grounding_mode` (`"hybrid"`, `"strict"`, `"proactive"`).
-- `GET /v1/context/mode` & `POST /v1/context/mode` — Inspect and configure active AI Grounding & Answer Mode.
-- `GET /v1/workspaces` — Lists all workspaces with immutable `id`, `name`, `total_sources`, and unified typed `sources` array (`folder`, `web`, `cloud_drive`).
-- `GET /v1/workspaces/{name}` & `GET /v1/workspaces/{name}/sources` — Detailed workspace sources inspection.
-- `POST /v1/workspaces` — Create workspace (with or without initial folders).
-- `POST /v1/workspaces/transfer` — Instant zero-cost transfer of local folders and web portals between workspaces with vector metadata migration in < 50ms.
-- `POST /v1/workspaces/{name}/cloud-drives` — Connect cloud drive sources (Google Drive, OneDrive, S3, Dropbox).
-- `POST /v1/index` — Background folder re-indexing.
-- `GET /v1/models` — Active & available model inspection.
-
-### 2. Linux Background Service (`systemd`)
-
-Create `/etc/systemd/system/anycontext.service`:
-```ini
-[Unit]
-Description=AnyContext Universal AI Server
-After=network.target
-
-[Service]
-User=ubuntu
-WorkingDirectory=/home/ubuntu
-ExecStart=/home/ubuntu/.local/bin/actx --serve --host 0.0.0.0 --port 8000
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable anycontext
-sudo systemctl start anycontext
-```
-
----
-
-## 🔌 Model Context Protocol (MCP) Setup
-
-To connect AnyContext to **Claude Desktop**, **Cursor IDE**, or **Antigravity**:
+Re-index a workspace after changing its model or embedding settings:
 
 ```bash
-actx --mcp
+actx --sync --force -w <workspace>
 ```
 
-### Registered MCP Tools:
-- `search_workspace_docs` — Vector semantic search across indexed files.
-- `query_anycontext_agent` — Direct RAG query with 3-level session memory and optional `grounding_mode`.
-- `get_grounding_mode` & `set_grounding_mode` — Inspect and switch active AI Grounding Mode (`hybrid`, `strict`, `proactive`).
-- `list_workspaces` — Lists all configured workspaces along with all their associated sources (local folders, web portals, cloud drives).
-- `get_workspace_sources` — Retrieves detailed sources breakdown for a specific workspace.
-- `transfer_workspace_source` — Zero-cost instant data source transfer (folders/websites) between workspaces.
-- `rename_workspace` — Instant zero-cost atomic workspace rename across SQLite and ChromaDB.
-- `get_context_retrieval_settings` — Inspect current RAG retrieval density parameters and active preset.
-- `set_context_retrieval_preset` — Configure RAG presets (`balanced`, `turbo`, `deep_research`) or custom quotas.
-- `create_workspace` — Create a new workspace.
-- `list_available_models` — Model verification.
+To uninstall, download and run the uninstaller from the [releases page](https://github.com/Levix-Digital/any-context-releases/releases/latest) (`uninstall.ps1` on Windows, `uninstall.sh` on Linux). It asks whether to keep your workspaces and index.
 
-### Claude Desktop Configuration (`claude_desktop_config.json`):
-```json
-{
-  "mcpServers": {
-    "any-context": {
-      "command": "actx",
-      "args": ["--mcp"]
-    }
-  }
-}
-```
+## Troubleshooting
 
----
+| Problem | Fix |
+|---|---|
+| Answers start with `Mock response to:` | No working model is configured: save a key with `/keys <provider> <key>` or select a local model with `/model ollama/<model>`. |
+| "No information or documents matching the query" | The workspace has no relevant indexed content yet: check `/sources` and `/status`, wait for the sync to finish, or rephrase. |
+| A folder shows as unreachable | The path no longer exists; add it again with `/folder <path>`. |
+| The sync seems stuck | Check the footer or `/status`; read `sync_<workspace>.log` in the logs folder; `/cancel` and `/sync --incremental` again. |
+| `/rerank` shows `RRF (Fallback)` | The local re-ranker is not installed or could not load: run `actx download reranker`, and on Windows install the Visual C++ Redistributable. |
+| `actx --update` says the packages are still being built | A release was just published; try again in a few minutes. |
+| An old version still runs after updating | Open a new terminal; the updater also replaces copies of `actx` found elsewhere in your `PATH`. |
 
-## 💳 Subscription Plans & Licensing Matrix
+For anything else, run `actx --diagnostics` and look at the logs folder.
 
-| Capability / Feature | Community (CLI) | Pro Plan | Team Plan | Enterprise Plan |
-| :--- | :---: | :---: | :---: | :---: |
-| **Local Folder Ingestion** | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited |
-| **Subfolder Recursive Scan**| ✅ Included | ✅ Included | ✅ Included | ✅ Included |
-| **Web Scraping & Polling** | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited |
-| **Image & Scanned PDF OCR**| ✅ Included | ✅ Included | ✅ Included | ✅ Included |
-| **9 AI Model Providers** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ✅ Full Access |
-| **ChromaDB + SQLite Memory**| ✅ Included | ✅ Included | ✅ Included | ✅ Included |
-| **REST API Server (`actx --serve`)** | 🔒 Server Mode License | ✅ 1 Seat | ✅ 5+ Seats | ✅ Dedicated VPC |
-| **Team Collaboration & RBAC** | 🔒 Team Feature | 🔒 Team Feature | ✅ Included | ✅ SSO / SAML |
-| **Offline Ed25519 License** | Not Required | `.env` Key | `.env` Key | `.env` Key |
-| **Price** | **$0 (Free Forever)**| **$29 / mo** | **$79 / mo** | **$499 / mo** |
+## Privacy
 
-> *To activate a Server Mode license, add `ANYCONTEXT_LICENSE_KEY=...` to your `.env` or type `/billing` in chat.*
+- Your files, index, settings and memory stay on your machine. The indexed text is encrypted with a key bound to this machine.
+- When you use a cloud model, your question and the relevant excerpts of your documents are sent to that provider. With a local Ollama model, nothing leaves your machine.
+- Website sources are fetched through the Jina Reader service (`r.jina.ai`) to turn pages into clean text; web search, when turned on, sends your query to the search provider.
+- AnyContext sends no usage telemetry.
 
----
+## Documentation
 
-## 🛡️ Privacy, Security & Data Sovereignty
+- [Technical documentation](TECDOC.md) for maintainers: architecture, subsystems and design decisions.
+- [Release notes](https://github.com/Levix-Digital/any-context-releases/releases).
 
-- **Offline-First Guarantee**: When using LM Studio or Ollama, zero bytes of your documents or questions ever leave your physical device.
-- **Safe Secrets Storage**: API keys and passwords in SQLite are protected with cryptographic PBKDF2 hashing and terminal masking.
-- **Zero Third-Party Training**: Your documents are stored locally in `./context_db` and are never used to train public AI models.
+## License
 
----
-
-## 🧹 Uninstallation
-
-To cleanly remove AnyContext, restore PATH variables, purge legacy databases, and optionally wipe or preserve your vector memory:
-
-- **Windows (PowerShell)**:
-  ```powershell
-  irm https://raw.githubusercontent.com/Levix-Digital/any-context/main/uninstall.ps1 | iex
-  ```
-  *Or locally:* `.\scripts\uninstall.ps1`
-
-- **Linux / macOS (Bash)**:
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/Levix-Digital/any-context/main/uninstall.sh | bash
-  ```
-  *Or locally:* `./scripts/uninstall.sh`
-
-> [!NOTE]
-> The uninstaller prompts whether to preserve or wipe your configured workspaces and vector databases (`%LOCALAPPDATA%\AnyContext` or `~/.local/share/any-context`), purges any legacy database files, cleans your User PATH variable, and removes all native AnyContext executables cleanly.
-
----
-
-<div align="center">
-  <sub>Built with ☕ and ❤️ by <b>Levix Digital</b> to transform document chaos into your personal AI assistant.</sub>
-</div>
+This repository does not include a license file yet. Contact Levix Digital for usage and distribution terms.
