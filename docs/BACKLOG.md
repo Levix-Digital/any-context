@@ -31,6 +31,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Deep Search keeps results with a minimum score of 0.02, which looks low and may let irrelevant chunks into the combined answer.
 
+### IMP-002: Remove the core dependency on actx_installer
+- **Priority**: low
+- **Status**: open
+- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Plan**: -
+- **Description**: The core crate (any-context-core-rs) calls actx_installer directly from commands/engine.rs (install paths, latest release lookup, update logging), so actx_installer cannot be listed in architecture.forbidden_core_imports. In the hexagonal style the core should reach this through a port implemented by an adapter.
+
 ## Adjustments
 
 ### ADJ-001: Update the outdated .clinerules
@@ -39,5 +46,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-16, v0.45.0, PR #333
 - **Plan**: -
 - **Description**: .clinerules no longer matches the current project (Rust workspace, architecture-docs layout, role-based development cycle) and can mislead agents that read it.
+
+### ADJ-002: Add a license file
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Plan**: -
+- **Description**: The repository has no LICENSE file; the README tells readers to contact Levix Digital for usage and distribution terms. The license (or the proprietary terms) still has to be chosen and published.
 
 ## Closed
