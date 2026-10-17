@@ -62,7 +62,7 @@ flowchart TD
 2. **Preprocessing**: `QueryPreprocessor::process` extracts file name mentions, date clauses (as LanceDB filter expressions) and an expanded query with canonical date tokens for BM25.
 3. **File name matches**: chunks whose `file_name` or `file_path` contains a mentioned name (combined with the date clauses when present) get score 1.0 and are *protected*: they keep that score through re-ranking.
 4. **Temporal matches**: chunks matching the date clauses get at least 0.95.
-5. **Dense search**: the query is embedded with the provider and model set by `set_embedding` (the CLI passes the result of `ingestion::resolve_embedding_provider`, the same resolver the sync uses for chunk vectors; default model `text-embedding-3-small`) unless a vector is supplied. When embedding fails, dense search is skipped and ranking relies on the metadata matches and BM25.
+5. **Dense search**: the query is embedded with the provider and model set by `set_embedding` (the CLI passes the result of `ingestion::resolve_query_embedding_provider`: the target recorded by the workspace's last completed sync when its provider can be built, otherwise the resolver the sync uses for chunk vectors; default model `text-embedding-3-small`) unless a vector is supplied. When embedding fails, dense search is skipped and ranking relies on the metadata matches and BM25.
 6. **BM25**: `BM25Index::search` over the expanded query, filtered to the workspace (chunks of the `Global` workspace always pass the filter).
 7. **Fusion**: `reciprocal_rank_fusion(dense_ids, sparse_ids, rrf_k)`; scores are plain RRF scores. Texts stored encrypted (`enc::` prefix) are decrypted here. The candidates are sorted with `compare_by_relevance`: score descending, then newer `last_modified` first on an exact tie (missing or invalid dates last). Recency never changes a score, so it cannot lift a chunk past a better one.
 8. **Threshold**: results below `min_score` are dropped (on RRF scores). The CLI callers use `RRF_MIN_SCORE` (0.005 = 1/(60 + 140)), which keeps every candidate of a pool of up to 140 per list; it guards against empty matches and is not a relevance cutoff.
@@ -119,16 +119,17 @@ All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `m
 
 ## Decisions
 
-- [ADR-0076](../adr/0076-native-hybrid-rag-pipeline.md): `NativeHybridPipeline` centralizes vector, BM25, RRF, deduplication, per-source limits and density budgeting in Rust (source round-robin replaced in ADR-0138).
+- [ADR-0076](../adr/0076-native-hybrid-rag-pipeline.md): `NativeHybridPipeline` centralizes vector, BM25, RRF, deduplication, per-source limits and density budgeting in Rust (source round-robin replaced in ADR-0139).
 - [ADR-0096](../adr/0096-bounded-bm25-deserialization-self-healing-index.md): bounded BM25 deserialization, atomic writes and quarantine of corrupt files.
 - [ADR-0106](../adr/0106-full-rust-parity-python-purge.md): retrieval presets, contextual retrieval envelopes and multi-provider web search in Rust.
 - [ADR-0108](../adr/0108-reflective-deep-search-engine.md): batch retrieval for Deep Search with content-hash deduplication.
 - [ADR-0113](../adr/0113-tabular-chunker-markdown-table-preservation.md): RRF threshold of 0.005 and defensive decryption of `enc::` texts.
-- [ADR-0116](../adr/0116-path-healing-temporal-metadata-change-detection.md): `last_modified` end to end; its recency micro-boost is replaced by a tie-break in ADR-0138.
+- [ADR-0116](../adr/0116-path-healing-temporal-metadata-change-detection.md): `last_modified` end to end; its recency micro-boost is replaced by a tie-break in ADR-0139.
 - [ADR-0120](../adr/0120-source-display-names-shared-sources-removal.md): shared sources search removed; strict workspace isolation.
 - [ADR-0128](../adr/0128-backend-first-deterministic-dual-rag.md): U-shaped reordering, XML isolation, query anchor and Zero Hallucination Gate.
 - [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md): two-stage retrieval with cross-encoder re-ranking and `auto`/`on`/`off` modes.
 - [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): real ONNX re-ranking of at most 30 candidates, protected file-name matches and tail rescaling.
 - [ADR-0132](../adr/0132-query-vectors-use-the-ingestion-embedding-provider-and-model.md): query vectors use the ingestion embedding provider and model.
+- [ADR-0138](../adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md): query vectors prefer the embedding target recorded by the last completed sync.
 - [ADR-0136](../adr/0136-neutralizing-reserved-prompt-tags-in-retrieved-text.md): escaped attributes, neutralized envelope tags in retrieved text and queries, and chunk content declared as data.
-- [ADR-0138](../adr/0138-retrieval-order-follows-relevance.md): relevance-only ranking, per-source cap in score order, recency as a tie-breaker and the `RRF_MIN_SCORE` floor.
+- [ADR-0139](../adr/0139-retrieval-order-follows-relevance.md): relevance-only ranking, per-source cap in score order, recency as a tie-breaker and the `RRF_MIN_SCORE` floor.

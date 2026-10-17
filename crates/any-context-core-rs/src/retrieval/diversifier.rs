@@ -36,7 +36,7 @@ fn source_id(c: &RankedChunk) -> &str {
 /// Selects up to `target_k` chunks from a score-ordered list, at most `max_per_source` per source.
 /// When fewer than `target_k` are selected, the skipped chunks fill the remaining slots, so the cap
 /// gives other sources priority without leaving a slot empty. The selection keeps the input order;
-/// `max_per_source = 0` means no cap (ADR-0138).
+/// `max_per_source = 0` means no cap (ADR-0139).
 pub fn apply_source_cap(
     chunks: Vec<RankedChunk>,
     max_per_source: usize,

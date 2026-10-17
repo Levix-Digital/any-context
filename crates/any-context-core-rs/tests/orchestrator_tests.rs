@@ -170,3 +170,92 @@ async fn test_orchestrator_quality_gate_and_metrics() {
 
     let _ = std::fs::remove_dir_all(temp_dir);
 }
+
+/// Sandbox with a workspace, one or more folders with sample files, and an orchestrator.
+fn embedding_sandbox(
+    name: &str,
+    folders: &[&str],
+) -> (std::path::PathBuf, Arc<NativeConfigDb>, Arc<NativeLanceStore>, NativeSyncOrchestrator, Vec<std::path::PathBuf>) {
+    let temp_dir = std::env::temp_dir().join(format!("actx_{}_{}", name, std::process::id()));
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    let db_dir = temp_dir.join("db");
+    std::fs::create_dir_all(&db_dir).unwrap();
+    let db = Arc::new(NativeConfigDb::open(db_dir.join("settings.db")).expect("open db"));
+    let lance = Arc::new(NativeLanceStore::open(db_dir.join("lancedb")).expect("open lance"));
+    let ws = "EmbeddingTargetWs";
+    db.create_workspace(ws, None).expect("create ws");
+    let mut dirs = Vec::new();
+    for f in folders {
+        let dir = temp_dir.join(f);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("notes.md"), format!("# Notes {f}\nThe {f} folder documents the deployment.")).unwrap();
+        std::fs::write(dir.join("guide.md"), format!("# Guide {f}\nSteps to configure the {f} service.")).unwrap();
+        db.add_workspace_folder(ws, &dir.to_string_lossy()).expect("add folder");
+        dirs.push(dir);
+    }
+    let orchestrator = NativeSyncOrchestrator::new(lance.clone(), db.clone());
+    (temp_dir, db, lance, orchestrator, dirs)
+}
+
+fn mock_sync(target_folder: Option<String>) -> SyncOptions {
+    SyncOptions {
+        workspace: "EmbeddingTargetWs".to_string(),
+        force: false,
+        target_folder,
+        verbose: false,
+        model: Some("mock".to_string()),
+    }
+}
+
+/// Regression BUG-003: after the embedding target changes, the next sync re-embeds every file,
+/// not only the changed ones, and records the new target.
+#[tokio::test]
+async fn test_embedding_target_change_reindexes_whole_workspace() {
+    let (temp_dir, db, lance, orchestrator, _) = embedding_sandbox("emb_target_change", &["docs"]);
+    let ws = "EmbeddingTargetWs";
+
+    let first = orchestrator.run(&mock_sync(None)).await.expect("sync 1");
+    assert_eq!(first.indexed_files, 2);
+    assert_eq!(first.embedding_reindex, None, "a new workspace adopts the current target");
+    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
+    let chunks_before = lance.count_records(Some(ws), None).unwrap();
+
+    let second = orchestrator.run(&mock_sync(None)).await.expect("sync 2");
+    assert!(second.is_up_to_date);
+    assert_eq!(second.embedding_reindex, None);
+
+    // The workspace was indexed with another target (e.g. before `/model` changed the chat model).
+    db.set_workspace_embedding_target(ws, Some("openai/text-embedding-3-small")).unwrap();
+
+    let third = orchestrator.run(&mock_sync(None)).await.expect("sync 3");
+    assert_eq!(third.indexed_files, 2, "every unchanged file must be re-embedded");
+    let msg = third.embedding_reindex.expect("reindex reported");
+    assert!(msg.contains("openai/text-embedding-3-small → mock/mock-embed"), "{msg}");
+    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
+    assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks_before, "old vectors are purged, not duplicated");
+
+    let fourth = orchestrator.run(&mock_sync(None)).await.expect("sync 4");
+    assert!(fourth.is_up_to_date, "a completed reindex is not repeated");
+    assert_eq!(fourth.embedding_reindex, None);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// A folder-scoped sync cannot leave the other folders in the old vector space.
+#[tokio::test]
+async fn test_scoped_sync_with_target_change_reindexes_all_folders() {
+    let (temp_dir, db, _lance, orchestrator, dirs) = embedding_sandbox("emb_target_scoped", &["alpha", "beta"]);
+    let ws = "EmbeddingTargetWs";
+
+    let first = orchestrator.run(&mock_sync(None)).await.expect("sync 1");
+    assert_eq!(first.indexed_files, 4);
+
+    db.set_workspace_embedding_target(ws, Some("openai/text-embedding-3-small")).unwrap();
+    let scoped = mock_sync(Some(dirs[0].to_string_lossy().to_string()));
+    let res = orchestrator.run(&scoped).await.expect("scoped sync");
+    assert_eq!(res.indexed_files, 4, "both folders are re-embedded");
+    assert!(res.embedding_reindex.is_some());
+    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}

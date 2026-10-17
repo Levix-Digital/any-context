@@ -176,7 +176,7 @@ pub const DEFAULT_QUERY_EMBEDDING_MODEL: &str = "text-embedding-3-small";
 pub const MAX_RERANK_CANDIDATES: usize = 30;
 
 /// RRF floor for `min_score`: 1/(60 + 140), so every candidate of a pool of up to 140 per list
-/// passes. It guards against empty matches and is not a relevance cutoff (ADR-0138).
+/// passes. It guards against empty matches and is not a relevance cutoff (ADR-0139).
 pub const RRF_MIN_SCORE: f64 = 0.005;
 
 fn parse_last_modified(value: &Option<String>) -> Option<chrono::DateTime<chrono::FixedOffset>> {

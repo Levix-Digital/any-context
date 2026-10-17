@@ -127,7 +127,7 @@ Exact ties do occur in RRF (a chunk at ranks (i, j) and another at (j, i), or tw
 - Score scale and `rank` attribute (ADJ-005), cross-encoder cutoff (IMP-007), retuning `max_chunks_per_source` (revisit after Frente D and IMP-008, as recorded in BUG-004).
 - Temporal query handling (`QueryPreprocessor` temporal clauses and the LanceDB temporal filter) is unchanged; questions that ask for recent content keep using it.
 
-**ADR**: ADR-0138 "Retrieval order follows relevance: score-ordered per-source cap and recency tie-break", superseding the round-robin part of ADR-0076 and the micro-boost part of ADR-0116, and recording `RRF_MIN_SCORE` as an empty-match guard on the RRF scale. Alternatives recorded: keep round-robin and re-sort afterwards (still lets a weak chunk displace a strong one); hard cap (empties slots in single-source workspaces); multiplicative or smaller recency boost (still a ranking signal with no calibration, since IMP-008 does not exist yet); remove recency entirely (loses the newer-version tie-break of ADR-0116).
+**ADR**: ADR-0139 "Retrieval order follows relevance: score-ordered per-source cap and recency tie-break", superseding the round-robin part of ADR-0076 and the micro-boost part of ADR-0116, and recording `RRF_MIN_SCORE` as an empty-match guard on the RRF scale. Alternatives recorded: keep round-robin and re-sort afterwards (still lets a weak chunk displace a strong one); hard cap (empties slots in single-source workspaces); multiplicative or smaller recency boost (still a ranking signal with no calibration, since IMP-008 does not exist yet); remove recency entirely (loses the newer-version tie-break of ADR-0116).
 
 ## 4. Affected surfaces and files
 
@@ -139,7 +139,7 @@ No change to the `cli` or `tui` surfaces, commands, settings, file formats or st
 | `crates/any-context-core-rs/src/retrieval/mod.rs` | Re-export `apply_source_cap`. |
 | `crates/any-context-core-rs/src/retrieval/pipeline.rs` | Remove the recency boost, add `compare_by_relevance`, use it in the three sorts, call `apply_source_cap` in both paths; tests. |
 | `docs/architecture/retrieval.md` | Steps 7 and 10, batch search paragraph, module table, flowchart, decisions list. |
-| `docs/adr/0138-...md` and the ADR index | New ADR; ADR-0076 and ADR-0116 get a note pointing to it. |
+| `docs/adr/0139-...md` and the ADR index | New ADR; ADR-0076 and ADR-0116 get a note pointing to it. |
 | `crates/any-context-core-rs/src/retrieval/mod.rs` (again) | Re-export `RRF_MIN_SCORE`. |
 | `crates/actx-cli/src/engine.rs` | `deep_search_request` extracted, the three adapters use `RRF_MIN_SCORE`; test. |
 | `docs/BACKLOG.md` | BUG-004, BUG-005 and BUG-006 follow the plan status. |
@@ -172,8 +172,8 @@ Manual tests: no new test. MT-ANS-001 (strict grounding) and MT-MOD-001 (re-rank
 
 ## 6. Documentation (`architecture-docs`, `user-docs`)
 
-- `docs/architecture/retrieval.md`, edited in place: step 7 without the micro-boost; step 8 and the request parameters table with `RRF_MIN_SCORE` (Deep Search 0.005); step 10 describing the per-source cap in score order with backfill; ordering rule (score, then recency on ties) stated once; batch search paragraph; module table entry for `diversifier.rs`; flowchart labels (`RRF k=60`, `Per-source cap`); ADR-0138 in the decisions list. Run `build_index.py` and `check_docs.py` (zero errors).
-- ADR-0138 as described in section 3; short supersession notes in ADR-0076 and ADR-0116.
+- `docs/architecture/retrieval.md`, edited in place: step 7 without the micro-boost; step 8 and the request parameters table with `RRF_MIN_SCORE` (Deep Search 0.005); step 10 describing the per-source cap in score order with backfill; ordering rule (score, then recency on ties) stated once; batch search paragraph; module table entry for `diversifier.rs`; flowchart labels (`RRF k=60`, `Per-source cap`); ADR-0139 in the decisions list. Run `build_index.py` and `check_docs.py` (zero errors).
+- ADR-0139 as described in section 3; short supersession notes in ADR-0076 and ADR-0116.
 - README: no user-visible behavior is documented at this level; `check_readme.py` only to confirm.
 
 ## 7. Release, migration and rollback (`devops-release`)
@@ -197,7 +197,7 @@ Branch: `fix/retrieval-relevance-order` from `dev`; pull request into `dev`.
 4. `cargo test --workspace` green; `cargo clippy` clean on the core crate.
 
 **M2 Docs and ADR**
-5. ADR-0138, notes in ADR-0076 and ADR-0116, `retrieval.md`; `build_index.py`, `check_docs.py`.
+5. ADR-0139, notes in ADR-0076 and ADR-0116, `retrieval.md`; `build_index.py`, `check_docs.py`.
 
 **M3 Review and PR**
 6. Review the diff (code review, `software-design` checklist, `check_design.py`).

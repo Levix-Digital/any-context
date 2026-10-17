@@ -14,6 +14,7 @@ use std::time::Instant;
 
 use sha2::{Digest, Sha256};
 
+use crate::ingestion::embedding::{decide_reindex, resolve_embedding_provider, EmbeddingTarget, ReindexDecision};
 use crate::ingestion::enricher::NativeContextualEnricher;
 use crate::ingestion::model_router::IngestionModelRouter;
 use crate::ingestion::router::IngestionRouter;
@@ -23,9 +24,6 @@ use crate::retrieval::bm25::BM25Index;
 use crate::storage::lancedb::{NativeLanceStore, VectorRecord, DEFAULT_TABLE_NAME, DEFAULT_VECTOR_DIM};
 use crate::storage::sqlite::NativeConfigDb;
 
-use actx_lm::providers::mock::MockLmProvider;
-use actx_lm::providers::openai::OpenAiCompatibleProvider;
-use actx_lm::providers::gemini::GeminiProvider;
 use actx_lm::traits::LmProvider;
 
 /// Configuration options for workspace synchronization.
@@ -73,6 +71,8 @@ pub struct SyncResult {
     pub cancelled: bool,
     /// Chunks indexed before encryption at rest that this pass encrypted in place.
     pub chunks_encrypted_legacy: usize,
+    /// Set when the embedding target changed and the whole workspace was reindexed (ADR-0138).
+    pub embedding_reindex: Option<String>,
 }
 
 /// Pure Rust Ingestion & Vectorization Orchestrator.
@@ -174,20 +174,36 @@ impl NativeSyncOrchestrator {
             }
         };
 
+        // 1b. Embedding target: vectors from another target than the current one are purged and
+        // the whole workspace is re-embedded, even for a folder-scoped pass (ADR-0138).
+        let (lm_provider, embedding_target) = resolve_embedding_provider(&self.db, options.model.as_deref(), ws);
+        let embedding_model = embedding_target.model.clone();
+        let reindex = self.decide_embedding_reindex(ws, &embedding_target);
+        let embedding_reindex = reindex.message();
+        let full_reindex = matches!(reindex, ReindexDecision::Reindex { .. });
+        let force = options.force || full_reindex;
+        let target_folder = if full_reindex { None } else { options.target_folder.clone() };
+        if let Some(ref msg) = embedding_reindex {
+            let _ = self.db.update_sync_status(ws, true, Some(pid), 0, 0, "scanning", Some(msg), None);
+        }
+
         if options.verbose {
             if chunks_encrypted_legacy > 0 {
                 println!("🔒 Encrypted {} chunks stored before encryption at rest.", chunks_encrypted_legacy);
             }
             println!("🦀 [AnyContext Native Rust Ingestion Pipeline]");
             println!("  • Workspace: {}", ws);
-            println!("  • Force Reindex: {}", options.force);
-            if let Some(ref tf) = options.target_folder {
+            println!("  • Force Reindex: {}", force);
+            if let Some(ref msg) = embedding_reindex {
+                println!("  • {}", msg);
+            }
+            if let Some(ref tf) = target_folder {
                 println!("  • Scoped Folder: {}", tf);
             }
         }
 
         // 2. Resolve Monitored Folders
-        let folders = if let Some(ref tf) = options.target_folder {
+        let folders = if let Some(ref tf) = target_folder {
             vec![tf.clone()]
         } else {
             let list = self.db.get_workspace_folders(ws).unwrap_or_default();
@@ -210,15 +226,14 @@ impl NativeSyncOrchestrator {
             Err(_) => BM25Index::new(None, None),
         };
 
-        // 4. Resolve Embedding Provider
-        let (lm_provider, embedding_model) = self.resolve_embedding_provider(options.model.as_deref(), ws);
+        // 4. Embedding provider: resolved in step 1b.
 
         // 5. Check if Force Mode requested
-        if options.force {
+        if force {
             if options.verbose {
                 println!("  • Force mode: Purging existing vectors for workspace '{}'...", ws);
             }
-            if let Some(ref tf) = options.target_folder {
+            if let Some(ref tf) = target_folder {
                 let _ = self.lance_store.delete_by_file(tf, Some(ws), None);
                 let _ = bm25.remove_by_file(tf);
             } else {
@@ -229,7 +244,7 @@ impl NativeSyncOrchestrator {
         }
 
         // 6. Query cached metadata from SQLite
-        let cached_stats = if options.force {
+        let cached_stats = if force {
             HashMap::new()
         } else {
             self.db.get_workspace_files_stat_cache(ws).unwrap_or_default()
@@ -280,7 +295,7 @@ impl NativeSyncOrchestrator {
             }
         }
 
-        let web_urls = if options.target_folder.is_none() {
+        let web_urls = if target_folder.is_none() {
             self.db.get_workspace_web_urls(ws).unwrap_or_default()
         } else {
             vec![]
@@ -318,6 +333,7 @@ impl NativeSyncOrchestrator {
                     println!("✔ Workspace '{}' synchronized: {} files purged.", ws, diff.deleted_files.len());
                 }
             }
+            self.record_embedding_target(ws, &reindex, &embedding_target);
             return Ok(SyncResult {
                 workspace: ws.to_string(),
                 is_up_to_date: diff.is_up_to_date,
@@ -333,6 +349,7 @@ impl NativeSyncOrchestrator {
                 duration_ms: start_time.elapsed().as_millis(),
                 cancelled: false,
                 chunks_encrypted_legacy,
+                embedding_reindex: embedding_reindex.clone(),
             });
         }
 
@@ -381,6 +398,7 @@ impl NativeSyncOrchestrator {
                         duration_ms: start_time.elapsed().as_millis(),
                         cancelled: true,
                         chunks_encrypted_legacy,
+                        embedding_reindex: embedding_reindex.clone(),
                     });
                 }
             }
@@ -524,6 +542,8 @@ impl NativeSyncOrchestrator {
             );
         }
 
+        self.record_embedding_target(ws, &reindex, &embedding_target);
+
         Ok(SyncResult {
             workspace: ws.to_string(),
             is_up_to_date: false,
@@ -539,6 +559,7 @@ impl NativeSyncOrchestrator {
             duration_ms,
             cancelled: false,
             chunks_encrypted_legacy,
+            embedding_reindex,
         })
     }
 
@@ -765,68 +786,28 @@ impl NativeSyncOrchestrator {
         Ok(true)
     }
 
-    /// Resolves active embedding model and concrete provider strategy.
-    fn resolve_embedding_provider(
-        &self,
-        model_override: Option<&str>,
-        workspace: &str,
-    ) -> (Option<Arc<dyn LmProvider>>, String) {
-        resolve_embedding_provider(&self.db, model_override, workspace)
-    }
-}
-
-/// Resolves the embedding provider and model for a workspace.
-///
-/// Ingestion (chunk vectors) and retrieval (query vectors) must both use this function so a
-/// query is embedded with the same model, and therefore in the same vector space, as the index.
-/// Order: explicit override, `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, workspace model, default model.
-pub fn resolve_embedding_provider(
-    db: &NativeConfigDb,
-    model_override: Option<&str>,
-    workspace: &str,
-) -> (Option<Arc<dyn LmProvider>>, String) {
-    let model = model_override
-        .map(|s| s.to_string())
-        .or_else(|| std::env::var("ACTX_EMBEDDING_MODEL").ok())
-        .or_else(|| std::env::var("ACTX_MODEL").ok())
-        .or_else(|| db.get_workspace_model(workspace).ok())
-        .or_else(|| db.get_default_model().ok())
-        .unwrap_or_else(|| "text-embedding-3-small".to_string());
-
-    let raw = model.trim().to_lowercase();
-
-    if raw.starts_with("mock") {
-        return (Some(Arc::new(MockLmProvider::new())), "mock-embed".to_string());
+    /// Decides whether the workspace's stored vectors match the current embedding target.
+    /// A workspace without a row in SQLite cannot record a target and is left as it is.
+    fn decide_embedding_reindex(&self, workspace: &str, current: &EmbeddingTarget) -> ReindexDecision {
+        let recorded = match self.db.get_workspace_embedding_target(workspace) {
+            Ok(Some(recorded)) => recorded,
+            _ => return ReindexDecision::Keep,
+        };
+        // A failed count is treated as indexed data, so a legacy target is never adopted blindly.
+        let has_indexed_data = self
+            .lance_store
+            .count_records(Some(workspace), None)
+            .map(|n| n > 0)
+            .unwrap_or(true);
+        decide_reindex(recorded.as_deref(), current, has_indexed_data)
     }
 
-    if raw.starts_with("gemini") {
-        if let Ok(Some(key)) = db.get_api_key("gemini") {
-            let provider = GeminiProvider::new(key);
-            return (Some(Arc::new(provider)), "text-embedding-004".to_string());
+    /// Records the target once a pass completed, so a cancelled reindex is retried next time.
+    fn record_embedding_target(&self, workspace: &str, decision: &ReindexDecision, target: &EmbeddingTarget) {
+        if *decision != ReindexDecision::Keep {
+            let _ = self.db.set_workspace_embedding_target(workspace, Some(&target.key()));
         }
     }
-
-    if raw.starts_with("ollama") || raw.starts_with("local") {
-        let provider = OpenAiCompatibleProvider::new(
-            "ollama",
-            "http://localhost:11434/v1".to_string(),
-            None,
-        );
-        return (Some(Arc::new(provider)), "nomic-embed-text".to_string());
-    }
-
-    // Default OpenAI embedding provider
-    if let Ok(Some(key)) = db.get_api_key("openai") {
-        let provider = OpenAiCompatibleProvider::new(
-            "openai",
-            "https://api.openai.com/v1".to_string(),
-            Some(key),
-        );
-        return (Some(Arc::new(provider)), "text-embedding-3-small".to_string());
-    }
-
-    // Deterministic fallback mock provider
-    (Some(Arc::new(MockLmProvider::new())), "text-embedding-3-small".to_string())
 }
 
 /// Reads file and computes SHA-256 hex string.

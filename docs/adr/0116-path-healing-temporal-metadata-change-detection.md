@@ -8,7 +8,7 @@ subsystems: [storage, ingestion, retrieval, tui]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: [138]
+amended_by: [139]
 ---
 
 # ADR-0116: Smart Path Healing, Restored Temporal Metadata Rules (Freshness Cascade and HTTP 304) and Active Source Change Detection

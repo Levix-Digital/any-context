@@ -1,5 +1,5 @@
 ---
-id: 138
+id: 139
 title: Retrieval order follows relevance
 status: accepted
 date: '2026-10-17'
@@ -11,7 +11,7 @@ amends: [76, 116]
 amended_by: []
 ---
 
-# ADR-0138: Retrieval order follows relevance
+# ADR-0139: Retrieval order follows relevance
 
 ## Context
 

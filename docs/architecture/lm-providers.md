@@ -46,7 +46,7 @@ Which provider and model a workspace uses is resolved by the [CLI](cli.md) (`res
 | `Groq`, `DeepSeek`, `OpenRouter` | their OpenAI-compatible endpoints | yes | through the OpenAI-compatible adapter |
 | `CustomCompatible` | any base URL | optional | through the OpenAI-compatible adapter |
 | `Anthropic` | Messages API (`x-api-key`, `anthropic-version`) | yes | no |
-| `Gemini` | `streamGenerateContent?alt=sse` | yes | yes |
+| `Gemini` | `streamGenerateContent?alt=sse` | yes | yes (`batchEmbedContents`, `outputDimensionality` 1536 per item: `GEMINI_EMBEDDING_DIM`) |
 | `GemmaOnnx` | local | no | no |
 | `Mock` | none | no | deterministic vectors |
 
@@ -100,3 +100,4 @@ Streaming adapters decode SSE frames into `StreamChunk`s: answer tokens, reasoni
 - [ADR-0125](../adr/0125-local-gemma-activation-hardware-guardrails.md): Gemma models routed by `resolve_lm_provider`, offline fallback when weights are missing.
 - [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): Gemma 4 planned; the provider always uses the fallback.
 - [ADR-0137](../adr/0137-chat-model-catalog-with-retired-model-ids-resolved-to-succes.md): chat model catalog, retired ids resolved to successors, request rules per model.
+- [ADR-0138](../adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md): Gemini embeddings requested at 1536 values to fit the vector table.
