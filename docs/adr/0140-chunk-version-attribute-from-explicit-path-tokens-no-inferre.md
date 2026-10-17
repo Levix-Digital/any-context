@@ -1,5 +1,5 @@
 ---
-id: 139
+id: 140
 title: Chunk version attribute from explicit path tokens, no inferred scope
 status: accepted
 date: '2026-10-17'
@@ -11,7 +11,7 @@ amends: [128]
 amended_by: []
 ---
 
-# ADR-0139: Chunk version attribute from explicit path tokens, no inferred scope
+# ADR-0140: Chunk version attribute from explicit path tokens, no inferred scope
 
 ## Context
 

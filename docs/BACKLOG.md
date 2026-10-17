@@ -6,27 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-004: Source round-robin puts diversity above relevance and breaks the U-shaped order
-- **Severity**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
-- **Description**: `search_single_async` returns chunks in the order produced by `apply_source_diversification` (round-robin across sources), and `ContextFormatter::format_xml_chunks` applies the U-shaped reordering to that order. The second-best chunk can land in the middle of the context while a weak chunk sits next to the user query. The round-robin also only reorders candidates that were already retrieved (dense + BM25 over the whole index), so it does not widen document coverage; its first pass gives every source one slot before any second chunk, so a low-scoring chunk from another source can displace a strong second chunk from the same source. Decision (2026-10-17): remove the round-robin and keep the per-source cap (`max_chunks_per_source`) applied in score order, in both `search_single_async` and `retrieve_hybrid_batch_async`; revisit the cap once hierarchical chunking (Frente D) and the evaluation (IMP-008) exist.
-
-### BUG-005: Recency boost overrides relevance across sources
-- **Severity**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
-- **Description**: The recency boost in `search_single_async` adds up to 0.01 to the RRF score, while the best possible single-list RRF score is 1/61 ≈ 0.0164, so a recently modified file far down the rankings can outrank an older file ranked first. The intent was a tie-breaker between chunks of the same source, but all chunks of a file or web page share the same `last_modified`, and sync deletes the old chunks of a changed source, so the boost has no effect inside a source and only acts across sources. It also changes which candidates reach the cross-encoder.
-
-### BUG-006: Deep Search minimum score discards single-list hits
-- **Severity**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
-- **Description**: Deep Search requests use `min_score: 0.02`, applied to RRF scores before re-ranking. A chunk found only by the dense search or only by BM25 scores at most 1/61 ≈ 0.0164, so it is discarded unless the recency boost (BUG-005) lifts it. Supersedes IMP-001.
-
 ### BUG-008: Scope and version attributes are guessed from path substrings
 - **Severity**: medium
 - **Status**: in_progress
@@ -376,3 +355,27 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
 - **Closed**: 2026-10-17, plan any_context_embedding_target_changes_mix_vector_spaces_and_the_gemini_embedding_model_is_shut_down
 - **Description**: Google shut down text-embedding-004 on 2026-01-14, so ingestion and query embedding for Gemini workspaces fail, and the dense search is skipped without a message (IMP-003). The successor is gemini-embedding-2. Changing the embedding model needs a reindex of the affected workspaces; plan it with BUG-003, FEAT-005 and IMP-004.
+
+### BUG-004: Source round-robin puts diversity above relevance and breaks the U-shaped order
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: any_context_retrieval_order_follows_relevance
+- **Closed**: 2026-10-17, PR #349 (plan any_context_retrieval_order_follows_relevance)
+- **Description**: `search_single_async` returns chunks in the order produced by `apply_source_diversification` (round-robin across sources), and `ContextFormatter::format_xml_chunks` applies the U-shaped reordering to that order. The second-best chunk can land in the middle of the context while a weak chunk sits next to the user query. The round-robin also only reorders candidates that were already retrieved (dense + BM25 over the whole index), so it does not widen document coverage; its first pass gives every source one slot before any second chunk, so a low-scoring chunk from another source can displace a strong second chunk from the same source. Decision (2026-10-17): remove the round-robin and keep the per-source cap (`max_chunks_per_source`) applied in score order, in both `search_single_async` and `retrieve_hybrid_batch_async`; revisit the cap once hierarchical chunking (Frente D) and the evaluation (IMP-008) exist.
+
+### BUG-005: Recency boost overrides relevance across sources
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: any_context_retrieval_order_follows_relevance
+- **Closed**: 2026-10-17, PR #349 (plan any_context_retrieval_order_follows_relevance)
+- **Description**: The recency boost in `search_single_async` adds up to 0.01 to the RRF score, while the best possible single-list RRF score is 1/61 ≈ 0.0164, so a recently modified file far down the rankings can outrank an older file ranked first. The intent was a tie-breaker between chunks of the same source, but all chunks of a file or web page share the same `last_modified`, and sync deletes the old chunks of a changed source, so the boost has no effect inside a source and only acts across sources. It also changes which candidates reach the cross-encoder.
+
+### BUG-006: Deep Search minimum score discards single-list hits
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: any_context_retrieval_order_follows_relevance
+- **Closed**: 2026-10-17, PR #349 (plan any_context_retrieval_order_follows_relevance)
+- **Description**: Deep Search requests use `min_score: 0.02`, applied to RRF scores before re-ranking. A chunk found only by the dense search or only by BM25 scores at most 1/61 ≈ 0.0164, so it is discarded unless the recency boost (BUG-005) lifts it. Supersedes IMP-001.

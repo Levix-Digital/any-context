@@ -2,7 +2,7 @@
 //!
 //! Unifies dense vector similarity (LanceDB), Okapi BM25 lexical ranking,
 //! Reciprocal Rank Fusion (RRF), cross-query SHA-256 deduplication with score accumulation,
-//! source-fair diversification, and density budgeting entirely in native Rust.
+//! a per-source cap in score order, and density budgeting entirely in native Rust.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::storage::lancedb::{NativeLanceStore, ScoredVectorResult};
 use crate::retrieval::bm25::BM25Index;
 use crate::retrieval::rrf::reciprocal_rank_fusion;
-use crate::retrieval::diversifier::{RankedChunk, apply_source_diversification, apply_density_budget};
+use crate::retrieval::diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
 use crate::retrieval::query::QueryPreprocessor;
 use crate::retrieval::token_budget::estimate_token_count;
 use actx_lm::traits::LmProvider;
@@ -174,6 +174,23 @@ pub const DEFAULT_QUERY_EMBEDDING_MODEL: &str = "text-embedding-3-small";
 
 /// Maximum candidates re-scored by the cross-encoder per query (ADR-130).
 pub const MAX_RERANK_CANDIDATES: usize = 30;
+
+/// RRF floor for `min_score`: 1/(60 + 140), so every candidate of a pool of up to 140 per list
+/// passes. It guards against empty matches and is not a relevance cutoff (ADR-0139).
+pub const RRF_MIN_SCORE: f64 = 0.005;
+
+fn parse_last_modified(value: &Option<String>) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+    value.as_deref().and_then(|v| chrono::DateTime::parse_from_rfc3339(v).ok())
+}
+
+/// Relevance order: score descending; on an exact tie, newer `last_modified` first (missing or
+/// invalid dates last). Recency never changes a score, so it cannot lift a chunk past a better one.
+fn compare_by_relevance(a: &HybridSearchResult, b: &HybridSearchResult) -> std::cmp::Ordering {
+    b.score
+        .partial_cmp(&a.score)
+        .unwrap_or(std::cmp::Ordering::Equal)
+        .then_with(|| parse_last_modified(&b.last_modified).cmp(&parse_last_modified(&a.last_modified)))
+}
 
 static LAST_RERANK_LATENCY_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u64::MAX);
 
@@ -668,20 +685,7 @@ impl NativeHybridPipeline {
             let token_count = estimate_token_count(&clear_text);
             let is_guaranteed = guaranteed_file_cids.contains(&chunk_id);
 
-            // Subtle recency boost: recent chunks receive a micro-boost to cleanly break score ties
-            let recency_boost = if let Some(ref lm) = last_modified {
-                if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(lm) {
-                    let now = chrono::Utc::now();
-                    let days_old = (now - dt.with_timezone(&chrono::Utc)).num_days().max(0) as f64;
-                    0.01 / (1.0 + (days_old / 30.0))
-                } else {
-                    0.0
-                }
-            } else {
-                0.0
-            };
-
-            let final_score = if is_guaranteed { 1.0 } else { res.score + recency_boost };
+            let final_score = if is_guaranteed { 1.0 } else { res.score };
 
             results.push(HybridSearchResult {
                 chunk_id,
@@ -700,6 +704,8 @@ impl NativeHybridPipeline {
             });
         }
 
+        results.sort_by(compare_by_relevance);
+
         // Filter by min_score if set
         if req.min_score > 0.0 {
             results.retain(|c| c.score >= req.min_score);
@@ -715,13 +721,9 @@ impl NativeHybridPipeline {
         }
 
         // Sort descending by score (neural cross-encoder or RRF fallback)
-        results.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        results.sort_by(compare_by_relevance);
 
-        // Source-fair diversification
+        // Per-source cap in score order
         let ranked_chunks: Vec<RankedChunk> = results
             .iter()
             .map(|c| RankedChunk {
@@ -735,14 +737,10 @@ impl NativeHybridPipeline {
             })
             .collect();
 
-        let diversified_ranked = apply_source_diversification(
-            ranked_chunks,
-            req.max_chunks_per_source,
-            req.top_k,
-        );
+        let capped_ranked = apply_source_cap(ranked_chunks, req.max_chunks_per_source, req.top_k);
 
         // Density budgeting
-        let budgeted_ranked = apply_density_budget(diversified_ranked, req.max_density_chars);
+        let budgeted_ranked = apply_density_budget(capped_ranked, req.max_density_chars);
 
         let mut candidate_map: HashMap<String, HybridSearchResult> =
             results.into_iter().map(|c| (c.chunk_id.clone(), c)).collect();
@@ -775,7 +773,7 @@ impl NativeHybridPipeline {
     }
 
     /// RFC-042: Concurrent multi-query batch retrieval with cross-query SHA-256 deduplication,
-    /// RRF score accumulation, source-fair diversification, and density budgeting.
+    /// RRF score accumulation, a per-source cap in score order, and density budgeting.
     pub async fn retrieve_hybrid_batch_async(
         &self,
         requests: &[HybridSearchRequest],
@@ -841,13 +839,9 @@ impl NativeHybridPipeline {
         // against cross-encoder scores, overwrite pinned matches and repeat CPU inference.
 
         // Sort descending by accumulated score (neural or RRF fallback)
-        candidates.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        candidates.sort_by(compare_by_relevance);
 
-        // 4. Source-Fair Round-Robin Diversification
+        // 4. Per-source cap in score order
         let ranked_chunks: Vec<RankedChunk> = candidates
             .iter()
             .map(|c| RankedChunk {
@@ -861,15 +855,11 @@ impl NativeHybridPipeline {
             })
             .collect();
 
-        let diversified_ranked = apply_source_diversification(
-            ranked_chunks,
-            first_req.max_chunks_per_source,
-            first_req.top_k,
-        );
+        let capped_ranked =
+            apply_source_cap(ranked_chunks, first_req.max_chunks_per_source, first_req.top_k);
 
         // 5. Density Budgeting
-        let budgeted_ranked =
-            apply_density_budget(diversified_ranked, first_req.max_density_chars);
+        let budgeted_ranked = apply_density_budget(capped_ranked, first_req.max_density_chars);
 
         // 6. Map back to full HybridSearchResult preserving metadata and matched subqueries
         let mut candidate_map: HashMap<String, HybridSearchResult> =
@@ -1136,5 +1126,134 @@ mod tests {
             .map(|i| score(&format!("c{i}")))
             .fold(f64::MAX, f64::min);
         assert!(score("tail") < min_head, "unscored tail must stay below every re-scored item");
+    }
+
+    /// BM25-only pipeline (no embedding provider): every hit is a single-list hit scored 1/(60 + rank).
+    fn bm25_pipeline(name: &str, chunks: &[(&str, &str, &str, &str)]) -> (NativeHybridPipeline, PathBuf) {
+        let temp_dir = std::env::temp_dir().join(format!("actx_test_{name}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let pipeline = NativeHybridPipeline::open(&temp_dir).unwrap();
+        for (id, text, file, modified) in chunks {
+            pipeline.add_chunk_to_bm25(
+                "workspace_chunks",
+                id.to_string(),
+                text.to_string(),
+                file.to_string(),
+                format!("/docs/{file}"),
+                "Default".to_string(),
+                "Local Document".to_string(),
+                Some(modified.to_string()),
+            );
+        }
+        (pipeline, temp_dir)
+    }
+
+    fn assert_descending(results: &[HybridSearchResult]) {
+        let order: Vec<(&str, f64)> = results.iter().map(|r| (r.chunk_id.as_str(), r.score)).collect();
+        assert!(
+            results.windows(2).all(|w| w[0].score >= w[1].score),
+            "results must be in descending score order: {order:?}"
+        );
+    }
+
+    const SAME_DAY: &str = "2026-10-10T12:00:00Z";
+
+    fn two_source_chunks() -> Vec<(&'static str, &'static str, &'static str, &'static str)> {
+        vec![
+            ("a1", "kestrel kestrel kestrel kestrel nesting", "alpha.md", SAME_DAY),
+            ("a2", "kestrel kestrel kestrel nesting habits", "alpha.md", SAME_DAY),
+            ("a3", "kestrel kestrel nesting habits of birds", "alpha.md", SAME_DAY),
+            ("b1", "kestrel nesting habits of small birds of prey", "beta.md", SAME_DAY),
+        ]
+    }
+
+    #[test]
+    fn search_single_returns_descending_scores_across_sources() {
+        let (pipeline, dir) = bm25_pipeline("order_single", &two_source_chunks());
+        let results = pipeline
+            .search(HybridSearchRequest { query_text: "kestrel".to_string(), ..Default::default() })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results.len(), 4);
+        assert_descending(&results);
+        assert_eq!(results[0].chunk_id, "a1");
+        assert_eq!(results[1].chunk_id, "a2", "the second best chunk stays second");
+    }
+
+    #[test]
+    fn batch_returns_descending_scores() {
+        let (pipeline, dir) = bm25_pipeline("order_batch", &two_source_chunks());
+        let results = pipeline
+            .retrieve_hybrid_batch(vec![HybridSearchRequest { query_text: "kestrel".to_string(), ..Default::default() }])
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results.len(), 4);
+        assert_descending(&results);
+        assert_eq!(results[1].chunk_id, "a2");
+    }
+
+    #[test]
+    fn recency_does_not_outrank_relevance() {
+        let today = chrono::Utc::now().to_rfc3339();
+        let (pipeline, dir) = bm25_pipeline(
+            "recency",
+            &[
+                ("old", "osprey osprey osprey migration", "old.md", "2020-01-01T00:00:00Z"),
+                ("new", "osprey migration routes over the northern coast", "new.md", today.as_str()),
+            ],
+        );
+        let results = pipeline
+            .search(HybridSearchRequest { query_text: "osprey".to_string(), ..Default::default() })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results[0].chunk_id, "old", "the better match wins regardless of age");
+        assert_eq!(results[0].score, 1.0 / 61.0, "scores are plain RRF scores");
+        assert_eq!(results[1].score, 1.0 / 62.0);
+    }
+
+    fn dated(id: &str, score: f64, modified: Option<&str>) -> HybridSearchResult {
+        HybridSearchResult { last_modified: modified.map(str::to_string), ..result(id, id, score) }
+    }
+
+    #[test]
+    fn compare_by_relevance_uses_recency_only_on_ties() {
+        let mut items = vec![
+            dated("new-weak", 0.010, Some("2026-10-16T00:00:00Z")),
+            dated("old-strong", 0.020, Some("2020-01-01T00:00:00Z")),
+            dated("no-date", 0.015, None),
+            dated("tie-invalid", 0.015, Some("yesterday")),
+            dated("tie-old", 0.015, Some("2021-01-01T00:00:00+02:00")),
+            dated("tie-new", 0.015, Some("2026-01-01T00:00:00Z")),
+        ];
+        items.sort_by(compare_by_relevance);
+        let order: Vec<&str> = items.iter().map(|c| c.chunk_id.as_str()).collect();
+        assert_eq!(order, vec!["old-strong", "tie-new", "tie-old", "no-date", "tie-invalid", "new-weak"]);
+    }
+
+    #[test]
+    fn rrf_min_score_keeps_whole_pool() {
+        assert!(1.0 / (60.0 + 140.0) >= RRF_MIN_SCORE);
+    }
+
+    #[test]
+    fn batch_keeps_single_list_hits_at_rrf_min_score() {
+        let (pipeline, dir) = bm25_pipeline(
+            "min_score",
+            &[("only-bm25", "heron heron wading in the shallows", "heron.md", SAME_DAY)],
+        );
+        let results = pipeline
+            .retrieve_hybrid_batch(vec![HybridSearchRequest {
+                query_text: "heron".to_string(),
+                min_score: RRF_MIN_SCORE,
+                ..Default::default()
+            }])
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results.len(), 1, "a hit found by one list only must survive the floor");
+        assert_eq!(results[0].score, 1.0 / 61.0);
     }
 }

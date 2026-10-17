@@ -46,7 +46,7 @@ status_log:
   note: 'Milestone ''M1 Formatter fix'' completed: infer_version replaces infer_scope_and_version; cargo test --workspace green'
 - at: '2026-10-17T19:50:57'
   by: Claude
-  note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0139, retrieval page, MT-ANS-006; docs, readme and manual test checks clean'
+  note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0140, retrieval page, MT-ANS-006; docs, readme and manual test checks clean'
 ---
 
 # Scope and version attributes are guessed from path substrings
@@ -127,7 +127,7 @@ Hexagonal style: prompt formatting is a core concern (`retrieval/prompt.rs`); ad
 
 ### ADR
 
-New ADR-0139 "Chunk version attribute from explicit path tokens, no inferred scope", amending ADR-0128 (structural isolation with scope metadata): `scope` removed, `version` only from whole tokens and omitted without evidence, rule 2 becomes a conflict rule that reports values per source. Alternatives recorded: remove both attributes (loses a clear version signal from `v1/`, `v2/` folders), keep both with whole-token matching and the hard rule (still a fixed domain list, still separates `api-gateway/docs/billing.md` from `timeouts.md`), no change. ADR-0139 has `amends: [128]` and ADR-0128 gets `amended_by: [136, 139]`, the frontmatter convention used for ADR-0136.
+New ADR-0140 "Chunk version attribute from explicit path tokens, no inferred scope", amending ADR-0128 (structural isolation with scope metadata): `scope` removed, `version` only from whole tokens and omitted without evidence, rule 2 becomes a conflict rule that reports values per source. Alternatives recorded: remove both attributes (loses a clear version signal from `v1/`, `v2/` folders), keep both with whole-token matching and the hard rule (still a fixed domain list, still separates `api-gateway/docs/billing.md` from `timeouts.md`), no change. ADR-0140 has `amends: [128]` and ADR-0128 gets `amended_by: [136, 139]`, the frontmatter convention used for ADR-0136.
 
 ## 4. Affected surfaces and files
 
@@ -153,8 +153,8 @@ Acceptance criteria: no `scope` attribute in any prompt; `version` present only 
 
 ## 6. Documentation (`architecture-docs`, `user-docs`)
 
-- `docs/architecture/retrieval.md`, "Context formatting": the chunk tag is `<chunk id rank score source file [version] type>`; `infer_version` takes the last whole `v<n>[.<n>...]` token of the path (URL path only for web pages), else `legacy` for `legacy`/`deprecated`, else no attribute; the isolation rules treat differing sources or versions as a reason to report values per source, not as a ban. Add ADR-0139 to Decisions.
-- ADR-0139 (new) and `amended_by` on ADR-0128; `build_index.py` and `check_docs.py` with zero errors.
+- `docs/architecture/retrieval.md`, "Context formatting": the chunk tag is `<chunk id rank score source file [version] type>`; `infer_version` takes the last whole `v<n>[.<n>...]` token of the path (URL path only for web pages), else `legacy` for `legacy`/`deprecated`, else no attribute; the isolation rules treat differing sources or versions as a reason to report values per source, not as a ban. Add ADR-0140 to Decisions.
+- ADR-0140 (new) and `amended_by` on ADR-0128; `build_index.py` and `check_docs.py` with zero errors.
 - README: no change (the prompt format is not documented for users); `check_readme.py` still run.
 
 ## 7. Release, migration and rollback (`devops-release`)
@@ -169,6 +169,6 @@ Acceptance criteria: no `scope` attribute in any prompt; `version` present only 
 ## 8. Execution steps and milestones
 
 1. **M1 Formatter fix**: on the work branch (from `dev`), replace `infer_scope_and_version` with `infer_version`, update `format_xml_chunks`, rules 1, 2 and 5 and the anchor instruction; new and updated tests green; `cargo test --workspace` green.
-2. **M2 Docs and manual tests**: ADR-0139, `amended_by` on ADR-0128, retrieval page, MT-ANS-006; `check_docs.py`, `check_readme.py` and `manual_tests.py validate` with zero errors.
+2. **M2 Docs and manual tests**: ADR-0140, `amended_by` on ADR-0128, retrieval page, MT-ANS-006; `check_docs.py`, `check_readme.py` and `manual_tests.py validate` with zero errors.
 3. **M3 Review and PR**: code review, `software-design` checklist and `check_design.py`; PR into `dev`, CI green; close BUG-008 when merged.
 4. Release with v0.45.1 when the user wants it (version bump PR, `v0.45.1-rc.N`, MT-ANS-006 in the run).
