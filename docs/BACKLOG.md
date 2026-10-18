@@ -6,13 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-010: Section and line metadata are lost at ingestion
-- **Severity**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: any_context_section_and_line_metadata_are_lost_at_ingestion
-- **Description**: When a document envelope exists, `embed_and_upsert_chunks` stores the document summary in place of the chunk's `header_path`, and start/end lines are not stored in LanceDB. The prompt header only shows the file name, and the Deep Search retriever passes `header_path`, `start_line` and `end_line` as `None`, although `SUMMARY_PROMPT` asks for `[path:lines]` citations. Related to the LanceDB schema changes planned in Frentes C and D (IMP-004).
-
 ### BUG-011: Chunk text sent to the model depends on the retrieval path
 - **Severity**: low
 - **Status**: open
@@ -388,3 +381,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_deep_search_synthesis_bypasses_the_canonical_context_formatter
 - **Closed**: 2026-10-18, PR #353
 - **Description**: The Deep Search `SUMMARY_PROMPT` places the original query before the chunks and lists them as plain `--- CHUNK n ---` blocks, without U-shaped reordering, XML isolation, scope/version attributes or a query anchor. It is the mode that gathers the most chunks from several sub-queries.
+
+### BUG-010: Section and line metadata are lost at ingestion
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: any_context_section_and_line_metadata_are_lost_at_ingestion
+- **Closed**: 2026-10-18, PR #355
+- **Description**: When a document envelope exists, `embed_and_upsert_chunks` stores the document summary in place of the chunk's `header_path`, and start/end lines are not stored in LanceDB. The prompt header only shows the file name, and the Deep Search retriever passes `header_path`, `start_line` and `end_line` as `None`, although `SUMMARY_PROMPT` asks for `[path:lines]` citations. Related to the LanceDB schema changes planned in Frentes C and D (IMP-004).
