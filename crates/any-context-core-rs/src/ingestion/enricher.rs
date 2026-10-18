@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use sha2::{Digest, Sha256};
 use crate::models::SemanticEnvelope;
 use crate::storage::sqlite::NativeConfigDb;
@@ -117,6 +117,20 @@ impl NativeContextualEnricher {
         format!("[Context: {} | Keywords: {}]\n---\n{}", envelope.summary, kw_str, chunk_text)
     }
 
+    /// Removes the leading envelope added by `apply_envelope_to_chunk`; any other text is
+    /// returned unchanged. Keywords are letters only, so the header ends at the first
+    /// `]\n---\n` after a well-formed keyword list.
+    pub fn strip_envelope(text: &str) -> &str {
+        static ENVELOPE: OnceLock<regex::Regex> = OnceLock::new();
+        let re = ENVELOPE.get_or_init(|| {
+            regex::Regex::new(r"(?s)\A\[Context: .*? \| Keywords: [\p{L}, ]*\]\n---\n").unwrap()
+        });
+        match re.find(text) {
+            Some(m) => &text[m.end()..],
+            None => text,
+        }
+    }
+
     /// Extracts top domain keywords by frequency, length, and title significance.
     pub fn extract_top_keywords(text: &str, title: &str, top_n: usize) -> Vec<String> {
         let stop_words: HashSet<&'static str> = [
@@ -177,5 +191,43 @@ mod tests {
         let enveloped = enricher.apply_envelope_to_chunk("search_latency = 12ms", &env);
         assert!(enveloped.starts_with("[Context:"));
         assert!(enveloped.contains("search_latency = 12ms"));
+    }
+
+    fn envelope(summary: &str, keywords: &[&str]) -> SemanticEnvelope {
+        SemanticEnvelope {
+            summary: summary.to_string(),
+            keywords: keywords.iter().map(|k| k.to_string()).collect(),
+            content_hash: String::new(),
+            file_name: "guide.md".to_string(),
+            file_path: None,
+            url: None,
+            created_at: String::new(),
+        }
+    }
+
+    #[test]
+    fn test_strip_envelope_round_trips_apply_envelope() {
+        let enricher = NativeContextualEnricher::new(Arc::new(NativeConfigDb::open_in_memory().unwrap()));
+        let chunk = "kestrel timeouts are retried three times\n---\nsecond part";
+        for env in [
+            envelope("Document 'guide.md': Kestrel is a gateway.", &["kestrel", "timeouts", "configuração"]),
+            envelope("Document 'guide.md': no keywords.", &[]),
+            envelope("Document 'a.md': [draft] a | b\n---\nmore ] text", &["draft"]),
+        ] {
+            let enveloped = enricher.apply_envelope_to_chunk(chunk, &env);
+            assert_eq!(NativeContextualEnricher::strip_envelope(&enveloped), chunk);
+        }
+    }
+
+    #[test]
+    fn test_strip_envelope_leaves_other_text_unchanged() {
+        for text in [
+            "plain chunk text",
+            "[Context: not an envelope]\n---\ntext",
+            "intro\n[Context: x | Keywords: y]\n---\ntext",
+            "",
+        ] {
+            assert_eq!(NativeContextualEnricher::strip_envelope(text), text);
+        }
     }
 }
