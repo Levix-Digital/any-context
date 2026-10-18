@@ -439,6 +439,21 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-ANS-008: Requests to manage sources are answered with the commands
+
+- **Covers**: system prompt per answer path, source management guidance, conversation history
+- **Prerequisites**: an indexed workspace with at least one earlier question and answer in this session
+- **Steps**:
+  1. With `/search fast`, ask "add https://docs.example.com as a web source", then "list my web sources", then "what did we talk about earlier?".
+  2. Run `/search deep` and ask the same three questions.
+  3. Run `/sources`.
+- **Expected**:
+  - The first two answers explain `/web <url>` and `/sources` (or `/folder`), never say that the source was added or listed by the assistant, and contain no tool call text, function call or JSON request (such as `add_web_source(...)`).
+  - The third answer summarizes the earlier turns of the conversation without claiming a search.
+  - `/sources` shows that no web source was added.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ## Local Re-Ranking and Models
 
 ### MT-MOD-001: The local re-ranker improves ordering and reports its state

@@ -7,7 +7,7 @@ version: 0.45.1
 status: planned
 author: Claude
 created_at: '2026-10-18T15:17:32'
-updated_at: '2026-10-18T15:25:01'
+updated_at: '2026-10-18T15:57:21'
 session_id: null
 tags: []
 supersedes: null
@@ -17,9 +17,13 @@ backlog_items:
 - BUG-012
 milestones:
 - name: M1 Prompt per path
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M2 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M3 Review and PR
   done: false
 status_log:
@@ -31,6 +35,12 @@ status_log:
   by: Claude
   status: planned
   note: Plan updated
+- at: '2026-10-18T15:57:19'
+  by: Claude
+  note: Milestone 'M1 Prompt per path' completed
+- at: '2026-10-18T15:57:21'
+  by: Claude
+  note: Milestone 'M2 Docs and manual tests' completed
 ---
 
 # Agent prompt names tools that do not exist
