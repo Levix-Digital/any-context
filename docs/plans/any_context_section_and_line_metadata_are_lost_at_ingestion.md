@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-18T08:31:37'
-updated_at: '2026-10-18T09:08:02'
+updated_at: '2026-10-18T09:09:54'
 session_id: null
 tags:
 - ingestion
@@ -29,7 +29,9 @@ milestones:
   done_at: '2026-10-18'
   by: Claude
 - name: M3 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M4 Review and PR
   done: false
 status_log:
@@ -51,6 +53,9 @@ status_log:
 - at: '2026-10-18T09:08:02'
   by: Claude
   note: 'Milestone ''M2 Retrieval and prompt'' completed: HybridSearchResult provenance, BM25-only lookup, lines attribute, Section header, citation rule, Deep Search mapping; cargo test --workspace green'
+- at: '2026-10-18T09:09:54'
+  by: Claude
+  note: 'Milestone ''M3 Docs and manual tests'' completed: ADR-0142, storage/ingestion/retrieval/chunkers/agent pages, README, MT-ANS-007 and MT-SYNC-002; docs, readme, manual test and design checks clean'
 ---
 
 # Section and line metadata are lost at ingestion
