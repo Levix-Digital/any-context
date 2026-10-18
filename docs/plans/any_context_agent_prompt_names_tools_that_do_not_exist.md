@@ -4,10 +4,10 @@ project: any-context
 title: Agent prompt names tools that do not exist
 kind: bug
 version: 0.45.1
-status: planned
+status: completed
 author: Claude
 created_at: '2026-10-18T15:17:32'
-updated_at: '2026-10-18T16:14:47'
+updated_at: '2026-10-18T16:32:24'
 session_id: null
 tags: []
 supersedes: null
@@ -46,6 +46,10 @@ status_log:
 - at: '2026-10-18T16:14:47'
   by: Claude
   note: 'Milestone ''M3 Review and PR'' completed: PR #359, CI green'
+- at: '2026-10-18T16:32:24'
+  by: Claude
+  status: completed
+  note: 'Delivered in PR #359'
 ---
 
 # Agent prompt names tools that do not exist

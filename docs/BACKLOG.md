@@ -6,13 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-012: Agent prompt names tools that do not exist
-- **Severity**: medium
-- **Status**: planned
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: any_context_agent_prompt_names_tools_that_do_not_exist
-- **Description**: `config/AGENT.md` tells the model to call `add_web_source`, `list_web_sources`, `remove_web_source` and `search_db(search_session_memory=True)`, but only `search_db(query)` and `system_status` are registered. It also says the model must always call `search_db` first, while the deterministic path sends the retrieved chunks with no tools available.
-
 ### BUG-014: Failed embedding calls store pseudo-vectors next to real ones
 - **Severity**: medium
 - **Status**: open
@@ -405,3 +398,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_chunk_text_and_deduplication_depend_on_the_retrieval_path
 - **Closed**: 2026-10-18, plan any_context_chunk_text_and_deduplication_depend_on_the_retrieval_path
 - **Description**: retrieve_hybrid_batch_async keys its cross-query deduplication on content_hash, which is the SHA-256 of the whole file: every dense hit of one file collapses into the first chunk and the scores of the other chunks are added to it. BM25-only hits carry an empty hash and fall back to the chunk id, so they are not merged.
+
+### BUG-012: Agent prompt names tools that do not exist
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: any_context_agent_prompt_names_tools_that_do_not_exist
+- **Closed**: 2026-10-18, plan any_context_agent_prompt_names_tools_that_do_not_exist, PR #359
+- **Description**: `config/AGENT.md` tells the model to call `add_web_source`, `list_web_sources`, `remove_web_source` and `search_db(search_session_memory=True)`, but only `search_db(query)` and `system_status` are registered. It also says the model must always call `search_db` first, while the deterministic path sends the retrieved chunks with no tools available.
