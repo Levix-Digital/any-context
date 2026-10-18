@@ -4,10 +4,10 @@ project: any-context
 title: 'Embedding failures are hidden: pseudo-vectors at ingestion and silent BM25-only queries'
 kind: feature
 version: v0.45.1
-status: in_progress
+status: completed
 author: Claude
 created_at: '2026-10-18T19:32:46'
-updated_at: '2026-10-18T22:52:46'
+updated_at: '2026-10-18T23:18:07'
 session_id: null
 tags: []
 supersedes: null
@@ -69,6 +69,10 @@ status_log:
   by: Claude
   status: in_progress
   note: All milestones done on the branch; completed when the pull request is merged
+- at: '2026-10-18T23:18:07'
+  by: Claude
+  status: completed
+  note: 'Merged in PR #363'
 ---
 
 # Embedding failures are hidden: pseudo-vectors at ingestion and silent BM25-only queries
