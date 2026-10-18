@@ -62,6 +62,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     println!("✔ Native background sync finished: {} files indexed, {} chunks created in {}ms.",
                         res.indexed_files, res.chunks_created, res.duration_ms);
                 }
+                print_sync_errors(&res);
             }
             Err(e) => {
                 eprintln!("[!] Native background sync error: {e}");
@@ -98,6 +99,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     println!("✔ Native sync completed: {} files indexed, {} chunks created in {}ms.",
                         res.indexed_files, res.chunks_created, res.duration_ms);
                 }
+                print_sync_errors(&res);
             }
             Err(e) => {
                 eprintln!("[!] Native sync failed: {e}");
@@ -626,3 +628,49 @@ pub async fn handle_download(tier_opt: Option<&str>, force: bool, check: bool) {
     }
 }
 
+/// Most errors listed after a sync; the rest are counted.
+const MAX_SYNC_ERRORS_SHOWN: usize = 10;
+
+/// Lines printed after a sync with errors: files that failed are retried on the next sync.
+fn sync_error_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<String> {
+    if res.errors.is_empty() {
+        return Vec::new();
+    }
+    let mut lines = vec![format!("⚠ {} error(s) during the sync:", res.errors.len())];
+    lines.extend(res.errors.iter().take(MAX_SYNC_ERRORS_SHOWN).map(|e| format!("  • {e}")));
+    if res.errors.len() > MAX_SYNC_ERRORS_SHOWN {
+        lines.push(format!("  … and {} more", res.errors.len() - MAX_SYNC_ERRORS_SHOWN));
+    }
+    if res.embedding_failures > 0 {
+        lines.push(format!(
+            "  {} file(s) not embedded are retried on the next sync; keyword search finds them meanwhile.",
+            res.embedding_failures
+        ));
+    }
+    lines
+}
+
+fn print_sync_errors(res: &any_context_core_rs::ingestion::SyncResult) {
+    for line in sync_error_lines(res) {
+        eprintln!("{line}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sync_error_lines_list_errors_and_the_retry_note() {
+        let mut res = any_context_core_rs::ingestion::SyncResult::default();
+        assert!(sync_error_lines(&res).is_empty());
+
+        res.errors = (0..12).map(|i| format!("Embedding/upsert error on 'f{i}.md': quota")).collect();
+        res.embedding_failures = 12;
+        let lines = sync_error_lines(&res);
+        assert_eq!(lines[0], "⚠ 12 error(s) during the sync:");
+        assert_eq!(lines.iter().filter(|l| l.starts_with("  • ")).count(), MAX_SYNC_ERRORS_SHOWN);
+        assert!(lines.contains(&"  … and 2 more".to_string()), "{lines:?}");
+        assert!(lines.last().unwrap().contains("12 file(s) not embedded are retried on the next sync"), "{lines:?}");
+    }
+}

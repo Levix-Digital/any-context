@@ -120,6 +120,11 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
                 warn.clone(),
                 Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
             )
+        } else if let Some(warn) = idle_sync_warning(status) {
+            (
+                warn,
+                Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+            )
         } else if app.changes_detected {
             (
                 "⚡ Changes detected (/sync)".to_string(),
@@ -476,6 +481,15 @@ fn render_slash_palette(frame: &mut Frame, input_area: Rect, app: &App, theme: &
     frame.render_widget(list, popup_area);
 }
 
+/// Warning for an idle workspace whose last sync left files without embeddings (ADR-0146).
+fn idle_sync_warning(status: &any_context_core_rs::storage::WorkspaceSyncStatus) -> Option<String> {
+    if status.is_syncing || status.stage == "cancelled" {
+        return None;
+    }
+    let error = status.error.as_deref().filter(|e| !e.trim().is_empty())?;
+    Some(format!("⚠ {} (/sync)", any_context_core_rs::ingestion::sync_error_headline(error)))
+}
+
 fn render_footer(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
     let mut spans = Vec::new();
 
@@ -490,6 +504,9 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
             spans.push(Span::styled("🛑 Sync cancelled ", Style::default().fg(theme.text_muted)));
             spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
         } else if let Some(ref warn) = app.source_health_warning {
+            spans.push(Span::styled(format!("{} ", warn), Style::default().fg(theme.error).add_modifier(Modifier::BOLD)));
+            spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
+        } else if let Some(warn) = idle_sync_warning(status) {
             spans.push(Span::styled(format!("{} ", warn), Style::default().fg(theme.error).add_modifier(Modifier::BOLD)));
             spans.push(Span::styled("│ ", Style::default().fg(theme.border_unfocused)));
         } else if app.changes_detected {
@@ -929,4 +946,33 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn status(is_syncing: bool, stage: &str, error: Option<&str>) -> any_context_core_rs::storage::WorkspaceSyncStatus {
+        any_context_core_rs::storage::WorkspaceSyncStatus {
+            workspace_name: "Work".to_string(),
+            is_syncing,
+            pid: None,
+            current_item: 0,
+            total_items: 0,
+            stage: stage.to_string(),
+            item_name: None,
+            progress_bar: String::new(),
+            updated_at: "2026-10-18T10:00:00Z".to_string(),
+            error: error.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn idle_sync_warning_shows_the_headline_of_the_last_sync_error() {
+        let summary = any_context_core_rs::ingestion::embedding_failure_summary(3, "Embedding/upsert error on 'a.md': quota");
+        assert_eq!(idle_sync_warning(&status(false, "idle", Some(&summary))).as_deref(), Some("⚠ 3 files not embedded (/sync)"));
+        assert_eq!(idle_sync_warning(&status(false, "idle", None)), None);
+        assert_eq!(idle_sync_warning(&status(true, "files", Some(&summary))), None, "a running sync shows its progress");
+        assert_eq!(idle_sync_warning(&status(false, "cancelled", Some(&summary))), None);
+    }
 }

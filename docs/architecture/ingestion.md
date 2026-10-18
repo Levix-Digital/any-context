@@ -103,8 +103,18 @@ Document AI candidates are resolved by `process_document_ai_candidates`, in orde
 - Chunk ids are `<first 12 hex chars of the file SHA-256>_<index>`.
 - `resolve_embedding_provider(db, model_override, workspace)` (`ingestion/embedding.rs`) picks the model name from, in order: the explicit override, `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, the workspace (chat) model, the default model, then `text-embedding-3-small`. It returns the provider and an `EmbeddingTarget` (`provider/model`).
 - The target is chosen from the model name: `mock*` gives `mock/mock-embed`; `gemini*` gives `gemini/gemini-embedding-2` when a Gemini key is stored; `ollama*`/`local*` give `ollama/nomic-embed-text` on `http://localhost:11434/v1`; otherwise `openai/text-embedding-3-small`. When the chosen provider has no key, it falls back to OpenAI when an OpenAI key is stored, else to `mock/mock-embed`.
-- If embedding fails, or there is no provider, the chunks get deterministic pseudo-vectors derived from the SHA-256 of the text, so a sync never fails for lack of an API key (but semantic search quality then depends on BM25).
+- Without a provider the chunks get deterministic pseudo-vectors derived from the SHA-256 of the text. The sync never reaches this today, since the resolver falls back to the mock provider; a failed embedding call fails the file instead (see "Embedding failures").
 - Records are upserted into the LanceDB table `workspace_chunks` with `last_modified` (RFC 3339 from the file modification time), content type, summary, keywords and content hash; text, summary and keywords are encrypted by the store (see [storage](storage.md)).
+
+### Embedding failures
+
+A failed embedding call fails the file ([ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md)):
+
+- `embed_and_upsert_chunks` returns `EmbedFailure`: `Provider(LmError)`, `ShortAnswer` (a vector count different from the chunk count), `Store` (LanceDB upsert) or `Skipped`. Nothing is written to LanceDB for that file, and the file is not recorded in the stat cache, so the next sync retries it.
+- Its chunks stay in BM25, which receives them before the embedding call, so keyword search still finds it. Before indexing a file the loop removes the file's BM25 chunks (`remove_by_exact_file`), so a retry after an edit leaves no chunks of the failed version behind.
+- A `RateLimit` error is retried once after `retry_after_secs` (2 s when absent, at most 30 s).
+- `EmbedBreaker` (one per pass, shared with web pages) opens on an `Auth` error or after 3 consecutive failed files; a short answer counts as a failure and a success resets the count. While it is open, files and pages are still chunked into BM25 and fail as `Skipped` without calling the provider.
+- `SyncResult.embedding_failures` counts the files and pages that failed. The final status writes `embedding_failure_summary` ("N files not embedded; they are retried on the next sync; first error: ...") into `workspace_sync_status.error`; a pass without failures clears it. `sync_error_headline` gives the part before the first `; ` for one-line surfaces.
 
 ### Embedding target and reindex
 
@@ -126,11 +136,12 @@ The reindex needs no confirmation; its message ("Embedding model changed (A → 
 - Page text comes from Jina Reader (`https://r.jina.ai/<url>` with `Accept: text/markdown`, 15 s timeout, 50,000 character limit, optional `JINA_API_KEY`), falling back to stripping HTML tags when Jina fails or returns nothing.
 - The modification date follows a cascade: page metadata (`extract_web_metadata`: meta tags, JSON-LD, `<time>`, footer patterns, date in the URL), sitemap `<lastmod>`, the HTTP `Last-Modified` header, and finally the crawl time.
 - Each page goes through `index_web_page`: it is chunked with `IngestionRouter::chunk_text_native` (Markdown chunker when the text has headings) and its text is hashed (SHA-256). A page whose URL is already indexed with the same content hash is skipped; otherwise the previous chunks of that page are deleted (exact URL only, never its sub-pages) from LanceDB and BM25, and the new chunks are written, keyed by URL.
+- A page that fails to index (chunking, delete or embedding) is reported in the sync errors as `Failed to index page '<url>': ...` and counted with the embedding failures; a crawler that cannot start is reported too. Its retry works through the content hash: no LanceDB row has the new hash yet.
 - Web sources are re-crawled on every full sync, but only new or changed pages are re-embedded. Pages that disappeared from the site keep their last indexed chunks. `check_url_modified` (HTTP `HEAD` with `If-None-Match`/`If-Modified-Since`) exists in the crawler but the sync pass does not use it.
 
 ### Cancellation and telemetry
 
-Every file iteration reads the sync status; when it is no longer syncing or its stage is `cancelled` (set by `/sync cancel`), the pass stops and reports `cancelled: true`. Progress stages written to SQLite are `scanning`, `files`, `web`, `idle` and `cancelled`; the TUI footer and the agent's `system_status` tool read them.
+Every file iteration reads the sync status; when it is no longer syncing or its stage is `cancelled` (set by `/sync cancel`), the pass stops and reports `cancelled: true`. Progress stages written to SQLite are `scanning`, `files`, `web`, `idle` and `cancelled`; the TUI footer and the agent's `system_status` tool read them. The final `idle` write carries the embedding failure summary in the `error` column (or clears it).
 
 ## Interfaces
 
@@ -157,3 +168,4 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0138](../adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md): embedding target recorded per workspace, automatic reindex when it changes, Gemini `gemini-embedding-2`.
 - [ADR-0142](../adr/0142-chunk-provenance-columns-in-lancedb-added-in-place.md): chunk provenance (`header_path`, file line range) stored in LanceDB, lines only for file-line chunkers.
 - [ADR-0143](../adr/0143-bm25-only-hits-take-their-text-from-lancedb-batch-deduplicat.md): the enveloped text stays in BM25 only; retrieval reads chunk text from LanceDB and `strip_envelope` is the fallback.
+- [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): a failed embedding fails the file (retried on the next sync, kept in BM25), one rate-limit retry, a provider breaker per pass and the failure summary in the sync status.

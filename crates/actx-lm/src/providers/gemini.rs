@@ -191,7 +191,7 @@ impl LmProvider for GeminiProvider {
             format!("models/{}", request.model)
         };
 
-        let url = format!("{}/{}:generateContent?key={}", self.base_url, model, self.api_key);
+        let url = format!("{}/{}:generateContent", self.base_url, model);
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
@@ -200,6 +200,7 @@ impl LmProvider for GeminiProvider {
         let resp = self
             .http_client
             .post(&url)
+            .header("x-goog-api-key", &self.api_key)
             .headers(headers)
             .json(&body)
             .send()
@@ -269,8 +270,8 @@ impl LmProvider for GeminiProvider {
         };
 
         let url = format!(
-            "{}/{}:streamGenerateContent?alt=sse&key={}",
-            self.base_url, model, self.api_key
+            "{}/{}:streamGenerateContent?alt=sse",
+            self.base_url, model
         );
 
         let mut headers = HeaderMap::new();
@@ -281,6 +282,7 @@ impl LmProvider for GeminiProvider {
         let resp = self
             .http_client
             .post(&url)
+            .header("x-goog-api-key", &self.api_key)
             .headers(headers)
             .json(&body)
             .send()
@@ -359,8 +361,8 @@ impl LmProvider for GeminiProvider {
         };
 
         let url = format!(
-            "{}/{}:batchEmbedContents?key={}",
-            self.base_url, model_id, self.api_key
+            "{}/{}:batchEmbedContents",
+            self.base_url, model_id
         );
 
         let body = batch_embed_request_body(&model_id, texts);
@@ -368,18 +370,18 @@ impl LmProvider for GeminiProvider {
         let resp = self
             .http_client
             .post(&url)
+            .header("x-goog-api-key", &self.api_key)
             .json(&body)
             .send()
             .await?;
 
         let status = resp.status();
         if !status.is_success() {
+            // Same mapping as chat, so the sync can tell a bad key or a rate limit (ADR-0146).
+            let retry_after = crate::error::retry_after_secs(resp.headers());
             let error_text = resp.text().await.unwrap_or_default();
-            return Err(LmError::ProviderError {
-                provider: "gemini".to_string(),
-                status: status.as_u16(),
-                message: error_text,
-            });
+            return Err(LmError::from_http_status("gemini", status.as_u16(), &model_id, error_text)
+                .with_retry_after(retry_after));
         }
 
         let parsed: GeminiBatchEmbedResponse = resp.json().await?;
@@ -396,6 +398,21 @@ fn uuid_timestamp() -> u128 {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn embed_sends_the_key_in_a_header_and_maps_auth_errors() {
+        let (base, server) = crate::error::serve_once(
+            "HTTP/1.1 403 Forbidden\r\nContent-Length: 6\r\nConnection: close\r\n\r\ndenied",
+        );
+        let provider = GeminiProvider::new("secret-key-123").with_base_url(base);
+        let err = provider.embed("gemini-embedding-2", &["hello".into()]).await.unwrap_err();
+        let request = server.join().unwrap();
+        let request_line = request.lines().next().unwrap_or_default();
+        assert!(!request_line.contains("secret-key-123"), "the key must not be in the URL: {request_line}");
+        assert!(request.to_ascii_lowercase().contains("x-goog-api-key: secret-key-123"), "{request}");
+        assert!(matches!(err, LmError::Auth { .. }), "{err:?}");
+        assert!(!err.to_string().contains("secret-key-123"));
+    }
+
     use super::*;
 
     #[test]

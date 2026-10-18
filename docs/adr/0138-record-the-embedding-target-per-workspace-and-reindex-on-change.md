@@ -8,7 +8,7 @@ subsystems: [ingestion, retrieval, storage, lm-providers]
 supersedes: []
 superseded_by: []
 amends: [132]
-amended_by: []
+amended_by: [146]
 ---
 
 # ADR-0138: Record the embedding target per workspace and reindex on change

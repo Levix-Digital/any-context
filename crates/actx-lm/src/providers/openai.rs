@@ -545,12 +545,11 @@ impl LmProvider for OpenAiCompatibleProvider {
 
         let status = resp.status();
         if !status.is_success() {
+            // Same mapping as chat, so the sync can tell a bad key or a rate limit (ADR-0146).
+            let retry_after = crate::error::retry_after_secs(resp.headers());
             let error_text = resp.text().await.unwrap_or_default();
-            return Err(LmError::ProviderError {
-                provider: self.provider_name.clone(),
-                status: status.as_u16(),
-                message: error_text,
-            });
+            return Err(LmError::from_http_status(&self.provider_name, status.as_u16(), model, error_text)
+                .with_retry_after(retry_after));
         }
 
         let parsed: OpenAiEmbeddingResponse = resp.json().await?;
@@ -560,6 +559,25 @@ impl LmProvider for OpenAiCompatibleProvider {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn embed_maps_rate_limit_with_retry_after_and_auth_errors() {
+        let (base, server) = crate::error::serve_once(
+            "HTTP/1.1 429 Too Many Requests\r\nRetry-After: 7\r\nContent-Length: 5\r\nConnection: close\r\n\r\nslow!",
+        );
+        let provider = OpenAiCompatibleProvider::new("openai", base, Some("sk-test".into()));
+        let err = provider.embed("text-embedding-3-small", &["hello".into()]).await.unwrap_err();
+        server.join().unwrap();
+        assert!(matches!(err, LmError::RateLimit { retry_after_secs: Some(7), .. }), "{err:?}");
+
+        let (base, server) = crate::error::serve_once(
+            "HTTP/1.1 401 Unauthorized\r\nContent-Length: 7\r\nConnection: close\r\n\r\nbad key",
+        );
+        let provider = OpenAiCompatibleProvider::new("openai", base, Some("sk-test".into()));
+        let err = provider.embed("text-embedding-3-small", &["hello".into()]).await.unwrap_err();
+        server.join().unwrap();
+        assert!(matches!(err, LmError::Auth { .. }), "{err:?}");
+    }
+
     use super::*;
     use crate::types::ChatMessage;
 

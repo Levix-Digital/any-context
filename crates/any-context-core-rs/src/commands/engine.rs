@@ -2049,6 +2049,13 @@ impl CommandEngine {
         let (scanned_name, scanned_desc, _) = crate::ingestion::OnnxModelManager::active_scanned_classifier();
         let (vision_name, vision_desc, _) = crate::ingestion::OnnxModelManager::active_vision_state();
         let mb_on_disk = model_summary.total_bytes_on_disk as f64 / (1024.0 * 1024.0);
+        let last_sync_line = db.as_ref()
+            .and_then(|d| d.get_sync_status(&ctx.active_workspace).ok().flatten())
+            .filter(|s| !s.is_syncing)
+            .and_then(|s| s.error)
+            .filter(|e| !e.trim().is_empty())
+            .map(|e| format!("\n• Last Sync:        ⚠ {e}"))
+            .unwrap_or_default();
 
         let metrics = crate::hardware::HardwareProfiler::probe_system(None);
         let evals = crate::hardware::HardwareProfiler::evaluate_profiles(&metrics);
@@ -2073,11 +2080,12 @@ impl CommandEngine {
              • Web Search:       {}\n\
              • Local Folders:    {} attached\n\
              • Vector Chunks:    {} indexed (LanceDB)\n\
+             • Dense Search:     {}\n\
              • Local AI Models:\n\
                - Ingestion Classifier: {} [{}]\n\
                - Scanned Classifier:   {} [{}]\n\
                - Document Vision:      {} [{}]\n\
-               - Models Directory:     {} ({} models / {:.1} MB)\n\
+               - Models Directory:     {} ({} models / {:.1} MB){}\n\
              • Health:           ● HEALTHY & READY",
             ctx.active_workspace,
             ws_count,
@@ -2093,6 +2101,7 @@ impl CommandEngine {
             if ctx.web_search_enabled { "ON" } else { "OFF" },
             folders_count,
             chunks_count,
+            crate::retrieval::dense_search_status(),
             classifier_name,
             classifier_desc,
             scanned_name,
@@ -2101,7 +2110,8 @@ impl CommandEngine {
             vision_desc,
             model_summary.models_dir.display(),
             model_summary.installed_count,
-            mb_on_disk
+            mb_on_disk,
+            last_sync_line
         ))
     }
 

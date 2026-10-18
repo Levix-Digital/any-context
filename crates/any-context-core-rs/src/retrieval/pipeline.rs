@@ -201,6 +201,43 @@ pub(crate) fn compare_by_relevance(a: &HybridSearchResult, b: &HybridSearchResul
         .then_with(|| parse_last_modified(&b.last_modified).cmp(&parse_last_modified(&a.last_modified)))
 }
 
+/// How the dense half of a hybrid search went for a query (IMP-003). A query without dense
+/// search still answers from BM25 (ADR-110); this only makes that visible.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueryEmbeddingOutcome {
+    /// The query was embedded (or a vector was supplied) and dense search ran.
+    Dense,
+    /// No embedding provider was configured for the pipeline.
+    NoProvider,
+    /// The embedding call failed or returned no vector.
+    Failed(String),
+}
+
+impl QueryEmbeddingOutcome {
+    /// One-line description for status surfaces.
+    pub fn describe(&self) -> String {
+        match self {
+            QueryEmbeddingOutcome::Dense => "dense + BM25 (last query)".to_string(),
+            QueryEmbeddingOutcome::NoProvider => "BM25 only (last query): no embedding provider".to_string(),
+            QueryEmbeddingOutcome::Failed(reason) => format!("BM25 only (last query): query embedding failed: {reason}"),
+        }
+    }
+}
+
+static LAST_QUERY_EMBEDDING: std::sync::Mutex<Option<QueryEmbeddingOutcome>> = std::sync::Mutex::new(None);
+
+/// Outcome of the query embedding of the most recent hybrid search in this process, if any.
+pub fn last_query_embedding_outcome() -> Option<QueryEmbeddingOutcome> {
+    LAST_QUERY_EMBEDDING.lock().ok().and_then(|o| o.clone())
+}
+
+/// Status line for the dense half of retrieval, from the most recent search in this process.
+pub fn dense_search_status() -> String {
+    last_query_embedding_outcome()
+        .map(|o| o.describe())
+        .unwrap_or_else(|| "n/a (no query yet in this session)".to_string())
+}
+
 static LAST_RERANK_LATENCY_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u64::MAX);
 
 /// Wall-clock latency of the most recent neural re-ranking pass in this process, if any.
@@ -309,6 +346,7 @@ pub struct NativeHybridPipeline {
     embedding_model: String,
     reranker: Option<Arc<actx_onnx::OnnxReranker>>,
     rerank_mode: String,
+    last_query_embedding: std::sync::Mutex<Option<QueryEmbeddingOutcome>>,
 }
 
 impl NativeHybridPipeline {
@@ -324,6 +362,7 @@ impl NativeHybridPipeline {
             embedding_model: DEFAULT_QUERY_EMBEDDING_MODEL.to_string(),
             reranker: None,
             rerank_mode: "auto".to_string(),
+            last_query_embedding: std::sync::Mutex::new(None),
         })
     }
 
@@ -338,6 +377,21 @@ impl NativeHybridPipeline {
             embedding_model: DEFAULT_QUERY_EMBEDDING_MODEL.to_string(),
             reranker: None,
             rerank_mode: "auto".to_string(),
+            last_query_embedding: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Outcome of the query embedding of this pipeline's most recent search, if any.
+    pub fn last_query_embedding(&self) -> Option<QueryEmbeddingOutcome> {
+        self.last_query_embedding.lock().ok().and_then(|o| o.clone())
+    }
+
+    fn record_query_embedding(&self, outcome: QueryEmbeddingOutcome) {
+        if let Ok(mut last) = LAST_QUERY_EMBEDDING.lock() {
+            *last = Some(outcome.clone());
+        }
+        if let Ok(mut last) = self.last_query_embedding.lock() {
+            *last = Some(outcome);
         }
     }
 
@@ -593,16 +647,19 @@ impl NativeHybridPipeline {
         }
 
         // 5. Query Vector Resolution (Passed in or computed via actx-lm)
-        let query_vec = if let Some(ref v) = req.query_vector {
-            Some(v.clone())
+        // A failed or missing embedding leaves BM25 only (ADR-110); the outcome is recorded (IMP-003).
+        let (query_vec, outcome) = if let Some(ref v) = req.query_vector {
+            (Some(v.clone()), QueryEmbeddingOutcome::Dense)
         } else if let Some(ref lm) = self.lm_client {
             match lm.embed(&self.embedding_model, &[req.query_text.clone()]).await {
-                Ok(vecs) if !vecs.is_empty() => Some(vecs[0].clone()),
-                _ => None,
+                Ok(mut vecs) if !vecs.is_empty() => (Some(vecs.swap_remove(0)), QueryEmbeddingOutcome::Dense),
+                Ok(_) => (None, QueryEmbeddingOutcome::Failed("empty embedding answer".to_string())),
+                Err(e) => (None, QueryEmbeddingOutcome::Failed(e.to_string())),
             }
         } else {
-            None
+            (None, QueryEmbeddingOutcome::NoProvider)
         };
+        self.record_query_embedding(outcome);
 
         // 6. Dense Vector Similarity Search
         if let Some(q_vec) = query_vec {
@@ -1485,5 +1542,70 @@ mod tests {
 
         assert_eq!(results.len(), 1, "a hit found by one list only must survive the floor");
         assert_eq!(results[0].score, 1.0 / 61.0);
+    }
+    /// Embedding provider with a fixed answer, for the query embedding outcome.
+    struct FixedEmbedder(Result<Vec<Vec<f32>>, ()>);
+
+    #[async_trait::async_trait]
+    impl LmProvider for FixedEmbedder {
+        fn provider_id(&self) -> &'static str {
+            "fixed"
+        }
+
+        async fn chat_complete(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::types::ChatResponse, actx_lm::LmError> {
+            Err(actx_lm::LmError::Unsupported("chat".into()))
+        }
+
+        async fn chat_stream(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::traits::BoxedChunkStream, actx_lm::LmError> {
+            Err(actx_lm::LmError::Unsupported("chat".into()))
+        }
+
+        async fn embed(&self, _model: &str, _texts: &[String]) -> Result<Vec<Vec<f32>>, actx_lm::LmError> {
+            self.0.clone().map_err(|_| actx_lm::LmError::Auth { provider: "fixed".into(), message: "invalid key".into() })
+        }
+    }
+
+    fn query_outcome(name: &str, provider: Option<FixedEmbedder>, query_vector: Option<Vec<f32>>) -> Option<QueryEmbeddingOutcome> {
+        let (mut pipeline, dir) = bm25_pipeline(name, &[("k_0", "kestrel timeouts are retried three times", "guide.md", SAME_DAY)]);
+        pipeline.set_embedding(provider.map(|p| Arc::new(p) as Arc<dyn LmProvider>), "fixed-embed");
+        let results = pipeline
+            .search(HybridSearchRequest { query_text: "kestrel".to_string(), query_vector, ..Default::default() })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+        assert!(results.iter().any(|r| r.chunk_id == "k_0"), "BM25 still answers");
+        pipeline.last_query_embedding()
+    }
+
+    #[test]
+    fn test_query_embedding_failure_is_recorded() {
+        let outcome = query_outcome("qe_failed", Some(FixedEmbedder(Err(()))), None);
+        match outcome {
+            Some(QueryEmbeddingOutcome::Failed(reason)) => assert!(reason.contains("invalid key"), "{reason}"),
+            other => panic!("expected a failure, got {other:?}"),
+        }
+        let empty = query_outcome("qe_empty", Some(FixedEmbedder(Ok(vec![]))), None);
+        assert_eq!(empty, Some(QueryEmbeddingOutcome::Failed("empty embedding answer".to_string())));
+        assert!(last_query_embedding_outcome().is_some(), "the process-wide outcome is recorded too");
+    }
+
+    #[test]
+    fn test_query_without_provider_is_recorded() {
+        assert_eq!(query_outcome("qe_none", None, None), Some(QueryEmbeddingOutcome::NoProvider));
+    }
+
+    #[test]
+    fn test_query_dense_outcome_is_recorded() {
+        assert_eq!(query_outcome("qe_vector", None, Some(vec![0.1; 4])), Some(QueryEmbeddingOutcome::Dense));
+        assert_eq!(query_outcome("qe_embedded", Some(FixedEmbedder(Ok(vec![vec![0.1; 4]]))), None), Some(QueryEmbeddingOutcome::Dense));
+    }
+
+    #[test]
+    fn test_query_embedding_outcome_descriptions() {
+        assert_eq!(QueryEmbeddingOutcome::Dense.describe(), "dense + BM25 (last query)");
+        assert_eq!(QueryEmbeddingOutcome::NoProvider.describe(), "BM25 only (last query): no embedding provider");
+        assert_eq!(
+            QueryEmbeddingOutcome::Failed("quota".into()).describe(),
+            "BM25 only (last query): query embedding failed: quota"
+        );
     }
 }

@@ -79,6 +79,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0146](docs/adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md) | A failed embedding fails the file, and embedding outcomes are reported | accepted | v0.45.1 | 2026-10-18 |
 | [ADR-0145](docs/adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md) | Live status reaches the routed paths as retrieved context | accepted | v0.45.1 | 2026-10-18 |
 | [ADR-0144](docs/adr/0144-system-prompt-per-answer-path-with-the-tool-section-generate.md) | System prompt per answer path with the tool section generated from the registered tools | accepted | v0.45.1 | 2026-10-18 |
 | [ADR-0143](docs/adr/0143-bm25-only-hits-take-their-text-from-lancedb-batch-deduplicat.md) | BM25-only hits take their text from LanceDB; batch deduplication by chunk id | accepted | v0.45.1 | 2026-10-18 |

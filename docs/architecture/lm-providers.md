@@ -46,7 +46,7 @@ Which provider and model a workspace uses is resolved by the [CLI](cli.md) (`res
 | `Groq`, `DeepSeek`, `OpenRouter` | their OpenAI-compatible endpoints | yes | through the OpenAI-compatible adapter |
 | `CustomCompatible` | any base URL | optional | through the OpenAI-compatible adapter |
 | `Anthropic` | Messages API (`x-api-key`, `anthropic-version`) | yes | no |
-| `Gemini` | `streamGenerateContent?alt=sse` | yes | yes (`batchEmbedContents`, `outputDimensionality` 1536 per item: `GEMINI_EMBEDDING_DIM`) |
+| `Gemini` | `streamGenerateContent?alt=sse` (key in the `x-goog-api-key` header, never in the URL) | yes | yes (`batchEmbedContents`, `outputDimensionality` 1536 per item: `GEMINI_EMBEDDING_DIM`) |
 | `GemmaOnnx` | local | no | no |
 | `Mock` | none | no | deterministic vectors |
 
@@ -77,7 +77,7 @@ When the selected provider has no key, answers come from the mock provider, whic
   - Older models keep `max_tokens`.
 - **Other OpenAI-compatible providers** (Groq, DeepSeek, Ollama, OpenRouter, custom) keep `temperature`, `top_p` and `max_tokens`.
 
-A failed chat request maps its HTTP status with `LmError::from_http_status`: 401/403 → `Auth`, 429 → `RateLimit`, and 404 → "model `<id>` is not available from `<provider>`; choose another with /model".
+A failed chat or embedding request maps its HTTP status with `LmError::from_http_status`: 401/403 → `Auth`, 429 → `RateLimit`, and 404 → "model `<id>` is not available from `<provider>`; choose another with /model". Embedding requests (OpenAI-compatible and Gemini) also read a numeric `Retry-After` header into `retry_after_secs`, which the sync uses for its single rate-limit retry ([ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md)). Gemini answers an invalid key with HTTP 400, which stays a `ProviderError`.
 
 ### Streaming and tools
 
@@ -101,3 +101,4 @@ Streaming adapters decode SSE frames into `StreamChunk`s: answer tokens, reasoni
 - [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): Gemma 4 planned; the provider always uses the fallback.
 - [ADR-0137](../adr/0137-chat-model-catalog-with-retired-model-ids-resolved-to-succes.md): chat model catalog, retired ids resolved to successors, request rules per model.
 - [ADR-0138](../adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md): Gemini embeddings requested at 1536 values to fit the vector table.
+- [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): embedding errors mapped like chat errors (with `Retry-After`); the Gemini key moves to the `x-goog-api-key` header so it never appears in URLs or error messages.

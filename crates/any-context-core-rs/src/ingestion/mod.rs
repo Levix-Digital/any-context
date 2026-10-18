@@ -15,7 +15,7 @@ pub mod jina;
 pub use router::IngestionRouter;
 pub use traits::{Chunker, ScanSentinel, ScanAssessment, DocumentVisionExtractor};
 pub use scanner::{WorkspaceScanner, DiffResult};
-pub use orchestrator::{NativeSyncOrchestrator, SyncOptions, SyncResult};
+pub use orchestrator::{embedding_failure_summary, sync_error_headline, NativeSyncOrchestrator, SyncOptions, SyncResult};
 pub use embedding::{
     EmbeddingTarget, ReindexDecision, decide_reindex, legacy_target, pending_reindex_notice,
     resolve_embedding_provider, resolve_query_embedding_provider,

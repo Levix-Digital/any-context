@@ -39,8 +39,8 @@ The actx binary with argument parsing, one-shot questions, the background sync w
 | `actx "<question>"`, `-q/--query/--prompt` | One-shot question streamed to stdout. Piped stdin also selects headless mode. |
 | `-w/--workspace <name>` | Workspace to use (default `Default`). |
 | `-m/--model <id>` | Model override for this run. |
-| `-s/--sync`, `actx sync [--force] [--folder <path>]` | Runs a sync in the foreground with verbose output. |
-| `--sync-worker [--workspace] [--force] [--folder]` | Hidden flag used by background workers spawned by the command engine. |
+| `-s/--sync`, `actx sync [--force] [--folder <path>]` | Runs a sync in the foreground with verbose output. Errors are printed after the summary (first 10, then a count), with a note that files not embedded are retried on the next sync. |
+| `--sync-worker [--workspace] [--force] [--folder]` | Hidden flag used by background workers spawned by the command engine; prints the same errors to the worker log. |
 | `-f/--force`, `--folder <path>` | Full re-index; folder-scoped sync. |
 | `-d/--diagnostics` (`diag`, `health`) | Prints version, platform, workspaces, hardware, accelerators and database paths. |
 | `--check-update`, `-u/--update`, `actx update [--check] [version]` | Checks for or installs a release (see [Installer and Updater](installer.md)). |
@@ -93,3 +93,4 @@ The headless path resolves grounding mode, search mode and web search from the w
 - [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): `--rerank`, `--rerank-model` and lazy re-ranker loading.
 - [ADR-0144](../adr/0144-system-prompt-per-answer-path-with-the-tool-section-generate.md): one system prompt per answer path, the ReAct prompt derived from the registered tools.
 - [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): `PipelineStatusRetriever` and the shared `workspace_status_report`.
+- [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): sync errors printed after `--sync` and `--sync-worker`; `workspace_status_report` shows the last sync failures and the dense search outcome.
