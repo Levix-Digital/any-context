@@ -167,7 +167,10 @@ pub fn build_agent_sync(
     let session_store = actx_agent::SqliteSessionStore::open(&db_path, 50).ok()
         .map(|s| Arc::new(s) as Arc<dyn actx_agent::SessionStore>);
 
-    let system_prompt = crate::prompt::build_system_prompt(workspace, grounding_mode, search_mode, web_search_enabled);
+    // One-hop RAG and the Deep Search synthesis receive the context already retrieved and no tools.
+    let context_prompt = crate::prompt::build_system_prompt(
+        workspace, grounding_mode, search_mode, web_search_enabled, crate::prompt::PromptPath::RetrievedContext,
+    );
     let reranker = create_default_reranker();
 
     // Query vectors must come from the same embedding provider and model as the indexed chunks.
@@ -357,7 +360,7 @@ pub fn build_agent_sync(
             embed_provider: embed_provider.clone(),
             embed_model: embed_model.clone(),
             workspace: workspace.to_string(),
-            system_prompt: system_prompt.clone(),
+            system_prompt: context_prompt.clone(),
             reranker: reranker.clone(),
         }) as Arc<dyn actx_agent::DeterministicRetriever>
     });
@@ -368,32 +371,11 @@ pub fn build_agent_sync(
     let chat_router = Arc::new(actx_agent::ChatModelRouter::default().with_classifier(onnx_classifier));
 
     let synthesis_formatter = Arc::new(any_context_core_rs::retrieval::CanonicalSynthesisFormatter::new(
-        system_prompt.clone(),
+        context_prompt,
         workspace,
     ));
 
-    let mut builder = Agent::builder()
-        .client(provider)
-        .model(model)
-        .system_prompt(system_prompt)
-        .deep_search_synthesis_formatter(synthesis_formatter)
-        .execution_mode(execution_mode)
-        .search_mode(search_policy)
-        .router(chat_router)
-        .max_turns(10)
-        .tool(Arc::new(search_tool))
-        .tool(Arc::new(status_tool));
-
-    if let Some(retriever) = deep_search_retriever {
-        builder = builder
-            .deep_search_retriever(retriever)
-            .deep_search_config(actx_agent::DeepSearchConfig::default());
-    }
-
-    if let Some(retriever) = deterministic_retriever {
-        builder = builder.deterministic_retriever(retriever);
-    }
-
+    let mut tools: Vec<Arc<dyn actx_agent::Tool>> = vec![Arc::new(search_tool), Arc::new(status_tool)];
     if web_search_enabled {
         let ws_for_web = workspace.to_string();
         let web_search_tool = actx_agent::NativeTool::new(
@@ -449,7 +431,37 @@ pub fn build_agent_sync(
                 }
             }
         );
-        builder = builder.tool(Arc::new(web_search_tool));
+        tools.push(Arc::new(web_search_tool));
+    }
+
+    // The ReAct prompt names exactly the registered tools, so the two cannot disagree.
+    let tool_names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
+    let tool_prompt = crate::prompt::build_system_prompt(
+        workspace, grounding_mode, search_mode, web_search_enabled, crate::prompt::PromptPath::Tools(&tool_names),
+    );
+
+    let mut builder = Agent::builder()
+        .client(provider)
+        .model(model)
+        .system_prompt(tool_prompt)
+        .deep_search_synthesis_formatter(synthesis_formatter)
+        .execution_mode(execution_mode)
+        .search_mode(search_policy)
+        .router(chat_router)
+        .max_turns(10);
+
+    for tool in tools {
+        builder = builder.tool(tool);
+    }
+
+    if let Some(retriever) = deep_search_retriever {
+        builder = builder
+            .deep_search_retriever(retriever)
+            .deep_search_config(actx_agent::DeepSearchConfig::default());
+    }
+
+    if let Some(retriever) = deterministic_retriever {
+        builder = builder.deterministic_retriever(retriever);
     }
 
     if let Some(store) = session_store {
