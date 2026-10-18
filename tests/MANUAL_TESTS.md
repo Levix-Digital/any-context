@@ -186,6 +186,7 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Expected**:
   - The change indicator appears within a few seconds; after the sync it returns to `Up to date`.
   - Answers use the edited content, cite the renamed file under its new name, and never cite the deleted file.
+  - The edited file is cited with its line range (`file:start-end`).
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
@@ -419,6 +420,22 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Expected**:
   - Answer 1 gives both values (30 seconds, every 6 hours) and cites `timeouts.md` and `billing.md`.
   - Answers 2 and 3 give 10 users for v1 and 50 users for v2, each with its source, without merging them or silently picking one.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
+### MT-ANS-007: Answers cite the section and line range
+
+- **Covers**: chunk provenance in LanceDB, `lines` attribute and citations, upgrade of a workspace indexed by an older version
+- **Prerequisites**: a workspace indexed by v0.45.0 or older, with a Markdown file that has a `## Timeouts` section ("The request timeout is 30 seconds."), a source file with a function `connect`, and a PDF with several pages
+- **Steps**:
+  1. After upgrading, without syncing, ask "What is the request timeout?".
+  2. Run `/sync --force`, wait for it to finish, then with `/search fast` ask question 1 again and "What does connect do?".
+  3. Run `/search deep` and ask "What is the request timeout and what does connect do?".
+  4. Ask a question answered on page 2 or later of the PDF.
+- **Expected**:
+  - Step 1 still answers correctly and cites the file (no line range yet); there is no error and no reindex.
+  - Steps 2 and 3 cite the Markdown file and the source file with their line ranges (for example `docs/guide.md:40-58`), and the ranges match the section and the function in the files.
+  - Step 4 cites the PDF by file or page, never with a line range.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

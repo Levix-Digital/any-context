@@ -11,7 +11,7 @@ Turns each supported file type into chunks with line provenance and a content ty
 ## Responsibilities
 
 - Parse files of each supported format in pure Rust (no Python, no external services) and split them into `ChunkPayload`s small enough to embed.
-- Keep provenance on every chunk: file name and path, a header path or breadcrumb, start and end lines, content type and chunk index.
+- Keep provenance on every chunk: file name and path, a header path or breadcrumb, start and end lines, content type and chunk index. Markdown, code, structured data and plain text chunkers report file line numbers; PDF and spatial forms report lines within a page, Office lines of the extracted text, images OCR lines, tabular chunkers row or transaction indexes, so only the first group's lines are stored as a file line range (`IngestionRouter::has_file_lines`, see [Ingestion and Sync](ingestion.md)).
 - Prefix chunk text with a `// Context: <file> > <location>` breadcrumb so a chunk is understandable on its own.
 
 Choosing which chunks to keep (quality gate) and writing them is the job of [Ingestion and Sync](ingestion.md).
@@ -62,3 +62,4 @@ Choosing which chunks to keep (quality gate) and writing them is the job of [Ing
 - [ADR-0106](../adr/0106-full-rust-parity-python-purge.md): Office (`docx`/`pptx`) chunker ported to Rust.
 - [ADR-0110](../adr/0110-ingestion-model-router-quality-gate.md): `SpatialFormChunker` for domain-agnostic form reconstruction.
 - [ADR-0113](../adr/0113-tabular-chunker-markdown-table-preservation.md): conservative key-value pairing in tables.
+- [ADR-0142](../adr/0142-chunk-provenance-columns-in-lancedb-added-in-place.md): which chunkers' line numbers are stored as file line ranges.

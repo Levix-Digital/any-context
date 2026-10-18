@@ -8,7 +8,7 @@ You point it at the material you work with; it indexes everything on your machin
 
 ## Features
 
-- **Ask questions about your files**: source code, Markdown, PDF (including tables and forms), Word, PowerPoint, Excel, CSV, JSON, YAML and many more formats, with answers that cite the files used.
+- **Ask questions about your files**: source code, Markdown, PDF (including tables and forms), Word, PowerPoint, Excel, CSV, JSON, YAML and many more formats, with answers that cite the files used, and the line range for text and code files.
 - **Index documentation websites**: add a URL and AnyContext crawls the site, including single-page documentation portals.
 - **Workspaces**: separate projects with their own sources, model, answer settings and memory.
 - **Fast answers or deep research**: simple questions get one quick search; complex ones are broken into sub-questions, searched in several rounds and answered with a combined summary.
@@ -211,6 +211,7 @@ To uninstall, download and run the uninstaller from the [releases page](https://
 | A folder shows as unreachable | The path no longer exists; add it again with `/folder <path>`. |
 | The sync seems stuck | Check the footer or `/status`; read `sync_<workspace>.log` in the logs folder; `/cancel` and `/sync --incremental` again. |
 | Answers miss documents indexed before you switched models | Run `/sync --force` once to re-embed the workspace with the current embedding model. |
+| Answers cite files without line ranges | Files indexed by an earlier version have no section or line data until they change; run `/sync --force` once to re-index them. PDF, Office, spreadsheet and web sources are cited by page, sheet or section, never by line. |
 | `/rerank` shows `RRF (Fallback)` | The local re-ranker is not installed or could not load: run `actx download reranker`, and on Windows install the Visual C++ Redistributable. |
 | `actx --update` says the packages are still being built | A release was just published; try again in a few minutes. |
 | An old version still runs after updating | Open a new terminal; the updater also replaces copies of `actx` found elsewhere in your `PATH`. |

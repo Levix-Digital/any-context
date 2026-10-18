@@ -5,13 +5,14 @@
 
 use arrow_array::{
     Array, FixedSizeListArray, Float32Array, RecordBatch, RecordBatchIterator, StringArray,
+    UInt32Array,
 };
 use arrow_schema::{DataType, Field, Schema};
 use futures::TryStreamExt;
 use lancedb::connection::Connection;
 use lancedb::query::{ExecutableQuery, QueryBase};
 use lancedb::table::optimize::Duration;
-use lancedb::table::{CompactionOptions, OptimizeAction, Table};
+use lancedb::table::{CompactionOptions, NewColumnTransform, OptimizeAction, Table};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -22,7 +23,8 @@ pub const DEFAULT_VECTOR_DIM: usize = 1536;
 /// Rows with a protected field still in plaintext (written before every write was encrypted).
 const PLAINTEXT_ROWS_FILTER: &str = "(text <> '' AND text NOT LIKE 'enc::%') \
     OR (document_summary IS NOT NULL AND document_summary <> '' AND document_summary NOT LIKE 'enc::%') \
-    OR (keywords IS NOT NULL AND keywords <> '' AND keywords NOT LIKE 'enc::%')";
+    OR (keywords IS NOT NULL AND keywords <> '' AND keywords NOT LIKE 'enc::%') \
+    OR (header_path IS NOT NULL AND header_path <> '' AND header_path NOT LIKE 'enc::%')";
 const ENCRYPTION_MIGRATION_BATCH_ROWS: usize = 1000;
 
 /// Outcome of `NativeLanceStore::encrypt_plaintext_rows`.
@@ -47,6 +49,14 @@ pub struct VectorRecord {
     pub document_summary: Option<String>,
     pub keywords: Option<String>,
     pub content_hash: Option<String>,
+    /// Section or symbol path of the chunk (encrypted at rest).
+    #[serde(default)]
+    pub header_path: Option<String>,
+    /// First and last file line of the chunk, only for chunkers that emit file line numbers.
+    #[serde(default)]
+    pub start_line: Option<u32>,
+    #[serde(default)]
+    pub end_line: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +73,14 @@ pub struct ScoredVectorResult {
     pub document_summary: Option<String>,
     pub keywords: Option<String>,
     pub content_hash: Option<String>,
+    /// Section or symbol path of the chunk (encrypted at rest).
+    #[serde(default)]
+    pub header_path: Option<String>,
+    /// First and last file line of the chunk, only for chunkers that emit file line numbers.
+    #[serde(default)]
+    pub start_line: Option<u32>,
+    #[serde(default)]
+    pub end_line: Option<u32>,
 }
 
 pub struct NativeLanceStore {
@@ -197,7 +215,7 @@ impl NativeLanceStore {
 
 
     pub fn get_schema(dim: usize) -> Arc<Schema> {
-        Arc::new(Schema::new(vec![
+        let mut fields = vec![
             Field::new("id", DataType::Utf8, false),
             Field::new(
                 "vector",
@@ -216,7 +234,53 @@ impl NativeLanceStore {
             Field::new("document_summary", DataType::Utf8, true),
             Field::new("keywords", DataType::Utf8, true),
             Field::new("content_hash", DataType::Utf8, true),
-        ]))
+        ];
+        fields.extend(Self::provenance_fields());
+        Arc::new(Schema::new(fields))
+    }
+
+    /// Nullable provenance columns added after the first table schema (ADR-0142).
+    fn provenance_fields() -> Vec<Field> {
+        vec![
+            Field::new("header_path", DataType::Utf8, true),
+            Field::new("start_line", DataType::UInt32, true),
+            Field::new("end_line", DataType::UInt32, true),
+        ]
+    }
+
+    /// Adds the provenance columns that a table created by an older version lacks, as all-null
+    /// columns: a schema-only commit, no row is rewritten or re-embedded. Returns whether
+    /// columns were added. With the columns present it only reads the schema.
+    async fn add_missing_provenance_columns(table: &Table) -> Result<bool, String> {
+        let missing = Self::missing_provenance_fields(table).await?;
+        if missing.is_empty() {
+            return Ok(false);
+        }
+        let added = table
+            .add_columns()
+            .transform(NewColumnTransform::AllNulls(Arc::new(Schema::new(missing))))
+            .execute()
+            .await;
+        match added {
+            Ok(_) => Ok(true),
+            // Another process (TUI and sync worker share the table) may have added them first.
+            Err(e) => {
+                let _ = table.checkout_latest().await;
+                if Self::missing_provenance_fields(table).await?.is_empty() {
+                    Ok(false)
+                } else {
+                    Err(format!("Adding provenance columns to LanceDB failed: {e}"))
+                }
+            }
+        }
+    }
+
+    async fn missing_provenance_fields(table: &Table) -> Result<Vec<Field>, String> {
+        let schema = table.schema().await.map_err(|e| e.to_string())?;
+        Ok(Self::provenance_fields()
+            .into_iter()
+            .filter(|f| schema.field_with_name(f.name()).is_err())
+            .collect())
     }
 
     pub async fn table_exists_async(&self, table_name: &str) -> Result<bool, String> {
@@ -263,6 +327,24 @@ impl NativeLanceStore {
         self.safe_block_on(self.table_exists_async(table_name))
     }
 
+    /// Migrates a table created by an older version to the provenance columns (ADR-0142).
+    /// Returns whether columns were added; a missing table is a no-op. Writes also run it.
+    pub fn ensure_provenance_columns(&self, table_name: Option<&str>) -> Result<bool, String> {
+        let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
+        if !self.table_exists(tname)? {
+            return Ok(false);
+        }
+        self.safe_block_on(async {
+            let table = self
+                .conn
+                .open_table(tname)
+                .execute()
+                .await
+                .map_err(|e| e.to_string())?;
+            Self::add_missing_provenance_columns(&table).await
+        })
+    }
+
     pub fn get_or_create_table(&self, table_name: &str, dim: usize) -> Result<Table, String> {
         self.safe_block_on(async {
 
@@ -273,11 +355,14 @@ impl NativeLanceStore {
                 .await
                 .map_err(|e| e.to_string())?;
             if names.contains(&table_name.to_string()) {
-                self.conn
+                let table = self
+                    .conn
                     .open_table(table_name)
                     .execute()
                     .await
-                    .map_err(|e| e.to_string())
+                    .map_err(|e| e.to_string())?;
+                Self::add_missing_provenance_columns(&table).await?;
+                Ok(table)
             } else {
                 let schema = Self::get_schema(dim);
                 self.conn
@@ -346,8 +431,11 @@ impl NativeLanceStore {
         let mut doc_summaries = Vec::with_capacity(num_records);
         let mut keywords_list = Vec::with_capacity(num_records);
         let mut hashes = Vec::with_capacity(num_records);
+        let mut header_paths = Vec::with_capacity(num_records);
+        let mut start_lines = Vec::with_capacity(num_records);
+        let mut end_lines = Vec::with_capacity(num_records);
 
-        // Field-level encryption at rest: `text`, `document_summary` and `keywords` are stored as
+        // Field-level encryption at rest: `text`, `document_summary`, `keywords` and `header_path` are stored as
         // AES-GCM-256 `enc::` payloads with the hardware-bound key; `extract_scored_results`
         // decrypts them on read. Ids, vectors and filterable metadata stay in clear text.
         let sec = crate::security::NativeSecurityEngine::get_instance();
@@ -370,6 +458,9 @@ impl NativeLanceStore {
             doc_summaries.push(sec.encrypt_text(&r.document_summary.unwrap_or_default()));
             keywords_list.push(sec.encrypt_text(&r.keywords.unwrap_or_default()));
             hashes.push(r.content_hash.unwrap_or_default());
+            header_paths.push(r.header_path.map(|h| sec.encrypt_text(&h)));
+            start_lines.push(r.start_line);
+            end_lines.push(r.end_line);
         }
 
         let id_arr = Arc::new(StringArray::from(ids));
@@ -389,6 +480,9 @@ impl NativeLanceStore {
         let ds_arr = Arc::new(StringArray::from(doc_summaries));
         let kw_arr = Arc::new(StringArray::from(keywords_list));
         let h_arr = Arc::new(StringArray::from(hashes));
+        let hp_arr = Arc::new(StringArray::from(header_paths));
+        let sl_arr = Arc::new(UInt32Array::from(start_lines));
+        let el_arr = Arc::new(UInt32Array::from(end_lines));
 
         let batch = RecordBatch::try_new(
             schema.clone(),
@@ -404,6 +498,9 @@ impl NativeLanceStore {
                 ds_arr,
                 kw_arr,
                 h_arr,
+                hp_arr,
+                sl_arr,
+                el_arr,
             ],
         )
         .map_err(|e| format!("Failed to create Arrow RecordBatch: {e}"))?;
@@ -431,6 +528,8 @@ impl NativeLanceStore {
                 .execute()
                 .await
                 .map_err(|e| e.to_string())?;
+            // The plaintext filter and the rewritten rows use the provenance columns.
+            Self::add_missing_provenance_columns(&table).await?;
 
             let mut remaining = Self::count_plaintext_rows(&table).await?;
             if remaining == 0 {
@@ -792,6 +891,22 @@ impl NativeLanceStore {
         })
     }
 
+    /// Reads the provenance columns of row `i`; tables not migrated yet have none (all `None`).
+    /// `header_path` is returned as stored (encrypted).
+    fn provenance_at(batch: &RecordBatch, i: usize) -> (Option<String>, Option<u32>, Option<u32>) {
+        let header = batch
+            .column_by_name("header_path")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+            .and_then(|c| (!c.is_null(i)).then(|| c.value(i).to_string()));
+        let line = |name: &str| {
+            batch
+                .column_by_name(name)
+                .and_then(|c| c.as_any().downcast_ref::<UInt32Array>())
+                .and_then(|c| (!c.is_null(i)).then(|| c.value(i)))
+        };
+        (header, line("start_line"), line("end_line"))
+    }
+
     /// Reads full rows (vector included) with the stored values as they are, without decrypting.
     fn extract_vector_records(batch: &RecordBatch) -> Result<Vec<VectorRecord>, String> {
         let string_col = |name: &str| -> Result<&StringArray, String> {
@@ -836,6 +951,7 @@ impl NativeLanceStore {
                 .ok_or("Failed downcast 'vector' values")?
                 .values()
                 .to_vec();
+            let (header_path, start_line, end_line) = Self::provenance_at(batch, i);
             records.push(VectorRecord {
                 id: id.value(i).to_string(),
                 vector,
@@ -848,6 +964,9 @@ impl NativeLanceStore {
                 document_summary: optional(summary, i),
                 keywords: optional(keywords, i),
                 content_hash: optional(hash, i),
+                header_path,
+                start_line,
+                end_line,
             });
         }
         Ok(records)
@@ -929,6 +1048,8 @@ impl NativeLanceStore {
             let text = sec.decrypt_text(raw_text);
             let document_summary = raw_ds.map(|s| sec.decrypt_text(s));
             let keywords = raw_kw.map(|s| sec.decrypt_text(s));
+            let (raw_header, start_line, end_line) = Self::provenance_at(batch, i);
+            let header_path = raw_header.map(|h| sec.decrypt_text(&h)).filter(|h| !h.is_empty());
 
             results.push(ScoredVectorResult {
                 id: id_col.value(i).to_string(),
@@ -943,6 +1064,9 @@ impl NativeLanceStore {
                 document_summary,
                 keywords,
                 content_hash: h_col.map(|c| c.value(i).to_string()),
+                header_path,
+                start_line,
+                end_line,
             });
         }
 
@@ -963,6 +1087,38 @@ impl NativeLanceStore {
         d: usize,
         records: Vec<VectorRecord>,
     ) {
+        let (batch, schema) = Self::plaintext_batch_for_test(d, &records);
+        let table = self
+            .get_or_create_table(table_name.unwrap_or(DEFAULT_TABLE_NAME), d)
+            .expect("table");
+        self.safe_block_on(async {
+            let reader: Box<dyn arrow_array::RecordBatchReader + Send> =
+                Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema));
+            table.add(reader).execute().await.expect("raw add");
+        });
+    }
+
+    /// Creates a table with the schema of versions before ADR-0142 (no provenance columns)
+    /// and writes `records` into it in plaintext.
+    pub(crate) fn create_legacy_table_for_test(&self, table_name: &str, d: usize, records: Vec<VectorRecord>) {
+        let (batch, _) = Self::plaintext_batch_for_test(d, &records);
+        let legacy_columns: Vec<usize> = (0..batch.num_columns() - Self::provenance_fields().len()).collect();
+        let batch = batch.project(&legacy_columns).expect("legacy projection");
+        let schema = batch.schema();
+        self.safe_block_on(async {
+            let table = self
+                .conn
+                .create_empty_table(table_name, schema.clone())
+                .execute()
+                .await
+                .expect("legacy table");
+            let reader: Box<dyn arrow_array::RecordBatchReader + Send> =
+                Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema));
+            table.add(reader).execute().await.expect("legacy add");
+        });
+    }
+
+    fn plaintext_batch_for_test(d: usize, records: &[VectorRecord]) -> (RecordBatch, Arc<Schema>) {
         let schema = Self::get_schema(d);
         let col = |f: &dyn Fn(&VectorRecord) -> Option<String>| -> Arc<StringArray> {
             Arc::new(StringArray::from(records.iter().map(f).collect::<Vec<_>>()))
@@ -987,17 +1143,13 @@ impl NativeLanceStore {
                 col(&|r| r.document_summary.clone()),
                 col(&|r| r.keywords.clone()),
                 col(&|r| r.content_hash.clone()),
+                col(&|r| r.header_path.clone()),
+                Arc::new(UInt32Array::from(records.iter().map(|r| r.start_line).collect::<Vec<_>>())),
+                Arc::new(UInt32Array::from(records.iter().map(|r| r.end_line).collect::<Vec<_>>())),
             ],
         )
         .expect("plaintext batch");
-        let table = self
-            .get_or_create_table(table_name.unwrap_or(DEFAULT_TABLE_NAME), d)
-            .expect("table");
-        self.safe_block_on(async {
-            let reader: Box<dyn arrow_array::RecordBatchReader + Send> =
-                Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema));
-            table.add(reader).execute().await.expect("raw add");
-        });
+        (batch, schema)
     }
 }
 
@@ -1025,6 +1177,9 @@ mod tests {
                 document_summary: Some("Summary 1".into()),
                 keywords: Some("rust, storage".into()),
                 content_hash: Some("h1".into()),
+                header_path: None,
+                start_line: None,
+                end_line: None,
             },
             VectorRecord {
                 id: "c2".into(),
@@ -1038,6 +1193,9 @@ mod tests {
                 document_summary: Some("Summary 2".into()),
                 keywords: Some("python, storage".into()),
                 content_hash: Some("h2".into()),
+                header_path: None,
+                start_line: None,
+                end_line: None,
             },
         ];
 
@@ -1103,6 +1261,9 @@ mod tests {
                 document_summary: None,
                 keywords: None,
                 content_hash: Some("th1".into()),
+                header_path: None,
+                start_line: None,
+                end_line: None,
             },
         ];
 
@@ -1148,6 +1309,9 @@ mod tests {
             document_summary: summary.map(String::from),
             keywords: Some(format!("legacy, {CANARY}")),
             content_hash: Some(format!("hash_{id}")),
+            header_path: Some(format!("legacy.md > {CANARY}")),
+            start_line: Some(3),
+            end_line: Some(9),
         }
     }
 
@@ -1194,7 +1358,9 @@ mod tests {
         assert_eq!(report, EncryptionMigrationReport { rows_encrypted: 4, versions_pruned: true });
 
         assert_eq!(store.count_records(None, Some(table)).expect("count"), 4);
-        let raw = store.search_metadata("text LIKE '%ZEBRA-CANARY%' OR keywords LIKE '%ZEBRA-CANARY%'", 10, None, Some(table)).expect("raw");
+        let raw = store
+            .search_metadata("text LIKE '%ZEBRA-CANARY%' OR keywords LIKE '%ZEBRA-CANARY%' OR header_path LIKE '%ZEBRA-CANARY%'", 10, None, Some(table))
+            .expect("raw");
         assert!(raw.is_empty(), "protected fields must be encrypted");
         let leaked = files_containing(&dir, CANARY.as_bytes());
         assert!(leaked.is_empty(), "plaintext left on disk in {leaked:?}");
@@ -1215,6 +1381,8 @@ mod tests {
         assert_eq!(a.text, format!("Legacy chunk {CANARY} of docs/a.md"));
         assert_eq!(a.document_summary.as_deref(), Some("Summary A"));
         assert_eq!(a.keywords.as_deref(), Some(format!("legacy, {CANARY}").as_str()));
+        assert_eq!(a.header_path.as_deref(), Some(format!("legacy.md > {CANARY}").as_str()));
+        assert_eq!((a.start_line, a.end_line), (Some(3), Some(9)));
         let hits = store.search_vector(vec![0.25; 4], 4, None, None, Some(table)).expect("vector search");
         assert_eq!(hits.len(), 4);
         assert!(hits.iter().all(|h| h.distance < 1e-6), "vectors are unchanged");
@@ -1243,6 +1411,53 @@ mod tests {
         assert_eq!(report, EncryptionMigrationReport::default());
         let rows = store.search_metadata("id = 'enc_0'", 1, None, Some(table)).expect("rows");
         assert_eq!(rows[0].text, format!("Legacy chunk {CANARY} of docs/e.md"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_provenance_columns_added_to_legacy_table() {
+        let (dir, store) = temp_store("provenance_migration");
+        let table = "pre_provenance_chunks";
+        store.create_legacy_table_for_test(table, 4, vec![legacy_record("old_0", "docs/old.md", "Default", Some("Old"))]);
+        let before = store.search_metadata("id = 'old_0'", 1, None, Some(table)).expect("legacy read");
+        assert_eq!((before[0].header_path.as_deref(), before[0].start_line), (None, None));
+
+        // The next write migrates the table in place; old rows keep their vector and get nulls.
+        let new = VectorRecord {
+            id: "new_0".into(),
+            header_path: Some("guide.md > Timeouts".into()),
+            start_line: Some(40),
+            end_line: Some(58),
+            ..legacy_record("new_0", "docs/guide.md", "Default", None)
+        };
+        store.upsert_records(vec![new], Some(table), Some(4)).expect("upsert after migration");
+        assert!(!store.ensure_provenance_columns(Some(table)).expect("idempotent"), "columns already present");
+
+        assert_eq!(store.count_records(None, Some(table)).expect("count"), 2);
+        let old = store.search_metadata("id = 'old_0'", 1, None, Some(table)).expect("old row");
+        assert_eq!((old[0].header_path.as_deref(), old[0].start_line, old[0].end_line), (None, None, None));
+        assert_eq!(old[0].document_summary.as_deref(), Some("Old"));
+        let fresh = store.search_metadata("id = 'new_0'", 1, None, Some(table)).expect("new row");
+        assert_eq!(fresh[0].header_path.as_deref(), Some("guide.md > Timeouts"));
+        assert_eq!((fresh[0].start_line, fresh[0].end_line), (Some(40), Some(58)));
+        let hits = store.search_vector(vec![0.25; 4], 2, None, None, Some(table)).expect("vector search");
+        assert!(hits.iter().all(|h| h.distance < 1e-6), "vectors are unchanged");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_header_path_encrypted_at_rest() {
+        let (dir, store) = temp_store("provenance_encrypted");
+        let table = "encrypted_headers";
+        store
+            .upsert_records(vec![legacy_record("hdr_0", "docs/h.md", "Default", None)], Some(table), Some(4))
+            .expect("upsert");
+        let raw = store.search_metadata("header_path LIKE '%ZEBRA-CANARY%'", 1, None, Some(table)).expect("raw");
+        assert!(raw.is_empty(), "header_path must be stored encrypted");
+        let rows = store.search_metadata("id = 'hdr_0'", 1, None, Some(table)).expect("rows");
+        assert_eq!(rows[0].header_path.as_deref(), Some(format!("legacy.md > {CANARY}").as_str()));
+        assert_eq!((rows[0].start_line, rows[0].end_line), (Some(3), Some(9)));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
