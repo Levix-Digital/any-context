@@ -367,10 +367,16 @@ pub fn build_agent_sync(
     let onnx_classifier = Arc::new(any_context_core_rs::ingestion::OnnxComplexityClassifierAdapter::new(&bge_path));
     let chat_router = Arc::new(actx_agent::ChatModelRouter::default().with_classifier(onnx_classifier));
 
+    let synthesis_formatter = Arc::new(any_context_core_rs::retrieval::CanonicalSynthesisFormatter::new(
+        system_prompt.clone(),
+        workspace,
+    ));
+
     let mut builder = Agent::builder()
         .client(provider)
         .model(model)
         .system_prompt(system_prompt)
+        .deep_search_synthesis_formatter(synthesis_formatter)
         .execution_mode(execution_mode)
         .search_mode(search_policy)
         .router(chat_router)
@@ -703,6 +709,8 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
                         text: r.text,
                         score: r.score,
                         matched_queries: r.matched_subqueries,
+                        content_type: r.content_type,
+                        last_modified: r.last_modified,
                     })
                     .collect();
                 Ok(chunks)

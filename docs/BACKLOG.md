@@ -8,9 +8,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-009: Deep Search synthesis bypasses the canonical context formatter
 - **Severity**: medium
-- **Status**: open
+- **Status**: in_progress
 - **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
+- **Plan**: any_context_deep_search_synthesis_bypasses_the_canonical_context_formatter
 - **Description**: The Deep Search `SUMMARY_PROMPT` places the original query before the chunks and lists them as plain `--- CHUNK n ---` blocks, without U-shaped reordering, XML isolation, scope/version attributes or a query anchor. It is the mode that gathers the most chunks from several sub-queries.
 
 ### BUG-010: Section and line metadata are lost at ingestion
@@ -40,6 +40,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, 2026-10-17, BUG-003 discovery
 - **Plan**: -
 - **Description**: embed_and_upsert (ingestion/orchestrator.rs) replaces a failed provider.embed call with SHA-256 pseudo-vectors (generate_fallback_vectors) and writes them to the same table as real vectors, without telling the user or marking the file. A transient API error (rate limit, network) leaves those files unreachable by dense search until they change on disk. Decide between failing the file so the next sync retries it, or marking it for re-embedding; keep the ADR-110 no-key fallback. Related to IMP-003.
+
+### BUG-015: Deep Search reflection and rerank prompts inject raw chunk text
+- **Severity**: medium
+- **Status**: open
+- **Found**: 2026-10-17, 2026-10-17, v0.45.0, BUG-009 discovery
+- **Plan**: -
+- **Description**: REFLECT_PROMPT and RERANK_PROMPT (crates/actx-agent/src/deep_search.rs) insert chunk text, chunk previews and queries with plain string replacement, without neutralizing the reserved prompt tags of ADR-0136. RERANK_PROMPT wraps the text in <chunk> tags that the text itself can close. Same risk as BUG-007, on the intermediate Deep Search calls.
 
 ## Features
 

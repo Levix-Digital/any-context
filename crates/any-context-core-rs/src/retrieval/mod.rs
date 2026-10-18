@@ -18,4 +18,4 @@ pub use query::{QueryPreprocessor, ProcessedQuery, extract_temporal_clauses_nati
 pub use token_budget::{estimate_token_count, truncate_to_token_ceiling, get_embedding_token_limit_rs};
 pub use pipeline::{NativeHybridPipeline, HybridSearchRequest, HybridSearchResult, RetrievalPreset, RRF_MIN_SCORE};
 pub use web_search::{NativeWebSearchEngine, WebSearchResult, parse_duckduckgo_html};
-pub use prompt::ContextFormatter;
+pub use prompt::{CanonicalSynthesisFormatter, ContextFormatter};

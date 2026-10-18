@@ -79,6 +79,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0141](docs/adr/0141-deep-search-synthesis-uses-the-canonical-context-formatter-t.md) | Deep Search synthesis uses the canonical context formatter through a port | accepted | v0.45.1 | 2026-10-17 |
 | [ADR-0140](docs/adr/0140-chunk-version-attribute-from-explicit-path-tokens-no-inferre.md) | Chunk version attribute from explicit path tokens, no inferred scope | accepted | v0.45.1 | 2026-10-17 |
 | [ADR-0139](docs/adr/0139-retrieval-order-follows-relevance.md) | Retrieval order follows relevance | accepted | v0.45.1 | 2026-10-17 |
 | [ADR-0138](docs/adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md) | Record the embedding target per workspace and reindex on change | accepted | v0.45.1 | 2026-10-17 |

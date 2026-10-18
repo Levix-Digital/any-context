@@ -25,7 +25,7 @@ Retrieval itself is in the [retrieval pipeline](retrieval.md); the concrete tool
 | `lib.rs` | `Agent`, `AgentBuilder`, `DeterministicRetriever`, `DeterministicRetrievalOutput`, `ToolBasedRetriever`. |
 | `router.rs` | `ChatModelRouter`, `ComplexityClassifier`, `DeterministicClassifier`, `RoutingDecision`, `QueryComplexity`, `QueryIntent`. |
 | `fsm.rs` | `ReActOrchestrator`: the ReAct state machine. |
-| `deep_search.rs` | `DeepSearchOrchestrator`, `DeepSearchRetriever`, `DeepSearchConfig`, `RetrievedChunk`, prompts and response parsers. |
+| `deep_search.rs` | `DeepSearchOrchestrator`, `DeepSearchRetriever`, `DeepSearchConfig`, `RetrievedChunk`, `SynthesisPromptFormatter`, `DefaultSynthesisFormatter`, prompts and response parsers. |
 | `tool.rs` | `Tool`, `NativeTool`, `ToolRegistry` (behind `std::sync::RwLock`). |
 | `session.rs` | `SessionStore`, `SqliteSessionStore`, `InMemorySessionStore`. |
 | `events.rs` | `AgentEvent` and the event channel. |
@@ -75,9 +75,9 @@ Because the CLI always configures this retriever when LanceDB opens, fast questi
 `DeepSearchOrchestrator::run` (defaults: `max_iterations` 3, `max_sub_queries` 4, `max_gap_queries` 3):
 
 1. **Decomposition** (`SUB_QUERY_PROMPT`): splits the question into up to four sub-queries and emits `AgentEvent::Decomposition`.
-2. **Batch retrieval**: each iteration (`AgentEvent::IterationStart`) calls `DeepSearchRetriever::retrieve_batch` with the current queries; the CLI's `PipelineBatchRetriever` runs them concurrently through `retrieve_hybrid_batch_async`. Each new chunk is checked for relevance with `RERANK_PROMPT` (a yes/no model call).
+2. **Batch retrieval**: each iteration (`AgentEvent::IterationStart`) calls `DeepSearchRetriever::retrieve_batch` with the current queries; the CLI's `PipelineBatchRetriever` runs them concurrently through `retrieve_hybrid_batch_async`. New chunks are deduplicated by id; when `enable_reranker` is on (off by default), a new chunk scoring below `rerank_score_threshold` is checked for relevance with `RERANK_PROMPT` (a yes/no model call).
 3. **Gap analysis** (`REFLECT_PROMPT`): asks whether more searches are needed and produces gap queries (`AgentEvent::GapAnalysis`); the loop stops early when there are none or at the last iteration.
-4. **Synthesis** (`SUMMARY_PROMPT`): writes the final answer from the collected chunks with file provenance; `sanitize_direct_conclusion` strips leftover meta-narrative and section headers.
+4. **Synthesis**: the prior session messages plus one prompt built by the `SynthesisPromptFormatter` from all collected chunks and the original question. The CLI injects `CanonicalSynthesisFormatter` from the [retrieval](retrieval.md) context formatter: the system prompt, the shared isolation rules and the Deep Search synthesis rules, the chunks of every iteration sorted by relevance in U-shaped XML, and the question last. Without injection, `DefaultSynthesisFormatter` (`SUMMARY_PROMPT`, plain chunk blocks, question last) is used. `sanitize_direct_conclusion` strips leftover meta-narrative and section headers.
 
 ### Tools
 
@@ -136,3 +136,4 @@ Answers follow the language of the user's question.
 - [ADR-0124](../adr/0124-jina-reader-web-ingestion-seven-domains.md): seven intent domains; the model reads only from the index.
 - [ADR-0125](../adr/0125-local-gemma-activation-hardware-guardrails.md): the chosen model is kept on every turn; routing only picks the search depth.
 - [ADR-0128](../adr/0128-backend-first-deterministic-dual-rag.md): backend-first one-hop RAG and session hygiene.
+- [ADR-0141](../adr/0141-deep-search-synthesis-uses-the-canonical-context-formatter-t.md): the Deep Search synthesis prompt comes from the canonical context formatter through `SynthesisPromptFormatter`.

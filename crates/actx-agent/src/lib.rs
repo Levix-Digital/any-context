@@ -15,8 +15,8 @@ pub mod tool;
 
 pub use config::{AgentConfig, AgentExecutionMode, SearchMode};
 pub use deep_search::{
-    DeepSearchConfig, DeepSearchOrchestrator, DeepSearchRetriever, RetrievedChunk,
-    clean_llm_response, parse_rerank_decision, parse_string_list,
+    DeepSearchConfig, DeepSearchOrchestrator, DeepSearchRetriever, DefaultSynthesisFormatter,
+    RetrievedChunk, SynthesisPromptFormatter, clean_llm_response, parse_rerank_decision, parse_string_list,
 };
 pub use error::{AgentError, ToolError};
 pub use events::{event_channel, AgentEvent, EventReceiver, EventSender};
@@ -89,6 +89,7 @@ impl DeepSearchRetriever for ToolBasedRetriever {
                         text: res_str,
                         score: 1.0,
                         matched_queries: vec![q.clone()],
+                        ..Default::default()
                     });
                 }
             }
@@ -369,6 +370,7 @@ pub struct AgentBuilder {
     config: AgentConfig,
     deep_search_config: Option<DeepSearchConfig>,
     deep_search_retriever: Option<Arc<dyn DeepSearchRetriever>>,
+    synthesis_formatter: Option<Arc<dyn SynthesisPromptFormatter>>,
     deterministic_retriever: Option<Arc<dyn DeterministicRetriever>>,
     router: Option<Arc<ChatModelRouter>>,
 }
@@ -438,6 +440,12 @@ impl AgentBuilder {
         self
     }
 
+    /// Formatter of the Deep Search synthesis prompt (default: `DefaultSynthesisFormatter`).
+    pub fn deep_search_synthesis_formatter(mut self, formatter: Arc<dyn SynthesisPromptFormatter>) -> Self {
+        self.synthesis_formatter = Some(formatter);
+        self
+    }
+
     pub fn deterministic_retriever(mut self, retriever: Arc<dyn DeterministicRetriever>) -> Self {
         self.deterministic_retriever = Some(retriever);
         self
@@ -476,13 +484,17 @@ impl AgentBuilder {
                 Arc::new(ToolBasedRetriever::new(tools_arc.clone(), "search_db"))
             });
 
-            Some(Arc::new(DeepSearchOrchestrator::new(
+            let mut deep_search = DeepSearchOrchestrator::new(
                 client,
                 retriever,
                 ds_cfg,
                 self.config.clone(),
                 self.session_store,
-            )))
+            );
+            if let Some(formatter) = self.synthesis_formatter {
+                deep_search = deep_search.with_synthesis_formatter(formatter);
+            }
+            Some(Arc::new(deep_search))
         } else {
             None
         };

@@ -367,7 +367,8 @@ How to record a run: in each test of the current run, mark exactly one box of th
   1. With `/search auto`, ask a short factual question, then a broad comparison question.
   2. Open the reasoning panel with `Ctrl+T` during the second answer.
 - **Expected**:
-  - The first shows the Fast RAG route and streams quickly; the second shows the Deep Search route, its sub-questions and iterations in the panel, and a combined answer with citations.
+  - The first shows the Fast RAG route and streams quickly; the second shows the Deep Search route, its sub-questions and iterations in the panel, and a combined answer that cites source files like the fast answer.
+  - With strict grounding, a deep question the workspace cannot answer gets a "not found in the workspace" answer instead of general knowledge.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
@@ -409,14 +410,15 @@ How to record a run: in each test of the current run, mark exactly one box of th
 
 ### MT-ANS-006: Answers combine files on one subject and keep versions apart
 
-- **Covers**: context formatting, chunk version labels
+- **Covers**: context formatting, chunk version labels, Deep Search synthesis
 - **Prerequisites**: a workspace with a folder `api-gateway/docs` holding `timeouts.md` ("The request timeout is 30 seconds."), `billing.md` ("Invoices are retried every 6 hours."), `v1/limits.md` ("A team can have at most 10 users.") and `v2/limits.md` ("A team can have at most 50 users.")
 - **Steps**:
   1. Run `/sync`, then with `/search fast` ask "What is the request timeout and how often are invoices retried?".
   2. Ask "How many users can a team have?".
+  3. Run `/search deep` and ask question 2 again.
 - **Expected**:
   - Answer 1 gives both values (30 seconds, every 6 hours) and cites `timeouts.md` and `billing.md`.
-  - Answer 2 gives 10 users for v1 and 50 users for v2, each with its source, without merging them or silently picking one.
+  - Answers 2 and 3 give 10 users for v1 and 50 users for v2, each with its source, without merging them or silently picking one.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

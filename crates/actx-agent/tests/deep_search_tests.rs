@@ -16,6 +16,7 @@ use std::sync::Arc;
 struct MockDeepSearchProvider {
     turn_counter: Arc<AtomicUsize>,
     responses: Arc<tokio::sync::Mutex<Vec<ChatResponse>>>,
+    requests: Arc<std::sync::Mutex<Vec<ChatRequest>>>,
 }
 
 impl MockDeepSearchProvider {
@@ -23,6 +24,7 @@ impl MockDeepSearchProvider {
         Self {
             turn_counter: Arc::new(AtomicUsize::new(0)),
             responses: Arc::new(tokio::sync::Mutex::new(responses)),
+            requests: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
 }
@@ -33,7 +35,8 @@ impl LmProvider for MockDeepSearchProvider {
         "mock_deep_search"
     }
 
-    async fn chat_complete(&self, _request: ChatRequest) -> Result<ChatResponse, LmError> {
+    async fn chat_complete(&self, request: ChatRequest) -> Result<ChatResponse, LmError> {
+        self.requests.lock().unwrap().push(request);
         let idx = self.turn_counter.fetch_add(1, Ordering::SeqCst);
         let list = self.responses.lock().await;
         if idx < list.len() {
@@ -189,6 +192,7 @@ async fn test_deep_search_single_iteration_sufficient() {
             text: "Tree-sitter parser implementation".into(),
             score: 0.95,
             matched_queries: vec!["Subquery A: Ingestion".into()],
+            ..Default::default()
         },
         RetrievedChunk {
             id: "c2".into(),
@@ -200,6 +204,7 @@ async fn test_deep_search_single_iteration_sufficient() {
             text: "LanceDB native vector table".into(),
             score: 0.90,
             matched_queries: vec!["Subquery B: Storage".into()],
+            ..Default::default()
         },
     ];
     let retriever = Arc::new(MockRetriever::with_chunks(canned_chunks));
@@ -293,6 +298,7 @@ async fn test_deep_search_multi_iteration_gap_queries() {
             text: "BM25 Okapi implementation".into(),
             score: 0.88,
             matched_queries: vec![],
+            ..Default::default()
         },
     ];
     let retriever = Arc::new(MockRetriever::with_chunks(canned_chunks));
@@ -433,4 +439,135 @@ async fn test_agent_builder_deep_search_mode() {
 
     let response = agent.run("Test via Agent struct", None).await.expect("Execution failed");
     assert_eq!(response.content, "Grounded builder response.");
+}
+
+fn mock_response(content: &str) -> ChatResponse {
+    ChatResponse {
+        id: "mock".into(),
+        model: "mock".into(),
+        content: content.into(),
+        thinking: None,
+        tool_calls: vec![],
+        finish_reason: Some(FinishReason::Stop),
+        usage: None,
+    }
+}
+
+/// Records what the orchestrator hands to the synthesis formatter.
+#[derive(Default)]
+struct RecordingFormatter {
+    calls: std::sync::Mutex<Vec<(Vec<String>, String)>>,
+}
+
+impl SynthesisPromptFormatter for RecordingFormatter {
+    fn format_synthesis_prompt(&self, chunks: &[RetrievedChunk], query: &str) -> String {
+        let ids = chunks.iter().map(|c| c.id.clone()).collect();
+        self.calls.lock().unwrap().push((ids, query.to_string()));
+        format!("FORMATTED SYNTHESIS for {}", query)
+    }
+}
+
+/// Returns a different set of chunks on each call, like successive Deep Search iterations.
+struct SequenceRetriever {
+    batches: std::sync::Mutex<Vec<Vec<RetrievedChunk>>>,
+}
+
+#[async_trait]
+impl DeepSearchRetriever for SequenceRetriever {
+    async fn retrieve_batch(&self, _queries: &[String]) -> Result<Vec<RetrievedChunk>, AgentError> {
+        let mut batches = self.batches.lock().unwrap();
+        Ok(if batches.is_empty() { Vec::new() } else { batches.remove(0) })
+    }
+}
+
+fn chunk(id: &str, score: f64) -> RetrievedChunk {
+    RetrievedChunk {
+        id: id.into(),
+        file_name: format!("{id}.md"),
+        file_path: format!("docs/{id}.md"),
+        text: format!("Text of {id}"),
+        score,
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn test_deep_search_synthesis_uses_injected_formatter() {
+    // Regression for BUG-009: the final prompt comes from the injected formatter, over every iteration.
+    let client = Arc::new(MockDeepSearchProvider::new(vec![
+        mock_response(r#"["timeouts", "billing"]"#),
+        mock_response(r#"["invoice retries"]"#),
+        mock_response("[]"),
+        mock_response("The timeout is 30 seconds."),
+    ]));
+    let retriever = Arc::new(SequenceRetriever {
+        batches: std::sync::Mutex::new(vec![
+            vec![chunk("a", 0.9), chunk("b", 0.5)],
+            vec![chunk("c", 0.95), chunk("a", 0.9)],
+        ]),
+    });
+    let formatter = Arc::new(RecordingFormatter::default());
+
+    let orchestrator = DeepSearchOrchestrator::new(
+        client.clone(),
+        retriever,
+        DeepSearchConfig::default(),
+        AgentConfig::default(),
+        None,
+    )
+    .with_synthesis_formatter(formatter.clone());
+
+    let response = orchestrator
+        .run("What is the timeout and how often are invoices retried?", None, None)
+        .await
+        .expect("Deep Search failed");
+
+    assert_eq!(response.content, "The timeout is 30 seconds.");
+    let calls = formatter.calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].0, vec!["a", "b", "c"]);
+    assert_eq!(calls[0].1, "What is the timeout and how often are invoices retried?");
+
+    let requests = client.requests.lock().unwrap();
+    let synthesis = requests.last().unwrap();
+    assert_eq!(
+        synthesis.messages.last().unwrap().content,
+        "FORMATTED SYNTHESIS for What is the timeout and how often are invoices retried?"
+    );
+}
+
+#[tokio::test]
+async fn test_agent_builder_passes_synthesis_formatter() {
+    let client = Arc::new(MockDeepSearchProvider::new(vec![
+        mock_response(r#"["q"]"#),
+        mock_response("[]"),
+        mock_response("Answer."),
+    ]));
+    let formatter = Arc::new(RecordingFormatter::default());
+    let agent = Agent::builder()
+        .client(client.clone())
+        .model("mock")
+        .execution_mode(AgentExecutionMode::DeepSearch)
+        .deep_search_retriever(Arc::new(MockRetriever::with_chunks(vec![chunk("a", 0.9)])))
+        .deep_search_synthesis_formatter(formatter.clone())
+        .build_sync()
+        .expect("build failed");
+
+    agent.run("Where is the database?", None).await.expect("run failed");
+
+    assert_eq!(formatter.calls.lock().unwrap().len(), 1);
+    let requests = client.requests.lock().unwrap();
+    assert_eq!(
+        requests.last().unwrap().messages.last().unwrap().content,
+        "FORMATTED SYNTHESIS for Where is the database?"
+    );
+}
+
+#[test]
+fn test_default_synthesis_formatter_puts_query_last() {
+    let prompt = DefaultSynthesisFormatter.format_synthesis_prompt(&[chunk("a", 0.9)], "Where is the database?");
+    let chunk_pos = prompt.find("Text of a").unwrap();
+    let query_pos = prompt.find("Where is the database?").unwrap();
+    assert!(chunk_pos < query_pos);
+    assert!(prompt.ends_with("Original Query: Where is the database?"));
 }

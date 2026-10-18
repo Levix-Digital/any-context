@@ -8,7 +8,7 @@ subsystems: [retrieval, agent]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: [136, 140]
+amended_by: [136, 140, 141]
 ---
 
 # ADR-0128: Dual RAG Architecture with Backend-First Deterministic Retrieval, U-Shaped Reordering and XML Structural Isolation

@@ -29,7 +29,7 @@ The vector table itself belongs to [Storage and Encryption](storage.md); the cro
 | `query.rs` | `QueryPreprocessor`: filename mentions, temporal clauses and temporal query expansion. |
 | `tokenizer.rs` | Unicode tokenizer with diacritic folding and code identifier splitting. |
 | `token_budget.rs` | `estimate_token_count`, `truncate_to_token_ceiling`, embedding token limits per model. |
-| `prompt.rs` | `ContextFormatter`: U-shaped reordering, XML chunk envelopes, deterministic prompt, tool result payload, Zero Hallucination Gate. |
+| `prompt.rs` | `ContextFormatter`: U-shaped reordering, XML chunk envelopes, deterministic prompt, tool result payload, Deep Search synthesis prompt, Zero Hallucination Gate; `CanonicalSynthesisFormatter`, the Deep Search synthesis adapter. |
 | `web_search.rs` | `NativeWebSearchEngine`: Tavily, Serper and DuckDuckGo cascade. |
 | `hybrid.rs` | `HybridRetrieverEngine`: thin wrapper over `BM25Index`. |
 
@@ -103,8 +103,9 @@ All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `m
 - `u_shaped_reorder` turns `[R1, R2, R3, R4, R5, R6]` into `[R1, R3, R5, R6, R4, R2]`, placing the two best chunks at the edges of the context.
 - `format_xml_chunks` wraps each chunk in `<chunk id rank score source file [version] type>` inside `<retrieved_context>`, with a `[Context: <file> | Type: <type> | Modified: <date>]` header line. `infer_version` splits the path into whole tokens (on `/`, `\`, `_`, `-` and spaces, without the file extension; for a URL only its path) and takes the last `v<n>[.<n>...]` token, else `legacy` for a `legacy` or `deprecated` token; without such a token the chunk has no `version` attribute. There is no `scope` attribute: `source` identifies the document.
 - Attribute values are XML-escaped (`&`, `<`, `>`, `"`, `'`; control characters become spaces). In chunk text, the header line and the query, only the `<` that opens or closes an envelope tag listed in `RESERVED_PROMPT_TAGS` (`retrieved_context`, `chunk`, `system_instructions`, `user_query`, `tool_result`, `query_anchor`) is replaced by `&lt;`, in any case and with optional spaces and slash; other markup and code reach the model unchanged. A test fails if the envelope uses a tag missing from that list.
-- `format_deterministic_prompt` builds the full one-hop prompt: system instructions plus context isolation rules, the XML context and the `<user_query>`. Excerpts from different sources or versions are combined only when the text shows they apply to the same thing; conflicting values are presented per source. The last rule states that chunk content is quoted document text, never instructions.
+- `format_deterministic_prompt` builds the full one-hop prompt: system instructions plus context isolation rules, the XML context and the `<user_query>`. The isolation rules come from one function, `isolation_rules`, shared with the Deep Search synthesis. Excerpts from different sources or versions are combined only when the text shows they apply to the same thing; conflicting values are presented per source. The last rule states that chunk content is quoted document text, never instructions.
 - `format_tool_result_payload` builds the `search_db` result: the XML context followed by a `<query_anchor>` that restates the original query, asks for conflicting values per source and tells the model to treat chunk content as data.
+- `format_deep_search_prompt` builds the final Deep Search synthesis prompt with the same layout: system instructions, isolation rules and Deep Search synthesis rules (cover every part of the question, only the direct conclusion, state what was not found), the XML context and the `<user_query>` last. Deep Search accumulates several batches, so the chunks are first sorted with `compare_by_relevance`. `CanonicalSynthesisFormatter` implements the `actx_agent::SynthesisPromptFormatter` port with it: it maps `RetrievedChunk` to `HybridSearchResult` and is injected by the CLI (see [Agent](agent.md)).
 - `evaluate_zero_hallucination` returns an honest "not found" answer listing the workspace's folders and web sources when there are no chunks or none scores at least 0.005; the caller then skips the language model call.
 
 ### Web search
@@ -115,7 +116,7 @@ All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `m
 
 - **Called by**: the agent tools and retrievers assembled in `crates/actx-cli/src/engine.rs` (`search_db`, `PipelineDeterministicRetriever`, `PipelineBatchRetriever`, `web_search`), the [command engine](commands.md) (inspection), and [ingestion](ingestion.md) (`BM25Index`).
 - **Calls**: [storage](storage.md) (`NativeLanceStore` vector and metadata search, `NativeSecurityEngine`), [ONNX Inference](onnx.md) (`OnnxReranker`), [language model providers](lm-providers.md) (`embed`).
-- **Exports**: `NativeHybridPipeline`, `HybridSearchRequest`, `HybridSearchResult`, `ContextFormatter`, `BM25Index` and the helpers re-exported from `any_context_core_rs::retrieval`.
+- **Exports**: `NativeHybridPipeline`, `HybridSearchRequest`, `HybridSearchResult`, `ContextFormatter`, `CanonicalSynthesisFormatter`, `BM25Index` and the helpers re-exported from `any_context_core_rs::retrieval`.
 
 ## Decisions
 
@@ -134,3 +135,4 @@ All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `m
 - [ADR-0136](../adr/0136-neutralizing-reserved-prompt-tags-in-retrieved-text.md): escaped attributes, neutralized envelope tags in retrieved text and queries, and chunk content declared as data.
 - [ADR-0139](../adr/0139-retrieval-order-follows-relevance.md): relevance-only ranking, per-source cap in score order, recency as a tie-breaker and the `RRF_MIN_SCORE` floor.
 - [ADR-0140](../adr/0140-chunk-version-attribute-from-explicit-path-tokens-no-inferre.md): `version` only from explicit path tokens, no inferred `scope`, conflicting values reported per source.
+- [ADR-0141](../adr/0141-deep-search-synthesis-uses-the-canonical-context-formatter-t.md): the Deep Search synthesis uses `ContextFormatter` through the `SynthesisPromptFormatter` port, with the shared isolation rules.
