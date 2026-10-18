@@ -166,6 +166,15 @@ impl NativeSyncOrchestrator {
         // Rows indexed before every write was encrypted are encrypted in place (ADR-0135).
         // A failure is reported in the result and retried on the next pass.
         let mut legacy_encryption_errors = Vec::new();
+        // Tables created before ADR-0142 get the nullable provenance columns in place; old rows
+        // keep null provenance until their file changes or a forced sync.
+        let provenance_columns_added = match self.lance_store.ensure_provenance_columns(None) {
+            Ok(added) => added,
+            Err(e) => {
+                legacy_encryption_errors.push(e);
+                false
+            }
+        };
         let chunks_encrypted_legacy = match self.lance_store.encrypt_plaintext_rows(None) {
             Ok(report) => report.rows_encrypted,
             Err(e) => {
@@ -188,6 +197,9 @@ impl NativeSyncOrchestrator {
         }
 
         if options.verbose {
+            if provenance_columns_added {
+                println!("🧭 LanceDB: added provenance columns header_path, start_line, end_line.");
+            }
             if chunks_encrypted_legacy > 0 {
                 println!("🔒 Encrypted {} chunks stored before encryption at rest.", chunks_encrypted_legacy);
             }
@@ -626,17 +638,17 @@ impl NativeSyncOrchestrator {
             generate_fallback_vectors(&chunk_texts, DEFAULT_VECTOR_DIM)
         };
 
-        // 3. Assemble VectorRecords for LanceDB
+        // 3. Assemble VectorRecords for LanceDB, with the chunk provenance (ADR-0142)
+        let file_lines = self.router.has_file_lines(file_path);
         let mut records = Vec::with_capacity(chunks.len());
         for (i, c) in chunks.iter().enumerate() {
             let vector = vectors.get(i).cloned().unwrap_or_else(|| vec![0.0; DEFAULT_VECTOR_DIM]);
-            let (doc_summary, keywords) = if let Some(env) = envelope {
-                (
-                    Some(env.summary.clone()),
-                    Some(env.keywords.join(", ")),
-                )
+            let doc_summary = envelope.map(|env| env.summary.clone());
+            let keywords = envelope.map(|env| env.keywords.join(", "));
+            let (start_line, end_line) = if file_lines && c.start_line >= 1 && c.start_line <= c.end_line {
+                (u32::try_from(c.start_line).ok(), u32::try_from(c.end_line).ok())
             } else {
-                (c.header_path.clone(), None)
+                (None, None)
             };
 
             records.push(VectorRecord {
@@ -651,6 +663,9 @@ impl NativeSyncOrchestrator {
                 document_summary: doc_summary,
                 keywords,
                 content_hash: Some(content_hash.to_string()),
+                header_path: c.header_path.clone().filter(|h| !h.trim().is_empty()),
+                start_line,
+                end_line,
             });
         }
 
@@ -954,6 +969,9 @@ mod tests {
                 document_summary: Some("Old summary".into()),
                 keywords: None,
                 content_hash: Some("legacy".into()),
+                header_path: None,
+                start_line: None,
+                end_line: None,
             }],
         );
         let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db);
@@ -1084,5 +1102,75 @@ mod tests {
         assert_eq!(ledger.2, added);
 
         let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    fn chunk(id: &str, file_path: &str, header: &str, start: usize, end: usize, content_type: &str) -> ChunkPayload {
+        ChunkPayload {
+            id: id.to_string(),
+            text: format!("Chunk {id} about request timeouts and retries."),
+            file_name: Path::new(file_path).file_name().unwrap().to_string_lossy().to_string(),
+            file_path: file_path.to_string(),
+            header_path: Some(header.to_string()),
+            start_line: start,
+            end_line: end,
+            content_type: content_type.to_string(),
+            chunk_index: 0,
+        }
+    }
+
+    async fn upsert_one(tag: &str, c: ChunkPayload, with_envelope: bool) -> crate::storage::ScoredVectorResult {
+        let temp_dir = std::env::temp_dir().join(format!("test_orch_prov_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let db = Arc::new(NativeConfigDb::open_in_memory().unwrap());
+        let lance_store = Arc::new(NativeLanceStore::open(&temp_dir.join("lancedb")).unwrap());
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db.clone());
+        let enricher = NativeContextualEnricher::new(db);
+        let env = enricher.extract_envelope("Guide to request timeouts and retry policies.", &c.file_name, Some(&c.file_path), None);
+        let mut bm25 = BM25Index::new(None, None);
+        let file_path = c.file_path.clone();
+        orchestrator
+            .embed_and_upsert_chunks(
+                &[c.clone()],
+                with_envelope.then_some(&env),
+                &enricher,
+                "Default",
+                &file_path,
+                &c.file_name,
+                "provhash1234567",
+                1000.0,
+                &None,
+                "mock",
+                &mut bm25,
+            )
+            .await
+            .unwrap();
+        let mut rows = lance_store.search_metadata("id <> ''", 10, Some("Default"), None).unwrap();
+        let _ = std::fs::remove_dir_all(temp_dir);
+        assert_eq!(rows.len(), 1);
+        rows.remove(0)
+    }
+
+    #[tokio::test]
+    async fn test_upsert_keeps_header_path_and_lines_with_envelope() {
+        let row = upsert_one("envelope", chunk("md_0", "docs/guide.md", "guide.md > Timeouts", 40, 58, "markdown"), true).await;
+        assert!(row.document_summary.as_deref().unwrap_or("").contains("guide.md"), "summary comes from the envelope");
+        assert_eq!(row.header_path.as_deref(), Some("guide.md > Timeouts"));
+        assert_eq!((row.start_line, row.end_line), (Some(40), Some(58)));
+
+        let row = upsert_one("no_envelope", chunk("rs_0", "src/client.rs", "client.rs > fn connect", 12, 30, "rust"), false).await;
+        assert!(row.document_summary.as_deref().unwrap_or("").is_empty(), "no envelope, no summary");
+        assert_eq!(row.header_path.as_deref(), Some("client.rs > fn connect"));
+        assert_eq!((row.start_line, row.end_line), (Some(12), Some(30)));
+    }
+
+    #[tokio::test]
+    async fn test_upsert_skips_lines_for_page_relative_chunkers() {
+        let row = upsert_one("pdf", chunk("pdf_0", "docs/manual.pdf", "manual.pdf > Page 3", 1, 42, "pdf"), true).await;
+        assert_eq!(row.header_path.as_deref(), Some("manual.pdf > Page 3"));
+        assert_eq!((row.start_line, row.end_line), (None, None));
+
+        let row = upsert_one("web", chunk("web_0", "https://docs.example.com/guide", "Guide > Install", 5, 9, "markdown"), true).await;
+        assert_eq!(row.header_path.as_deref(), Some("Guide > Install"));
+        assert_eq!((row.start_line, row.end_line), (None, None));
     }
 }

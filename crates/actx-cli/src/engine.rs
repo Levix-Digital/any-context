@@ -544,6 +544,9 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
                 document_summary: Some(format!("AnyContext Documentation: {}", header)),
                 keywords: Some("anycontext, system, guide, commands, usage, architecture".to_string()),
                 content_hash: None,
+                header_path: Some(header.clone()),
+                start_line: None,
+                end_line: None,
             };
             records.push(rec);
             bm25_chunks.push((chunk_id, full_text, header, file_name.to_string(), file_path.to_string()));
@@ -703,9 +706,9 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
                         id: r.chunk_id,
                         file_name: r.file_name,
                         file_path: r.file_path,
-                        header_path: None,
-                        start_line: None,
-                        end_line: None,
+                        header_path: r.header_path,
+                        start_line: r.start_line.map(|l| l as usize),
+                        end_line: r.end_line.map(|l| l as usize),
                         text: r.text,
                         score: r.score,
                         matched_queries: r.matched_subqueries,

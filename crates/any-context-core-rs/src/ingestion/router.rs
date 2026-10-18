@@ -84,6 +84,32 @@ impl Default for IngestionRouter {
 }
 
 impl IngestionRouter {
+    /// Whether the chunker chosen for `file_path` reports file line numbers in
+    /// `start_line`/`end_line` (ADR-0142). Markdown, code, structured data and plain text do;
+    /// web pages (lines of the fetched text), PDF and Office (page or extracted-text lines),
+    /// images (OCR lines) and tabular files (row or transaction indexes) do not, and keep
+    /// their page, sheet or row locator in `header_path`.
+    pub fn has_file_lines(&self, file_path: &str) -> bool {
+        if self.text_chunker.is_web_url(file_path) {
+            return false;
+        }
+        let ext = Path::new(file_path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if matches!(ext.as_str(), "md" | "markdown" | "rst" | "mdown")
+            || self.code_chunker.supports_extension(&ext)
+            || self.structured_chunker.supports_extension(&ext)
+        {
+            return true;
+        }
+        !(self.tabular_chunker.supports_extension(&ext)
+            || self.pdf_chunker.supports_extension(&ext)
+            || self.office_chunker.supports_extension(&ext)
+            || self.image_chunker.supports_extension(&ext))
+    }
+
     /// Pure Rust native implementation for document chunking.
     pub fn chunk_text_native(&self, file_path: &str, content: &str) -> Result<Vec<ChunkPayload>, String> {
         if self.text_chunker.is_web_url(file_path) {
@@ -158,6 +184,25 @@ impl IngestionRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_has_file_lines() {
+        let router = IngestionRouter::default();
+        for path in ["docs/guide.md", "src/client.rs", "config/app.json", "notes.txt", "Dockerfile"] {
+            assert!(router.has_file_lines(path), "{path} has file lines");
+        }
+        for path in [
+            "report.pdf",
+            "letter.docx",
+            "scan.png",
+            "data.csv",
+            "budget.xlsx",
+            "bank.ofx",
+            "https://docs.example.com/guide.md",
+        ] {
+            assert!(!router.has_file_lines(path), "{path} has no file lines");
+        }
+    }
 
     #[test]
     fn test_router_supports_files() {

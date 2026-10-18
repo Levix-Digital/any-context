@@ -167,6 +167,14 @@ pub struct HybridSearchResult {
     pub token_count: usize,
     pub matched_subqueries: Vec<String>,
     pub last_modified: Option<String>,
+    /// Section or symbol path of the chunk, when stored (ADR-0142).
+    #[serde(default)]
+    pub header_path: Option<String>,
+    /// File line range, only for chunkers that emit file line numbers.
+    #[serde(default)]
+    pub start_line: Option<u32>,
+    #[serde(default)]
+    pub end_line: Option<u32>,
 }
 
 /// Query embedding model used until `set_embedding` is called.
@@ -269,6 +277,24 @@ async fn apply_neural_rerank(
             if is_tail(i, &items[i]) {
                 items[i].score = ceiling * (items[i].score / tail_max).max(0.0);
             }
+        }
+    }
+}
+
+/// Section path and file line range of a stored chunk.
+#[derive(Debug, Clone, Default)]
+struct Provenance {
+    header_path: Option<String>,
+    start_line: Option<u32>,
+    end_line: Option<u32>,
+}
+
+impl Provenance {
+    fn of(row: &ScoredVectorResult) -> Self {
+        Self {
+            header_path: row.header_path.clone(),
+            start_line: row.start_line,
+            end_line: row.end_line,
         }
     }
 }
@@ -641,14 +667,25 @@ impl NativeHybridPipeline {
             .clone()
             .unwrap_or_else(|| req.query_text.clone());
 
-        // 10. Assemble HybridSearchResult candidates
+        // 10. Provenance of BM25-only hits: the BM25 file has no provenance fields, so it is
+        // read from LanceDB in one lookup (ADR-0142).
+        let bm25_only_ids: Vec<String> = fused_results
+            .iter()
+            .filter(|r| !dense_map.contains_key(&r.id))
+            .map(|r| r.id.clone())
+            .collect();
+        let mut provenance = self
+            .lookup_provenance(&bm25_only_ids, req.workspace.as_deref(), &req.table_name)
+            .await;
+
+        // 11. Assemble HybridSearchResult candidates
         let mut results = Vec::with_capacity(fused_results.len());
         for res in fused_results {
             let chunk_id = res.id;
             let dense_entry = dense_map.remove(&chunk_id);
             let sparse_score = sparse_score_map.get(&chunk_id).copied();
 
-            let (file_name, file_path, workspace, text, content_type, content_hash, dense_score, last_modified) =
+            let (file_name, file_path, workspace, text, content_type, content_hash, dense_score, last_modified, origin) =
                 if let Some(ref d) = dense_entry {
                     (
                         d.file_name.clone(),
@@ -659,8 +696,12 @@ impl NativeHybridPipeline {
                         d.content_hash.clone().unwrap_or_default(),
                         Some(d.score),
                         d.last_modified.clone(),
+                        Provenance::of(d),
                     )
                 } else if let Some(doc) = bm25_index.get_doc_by_id(&chunk_id) {
+                    let origin = provenance
+                        .remove(&(chunk_id.clone(), doc.file_path.replace('\\', "/")))
+                        .unwrap_or_default();
                     (
                         doc.file_name.clone(),
                         doc.file_path.clone(),
@@ -670,6 +711,7 @@ impl NativeHybridPipeline {
                         String::new(),
                         None,
                         doc.last_modified.clone(),
+                        origin,
                     )
                 } else {
                     continue;
@@ -701,6 +743,9 @@ impl NativeHybridPipeline {
                 token_count,
                 matched_subqueries: vec![sub_query_tag.clone()],
                 last_modified,
+                header_path: origin.header_path,
+                start_line: origin.start_line,
+                end_line: origin.end_line,
             });
         }
 
@@ -753,6 +798,35 @@ impl NativeHybridPipeline {
         }
 
         Ok(final_results)
+    }
+
+    /// Reads the provenance of `ids` from LanceDB, keyed by chunk id and normalized file path
+    /// (chunk ids repeat across files with the same content). A lookup error leaves the hits
+    /// without provenance: the answer still works, only the citation is less precise.
+    async fn lookup_provenance(
+        &self,
+        ids: &[String],
+        workspace: Option<&str>,
+        table_name: &str,
+    ) -> HashMap<(String, String), Provenance> {
+        if ids.is_empty() {
+            return HashMap::new();
+        }
+        let list = ids
+            .iter()
+            .map(|id| format!("'{}'", id.replace('\'', "''")))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let ws_filter = workspace.filter(|w| !w.is_empty() && *w != "Default");
+        // The same id can exist in several files and in the Global workspace.
+        let limit = ids.len() * 4;
+        self.lance_store
+            .search_metadata_async(&format!("id IN ({list})"), limit, ws_filter, Some(table_name))
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|row| ((row.id.clone(), row.file_path.clone()), Provenance::of(&row)))
+            .collect()
     }
 
     /// Single-query hybrid retrieval synchronous wrapper.
@@ -1042,6 +1116,9 @@ mod tests {
             token_count: 4,
             matched_subqueries: Vec::new(),
             last_modified: None,
+            header_path: None,
+            start_line: None,
+            end_line: None,
         }
     }
 
@@ -1146,6 +1223,44 @@ mod tests {
             );
         }
         (pipeline, temp_dir)
+    }
+
+    #[test]
+    fn test_bm25_only_hits_get_provenance_from_lancedb() {
+        let (pipeline, dir) = bm25_pipeline(
+            "provenance_bm25",
+            &[("g_0", "kestrel timeouts are retried three times", "guide.md", SAME_DAY), ("n_0", "kestrel notes", "notes.md", SAME_DAY)],
+        );
+        // Only g_0 has a LanceDB row with provenance; there is no query vector (no provider).
+        let record = crate::storage::VectorRecord {
+            id: "g_0".into(),
+            vector: vec![0.1; 4],
+            text: "kestrel timeouts are retried three times".into(),
+            file_name: "guide.md".into(),
+            file_path: "/docs/guide.md".into(),
+            workspace: "Default".into(),
+            last_modified: Some(SAME_DAY.into()),
+            content_type: Some("markdown".into()),
+            document_summary: None,
+            keywords: None,
+            content_hash: None,
+            header_path: Some("guide.md > Timeouts".into()),
+            start_line: Some(40),
+            end_line: Some(58),
+        };
+        pipeline.lance_store.upsert_records(vec![record], None, Some(4)).unwrap();
+
+        let results = pipeline
+            .search(HybridSearchRequest { query_text: "kestrel".to_string(), ..Default::default() })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let guide = results.iter().find(|r| r.chunk_id == "g_0").expect("guide hit");
+        assert_eq!(guide.dense_score, None, "found by BM25 only");
+        assert_eq!(guide.header_path.as_deref(), Some("guide.md > Timeouts"));
+        assert_eq!((guide.start_line, guide.end_line), (Some(40), Some(58)));
+        let notes = results.iter().find(|r| r.chunk_id == "n_0").expect("notes hit");
+        assert_eq!((notes.header_path.as_deref(), notes.start_line), (None, None));
     }
 
     fn assert_descending(results: &[HybridSearchResult]) {
