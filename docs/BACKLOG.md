@@ -20,13 +20,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: REFLECT_PROMPT and RERANK_PROMPT (crates/actx-agent/src/deep_search.rs) insert chunk text, chunk previews and queries with plain string replacement, without neutralizing the reserved prompt tags of ADR-0136. RERANK_PROMPT wraps the text in <chunk> tags that the text itself can close. Same risk as BUG-007, on the intermediate Deep Search calls.
 
-### BUG-017: system_status and web_search never reach the model on the routed paths
-- **Severity**: medium
-- **Status**: planned
-- **Found**: 2026-10-18, v0.45.0, BUG-012 discovery
-- **Plan**: any_context_system_status_and_web_search_never_reach_the_model_on_the_routed_paths
-- **Description**: LanceDB always opens (NativeLanceStore::open creates the directory), so build_agent_sync always sets the deterministic retriever and Agent::run/stream send Fast and Auto-fast questions to the one-hop path and Deep and Auto-deep questions to Deep Search; neither offers tools. ReAct, the only path with search_db, system_status and web_search, runs only when LanceDB fails to open. Effects: /web-search on does not change answers, and status questions (MT-MEM-002) and live web search (MT-WEB-003) cannot be answered. Decide how status and web results reach the routed paths. Related to IMP-011.
-
 ### BUG-018: web_search tool sends raw web snippets to the model
 - **Severity**: medium
 - **Status**: open
@@ -420,3 +413,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_agent_prompt_names_tools_that_do_not_exist
 - **Closed**: 2026-10-18, plan any_context_agent_prompt_names_tools_that_do_not_exist, PR #359
 - **Description**: `config/AGENT.md` tells the model to call `add_web_source`, `list_web_sources`, `remove_web_source` and `search_db(search_session_memory=True)`, but only `search_db(query)` and `system_status` are registered. It also says the model must always call `search_db` first, while the deterministic path sends the retrieved chunks with no tools available.
+
+### BUG-017: system_status and web_search never reach the model on the routed paths
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-18, v0.45.0, BUG-012 discovery
+- **Plan**: any_context_system_status_and_web_search_never_reach_the_model_on_the_routed_paths
+- **Closed**: 2026-10-18, PR #361 (status route); the web search half moved to FEAT-019, the raw-snippet tool is BUG-018
+- **Description**: LanceDB always opens (NativeLanceStore::open creates the directory), so build_agent_sync always sets the deterministic retriever and Agent::run/stream send Fast and Auto-fast questions to the one-hop path and Deep and Auto-deep questions to Deep Search; neither offers tools. ReAct, the only path with search_db, system_status and web_search, runs only when LanceDB fails to open. Effects: /web-search on does not change answers, and status questions (MT-MEM-002) and live web search (MT-WEB-003) cannot be answered. Decide how status and web results reach the routed paths. Related to IMP-011.

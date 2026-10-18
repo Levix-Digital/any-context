@@ -4,10 +4,10 @@ project: any-context
 title: system_status and web_search never reach the model on the routed paths
 kind: bug
 version: 0.45.1
-status: planned
+status: completed
 author: Claude
 created_at: '2026-10-18T17:14:09'
-updated_at: '2026-10-18T18:01:49'
+updated_at: '2026-10-18T18:24:10'
 session_id: null
 tags: []
 supersedes: null
@@ -50,6 +50,10 @@ status_log:
 - at: '2026-10-18T18:01:49'
   by: Claude
   note: 'Milestone ''M3 Review and PR'' completed: PR #361, CI green'
+- at: '2026-10-18T18:24:10'
+  by: Claude
+  status: completed
+  note: 'Delivered in PR #361'
 ---
 
 # system_status and web_search never reach the model on the routed paths
