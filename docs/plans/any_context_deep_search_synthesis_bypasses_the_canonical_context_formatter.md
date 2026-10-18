@@ -4,10 +4,10 @@ project: any-context
 title: Deep Search synthesis bypasses the canonical context formatter
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Claude
 created_at: '2026-10-17T22:07:45'
-updated_at: '2026-10-17T22:52:28'
+updated_at: '2026-10-18T07:23:18'
 session_id: null
 tags:
 - deep-search
@@ -28,7 +28,9 @@ milestones:
   done_at: '2026-10-17'
   by: Claude
 - name: M3 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 status_log:
 - at: '2026-10-17T22:07:45'
   by: Claude
@@ -51,6 +53,13 @@ status_log:
 - at: '2026-10-17T22:52:28'
   by: Claude
   note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0141, agent and retrieval pages, MT-ANS-002 and MT-ANS-006; docs, readme, manual test and design checks clean'
+- at: '2026-10-18T07:23:18'
+  by: Claude
+  note: 'Milestone ''M3 Review and PR'' completed: PR #353 merged into dev'
+- at: '2026-10-18T07:23:18'
+  by: Claude
+  status: completed
+  note: All milestones completed
 ---
 
 # Deep Search synthesis bypasses the canonical context formatter
