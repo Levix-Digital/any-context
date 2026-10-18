@@ -4,10 +4,10 @@ project: any-context
 title: Section and line metadata are lost at ingestion
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Claude
 created_at: '2026-10-18T08:31:37'
-updated_at: '2026-10-18T09:09:54'
+updated_at: '2026-10-18T09:37:13'
 session_id: null
 tags:
 - ingestion
@@ -33,7 +33,9 @@ milestones:
   done_at: '2026-10-18'
   by: Claude
 - name: M4 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 status_log:
 - at: '2026-10-18T08:31:37'
   by: Claude
@@ -56,6 +58,17 @@ status_log:
 - at: '2026-10-18T09:09:54'
   by: Claude
   note: 'Milestone ''M3 Docs and manual tests'' completed: ADR-0142, storage/ingestion/retrieval/chunkers/agent pages, README, MT-ANS-007 and MT-SYNC-002; docs, readme, manual test and design checks clean'
+- at: '2026-10-18T09:36:51'
+  by: Claude
+  note: 'Milestone ''M4 Review and PR'' completed: PR #355 merged into dev'
+- at: '2026-10-18T09:36:51'
+  by: Claude
+  status: completed
+  note: All milestones completed
+- at: '2026-10-18T09:37:13'
+  by: Claude
+  status: completed
+  note: All milestones completed
 ---
 
 # Section and line metadata are lost at ingestion
