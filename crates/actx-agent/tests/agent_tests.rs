@@ -393,3 +393,114 @@ async fn test_event_streaming_pipeline() {
     assert!(event_types.contains(&"delta"));
     assert!(event_types.contains(&"done"));
 }
+
+/// Deterministic retriever that records the queries it receives.
+struct RecordingRetriever {
+    label: &'static str,
+    calls: Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+impl RecordingRetriever {
+    fn new(label: &'static str) -> (Arc<Self>, Arc<std::sync::Mutex<Vec<String>>>) {
+        let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
+        (Arc::new(Self { label, calls: calls.clone() }), calls)
+    }
+}
+
+#[async_trait]
+impl DeterministicRetriever for RecordingRetriever {
+    async fn retrieve_and_format(&self, query: &str) -> Result<DeterministicRetrievalOutput, AgentError> {
+        self.calls.lock().unwrap().push(query.to_string());
+        Ok(DeterministicRetrievalOutput::ContextReady {
+            formatted_prompt: format!("{} prompt for {}", self.label, query),
+            chunk_count: 1,
+        })
+    }
+}
+
+fn answer(content: &str) -> ChatResponse {
+    ChatResponse {
+        id: "resp".to_string(),
+        model: "mock".to_string(),
+        content: content.to_string(),
+        thinking: None,
+        tool_calls: vec![],
+        finish_reason: Some(FinishReason::Stop),
+        usage: Some(TokenUsage::new(5, 5)),
+    }
+}
+
+fn routed_agent(
+    search_mode: SearchMode,
+    execution_mode: AgentExecutionMode,
+    with_status: bool,
+) -> (Agent, Arc<std::sync::Mutex<Vec<String>>>, Arc<std::sync::Mutex<Vec<String>>>) {
+    let (fast, fast_calls) = RecordingRetriever::new("fast");
+    let (status, status_calls) = RecordingRetriever::new("status");
+    let mut builder = Agent::builder()
+        .client(Arc::new(TestMockProvider::new(vec![answer("routed answer")])))
+        .model("mock-model")
+        .search_mode(search_mode)
+        .execution_mode(execution_mode)
+        .deterministic_retriever(fast);
+    if with_status {
+        builder = builder.status_retriever(status);
+    }
+    (builder.build_sync().unwrap(), fast_calls, status_calls)
+}
+
+#[tokio::test]
+async fn test_status_question_takes_the_status_retriever_in_run() {
+    for (search, exec) in [
+        (SearchMode::Fast, AgentExecutionMode::ReAct),
+        (SearchMode::Auto, AgentExecutionMode::ReAct),
+        (SearchMode::Deep, AgentExecutionMode::DeepSearch),
+    ] {
+        let (agent, fast_calls, status_calls) = routed_agent(search, exec, true);
+        let resp = agent.run("is everything indexed yet?", None).await.unwrap();
+        assert_eq!(resp.content, "routed answer", "{search:?}");
+        assert_eq!(resp.total_turns, 1);
+        assert_eq!(status_calls.lock().unwrap().as_slice(), ["is everything indexed yet?"], "{search:?}");
+        assert!(fast_calls.lock().unwrap().is_empty(), "{search:?}");
+    }
+}
+
+#[tokio::test]
+async fn test_status_question_takes_the_status_retriever_in_stream() {
+    for (search, exec) in [
+        (SearchMode::Fast, AgentExecutionMode::ReAct),
+        (SearchMode::Deep, AgentExecutionMode::DeepSearch),
+    ] {
+        let (agent, fast_calls, status_calls) = routed_agent(search, exec, true);
+        let (mut rx, handle) = agent.stream("já está tudo indexado?", None);
+        let resp = handle.await.unwrap().unwrap();
+        assert_eq!(resp.content, "routed answer", "{search:?}");
+        assert_eq!(status_calls.lock().unwrap().len(), 1, "{search:?}");
+        assert!(fast_calls.lock().unwrap().is_empty(), "{search:?}");
+
+        let mut intent_seen = None;
+        while let Ok(evt) = rx.try_recv() {
+            if let AgentEvent::RoutingDecision { intent, .. } = evt {
+                intent_seen = Some(intent);
+            }
+        }
+        assert_eq!(intent_seen.as_deref(), Some("system_status"));
+    }
+}
+
+#[tokio::test]
+async fn test_other_questions_keep_the_fast_retriever() {
+    let (agent, fast_calls, status_calls) = routed_agent(SearchMode::Fast, AgentExecutionMode::ReAct, true);
+    agent.run("onde fica o timeout da conexão?", None).await.unwrap();
+    let (_rx, handle) = agent.stream("qual comando limpa o cache?", None);
+    handle.await.unwrap().unwrap();
+    assert_eq!(fast_calls.lock().unwrap().len(), 2);
+    assert!(status_calls.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_status_question_without_status_retriever_keeps_previous_routing() {
+    let (agent, fast_calls, _status_calls) = routed_agent(SearchMode::Fast, AgentExecutionMode::ReAct, false);
+    agent.run("is everything indexed yet?", None).await.unwrap();
+    assert_eq!(fast_calls.lock().unwrap().len(), 1);
+}

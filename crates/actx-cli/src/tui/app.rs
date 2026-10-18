@@ -1273,7 +1273,9 @@ impl App {
                 }
             }
             AgentEvent::RoutingDecision { mode, complexity, intent, confidence, reason } => {
-                let badge = if complexity == "Deep" || mode.contains("DeepSearch") {
+                let badge = if intent == "system_status" {
+                    "📊 [ModelRouter: Live Status]"
+                } else if complexity == "Deep" || mode.contains("DeepSearch") {
                     "🧠 [ModelRouter: Deep Search]"
                 } else {
                     "⚡ [ModelRouter: Fast RAG]"
@@ -1285,6 +1287,7 @@ impl App {
                     "data_schema" => "Data & Schema",
                     "security_audit" => "Security & Audit",
                     "document" => "Document & Business",
+                    "system_status" => "System Status",
                     _ => "General & Concepts",
                 };
                 self.current_thinking_buffer.push_str(&format!(

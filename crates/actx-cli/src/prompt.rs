@@ -230,7 +230,7 @@ fn push_retrieved_context_section(prompt: &mut String, web_search_enabled: bool)
          - The workspace excerpts for this question were already retrieved and are in `<retrieved_context>`. Answer from them.\n\
          - No tools are available in this answer: never write tool calls, function calls or JSON requests, and never say that you searched, added, changed or removed anything.\n\
          - Questions about AnyContext itself (commands, options, workflows) are answered from the AnyContext manual excerpts when they are present.\n\
-         - The live synchronization and indexing status is not visible in this answer: for such questions, point the user to the status bar and the `/status` command.\n"
+         - When the question asks for the live synchronization or indexing status, the report is in `<live_status>`: answer from it. Without that block the status is not visible in this answer: point the user to the status bar and the `/status` command.\n"
     );
     if web_search_enabled {
         prompt.push_str("- Web search is enabled for this workspace, but no live web search runs for this answer: do not claim web results.\n");
@@ -309,6 +309,7 @@ mod tests {
                 assert!(p.contains("No tools are available in this answer"));
                 assert!(!p.contains("LIVE WEB SEARCH ENGINE: ACTIVE"));
                 assert_eq!(p.contains("no live web search runs for this answer"), web);
+                assert!(p.contains("the report is in `<live_status>`: answer from it"));
             }
         }
     }

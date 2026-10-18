@@ -288,44 +288,7 @@ pub fn build_agent_sync(
                 .and_then(|v| v.as_str())
                 .unwrap_or(&ws_for_status)
                 .to_string();
-            async move {
-                let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
-                let sync_status = db.as_ref()
-                    .and_then(|d| d.get_sync_status(&ws).ok().flatten());
-                let folders = db.as_ref()
-                    .and_then(|d| d.get_workspace_folders(&ws).ok())
-                    .unwrap_or_default();
-                let web_urls = db.as_ref()
-                    .and_then(|d| d.get_workspace_web_urls(&ws).ok())
-                    .unwrap_or_default();
-
-                let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
-                let chunk_count = any_context_core_rs::storage::NativeLanceStore::open(&lance_path)
-                    .ok()
-                    .and_then(|s| s.count_records(Some(&ws), Some("workspace_chunks")).ok())
-                    .unwrap_or(0);
-
-                let sync_info = if let Some(ss) = sync_status {
-                    if ss.is_syncing {
-                        format!("SYNC IN PROGRESS: {} (item {} of {}, stage '{}', target: '{}')",
-                            ss.progress_bar, ss.current_item, ss.total_items, ss.stage, ss.item_name.as_deref().unwrap_or("none"))
-                    } else if ss.stage == "completed" || ss.progress_bar.contains("Up to date") {
-                        format!("READY / UP TO DATE: All documents indexed successfully. Last update: {}", ss.updated_at)
-                    } else {
-                        format!("IDLE: {}", ss.progress_bar)
-                    }
-                } else {
-                    "IDLE / READY: No active background synchronization. All registered documents are indexed.".to_string()
-                };
-
-                let folders_str = if folders.is_empty() { "none".to_string() } else { folders.join(", ") };
-                let web_str = if web_urls.is_empty() { "none".to_string() } else { web_urls.join(", ") };
-
-                Ok(format!(
-                    "Workspace '{}' Status:\n• Synchronization Status: {}\n• Total Indexed Chunks: {}\n• Monitored Local Folders: {}\n• Monitored Web Sources: {}",
-                    ws, sync_info, chunk_count, folders_str, web_str
-                ))
-            }
+            async move { Ok(workspace_status_report(&ws)) }
         }
     );
 
@@ -354,7 +317,7 @@ pub fn build_agent_sync(
         }) as Arc<dyn actx_agent::DeepSearchRetriever>
     });
 
-    let deterministic_retriever = lance_store_for_retrieval.as_ref().map(|ls| {
+    let pipeline_retriever = lance_store_for_retrieval.as_ref().map(|ls| {
         Arc::new(PipelineDeterministicRetriever {
             lance_store: ls.clone(),
             embed_provider: embed_provider.clone(),
@@ -362,8 +325,12 @@ pub fn build_agent_sync(
             workspace: workspace.to_string(),
             system_prompt: context_prompt.clone(),
             reranker: reranker.clone(),
-        }) as Arc<dyn actx_agent::DeterministicRetriever>
+        })
     });
+    let deterministic_retriever = pipeline_retriever.clone()
+        .map(|r| r as Arc<dyn actx_agent::DeterministicRetriever>);
+    let status_retriever = pipeline_retriever
+        .map(|inner| Arc::new(PipelineStatusRetriever { inner }) as Arc<dyn actx_agent::DeterministicRetriever>);
 
     let models_dir = any_context_core_rs::storage::get_default_models_dir();
     let bge_path = models_dir.join("bge_small_query_int8.onnx");
@@ -462,6 +429,10 @@ pub fn build_agent_sync(
 
     if let Some(retriever) = deterministic_retriever {
         builder = builder.deterministic_retriever(retriever);
+    }
+
+    if let Some(retriever) = status_retriever {
+        builder = builder.status_retriever(retriever);
     }
 
     if let Some(store) = session_store {
@@ -735,6 +706,57 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
     }
 }
 
+/// Live status of a workspace: sync state from SQLite, chunk count from LanceDB and monitored sources.
+fn workspace_status_report(workspace: &str) -> String {
+    let db = NativeConfigDb::open_default().ok();
+    let sync_status = db.as_ref()
+        .and_then(|d| d.get_sync_status(workspace).ok().flatten());
+    let folders = db.as_ref()
+        .and_then(|d| d.get_workspace_folders(workspace).ok())
+        .unwrap_or_default();
+    let web_urls = db.as_ref()
+        .and_then(|d| d.get_workspace_web_urls(workspace).ok())
+        .unwrap_or_default();
+
+    let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
+    let chunk_count = any_context_core_rs::storage::NativeLanceStore::open(&lance_path)
+        .ok()
+        .and_then(|s| s.count_records(Some(workspace), Some("workspace_chunks")).ok())
+        .unwrap_or(0);
+
+    format_status_report(workspace, sync_status.as_ref(), chunk_count, &folders, &web_urls)
+}
+
+/// Formats the status report shared by the `system_status` tool and the status route.
+fn format_status_report(
+    workspace: &str,
+    sync_status: Option<&any_context_core_rs::storage::WorkspaceSyncStatus>,
+    chunk_count: usize,
+    folders: &[String],
+    web_urls: &[String],
+) -> String {
+    let sync_info = if let Some(ss) = sync_status {
+        if ss.is_syncing {
+            format!("SYNC IN PROGRESS: {} (item {} of {}, stage '{}', target: '{}')",
+                ss.progress_bar, ss.current_item, ss.total_items, ss.stage, ss.item_name.as_deref().unwrap_or("none"))
+        } else if ss.stage == "completed" || ss.progress_bar.contains("Up to date") {
+            format!("READY / UP TO DATE: All documents indexed successfully. Last update: {}", ss.updated_at)
+        } else {
+            format!("IDLE: {}", ss.progress_bar)
+        }
+    } else {
+        "IDLE / READY: No active background synchronization. All registered documents are indexed.".to_string()
+    };
+
+    let folders_str = if folders.is_empty() { "none".to_string() } else { folders.join(", ") };
+    let web_str = if web_urls.is_empty() { "none".to_string() } else { web_urls.join(", ") };
+
+    format!(
+        "Workspace '{}' Status:\n• Synchronization Status: {}\n• Total Indexed Chunks: {}\n• Monitored Local Folders: {}\n• Monitored Web Sources: {}",
+        workspace, sync_info, chunk_count, folders_str, web_str
+    )
+}
+
 /// Native Hybrid RAG deterministic retriever adapter for 1-hop Fast/Auto execution
 struct PipelineDeterministicRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
@@ -745,9 +767,9 @@ struct PipelineDeterministicRetriever {
     reranker: Arc<actx_onnx::OnnxReranker>,
 }
 
-#[actx_agent::async_trait]
-impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
-    async fn retrieve_and_format(&self, query: &str) -> Result<actx_agent::DeterministicRetrievalOutput, actx_agent::AgentError> {
+impl PipelineDeterministicRetriever {
+    /// One hybrid search of the workspace plus `Global` for the 1-hop paths.
+    async fn search(&self, query: &str) -> Result<Vec<any_context_core_rs::retrieval::HybridSearchResult>, actx_agent::AgentError> {
         let db = NativeConfigDb::open_default().ok();
         let rerank_mode = db.as_ref()
             .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
@@ -771,47 +793,116 @@ impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
             ..Default::default()
         };
 
-        match pipeline.search_single_async(&req).await {
-            Ok(results) => {
-                let db = NativeConfigDb::open_default().ok();
-                let folders = db.as_ref()
-                    .and_then(|d| d.get_workspace_folders(&self.workspace).ok())
-                    .unwrap_or_default();
-                let web_urls = db.as_ref()
-                    .and_then(|d| d.get_workspace_web_urls(&self.workspace).ok())
-                    .unwrap_or_default();
+        pipeline.search_single_async(&req).await.map_err(actx_agent::AgentError::Internal)
+    }
+}
 
-                if let Some(zero_msg) = ContextFormatter::evaluate_zero_hallucination(
-                    &results,
-                    &self.workspace,
-                    &folders,
-                    &web_urls,
-                    query,
-                ) {
-                    return Ok(actx_agent::DeterministicRetrievalOutput::ZeroContext { message: zero_msg });
-                }
+#[actx_agent::async_trait]
+impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
+    async fn retrieve_and_format(&self, query: &str) -> Result<actx_agent::DeterministicRetrievalOutput, actx_agent::AgentError> {
+        let results = self.search(query).await?;
 
-                let chunk_count = results.len();
-                let formatted_prompt = ContextFormatter::format_deterministic_prompt(
-                    &results,
-                    query,
-                    &self.system_prompt,
-                    &self.workspace,
-                );
+        let db = NativeConfigDb::open_default().ok();
+        let folders = db.as_ref()
+            .and_then(|d| d.get_workspace_folders(&self.workspace).ok())
+            .unwrap_or_default();
+        let web_urls = db.as_ref()
+            .and_then(|d| d.get_workspace_web_urls(&self.workspace).ok())
+            .unwrap_or_default();
 
-                Ok(actx_agent::DeterministicRetrievalOutput::ContextReady {
-                    formatted_prompt,
-                    chunk_count,
-                })
-            }
-            Err(e) => Err(actx_agent::AgentError::Internal(e)),
+        if let Some(zero_msg) = ContextFormatter::evaluate_zero_hallucination(
+            &results,
+            &self.workspace,
+            &folders,
+            &web_urls,
+            query,
+        ) {
+            return Ok(actx_agent::DeterministicRetrievalOutput::ZeroContext { message: zero_msg });
         }
+
+        let chunk_count = results.len();
+        let formatted_prompt = ContextFormatter::format_deterministic_prompt(
+            &results,
+            query,
+            &self.system_prompt,
+            &self.workspace,
+        );
+
+        Ok(actx_agent::DeterministicRetrievalOutput::ContextReady {
+            formatted_prompt,
+            chunk_count,
+        })
+    }
+}
+
+/// 1-hop retriever for live status questions: the same hybrid search plus the live status report.
+/// The Zero Hallucination Gate is skipped because the report is always context.
+struct PipelineStatusRetriever {
+    inner: Arc<PipelineDeterministicRetriever>,
+}
+
+#[actx_agent::async_trait]
+impl actx_agent::DeterministicRetriever for PipelineStatusRetriever {
+    async fn retrieve_and_format(&self, query: &str) -> Result<actx_agent::DeterministicRetrievalOutput, actx_agent::AgentError> {
+        // A failed search still leaves the status to answer from.
+        let results = self.inner.search(query).await.unwrap_or_else(|e| {
+            tracing::warn!("Status route: workspace search failed, answering from the status only: {e}");
+            Vec::new()
+        });
+        let report = workspace_status_report(&self.inner.workspace);
+        tracing::debug!("Status route: {} excerpt(s) and the live status report", results.len());
+
+        let formatted_prompt = ContextFormatter::format_status_prompt(
+            &results,
+            query,
+            &self.inner.system_prompt,
+            &self.inner.workspace,
+            &report,
+        );
+
+        Ok(actx_agent::DeterministicRetrievalOutput::ContextReady {
+            formatted_prompt,
+            chunk_count: results.len(),
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sync_status(is_syncing: bool, stage: &str) -> any_context_core_rs::storage::WorkspaceSyncStatus {
+        any_context_core_rs::storage::WorkspaceSyncStatus {
+            workspace_name: "Work".to_string(),
+            is_syncing,
+            pid: None,
+            current_item: 3,
+            total_items: 10,
+            stage: stage.to_string(),
+            item_name: Some("notes.md".to_string()),
+            progress_bar: "[###-------] 30%".to_string(),
+            updated_at: "2026-10-18T10:00:00Z".to_string(),
+            error: None,
+        }
+    }
+
+    #[test]
+    fn status_report_shows_a_running_sync_and_the_chunk_count() {
+        let status = sync_status(true, "embedding");
+        let report = format_status_report("Work", Some(&status), 42, &["/docs".to_string()], &[]);
+        assert!(report.contains("SYNC IN PROGRESS: [###-------] 30% (item 3 of 10, stage 'embedding', target: 'notes.md')"));
+        assert!(report.contains("Total Indexed Chunks: 42"));
+        assert!(report.contains("Monitored Local Folders: /docs"));
+        assert!(report.contains("Monitored Web Sources: none"));
+    }
+
+    #[test]
+    fn status_report_without_sync_record_is_ready() {
+        let report = format_status_report("Work", None, 0, &[], &["https://docs.example.com".to_string()]);
+        assert!(report.starts_with("Workspace 'Work' Status:"));
+        assert!(report.contains("IDLE / READY"));
+        assert!(report.contains("Monitored Web Sources: https://docs.example.com"));
+    }
 
     #[test]
     fn deep_search_request_keeps_single_list_hits() {

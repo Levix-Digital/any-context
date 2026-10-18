@@ -515,13 +515,17 @@ How to record a run: in each test of the current run, mark exactly one box of th
 
 ### MT-MEM-002: The assistant knows how AnyContext works
 
-- **Covers**: system knowledge (Global workspace), system_status tool
+- **Covers**: system knowledge (Global workspace), live status route (status questions)
 - **Prerequisites**: a sync running in the background
 - **Steps**:
   1. Ask "how do I add a website to this workspace?".
   2. Ask "is everything indexed yet?".
+  3. Repeat question 2 in Portuguese ("já está tudo indexado?") with `/search fast` and again with `/search deep`.
+  4. After the sync finishes, ask question 2 again.
 - **Expected**:
-  - The first answer explains `/web` from the built-in manual; the second reports the live sync progress and chunk count.
+  - The first answer explains `/web` from the built-in manual.
+  - Questions 2 and 3 show the `📊 [ModelRouter: Live Status]` routing badge (domain System Status) and report the live sync progress (item and stage) and the indexed chunk count, in every search mode, with no "No information or documents matching the query" message.
+  - Question 4 reports that the workspace is up to date.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

@@ -36,6 +36,8 @@ pub enum QueryIntent {
     Document,
     /// General knowledge, conversational greetings, or conceptual questions.
     General,
+    /// Live synchronization, indexing or workspace status of AnyContext itself.
+    SystemStatus,
 }
 
 impl QueryIntent {
@@ -48,6 +50,7 @@ impl QueryIntent {
             QueryIntent::SecurityAudit => "security_audit",
             QueryIntent::Document => "document",
             QueryIntent::General => "general",
+            QueryIntent::SystemStatus => "system_status",
         }
     }
 
@@ -60,6 +63,7 @@ impl QueryIntent {
             QueryIntent::SecurityAudit => "Security & Audit",
             QueryIntent::Document => "Document & Business",
             QueryIntent::General => "General & Concepts",
+            QueryIntent::SystemStatus => "System Status",
         }
     }
 }
@@ -77,6 +81,19 @@ pub struct RoutingDecision {
     pub confidence: f32,
     /// Human-readable rationale for telemetry and UI badges.
     pub reason: String,
+}
+
+/// Terms that ask about the live state of the workspace rather than how to use a feature.
+const STATUS_TERMS: &[&str] = &[
+    "indexed", "indexing", "indexado", "indexada", "indexação", "indexando",
+    "syncing", "sync status", "sincronizando", "sincronização", "sincronizado",
+    "status", "progress", "progresso", "how many chunks", "quantos chunks",
+];
+
+/// Whether the query asks for the live synchronization or indexing status.
+pub fn is_status_query(query: &str) -> bool {
+    let lower = query.to_lowercase();
+    STATUS_TERMS.iter().any(|term| lower.contains(term))
 }
 
 /// Abstract contract for query complexity classification.
@@ -352,7 +369,13 @@ impl ChatModelRouter {
 
     /// Evaluates the user query against the active SearchMode policy.
     pub fn evaluate(&self, query: &str, search_mode: SearchMode) -> RoutingDecision {
-        let (complexity, intent, confidence, reason) = self.classifier.classify(query);
+        let (complexity, mut intent, confidence, mut reason) = self.classifier.classify(query);
+
+        // Status questions are recognized after any classifier, so every classifier routes them alike.
+        if is_status_query(query) {
+            intent = QueryIntent::SystemStatus;
+            reason = format!("live status question, {}", reason);
+        }
 
         let (mode, final_complexity, final_reason) = match search_mode {
             SearchMode::Fast => (

@@ -22,8 +22,8 @@ Retrieval itself is in the [retrieval pipeline](retrieval.md); the concrete tool
 
 | Module | Role |
 |---|---|
-| `lib.rs` | `Agent`, `AgentBuilder`, `DeterministicRetriever`, `DeterministicRetrievalOutput`, `ToolBasedRetriever`. |
-| `router.rs` | `ChatModelRouter`, `ComplexityClassifier`, `DeterministicClassifier`, `RoutingDecision`, `QueryComplexity`, `QueryIntent`. |
+| `lib.rs` | `Agent`, `AgentBuilder`, `DeterministicRetriever`, `DeterministicRetrievalOutput`, `ToolBasedRetriever`; the shared one-hop execution (`run_one_hop`, `stream_one_hop`). |
+| `router.rs` | `ChatModelRouter`, `ComplexityClassifier`, `DeterministicClassifier`, `RoutingDecision`, `QueryComplexity`, `QueryIntent`, `is_status_query`. |
 | `fsm.rs` | `ReActOrchestrator`: the ReAct state machine. |
 | `deep_search.rs` | `DeepSearchOrchestrator`, `DeepSearchRetriever`, `DeepSearchConfig`, `RetrievedChunk`, `SynthesisPromptFormatter`, `DefaultSynthesisFormatter`, prompts and response parsers. |
 | `tool.rs` | `Tool`, `NativeTool`, `ToolRegistry` (behind `std::sync::RwLock`). |
@@ -35,6 +35,8 @@ Retrieval itself is in the [retrieval pipeline](retrieval.md); the concrete tool
 ```mermaid
 flowchart TD
     Q[User question] --> R[ChatModelRouter.evaluate]
+    R -->|SystemStatus intent, status retriever present| SR[Status retriever]
+    SR --> ONE
     R -->|Deep| DS[DeepSearchOrchestrator]
     R -->|Fast / Direct, retriever present| DR[DeterministicRetriever]
     DR -->|ZeroContext| Z[Honest not-found answer, no LLM call]
@@ -51,9 +53,11 @@ flowchart TD
 
 - `/search fast` forces the fast path and `/search deep` forces Deep Search.
 - `/search auto` follows the classifier: `Deep` complexity goes to Deep Search, `Fast` to the fast path.
-- Intents: `Code`, `Architecture`, `DevOpsInfra`, `DataSchema`, `SecurityAudit`, `Document`, `General`.
+- Intents: `Code`, `Architecture`, `DevOpsInfra`, `DataSchema`, `SecurityAudit`, `Document`, `General`, and `SystemStatus`.
+- After the classifier, `is_status_query` checks for terms about the live state of the workspace (indexed, indexing, syncing, sync status, status, progress, chunk counts, and their Portuguese forms). A match sets the intent to `SystemStatus` and prefixes the reason with "live status question"; mode and complexity are unchanged. It runs after any classifier, so the application's ONNX adapter routes status questions the same way (ADR-0145).
+- When the intent is `SystemStatus` and a status retriever is configured (`AgentBuilder::status_retriever`), `run` and `stream` answer through it in every search mode, before Deep Search and the fast path.
 
-The classifier is a deterministic keyword and structure heuristic (query length, multi-clause markers, comparison triggers, domain patterns). In the application it is the `actx-onnx` query classifier wrapped by `OnnxComplexityClassifierAdapter`, which is also heuristic (see [ONNX Inference](onnx.md)). `Agent::stream` emits `AgentEvent::RoutingDecision` before anything else so the interface can show the route.
+The classifier is a deterministic keyword and structure heuristic (query length, multi-clause markers, comparison triggers, domain patterns). In the application it is the `actx-onnx` query classifier wrapped by `OnnxComplexityClassifierAdapter`, which is also heuristic (see [ONNX Inference](onnx.md)). `Agent::stream` emits `AgentEvent::RoutingDecision` before anything else so the interface can show the route; the TUI and one-shot mode show `📊 [ModelRouter: Live Status]` for the `system_status` intent.
 
 ### One-hop deterministic RAG
 
@@ -65,6 +69,8 @@ When a `DeterministicRetriever` is configured and the route is fast (or the mode
 4. Persists only the user's original question and the final answer.
 
 Because the CLI always configures this retriever when LanceDB opens, fast questions take this path; the ReAct loop runs when no deterministic retriever is available.
+
+Status questions take the same one-hop execution with the status retriever. The CLI's `PipelineStatusRetriever` runs the same hybrid search, adds the live status report (`workspace_status_report`, the report of the `system_status` tool) in a `<live_status>` block and always returns `ContextReady`: the Zero Hallucination Gate is skipped because the report is context, and a failed search leaves the report to answer from.
 
 ### ReAct loop
 
@@ -81,7 +87,7 @@ Because the CLI always configures this retriever when LanceDB opens, fast questi
 
 ### Tools
 
-The application registers the tools below. Only the ReAct loop offers them to the model; one-hop RAG and the Deep Search synthesis call no tools.
+The application registers the tools below. Only the ReAct loop offers them to the model; one-hop RAG and the Deep Search synthesis call no tools. The status report of `system_status` also reaches the routed paths through the status route; web search results do not, because web content is indexed before it reaches the model (indexing web search results is FEAT-019, and the raw snippets this tool returns are BUG-018).
 
 - `search_db(query)`: hybrid search in the active workspace plus `Global` (top 5), returned as the XML tool payload with a query anchor, or the Zero Hallucination message.
 - `system_status(workspace?)`: sync status from SQLite, chunk count from LanceDB, monitored folders and web sources.
@@ -89,7 +95,7 @@ The application registers the tools below. Only the ReAct loop offers them to th
 
 ### System prompt
 
-`build_system_prompt(workspace, grounding_mode, search_mode, web_search_enabled, path)` builds one prompt per answer path (ADR-0144). `PromptPath::Tools(names)` is the ReAct prompt, with `names` taken from the registered tools; `PromptPath::RetrievedContext` is given to `PipelineDeterministicRetriever` and `CanonicalSynthesisFormatter`. Both concatenate:
+`build_system_prompt(workspace, grounding_mode, search_mode, web_search_enabled, path)` builds one prompt per answer path (ADR-0144). `PromptPath::Tools(names)` is the ReAct prompt, with `names` taken from the registered tools; `PromptPath::RetrievedContext` is given to `PipelineDeterministicRetriever` (and through it `PipelineStatusRetriever`) and `CanonicalSynthesisFormatter`. Both concatenate:
 
 1. `AGENT.md`: from `ACTX_AGENT_MD`, then `config/AGENT.md` in the working directory, then the user configuration directory, then the copy embedded at compile time. It names no tool: it asks to answer from the workspace context, to answer questions about past conversations from the earlier turns, and to explain `/folder`, `/web` and `/sources` instead of changing sources.
 2. The operational environment: workspace, grounding strategy, search depth and web search status.
@@ -98,7 +104,7 @@ The application registers the tools below. Only the ReAct loop offers them to th
 5. The disabled web search block when web search is off.
 6. The path section:
    - `Tools(names)`: the allowed tools, and one rule per known tool present (`search_db` before answering, at most once, with bilingual keywords; `system_status` for indexing questions; `web_search` permission-gated in strict mode). No other tool is named.
-   - `RetrievedContext`: the excerpts are already in `<retrieved_context>`; no tools are available, so the model never writes tool calls or claims to have searched or changed anything; live sync status is pointed to the status bar and `/status`; when web search is enabled, no live web search runs for this answer.
+   - `RetrievedContext`: the excerpts are already in `<retrieved_context>`; no tools are available, so the model never writes tool calls or claims to have searched or changed anything; a live status report, when present, is in `<live_status>`, and otherwise the status bar and `/status` are pointed to; when web search is enabled, no live web search runs for this answer.
 7. The recency and language rules.
 
 Answers follow the language of the user's question.
@@ -141,3 +147,4 @@ Answers follow the language of the user's question.
 - [ADR-0128](../adr/0128-backend-first-deterministic-dual-rag.md): backend-first one-hop RAG and session hygiene.
 - [ADR-0141](../adr/0141-deep-search-synthesis-uses-the-canonical-context-formatter-t.md): the Deep Search synthesis prompt comes from the canonical context formatter through `SynthesisPromptFormatter`.
 - [ADR-0144](../adr/0144-system-prompt-per-answer-path-with-the-tool-section-generate.md): system prompt per answer path; only the ReAct prompt names tools, taken from the registered tools.
+- [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): status questions are routed to a one-hop path with the live status report; web results are not given to the model without indexing.
