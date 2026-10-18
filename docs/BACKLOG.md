@@ -8,9 +8,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-011: Chunk text sent to the model depends on the retrieval path
 - **Severity**: low
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
+- **Plan**: any_context_chunk_text_and_deduplication_depend_on_the_retrieval_path
 - **Description**: BM25 stores the enveloped text (`[Context: ... | Keywords: ...]` plus the chunk), while LanceDB stores the raw chunk. Chunks found only by BM25 reach the prompt with the envelope; chunks found by the dense search reach it without.
 
 ### BUG-012: Agent prompt names tools that do not exist
@@ -33,6 +33,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, 2026-10-17, v0.45.0, BUG-009 discovery
 - **Plan**: -
 - **Description**: REFLECT_PROMPT and RERANK_PROMPT (crates/actx-agent/src/deep_search.rs) insert chunk text, chunk previews and queries with plain string replacement, without neutralizing the reserved prompt tags of ADR-0136. RERANK_PROMPT wraps the text in <chunk> tags that the text itself can close. Same risk as BUG-007, on the intermediate Deep Search calls.
+
+### BUG-016: Deep Search deduplication merges every chunk of a file
+- **Severity**: medium
+- **Status**: planned
+- **Found**: 2026-10-18, v0.45.0, BUG-011 discovery
+- **Plan**: any_context_chunk_text_and_deduplication_depend_on_the_retrieval_path
+- **Description**: retrieve_hybrid_batch_async keys its cross-query deduplication on content_hash, which is the SHA-256 of the whole file: every dense hit of one file collapses into the first chunk and the scores of the other chunks are added to it. BM25-only hits carry an empty hash and fall back to the chunk id, so they are not merged.
 
 ## Features
 
