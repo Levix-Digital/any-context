@@ -2080,6 +2080,7 @@ impl CommandEngine {
              • Web Search:       {}\n\
              • Local Folders:    {} attached\n\
              • Vector Chunks:    {} indexed (LanceDB)\n\
+             • Dense Search:     {}\n\
              • Local AI Models:\n\
                - Ingestion Classifier: {} [{}]\n\
                - Scanned Classifier:   {} [{}]\n\
@@ -2100,6 +2101,7 @@ impl CommandEngine {
             if ctx.web_search_enabled { "ON" } else { "OFF" },
             folders_count,
             chunks_count,
+            crate::retrieval::dense_search_status(),
             classifier_name,
             classifier_desc,
             scanned_name,

@@ -724,7 +724,8 @@ fn workspace_status_report(workspace: &str) -> String {
         .and_then(|s| s.count_records(Some(workspace), Some("workspace_chunks")).ok())
         .unwrap_or(0);
 
-    format_status_report(workspace, sync_status.as_ref(), chunk_count, &folders, &web_urls)
+    let dense_search = any_context_core_rs::retrieval::dense_search_status();
+    format_status_report(workspace, sync_status.as_ref(), chunk_count, &dense_search, &folders, &web_urls)
 }
 
 /// Formats the status report shared by the `system_status` tool and the status route.
@@ -732,6 +733,7 @@ fn format_status_report(
     workspace: &str,
     sync_status: Option<&any_context_core_rs::storage::WorkspaceSyncStatus>,
     chunk_count: usize,
+    dense_search: &str,
     folders: &[String],
     web_urls: &[String],
 ) -> String {
@@ -754,8 +756,8 @@ fn format_status_report(
     let web_str = if web_urls.is_empty() { "none".to_string() } else { web_urls.join(", ") };
 
     format!(
-        "Workspace '{}' Status:\n• Synchronization Status: {}\n• Total Indexed Chunks: {}\n• Monitored Local Folders: {}\n• Monitored Web Sources: {}",
-        workspace, sync_info, chunk_count, folders_str, web_str
+        "Workspace '{}' Status:\n• Synchronization Status: {}\n• Total Indexed Chunks: {}\n• Dense Search: {}\n• Monitored Local Folders: {}\n• Monitored Web Sources: {}",
+        workspace, sync_info, chunk_count, dense_search, folders_str, web_str
     )
 }
 
@@ -891,16 +893,17 @@ mod tests {
     #[test]
     fn status_report_shows_a_running_sync_and_the_chunk_count() {
         let status = sync_status(true, "embedding");
-        let report = format_status_report("Work", Some(&status), 42, &["/docs".to_string()], &[]);
+        let report = format_status_report("Work", Some(&status), 42, "dense + BM25 (last query)", &["/docs".to_string()], &[]);
         assert!(report.contains("SYNC IN PROGRESS: [###-------] 30% (item 3 of 10, stage 'embedding', target: 'notes.md')"));
         assert!(report.contains("Total Indexed Chunks: 42"));
+        assert!(report.contains("Dense Search: dense + BM25 (last query)"));
         assert!(report.contains("Monitored Local Folders: /docs"));
         assert!(report.contains("Monitored Web Sources: none"));
     }
 
     #[test]
     fn status_report_without_sync_record_is_ready() {
-        let report = format_status_report("Work", None, 0, &[], &["https://docs.example.com".to_string()]);
+        let report = format_status_report("Work", None, 0, "n/a (no query yet in this session)", &[], &["https://docs.example.com".to_string()]);
         assert!(report.starts_with("Workspace 'Work' Status:"));
         assert!(report.contains("IDLE / READY"));
         assert!(report.contains("Monitored Web Sources: https://docs.example.com"));
@@ -910,11 +913,11 @@ mod tests {
     fn status_report_shows_the_embedding_failures_of_the_last_sync() {
         let mut status = sync_status(false, "idle");
         status.error = Some(any_context_core_rs::ingestion::embedding_failure_summary(2, "Embedding/upsert error on 'a.md': quota"));
-        let report = format_status_report("Work", Some(&status), 7, &[], &[]);
+        let report = format_status_report("Work", Some(&status), 7, "dense + BM25 (last query)", &[], &[]);
         assert!(report.contains("LAST SYNC INCOMPLETE: 2 files not embedded; they are retried on the next sync"), "{report}");
 
         status.error = None;
-        let report = format_status_report("Work", Some(&status), 7, &[], &[]);
+        let report = format_status_report("Work", Some(&status), 7, "dense + BM25 (last query)", &[], &[]);
         assert!(!report.contains("INCOMPLETE"), "{report}");
     }
 
