@@ -8,7 +8,7 @@ subsystems: [storage, retrieval, ingestion]
 supersedes: []
 superseded_by: []
 amends: [131]
-amended_by: []
+amended_by: [143]
 ---
 
 # ADR-0142: Chunk provenance columns in LanceDB, added in place

@@ -92,7 +92,7 @@ Document AI candidates are resolved by `process_document_ai_candidates`, in orde
 
 ### Document envelope
 
-`NativeContextualEnricher::extract_envelope` builds a `SemanticEnvelope` per document: a title (first heading or short leading line), up to three lead sentences (summary capped at 450 characters) and seven keywords. Envelopes are cached in SQLite by content hash. The envelope text is prepended to each chunk for embedding and BM25 (`apply_envelope_to_chunk`), while LanceDB stores the original chunk text with the summary and keywords as separate columns.
+`NativeContextualEnricher::extract_envelope` builds a `SemanticEnvelope` per document: a title (first heading or short leading line), up to three lead sentences (summary capped at 450 characters) and seven keywords. Envelopes are cached in SQLite by content hash. The envelope text is prepended to each chunk for embedding and BM25 (`apply_envelope_to_chunk`), while LanceDB stores the original chunk text with the summary and keywords as separate columns. Retrieval takes the text of every hit from LanceDB; `strip_envelope` removes the envelope when only the BM25 text is available, so its format has one owner here.
 
 ### Chunk provenance
 
@@ -156,3 +156,4 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0132](../adr/0132-query-vectors-use-the-ingestion-embedding-provider-and-model.md): one embedding resolver for chunks and queries.
 - [ADR-0138](../adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md): embedding target recorded per workspace, automatic reindex when it changes, Gemini `gemini-embedding-2`.
 - [ADR-0142](../adr/0142-chunk-provenance-columns-in-lancedb-added-in-place.md): chunk provenance (`header_path`, file line range) stored in LanceDB, lines only for file-line chunkers.
+- [ADR-0143](../adr/0143-bm25-only-hits-take-their-text-from-lancedb-batch-deduplicat.md): the enveloped text stays in BM25 only; retrieval reads chunk text from LanceDB and `strip_envelope` is the fallback.

@@ -79,6 +79,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0143](docs/adr/0143-bm25-only-hits-take-their-text-from-lancedb-batch-deduplicat.md) | BM25-only hits take their text from LanceDB; batch deduplication by chunk id | accepted | v0.45.1 | 2026-10-18 |
 | [ADR-0142](docs/adr/0142-chunk-provenance-columns-in-lancedb-added-in-place.md) | Chunk provenance columns in LanceDB, added in place | accepted | v0.45.1 | 2026-10-18 |
 | [ADR-0141](docs/adr/0141-deep-search-synthesis-uses-the-canonical-context-formatter-t.md) | Deep Search synthesis uses the canonical context formatter through a port | accepted | v0.45.1 | 2026-10-17 |
 | [ADR-0140](docs/adr/0140-chunk-version-attribute-from-explicit-path-tokens-no-inferre.md) | Chunk version attribute from explicit path tokens, no inferred scope | accepted | v0.45.1 | 2026-10-17 |
