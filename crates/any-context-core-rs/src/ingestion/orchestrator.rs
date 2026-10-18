@@ -2,7 +2,7 @@
 //!
 //! Replaces legacy Python `unified_sync.py` and `local_folder_ingestor.py` pipelines.
 //! Delivers sub-30ms incremental diffing, native AST/Markdown/Spreadsheet chunking,
-//! batched vector embedding with resilient fallback, Okapi BM25 inverted index updates,
+//! batched vector embedding (a failed call fails the file for retry), Okapi BM25 inverted index updates,
 //! and atomic SQLite telemetry. Zero Python dependencies.
 
 use std::collections::HashMap;
@@ -24,7 +24,32 @@ use crate::retrieval::bm25::BM25Index;
 use crate::storage::lancedb::{NativeLanceStore, VectorRecord, DEFAULT_TABLE_NAME, DEFAULT_VECTOR_DIM};
 use crate::storage::sqlite::NativeConfigDb;
 
+use actx_lm::error::LmError;
 use actx_lm::traits::LmProvider;
+
+/// Why a file or page could not be embedded and stored. A failed file is not recorded in the
+/// stat cache, so the next sync retries it (ADR-0146); its chunks stay in BM25 meanwhile.
+#[derive(Debug)]
+pub(crate) enum EmbedFailure {
+    /// The embedding call failed.
+    Provider(LmError),
+    /// The provider answered with fewer (or more) vectors than chunks.
+    ShortAnswer { expected: usize, got: usize },
+    /// The LanceDB upsert failed.
+    Store(String),
+}
+
+impl std::fmt::Display for EmbedFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EmbedFailure::Provider(e) => write!(f, "embedding failed: {e}"),
+            EmbedFailure::ShortAnswer { expected, got } => {
+                write!(f, "embedding failed: expected {expected} vectors, got {got}")
+            }
+            EmbedFailure::Store(e) => write!(f, "upsert failed: {e}"),
+        }
+    }
+}
 
 /// Configuration options for workspace synchronization.
 #[derive(Debug, Clone)]
@@ -82,6 +107,8 @@ pub struct NativeSyncOrchestrator {
     scanner: WorkspaceScanner,
     lance_store: Arc<NativeLanceStore>,
     db: Arc<NativeConfigDb>,
+    /// Test seam: replaces the resolved embedding provider (the target stays the resolved one).
+    embedding_override: Option<Arc<dyn LmProvider>>,
 }
 
 impl NativeSyncOrchestrator {
@@ -95,6 +122,7 @@ impl NativeSyncOrchestrator {
             scanner: WorkspaceScanner::default(),
             lance_store,
             db,
+            embedding_override: None,
         })
     }
 
@@ -106,11 +134,18 @@ impl NativeSyncOrchestrator {
             scanner: WorkspaceScanner::default(),
             lance_store,
             db,
+            embedding_override: None,
         }
     }
 
     pub fn with_model_router(mut self, model_router: Arc<IngestionModelRouter>) -> Self {
         self.model_router = model_router;
+        self
+    }
+
+    #[cfg(test)]
+    fn with_embedding_provider(mut self, provider: Arc<dyn LmProvider>) -> Self {
+        self.embedding_override = Some(provider);
         self
     }
 
@@ -124,6 +159,7 @@ impl NativeSyncOrchestrator {
                 scanner: self.scanner.clone(),
                 lance_store: self.lance_store.clone(),
                 db: self.db.clone(),
+                embedding_override: self.embedding_override.clone(),
             };
             let opts = options.clone();
             std::thread::spawn(move || {
@@ -185,7 +221,10 @@ impl NativeSyncOrchestrator {
 
         // 1b. Embedding target: vectors from another target than the current one are purged and
         // the whole workspace is re-embedded, even for a folder-scoped pass (ADR-0138).
-        let (lm_provider, embedding_target) = resolve_embedding_provider(&self.db, options.model.as_deref(), ws);
+        let (mut lm_provider, embedding_target) = resolve_embedding_provider(&self.db, options.model.as_deref(), ws);
+        if let Some(ref provider) = self.embedding_override {
+            lm_provider = Some(provider.clone());
+        }
         let embedding_model = embedding_target.model.clone();
         let reindex = self.decide_embedding_reindex(ws, &embedding_target);
         let embedding_reindex = reindex.message();
@@ -434,6 +473,10 @@ impl NativeSyncOrchestrator {
                 println!("  [{}/{}] Indexing: {}", idx + 1, total_files, file_name);
             }
 
+            // A file that failed on an earlier pass may still have BM25 chunks under an older
+            // content hash: drop them so a retry never leaves orphans behind.
+            bm25.remove_by_exact_file(file_path);
+
             // Chunk the file using high-speed native Rust router
             let raw_chunks = match self.router.chunk_file_native(file_path) {
                 Ok(c) => c,
@@ -505,7 +548,7 @@ impl NativeSyncOrchestrator {
 
         // 13. Synchronize Web Documentation Portals (if any)
         if !web_urls.is_empty() {
-            let _ = self.sync_web_portals(
+            self.sync_web_portals(
                 &web_urls,
                 ws,
                 pid,
@@ -514,6 +557,7 @@ impl NativeSyncOrchestrator {
                 &embedding_model,
                 &mut bm25,
                 options.verbose,
+                &mut errors,
             ).await;
         }
 
@@ -589,7 +633,7 @@ impl NativeSyncOrchestrator {
         lm_provider: &Option<Arc<dyn LmProvider>>,
         embedding_model: &str,
         bm25: &mut BM25Index,
-    ) -> Result<usize, String> {
+    ) -> Result<usize, EmbedFailure> {
         let last_mod_str = chrono::DateTime::from_timestamp(mtime as i64, 0)
             .map(|dt| dt.to_rfc3339())
             .unwrap_or_default();
@@ -625,24 +669,24 @@ impl NativeSyncOrchestrator {
             chunk_ids.push(id);
         }
 
-        // 2. Generate Dense Embeddings
+        // 2. Generate Dense Embeddings. A failed call fails the file: no pseudo-vectors are
+        // stored next to real ones (ADR-0146). Without a provider, the offline fallback stays.
         let vectors = if let Some(provider) = lm_provider {
-            match provider.embed(embedding_model, &chunk_texts).await {
-                Ok(v) => v,
-                Err(_) => {
-                    // Resilient offline fallback: deterministic pseudo-vector
-                    generate_fallback_vectors(&chunk_texts, DEFAULT_VECTOR_DIM)
-                }
-            }
+            provider
+                .embed(embedding_model, &chunk_texts)
+                .await
+                .map_err(EmbedFailure::Provider)?
         } else {
             generate_fallback_vectors(&chunk_texts, DEFAULT_VECTOR_DIM)
         };
+        if vectors.len() != chunks.len() {
+            return Err(EmbedFailure::ShortAnswer { expected: chunks.len(), got: vectors.len() });
+        }
 
         // 3. Assemble VectorRecords for LanceDB, with the chunk provenance (ADR-0142)
         let file_lines = self.router.has_file_lines(file_path);
         let mut records = Vec::with_capacity(chunks.len());
-        for (i, c) in chunks.iter().enumerate() {
-            let vector = vectors.get(i).cloned().unwrap_or_else(|| vec![0.0; DEFAULT_VECTOR_DIM]);
+        for ((i, c), vector) in chunks.iter().enumerate().zip(vectors) {
             let doc_summary = envelope.map(|env| env.summary.clone());
             let keywords = envelope.map(|env| env.keywords.join(", "));
             let (start_line, end_line) = if file_lines && c.start_line >= 1 && c.start_line <= c.end_line {
@@ -670,7 +714,9 @@ impl NativeSyncOrchestrator {
         }
 
         // 4. Batch upsert into LanceDB
-        self.lance_store.upsert_records(records, Some(DEFAULT_TABLE_NAME), Some(DEFAULT_VECTOR_DIM))?;
+        self.lance_store
+            .upsert_records(records, Some(DEFAULT_TABLE_NAME), Some(DEFAULT_VECTOR_DIM))
+            .map_err(EmbedFailure::Store)?;
 
         Ok(chunks.len())
     }
@@ -686,10 +732,14 @@ impl NativeSyncOrchestrator {
         embedding_model: &str,
         bm25: &mut BM25Index,
         verbose: bool,
-    ) -> Result<(), String> {
+        errors: &mut Vec<String>,
+    ) {
         let crawler = match crate::ingestion::crawler::NativeWebCrawler::new_default() {
             Ok(c) => c,
-            Err(e) => return Err(format!("Failed to initialize crawler: {e}")),
+            Err(e) => {
+                errors.push(format!("Failed to initialize crawler: {e}"));
+                return;
+            }
         };
 
         for (u_idx, url) in urls.iter().enumerate() {
@@ -719,18 +769,18 @@ impl NativeSyncOrchestrator {
             };
 
             for page in pages {
-                let _ = self.index_web_page(
+                if let Err(e) = self.index_web_page(
                     &page,
                     workspace,
                     enricher,
                     lm_provider,
                     embedding_model,
                     bm25,
-                ).await;
+                ).await {
+                    errors.push(format!("Failed to index page '{}': {}", page.url, e));
+                }
             }
         }
-
-        Ok(())
     }
 
     /// Indexes one crawled page. Returns `Ok(false)` when the page was skipped (no chunks, or
@@ -797,7 +847,7 @@ impl NativeSyncOrchestrator {
             lm_provider,
             embedding_model,
             bm25,
-        ).await?;
+        ).await.map_err(|e| e.to_string())?;
         Ok(true)
     }
 
@@ -1172,5 +1222,192 @@ mod tests {
         let row = upsert_one("web", chunk("web_0", "https://docs.example.com/guide", "Guide > Install", 5, 9, "markdown"), true).await;
         assert_eq!(row.header_path.as_deref(), Some("Guide > Install"));
         assert_eq!((row.start_line, row.end_line), (None, None));
+    }
+    /// What the scripted embedder answers on its next calls.
+    #[derive(Clone, Copy)]
+    enum EmbedBehavior {
+        Ok,
+        RateLimited,
+        Short,
+    }
+
+    /// Embedding provider whose answer the test switches between passes.
+    struct ScriptedEmbedder {
+        behavior: std::sync::Mutex<EmbedBehavior>,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl ScriptedEmbedder {
+        fn new(behavior: EmbedBehavior) -> Arc<Self> {
+            Arc::new(Self { behavior: std::sync::Mutex::new(behavior), calls: Default::default() })
+        }
+
+        fn set(&self, behavior: EmbedBehavior) {
+            *self.behavior.lock().unwrap() = behavior;
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl LmProvider for ScriptedEmbedder {
+        fn provider_id(&self) -> &'static str {
+            "scripted"
+        }
+
+        async fn chat_complete(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::types::ChatResponse, LmError> {
+            Err(LmError::Unsupported("chat".into()))
+        }
+
+        async fn chat_stream(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::traits::BoxedChunkStream, LmError> {
+            Err(LmError::Unsupported("chat".into()))
+        }
+
+        async fn embed(&self, _model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, LmError> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            match *self.behavior.lock().unwrap() {
+                EmbedBehavior::Ok => Ok(vec![vec![0.3; DEFAULT_VECTOR_DIM]; texts.len()]),
+                EmbedBehavior::RateLimited => Err(LmError::RateLimit {
+                    provider: "scripted".into(),
+                    message: "quota exceeded".into(),
+                    retry_after_secs: Some(0),
+                }),
+                EmbedBehavior::Short => Ok(vec![vec![0.3; DEFAULT_VECTOR_DIM]; texts.len().saturating_sub(1)]),
+            }
+        }
+    }
+
+    async fn upsert_with(tag: &str, provider: Arc<ScriptedEmbedder>, chunks: Vec<ChunkPayload>) -> (Result<usize, EmbedFailure>, usize, BM25Index) {
+        let temp_dir = std::env::temp_dir().join(format!("test_orch_fail_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let db = Arc::new(NativeConfigDb::open_in_memory().unwrap());
+        let lance_store = Arc::new(NativeLanceStore::open(&temp_dir.join("lancedb")).unwrap());
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db.clone());
+        let enricher = NativeContextualEnricher::new(db);
+        let mut bm25 = BM25Index::new(None, None);
+        let file_path = chunks[0].file_path.clone();
+        let file_name = chunks[0].file_name.clone();
+        let lm: Option<Arc<dyn LmProvider>> = Some(provider);
+        let result = orchestrator
+            .embed_and_upsert_chunks(&chunks, None, &enricher, "Default", &file_path, &file_name, "failhash1234567", 1000.0, &lm, "scripted", &mut bm25)
+            .await;
+        let rows = lance_store.search_metadata("id <> ''", 100, Some("Default"), None).unwrap_or_default().len();
+        let _ = std::fs::remove_dir_all(temp_dir);
+        (result, rows, bm25)
+    }
+
+    #[tokio::test]
+    async fn test_failed_embedding_writes_no_vectors_and_keeps_bm25() {
+        let c = chunk("md_0", "docs/guide.md", "guide.md > Timeouts", 1, 5, "markdown");
+        let (result, rows, bm25) = upsert_with("provider", ScriptedEmbedder::new(EmbedBehavior::RateLimited), vec![c]).await;
+        assert!(matches!(result, Err(EmbedFailure::Provider(LmError::RateLimit { .. }))), "{result:?}");
+        assert_eq!(rows, 0, "no pseudo-vectors may be stored for a failed call");
+        assert_eq!(bm25.len(), 1, "the file stays reachable by keyword while it waits for a retry");
+    }
+
+    #[tokio::test]
+    async fn test_short_embedding_answer_fails_the_file() {
+        let chunks = vec![
+            chunk("md_0", "docs/guide.md", "guide.md > A", 1, 5, "markdown"),
+            chunk("md_1", "docs/guide.md", "guide.md > B", 6, 9, "markdown"),
+        ];
+        let (result, rows, _) = upsert_with("short", ScriptedEmbedder::new(EmbedBehavior::Short), chunks).await;
+        assert!(matches!(result, Err(EmbedFailure::ShortAnswer { expected: 2, got: 1 })), "{result:?}");
+        assert_eq!(rows, 0, "no zero vectors may fill the missing positions");
+    }
+
+    fn sync_fixture(tag: &str) -> (std::path::PathBuf, std::path::PathBuf, Arc<NativeConfigDb>, Arc<NativeLanceStore>) {
+        let temp_dir = std::env::temp_dir().join(format!("test_orch_retry_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let docs_dir = temp_dir.join("docs");
+        std::fs::create_dir_all(&docs_dir).unwrap();
+        let db = Arc::new(NativeConfigDb::open_in_memory().unwrap());
+        let lance_store = Arc::new(NativeLanceStore::open(&temp_dir.join("lancedb")).unwrap());
+        (temp_dir, docs_dir, db, lance_store)
+    }
+
+    fn sync_opts(ws: &str, docs_dir: &Path) -> SyncOptions {
+        SyncOptions {
+            workspace: ws.to_string(),
+            target_folder: Some(docs_dir.to_string_lossy().to_string()),
+            model: Some("mock".to_string()),
+            ..SyncOptions::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_failed_file_is_retried_on_the_next_sync() {
+        let (temp_dir, docs_dir, db, lance_store) = sync_fixture("next");
+        let file = docs_dir.join("timeouts.md");
+        std::fs::write(&file, "# Timeouts\n\nRequests time out after thirty seconds and are retried twice with backoff.").unwrap();
+        let file_path = file.to_string_lossy().to_string();
+        let embedder = ScriptedEmbedder::new(EmbedBehavior::RateLimited);
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db.clone()).with_embedding_provider(embedder.clone());
+        let opts = sync_opts("RetryWS", &docs_dir);
+
+        let first = orchestrator.run(&opts).await.unwrap();
+        assert_eq!(first.indexed_files, 0);
+        assert!(first.errors.iter().any(|e| e.contains("timeouts.md") && e.contains("embedding failed")), "{:?}", first.errors);
+        assert_eq!(lance_store.count_records(Some("RetryWS"), None).unwrap_or(0), 0);
+        let cached = db.get_workspace_files_stat_cache("RetryWS").unwrap_or_default();
+        assert!(!cached.contains_key(&file_path), "a failed file must not be recorded as indexed");
+
+        embedder.set(EmbedBehavior::Ok);
+        let second = orchestrator.run(&opts).await.unwrap();
+        assert!(second.errors.is_empty(), "{:?}", second.errors);
+        assert_eq!(second.indexed_files, 1);
+        let rows = lance_store.search_metadata("id <> ''", 100, Some("RetryWS"), None).unwrap();
+        assert!(!rows.is_empty());
+
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_new_file_edited_before_retry_leaves_no_orphan_bm25_chunks() {
+        let (temp_dir, docs_dir, db, lance_store) = sync_fixture("orphan");
+        let file = docs_dir.join("ports.md");
+        std::fs::write(&file, "# Ports\n\nThe service listens on port 8080 in the default configuration.").unwrap();
+        let embedder = ScriptedEmbedder::new(EmbedBehavior::RateLimited);
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db).with_embedding_provider(embedder.clone());
+        let opts = sync_opts("OrphanWS", &docs_dir);
+        let bm25_path = lance_store.db_path().join("bm25_index.bin");
+        let bm25_texts = || {
+            BM25Index::load_from_file(bm25_path.to_str().unwrap())
+                .map(|idx| idx.docs.into_iter().filter(|d| d.workspace == "OrphanWS").map(|d| d.text).collect::<Vec<_>>())
+                .unwrap_or_default()
+        };
+
+        orchestrator.run(&opts).await.unwrap();
+        assert!(bm25_texts().iter().any(|t| t.contains("8080")), "the failed file stays in BM25");
+
+        std::fs::write(&file, "# Ports\n\nThe service now listens on port 9090 in the default configuration.").unwrap();
+        embedder.set(EmbedBehavior::Ok);
+        let second = orchestrator.run(&opts).await.unwrap();
+        assert!(second.errors.is_empty(), "{:?}", second.errors);
+        let texts = bm25_texts();
+        assert!(texts.iter().any(|t| t.contains("9090")));
+        assert!(texts.iter().all(|t| !t.contains("8080")), "orphan BM25 chunks of the failed version remain: {texts:?}");
+
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_failed_web_page_is_reported() {
+        let (temp_dir, _docs_dir, db, lance_store) = sync_fixture("web");
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db.clone());
+        let enricher = NativeContextualEnricher::new(db);
+        let mut bm25 = BM25Index::new(None, None);
+        let page = crate::ingestion::crawler::CrawledPage {
+            url: "https://docs.example.com/limits".to_string(),
+            title: "Limits".to_string(),
+            text: "# Limits\n\nEach key may send sixty requests per minute before it is throttled.".to_string(),
+            lastmod: None,
+            etag: None,
+            content_type: None,
+        };
+        let lm: Option<Arc<dyn LmProvider>> = Some(ScriptedEmbedder::new(EmbedBehavior::RateLimited));
+        let err = orchestrator.index_web_page(&page, "WebWS", &enricher, &lm, "scripted", &mut bm25).await.unwrap_err();
+        assert!(err.contains("embedding failed"), "{err}");
+        assert_eq!(lance_store.count_records(Some("WebWS"), None).unwrap_or(0), 0);
+
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 }

@@ -4,10 +4,10 @@ project: any-context
 title: 'Embedding failures are hidden: pseudo-vectors at ingestion and silent BM25-only queries'
 kind: feature
 version: v0.45.1
-status: active
+status: in_progress
 author: Claude
 created_at: '2026-10-18T19:32:46'
-updated_at: '2026-10-18T19:43:53'
+updated_at: '2026-10-18T20:10:18'
 session_id: null
 tags: []
 supersedes: null
@@ -18,7 +18,9 @@ backlog_items:
 - IMP-003
 milestones:
 - name: M1 Ingestion fails the file
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M2 Breaker and rate limit
   done: false
 - name: M3 Reporting
@@ -36,6 +38,9 @@ status_log:
   by: Claude
   status: active
   note: Plan updated
+- at: '2026-10-18T20:10:18'
+  by: Claude
+  note: 'Milestone ''M1 Ingestion fails the file'' completed: Branch ccr-fad47706-3528p3; 6 regression tests in ingestion/orchestrator.rs'
 ---
 
 # Embedding failures are hidden: pseudo-vectors at ingestion and silent BM25-only queries
