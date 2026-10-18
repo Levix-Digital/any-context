@@ -4,10 +4,10 @@ project: any-context
 title: 'Embedding failures are hidden: pseudo-vectors at ingestion and silent BM25-only queries'
 kind: feature
 version: v0.45.1
-status: draft
+status: active
 author: Claude
 created_at: '2026-10-18T19:32:46'
-updated_at: '2026-10-18T19:32:46'
+updated_at: '2026-10-18T19:43:53'
 session_id: null
 tags: []
 supersedes: null
@@ -16,17 +16,31 @@ parent_plan_id: null
 backlog_items:
 - BUG-014
 - IMP-003
-milestones: []
+milestones:
+- name: M1 Ingestion fails the file
+  done: false
+- name: M2 Breaker and rate limit
+  done: false
+- name: M3 Reporting
+  done: false
+- name: M4 Query outcome (IMP-003)
+  done: false
+- name: M5 Docs and manual tests
+  done: false
 status_log:
 - at: '2026-10-18T19:32:46'
   by: Claude
   status: draft
   note: Plan created
+- at: '2026-10-18T19:43:53'
+  by: Claude
+  status: active
+  note: Plan updated
 ---
 
 # Embedding failures are hidden: pseudo-vectors at ingestion and silent BM25-only queries
 
-Plan for the backlog items below (`dev-cycle-protocol` Phases 1 and 2). Discovery done on 2026-10-18 on `dev` at `80f47f7` (v0.45.0 plus the unreleased v0.45.1 work).
+Plan for the backlog items below (`dev-cycle-protocol` Phases 1 and 2). Discovery done and open questions decided on 2026-10-18 on `dev` at `80f47f7` (v0.45.0 plus the unreleased v0.45.1 work).
 
 ## Backlog items
 
@@ -77,11 +91,11 @@ Out of scope, captured as **BUG-019**: on the mock target every vector is the sa
 5. **Sync failures are reported.** The pass writes a summary into `workspace_sync_status.error` (e.g. `12 files not embedded (rate limit from 'gemini': ...); they are retried on the next sync`), the CLI prints the errors, and the TUI and the status report show it.
 6. **The query embedding outcome is recorded and shown.** The pipeline records the last outcome (dense used / no provider / failed with reason) and `/status` and the status report show it. The ADR-110 behavior stays: a failed query still answers with BM25.
 
-### 1.3 Open questions for the user
+### 1.3 Decisions on the open questions (user, 2026-10-18)
 
-- **Q1. Retry a rate limit once?** Recommendation: yes, one retry of the same batch after `retry_after_secs` (default 2 s, capped at 30 s), only for `RateLimit`. Without it, a large first sync on a free-tier key trips the breaker and leaves most files BM25-only until the next sync.
-- **Q2. Pseudo-vectors already stored by earlier versions.** Recommendation: no automatic cleanup; the release notes tell users who saw sync problems to run a forced sync (`/sync --force`). Detecting them is possible (the pattern repeats every 32 values) but means reading every vector of every workspace once.
-- **Q3. Breaker threshold.** Recommendation: 3 consecutive failed files (any `Auth` trips it at once).
+- **Q1. Rate limit: retry once.** One retry of the same batch after `retry_after_secs` (default 2 s, capped at 30 s), only for `LmError::RateLimit`, so a large first sync on a free-tier key does not trip the breaker.
+- **Q2. Pseudo-vectors already stored: no automatic cleanup.** The release notes tell users who saw sync problems to run a forced sync (`/sync --force`). Detection (the pattern repeats every 32 values) would mean reading every vector of every workspace once.
+- **Q3. Breaker threshold: 3 consecutive failed files**; any `Auth` error trips it at once.
 
 ### 1.4 ADR
 
@@ -103,7 +117,7 @@ ADR-0146 "A failed embedding fails the file, and embedding outcomes are reported
   The function gains a `skip_embedding: bool` parameter (breaker open); BM25 population stays first, as today.
 - `Err` from `provider.embed` → `EmbedFailure::Provider`; `vectors.len() != chunks.len()` → `ShortAnswer`. The `unwrap_or_else(zero vector)` is removed.
 - Main loop: before indexing a file, `bm25.remove_by_exact_file(file_path)`. On `Provider`/`ShortAnswer`: push a per-file error, increment the consecutive-failure counter (reset on success), open the breaker on `Auth` or at the threshold. On `Skipped`: push the per-file error. The stat cache is never written on failure (unchanged).
-- Q1 (if accepted): one retry inside `embed_and_upsert_chunks` for `LmError::RateLimit`, sleeping `min(retry_after_secs.unwrap_or(2), 30)` seconds.
+- Q1: one retry inside `embed_and_upsert_chunks` for `LmError::RateLimit`, sleeping `min(retry_after_secs.unwrap_or(2), 30)` seconds.
 - `sync_web_portals`/`index_web_page` use the same breaker state and push page errors to the pass errors instead of discarding them.
 - End of pass: `update_sync_status(..., "idle", None, Some(&summary))` when there were embedding failures, `None` otherwise; a later clean pass clears it. `SyncResult` gains `embedding_failures: usize`.
 - The per-file errors keep the current format (`Embedding/upsert error on '<path>': <reason>`); the summary counts them and quotes the first reason.
@@ -151,7 +165,7 @@ Automated (`cargo test --workspace`), with a `FailingLmProvider` test double ret
 - `test_auth_error_opens_the_breaker` (one provider call for N files; the rest skipped but in BM25) and `test_three_consecutive_failures_open_the_breaker`; a success resets the counter.
 - `test_failed_web_page_is_reported`.
 - `test_sync_status_error_summary_set_and_cleared`.
-- `test_rate_limit_is_retried_once` (if Q1 accepted, with a zero-delay `retry_after`).
+- `test_rate_limit_is_retried_once` and `test_second_rate_limit_fails_the_file` (zero-delay `retry_after`).
 - `pipeline.rs`: `test_query_embedding_failure_is_recorded`, `test_query_without_provider_is_recorded`, `test_query_dense_outcome_is_recorded`; existing BM25 fallback tests keep passing.
 - `test_status_report_shows_dense_search_and_sync_errors` (`actx-cli`).
 - Remove `test_generate_fallback_vectors` only if the function goes (it stays for the `None` branch).
@@ -169,7 +183,7 @@ Acceptance: no code path writes pseudo- or zero vectors after a failed call; eve
 - `docs/architecture/ingestion.md`: failure handling, breaker, retry on next sync.
 - `docs/architecture/retrieval.md`: query embedding outcome.
 - `docs/architecture/tui.md`, `docs/architecture/cli.md`: sync error indicator and output.
-- README (sync section): what the warning means and that a sync retries the files; release notes mention Q2.
+- README (sync section): what the warning means and that a sync retries the files; release notes recommend `/sync --force` to users who saw sync problems (Q2).
 
 ## 6. CI, release and observability (`devops-release`)
 
@@ -179,13 +193,13 @@ Acceptance: no code path writes pseudo- or zero vectors after a failed call; eve
 ## 7. Security, migration and rollback
 
 - Error messages from providers can echo request details; they are shown locally only, and API keys are never part of `LmError` messages (to verify in `actx-lm` error mapping during implementation).
-- No migration: no schema or index format change. Existing pseudo-vectors: see Q2.
+- No migration: no schema or index format change. Existing pseudo-vectors are not cleaned automatically; a forced sync removes them (Q2).
 - Rollback: revert the commits; a downgrade sees failed files as unindexed and indexes them its own way on the next sync.
 
 ## 8. Execution steps and milestones
 
 1. **M1 Ingestion fails the file**: typed embedding failure, no fallback vectors on error, short answers fail, per-file BM25 purge, web page errors; tests.
-2. **M2 Breaker and rate limit**: breaker per pass, Q1 retry if accepted; tests.
+2. **M2 Breaker and rate limit**: breaker per pass (Q3), one rate-limit retry (Q1); tests.
 3. **M3 Reporting**: status summary, CLI output, TUI indicator, status report; tests.
 4. **M4 Query outcome (IMP-003)**: pipeline accessor, `/status` and status report lines; tests.
 5. **M5 Docs and manual tests**: ADR-0146, architecture pages, README, MT-SYNC-008.
