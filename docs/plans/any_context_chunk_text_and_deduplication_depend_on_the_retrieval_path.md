@@ -4,10 +4,10 @@ project: any-context
 title: Chunk text and deduplication depend on the retrieval path
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Claude
 created_at: '2026-10-18T10:49:11'
-updated_at: '2026-10-18T12:01:26'
+updated_at: '2026-10-18T12:23:01'
 session_id: null
 tags:
 - retrieval
@@ -29,7 +29,9 @@ milestones:
   done_at: '2026-10-18'
   by: Claude
 - name: M3 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 status_log:
 - at: '2026-10-18T10:49:11'
   by: Claude
@@ -49,6 +51,13 @@ status_log:
 - at: '2026-10-18T12:01:26'
   by: Claude
   note: 'Milestone ''M2 Docs'' completed: ADR-0143, amended_by on ADR-0108 and ADR-0142, retrieval and ingestion pages; docs, readme, manual test and design checks clean'
+- at: '2026-10-18T12:23:01'
+  by: Claude
+  note: 'Milestone ''M3 Review and PR'' completed: PR #357 merged into dev'
+- at: '2026-10-18T12:23:01'
+  by: Claude
+  status: completed
+  note: All milestones completed
 ---
 
 # Chunk text and deduplication depend on the retrieval path
