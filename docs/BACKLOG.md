@@ -27,6 +27,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_system_status_and_web_search_never_reach_the_model_on_the_routed_paths
 - **Description**: LanceDB always opens (NativeLanceStore::open creates the directory), so build_agent_sync always sets the deterministic retriever and Agent::run/stream send Fast and Auto-fast questions to the one-hop path and Deep and Auto-deep questions to Deep Search; neither offers tools. ReAct, the only path with search_db, system_status and web_search, runs only when LanceDB fails to open. Effects: /web-search on does not change answers, and status questions (MT-MEM-002) and live web search (MT-WEB-003) cannot be answered. Decide how status and web results reach the routed paths. Related to IMP-011.
 
+### BUG-018: web_search tool sends raw web snippets to the model
+- **Severity**: medium
+- **Status**: open
+- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-017 discovery
+- **Plan**: -
+- **Description**: The ReAct web_search tool (crates/actx-cli/src/engine.rs) returns the search provider's titles, URLs and snippets straight to the model, so the answer uses web content that was never indexed. This breaks the platform rule that web content, like any other, is indexed before inference. ReAct runs only when LanceDB fails to open (BUG-017), so it is rarely reached. Fix it together with the indexed web search feature.
+
 ## Features
 
 ### FEAT-001: actx profile install command
@@ -154,6 +161,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, v0.45.0, product ideas review
 - **Plan**: -
 - **Description**: Expose AnyContext workspaces through an MCP server so other agents and IDEs can query them. There is no API or MCP surface today. Discussion item.
+
+### FEAT-019: Index web search results before answering
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-017 discovery
+- **Plan**: -
+- **Description**: With web search on, answers must never use web content directly: like any other source, web content is indexed first. Search the web for the question, fetch the result pages (Jina Reader, as /web does), chunk, embed and index them in the workspace, then answer through the normal hybrid search, on the one-hop and Deep Search paths. Split from BUG-017 on the user's decision (2026-10-18): inference is never done directly with web data. Open decisions: where indexed results live and for how long, how many pages per question, latency budget.
 
 ## Improvements
 
