@@ -1347,7 +1347,7 @@ mod tests {
         HybridSearchRequest {
             sub_query_id: Some(id.to_string()),
             query_text: "zzz".to_string(),
-            query_vector: Some(vec![0.5; 4]),
+            query_vector: Some(vec![1.0, 0.6, 0.3, 0.1]),
             ..Default::default()
         }
     }
