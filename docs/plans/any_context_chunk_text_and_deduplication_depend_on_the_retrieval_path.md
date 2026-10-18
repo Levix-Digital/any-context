@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-18T10:49:11'
-updated_at: '2026-10-18T11:29:15'
+updated_at: '2026-10-18T12:01:26'
 session_id: null
 tags:
 - retrieval
@@ -21,9 +21,13 @@ backlog_items:
 - BUG-016
 milestones:
 - name: M1 Fix and tests
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M2 Docs
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M3 Review and PR
   done: false
 status_log:
@@ -39,6 +43,12 @@ status_log:
   by: Claude
   status: in_progress
   note: Approved by the user on 2026-10-18
+- at: '2026-10-18T12:01:22'
+  by: Claude
+  note: 'Milestone ''M1 Fix and tests'' completed: strip_envelope, lookup_stored_rows, BM25-only branch, chunk-id dedup key, 6 tests; cargo test --workspace green (423 passed)'
+- at: '2026-10-18T12:01:26'
+  by: Claude
+  note: 'Milestone ''M2 Docs'' completed: ADR-0143, amended_by on ADR-0108 and ADR-0142, retrieval and ingestion pages; docs, readme, manual test and design checks clean'
 ---
 
 # Chunk text and deduplication depend on the retrieval path
