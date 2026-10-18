@@ -10,6 +10,7 @@ use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
 
 use crate::storage::lancedb::{NativeLanceStore, ScoredVectorResult};
+use crate::ingestion::enricher::NativeContextualEnricher;
 use crate::retrieval::bm25::BM25Index;
 use crate::retrieval::rrf::reciprocal_rank_fusion;
 use crate::retrieval::diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
@@ -667,15 +668,16 @@ impl NativeHybridPipeline {
             .clone()
             .unwrap_or_else(|| req.query_text.clone());
 
-        // 10. Provenance of BM25-only hits: the BM25 file has no provenance fields, so it is
-        // read from LanceDB in one lookup (ADR-0142).
+        // 10. Stored rows of BM25-only hits: the BM25 file holds the enveloped text it indexes and
+        // no provenance, so text, content hash and provenance are read from LanceDB in one lookup
+        // (ADR-0142, ADR-0143).
         let bm25_only_ids: Vec<String> = fused_results
             .iter()
             .filter(|r| !dense_map.contains_key(&r.id))
             .map(|r| r.id.clone())
             .collect();
-        let mut provenance = self
-            .lookup_provenance(&bm25_only_ids, req.workspace.as_deref(), &req.table_name)
+        let mut stored_rows = self
+            .lookup_stored_rows(&bm25_only_ids, req.workspace.as_deref(), &req.table_name)
             .await;
 
         // 11. Assemble HybridSearchResult candidates
@@ -699,16 +701,26 @@ impl NativeHybridPipeline {
                         Provenance::of(d),
                     )
                 } else if let Some(doc) = bm25_index.get_doc_by_id(&chunk_id) {
-                    let origin = provenance
-                        .remove(&(chunk_id.clone(), doc.file_path.replace('\\', "/")))
-                        .unwrap_or_default();
+                    let row = stored_rows.remove(&(chunk_id.clone(), doc.file_path.replace('\\', "/")));
+                    let (text, content_hash, origin) = match row {
+                        Some(r) => {
+                            let origin = Provenance::of(&r);
+                            (r.text, r.content_hash.unwrap_or_default(), origin)
+                        }
+                        // No row (index out of step or lookup error): drop the envelope at least.
+                        None => (
+                            NativeContextualEnricher::strip_envelope(&doc.text).to_string(),
+                            String::new(),
+                            Provenance::default(),
+                        ),
+                    };
                     (
                         doc.file_name.clone(),
                         doc.file_path.clone(),
                         doc.workspace.clone(),
-                        doc.text.clone(),
+                        text,
                         doc.content_type.clone(),
-                        String::new(),
+                        content_hash,
                         None,
                         doc.last_modified.clone(),
                         origin,
@@ -800,15 +812,15 @@ impl NativeHybridPipeline {
         Ok(final_results)
     }
 
-    /// Reads the provenance of `ids` from LanceDB, keyed by chunk id and normalized file path
+    /// Reads the stored rows of `ids` from LanceDB, keyed by chunk id and normalized file path
     /// (chunk ids repeat across files with the same content). A lookup error leaves the hits
-    /// without provenance: the answer still works, only the citation is less precise.
-    async fn lookup_provenance(
+    /// without a row: the answer still works, with the BM25 text and a less precise citation.
+    async fn lookup_stored_rows(
         &self,
         ids: &[String],
         workspace: Option<&str>,
         table_name: &str,
-    ) -> HashMap<(String, String), Provenance> {
+    ) -> HashMap<(String, String), ScoredVectorResult> {
         if ids.is_empty() {
             return HashMap::new();
         }
@@ -825,7 +837,7 @@ impl NativeHybridPipeline {
             .await
             .unwrap_or_default()
             .into_iter()
-            .map(|row| ((row.id.clone(), row.file_path.clone()), Provenance::of(&row)))
+            .map(|row| ((row.id.clone(), row.file_path.replace('\\', "/")), row))
             .collect()
     }
 
@@ -846,7 +858,7 @@ impl NativeHybridPipeline {
         }
     }
 
-    /// RFC-042: Concurrent multi-query batch retrieval with cross-query SHA-256 deduplication,
+    /// RFC-042: Concurrent multi-query batch retrieval with cross-query chunk deduplication,
     /// RRF score accumulation, a per-source cap in score order, and density budgeting.
     pub async fn retrieve_hybrid_batch_async(
         &self,
@@ -876,9 +888,9 @@ impl NativeHybridPipeline {
                 .unwrap_or_else(|| sub_req.query_text.clone());
 
             for chunk in chunks {
-                let key = if !chunk.content_hash.is_empty() {
-                    chunk.content_hash.clone()
-                } else if !chunk.chunk_id.is_empty() {
+                // Keyed by chunk id: `content_hash` is the hash of the whole source file, shared
+                // by all its chunks (ADR-0143). Files with identical content share chunk ids.
+                let key = if !chunk.chunk_id.is_empty() {
                     chunk.chunk_id.clone()
                 } else {
                     format!("{}::{}", chunk.file_path, &chunk.text)
@@ -1261,6 +1273,109 @@ mod tests {
         assert_eq!((guide.start_line, guide.end_line), (Some(40), Some(58)));
         let notes = results.iter().find(|r| r.chunk_id == "n_0").expect("notes hit");
         assert_eq!((notes.header_path.as_deref(), notes.start_line), (None, None));
+    }
+
+    fn stored_row(id: &str, text: &str, file: &str, vector: Vec<f32>) -> crate::storage::VectorRecord {
+        crate::storage::VectorRecord {
+            id: id.into(),
+            vector,
+            text: text.into(),
+            file_name: file.into(),
+            file_path: format!("/docs/{file}"),
+            workspace: "Default".into(),
+            last_modified: Some(SAME_DAY.into()),
+            content_type: Some("markdown".into()),
+            document_summary: None,
+            keywords: None,
+            content_hash: Some(format!("sha-of-{file}")),
+            header_path: None,
+            start_line: None,
+            end_line: None,
+        }
+    }
+
+    const ENVELOPED: &str =
+        "[Context: Document 'guide.md': Kestrel is a gateway. | Keywords: kestrel, gateway]\n---\nkestrel timeouts are retried three times";
+
+    #[test]
+    fn test_bm25_only_hits_take_raw_text_from_lancedb() {
+        let (pipeline, dir) = bm25_pipeline("raw_text_bm25", &[("g_0", ENVELOPED, "guide.md", SAME_DAY)]);
+        let row = stored_row("g_0", "kestrel timeouts are retried three times", "guide.md", vec![0.1; 4]);
+        pipeline.lance_store.upsert_records(vec![row], None, Some(4)).unwrap();
+
+        let results = pipeline
+            .search(HybridSearchRequest { query_text: "kestrel".to_string(), ..Default::default() })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let guide = results.iter().find(|r| r.chunk_id == "g_0").expect("guide hit");
+        assert_eq!(guide.dense_score, None, "found by BM25 only");
+        assert_eq!(guide.text, "kestrel timeouts are retried three times", "same text as a dense hit");
+        assert_eq!(guide.content_hash, "sha-of-guide.md");
+    }
+
+    #[test]
+    fn test_bm25_only_hits_without_a_row_drop_the_envelope() {
+        let (pipeline, dir) = bm25_pipeline("strip_bm25", &[("g_0", ENVELOPED, "guide.md", SAME_DAY)]);
+        let results = pipeline
+            .search(HybridSearchRequest { query_text: "kestrel".to_string(), ..Default::default() })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].text, "kestrel timeouts are retried three times");
+        assert_eq!(results[0].content_hash, "");
+    }
+
+    /// Dense-only pipeline: LanceDB rows of one file (same file-level content hash), no BM25.
+    fn dense_pipeline(name: &str, ids: &[&str]) -> (NativeHybridPipeline, PathBuf) {
+        let (pipeline, dir) = bm25_pipeline(name, &[]);
+        let rows = ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| {
+                let mut v = vec![0.1; 4];
+                v[i % 4] = 1.0;
+                stored_row(id, &format!("alpha section {i} about falcons"), "alpha.md", v)
+            })
+            .collect();
+        pipeline.lance_store.upsert_records(rows, None, Some(4)).unwrap();
+        (pipeline, dir)
+    }
+
+    fn sub_query(id: &str) -> HybridSearchRequest {
+        HybridSearchRequest {
+            sub_query_id: Some(id.to_string()),
+            query_text: "zzz".to_string(),
+            query_vector: Some(vec![0.5; 4]),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_batch_keeps_every_chunk_of_a_file() {
+        let (pipeline, dir) = dense_pipeline("dedup_file", &["a_0", "a_1", "a_2"]);
+        let single = pipeline.search(sub_query("q1")).unwrap();
+        let results = pipeline.retrieve_hybrid_batch(vec![sub_query("q1"), sub_query("q2")]).unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let mut ids: Vec<&str> = results.iter().map(|r| r.chunk_id.as_str()).collect();
+        ids.sort();
+        assert_eq!(ids, vec!["a_0", "a_1", "a_2"], "chunks sharing the file hash stay distinct");
+        for r in &results {
+            let own = single.iter().find(|s| s.chunk_id == r.chunk_id).unwrap().score;
+            assert!((r.score - 2.0 * own).abs() < 1e-12, "{} carries only its own scores", r.chunk_id);
+        }
+    }
+
+    #[test]
+    fn test_batch_merges_the_same_chunk_across_sub_queries() {
+        let (pipeline, dir) = dense_pipeline("dedup_same", &["a_0"]);
+        let results = pipeline.retrieve_hybrid_batch(vec![sub_query("q1"), sub_query("q2")]).unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].matched_subqueries, vec!["q1".to_string(), "q2".to_string()]);
     }
 
     fn assert_descending(results: &[HybridSearchResult]) {
