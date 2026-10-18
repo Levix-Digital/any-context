@@ -22,9 +22,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-017: system_status and web_search never reach the model on the routed paths
 - **Severity**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-18, v0.45.0, BUG-012 discovery
-- **Plan**: -
+- **Plan**: any_context_system_status_and_web_search_never_reach_the_model_on_the_routed_paths
 - **Description**: LanceDB always opens (NativeLanceStore::open creates the directory), so build_agent_sync always sets the deterministic retriever and Agent::run/stream send Fast and Auto-fast questions to the one-hop path and Deep and Auto-deep questions to Deep Search; neither offers tools. ReAct, the only path with search_db, system_status and web_search, runs only when LanceDB fails to open. Effects: /web-search on does not change answers, and status questions (MT-MEM-002) and live web search (MT-WEB-003) cannot be answered. Decide how status and web results reach the routed paths. Related to IMP-011.
 
 ## Features
