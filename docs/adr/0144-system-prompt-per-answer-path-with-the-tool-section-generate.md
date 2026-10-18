@@ -8,7 +8,7 @@ subsystems: [agent, cli]
 supersedes: []
 superseded_by: []
 amends: [82, 90]
-amended_by: []
+amended_by: [145]
 ---
 
 # ADR-0144: System prompt per answer path with the tool section generated from the registered tools

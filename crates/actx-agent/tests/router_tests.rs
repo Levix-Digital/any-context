@@ -240,3 +240,40 @@ async fn test_agent_stream_emits_routing_decision_event() {
         other => panic!("Expected AgentEvent::RoutingDecision as first event, got {:?}", other),
     }
 }
+
+#[test]
+fn test_router_detects_status_questions_in_every_search_mode() {
+    let router = ChatModelRouter::default();
+    let status_queries = [
+        "is everything indexed yet?",
+        "what is the sync status?",
+        "já está tudo indexado?",
+        "como está o progresso da sincronização?",
+        "quantos chunks tem o workspace?",
+    ];
+    for q in status_queries {
+        for mode in [SearchMode::Auto, SearchMode::Fast, SearchMode::Deep] {
+            let decision = router.evaluate(q, mode);
+            assert_eq!(decision.intent, QueryIntent::SystemStatus, "query '{q}' in {mode:?}");
+            assert!(decision.reason.contains("live status question"));
+        }
+    }
+}
+
+#[test]
+fn test_router_keeps_how_to_questions_out_of_the_status_route() {
+    let router = ChatModelRouter::default();
+    for q in ["how do I sync a folder?", "como adicionar um site ao workspace?", "how do I add a website?"] {
+        let decision = router.evaluate(q, SearchMode::Auto);
+        assert_ne!(decision.intent, QueryIntent::SystemStatus, "query '{q}'");
+    }
+}
+
+#[test]
+fn test_status_intent_keeps_mode_and_complexity() {
+    let router = ChatModelRouter::default();
+    let decision = router.evaluate("is everything indexed yet?", SearchMode::Deep);
+    assert_eq!(decision.mode, AgentExecutionMode::DeepSearch);
+    assert_eq!(decision.complexity, QueryComplexity::Deep);
+    assert_eq!(QueryIntent::SystemStatus.as_str(), "system_status");
+}

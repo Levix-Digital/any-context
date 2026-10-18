@@ -358,7 +358,9 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 }
             }
             AgentEvent::RoutingDecision { mode, complexity, intent, confidence, reason } => {
-                let badge = if complexity == "Deep" || mode.contains("DeepSearch") {
+                let badge = if intent == "system_status" {
+                    theme.ansi_warning("📊 [ModelRouter: Live Status]")
+                } else if complexity == "Deep" || mode.contains("DeepSearch") {
                     theme.ansi_reasoning("🧠 [ModelRouter: Deep Search]")
                 } else {
                     theme.ansi_warning("⚡ [ModelRouter: Fast RAG]")
@@ -370,6 +372,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     "data_schema" => "Data & Schema",
                     "security_audit" => "Security & Audit",
                     "document" => "Document & Business",
+                    "system_status" => "System Status",
                     _ => "General & Concepts",
                 };
                 println!("{} \x1b[2m(Domain: {}, confidence: {:.0}%)\x1b[0m\n\x1b[2m  • {}\x1b[0m\n", badge, intent_display, confidence * 100.0, reason);

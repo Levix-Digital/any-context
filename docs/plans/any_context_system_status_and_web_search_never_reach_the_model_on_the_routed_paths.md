@@ -7,7 +7,7 @@ version: 0.45.1
 status: planned
 author: Claude
 created_at: '2026-10-18T17:14:09'
-updated_at: '2026-10-18T17:28:57'
+updated_at: '2026-10-18T17:44:20'
 session_id: null
 tags: []
 supersedes: null
@@ -17,9 +17,13 @@ backlog_items:
 - BUG-017
 milestones:
 - name: M1 Status route
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M2 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M3 Review and PR
   done: false
 status_log:
@@ -35,6 +39,12 @@ status_log:
   by: Claude
   status: planned
   note: Plan updated
+- at: '2026-10-18T17:44:17'
+  by: Claude
+  note: 'Milestone ''M1 Status route'' completed: router intent, status retriever, live_status prompt; cargo test --workspace green'
+- at: '2026-10-18T17:44:20'
+  by: Claude
+  note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0145, agent/cli/retrieval pages, SYSTEM_KNOWLEDGE.md, MT-MEM-002; checkers clean'
 ---
 
 # system_status and web_search never reach the model on the routed paths

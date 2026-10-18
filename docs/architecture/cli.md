@@ -62,9 +62,9 @@ The headless path resolves grounding mode, search mode and web search from the w
 1. Opens `SqliteSessionStore` on `settings.db` with a history of 50 messages.
 2. Builds the retrieved-context system prompt (`prompt::build_system_prompt` with `PromptPath::RetrievedContext`) for one-hop RAG and the Deep Search synthesis.
 3. Creates the re-ranker for the active re-ranker model (`create_default_reranker`); its ONNX session loads lazily on first use.
-4. Builds `search_db` and `system_status`, and `web_search` when web search is enabled, derives the ReAct system prompt from their names (`PromptPath::Tools`) and registers them (see [Agent Runtime](agent.md)).
+4. Builds `search_db` and `system_status` (its report comes from `workspace_status_report`), and `web_search` when web search is enabled, derives the ReAct system prompt from their names (`PromptPath::Tools`) and registers them (see [Agent Runtime](agent.md)).
 5. Sets the execution mode (`DeepSearch` for `/search deep`, otherwise `ReAct`), the search policy and `max_turns(10)`.
-6. Resolves the query embedding once (`resolve_query_embedding`, which calls `ingestion::resolve_embedding_provider`) and plugs in `PipelineBatchRetriever` (Deep Search) and `PipelineDeterministicRetriever` (one-hop RAG) when LanceDB opens; they and `search_db` use the [retrieval pipeline](retrieval.md) with that embedding and the `rerank_mode` setting.
+6. Resolves the query embedding once (`resolve_query_embedding`, which calls `ingestion::resolve_embedding_provider`) and plugs in `PipelineBatchRetriever` (Deep Search), `PipelineDeterministicRetriever` (one-hop RAG) and `PipelineStatusRetriever` (status questions: the same search plus the live status report, ADR-0145) when LanceDB opens; they and `search_db` use the [retrieval pipeline](retrieval.md) with that embedding and the `rerank_mode` setting.
 7. Attaches the `ChatModelRouter` with the query classifier adapter.
 
 ### Startup and self-knowledge
@@ -92,3 +92,4 @@ The headless path resolves grounding mode, search mode and web search from the w
 - [ADR-0127](../adr/0127-cross-platform-hardware-acceleration-matrix.md): `--device` and accelerator diagnostics.
 - [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): `--rerank`, `--rerank-model` and lazy re-ranker loading.
 - [ADR-0144](../adr/0144-system-prompt-per-answer-path-with-the-tool-section-generate.md): one system prompt per answer path, the ReAct prompt derived from the registered tools.
+- [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): `PipelineStatusRetriever` and the shared `workspace_status_report`.

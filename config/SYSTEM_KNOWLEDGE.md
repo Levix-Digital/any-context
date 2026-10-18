@@ -58,7 +58,7 @@ AnyContext provides three distinct grounding strategies to balance precision, cr
 
 ### 2.2 Retrieval Before Every Answer
 To maintain grounding integrity, every answer is built on workspace context retrieved for the question:
-- **Fast and Deep answers:** The application retrieves the workspace excerpts (one hybrid search for fast answers, several sub-queries for Deep Search) and gives them to the model together with the question. The model answers from those excerpts and calls no tools.
+- **Fast and Deep answers:** The application retrieves the workspace excerpts (one hybrid search for fast answers, several sub-queries for Deep Search) and gives them to the model together with the question. The model answers from those excerpts and calls no tools. When the question asks whether everything is indexed or how the synchronization is going, the application also gives the model the live status of the workspace (sync progress, indexed chunk count, monitored folders and web sources).
 - **Tool loop fallback:** Only when the vector store is unavailable does the model run a tool loop, where it searches the workspace (`search_db`, at most once per question), reads the indexing status (`system_status`) and, when web search is enabled, searches the web (`web_search`).
 - **Sources are changed by commands:** The assistant cannot add, rename, or remove folders and web sources; it points to `/folder`, `/web`, and `/sources`.
 - **Cross-Lingual Domain Query Translation:** When a query is posed in Portuguese, Spanish, or other languages concerning codebases or documentation written in English, the retrieval engine translates search terms into bilingual keyword pairs to maximize vector and BM25 recall.
