@@ -215,7 +215,7 @@ impl NativeLanceStore {
 
 
     pub fn get_schema(dim: usize) -> Arc<Schema> {
-        Arc::new(Schema::new(vec![
+        let mut fields = vec![
             Field::new("id", DataType::Utf8, false),
             Field::new(
                 "vector",
@@ -234,10 +234,9 @@ impl NativeLanceStore {
             Field::new("document_summary", DataType::Utf8, true),
             Field::new("keywords", DataType::Utf8, true),
             Field::new("content_hash", DataType::Utf8, true),
-            Field::new("header_path", DataType::Utf8, true),
-            Field::new("start_line", DataType::UInt32, true),
-            Field::new("end_line", DataType::UInt32, true),
-        ]))
+        ];
+        fields.extend(Self::provenance_fields());
+        Arc::new(Schema::new(fields))
     }
 
     /// Nullable provenance columns added after the first table schema (ADR-0142).
@@ -253,21 +252,35 @@ impl NativeLanceStore {
     /// columns: a schema-only commit, no row is rewritten or re-embedded. Returns whether
     /// columns were added. With the columns present it only reads the schema.
     async fn add_missing_provenance_columns(table: &Table) -> Result<bool, String> {
-        let schema = table.schema().await.map_err(|e| e.to_string())?;
-        let missing: Vec<Field> = Self::provenance_fields()
-            .into_iter()
-            .filter(|f| schema.field_with_name(f.name()).is_err())
-            .collect();
+        let missing = Self::missing_provenance_fields(table).await?;
         if missing.is_empty() {
             return Ok(false);
         }
-        table
+        let added = table
             .add_columns()
             .transform(NewColumnTransform::AllNulls(Arc::new(Schema::new(missing))))
             .execute()
-            .await
-            .map_err(|e| format!("Adding provenance columns to LanceDB failed: {e}"))?;
-        Ok(true)
+            .await;
+        match added {
+            Ok(_) => Ok(true),
+            // Another process (TUI and sync worker share the table) may have added them first.
+            Err(e) => {
+                let _ = table.checkout_latest().await;
+                if Self::missing_provenance_fields(table).await?.is_empty() {
+                    Ok(false)
+                } else {
+                    Err(format!("Adding provenance columns to LanceDB failed: {e}"))
+                }
+            }
+        }
+    }
+
+    async fn missing_provenance_fields(table: &Table) -> Result<Vec<Field>, String> {
+        let schema = table.schema().await.map_err(|e| e.to_string())?;
+        Ok(Self::provenance_fields()
+            .into_iter()
+            .filter(|f| schema.field_with_name(f.name()).is_err())
+            .collect())
     }
 
     pub async fn table_exists_async(&self, table_name: &str) -> Result<bool, String> {
@@ -878,7 +891,6 @@ impl NativeLanceStore {
         })
     }
 
-    /// Reads full rows (vector included) with the stored values as they are, without decrypting.
     /// Reads the provenance columns of row `i`; tables not migrated yet have none (all `None`).
     /// `header_path` is returned as stored (encrypted).
     fn provenance_at(batch: &RecordBatch, i: usize) -> (Option<String>, Option<u32>, Option<u32>) {
@@ -895,6 +907,7 @@ impl NativeLanceStore {
         (header, line("start_line"), line("end_line"))
     }
 
+    /// Reads full rows (vector included) with the stored values as they are, without decrypting.
     fn extract_vector_records(batch: &RecordBatch) -> Result<Vec<VectorRecord>, String> {
         let string_col = |name: &str| -> Result<&StringArray, String> {
             batch
