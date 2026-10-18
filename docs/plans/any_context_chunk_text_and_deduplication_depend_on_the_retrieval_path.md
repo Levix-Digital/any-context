@@ -4,10 +4,10 @@ project: any-context
 title: Chunk text and deduplication depend on the retrieval path
 kind: bug
 version: v0.45.1
-status: active
+status: in_progress
 author: Claude
 created_at: '2026-10-18T10:49:11'
-updated_at: '2026-10-18T10:51:55'
+updated_at: '2026-10-18T11:29:15'
 session_id: null
 tags:
 - retrieval
@@ -35,6 +35,10 @@ status_log:
   by: Claude
   status: active
   note: Plan updated
+- at: '2026-10-18T11:29:15'
+  by: Claude
+  status: in_progress
+  note: Approved by the user on 2026-10-18
 ---
 
 # Chunk text and deduplication depend on the retrieval path

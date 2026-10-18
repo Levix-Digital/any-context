@@ -8,7 +8,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-011: Chunk text sent to the model depends on the retrieval path
 - **Severity**: low
-- **Status**: planned
+- **Status**: in_progress
 - **Found**: 2026-10-17, v0.45.0, RAG best-practices review
 - **Plan**: any_context_chunk_text_and_deduplication_depend_on_the_retrieval_path
 - **Description**: BM25 stores the enveloped text (`[Context: ... | Keywords: ...]` plus the chunk), while LanceDB stores the raw chunk. Chunks found only by BM25 reach the prompt with the envelope; chunks found by the dense search reach it without.
@@ -36,7 +36,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-016: Deep Search deduplication merges every chunk of a file
 - **Severity**: medium
-- **Status**: planned
+- **Status**: in_progress
 - **Found**: 2026-10-18, v0.45.0, BUG-011 discovery
 - **Plan**: any_context_chunk_text_and_deduplication_depend_on_the_retrieval_path
 - **Description**: retrieve_hybrid_batch_async keys its cross-query deduplication on content_hash, which is the SHA-256 of the whole file: every dense hit of one file collapses into the first chunk and the scores of the other chunks are added to it. BM25-only hits carry an empty hash and fall back to the chunk id, so they are not merged.
