@@ -37,6 +37,8 @@ pub(crate) enum EmbedFailure {
     ShortAnswer { expected: usize, got: usize },
     /// The LanceDB upsert failed.
     Store(String),
+    /// Not attempted: the provider breaker of this pass is open.
+    Skipped,
 }
 
 impl std::fmt::Display for EmbedFailure {
@@ -47,7 +49,53 @@ impl std::fmt::Display for EmbedFailure {
                 write!(f, "embedding failed: expected {expected} vectors, got {got}")
             }
             EmbedFailure::Store(e) => write!(f, "upsert failed: {e}"),
+            EmbedFailure::Skipped => write!(f, "embedding skipped: the provider failed on earlier files of this sync"),
         }
+    }
+}
+
+/// Consecutive failed files after which a sync pass stops calling the embedding provider.
+const BREAKER_THRESHOLD: usize = 3;
+/// Wait before the single retry of a rate-limited embedding call, when the provider gives none.
+const RATE_LIMIT_DEFAULT_WAIT_SECS: u64 = 2;
+/// Longest wait honored before that retry.
+const RATE_LIMIT_MAX_WAIT_SECS: u64 = 30;
+
+/// Stops a sync pass from calling a provider that keeps failing: an authentication error opens
+/// it at once, otherwise `BREAKER_THRESHOLD` consecutive failed files do (ADR-0146). Files met
+/// while it is open still go to BM25 and fail as `Skipped`, so the next sync retries them.
+#[derive(Debug, Default)]
+pub(crate) struct EmbedBreaker {
+    consecutive_failures: usize,
+    open: bool,
+}
+
+impl EmbedBreaker {
+    pub(crate) fn is_open(&self) -> bool {
+        self.open
+    }
+
+    fn record_success(&mut self) {
+        self.consecutive_failures = 0;
+    }
+
+    fn record_failure(&mut self, unauthorized: bool) {
+        self.consecutive_failures += 1;
+        if unauthorized || self.consecutive_failures >= BREAKER_THRESHOLD {
+            self.open = true;
+        }
+    }
+}
+
+/// Embeds `texts`, retrying once after a rate limit (honoring `retry_after_secs`, capped).
+async fn embed_with_retry(provider: &Arc<dyn LmProvider>, model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, LmError> {
+    match provider.embed(model, texts).await {
+        Err(LmError::RateLimit { retry_after_secs, .. }) => {
+            let wait = retry_after_secs.unwrap_or(RATE_LIMIT_DEFAULT_WAIT_SECS).min(RATE_LIMIT_MAX_WAIT_SECS);
+            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+            provider.embed(model, texts).await
+        }
+        other => other,
     }
 }
 
@@ -412,6 +460,7 @@ impl NativeSyncOrchestrator {
         let mut errors = legacy_encryption_errors;
 
         // 12. Main Indexing Loop
+        let mut breaker = EmbedBreaker::default();
         for (idx, file_path) in files_to_index.iter().enumerate() {
             // Check for cooperative cancellation
             if let Ok(Some(st)) = self.db.get_sync_status(ws) {
@@ -533,6 +582,7 @@ impl NativeSyncOrchestrator {
                 &lm_provider,
                 &embedding_model,
                 &mut bm25,
+                &mut breaker,
             ).await {
                 Ok(num_chunks) => {
                     total_chunks_created += num_chunks;
@@ -556,6 +606,7 @@ impl NativeSyncOrchestrator {
                 &lm_provider,
                 &embedding_model,
                 &mut bm25,
+                &mut breaker,
                 options.verbose,
                 &mut errors,
             ).await;
@@ -633,6 +684,7 @@ impl NativeSyncOrchestrator {
         lm_provider: &Option<Arc<dyn LmProvider>>,
         embedding_model: &str,
         bm25: &mut BM25Index,
+        breaker: &mut EmbedBreaker,
     ) -> Result<usize, EmbedFailure> {
         let last_mod_str = chrono::DateTime::from_timestamp(mtime as i64, 0)
             .map(|dt| dt.to_rfc3339())
@@ -672,16 +724,26 @@ impl NativeSyncOrchestrator {
         // 2. Generate Dense Embeddings. A failed call fails the file: no pseudo-vectors are
         // stored next to real ones (ADR-0146). Without a provider, the offline fallback stays.
         let vectors = if let Some(provider) = lm_provider {
-            provider
-                .embed(embedding_model, &chunk_texts)
-                .await
-                .map_err(EmbedFailure::Provider)?
+            if breaker.is_open() {
+                return Err(EmbedFailure::Skipped);
+            }
+            match embed_with_retry(provider, embedding_model, &chunk_texts).await {
+                Ok(v) if v.len() == chunks.len() => {
+                    breaker.record_success();
+                    v
+                }
+                Ok(v) => {
+                    breaker.record_failure(false);
+                    return Err(EmbedFailure::ShortAnswer { expected: chunks.len(), got: v.len() });
+                }
+                Err(e) => {
+                    breaker.record_failure(matches!(e, LmError::Auth { .. }));
+                    return Err(EmbedFailure::Provider(e));
+                }
+            }
         } else {
             generate_fallback_vectors(&chunk_texts, DEFAULT_VECTOR_DIM)
         };
-        if vectors.len() != chunks.len() {
-            return Err(EmbedFailure::ShortAnswer { expected: chunks.len(), got: vectors.len() });
-        }
 
         // 3. Assemble VectorRecords for LanceDB, with the chunk provenance (ADR-0142)
         let file_lines = self.router.has_file_lines(file_path);
@@ -731,6 +793,7 @@ impl NativeSyncOrchestrator {
         lm_provider: &Option<Arc<dyn LmProvider>>,
         embedding_model: &str,
         bm25: &mut BM25Index,
+        breaker: &mut EmbedBreaker,
         verbose: bool,
         errors: &mut Vec<String>,
     ) {
@@ -776,6 +839,7 @@ impl NativeSyncOrchestrator {
                     lm_provider,
                     embedding_model,
                     bm25,
+                    breaker,
                 ).await {
                     errors.push(format!("Failed to index page '{}': {}", page.url, e));
                 }
@@ -794,6 +858,7 @@ impl NativeSyncOrchestrator {
         lm_provider: &Option<Arc<dyn LmProvider>>,
         embedding_model: &str,
         bm25: &mut BM25Index,
+        breaker: &mut EmbedBreaker,
     ) -> Result<bool, String> {
         let chunks = self.router.chunk_text_native(&page.url, &page.text)?;
         if chunks.is_empty() {
@@ -847,6 +912,7 @@ impl NativeSyncOrchestrator {
             lm_provider,
             embedding_model,
             bm25,
+            breaker,
         ).await.map_err(|e| e.to_string())?;
         Ok(true)
     }
@@ -1075,19 +1141,19 @@ mod tests {
 
         let v1 = "# Guide\n\nThe service listens on port 8080 and reads its configuration from settings.toml at startup.";
         let sub = "# Install\n\nRun the installer, then open a new terminal and start the application with actx.";
-        assert!(orchestrator.index_web_page(&page(child, sub), "WebWS", &enricher, &None, "mock", &mut bm25).await.unwrap());
-        assert!(orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(child, sub), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
         let parent_chunks = count(parent);
         let child_chunks = count(child);
         assert!(parent_chunks > 0 && child_chunks > 0);
 
         // Same content again: skipped, nothing appended.
-        assert!(!orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25).await.unwrap());
+        assert!(!orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
         assert_eq!(count(parent), parent_chunks);
 
         // Changed content: old chunks replaced, and the sub-page under the same URL prefix is untouched.
         let v2 = "# Guide\n\nThe service now listens on port 9090 and reads its configuration from config.toml at startup.";
-        assert!(orchestrator.index_web_page(&page(parent, v2), "WebWS", &enricher, &None, "mock", &mut bm25).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(parent, v2), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
         let hits = lance_store
             .search_metadata(&format!("file_path = '{parent}'"), 1000, Some("WebWS"), None)
             .unwrap();
@@ -1140,6 +1206,7 @@ mod tests {
             &None,
             "mock",
             &mut bm25,
+            &mut EmbedBreaker::default(),
         ).await.unwrap();
 
         assert_eq!(upserted, 1);
@@ -1191,6 +1258,7 @@ mod tests {
                 &None,
                 "mock",
                 &mut bm25,
+                &mut EmbedBreaker::default(),
             )
             .await
             .unwrap();
@@ -1228,6 +1296,9 @@ mod tests {
     enum EmbedBehavior {
         Ok,
         RateLimited,
+        /// Rate-limited on the next call only, then `Ok`.
+        RateLimitedOnce,
+        Unauthorized,
         Short,
     }
 
@@ -1263,13 +1334,20 @@ mod tests {
 
         async fn embed(&self, _model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, LmError> {
             self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            match *self.behavior.lock().unwrap() {
+            let mut behavior = self.behavior.lock().unwrap();
+            let rate_limited = LmError::RateLimit {
+                provider: "scripted".into(),
+                message: "quota exceeded".into(),
+                retry_after_secs: Some(0),
+            };
+            match *behavior {
                 EmbedBehavior::Ok => Ok(vec![vec![0.3; DEFAULT_VECTOR_DIM]; texts.len()]),
-                EmbedBehavior::RateLimited => Err(LmError::RateLimit {
-                    provider: "scripted".into(),
-                    message: "quota exceeded".into(),
-                    retry_after_secs: Some(0),
-                }),
+                EmbedBehavior::RateLimited => Err(rate_limited),
+                EmbedBehavior::RateLimitedOnce => {
+                    *behavior = EmbedBehavior::Ok;
+                    Err(rate_limited)
+                }
+                EmbedBehavior::Unauthorized => Err(LmError::Auth { provider: "scripted".into(), message: "invalid key".into() }),
                 EmbedBehavior::Short => Ok(vec![vec![0.3; DEFAULT_VECTOR_DIM]; texts.len().saturating_sub(1)]),
             }
         }
@@ -1287,7 +1365,7 @@ mod tests {
         let file_name = chunks[0].file_name.clone();
         let lm: Option<Arc<dyn LmProvider>> = Some(provider);
         let result = orchestrator
-            .embed_and_upsert_chunks(&chunks, None, &enricher, "Default", &file_path, &file_name, "failhash1234567", 1000.0, &lm, "scripted", &mut bm25)
+            .embed_and_upsert_chunks(&chunks, None, &enricher, "Default", &file_path, &file_name, "failhash1234567", 1000.0, &lm, "scripted", &mut bm25, &mut EmbedBreaker::default())
             .await;
         let rows = lance_store.search_metadata("id <> ''", 100, Some("Default"), None).unwrap_or_default().len();
         let _ = std::fs::remove_dir_all(temp_dir);
@@ -1404,10 +1482,100 @@ mod tests {
             content_type: None,
         };
         let lm: Option<Arc<dyn LmProvider>> = Some(ScriptedEmbedder::new(EmbedBehavior::RateLimited));
-        let err = orchestrator.index_web_page(&page, "WebWS", &enricher, &lm, "scripted", &mut bm25).await.unwrap_err();
+        let err = orchestrator.index_web_page(&page, "WebWS", &enricher, &lm, "scripted", &mut bm25, &mut EmbedBreaker::default()).await.unwrap_err();
         assert!(err.contains("embedding failed"), "{err}");
         assert_eq!(lance_store.count_records(Some("WebWS"), None).unwrap_or(0), 0);
 
         let _ = std::fs::remove_dir_all(temp_dir);
+    }
+    fn calls(embedder: &ScriptedEmbedder) -> usize {
+        embedder.calls.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    #[tokio::test]
+    async fn test_rate_limit_is_retried_once() {
+        let embedder = ScriptedEmbedder::new(EmbedBehavior::RateLimitedOnce);
+        let c = chunk("md_0", "docs/guide.md", "guide.md > Timeouts", 1, 5, "markdown");
+        let (result, rows, _) = upsert_with("retry_once", embedder.clone(), vec![c]).await;
+        assert_eq!(result.unwrap(), 1);
+        assert_eq!(rows, 1);
+        assert_eq!(calls(&embedder), 2);
+    }
+
+    #[tokio::test]
+    async fn test_second_rate_limit_fails_the_file() {
+        let embedder = ScriptedEmbedder::new(EmbedBehavior::RateLimited);
+        let c = chunk("md_0", "docs/guide.md", "guide.md > Timeouts", 1, 5, "markdown");
+        let (result, rows, _) = upsert_with("retry_twice", embedder.clone(), vec![c]).await;
+        assert!(matches!(result, Err(EmbedFailure::Provider(LmError::RateLimit { .. }))), "{result:?}");
+        assert_eq!(rows, 0);
+        assert_eq!(calls(&embedder), 2, "a rate limit is retried exactly once");
+    }
+
+    fn write_docs(docs_dir: &Path, n: usize) {
+        for i in 0..n {
+            std::fs::write(
+                docs_dir.join(format!("note_{i}.md")),
+                format!("# Note {i}\n\nThe archive job number {i} runs every night and keeps thirty days of backups."),
+            )
+            .unwrap();
+        }
+    }
+
+    fn bm25_files(lance_store: &NativeLanceStore, ws: &str) -> std::collections::HashSet<String> {
+        let path = lance_store.db_path().join("bm25_index.bin");
+        BM25Index::load_from_file(path.to_str().unwrap())
+            .map(|idx| idx.docs.into_iter().filter(|d| d.workspace == ws).map(|d| d.file_path).collect())
+            .unwrap_or_default()
+    }
+
+    #[tokio::test]
+    async fn test_auth_error_opens_the_breaker() {
+        let (temp_dir, docs_dir, db, lance_store) = sync_fixture("auth");
+        write_docs(&docs_dir, 4);
+        let embedder = ScriptedEmbedder::new(EmbedBehavior::Unauthorized);
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db).with_embedding_provider(embedder.clone());
+
+        let result = orchestrator.run(&sync_opts("AuthWS", &docs_dir)).await.unwrap();
+        assert_eq!(calls(&embedder), 1, "a bad key must cost one call, not one per file");
+        assert_eq!(result.errors.len(), 4, "{:?}", result.errors);
+        assert_eq!(result.errors.iter().filter(|e| e.contains("embedding skipped")).count(), 3, "{:?}", result.errors);
+        assert_eq!(lance_store.count_records(Some("AuthWS"), None).unwrap_or(0), 0);
+        assert_eq!(bm25_files(&lance_store, "AuthWS").len(), 4, "skipped files stay reachable by keyword");
+
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_three_consecutive_failures_open_the_breaker() {
+        let (temp_dir, docs_dir, db, lance_store) = sync_fixture("consecutive");
+        write_docs(&docs_dir, 5);
+        let embedder = ScriptedEmbedder::new(EmbedBehavior::RateLimited);
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db).with_embedding_provider(embedder.clone());
+
+        let result = orchestrator.run(&sync_opts("BreakerWS", &docs_dir)).await.unwrap();
+        assert_eq!(calls(&embedder), 2 * BREAKER_THRESHOLD, "three files, each tried and retried once");
+        assert_eq!(result.errors.len(), 5, "{:?}", result.errors);
+        assert_eq!(result.errors.iter().filter(|e| e.contains("embedding skipped")).count(), 2, "{:?}", result.errors);
+        assert_eq!(bm25_files(&lance_store, "BreakerWS").len(), 5);
+
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_breaker_success_resets_the_count() {
+        let mut breaker = EmbedBreaker::default();
+        breaker.record_failure(false);
+        breaker.record_failure(false);
+        breaker.record_success();
+        breaker.record_failure(false);
+        breaker.record_failure(false);
+        assert!(!breaker.is_open(), "failures separated by a success are not consecutive");
+        breaker.record_failure(false);
+        assert!(breaker.is_open());
+
+        let mut breaker = EmbedBreaker::default();
+        breaker.record_failure(true);
+        assert!(breaker.is_open(), "an authentication error opens the breaker at once");
     }
 }
