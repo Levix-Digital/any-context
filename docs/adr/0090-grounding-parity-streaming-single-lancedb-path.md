@@ -8,7 +8,7 @@ subsystems: [agent, lm-providers, storage]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: []
+amended_by: [144]
 ---
 
 # ADR-0090: Grounding Parity, Real-Time Token Streaming and Single Canonical LanceDB Path

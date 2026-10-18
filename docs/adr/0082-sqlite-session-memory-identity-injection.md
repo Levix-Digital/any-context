@@ -8,7 +8,7 @@ subsystems: [agent, storage]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: []
+amended_by: [144]
 ---
 
 # ADR-0082: SQLite Session Memory and Canonical Identity Injection

@@ -2,7 +2,7 @@
 //!
 //! Provides strict parity with Python AnyContext prompt architecture:
 //! - Loads canonical AGENT.md guidelines (compiled in binary with runtime overrides)
-//! - Enforces Mandatory Autonomous Retrieval via `search_db`
+//! - Names only the tools the answer path really offers (ReAct) or none (one-hop RAG and Deep Search)
 //! - Forbids pre-trained parametric answers in STRICT mode
 //! - Directs collaborative dialogue and strict citation footers
 
@@ -71,12 +71,24 @@ pub fn load_agent_md() -> String {
     EMBEDDED_AGENT_MD.to_string()
 }
 
-/// Constructs the comprehensive system instruction prompt matching Python parity.
+/// How the model receives its context, which decides the retrieval section of the system prompt.
+#[derive(Debug, Clone, Copy)]
+pub enum PromptPath<'a> {
+    /// ReAct loop: the model may call exactly these registered tools.
+    Tools(&'a [&'a str]),
+    /// One-hop RAG and Deep Search synthesis: the context is already in the prompt and no tool is offered.
+    RetrievedContext,
+}
+
+/// Constructs the system instruction prompt for one answer path.
+///
+/// Everything except the retrieval section is shared by both paths and names no tool.
 pub fn build_system_prompt(
     workspace: &str,
     grounding_mode: &str,
     search_mode: &str,
     web_search_enabled: bool,
+    path: PromptPath<'_>,
 ) -> String {
     let base_agent_md = load_agent_md();
     let effective_mode = match grounding_mode.trim().to_lowercase().as_str() {
@@ -111,21 +123,13 @@ pub fn build_system_prompt(
          - NEVER claim that you lack long-term memory or that interactions are independent. You are AnyContext and you retain workspace memory.\n\n"
     );
 
-    // Specialized Agent Skills (Lean & Token-Efficient)
-    prompt.push_str(
-        "### 🧩 SPECIALIZED AGENT SKILLS:\n\
-         - **Skill `system-knowledge`**: You are the main conversational interface of AnyContext (actx). When the user asks questions about AnyContext itself (capabilities, how it works, supported commands like `/folder`, `/switch`, `/sync`, `/mode`, options, keyboard shortcuts, or workflows), you MUST call `search_db` to retrieve the authoritative documentation from the knowledge base and explain it clearly in the user's language.\n\
-         - **Skill `system-status`**: When the user asks about background tasks, synchronization, or indexing status (e.g. \"Has everything been indexed?\", \"What is the sync status?\", \"What is running in the background?\"), you MUST call the tool `system_status` to inspect the live background synchronization telemetry and report the real-time indexing status clearly.\n\n"
-    );
-
     // Active Grounding Mode Directives
     match effective_mode {
         "strict" => {
             prompt.push_str(
                 "### 🛡️ ACTIVE GROUNDING MODE: STRICT (AUDIT & LEGAL - 100% FACTUAL & ZERO PARAMETRIC ANSWERS)\n\
-                 - **ZERO GENERAL KNOWLEDGE / ZERO PARAMETRIC MEMORY:** You are an internal workspace assistant. You are STRICTLY FORBIDDEN from using your pre-trained weights or general knowledge to answer ANY question (including recipes, general knowledge, external facts, outside programs, or trivia). You must answer SOLELY based on facts returned by `search_db` or `system_status`.\n\
-                 - **MANDATORY AUTONOMOUS RETRIEVAL:** You MUST call `search_db` or `system_status` immediately on EVERY user query before answering. Do NOT answer directly without calling your tools first!\n\
-                 - **FACTUAL ABSENCE PROTOCOL (NATURAL & HUMAN CONVERSATION):** If `search_db` returns no relevant chunks for the user's query:\n\
+                 - **ZERO GENERAL KNOWLEDGE / ZERO PARAMETRIC MEMORY:** You are an internal workspace assistant. You are STRICTLY FORBIDDEN from using your pre-trained weights or general knowledge to answer ANY question (including recipes, general knowledge, external facts, outside programs, or trivia). You must answer SOLELY based on the workspace context you were given (retrieved excerpts or tool results).\n\
+                 - **FACTUAL ABSENCE PROTOCOL (NATURAL & HUMAN CONVERSATION):** If the workspace context has no relevant excerpt for the user's query:\n\
                    1. Answer naturally, directly, and politely like a helpful human teammate.\n\
                    2. State directly what could not be found or what information is currently available in the active workspace.\n\
                    3. DO NOT add robotic warning disclaimers, alarms, or warning emojis (such as caution or exclamation symbols). Maintain a fluid and collaborative tone.\n\
@@ -135,14 +139,14 @@ pub fn build_system_prompt(
                  - **MANDATORY SOURCE CITATIONS:** Conclude every answer that used documents with:\n\
                    ---\n\
                    📄 **Sources Consulted (Local Files):**\n\
-                   - `<real_file_name>` (Actual path or URL returned by search_db)\n\
+                   - `<real_file_name>` (Actual path or URL present in the workspace context)\n\
                    NEVER invent filenames or output literal placeholder strings like `[Filename.ext]`.\n\n"
             );
         }
         "hybrid" => {
             prompt.push_str(
                 "### ⚖️ ACTIVE GROUNDING MODE: HYBRID (BALANCED - WORKSPACE FIRST + LABELED MODEL KNOWLEDGE)\n\
-                 - **WORKSPACE PRIORITY:** Query `search_db` first. Present local workspace facts first.\n\
+                 - **WORKSPACE PRIORITY:** Present local workspace facts first.\n\
                  - **DUAL-LAYER STRUCTURE:**\n\
                    `### 📂 Workspace Information` (based on local documents with citations)\n\
                    `### 💡 General Model Knowledge` (properly labeled parametric knowledge)\n\
@@ -163,20 +167,16 @@ pub fn build_system_prompt(
         _ => {}
     }
 
-    // Web Search Engine Directives
-    if web_search_enabled {
-        prompt.push_str(
-            "### 🌐 LIVE WEB SEARCH ENGINE: ACTIVE\n\
-             - You have access to real-time web search capabilities.\n\
-             - In STRICT mode, web search is PERMISSION-GATED: only search the web if the user explicitly commanded online search or confirmed permission.\n\
-             - In HYBRID and PROACTIVE modes, you may query complementary web facts autonomously.\n\
-             - Conclude answers with `📄 Sources Consulted:`.\n\n"
-        );
-    } else {
+    if !web_search_enabled {
         prompt.push_str(
             "### 🔒 LIVE WEB SEARCH: DISABLED (OFFLINE-FIRST LOCAL ISOLATION)\n\
              - Web search is DISABLED for this workspace. Answer exclusively using local workspace documents.\n\n"
         );
+    }
+
+    match path {
+        PromptPath::Tools(tools) => push_tool_section(&mut prompt, tools),
+        PromptPath::RetrievedContext => push_retrieved_context_section(&mut prompt, web_search_enabled),
     }
 
     // Universal Temporal Recency Rule
@@ -194,15 +194,90 @@ pub fn build_system_prompt(
     prompt
 }
 
+/// Retrieval rules for the ReAct loop, one per registered tool; no other tool is ever named.
+fn push_tool_section(prompt: &mut String, tools: &[&str]) {
+    let has = |name: &str| tools.contains(&name);
+
+    prompt.push_str("### 🧰 AVAILABLE TOOLS (THIS ANSWER):\n");
+    let names: Vec<String> = tools.iter().map(|t| format!("`{t}`")).collect();
+    prompt.push_str(&format!(
+        "- You may call only these tools: {}. Never call or mention any other tool.\n",
+        names.join(", ")
+    ));
+
+    if has("search_db") {
+        prompt.push_str(
+            "- **`search_db(query)`**: You MUST call `search_db` before answering any question about the workspace or about AnyContext itself (its commands, options and workflows are documented in the knowledge base). Call it AT MOST ONCE per question and analyze the returned excerpts immediately. When the question is in Portuguese (or another language) about topics documented in English, write the query with domain keywords in both languages.\n"
+        );
+    }
+    if has("system_status") {
+        prompt.push_str(
+            "- **`system_status(workspace?)`**: When the user asks about background tasks, synchronization or indexing status (e.g. \"Has everything been indexed?\", \"What is the sync status?\"), call `system_status` and report the live status clearly.\n"
+        );
+    }
+    if has("web_search") {
+        prompt.push_str(
+            "- **`web_search(query)`**: Real-time web search. In STRICT mode it is PERMISSION-GATED: only search the web if the user explicitly commanded online search or confirmed permission. In HYBRID and PROACTIVE modes you may query complementary web facts autonomously. Conclude answers with `📄 Sources Consulted:`.\n"
+        );
+    }
+    prompt.push('\n');
+}
+
+/// Retrieval rules for one-hop RAG and the Deep Search synthesis, where no tool is offered.
+fn push_retrieved_context_section(prompt: &mut String, web_search_enabled: bool) {
+    prompt.push_str(
+        "### 📥 RETRIEVED WORKSPACE CONTEXT (THIS ANSWER):\n\
+         - The workspace excerpts for this question were already retrieved and are in `<retrieved_context>`. Answer from them.\n\
+         - No tools are available in this answer: never write tool calls, function calls or JSON requests, and never say that you searched, added, changed or removed anything.\n\
+         - Questions about AnyContext itself (commands, options, workflows) are answered from the AnyContext manual excerpts when they are present.\n\
+         - The live synchronization and indexing status is not visible in this answer: for such questions, point the user to the status bar and the `/status` command.\n"
+    );
+    if web_search_enabled {
+        prompt.push_str("- Web search is enabled for this workspace, but no live web search runs for this answer: do not claim web results.\n");
+    }
+    prompt.push('\n');
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Every tool name the prompts ever used, registered or not.
+    const ALL_TOOL_NAMES: &[&str] = &[
+        "search_db",
+        "system_status",
+        "web_search",
+        "add_web_source",
+        "list_web_sources",
+        "remove_web_source",
+        "search_session_memory",
+    ];
+
+    /// Tool names that no answer path registers.
+    const PHANTOM_TOOL_NAMES: &[&str] =
+        &["add_web_source", "list_web_sources", "remove_web_source", "search_session_memory"];
+
+    const REGISTERED_TOOLS: &[&str] = &["search_db", "system_status"];
+
+    fn both_paths() -> [PromptPath<'static>; 2] {
+        [PromptPath::Tools(REGISTERED_TOOLS), PromptPath::RetrievedContext]
+    }
+
     #[test]
     fn test_embedded_agent_md_not_empty() {
         assert!(!EMBEDDED_AGENT_MD.trim().is_empty());
-        assert!(EMBEDDED_AGENT_MD.contains("Mandatory Retrieval Strategy"));
-        assert!(EMBEDDED_AGENT_MD.contains("search_db"));
+        assert!(EMBEDDED_AGENT_MD.contains("Workspace Grounding"));
+    }
+
+    #[test]
+    fn test_embedded_agent_md_names_no_tools() {
+        for name in ALL_TOOL_NAMES {
+            assert!(!EMBEDDED_AGENT_MD.contains(name), "AGENT.md names the tool `{name}`");
+        }
+        assert!(EMBEDDED_AGENT_MD.contains("`/folder <path>`"));
+        assert!(EMBEDDED_AGENT_MD.contains("`/web <url>`"));
+        assert!(EMBEDDED_AGENT_MD.contains("`/sources`"));
+        assert!(EMBEDDED_AGENT_MD.contains("Never claim that a source was added, changed, or removed."));
     }
 
     #[test]
@@ -214,37 +289,90 @@ mod tests {
     }
 
     #[test]
+    fn test_embedded_system_knowledge_md_names_no_phantom_tools() {
+        for name in PHANTOM_TOOL_NAMES {
+            assert!(!EMBEDDED_SYSTEM_KNOWLEDGE_MD.contains(name), "SYSTEM_KNOWLEDGE.md names the tool `{name}`");
+        }
+        assert!(!EMBEDDED_SYSTEM_KNOWLEDGE_MD.contains("The tool `search_db` must be executed before"));
+        assert!(!EMBEDDED_SYSTEM_KNOWLEDGE_MD.contains("must invoke retrieval tools"));
+    }
+
+    #[test]
+    fn test_retrieved_context_prompt_names_no_tools() {
+        for mode in ["strict", "hybrid", "proactive"] {
+            for web in [false, true] {
+                let p = build_system_prompt("TestWS", mode, "auto", web, PromptPath::RetrievedContext);
+                for name in ALL_TOOL_NAMES {
+                    assert!(!p.contains(name), "{mode}/web={web}: the prompt names the tool `{name}`");
+                }
+                assert!(p.contains("were already retrieved and are in `<retrieved_context>`"));
+                assert!(p.contains("No tools are available in this answer"));
+                assert!(!p.contains("LIVE WEB SEARCH ENGINE: ACTIVE"));
+                assert_eq!(p.contains("no live web search runs for this answer"), web);
+            }
+        }
+    }
+
+    #[test]
+    fn test_tool_prompt_names_only_registered_tools() {
+        let p = build_system_prompt("TestWS", "strict", "auto", false, PromptPath::Tools(REGISTERED_TOOLS));
+        assert!(p.contains("You may call only these tools: `search_db`, `system_status`."));
+        assert!(p.contains("You MUST call `search_db` before answering"));
+        assert!(p.contains("call `system_status`"));
+        assert!(!p.contains("web_search"));
+        for name in PHANTOM_TOOL_NAMES {
+            assert!(!p.contains(name), "the prompt names the tool `{name}`");
+        }
+        assert!(!p.contains("No tools are available in this answer"));
+
+        let with_web = ["search_db", "system_status", "web_search"];
+        let p = build_system_prompt("TestWS", "hybrid", "auto", true, PromptPath::Tools(&with_web));
+        assert!(p.contains("`web_search(query)`"));
+        assert!(p.contains("PERMISSION-GATED"));
+
+        let only_search = ["search_db"];
+        let p = build_system_prompt("TestWS", "strict", "auto", false, PromptPath::Tools(&only_search));
+        assert!(!p.contains("system_status"));
+    }
+
+    #[test]
     fn test_build_system_prompt_strict_mode() {
-        let p = build_system_prompt("TestWS", "strict", "auto", false);
-        assert!(p.contains("Active Workspace: 'TestWS'"));
-        assert!(p.contains("GROUNDING MODE: STRICT"));
-        assert!(p.contains("ZERO PARAMETRIC MEMORY"));
-        assert!(p.contains("MANDATORY AUTONOMOUS RETRIEVAL"));
-        assert!(p.contains("system_status"));
-        assert!(p.contains("LIVE WEB SEARCH: DISABLED"));
-        assert!(p.contains("Sources Consulted"));
+        for path in both_paths() {
+            let p = build_system_prompt("TestWS", "strict", "auto", false, path);
+            assert!(p.contains("Active Workspace: 'TestWS'"));
+            assert!(p.contains("GROUNDING MODE: STRICT"));
+            assert!(p.contains("ZERO PARAMETRIC MEMORY"));
+            assert!(p.contains("LIVE WEB SEARCH: DISABLED"));
+            assert!(p.contains("Sources Consulted"));
+        }
     }
 
     #[test]
     fn test_build_system_prompt_hybrid_mode() {
-        let p = build_system_prompt("TestWS", "hybrid", "fast", true);
-        assert!(p.contains("GROUNDING MODE: HYBRID"));
-        assert!(p.contains("Workspace Information"));
-        assert!(p.contains("General Model Knowledge"));
-        assert!(p.contains("LIVE WEB SEARCH ENGINE: ACTIVE"));
+        for path in both_paths() {
+            let p = build_system_prompt("TestWS", "hybrid", "fast", true, path);
+            assert!(p.contains("GROUNDING MODE: HYBRID"));
+            assert!(p.contains("Workspace Information"));
+            assert!(p.contains("General Model Knowledge"));
+            assert!(p.contains("Real-Time Web Search: ENABLED"));
+        }
     }
 
     #[test]
     fn test_build_system_prompt_proactive_mode() {
-        let p = build_system_prompt("TestWS", "proactive", "deep", false);
-        assert!(p.contains("GROUNDING MODE: PROACTIVE"));
-        assert!(p.contains("RESEARCH & STRATEGY"));
+        for path in both_paths() {
+            let p = build_system_prompt("TestWS", "proactive", "deep", false, path);
+            assert!(p.contains("GROUNDING MODE: PROACTIVE"));
+            assert!(p.contains("RESEARCH & STRATEGY"));
+        }
     }
 
     #[test]
     fn test_build_system_prompt_strict_mode_natural_conversation() {
-        let p = build_system_prompt("TestWS", "strict", "auto", false);
-        assert!(!p.contains("⚠️"));
-        assert!(p.contains("FACTUAL ABSENCE PROTOCOL (NATURAL & HUMAN CONVERSATION)"));
+        for path in both_paths() {
+            let p = build_system_prompt("TestWS", "strict", "auto", false, path);
+            assert!(!p.contains("⚠️"));
+            assert!(p.contains("FACTUAL ABSENCE PROTOCOL (NATURAL & HUMAN CONVERSATION)"));
+        }
     }
 }

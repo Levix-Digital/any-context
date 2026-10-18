@@ -8,9 +8,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-012: Agent prompt names tools that do not exist
 - **Severity**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
+- **Plan**: any_context_agent_prompt_names_tools_that_do_not_exist
 - **Description**: `config/AGENT.md` tells the model to call `add_web_source`, `list_web_sources`, `remove_web_source` and `search_db(search_session_memory=True)`, but only `search_db(query)` and `system_status` are registered. It also says the model must always call `search_db` first, while the deterministic path sends the retrieved chunks with no tools available.
 
 ### BUG-014: Failed embedding calls store pseudo-vectors next to real ones
@@ -26,6 +26,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, 2026-10-17, v0.45.0, BUG-009 discovery
 - **Plan**: -
 - **Description**: REFLECT_PROMPT and RERANK_PROMPT (crates/actx-agent/src/deep_search.rs) insert chunk text, chunk previews and queries with plain string replacement, without neutralizing the reserved prompt tags of ADR-0136. RERANK_PROMPT wraps the text in <chunk> tags that the text itself can close. Same risk as BUG-007, on the intermediate Deep Search calls.
+
+### BUG-017: system_status and web_search never reach the model on the routed paths
+- **Severity**: medium
+- **Status**: open
+- **Found**: 2026-10-18, v0.45.0, BUG-012 discovery
+- **Plan**: -
+- **Description**: LanceDB always opens (NativeLanceStore::open creates the directory), so build_agent_sync always sets the deterministic retriever and Agent::run/stream send Fast and Auto-fast questions to the one-hop path and Deep and Auto-deep questions to Deep Search; neither offers tools. ReAct, the only path with search_db, system_status and web_search, runs only when LanceDB fails to open. Effects: /web-search on does not change answers, and status questions (MT-MEM-002) and live web search (MT-WEB-003) cannot be answered. Decide how status and web results reach the routed paths. Related to IMP-011.
 
 ## Features
 

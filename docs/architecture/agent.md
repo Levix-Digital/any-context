@@ -14,7 +14,7 @@ Query routing, one-hop RAG, the ReAct loop, Deep Search, tools, system prompt an
 - Run each path against a language model provider, streaming typed events to the interface.
 - Register and call tools (`search_db`, `system_status`, `web_search`).
 - Persist the conversation per workspace and reload it on the next turn.
-- Build the system prompt from `config/AGENT.md`, the workspace settings and the grounding mode.
+- Build the system prompt for each answer path from `config/AGENT.md`, the workspace settings, the grounding mode and the tools the path offers.
 
 Retrieval itself is in the [retrieval pipeline](retrieval.md); the concrete tools and retrievers are wired by the [CLI](cli.md) in `crates/actx-cli/src/engine.rs`.
 
@@ -81,7 +81,7 @@ Because the CLI always configures this retriever when LanceDB opens, fast questi
 
 ### Tools
 
-The application registers:
+The application registers the tools below. Only the ReAct loop offers them to the model; one-hop RAG and the Deep Search synthesis call no tools.
 
 - `search_db(query)`: hybrid search in the active workspace plus `Global` (top 5), returned as the XML tool payload with a query anchor, or the Zero Hallucination message.
 - `system_status(workspace?)`: sync status from SQLite, chunk count from LanceDB, monitored folders and web sources.
@@ -89,14 +89,17 @@ The application registers:
 
 ### System prompt
 
-`build_system_prompt(workspace, grounding_mode, search_mode, web_search_enabled)` concatenates:
+`build_system_prompt(workspace, grounding_mode, search_mode, web_search_enabled, path)` builds one prompt per answer path (ADR-0144). `PromptPath::Tools(names)` is the ReAct prompt, with `names` taken from the registered tools; `PromptPath::RetrievedContext` is given to `PipelineDeterministicRetriever` and `CanonicalSynthesisFormatter`. Both concatenate:
 
-1. `AGENT.md`: from `ACTX_AGENT_MD`, then `config/AGENT.md` in the working directory, then the user configuration directory, then the copy embedded at compile time.
+1. `AGENT.md`: from `ACTX_AGENT_MD`, then `config/AGENT.md` in the working directory, then the user configuration directory, then the copy embedded at compile time. It names no tool: it asks to answer from the workspace context, to answer questions about past conversations from the earlier turns, and to explain `/folder`, `/web` and `/sources` instead of changing sources.
 2. The operational environment: workspace, grounding strategy, search depth and web search status.
 3. Persistent memory directives (the agent has long-term memory per workspace).
-4. Two lean skills: `system-knowledge` (answer questions about AnyContext by searching the `Global` workspace) and `system-status` (use `system_status` for indexing questions).
-5. The grounding mode directives: **strict** (no parametric knowledge, mandatory retrieval, natural "not found" answers, mandatory source citations), **hybrid** (workspace facts first, then clearly labeled model knowledge) or **proactive** (documents, web and domain knowledge combined, each insight tagged by source).
-6. Web search directives when enabled.
+4. The grounding mode directives: **strict** (no parametric knowledge, answers only from the workspace context, natural "not found" answers, mandatory source citations), **hybrid** (workspace facts first, then clearly labeled model knowledge) or **proactive** (documents, web and domain knowledge combined, each insight tagged by source).
+5. The disabled web search block when web search is off.
+6. The path section:
+   - `Tools(names)`: the allowed tools, and one rule per known tool present (`search_db` before answering, at most once, with bilingual keywords; `system_status` for indexing questions; `web_search` permission-gated in strict mode). No other tool is named.
+   - `RetrievedContext`: the excerpts are already in `<retrieved_context>`; no tools are available, so the model never writes tool calls or claims to have searched or changed anything; live sync status is pointed to the status bar and `/status`; when web search is enabled, no live web search runs for this answer.
+7. The recency and language rules.
 
 Answers follow the language of the user's question.
 
@@ -137,3 +140,4 @@ Answers follow the language of the user's question.
 - [ADR-0125](../adr/0125-local-gemma-activation-hardware-guardrails.md): the chosen model is kept on every turn; routing only picks the search depth.
 - [ADR-0128](../adr/0128-backend-first-deterministic-dual-rag.md): backend-first one-hop RAG and session hygiene.
 - [ADR-0141](../adr/0141-deep-search-synthesis-uses-the-canonical-context-formatter-t.md): the Deep Search synthesis prompt comes from the canonical context formatter through `SynthesisPromptFormatter`.
+- [ADR-0144](../adr/0144-system-prompt-per-answer-path-with-the-tool-section-generate.md): system prompt per answer path; only the ReAct prompt names tools, taken from the registered tools.
