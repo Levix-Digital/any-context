@@ -103,6 +103,8 @@ You can also download [`actx-installer`](https://github.com/Levix-Digital/any-co
 
 Only new and changed files are processed on each sync. Folders that moved slightly (for example between `Documents` folders or cloud drive mounts) are found again automatically.
 
+If the embedding provider fails during a sync (an invalid key, a rate limit, a network error), the affected files are not embedded: the footer shows `⚠ N files not embedded (/sync)`, `/status` shows the first error, and keyword search still finds those files. The next sync tries them again. After an authentication error the sync stops calling the provider for the remaining files.
+
 ### Answers
 
 | Command | What it does |
@@ -210,6 +212,8 @@ To uninstall, download and run the uninstaller from the [releases page](https://
 | "No information or documents matching the query" | The workspace has no relevant indexed content yet: check `/sources` and `/status`, wait for the sync to finish, or rephrase. |
 | A folder shows as unreachable | The path no longer exists; add it again with `/folder <path>`. |
 | The sync seems stuck | Check the footer or `/status`; read `sync_<workspace>.log` in the logs folder; `/cancel` and `/sync --incremental` again. |
+| The footer shows `⚠ N files not embedded (/sync)` | The embedding provider failed during the last sync: check the `Last Sync` line in `/status` (or `sync_<workspace>.log`), fix the key or wait for the rate limit, then run `/sync --incremental`. |
+| `/status` shows `Dense Search: BM25 only` | The last question could not be embedded, so it was answered from keyword matches only; the reason follows. Check the key with `/keys` and the embedding model. |
 | Answers miss documents indexed before you switched models | Run `/sync --force` once to re-embed the workspace with the current embedding model. |
 | Answers cite files without line ranges | Files indexed by an earlier version have no section or line data until they change; run `/sync --force` once to re-index them. PDF, Office, spreadsheet and web sources are cited by page, sheet or section, never by line. |
 | `/rerank` shows `RRF (Fallback)` | The local re-ranker is not installed or could not load: run `actx download reranker`, and on Windows install the Visual C++ Redistributable. |

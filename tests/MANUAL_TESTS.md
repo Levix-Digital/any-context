@@ -256,6 +256,24 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-SYNC-008: An embedding failure is reported and retried
+
+- **Covers**: failed embeddings at sync time, provider breaker, sync error reporting, retry on the next sync
+- **Prerequisites**: an OpenAI key that works, with an OpenAI embedding model in use (a Gemini key answers an invalid key with HTTP 400: the sync then stops calling it after 3 files instead of 1); a new workspace with a folder of 5 or more text files that were never indexed
+- **Steps**:
+  1. Replace the key with an invalid one (`/keys <provider> invalid-key`) and run `/sync --incremental`.
+  2. Look at the footer and the header, run `/status`, and open `sync_<workspace>.log` in the logs folder.
+  3. Ask a question that repeats an exact phrase from one of the files.
+  4. Save the working key again and run `/sync --incremental`.
+  5. Ask a question answered by a passage that shares no key words with the question.
+- **Expected**:
+  - Step 2: the footer and the header show `⚠ N files not embedded (/sync)`; `/status` shows a `Last Sync` line with the authentication error; the log lists one authentication error and `embedding skipped` for the other files.
+  - Step 3 is answered from that file (keyword search finds the files that were not embedded).
+  - Step 4 indexes those files; the warning disappears and `/status` has no `Last Sync` line.
+  - Step 5 is answered from that passage (dense search works again).
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ## Document Formats
 
 ### MT-DOC-001: PDFs with tables and forms are answered exactly
@@ -451,6 +469,22 @@ How to record a run: in each test of the current run, mark exactly one box of th
   - The first two answers explain `/web <url>` and `/sources` (or `/folder`), never say that the source was added or listed by the assistant, and contain no tool call text, function call or JSON request (such as `add_web_source(...)`).
   - The third answer summarizes the earlier turns of the conversation without claiming a search.
   - `/sources` shows that no web source was added.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
+### MT-ANS-009: `/status` shows when answers use keyword search only
+
+- **Covers**: query embedding outcome (dense search status)
+- **Prerequisites**: a workspace indexed with a working OpenAI or Gemini key
+- **Steps**:
+  1. Start `actx`, run `/status` before asking anything.
+  2. Ask a question and run `/status` again.
+  3. Replace the key with an invalid one (`/keys <provider> invalid-key`), ask another question and run `/status`.
+  4. Save the working key again.
+- **Expected**:
+  - Step 1 shows `Dense Search: n/a (no query yet in this session)`.
+  - Step 2 shows `Dense Search: dense + BM25 (last query)`.
+  - Step 3 still answers from keyword matches, and `/status` shows `Dense Search: BM25 only (last query): query embedding failed: ...` with the authentication error.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

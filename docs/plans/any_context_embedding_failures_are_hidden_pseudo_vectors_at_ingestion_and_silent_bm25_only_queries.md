@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-18T19:32:46'
-updated_at: '2026-10-18T22:41:01'
+updated_at: '2026-10-18T22:52:46'
 session_id: null
 tags: []
 supersedes: null
@@ -34,7 +34,9 @@ milestones:
   done_at: '2026-10-18'
   by: Claude
 - name: M5 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 status_log:
 - at: '2026-10-18T19:32:46'
   by: Claude
@@ -56,6 +58,17 @@ status_log:
 - at: '2026-10-18T22:41:01'
   by: Claude
   note: 'Milestone ''M4 Query outcome (IMP-003)'' completed: Branch ccr-fad47706-3528p3; tests in retrieval/pipeline.rs and actx-cli engine.rs'
+- at: '2026-10-18T22:52:28'
+  by: Claude
+  note: 'Milestone ''M5 Docs and manual tests'' completed: Branch ccr-fad47706-3528p3; ADR-0146, architecture pages, README, MT-SYNC-008, MT-ANS-009; actx-lm embedding error mapping and Gemini key header'
+- at: '2026-10-18T22:52:28'
+  by: Claude
+  status: completed
+  note: All milestones completed
+- at: '2026-10-18T22:52:46'
+  by: Claude
+  status: in_progress
+  note: All milestones done on the branch; completed when the pull request is merged
 ---
 
 # Embedding failures are hidden: pseudo-vectors at ingestion and silent BM25-only queries
@@ -208,13 +221,19 @@ Acceptance: no code path writes pseudo- or zero vectors after a failed call; eve
 ## 6. CI, release and observability (`devops-release`)
 
 - No workflow change. Patch release, v0.45.1 (with the unreleased v0.45.1 work on `dev`).
+- Release notes: "When the embedding provider fails during a sync (invalid key, rate limit, network), files are no longer stored with placeholder vectors: they stay searchable by keyword, are retried on the next sync, and the TUI footer, `/status` and `actx --sync` say how many failed and why. `/status` also shows whether the last question used dense search. If you saw sync or embedding errors with an earlier version, run `/sync --force` once to replace the placeholder vectors it stored. Gemini API keys are now sent in a request header instead of the URL."
 - Observability is the point of the plan: sync error summary in SQLite, CLI and TUI; last query embedding outcome in `/status` and the status report. Tested by the automated tests above.
 
 ## 7. Security, migration and rollback
 
-- Error messages from providers can echo request details; they are shown locally only, and API keys are never part of `LmError` messages (to verify in `actx-lm` error mapping during implementation).
+- Error messages from providers can echo request details. Verified during M5: OpenAI-compatible keys travel in the `Authorization` header; the Gemini key was in the URL, which reqwest transport errors print, and now travels in the `x-goog-api-key` header. Note that the `system_status` report, which now carries the sync error summary, is sent to the chat model.
 - No migration: no schema or index format change. Existing pseudo-vectors are not cleaned automatically; a forced sync removes them (Q2).
 - Rollback: revert the commits; a downgrade sees failed files as unindexed and indexes them its own way on the next sync.
+
+### Found during implementation (M5)
+
+- The OpenAI-compatible and Gemini `embed` implementations returned every HTTP error as `ProviderError`, so the breaker's `Auth` rule and the rate-limit retry (M2) could never trigger with a real provider. Fixed in `actx-lm`: embedding errors go through `LmError::from_http_status` like chat, and a numeric `Retry-After` header fills `retry_after_secs` (`LmError::with_retry_after`). Gemini answers an invalid key with HTTP 400, which stays a `ProviderError` (the breaker then opens after 3 files).
+- The Gemini key travelled in the `?key=` query string, and a reqwest transport error prints the request URL. Since sync errors are now stored, shown and sent to the model in the `system_status` report, the key moves to the `x-goog-api-key` header on every Gemini request (section 7).
 
 ## 8. Execution steps and milestones
 
