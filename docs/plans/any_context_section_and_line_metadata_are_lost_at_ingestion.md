@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-18T08:31:37'
-updated_at: '2026-10-18T08:43:31'
+updated_at: '2026-10-18T09:08:02'
 session_id: null
 tags:
 - ingestion
@@ -21,9 +21,13 @@ backlog_items:
 - BUG-010
 milestones:
 - name: M1 Storage and ingestion
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M2 Retrieval and prompt
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M3 Docs and manual tests
   done: false
 - name: M4 Review and PR
@@ -41,6 +45,12 @@ status_log:
   by: Claude
   status: in_progress
   note: Approved by the user on 2026-10-18
+- at: '2026-10-18T09:07:57'
+  by: Claude
+  note: 'Milestone ''M1 Storage and ingestion'' completed: Provenance columns with in-place migration, encrypted header_path, write path and has_file_lines; cargo test --workspace green'
+- at: '2026-10-18T09:08:02'
+  by: Claude
+  note: 'Milestone ''M2 Retrieval and prompt'' completed: HybridSearchResult provenance, BM25-only lookup, lines attribute, Section header, citation rule, Deep Search mapping; cargo test --workspace green'
 ---
 
 # Section and line metadata are lost at ingestion

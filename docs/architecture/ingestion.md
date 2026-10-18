@@ -57,7 +57,7 @@ flowchart LR
 `NativeSyncOrchestrator::run` performs one pass for one workspace (`SyncOptions { workspace, force, target_folder, verbose, model }`). `run_sync` is the synchronous entry point; when it is called inside a Tokio runtime it runs the pass on a separate thread with its own runtime.
 
 1. Mark the workspace as syncing in the `workspace_sync_status` table (stage `scanning`, worker PID).
-2. Encrypt the chunks an older version stored in plaintext (`NativeLanceStore::encrypt_plaintext_rows`, see [storage](storage.md)); the count goes to `SyncResult::chunks_encrypted_legacy` and is printed by verbose syncs, and a failure goes to `SyncResult::errors` and is retried on the next pass.
+2. Add the chunk provenance columns to a LanceDB table created by an older version (`NativeLanceStore::ensure_provenance_columns`, see [storage](storage.md)); a failure goes to `SyncResult::errors`. Then encrypt the chunks an older version stored in plaintext (`NativeLanceStore::encrypt_plaintext_rows`, see [storage](storage.md)); the count goes to `SyncResult::chunks_encrypted_legacy` and is printed by verbose syncs, and a failure goes to `SyncResult::errors` and is retried on the next pass.
 3. Resolve the embedding target and decide whether the stored vectors can be kept (see "Embedding target and reindex" below). A reindex turns the pass into a forced pass over the whole workspace, even when it was scoped to one folder, and writes its message to the sync status.
 4. Resolve the folders: only `target_folder` when it is set (a `/folder <path>` sync) and no reindex is due; otherwise the folders registered for the workspace, or the current directory when none is registered.
 5. Load `bm25_index.bin` from the LanceDB directory, or start an empty index.
@@ -93,6 +93,10 @@ Document AI candidates are resolved by `process_document_ai_candidates`, in orde
 ### Document envelope
 
 `NativeContextualEnricher::extract_envelope` builds a `SemanticEnvelope` per document: a title (first heading or short leading line), up to three lead sentences (summary capped at 450 characters) and seven keywords. Envelopes are cached in SQLite by content hash. The envelope text is prepended to each chunk for embedding and BM25 (`apply_envelope_to_chunk`), while LanceDB stores the original chunk text with the summary and keywords as separate columns.
+
+### Chunk provenance
+
+`embed_and_upsert_chunks` stores each chunk's `header_path` (section, symbol, page, sheet or row locator) in its own LanceDB column; `document_summary` holds only the envelope summary. `start_line`/`end_line` are stored only when `IngestionRouter::has_file_lines(file_path)` is true and `1 <= start_line <= end_line`: for local Markdown, code, structured data and plain text files, whose chunkers report file line numbers. Web pages, PDF, Office, images and tabular files (CSV, TSV, Excel, OFX) report page-relative lines, extracted-text lines or row indexes, so they get no line range and keep their locator in `header_path`. Files indexed before v0.45.1 get provenance when they change or with `/sync --force`.
 
 ### Embedding and writing
 
@@ -151,3 +155,4 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0135](../adr/0135-automatic-encryption-of-lancedb-rows-stored-in-plaintext.md): chunks stored in plaintext encrypted at the start of every sync.
 - [ADR-0132](../adr/0132-query-vectors-use-the-ingestion-embedding-provider-and-model.md): one embedding resolver for chunks and queries.
 - [ADR-0138](../adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md): embedding target recorded per workspace, automatic reindex when it changes, Gemini `gemini-embedding-2`.
+- [ADR-0142](../adr/0142-chunk-provenance-columns-in-lancedb-added-in-place.md): chunk provenance (`header_path`, file line range) stored in LanceDB, lines only for file-line chunkers.
