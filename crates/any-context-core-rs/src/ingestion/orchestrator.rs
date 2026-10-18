@@ -54,6 +54,24 @@ impl std::fmt::Display for EmbedFailure {
     }
 }
 
+/// Files and pages of one pass that could not be embedded and stored, for the status summary.
+#[derive(Debug, Default)]
+struct EmbeddingFailures {
+    count: usize,
+    first: Option<String>,
+}
+
+impl EmbeddingFailures {
+    fn record(&mut self, message: &str) {
+        self.count += 1;
+        self.first.get_or_insert_with(|| message.to_string());
+    }
+
+    fn summary(&self) -> Option<String> {
+        self.first.as_deref().map(|first| embedding_failure_summary(self.count, first))
+    }
+}
+
 /// Consecutive failed files after which a sync pass stops calling the embedding provider.
 const BREAKER_THRESHOLD: usize = 3;
 /// Wait before the single retry of a rate-limited embedding call, when the provider gives none.
@@ -146,6 +164,20 @@ pub struct SyncResult {
     pub chunks_encrypted_legacy: usize,
     /// Set when the embedding target changed and the whole workspace was reindexed (ADR-0138).
     pub embedding_reindex: Option<String>,
+    /// Files and pages whose embedding or upsert failed; the next sync retries them (ADR-0146).
+    pub embedding_failures: usize,
+}
+
+/// Status summary written to `workspace_sync_status.error` after a pass with embedding
+/// failures. The text before the first `"; "` is the headline (see `sync_error_headline`).
+pub fn embedding_failure_summary(failures: usize, first_error: &str) -> String {
+    let noun = if failures == 1 { "file" } else { "files" };
+    format!("{failures} {noun} not embedded; they are retried on the next sync; first error: {first_error}")
+}
+
+/// Short form of a stored sync error for one-line surfaces such as the TUI footer.
+pub fn sync_error_headline(error: &str) -> &str {
+    error.split("; ").next().unwrap_or(error)
 }
 
 /// Pure Rust Ingestion & Vectorization Orchestrator.
@@ -449,6 +481,7 @@ impl NativeSyncOrchestrator {
                 cancelled: false,
                 chunks_encrypted_legacy,
                 embedding_reindex: embedding_reindex.clone(),
+                embedding_failures: 0,
             });
         }
 
@@ -461,6 +494,7 @@ impl NativeSyncOrchestrator {
 
         // 12. Main Indexing Loop
         let mut breaker = EmbedBreaker::default();
+        let mut failures = EmbeddingFailures::default();
         for (idx, file_path) in files_to_index.iter().enumerate() {
             // Check for cooperative cancellation
             if let Ok(Some(st)) = self.db.get_sync_status(ws) {
@@ -499,6 +533,7 @@ impl NativeSyncOrchestrator {
                         cancelled: true,
                         chunks_encrypted_legacy,
                         embedding_reindex: embedding_reindex.clone(),
+                        embedding_failures: failures.count,
                     });
                 }
             }
@@ -591,6 +626,7 @@ impl NativeSyncOrchestrator {
                 }
                 Err(e) => {
                     let err_msg = format!("Embedding/upsert error on '{}': {}", file_path, e);
+                    failures.record(&err_msg);
                     errors.push(err_msg);
                 }
             }
@@ -609,6 +645,7 @@ impl NativeSyncOrchestrator {
                 &mut breaker,
                 options.verbose,
                 &mut errors,
+                &mut failures,
             ).await;
         }
 
@@ -623,7 +660,9 @@ impl NativeSyncOrchestrator {
             &diff.modified_files,
         );
 
-        // 15. Finalize Telemetry: Set sync state to idle
+        // 15. Finalize Telemetry: Set sync state to idle, with the embedding failures of this
+        // pass (a clean pass clears an earlier summary).
+        let failure_summary = failures.summary();
         let _ = self.db.update_sync_status(
             ws,
             false,
@@ -632,7 +671,7 @@ impl NativeSyncOrchestrator {
             total_files,
             "idle",
             None,
-            None,
+            failure_summary.as_deref(),
         );
 
         let duration_ms = start_time.elapsed().as_millis();
@@ -667,6 +706,7 @@ impl NativeSyncOrchestrator {
             cancelled: false,
             chunks_encrypted_legacy,
             embedding_reindex,
+            embedding_failures: failures.count,
         })
     }
 
@@ -796,6 +836,7 @@ impl NativeSyncOrchestrator {
         breaker: &mut EmbedBreaker,
         verbose: bool,
         errors: &mut Vec<String>,
+        failures: &mut EmbeddingFailures,
     ) {
         let crawler = match crate::ingestion::crawler::NativeWebCrawler::new_default() {
             Ok(c) => c,
@@ -841,7 +882,9 @@ impl NativeSyncOrchestrator {
                     bm25,
                     breaker,
                 ).await {
-                    errors.push(format!("Failed to index page '{}': {}", page.url, e));
+                    let err_msg = format!("Failed to index page '{}': {}", page.url, e);
+                    failures.record(&err_msg);
+                    errors.push(err_msg);
                 }
             }
         }
@@ -1577,5 +1620,33 @@ mod tests {
         let mut breaker = EmbedBreaker::default();
         breaker.record_failure(true);
         assert!(breaker.is_open(), "an authentication error opens the breaker at once");
+    }
+    #[tokio::test]
+    async fn test_sync_status_error_summary_set_and_cleared() {
+        let (temp_dir, docs_dir, db, lance_store) = sync_fixture("status");
+        write_docs(&docs_dir, 2);
+        let embedder = ScriptedEmbedder::new(EmbedBehavior::RateLimited);
+        let orchestrator = NativeSyncOrchestrator::new(lance_store, db.clone()).with_embedding_provider(embedder.clone());
+        let opts = sync_opts("StatusWS", &docs_dir);
+
+        let first = orchestrator.run(&opts).await.unwrap();
+        assert_eq!(first.embedding_failures, 2);
+        let error = db.get_sync_status("StatusWS").unwrap().unwrap().error.expect("a failed pass records a summary");
+        assert_eq!(sync_error_headline(&error), "2 files not embedded");
+        assert!(error.contains("they are retried on the next sync"), "{error}");
+        assert!(error.contains("quota exceeded"), "the first reason is kept: {error}");
+
+        embedder.set(EmbedBehavior::Ok);
+        let second = orchestrator.run(&opts).await.unwrap();
+        assert_eq!(second.embedding_failures, 0);
+        assert_eq!(db.get_sync_status("StatusWS").unwrap().unwrap().error, None, "a clean pass clears the summary");
+
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_embedding_failure_summary_headline() {
+        assert_eq!(sync_error_headline(&embedding_failure_summary(1, "x; y")), "1 file not embedded");
+        assert_eq!(sync_error_headline("plain error"), "plain error");
     }
 }

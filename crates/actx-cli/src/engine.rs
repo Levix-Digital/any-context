@@ -739,6 +739,8 @@ fn format_status_report(
         if ss.is_syncing {
             format!("SYNC IN PROGRESS: {} (item {} of {}, stage '{}', target: '{}')",
                 ss.progress_bar, ss.current_item, ss.total_items, ss.stage, ss.item_name.as_deref().unwrap_or("none"))
+        } else if let Some(err) = ss.error.as_deref().filter(|e| !e.trim().is_empty()) {
+            format!("LAST SYNC INCOMPLETE: {}. Last update: {}", err, ss.updated_at)
         } else if ss.stage == "completed" || ss.progress_bar.contains("Up to date") {
             format!("READY / UP TO DATE: All documents indexed successfully. Last update: {}", ss.updated_at)
         } else {
@@ -902,6 +904,18 @@ mod tests {
         assert!(report.starts_with("Workspace 'Work' Status:"));
         assert!(report.contains("IDLE / READY"));
         assert!(report.contains("Monitored Web Sources: https://docs.example.com"));
+    }
+
+    #[test]
+    fn status_report_shows_the_embedding_failures_of_the_last_sync() {
+        let mut status = sync_status(false, "idle");
+        status.error = Some(any_context_core_rs::ingestion::embedding_failure_summary(2, "Embedding/upsert error on 'a.md': quota"));
+        let report = format_status_report("Work", Some(&status), 7, &[], &[]);
+        assert!(report.contains("LAST SYNC INCOMPLETE: 2 files not embedded; they are retried on the next sync"), "{report}");
+
+        status.error = None;
+        let report = format_status_report("Work", Some(&status), 7, &[], &[]);
+        assert!(!report.contains("INCOMPLETE"), "{report}");
     }
 
     #[test]

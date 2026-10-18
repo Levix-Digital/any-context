@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-18T19:32:46'
-updated_at: '2026-10-18T21:44:04'
+updated_at: '2026-10-18T22:00:24'
 session_id: null
 tags: []
 supersedes: null
@@ -26,7 +26,9 @@ milestones:
   done_at: '2026-10-18'
   by: Claude
 - name: M3 Reporting
-  done: false
+  done: true
+  done_at: '2026-10-18'
+  by: Claude
 - name: M4 Query outcome (IMP-003)
   done: false
 - name: M5 Docs and manual tests
@@ -46,6 +48,9 @@ status_log:
 - at: '2026-10-18T21:44:04'
   by: Claude
   note: 'Milestone ''M2 Breaker and rate limit'' completed: Branch ccr-fad47706-3528p3; 5 tests in ingestion/orchestrator.rs'
+- at: '2026-10-18T22:00:24'
+  by: Claude
+  note: 'Milestone ''M3 Reporting'' completed: Branch ccr-fad47706-3528p3; tests in orchestrator.rs, oneshot.rs, engine.rs, tui/ui.rs'
 ---
 
 # Embedding failures are hidden: pseudo-vectors at ingestion and silent BM25-only queries
