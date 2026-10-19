@@ -4,10 +4,10 @@ project: any-context
 title: Deep Search reflection and rerank prompts inject raw chunk text
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Claude
 created_at: '2026-10-19T11:48:33'
-updated_at: '2026-10-19T12:17:26'
+updated_at: '2026-10-19T12:51:27'
 session_id: null
 tags: []
 supersedes: null
@@ -29,7 +29,9 @@ milestones:
   done_at: '2026-10-19'
   by: Claude
 - name: M4 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-19'
+  by: Claude
 status_log:
 - at: '2026-10-19T11:48:33'
   by: Claude
@@ -52,6 +54,17 @@ status_log:
 - at: '2026-10-19T12:17:26'
   by: Claude
   note: Milestone 'M3 Docs and manual tests' completed
+- at: '2026-10-19T12:51:20'
+  by: Claude
+  note: 'Milestone ''M4 Review and PR'' completed: PR #367 merged into dev'
+- at: '2026-10-19T12:51:20'
+  by: Claude
+  status: completed
+  note: All milestones completed
+- at: '2026-10-19T12:51:27'
+  by: Claude
+  status: completed
+  note: 'PR #367 merged into dev'
 ---
 
 ---

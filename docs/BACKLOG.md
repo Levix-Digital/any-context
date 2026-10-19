@@ -6,13 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-015: Deep Search reflection and rerank prompts inject raw chunk text
-- **Severity**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-17, 2026-10-17, v0.45.0, BUG-009 discovery
-- **Plan**: any_context_deep_search_reflection_and_rerank_prompts_inject_raw_chunk_text
-- **Description**: REFLECT_PROMPT and RERANK_PROMPT (crates/actx-agent/src/deep_search.rs) insert chunk text, chunk previews and queries with plain string replacement, without neutralizing the reserved prompt tags of ADR-0136. RERANK_PROMPT wraps the text in <chunk> tags that the text itself can close. Same risk as BUG-007, on the intermediate Deep Search calls.
-
 ### BUG-018: web_search tool sends raw web snippets to the model
 - **Severity**: medium
 - **Status**: open
@@ -438,3 +431,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_dense_search_ranks_arbitrary_chunks_on_constant_vectors
 - **Closed**: 2026-10-19, PR #365 (plan any_context_dense_search_ranks_arbitrary_chunks_on_constant_vectors)
 - **Description**: Without an embedding key, resolve_embedding_provider falls back to MockLmProvider (target mock/mock-embed), whose embed returns the same constant vector (0.1 x 1536) for every text. Chunks indexed and queries embedded on that target are all at the same distance, so dense search returns an arbitrary candidate pool that RRF fuses with BM25: a rank-1 dense-only hit scores 1/61, above RRF_MIN_SCORE (0.005), so unrelated chunks can reach the prompt. Found while planning BUG-014/IMP-003; candidate fix: skip dense search on the mock target and report it as BM25-only.
+
+### BUG-015: Deep Search reflection and rerank prompts inject raw chunk text
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-17, 2026-10-17, v0.45.0, BUG-009 discovery
+- **Plan**: any_context_deep_search_reflection_and_rerank_prompts_inject_raw_chunk_text
+- **Closed**: 2026-10-19, PR #367
+- **Description**: REFLECT_PROMPT and RERANK_PROMPT (crates/actx-agent/src/deep_search.rs) insert chunk text, chunk previews and queries with plain string replacement, without neutralizing the reserved prompt tags of ADR-0136. RERANK_PROMPT wraps the text in <chunk> tags that the text itself can close. Same risk as BUG-007, on the intermediate Deep Search calls.
