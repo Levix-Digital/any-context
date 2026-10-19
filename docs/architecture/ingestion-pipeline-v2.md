@@ -282,7 +282,40 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
 
 ## 7. Cabeçalhos e metadados do chunk
 
-_Pendente._
+### Decisões
+
+- **Metadados e texto embedado são coisas separadas.**
+  - **Metadados** (colunas, nunca embedados): `source_id`, `workspace`, caminho ou URL, tipo
+    de conteúdo, localização (página, seção, linhas, intervalo de planilha), `parent_id`
+    (passo 5), hashes e datas.
+  - **Cabeçalho contextual** (embedado): só **título do documento + caminho da seção** (ex.:
+    `Contrato de Locação > Cláusula 5 > Multa`). Curto, estável sob edições do corpo — não
+    quebra o diff por chunk (passo 3) — e independente de idioma. No índice lexical o
+    cabeçalho tem peso menor que o corpo (ou campo próprio).
+- **`embedding_target` em cada chunk** (provedor, modelo, dimensão), em vez de um único
+  registro por workspace: permite migrar de modelo aos poucos e saber exatamente o que
+  precisa ser reindexado.
+- **O envelope atual sai** (resumo das primeiras frases + 7 palavras-chave por frequência,
+  prefixado em todo chunk): todos os chunks de um arquivo batiam nas mesmas palavras no
+  BM25, uma edição no início do documento invalidava todos os chunks, e a lista de stop
+  words era só inglês e português. O breadcrumb `// Context: …` dentro do texto também
+  sai — o cabeçalho contextual o substitui.
+
+### Contextual retrieval (LLM local)
+
+Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. É uma
+**capacidade dos kits de modelos (perfis de hardware)**:
+
+- Ligada por padrão nos perfis com folga para um LLM local (ex.: Workstation Pro e
+  Sovereign Ultra), desligada nos demais; o usuário pode mudar a configuração.
+- Usa o LLM local do próprio perfil (sem modelo extra) e nunca um serviço externo
+  implícito; um LLM na VPC só por configuração explícita.
+- **Enriquecimento progressivo:** o chunk é indexado primeiro só com título + seção (já
+  buscável) e é re-embedado com o contexto em segundo plano, sem bloquear o sync.
+- **A identidade do modelo de contexto entra na chave do chunk**, junto com o
+  `embedding_target`: ligar, desligar ou trocar o modelo muda o texto embedado, e o
+  AnyContext avisa e reindexa os chunks afetados (mesma regra da troca de modelo de
+  embedding).
 
 ## 8. Embedding
 
