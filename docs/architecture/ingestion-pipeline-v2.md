@@ -41,17 +41,57 @@ Este documento é a base para refazer o backlog (`docs/BACKLOG.md`).
   `title`, `last_hash`, `polling_interval_hours`, `last_scraped_at`, `page_count`,
   `root_url` e `scope`.
 
-### Em aberto
+### Modelo único de fonte
 
-- Modelo único de fonte (tabela `sources`) no lugar de `workspace_folders`,
-  `workspace_web_urls` e `workspace_sources`.
-- Sintaxe dos filtros, `.gitignore` e filtros por fonte.
-- Limites do rastreio recursivo de um website.
-- Como o `Global` passa pelo pipeline.
+Uma tabela `sources` no `settings.db` substitui `workspace_folders`, `workspace_web_urls`
+e `workspace_sources` (as colunas sem uso desaparecem com elas):
+
+| coluna | conteúdo |
+|---|---|
+| `id`, `workspace` | identidade e escopo |
+| `kind` | `local`, `web`, `builtin` (futuro: `connector:<nome>`) |
+| `target` | caminho ou URL |
+| `recursive` | `true` para pasta ou site, `false` para arquivo ou página |
+| `display_name`, `created_at` | exibição e auditoria |
+| `filters` | ajustes de filtro desta fonte (opcional) |
+
+### Filtros
+
+- Padrões globais numa tabela do `settings.db`, preenchida na criação com a lista atual
+  de pastas ignoradas e extensões; cada fonte pode sobrescrever.
+- Sintaxe de `.gitignore`, avaliada com o crate `ignore` (o do ripgrep). O `.gitignore` das
+  pastas indexadas é respeitado por padrão, com opção para desligar.
+- Só entram extensões que algum parser suporta; o usuário pode desligar uma extensão ou
+  mapear uma extensão desconhecida para o parser de texto.
+- Um arquivo selecionado avulso ignora os filtros de exclusão: o usuário o escolheu.
+
+### Website recursivo
+
+- Fica no mesmo host e dentro do prefixo de caminho da URL dada (`docs.x.com/v2/` não
+  sobe para `docs.x.com/`) e respeita o `robots.txt`.
+- Teto padrão generoso: **3000 páginas**, configurável globalmente e por fonte.
+- Quando o site tem mais páginas que o teto, o usuário é avisado (quantas foram
+  indexadas, que há mais a indexar) e recebe o comando ou a configuração que aumenta o
+  teto daquela fonte.
+- Página avulsa busca só aquela URL, sem seguir links.
+
+### Workspace `Global`
+
+É uma fonte `builtin` (documentação embutida no binário) processada pelo mesmo pipeline
+das demais, no primeiro start após instalar ou atualizar — não há mais chunker nem escrita
+própria. Sem modelo de embedding disponível nesse momento, o índice lexical é gerado na
+hora e os vetores quando houver modelo (ver passo 8).
 
 ## 2. Aquisição (download / leitura)
 
-_Pendente._
+### Decisões
+
+- **Toda fonte web pública (fora de uma VPC) é obtida pelo Jina Reader**, que já devolve
+  Markdown limpo. Uma alternativa on-premise equivalente é preferível quando existir.
+
+### Em aberto
+
+_Em discussão._
 
 ## 3. Diff incremental
 
