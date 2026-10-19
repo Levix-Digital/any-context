@@ -21,7 +21,33 @@ Este documento é a base para refazer o backlog (`docs/BACKLOG.md`).
 
 ## 1. Seleção da fonte
 
-_Pendente._
+### Decisões
+
+- **Toda fonte vem de ação explícita do usuário.** Não há fallback implícito: um workspace
+  sem fontes não indexa nada (hoje o sync indexa o diretório atual quando o workspace não
+  tem pastas — isso sai).
+- **Não há unidade padrão; o usuário escolhe** entre:
+  - pasta local, indexada recursivamente;
+  - arquivo local avulso;
+  - website inteiro, rastreado recursivamente;
+  - página web avulsa.
+- **Conectores (futuro)** seguem a mesma regra: um alvo e o modo avulso ou recursivo.
+- **Escopo por workspace mantido.** Cada fonte pertence a um workspace; o workspace
+  `Global` (documentação do próprio AnyContext) continua existindo e deve estar indexado
+  logo após a instalação e após cada atualização.
+- **Filtros de inclusão/exclusão saem do código** e vão para o `settings.db`, com a lista
+  atual de pastas ignoradas e extensões como padrão, configurável pelo usuário.
+- **Colunas sem uso saem do schema:** em `workspace_web_urls`, nenhum código lê ou grava
+  `title`, `last_hash`, `polling_interval_hours`, `last_scraped_at`, `page_count`,
+  `root_url` e `scope`.
+
+### Em aberto
+
+- Modelo único de fonte (tabela `sources`) no lugar de `workspace_folders`,
+  `workspace_web_urls` e `workspace_sources`.
+- Sintaxe dos filtros, `.gitignore` e filtros por fonte.
+- Limites do rastreio recursivo de um website.
+- Como o `Global` passa pelo pipeline.
 
 ## 2. Aquisição (download / leitura)
 
