@@ -189,6 +189,12 @@ pub const MAX_RERANK_CANDIDATES: usize = 30;
 /// passes. It guards against empty matches and is not a relevance cutoff (ADR-0139).
 pub const RRF_MIN_SCORE: f64 = 0.005;
 
+/// Workspace a request searches: its own, or `Default` when it names none. `Default` is filtered
+/// like any other workspace, so it never returns other workspaces' chunks (BUG-023).
+fn primary_workspace(req: &HybridSearchRequest) -> &str {
+    req.workspace.as_deref().filter(|w| !w.is_empty()).unwrap_or("Default")
+}
+
 fn parse_last_modified(value: &Option<String>) -> Option<chrono::DateTime<chrono::FixedOffset>> {
     value.as_deref().and_then(|v| chrono::DateTime::parse_from_rfc3339(v).ok())
 }
@@ -565,22 +571,11 @@ impl NativeHybridPipeline {
         req: &HybridSearchRequest,
     ) -> Result<Vec<HybridSearchResult>, String> {
         // 1. Build distinct workspace query targets
-        let mut targets = Vec::new();
-        if let Some(ws) = &req.workspace {
-            if !ws.is_empty() {
-                targets.push((ws.clone(), req.candidate_pool_k));
-            }
-        }
+        let mut targets = vec![(primary_workspace(&req).to_string(), req.candidate_pool_k)];
         for tw in &req.target_workspaces {
-            if !tw.is_empty()
-                && (req.workspace.as_ref() != Some(tw))
-                && !targets.iter().any(|(w, _)| w == tw)
-            {
+            if !tw.is_empty() && !targets.iter().any(|(w, _)| w == tw) {
                 targets.push((tw.clone(), std::cmp::max(10, req.candidate_pool_k / 2)));
             }
-        }
-        if targets.is_empty() {
-            targets.push(("Default".to_string(), req.candidate_pool_k));
         }
 
         let mut raw_candidates_map: HashMap<String, ScoredVectorResult> = HashMap::new();
@@ -605,11 +600,7 @@ impl NativeHybridPipeline {
                 };
 
                 for (ws_name, limit) in &targets {
-                    let ws_filter = if ws_name == "Default" {
-                        None
-                    } else {
-                        Some(ws_name.as_str())
-                    };
+                    let ws_filter = Some(ws_name.as_str());
                     let mut matches = self
                         .lance_store
                         .search_metadata_async(&combined_where, *limit, ws_filter, Some(&req.table_name))
@@ -648,11 +639,7 @@ impl NativeHybridPipeline {
         if !temporal_clauses.is_empty() {
             let where_or = temporal_clauses.join(" OR ");
             for (ws_name, limit) in &targets {
-                let ws_filter = if ws_name == "Default" {
-                    None
-                } else {
-                    Some(ws_name.as_str())
-                };
+                let ws_filter = Some(ws_name.as_str());
                 if let Ok(matches) = self
                     .lance_store
                     .search_metadata_async(&where_or, *limit, ws_filter, Some(&req.table_name))
@@ -703,11 +690,7 @@ impl NativeHybridPipeline {
                 if !self.global_dense && ws_name == "Global" {
                     continue;
                 }
-                let ws_filter = if ws_name == "Default" {
-                    None
-                } else {
-                    Some(ws_name.as_str())
-                };
+                let ws_filter = Some(ws_name.as_str());
                 // A failed search is recorded, never dropped silently (BUG-021).
                 let matches = match self
                     .lance_store
@@ -757,10 +740,8 @@ impl NativeHybridPipeline {
 
         // 8. Sparse Lexical BM25 Search
         let bm25_index = self.get_or_load_bm25(&req.table_name);
-        let target_ws = match &req.workspace {
-            Some(w) if w != "Default" => Some(w.as_str()),
-            _ => None,
-        };
+        // `Default` is a workspace like any other: it sees its own files and `Global` (BUG-023).
+        let target_ws = Some(primary_workspace(&req));
         let sparse_matches = bm25_index.search(&expanded_query, req.candidate_pool_k, target_ws);
         let sparse_ids: Vec<String> = sparse_matches.iter().map(|(id, _)| id.clone()).collect();
         let sparse_score_map: HashMap<String, f32> = sparse_matches.into_iter().collect();
@@ -782,7 +763,7 @@ impl NativeHybridPipeline {
             .map(|r| r.id.clone())
             .collect();
         let mut stored_rows = self
-            .lookup_stored_rows(&bm25_only_ids, req.workspace.as_deref(), &req.table_name)
+            .lookup_stored_rows(&bm25_only_ids, Some(primary_workspace(&req)), &req.table_name)
             .await;
 
         // 11. Assemble HybridSearchResult candidates
@@ -934,7 +915,7 @@ impl NativeHybridPipeline {
             .map(|id| format!("'{}'", id.replace('\'', "''")))
             .collect::<Vec<_>>()
             .join(", ");
-        let ws_filter = workspace.filter(|w| !w.is_empty() && *w != "Default");
+        let ws_filter = workspace.filter(|w| !w.is_empty());
         // The same id can exist in several files and in the Global workspace.
         let limit = ids.len() * 4;
         self.lance_store
@@ -1399,6 +1380,55 @@ mod tests {
         }
     }
 
+    /// Regression BUG-023: `Default` searched without a workspace filter, so its answers mixed in
+    /// chunks of every other workspace through dense search, filename metadata and BM25. It now
+    /// sees only its own chunks and `Global`, with or without the workspace named in the request.
+    #[test]
+    fn test_default_workspace_does_not_see_other_workspaces() {
+        let (mut pipeline, dir) = bm25_pipeline("default_isolation", &[("own_0", "kestrel timeouts in the own guide", "guide.md", SAME_DAY)]);
+        pipeline.add_chunk_to_bm25(
+            "workspace_chunks", "other_0".into(), "kestrel timeouts in the other guide".into(), "other.md".into(),
+            "/other/other.md".into(), "Other".into(), "Local Document".into(), Some(SAME_DAY.into()),
+        );
+        pipeline.add_chunk_to_bm25(
+            "workspace_chunks", "global_0".into(), "kestrel timeouts in the AnyContext guide".into(), "README.md".into(),
+            "system://README.md".into(), "Global".into(), "System Documentation".into(), Some(SAME_DAY.into()),
+        );
+        let own = stored_row("own_0", "kestrel timeouts in the own guide", "guide.md", vec![1.0, 0.0, 0.0, 0.0]);
+        let other = crate::storage::VectorRecord {
+            workspace: "Other".into(),
+            file_path: "/other/other.md".into(),
+            ..stored_row("other_0", "kestrel timeouts in the other guide", "other.md", vec![1.0, 0.0, 0.0, 0.0])
+        };
+        let global = crate::storage::VectorRecord {
+            workspace: "Global".into(),
+            file_path: "system://README.md".into(),
+            ..stored_row("global_0", "kestrel timeouts in the AnyContext guide", "README.md", vec![1.0, 0.0, 0.0, 0.0])
+        };
+        pipeline.lance_store.upsert_records(vec![own, other, global], None, Some(4)).unwrap();
+        pipeline.set_global_dense(true);
+
+        for workspace in [Some("Default".to_string()), None] {
+            // "other.md" is a filename mention, so the metadata path is exercised too.
+            let results = pipeline
+                .search(HybridSearchRequest {
+                    query_text: "kestrel timeouts other.md".to_string(),
+                    query_vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
+                    workspace: workspace.clone(),
+                    top_k: 8,
+                    candidate_pool_k: 30,
+                    min_score: RRF_MIN_SCORE,
+                    ..Default::default()
+                })
+                .unwrap();
+            let ids: Vec<&str> = results.iter().map(|r| r.chunk_id.as_str()).collect();
+            assert!(ids.contains(&"own_0"), "{workspace:?}: {ids:?}");
+            assert!(ids.contains(&"global_0"), "{workspace:?}: Global stays visible: {ids:?}");
+            assert!(!ids.contains(&"other_0"), "{workspace:?}: another workspace leaked: {ids:?}");
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     const ENVELOPED: &str =
         "[Context: Document 'guide.md': Kestrel is a gateway. | Keywords: kestrel, gateway]\n---\nkestrel timeouts are retried three times";
 
@@ -1791,7 +1821,7 @@ mod tests {
         (pipeline, dir)
     }
 
-    /// `Default` is searched without a workspace filter, so it also covers that path.
+    /// `Default` is filtered like any other workspace (BUG-023): it sees `Global`, not `Proj`.
     fn global_request(workspace: &str) -> HybridSearchRequest {
         HybridSearchRequest {
             query_text: "kestrel timeouts".to_string(),
@@ -1819,7 +1849,8 @@ mod tests {
             assert!(!ids.iter().any(|id| id.starts_with("global_sys_doc")), "{workspace:?}: {ids:?}");
             let keyword = results.iter().find(|r| r.chunk_id == "g_kw").expect("BM25 still finds Global");
             assert_eq!(keyword.dense_score, None, "{workspace:?}");
-            assert!(results.iter().any(|r| r.chunk_id == "k_0" && r.dense_score.is_some()));
+            let own = results.iter().any(|r| r.chunk_id == "k_0" && r.dense_score.is_some());
+            assert_eq!(own, workspace == "Proj", "{workspace:?}: Proj's chunk is found only from Proj (BUG-023)");
         }
     }
 
