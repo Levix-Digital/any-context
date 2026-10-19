@@ -6,13 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-018: web_search tool sends raw web snippets to the model
-- **Severity**: medium
-- **Status**: open
-- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-017 discovery
-- **Plan**: -
-- **Description**: The ReAct web_search tool (crates/actx-cli/src/engine.rs) returns the search provider's titles, URLs and snippets straight to the model, so the answer uses web content that was never indexed. This breaks the platform rule that web content, like any other, is indexed before inference. ReAct runs only when LanceDB fails to open (BUG-017), so it is rarely reached. Fix it together with the indexed web search feature.
-
 ### BUG-020: Router performance test fails intermittently in debug builds
 - **Severity**: low
 - **Status**: open
@@ -148,12 +141,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Expose AnyContext workspaces through an MCP server so other agents and IDEs can query them. There is no API or MCP surface today. Discussion item.
 
-### FEAT-019: Index web search results before answering
+### FEAT-019: Live web search on the routed paths
 - **Priority**: medium
 - **Status**: open
 - **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-017 discovery
 - **Plan**: -
-- **Description**: With web search on, answers must never use web content directly: like any other source, web content is indexed first. Search the web for the question, fetch the result pages (Jina Reader, as /web does), chunk, embed and index them in the workspace, then answer through the normal hybrid search, on the one-hop and Deep Search paths. Split from BUG-017 on the user's decision (2026-10-18): inference is never done directly with web data. Open decisions: where indexed results live and for how long, how many pages per question, latency budget.
+- **Description**: With /web-search on, the model may search the web to complement the indexed workspace content, deciding when a search is needed, on the one-hop (Fast, Auto-fast) and Deep Search (Deep, Auto-deep) paths. Today the web_search tool exists only on ReAct, which runs only when LanceDB fails to open, so /web-search on changes nothing and MT-WEB-003 fails (the web half of BUG-017). Search results are supplementary lookup, not workspace documentation: they are not indexed (unlike web pages added to a workspace as sources with /web, which are always indexed). Requirements: results are untrusted content and are neutralized in prompts like chunk text (BUG-015, actx_agent::prompt_safety); they reach the model and the answer marked as web sources, kept apart from workspace citations; with /web-search off nothing leaves the machine. Amend ADR-0145, which recorded that all web content is indexed before inference, to separate workspace web sources (indexed) from authorized live web search (not indexed). Open decisions: how the model decides to search on the routed paths (tool call, router signal or Deep Search step), how many results and whether to fetch full pages, latency budget.
 
 ## Improvements
 
@@ -439,3 +432,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_deep_search_reflection_and_rerank_prompts_inject_raw_chunk_text
 - **Closed**: 2026-10-19, PR #367
 - **Description**: REFLECT_PROMPT and RERANK_PROMPT (crates/actx-agent/src/deep_search.rs) insert chunk text, chunk previews and queries with plain string replacement, without neutralizing the reserved prompt tags of ADR-0136. RERANK_PROMPT wraps the text in <chunk> tags that the text itself can close. Same risk as BUG-007, on the intermediate Deep Search calls.
+
+### BUG-018: web_search tool sends raw web snippets to the model
+- **Severity**: medium
+- **Status**: dropped
+- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-017 discovery
+- **Plan**: -
+- **Closed**: 2026-10-19, Wrong premise (user decision, 2026-10-19): live web search authorized by the user is supplementary lookup and is not indexed; only web pages added to a workspace as sources must be indexed. Returning search results to the model is the intended behavior; the real gap, web search not reaching the routed paths, is FEAT-019.
+- **Description**: The ReAct web_search tool (crates/actx-cli/src/engine.rs) returns the search provider's titles, URLs and snippets straight to the model, so the answer uses web content that was never indexed. This breaks the platform rule that web content, like any other, is indexed before inference. ReAct runs only when LanceDB fails to open (BUG-017), so it is rarely reached. Fix it together with the indexed web search feature.
