@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-19T08:22:38'
-updated_at: '2026-10-19T09:53:44'
+updated_at: '2026-10-19T10:14:40'
 session_id: null
 tags:
 - retrieval
@@ -24,7 +24,9 @@ milestones:
   done_at: '2026-10-19'
   by: Claude
 - name: M2 Global dense gate
-  done: false
+  done: true
+  done_at: '2026-10-19'
+  by: Claude
 - name: M3 Global embedding
   done: false
 - name: M4 Docs and manual tests
@@ -41,6 +43,9 @@ status_log:
 - at: '2026-10-19T09:53:44'
   by: Claude
   note: 'Milestone ''M1 Mock target is BM25 only'' completed: Branch ccr-6c7c51f6-2tckxi; regression tests in ingestion/embedding.rs and retrieval/pipeline.rs'
+- at: '2026-10-19T10:14:40'
+  by: Claude
+  note: 'Milestone ''M2 Global dense gate'' completed: Branch ccr-6c7c51f6-2tckxi; regression tests in retrieval/pipeline.rs and ingestion/embedding.rs'
 ---
 
 # Dense search ranks arbitrary chunks on constant vectors
@@ -127,7 +132,7 @@ ADR-0147 "Constant vectors never reach dense search: the mock target is BM25 onl
 ### 4.2 `Global` knowledge (CLI, `actx-cli/src/engine.rs`)
 
 - Extract the section chunking of `ensure_global_knowledge_bootstrap` into `global_knowledge_records() -> Vec<VectorRecord>` (same ids `global_sys_doc_<n>`, same text and metadata) so the bootstrap and the embedding step build identical rows. The bootstrap writes them with placeholder vectors as today and clears `global_knowledge_embedding_target`.
-- `global_dense_enabled(db, query_target) -> bool`: recorded `global_knowledge_embedding_target` equals `query_target.key()` and the target is not mock. `resolve_query_embedding` returns the target as well as the model, and the three pipeline builders call `set_global_dense(..)` and the no-key reason.
+- `global_dense_enabled(db, query_target) -> bool` and the setting name `GLOBAL_KNOWLEDGE_TARGET_SETTING` live in `ingestion/embedding.rs` (core) next to the target they compare, so the rule is tested with an in-memory database: recorded `global_knowledge_embedding_target` equals `query_target.key()` and the target is not mock. `resolve_query_embedding` returns `QueryEmbedding { provider, target, global_dense }` and `apply` calls `set_global_dense`. (Implementation refinement of M2: the plan first placed the rule in the CLI.)
 - `refresh_global_knowledge_vectors(db, lance_store, provider, target) -> Result<bool, String>` (async): returns `Ok(false)` when the recorded target already equals `target` or the target is mock; otherwise embeds the texts of `global_knowledge_records()` in batches (the same rate-limit retry as file chunks: `embed_with_retry` in `ingestion/orchestrator.rs` becomes public through `ingestion`), checks the answer length, upserts the rows with real vectors (upsert encrypts as for any row) and then records the target. Any error returns `Err` and records nothing.
 - `oneshot.rs` sync worker: after `orchestrator.run`, unless the pass's breaker opened, resolve `resolve_embedding_provider(db, None, "Global")` and call `refresh_global_knowledge_vectors`; log the outcome to the sync log.
 
@@ -158,7 +163,7 @@ Automated (`cargo test --workspace`), regression tests first (they fail before t
 - `pipeline.rs` `test_global_rows_are_excluded_from_dense_search_without_a_matching_target` (case B: placeholder `Global` rows never appear as dense hits; still found by BM25) and `test_global_rows_take_part_in_dense_search_when_enabled`, including the unfiltered `Default` path.
 - `embedding.rs` `test_query_provider_is_none_on_the_mock_target` (explicit `mock` model and the no-key fallback); the real targets still return a provider.
 - `pipeline.rs` `test_no_embedding_key_outcome_is_described`.
-- `actx-cli` `engine.rs`: `test_global_knowledge_records_are_stable` (same ids and texts as the bootstrap), `test_refresh_embeds_global_and_records_the_target` (fixed embedder: rows get its vectors, setting recorded), `test_refresh_is_skipped_on_the_mock_target_and_when_up_to_date`, `test_failed_refresh_records_nothing` (error and short answer), `test_bootstrap_clears_the_global_target`, `test_global_dense_requires_the_same_target`.
+- `actx-cli` `engine.rs`: `test_global_knowledge_records_are_stable` (same ids and texts as the bootstrap), `test_refresh_embeds_global_and_records_the_target` (fixed embedder: rows get its vectors, setting recorded), `test_refresh_is_skipped_on_the_mock_target_and_when_up_to_date`, `test_failed_refresh_records_nothing` (error and short answer), `test_bootstrap_clears_the_global_target`; `global_dense_requires_the_same_target` is in `ingestion/embedding.rs`.
 
 Manual (`tests/MANUAL_TESTS.md`):
 

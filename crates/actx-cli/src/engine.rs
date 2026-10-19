@@ -140,12 +140,16 @@ pub fn resolve_lm_provider(
 pub struct QueryEmbedding {
     pub provider: Option<Arc<dyn LmProvider>>,
     pub target: EmbeddingTarget,
+    /// `Global` was embedded with `target`, so its rows can take part in dense search.
+    pub global_dense: bool,
 }
 
 impl QueryEmbedding {
-    /// Sets a pipeline's query embedding; the mock target is searched by BM25 only (BUG-019).
+    /// Sets a pipeline's query embedding (BUG-019): the mock target is searched by BM25 only, and
+    /// `Global` rows join dense search only when they share the target's vector space.
     pub fn apply(&self, pipeline: &mut any_context_core_rs::retrieval::NativeHybridPipeline) {
         pipeline.set_query_embedding(self.provider.clone(), &self.target);
+        pipeline.set_global_dense(self.global_dense);
     }
 }
 
@@ -155,11 +159,13 @@ pub fn resolve_query_embedding(workspace: &str) -> QueryEmbedding {
     match NativeConfigDb::open_default() {
         Ok(db) => {
             let (provider, target) = any_context_core_rs::ingestion::resolve_query_embedding_provider(&db, workspace);
-            QueryEmbedding { provider, target }
+            let global_dense = any_context_core_rs::ingestion::global_dense_enabled(&db, &target);
+            QueryEmbedding { provider, target, global_dense }
         }
         Err(_) => QueryEmbedding {
             provider: None,
             target: EmbeddingTarget::new("openai", any_context_core_rs::retrieval::pipeline::DEFAULT_QUERY_EMBEDDING_MODEL),
+            global_dense: false,
         },
     }
 }

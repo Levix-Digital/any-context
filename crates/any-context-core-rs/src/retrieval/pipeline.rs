@@ -354,6 +354,8 @@ pub struct NativeHybridPipeline {
     last_query_embedding: std::sync::Mutex<Option<QueryEmbeddingOutcome>>,
     /// Outcome recorded when there is no embedding provider.
     missing_provider_outcome: QueryEmbeddingOutcome,
+    /// Whether `Global` rows take part in dense search (their vectors share the query's space).
+    global_dense: bool,
 }
 
 impl NativeHybridPipeline {
@@ -371,6 +373,7 @@ impl NativeHybridPipeline {
             rerank_mode: "auto".to_string(),
             last_query_embedding: std::sync::Mutex::new(None),
             missing_provider_outcome: QueryEmbeddingOutcome::NoProvider,
+            global_dense: false,
         })
     }
 
@@ -387,6 +390,7 @@ impl NativeHybridPipeline {
             rerank_mode: "auto".to_string(),
             last_query_embedding: std::sync::Mutex::new(None),
             missing_provider_outcome: QueryEmbeddingOutcome::NoProvider,
+            global_dense: false,
         }
     }
 
@@ -426,6 +430,12 @@ impl NativeHybridPipeline {
         } else {
             QueryEmbeddingOutcome::NoProvider
         };
+    }
+
+    /// Lets `Global` rows take part in dense search. Off by default: they are placeholders
+    /// until embedded with the query's target (`ingestion::global_dense_enabled`, BUG-019).
+    pub fn set_global_dense(&mut self, enabled: bool) {
+        self.global_dense = enabled;
     }
 
     /// Embedding model used for query vectors.
@@ -681,9 +691,14 @@ impl NativeHybridPipeline {
         };
         self.record_query_embedding(outcome);
 
-        // 6. Dense Vector Similarity Search
+        // 6. Dense Vector Similarity Search. `Global` rows take part only when their vectors
+        // share the query's space; otherwise BM25 and metadata matches still find them (BUG-019).
+        let dense_filter = (!self.global_dense).then_some("workspace <> 'Global'");
         if let Some(q_vec) = query_vec {
             for (ws_name, limit) in &targets {
+                if !self.global_dense && ws_name == "Global" {
+                    continue;
+                }
                 let ws_filter = if ws_name == "Default" {
                     None
                 } else {
@@ -691,7 +706,7 @@ impl NativeHybridPipeline {
                 };
                 if let Ok(matches) = self
                     .lance_store
-                    .search_vector_async(q_vec.clone(), *limit, ws_filter, None, Some(&req.table_name))
+                    .search_vector_async(q_vec.clone(), *limit, ws_filter, dense_filter, Some(&req.table_name))
                     .await
                 {
                     for sc in matches {
@@ -1680,5 +1695,73 @@ mod tests {
         assert_eq!(ids, vec!["k_0"], "no unrelated chunk may come from dense search");
         assert_eq!(results[0].dense_score, None);
         assert_eq!(outcome, Some(QueryEmbeddingOutcome::NoEmbeddingKey));
+    }
+    /// `Global` rows as the startup bootstrap stores them (placeholder vectors) or as a sync
+    /// stores them once embedded, next to `Proj` rows with real-looking vectors.
+    fn global_and_project_pipeline(name: &str, global_vector: Vec<f32>) -> (NativeHybridPipeline, PathBuf) {
+        let (pipeline, dir) = bm25_pipeline(name, &[]);
+        let mut rows = vec![stored_row("k_0", "kestrel timeouts are retried three times", "guide.md", vec![1.0, 0.0, 0.0, 0.0])];
+        rows.push(stored_row("g_kw", "kestrel gateway commands of AnyContext", "SYSTEM_KNOWLEDGE.md", global_vector.clone()));
+        for i in 0..3 {
+            rows.push(stored_row(&format!("global_sys_doc_{i}"), &format!("slash command help {i}"), "README.md", global_vector.clone()));
+        }
+        for row in rows.iter_mut() {
+            row.workspace = if row.file_name == "guide.md" { "Proj".into() } else { "Global".into() };
+            row.file_path = format!("/docs/{}/{}", row.workspace, row.id);
+            pipeline.add_chunk_to_bm25(
+                "workspace_chunks", row.id.clone(), row.text.clone(), row.file_name.clone(), row.file_path.clone(),
+                row.workspace.clone(), "Local Document".to_string(), Some(SAME_DAY.to_string()),
+            );
+        }
+        pipeline.lance_store.upsert_records(rows, None, Some(4)).unwrap();
+        (pipeline, dir)
+    }
+
+    /// `Default` is searched without a workspace filter, so it also covers that path.
+    fn global_request(workspace: &str) -> HybridSearchRequest {
+        HybridSearchRequest {
+            query_text: "kestrel timeouts".to_string(),
+            query_vector: Some(vec![0.8, 0.6, 0.0, 0.0]),
+            workspace: Some(workspace.to_string()),
+            target_workspaces: vec!["Global".to_string()],
+            top_k: 8,
+            candidate_pool_k: 30,
+            min_score: RRF_MIN_SCORE,
+            ..Default::default()
+        }
+    }
+
+    /// Regression BUG-019: `Global` rows hold placeholder (zero) vectors, all at the same distance
+    /// from any query, so they reached the results through dense search alone. Without a matching
+    /// target they are found by BM25 and metadata only, on a named workspace and on `Default`.
+    #[test]
+    fn test_global_rows_are_excluded_from_dense_search_without_a_matching_target() {
+        for workspace in ["Proj", "Default"] {
+            let (pipeline, dir) = global_and_project_pipeline("global_gate_off", vec![0.0; 4]);
+            let results = pipeline.search(global_request(workspace)).unwrap();
+            let _ = std::fs::remove_dir_all(dir);
+
+            let ids: Vec<&str> = results.iter().map(|r| r.chunk_id.as_str()).collect();
+            assert!(!ids.iter().any(|id| id.starts_with("global_sys_doc")), "{workspace:?}: {ids:?}");
+            let keyword = results.iter().find(|r| r.chunk_id == "g_kw").expect("BM25 still finds Global");
+            assert_eq!(keyword.dense_score, None, "{workspace:?}");
+            assert!(results.iter().any(|r| r.chunk_id == "k_0" && r.dense_score.is_some()));
+        }
+    }
+
+    /// Once `Global` is embedded with the query's target, its rows take part in dense search.
+    #[test]
+    fn test_global_rows_take_part_in_dense_search_when_enabled() {
+        for workspace in ["Proj", "Default"] {
+            let (mut pipeline, dir) = global_and_project_pipeline("global_gate_on", vec![0.8, 0.6, 0.0, 0.0]);
+            pipeline.set_global_dense(true);
+            let results = pipeline.search(global_request(workspace)).unwrap();
+            let _ = std::fs::remove_dir_all(dir);
+
+            assert!(
+                results.iter().any(|r| r.chunk_id.starts_with("global_sys_doc") && r.dense_score.is_some()),
+                "{workspace:?}"
+            );
+        }
     }
 }

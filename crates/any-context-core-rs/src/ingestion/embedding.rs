@@ -24,6 +24,10 @@ pub const OLLAMA_EMBEDDING_MODEL: &str = "nomic-embed-text";
 /// Model id of the deterministic mock provider (no API key, or an explicit `mock*` model).
 pub const MOCK_EMBEDDING_MODEL: &str = "mock-embed";
 
+/// Setting with the target of the `Global` workspace's vectors. Empty or absent while they are
+/// the placeholders written by the startup bootstrap (BUG-019).
+pub const GLOBAL_KNOWLEDGE_TARGET_SETTING: &str = "global_knowledge_embedding_target";
+
 const OLLAMA_BASE_URL: &str = "http://localhost:11434/v1";
 const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 
@@ -163,6 +167,13 @@ pub fn resolve_query_embedding_provider(
     } else {
         (provider, target)
     }
+}
+
+/// Whether dense search may include the `Global` workspace for queries on `query_target`: only
+/// when its vectors were embedded with that target, never on the mock target (BUG-019).
+pub fn global_dense_enabled(db: &NativeConfigDb, query_target: &EmbeddingTarget) -> bool {
+    !query_target.is_mock()
+        && db.get_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING).ok().flatten().as_deref() == Some(query_target.key().as_str())
 }
 
 /// Notice for the command layer when the next sync of a workspace will reindex it, e.g. right
@@ -395,6 +406,24 @@ mod tests {
         // Ingestion still gets the mock provider: the rows are needed, the vectors are never searched.
         db.set_workspace_model("Default", "mock").expect("model");
         assert!(resolve_embedding_provider(&db, None, "Default").0.is_some());
+    }
+
+    #[test]
+    fn global_dense_requires_the_same_target() {
+        let db = NativeConfigDb::open_in_memory().expect("db");
+        let openai = target("openai/text-embedding-3-small");
+        // Placeholders: nothing recorded.
+        assert!(!global_dense_enabled(&db, &openai));
+        db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, "gemini/gemini-embedding-2").expect("set");
+        assert!(!global_dense_enabled(&db, &openai));
+        db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, &openai.key()).expect("set");
+        assert!(global_dense_enabled(&db, &openai));
+        // Cleared by the bootstrap when it rewrites the rows.
+        db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, "").expect("set");
+        assert!(!global_dense_enabled(&db, &openai));
+        // Never on the mock target, even if recorded.
+        db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, "mock/mock-embed").expect("set");
+        assert!(!global_dense_enabled(&db, &target("mock/mock-embed")));
     }
 
     #[test]
