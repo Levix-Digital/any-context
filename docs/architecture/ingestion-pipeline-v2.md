@@ -86,12 +86,18 @@ hora e os vetores quando houver modelo (ver passo 8).
 
 ### Decisões
 
-- **Toda fonte web pública (fora de uma VPC) é obtida pelo Jina Reader**, que já devolve
-  Markdown limpo. Uma alternativa on-premise equivalente é preferível quando existir.
+- **Arquivos locais são lidos na origem**, sem cópia, e **uma única vez** por arquivo: o
+  mesmo buffer alimenta o hash, o parser e o enriquecimento (hoje são até três leituras).
+- **Documentos linkados num site** (PDF, DOCX etc.), dentro do escopo da fonte, são
+  baixados e passam pelo pipeline como qualquer arquivo.
+- **Re-sync web incremental:** ETag, `Last-Modified` e o `lastmod` do sitemap evitam baixar
+  o que não mudou (requisições condicionais).
+- **Páginas que somem do site saem do índice.**
 
 ### Em aberto
 
-_Em discussão._
+- Conversão HTML → Markdown: Jina Reader (decisão inicial) ou módulo local via ONNX, para o
+  AnyContext nascer air-gapped.
 
 ## 3. Diff incremental
 
