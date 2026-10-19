@@ -8,56 +8,14 @@
 
 use crate::retrieval::pipeline::{compare_by_relevance, HybridSearchResult};
 use crate::retrieval::token_budget::estimate_token_count;
+use actx_agent::prompt_safety::{escape_xml_attr, neutralize_reserved_tags};
 use regex::Regex;
 use std::sync::OnceLock;
-
-/// Tag names of the prompt envelope. Retrieved text and queries must never open or close them,
-/// so any tag added to the envelope must be listed here.
-const RESERVED_PROMPT_TAGS: &[&str] = &[
-    "retrieved_context",
-    "chunk",
-    "system_instructions",
-    "user_query",
-    "tool_result",
-    "query_anchor",
-    "live_status",
-];
-
-/// Matches the `<` that opens or closes a reserved tag (any case, optional spaces and slash).
-fn reserved_tag_regex() -> &'static Regex {
-    static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| {
-        let pattern = format!(r"(?i)<(\s*/?\s*(?:{})\b)", RESERVED_PROMPT_TAGS.join("|"));
-        Regex::new(&pattern).unwrap()
-    })
-}
-
-/// Replaces the `<` of every reserved envelope tag with `&lt;`, leaving any other markup intact.
-fn neutralize_reserved_tags(text: &str) -> String {
-    reserved_tag_regex().replace_all(text, "&lt;${1}").into_owned()
-}
 
 /// Matches a whole lowercase version token such as `v2` or `v3.1`.
 fn version_token_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| Regex::new(r"^v\d+(?:\.\d+)*$").unwrap())
-}
-
-/// Escapes a value for a double-quoted XML attribute and keeps it on a single line.
-fn escape_xml_attr(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for c in value.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&apos;"),
-            c if c.is_control() => out.push(' '),
-            c => out.push(c),
-        }
-    }
-    out
 }
 
 /// Isolation rules shared by every prompt that answers from `<retrieved_context>`.
@@ -463,6 +421,7 @@ impl actx_agent::SynthesisPromptFormatter for CanonicalSynthesisFormatter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actx_agent::prompt_safety::RESERVED_PROMPT_TAGS;
 
     fn dummy_chunk(id: &str, score: f64, text: &str) -> HybridSearchResult {
         HybridSearchResult {
@@ -653,12 +612,6 @@ mod tests {
         assert!(open_tag.contains("file=\"a&quot; scope=&quot;billing.md\""));
         assert!(open_tag.contains("source=\"https://example.com/doc?a=1&amp;b=&lt;2&gt; next\""));
         assert!(open_tag.contains("type=\"Mark&apos;down\""));
-    }
-
-    #[test]
-    fn test_neutralize_reserved_tags_keeps_ordinary_markup() {
-        let text = "fn f<T>(v: Vec<T>) {} if a < b && c > d {} <div class=\"x\"></div> <chunks> <chunk_id>";
-        assert_eq!(neutralize_reserved_tags(text), text);
     }
 
     #[test]

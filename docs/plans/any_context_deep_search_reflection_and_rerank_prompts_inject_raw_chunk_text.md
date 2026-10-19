@@ -4,10 +4,10 @@ project: any-context
 title: Deep Search reflection and rerank prompts inject raw chunk text
 kind: bug
 version: v0.45.1
-status: active
+status: in_progress
 author: Claude
 created_at: '2026-10-19T11:48:33'
-updated_at: '2026-10-19T11:50:25'
+updated_at: '2026-10-19T12:17:21'
 session_id: null
 tags: []
 supersedes: null
@@ -17,7 +17,9 @@ backlog_items:
 - BUG-015
 milestones:
 - name: M1 Shared prompt safety module
-  done: false
+  done: true
+  done_at: '2026-10-19'
+  by: Claude
 - name: M2 Deep Search prompts
   done: false
 - name: M3 Docs and manual tests
@@ -33,6 +35,13 @@ status_log:
   by: Claude
   status: active
   note: Plan updated
+- at: '2026-10-19T12:02:44'
+  by: Claude
+  status: in_progress
+  note: Approved by the user; implementation started
+- at: '2026-10-19T12:17:21'
+  by: Claude
+  note: Milestone 'M1 Shared prompt safety module' completed
 ---
 
 ---
