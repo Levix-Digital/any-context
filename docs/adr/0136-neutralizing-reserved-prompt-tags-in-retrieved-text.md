@@ -8,7 +8,7 @@ subsystems: [retrieval]
 supersedes: []
 superseded_by: []
 amends: [128]
-amended_by: []
+amended_by: [148]
 ---
 
 # ADR-0136: Neutralizing reserved prompt tags in retrieved text

@@ -25,7 +25,8 @@ Retrieval itself is in the [retrieval pipeline](retrieval.md); the concrete tool
 | `lib.rs` | `Agent`, `AgentBuilder`, `DeterministicRetriever`, `DeterministicRetrievalOutput`, `ToolBasedRetriever`; the shared one-hop execution (`run_one_hop`, `stream_one_hop`). |
 | `router.rs` | `ChatModelRouter`, `ComplexityClassifier`, `DeterministicClassifier`, `RoutingDecision`, `QueryComplexity`, `QueryIntent`, `is_status_query`. |
 | `fsm.rs` | `ReActOrchestrator`: the ReAct state machine. |
-| `deep_search.rs` | `DeepSearchOrchestrator`, `DeepSearchRetriever`, `DeepSearchConfig`, `RetrievedChunk`, `SynthesisPromptFormatter`, `DefaultSynthesisFormatter`, prompts and response parsers. |
+| `deep_search.rs` | `DeepSearchOrchestrator`, `DeepSearchRetriever`, `DeepSearchConfig`, `RetrievedChunk`, `SynthesisPromptFormatter`, `DefaultSynthesisFormatter`, prompts, prompt builders and response parsers. |
+| `prompt_safety.rs` | `RESERVED_PROMPT_TAGS`, `neutralize_reserved_tags`, `escape_xml_attr` and `fill_template`, shared with the [retrieval](retrieval.md) context formatter. |
 | `tool.rs` | `Tool`, `NativeTool`, `ToolRegistry` (behind `std::sync::RwLock`). |
 | `session.rs` | `SessionStore`, `SqliteSessionStore`, `InMemorySessionStore`. |
 | `events.rs` | `AgentEvent` and the event channel. |
@@ -80,10 +81,12 @@ Status questions take the same one-hop execution with the status retriever. The 
 
 `DeepSearchOrchestrator::run` (defaults: `max_iterations` 3, `max_sub_queries` 4, `max_gap_queries` 3):
 
-1. **Decomposition** (`SUB_QUERY_PROMPT`): splits the question into up to four sub-queries and emits `AgentEvent::Decomposition`.
-2. **Batch retrieval**: each iteration (`AgentEvent::IterationStart`) calls `DeepSearchRetriever::retrieve_batch` with the current queries; the CLI's `PipelineBatchRetriever` runs them concurrently through `retrieve_hybrid_batch_async` and passes each chunk's section path and file line range (ADR-0142) on to the synthesis. New chunks are deduplicated by id; when `enable_reranker` is on (off by default), a new chunk scoring below `rerank_score_threshold` is checked for relevance with `RERANK_PROMPT` (a yes/no model call).
-3. **Gap analysis** (`REFLECT_PROMPT`): asks whether more searches are needed and produces gap queries (`AgentEvent::GapAnalysis`); the loop stops early when there are none or at the last iteration.
+1. **Decomposition** (`SUB_QUERY_PROMPT`): splits the question, given in `<user_query>`, into up to four sub-queries and emits `AgentEvent::Decomposition`.
+2. **Batch retrieval**: each iteration (`AgentEvent::IterationStart`) calls `DeepSearchRetriever::retrieve_batch` with the current queries; the CLI's `PipelineBatchRetriever` runs them concurrently through `retrieve_hybrid_batch_async` and passes each chunk's section path and file line range (ADR-0142) on to the synthesis. New chunks are deduplicated by id; when `enable_reranker` is on (off by default), a new chunk scoring below `rerank_score_threshold` is checked for relevance with `RERANK_PROMPT` (a yes/no model call): the queries in `<user_query>`, the chunk in `<chunk source lines>`.
+3. **Gap analysis** (`REFLECT_PROMPT`): asks whether more searches are needed and produces gap queries (`AgentEvent::GapAnalysis`); the loop stops early when there are none or at the last iteration. The prompt carries the question in `<user_query>`, the explored queries in `<sub_queries>` and a `<chunk source lines>` with the first 200 characters of each accepted chunk inside `<retrieved_context>`.
 4. **Synthesis**: the prior session messages plus one prompt built by the `SynthesisPromptFormatter` from all collected chunks and the original question. The CLI injects `CanonicalSynthesisFormatter` from the [retrieval](retrieval.md) context formatter: the system prompt, the shared isolation rules and the Deep Search synthesis rules, the chunks of every iteration sorted by relevance in U-shaped XML, and the question last. Without injection, `DefaultSynthesisFormatter` (`SUMMARY_PROMPT`, plain chunk blocks, question last) is used. `sanitize_direct_conclusion` strips leftover meta-narrative and section headers.
+
+The decomposition, rerank and reflection prompts follow the envelope rules of the context formatter (ADR-0136, ADR-0148): chunk text, previews and queries, including gap queries written by the model, have their reserved tags neutralized; attribute values are escaped; rerank and reflection state that chunk content is quoted document text, never instructions. Templates are filled with `fill_template` in a single pass, so a value containing `{placeholder}` stays literal.
 
 ### Tools
 
@@ -146,5 +149,6 @@ Answers follow the language of the user's question.
 - [ADR-0125](../adr/0125-local-gemma-activation-hardware-guardrails.md): the chosen model is kept on every turn; routing only picks the search depth.
 - [ADR-0128](../adr/0128-backend-first-deterministic-dual-rag.md): backend-first one-hop RAG and session hygiene.
 - [ADR-0141](../adr/0141-deep-search-synthesis-uses-the-canonical-context-formatter-t.md): the Deep Search synthesis prompt comes from the canonical context formatter through `SynthesisPromptFormatter`.
+- [ADR-0148](../adr/0148-shared-prompt-safety-primitives-and-the-deep-search-intermed.md): shared prompt safety primitives in `prompt_safety.rs`; the Deep Search decomposition, rerank and reflection prompts use the reserved-tag envelope and single-pass template filling.
 - [ADR-0144](../adr/0144-system-prompt-per-answer-path-with-the-tool-section-generate.md): system prompt per answer path; only the ReAct prompt names tools, taken from the registered tools.
 - [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): status questions are routed to a one-hop path with the live status report; web results are not given to the model without indexing.

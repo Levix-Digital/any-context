@@ -8,9 +8,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-015: Deep Search reflection and rerank prompts inject raw chunk text
 - **Severity**: medium
-- **Status**: open
+- **Status**: in_progress
 - **Found**: 2026-10-17, 2026-10-17, v0.45.0, BUG-009 discovery
-- **Plan**: -
+- **Plan**: any_context_deep_search_reflection_and_rerank_prompts_inject_raw_chunk_text
 - **Description**: REFLECT_PROMPT and RERANK_PROMPT (crates/actx-agent/src/deep_search.rs) insert chunk text, chunk previews and queries with plain string replacement, without neutralizing the reserved prompt tags of ADR-0136. RERANK_PROMPT wraps the text in <chunk> tags that the text itself can close. Same risk as BUG-007, on the intermediate Deep Search calls.
 
 ### BUG-018: web_search tool sends raw web snippets to the model

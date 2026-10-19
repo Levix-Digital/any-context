@@ -9,6 +9,7 @@ pub mod deep_search;
 pub mod error;
 pub mod events;
 pub mod fsm;
+pub mod prompt_safety;
 pub mod router;
 pub mod session;
 pub mod tool;

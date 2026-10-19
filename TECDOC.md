@@ -79,6 +79,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0148](docs/adr/0148-shared-prompt-safety-primitives-and-the-deep-search-intermed.md) | Shared prompt safety primitives and the Deep Search intermediate envelope | accepted | v0.45.1 | 2026-10-19 |
 | [ADR-0147](docs/adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md) | Constant vectors never reach dense search: the mock target is BM25 only and Global is embedded with the default target | accepted | v0.45.1 | 2026-10-19 |
 | [ADR-0146](docs/adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md) | A failed embedding fails the file, and embedding outcomes are reported | accepted | v0.45.1 | 2026-10-18 |
 | [ADR-0145](docs/adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md) | Live status reaches the routed paths as retrieved context | accepted | v0.45.1 | 2026-10-18 |
