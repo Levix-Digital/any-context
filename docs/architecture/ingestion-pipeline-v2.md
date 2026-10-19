@@ -368,4 +368,28 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
 
 ## 10. Persistência na base vetorial
 
-_Pendente._
+### Decisões
+
+- **Isolamento físico por workspace.** Cada workspace tem as suas tabelas LanceDB (como o
+  seu índice lexical, passo 9), no lugar da tabela única `workspace_chunks` filtrada pela
+  coluna `workspace` — onde um filtro esquecido vaza dados entre workspaces (BUG-023).
+  Apagar um workspace é apagar o seu diretório.
+- **Uma tabela por workspace e por `embedding_target`**, com a dimensão real do modelo:
+  acaba o preenchimento com zeros até 1536 (IMP-004). Na troca de modelo, a tabela nova é
+  preenchida enquanto a antiga continua respondendo, e a antiga é descartada no fim.
+- **Manutenção automática:** compactação depois de syncs com muitos deletes ou
+  reindexações (IMP-013). As migrações saem do caminho do sync: o schema é versionado e
+  migrado uma vez, na abertura da base.
+- **Chave de criptografia:** um segredo gerado na instalação e guardado no cofre do sistema
+  operacional (Keychain, Windows Credential Manager, Secret Service), com exportação e
+  recuperação para backup e troca de máquina. Substitui a chave derivada do id da máquina
+  com salt fixo no código, que qualquer um com o id reproduz e que torna a base ilegível em
+  outra máquina. A integração com contas de usuário fica para o futuro módulo de usuários
+  (fora do escopo da ingestão).
+
+### Em aberto
+
+- Limite a partir do qual um workspace ganha índice vetorial aproximado (ANN).
+- Proteção dos vetores: a criptografia por campo não serve para eles (a busca precisa
+  calcular distâncias sobre os vetores), então a proteção teria de ser na camada de
+  armazenamento.
