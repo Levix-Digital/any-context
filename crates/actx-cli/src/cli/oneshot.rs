@@ -63,6 +63,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                         res.indexed_files, res.chunks_created, res.duration_ms);
                 }
                 print_sync_errors(&res);
+                refresh_global_knowledge(&res).await;
             }
             Err(e) => {
                 eprintln!("[!] Native background sync error: {e}");
@@ -100,6 +101,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                         res.indexed_files, res.chunks_created, res.duration_ms);
                 }
                 print_sync_errors(&res);
+                refresh_global_knowledge(&res).await;
             }
             Err(e) => {
                 eprintln!("[!] Native sync failed: {e}");
@@ -648,6 +650,26 @@ fn sync_error_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<Str
         ));
     }
     lines
+}
+
+/// Embeds AnyContext's own documentation (`Global`) with the default embedding target after a
+/// sync pass, so it is matched by meaning (BUG-019). Skipped when the pass was cancelled or its
+/// provider failed; a failure leaves it keyword-only until the next sync.
+async fn refresh_global_knowledge(res: &any_context_core_rs::ingestion::SyncResult) {
+    if res.cancelled || res.embedding_provider_unavailable {
+        return;
+    }
+    let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() else { return };
+    let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
+    let Ok(lance_store) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) else { return };
+    let (Some(provider), target) = any_context_core_rs::ingestion::resolve_embedding_provider(&db, None, "Global") else {
+        return;
+    };
+    match crate::engine::refresh_global_knowledge_vectors(&db, &lance_store, provider, &target).await {
+        Ok(true) => println!("✔ AnyContext documentation embedded with {}.", target.key()),
+        Ok(false) => {}
+        Err(e) => eprintln!("⚠ AnyContext documentation not embedded ({e}); it is found by keyword until the next sync."),
+    }
 }
 
 fn print_sync_errors(res: &any_context_core_rs::ingestion::SyncResult) {

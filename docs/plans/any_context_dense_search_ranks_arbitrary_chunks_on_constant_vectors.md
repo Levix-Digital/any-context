@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-19T08:22:38'
-updated_at: '2026-10-19T10:14:40'
+updated_at: '2026-10-19T10:22:33'
 session_id: null
 tags:
 - retrieval
@@ -28,7 +28,9 @@ milestones:
   done_at: '2026-10-19'
   by: Claude
 - name: M3 Global embedding
-  done: false
+  done: true
+  done_at: '2026-10-19'
+  by: Claude
 - name: M4 Docs and manual tests
   done: false
 status_log:
@@ -46,6 +48,9 @@ status_log:
 - at: '2026-10-19T10:14:40'
   by: Claude
   note: 'Milestone ''M2 Global dense gate'' completed: Branch ccr-6c7c51f6-2tckxi; regression tests in retrieval/pipeline.rs and ingestion/embedding.rs'
+- at: '2026-10-19T10:22:33'
+  by: Claude
+  note: 'Milestone ''M3 Global embedding'' completed: Branch ccr-6c7c51f6-2tckxi; tests in actx-cli engine.rs and ingestion/orchestrator.rs'
 ---
 
 # Dense search ranks arbitrary chunks on constant vectors
@@ -144,6 +149,14 @@ ADR-0147 "Constant vectors never reach dense search: the mock target is BM25 onl
 ### 4.4 Architecture rules
 
 Core stays free of CLI types; the embedded documentation stays in the CLI crate. No LanceDB or BM25 format change, no SQLite schema change (one new setting key).
+
+### 4.5 Found during implementation (M3)
+
+- `NativeLanceStore::upsert_records` appends rows; it does not replace rows with the same id (the orchestrator purges before it writes). A first refresh doubled the `Global` rows, caught by `refresh_embeds_global_and_records_the_target`. The refresh now gets every vector first, then deletes the `Global` rows and inserts the embedded ones. If that insert fails, the next startup bootstrap finds no `Global` rows and writes the placeholders again (BM25 is untouched).
+- The breaker of a pass was internal to the orchestrator. `SyncResult` gains `embedding_provider_unavailable` (breaker open), and the worker skips `Global` when it is set or the pass was cancelled.
+- Race between a startup bootstrap and a sync worker: the bootstrap clears the recorded target *after* writing its rows, and the refresh does nothing while `global_knowledge_version` is not the running version (the bootstrap for this version has not run), so placeholders are never left with a recorded target.
+- A vector whose size is not the table's (Ollama's 768, IMP-004) fails the refresh instead of being padded with zeros by `build_record_batch`.
+- The embedding runs in both `actx --sync` and the background `--sync-worker` (`cli/oneshot.rs` `refresh_global_knowledge`).
 
 ## 5. Affected surfaces and files
 

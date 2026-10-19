@@ -106,7 +106,7 @@ impl EmbedBreaker {
 }
 
 /// Embeds `texts`, retrying once after a rate limit (honoring `retry_after_secs`, capped).
-async fn embed_with_retry(provider: &Arc<dyn LmProvider>, model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, LmError> {
+pub async fn embed_with_retry(provider: &Arc<dyn LmProvider>, model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, LmError> {
     match provider.embed(model, texts).await {
         Err(LmError::RateLimit { retry_after_secs, .. }) => {
             let wait = retry_after_secs.unwrap_or(RATE_LIMIT_DEFAULT_WAIT_SECS).min(RATE_LIMIT_MAX_WAIT_SECS);
@@ -166,6 +166,8 @@ pub struct SyncResult {
     pub embedding_reindex: Option<String>,
     /// Files and pages whose embedding or upsert failed; the next sync retries them (ADR-0146).
     pub embedding_failures: usize,
+    /// The provider breaker of this pass opened, so later embedding calls were skipped.
+    pub embedding_provider_unavailable: bool,
 }
 
 /// Status summary written to `workspace_sync_status.error` after a pass with embedding
@@ -482,6 +484,7 @@ impl NativeSyncOrchestrator {
                 chunks_encrypted_legacy,
                 embedding_reindex: embedding_reindex.clone(),
                 embedding_failures: 0,
+                embedding_provider_unavailable: false,
             });
         }
 
@@ -534,6 +537,7 @@ impl NativeSyncOrchestrator {
                         chunks_encrypted_legacy,
                         embedding_reindex: embedding_reindex.clone(),
                         embedding_failures: failures.count,
+                        embedding_provider_unavailable: breaker.is_open(),
                     });
                 }
             }
@@ -707,6 +711,7 @@ impl NativeSyncOrchestrator {
             chunks_encrypted_legacy,
             embedding_reindex,
             embedding_failures: failures.count,
+            embedding_provider_unavailable: breaker.is_open(),
         })
     }
 
@@ -1581,6 +1586,7 @@ mod tests {
 
         let result = orchestrator.run(&sync_opts("AuthWS", &docs_dir)).await.unwrap();
         assert_eq!(calls(&embedder), 1, "a bad key must cost one call, not one per file");
+        assert!(result.embedding_provider_unavailable, "the worker must not call the provider again for Global");
         assert_eq!(result.errors.len(), 4, "{:?}", result.errors);
         assert_eq!(result.errors.iter().filter(|e| e.contains("embedding skipped")).count(), 3, "{:?}", result.errors);
         assert_eq!(lance_store.count_records(Some("AuthWS"), None).unwrap_or(0), 0);
@@ -1598,6 +1604,7 @@ mod tests {
 
         let result = orchestrator.run(&sync_opts("BreakerWS", &docs_dir)).await.unwrap();
         assert_eq!(calls(&embedder), 2 * BREAKER_THRESHOLD, "three files, each tried and retried once");
+        assert!(result.embedding_provider_unavailable);
         assert_eq!(result.errors.len(), 5, "{:?}", result.errors);
         assert_eq!(result.errors.iter().filter(|e| e.contains("embedding skipped")).count(), 2, "{:?}", result.errors);
         assert_eq!(bm25_files(&lance_store, "BreakerWS").len(), 5);
@@ -1639,6 +1646,7 @@ mod tests {
         embedder.set(EmbedBehavior::Ok);
         let second = orchestrator.run(&opts).await.unwrap();
         assert_eq!(second.embedding_failures, 0);
+        assert!(!second.embedding_provider_unavailable);
         assert_eq!(db.get_sync_status("StatusWS").unwrap().unwrap().error, None, "a clean pass clears the summary");
 
         let _ = std::fs::remove_dir_all(temp_dir);
