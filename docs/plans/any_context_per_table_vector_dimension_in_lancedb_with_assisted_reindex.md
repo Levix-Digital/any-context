@@ -7,7 +7,7 @@ version: v0.46.0
 status: draft
 author: Claude
 created_at: '2026-10-19T15:43:49'
-updated_at: '2026-10-19T16:45:49'
+updated_at: '2026-10-19T16:58:44'
 session_id: null
 tags: []
 supersedes: null
@@ -41,6 +41,10 @@ status_log:
   by: Claude
   status: draft
   note: Plan updated
+- at: '2026-10-19T16:58:44'
+  by: Claude
+  status: draft
+  note: Plan updated
 ---
 
 # One application-wide embedding model, per-chunk model metadata and per-dimension tables
@@ -56,7 +60,7 @@ Plan for IMP-004 (`dev-cycle-protocol` Phases 1 and 2). Business rules decided w
 
 ### Delivered by this plan, pending the user's promotion
 - **FEAT-005** (high): embedding model independent of the chat model, with stale-workspace status. This plan implements it with the per-chunk rule below instead of a per-workspace record.
-- **BUG-021** (high): dense search never runs on Ollama workspaces. Fixed by milestone M2 (native-size vectors and no silent padding).
+- **BUG-021** (high): dense search never runs when the embedding model's dimension is not 1536 (seen with Ollama `nomic-embed-text`, 768). Fixed by milestone M2 (native-size vectors and no silent padding).
 
 ## 1. Goal and decisions
 
@@ -66,13 +70,16 @@ Plan for IMP-004 (`dev-cycle-protocol` Phases 1 and 2). Business rules decided w
 1. **One embedding model for the application.** A global setting, independent of the chat model. `/model` no longer affects embeddings. There is no per-workspace embedding model (FEAT-005's per-workspace override stays out).
 2. **Every chunk records the model that produced its vector.** A chunk whose model differs from the active model is stale, and the **file** that produced it is reindexed (not the whole workspace).
 3. **Never answer with BM25 only.** While a workspace still has stale chunks, the query is embedded with each model present in the searched rows and every part of the index is searched densely.
-4. **One behavior for every provider** (API, Ollama, ONNX later). The active model is the model: it is never swapped silently (no OpenAI fallback, no mock fallback). If it cannot run, the user gets a clear error naming the model, the cause and the fix.
+4. **Two runtimes, one behavior.** An embedding model runs either through an **API** (any endpoint: OpenAI, Ollama, LM Studio, vLLM, Azure and other OpenAI-compatible servers, plus Google's native Gemini format) or through **ONNX** locally (Frente C; this plan only reserves the variant). There is no per-vendor code path beyond the request format. The active model is the model: it is never swapped silently (no OpenAI fallback, no mock fallback). If it cannot run (missing key, unreachable endpoint, missing weights), the user gets a clear error naming the model, the cause and the fix.
 5. **Migration runs when a workspace is opened**, in the background, and the user is warned clearly when changing the model (what is reindexed, when, how much).
 6. **If the old model of stale chunks can no longer run** (key removed, model shut down), opening the workspace runs the migration in the foreground with progress, and the workspace answers only when it finishes (option (a)).
 7. **Disk**: one active table per vector dimension. A second table exists only while a model change to another dimension is migrating; rows move file by file and the old table is dropped and compacted at the end.
 
+8. **The dimension is measured, not catalogued.** When a model is configured, one probe embedding measures its vector size, which is stored with the configuration. Any model of any size works without a catalog.
+9. **Gemini keeps its native adapter** (`batchEmbedContents` with `outputDimensionality`), selected by the request format `gemini` of the API runtime (decided by the user; Google's OpenAI-compatible endpoint was not adopted).
+
 **Decisions with alternatives (ADRs).**
-- **ADR-0149 Application-wide embedding model with per-chunk model metadata** (supersedes ADR-0138, amends ADR-0132 and ADR-110). Alternatives: per-workspace record and full workspace reindex (ADR-0138, current), per-workspace model (FEAT-005 original), one permanent table per model (rejected for disk use).
+- **ADR-0149 Application-wide embedding model with per-chunk model metadata** (supersedes ADR-0138, amends ADR-0132 and ADR-110). Covers the two runtimes, the configuration (endpoint, format, model, measured dimension) and the model key. Alternatives: per-workspace record and full workspace reindex (ADR-0138, current), per-workspace model (FEAT-005 original), one permanent table per model (rejected for disk use), a fixed provider list (current resolver, rejected: blocks every other OpenAI-compatible endpoint), Gemini through Google's OpenAI-compatible endpoint (rejected by the user; native adapter kept).
 - **ADR-0150 Vector tables keyed by dimension, dual-model query during a migration.** Alternatives: zero-padding everything to 1536 (option A, rejected: storage waste, 1536 cap), one table per workspace (option C, rejected: largest migration), BM25 for unmigrated files (rejected by rule 3).
 
 ## 2. Design (`software-design`)
@@ -82,10 +89,12 @@ Hexagonal style: the core owns the rules, storage is an adapter, CLI and TUI onl
 ### 2.1 Where each piece lives
 | Piece | Location | Responsibility |
 |---|---|---|
-| `EmbeddingModel` (renamed from `EmbeddingTarget`, same `provider/model` key) + `dimension()` | `core/ingestion/embedding.rs` | Identity and native size of a model, from a small catalog (OpenAI `text-embedding-3-small` 1536, Gemini `gemini-embedding-2` 1536 as requested by the adapter, Ollama `nomic-embed-text` 768, mock 1536 for tests). |
-| `resolve_active_embedding(db)` | `core/ingestion/embedding.rs` | Reads the global setting and builds the provider, or returns `EmbeddingUnavailable { model, reason, fix }`. Replaces `resolve_embedding_provider` and `resolve_query_embedding_provider`; no chat-model derivation, no fallback chain. `ACTX_EMBEDDING_MODEL` keeps overriding the setting (tests, CI). |
+| `EmbeddingConfig { runtime, model, dimension }` with `runtime = Api { format: OpenAi \| Gemini, base_url, key_name: Option } \| Onnx { .. }` (replaces `EmbeddingTarget`) | `core/ingestion/embedding.rs` | The configured model. `key()` = `<model>#<dimension>` (for example `text-embedding-3-small#1536`, `nomic-embed-text#768`): the vector-space identity written on every chunk. The endpoint is deliberately left out of the key, so moving the same model to another URL or port does not reindex. |
+| Presets | `core/ingestion/embedding.rs` | Shortcuts that only fill an `EmbeddingConfig`: `openai` (`https://api.openai.com/v1`, `text-embedding-3-small`, key `openai`), `gemini` (format `gemini`, `gemini-embedding-2`, key `gemini`, 1536 requested), `ollama` (`http://localhost:11434/v1`, `nomic-embed-text`, no key). Any other endpoint is configured with URL, model and optional key name. |
+| `probe_dimension(config)` | `core/ingestion/embedding.rs` | One embedding call on a fixed text when a model is configured; stores the measured length. The `gemini` format sends the configured `outputDimensionality` (1536 by default). |
+| `resolve_active_embedding(db)` | `core/ingestion/embedding.rs` | Reads the global setting and builds the provider with `actx_lm::providers::ProviderKind` (`CustomCompatible` for format `openai`, `Gemini` for format `gemini`), or returns `EmbeddingUnavailable { model, reason, fix }`. Replaces `resolve_embedding_provider`, `resolve_query_embedding_provider` and `build_provider`: no chat-model derivation, no fixed provider list, no fallback chain. `ACTX_EMBEDDING_MODEL` keeps overriding the setting (tests, CI) with a preset name. |
 | `EmbeddingMigration` | new `core/ingestion/embedding_migration.rs` | Stale detection per workspace, the open-time decision (none, background, foreground), and the per-file swap. Pure decision functions plus a thin runner over the orchestrator. |
-| Global setting `embedding_model` | `core/storage/sqlite.rs` (`app_settings`) | Single source of the active model. |
+| Global setting `embedding_model` (JSON of `EmbeddingConfig`; keys stay in the encrypted credential store, referenced by `key_name`) | `core/storage/sqlite.rs` (`app_settings`) | Single source of the active model. |
 | `embedding_model` per file in the stat cache | `core/storage/sqlite.rs` (`workspace_files` stat cache, new nullable column) | Fast counts of stale files without scanning LanceDB; written in the same step as the chunks. |
 | `embedding_model` column on every chunk | `core/storage/lancedb.rs` (nullable Utf8, added in place like the provenance columns) | Source of truth for which model built each vector; used as a filter in dense search. |
 | `table_for_dimension(dim)` | `core/storage/lancedb.rs` | `workspace_chunks` stays the 1536 table (no rewrite of existing data); other sizes use `workspace_chunks_d<dim>`. |
@@ -93,18 +102,20 @@ Hexagonal style: the core owns the rules, storage is an adapter, CLI and TUI onl
 | `/embed` command, warnings, migration status | `core/commands/engine.rs`; rendering in `actx-cli` (`tui/`, `cli/`) | Status, model change with confirmation, open-time trigger. |
 
 ### 2.2 Interfaces added or changed
-- `fn resolve_active_embedding(db) -> Result<(Arc<dyn LmProvider>, EmbeddingModel), EmbeddingUnavailable>`; callers: orchestrator `run`, `RetrievalPipeline` construction, `engine.rs` Global embedding, `/embed`.
-- `fn provider_for(db, &EmbeddingModel) -> Result<Arc<dyn LmProvider>, EmbeddingUnavailable>`: used for the old model during a migration.
+- `fn resolve_active_embedding(db) -> Result<(Arc<dyn LmProvider>, EmbeddingConfig), EmbeddingUnavailable>`; callers: orchestrator `run`, `RetrievalPipeline` construction, `engine.rs` Global embedding, `/embed`.
+- `fn provider_for(db, &EmbeddingConfig) -> Result<Arc<dyn LmProvider>, EmbeddingUnavailable>`: used for the old model during a migration. The settings keep the configuration of every model still present in chunks (`embedding_models_known`), so the old model's endpoint is known while stale chunks exist.
+- `async fn probe_dimension(provider, &EmbeddingConfig) -> Result<usize, EmbeddingUnavailable>`; caller: `/embed model`.
+- `GeminiProvider::with_output_dimensionality(n)`: the request size comes from the configuration instead of the `GEMINI_EMBEDDING_DIM` constant.
 - `NativeLanceStore`:
-  - `upsert_records(records, model: &EmbeddingModel)`: chooses the table from `model.dimension()`, writes the `embedding_model` column, and **rejects** a vector whose length differs from the dimension (no more padding or truncation).
-  - `search_vector_async(query, limit, workspace, filter, model: &EmbeddingModel)`: table by dimension plus `embedding_model = '<key>'` filter.
-  - `delete_file_rows_except(file_path, workspace, keep: &EmbeddingModel)`: removes the old-model rows of a file after its new rows are written, in every table.
+  - `upsert_records(records, model: &EmbeddingConfig)`: chooses the table from `model.dimension`, writes the `embedding_model` column, and **rejects** a vector whose length differs from the dimension (no more padding or truncation).
+  - `search_vector_async(query, limit, workspace, filter, model: &EmbeddingConfig)`: table by dimension plus `embedding_model = '<key>'` filter.
+  - `delete_file_rows_except(file_path, workspace, keep: &EmbeddingConfig)`: removes the old-model rows of a file after its new rows are written, in every table.
   - `ensure_embedding_model_column()`, `drop_table_if_empty(name)`, `optimize(table)` (compact and prune, used at the end of a migration).
 - `NativeConfigDb`: `get/set_embedding_model()`, `count_stale_files(workspace, active) -> usize`, `stale_files(workspace, active) -> Vec<String>`, `models_in_scope(workspaces) -> Vec<String>` (distinct models in the stat cache of the searched workspaces).
 - `EmbeddingMigration::on_open(workspace) -> OpenDecision { UpToDate, Background { files }, Foreground { files, reason } }`.
 - `SyncOptions.migrate_stale: bool`: a normal incremental pass that also re-embeds the stale files (set by the open-time trigger).
 - `CommandResult` gains `EmbeddingChangePreview { from, to, per_workspace: Vec<(name, files, chunks)>, estimated_tokens }` for the confirmation.
-- Removed: `decide_reindex`, `legacy_target`, `pending_reindex_notice`, `global_dense_enabled`, `GLOBAL_KNOWLEDGE_TARGET_SETTING`, `generate_fallback_vectors` (no pseudo-vectors are written any more), `GLOBAL_VECTOR_DIM`. `DEFAULT_VECTOR_DIM` is replaced by `EmbeddingModel::dimension()`.
+- Removed: `decide_reindex`, `legacy_target`, `pending_reindex_notice`, `global_dense_enabled`, `GLOBAL_KNOWLEDGE_TARGET_SETTING`, `generate_fallback_vectors` (no pseudo-vectors are written any more), `GLOBAL_VECTOR_DIM`. `DEFAULT_VECTOR_DIM` is replaced by `EmbeddingConfig::dimension`.
 
 ### 2.3 Data flow
 
@@ -146,13 +157,14 @@ No new crates. LanceDB 0.39 already supports several tables, nullable column add
 
 ### 2.6 Deliberately not abstracted
 - No per-workspace override hook (rule 1); the stat cache column keeps it possible later.
-- No generic "vector space" registry: the catalog of known models is a `match` in `EmbeddingModel::dimension()`; an unknown model id is rejected with the list of supported ones.
+- No model catalog: the dimension is measured once by the probe, and presets are plain constructors of `EmbeddingConfig`.
+- No per-vendor embedding adapters: the API runtime has two request formats (`openai`, `gemini`) because those are the two wire formats in use; a new OpenAI-compatible server needs only configuration.
 - No migration scheduler or queue: the existing `spawn_sync_worker` runs the background pass.
 
 ## 3. Affected surfaces and files
 
 **Surfaces** (`cli`, `tui`):
-- New `/embed` (status: active model, dimension, table, stale files per workspace, migration progress) and `/embed model <id>` (preview and confirmation). CLI: `actx embed` and `actx embed model <id> [--yes]`.
+- New `/embed` (status: runtime, endpoint, model, measured dimension, table, stale files per workspace, migration progress) and `/embed model <preset>` or `/embed model --url <base_url> --model <name> [--key <key name>] [--format openai|gemini]` (probe, preview and confirmation). CLI: `actx embed` and `actx embed model ... [--yes]` with the same arguments.
 - `/model` no longer warns about reindexing; it changes only the chat model.
 - TUI: badge with the active embedding model; workspace menu marks workspaces with stale files ("reindex pending: n files"); progress line during background and foreground migrations.
 - First run and upgrade: one notice with the chosen global model.
@@ -163,13 +175,15 @@ No new crates. LanceDB 0.39 already supports several tables, nullable column add
 - `crates/any-context-core-rs/src/retrieval/pipeline.rs`
 - `crates/any-context-core-rs/src/commands/engine.rs` (commands, workspace switch hook)
 - `crates/actx-cli/src/engine.rs` (Global embedding), `tui/app.rs`, `tui/` widgets, `cli/` subcommands
-- `crates/actx-lm/src/providers/gemini.rs` (doc comment only: 1536 is the adapter's requested size, no longer tied to the table)
+- `crates/actx-lm/src/providers/gemini.rs` (output dimensionality from the configuration, default 1536)
 - Tests: `crates/any-context-core-rs/tests/orchestrator_tests.rs`, unit tests in the files above
 
 ## 4. Tests (`quality-assurance`)
 
 **Automated (all under `cargo test --workspace`, deterministic, temp dirs, scripted embedders with chosen dimensions):**
 - Regression for BUG-021: a 768-dimension workspace is found by dense search (`dense_score` set, outcome `Dense`); fails on today's code.
+- `EmbeddingConfig`: presets fill the expected endpoint, format, model and key; `key()` ignores the endpoint; a custom OpenAI-compatible endpoint (local test server) is probed and its measured dimension stored; a probe failure leaves the active model unchanged and reports the cause.
+- The `openai` format reaches any base URL through the same code path (`CustomCompatible`); the `gemini` format sends the configured `outputDimensionality`.
 - `upsert_records` rejects a vector of the wrong length; writes to `workspace_chunks` for 1536 and `workspace_chunks_d768` for 768; writes the `embedding_model` column.
 - Legacy table gains `embedding_model` in place; backfill from `workspaces.embedding_target` and the legacy rule; rows of `mock/mock-embed` count as stale.
 - Stale detection counts only files whose model differs; `on_open` returns `UpToDate`, `Background` or `Foreground` for the three cases.
@@ -187,7 +201,8 @@ No new crates. LanceDB 0.39 already supports several tables, nullable column add
   - MT-EMB-001: Changing the embedding model shows the preview and changes nothing until confirmed.
   - MT-EMB-002: Opening a workspace after a model change migrates it in the background and answers with dense results meanwhile.
   - MT-EMB-003: With the old model unavailable, opening the workspace migrates it in the foreground before answering.
-  - MT-EMB-004: An Ollama workspace (768) answers with dense results (BUG-021).
+  - MT-EMB-004: A model with a dimension other than 1536 (Ollama `nomic-embed-text`, 768) answers with dense results (BUG-021).
+  - MT-EMB-007: A custom OpenAI-compatible endpoint (for example LM Studio) is configured with URL and model, its dimension is measured and shown by `/embed`.
   - MT-EMB-005: Without a key for the active model, sync and questions show the error and the fix, never a BM25-only answer.
   - MT-EMB-006: Upgrading from v0.45.x keeps every workspace queryable and reports the chosen global model.
 - Update **MT-SYNC-007** (Gemini workspace from an older version) to the per-file migration.
@@ -221,13 +236,13 @@ No new crates. LanceDB 0.39 already supports several tables, nullable column add
 - **Data migration (additive, at first start of v0.46.0):**
   1. Add the nullable `embedding_model` column to `workspace_chunks` and to the stat cache.
   2. Choose the global model: the target recorded by the most chunks across workspaces; ties or none resolve from the current default chat model as today. Show it once to the user.
-  3. Backfill each workspace's rows and stat cache from `workspaces.embedding_target` (legacy rule for unrecorded ones); `Global` from `global_knowledge_embedding_target`.
+  3. Backfill each workspace's rows and stat cache from `workspaces.embedding_target` (legacy rule for unrecorded ones); `Global` from `global_knowledge_embedding_target`. Old keys map to the new form: `openai/text-embedding-3-small` → `text-embedding-3-small#1536`, `gemini/gemini-embedding-2` → `gemini-embedding-2#1536`, `ollama/nomic-embed-text` → `nomic-embed-text#768`; `gemini/text-embedding-004` and `mock/mock-embed` map to keys that never match an active model, so those files are stale. The matching presets become the known configurations of the old models.
   4. Workspaces on another model become stale and migrate when opened (rules 5 and 6). Ollama rows padded in the 1536 table are stale and move to `workspace_chunks_d768` when migrated, if Ollama is the global model.
   5. `workspaces.embedding_target` and `global_knowledge_embedding_target` are left in place (not dropped) for rollback.
 - **Rollback:** reverting to v0.45.x keeps working for every 1536 workspace (the table and its rows are unchanged, the extra column is ignored). Rows already moved to another dimension table are invisible to v0.45.x; the release notes say to run `actx sync --force` on those workspaces after a downgrade. Code rollback is a revert pull request on `main` and the next patch release.
 
 ## 8. Execution steps and milestones
-- **M1 Global model and per-chunk metadata:** global setting and resolver without fallbacks, `EmbeddingModel::dimension()`, `embedding_model` columns, data migration and backfill, `/model` decoupled. Tests for resolver, migration and backfill.
+- **M1 Global model and per-chunk metadata:** `EmbeddingConfig` with the API and ONNX runtimes, presets, dimension probe, global setting and resolver without a provider list or fallbacks, `embedding_model` columns, data migration and backfill, `/model` decoupled. Tests for configuration, resolver, migration and backfill.
 - **M2 Tables by dimension:** `table_for_dimension`, strict vector length, BUG-021 regression test, Global and ingestion writers on the active model.
 - **M3 File-level migration:** stale detection, per-file swap, `on_open` decision, background worker and foreground path, table drop and compaction at the end.
 - **M4 Multi-model query and no BM25-only answers:** `models_in_scope`, dual-model dense search with RRF, error answers for unavailable models and failed query embeddings.
@@ -248,8 +263,9 @@ Each milestone is a commit series on `feat/global-embedding-model` (from `dev`),
 - `build_record_batch` silently zero-pads shorter vectors and truncates longer ones to 1536.
 - Writers hard-code 1536: `ingestion/orchestrator.rs` (upsert and offline fallback vectors), `actx-cli/src/engine.rs` (`GLOBAL_VECTOR_DIM`), and Gemini requests `outputDimensionality: 1536` (`GEMINI_EMBEDDING_DIM`) to fit the table.
 - Providers: OpenAI `text-embedding-3-small` = 1536, Gemini `gemini-embedding-2` = 1536 (requested), Ollama `nomic-embed-text` = 768, mock = 1536. No local ONNX embedder yet (Frente C goal 1).
+- Transport: OpenAI and Ollama already share `actx_lm::providers::openai::OpenAiCompatibleProvider` (same `/embeddings` call; only base URL, key and model differ), like Groq, DeepSeek, OpenRouter and `CustomCompatible`. Gemini has its own adapter (native `batchEmbedContents`). The embedding resolver (`ingestion/embedding.rs`, `build_provider`) still hard-codes a provider list with fixed URLs and models, so no other OpenAI-compatible endpoint can be used for embeddings.
 
-### Defect found: dense search never works on Ollama workspaces (BUG-021)
+### Defect found: dense search never works when the model's dimension is not 1536 (BUG-021, seen with Ollama)
 - Chunk vectors (768) are zero-padded to 1536 on write, but the query vector is sent to `search_vector_async` unpadded.
 - LanceDB 0.39 rejects a query vector whose size matches no vector column ("No vector column found to match with the query vector dimension", its own test in `lancedb-0.39.0/src/query.rs`).
 - The pipeline drops the error (`if let Ok(matches) = ...`), so Ollama workspaces are answered by BM25 only while `last_query_embedding()` reports `Dense`.
