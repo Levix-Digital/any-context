@@ -27,13 +27,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: test_router_sub_microsecond_performance (crates/actx-agent/tests/router_tests.rs) asserts an average under 50 µs per ChatModelRouter evaluation, measured with wall-clock time in an unoptimized build. Under parallel test load it fails intermittently (54.4 µs observed; 1 of 3 isolated runs failed), so cargo test --workspace can go red without a code change.
 
-### BUG-019: Dense search ranks arbitrary chunks on the mock embedding target
-- **Severity**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-014/IMP-003 discovery
-- **Plan**: any_context_dense_search_ranks_arbitrary_chunks_on_constant_vectors
-- **Description**: Without an embedding key, resolve_embedding_provider falls back to MockLmProvider (target mock/mock-embed), whose embed returns the same constant vector (0.1 x 1536) for every text. Chunks indexed and queries embedded on that target are all at the same distance, so dense search returns an arbitrary candidate pool that RRF fuses with BM25: a rank-1 dense-only hit scores 1/61, above RRF_MIN_SCORE (0.005), so unrelated chunks can reach the prompt. Found while planning BUG-014/IMP-003; candidate fix: skip dense search on the mock target and report it as BM25-only.
-
 ## Features
 
 ### FEAT-001: actx profile install command
@@ -437,3 +430,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_embedding_failures_are_hidden_pseudo_vectors_at_ingestion_and_silent_bm25_only_queries
 - **Closed**: 2026-10-18, PR #363 (plan any_context_embedding_failures_are_hidden_pseudo_vectors_at_ingestion_and_silent_bm25_only_queries)
 - **Description**: NativeHybridPipeline::search_single_async discards the query embedding error (retrieval/pipeline.rs, '_ => None'), so a missing key or unsupported provider silently leaves only BM25. Keep the ADR-110 fallback but record the outcome (for example a last-status accessor like last_rerank_latency_ms) and surface it in the planned /embed status.
+
+### BUG-019: Dense search ranks arbitrary chunks on the mock embedding target
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-014/IMP-003 discovery
+- **Plan**: any_context_dense_search_ranks_arbitrary_chunks_on_constant_vectors
+- **Closed**: 2026-10-19, PR #365 (plan any_context_dense_search_ranks_arbitrary_chunks_on_constant_vectors)
+- **Description**: Without an embedding key, resolve_embedding_provider falls back to MockLmProvider (target mock/mock-embed), whose embed returns the same constant vector (0.1 x 1536) for every text. Chunks indexed and queries embedded on that target are all at the same distance, so dense search returns an arbitrary candidate pool that RRF fuses with BM25: a rank-1 dense-only hit scores 1/61, above RRF_MIN_SCORE (0.005), so unrelated chunks can reach the prompt. Found while planning BUG-014/IMP-003; candidate fix: skip dense search on the mock target and report it as BM25-only.
