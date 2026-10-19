@@ -58,9 +58,15 @@ Plan for IMP-004 (`dev-cycle-protocol` Phases 1 and 2). Business rules decided w
 - **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
 - **Description**: storage/lancedb.rs fixes DEFAULT_VECTOR_DIM = 1536 and ingestion writes every table with it, while Gemini (768), Ollama nomic-embed-text (768) and local ONNX embedders (384/768) produce other sizes. Store model and dimension per workspace/table, detect divergence and offer assisted reindex. First LanceDB schema change since C0: needs migration and rollback; combine with the Frente D parent_id change (roadmap 2.2 goal 4).
 
-### Delivered by this plan, pending the user's promotion
-- **FEAT-005** (high): embedding model independent of the chat model, with stale-workspace status. This plan implements it with the per-chunk rule below instead of a per-workspace record.
-- **BUG-021** (high): dense search never runs when the embedding model's dimension is not 1536 (seen with Ollama `nomic-embed-text`, 768). Fixed by milestone M2 (native-size vectors and no silent padding).
+### Related items, kept separate (user's decision, 2026-10-19)
+FEAT-005 and BUG-021 stay as their own backlog items and are not promoted into this plan.
+- **FEAT-005** (high): embedding model independent of the chat model, with stale-workspace status. This plan's rules 1 and 5 overlap with it.
+- **BUG-021** (high): dense search never runs when the embedding model's dimension is not 1536 (seen with Ollama `nomic-embed-text`, 768). Milestone M2 (native-size vectors and no silent padding) removes its cause.
+- Gate 3 blocks this plan while BUG-021 is open and outside it. The session that executes the plan asks the user how to proceed (fix BUG-021 first, or run the gate with `--accept-open-bugs` and the user's reason).
+
+### Behavior changes confirmed by the user (2026-10-19)
+- A failed query embedding (network, rate limit, server error) is retried once and then answered with an error; there is no BM25-only fallback.
+- Without a usable key or endpoint for the active model, sync and questions show the error and the fix; the mock provider is never used outside tests.
 
 ## 1. Goal and decisions
 
