@@ -5,7 +5,7 @@
 //! batched vector embedding (a failed call fails the file for retry), Okapi BM25 inverted index updates,
 //! and atomic SQLite telemetry. Zero Python dependencies.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -14,7 +14,7 @@ use std::time::Instant;
 
 use sha2::{Digest, Sha256};
 
-use crate::ingestion::embedding::{decide_reindex, resolve_embedding_provider, EmbeddingTarget, ReindexDecision};
+use crate::ingestion::embedding::{resolve_embedding, EmbeddingConfig, EmbeddingUnavailable};
 use crate::ingestion::enricher::NativeContextualEnricher;
 use crate::ingestion::model_router::IngestionModelRouter;
 use crate::ingestion::router::IngestionRouter;
@@ -128,7 +128,7 @@ pub struct SyncOptions {
     pub target_folder: Option<String>,
     /// Verbose logging output
     pub verbose: bool,
-    /// Explicit model or provider override
+    /// Embedding preset that replaces the application-wide model for this pass (tests, CI)
     pub model: Option<String>,
 }
 
@@ -162,11 +162,13 @@ pub struct SyncResult {
     pub cancelled: bool,
     /// Chunks indexed before encryption at rest that this pass encrypted in place.
     pub chunks_encrypted_legacy: usize,
-    /// Set when the embedding target changed and the whole workspace was reindexed (ADR-0138).
+    /// Set when files embedded with another model than the active one were re-embedded
+    /// (ADR-0149).
     pub embedding_reindex: Option<String>,
     /// Files and pages whose embedding or upsert failed; the next sync retries them (ADR-0146).
     pub embedding_failures: usize,
-    /// The provider breaker of this pass opened, so later embedding calls were skipped.
+    /// The embedding model cannot run, or the provider breaker of this pass opened, so
+    /// embedding calls were skipped.
     pub embedding_provider_unavailable: bool,
 }
 
@@ -189,7 +191,7 @@ pub struct NativeSyncOrchestrator {
     scanner: WorkspaceScanner,
     lance_store: Arc<NativeLanceStore>,
     db: Arc<NativeConfigDb>,
-    /// Test seam: replaces the resolved embedding provider (the target stays the resolved one).
+    /// Test seam: replaces the resolved embedding provider (the model stays the resolved one).
     embedding_override: Option<Arc<dyn LmProvider>>,
 }
 
@@ -284,9 +286,9 @@ impl NativeSyncOrchestrator {
         // Rows indexed before every write was encrypted are encrypted in place (ADR-0135).
         // A failure is reported in the result and retried on the next pass.
         let mut legacy_encryption_errors = Vec::new();
-        // Tables created before ADR-0142 get the nullable provenance columns in place; old rows
-        // keep null provenance until their file changes or a forced sync.
-        let provenance_columns_added = match self.lance_store.ensure_provenance_columns(None) {
+        // Tables created by older versions get the nullable columns of this version in place
+        // (provenance, ADR-0142; embedding model, ADR-0149); old rows keep nulls until rewritten.
+        let columns_added = match self.lance_store.ensure_added_columns(None) {
             Ok(added) => added,
             Err(e) => {
                 legacy_encryption_errors.push(e);
@@ -301,25 +303,44 @@ impl NativeSyncOrchestrator {
             }
         };
 
-        // 1b. Embedding target: vectors from another target than the current one are purged and
-        // the whole workspace is re-embedded, even for a folder-scoped pass (ADR-0138).
-        let (mut lm_provider, embedding_target) = resolve_embedding_provider(&self.db, options.model.as_deref(), ws);
+        // Rows written before ADR-0149 get the embedding model that built them, once.
+        let chunk_models_backfilled =
+            match crate::ingestion::embedding_migration::backfill_chunk_models(&self.db, &self.lance_store) {
+                Ok(rows) => rows,
+                Err(e) => {
+                    legacy_encryption_errors.push(format!("Recording the embedding model of stored chunks failed: {e}"));
+                    0
+                }
+            };
+
+        // 1b. The application-wide embedding model (ADR-0149). When it cannot run, the pass stops
+        // before anything is embedded: there is no fallback model and no pseudo-vector.
+        let (mut lm_provider, embedding) = match resolve_embedding(&self.db, options.model.as_deref()) {
+            Ok(resolved) => resolved,
+            Err(unavailable) => {
+                return Ok(self.stop_unavailable(ws, &unavailable, legacy_encryption_errors, chunks_encrypted_legacy, start_time));
+            }
+        };
         if let Some(ref provider) = self.embedding_override {
-            lm_provider = Some(provider.clone());
+            lm_provider = provider.clone();
         }
-        let embedding_model = embedding_target.model.clone();
-        let reindex = self.decide_embedding_reindex(ws, &embedding_target);
-        let embedding_reindex = reindex.message();
-        let full_reindex = matches!(reindex, ReindexDecision::Reindex { .. });
-        let force = options.force || full_reindex;
-        let target_folder = if full_reindex { None } else { options.target_folder.clone() };
-        if let Some(ref msg) = embedding_reindex {
-            let _ = self.db.update_sync_status(ws, true, Some(pid), 0, 0, "scanning", Some(msg), None);
-        }
+        let embedding_key = embedding.key();
+        // Files embedded with another model are re-embedded file by file; a folder-scoped pass
+        // re-embeds those of its folder.
+        let stale_files: HashSet<String> = if options.force {
+            HashSet::new()
+        } else {
+            self.db.stale_files(ws, &embedding_key).unwrap_or_default().into_iter().collect()
+        };
+        let force = options.force;
+        let target_folder = options.target_folder.clone();
 
         if options.verbose {
-            if provenance_columns_added {
-                println!("🧭 LanceDB: added provenance columns header_path, start_line, end_line.");
+            if columns_added {
+                println!("🧭 LanceDB: added the nullable columns header_path, start_line, end_line and embedding_model.");
+            }
+            if chunk_models_backfilled > 0 {
+                println!("🧭 Recorded the embedding model of {} chunks indexed by an older version.", chunk_models_backfilled);
             }
             if chunks_encrypted_legacy > 0 {
                 println!("🔒 Encrypted {} chunks stored before encryption at rest.", chunks_encrypted_legacy);
@@ -327,9 +348,7 @@ impl NativeSyncOrchestrator {
             println!("🦀 [AnyContext Native Rust Ingestion Pipeline]");
             println!("  • Workspace: {}", ws);
             println!("  • Force Reindex: {}", force);
-            if let Some(ref msg) = embedding_reindex {
-                println!("  • {}", msg);
-            }
+            println!("  • Embedding model: {}", embedding.describe());
             if let Some(ref tf) = target_folder {
                 println!("  • Scoped Folder: {}", tf);
             }
@@ -376,11 +395,16 @@ impl NativeSyncOrchestrator {
             }
         }
 
-        // 6. Query cached metadata from SQLite
+        // 6. Query cached metadata from SQLite. A folder-scoped pass compares its folder only:
+        // the files of the other folders are not on the scanned disk but are not deleted.
         let cached_stats = if force {
             HashMap::new()
         } else {
-            self.db.get_workspace_files_stat_cache(ws).unwrap_or_default()
+            let mut cached = self.db.get_workspace_files_stat_cache(ws).unwrap_or_default();
+            if let Some(ref tf) = target_folder {
+                cached.retain(|path, _| crate::ingestion::scanner::is_within_folder(path, tf));
+            }
+            cached
         };
 
         // 7. High-speed multi-folder filesystem scan and differential calculation
@@ -428,6 +452,33 @@ impl NativeSyncOrchestrator {
             }
         }
 
+        // 11b. Unchanged files embedded with another model: purged and re-embedded like modified ones.
+        let mut stale_on_disk: Vec<String> = diff
+            .disk_files
+            .keys()
+            .filter(|p| stale_files.contains(*p) && !files_to_index.contains(*p))
+            .cloned()
+            .collect();
+        stale_on_disk.sort();
+        for stale_p in &stale_on_disk {
+            let _ = self.lance_store.delete_by_file(stale_p, Some(ws), None);
+            let _ = bm25.remove_by_file(stale_p);
+        }
+        files_to_index.extend(stale_on_disk.iter().cloned());
+        let embedding_reindex = (!stale_on_disk.is_empty()).then(|| {
+            format!(
+                "Embedding model changed: {} file(s) embedded with another model are re-embedded with {}.",
+                stale_on_disk.len(),
+                embedding_key
+            )
+        });
+        if let Some(ref msg) = embedding_reindex {
+            let _ = self.db.update_sync_status(ws, true, Some(pid), 0, 0, "scanning", Some(msg), None);
+            if options.verbose {
+                println!("  • {}", msg);
+            }
+        }
+
         let web_urls = if target_folder.is_none() {
             self.db.get_workspace_web_urls(ws).unwrap_or_default()
         } else {
@@ -466,7 +517,6 @@ impl NativeSyncOrchestrator {
                     println!("✔ Workspace '{}' synchronized: {} files purged.", ws, diff.deleted_files.len());
                 }
             }
-            self.record_embedding_target(ws, &reindex, &embedding_target);
             return Ok(SyncResult {
                 workspace: ws.to_string(),
                 is_up_to_date: diff.is_up_to_date,
@@ -583,7 +633,7 @@ impl NativeSyncOrchestrator {
                 total_documents_enriched_ai += 1;
                 let ai_chunks = self.model_router.process_document_ai_candidates(
                     ai_candidates,
-                    lm_provider.as_ref(),
+                    Some(&lm_provider),
                 ).await;
                 approved_chunks.extend(ai_chunks);
             }
@@ -595,7 +645,7 @@ impl NativeSyncOrchestrator {
 
             if chunks.is_empty() {
                 // File was empty, whitespace, or filtered as noise; record in SQLite cache so it doesn't get repeatedly checked
-                let _ = self.db.upsert_file_stat_cache(ws, file_path, mtime, size, Some(&content_hash));
+                let _ = self.db.upsert_file_stat_cache(ws, file_path, mtime, size, Some(&content_hash), Some(&embedding_key));
                 indexed_count += 1;
                 continue;
             }
@@ -619,14 +669,14 @@ impl NativeSyncOrchestrator {
                 &content_hash,
                 mtime,
                 &lm_provider,
-                &embedding_model,
+                &embedding,
                 &mut bm25,
                 &mut breaker,
             ).await {
                 Ok(num_chunks) => {
                     total_chunks_created += num_chunks;
                     indexed_count += 1;
-                    let _ = self.db.upsert_file_stat_cache(ws, file_path, mtime, size, Some(&content_hash));
+                    let _ = self.db.upsert_file_stat_cache(ws, file_path, mtime, size, Some(&content_hash), Some(&embedding_key));
                 }
                 Err(e) => {
                     let err_msg = format!("Embedding/upsert error on '{}': {}", file_path, e);
@@ -644,7 +694,7 @@ impl NativeSyncOrchestrator {
                 pid,
                 &enricher,
                 &lm_provider,
-                &embedding_model,
+                &embedding,
                 &mut bm25,
                 &mut breaker,
                 options.verbose,
@@ -692,8 +742,6 @@ impl NativeSyncOrchestrator {
             );
         }
 
-        self.record_embedding_target(ws, &reindex, &embedding_target);
-
         Ok(SyncResult {
             workspace: ws.to_string(),
             is_up_to_date: false,
@@ -726,8 +774,8 @@ impl NativeSyncOrchestrator {
         file_name: &str,
         content_hash: &str,
         mtime: f64,
-        lm_provider: &Option<Arc<dyn LmProvider>>,
-        embedding_model: &str,
+        lm_provider: &Arc<dyn LmProvider>,
+        embedding: &EmbeddingConfig,
         bm25: &mut BM25Index,
         breaker: &mut EmbedBreaker,
     ) -> Result<usize, EmbedFailure> {
@@ -767,28 +815,25 @@ impl NativeSyncOrchestrator {
         }
 
         // 2. Generate Dense Embeddings. A failed call fails the file: no pseudo-vectors are
-        // stored next to real ones (ADR-0146). Without a provider, the offline fallback stays.
-        let vectors = if let Some(provider) = lm_provider {
-            if breaker.is_open() {
-                return Err(EmbedFailure::Skipped);
+        // stored next to real ones (ADR-0146).
+        if breaker.is_open() {
+            return Err(EmbedFailure::Skipped);
+        }
+        let vectors = match embed_with_retry(lm_provider, &embedding.model, &chunk_texts).await {
+            Ok(v) if v.len() == chunks.len() => {
+                breaker.record_success();
+                v
             }
-            match embed_with_retry(provider, embedding_model, &chunk_texts).await {
-                Ok(v) if v.len() == chunks.len() => {
-                    breaker.record_success();
-                    v
-                }
-                Ok(v) => {
-                    breaker.record_failure(false);
-                    return Err(EmbedFailure::ShortAnswer { expected: chunks.len(), got: v.len() });
-                }
-                Err(e) => {
-                    breaker.record_failure(matches!(e, LmError::Auth { .. }));
-                    return Err(EmbedFailure::Provider(e));
-                }
+            Ok(v) => {
+                breaker.record_failure(false);
+                return Err(EmbedFailure::ShortAnswer { expected: chunks.len(), got: v.len() });
             }
-        } else {
-            generate_fallback_vectors(&chunk_texts, DEFAULT_VECTOR_DIM)
+            Err(e) => {
+                breaker.record_failure(matches!(e, LmError::Auth { .. }));
+                return Err(EmbedFailure::Provider(e));
+            }
         };
+        let embedding_key = embedding.key();
 
         // 3. Assemble VectorRecords for LanceDB, with the chunk provenance (ADR-0142)
         let file_lines = self.router.has_file_lines(file_path);
@@ -817,6 +862,7 @@ impl NativeSyncOrchestrator {
                 header_path: c.header_path.clone().filter(|h| !h.trim().is_empty()),
                 start_line,
                 end_line,
+                embedding_model: Some(embedding_key.clone()),
             });
         }
 
@@ -835,8 +881,8 @@ impl NativeSyncOrchestrator {
         workspace: &str,
         pid: u32,
         enricher: &NativeContextualEnricher,
-        lm_provider: &Option<Arc<dyn LmProvider>>,
-        embedding_model: &str,
+        lm_provider: &Arc<dyn LmProvider>,
+        embedding: &EmbeddingConfig,
         bm25: &mut BM25Index,
         breaker: &mut EmbedBreaker,
         verbose: bool,
@@ -883,7 +929,7 @@ impl NativeSyncOrchestrator {
                     workspace,
                     enricher,
                     lm_provider,
-                    embedding_model,
+                    embedding,
                     bm25,
                     breaker,
                 ).await {
@@ -903,8 +949,8 @@ impl NativeSyncOrchestrator {
         page: &crate::ingestion::crawler::CrawledPage,
         workspace: &str,
         enricher: &NativeContextualEnricher,
-        lm_provider: &Option<Arc<dyn LmProvider>>,
-        embedding_model: &str,
+        lm_provider: &Arc<dyn LmProvider>,
+        embedding: &EmbeddingConfig,
         bm25: &mut BM25Index,
         breaker: &mut EmbedBreaker,
     ) -> Result<bool, String> {
@@ -917,9 +963,13 @@ impl NativeSyncOrchestrator {
         hasher.update(page.text.as_bytes());
         let hash_hex = format!("{:x}", hasher.finalize());
 
-        // Unchanged page: its chunks are already indexed under this URL and content hash.
+        // Unchanged page: its chunks are already indexed under this URL and content hash, with
+        // the active embedding model (a page of another model is re-embedded, ADR-0149).
         let clean_url = page.url.replace('\'', "''");
-        let unchanged_clause = format!("file_path = '{clean_url}' AND content_hash = '{hash_hex}'");
+        let clean_model = embedding.key().replace('\'', "''");
+        let unchanged_clause = format!(
+            "file_path = '{clean_url}' AND content_hash = '{hash_hex}' AND embedding_model = '{clean_model}'"
+        );
         let already_indexed = self
             .lance_store
             .search_metadata_async(&unchanged_clause, 1, Some(workspace), None)
@@ -958,33 +1008,34 @@ impl NativeSyncOrchestrator {
             &hash_hex,
             page_mtime,
             lm_provider,
-            embedding_model,
+            embedding,
             bm25,
             breaker,
         ).await.map_err(|e| e.to_string())?;
         Ok(true)
     }
 
-    /// Decides whether the workspace's stored vectors match the current embedding target.
-    /// A workspace without a row in SQLite cannot record a target and is left as it is.
-    fn decide_embedding_reindex(&self, workspace: &str, current: &EmbeddingTarget) -> ReindexDecision {
-        let recorded = match self.db.get_workspace_embedding_target(workspace) {
-            Ok(Some(recorded)) => recorded,
-            _ => return ReindexDecision::Keep,
-        };
-        // A failed count is treated as indexed data, so a legacy target is never adopted blindly.
-        let has_indexed_data = self
-            .lance_store
-            .count_records(Some(workspace), None)
-            .map(|n| n > 0)
-            .unwrap_or(true);
-        decide_reindex(recorded.as_deref(), current, has_indexed_data)
-    }
-
-    /// Records the target once a pass completed, so a cancelled reindex is retried next time.
-    fn record_embedding_target(&self, workspace: &str, decision: &ReindexDecision, target: &EmbeddingTarget) {
-        if *decision != ReindexDecision::Keep {
-            let _ = self.db.set_workspace_embedding_target(workspace, Some(&target.key()));
+    /// Ends a pass whose embedding model cannot run: nothing is embedded, and the sync status
+    /// carries the model, the cause and the fix (ADR-0149).
+    fn stop_unavailable(
+        &self,
+        ws: &str,
+        unavailable: &EmbeddingUnavailable,
+        mut errors: Vec<String>,
+        chunks_encrypted_legacy: usize,
+        start_time: Instant,
+    ) -> SyncResult {
+        let message = unavailable.to_string();
+        let _ = self.db.update_sync_status(ws, false, None, 0, 0, "idle", None, Some(&message));
+        errors.push(message);
+        SyncResult {
+            workspace: ws.to_string(),
+            quality_pass_rate: 1.0,
+            errors,
+            duration_ms: start_time.elapsed().as_millis(),
+            chunks_encrypted_legacy,
+            embedding_provider_unavailable: true,
+            ..SyncResult::default()
         }
     }
 }
@@ -1002,27 +1053,6 @@ fn compute_file_sha256(path: &Path) -> std::io::Result<String> {
         hasher.update(&buffer[..count]);
     }
     Ok(format!("{:x}", hasher.finalize()))
-}
-
-/// Generates normalized deterministic pseudo-vectors when operating offline without API keys.
-fn generate_fallback_vectors(texts: &[String], dim: usize) -> Vec<Vec<f32>> {
-    texts
-        .iter()
-        .map(|t| {
-            let mut hasher = Sha256::new();
-            hasher.update(t.as_bytes());
-            let hash = hasher.finalize();
-
-            let mut vec = Vec::with_capacity(dim);
-            let hash_len = hash.len();
-            for i in 0..dim {
-                let byte = hash[i % hash_len];
-                let val = ((byte as f32 / 255.0) - 0.5) * 0.1;
-                vec.push(val);
-            }
-            vec
-        })
-        .collect()
 }
 
 /// Fast HTML tag stripper for web portal scraping without heavy external dependencies.
@@ -1081,6 +1111,15 @@ pub fn strip_html_tags(html: &str) -> String {
 mod tests {
     use super::*;
 
+    /// The mock embedding model of the tests and its provider.
+    fn mock_config() -> EmbeddingConfig {
+        EmbeddingConfig::preset("mock").unwrap()
+    }
+
+    fn mock_lm() -> Arc<dyn LmProvider> {
+        Arc::new(actx_lm::providers::mock::MockLmProvider::new())
+    }
+
     #[test]
     fn test_compute_file_sha256() {
         let temp = std::env::temp_dir().join(format!("test_sha_{}.txt", std::process::id()));
@@ -1088,16 +1127,6 @@ mod tests {
         let hash = compute_file_sha256(&temp).unwrap();
         assert_eq!(hash.len(), 64);
         let _ = std::fs::remove_file(temp);
-    }
-
-    #[test]
-    fn test_generate_fallback_vectors() {
-        let texts = vec!["hello world".to_string(), "any-context".to_string()];
-        let vecs = generate_fallback_vectors(&texts, 1536);
-        assert_eq!(vecs.len(), 2);
-        assert_eq!(vecs[0].len(), 1536);
-        assert_eq!(vecs[1].len(), 1536);
-        assert_ne!(vecs[0], vecs[1]);
     }
 
     #[test]
@@ -1136,6 +1165,7 @@ mod tests {
                 header_path: None,
                 start_line: None,
                 end_line: None,
+                embedding_model: None,
             }],
         );
         let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db);
@@ -1189,19 +1219,19 @@ mod tests {
 
         let v1 = "# Guide\n\nThe service listens on port 8080 and reads its configuration from settings.toml at startup.";
         let sub = "# Install\n\nRun the installer, then open a new terminal and start the application with actx.";
-        assert!(orchestrator.index_web_page(&page(child, sub), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
-        assert!(orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(child, sub), "WebWS", &enricher, &mock_lm(), &mock_config(), &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &mock_lm(), &mock_config(), &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
         let parent_chunks = count(parent);
         let child_chunks = count(child);
         assert!(parent_chunks > 0 && child_chunks > 0);
 
         // Same content again: skipped, nothing appended.
-        assert!(!orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
+        assert!(!orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &mock_lm(), &mock_config(), &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
         assert_eq!(count(parent), parent_chunks);
 
         // Changed content: old chunks replaced, and the sub-page under the same URL prefix is untouched.
         let v2 = "# Guide\n\nThe service now listens on port 9090 and reads its configuration from config.toml at startup.";
-        assert!(orchestrator.index_web_page(&page(parent, v2), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(parent, v2), "WebWS", &enricher, &mock_lm(), &mock_config(), &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
         let hits = lance_store
             .search_metadata(&format!("file_path = '{parent}'"), 1000, Some("WebWS"), None)
             .unwrap();
@@ -1251,8 +1281,8 @@ mod tests {
             "rank.rs",
             "mockhash123456",
             1000.0,
-            &None,
-            "mock",
+            &mock_lm(),
+            &mock_config(),
             &mut bm25,
             &mut EmbedBreaker::default(),
         ).await.unwrap();
@@ -1303,8 +1333,8 @@ mod tests {
                 &c.file_name,
                 "provhash1234567",
                 1000.0,
-                &None,
-                "mock",
+                &mock_lm(),
+                &mock_config(),
                 &mut bm25,
                 &mut EmbedBreaker::default(),
             )
@@ -1411,9 +1441,10 @@ mod tests {
         let mut bm25 = BM25Index::new(None, None);
         let file_path = chunks[0].file_path.clone();
         let file_name = chunks[0].file_name.clone();
-        let lm: Option<Arc<dyn LmProvider>> = Some(provider);
+        let lm: Arc<dyn LmProvider> = provider;
+        let mock = EmbeddingConfig::preset("mock").unwrap();
         let result = orchestrator
-            .embed_and_upsert_chunks(&chunks, None, &enricher, "Default", &file_path, &file_name, "failhash1234567", 1000.0, &lm, "scripted", &mut bm25, &mut EmbedBreaker::default())
+            .embed_and_upsert_chunks(&chunks, None, &enricher, "Default", &file_path, &file_name, "failhash1234567", 1000.0, &lm, &mock, &mut bm25, &mut EmbedBreaker::default())
             .await;
         let rows = lance_store.search_metadata("id <> ''", 100, Some("Default"), None).unwrap_or_default().len();
         let _ = std::fs::remove_dir_all(temp_dir);
@@ -1529,8 +1560,8 @@ mod tests {
             etag: None,
             content_type: None,
         };
-        let lm: Option<Arc<dyn LmProvider>> = Some(ScriptedEmbedder::new(EmbedBehavior::RateLimited));
-        let err = orchestrator.index_web_page(&page, "WebWS", &enricher, &lm, "scripted", &mut bm25, &mut EmbedBreaker::default()).await.unwrap_err();
+        let lm: Arc<dyn LmProvider> = ScriptedEmbedder::new(EmbedBehavior::RateLimited);
+        let err = orchestrator.index_web_page(&page, "WebWS", &enricher, &lm, &EmbeddingConfig::preset("mock").unwrap(), &mut bm25, &mut EmbedBreaker::default()).await.unwrap_err();
         assert!(err.contains("embedding failed"), "{err}");
         assert_eq!(lance_store.count_records(Some("WebWS"), None).unwrap_or(0), 0);
 

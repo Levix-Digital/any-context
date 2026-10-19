@@ -6,6 +6,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
+### BUG-022: Folder-scoped sync purges the other folders of the workspace
+- **Severity**: medium
+- **Status**: open
+- **Found**: 2026-10-19, IMP-004 M1, 2026-10-19
+- **Plan**: -
+- **Description**: A sync scoped to one folder compared the scanned folder against the stat cache of the whole workspace, so the cached files of the other folders were taken for deleted files: their LanceDB chunks, BM25 entries and stat cache rows were purged until the next full sync. The ADR-0138 full reindex hid it on target changes. Fixed in the IMP-004 branch: the scoped pass compares only the cached files inside its folder (regression test test_scoped_sync_keeps_the_other_folders).
+
 ## Features
 
 ### FEAT-001: actx profile install command

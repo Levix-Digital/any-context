@@ -812,7 +812,7 @@ impl CommandEngine {
             vec![]
         };
 
-        let reindex_note = crate::ingestion::pending_reindex_notice(&db, &ctx.active_workspace);
+        let reindex_note = crate::ingestion::stale_files_notice(&db, &ctx.active_workspace);
 
         match Self::spawn_sync_worker(&ctx.active_workspace, force, target_folder.as_deref()) {
             Ok((pid, log_path)) => {
@@ -1373,13 +1373,8 @@ impl CommandEngine {
             ""
         };
 
-        let reindex_note = db
-            .as_ref()
-            .and_then(|d| crate::ingestion::pending_reindex_notice(d, &ctx.active_workspace))
-            .map(|n| format!("\n⚠️ {}", n))
-            .unwrap_or_default();
-
-        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**{}{}{}", ctx.active_workspace, target, extra_note, hardware_badge, reindex_note))
+        // The chat model does not change the embedding model (ADR-0149): nothing is reindexed.
+        CommandResult::success(format!("🤖 Active language model for '{}' set to: **{}**{}{}", ctx.active_workspace, target, extra_note, hardware_badge))
             .with_action(CommandAction::RebuildAgent)
             .with_state_updates(updates)
     }

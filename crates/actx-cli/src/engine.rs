@@ -3,7 +3,7 @@ use actx_agent::{Agent, AgentExecutionMode, SearchMode};
 use actx_lm::providers::ProviderKind;
 use actx_lm::traits::LmProvider;
 use any_context_core_rs::storage::NativeConfigDb;
-use any_context_core_rs::ingestion::EmbeddingTarget;
+use any_context_core_rs::ingestion::EmbeddingConfig;
 use any_context_core_rs::retrieval::ContextFormatter;
 
 /// Provider and model chosen by `resolve_lm_provider`.
@@ -135,39 +135,36 @@ pub fn resolve_lm_provider(
     Ok(ResolvedLm { provider, model: model_name, configured, notice })
 }
 
-/// Query embedding of a workspace: the provider and the target whose vector space it uses.
+/// Query embedding: the provider and the application-wide model whose vector space it uses.
 #[derive(Clone)]
 pub struct QueryEmbedding {
     pub provider: Option<Arc<dyn LmProvider>>,
-    pub target: EmbeddingTarget,
-    /// `Global` was embedded with `target`, so its rows can take part in dense search.
+    /// The active embedding model; `None` when it cannot run.
+    pub config: Option<EmbeddingConfig>,
+    /// `Global` was embedded with `config`, so its rows can take part in dense search.
     pub global_dense: bool,
 }
 
 impl QueryEmbedding {
-    /// Sets a pipeline's query embedding (BUG-019): the mock target is searched by BM25 only, and
-    /// `Global` rows join dense search only when they share the target's vector space.
+    /// Sets a pipeline's query embedding (BUG-019): the mock model is searched by BM25 only, and
+    /// `Global` rows join dense search only when they share the model's vector space.
     pub fn apply(&self, pipeline: &mut any_context_core_rs::retrieval::NativeHybridPipeline) {
-        pipeline.set_query_embedding(self.provider.clone(), &self.target);
+        pipeline.set_query_embedding(self.provider.clone(), self.config.as_ref());
         pipeline.set_global_dense(self.global_dense);
     }
 }
 
-/// Query embedding: the target recorded by the last completed sync, or the resolution the sync
-/// worker uses for chunk vectors (ADR-0132, ADR-0138). No provider on the mock target.
-pub fn resolve_query_embedding(workspace: &str) -> QueryEmbedding {
-    match NativeConfigDb::open_default() {
-        Ok(db) => {
-            let (provider, target) = any_context_core_rs::ingestion::resolve_query_embedding_provider(&db, workspace);
-            let global_dense = any_context_core_rs::ingestion::global_dense_enabled(&db, &target);
-            QueryEmbedding { provider, target, global_dense }
-        }
-        Err(_) => QueryEmbedding {
-            provider: None,
-            target: EmbeddingTarget::new("openai", any_context_core_rs::retrieval::pipeline::DEFAULT_QUERY_EMBEDDING_MODEL),
-            global_dense: false,
-        },
-    }
+/// Query embedding with the application-wide model, the one the sync worker embeds chunks with
+/// (ADR-0132, ADR-0149).
+pub fn resolve_query_embedding(_workspace: &str) -> QueryEmbedding {
+    let unavailable = QueryEmbedding { provider: None, config: None, global_dense: false };
+    let Ok(db) = NativeConfigDb::open_default() else { return unavailable };
+    let Ok((provider, config)) = any_context_core_rs::ingestion::resolve_active_embedding(&db) else { return unavailable };
+    let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
+    let global_dense = any_context_core_rs::storage::NativeLanceStore::open(&lance_path)
+        .map(|lance_store| any_context_core_rs::ingestion::global_dense_enabled(&lance_store, &config))
+        .unwrap_or(false);
+    QueryEmbedding { provider: Some(provider), config: Some(config), global_dense }
 }
 
 /// Returns the cross-encoder selected in settings (default `mmarco-reranker`).
@@ -487,12 +484,17 @@ pub fn encrypt_legacy_chunks(lance_store: &any_context_core_rs::storage::NativeL
 /// chunks and indexes the embedded documentation and updates the BM25 index for zero-token self-knowledge.
 pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::storage::NativeLanceStore) {
     let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+    // Rows written before ADR-0149 get the embedding model that built them, once. A failure is
+    // retried and reported by the next sync.
+    if let Some(d) = db.as_ref() {
+        let _ = any_context_core_rs::ingestion::backfill_chunk_models(d, lance_store);
+    }
     bootstrap_global_knowledge(db.as_ref(), lance_store);
 }
 
 /// Writes the `Global` rows with placeholder vectors and their BM25 entries when they are missing
-/// or come from another version. The placeholders are kept out of dense search until a sync
-/// embeds them (BUG-019), so the recorded `Global` target is cleared after the rows are written.
+/// or come from another version. The placeholders record no embedding model, so they are kept
+/// out of dense search until a sync embeds them (BUG-019).
 fn bootstrap_global_knowledge(
     db: Option<&NativeConfigDb>,
     lance_store: &any_context_core_rs::storage::NativeLanceStore,
@@ -551,11 +553,9 @@ fn bootstrap_global_knowledge(
     }
     let _ = bm25.save_to_file(bm25_path.to_str().unwrap_or(""));
 
-    // 3. Persist current version to settings for transparent upgrades; the rows now hold
-    // placeholders, so no target is recorded for them.
+    // 3. Persist current version to settings for transparent upgrades.
     if let Some(d) = db {
         let _ = d.set_setting("global_knowledge_version", current_version);
-        let _ = d.set_setting(any_context_core_rs::ingestion::GLOBAL_KNOWLEDGE_TARGET_SETTING, "");
     }
 }
 
@@ -617,27 +617,27 @@ fn global_knowledge_records() -> Vec<any_context_core_rs::storage::VectorRecord>
                 header_path: Some(header),
                 start_line: None,
                 end_line: None,
+                embedding_model: None,
             });
         }
     }
     records
 }
 
-/// Embeds the `Global` rows with `target` and records it, so they take part in dense search for
-/// queries on that target (BUG-019). Returns `Ok(false)` when nothing had to be done: the mock
-/// target, `Global` already embedded with `target`, or the rows of this version not written yet
-/// (the next sync embeds them). On any error nothing is recorded and the placeholders stay.
+/// Embeds the `Global` rows with `config`, recording the model on each row, so they take part
+/// in dense search for queries on that model (BUG-019). Returns `Ok(false)` when nothing had to
+/// be done: the mock model, `Global` already embedded with `config`, or the rows of this version
+/// not written yet (the next sync embeds them). On any error the placeholders stay.
 pub async fn refresh_global_knowledge_vectors(
     db: &NativeConfigDb,
     lance_store: &any_context_core_rs::storage::NativeLanceStore,
     provider: Arc<dyn LmProvider>,
-    target: &EmbeddingTarget,
+    config: &EmbeddingConfig,
 ) -> Result<bool, String> {
-    use any_context_core_rs::ingestion::GLOBAL_KNOWLEDGE_TARGET_SETTING;
-    let setting = |key: &str| db.get_setting(key).ok().flatten();
-    if target.is_mock()
-        || setting(GLOBAL_KNOWLEDGE_TARGET_SETTING).as_deref() == Some(target.key().as_str())
-        || setting("global_knowledge_version").as_deref() != Some(env!("CARGO_PKG_VERSION"))
+    let current_version = db.get_setting("global_knowledge_version").ok().flatten();
+    if config.is_mock()
+        || any_context_core_rs::ingestion::global_dense_enabled(lance_store, config)
+        || current_version.as_deref() != Some(env!("CARGO_PKG_VERSION"))
     {
         return Ok(false);
     }
@@ -646,7 +646,7 @@ pub async fn refresh_global_knowledge_vectors(
     let texts: Vec<String> = records.iter().map(|r| r.text.clone()).collect();
     let mut vectors = Vec::with_capacity(texts.len());
     for batch in texts.chunks(GLOBAL_EMBED_BATCH) {
-        let answer = any_context_core_rs::ingestion::embed_with_retry(&provider, &target.model, batch)
+        let answer = any_context_core_rs::ingestion::embed_with_retry(&provider, &config.model, batch)
             .await
             .map_err(|e| e.to_string())?;
         if answer.len() != batch.len() {
@@ -659,12 +659,12 @@ pub async fn refresh_global_knowledge_vectors(
     }
     for (record, vector) in records.iter_mut().zip(vectors) {
         record.vector = vector;
+        record.embedding_model = Some(config.key());
     }
     // `upsert_records` appends, so the placeholders are removed first, once every vector is in
     // hand. If the insert then fails, the next startup bootstrap writes the placeholders again.
     lance_store.delete_by_workspace("Global", Some("workspace_chunks"))?;
     lance_store.upsert_records(records, Some("workspace_chunks"), Some(GLOBAL_VECTOR_DIM))?;
-    db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, &target.key()).map_err(|e| e.to_string())?;
     Ok(true)
 }
 
@@ -1137,12 +1137,22 @@ mod tests {
         (db, lance_store, dir)
     }
 
-    fn global_target(db: &NativeConfigDb) -> Option<String> {
-        db.get_setting(any_context_core_rs::ingestion::GLOBAL_KNOWLEDGE_TARGET_SETTING).unwrap().filter(|t| !t.is_empty())
+    /// The distinct embedding models recorded on the `Global` rows (`None` for placeholders).
+    fn global_models(lance_store: &any_context_core_rs::storage::NativeLanceStore) -> Vec<Option<String>> {
+        let mut models: Vec<Option<String>> = lance_store
+            .search_metadata("id <> ''", 10_000, Some("Global"), Some("workspace_chunks"))
+            .unwrap()
+            .into_iter()
+            .filter(|r| r.workspace == "Global")
+            .map(|r| r.embedding_model)
+            .collect();
+        models.sort();
+        models.dedup();
+        models
     }
 
-    fn openai() -> EmbeddingTarget {
-        EmbeddingTarget::new("openai", "text-embedding-3-small")
+    fn openai() -> EmbeddingConfig {
+        EmbeddingConfig::preset("openai").unwrap()
     }
 
     #[test]
@@ -1157,21 +1167,24 @@ mod tests {
             assert_eq!(r.workspace, "Global");
             assert!(r.text.starts_with("# "), "{}", r.text);
             assert!(r.vector.iter().all(|v| *v == 0.0) && r.vector.len() == GLOBAL_VECTOR_DIM, "placeholders");
+            assert_eq!(r.embedding_model, None, "placeholders record no embedding model");
         }
     }
 
-    #[test]
-    fn bootstrap_clears_the_global_target() {
+    #[tokio::test]
+    async fn bootstrap_writes_placeholders_without_a_model() {
         let (db, lance_store, dir) = global_fixture("bootstrap");
         let rows = lance_store.count_records(Some("Global"), Some("workspace_chunks")).unwrap();
         assert_eq!(rows, global_knowledge_records().len());
-        assert_eq!(global_target(&db), None);
+        assert_eq!(global_models(&lance_store), vec![None]);
 
-        // An older version's rows, embedded: the upgrade rewrites them as placeholders.
-        db.set_setting(any_context_core_rs::ingestion::GLOBAL_KNOWLEDGE_TARGET_SETTING, &openai().key()).unwrap();
+        // Rows embedded by an older version: the upgrade rewrites them as placeholders.
+        let provider: Arc<dyn LmProvider> = GlobalEmbedder::new(Ok(vec![0.5; GLOBAL_VECTOR_DIM]));
+        assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider, &openai()).await, Ok(true));
         db.set_setting("global_knowledge_version", "0.0.1").unwrap();
         bootstrap_global_knowledge(Some(&db), &lance_store);
-        assert_eq!(global_target(&db), None, "placeholders must not keep the old target");
+        assert_eq!(global_models(&lance_store), vec![None], "placeholders must not keep the old model");
+        assert!(!any_context_core_rs::ingestion::global_dense_enabled(&lance_store, &openai()));
         assert_eq!(db.get_setting("global_knowledge_version").unwrap().as_deref(), Some(env!("CARGO_PKG_VERSION")));
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1183,8 +1196,8 @@ mod tests {
         let provider: Arc<dyn LmProvider> = embedder.clone();
 
         assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider.clone(), &openai()).await, Ok(true));
-        assert_eq!(global_target(&db), Some(openai().key()));
-        assert!(any_context_core_rs::ingestion::global_dense_enabled(&db, &openai()));
+        assert_eq!(global_models(&lance_store), vec![Some(openai().key())]);
+        assert!(any_context_core_rs::ingestion::global_dense_enabled(&lance_store, &openai()));
         let expected_calls = global_knowledge_records().len().div_ceil(GLOBAL_EMBED_BATCH);
         assert_eq!(embedder.calls(), expected_calls);
 
@@ -1199,10 +1212,10 @@ mod tests {
         // Up to date: no call.
         assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider.clone(), &openai()).await, Ok(false));
         assert_eq!(embedder.calls(), expected_calls);
-        // Another target: embedded again.
-        let gemini = EmbeddingTarget::new("gemini", "gemini-embedding-2");
+        // Another model: embedded again.
+        let gemini = EmbeddingConfig::preset("gemini").unwrap();
         assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider, &gemini).await, Ok(true));
-        assert_eq!(global_target(&db), Some(gemini.key()));
+        assert_eq!(global_models(&lance_store), vec![Some(gemini.key())]);
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -1212,13 +1225,13 @@ mod tests {
         let embedder = GlobalEmbedder::new(Ok(vec![0.5; GLOBAL_VECTOR_DIM]));
         let provider: Arc<dyn LmProvider> = embedder.clone();
 
-        let mock = EmbeddingTarget::new("mock", "mock-embed");
+        let mock = EmbeddingConfig::preset("mock").unwrap();
         assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider.clone(), &mock).await, Ok(false));
         // Rows of this version not written yet: the bootstrap would overwrite them.
         db.set_setting("global_knowledge_version", "0.0.1").unwrap();
         assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider, &openai()).await, Ok(false));
         assert_eq!(embedder.calls(), 0);
-        assert_eq!(global_target(&db), None);
+        assert_eq!(global_models(&lance_store), vec![None]);
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -1228,7 +1241,7 @@ mod tests {
         let failing: Arc<dyn LmProvider> = GlobalEmbedder::new(Err(()));
         let err = refresh_global_knowledge_vectors(&db, &lance_store, failing, &openai()).await.unwrap_err();
         assert!(err.contains("invalid key"), "{err}");
-        assert_eq!(global_target(&db), None);
+        assert_eq!(global_models(&lance_store), vec![None]);
 
         let short: Arc<dyn LmProvider> = Arc::new(GlobalEmbedder {
             answer: Ok(vec![0.5; GLOBAL_VECTOR_DIM]),
@@ -1241,7 +1254,7 @@ mod tests {
         let wrong_size: Arc<dyn LmProvider> = GlobalEmbedder::new(Ok(vec![0.5; 768]));
         let err = refresh_global_knowledge_vectors(&db, &lance_store, wrong_size, &openai()).await.unwrap_err();
         assert!(err.contains("does not match"), "{err}");
-        assert_eq!(global_target(&db), None);
+        assert_eq!(global_models(&lance_store), vec![None]);
 
         // The placeholders stay, so Global stays out of dense search.
         let hits = lance_store

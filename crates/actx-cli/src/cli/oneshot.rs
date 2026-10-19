@@ -52,7 +52,8 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             force: args.force,
             target_folder: fld.map(|s| s.to_string()),
             verbose: true,
-            model: args.model.clone(),
+            // The chat model (`-m`) does not choose the embedding model (ADR-0149).
+            model: None,
         };
         match orchestrator.run(&options).await {
             Ok(res) => {
@@ -90,7 +91,8 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             force: args.force,
             target_folder: fld.map(|s| s.to_string()),
             verbose: true,
-            model: args.model.clone(),
+            // The chat model (`-m`) does not choose the embedding model (ADR-0149).
+            model: None,
         };
         match orchestrator.run(&options).await {
             Ok(res) => {
@@ -161,7 +163,8 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     force: *force,
                     target_folder: fld.map(|s| s.to_string()),
                     verbose: true,
-                    model: args.model.clone(),
+                    // The chat model (`-m`) does not choose the embedding model (ADR-0149).
+                    model: None,
                 };
                 match orchestrator.run(&options).await {
                     Ok(res) => {
@@ -652,9 +655,9 @@ fn sync_error_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<Str
     lines
 }
 
-/// Embeds AnyContext's own documentation (`Global`) with the default embedding target after a
-/// sync pass, so it is matched by meaning (BUG-019). Skipped when the pass was cancelled or its
-/// provider failed; a failure leaves it keyword-only until the next sync.
+/// Embeds AnyContext's own documentation (`Global`) with the application-wide embedding model
+/// after a sync pass, so it is matched by meaning (BUG-019). Skipped when the pass was cancelled
+/// or its model could not run; a failure leaves it keyword-only until the next sync.
 async fn refresh_global_knowledge(res: &any_context_core_rs::ingestion::SyncResult) {
     if res.cancelled || res.embedding_provider_unavailable {
         return;
@@ -662,11 +665,11 @@ async fn refresh_global_knowledge(res: &any_context_core_rs::ingestion::SyncResu
     let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() else { return };
     let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
     let Ok(lance_store) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) else { return };
-    let (Some(provider), target) = any_context_core_rs::ingestion::resolve_embedding_provider(&db, None, "Global") else {
+    let Ok((provider, config)) = any_context_core_rs::ingestion::resolve_active_embedding(&db) else {
         return;
     };
-    match crate::engine::refresh_global_knowledge_vectors(&db, &lance_store, provider, &target).await {
-        Ok(true) => println!("✔ AnyContext documentation embedded with {}.", target.key()),
+    match crate::engine::refresh_global_knowledge_vectors(&db, &lance_store, provider, &config).await {
+        Ok(true) => println!("✔ AnyContext documentation embedded with {}.", config.key()),
         Ok(false) => {}
         Err(e) => eprintln!("⚠ AnyContext documentation not embedded ({e}); it is found by keyword until the next sync."),
     }

@@ -407,6 +407,7 @@ fn test_inspect_transparent_decryption() {
         header_path: None,
         start_line: None,
         end_line: None,
+        embedding_model: None,
     };
 
     lance.upsert_records(vec![rec], Some("workspace_chunks"), Some(1536)).expect("upsert failed in test_inspect_transparent_decryption");
@@ -528,6 +529,15 @@ fn test_model_command_hardware_guardrail_and_force() {
     let res_cloud = CommandEngine::execute("model", &["gpt-4o-mini"], &ctx);
     assert!(res_cloud.success);
     assert!(res_cloud.message.contains("gpt-4o-mini"));
+
+    // The chat model does not touch the application-wide embedding model (ADR-0149).
+    let db = any_context_core_rs::storage::NativeConfigDb::open_default().expect("sandbox db");
+    let openai = any_context_core_rs::ingestion::EmbeddingConfig::preset("openai").unwrap();
+    any_context_core_rs::ingestion::set_active_embedding_config(&db, &openai).unwrap();
+    let res_gemini = CommandEngine::execute("model", &["gemini-2.5-flash"], &ctx);
+    assert!(res_gemini.success);
+    assert!(!res_gemini.message.to_lowercase().contains("reindex"), "{}", res_gemini.message);
+    assert_eq!(any_context_core_rs::ingestion::embedding::stored_embedding_config(&db), Some(openai));
 
     // 2. Test gemma-4-32b:
     // If the machine has < 44GB RAM, it should block without --force, and succeed with --force

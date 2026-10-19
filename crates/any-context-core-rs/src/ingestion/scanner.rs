@@ -35,6 +35,18 @@ pub fn to_absolute_path(path: &Path) -> String {
     normalize_path(&abs)
 }
 
+/// Whether `path` is `folder` or lies inside it, comparing absolute normalized paths on whole
+/// path components (`/docs` does not contain `/docs-old/a.md`).
+pub fn is_within_folder(path: &str, folder: &str) -> bool {
+    let path = to_absolute_path(Path::new(path));
+    let folder = to_absolute_path(Path::new(folder));
+    let folder = folder.trim_end_matches(['/', '\\']);
+    match path.strip_prefix(folder) {
+        Some(rest) => rest.is_empty() || rest.starts_with(['/', '\\']),
+        None => false,
+    }
+}
+
 /// Checks if a directory should be skipped from crawling.
 pub fn is_ignored_dir(entry: &DirEntry) -> bool {
     if !entry.file_type().is_dir() {
@@ -388,6 +400,15 @@ impl WorkspaceScanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn is_within_folder_matches_whole_components() {
+        assert!(is_within_folder("/work/docs/a.md", "/work/docs"));
+        assert!(is_within_folder("/work/docs/sub/b.md", "/work/docs/"));
+        assert!(is_within_folder("/work/docs", "/work/docs"));
+        assert!(!is_within_folder("/work/docs-old/a.md", "/work/docs"));
+        assert!(!is_within_folder("/work/beta/a.md", "/work/docs"));
+    }
     use std::fs::File;
     use std::io::Write;
 

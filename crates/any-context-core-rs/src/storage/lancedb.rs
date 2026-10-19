@@ -57,6 +57,10 @@ pub struct VectorRecord {
     pub start_line: Option<u32>,
     #[serde(default)]
     pub end_line: Option<u32>,
+    /// Key of the embedding model that produced `vector` (`<model>#<dimension>`, ADR-0149).
+    /// `None` for rows that hold no real embedding yet (the `Global` placeholders).
+    #[serde(default)]
+    pub embedding_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +85,9 @@ pub struct ScoredVectorResult {
     pub start_line: Option<u32>,
     #[serde(default)]
     pub end_line: Option<u32>,
+    /// Key of the embedding model that produced the row's vector (ADR-0149).
+    #[serde(default)]
+    pub embedding_model: Option<String>,
 }
 
 pub struct NativeLanceStore {
@@ -235,8 +242,16 @@ impl NativeLanceStore {
             Field::new("keywords", DataType::Utf8, true),
             Field::new("content_hash", DataType::Utf8, true),
         ];
-        fields.extend(Self::provenance_fields());
+        fields.extend(Self::added_fields());
         Arc::new(Schema::new(fields))
+    }
+
+    /// Nullable columns added after the first table schema: the provenance columns (ADR-0142)
+    /// and the embedding model of each row (ADR-0149).
+    fn added_fields() -> Vec<Field> {
+        let mut fields = Self::provenance_fields();
+        fields.push(Field::new("embedding_model", DataType::Utf8, true));
+        fields
     }
 
     /// Nullable provenance columns added after the first table schema (ADR-0142).
@@ -248,11 +263,11 @@ impl NativeLanceStore {
         ]
     }
 
-    /// Adds the provenance columns that a table created by an older version lacks, as all-null
+    /// Adds the nullable columns that a table created by an older version lacks, as all-null
     /// columns: a schema-only commit, no row is rewritten or re-embedded. Returns whether
     /// columns were added. With the columns present it only reads the schema.
-    async fn add_missing_provenance_columns(table: &Table) -> Result<bool, String> {
-        let missing = Self::missing_provenance_fields(table).await?;
+    async fn add_missing_columns(table: &Table) -> Result<bool, String> {
+        let missing = Self::missing_added_fields(table).await?;
         if missing.is_empty() {
             return Ok(false);
         }
@@ -266,18 +281,18 @@ impl NativeLanceStore {
             // Another process (TUI and sync worker share the table) may have added them first.
             Err(e) => {
                 let _ = table.checkout_latest().await;
-                if Self::missing_provenance_fields(table).await?.is_empty() {
+                if Self::missing_added_fields(table).await?.is_empty() {
                     Ok(false)
                 } else {
-                    Err(format!("Adding provenance columns to LanceDB failed: {e}"))
+                    Err(format!("Adding columns to LanceDB failed: {e}"))
                 }
             }
         }
     }
 
-    async fn missing_provenance_fields(table: &Table) -> Result<Vec<Field>, String> {
+    async fn missing_added_fields(table: &Table) -> Result<Vec<Field>, String> {
         let schema = table.schema().await.map_err(|e| e.to_string())?;
-        Ok(Self::provenance_fields()
+        Ok(Self::added_fields()
             .into_iter()
             .filter(|f| schema.field_with_name(f.name()).is_err())
             .collect())
@@ -327,9 +342,10 @@ impl NativeLanceStore {
         self.safe_block_on(self.table_exists_async(table_name))
     }
 
-    /// Migrates a table created by an older version to the provenance columns (ADR-0142).
-    /// Returns whether columns were added; a missing table is a no-op. Writes also run it.
-    pub fn ensure_provenance_columns(&self, table_name: Option<&str>) -> Result<bool, String> {
+    /// Migrates a table created by an older version to the nullable columns of this version:
+    /// provenance (ADR-0142) and `embedding_model` (ADR-0149). Returns whether columns were
+    /// added; a missing table is a no-op. Writes also run it.
+    pub fn ensure_added_columns(&self, table_name: Option<&str>) -> Result<bool, String> {
         let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
         if !self.table_exists(tname)? {
             return Ok(false);
@@ -341,7 +357,7 @@ impl NativeLanceStore {
                 .execute()
                 .await
                 .map_err(|e| e.to_string())?;
-            Self::add_missing_provenance_columns(&table).await
+            Self::add_missing_columns(&table).await
         })
     }
 
@@ -361,7 +377,7 @@ impl NativeLanceStore {
                     .execute()
                     .await
                     .map_err(|e| e.to_string())?;
-                Self::add_missing_provenance_columns(&table).await?;
+                Self::add_missing_columns(&table).await?;
                 Ok(table)
             } else {
                 let schema = Self::get_schema(dim);
@@ -434,6 +450,7 @@ impl NativeLanceStore {
         let mut header_paths = Vec::with_capacity(num_records);
         let mut start_lines = Vec::with_capacity(num_records);
         let mut end_lines = Vec::with_capacity(num_records);
+        let mut embedding_models = Vec::with_capacity(num_records);
 
         // Field-level encryption at rest: `text`, `document_summary`, `keywords` and `header_path` are stored as
         // AES-GCM-256 `enc::` payloads with the hardware-bound key; `extract_scored_results`
@@ -466,6 +483,7 @@ impl NativeLanceStore {
             header_paths.push(r.header_path.map(|h| sec.encrypt_text(&h)));
             start_lines.push(r.start_line);
             end_lines.push(r.end_line);
+            embedding_models.push(r.embedding_model);
         }
 
         let id_arr = Arc::new(StringArray::from(ids));
@@ -488,6 +506,7 @@ impl NativeLanceStore {
         let hp_arr = Arc::new(StringArray::from(header_paths));
         let sl_arr = Arc::new(UInt32Array::from(start_lines));
         let el_arr = Arc::new(UInt32Array::from(end_lines));
+        let em_arr = Arc::new(StringArray::from(embedding_models));
 
         let batch = RecordBatch::try_new(
             schema.clone(),
@@ -506,6 +525,7 @@ impl NativeLanceStore {
                 hp_arr,
                 sl_arr,
                 el_arr,
+                em_arr,
             ],
         )
         .map_err(|e| format!("Failed to create Arrow RecordBatch: {e}"))?;
@@ -534,7 +554,7 @@ impl NativeLanceStore {
                 .await
                 .map_err(|e| e.to_string())?;
             // The plaintext filter and the rewritten rows use the provenance columns.
-            Self::add_missing_provenance_columns(&table).await?;
+            Self::add_missing_columns(&table).await?;
 
             let mut remaining = Self::count_plaintext_rows(&table).await?;
             if remaining == 0 {
@@ -791,6 +811,59 @@ impl NativeLanceStore {
         })
     }
 
+    /// Counts the rows matching a SQL filter; a missing table counts 0.
+    pub fn count_rows_where(&self, filter: &str, table_name: Option<&str>) -> Result<usize, String> {
+        let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
+        if !self.table_exists(tname)? {
+            return Ok(0);
+        }
+        self.safe_block_on(async {
+            let table = self
+                .conn
+                .open_table(tname)
+                .execute()
+                .await
+                .map_err(|e| e.to_string())?;
+            table
+                .count_rows(Some(filter.to_string()))
+                .await
+                .map_err(|e| format!("Count failed: {e}"))
+        })
+    }
+
+    /// Writes `embedding_model` on the rows of `workspace` that have none (rows written before
+    /// ADR-0149). Returns the number of rows updated; a missing table is a no-op.
+    pub fn backfill_embedding_model(
+        &self,
+        workspace: &str,
+        embedding_model: &str,
+        table_name: Option<&str>,
+    ) -> Result<usize, String> {
+        let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
+        if !self.table_exists(tname)? {
+            return Ok(0);
+        }
+        self.safe_block_on(async {
+            let table = self
+                .conn
+                .open_table(tname)
+                .execute()
+                .await
+                .map_err(|e| e.to_string())?;
+            Self::add_missing_columns(&table).await?;
+            let clean_ws = workspace.replace('\'', "''");
+            let clean_model = embedding_model.replace('\'', "''");
+            let updated = table
+                .update()
+                .only_if(format!("workspace = '{clean_ws}' AND embedding_model IS NULL"))
+                .column("embedding_model", format!("'{clean_model}'"))
+                .execute()
+                .await
+                .map_err(|e| format!("Recording the embedding model of '{workspace}' failed: {e}"))?;
+            Ok(updated.rows_updated as usize)
+        })
+    }
+
     pub fn delete_by_workspace(
         &self,
         workspace: &str,
@@ -928,6 +1001,14 @@ impl NativeLanceStore {
         (header, line("start_line"), line("end_line"))
     }
 
+    /// Reads the `embedding_model` column of row `i`; tables not migrated yet have none.
+    fn embedding_model_at(batch: &RecordBatch, i: usize) -> Option<String> {
+        batch
+            .column_by_name("embedding_model")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+            .and_then(|c| (!c.is_null(i)).then(|| c.value(i).to_string()))
+    }
+
     /// Reads full rows (vector included) with the stored values as they are, without decrypting.
     fn extract_vector_records(batch: &RecordBatch) -> Result<Vec<VectorRecord>, String> {
         let string_col = |name: &str| -> Result<&StringArray, String> {
@@ -988,6 +1069,7 @@ impl NativeLanceStore {
                 header_path,
                 start_line,
                 end_line,
+                embedding_model: Self::embedding_model_at(batch, i),
             });
         }
         Ok(records)
@@ -1088,6 +1170,7 @@ impl NativeLanceStore {
                 header_path,
                 start_line,
                 end_line,
+                embedding_model: Self::embedding_model_at(batch, i),
             });
         }
 
@@ -1123,7 +1206,7 @@ impl NativeLanceStore {
     /// and writes `records` into it in plaintext.
     pub(crate) fn create_legacy_table_for_test(&self, table_name: &str, d: usize, records: Vec<VectorRecord>) {
         let (batch, _) = Self::plaintext_batch_for_test(d, &records);
-        let legacy_columns: Vec<usize> = (0..batch.num_columns() - Self::provenance_fields().len()).collect();
+        let legacy_columns: Vec<usize> = (0..batch.num_columns() - Self::added_fields().len()).collect();
         let batch = batch.project(&legacy_columns).expect("legacy projection");
         let schema = batch.schema();
         self.safe_block_on(async {
@@ -1167,6 +1250,7 @@ impl NativeLanceStore {
                 col(&|r| r.header_path.clone()),
                 Arc::new(UInt32Array::from(records.iter().map(|r| r.start_line).collect::<Vec<_>>())),
                 Arc::new(UInt32Array::from(records.iter().map(|r| r.end_line).collect::<Vec<_>>())),
+                col(&|r| r.embedding_model.clone()),
             ],
         )
         .expect("plaintext batch");
@@ -1201,6 +1285,7 @@ mod tests {
                 header_path: None,
                 start_line: None,
                 end_line: None,
+                embedding_model: None,
             },
             VectorRecord {
                 id: "c2".into(),
@@ -1217,6 +1302,7 @@ mod tests {
                 header_path: None,
                 start_line: None,
                 end_line: None,
+                embedding_model: None,
             },
         ];
 
@@ -1285,6 +1371,7 @@ mod tests {
                 header_path: None,
                 start_line: None,
                 end_line: None,
+                embedding_model: None,
             },
         ];
 
@@ -1333,6 +1420,7 @@ mod tests {
             header_path: Some(format!("legacy.md > {CANARY}")),
             start_line: Some(3),
             end_line: Some(9),
+            embedding_model: None,
         }
     }
 
@@ -1495,7 +1583,7 @@ mod tests {
     }
 
     #[test]
-    fn test_provenance_columns_added_to_legacy_table() {
+    fn test_added_columns_reach_legacy_table() {
         let (dir, store) = temp_store("provenance_migration");
         let table = "pre_provenance_chunks";
         store.create_legacy_table_for_test(table, 4, vec![legacy_record("old_0", "docs/old.md", "Default", Some("Old"))]);
@@ -1508,18 +1596,26 @@ mod tests {
             header_path: Some("guide.md > Timeouts".into()),
             start_line: Some(40),
             end_line: Some(58),
+            embedding_model: Some("text-embedding-3-small#1536".into()),
             ..legacy_record("new_0", "docs/guide.md", "Default", None)
         };
         store.upsert_records(vec![new], Some(table), Some(4)).expect("upsert after migration");
-        assert!(!store.ensure_provenance_columns(Some(table)).expect("idempotent"), "columns already present");
+        assert!(!store.ensure_added_columns(Some(table)).expect("idempotent"), "columns already present");
 
         assert_eq!(store.count_records(None, Some(table)).expect("count"), 2);
         let old = store.search_metadata("id = 'old_0'", 1, None, Some(table)).expect("old row");
         assert_eq!((old[0].header_path.as_deref(), old[0].start_line, old[0].end_line), (None, None, None));
+        assert_eq!(old[0].embedding_model, None, "old rows get a null embedding model");
         assert_eq!(old[0].document_summary.as_deref(), Some("Old"));
         let fresh = store.search_metadata("id = 'new_0'", 1, None, Some(table)).expect("new row");
         assert_eq!(fresh[0].header_path.as_deref(), Some("guide.md > Timeouts"));
         assert_eq!((fresh[0].start_line, fresh[0].end_line), (Some(40), Some(58)));
+        assert_eq!(fresh[0].embedding_model.as_deref(), Some("text-embedding-3-small#1536"));
+
+        // The model is recorded on the old rows of a workspace once, and only where it is null.
+        assert_eq!(store.backfill_embedding_model("Default", "legacy:mock/mock-embed", Some(table)).expect("backfill"), 1);
+        assert_eq!(store.backfill_embedding_model("Default", "other#768", Some(table)).expect("again"), 0);
+        assert_eq!(store.count_rows_where("embedding_model = 'legacy:mock/mock-embed'", Some(table)).expect("count"), 1);
         let hits = store.search_vector(vec![0.25; 4], 2, None, None, Some(table)).expect("vector search");
         assert!(hits.iter().all(|h| h.distance < 1e-6), "vectors are unchanged");
 

@@ -19,6 +19,8 @@ pub struct GeminiProvider {
     api_key: String,
     base_url: String,
     http_client: reqwest::Client,
+    /// `outputDimensionality` sent with embedding requests.
+    output_dimensionality: usize,
 }
 
 impl GeminiProvider {
@@ -33,7 +35,15 @@ impl GeminiProvider {
             api_key: api_key.into(),
             base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
             http_client,
+            output_dimensionality: GEMINI_EMBEDDING_DIM,
         }
+    }
+
+    /// Sets the vector size requested from embedding models (the configured embedding
+    /// dimension, ADR-0149); gemini-embedding-2 normalizes truncated sizes.
+    pub fn with_output_dimensionality(mut self, dimension: usize) -> Self {
+        self.output_dimensionality = dimension;
+        self
     }
 
     /// Override the base URL
@@ -147,12 +157,12 @@ struct GeminiError {
     message: String,
 }
 
-/// Vector size requested from Gemini embedding models. It matches the fixed LanceDB vector
-/// dimension (`DEFAULT_VECTOR_DIM` in the core); gemini-embedding-2 normalizes truncated sizes.
+/// Default vector size requested from Gemini embedding models, unless the embedding
+/// configuration sets another one (`GeminiProvider::with_output_dimensionality`).
 pub const GEMINI_EMBEDDING_DIM: usize = 1536;
 
 /// Body of a `batchEmbedContents` request: one item per text, each with the output size.
-fn batch_embed_request_body(model_id: &str, texts: &[String]) -> serde_json::Value {
+fn batch_embed_request_body(model_id: &str, texts: &[String], output_dimensionality: usize) -> serde_json::Value {
     let requests: Vec<serde_json::Value> = texts
         .iter()
         .map(|t| {
@@ -161,7 +171,7 @@ fn batch_embed_request_body(model_id: &str, texts: &[String]) -> serde_json::Val
                 "content": {
                     "parts": [{ "text": t }]
                 },
-                "outputDimensionality": GEMINI_EMBEDDING_DIM
+                "outputDimensionality": output_dimensionality
             })
         })
         .collect();
@@ -365,7 +375,7 @@ impl LmProvider for GeminiProvider {
             self.base_url, model_id
         );
 
-        let body = batch_embed_request_body(&model_id, texts);
+        let body = batch_embed_request_body(&model_id, texts, self.output_dimensionality);
 
         let resp = self
             .http_client
@@ -418,13 +428,20 @@ mod tests {
     #[test]
     fn batch_embed_request_sets_model_and_output_size_per_item() {
         let texts = vec!["first".to_string(), "second".to_string()];
-        let body = batch_embed_request_body("models/gemini-embedding-2", &texts);
+        let body = batch_embed_request_body("models/gemini-embedding-2", &texts, 768);
         let requests = body["requests"].as_array().expect("requests array");
         assert_eq!(requests.len(), 2);
         for (req, text) in requests.iter().zip(&texts) {
             assert_eq!(req["model"], "models/gemini-embedding-2");
             assert_eq!(req["content"]["parts"][0]["text"], text.as_str());
-            assert_eq!(req["outputDimensionality"], GEMINI_EMBEDDING_DIM);
+            assert_eq!(req["outputDimensionality"], 768);
         }
+    }
+
+    #[test]
+    fn output_dimensionality_defaults_to_1536_and_follows_the_configuration() {
+        let provider = GeminiProvider::new("key");
+        assert_eq!(provider.output_dimensionality, GEMINI_EMBEDDING_DIM);
+        assert_eq!(provider.with_output_dimensionality(768).output_dimensionality, 768);
     }
 }

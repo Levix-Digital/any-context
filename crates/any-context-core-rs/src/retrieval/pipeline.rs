@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::storage::lancedb::{NativeLanceStore, ScoredVectorResult};
 use crate::ingestion::enricher::NativeContextualEnricher;
-use crate::ingestion::embedding::EmbeddingTarget;
+use crate::ingestion::embedding::EmbeddingConfig;
 use crate::retrieval::bm25::BM25Index;
 use crate::retrieval::rrf::reciprocal_rank_fusion;
 use crate::retrieval::diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
@@ -417,26 +417,35 @@ impl NativeHybridPipeline {
     }
 
     /// Sets the embedding provider and model used for query vectors. They must match the ones
-    /// used at ingestion time (see `ingestion::resolve_embedding_provider`), otherwise query and
+    /// used at ingestion time (see `ingestion::resolve_active_embedding`), otherwise query and
     /// chunk vectors live in different spaces.
     pub fn set_embedding(&mut self, lm_client: Option<Arc<dyn LmProvider>>, model: impl Into<String>) {
         self.lm_client = lm_client;
         self.embedding_model = model.into();
     }
 
-    /// Sets the query embedding from `ingestion::resolve_query_embedding_provider`. On the mock
-    /// target the resolver gives no provider and the query is recorded as `NoEmbeddingKey`.
-    pub fn set_query_embedding(&mut self, lm_client: Option<Arc<dyn LmProvider>>, target: &EmbeddingTarget) {
-        self.set_embedding(lm_client, target.model.clone());
-        self.missing_provider_outcome = if target.is_mock() {
-            QueryEmbeddingOutcome::NoEmbeddingKey
-        } else {
-            QueryEmbeddingOutcome::NoProvider
-        };
+    /// Sets the query embedding from `ingestion::resolve_active_embedding`. Without a model
+    /// that can run (`None`) or on the mock runtime, whose vectors are all the same (BUG-019),
+    /// there is no provider and the query is recorded as `NoEmbeddingKey`.
+    pub fn set_query_embedding(&mut self, lm_client: Option<Arc<dyn LmProvider>>, config: Option<&EmbeddingConfig>) {
+        match config {
+            Some(config) if !config.is_mock() => {
+                self.set_embedding(lm_client, config.model.clone());
+                self.missing_provider_outcome = QueryEmbeddingOutcome::NoProvider;
+            }
+            Some(config) => {
+                self.set_embedding(None, config.model.clone());
+                self.missing_provider_outcome = QueryEmbeddingOutcome::NoEmbeddingKey;
+            }
+            None => {
+                self.set_embedding(None, String::new());
+                self.missing_provider_outcome = QueryEmbeddingOutcome::NoEmbeddingKey;
+            }
+        }
     }
 
     /// Lets `Global` rows take part in dense search. Off by default: they are placeholders
-    /// until embedded with the query's target (`ingestion::global_dense_enabled`, BUG-019).
+    /// until embedded with the query's model (`ingestion::global_dense_enabled`, BUG-019).
     pub fn set_global_dense(&mut self, enabled: bool) {
         self.global_dense = enabled;
     }
@@ -1364,6 +1373,7 @@ mod tests {
             header_path: Some("guide.md > Timeouts".into()),
             start_line: Some(40),
             end_line: Some(58),
+            embedding_model: None,
         };
         pipeline.lance_store.upsert_records(vec![record], None, Some(4)).unwrap();
 
@@ -1396,6 +1406,7 @@ mod tests {
             header_path: None,
             start_line: None,
             end_line: None,
+            embedding_model: None,
         }
     }
 
@@ -1721,19 +1732,14 @@ mod tests {
             "BM25 only (last query): dense search failed: size"
         );
     }
-    /// Regression BUG-019: on the mock target every chunk and query vector is the same, so dense
-    /// search returned an arbitrary pool and unrelated chunks reached the results. With the query
-    /// embedding the CLI resolves, only the keyword match is returned and the outcome says why.
+    /// Regression BUG-019: on the mock runtime every chunk and query vector is the same, so dense
+    /// search returned an arbitrary pool and unrelated chunks reached the results. With the mock
+    /// model the query gets no provider, only the keyword match is returned and the outcome says why.
     #[test]
     fn test_constant_mock_vectors_do_not_rank_unrelated_chunks() {
-        let keys = ["OPENAI_API_KEY", "GEMINI_API_KEY", "ACTX_EMBEDDING_MODEL", "ACTX_MODEL"];
-        if keys.iter().any(|v| std::env::var(v).map(|s| !s.trim().is_empty()).unwrap_or(false)) {
-            eprintln!("skipped: one of {keys:?} is set");
-            return;
-        }
         let db = crate::storage::NativeConfigDb::open_in_memory().expect("db");
-        let (provider, target) = crate::ingestion::resolve_query_embedding_provider(&db, "Default");
-        assert!(target.is_mock(), "{}", target.key());
+        let (provider, config) = crate::ingestion::resolve_embedding(&db, Some("mock")).expect("mock preset");
+        assert!(config.is_mock(), "{}", config.key());
 
         let mut chunks = vec![("k_0", "kestrel timeouts are retried three times", "guide.md", SAME_DAY)];
         // One file per chunk, so file-level deduplication cannot hide them.
@@ -1751,7 +1757,7 @@ mod tests {
             .map(|(id, text, file, _)| stored_row(id, text, file, vec![0.1; dim]))
             .collect();
         pipeline.lance_store.upsert_records(rows, None, Some(dim)).unwrap();
-        pipeline.set_query_embedding(provider, &target);
+        pipeline.set_query_embedding(Some(provider), Some(&config));
 
         let results = pipeline
             .search(HybridSearchRequest {

@@ -1,4 +1,4 @@
-use any_context_core_rs::ingestion::{NativeSyncOrchestrator, SyncOptions};
+use any_context_core_rs::ingestion::{set_active_embedding_config, EmbeddingConfig, NativeSyncOrchestrator, SyncOptions};
 use any_context_core_rs::storage::{NativeConfigDb, NativeLanceStore};
 use std::sync::Arc;
 
@@ -207,55 +207,119 @@ fn mock_sync(target_folder: Option<String>) -> SyncOptions {
     }
 }
 
-/// Regression BUG-003: after the embedding target changes, the next sync re-embeds every file,
-/// not only the changed ones, and records the new target.
+/// Records `model` as the embedding model of one cached file, keeping its stat values, as if an
+/// earlier pass had embedded it with that model.
+fn mark_embedded_with(db: &NativeConfigDb, ws: &str, file: &std::path::Path, model: &str) {
+    let path = file.to_string_lossy().to_string();
+    let (mtime, size) = db.get_workspace_files_stat_cache(ws).unwrap()[&path];
+    db.upsert_file_stat_cache(ws, &path, mtime, size, Some("hash"), Some(model)).unwrap();
+}
+
+/// ADR-0149: a file embedded with another model than the active one is re-embedded by the next
+/// sync, file by file; files already on the active model are left alone.
 #[tokio::test]
-async fn test_embedding_target_change_reindexes_whole_workspace() {
-    let (temp_dir, db, lance, orchestrator, _) = embedding_sandbox("emb_target_change", &["docs"]);
+async fn test_files_of_another_model_are_re_embedded() {
+    let (temp_dir, db, lance, orchestrator, dirs) = embedding_sandbox("emb_model_stale", &["docs"]);
     let ws = "EmbeddingTargetWs";
+    let mock_key = EmbeddingConfig::preset("mock").unwrap().key();
 
     let first = orchestrator.run(&mock_sync(None)).await.expect("sync 1");
     assert_eq!(first.indexed_files, 2);
-    assert_eq!(first.embedding_reindex, None, "a new workspace adopts the current target");
-    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
+    assert_eq!(first.embedding_reindex, None);
+    assert_eq!(db.count_stale_files(ws, &mock_key).unwrap(), 0, "every file records the active model");
     let chunks_before = lance.count_records(Some(ws), None).unwrap();
+    let filter = format!("workspace = '{ws}' AND embedding_model = '{mock_key}'");
+    assert_eq!(lance.count_rows_where(&filter, None).unwrap(), chunks_before, "every chunk records the active model");
 
     let second = orchestrator.run(&mock_sync(None)).await.expect("sync 2");
     assert!(second.is_up_to_date);
-    assert_eq!(second.embedding_reindex, None);
 
-    // The workspace was indexed with another target (e.g. before `/model` changed the chat model).
-    db.set_workspace_embedding_target(ws, Some("openai/text-embedding-3-small")).unwrap();
+    // One file was embedded with another model (e.g. before `/embed model` changed it).
+    mark_embedded_with(&db, ws, &dirs[0].join("notes.md"), "text-embedding-3-small#1536");
 
     let third = orchestrator.run(&mock_sync(None)).await.expect("sync 3");
-    assert_eq!(third.indexed_files, 2, "every unchanged file must be re-embedded");
-    let msg = third.embedding_reindex.expect("reindex reported");
-    assert!(msg.contains("openai/text-embedding-3-small → mock/mock-embed"), "{msg}");
-    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
-    assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks_before, "old vectors are purged, not duplicated");
+    assert_eq!(third.indexed_files, 1, "only the stale file is re-embedded");
+    let msg = third.embedding_reindex.expect("migration reported");
+    assert!(msg.contains("1 file(s)") && msg.contains(&mock_key), "{msg}");
+    assert_eq!(db.count_stale_files(ws, &mock_key).unwrap(), 0);
+    assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks_before, "old vectors are replaced, not duplicated");
 
     let fourth = orchestrator.run(&mock_sync(None)).await.expect("sync 4");
-    assert!(fourth.is_up_to_date, "a completed reindex is not repeated");
+    assert!(fourth.is_up_to_date, "a completed migration is not repeated");
     assert_eq!(fourth.embedding_reindex, None);
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
 
-/// A folder-scoped sync cannot leave the other folders in the old vector space.
+/// A folder-scoped sync re-embeds the stale files of its folder; the others wait for their own
+/// folder's pass or a full sync.
 #[tokio::test]
-async fn test_scoped_sync_with_target_change_reindexes_all_folders() {
-    let (temp_dir, db, _lance, orchestrator, dirs) = embedding_sandbox("emb_target_scoped", &["alpha", "beta"]);
+async fn test_scoped_sync_re_embeds_the_stale_files_of_its_folder() {
+    let (temp_dir, db, _lance, orchestrator, dirs) = embedding_sandbox("emb_model_scoped", &["alpha", "beta"]);
     let ws = "EmbeddingTargetWs";
+    let mock_key = EmbeddingConfig::preset("mock").unwrap().key();
 
     let first = orchestrator.run(&mock_sync(None)).await.expect("sync 1");
     assert_eq!(first.indexed_files, 4);
+    for dir in &dirs {
+        mark_embedded_with(&db, ws, &dir.join("guide.md"), "gemini-embedding-2#1536");
+    }
 
-    db.set_workspace_embedding_target(ws, Some("openai/text-embedding-3-small")).unwrap();
     let scoped = mock_sync(Some(dirs[0].to_string_lossy().to_string()));
     let res = orchestrator.run(&scoped).await.expect("scoped sync");
-    assert_eq!(res.indexed_files, 4, "both folders are re-embedded");
-    assert!(res.embedding_reindex.is_some());
-    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
+    assert_eq!(res.indexed_files, 1, "only alpha's stale file");
+    assert_eq!(db.count_stale_files(ws, &mock_key).unwrap(), 1, "beta's file waits");
+
+    let res = orchestrator.run(&mock_sync(None)).await.expect("full sync");
+    assert_eq!(res.indexed_files, 1);
+    assert_eq!(db.count_stale_files(ws, &mock_key).unwrap(), 0);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Rule 4 (ADR-0149): when the active model cannot run, the pass stops before embedding and
+/// reports the model and the fix; nothing falls back to another provider or to mock vectors.
+#[tokio::test]
+async fn test_sync_stops_when_the_embedding_model_cannot_run() {
+    let vars = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "ACTX_EMBEDDING_MODEL"];
+    if vars.iter().any(|v| std::env::var(v).map(|s| !s.trim().is_empty()).unwrap_or(false)) {
+        eprintln!("skipped: one of {vars:?} is set");
+        return;
+    }
+    let (temp_dir, db, lance, orchestrator, _) = embedding_sandbox("emb_model_unavailable", &["docs"]);
+    let ws = "EmbeddingTargetWs";
+    db.set_api_key("openai", "sk-test").unwrap();
+    set_active_embedding_config(&db, &EmbeddingConfig::preset("gemini").unwrap()).unwrap();
+
+    let res = orchestrator.run(&SyncOptions { model: None, ..mock_sync(None) }).await.expect("sync");
+    assert!(res.embedding_provider_unavailable);
+    assert_eq!(res.indexed_files, 0);
+    let error = res.errors.last().expect("error reported").clone();
+    assert!(error.contains("gemini-embedding-2") && error.contains("/keys gemini"), "{error}");
+    assert_eq!(lance.count_records(Some(ws), None).unwrap(), 0, "no fallback vectors are written");
+    let status = db.get_sync_status(ws).unwrap().expect("status");
+    assert!(!status.is_syncing);
+    assert_eq!(status.error.as_deref(), Some(error.as_str()));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Regression: a folder-scoped sync took the cached files of the other folders for deleted files
+/// and purged their chunks and stat cache rows.
+#[tokio::test]
+async fn test_scoped_sync_keeps_the_other_folders() {
+    let (temp_dir, db, lance, orchestrator, dirs) = embedding_sandbox("scoped_keeps_others", &["alpha", "beta"]);
+    let ws = "EmbeddingTargetWs";
+
+    orchestrator.run(&mock_sync(None)).await.expect("full sync");
+    let chunks = lance.count_records(Some(ws), None).unwrap();
+    assert_eq!(db.get_workspace_files_stat_cache(ws).unwrap().len(), 4);
+
+    let scoped = orchestrator.run(&mock_sync(Some(dirs[0].to_string_lossy().to_string()))).await.expect("scoped sync");
+    assert_eq!(scoped.deleted_files, 0, "beta's files are not deleted");
+    assert!(scoped.is_up_to_date);
+    assert_eq!(db.get_workspace_files_stat_cache(ws).unwrap().len(), 4);
+    assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks);
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }

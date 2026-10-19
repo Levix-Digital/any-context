@@ -4,6 +4,7 @@ pub mod chunkers;
 pub mod scanner;
 pub mod orchestrator;
 pub mod embedding;
+pub mod embedding_migration;
 pub mod enricher;
 pub mod crawler;
 pub mod quality_gate;
@@ -17,9 +18,11 @@ pub use traits::{Chunker, ScanSentinel, ScanAssessment, DocumentVisionExtractor}
 pub use scanner::{WorkspaceScanner, DiffResult};
 pub use orchestrator::{embed_with_retry, embedding_failure_summary, sync_error_headline, NativeSyncOrchestrator, SyncOptions, SyncResult};
 pub use embedding::{
-    EmbeddingTarget, ReindexDecision, GLOBAL_KNOWLEDGE_TARGET_SETTING, decide_reindex, global_dense_enabled,
-    legacy_target, pending_reindex_notice, resolve_embedding_provider, resolve_query_embedding_provider,
+    active_embedding_config, global_dense_enabled, known_embedding_configs, preset_config, probe_dimension,
+    provider_for, resolve_active_embedding, resolve_embedding, set_active_embedding_config, stale_files_notice,
+    ApiFormat, EmbeddingConfig, EmbeddingRuntime, EmbeddingUnavailable, EMBEDDING_PRESETS,
 };
+pub use embedding_migration::backfill_chunk_models;
 pub use enricher::NativeContextualEnricher;
 pub use crawler::{NativeWebCrawler, CrawlerConfig, CrawledPage, SitemapEntry, RobotsPolicy};
 pub use jina::{NativeJinaExtractor, JinaExtractorConfig};

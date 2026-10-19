@@ -211,6 +211,7 @@ impl NativeConfigDb {
                 doc_id TEXT,
                 content_hash TEXT,
                 indexed_at TEXT,
+                embedding_model TEXT,
                 PRIMARY KEY (workspace_name, file_path)
             );
             CREATE INDEX IF NOT EXISTS idx_wfsc_ws ON workspace_files_stat_cache (workspace_name);
@@ -273,6 +274,10 @@ impl NativeConfigDb {
         }
         if !Self::check_column(&conn, "workspaces", "embedding_target") {
             let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN embedding_target TEXT", []);
+        }
+
+        if !Self::check_column(&conn, "workspace_files_stat_cache", "embedding_model") {
+            let _ = conn.execute("ALTER TABLE workspace_files_stat_cache ADD COLUMN embedding_model TEXT", []);
         }
 
         if !Self::check_column(&conn, "workspace_web_urls", "title") {
@@ -1640,6 +1645,7 @@ impl NativeConfigDb {
     }
 
     /// Upserts file stat records into both workspace_files_stat_cache and file_metadata.
+    /// `embedding_model` is the key of the model that embedded the file's chunks (ADR-0149).
     pub fn upsert_file_stat_cache(
         &self,
         workspace: &str,
@@ -1647,6 +1653,7 @@ impl NativeConfigDb {
         last_mtime: f64,
         file_size: u64,
         content_hash: Option<&str>,
+        embedding_model: Option<&str>,
     ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let norm_path_fm = normalize_path_slashes(file_path);
@@ -1665,15 +1672,16 @@ impl NativeConfigDb {
 
         if tbl_exists {
             conn.execute(
-                "INSERT INTO workspace_files_stat_cache (workspace_name, file_path, last_mtime, file_size, doc_id, content_hash, indexed_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                "INSERT INTO workspace_files_stat_cache (workspace_name, file_path, last_mtime, file_size, doc_id, content_hash, indexed_at, embedding_model)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                  ON CONFLICT(workspace_name, file_path) DO UPDATE SET
                     last_mtime = excluded.last_mtime,
                     file_size = excluded.file_size,
                     doc_id = excluded.doc_id,
                     content_hash = excluded.content_hash,
-                    indexed_at = excluded.indexed_at",
-                params![workspace, orig_path, last_mtime, file_size as i64, &doc_id, hash, &now],
+                    indexed_at = excluded.indexed_at,
+                    embedding_model = excluded.embedding_model",
+                params![workspace, orig_path, last_mtime, file_size as i64, &doc_id, hash, &now, embedding_model],
             )?;
         }
 
@@ -1692,6 +1700,56 @@ impl NativeConfigDb {
         )?;
 
         Ok(())
+    }
+
+    /// Writes `embedding_model` on the stat cache rows of `workspace` that have none (rows
+    /// written before ADR-0149). Returns the number of rows updated.
+    pub fn backfill_stat_cache_embedding_model(&self, workspace: &str, embedding_model: &str) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE workspace_files_stat_cache SET embedding_model = ?1
+             WHERE workspace_name = ?2 COLLATE NOCASE AND embedding_model IS NULL",
+            params![embedding_model, workspace],
+        )
+    }
+
+    /// Files of `workspace` whose chunks were not embedded with `active_model` (another model,
+    /// or none recorded), with the same path normalization as `get_workspace_files_stat_cache`.
+    pub fn stale_files(&self, workspace: &str, active_model: &str) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT file_path FROM workspace_files_stat_cache
+             WHERE workspace_name = ?1 COLLATE NOCASE AND (embedding_model IS NULL OR embedding_model <> ?2)
+             ORDER BY file_path",
+        )?;
+        let rows = stmt.query_map(params![workspace, active_model], |row| row.get::<_, String>(0))?;
+        Ok(rows
+            .flatten()
+            .map(|p| if cfg!(windows) { p.replace('/', "\\") } else { normalize_path_slashes(&p) })
+            .collect())
+    }
+
+    /// Number of files of `workspace` whose chunks were not embedded with `active_model`.
+    pub fn count_stale_files(&self, workspace: &str, active_model: &str) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM workspace_files_stat_cache
+             WHERE workspace_name = ?1 COLLATE NOCASE AND (embedding_model IS NULL OR embedding_model <> ?2)",
+            params![workspace, active_model],
+            |r| r.get(0),
+        )?;
+        Ok(count.max(0) as usize)
+    }
+
+    /// Number of files recorded in the stat cache of `workspace`.
+    pub fn count_cached_files(&self, workspace: &str) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM workspace_files_stat_cache WHERE workspace_name = ?1 COLLATE NOCASE",
+            params![workspace],
+            |r| r.get(0),
+        )?;
+        Ok(count.max(0) as usize)
     }
 
     /// Removes a file from both workspace_files_stat_cache and file_metadata.
