@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::storage::lancedb::{NativeLanceStore, ScoredVectorResult};
 use crate::ingestion::enricher::NativeContextualEnricher;
+use crate::ingestion::embedding::EmbeddingTarget;
 use crate::retrieval::bm25::BM25Index;
 use crate::retrieval::rrf::reciprocal_rank_fusion;
 use crate::retrieval::diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
@@ -209,6 +210,9 @@ pub enum QueryEmbeddingOutcome {
     Dense,
     /// No embedding provider was configured for the pipeline.
     NoProvider,
+    /// The query target is the mock one (no embedding API key): its vectors are all the same, so
+    /// dense search is skipped (BUG-019).
+    NoEmbeddingKey,
     /// The embedding call failed or returned no vector.
     Failed(String),
 }
@@ -219,6 +223,7 @@ impl QueryEmbeddingOutcome {
         match self {
             QueryEmbeddingOutcome::Dense => "dense + BM25 (last query)".to_string(),
             QueryEmbeddingOutcome::NoProvider => "BM25 only (last query): no embedding provider".to_string(),
+            QueryEmbeddingOutcome::NoEmbeddingKey => "BM25 only (last query): no embedding API key (/keys)".to_string(),
             QueryEmbeddingOutcome::Failed(reason) => format!("BM25 only (last query): query embedding failed: {reason}"),
         }
     }
@@ -347,6 +352,8 @@ pub struct NativeHybridPipeline {
     reranker: Option<Arc<actx_onnx::OnnxReranker>>,
     rerank_mode: String,
     last_query_embedding: std::sync::Mutex<Option<QueryEmbeddingOutcome>>,
+    /// Outcome recorded when there is no embedding provider.
+    missing_provider_outcome: QueryEmbeddingOutcome,
 }
 
 impl NativeHybridPipeline {
@@ -363,6 +370,7 @@ impl NativeHybridPipeline {
             reranker: None,
             rerank_mode: "auto".to_string(),
             last_query_embedding: std::sync::Mutex::new(None),
+            missing_provider_outcome: QueryEmbeddingOutcome::NoProvider,
         })
     }
 
@@ -378,6 +386,7 @@ impl NativeHybridPipeline {
             reranker: None,
             rerank_mode: "auto".to_string(),
             last_query_embedding: std::sync::Mutex::new(None),
+            missing_provider_outcome: QueryEmbeddingOutcome::NoProvider,
         }
     }
 
@@ -406,6 +415,17 @@ impl NativeHybridPipeline {
     pub fn set_embedding(&mut self, lm_client: Option<Arc<dyn LmProvider>>, model: impl Into<String>) {
         self.lm_client = lm_client;
         self.embedding_model = model.into();
+    }
+
+    /// Sets the query embedding from `ingestion::resolve_query_embedding_provider`. On the mock
+    /// target the resolver gives no provider and the query is recorded as `NoEmbeddingKey`.
+    pub fn set_query_embedding(&mut self, lm_client: Option<Arc<dyn LmProvider>>, target: &EmbeddingTarget) {
+        self.set_embedding(lm_client, target.model.clone());
+        self.missing_provider_outcome = if target.is_mock() {
+            QueryEmbeddingOutcome::NoEmbeddingKey
+        } else {
+            QueryEmbeddingOutcome::NoProvider
+        };
     }
 
     /// Embedding model used for query vectors.
@@ -657,7 +677,7 @@ impl NativeHybridPipeline {
                 Err(e) => (None, QueryEmbeddingOutcome::Failed(e.to_string())),
             }
         } else {
-            (None, QueryEmbeddingOutcome::NoProvider)
+            (None, self.missing_provider_outcome.clone())
         };
         self.record_query_embedding(outcome);
 
@@ -1604,8 +1624,61 @@ mod tests {
         assert_eq!(QueryEmbeddingOutcome::Dense.describe(), "dense + BM25 (last query)");
         assert_eq!(QueryEmbeddingOutcome::NoProvider.describe(), "BM25 only (last query): no embedding provider");
         assert_eq!(
+            QueryEmbeddingOutcome::NoEmbeddingKey.describe(),
+            "BM25 only (last query): no embedding API key (/keys)"
+        );
+        assert_eq!(
             QueryEmbeddingOutcome::Failed("quota".into()).describe(),
             "BM25 only (last query): query embedding failed: quota"
         );
+    }
+    /// Regression BUG-019: on the mock target every chunk and query vector is the same, so dense
+    /// search returned an arbitrary pool and unrelated chunks reached the results. With the query
+    /// embedding the CLI resolves, only the keyword match is returned and the outcome says why.
+    #[test]
+    fn test_constant_mock_vectors_do_not_rank_unrelated_chunks() {
+        let keys = ["OPENAI_API_KEY", "GEMINI_API_KEY", "ACTX_EMBEDDING_MODEL", "ACTX_MODEL"];
+        if keys.iter().any(|v| std::env::var(v).map(|s| !s.trim().is_empty()).unwrap_or(false)) {
+            eprintln!("skipped: one of {keys:?} is set");
+            return;
+        }
+        let db = crate::storage::NativeConfigDb::open_in_memory().expect("db");
+        let (provider, target) = crate::ingestion::resolve_query_embedding_provider(&db, "Default");
+        assert!(target.is_mock(), "{}", target.key());
+
+        let mut chunks = vec![("k_0", "kestrel timeouts are retried three times", "guide.md", SAME_DAY)];
+        // One file per chunk, so file-level deduplication cannot hide them.
+        let unrelated: Vec<(String, String, String)> = (0..6)
+            .map(|i| (format!("u_{i}"), format!("pasta recipe number {i} with basil"), format!("recipe_{i}.md")))
+            .collect();
+        for (id, text, file) in &unrelated {
+            chunks.push((id.as_str(), text.as_str(), file.as_str(), SAME_DAY));
+        }
+        let (mut pipeline, dir) = bm25_pipeline("mock_constant", &chunks);
+        // The vectors ingestion stores on the mock target (same size as the mock query vector).
+        let dim = crate::storage::lancedb::DEFAULT_VECTOR_DIM;
+        let rows = chunks
+            .iter()
+            .map(|(id, text, file, _)| stored_row(id, text, file, vec![0.1; dim]))
+            .collect();
+        pipeline.lance_store.upsert_records(rows, None, Some(dim)).unwrap();
+        pipeline.set_query_embedding(provider, &target);
+
+        let results = pipeline
+            .search(HybridSearchRequest {
+                query_text: "kestrel timeouts".to_string(),
+                top_k: 8,
+                candidate_pool_k: 30,
+                min_score: RRF_MIN_SCORE,
+                ..Default::default()
+            })
+            .unwrap();
+        let outcome = pipeline.last_query_embedding();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let ids: Vec<&str> = results.iter().map(|r| r.chunk_id.as_str()).collect();
+        assert_eq!(ids, vec!["k_0"], "no unrelated chunk may come from dense search");
+        assert_eq!(results[0].dense_score, None);
+        assert_eq!(outcome, Some(QueryEmbeddingOutcome::NoEmbeddingKey));
     }
 }

@@ -4,10 +4,10 @@ project: any-context
 title: Dense search ranks arbitrary chunks on constant vectors
 kind: bug
 version: v0.45.1
-status: active
+status: in_progress
 author: Claude
 created_at: '2026-10-19T08:22:38'
-updated_at: '2026-10-19T08:45:46'
+updated_at: '2026-10-19T09:53:44'
 session_id: null
 tags:
 - retrieval
@@ -20,7 +20,9 @@ backlog_items:
 - BUG-019
 milestones:
 - name: M1 Mock target is BM25 only
-  done: false
+  done: true
+  done_at: '2026-10-19'
+  by: Claude
 - name: M2 Global dense gate
   done: false
 - name: M3 Global embedding
@@ -36,6 +38,9 @@ status_log:
   by: Claude
   status: active
   note: Plan updated
+- at: '2026-10-19T09:53:44'
+  by: Claude
+  note: 'Milestone ''M1 Mock target is BM25 only'' completed: Branch ccr-6c7c51f6-2tckxi; regression tests in ingestion/embedding.rs and retrieval/pipeline.rs'
 ---
 
 # Dense search ranks arbitrary chunks on constant vectors
@@ -115,7 +120,8 @@ ADR-0147 "Constant vectors never reach dense search: the mock target is BM25 onl
 ### 4.1 Query embedding (core, `ingestion/embedding.rs`, `retrieval/pipeline.rs`)
 
 - `EmbeddingTarget::is_mock()`; `resolve_query_embedding_provider` returns `(None, target)` when `target.is_mock()`. `resolve_embedding_provider` is unchanged (ingestion still needs a provider).
-- `QueryEmbeddingOutcome::NoEmbeddingKey`. A missing provider records `NoProvider` today; the pipeline cannot tell that case from the mock target, so it gains one field, `missing_provider_outcome` (default `NoProvider`), set by the CLI with `set_missing_provider_outcome(NoEmbeddingKey)` when the query target is mock. `set_embedding` is unchanged.
+- `QueryEmbeddingOutcome::NoEmbeddingKey`. A missing provider records `NoProvider` today; the pipeline cannot tell that case from the mock target, so it gains one private field, `missing_provider_outcome` (default `NoProvider`), and `set_query_embedding(provider, &EmbeddingTarget)`, which sets the provider and model and records `NoEmbeddingKey` when the target is mock. `set_embedding` is unchanged. (Implementation refinement of M1: the plan first had a public setter for the outcome; taking the target keeps the rule in the core, where it is tested.)
+- CLI: `resolve_query_embedding` returns a `QueryEmbedding { provider, target }` whose `apply(&mut pipeline)` replaces the three `set_embedding(provider, model)` calls; M2 adds the `Global` gate to `apply`.
 - `HybridSearchRequest` is unchanged; the pipeline gains `global_dense: bool` (default `false`, set by `set_global_dense`). When false, step 6 skips the `Global` target and passes `workspace <> 'Global'` as `filter_expr` to `search_vector_async` (combined with the workspace clause by `AND`; it also covers the unfiltered `Default` path). The storage layer is not changed.
 
 ### 4.2 `Global` knowledge (CLI, `actx-cli/src/engine.rs`)

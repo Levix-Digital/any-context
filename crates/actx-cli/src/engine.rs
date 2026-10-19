@@ -3,6 +3,7 @@ use actx_agent::{Agent, AgentExecutionMode, SearchMode};
 use actx_lm::providers::ProviderKind;
 use actx_lm::traits::LmProvider;
 use any_context_core_rs::storage::NativeConfigDb;
+use any_context_core_rs::ingestion::EmbeddingTarget;
 use any_context_core_rs::retrieval::ContextFormatter;
 
 /// Provider and model chosen by `resolve_lm_provider`.
@@ -134,15 +135,32 @@ pub fn resolve_lm_provider(
     Ok(ResolvedLm { provider, model: model_name, configured, notice })
 }
 
-/// Embedding provider and model for query vectors: the target recorded by the last completed
-/// sync, or the resolution the sync worker uses for chunk vectors (ADR-0132, ADR-0138).
-pub fn resolve_query_embedding(workspace: &str) -> (Option<Arc<dyn LmProvider>>, String) {
+/// Query embedding of a workspace: the provider and the target whose vector space it uses.
+#[derive(Clone)]
+pub struct QueryEmbedding {
+    pub provider: Option<Arc<dyn LmProvider>>,
+    pub target: EmbeddingTarget,
+}
+
+impl QueryEmbedding {
+    /// Sets a pipeline's query embedding; the mock target is searched by BM25 only (BUG-019).
+    pub fn apply(&self, pipeline: &mut any_context_core_rs::retrieval::NativeHybridPipeline) {
+        pipeline.set_query_embedding(self.provider.clone(), &self.target);
+    }
+}
+
+/// Query embedding: the target recorded by the last completed sync, or the resolution the sync
+/// worker uses for chunk vectors (ADR-0132, ADR-0138). No provider on the mock target.
+pub fn resolve_query_embedding(workspace: &str) -> QueryEmbedding {
     match NativeConfigDb::open_default() {
         Ok(db) => {
             let (provider, target) = any_context_core_rs::ingestion::resolve_query_embedding_provider(&db, workspace);
-            (provider, target.model)
+            QueryEmbedding { provider, target }
         }
-        Err(_) => (None, any_context_core_rs::retrieval::pipeline::DEFAULT_QUERY_EMBEDDING_MODEL.to_string()),
+        Err(_) => QueryEmbedding {
+            provider: None,
+            target: EmbeddingTarget::new("openai", any_context_core_rs::retrieval::pipeline::DEFAULT_QUERY_EMBEDDING_MODEL),
+        },
     }
 }
 
@@ -174,11 +192,10 @@ pub fn build_agent_sync(
     let reranker = create_default_reranker();
 
     // Query vectors must come from the same embedding provider and model as the indexed chunks.
-    let (embed_provider, embed_model) = resolve_query_embedding(workspace);
+    let query_embedding = resolve_query_embedding(workspace);
 
     let ws_for_tool = workspace.to_string();
-    let embed_provider_for_tool = embed_provider.clone();
-    let embed_model_for_tool = embed_model.clone();
+    let query_embedding_for_tool = query_embedding.clone();
     let reranker_for_tool = reranker.clone();
     let search_tool = actx_agent::NativeTool::new(
         "search_db",
@@ -195,8 +212,7 @@ pub fn build_agent_sync(
         }),
         move |args: serde_json::Value| {
             let ws = ws_for_tool.clone();
-            let tool_embed_provider = embed_provider_for_tool.clone();
-            let tool_embed_model = embed_model_for_tool.clone();
+            let tool_query_embedding = query_embedding_for_tool.clone();
             let tool_reranker = reranker_for_tool.clone();
             async move {
                 let query = args.get("query")
@@ -221,7 +237,7 @@ pub fn build_agent_sync(
                     .unwrap_or_else(|| "auto".to_string());
 
                 let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(lance_store, None);
-                pipeline.set_embedding(tool_embed_provider, tool_embed_model);
+                tool_query_embedding.apply(&mut pipeline);
                 pipeline.set_reranker(Some(tool_reranker));
                 pipeline.set_rerank_mode(&rerank_mode);
 
@@ -310,8 +326,7 @@ pub fn build_agent_sync(
     let deep_search_retriever = lance_store_for_retrieval.as_ref().map(|ls| {
         Arc::new(PipelineBatchRetriever {
             lance_store: ls.clone(),
-            embed_provider: embed_provider.clone(),
-            embed_model: embed_model.clone(),
+            query_embedding: query_embedding.clone(),
             workspace: workspace.to_string(),
             reranker: reranker.clone(),
         }) as Arc<dyn actx_agent::DeepSearchRetriever>
@@ -320,8 +335,7 @@ pub fn build_agent_sync(
     let pipeline_retriever = lance_store_for_retrieval.as_ref().map(|ls| {
         Arc::new(PipelineDeterministicRetriever {
             lance_store: ls.clone(),
-            embed_provider: embed_provider.clone(),
-            embed_model: embed_model.clone(),
+            query_embedding: query_embedding.clone(),
             workspace: workspace.to_string(),
             system_prompt: context_prompt.clone(),
             reranker: reranker.clone(),
@@ -657,8 +671,7 @@ fn deep_search_request(query: &str, workspace: &str, rerank_mode: &str) -> any_c
 /// Native Hybrid RAG batch retriever adapter for DeepSearch
 struct PipelineBatchRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
-    embed_provider: Option<Arc<dyn LmProvider>>,
-    embed_model: String,
+    query_embedding: QueryEmbedding,
     workspace: String,
     reranker: Arc<actx_onnx::OnnxReranker>,
 }
@@ -672,7 +685,7 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
             .unwrap_or_else(|| "auto".to_string());
 
         let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(self.lance_store.clone(), None);
-        pipeline.set_embedding(self.embed_provider.clone(), self.embed_model.clone());
+        self.query_embedding.apply(&mut pipeline);
         pipeline.set_reranker(Some(self.reranker.clone()));
         pipeline.set_rerank_mode(&rerank_mode);
 
@@ -764,8 +777,7 @@ fn format_status_report(
 /// Native Hybrid RAG deterministic retriever adapter for 1-hop Fast/Auto execution
 struct PipelineDeterministicRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
-    embed_provider: Option<Arc<dyn LmProvider>>,
-    embed_model: String,
+    query_embedding: QueryEmbedding,
     workspace: String,
     system_prompt: String,
     reranker: Arc<actx_onnx::OnnxReranker>,
@@ -780,7 +792,7 @@ impl PipelineDeterministicRetriever {
             .unwrap_or_else(|| "auto".to_string());
 
         let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(self.lance_store.clone(), None);
-        pipeline.set_embedding(self.embed_provider.clone(), self.embed_model.clone());
+        self.query_embedding.apply(&mut pipeline);
         pipeline.set_reranker(Some(self.reranker.clone()));
         pipeline.set_rerank_mode(&rerank_mode);
 
