@@ -6,13 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-020: Router performance test fails intermittently in debug builds
-- **Severity**: low
-- **Status**: open
-- **Found**: 2026-10-19, 2026-10-19, BUG-019 M1 test run
-- **Plan**: -
-- **Description**: test_router_sub_microsecond_performance (crates/actx-agent/tests/router_tests.rs) asserts an average under 50 µs per ChatModelRouter evaluation, measured with wall-clock time in an unoptimized build. Under parallel test load it fails intermittently (54.4 µs observed; 1 of 3 isolated runs failed), so cargo test --workspace can go red without a code change.
-
 ## Features
 
 ### FEAT-001: actx profile install command
@@ -440,3 +433,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-19, Wrong premise (user decision, 2026-10-19): live web search authorized by the user is supplementary lookup and is not indexed; only web pages added to a workspace as sources must be indexed. Returning search results to the model is the intended behavior; the real gap, web search not reaching the routed paths, is FEAT-019.
 - **Description**: The ReAct web_search tool (crates/actx-cli/src/engine.rs) returns the search provider's titles, URLs and snippets straight to the model, so the answer uses web content that was never indexed. This breaks the platform rule that web content, like any other, is indexed before inference. ReAct runs only when LanceDB fails to open (BUG-017), so it is rarely reached. Fix it together with the indexed web search feature.
+
+### BUG-020: Router performance test fails intermittently in debug builds
+- **Severity**: low
+- **Status**: done
+- **Found**: 2026-10-19, 2026-10-19, BUG-019 M1 test run
+- **Plan**: -
+- **Closed**: 2026-10-19, PR #369
+- **Description**: test_router_sub_microsecond_performance (crates/actx-agent/tests/router_tests.rs) asserts an average under 50 µs per ChatModelRouter evaluation, measured with wall-clock time in an unoptimized build. Under parallel test load it fails intermittently (54.4 µs observed; 1 of 3 isolated runs failed), so cargo test --workspace can go red without a code change.
