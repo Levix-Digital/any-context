@@ -441,14 +441,19 @@ impl NativeLanceStore {
         let sec = crate::security::NativeSecurityEngine::get_instance();
 
         for r in records {
-            ids.push(r.id);
-            if r.vector.len() == d {
-                flat_vectors.extend(r.vector);
-            } else {
-                let mut padded = r.vector;
-                padded.resize(d, 0.0);
-                flat_vectors.extend(padded);
+            // Shorter vectors are zero-padded (queries are padded the same way in
+            // `fit_query_vector`); longer ones can't be truncated without loss.
+            if r.vector.len() > d {
+                return Err(format!(
+                    "chunk '{}' has a {}-value vector, but the chunk table holds {d}-value vectors",
+                    r.id,
+                    r.vector.len()
+                ));
             }
+            ids.push(r.id);
+            let mut padded = r.vector;
+            padded.resize(d, 0.0);
+            flat_vectors.extend(padded);
             texts.push(sec.encrypt_text(&r.text));
             file_names.push(r.file_name);
             file_paths.push(r.file_path);
@@ -618,6 +623,20 @@ impl NativeLanceStore {
         }
     }
 
+    /// Zero-pads a shorter query vector to the table dimension, as `build_record_batch` pads the
+    /// stored vectors, so both live in the same space: the padded positions add nothing to L2,
+    /// cosine or dot-product scores (BUG-021). A longer vector can't be truncated without loss.
+    fn fit_query_vector(mut query_vector: Vec<f32>, dim: usize) -> Result<Vec<f32>, String> {
+        if query_vector.len() > dim {
+            return Err(format!(
+                "query vector has {} values, but the chunk table holds {dim}-value vectors",
+                query_vector.len()
+            ));
+        }
+        query_vector.resize(dim, 0.0);
+        Ok(query_vector)
+    }
+
     /// Performs vector similarity search with optional workspace filtering asynchronously.
     pub async fn search_vector_async(
         &self,
@@ -639,6 +658,8 @@ impl NativeLanceStore {
             .await
             .map_err(|e| e.to_string())?;
 
+        let dim = Self::table_vector_dim(&table).await?;
+        let query_vector = Self::fit_query_vector(query_vector, dim)?;
         let mut query = table.vector_search(query_vector).map_err(|e| e.to_string())?;
         query = query.limit(limit);
 
@@ -1313,6 +1334,65 @@ mod tests {
             start_line: Some(3),
             end_line: Some(9),
         }
+    }
+
+    fn record_with_vector(id: &str, vector: Vec<f32>) -> VectorRecord {
+        VectorRecord {
+            id: id.into(),
+            vector,
+            file_path: format!("docs/{id}.md"),
+            ..legacy_record(id, "", "Proj", None)
+        }
+    }
+
+    /// BUG-021: vectors shorter than the table (Ollama `nomic-embed-text` gives 768 for a 1536
+    /// table) are stored zero-padded, and a query of the same short size must still find them,
+    /// ranked as in the short space.
+    #[test]
+    fn test_short_query_vector_finds_padded_rows() {
+        let (dir, store) = temp_store("short_query");
+        let records = vec![
+            record_with_vector("near", vec![1.0, 0.0]),
+            record_with_vector("far", vec![0.0, 1.0]),
+        ];
+        store.upsert_records(records, Some("chunks"), Some(4)).expect("upsert");
+
+        let results = store
+            .search_vector(vec![0.9, 0.1], 2, Some("Proj"), None, Some("chunks"))
+            .expect("a short query vector is padded, not rejected");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let ids: Vec<&str> = results.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(ids, vec!["near", "far"]);
+    }
+
+    #[test]
+    fn test_longer_query_vector_is_rejected() {
+        let (dir, store) = temp_store("long_query");
+        store
+            .upsert_records(vec![record_with_vector("c", vec![1.0; 4])], Some("chunks"), Some(4))
+            .expect("upsert");
+
+        let err = store
+            .search_vector(vec![1.0; 6], 1, Some("Proj"), None, Some("chunks"))
+            .expect_err("a longer query vector can't be truncated");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(err.contains("6 values") && err.contains("4-value"), "{err}");
+    }
+
+    #[test]
+    fn test_longer_stored_vector_is_rejected() {
+        let (dir, store) = temp_store("long_row");
+        let err = store
+            .upsert_records(vec![record_with_vector("c", vec![1.0; 6])], Some("chunks"), Some(4))
+            .expect_err("a longer vector can't be truncated");
+        let exists = store.table_exists("chunks").expect("exists");
+        let rows = if exists { store.count_records(None, Some("chunks")).expect("count") } else { 0 };
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(err.contains("6-value") && err.contains("4-value"), "{err}");
+        assert_eq!(rows, 0);
     }
 
     fn files_containing(dir: &Path, needle: &[u8]) -> Vec<PathBuf> {
