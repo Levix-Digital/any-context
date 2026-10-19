@@ -7,7 +7,7 @@ version: v0.46.0
 status: in_progress
 author: Claude
 created_at: '2026-10-19T15:43:49'
-updated_at: '2026-10-19T18:18:24'
+updated_at: '2026-10-19T18:49:29'
 session_id: null
 tags: []
 supersedes: null
@@ -17,7 +17,9 @@ backlog_items:
 - IMP-004
 milestones:
 - name: M1 Global model and per-chunk metadata
-  done: false
+  done: true
+  done_at: '2026-10-19'
+  by: Claude
 - name: M2 Tables by dimension
   done: false
 - name: M3 File-level migration
@@ -57,6 +59,9 @@ status_log:
   by: Claude
   status: in_progress
   note: Approved by the user on 2026-10-19; implementation starts with M1
+- at: '2026-10-19T18:49:29'
+  by: Claude
+  note: 'Milestone ''M1 Global model and per-chunk metadata'' completed: EmbeddingConfig, presets, probe, global setting, resolver without fallbacks, embedding_model columns, upgrade backfill, /model decoupled; cargo test --workspace green (492)'
 ---
 
 # One application-wide embedding model, per-chunk model metadata and per-dimension tables
@@ -267,6 +272,17 @@ No new crates. LanceDB 0.39 already supports several tables, nullable column add
 - **M6 Documentation and manual tests:** ADRs, architecture pages, README, manual test suite; `check_docs.py`, `check_readme.py`, `manual_tests.py validate`, `check_design.py`.
 
 Each milestone is a commit series on the session's work branch (from `dev`), with `cargo test --workspace` green before the next milestone; one pull request into `dev`.
+
+## Implementation notes
+
+### M1 (2026-10-19)
+- **Mock runtime.** `EmbeddingRuntime` has a third variant, `Mock`, reachable only through the `mock` preset (`SyncOptions.model`, `ACTX_EMBEDDING_MODEL`); it is never chosen as a fallback. Integration tests need it outside `cfg(test)`.
+- **Choice of the global model** counts indexed files per preset in the stat cache (SQLite only), not chunks, so it can run on the query path before LanceDB is opened. Ties and installations without indexed files follow the default chat model.
+- **Ollama rows** recorded as `ollama/nomic-embed-text` map to `legacy:ollama/nomic-embed-text`, not to `nomic-embed-text#768`: their vectors are zero-padded in the 1536 table, so they are stale and move to `workspace_chunks_d768` when migrated (section 7 step 4). Likewise `gemini/text-embedding-004` and `mock/mock-embed` map to `legacy:` keys.
+- **`Global`** is left out of the LanceDB backfill: its rows are rewritten as placeholders (no model) on every upgrade and embedded again with the active model; `global_dense_enabled` now reads the rows' `embedding_model`.
+- **Interim migration** until M3: a sync pass purges and re-embeds the stale files it scans (purge-before-embed, file by file). M3 replaces it with embed-then-swap and the open-time trigger.
+- **CLI `-m`** no longer reaches the sync: it is the chat model (rule 1).
+- **BUG-022** (found while testing scoped migration): a folder-scoped sync purged the other folders' chunks. Fixed in this branch with a regression test.
 
 ## Discovery (2026-10-19)
 
