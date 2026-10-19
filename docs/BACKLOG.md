@@ -463,3 +463,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-19, PR #371
 - **Description**: Chunk vectors of a model whose dimension is not 1536 (seen with Ollama nomic-embed-text, 768) are zero-padded to the 1536 table on write, but the query vector is sent unpadded; LanceDB rejects it (no vector column matches the query dimension), the pipeline drops the error, and the workspace is answered by BM25 only while last_query_embedding() reports Dense.
+
+### BUG-023: Default workspace retrieves chunks of every workspace
+- **Severity**: high
+- **Status**: done
+- **Found**: 2026-10-19, IMP-004 plan review, 2026-10-19
+- **Plan**: -
+- **Closed**: 2026-10-19, PR #372
+- **Description**: Retrieval treats the Default workspace as no workspace filter: dense search (retrieval/pipeline.rs:617, 660, 715), metadata search (pipeline.rs:770, 946) and BM25 (retrieval/bm25.rs:213) return chunks of all workspaces for a query in Default, and a request without a workspace falls back to Default (pipeline.rs:592). Expected: Default sees only its own files, plus the Global AnyContext documentation, like every other workspace. Decided by the user on 2026-10-19.
