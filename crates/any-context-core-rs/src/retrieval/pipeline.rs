@@ -215,6 +215,8 @@ pub enum QueryEmbeddingOutcome {
     NoEmbeddingKey,
     /// The embedding call failed or returned no vector.
     Failed(String),
+    /// The query was embedded but the vector search itself failed (BUG-021).
+    SearchFailed(String),
 }
 
 impl QueryEmbeddingOutcome {
@@ -225,6 +227,7 @@ impl QueryEmbeddingOutcome {
             QueryEmbeddingOutcome::NoProvider => "BM25 only (last query): no embedding provider".to_string(),
             QueryEmbeddingOutcome::NoEmbeddingKey => "BM25 only (last query): no embedding API key (/keys)".to_string(),
             QueryEmbeddingOutcome::Failed(reason) => format!("BM25 only (last query): query embedding failed: {reason}"),
+            QueryEmbeddingOutcome::SearchFailed(reason) => format!("BM25 only (last query): dense search failed: {reason}"),
         }
     }
 }
@@ -695,6 +698,7 @@ impl NativeHybridPipeline {
         // share the query's space; otherwise BM25 and metadata matches still find them (BUG-019).
         let dense_filter = (!self.global_dense).then_some("workspace <> 'Global'");
         if let Some(q_vec) = query_vec {
+            let mut search_error = None;
             for (ws_name, limit) in &targets {
                 if !self.global_dense && ws_name == "Global" {
                     continue;
@@ -704,28 +708,37 @@ impl NativeHybridPipeline {
                 } else {
                     Some(ws_name.as_str())
                 };
-                if let Ok(matches) = self
+                // A failed search is recorded, never dropped silently (BUG-021).
+                let matches = match self
                     .lance_store
                     .search_vector_async(q_vec.clone(), *limit, ws_filter, dense_filter, Some(&req.table_name))
                     .await
                 {
-                    for sc in matches {
-                        let cid = if !sc.id.is_empty() {
-                            sc.id.clone()
-                        } else {
-                            format!(
-                                "{}::{}",
-                                sc.file_path,
-                                &sc.text.chars().take(80).collect::<String>()
-                            )
-                        };
-                        if let Some(existing) = raw_candidates_map.get_mut(&cid) {
-                            existing.score = existing.score.max(sc.score);
-                        } else {
-                            raw_candidates_map.insert(cid, sc);
-                        }
+                    Ok(matches) => matches,
+                    Err(e) => {
+                        search_error.get_or_insert(e);
+                        continue;
+                    }
+                };
+                for sc in matches {
+                    let cid = if !sc.id.is_empty() {
+                        sc.id.clone()
+                    } else {
+                        format!(
+                            "{}::{}",
+                            sc.file_path,
+                            &sc.text.chars().take(80).collect::<String>()
+                        )
+                    };
+                    if let Some(existing) = raw_candidates_map.get_mut(&cid) {
+                        existing.score = existing.score.max(sc.score);
+                    } else {
+                        raw_candidates_map.insert(cid, sc);
                     }
                 }
+            }
+            if let Some(e) = search_error {
+                self.record_query_embedding(QueryEmbeddingOutcome::SearchFailed(e));
             }
         }
 
@@ -1634,6 +1647,63 @@ mod tests {
         assert_eq!(query_outcome("qe_embedded", Some(FixedEmbedder(Ok(vec![vec![0.1; 4]]))), None), Some(QueryEmbeddingOutcome::Dense));
     }
 
+    /// BUG-021: a 768-value query (Ollama `nomic-embed-text`) against the 1536 table, whose rows
+    /// were stored zero-padded, must reach dense search instead of failing silently.
+    #[test]
+    fn test_short_query_vector_reaches_dense_search() {
+        let short = crate::storage::lancedb::DEFAULT_VECTOR_DIM / 2;
+        let (pipeline, dir) = bm25_pipeline("short_query", &[("k_0", "kestrel timeouts are retried three times", "guide.md", SAME_DAY)]);
+        let mut near = vec![0.0; short];
+        near[0] = 1.0;
+        let mut far = vec![0.0; short];
+        far[1] = 1.0;
+        let rows = vec![
+            stored_row("d_near", "pasta recipe with basil", "near.md", near.clone()),
+            stored_row("d_far", "notes about herons", "far.md", far),
+        ];
+        pipeline.lance_store.upsert_records(rows, None, None).unwrap();
+
+        let results = pipeline
+            .search(HybridSearchRequest {
+                query_text: "kestrel".to_string(),
+                query_vector: Some(near),
+                min_score: RRF_MIN_SCORE,
+                ..Default::default()
+            })
+            .unwrap();
+        let outcome = pipeline.last_query_embedding();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let near_hit = results.iter().find(|r| r.chunk_id == "d_near").expect("dense search finds the near chunk");
+        assert!(near_hit.dense_score.is_some());
+        assert_eq!(outcome, Some(QueryEmbeddingOutcome::Dense));
+    }
+
+    #[test]
+    fn test_dense_search_failure_is_recorded() {
+        let (pipeline, dir) = bm25_pipeline("dense_failed", &[("k_0", "kestrel timeouts are retried three times", "guide.md", SAME_DAY)]);
+        pipeline
+            .lance_store
+            .upsert_records(vec![stored_row("d_0", "pasta recipe", "pasta.md", vec![0.1; 4])], None, Some(4))
+            .unwrap();
+
+        let results = pipeline
+            .search(HybridSearchRequest {
+                query_text: "kestrel".to_string(),
+                query_vector: Some(vec![0.1; 8]),
+                ..Default::default()
+            })
+            .unwrap();
+        let outcome = pipeline.last_query_embedding();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert!(results.iter().any(|r| r.chunk_id == "k_0"), "BM25 still answers");
+        match outcome {
+            Some(QueryEmbeddingOutcome::SearchFailed(reason)) => assert!(reason.contains("8 values"), "{reason}"),
+            other => panic!("expected a dense search failure, got {other:?}"),
+        }
+    }
+
     #[test]
     fn test_query_embedding_outcome_descriptions() {
         assert_eq!(QueryEmbeddingOutcome::Dense.describe(), "dense + BM25 (last query)");
@@ -1645,6 +1715,10 @@ mod tests {
         assert_eq!(
             QueryEmbeddingOutcome::Failed("quota".into()).describe(),
             "BM25 only (last query): query embedding failed: quota"
+        );
+        assert_eq!(
+            QueryEmbeddingOutcome::SearchFailed("size".into()).describe(),
+            "BM25 only (last query): dense search failed: size"
         );
     }
     /// Regression BUG-019: on the mock target every chunk and query vector is the same, so dense
