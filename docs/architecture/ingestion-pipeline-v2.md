@@ -139,7 +139,31 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
 
 ## 3. Diff incremental
 
-_Pendente._
+### Decisões
+
+- **Mudança é decidida pelo hash do conteúdo.** mtime + tamanho são só o filtro rápido: se
+  não mudaram, o arquivo é pulado sem ler; se mudaram, o hash decide. Um arquivo tocado
+  sem mudança de conteúdo só atualiza o cache de mtime.
+- **Rename e move são identificados pelo hash do conteúdo** (um arquivo que sumiu e um novo
+  com o mesmo hash, na mesma fonte) e só atualizam o caminho dos chunks — sem re-embedar.
+  Substitui a heurística atual de nome e tamanho.
+- **Diff por chunk.** O id do chunk passa a ser o hash do texto que é embedado (mais o alvo
+  de embedding). Numa edição, o arquivo é re-chunkado, os chunks com hash já conhecido
+  reaproveitam o vetor e só os novos são embedados; os que deixaram de existir saem.
+  - Funciona bem com chunkers que cortam por estrutura (headers, AST), cujas fronteiras não
+    se deslocam com uma edição local.
+  - O texto embedado inclui o cabeçalho do chunk (passo 7): um contexto que muda para o
+    documento inteiro (ex.: um resumo do documento) invalida todos os chunks dele. O
+    passo 7 precisa levar isso em conta.
+- **Fonte inacessível fica offline, não é apagada.** Um HD externo desconectado ou uma pasta
+  de rede fora do ar mantém seus chunks no índice; a fonte é marcada como **offline** no
+  status e nas citações, e volta ao diff normal quando reaparecer.
+  - Hoje é o contrário: os arquivos de uma pasta inacessível entram como deletados e
+    **são removidos do índice** (bug a corrigir).
+- **Sem "cura" silenciosa de caminhos.** O path healer atual troca uma pasta sumida por um
+  caminho adivinhado (`Documentos/`, `OneDrive/`, pasta irmã) e indexa esse caminho sem
+  perguntar. Isso viola a regra de ação explícita (passo 1): no máximo, o AnyContext sugere
+  o caminho provável e o usuário confirma.
 
 ## 4. Classificação do conteúdo
 
