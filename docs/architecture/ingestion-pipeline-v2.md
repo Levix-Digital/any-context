@@ -94,10 +94,27 @@ hora e os vetores quando houver modelo (ver passo 8).
   o que não mudou (requisições condicionais).
 - **Páginas que somem do site saem do índice.**
 
+### Web: renderização e conversão para Markdown
+
+O AnyContext nasce air-gapped: nenhuma etapa da aquisição depende de serviço de terceiros.
+**O Jina Reader é removido por completo** (código, configuração e `JINA_API_KEY`).
+
+1. **Renderização:** um **Chromium headless embutido** renderiza as páginas, para que sites
+   SPA (comuns para o público-alvo: uso doméstico, advogados, contadores) cheguem com
+   conteúdo.
+2. **Seleção do conteúdo:** um modelo ONNX pequeno de **classificação** (não gerativo)
+   marca cada bloco do DOM como conteúdo ou ruído (menu, rodapé, propaganda). Sem o
+   modelo instalado, uma heurística no estilo Readability faz o mesmo papel.
+3. **Conversão determinística:** os blocos selecionados viram Markdown em Rust,
+   preservando headings, tabelas, listas e blocos de código sem reescrever texto.
+
+Um modelo gerativo de HTML → Markdown (ReaderLM-v2) foi descartado: lento demais em CPU,
+pode alterar números e código, e a licença precisa ser confirmada para uso comercial.
+
 ### Em aberto
 
-- Conversão HTML → Markdown: Jina Reader (decisão inicial) ou módulo local via ONNX, para o
-  AnyContext nascer air-gapped.
+- Distribuição do Chromium: no instalador ou baixado sob demanda.
+- Renderizar toda página ou só quando a busca estática vier sem conteúdo.
 
 ## 3. Diff incremental
 
