@@ -4,6 +4,17 @@ Documento vivo da revisão do pipeline de ingestão. Cada passo é preenchido de
 discutido e decidido; os passos ainda não discutidos ficam marcados como _pendente_.
 Este documento é a base para refazer o backlog (`docs/BACKLOG.md`).
 
+## Princípios
+
+- **Multilíngue.** O AnyContext é global: nenhuma decisão de design ou arquitetura se
+  prende a um idioma ou alfabeto. Onde for imperativo escolher um idioma (ex.: texto
+  gerado pelo próprio pipeline), escolhe-se o inglês.
+- **Ação explícita.** Nada é indexado sem o usuário ter escolhido a fonte (passo 1).
+- **Air-gapped por padrão.** Nenhuma etapa da ingestão depende de serviço de terceiros;
+  capacidades extras vêm de modelos ONNX locais, atualizados pelo catálogo verificado.
+- **Nada some em silêncio.** O que não é indexado (formato sem parser, arquivo protegido,
+  chunk descartado) é reportado com o motivo.
+
 ## Visão geral (caminho feliz)
 
 1. Seleção da fonte
@@ -177,8 +188,8 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
   - Containers OLE/CFB (Office antigo e Outlook) são separados pelos streams internos:
     `WordDocument` (.doc), `Workbook` (.xls), `PowerPoint Document` (.ppt), `__substg1.0_*`
     (.msg).
-  - Texto tem a **codificação detectada** (UTF-8, UTF-16 com BOM, Windows-1252/Latin-1 —
-    comum em arquivos brasileiros) antes de seguir; um texto que é CSV, JSON ou Markdown é
+  - Texto tem a **codificação detectada** (UTF-8, UTF-16 com BOM e as codificações legadas
+    de qualquer idioma, como Windows-125x, Shift_JIS, GB18030) antes de seguir; um texto que é CSV, JSON ou Markdown é
     reconhecido pelo conteúdo.
 - **Categorias:**
 
@@ -228,8 +239,10 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
   | e-mail | mensagem |
 
 - **OCR via modelo ONNX**, no lugar do Tesseract externo (hoje procurado no PATH e muitas
-  vezes ausente). Candidato: PaddleOCR exportado para ONNX (Apache-2.0, modelo latino com
-  português); alternativa: docTR. Distribuído e atualizado como os demais modelos ONNX.
+  vezes ausente). Multilíngue: o OCR detecta o sistema de escrita da página e usa o modelo
+  de reconhecimento correspondente. Candidato: PaddleOCR exportado para ONNX (Apache-2.0,
+  modelos de reconhecimento para dezenas de idiomas e alfabetos); alternativa: docTR.
+  Distribuído e atualizado como os demais modelos ONNX.
 - **Tabelas repetem o cabeçalho em cada chunk de linhas**, com:
   - localização no chunk (planilha e intervalo de linhas) para citação;
   - tabelas largas (ex.: mais de 15 colunas) em formato de registro `coluna: valor` por
@@ -242,7 +255,30 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
 
 ## 6. Quality gate e Document AI
 
-_Pendente._
+### Decisões
+
+- **O quality gate só aplica filtros seguros e independentes de idioma:** vazio ou curto
+  demais, sintaxe solta (`}`, `)];`), linha minificada e binário (caracteres de controle).
+  Os filtros de entropia de bytes e de densidade lexical saem: descartam texto em
+  alfabetos não latinos como "lixo binário" e tabelas ou logs com valores repetidos.
+- **Todo chunk descartado é registrado com o motivo** e fica visível no relatório do sync
+  (e num comando de inspeção), em vez de só uma contagem.
+- **Document AI local via ONNX.** Depois do OCR (passo 5), um modelo de **layout** reconstrói
+  tabelas e formulários escaneados; a heurística espacial 2D atual fica como fallback.
+  - LLM de visão (local ou na VPC) só se o usuário configurar explicitamente; desligado
+    por padrão. Nunca um serviço externo implícito.
+  - Hoje nenhum componente de Document AI está ligado em produção (extrator de layout,
+    detector de scan e modo de visão nunca são conectados): todo candidato cai na
+    heurística 2D.
+- **Imagens que não são texto** (fotos, diagramas, gráficos) recebem uma **descrição gerada
+  por um modelo de visão local** (ONNX), indexada junto com o texto de OCR e os metadados.
+  A descrição é gerada em inglês (o embedding multilíngue a aproxima de perguntas em
+  qualquer idioma).
+
+### Em aberto
+
+- Escolha do modelo de visão local (candidatos com licença permissiva e export ONNX:
+  Florence-2, SmolVLM, Moondream; ou o mesmo Gemma local de FEAT-002, se multimodal).
 
 ## 7. Cabeçalhos e metadados do chunk
 
