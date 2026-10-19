@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-19T11:48:33'
-updated_at: '2026-10-19T12:17:24'
+updated_at: '2026-10-19T12:17:26'
 session_id: null
 tags: []
 supersedes: null
@@ -25,7 +25,9 @@ milestones:
   done_at: '2026-10-19'
   by: Claude
 - name: M3 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-19'
+  by: Claude
 - name: M4 Review and PR
   done: false
 status_log:
@@ -47,6 +49,9 @@ status_log:
 - at: '2026-10-19T12:17:24'
   by: Claude
   note: Milestone 'M2 Deep Search prompts' completed
+- at: '2026-10-19T12:17:26'
+  by: Claude
+  note: Milestone 'M3 Docs and manual tests' completed
 ---
 
 ---
