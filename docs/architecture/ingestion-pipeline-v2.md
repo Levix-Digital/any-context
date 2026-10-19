@@ -341,7 +341,30 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
 
 ## 9. Indexação lexical (BM25)
 
-_Pendente._
+### Decisões
+
+- **Tantivy (MIT) substitui a implementação própria.** Índice em disco, incremental e por
+  segmentos (sem carregar tudo na memória nem reescrever o arquivo inteiro a cada sync),
+  campos com pesos diferentes (cabeçalho com peso menor que o corpo, passo 7), tokenizers
+  plugáveis e BM25 nativo.
+- **O índice não guarda o texto do chunk**, só os termos e o id; o texto vem do LanceDB.
+  Hoje `bm25_index.bin` guarda o texto completo em claro e anula a criptografia do LanceDB
+  (IMP-012).
+- **Os arquivos do índice ficam criptografados em disco**, por uma camada de armazenamento
+  (`Directory`) própria do Tantivy — um índice lexical sempre contém os termos em claro,
+  então a proteção é no armazenamento.
+- **Um índice por workspace.** As estatísticas (IDF, tamanho médio) de um workspace não
+  afetam o ranking de outro; apagar um workspace apaga o seu diretório. Uma consulta que
+  abrange vários (ex.: workspace atual + `Global`) consulta cada índice e funde por posição
+  (RRF), que não depende de scores comparáveis.
+- **Tokenização multilíngue sem tabela por idioma:**
+  - segmentação de palavras pelo padrão Unicode (UAX #29), com dicionário para idiomas sem
+    espaço entre palavras (chinês, japonês, tailandês, khmer…) — ICU4X, em Rust;
+  - remoção de acentos genérica, por normalização Unicode (NFKD sem marcas combinantes),
+    para qualquer alfabeto, no lugar da tabela manual só latina;
+  - mantida a divisão de identificadores de código (`camelCase`, `snake_case`) junto com o
+    identificador inteiro.
+- **Sem stemming:** depende de idioma; a busca semântica cobre as variações de palavra.
 
 ## 10. Persistência na base vetorial
 
