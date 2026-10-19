@@ -387,9 +387,16 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
   outra máquina. A integração com contas de usuário fica para o futuro módulo de usuários
   (fora do escopo da ingestão).
 
+- **Índice vetorial aproximado (ANN) a partir de 100 mil chunks** por workspace e
+  `embedding_target`, configurável. Abaixo disso a busca é exaustiva (exata e rápida —
+  milhares de arquivos ficam na casa de dezenas de milhares de chunks). Acima, o índice é
+  criado automaticamente em segundo plano e reconstruído após muitas mudanças; chunks
+  recém-inseridos ainda fora do índice continuam encontrados (busca exaustiva nos novos,
+  fundida com o ANN). A pequena perda de recall do ANN é compensada pela busca lexical em
+  paralelo e pelo reranker.
+
 ### Em aberto
 
-- Limite a partir do qual um workspace ganha índice vetorial aproximado (ANN).
 - Proteção dos vetores: a criptografia por campo não serve para eles (a busca precisa
   calcular distâncias sobre os vetores), então a proteção teria de ser na camada de
   armazenamento.
