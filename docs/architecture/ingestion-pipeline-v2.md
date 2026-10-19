@@ -319,7 +319,25 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
 
 ## 8. Embedding
 
-_Pendente._
+### Decisões
+
+- **O modelo de embedding é independente do modelo de chat** (FEAT-005). É definido pelo
+  kit de modelos (perfil de hardware) e o usuário pode trocá-lo. Hoje ele é derivado do
+  modelo de chat, e trocar o chat reindexa o workspace inteiro.
+- **Padrão local, multilíngue, via ONNX** — o AnyContext nasce air-gapped. O modelo varia
+  por perfil; candidatos com licença permissiva: `multilingual-e5-small`/`-base` (MIT),
+  `BGE-M3` (MIT; 100+ idiomas, 8192 tokens, também vetores esparsos) e
+  `Qwen3-Embedding-0.6B` (Apache-2.0). Provedores na nuvem (OpenAI, Gemini…) só por
+  escolha explícita.
+- **Nunca troca de modelo em silêncio.** Acaba o fallback para OpenAI e para o provedor
+  mock (vetores falsos). Se o modelo escolhido falha, os arquivos falham, o usuário é
+  avisado e o próximo sync tenta de novo.
+- **Prefixos por modelo:** o catálogo declara os prefixos de busca e de documento de cada
+  modelo (ex.: `query:` / `passage:`) e o pipeline os aplica na ingestão e na consulta
+  (IMP-014).
+- **Lotes limitados por tokens e pelo máximo da API**, com paralelismo controlado nos
+  provedores remotos e uso da CPU/GPU disponível no caso local. Hoje é uma chamada por
+  arquivo, sem limite, uma de cada vez.
 
 ## 9. Indexação lexical (BM25)
 
