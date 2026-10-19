@@ -6,6 +6,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
+### BUG-021: Dense search never runs when the embedding dimension is not 1536
+- **Severity**: high
+- **Status**: open
+- **Found**: 2026-10-19, v0.45.0, IMP-004 discovery 2026-10-19
+- **Plan**: -
+- **Description**: Chunk vectors of a model whose dimension is not 1536 (seen with Ollama nomic-embed-text, 768) are zero-padded to the 1536 table on write, but the query vector is sent unpadded; LanceDB rejects it (no vector column matches the query dimension), the pipeline drops the error, and the workspace is answered by BM25 only while last_query_embedding() reports Dense.
+
 ## Features
 
 ### FEAT-001: actx profile install command
@@ -152,9 +159,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-004: Per-table vector dimension in LanceDB with assisted reindex
 - **Priority**: high
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
+- **Plan**: any_context_per_table_vector_dimension_in_lancedb_with_assisted_reindex
 - **Description**: storage/lancedb.rs fixes DEFAULT_VECTOR_DIM = 1536 and ingestion writes every table with it, while Gemini (768), Ollama nomic-embed-text (768) and local ONNX embedders (384/768) produce other sizes. Store model and dimension per workspace/table, detect divergence and offer assisted reindex. First LanceDB schema change since C0: needs migration and rollback; combine with the Frente D parent_id change (roadmap 2.2 goal 4).
 
 ### IMP-005: Single source for the Core and Installer model catalogs
