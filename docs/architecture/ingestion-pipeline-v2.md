@@ -208,7 +208,37 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
 
 ## 5. Parsing e chunking
 
-_Pendente._
+### Decisões
+
+- **Tamanho medido em tokens**, com um alvo único para todos os parsers (ordem de 512
+  tokens) e teto rígido no limite de entrada do modelo de embedding. Hoje o tamanho é em
+  caracteres (1800) e o PDF é exceção (até 8000).
+- **Overlap só em texto corrido** (prosa, PDF, Office, e-mail, web), da ordem de 10–15%.
+  Código, tabelas e dados estruturados são cortados pela estrutura, sem overlap.
+- **Chunks hierárquicos (small-to-big).** O chunk pequeno é o que se embeda e se busca; cada
+  um guarda o vínculo com o seu **pai**, que é guardado mas não embedado e pode ser
+  entregue ao LLM no lugar do trecho:
+
+  | conteúdo | pai |
+  |---|---|
+  | Markdown, Office, web, e-book | seção (heading) |
+  | PDF | página |
+  | código | função, classe ou módulo |
+  | tabular | planilha + intervalo de linhas |
+  | e-mail | mensagem |
+
+- **OCR via modelo ONNX**, no lugar do Tesseract externo (hoje procurado no PATH e muitas
+  vezes ausente). Candidato: PaddleOCR exportado para ONNX (Apache-2.0, modelo latino com
+  português); alternativa: docTR. Distribuído e atualizado como os demais modelos ONNX.
+- **Tabelas repetem o cabeçalho em cada chunk de linhas**, com:
+  - localização no chunk (planilha e intervalo de linhas) para citação;
+  - tabelas largas (ex.: mais de 15 colunas) em formato de registro `coluna: valor` por
+    linha, em vez de linha de tabela Markdown.
+
+### Em aberto
+
+- Limite configurável (com aviso ao usuário) para planilhas com centenas de milhares de
+  linhas.
 
 ## 6. Quality gate e Document AI
 
