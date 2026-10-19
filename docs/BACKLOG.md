@@ -22,9 +22,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-019: Dense search ranks arbitrary chunks on the mock embedding target
 - **Severity**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-014/IMP-003 discovery
-- **Plan**: -
+- **Plan**: any_context_dense_search_ranks_arbitrary_chunks_on_constant_vectors
 - **Description**: Without an embedding key, resolve_embedding_provider falls back to MockLmProvider (target mock/mock-embed), whose embed returns the same constant vector (0.1 x 1536) for every text. Chunks indexed and queries embedded on that target are all at the same distance, so dense search returns an arbitrary candidate pool that RRF fuses with BM25: a rank-1 dense-only hit scores 1/61, above RRF_MIN_SCORE (0.005), so unrelated chunks can reach the prompt. Found while planning BUG-014/IMP-003; candidate fix: skip dense search on the mock target and report it as BM25-only.
 
 ## Features
