@@ -6,6 +6,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
+### BUG-021: Dense search never runs on Ollama workspaces
+- **Severity**: high
+- **Status**: open
+- **Found**: 2026-10-19, v0.45.0, IMP-004 discovery 2026-10-19
+- **Plan**: -
+- **Description**: Ollama nomic-embed-text chunk vectors (768) are zero-padded to the 1536 table on write, but the query vector is sent unpadded; LanceDB rejects it (no vector column matches the query dimension), the pipeline drops the error, and the workspace is answered by BM25 only while last_query_embedding() reports Dense.
+
 ## Features
 
 ### FEAT-001: actx profile install command
