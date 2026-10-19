@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-19T11:48:33'
-updated_at: '2026-10-19T12:17:21'
+updated_at: '2026-10-19T12:17:24'
 session_id: null
 tags: []
 supersedes: null
@@ -21,7 +21,9 @@ milestones:
   done_at: '2026-10-19'
   by: Claude
 - name: M2 Deep Search prompts
-  done: false
+  done: true
+  done_at: '2026-10-19'
+  by: Claude
 - name: M3 Docs and manual tests
   done: false
 - name: M4 Review and PR
@@ -42,6 +44,9 @@ status_log:
 - at: '2026-10-19T12:17:21'
   by: Claude
   note: Milestone 'M1 Shared prompt safety module' completed
+- at: '2026-10-19T12:17:24'
+  by: Claude
+  note: Milestone 'M2 Deep Search prompts' completed
 ---
 
 ---
