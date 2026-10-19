@@ -152,7 +152,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-004: Per-table vector dimension in LanceDB with assisted reindex
 - **Priority**: high
-- **Status**: planned
+- **Status**: in_progress
 - **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
 - **Plan**: any_context_per_table_vector_dimension_in_lancedb_with_assisted_reindex
 - **Description**: storage/lancedb.rs fixes DEFAULT_VECTOR_DIM = 1536 and ingestion writes every table with it, while Gemini (768), Ollama nomic-embed-text (768) and local ONNX embedders (384/768) produce other sizes. Store model and dimension per workspace/table, detect divergence and offer assisted reindex. First LanceDB schema change since C0: needs migration and rollback; combine with the Frente D parent_id change (roadmap 2.2 goal 4).

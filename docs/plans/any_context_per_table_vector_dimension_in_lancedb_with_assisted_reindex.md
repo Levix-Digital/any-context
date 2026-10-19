@@ -4,10 +4,10 @@ project: any-context
 title: One application-wide embedding model, per-chunk model metadata and per-dimension tables
 kind: feature
 version: v0.46.0
-status: draft
+status: in_progress
 author: Claude
 created_at: '2026-10-19T15:43:49'
-updated_at: '2026-10-19T16:58:44'
+updated_at: '2026-10-19T18:18:24'
 session_id: null
 tags: []
 supersedes: null
@@ -45,6 +45,18 @@ status_log:
   by: Claude
   status: draft
   note: Plan updated
+- at: '2026-10-19T18:16:53'
+  by: Claude
+  status: in_progress
+  note: Approved by the user on 2026-10-19; implementation starts with M1
+- at: '2026-10-19T18:17:46'
+  by: Claude
+  status: in_progress
+  note: Approved by the user on 2026-10-19; implementation starts with M1
+- at: '2026-10-19T18:18:24'
+  by: Claude
+  status: in_progress
+  note: Approved by the user on 2026-10-19; implementation starts with M1
 ---
 
 # One application-wide embedding model, per-chunk model metadata and per-dimension tables
@@ -61,8 +73,7 @@ Plan for IMP-004 (`dev-cycle-protocol` Phases 1 and 2). Business rules decided w
 ### Related items, kept separate (user's decision, 2026-10-19)
 FEAT-005 and BUG-021 stay as their own backlog items and are not promoted into this plan.
 - **FEAT-005** (high): embedding model independent of the chat model, with stale-workspace status. This plan's rules 1 and 5 overlap with it.
-- **BUG-021** (high): dense search never runs when the embedding model's dimension is not 1536 (seen with Ollama `nomic-embed-text`, 768). Milestone M2 (native-size vectors and no silent padding) removes its cause.
-- Gate 3 blocks this plan while BUG-021 is open and outside it. The session that executes the plan asks the user how to proceed (fix BUG-021 first, or run the gate with `--accept-open-bugs` and the user's reason).
+- **BUG-021** (high, closed by PR #371 before this plan was approved): dense search never ran when the embedding model's dimension was not 1536 (seen with Ollama `nomic-embed-text`, 768). PR #371 zero-pads query vectors to the 1536 table and records failed vector searches as `SearchFailed`. Milestone M2 replaces the padding with native-size tables and adapts PR #371's regression test instead of adding a new one.
 
 ### Behavior changes confirmed by the user (2026-10-19)
 - A failed query embedding (network, rate limit, server error) is retried once and then answered with an error; there is no BM25-only fallback.
@@ -187,7 +198,7 @@ No new crates. LanceDB 0.39 already supports several tables, nullable column add
 ## 4. Tests (`quality-assurance`)
 
 **Automated (all under `cargo test --workspace`, deterministic, temp dirs, scripted embedders with chosen dimensions):**
-- Regression for BUG-021: a 768-dimension workspace is found by dense search (`dense_score` set, outcome `Dense`); fails on today's code.
+- Regression for BUG-021 (test from PR #371, adapted): a 768-dimension workspace is found by dense search (`dense_score` set, outcome `Dense`) from the `workspace_chunks_d768` table, with no padding.
 - `EmbeddingConfig`: presets fill the expected endpoint, format, model and key; `key()` ignores the endpoint; a custom OpenAI-compatible endpoint (local test server) is probed and its measured dimension stored; a probe failure leaves the active model unchanged and reports the cause.
 - The `openai` format reaches any base URL through the same code path (`CustomCompatible`); the `gemini` format sends the configured `outputDimensionality`.
 - `upsert_records` rejects a vector of the wrong length; writes to `workspace_chunks` for 1536 and `workspace_chunks_d768` for 768; writes the `embedding_model` column.
@@ -255,7 +266,7 @@ No new crates. LanceDB 0.39 already supports several tables, nullable column add
 - **M5 Surfaces:** `/embed` and `actx embed` with preview and confirmation, TUI badge, stale marks and progress, first-run and upgrade notice.
 - **M6 Documentation and manual tests:** ADRs, architecture pages, README, manual test suite; `check_docs.py`, `check_readme.py`, `manual_tests.py validate`, `check_design.py`.
 
-Each milestone is a commit series on `feat/global-embedding-model` (from `dev`), with `cargo test --workspace` green before the next milestone; one pull request into `dev`.
+Each milestone is a commit series on the session's work branch (from `dev`), with `cargo test --workspace` green before the next milestone; one pull request into `dev`.
 
 ## Discovery (2026-10-19)
 
