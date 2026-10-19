@@ -15,10 +15,10 @@ pub mod jina;
 pub use router::IngestionRouter;
 pub use traits::{Chunker, ScanSentinel, ScanAssessment, DocumentVisionExtractor};
 pub use scanner::{WorkspaceScanner, DiffResult};
-pub use orchestrator::{embedding_failure_summary, sync_error_headline, NativeSyncOrchestrator, SyncOptions, SyncResult};
+pub use orchestrator::{embed_with_retry, embedding_failure_summary, sync_error_headline, NativeSyncOrchestrator, SyncOptions, SyncResult};
 pub use embedding::{
-    EmbeddingTarget, ReindexDecision, decide_reindex, legacy_target, pending_reindex_notice,
-    resolve_embedding_provider, resolve_query_embedding_provider,
+    EmbeddingTarget, ReindexDecision, GLOBAL_KNOWLEDGE_TARGET_SETTING, decide_reindex, global_dense_enabled,
+    legacy_target, pending_reindex_notice, resolve_embedding_provider, resolve_query_embedding_provider,
 };
 pub use enricher::NativeContextualEnricher;
 pub use crawler::{NativeWebCrawler, CrawlerConfig, CrawledPage, SitemapEntry, RobotsPolicy};

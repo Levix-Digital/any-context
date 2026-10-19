@@ -23,7 +23,7 @@ The actx binary with argument parsing, one-shot questions, the background sync w
 | `main.rs` | Rewrites `--update@<v>`, `-u@<v>`, `update@<v>`, `upgrade@<v>`, `--update=<v>` and `-u=<v>` into Clap-compatible arguments, parses `CliArgs`, then runs `oneshot::run_headless` or `tui::run_tui`. |
 | `cli/args.rs` | `CliArgs`, `CliCommand`, `is_headless`, `resolved_query`. |
 | `cli/oneshot.rs` | Headless dispatcher, streaming of agent events to stdout, `handle_download`, `handle_update`, `handle_check_update`. |
-| `engine.rs` | `resolve_lm_provider`, `create_default_reranker`, `build_agent_sync`, `ensure_global_knowledge_bootstrap`, `is_first_run_or_upgrade`, `run_startup_splash_bootstrap`, `PipelineDeterministicRetriever`, `PipelineBatchRetriever`. |
+| `engine.rs` | `resolve_lm_provider`, `create_default_reranker`, `build_agent_sync`, `ensure_global_knowledge_bootstrap`, `refresh_global_knowledge_vectors`, `QueryEmbedding`, `is_first_run_or_upgrade`, `run_startup_splash_bootstrap`, `PipelineDeterministicRetriever`, `PipelineBatchRetriever`. |
 | `prompt.rs` | System prompt builder and the embedded `AGENT.md`, `README.md` and `SYSTEM_KNOWLEDGE.md` (see [Agent Runtime](agent.md)). |
 | `commands/registry.rs` | `SlashCommand` table with descriptions and aliases, `find_command`, `autocomplete_commands`. |
 | `commands/dispatcher.rs` | `dispatch_slash_command`: builds the `ExecutionContext` from the TUI state, calls `CommandEngine::execute` and applies the result. |
@@ -39,8 +39,8 @@ The actx binary with argument parsing, one-shot questions, the background sync w
 | `actx "<question>"`, `-q/--query/--prompt` | One-shot question streamed to stdout. Piped stdin also selects headless mode. |
 | `-w/--workspace <name>` | Workspace to use (default `Default`). |
 | `-m/--model <id>` | Model override for this run. |
-| `-s/--sync`, `actx sync [--force] [--folder <path>]` | Runs a sync in the foreground with verbose output. Errors are printed after the summary (first 10, then a count), with a note that files not embedded are retried on the next sync. |
-| `--sync-worker [--workspace] [--force] [--folder]` | Hidden flag used by background workers spawned by the command engine; prints the same errors to the worker log. |
+| `-s/--sync`, `actx sync [--force] [--folder <path>]` | Runs a sync in the foreground with verbose output. Errors are printed after the summary (first 10, then a count), with a note that files not embedded are retried on the next sync. Then embeds the system documentation (`Global`) when needed and says so (see [Ingestion and Sync](ingestion.md)). |
+| `--sync-worker [--workspace] [--force] [--folder]` | Hidden flag used by background workers spawned by the command engine; prints the same errors to the worker log and embeds `Global` the same way. |
 | `-f/--force`, `--folder <path>` | Full re-index; folder-scoped sync. |
 | `-d/--diagnostics` (`diag`, `health`) | Prints version, platform, workspaces, hardware, accelerators and database paths. |
 | `--check-update`, `-u/--update`, `actx update [--check] [version]` | Checks for or installs a release (see [Installer and Updater](installer.md)). |
@@ -64,12 +64,12 @@ The headless path resolves grounding mode, search mode and web search from the w
 3. Creates the re-ranker for the active re-ranker model (`create_default_reranker`); its ONNX session loads lazily on first use.
 4. Builds `search_db` and `system_status` (its report comes from `workspace_status_report`), and `web_search` when web search is enabled, derives the ReAct system prompt from their names (`PromptPath::Tools`) and registers them (see [Agent Runtime](agent.md)).
 5. Sets the execution mode (`DeepSearch` for `/search deep`, otherwise `ReAct`), the search policy and `max_turns(10)`.
-6. Resolves the query embedding once (`resolve_query_embedding`, which calls `ingestion::resolve_embedding_provider`) and plugs in `PipelineBatchRetriever` (Deep Search), `PipelineDeterministicRetriever` (one-hop RAG) and `PipelineStatusRetriever` (status questions: the same search plus the live status report, ADR-0145) when LanceDB opens; they and `search_db` use the [retrieval pipeline](retrieval.md) with that embedding and the `rerank_mode` setting.
+6. Resolves the query embedding once (`resolve_query_embedding`, which calls `ingestion::resolve_query_embedding_provider` and `ingestion::global_dense_enabled` and returns a `QueryEmbedding`: provider, target, and whether `Global` takes part in dense search) and plugs in `PipelineBatchRetriever` (Deep Search), `PipelineDeterministicRetriever` (one-hop RAG) and `PipelineStatusRetriever` (status questions: the same search plus the live status report, ADR-0145) when LanceDB opens; they and `search_db` use the [retrieval pipeline](retrieval.md) with that embedding (`QueryEmbedding::apply`) and the `rerank_mode` setting.
 7. Attaches the `ChatModelRouter` with the query classifier adapter.
 
 ### Startup and self-knowledge
 
-`is_first_run_or_upgrade` compares the `global_knowledge_version` setting with the binary version through SQLite only (no LanceDB or BM25 access). When it differs, `run_startup_splash_bootstrap` shows a three-step splash (verify stores, index system knowledge, warm up), runs `ensure_global_knowledge_bootstrap` and always writes the current version. The TUI also runs the bootstrap in a background task on every launch; it returns immediately when the `Global` chunks exist and the version matches.
+`is_first_run_or_upgrade` compares the `global_knowledge_version` setting with the binary version through SQLite only (no LanceDB or BM25 access). When it differs, `run_startup_splash_bootstrap` shows a three-step splash (verify stores, index system knowledge, warm up), runs `ensure_global_knowledge_bootstrap` and always writes the current version. The TUI also runs the bootstrap in a background task on every launch; it returns immediately when the `Global` chunks exist and the version matches. The bootstrap writes the `Global` rows with placeholder vectors and clears `global_knowledge_embedding_target`; the next sync embeds them ([ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md)).
 
 ## Interfaces
 
@@ -94,3 +94,4 @@ The headless path resolves grounding mode, search mode and web search from the w
 - [ADR-0144](../adr/0144-system-prompt-per-answer-path-with-the-tool-section-generate.md): one system prompt per answer path, the ReAct prompt derived from the registered tools.
 - [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): `PipelineStatusRetriever` and the shared `workspace_status_report`.
 - [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): sync errors printed after `--sync` and `--sync-worker`; `workspace_status_report` shows the last sync failures and the dense search outcome.
+- [ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md): `QueryEmbedding` (no dense search on the mock target, `Global` gate) and the `Global` embedding after `--sync` and `--sync-worker`.

@@ -24,6 +24,10 @@ pub const OLLAMA_EMBEDDING_MODEL: &str = "nomic-embed-text";
 /// Model id of the deterministic mock provider (no API key, or an explicit `mock*` model).
 pub const MOCK_EMBEDDING_MODEL: &str = "mock-embed";
 
+/// Setting with the target of the `Global` workspace's vectors. Empty or absent while they are
+/// the placeholders written by the startup bootstrap (BUG-019).
+pub const GLOBAL_KNOWLEDGE_TARGET_SETTING: &str = "global_knowledge_embedding_target";
+
 const OLLAMA_BASE_URL: &str = "http://localhost:11434/v1";
 const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 
@@ -42,6 +46,12 @@ impl EmbeddingTarget {
             provider: provider.to_string(),
             model: model.to_string(),
         }
+    }
+
+    /// The deterministic mock target: every text gets the same vector, so its vectors carry no
+    /// meaning and are never searched (BUG-019).
+    pub fn is_mock(&self) -> bool {
+        self.provider == "mock"
     }
 
     /// Stable text form stored in SQLite, e.g. `openai/text-embedding-3-small`.
@@ -132,6 +142,8 @@ pub fn resolve_embedding_provider(
 /// Prefers the target recorded by the last completed sync, so a model change does not break
 /// dense search before the next sync reindexes the workspace. Falls back to the current
 /// resolution when nothing is recorded or the recorded provider cannot be built.
+/// The mock target gets no provider: its vectors are all the same, so the query is answered by
+/// BM25 only (BUG-019).
 pub fn resolve_query_embedding_provider(
     db: &NativeConfigDb,
     workspace: &str,
@@ -143,13 +155,25 @@ pub fn resolve_query_embedding_provider(
         .flatten()
         .flatten()
         .and_then(|key| EmbeddingTarget::parse(&key));
-    match recorded {
+    let (provider, target) = match recorded {
         Some(target) if target != current.1 => match build_provider(db, &target) {
             Some(provider) => (Some(provider), target),
             None => current,
         },
         _ => current,
+    };
+    if target.is_mock() {
+        (None, target)
+    } else {
+        (provider, target)
     }
+}
+
+/// Whether dense search may include the `Global` workspace for queries on `query_target`: only
+/// when its vectors were embedded with that target, never on the mock target (BUG-019).
+pub fn global_dense_enabled(db: &NativeConfigDb, query_target: &EmbeddingTarget) -> bool {
+    !query_target.is_mock()
+        && db.get_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING).ok().flatten().as_deref() == Some(query_target.key().as_str())
 }
 
 /// Notice for the command layer when the next sync of a workspace will reindex it, e.g. right
@@ -351,6 +375,55 @@ mod tests {
         db.set_workspace_model("Default", "mock").expect("model");
         db.set_workspace_embedding_target("Default", Some("openai/text-embedding-3-small")).expect("record");
         assert_eq!(resolve_query_embedding_provider(&db, "Default").1.key(), "mock/mock-embed");
+    }
+
+    /// Regression BUG-019: mock vectors are all the same, so queries on the mock target get no
+    /// provider and skip dense search; real targets keep theirs.
+    #[test]
+    fn query_provider_is_none_on_the_mock_target() {
+        if !env_is_clean() {
+            return;
+        }
+        let db = NativeConfigDb::open_in_memory().expect("db");
+        // No key: the fallback target.
+        let (provider, target) = resolve_query_embedding_provider(&db, "Default");
+        assert!(target.is_mock() && provider.is_none(), "{}", target.key());
+        // Explicit mock model.
+        db.set_workspace_model("Default", "mock").expect("model");
+        let (provider, target) = resolve_query_embedding_provider(&db, "Default");
+        assert!(target.is_mock() && provider.is_none(), "{}", target.key());
+        // Recorded mock target after a key was added: the recorded target is still mock.
+        db.set_api_key("openai", "sk-test").expect("key");
+        db.set_workspace_model("Default", "gpt-4o-mini").expect("model");
+        db.set_workspace_embedding_target("Default", Some("mock/mock-embed")).expect("record");
+        let (provider, target) = resolve_query_embedding_provider(&db, "Default");
+        assert!(target.is_mock() && provider.is_none(), "{}", target.key());
+        // Real target.
+        db.set_workspace_embedding_target("Default", Some("openai/text-embedding-3-small")).expect("record");
+        let (provider, target) = resolve_query_embedding_provider(&db, "Default");
+        assert_eq!(target.key(), "openai/text-embedding-3-small");
+        assert!(provider.is_some());
+        // Ingestion still gets the mock provider: the rows are needed, the vectors are never searched.
+        db.set_workspace_model("Default", "mock").expect("model");
+        assert!(resolve_embedding_provider(&db, None, "Default").0.is_some());
+    }
+
+    #[test]
+    fn global_dense_requires_the_same_target() {
+        let db = NativeConfigDb::open_in_memory().expect("db");
+        let openai = target("openai/text-embedding-3-small");
+        // Placeholders: nothing recorded.
+        assert!(!global_dense_enabled(&db, &openai));
+        db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, "gemini/gemini-embedding-2").expect("set");
+        assert!(!global_dense_enabled(&db, &openai));
+        db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, &openai.key()).expect("set");
+        assert!(global_dense_enabled(&db, &openai));
+        // Cleared by the bootstrap when it rewrites the rows.
+        db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, "").expect("set");
+        assert!(!global_dense_enabled(&db, &openai));
+        // Never on the mock target, even if recorded.
+        db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, "mock/mock-embed").expect("set");
+        assert!(!global_dense_enabled(&db, &target("mock/mock-embed")));
     }
 
     #[test]

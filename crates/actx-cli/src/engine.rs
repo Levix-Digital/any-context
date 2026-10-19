@@ -3,6 +3,7 @@ use actx_agent::{Agent, AgentExecutionMode, SearchMode};
 use actx_lm::providers::ProviderKind;
 use actx_lm::traits::LmProvider;
 use any_context_core_rs::storage::NativeConfigDb;
+use any_context_core_rs::ingestion::EmbeddingTarget;
 use any_context_core_rs::retrieval::ContextFormatter;
 
 /// Provider and model chosen by `resolve_lm_provider`.
@@ -134,15 +135,38 @@ pub fn resolve_lm_provider(
     Ok(ResolvedLm { provider, model: model_name, configured, notice })
 }
 
-/// Embedding provider and model for query vectors: the target recorded by the last completed
-/// sync, or the resolution the sync worker uses for chunk vectors (ADR-0132, ADR-0138).
-pub fn resolve_query_embedding(workspace: &str) -> (Option<Arc<dyn LmProvider>>, String) {
+/// Query embedding of a workspace: the provider and the target whose vector space it uses.
+#[derive(Clone)]
+pub struct QueryEmbedding {
+    pub provider: Option<Arc<dyn LmProvider>>,
+    pub target: EmbeddingTarget,
+    /// `Global` was embedded with `target`, so its rows can take part in dense search.
+    pub global_dense: bool,
+}
+
+impl QueryEmbedding {
+    /// Sets a pipeline's query embedding (BUG-019): the mock target is searched by BM25 only, and
+    /// `Global` rows join dense search only when they share the target's vector space.
+    pub fn apply(&self, pipeline: &mut any_context_core_rs::retrieval::NativeHybridPipeline) {
+        pipeline.set_query_embedding(self.provider.clone(), &self.target);
+        pipeline.set_global_dense(self.global_dense);
+    }
+}
+
+/// Query embedding: the target recorded by the last completed sync, or the resolution the sync
+/// worker uses for chunk vectors (ADR-0132, ADR-0138). No provider on the mock target.
+pub fn resolve_query_embedding(workspace: &str) -> QueryEmbedding {
     match NativeConfigDb::open_default() {
         Ok(db) => {
             let (provider, target) = any_context_core_rs::ingestion::resolve_query_embedding_provider(&db, workspace);
-            (provider, target.model)
+            let global_dense = any_context_core_rs::ingestion::global_dense_enabled(&db, &target);
+            QueryEmbedding { provider, target, global_dense }
         }
-        Err(_) => (None, any_context_core_rs::retrieval::pipeline::DEFAULT_QUERY_EMBEDDING_MODEL.to_string()),
+        Err(_) => QueryEmbedding {
+            provider: None,
+            target: EmbeddingTarget::new("openai", any_context_core_rs::retrieval::pipeline::DEFAULT_QUERY_EMBEDDING_MODEL),
+            global_dense: false,
+        },
     }
 }
 
@@ -174,11 +198,10 @@ pub fn build_agent_sync(
     let reranker = create_default_reranker();
 
     // Query vectors must come from the same embedding provider and model as the indexed chunks.
-    let (embed_provider, embed_model) = resolve_query_embedding(workspace);
+    let query_embedding = resolve_query_embedding(workspace);
 
     let ws_for_tool = workspace.to_string();
-    let embed_provider_for_tool = embed_provider.clone();
-    let embed_model_for_tool = embed_model.clone();
+    let query_embedding_for_tool = query_embedding.clone();
     let reranker_for_tool = reranker.clone();
     let search_tool = actx_agent::NativeTool::new(
         "search_db",
@@ -195,8 +218,7 @@ pub fn build_agent_sync(
         }),
         move |args: serde_json::Value| {
             let ws = ws_for_tool.clone();
-            let tool_embed_provider = embed_provider_for_tool.clone();
-            let tool_embed_model = embed_model_for_tool.clone();
+            let tool_query_embedding = query_embedding_for_tool.clone();
             let tool_reranker = reranker_for_tool.clone();
             async move {
                 let query = args.get("query")
@@ -221,7 +243,7 @@ pub fn build_agent_sync(
                     .unwrap_or_else(|| "auto".to_string());
 
                 let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(lance_store, None);
-                pipeline.set_embedding(tool_embed_provider, tool_embed_model);
+                tool_query_embedding.apply(&mut pipeline);
                 pipeline.set_reranker(Some(tool_reranker));
                 pipeline.set_rerank_mode(&rerank_mode);
 
@@ -310,8 +332,7 @@ pub fn build_agent_sync(
     let deep_search_retriever = lance_store_for_retrieval.as_ref().map(|ls| {
         Arc::new(PipelineBatchRetriever {
             lance_store: ls.clone(),
-            embed_provider: embed_provider.clone(),
-            embed_model: embed_model.clone(),
+            query_embedding: query_embedding.clone(),
             workspace: workspace.to_string(),
             reranker: reranker.clone(),
         }) as Arc<dyn actx_agent::DeepSearchRetriever>
@@ -320,8 +341,7 @@ pub fn build_agent_sync(
     let pipeline_retriever = lance_store_for_retrieval.as_ref().map(|ls| {
         Arc::new(PipelineDeterministicRetriever {
             lance_store: ls.clone(),
-            embed_provider: embed_provider.clone(),
-            embed_model: embed_model.clone(),
+            query_embedding: query_embedding.clone(),
             workspace: workspace.to_string(),
             system_prompt: context_prompt.clone(),
             reranker: reranker.clone(),
@@ -467,8 +487,18 @@ pub fn encrypt_legacy_chunks(lance_store: &any_context_core_rs::storage::NativeL
 /// chunks and indexes the embedded documentation and updates the BM25 index for zero-token self-knowledge.
 pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::storage::NativeLanceStore) {
     let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
+    bootstrap_global_knowledge(db.as_ref(), lance_store);
+}
+
+/// Writes the `Global` rows with placeholder vectors and their BM25 entries when they are missing
+/// or come from another version. The placeholders are kept out of dense search until a sync
+/// embeds them (BUG-019), so the recorded `Global` target is cleared after the rows are written.
+fn bootstrap_global_knowledge(
+    db: Option<&NativeConfigDb>,
+    lance_store: &any_context_core_rs::storage::NativeLanceStore,
+) {
     let current_version = env!("CARGO_PKG_VERSION");
-    let stored_version = db.as_ref().and_then(|d| d.get_setting("global_knowledge_version").ok().flatten());
+    let stored_version = db.and_then(|d| d.get_setting("global_knowledge_version").ok().flatten());
     let count = lance_store.count_records(Some("Global"), Some("workspace_chunks")).unwrap_or(0);
 
     let is_upgrade = stored_version.as_deref() != Some(current_version);
@@ -480,13 +510,70 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
         let _ = lance_store.delete_by_workspace("Global", Some("workspace_chunks"));
     }
 
+    let records = global_knowledge_records();
+    if records.is_empty() {
+        return;
+    }
+    let bm25_chunks: Vec<(String, String, String, String)> = records
+        .iter()
+        .map(|r| (r.id.clone(), r.text.clone(), r.file_name.clone(), r.file_path.clone()))
+        .collect();
+
+    // 1. Insert into LanceDB
+    let _ = lance_store.upsert_records(records, Some("workspace_chunks"), Some(GLOBAL_VECTOR_DIM));
+
+    // 2. Insert into BM25 index and save
+    let bm25_path = lance_store.db_path().join("bm25_index.bin");
+    let mut bm25 = if bm25_path.exists() {
+        match any_context_core_rs::retrieval::BM25Index::load_from_file(bm25_path.to_str().unwrap_or("")) {
+            Ok(idx) => idx,
+            Err(_e) => {
+                let corrupt_name = format!("{}.corrupt.{}", bm25_path.display(), chrono::Utc::now().timestamp());
+                let _ = std::fs::rename(&bm25_path, &corrupt_name);
+                any_context_core_rs::retrieval::BM25Index::new(None, None)
+            }
+        }
+    } else {
+        any_context_core_rs::retrieval::BM25Index::new(None, None)
+    };
+
+    let now_ts = chrono::Utc::now().to_rfc3339();
+    for (cid, ftext, fname, fpath) in bm25_chunks {
+        bm25.add_chunk(
+            cid,
+            ftext,
+            fname,
+            fpath,
+            "Global".to_string(),
+            "System Documentation".to_string(),
+            Some(now_ts.clone()),
+        );
+    }
+    let _ = bm25.save_to_file(bm25_path.to_str().unwrap_or(""));
+
+    // 3. Persist current version to settings for transparent upgrades; the rows now hold
+    // placeholders, so no target is recorded for them.
+    if let Some(d) = db {
+        let _ = d.set_setting("global_knowledge_version", current_version);
+        let _ = d.set_setting(any_context_core_rs::ingestion::GLOBAL_KNOWLEDGE_TARGET_SETTING, "");
+    }
+}
+
+/// Size of the `Global` vectors, the size of the shared chunk table.
+const GLOBAL_VECTOR_DIM: usize = any_context_core_rs::storage::lancedb::DEFAULT_VECTOR_DIM;
+
+/// Texts sent per embedding call when `Global` is embedded.
+const GLOBAL_EMBED_BATCH: usize = 64;
+
+/// The `Global` rows: one per section of the embedded `SYSTEM_KNOWLEDGE.md` and `README.md`, with
+/// stable ids (`global_sys_doc_<n>`) and placeholder vectors.
+fn global_knowledge_records() -> Vec<any_context_core_rs::storage::VectorRecord> {
     let doc_sources = [
         ("SYSTEM_KNOWLEDGE.md", "system://SYSTEM_KNOWLEDGE.md", crate::prompt::EMBEDDED_SYSTEM_KNOWLEDGE_MD),
         ("README.md", "system://README.md", crate::prompt::EMBEDDED_README_MD),
     ];
 
     let mut records = Vec::new();
-    let mut bm25_chunks = Vec::new();
     let now = chrono::Utc::now().to_rfc3339();
     let mut chunk_idx = 0;
 
@@ -515,10 +602,10 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
             let chunk_id = format!("global_sys_doc_{chunk_idx}");
             chunk_idx += 1;
             let full_text = format!("# {}\n\n{}", header, text);
-            let rec = any_context_core_rs::storage::VectorRecord {
-                id: chunk_id.clone(),
-                vector: vec![0.0; 1536],
-                text: full_text.clone(),
+            records.push(any_context_core_rs::storage::VectorRecord {
+                id: chunk_id,
+                vector: vec![0.0; GLOBAL_VECTOR_DIM],
+                text: full_text,
                 file_name: file_name.to_string(),
                 file_path: file_path.to_string(),
                 workspace: "Global".to_string(),
@@ -527,55 +614,58 @@ pub fn ensure_global_knowledge_bootstrap(lance_store: &any_context_core_rs::stor
                 document_summary: Some(format!("AnyContext Documentation: {}", header)),
                 keywords: Some("anycontext, system, guide, commands, usage, architecture".to_string()),
                 content_hash: None,
-                header_path: Some(header.clone()),
+                header_path: Some(header),
                 start_line: None,
                 end_line: None,
-            };
-            records.push(rec);
-            bm25_chunks.push((chunk_id, full_text, header, file_name.to_string(), file_path.to_string()));
+            });
         }
     }
+    records
+}
 
-    if records.is_empty() {
-        return;
+/// Embeds the `Global` rows with `target` and records it, so they take part in dense search for
+/// queries on that target (BUG-019). Returns `Ok(false)` when nothing had to be done: the mock
+/// target, `Global` already embedded with `target`, or the rows of this version not written yet
+/// (the next sync embeds them). On any error nothing is recorded and the placeholders stay.
+pub async fn refresh_global_knowledge_vectors(
+    db: &NativeConfigDb,
+    lance_store: &any_context_core_rs::storage::NativeLanceStore,
+    provider: Arc<dyn LmProvider>,
+    target: &EmbeddingTarget,
+) -> Result<bool, String> {
+    use any_context_core_rs::ingestion::GLOBAL_KNOWLEDGE_TARGET_SETTING;
+    let setting = |key: &str| db.get_setting(key).ok().flatten();
+    if target.is_mock()
+        || setting(GLOBAL_KNOWLEDGE_TARGET_SETTING).as_deref() == Some(target.key().as_str())
+        || setting("global_knowledge_version").as_deref() != Some(env!("CARGO_PKG_VERSION"))
+    {
+        return Ok(false);
     }
 
-    // 1. Insert into LanceDB
-    let _ = lance_store.upsert_records(records, Some("workspace_chunks"), Some(1536));
-
-    // 2. Insert into BM25 index and save
-    let bm25_path = lance_store.db_path().join("bm25_index.bin");
-    let mut bm25 = if bm25_path.exists() {
-        match any_context_core_rs::retrieval::BM25Index::load_from_file(bm25_path.to_str().unwrap_or("")) {
-            Ok(idx) => idx,
-            Err(_e) => {
-                let corrupt_name = format!("{}.corrupt.{}", bm25_path.display(), chrono::Utc::now().timestamp());
-                let _ = std::fs::rename(&bm25_path, &corrupt_name);
-                any_context_core_rs::retrieval::BM25Index::new(None, None)
-            }
+    let mut records = global_knowledge_records();
+    let texts: Vec<String> = records.iter().map(|r| r.text.clone()).collect();
+    let mut vectors = Vec::with_capacity(texts.len());
+    for batch in texts.chunks(GLOBAL_EMBED_BATCH) {
+        let answer = any_context_core_rs::ingestion::embed_with_retry(&provider, &target.model, batch)
+            .await
+            .map_err(|e| e.to_string())?;
+        if answer.len() != batch.len() {
+            return Err(format!("embedding answer has {} vectors for {} texts", answer.len(), batch.len()));
         }
-    } else {
-        any_context_core_rs::retrieval::BM25Index::new(None, None)
-    };
-
-    let now_ts = chrono::Utc::now().to_rfc3339();
-    for (cid, ftext, _, fname, fpath) in bm25_chunks {
-        bm25.add_chunk(
-            cid,
-            ftext,
-            fname,
-            fpath,
-            "Global".to_string(),
-            "System Documentation".to_string(),
-            Some(now_ts.clone()),
-        );
+        vectors.extend(answer);
     }
-    let _ = bm25.save_to_file(bm25_path.to_str().unwrap_or(""));
-
-    // 3. Persist current version to settings for transparent upgrades
-    if let Some(ref d) = db {
-        let _ = d.set_setting("global_knowledge_version", current_version);
+    if let Some(v) = vectors.iter().find(|v| v.len() != GLOBAL_VECTOR_DIM) {
+        return Err(format!("embedding size {} does not match the chunk table ({GLOBAL_VECTOR_DIM})", v.len()));
     }
+    for (record, vector) in records.iter_mut().zip(vectors) {
+        record.vector = vector;
+    }
+    // `upsert_records` appends, so the placeholders are removed first, once every vector is in
+    // hand. If the insert then fails, the next startup bootstrap writes the placeholders again.
+    lance_store.delete_by_workspace("Global", Some("workspace_chunks"))?;
+    lance_store.upsert_records(records, Some("workspace_chunks"), Some(GLOBAL_VECTOR_DIM))?;
+    db.set_setting(GLOBAL_KNOWLEDGE_TARGET_SETTING, &target.key()).map_err(|e| e.to_string())?;
+    Ok(true)
 }
 
 /// Quickly checks if the application is starting for the first time or after a version upgrade.
@@ -657,8 +747,7 @@ fn deep_search_request(query: &str, workspace: &str, rerank_mode: &str) -> any_c
 /// Native Hybrid RAG batch retriever adapter for DeepSearch
 struct PipelineBatchRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
-    embed_provider: Option<Arc<dyn LmProvider>>,
-    embed_model: String,
+    query_embedding: QueryEmbedding,
     workspace: String,
     reranker: Arc<actx_onnx::OnnxReranker>,
 }
@@ -672,7 +761,7 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
             .unwrap_or_else(|| "auto".to_string());
 
         let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(self.lance_store.clone(), None);
-        pipeline.set_embedding(self.embed_provider.clone(), self.embed_model.clone());
+        self.query_embedding.apply(&mut pipeline);
         pipeline.set_reranker(Some(self.reranker.clone()));
         pipeline.set_rerank_mode(&rerank_mode);
 
@@ -764,8 +853,7 @@ fn format_status_report(
 /// Native Hybrid RAG deterministic retriever adapter for 1-hop Fast/Auto execution
 struct PipelineDeterministicRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
-    embed_provider: Option<Arc<dyn LmProvider>>,
-    embed_model: String,
+    query_embedding: QueryEmbedding,
     workspace: String,
     system_prompt: String,
     reranker: Arc<actx_onnx::OnnxReranker>,
@@ -780,7 +868,7 @@ impl PipelineDeterministicRetriever {
             .unwrap_or_else(|| "auto".to_string());
 
         let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(self.lance_store.clone(), None);
-        pipeline.set_embedding(self.embed_provider.clone(), self.embed_model.clone());
+        self.query_embedding.apply(&mut pipeline);
         pipeline.set_reranker(Some(self.reranker.clone()));
         pipeline.set_rerank_mode(&rerank_mode);
 
@@ -996,5 +1084,171 @@ mod tests {
         let res = provider.chat_complete(req).await;
         // Result is either Ok (from mock/cloud fallback) or Ok with mock content, never a panic
         assert!(res.is_ok(), "Provider fallback should execute cleanly without crash: {:?}", res.err());
+    }
+    /// Embedder for the `Global` refresh: a fixed answer per call, counting calls.
+    struct GlobalEmbedder {
+        answer: Result<Vec<f32>, ()>,
+        short: bool,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl GlobalEmbedder {
+        fn new(answer: Result<Vec<f32>, ()>) -> Arc<Self> {
+            Arc::new(Self { answer, short: false, calls: std::sync::atomic::AtomicUsize::new(0) })
+        }
+
+        fn calls(&self) -> usize {
+            self.calls.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    #[actx_agent::async_trait]
+    impl LmProvider for GlobalEmbedder {
+        fn provider_id(&self) -> &'static str {
+            "fixed"
+        }
+
+        async fn chat_complete(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::types::ChatResponse, actx_lm::LmError> {
+            Err(actx_lm::LmError::Unsupported("chat".into()))
+        }
+
+        async fn chat_stream(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::traits::BoxedChunkStream, actx_lm::LmError> {
+            Err(actx_lm::LmError::Unsupported("chat".into()))
+        }
+
+        async fn embed(&self, _model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, actx_lm::LmError> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let vector = self
+                .answer
+                .clone()
+                .map_err(|_| actx_lm::LmError::Auth { provider: "fixed".into(), message: "invalid key".into() })?;
+            let n = if self.short { texts.len() - 1 } else { texts.len() };
+            Ok(vec![vector; n])
+        }
+    }
+
+    /// Settings in memory and a LanceDB/BM25 folder of its own, with this version's `Global` rows.
+    fn global_fixture(name: &str) -> (NativeConfigDb, any_context_core_rs::storage::NativeLanceStore, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("actx_global_{name}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let db = NativeConfigDb::open_in_memory().expect("db");
+        let lance_store = any_context_core_rs::storage::NativeLanceStore::open(&dir).expect("lance");
+        bootstrap_global_knowledge(Some(&db), &lance_store);
+        (db, lance_store, dir)
+    }
+
+    fn global_target(db: &NativeConfigDb) -> Option<String> {
+        db.get_setting(any_context_core_rs::ingestion::GLOBAL_KNOWLEDGE_TARGET_SETTING).unwrap().filter(|t| !t.is_empty())
+    }
+
+    fn openai() -> EmbeddingTarget {
+        EmbeddingTarget::new("openai", "text-embedding-3-small")
+    }
+
+    #[test]
+    fn global_knowledge_records_are_stable() {
+        let records = global_knowledge_records();
+        assert!(records.len() > 10, "both documents are split into sections");
+        let again: Vec<(String, String)> = global_knowledge_records().into_iter().map(|r| (r.id, r.text)).collect();
+        let first: Vec<(String, String)> = records.iter().map(|r| (r.id.clone(), r.text.clone())).collect();
+        assert_eq!(first, again, "the bootstrap and the refresh must build the same rows");
+        for (i, r) in records.iter().enumerate() {
+            assert_eq!(r.id, format!("global_sys_doc_{i}"));
+            assert_eq!(r.workspace, "Global");
+            assert!(r.text.starts_with("# "), "{}", r.text);
+            assert!(r.vector.iter().all(|v| *v == 0.0) && r.vector.len() == GLOBAL_VECTOR_DIM, "placeholders");
+        }
+    }
+
+    #[test]
+    fn bootstrap_clears_the_global_target() {
+        let (db, lance_store, dir) = global_fixture("bootstrap");
+        let rows = lance_store.count_records(Some("Global"), Some("workspace_chunks")).unwrap();
+        assert_eq!(rows, global_knowledge_records().len());
+        assert_eq!(global_target(&db), None);
+
+        // An older version's rows, embedded: the upgrade rewrites them as placeholders.
+        db.set_setting(any_context_core_rs::ingestion::GLOBAL_KNOWLEDGE_TARGET_SETTING, &openai().key()).unwrap();
+        db.set_setting("global_knowledge_version", "0.0.1").unwrap();
+        bootstrap_global_knowledge(Some(&db), &lance_store);
+        assert_eq!(global_target(&db), None, "placeholders must not keep the old target");
+        assert_eq!(db.get_setting("global_knowledge_version").unwrap().as_deref(), Some(env!("CARGO_PKG_VERSION")));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn refresh_embeds_global_and_records_the_target() {
+        let (db, lance_store, dir) = global_fixture("refresh");
+        let embedder = GlobalEmbedder::new(Ok(vec![0.5; GLOBAL_VECTOR_DIM]));
+        let provider: Arc<dyn LmProvider> = embedder.clone();
+
+        assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider.clone(), &openai()).await, Ok(true));
+        assert_eq!(global_target(&db), Some(openai().key()));
+        assert!(any_context_core_rs::ingestion::global_dense_enabled(&db, &openai()));
+        let expected_calls = global_knowledge_records().len().div_ceil(GLOBAL_EMBED_BATCH);
+        assert_eq!(embedder.calls(), expected_calls);
+
+        // The rows now hold the provider's vectors: the query vector itself is at distance 0.
+        let hits = lance_store
+            .search_vector(vec![0.5; GLOBAL_VECTOR_DIM], 3, Some("Global"), None, Some("workspace_chunks"))
+            .unwrap();
+        assert_eq!(hits.len(), 3);
+        assert!(hits.iter().all(|h| h.score > 0.999), "{:?}", hits.iter().map(|h| h.score).collect::<Vec<_>>());
+        assert_eq!(lance_store.count_records(Some("Global"), Some("workspace_chunks")).unwrap(), global_knowledge_records().len());
+
+        // Up to date: no call.
+        assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider.clone(), &openai()).await, Ok(false));
+        assert_eq!(embedder.calls(), expected_calls);
+        // Another target: embedded again.
+        let gemini = EmbeddingTarget::new("gemini", "gemini-embedding-2");
+        assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider, &gemini).await, Ok(true));
+        assert_eq!(global_target(&db), Some(gemini.key()));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn refresh_is_skipped_on_the_mock_target_and_before_the_bootstrap() {
+        let (db, lance_store, dir) = global_fixture("refresh_skip");
+        let embedder = GlobalEmbedder::new(Ok(vec![0.5; GLOBAL_VECTOR_DIM]));
+        let provider: Arc<dyn LmProvider> = embedder.clone();
+
+        let mock = EmbeddingTarget::new("mock", "mock-embed");
+        assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider.clone(), &mock).await, Ok(false));
+        // Rows of this version not written yet: the bootstrap would overwrite them.
+        db.set_setting("global_knowledge_version", "0.0.1").unwrap();
+        assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider, &openai()).await, Ok(false));
+        assert_eq!(embedder.calls(), 0);
+        assert_eq!(global_target(&db), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn failed_refresh_records_nothing() {
+        let (db, lance_store, dir) = global_fixture("refresh_fail");
+        let failing: Arc<dyn LmProvider> = GlobalEmbedder::new(Err(()));
+        let err = refresh_global_knowledge_vectors(&db, &lance_store, failing, &openai()).await.unwrap_err();
+        assert!(err.contains("invalid key"), "{err}");
+        assert_eq!(global_target(&db), None);
+
+        let short: Arc<dyn LmProvider> = Arc::new(GlobalEmbedder {
+            answer: Ok(vec![0.5; GLOBAL_VECTOR_DIM]),
+            short: true,
+            calls: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let err = refresh_global_knowledge_vectors(&db, &lance_store, short, &openai()).await.unwrap_err();
+        assert!(err.contains("vectors for"), "{err}");
+
+        let wrong_size: Arc<dyn LmProvider> = GlobalEmbedder::new(Ok(vec![0.5; 768]));
+        let err = refresh_global_knowledge_vectors(&db, &lance_store, wrong_size, &openai()).await.unwrap_err();
+        assert!(err.contains("does not match"), "{err}");
+        assert_eq!(global_target(&db), None);
+
+        // The placeholders stay, so Global stays out of dense search.
+        let hits = lance_store
+            .search_vector(vec![0.5; GLOBAL_VECTOR_DIM], 3, Some("Global"), None, Some("workspace_chunks"))
+            .unwrap();
+        assert!(hits.iter().all(|h| h.score < 0.9), "placeholders kept");
+        assert_eq!(lance_store.count_records(Some("Global"), Some("workspace_chunks")).unwrap(), global_knowledge_records().len());
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

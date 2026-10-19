@@ -8,7 +8,7 @@ subsystems: [storage, tui, agent]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: []
+amended_by: [147]
 ---
 
 # ADR-0094: Test Isolation Sandbox, Universal Contextual Option Hinting and Skill-Based Self-Knowledge via Global LanceDB Workspace
