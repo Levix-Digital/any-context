@@ -7,7 +7,7 @@ version: v0.45.1
 status: in_progress
 author: Claude
 created_at: '2026-10-19T08:22:38'
-updated_at: '2026-10-19T10:22:33'
+updated_at: '2026-10-19T10:32:12'
 session_id: null
 tags:
 - retrieval
@@ -32,7 +32,9 @@ milestones:
   done_at: '2026-10-19'
   by: Claude
 - name: M4 Docs and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-19'
+  by: Claude
 status_log:
 - at: '2026-10-19T08:22:38'
   by: Claude
@@ -51,6 +53,17 @@ status_log:
 - at: '2026-10-19T10:22:33'
   by: Claude
   note: 'Milestone ''M3 Global embedding'' completed: Branch ccr-6c7c51f6-2tckxi; tests in actx-cli engine.rs and ingestion/orchestrator.rs'
+- at: '2026-10-19T10:32:07'
+  by: Claude
+  note: 'Milestone ''M4 Docs and manual tests'' completed: Branch ccr-6c7c51f6-2tckxi; ADR-0147, retrieval/ingestion/cli pages, README, MT-ANS-010, MT-ANS-011'
+- at: '2026-10-19T10:32:07'
+  by: Claude
+  status: completed
+  note: All milestones completed
+- at: '2026-10-19T10:32:12'
+  by: Claude
+  status: in_progress
+  note: All milestones done on the branch; completed when the pull request is merged
 ---
 
 # Dense search ranks arbitrary chunks on constant vectors

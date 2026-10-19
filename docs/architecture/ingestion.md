@@ -114,7 +114,7 @@ A failed embedding call fails the file ([ADR-0146](../adr/0146-a-failed-embeddin
 - Its chunks stay in BM25, which receives them before the embedding call, so keyword search still finds it. Before indexing a file the loop removes the file's BM25 chunks (`remove_by_exact_file`), so a retry after an edit leaves no chunks of the failed version behind.
 - A `RateLimit` error is retried once after `retry_after_secs` (2 s when absent, at most 30 s).
 - `EmbedBreaker` (one per pass, shared with web pages) opens on an `Auth` error or after 3 consecutive failed files; a short answer counts as a failure and a success resets the count. While it is open, files and pages are still chunked into BM25 and fail as `Skipped` without calling the provider.
-- `SyncResult.embedding_failures` counts the files and pages that failed. The final status writes `embedding_failure_summary` ("N files not embedded; they are retried on the next sync; first error: ...") into `workspace_sync_status.error`; a pass without failures clears it. `sync_error_headline` gives the part before the first `; ` for one-line surfaces.
+- `SyncResult.embedding_failures` counts the files and pages that failed, and `SyncResult.embedding_provider_unavailable` says whether the breaker opened. The final status writes `embedding_failure_summary` ("N files not embedded; they are retried on the next sync; first error: ...") into `workspace_sync_status.error`; a pass without failures clears it. `sync_error_headline` gives the part before the first `; ` for one-line surfaces.
 
 ### Embedding target and reindex
 
@@ -128,6 +128,17 @@ The column `workspaces.embedding_target` records the target that built the works
 | none, chunks stored (indexed before the record existed) | compare with `legacy_target`, the answer of the earlier resolver: the same target except Gemini, which was `text-embedding-004`. Equal: adopt; different: reindex |
 
 The reindex needs no confirmation; its message ("Embedding model changed (A → B): the whole workspace is reindexed.") goes to the sync status, the verbose output and `SyncResult::embedding_reindex`. `pending_reindex_notice` lets `/model` and `/sync` warn in advance. A workspace without a row in `workspaces` can't record a target and is left as it is. Queries prefer the recorded target until the reindex runs (see [retrieval](retrieval.md)).
+
+On the mock target (`EmbeddingTarget::is_mock`) the chunks are still written with the mock vectors, which are all the same: the rows are needed by BM25-only hits and file name matches, and queries on that target skip dense search ([ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md)). Adding a key changes the target, which reindexes the workspace.
+
+### System documentation (`Global`)
+
+The `Global` workspace holds the sections of the embedded `SYSTEM_KNOWLEDGE.md` and `README.md` (`global_knowledge_records` in `crates/actx-cli/src/engine.rs`, ids `global_sys_doc_<n>`), shared by every workspace ([ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md)):
+
+- At startup, and from the `search_db` tool, `ensure_global_knowledge_bootstrap` writes the rows with placeholder (zero) vectors and their BM25 entries when they are missing or come from another version (`global_knowledge_version`), then clears the setting `global_knowledge_embedding_target`. It makes no network call.
+- After each pass of `actx --sync` and of the sync worker, `refresh_global_knowledge_vectors` embeds the rows with the default target (`resolve_embedding_provider(db, None, "Global")`) when the setting differs from it, replaces the `Global` rows (all vectors first, then delete and insert, since `upsert_records` appends) and records the target in the setting. It does nothing on the mock target, before this version's bootstrap, or when the pass was cancelled or its breaker opened.
+- A provider error, a short answer or a vector size other than the table's records nothing: the placeholders stay and the next sync retries. The sync output says `AnyContext documentation embedded with <target>` or why it was not.
+- Queries use `Global` in dense search only when the setting equals their target (`global_dense_enabled`, see [retrieval](retrieval.md)).
 
 ### Web sources
 
@@ -169,3 +180,4 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0142](../adr/0142-chunk-provenance-columns-in-lancedb-added-in-place.md): chunk provenance (`header_path`, file line range) stored in LanceDB, lines only for file-line chunkers.
 - [ADR-0143](../adr/0143-bm25-only-hits-take-their-text-from-lancedb-batch-deduplicat.md): the enveloped text stays in BM25 only; retrieval reads chunk text from LanceDB and `strip_envelope` is the fallback.
 - [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): a failed embedding fails the file (retried on the next sync, kept in BM25), one rate-limit retry, a provider breaker per pass and the failure summary in the sync status.
+- [ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md): mock vectors are never searched; the sync embeds `Global` with the default target.

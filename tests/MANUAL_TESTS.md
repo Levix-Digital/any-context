@@ -488,6 +488,39 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-ANS-010: Without an embedding key, answers use keyword matches only
+
+- **Covers**: mock embedding target (no dense search), `NoEmbeddingKey` status line
+- **Prerequisites**: a fresh settings database (rename `settings.db`) and no provider key in the environment; an Anthropic key for answers (`/keys anthropic <key>`, an Anthropic model selected), which has no embeddings; no OpenAI or Gemini key; a folder with one file that contains the phrase "kestrel timeouts are retried three times" and several unrelated files
+- **Steps**:
+  1. Start `actx`, add the folder with `/folder <path>` and wait for the sync to finish.
+  2. Ask: `How are kestrel timeouts handled?`
+  3. Run `/status`.
+  4. Save an OpenAI key (`/keys openai <key>`), run `/sync` and ask the question again.
+- **Expected**:
+  - Step 2 answers from the kestrel file and cites no unrelated file.
+  - Step 3 shows `Dense Search: BM25 only (last query): no embedding API key (/keys)`.
+  - Step 4: the sync reports that the embedding model changed and reindexes the workspace; `/status` then shows `Dense Search: dense + BM25 (last query)`.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
+### MT-ANS-011: Questions about AnyContext are matched by meaning after a sync
+
+- **Covers**: embedding of the built-in documentation (`Global`) during sync, dense search gate for it
+- **Prerequisites**: a working OpenAI or Gemini key; a workspace with an indexed folder; the version just installed or updated (first start of this version)
+- **Steps**:
+  1. Start `actx` and ask, without running a sync: `How do I stop indexing one of my directories?`
+  2. Run `/sync` and look at the sync output in `sync_<workspace>.log` in the logs folder.
+  3. Ask the question of step 1 again.
+  4. Ask a question about one of your own files.
+- **Expected**:
+  - Step 1 may only find the documentation by keyword (the wording shares no key word with `/folder --remove`).
+  - Step 2: the log has a line `AnyContext documentation embedded with <provider>/<model>`; a second `/sync` does not print it again.
+  - Step 3 answers with `/folder --remove <path>` from the built-in documentation.
+  - Step 4 cites your files and no built-in documentation section that is unrelated to the question.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ## Local Re-Ranking and Models
 
 ### MT-MOD-001: The local re-ranker improves ordering and reports its state

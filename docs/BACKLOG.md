@@ -20,19 +20,19 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: The ReAct web_search tool (crates/actx-cli/src/engine.rs) returns the search provider's titles, URLs and snippets straight to the model, so the answer uses web content that was never indexed. This breaks the platform rule that web content, like any other, is indexed before inference. ReAct runs only when LanceDB fails to open (BUG-017), so it is rarely reached. Fix it together with the indexed web search feature.
 
-### BUG-019: Dense search ranks arbitrary chunks on the mock embedding target
-- **Severity**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-014/IMP-003 discovery
-- **Plan**: any_context_dense_search_ranks_arbitrary_chunks_on_constant_vectors
-- **Description**: Without an embedding key, resolve_embedding_provider falls back to MockLmProvider (target mock/mock-embed), whose embed returns the same constant vector (0.1 x 1536) for every text. Chunks indexed and queries embedded on that target are all at the same distance, so dense search returns an arbitrary candidate pool that RRF fuses with BM25: a rank-1 dense-only hit scores 1/61, above RRF_MIN_SCORE (0.005), so unrelated chunks can reach the prompt. Found while planning BUG-014/IMP-003; candidate fix: skip dense search on the mock target and report it as BM25-only.
-
 ### BUG-020: Router performance test fails intermittently in debug builds
 - **Severity**: low
 - **Status**: open
 - **Found**: 2026-10-19, 2026-10-19, BUG-019 M1 test run
 - **Plan**: -
 - **Description**: test_router_sub_microsecond_performance (crates/actx-agent/tests/router_tests.rs) asserts an average under 50 µs per ChatModelRouter evaluation, measured with wall-clock time in an unoptimized build. Under parallel test load it fails intermittently (54.4 µs observed; 1 of 3 isolated runs failed), so cargo test --workspace can go red without a code change.
+
+### BUG-019: Dense search ranks arbitrary chunks on the mock embedding target
+- **Severity**: medium
+- **Status**: in_progress
+- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-014/IMP-003 discovery
+- **Plan**: any_context_dense_search_ranks_arbitrary_chunks_on_constant_vectors
+- **Description**: Without an embedding key, resolve_embedding_provider falls back to MockLmProvider (target mock/mock-embed), whose embed returns the same constant vector (0.1 x 1536) for every text. Chunks indexed and queries embedded on that target are all at the same distance, so dense search returns an arbitrary candidate pool that RRF fuses with BM25: a rank-1 dense-only hit scores 1/61, above RRF_MIN_SCORE (0.005), so unrelated chunks can reach the prompt. Found while planning BUG-014/IMP-003; candidate fix: skip dense search on the mock target and report it as BM25-only.
 
 ## Features
 

@@ -133,7 +133,9 @@ If the embedding provider fails during a sync (an invalid key, a rate limit, a n
 
 Local Gemma 4 models are listed as planned and cannot be used yet.
 
-Search embeddings come from the provider of the selected model (OpenAI, Gemini, Ollama), or from OpenAI when that provider has no key. When a model change switches the embedding provider, `/model` warns you and the next sync reindexes the whole workspace once, which costs one embedding pass.
+Search embeddings come from the provider of the selected model (OpenAI, Gemini, Ollama), or from OpenAI when that provider has no key. When a model change switches the embedding provider, `/model` warns you and the next sync reindexes the whole workspace once, which costs one embedding pass. Without an embedding key, search uses keyword matches only until you save one with `/keys` and run `/sync`.
+
+Questions about AnyContext itself are answered from its built-in documentation. A sync embeds that documentation with the embedding model of your default model when it needs it (after an install, an update or a change of default model), so it is matched by meaning; until then it is found by keyword.
 
 ### Other commands
 
@@ -214,6 +216,7 @@ To uninstall, download and run the uninstaller from the [releases page](https://
 | The sync seems stuck | Check the footer or `/status`; read `sync_<workspace>.log` in the logs folder; `/cancel` and `/sync --incremental` again. |
 | The footer shows `⚠ N files not embedded (/sync)` | The embedding provider failed during the last sync: check the `Last Sync` line in `/status` (or `sync_<workspace>.log`), fix the key or wait for the rate limit, then run `/sync --incremental`. |
 | `/status` shows `Dense Search: BM25 only` | The last question could not be embedded, so it was answered from keyword matches only; the reason follows. Check the key with `/keys` and the embedding model. |
+| `/status` shows `BM25 only (last query): no embedding API key (/keys)` | No embedding provider has a key, so search uses keyword matches only. Save an OpenAI or Gemini key with `/keys <provider> <key>` (or select a local Ollama model) and run `/sync`; the workspace is reindexed once with real embeddings. |
 | Answers miss documents indexed before you switched models | Run `/sync --force` once to re-embed the workspace with the current embedding model. |
 | Answers cite files without line ranges | Files indexed by an earlier version have no section or line data until they change; run `/sync --force` once to re-index them. PDF, Office, spreadsheet and web sources are cited by page, sheet or section, never by line. |
 | `/rerank` shows `RRF (Fallback)` | The local re-ranker is not installed or could not load: run `actx download reranker`, and on Windows install the Visual C++ Redistributable. |
