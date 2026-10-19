@@ -167,7 +167,44 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
 
 ## 4. Classificação do conteúdo
 
-_Pendente._
+### Decisões
+
+- **Classificação pelo conteúdo, extensão como dica.** A assinatura binária (magic bytes)
+  decide; a extensão só desempata. Um arquivo renomeado, sem extensão ou com extensão
+  errada vai para o parser certo.
+  - Containers ZIP são inspecionados por dentro: `[Content_Types].xml` separa DOCX, XLSX e
+    PPTX; o arquivo `mimetype` separa ODT, ODS, ODP e EPUB.
+  - Containers OLE/CFB (Office antigo e Outlook) são separados pelos streams internos:
+    `WordDocument` (.doc), `Workbook` (.xls), `PowerPoint Document` (.ppt), `__substg1.0_*`
+    (.msg).
+  - Texto tem a **codificação detectada** (UTF-8, UTF-16 com BOM, Windows-1252/Latin-1 —
+    comum em arquivos brasileiros) antes de seguir; um texto que é CSV, JSON ou Markdown é
+    reconhecido pelo conteúdo.
+- **Categorias:**
+
+  | categoria | formatos |
+  |---|---|
+  | web | páginas renderizadas/convertidas no passo 2 (chegam como Markdown) |
+  | HTML local | `.html`, `.htm` — mesmo conversor da web |
+  | texto e Markdown | `.txt`, `.md`, `.rst`, logs, scripts |
+  | código | linguagens com gramática tree-sitter |
+  | estruturado | JSON, JSONL, YAML, TOML, XML |
+  | tabular | CSV, TSV, XLSX, XLS, ODS, OFX |
+  | PDF | digital ou escaneado, **por página** |
+  | Office | DOCX, PPTX, DOC, PPT, ODT, ODP, RTF |
+  | e-mail | `.eml`, `.msg` (corpo e anexos, que voltam ao pipeline como arquivos) |
+  | e-book | `.epub` |
+  | imagem | PNG, JPEG, WebP, TIFF, HEIC |
+
+- **Office antigo e ODF têm parser de verdade** (`.doc`, `.ppt`, `.xls`, `.odt`, `.odp`,
+  `.ods`, `.rtf`). Hoje `.doc`/`.ppt` são abertos como ZIP e falham, e `.odt`, `.epub`,
+  `.rtf`, `.eml`, `.msg` e `.html` são indexados como texto cru ou falham.
+- **PDF digital ou escaneado é decidido na classificação, por página** (camada de texto e
+  área coberta por imagem). PDFs mistos — digitais com anexos escaneados, comuns em
+  processos e contabilidade — mandam cada página para o caminho certo (texto ou OCR), em
+  vez de descobrir isso no quality gate.
+- **Arquivo protegido por senha, corrompido ou de formato sem parser** não é indexado e é
+  reportado ao usuário com o motivo — nunca indexado como lixo nem descartado em silêncio.
 
 ## 5. Parsing e chunking
 
