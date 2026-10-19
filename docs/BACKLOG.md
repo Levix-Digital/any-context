@@ -13,13 +13,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: A sync scoped to one folder compared the scanned folder against the stat cache of the whole workspace, so the cached files of the other folders were taken for deleted files: their LanceDB chunks, BM25 entries and stat cache rows were purged until the next full sync. The ADR-0138 full reindex hid it on target changes. Fixed in the IMP-004 branch: the scoped pass compares only the cached files inside its folder (regression test test_scoped_sync_keeps_the_other_folders).
 
-### BUG-023: Default workspace retrieves chunks of every workspace
-- **Severity**: high
-- **Status**: open
-- **Found**: 2026-10-19, IMP-004 plan review, 2026-10-19
-- **Plan**: -
-- **Description**: Retrieval treats the Default workspace as no workspace filter: dense search (retrieval/pipeline.rs:617, 660, 715), metadata search (pipeline.rs:770, 946) and BM25 (retrieval/bm25.rs:213) return chunks of all workspaces for a query in Default, and a request without a workspace falls back to Default (pipeline.rs:592). Expected: Default sees only its own files, plus the Global AnyContext documentation, like every other workspace. Decided by the user on 2026-10-19.
-
 ## Features
 
 ### FEAT-001: actx profile install command
