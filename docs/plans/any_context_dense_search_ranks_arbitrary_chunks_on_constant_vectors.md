@@ -4,10 +4,10 @@ project: any-context
 title: Dense search ranks arbitrary chunks on constant vectors
 kind: bug
 version: v0.45.1
-status: in_progress
+status: completed
 author: Claude
 created_at: '2026-10-19T08:22:38'
-updated_at: '2026-10-19T10:32:12'
+updated_at: '2026-10-19T10:51:12'
 session_id: null
 tags:
 - retrieval
@@ -64,6 +64,10 @@ status_log:
   by: Claude
   status: in_progress
   note: All milestones done on the branch; completed when the pull request is merged
+- at: '2026-10-19T10:51:12'
+  by: Claude
+  status: completed
+  note: 'Merged in PR #365'
 ---
 
 # Dense search ranks arbitrary chunks on constant vectors
