@@ -111,10 +111,31 @@ O AnyContext nasce air-gapped: nenhuma etapa da aquisição depende de serviço 
 Um modelo gerativo de HTML → Markdown (ReaderLM-v2) foi descartado: lento demais em CPU,
 pode alterar números e código, e a licença precisa ser confirmada para uso comercial.
 
-### Em aberto
+### Chromium: distribuição e segurança
 
-- Distribuição do Chromium: no instalador ou baixado sob demanda.
-- Renderizar toda página ou só quando a busca estática vier sem conteúdo.
+- **Vai no instalador.** Baixar sob demanda (pelo catálogo verificado dos modelos) fica
+  para reavaliação futura, se o instalador ficar pesado demais.
+- **É atualizado a cada release do AnyContext**: um navegador desatualizado abrindo sites
+  arbitrários é superfície de ataque.
+- Roda com sandbox ativo, perfil descartável por execução, downloads desabilitados e
+  timeout por página.
+
+### Quando renderizar
+
+Só quando preciso — e a classificação não pode errar. Por isso ela **mede em vez de
+adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca perder conteúdo):
+
+1. **Calibração por site:** nas primeiras páginas da fonte (amostra pequena, ex.: 5), o
+   pipeline faz as duas coisas — busca estática e renderização — e compara o texto
+   extraído. Se a busca estática traz praticamente todo o conteúdo renderizado (ex.: ≥ 95%
+   do texto em todas as amostras), o site é **estático**; senão, **renderizado**.
+2. **Verificação por página:** mesmo num site estático, uma página cuja busca estática vier
+   vazia, muito curta ou com sinais de app JavaScript (ponto de montagem vazio,
+   `<noscript>` pedindo JavaScript) é renderizada.
+3. **Recalibração:** a classificação fica gravada na fonte e é reconferida a cada sync com
+   uma página de amostra; se divergir, o site volta para a calibração.
+4. **Transparência:** o modo de cada site (estático ou renderizado) aparece no status da
+   fonte, e o usuário pode forçar a renderização.
 
 ## 3. Diff incremental
 
