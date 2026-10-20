@@ -291,6 +291,38 @@ de abrir o arquivo:
   - tabelas largas (ex.: mais de 15 colunas) em formato de registro `coluna: valor` por
     linha, em vez de linha de tabela Markdown.
 
+### Office e PDF completos (auditoria P6 e P7)
+
+O parser extrai o documento inteiro, não só o texto do corpo. Hoje o DOCX corta seções por
+tamanho ("Section 1, 2, 3") e ignora títulos, comentários, notas e controle de alterações;
+o PPTX ignora as notas; o XLSX ignora fórmulas e mesclas; o PDF ignora sumário, anotações,
+formulários, anexos e assinaturas.
+
+- **Estrutura real:** estilos de título do DOCX, títulos de slide do PPTX e o sumário
+  (bookmarks) do PDF viram o caminho de seção (passo 7). Tabelas viram tabelas Markdown;
+  listas são preservadas.
+- **Controle de alterações:** o texto principal é a **versão atual** (com as inclusões, sem
+  as exclusões); cada alteração é indexada como **item próprio** com autor, data e trecho
+  incluído ou excluído ("quem alterou a cláusula 5 e quando?").
+- **Comentários e anotações** (DOCX, XLSX, PPTX, PDF): itens próprios ligados ao trecho
+  comentado, com autor e data.
+- **Cabeçalhos e rodapés:** indexados **uma vez por documento**, não repetidos por página.
+  Notas de rodapé e de fim ficam ligadas à seção onde aparecem.
+- **PPTX:** notas do apresentador junto do slide.
+- **XLSX:** o texto indexado é o valor calculado; a fórmula fica como metadado. Células
+  mescladas expandidas, intervalos nomeados como rótulos, abas ocultas indexadas e
+  marcadas como ocultas.
+- **PDF:**
+  - campos de formulário (AcroForm) como pares chave–valor;
+  - arquivos anexados ao PDF passam pelos containers (passo 4);
+  - **assinaturas digitais:** signatário, data e se o documento foi alterado depois de
+    assinado. A cadeia de confiança é validada com os certificados raiz do sistema
+    operacional, sem regra presa a um país; sem como validar offline, o status é "não
+    verificado".
+- **Outros formatos:** calendário (`.ics`), contatos (`.vcf`) e MHTML no nível 1 (simples e
+  frequentes); Visio (`.vsdx`), XPS e Apple iWork (Pages, Numbers, Keynote — formato
+  proprietário e mais difícil) no nível 2.
+
 ### Trabalhos longos (planilhas grandes, sites e pastas enormes)
 
 Não há limite de tamanho; quem decide se espera é o usuário.
