@@ -50,16 +50,6 @@ armazenamentos sem coordenação — LanceDB (vetores e texto), índice lexical 
 - **Abrir o arquivo original** (navegar pastas, abrir arquivos, ver sites sem sair do
   AnyContext) fica para a interface em Tauri 2 e não é decidido aqui.
 
-## Modelo de workspace
-
-- **Cada usuário cria os seus workspaces e é o único dono.** Pode compartilhar com outros
-  usuários, definindo papéis.
-- **O admin pode criar workspaces da organização**, disponíveis para toda a empresa, que
-  ninguém além dele edita.
-- **Um chat por workspace, nunca misturado.**
-- **Nenhuma consulta atravessa workspaces.** Separar contextos ao gosto do usuário é a
-  função do workspace.
-
 ### 2. Porta de modelos, por papel
 
 _Pendente._
@@ -75,6 +65,16 @@ _Pendente._
 ### 5. Worker de ingestão
 
 _Pendente._
+
+## Modelo de workspace
+
+- **Cada usuário cria os seus workspaces e é o único dono.** Pode compartilhar com outros
+  usuários, definindo papéis.
+- **O admin pode criar workspaces da organização**, disponíveis para toda a empresa, que
+  ninguém além dele edita.
+- **Um chat por workspace, nunca misturado.**
+- **Nenhuma consulta atravessa workspaces.** Separar contextos ao gosto do usuário é a
+  função do workspace.
 
 ## Modos de implantação
 
