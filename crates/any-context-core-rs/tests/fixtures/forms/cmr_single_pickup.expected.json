@@ -1,0 +1,40 @@
+{
+  "document": "cmr_single_pickup.pdf",
+  "kind": "CMR international consignment note (trilingual labels: German, French, English)",
+  "note": "Fictitious data on the layout of a real CMR. Values must come out attached to these fields; the trap cases are listed under `traps`.",
+  "fields": [
+    { "field": "1", "label": "Sender (Name, Address, Country)", "value": "NORDHAVEN LOGISTICS INC. - RIVERTON\n1200 EXAMPLE AVENUE\n00000-0000 RIVERTON\nUNITED STATES" },
+    { "field": "1", "label": "Sender reference", "value": "900-DT-1" },
+    { "field": "2", "label": "Consignee (Name, Address, Country)", "value": "NORDHAVEN NORTHFIELD\n500 - 1ST STREET S.E.\nA1A 1A1 NORTHFIELD\nCANADA" },
+    { "field": "2", "label": "Consignee reference", "value": "310-STO-1" },
+    { "field": "3", "label": "Place of delivery of the goods", "value": "NORTHFIELD, CANADA" },
+    { "field": "4", "label": "Place and date of taking over of the goods", "value": "RIVERTON, UNITED STATES" },
+    { "field": "5", "label": "Seal", "value": "4410" },
+    { "field": "7", "label": "Number of packages", "value": "142" },
+    { "field": "9", "label": "Nature of the goods", "value": "HOUSEHOLD GOODS" },
+    { "field": "9", "label": "Shipment", "value": "015-TSO-S10000000001" },
+    { "field": "9", "label": "Consignments", "value": "900-DT-G10000002" },
+    { "field": "9", "label": "Anzahl Kolli", "value": "120" },
+    { "field": "11", "label": "Gross weight in kg", "value": "16240.50 kg" },
+    { "field": "12", "label": "Gross volume in m³", "value": "79.40 m³" },
+    { "field": "13", "label": "Estimated Arrival", "value": "2025-12-29 14:00" },
+    { "field": "13", "label": "Actual Arrival", "value": "" },
+    { "field": "13", "label": "Actual Departure", "value": "2025-12-29 08:34" },
+    { "field": "16", "label": "Carrier (Name, Address, Country)", "value": "FALCON FREIGHT INC.\n77 SAMPLE ROAD\nB2B2B2 EASTLAKE\nCANADA" },
+    { "field": "16", "label": "Carrier reference", "value": "10001-CAR-1" },
+    { "field": "17", "label": "Remarks", "value": "PARS:1234PARS5678901" },
+    { "field": "21", "label": "Established in", "value": "RIVERTON" },
+    { "field": "21", "label": "Established on", "value": "2025-12-31" },
+    { "field": "24", "label": "Est. Arrival (Orig.)", "value": "2026-01-01 05:00" },
+    { "field": "24", "label": "Actual Arrival", "value": "" },
+    { "field": "24", "label": "Actual Departure", "value": "" },
+    { "field": "27", "label": "Trailer", "value": "40012 FALCON" }
+  ],
+  "traps": [
+    "Field 13: the value 2025-12-29 08:34 sits on the Actual Departure row; Actual Arrival is empty. Today's extractor attaches it to Actual Arrival.",
+    "Field 1: the reference 900-DT-1 belongs to the sender box, not to the CMR convention text on the same line.",
+    "Field 4: RIVERTON / UNITED STATES belongs to field 4, not to field 18 on the same line.",
+    "Field 11: the weight 16240.50 and its unit kg are on two lines of the same box.",
+    "Field 24 has its own Actual Arrival and Actual Departure labels, both empty: the field 13 values must not leak into them."
+  ]
+}
