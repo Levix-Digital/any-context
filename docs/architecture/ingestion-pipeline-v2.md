@@ -509,10 +509,20 @@ são citáveis.
 
 - **Dados pessoais e sensíveis:** o mesmo modelo marca categorias genéricas (nome,
   documento de identidade, saúde, dados financeiros, contato) — sem regra presa a um país;
-  serve a LGPD, GDPR, HIPAA. A **política é do workspace**: só marcar, mascarar na
-  resposta ou não indexar.
-  - **Padrão:** mascarar na resposta quando o LLM é na nuvem; só marcar quando o LLM é
-    local.
+  serve a LGPD, GDPR, HIPAA. A proteção nunca pode tornar a fonte inconsultável: número do
+  processo, prontuário ou placa são justamente a forma mais comum de pesquisar.
+  1. **Busca: nada é mascarado.** O índice guarda os identificadores (criptografados em
+     disco) e a busca por eles funciona sempre, por correspondência exata e por filtro.
+  2. **O usuário vê sempre os valores reais.**
+  3. **LLM na nuvem: pseudonimização reversível.** Antes de enviar o contexto, cada
+     identificação pessoal vira um marcador consistente (`[PESSOA_1]`, `[PRONTUARIO_1]`);
+     o LLM responde com os marcadores e o AnyContext devolve os valores reais localmente
+     antes de mostrar a resposta. O conteúdo (diagnóstico, cláusula, carga) continua indo —
+     protege-se **a quem ele se refere**. O pacote de domínio define quais tipos de
+     entidade são pseudonimizados (ex.: saúde — paciente e prontuário sim, código de
+     diagnóstico não). Com LLM local, nada é pseudonimizado por padrão.
+  4. **"Não indexar"** só para segredos e por escolha explícita do usuário — nunca como
+     política padrão de pacote.
 - **Segredos** (chaves de API, tokens, senhas, chaves privadas) são detectados por padrões
   conhecidos e entropia, como nos scanners de segredo do mercado, e **o valor nunca é
   indexado, sem exceção configurável**: vira `[SECRET REDACTED]` e o resto do arquivo
@@ -650,3 +660,47 @@ gabarito, e corrige o que ficou ruim.
 7. **Conjunto de avaliação da recuperação:** as perguntas sintéticas formam um conjunto de
    avaliação por workspace, usado para medir a recuperação após cada mudança de modelo ou
    configuração (resolve o IMP-008).
+
+---
+
+## Transversal: pacotes de domínio (auditoria H3)
+
+Um pacote de domínio é um conjunto **declarativo** (só dados, nenhum código) que ajusta o
+AnyContext a uma área. É ortogonal aos perfis de hardware: o perfil decide o que a máquina
+aguenta; o pacote decide o que importa para a área.
+
+**Pacotes de nascimento (11):** **Pessoal** (padrão quando nenhum é escolhido — uso
+doméstico: pessoas, lugares, datas, valores, contas, recibos, documentos da família e
+escola), jurídico, saúde, engenharia, contabilidade, logística, RH, acadêmico, TI, setor
+público e imobiliário.
+
+**Conteúdo de um pacote:**
+
+1. **Tipos de entidade** para o modelo de entidades (passo 7) — ex.: jurídico: número do
+   processo, partes, tribunal, juiz, prazo; saúde: paciente, exame, medicamento, código de
+   diagnóstico, médico; logística: embarque, lacre, placa, transportadora.
+2. **Metadados e filtros** que fazem sentido na área.
+3. **Pseudonimização para LLM na nuvem:** quais tipos de entidade viram marcadores
+   (passo 7).
+4. **Processadores opcionais pesados ligados por padrão** (ex.: transcrição no jurídico,
+   descrição de imagens na engenharia).
+5. **Modelos de pergunta para a autoavaliação** típicos da área.
+6. **Orientações para a resposta** (ex.: "sempre citar página e campo") — pendência da
+   recuperação.
+7. **Mapas de layout** apenas como acelerador, para formulários realmente oficiais e
+   únicos. O valor está em **aprender**: os mapas vêm, por ordem de importância, da fase 0
+   automática no próprio usuário (passo 6), da importação do DocMapper (formato comum) e,
+   opcionalmente, de compartilhamento voluntário entre clientes — só geometria e rótulos
+   fixos, nunca valores, e só com autorização explícita (um mapa pode identificar o
+   formulário de uma empresa).
+
+**Regras:**
+
+- **Os parsers funcionam sempre**, com ou sem pacote; o pacote só ajusta e enriquece, nunca
+  é condição para um arquivo ser entendido.
+- **Vários pacotes por workspace** (ex.: jurídico + RH) e **pacotes personalizados** criados
+  pelo usuário.
+- **Multilíngue:** nomes internos dos campos em inglês; rótulos exibidos no idioma da
+  interface; entidades detectadas em qualquer idioma do documento.
+- **Distribuição** pelo catálogo verificado dos modelos (versão e hash), atualizável sem
+  nova versão do AnyContext.
