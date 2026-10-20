@@ -395,8 +395,9 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
   fundida com o ANN). A pequena perda de recall do ANN é compensada pela busca lexical em
   paralelo e pelo reranker.
 
-### Em aberto
-
-- Proteção dos vetores: a criptografia por campo não serve para eles (a busca precisa
-  calcular distâncias sobre os vetores), então a proteção teria de ser na camada de
-  armazenamento.
+- **Vetores protegidos na camada de armazenamento.** A criptografia por campo não serve
+  para eles (a busca calcula distâncias sobre os vetores), então os arquivos do LanceDB
+  ficam criptografados em disco, por uma camada de armazenamento própria, com a mesma
+  chave do cofre do sistema operacional. Como o LanceDB não oferece isso pronto, essa
+  camada é construída pelo AnyContext (como o `Directory` criptografado do Tantivy,
+  passo 9).
