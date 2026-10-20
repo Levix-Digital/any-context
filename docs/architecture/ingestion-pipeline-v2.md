@@ -221,6 +221,44 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
   vez de descobrir isso no quality gate.
 - **Arquivo protegido por senha, corrompido ou de formato sem parser** não é indexado e é
   reportado ao usuário com o motivo — nunca indexado como lixo nem descartado em silêncio.
+  Um arquivo protegido pode ser destravado com uma senha do cofre (abaixo).
+
+### Containers e arquivos compactados (auditoria P1)
+
+- **Abertos recursivamente.** Cada item interno vira um **documento filho**, com
+  proveniência encadeada (`processo.zip > autos/anexo 3.pdf`,
+  `escritorio.pst > Caixa de entrada > Re: contrato > minuta.docx`), e passa pelo pipeline
+  normal (classificação pelo conteúdo, parser…).
+- **Formatos:** ZIP, 7z, TAR, GZ, BZ2, XZ, MBOX e **PST/OST** (Outlook). **RAR** só para
+  leitura, se a licença do descompactador permitir (confirmar juridicamente; comprar uma
+  licença fica para avaliação futura); senão é recusado com mensagem clara.
+- **Proteção:** limite de profundidade (ex.: 5 níveis), limite de tamanho descompactado e
+  de razão de compressão (zip bombs), rejeição de caminhos internos com `../`. O que for
+  barrado aparece no relatório.
+- **Diff:** o container tem hash próprio e cada filho também; quando o container muda, só
+  os filhos alterados são reprocessados.
+- **Citação:** mostra o caminho completo dentro do container; "abrir o original" extrai o
+  item para uma pasta temporária.
+- **Filtros** da fonte (passo 1) valem também dentro do container.
+
+### Cofre de senhas de arquivos
+
+Arquivos e containers protegidos podem ser destravados com senhas que o usuário fornece por
+fonte (ou por arquivo). O AnyContext **usa a senha sem conhecê-la** fora do momento exato
+de abrir o arquivo:
+
+- **Guardada no cofre do sistema operacional** (Keychain, Windows Credential Manager,
+  Secret Service), o mesmo da chave de criptografia (passo 10). O `settings.db` guarda só
+  uma referência (`secret_id`) na fonte, nunca a senha.
+- **Só o worker de ingestão a lê**, no instante de abrir o arquivo; ela fica só em memória,
+  é apagada (zeroize) logo depois, e nunca vai para logs, relatórios, índices ou prompts.
+- **O agente e o LLM nunca têm acesso ao cofre**: não existe ferramenta que leia senhas, e
+  nenhuma senha entra no contexto de uma conversa.
+- **Opção "perguntar sempre"**: a senha não é guardada e é pedida a cada sync que precise
+  dela.
+- **Sem tentativa e erro:** uma senha errada falha o arquivo e é reportada; o AnyContext
+  nunca tenta adivinhar senhas.
+- O futuro módulo de usuários pode exigir autenticação para liberar o cofre.
 
 ## 5. Parsing e chunking
 

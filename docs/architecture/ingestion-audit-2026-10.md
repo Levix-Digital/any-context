@@ -178,3 +178,4 @@ Fora de alcance sem software proprietário: DWG nativo, OneNote, arquivos com DR
 |---|---|---|
 | P8 | aceita: texto digital é a verdade; modelo de parsing de páginas para escaneadas nos perfis que comportam; benchmark antes de fixar | `ingestion-pipeline-v2.md`, passo 6 |
 | P9 | aceita: terceiro estado de página "texto quebrado", com verificação contra OCR na dúvida | `ingestion-pipeline-v2.md`, passo 4 |
+| P1 | aceita, com PST/OST no nível 1, RAR só leitura (licença a confirmar) e cofre de senhas de arquivos | `ingestion-pipeline-v2.md`, passo 4 |
