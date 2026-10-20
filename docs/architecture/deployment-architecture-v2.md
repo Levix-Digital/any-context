@@ -113,7 +113,20 @@ Hoje não existe essa noção: qualquer provedor configurado recebe o contexto c
 
 ### 4. Identidade do modelo de embedding
 
-_Pendente._
+O `embedding_target` fica em cada chunk e há uma tabela por workspace e alvo (ingestão,
+passos 7 e 10). Esta costura define quando dois alvos são iguais.
+
+- **A identidade é o que produz o vetor, não onde ele roda:** modelo e versão dos pesos
+  (hash do catálogo), dimensão, **precisão** (fp32, fp16, int8) e pré-processamento (versão
+  do tokenizador, prefixos de busca e de documento). O mesmo modelo, com a mesma precisão,
+  local ou no servidor, é o mesmo alvo — sem reindexação.
+- **Teste de impressão digital:** o catálogo traz um conjunto fixo de textos e os vetores
+  de referência de cada modelo. Ao configurar um vínculo, e periodicamente, o AnyContext
+  embeda esses textos e compara: similaridade acima de um limiar alto (ex.: 0,999) → mesmo
+  alvo; abaixo → outro alvo, com a regra de reindexação de sempre.
+- O teste também pega mudanças silenciosas (provedor que altera o modelo sem mudar o nome,
+  servidor atualizado com outra versão ou precisão) e decide os casos de precisão diferente
+  (ex.: fp16 na GPU contra fp32 no desktop).
 
 ### 5. Worker de ingestão
 
