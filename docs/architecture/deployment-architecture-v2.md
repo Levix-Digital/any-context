@@ -20,7 +20,7 @@ complexidade sem retorno.
 1. Porta de armazenamento
 2. Porta de modelos, por papel
 3. Nível de confiança de cada endpoint
-4. Identidade do modelo de embedding inclui onde ele roda
+4. Identidade do modelo de embedding (o que produz o vetor, não onde roda)
 5. Worker de ingestão como papel separável
 
 ### 1. Porta de armazenamento
@@ -130,7 +130,29 @@ passos 7 e 10). Esta costura define quando dois alvos são iguais.
 
 ### 5. Worker de ingestão
 
-_Pendente._
+Hoje cada sync dispara um processo `actx --sync-worker` (ou uma thread, se o processo não
+sobe); progresso, status e cancelamento passam por uma tabela do SQLite; não há fila, e
+nada impede dois workers no mesmo workspace.
+
+1. **Fila de trabalhos persistente por workspace**, por prioridade:
+   1. **indexação base** (texto, índice lexical, embedding) — o que torna o conteúdo
+      buscável;
+   2. **enriquecimentos** (contextual retrieval, resumos, descrição de imagens,
+      transcrição e falantes);
+   3. **autoavaliação** (sondagens, reprocessamento automático);
+   4. **manutenção** (compactação, recrawl web, testes de impressão digital).
+2. **Trabalhos idempotentes**, ligados ao diário da porta de armazenamento (costura 1):
+   uma interrupção é retomada sem duplicar nem perder.
+3. **Um único escritor por workspace**, por trava com prazo (lease); se o worker morre, a
+   trava expira e outro assume. Leitura e busca nunca são bloqueadas.
+4. **O worker é um papel:** processo local nos modos 1 e 2 (com a "receita" compartilhada,
+   cada membro roda o seu); no modo 3 roda no AnyContext Server, e os clientes só
+   enfileiram pedidos e consultam. O serviço em segundo plano opcional (ingestão, sync
+   automático) é esse mesmo worker como serviço do sistema.
+5. **Progresso e status por eventos** (início, item processado, erro, fim): eventos nativos
+   no Tauri; pela conexão com o servidor no modo 3.
+6. **Cancelamento e pausa são comandos na fila**, respeitados entre trabalhos e dentro dos
+   longos (ex.: transcrição de 3 horas tem pontos de pausa).
 
 ## Modelo de workspace
 

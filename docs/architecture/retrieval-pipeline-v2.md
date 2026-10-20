@@ -59,8 +59,11 @@ Documento vivo da revisão do pipeline de recuperação, no mesmo método do
 - Famílias de versões: preferir a versão vigente por padrão e usar a família inteira em
   perguntas sobre mudanças entre versões (ingestão, passo 3).
 - Entidades e metadados do documento como filtros e facetas; busca sem máscara e
-  pseudonimização reversível do contexto enviado a um LLM na nuvem, com os valores reais
-  devolvidos localmente na resposta (ingestão, passo 7).
+  pseudonimização reversível do contexto enviado a um endpoint externo, com os valores reais
+  devolvidos localmente na resposta (ingestão, passo 7; níveis de confiança em
+  `deployment-architecture-v2.md`).
+- Teto "confidencial" por workspace e busca web tratada como saída para o externo
+  (`deployment-architecture-v2.md`, costura 3).
 - Resumos de documento e de pasta para perguntas de visão geral e para escolher em quais
   documentos procurar (ingestão, passo 7).
 - Orientações de resposta dos pacotes de domínio (ingestão, seção transversal H3).
