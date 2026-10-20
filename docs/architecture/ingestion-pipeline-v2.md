@@ -694,6 +694,22 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
   fundida com o ANN). A pequena perda de recall do ANN é compensada pela busca lexical em
   paralelo e pelo reranker.
 
+- **Vetores compactos (auditoria P18) — qualidade em primeiro lugar.** O que foi indexado
+  (texto, chunks, metadados e vetores completos) nunca muda; a compactação só cria um
+  atalho para achar candidatos, e a ordem final é sempre calculada com os vetores
+  completos.
+  1. **Sem compactação por padrão.** Só é ligada por necessidade real: o índice não cabe com
+     folga na memória ou a busca fica lenta (típico de perfis leves com workspaces
+     grandes). Quantização int8 ou binária, reversível sem reindexar.
+  2. **Tolerância praticamente zero:** com compactação, a peneira busca mais candidatos (ex.:
+     4×) e ela só fica ativa se o conjunto de avaliação não mostrar perda mensurável (até
+     0,5 ponto percentual na taxa de acerto).
+  3. **Mecanismo interno:** a avaliação roda de novo após syncs relevantes e, se aparecer
+     perda, a compactação é desligada automaticamente. O usuário não é avisado nem
+     consultado — nenhum conteúdo é perdido, é só um modo de busca; o registro fica no
+     diagnóstico.
+  4. **Truncamento Matryoshka nunca é usado:** descarta informação no armazenamento, o que
+     não é aceitável. Os vetores são guardados sempre na dimensão completa do modelo.
 - **Vetores protegidos na camada de armazenamento.** A criptografia por campo não serve
   para eles (a busca calcula distâncias sobre os vetores), então os arquivos do LanceDB
   ficam criptografados em disco, por uma camada de armazenamento própria, com a mesma
