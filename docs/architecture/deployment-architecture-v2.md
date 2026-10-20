@@ -82,10 +82,34 @@ servidor. As políticas de modelo do Admin Hub não estão ligadas ao core.
   próximo sync); demais papéis da ingestão entram em fila e são retentados, podendo cair
   para o local **só com o mesmo modelo e versão**; no chat o erro é mostrado e trocar de LLM
   é escolha do usuário, dentro do que a política permite.
+- **Adaptadores para serviços de nuvem dos papéis ONNX** (ex.: Google Document AI e
+  Speech-to-Text, e equivalentes da Microsoft e da AWS), para clientes que já pagam por
+  eles. Seguem o nível de confiança do endpoint (costura 3).
 
 ### 3. Nível de confiança de cada endpoint
 
-_Pendente._
+Hoje não existe essa noção: qualquer provedor configurado recebe o contexto completo.
+
+- **Três níveis:**
+  - **local:** a própria máquina;
+  - **corporativo:** o perímetro da empresa — VPC, Model Server, AnyContext Server e
+    serviços de IA contratados **na conta da própria empresa** (ex.: Vertex AI no projeto
+    GCP dela, Azure OpenAI no tenant dela);
+  - **externo:** APIs públicas de terceiros.
+- **Quem define:** sem Admin Hub, o usuário classifica os endpoints (padrões: `localhost`
+  local, API pública externo); com Admin Hub, a política da empresa define e **o usuário não
+  pode elevar o nível** de um endpoint.
+- **O que o nível decide:**
+  - a pseudonimização reversível (ingestão, passo 7) só se aplica ao **externo**;
+  - as políticas do Admin Hub viram regras sobre níveis: "só local" → local; "só gateway
+    corporativo" → local + corporativo; "híbrido" → todos, dentro dos modelos permitidos.
+- **Teto por workspace:** um workspace marcado como **confidencial** (ex.: prontuários,
+  processos sob sigilo) nunca envia nada para endpoint externo, mesmo que a política geral
+  permita.
+- **Outras saídas de dados contam igual:** a busca web (o texto da pergunta enviado a um
+  buscador público) recebe o tratamento do externo — pseudonimização e teto do workspace;
+  aplicativos que consomem o AnyContext pelo servidor MCP (Cursor, Claude Desktop) são
+  consumidores externos, governados pela política.
 
 ### 4. Identidade do modelo de embedding
 

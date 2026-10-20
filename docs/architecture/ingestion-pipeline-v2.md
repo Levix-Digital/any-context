@@ -587,13 +587,14 @@ são citáveis.
   1. **Busca: nada é mascarado.** O índice guarda os identificadores (criptografados em
      disco) e a busca por eles funciona sempre, por correspondência exata e por filtro.
   2. **O usuário vê sempre os valores reais.**
-  3. **LLM na nuvem: pseudonimização reversível.** Antes de enviar o contexto, cada
+  3. **Endpoint externo: pseudonimização reversível.** Antes de enviar o contexto, cada
      identificação pessoal vira um marcador consistente (`[PESSOA_1]`, `[PRONTUARIO_1]`);
      o LLM responde com os marcadores e o AnyContext devolve os valores reais localmente
      antes de mostrar a resposta. O conteúdo (diagnóstico, cláusula, carga) continua indo —
      protege-se **a quem ele se refere**. O pacote de domínio define quais tipos de
      entidade são pseudonimizados (ex.: saúde — paciente e prontuário sim, código de
-     diagnóstico não). Com LLM local, nada é pseudonimizado por padrão.
+     diagnóstico não). Com endpoint local ou corporativo (ver níveis de confiança em
+     `deployment-architecture-v2.md`), nada é pseudonimizado por padrão.
   4. **"Não indexar"** só para segredos e por escolha explícita do usuário — nunca como
      política padrão de pacote.
 - **Segredos** (chaves de API, tokens, senhas, chaves privadas) são detectados por padrões
