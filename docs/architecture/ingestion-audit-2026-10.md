@@ -169,3 +169,12 @@ Fora de alcance sem software proprietário: DWG nativo, OneNote, arquivos com DR
 | 1 — base | P8, P9, P1, P6, P7, P12, P13, P17, P22, H1 | qualidade de extração e confiança para todos os públicos |
 | 2 — públicos específicos | P2, P3, P4, P5, P14, P15, P18, P20, H2, H3 | cobertura por área e eficiência |
 | 3 — avaliar depois | P10, P16, P19, P21, P23 | custo alto, dependem da recuperação ou do módulo de usuários |
+
+---
+
+## 5. Decisões
+
+| proposta | decisão | onde foi registrada |
+|---|---|---|
+| P8 | aceita: texto digital é a verdade; modelo de parsing de páginas para escaneadas nos perfis que comportam; benchmark antes de fixar | `ingestion-pipeline-v2.md`, passo 6 |
+| P9 | aceita: terceiro estado de página "texto quebrado", com verificação contra OCR na dúvida | `ingestion-pipeline-v2.md`, passo 4 |

@@ -210,8 +210,13 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
 - **Office antigo e ODF têm parser de verdade** (`.doc`, `.ppt`, `.xls`, `.odt`, `.odp`,
   `.ods`, `.rtf`). Hoje `.doc`/`.ppt` são abertos como ZIP e falham, e `.odt`, `.epub`,
   `.rtf`, `.eml`, `.msg` e `.html` são indexados como texto cru ou falham.
-- **PDF digital ou escaneado é decidido na classificação, por página** (camada de texto e
-  área coberta por imagem). PDFs mistos — digitais com anexos escaneados, comuns em
+- **Cada página de PDF é classificada em três estados:** **digital**, **escaneada** ou
+  **digital com texto quebrado** (camada de texto existe mas é lixo — fontes sem
+  mapeamento Unicode, CID —, comum em sistemas antigos de tribunais, prefeituras e
+  hospitais). O terceiro estado é tratado como escaneado. A detecção é independente de
+  idioma: proporção de caracteres de substituição, de uso privado e de controle, e
+  sequências improváveis; na dúvida, o texto da página é comparado com um OCR rápido da
+  mesma página e fica o melhor (medir em vez de adivinhar). PDFs mistos — digitais com anexos escaneados, comuns em
   processos e contabilidade — mandam cada página para o caminho certo (texto ou OCR), em
   vez de descobrir isso no quality gate.
 - **Arquivo protegido por senha, corrompido ou de formato sem parser** não é indexado e é
@@ -275,8 +280,30 @@ Não há limite de tamanho; quem decide se espera é o usuário.
   alfabetos não latinos como "lixo binário" e tabelas ou logs com valores repetidos.
 - **Todo chunk descartado é registrado com o motivo** e fica visível no relatório do sync
   (e num comando de inspeção), em vez de só uma contagem.
-- **Document AI local via ONNX.** Depois do OCR (passo 5), um modelo de **layout** reconstrói
-  tabelas e formulários escaneados; a heurística espacial 2D atual fica como fallback.
+- **Extração de páginas (auditoria P8).**
+  - **Página digital:** a camada de texto é sempre a verdade (é exata). Nenhum modelo
+    reescreve esse texto; um modelo pode, no máximo, ajudar a descobrir a estrutura (ordem
+    de leitura, tabelas) a partir das coordenadas do texto original.
+  - **Página escaneada, com texto quebrado, foto ou manuscrito:** um **modelo de parsing de
+    páginas** (VLM pequeno via ONNX) lê a imagem e devolve Markdown com ordem de leitura,
+    tabelas, fórmulas e manuscrito, nos perfis que comportam; nos perfis leves fica a
+    cascata OCR → layout → heurística 2D:
+
+    | perfil | página escaneada |
+    |---|---|
+    | Lite | OCR + heurística 2D |
+    | Smart Balanced | OCR + modelo de layout |
+    | Air-Gapped Power em diante | modelo de parsing de páginas (candidato: Granite-Docling-258M, Apache-2.0) |
+    | Workstation Pro, Sovereign Ultra | modelo maior se vencer o benchmark (candidato: PaddleOCR-VL, licença a confirmar) |
+
+  - **Benchmark antes de fixar os modelos:** Granite-Docling, PaddleOCR-VL e a cascata
+    OCR + layout medidos num conjunto real de páginas escaneadas, tabelas, formulários e
+    manuscritos (qualidade e tempo por página em CPU, por perfil).
+  - Documentos escaneados longos usam a estimativa, a confirmação e o processamento
+    progressivo dos trabalhos longos (passo 5).
+- **Document AI local via ONNX.** Nos perfis com cascata, depois do OCR (passo 5), um modelo
+  de **layout** reconstrói tabelas e formulários escaneados; a heurística espacial 2D atual
+  fica como fallback.
   - LLM de visão (local ou na VPC) só se o usuário configurar explicitamente; desligado
     por padrão. Nunca um serviço externo implícito.
   - Hoje nenhum componente de Document AI está ligado em produção (extrator de layout,
