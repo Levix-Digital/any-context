@@ -54,8 +54,10 @@ Documento vivo da revisão do pipeline de recuperação, no mesmo método do
   passo 9).
 - Famílias de versões: preferir a versão vigente por padrão e usar a família inteira em
   perguntas sobre mudanças entre versões (ingestão, passo 3).
-- Entidades e metadados do documento como filtros e facetas; mascaramento de dados
-  pessoais na resposta conforme a política do workspace (ingestão, passo 7).
+- Entidades e metadados do documento como filtros e facetas; busca sem máscara e
+  pseudonimização reversível do contexto enviado a um LLM na nuvem, com os valores reais
+  devolvidos localmente na resposta (ingestão, passo 7).
+- Orientações de resposta dos pacotes de domínio (ingestão, seção transversal H3).
 - Formulários do mesmo modelo de layout como tabela consultável (ingestão, passo 6).
 - Conjunto de avaliação por workspace formado pelas perguntas sintéticas da autoavaliação
   (ingestão, seção transversal).

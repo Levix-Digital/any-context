@@ -340,6 +340,31 @@ formulários, anexos e assinaturas.
   frequentes); Visio (`.vsdx`), XPS e Apple iWork (Pages, Numbers, Keynote — formato
   proprietário e mais difícil) no nível 2.
 
+### Formatos acadêmicos, de engenharia, GIS e saúde (auditoria P3, P4 e P5)
+
+Disponíveis sempre, com ou sem pacote de domínio.
+
+- **Acadêmico:** LaTeX por seção, equações preservadas em LaTeX e `\cite` ligado à
+  referência; BibTeX, RIS e CSL-JSON como registros (autores, título, ano, DOI); Jupyter,
+  R Markdown e Quarto com células de texto como prosa, código pelo parser de código, saídas
+  de texto indexadas e imagens de saída pelo modelo de visão; fórmulas de PDF em LaTeX
+  (modelo de parsing de páginas, passo 6); Parquet e Arrow como tabelas consultáveis.
+  SPSS e Stata ficam para depois.
+- **Engenharia e imobiliário:** DXF (textos, camadas, atributos de blocos; carimbo como
+  campos); **DWG recusado** com mensagem sugerindo exportar para DXF ou PDF (formato
+  proprietário; licença de biblioteca comercial a avaliar no futuro); IFC com a hierarquia
+  terreno > edifício > pavimento > ambiente como caminho de seção e cada elemento com suas
+  propriedades; STEP e IGES só pelo cabeçalho; carimbo de pranchas em PDF pelo LSIE e
+  mapas de layout (passo 6).
+- **GIS:** GeoJSON, KML/KMZ, Shapefile e GeoPackage — cada feição como registro com seus
+  atributos; sistema de coordenadas e área coberta como metadados (filtros espaciais no
+  futuro).
+- **Saúde:** DICOM com tags (paciente, estudo, modalidade, data, descrição), laudos
+  estruturados e PDFs embutidos — **a imagem médica fica desligada por padrão** (só com o
+  usuário ou o pacote ligando); HL7 v2 com cada segmento como registro; FHIR com cada
+  recurso como item e referências preservadas; CDA pelas seções clínicas. A
+  pseudonimização para LLM na nuvem (passo 7) vale com força total.
+
 ### Trabalhos longos (planilhas grandes, sites e pastas enormes)
 
 Não há limite de tamanho; quem decide se espera é o usuário.
