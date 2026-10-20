@@ -542,6 +542,30 @@ extensão que cobre todos os seus filhos (ex.: intervalo de páginas da seção,
 linhas da planilha), de modo que tanto o trecho quanto o contexto maior entregue ao LLM
 são citáveis.
 
+### Resumos hierárquicos (auditoria P14)
+
+- A árvore ganha níveis acima: **pasta > documento > seção (pai) > chunk**. Documento e
+  pasta recebem um **resumo gerado pelo LLM local** do perfil.
+- Os resumos são **nós próprios**, embedados e buscáveis — nunca prefixados nos chunks.
+  Respondem a perguntas de visão geral e ajudam a escolher em quais documentos procurar
+  antes de descer aos trechos (pendência da recuperação).
+- Regenerados só quando o conteúdo muda (pelo hash), em segundo plano.
+- Idioma: resumo do documento no idioma do documento; resumo de pasta com documentos em
+  vários idiomas em inglês.
+- Perfis sem LLM local ficam sem resumos, salvo autorização explícita de um LLM na nuvem.
+
+### Late chunking (auditoria P15)
+
+- O modelo de embedding lê o **pai** (a seção) inteiro e cada chunk recebe um vetor com o
+  contexto em volta, sem custo de LLM. Uma edição re-embeda só os filhos daquele pai,
+  preservando o diff por chunk.
+- Só com modelo de embedding **local de contexto longo** (ex.: BGE-M3, 8192 tokens); APIs
+  na nuvem não expõem o necessário e modelos de 512 tokens não servem.
+- Por perfil: com LLM local, contextual retrieval (abaixo); perfis leves com embedding de
+  contexto longo, late chunking; os demais, só o cabeçalho título + seção.
+- Ganho publicado modesto (≈ 3%): **ligado por padrão só se o conjunto de avaliação da
+  autoavaliação mostrar ganho** no workspace.
+
 ### Metadados do documento e entidades (auditoria P12)
 
 - **Metadados do documento:** idioma, **data do documento extraída do conteúdo** (não o

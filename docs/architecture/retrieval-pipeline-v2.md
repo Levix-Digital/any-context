@@ -57,6 +57,8 @@ Documento vivo da revisão do pipeline de recuperação, no mesmo método do
 - Entidades e metadados do documento como filtros e facetas; busca sem máscara e
   pseudonimização reversível do contexto enviado a um LLM na nuvem, com os valores reais
   devolvidos localmente na resposta (ingestão, passo 7).
+- Resumos de documento e de pasta para perguntas de visão geral e para escolher em quais
+  documentos procurar (ingestão, passo 7).
 - Orientações de resposta dos pacotes de domínio (ingestão, seção transversal H3).
 - Formulários do mesmo modelo de layout como tabela consultável (ingestão, passo 6).
 - Conjunto de avaliação por workspace formado pelas perguntas sintéticas da autoavaliação
