@@ -365,6 +365,28 @@ Disponíveis sempre, com ou sem pacote de domínio.
   recurso como item e referências preservadas; CDA pelas seções clínicas. A
   pseudonimização para LLM na nuvem (passo 7) vale com força total.
 
+### Áudio e vídeo (auditoria P2)
+
+- **Formatos:** áudio MP3, WAV, M4A, OGG, FLAC, Opus; vídeo MP4, MKV, MOV, WebM. Áudio lido em
+  Rust puro (Symphonia), inclusive a trilha de áudio dos vídeos.
+- **Transcrição local, multilíngue, via ONNX** (família Whisper, MIT), com detecção
+  automática de idioma e tamanho do modelo por perfil; um detector de voz (VAD) pula os
+  silêncios.
+- **Legendas existentes têm prioridade:** legenda embutida, `.srt` ou `.vtt` ao lado são
+  usadas direto, sem transcrever.
+- **Chunks e localizadores:** chunks seguem frases e trocas de falante; localizador é início
+  e fim em segundos (passo 7); o pai é um bloco de alguns minutos ou um capítulo.
+- **Identificação de falantes:** opcional por perfil, **ligada por padrão no pacote
+  jurídico** (audiências). Falantes saem como "Falante 1, 2…" e o usuário pode nomeá-los
+  para o arquivo inteiro.
+- **Quadros do vídeo:** quadros-chave nas mudanças de cena descritos pelo modelo de visão;
+  slides de aulas e reuniões por OCR. O decodificador é o **FFmpeg, no instalador** (como o
+  Chromium), distribuído como biblioteca separada para cumprir a LGPL.
+- **Trabalho longo:** estimativa, confirmação e processamento progressivo (abaixo); a
+  transcrição fica buscável conforme avança.
+- **Privacidade:** transcrição sempre local; nomes citados passam pela pseudonimização
+  quando o contexto vai para um LLM na nuvem (passo 7).
+
 ### Trabalhos longos (planilhas grandes, sites e pastas enormes)
 
 Não há limite de tamanho; quem decide se espera é o usuário.
