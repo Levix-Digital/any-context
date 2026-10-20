@@ -74,7 +74,29 @@ _Pendente._
   ninguém além dele edita.
 - **Um chat por workspace, nunca misturado.**
 - **Nenhuma consulta atravessa workspaces.** Separar contextos ao gosto do usuário é a
-  função do workspace.
+  função do workspace. A documentação do AnyContext deixa de ser o workspace `Global` e
+  vira a ajuda do sistema, fora dos workspaces.
+- **Compartilhamento, com os mesmos papéis em qualquer modo:** **dono**, **editor** (gerencia
+  as fontes) e **leitor** (só consulta). O workspace da organização tem o admin como dono e
+  todos os demais como leitores.
+  - **Modo 1 (sem servidor): compartilha-se a "receita"** — fontes e configuração. Cada
+    membro indexa localmente as mesmas fontes, que precisam ser acessíveis a todos (ex.:
+    servidor de arquivos, SharePoint).
+  - **Modo 3: compartilha-se o índice** — o workspace vive no AnyContext Server e os
+    membros consultam o mesmo índice.
+- **O chat é de cada usuário**, mesmo num workspace compartilhado: cada um tem o seu
+  histórico, e ninguém lê o chat do outro.
+
+## Admin Hub e AnyContext Server
+
+- **Admin Hub (plano de controle):** gestão de frotas, matrículas, políticas, ITSM/SCIM e
+  kill-switch. É **zero-knowledge** (nunca vê conteúdo) e é **sempre hospedado no cliente**
+  (VPC ou on-premise) — **nunca um SaaS da Levix**. (As especificações iniciais do Admin
+  Hub citam "SaaS Levix" como opção de hospedagem; isso fica corrigido.)
+- **AnyContext Server (plano de dados, modo 3):** também hospedado na VPC da empresa;
+  matriculado e governado pelo Admin Hub como um dispositivo.
+- **Regra de perímetro:** o conteúdo (documentos, chunks, vetores, prompts) **nunca sai do
+  perímetro da empresa** — no modo 1, nem sai da máquina. O modo 1 continua sendo o padrão.
 
 ## Modos de implantação
 

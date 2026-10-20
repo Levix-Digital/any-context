@@ -43,9 +43,10 @@ Este documento é a base para refazer o backlog (`docs/BACKLOG.md`).
   - website inteiro, rastreado recursivamente;
   - página web avulsa.
 - **Conectores (futuro)** seguem a mesma regra: um alvo e o modo avulso ou recursivo.
-- **Escopo por workspace mantido.** Cada fonte pertence a um workspace; o workspace
-  `Global` (documentação do próprio AnyContext) continua existindo e deve estar indexado
-  logo após a instalação e após cada atualização.
+- **Escopo por workspace mantido.** Cada fonte pertence a um workspace, e nenhuma consulta
+  atravessa workspaces (ver `deployment-architecture-v2.md`, modelo de workspace). A
+  documentação do próprio AnyContext deixa de ser o workspace `Global` e vira a ajuda do
+  sistema (abaixo).
 - **Filtros de inclusão/exclusão saem do código** e vão para o `settings.db`, com a lista
   atual de pastas ignoradas e extensões como padrão, configurável pelo usuário.
 - **Colunas sem uso saem do schema:** em `workspace_web_urls`, nenhum código lê ou grava
@@ -86,12 +87,13 @@ e `workspace_sources` (as colunas sem uso desaparecem com elas):
   teto daquela fonte.
 - Página avulsa busca só aquela URL, sem seguir links.
 
-### Workspace `Global`
+### Ajuda do sistema (antigo workspace `Global`)
 
-É uma fonte `builtin` (documentação embutida no binário) processada pelo mesmo pipeline
-das demais, no primeiro start após instalar ou atualizar — não há mais chunker nem escrita
-própria. Sem modelo de embedding disponível nesse momento, o índice lexical é gerado na
-hora e os vetores quando houver modelo (ver passo 8).
+A documentação do AnyContext **não é um workspace** e nunca é misturada aos resultados de
+um workspace do usuário. É uma fonte interna (`builtin`), embutida no binário e processada
+pelo mesmo pipeline das demais (sem chunker nem escrita próprios), num índice separado,
+fixo, que vem com cada versão e não precisa de sync. É consultada só quando a pergunta é
+sobre o próprio AnyContext, por uma rota ou ferramenta própria (pendência da recuperação).
 
 ## 2. Aquisição (download / leitura)
 
@@ -653,9 +655,8 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
   (`Directory`) própria do Tantivy — um índice lexical sempre contém os termos em claro,
   então a proteção é no armazenamento.
 - **Um índice por workspace.** As estatísticas (IDF, tamanho médio) de um workspace não
-  afetam o ranking de outro; apagar um workspace apaga o seu diretório. Uma consulta que
-  abrange vários (ex.: workspace atual + `Global`) consulta cada índice e funde por posição
-  (RRF), que não depende de scores comparáveis.
+  afetam o ranking de outro; apagar um workspace apaga o seu diretório. Nenhuma consulta
+  atravessa workspaces.
 - **Tokenização multilíngue sem tabela por idioma:**
   - segmentação de palavras pelo padrão Unicode (UAX #29), com dicionário para idiomas sem
     espaço entre palavras (chinês, japonês, tailandês, khmer…) — ICU4X, em Rust;

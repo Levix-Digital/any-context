@@ -50,8 +50,12 @@ Documento vivo da revisão do pipeline de recuperação, no mesmo método do
 - Perguntas agregadas sobre tabelas grandes ("soma das vendas de março"): guardar a tabela
   num formato consultável e responder por consulta (ingestão, passo 5).
 - Uso dos chunks "pai" (small-to-big) na montagem do contexto (ingestão, passo 5).
-- Consulta a vários índices por workspace (atual + `Global`) fundida por posição (ingestão,
-  passo 9).
+- **Nenhuma consulta atravessa workspaces.** Hoje toda pergunta busca no workspace atual e
+  no `Global` e mistura os resultados; a documentação do AnyContext vira a ajuda do
+  sistema, consultada só em perguntas sobre o próprio AnyContext, por rota ou ferramenta
+  própria (ingestão, passo 1).
+- Um chat por workspace, individual de cada usuário mesmo em workspace compartilhado
+  (`deployment-architecture-v2.md`).
 - Famílias de versões: preferir a versão vigente por padrão e usar a família inteira em
   perguntas sobre mudanças entre versões (ingestão, passo 3).
 - Entidades e metadados do documento como filtros e facetas; busca sem máscara e
