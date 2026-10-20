@@ -248,10 +248,22 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
   - tabelas largas (ex.: mais de 15 colunas) em formato de registro `coluna: valor` por
     linha, em vez de linha de tabela Markdown.
 
-### Em aberto
+### Trabalhos longos (planilhas grandes, sites e pastas enormes)
 
-- Limite configurável (com aviso ao usuário) para planilhas com centenas de milhares de
-  linhas.
+Não há limite de tamanho; quem decide se espera é o usuário.
+
+- **Estimativa antes de começar:** chunks previstos e tempo estimado **nesta máquina**,
+  pela velocidade medida nos syncs anteriores com o mesmo `embedding_target` (na primeira
+  vez, por uma medição rápida).
+- **Confirmação acima de um limite** (ex.: 10 minutos, configurável): indexar tudo,
+  indexar só parte (ex.: algumas abas) ou pular.
+- **Segundo plano e progressivo:** o que já foi indexado fica buscável na hora; uma
+  interrupção não perde trabalho — o diff por chunk (passo 3) retoma de onde parou.
+- O AnyContext **não divide nem altera arquivos do usuário**, nem sugere dividir: o
+  pipeline já fatia por linhas, então dividir não reduz o trabalho.
+- Perguntas agregadas sobre tabelas grandes ("soma das vendas de março") não são bem
+  servidas por busca semântica: guardar a tabela num formato consultável e responder por
+  consulta é tema do pipeline de recuperação.
 
 ## 6. Quality gate e Document AI
 
@@ -275,10 +287,21 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
   A descrição é gerada em inglês (o embedding multilíngue a aproxima de perguntas em
   qualquer idioma).
 
-### Em aberto
+### Modelo de visão por perfil
 
-- Escolha do modelo de visão local (candidatos com licença permissiva e export ONNX:
-  Florence-2, SmolVLM, Moondream; ou o mesmo Gemma local de FEAT-002, se multimodal).
+O modelo de visão faz parte do kit de modelos. Ponto de partida, **a validar por
+benchmark** (conjunto de fotos, diagramas, gráficos e documentos reais; qualidade da
+descrição e tempo por imagem em CPU em cada perfil) antes de ser fixado:
+
+| perfil | modelo de visão |
+|---|---|
+| Lite (<8GB) | Florence-2-base (0,23B, MIT) |
+| Smart Balanced (8GB) | SmolVLM-500M (Apache-2.0) |
+| Air-Gapped Power (16GB) | SmolVLM-2.2B (Apache-2.0) |
+| Workstation Pro (32GB), Sovereign Ultra (64GB+) | o Gemma local do perfil (FEAT-002, multimodal), sem modelo extra; SmolVLM-2.2B se não houver export ONNX |
+
+Processamento progressivo: a imagem fica buscável primeiro pelo OCR e ganha a descrição
+em segundo plano.
 
 ## 7. Cabeçalhos e metadados do chunk
 
