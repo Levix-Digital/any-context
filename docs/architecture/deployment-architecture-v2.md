@@ -52,7 +52,36 @@ armazenamentos sem coordenação — LanceDB (vetores e texto), índice lexical 
 
 ### 2. Porta de modelos, por papel
 
-_Pendente._
+Hoje só chat e embedding têm interface (`LmProvider` do `actx-lm`: OpenAI, Anthropic,
+Gemini, Gemma, mock); os modelos ONNX não têm interface comum, e nenhum consegue rodar num
+servidor. As políticas de modelo do Admin Hub não estão ligadas ao core.
+
+- **Papéis explícitos:** embedding, reranker, OCR, parsing de páginas, campos de
+  formulário, descrição de imagens, transcrição (com VAD e identificação de falantes),
+  entidades e dados pessoais, LLM de contexto e resumos, LLM de chat.
+- **Vínculo por papel:** modelo (identificador e versão do catálogo) + **onde roda** (ONNX
+  local ou endpoint). Os kits de hardware passam a ser conjuntos de vínculos por papel; um
+  kit **"Empresarial / VPC"** aponta os papéis pesados para o servidor.
+- **Protocolos remotos (adaptadores):**
+  - **APIs nativas dos fornecedores:** OpenAI e Azure OpenAI, Anthropic (Messages) e
+    **Google — Gemini API e Vertex AI** (`generateContent`, `embedContent`). A API nativa é
+    a preferida para cada fornecedor, porque as camadas "compatíveis com OpenAI" que eles
+    oferecem cobrem só parte dos recursos (tipos de tarefa de embedding, entradas
+    multimodais, cache de contexto). O Vertex AI no projeto GCP do próprio cliente é o
+    caminho de "gateway corporativo" do Google.
+  - **Genérico compatível com OpenAI** para servidores que o usam (vLLM, Ollama, LM
+    Studio), e os formatos de fato para reranker (`/rerank`) e transcrição
+    (`/audio/transcriptions`).
+  - **AnyContext Model Server** para os papéis sem padrão (OCR, parsing de páginas, campos,
+    entidades): o mesmo runtime ONNX do desktop empacotado como serviço, com o mesmo modelo
+    e o mesmo resultado que local.
+- **Política do Admin Hub conferida na resolução** (só local, só gateway corporativo,
+  híbrido; modelos permitidos): vínculo proibido é recusado com motivo claro, nunca trocado
+  em silêncio.
+- **Indisponibilidade do servidor:** embedding nunca troca de modelo (o arquivo fica para o
+  próximo sync); demais papéis da ingestão entram em fila e são retentados, podendo cair
+  para o local **só com o mesmo modelo e versão**; no chat o erro é mostrado e trocar de LLM
+  é escolha do usuário, dentro do que a política permite.
 
 ### 3. Nível de confiança de cada endpoint
 
