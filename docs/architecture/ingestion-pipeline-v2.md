@@ -619,3 +619,34 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
   chave do cofre do sistema operacional. Como o LanceDB não oferece isso pronto, essa
   camada é construída pelo AnyContext (como o `Directory` criptografado do Tantivy,
   passo 9).
+
+---
+
+## Transversal: autoavaliação da ingestão (auditoria H1 e H2)
+
+Inspirada no propose–probe–compose do Harness²: a ingestão mede a própria qualidade, sem
+gabarito, e corrige o que ficou ruim.
+
+1. **Sinais determinísticos (todos os perfis, sem LLM):** nota de qualidade da extração por
+   arquivo, a partir de texto extraído por página e páginas vazias, proporção de texto
+   quebrado (passo 4), confiança do OCR, campos de formulário preenchidos em relação aos
+   esperados do mapa de layout, chunks descartados pelo quality gate e erros de parser.
+2. **Sondagem com perguntas sintéticas (perfis com LLM local):** por fonte, uma amostra de
+   chunks; para cada um, o LLM local gera, no idioma do documento, uma pergunta cuja
+   resposta está nele; a recuperação é executada e conta acerto se o chunk ou o seu pai
+   aparece entre os primeiros resultados. A taxa de acerto é a **nota de encontrabilidade**
+   da fonte.
+3. **Reprocessamento automático (compose):** arquivo com nota baixa é reprocessado com uma
+   estratégia alternativa (OCR em vez da camada de texto, renderização web, outro
+   mapeamento de formulário, outro tamanho de chunk) e **fica a estratégia de melhor nota**.
+4. **Memória de estratégia (H2):** a estratégia vencedora é lembrada por fonte e tipo de
+   arquivo e aplicada aos próximos arquivos — generaliza a calibração de renderização web
+   (passo 2).
+5. **Relatório da fonte:** o que continua ruim aparece com o motivo, e o usuário pode pedir
+   reprocessamento.
+6. **Custo e privacidade:** segundo plano, prioridade baixa, amostragem; só o LLM local do
+   perfil (nuvem apenas por configuração explícita); perguntas geradas guardadas
+   localmente e criptografadas.
+7. **Conjunto de avaliação da recuperação:** as perguntas sintéticas formam um conjunto de
+   avaliação por workspace, usado para medir a recuperação após cada mudança de modelo ou
+   configuração (resolve o IMP-008).

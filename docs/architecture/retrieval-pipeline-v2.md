@@ -52,6 +52,13 @@ Documento vivo da revisão do pipeline de recuperação, no mesmo método do
 - Uso dos chunks "pai" (small-to-big) na montagem do contexto (ingestão, passo 5).
 - Consulta a vários índices por workspace (atual + `Global`) fundida por posição (ingestão,
   passo 9).
+- Famílias de versões: preferir a versão vigente por padrão e usar a família inteira em
+  perguntas sobre mudanças entre versões (ingestão, passo 3).
+- Entidades e metadados do documento como filtros e facetas; mascaramento de dados
+  pessoais na resposta conforme a política do workspace (ingestão, passo 7).
+- Formulários do mesmo modelo de layout como tabela consultável (ingestão, passo 6).
+- Conjunto de avaliação por workspace formado pelas perguntas sintéticas da autoavaliação
+  (ingestão, seção transversal).
 
 ## Design alvo
 
