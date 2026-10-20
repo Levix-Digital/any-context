@@ -457,6 +457,30 @@ em segundo plano.
   words era só inglês e português. O breadcrumb `// Context: …` dentro do texto também
   sai — o cabeçalho contextual o substitui.
 
+### Metadados do documento e entidades (auditoria P12)
+
+- **Metadados do documento:** idioma, **data do documento extraída do conteúdo** (não o
+  mtime do arquivo), tipo, título e autores.
+- **Entidades com tipos configuráveis por workspace** (ex.: "número do processo",
+  "paciente", "número da prancha", "identificador fiscal"), extraídas por um modelo
+  multilíngue zero-shot via ONNX (candidato: GLiNER, Apache-2.0; licença de cada checkpoint
+  a confirmar). Viram filtros e facetas na recuperação ("contratos com a parte X assinados
+  em 2025").
+
+### Dados pessoais, sensíveis e segredos (auditoria P13)
+
+- **Dados pessoais e sensíveis:** o mesmo modelo marca categorias genéricas (nome,
+  documento de identidade, saúde, dados financeiros, contato) — sem regra presa a um país;
+  serve a LGPD, GDPR, HIPAA. A **política é do workspace**: só marcar, mascarar na
+  resposta ou não indexar.
+  - **Padrão:** mascarar na resposta quando o LLM é na nuvem; só marcar quando o LLM é
+    local.
+- **Segredos** (chaves de API, tokens, senhas, chaves privadas) são detectados por padrões
+  conhecidos e entropia, como nos scanners de segredo do mercado, e **o valor nunca é
+  indexado, sem exceção configurável**: vira `[SECRET REDACTED]` e o resto do arquivo
+  continua útil. Hoje o scanner indexa `.env`, `.tfvars` e arquivos de configuração em
+  claro, e esses segredos podem chegar a um LLM na nuvem.
+
 ### Contextual retrieval (LLM local)
 
 Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. É uma

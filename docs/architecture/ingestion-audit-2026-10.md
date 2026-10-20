@@ -181,3 +181,4 @@ Fora de alcance sem software proprietário: DWG nativo, OneNote, arquivos com DR
 | P1 | aceita, com PST/OST no nível 1, RAR só leitura (licença a confirmar) e cofre de senhas de arquivos | `ingestion-pipeline-v2.md`, passo 4 |
 | P6, P7 | aceitas; controle de alterações com texto atual + alterações como itens próprios; `.ics`, `.vcf`, MHTML no nível 1, Visio, XPS e iWork no nível 2 | `ingestion-pipeline-v2.md`, passo 5 |
 | Formulários | aceito: LSIE (DocMapper) como motor, fase 0 automática por perfil, mapas de layout revisáveis, crate Rust única para AnyContext e DocMapper, integração local com o DocMapper, corpus de testes iniciado pelo CMR fictício | `ingestion-pipeline-v2.md`, passo 6 |
+| P12, P13 | aceitas: metadados e entidades configuráveis por workspace; dados pessoais mascarados por padrão com LLM na nuvem e só marcados com LLM local; segredos nunca indexados | `ingestion-pipeline-v2.md`, passo 7 |
