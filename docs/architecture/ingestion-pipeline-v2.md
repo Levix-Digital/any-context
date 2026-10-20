@@ -371,6 +371,42 @@ Não há limite de tamanho; quem decide se espera é o usuário.
     manuscritos (qualidade e tempo por página em CPU, por perfil).
   - Documentos escaneados longos usam a estimativa, a confirmação e o processamento
     progressivo dos trabalhos longos (passo 5).
+- **Formulários como dados (LSIE).** Formulários (CMR, nota fiscal, holerite, folha de
+  ponto, extrato, laudo, formulário judicial…) não podem ter valores ligados ao rótulo
+  errado. Teste com um CMR real: o extrator atual gerou um único chunk de tabelas
+  quebradas e atribuiu o horário de partida real à chegada real.
+  1. **Layout conhecido:** o layout é reconhecido pela geometria (linhas e caixas) e pelos
+     rótulos fixos; com o mapa guardado, o **LSIE** (Levi's Scale-Invariant Extraction, do
+     DocMapper) extrai de forma determinística — milissegundos, invariante a escala e
+     margens, corrige campos que crescem e empurram os demais, sem vazamento entre campos.
+  2. **Layout novo — fase 0 automática por perfil**, que gera o mapa (campo, caixa,
+     rótulo âncora):
+     - perfis leves: heurística de caixas (linhas vetoriais) e tipografia (rótulo pequeno,
+       valor maior/negrito), independente de idioma;
+     - perfis médios: modelo pequeno que identifica rótulos e valores e entrega o mapa ao
+       LSIE;
+     - perfis altos: o modelo de parsing de páginas (P8) extrai os pares direto e também
+       gera o mapa.
+     Licença do modelo de campos entra no benchmark (ex.: LayoutLMv3 é não comercial; os
+     YOLO da Ultralytics são AGPL).
+  3. **O mapa vira modelo do layout**, revisável e corrigível pelo usuário (tela no estilo
+     do Mapping Studio do DocMapper); os próximos documentos do layout usam o LSIE.
+  4. **Anomaly gate com modelo local** (no DocMapper é o Gemini): nuvem só por configuração
+     explícita.
+  5. **Valores ancorados:** em página digital, todo valor precisa existir na camada de
+     texto; nenhum modelo inventa um número.
+  6. **Saída:** cada campo vira par número do campo + rótulo como no documento + valor; o
+     formulário é guardado como registro, e **formulários do mesmo modelo viram uma tabela
+     consultável** (uma linha por documento, uma coluna por campo).
+  7. **Corpus de testes por setor** com os pares esperados, rodando a cada mudança; começa
+     pelo CMR fictício em `crates/any-context-core-rs/tests/fixtures/forms/`. A
+     autoavaliação (H1) avisa em produção sobre campos vazios ou de baixa confiança.
+  - **Implementação única:** o LSIE é portado para uma crate Rust compartilhada, compilada
+    também para WASM e usada pelo DocMapper — um só motor para os dois produtos.
+  - **Integração com o DocMapper:** o formato do mapa de layout é comum aos dois produtos
+    (um layout mapeado num serve no outro), e o AnyContext pode encaminhar ao DocMapper o
+    que é dele (mapeamento visual avançado, carimbo de PDF, exportação de campos). O
+    AnyContext funciona sem o DocMapper instalado, e a integração é local, sem nuvem.
 - **Document AI local via ONNX.** Nos perfis com cascata, depois do OCR (passo 5), um modelo
   de **layout** reconstrói tabelas e formulários escaneados; a heurística espacial 2D atual
   fica como fallback.
