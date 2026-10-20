@@ -171,6 +171,23 @@ adivinhar**, e na dúvida renderiza (o erro aceitável é gastar tempo, nunca pe
   status e nas citações, e volta ao diff normal quando reaparecer.
   - Hoje é o contrário: os arquivos de uma pasta inacessível entram como deletados e
     **são removidos do índice** (bug a corrigir).
+- **Duplicatas e versões (auditoria P17).** Respeitam a hierarquia pai–filhos dos chunks
+  (passo 5):
+  - **Duplicata exata** (mesmo hash do arquivo): a árvore inteira do documento — pais e
+    filhos — é guardada e embedada **uma vez**; cada local vira uma ocorrência que aponta
+    para ela.
+  - **Trecho idêntico em documentos diferentes** (ex.: cláusula padrão): o vetor é
+    reaproveitado pelo hash do texto embedado (diff por chunk), mas o chunk **continua
+    sendo do seu documento e do seu pai** — fundir filhos de pais diferentes perderia o
+    contexto.
+  - **Quase-duplicatas e versões:** uma impressão digital do texto (MinHash/SimHash,
+    independente de idioma) agrupa documentos muito parecidos numa **família de versões**,
+    no nível do documento (raiz da árvore). A **versão vigente** é a de data do documento
+    mais recente (passo 7), com o mtime como desempate; as anteriores continuam indexadas,
+    marcadas como "versão anterior".
+  - A recuperação prefere a versão vigente por padrão e usa a família inteira em perguntas
+    sobre mudanças entre versões (pendência do pipeline de recuperação).
+  - O usuário pode separar documentos agrupados por engano ou juntar versões não detectadas.
 - **Sem "cura" silenciosa de caminhos.** O path healer atual troca uma pasta sumida por um
   caminho adivinhado (`Documentos/`, `OneDrive/`, pasta irmã) e indexa esse caminho sem
   perguntar. Isso viola a regra de ação explícita (passo 1): no máximo, o AnyContext sugere
@@ -456,6 +473,27 @@ em segundo plano.
   BM25, uma edição no início do documento invalidava todos os chunks, e a lista de stop
   words era só inglês e português. O breadcrumb `// Context: …` dentro do texto também
   sai — o cabeçalho contextual o substitui.
+
+### Localizadores precisos (auditoria P22)
+
+Cada chunk guarda um localizador próprio do tipo de conteúdo, para abrir o original no
+ponto exato e destacar o trecho (FEAT-016):
+
+| conteúdo | localizador |
+|---|---|
+| PDF e imagem | página + região na página (retângulo) |
+| planilha | aba + intervalo de células (`Vendas!B300:F340`) |
+| áudio e vídeo | início e fim em segundos |
+| texto, código, Markdown | linhas |
+| Office | seção + parágrafo |
+| web | URL + âncora da seção |
+| container | caminho interno (passo 4) + localizador do item |
+| formulário | campo + região |
+
+Na hierarquia pai–filhos (passo 5), o **filho** tem o localizador preciso e o **pai** tem a
+extensão que cobre todos os seus filhos (ex.: intervalo de páginas da seção, intervalo de
+linhas da planilha), de modo que tanto o trecho quanto o contexto maior entregue ao LLM
+são citáveis.
 
 ### Metadados do documento e entidades (auditoria P12)
 
