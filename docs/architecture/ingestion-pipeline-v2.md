@@ -775,3 +775,22 @@ público e imobiliário.
   interface; entidades detectadas em qualquer idioma do documento.
 - **Distribuição** pelo catálogo verificado dos modelos (versão e hash), atualizável sem
   nova versão do AnyContext.
+
+---
+
+## Transversal: sync automático das fontes (auditoria P20)
+
+1. **Fontes locais:** observação das mudanças do sistema de arquivos **só nas fontes que o
+   usuário escolheu**, com agrupamento (alguns segundos de calma antes de processar em
+   lote).
+2. **Pasta de rede e disco removível:** varredura periódica de reserva, porque os avisos do
+   sistema operacional não são confiáveis nesses casos.
+3. **Ao abrir o AnyContext:** diff de recuperação do que mudou enquanto estava fechado.
+4. **Fontes web:** recrawl agendado, diário por padrão e configurável por fonte, com
+   requisições condicionais (passo 2).
+5. **Prioridade baixa**, para não atrapalhar o uso da máquina.
+6. **Sync manual continua existindo**; o automático pode ser desligado por fonte.
+7. **Com o AnyContext fechado:** por padrão nada roda (o diff de recuperação cobre o
+   intervalo); um **serviço em segundo plano opcional** mantém tudo atualizado o tempo todo
+   para quem escolher.
+
