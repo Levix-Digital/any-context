@@ -390,4 +390,31 @@ frase, e a citação é só texto.
 
 ### 10. Histórico e avaliação
 
-_Pendente._
+Hoje o histórico guarda a pergunta e a resposta final (sem XML nem passos intermediários —
+ADR-0088), por workspace, no SQLite; as citações não são guardadas; não há avaliação da
+recuperação (IMP-008) nem retorno do usuário.
+
+1. **"Recibo" de cada resposta:** citações com localizador e **versão do arquivo** (hash) no
+   momento da resposta; modo usado (Fast, Deep, Fast que escalou); ferramentas chamadas;
+   tokens consumidos (alimentam a barra de status da FEAT-010 e as cotas do Admin Hub, que
+   recebe só números). Ao reabrir uma conversa, as citações funcionam; se o arquivo mudou
+   depois, a citação mostra **"o documento mudou desde esta resposta"**.
+2. **Histórico** em árvore (ramos), com resumo das partes antigas, na base local do usuário,
+   criptografado.
+3. **Retorno do usuário:** 👍/👎 por resposta, com motivo opcional ("informação errada",
+   "citação errada", "faltou informação"). Fica na máquina; no modo empresarial, o Admin Hub
+   recebe no máximo contagens, nunca conteúdo.
+4. **Malha de autoajuste** — onde moram os ajustes internos dos passos anteriores. Cada
+   pergunta registra localmente sinais de qualidade (faixas do reranker, escalada para o
+   Deep, cobertura de documentos, proporção de citações fracas, 👍/👎). Com eles e o conjunto
+   de avaliação, o AnyContext ajusta **por workspace**, sem o usuário ver: pesos do RRF,
+   profundidade do reranker, limiares das faixas, turnos do Deep, estratificação e
+   compactação.
+5. **Avaliação de regressão:** o conjunto de perguntas sintéticas da ingestão é enriquecido
+   com as perguntas que receberam 👍/👎 e roda após cada mudança que pode piorar a qualidade
+   (troca de modelo, mudança na ingestão de uma fonte, atualização do AnyContext); uma piora
+   desfaz o ajuste automático que a causou. No desenvolvimento, o corpus de testes (começando
+   pelo CMR fictício) roda a cada mudança de código.
+6. **Retenção:** o usuário pode apagar conversas; ao apagar um workspace, o AnyContext
+   pergunta o que fazer com as conversas dele; no modo empresarial, a política pode definir
+   um prazo de retenção.
