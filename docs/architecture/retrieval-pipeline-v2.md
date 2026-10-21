@@ -93,7 +93,38 @@ da ingestão.
 
 ### 1. Entrada da pergunta
 
-_Em discussão._
+Hoje a pergunta é buscada como foi digitada (o histórico vai para o LLM, não para a busca
+— IMP-009); o histórico é uma janela de 30 turnos; a documentação do AnyContext é
+misturada em toda busca; perguntas de status são detectadas por palavras-chave fixas em
+PT/EN ("qual o status do processo 123?" cai na rota de status do AnyContext).
+
+- **Reescrita da continuação, só para a busca.** Uma pergunta que depende da conversa ("e o
+  prazo da segunda?") é reescrita como pergunta completa e autônoma antes de buscar; a
+  original é a que fica no histórico e que o LLM de resposta vê. Quem reescreve: o LLM local
+  do perfil; sem ele, o LLM de chat, respeitando o nível de confiança e a pseudonimização.
+  Sem LLM local e com chat externo, a alternativa sem LLM é buscar com a pergunta anterior
+  do usuário somada à atual. Funciona em qualquer idioma.
+- **Histórico por orçamento de tokens:** mensagens recentes inteiras; as antigas viram um
+  resumo da conversa, gerado em segundo plano.
+- **Ajuda e status são ferramentas, não rotas por palavra-chave:** `anycontext_help`
+  (documentação do AnyContext) e `workspace_status` (estado do sync e das fontes), chamadas
+  pelo LLM em qualquer idioma; a interface também oferece painel de ajuda e status das
+  fontes na árvore.
+- **Sem anexo temporário no chat.** O contexto é o que está no workspace — um conceito só.
+  **Arrastar um arquivo para o chat é um atalho para adicioná-lo ao workspace como arquivo
+  avulso**, com confirmação curta (ação explícita), progresso da indexação visível e, para
+  arquivos grandes, a estimativa de tempo da ingestão. O arquivo fica disponível nas
+  próximas conversas.
+- **`@fonte` na pergunta** restringe a busca àquela fonte, sempre dentro do workspace
+  (detalhado no passo 3).
+- **Fila de perguntas.** Enquanto o agente responde, o usuário pode enviar novas perguntas,
+  que ficam enfileiradas:
+  - processadas **em ordem, uma de cada vez** — cada uma pode depender da resposta
+    anterior, e a reescrita da continuação usa essa resposta;
+  - a fila fica visível no chat; perguntas ainda não iniciadas podem ser editadas,
+    removidas ou reordenadas; há "parar a atual e enviar agora";
+  - a fila é do chat do workspace e sobrevive ao fechar o app (como rascunhos locais);
+  - cada pergunta conta para as cotas de tokens da política (Admin Hub).
 
 ### 2. Roteamento
 
