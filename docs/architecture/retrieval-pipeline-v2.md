@@ -366,7 +366,27 @@ trechos selecionados podem vir de arquivos de origem diferentes do workspace.
 
 ### 9. Geração e citações
 
-_Pendente._
+Hoje: no Fast, uma chamada com histórico e prompt; streaming nem sempre usado; o LLM é
+instruído a citar, mas ninguém confere se o id citado existe nem se o trecho sustenta a
+frase, e a citação é só texto.
+
+1. **Streaming sempre**, nos dois modos, com o andamento visível ("consultando a tabela de
+   CMRs…", "turno 2 do Deep…").
+2. **Citações estruturadas e conferidas:** o LLM cita pelos ids das evidências (`[2]`); ao
+   final, o AnyContext confere cada id e remove os que não existem no contexto; cada citação
+   vira link para o localizador (página e região, célula, minuto), abrindo o original no
+   ponto exato na interface Tauri.
+3. **Verificação de suporte pelo reranker local:** cada frase citada é comparada com o
+   trecho citado; citação fraca aparece marcada de forma discreta (ex.: sublinhado
+   pontilhado e a dica "o trecho citado não confirma diretamente esta frase").
+4. **Pseudonimização desfeita durante o streaming:** os marcadores (`[PESSOA_1]`) são
+   trocados pelos valores reais antes de aparecer na tela, inclusive quando chegam quebrados
+   entre dois pedaços do streaming. O usuário nunca vê um marcador.
+5. **Evidências especiais:** números de SQL mostram a consulta e as linhas usadas (detalhe
+   expansível); resultados da busca web (quando permitida) marcados como **web**, com URL,
+   separados das fontes do workspace; aviso de evidência fraca e contagem da varredura
+   enumerativa no início da resposta.
+6. **Idioma:** sempre o do usuário, mesmo com documentos em outros idiomas.
 
 ### 10. Histórico e avaliação
 
