@@ -224,7 +224,36 @@ cliente hospedando o próprio Admin Hub.
 
 ### 5. Integração com o Admin Hub
 
-_Pendente._
+As especificações iniciais do Admin Hub (matrícula, WebSocket só de saída, heartbeat,
+kill-switch, ITSM, SCIM, validade offline) se encaixam, com estes ajustes:
+
+1. **Pacote instalável e licença offline.** Sem SaaS da Levix, o Admin Hub é entregue como
+   pacote (contêineres para servidor único; Helm para Kubernetes). O controle de assentos
+   usa uma **licença assinada pela Levix** (assentos, validade), verificada **offline** pelo
+   Admin Hub.
+2. **Admin Hub em Rust**, compartilhando crates com o core: modelo de políticas, verificação
+   de assinaturas e formato da definição do workspace precisam ser idênticos nos dois lados
+   (a especificação previa Python/FastAPI; o AnyContext eliminou o Python — ADR-0106).
+3. **Telemetria de fontes com nível definido pela política:** só contagens; **identificadores
+   anonimizados** (hash que diz "é a mesma fonte" sem revelar o nome) — **padrão**; ou
+   caminhos completos, quando a empresa precisa auditar e informa os usuários. (A
+   especificação enviava os caminhos completos, que podem ser dado pessoal, ex.:
+   `...\Processos\Divórcio Fulano de Tal`.)
+4. **Espelho interno:** o Admin Hub distribui atualizações do AnyContext, modelos ONNX,
+   pacotes de domínio e o Chromium para dispositivos sem internet (air-gapped); o TI baixa
+   uma vez, verificado pela assinatura da Levix, e controla quando cada versão chega à
+   frota.
+5. **Dois perfis de instalação, mesmo código:** **compacto** (um contêiner com banco
+   embutido — escritórios, clínicas) e **escalável** (Postgres, Redis, réplicas — grandes
+   empresas).
+6. **O que passa pelo canal do Admin Hub:** identidades (SSO, diretório próprio, SCIM) e
+   ativação; políticas assinadas; definições de workspace e workspaces da organização; grupos
+   e curadores; senha de quebra-vidro (estilo LAPS); pedidos de `sudo` e chamados ITSM;
+   auditoria só com metadados; cotas; espelho de atualizações; matrícula do AnyContext Server
+   (modo 3).
+
+Decisão comercial para o roadmap: assentos por dispositivo (como na especificação) ou por
+usuário (comum no mercado); a arquitetura suporta as duas.
 
 ### 6. Migração local → corporativa
 
