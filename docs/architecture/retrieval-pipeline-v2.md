@@ -187,6 +187,12 @@ que devolve uma busca estruturada:
    - visão geral → resumos de documento e pasta;
    - agregada sobre tabela ou formulário → consulta à tabela;
    - comparação → família de versões, normalmente no Deep;
+   - **enumerativa** ("quais", "todos os", "liste") → não usa top-k: filtros de entidades e
+     metadados ou SQL sobre tabelas e formulários (exaustivos por natureza); sem estrutura,
+     varredura no Deep, com verificação documento a documento em lotes sobre um conjunto
+     amplo de documentos candidatos. **A resposta diz quantos documentos foram verificados**
+     ("verifiquei 212 contratos; 14 atendem"). Varreduras grandes usam a estimativa e a
+     confirmação dos trabalhos longos;
    - ajuda ou status → ferramentas do passo 1.
 
 **Regras dos filtros:**
@@ -223,7 +229,16 @@ consulta a tabelas.
    só as tabelas daquele workspace; limite de tempo e de linhas; **a consulta e as linhas
    usadas aparecem na citação**; falha ou ambiguidade cai para a busca normal, com aviso.
 5. **Falha do embedding da pergunta:** busca só lexical, com **aviso discreto** na resposta.
-6. **Buscadores futuros entram como listas extras** (busca visual de páginas, vetores
+6. **Busca estratificada por fonte.** Num workspace com várias fontes, a busca roda **por
+   fonte, em paralelo**, com uma lista menor por fonte — cada fonte garante as suas vagas, e
+   uma resposta espalhada por vários lugares chega à fusão. O **paralelismo é dinâmico**:
+   depende do tamanho do workspace e da capacidade livre da máquina (ou do servidor, no modo
+   3) naquele momento. Com uma fonte só ou poucos documentos, a busca é única.
+7. **Dois estágios nos workspaces grandes:** acima de um certo número de documentos, primeiro
+   são encontrados os **documentos** mais relevantes (resumos de documento e agregação dos
+   trechos por documento), depois os **trechos dentro deles** — amplitude antes de
+   profundidade.
+8. **Buscadores futuros entram como listas extras** (busca visual de páginas, vetores
    esparsos — auditoria P10 e P19), sem mudar o resto do pipeline.
 
 ### 5. Fusão
@@ -241,7 +256,13 @@ relevância; no Deep, as subperguntas são juntadas por deduplicação com soma 
    interna.
 3. **Sem corte pelo score do RRF:** a decisão de relevância passa para o reranker (passo 6),
    e o gate de "nada encontrado" também (passo 7).
-4. **Quantos seguem para o reranker — por orçamento de tempo, não número fixo:**
+4. **Limite por documento na entrada do reranker:** ao escolher os candidatos, cada documento
+   ocupa no máximo algumas vagas (ex.: 3) e o restante fica como reserva — um documento
+   longo não "sequestra" os candidatos. (É diferente da seleção final, passo 7, que é
+   livre.) As listas da busca estratificada por fonte entram todas no mesmo RRF; o reranker
+   decide depois a relevância real (no RRF, o 1º lugar de uma fonte irrelevante vale o mesmo
+   que o de uma excelente).
+5. **Quantos seguem para o reranker — por orçamento de tempo, não número fixo:**
    - **Fast: 30**; **Deep: 50** (a fusão do Deep junta várias subperguntas e o usuário já
      aceita esperar mais);
    - ajustado pelo perfil de hardware (ex.: 20 no Fast em perfis leves; até 100 no Deep em
@@ -275,7 +296,34 @@ para o fim sem avaliação; sem corte por relevância (IMP-007); o Deep pede ao 
 
 ### 7. Seleção
 
-_Pendente._
+Hoje: no máximo 2/3/5 chunks por arquivo, top-k 10/20/40, até 20/40/60 mil caracteres (sem
+relação com a janela do modelo); os pais não são usados; o gate de "nada encontrado" usa o
+score do RRF.
+
+1. **Por relevância e orçamento de tokens, não por número fixo.** Entram os trechos na faixa
+   **relevante** do reranker e, se sobrar espaço, os melhores da faixa **talvez**, até um
+   orçamento de tokens de contexto definido pelo AnyContext conforme o modelo de chat
+   (janela e custo) e o modo (menor no Fast, maior no Deep). No Fast, isso dá tipicamente
+   **3 a 5 trechos**, já expandidos com o pai.
+2. **Small-to-big:** cada filho selecionado é trocado pelo **pai** (seção ou página) quando
+   ele cabe no orçamento; vários filhos do mesmo pai → o pai entra uma vez; pai grande demais
+   → o filho com os vizinhos imediatos. A citação aponta para o filho; o pai é o contexto.
+3. **Diversidade:** trechos quase idênticos deduplicados; **versão vigente** (anteriores só
+   em perguntas de comparação); **sem limite rígido por arquivo** na seleção final — a
+   amplitude é garantida antes, pela busca estratificada e pelo limite por documento na
+   entrada do reranker.
+4. **Outras evidências entram junto:** resultado de SQL (com a consulta e as linhas) e
+   resumos, nas perguntas de visão geral.
+5. **Gate de "nada encontrado", pelas faixas do reranker:**
+   - nenhum trecho relevante no Fast automático → **escala para o Deep**;
+   - ainda nada depois do Deep, ou com o Fast fixado → responde que não encontrou, **sem
+     chamar o LLM**, sugerindo reformular, adicionar fontes ou usar `@fonte`;
+   - só trechos na faixa talvez → responde com **aviso explícito de evidência fraca**.
+6. **Cobertura no Deep:** a avaliação de cada turno vê quais documentos já apareceram e pode
+   pedir "há outros?"; a busca seguinte **exclui os documentos já encontrados**.
+7. **Medir a cobertura:** o conjunto de avaliação inclui perguntas com respostas espalhadas
+   em vários documentos e mede quantos dos documentos certos chegam ao contexto — é o que
+   calibra a estratificação, o limite por documento e os dois estágios em cada workspace.
 
 ### 8. Montagem do contexto
 
