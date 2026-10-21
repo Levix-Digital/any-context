@@ -26,7 +26,11 @@ Barra superior fixa (38 px) com nome do app, busca rápida (`Cmd/Ctrl + K`) e me
 - **Aba de leitura:** documento somente leitura (realce de sintaxe, numeração de linhas,
   metadados de indexação, reprocessar o documento). Abrir arquivos, navegar pastas e ver
   sites sem sair do AnyContext é escopo desta interface.
-- **Inspector:** acompanha a aba ativa.
+- **Inspector:** acompanha a aba ativa e mostra só o que é do usuário (princípio da
+  configuração mínima). As "Configurações Avançadas" do mockup — Chunk Size, Overlap, Top-K,
+  Score Threshold, Neural Reranker, Max Depth — **saem**: são decisões de arquitetura,
+  ajustadas automaticamente. Ficam, por exemplo: nome e descrição, fontes e seus filtros,
+  modelo de chat, pacote de domínio, políticas de privacidade, teto de crawl de um site.
 
 ## Design system
 

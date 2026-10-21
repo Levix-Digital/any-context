@@ -12,6 +12,10 @@ Este documento é a base para refazer o backlog (`docs/BACKLOG.md`).
 - **Ação explícita.** Nada é indexado sem o usuário ter escolhido a fonte (passo 1).
 - **Air-gapped por padrão.** Nenhuma etapa da ingestão depende de serviço de terceiros;
   capacidades extras vêm de modelos ONNX locais, atualizados pelo catálogo verificado.
+- **Configuração mínima.** Decisões de arquitetura (tamanho de chunk, overlap, modelos por
+  papel, limiares, compactação…) não viram opção do usuário, nem do avançado: são decididas
+  pelo AnyContext e ajustadas pela avaliação. O usuário configura só o que é dele (fontes,
+  filtros de inclusão, pacote de domínio, políticas de privacidade, teto de crawl).
 - **Nada some em silêncio.** O que não é indexado (formato sem parser, arquivo protegido,
   chunk descartado) é reportado com o motivo.
 

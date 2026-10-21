@@ -73,6 +73,14 @@ Documento vivo da revisão do pipeline de recuperação, no mesmo método do
 
 ## Design alvo
 
+### Princípio: configuração mínima
+
+Decisões de arquitetura não viram opção do usuário, nem do avançado. Reranker, tamanho de
+chunk, overlap, top-K, limiares, pesos do RRF e número de candidatos são decididos pelo
+AnyContext e ajustados automaticamente pela avaliação. O usuário configura só o que é dele:
+fontes e filtros de inclusão, modelo de chat, Fast ou Deep, pacote de domínio, políticas de
+privacidade do workspace, teto de crawl de um site.
+
 ### Visão geral (caminho feliz)
 
 Pergunta do usuário → Fast ou Deep → (Deep: refinamento da pergunta) → busca densa + lexical
@@ -155,8 +163,8 @@ ReAct.
   (2) busca e (3) avalia o que falta — refinar sem ver o encontrado é refinar às cegas.
   - **Máximo padrão de 3 turnos**, com parada antecipada quando a evidência basta (a
     maioria para no 1º ou 2º); **teto de tokens** além do teto de turnos.
-  - Configurável **até 5** (configurações avançadas do workspace ou pacote de domínio, ex.:
-    jurídico, acadêmico).
+  - O máximo pode subir até 5 **pelo pacote de domínio** (ex.: jurídico, acadêmico), nunca
+    por opção do usuário (princípio da configuração mínima).
   - O padrão é ajustado com dados: o conjunto de avaliação mede o ganho de cada turno; se o
     3º não trouxer ganho, o padrão cai para 2.
 
@@ -245,7 +253,25 @@ relevância; no Deep, as subperguntas são juntadas por deduplicação com soma 
 
 ### 6. Reranking
 
-_Pendente._
+Hoje: cross-encoder ONNX multilíngue (`mmarco-reranker` padrão; `bge-reranker-v2-m3`
+INT8), escolhido ou desligado pelo usuário com `/rerank`; reordena até 30, os demais vão
+para o fim sem avaliação; sem corte por relevância (IMP-007); o Deep pede ao LLM um
+"sim/não" chunk a chunk (uma chamada por chunk), duplicando o cross-encoder.
+
+1. **O cross-encoder é o único juiz de relevância, nos dois modos.** O julgamento chunk a
+   chunk pelo LLM no Deep sai; o LLM do Deep avalia o conjunto ("o que ainda falta?").
+2. **Modelo vem do kit de hardware** pela porta de modelos (pequeno nos perfis leves,
+   `bge-reranker-v2-m3` nos médios e fortes, Model Server no modo empresarial). **Sempre
+   ligado — decisão de arquitetura, sem opção para o usuário;** o comando `/rerank` sai.
+3. **Entrada:** o texto do chunk filho com o cabeçalho contextual (o mesmo texto embedado),
+   truncado no limite útil do modelo. Resumos (visão geral) passam pelo reranker;
+   resultados de SQL não (são exatos).
+4. **Score calibrado em três faixas** — relevante, talvez, irrelevante —, com limiares por
+   modelo no catálogo, refinados por workspace pela avaliação. Alimentam o gate de "nada
+   encontrado" (passo 7), a escalada do Fast para o Deep (passo 2) e o descarte: trechos
+   irrelevantes não vão para o LLM, mesmo que sejam os "melhores" (resolve o IMP-007).
+5. **Candidatos além do orçamento são descartados**, não empurrados para o fim sem
+   avaliação.
 
 ### 7. Seleção
 
