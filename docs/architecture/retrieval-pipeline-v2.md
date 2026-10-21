@@ -124,11 +124,41 @@ PT/EN ("qual o status do processo 123?" cai na rota de status do AnyContext).
   - a fila fica visível no chat; perguntas ainda não iniciadas podem ser editadas,
     removidas ou reordenadas; há "parar a atual e enviar agora";
   - a fila é do chat do workspace e sobrevive ao fechar o app (como rascunhos locais);
-  - cada pergunta conta para as cotas de tokens da política (Admin Hub).
+  - cada pergunta conta para as cotas de tokens da política (Admin Hub);
+  - parar a pergunta atual não apaga a fila.
+- **Parar e editar.** Parar (botão ou `Esc`) cancela busca, turnos do Deep e streaming; a
+  pergunta volta ao composer com o texto original para editar e reenviar; a pergunta
+  interrompida e a resposta parcial saem do histórico.
+- **Ramos da conversa.** Editar uma pergunta já respondida cria um **ramo novo** a partir
+  dela, preservando o anterior; a mensagem editada mostra "‹ 2/3 ›" para alternar entre
+  versões. Resumo da conversa, reescrita da continuação e fila seguem o ramo ativo.
+  **Fundação:** o histórico é guardado desde já como árvore (cada mensagem com `parent_id`,
+  o chat com o ramo ativo), mesmo que a interface de ramos chegue num lançamento posterior
+  — evita migrar os chats existentes.
 
 ### 2. Roteamento
 
-_Pendente._
+Hoje há três modos (Fast, ReAct, Deep Search); no automático, um classificador por
+palavras-chave fixas em PT/EN e tamanho da pergunta decide; as ferramentas só existem no
+ReAct.
+
+- **Dois modos: Fast e Deep.** O ReAct deixa de ser um modo; as **ferramentas** (ajuda,
+  status, consulta a tabelas, busca web quando permitida) ficam disponíveis nos dois.
+  - **Fast:** a busca vem primeiro; o LLM responde e só chama ferramenta se precisar, com
+    limite pequeno (ex.: até 2 chamadas).
+  - **Deep:** turnos de refinamento e busca (abaixo).
+- **Automático: começa Fast e escala para Deep** quando a evidência é insuficiente (melhores
+  trechos com relevância baixa no reranker, ou o LLM dizendo que o contexto não basta), com
+  indicador discreto. Sem palavras-chave, em qualquer idioma. O usuário pode fixar Fast ou
+  Deep no seletor do composer.
+- **Deep:** cada turno (1) refina ou decompõe a pergunta com base no que já foi encontrado,
+  (2) busca e (3) avalia o que falta — refinar sem ver o encontrado é refinar às cegas.
+  - **Máximo padrão de 3 turnos**, com parada antecipada quando a evidência basta (a
+    maioria para no 1º ou 2º); **teto de tokens** além do teto de turnos.
+  - Configurável **até 5** (configurações avançadas do workspace ou pacote de domínio, ex.:
+    jurídico, acadêmico).
+  - O padrão é ajustado com dados: o conjunto de avaliação mede o ganho de cada turno; se o
+    3º não trouxer ganho, o padrão cai para 2.
 
 ### 3. Entendimento da pergunta
 
