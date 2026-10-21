@@ -28,9 +28,8 @@ cada workspace, o chat individual e o cofre de senhas de arquivos.
 
    Usuário, dono, papéis, políticas, níveis de confiança e cofre existem uma vez; o Admin
    Hub é uma origem de identidades e políticas.
-4. **Migração da conta local para a corporativa na matrícula:** ao matricular o dispositivo,
-   a conta local é vinculada à identidade corporativa e os workspaces continuam, sujeitos à
-   política.
+4. ~~Migração da conta local para a corporativa na matrícula~~ — **substituída** pelos
+   ambientes pessoal e corporativo isolados (tema 6).
 
 ## Temas a detalhar
 
@@ -39,7 +38,7 @@ cada workspace, o chat individual e o cofre de senhas de arquivos.
 3. Papéis e compartilhamento
 4. Motor de governança e políticas
 5. Integração com o Admin Hub
-6. Migração local → corporativa
+6. Ambientes pessoal e corporativo
 
 ### 1. Contas locais e sessão
 
@@ -255,6 +254,30 @@ kill-switch, ITSM, SCIM, validade offline) se encaixam, com estes ajustes:
 Decisão comercial para o roadmap: assentos por dispositivo (como na especificação) ou por
 usuário (comum no mercado); a arquitetura suporta as duas.
 
-### 6. Migração local → corporativa
+### 6. Ambientes pessoal e corporativo
 
-_Pendente._
+Substitui a decisão de base 4 ("migração da conta local para a corporativa"): a matrícula
+de uma empresa não pode afetar as contas da família numa máquina de trabalho remoto.
+
+1. **Dois ambientes isolados no mesmo binário**, na linha do "perfil de trabalho" do
+   Android, com seletor ("Pessoal | Empresa X"):
+   - **pessoal:** `root` local e contas da família; a empresa nunca vê nem governa nada aqui
+     (sem telemetria, política ou kill-switch);
+   - **corporativo:** criado na matrícula, com **dados, chaves, contas, políticas e `root`
+     próprios** (o quebra-vidro do Admin Hub); só a empresa o governa.
+
+   A empresa pode distribuir o próprio pacote de instalação pelo TI; o resultado é o mesmo
+   ambiente corporativo isolado.
+2. **Sem caminho entre ambientes.** Não há exportação do pessoal para o corporativo: quem
+   quiser as mesmas fontes as adiciona no corporativo, onde são indexadas sob a política (e
+   conteúdo de trabalho que estava fora da governança deve mesmo ser recriado). Se surgir
+   demanda real de usuários, alternativas são avaliadas depois. A exportação e importação da
+   definição do workspace (tema 3) vale **dentro** de cada ambiente; a política corporativa
+   pode aceitar só definições vindas da própria organização (assinadas pelo Admin Hub).
+3. **Computador da empresa:** a política pode proibir o ambiente pessoal em máquinas que
+   pertencem à empresa; no notebook do próprio funcionário, não.
+4. **Saída e mudança de empresa** afetam só o ambiente corporativo (dados apagados ou
+   bloqueados conforme a política); o pessoal segue como estava. Mudar de empresa remove o
+   ambiente da anterior e cria o da nova na nova matrícula.
+5. **Nenhum dado atravessa entre ambientes** — nem busca, nem chat, nem chave (a regra
+   "nenhuma consulta atravessa workspaces", um nível acima).
