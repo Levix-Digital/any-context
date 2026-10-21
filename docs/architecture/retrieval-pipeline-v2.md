@@ -220,7 +220,28 @@ consulta a tabelas.
 
 ### 5. Fusão
 
-_Pendente._
+Hoje: RRF (k = 60) das listas densa e lexical com pesos iguais; a lista densa vem com os
+resultados de arquivo e data injetados com score inventado; corte por score mínimo do RRF
+(0,012/0,008/0,005) — arbitrário, porque o score do RRF mede posição nas listas, não
+relevância; no Deep, as subperguntas são juntadas por deduplicação com soma de score.
+
+1. **RRF com k = 60 sobre listas limpas**, e **todas as listas numa fusão só**: no Deep,
+   cada subpergunta gera duas listas e todas entram no mesmo RRF (um chunk achado por várias
+   subperguntas sobe naturalmente); buscadores futuros entram igual.
+2. **Pesos iguais por padrão**, ajustados por workspace pelo conjunto de avaliação (ex.:
+   lexical num workspace de código, densa num de textos jurídicos), de forma automática e
+   interna.
+3. **Sem corte pelo score do RRF:** a decisão de relevância passa para o reranker (passo 6),
+   e o gate de "nada encontrado" também (passo 7).
+4. **Quantos seguem para o reranker — por orçamento de tempo, não número fixo:**
+   - **Fast: 30**; **Deep: 50** (a fusão do Deep junta várias subperguntas e o usuário já
+     aceita esperar mais);
+   - ajustado pelo perfil de hardware (ex.: 20 no Fast em perfis leves; até 100 no Deep em
+     perfis fortes ou no Model Server com GPU), com um orçamento de tempo do reranking (ex.:
+     até cerca de 1 segundo no Fast);
+   - a avaliação mede em que posição da fusão o trecho certo costuma estar e ajusta o
+     número por workspace (cai se ele está quase sempre entre os 20 primeiros; sobe, dentro
+     do orçamento, se aparece com frequência depois do 30º).
 
 ### 6. Reranking
 
