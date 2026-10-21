@@ -150,7 +150,43 @@ em texto puro** na tabela `api_keys` do `settings.db`.
 
 ### 3. Papéis e compartilhamento
 
-_Pendente._
+Já decidido (`deployment-architecture-v2.md`): papéis dono, editor e leitor; workspaces da
+organização com o admin como dono e só leitura para os demais; chat individual; no modo 1
+compartilha-se a definição do workspace, no modo 3 o índice.
+
+1. **Permissões:**
+
+   | ação | dono | editor | leitor |
+   |---|---|---|---|
+   | perguntar, abrir fontes citadas, 👍/👎 | ✓ | ✓ | ✓ |
+   | adicionar e remover fontes, filtros, reprocessar | ✓ | ✓ | — |
+   | editar prompt do workspace e pacote de domínio | ✓ | ✓ | — |
+   | marcar confidencial, políticas de privacidade | ✓ | — | — |
+   | compartilhar, mudar papéis | ✓ | — | — |
+   | apagar o workspace | ✓ | — | — |
+
+   Só o dono compartilha; editor não repassa acesso.
+2. **Grupos e curadores:** no modo empresarial, compartilhamento com **grupos** (do SSO ou do
+   diretório do Admin Hub); no workspace da organização, o admin nomeia **curadores**
+   (editores de um departamento) sem perder a propriedade.
+3. **Definição do workspace** (o que se compartilha no modo 1): nome, fontes, filtros,
+   pacote de domínio e prompt — as instruções de montagem, **nunca o conteúdo indexado**
+   (chunks, vetores, índice), que fica criptografado na máquina de quem indexou. Cada membro
+   indexa as mesmas fontes na própria máquina (as fontes precisam ser acessíveis a todos,
+   ex.: pasta de rede, site).
+   - **Sem Admin Hub:** a definição é exportada num arquivo (ex.:
+     `processos-2025.actx-workspace`) e importada pelo colega — sem documentos, trechos,
+     vetores, chaves de API nem senhas.
+   - **Com Admin Hub:** a definição é distribuída pelo Admin Hub (só metadados; ele segue
+     zero-knowledge).
+4. **Confidencial vale para todos os membros:** o teto "nunca enviar para endpoint externo"
+   se aplica a quem quer que pergunte no workspace.
+5. **Saída de um membro:** a chave do workspace é trocada (tema 2); as conversas dele
+   continuam com ele (dados pessoais), mas as citações deixam de abrir; no modo empresarial,
+   a política pode exigir apagá-las.
+6. **Permissões herdadas da fonte** (modo 3 e conectores): num índice compartilhado, um
+   leitor nunca recebe trechos de documentos que não pode abrir na origem (ex.: permissões do
+   SharePoint ou do servidor de arquivos). Implementação detalhada na auditoria P23.
 
 ### 4. Motor de governança e políticas
 

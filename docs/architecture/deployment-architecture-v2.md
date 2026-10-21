@@ -146,7 +146,7 @@ nada impede dois workers no mesmo workspace.
    uma interrupção é retomada sem duplicar nem perder.
 3. **Um único escritor por workspace**, por trava com prazo (lease); se o worker morre, a
    trava expira e outro assume. Leitura e busca nunca são bloqueadas.
-4. **O worker é um papel:** processo local nos modos 1 e 2 (com a "receita" compartilhada,
+4. **O worker é um papel:** processo local nos modos 1 e 2 (com a definição do workspace compartilhada,
    cada membro roda o seu); no modo 3 roda no AnyContext Server, e os clientes só
    enfileiram pedidos e consultam. O serviço em segundo plano opcional (ingestão, sync
    automático) é esse mesmo worker como serviço do sistema.
@@ -168,7 +168,8 @@ nada impede dois workers no mesmo workspace.
 - **Compartilhamento, com os mesmos papéis em qualquer modo:** **dono**, **editor** (gerencia
   as fontes) e **leitor** (só consulta). O workspace da organização tem o admin como dono e
   todos os demais como leitores.
-  - **Modo 1 (sem servidor): compartilha-se a "receita"** — fontes e configuração. Cada
+  - **Modo 1 (sem servidor): compartilha-se a definição do workspace** — fontes, filtros,
+    pacote de domínio e prompt, nunca o conteúdo indexado. Cada
     membro indexa localmente as mesmas fontes, que precisam ser acessíveis a todos (ex.:
     servidor de arquivos, SharePoint).
   - **Modo 3: compartilha-se o índice** — o workspace vive no AnyContext Server e os
