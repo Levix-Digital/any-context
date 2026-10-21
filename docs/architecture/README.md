@@ -10,6 +10,7 @@ Revisão geral do AnyContext (outubro de 2026): código, documentação e backlo
 | `ingestion-audit-2026-10.md` | auditoria da ingestão ("Any Context"), propostas e decisões |
 | `retrieval-pipeline-v2.md` | pipeline de recuperação — estado atual e design alvo |
 | `deployment-architecture-v2.md` | onde cada peça roda: portas, níveis de confiança, modelo de workspace, Admin Hub, modos de implantação |
+| `identity-and-governance-v2.md` | usuários, chaves, papéis e políticas, com e sem Admin Hub |
 | `desktop-ui-v2.md` | referência de layout da interface desktop (Tauri 2) |
 
 ## Método de planejamento
