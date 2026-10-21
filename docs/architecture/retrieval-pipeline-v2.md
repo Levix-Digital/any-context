@@ -162,7 +162,35 @@ ReAct.
 
 ### 3. Entendimento da pergunta
 
-_Pendente._
+Hoje nomes de arquivo (regex com extensões fixas) entram com score fixo 1,0 e datas (regex
+com meses só em inglês) viram filtros por trechos do caminho com score fixo 0,95; não há
+filtro por tipo, entidade ou versão, nem distinção entre tipos de pergunta.
+
+**Planejador da pergunta**, na mesma chamada de LLM da reescrita da continuação (passo 1),
+que devolve uma busca estruturada:
+
+1. **Texto de busca:** a pergunta autônoma; no Deep, também as subperguntas.
+2. **Filtros:** fonte (`@arquivo`, pasta citada — sempre dentro do workspace); **datas pela
+   data do documento** (ingestão, passo 7), em qualquer idioma; tipo de documento;
+   entidades (com tolerância a grafias diferentes); versão (vigente por padrão, todas em
+   perguntas sobre mudanças).
+3. **Tipo de pergunta**, que decide o caminho:
+   - pontual → busca nos trechos;
+   - visão geral → resumos de documento e pasta;
+   - agregada sobre tabela ou formulário → consulta à tabela;
+   - comparação → família de versões, normalmente no Deep;
+   - ajuda ou status → ferramentas do passo 1.
+
+**Regras dos filtros:**
+
+- **Sem scores inventados:** filtros restringem ou reforçam a busca.
+- **Explícito restringe, inferido reforça:** o que o usuário disse (`@arquivo`, "de março
+  de 2025") restringe; o que o planejador deduziu só dá preferência.
+- **Filtro que zera o resultado é relaxado**, com aviso na resposta ("não encontrei
+  contratos de março de 2025; estes são os mais próximos").
+- Com chat externo, a pergunta passa pela pseudonimização antes do planejador. Alternativa
+  sem LLM, com menos recursos: `@fonte`, datas por analisador multilíngue e entidades pelo
+  índice de entidades.
 
 ### 4. Busca
 
