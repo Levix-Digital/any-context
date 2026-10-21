@@ -73,4 +73,60 @@ Documento vivo da revisão do pipeline de recuperação, no mesmo método do
 
 ## Design alvo
 
+### Visão geral (caminho feliz)
+
+Pergunta do usuário → Fast ou Deep → (Deep: refinamento da pergunta) → busca densa + lexical
+→ RRF → seleção dos melhores chunks → ordem em U + XML → modelo de inferência. Os passos
+abaixo detalham esse caminho e acrescentam os passos que o código já tem e as pendências
+da ingestão.
+
+1. Entrada da pergunta
+2. Roteamento
+3. Entendimento da pergunta
+4. Busca
+5. Fusão
+6. Reranking
+7. Seleção
+8. Montagem do contexto
+9. Geração e citações
+10. Histórico e avaliação
+
+### 1. Entrada da pergunta
+
+_Em discussão._
+
+### 2. Roteamento
+
+_Pendente._
+
+### 3. Entendimento da pergunta
+
+_Pendente._
+
+### 4. Busca
+
+_Pendente._
+
+### 5. Fusão
+
+_Pendente._
+
+### 6. Reranking
+
+_Pendente._
+
+### 7. Seleção
+
+_Pendente._
+
+### 8. Montagem do contexto
+
+_Pendente._
+
+### 9. Geração e citações
+
+_Pendente._
+
+### 10. Histórico e avaliação
+
 _Pendente._
