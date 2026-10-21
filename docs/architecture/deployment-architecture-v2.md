@@ -45,8 +45,9 @@ armazenamentos sem coordenação — LanceDB (vetores e texto), índice lexical 
   consistência entre os três armazenamentos fica frágil pela rede e o cálculo continua no
   cliente. Armazenamento remoto só pelo AnyContext Server (modo 3), que roda os três
   armazenamentos com disco local e expõe a porta por API.
-- **Segurança no servidor:** chave de criptografia no cofre ou serviço de chaves do servidor;
-  comunicação com TLS e autenticação mútua.
+- **Segurança no servidor:** chaves de dados dos workspaces no cofre ou serviço de chaves do
+  servidor; comunicação com TLS e autenticação mútua. A hierarquia de chaves (chave mestra
+  do usuário, chave por workspace, cofre pessoal) está em `identity-and-governance-v2.md`.
 - **Abrir o arquivo original** (navegar pastas, abrir arquivos, ver sites sem sair do
   AnyContext) fica para a interface em Tauri 2 e não é decidido aqui.
 

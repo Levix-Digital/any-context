@@ -685,13 +685,10 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
 - **Manutenção automática:** compactação depois de syncs com muitos deletes ou
   reindexações (IMP-013). As migrações saem do caminho do sync: o schema é versionado e
   migrado uma vez, na abertura da base.
-- **Chave de criptografia:** um segredo gerado na instalação e guardado no cofre do sistema
-  operacional (Keychain, Windows Credential Manager, Secret Service), com exportação e
-  recuperação para backup e troca de máquina. Substitui a chave derivada do id da máquina
-  com salt fixo no código, que qualquer um com o id reproduz e que torna a base ilegível em
-  outra máquina. A integração com contas de usuário fica para o futuro módulo de usuários
-  (fora do escopo da ingestão).
-
+- **Chave de criptografia:** substituída pela hierarquia de chaves de
+  `identity-and-governance-v2.md` — chave de dados por workspace, embrulhada pela chave mestra
+  do usuário (liberada pela senha, chave de recuperação ou biometria). A chave atual,
+  derivada do id da máquina com salt fixo no código, sai.
 - **Índice vetorial aproximado (ANN) a partir de 100 mil chunks** por workspace e
   `embedding_target`, configurável. Abaixo disso a busca é exaustiva (exata e rápida —
   milhares de arquivos ficam na casa de dezenas de milhares de chunks). Acima, o índice é

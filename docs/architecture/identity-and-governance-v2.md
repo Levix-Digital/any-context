@@ -118,7 +118,35 @@ recusada por ser arriscada)
 
 ### 2. Hierarquia de chaves
 
-_Pendente._
+Hoje há uma única chave, derivada do id da máquina com salt fixo no código, que protege só
+os campos de texto do LanceDB; o índice lexical está em claro; e **as chaves de API ficam
+em texto puro** na tabela `api_keys` do `settings.db`.
+
+1. **Chave mestra do usuário** — aleatória, uma por conta, nunca gravada em claro. Embrulhada
+   por: **senha** (Argon2id), **chave de recuperação** e **biometria** como conveniência (o
+   cofre do sistema só a libera mediante presença do usuário a cada desbloqueio — nunca para
+   um serviço sozinho).
+2. **Par de chaves do usuário:** a pública sela a caixa de entrada do sync com o app
+   fechado; a privada fica criptografada pela chave mestra.
+3. **Chave de dados de cada workspace** — aleatória; criptografa tudo do workspace (camada
+   de armazenamento do LanceDB e do índice lexical, base do workspace, resumos). Embrulhada
+   pela chave mestra do dono e, no compartilhamento, pela **chave pública de cada membro**
+   (contas da mesma máquina; no modo 3, o servidor a guarda no próprio cofre). **Saída de um
+   membro troca a chave:** dados novos usam a nova; os antigos são recriptografados em
+   segundo plano.
+4. **Cofre pessoal**, criptografado a partir da chave mestra: chaves de API, senhas de
+   arquivos, histórico de conversas, preferências — corrige as chaves de API em texto puro.
+5. **Identidade do dispositivo** (chave Ed25519 da matrícula no Admin Hub) no cofre do
+   sistema: identifica a máquina, não dá acesso a dados.
+6. **Chaves só em memória** com a sessão desbloqueada; apagadas ao travar.
+7. **Migração:** no primeiro login após a atualização, os dados criptografados com a chave
+   antiga (derivada do id da máquina) são recriptografados com as novas, e as chaves de API
+   vão para o cofre.
+8. **Chave de recuperação da organização** (opção de política no modo empresarial): a chave
+   mestra de cada usuário também é embrulhada por uma chave pública da organização; **a parte
+   privada fica offline, sob controle da empresa, idealmente dividida entre duas ou mais
+   pessoas** — não no Admin Hub, que segue zero-knowledge no dia a dia. Cada uso é auditado
+   e o usuário é avisado de que a empresa tem esse poder de recuperação.
 
 ### 3. Papéis e compartilhamento
 
