@@ -190,7 +190,37 @@ compartilha-se a definição do workspace, no modo 3 o índice.
 
 ### 4. Motor de governança e políticas
 
-_Pendente._
+Hoje o core não tem política nenhuma. A especificação do Admin Hub já define uma política
+rica (modo de modelos e modelos permitidos, cota de tokens, OCR, busca web com escopo e
+domínios, servidor MCP, conectores e domínios de conta), enviada por `UPDATE_POLICIES` e
+guardada em cache criptografado com validade de 72 h — nada disso está ligado ao cliente. A
+especificação embute a chave pública do Admin Hub no binário, o que não funciona com cada
+cliente hospedando o próprio Admin Hub.
+
+1. **Modelo único de política no cliente, versionado**, por categoria:
+   - modelos e endpoints (níveis de confiança, modelos permitidos);
+   - dados (pseudonimização, workspaces confidenciais, retenção, chave de recuperação da
+     organização);
+   - fontes (tipos, conectores e domínios web permitidos, limites);
+   - ferramentas (busca web, servidor MCP);
+   - contas (regras de senha, segundo fator, tempo de sessão, sync em segundo plano);
+   - cotas (tokens).
+2. **Três camadas de precedência:** padrão do produto < política local (definida pelo `root`
+   sem Admin Hub) < política da organização (assinada pelo Admin Hub). **A camada de cima
+   vence; dentro de um workspace, o dono só pode endurecer as regras, nunca afrouxá-las**
+   (pode marcar confidencial; não pode liberar a busca web proibida pela empresa).
+3. **Políticas assinadas, com a chave do Admin Hub fixada na matrícula:** o código de
+   matrícula traz a impressão digital da chave, o dispositivo a confirma e registra, e
+   depois só aceita políticas assinadas por ela (corrige a chave embutida no binário).
+4. **Um só motor aplica tudo:** resolução de modelos, níveis de confiança e
+   pseudonimização, busca web, conectores e OCR, servidor MCP, contas e sessão, cotas.
+5. **Offline:** vale a última política válida em cache criptografado; a **validade** (72 h na
+   especificação) é **configurável pela empresa**; vencida, o dispositivo é suspenso até
+   reconectar.
+6. **Transparência:** bloqueio diz qual regra bloqueou ("busca web desativada pela política
+   da organização"); o usuário pode ver a política vigente, só leitura.
+7. **Auditoria:** tentativas bloqueadas registradas localmente e enviadas ao Admin Hub só
+   como metadados (regra, quando, dispositivo), nunca com conteúdo.
 
 ### 5. Integração com o Admin Hub
 
