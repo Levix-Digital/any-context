@@ -327,7 +327,42 @@ score do RRF.
 
 ### 8. Montagem do contexto
 
-_Pendente._
+Hoje: cada chunk numa tag XML com id, origem e "versão" deduzida do caminho (ADR-0140);
+ordem em U depois da seleção; texto recuperado escapado (ADR-0136); um prompt de sistema
+por caminho (ADR-0144); sem pseudonimização nem cálculo do contexto pela janela do modelo.
+
+Um **contexto final por pergunta**, montado uma vez e enviado numa única chamada; os
+trechos selecionados podem vir de arquivos de origem diferentes do workspace.
+
+1. **Ordem:** primeiro selecionar, depois ordenar. **Trechos do mesmo arquivo ficam juntos e
+   na ordem em que aparecem no arquivo**; os grupos por arquivo são organizados em U pela
+   melhor relevância de cada um. (O efeito "lost in the middle" é menor nos modelos atuais e
+   com poucos trechos; o U fica porque não custa nada e ajuda modelos menores e locais.)
+2. **Envelope XML por evidência:** id curto para citação, título do documento, fonte e
+   caminho, **localizador** (página, seção, linhas, células, minuto), **data do documento e
+   versão vindas da ingestão** (não deduzidas do caminho), **tipo** (trecho, resumo,
+   resultado de tabela com a consulta SQL). O escapamento do texto continua.
+3. **Pseudonimização aplicada aqui** quando o endpoint do LLM é externo; a tabela de
+   correspondência fica local e vale para a conversa inteira (o `[PESSOA_1]` de uma pergunta
+   é o mesmo na próxima).
+4. **Prompt montado em camadas** (no lugar de "um prompt por caminho"):
+   1. **regras base do AnyContext** (fixas): responder só pelo contexto e dizer quando ele
+      não basta; citar pelos ids; responder no idioma do usuário; segurança; uso das
+      ferramentas;
+   2. **orientações do pacote de domínio**;
+   3. **prompt de sistema do workspace** (FEAT-009): persona, tom, formato, foco;
+   4. **complemento do modo** (responder no Fast, sintetizar no Deep).
+
+   O prompt do workspace entra **só nas chamadas que geram a resposta ao usuário** (resposta
+   do Fast, síntese do Deep), nunca nas tarefas internas (planejador, avaliação, resumos,
+   contexto dos chunks, perguntas sintéticas). As **regras base têm precedência**: o prompt
+   do workspace molda tom, formato e foco, mas não desliga "só pelo contexto" nem "citar as
+   fontes". Em workspace compartilhado, só dono e editores alteram o prompt.
+5. **Orçamento de tokens calculado:** janela do modelo = prompt de sistema + histórico (com
+   o resumo das partes antigas) + evidências + reserva para a resposta; as evidências ficam
+   com o que sobra, dentro do teto de custo do passo 7.
+6. **Cache de prompt:** as camadas estáveis (1 a 3) vão no começo do prompt, para aproveitar
+   o cache dos provedores.
 
 ### 9. Geração e citações
 
