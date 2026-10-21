@@ -194,7 +194,29 @@ que devolve uma busca estruturada:
 
 ### 4. Busca
 
-_Pendente._
+Hoje: busca densa exaustiva no workspace atual e no `Global`, BM25 com a pergunta
+"expandida" por datas, 50/100/150 candidatos por lista; o único filtro real é o
+workspace; falha do embedding da pergunta deixa só o BM25 (registrado, sem aviso); não há
+consulta a tabelas.
+
+1. **Buscadores em paralelo, com os filtros dentro da busca (pré-filtro)** — densa e
+   lexical juntas, para cada pergunta ou subpergunta do Deep; filtrar depois de pegar os
+   candidatos pode deixar zero.
+2. **O que é buscado:** os **chunks filhos** (os pais entram na seleção, passo 7); os
+   **resumos** de documento e pasta só nas perguntas de visão geral. A densa usa o prefixo
+   de consulta do modelo e a tabela do alvo de embedding (durante uma troca de modelo, a
+   tabela antiga responde até a nova ficar completa); a lexical usa os campos com pesos
+   (cabeçalho com peso menor que o corpo).
+3. **30 candidatos por lista**, ajustado pelo conjunto de avaliação (sobe se 50 melhorar a
+   taxa de acerto de forma mensurável).
+4. **Consulta a tabelas e formulários:** para perguntas agregadas, o LLM gera **SQL somente
+   leitura** sobre o esquema das tabelas do workspace (colunas, tipos, exemplos de valores),
+   executado pelo motor SQL que o LanceDB já traz (DataFusion). Salvaguardas: só leitura e
+   só as tabelas daquele workspace; limite de tempo e de linhas; **a consulta e as linhas
+   usadas aparecem na citação**; falha ou ambiguidade cai para a busca normal, com aviso.
+5. **Falha do embedding da pergunta:** busca só lexical, com **aviso discreto** na resposta.
+6. **Buscadores futuros entram como listas extras** (busca visual de páginas, vetores
+   esparsos — auditoria P10 e P19), sem mudar o resto do pipeline.
 
 ### 5. Fusão
 
