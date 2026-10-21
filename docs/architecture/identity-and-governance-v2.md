@@ -88,10 +88,10 @@ recusada por ser arriscada)
 - Modos de sync: **padrão** com a sessão desbloqueada (e diff de recuperação ao entrar);
   **opcional** caixa de entrada selada com o app fechado; **modo 3** no AnyContext Server.
 
-**No modo empresarial (com Admin Hub)**
+**No ambiente corporativo (com Admin Hub — ver tema 6)**
 
-- **O poder do `root` passa para o Admin Hub:** o `root` local é desativado para o uso
-  comum; criar contas, classificar endpoints, instalar modelos fora do catálogo e mudar a
+- **O poder de administração é do Admin Hub:** o ambiente corporativo não tem `root` de uso
+  comum (o `root` do ambiente pessoal não é afetado); criar contas, classificar endpoints, instalar modelos fora do catálogo e mudar a
   instalação passam a ser governados pelo Admin Hub.
 - **Origens de identidade:** **SSO** pelo provedor da empresa e/ou **diretório próprio do
   Admin Hub** (para clientes sem provedor de identidade — escritórios, clínicas, prefeituras
@@ -112,8 +112,9 @@ recusada por ser arriscada)
   próximo heartbeat, e a senha é trocada depois.
 - **Regra de ouro:** nem o `root`, nem o admin corporativo, nem o Admin Hub leem os dados dos
   usuários — governam a instalação, não o conteúdo.
-- **Saída:** dispositivo revogado (kill-switch) é bloqueado; desmatriculado de forma
-  ordenada (ex.: devolvido ao TI), a política decide se os dados são apagados ou mantidos.
+- **Saída:** ambiente corporativo revogado (kill-switch) é bloqueado; desmatriculado de forma
+  ordenada (ex.: dispositivo devolvido ao TI), a política decide se os dados dele são apagados
+  ou mantidos. O ambiente pessoal nunca é afetado.
 
 ### 2. Hierarquia de chaves
 
