@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_master_roadmap_v0_30_38_rfc042
 project: any-context
-title: 'Roadmap Integrado: Python -> Rust, RFC-042 Deep Search, ModelRouter & Kit de Models'
+title: 'Integrated Roadmap: Python -> Rust, RFC-042 Deep Search, ModelRouter & Model Kit'
 version: v0.30.38
 status: in_progress
 author: Levi Silveira
@@ -20,72 +20,72 @@ supersedes: anycontext_master_roadmap_v0_30_37
 superseded_by: null
 parent_plan_id: null
 milestones:
-- name: Prioridade 2B
+- name: Priority 2B
   done: true
-- name: Prioridade 3
+- name: Priority 3
   done: true
-- name: Prioridade 4
+- name: Priority 4
   done: true
-- name: Marco 2
+- name: Milestone 2
   done: true
-- name: Marco 3
+- name: Milestone 3
   done: true
 - name: RFC-042 Deep Search
   done: true
-- name: Kit de Models
+- name: Model Kit
   done: false
 status_log:
 - at: '2026-09-25T14:14:56'
-  note: 'Milestone ''Prioridade 2B'': actx-agent FSM, Polymorphic Tool Registry, SQLite Sessions, PyO3 bindings e modelos RFC-042 implementados e 100% testados (370/370 tests pass)'
+  note: 'Milestone ''Priority 2B'': actx-agent FSM, Polymorphic Tool Registry, SQLite Sessions, PyO3 bindings and RFC-042 models implemented and 100% tested (370/370 tests pass)'
 - at: '2026-10-10T07:26:25'
-  note: 'Milestone ''Marco 2'': Concluido na release v0.34.2 com ModelRouter, QualityGate deterministico sub-0.1ms, SpatialFormChunker 2D multidominio e 191 testes 100% PASS'
+  note: 'Milestone ''Milestone 2'': completed in release v0.34.2 with ModelRouter, a sub-0.1ms deterministic QualityGate, a multi-domain 2D SpatialFormChunker and 191 tests 100% PASS'
 - at: '2026-10-10T08:14:56'
-  note: 'Milestone ''Marco 3'': Marco 3 concluído: Chat ModelRouter com classificação dinâmica em sub-1µs e custo zero de tokens, roteamento de intenção e comandos /router e /search auto integrados (v0.34.3)'
+  note: 'Milestone ''Milestone 3'': Milestone 3 completed: Chat ModelRouter with dynamic sub-1µs classification at zero token cost, intent routing and the /router and /search auto commands integrated (v0.34.3)'
 - at: '2026-10-10T09:10:43'
-  note: 'Milestone ''RFC-042 Deep Search'': RFC-042 Deep Search e v0.34.4 concluídos com conclusão direta, paridade de idioma e suite 100% verde'
+  note: 'Milestone ''RFC-042 Deep Search'': RFC-042 Deep Search and v0.34.4 completed with a direct conclusion, language parity and a 100% green suite'
 - at: '2026-10-13T16:02:57'
-  note: 'Milestone ''Prioridade 3'': Entregue na v0.30.39 e calibrado na v0.34.5'
+  note: 'Milestone ''Priority 3'': delivered in v0.30.39 and calibrated in v0.34.5'
 - at: '2026-10-13T16:02:58'
-  note: 'Milestone ''Prioridade 4'': Entregue na v0.31.0 e v0.33.0 com CLI/TUI Ratatui 100% Rust'
+  note: 'Milestone ''Priority 4'': delivered in v0.31.0 and v0.33.0 with a 100% Rust Ratatui CLI/TUI'
 - at: '2026-10-16T10:47:34'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 🗺️ Roadmap Integrado de Engenharia (Python -> Rust -> RFC-042 Deep Search -> ModelRouter -> Kit de Models)
+# 🗺️ Integrated Engineering Roadmap (Python -> Rust -> RFC-042 Deep Search -> ModelRouter -> Model Kit)
 
-## 📌 Metadados do Plano
-- **Projeto**: AnyContext (`actx`)
-- **Versão Base**: `v0.30.38` (Sucessora de `v0.30.37`)
-- **Data de Aprovação**: 2026-09-25
-- **Status**: Ativo (`active`)
+## 📌 Plan Metadata
+- **Project**: AnyContext (`actx`)
+- **Base Version**: `v0.30.38` (successor of `v0.30.37`)
+- **Approval Date**: 2026-09-25
+- **Status**: Active (`active`)
 - **Conversation ID**: `9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372`
-- **Especificações de Referência**: RFC-042 (`Architectural Evolution Specification.docx`), `actx-lm` RFC-041.
+- **Reference Specifications**: RFC-042 (`Architectural Evolution Specification.docx`), `actx-lm` RFC-041.
 
 ---
 
-## 🏛️ Visão Geral e Topologia Arquitetural
+## 🏛️ Overview and Architectural Topology
 
-O desenvolvimento do AnyContext segue uma transição metódica e sem quebras de compatibilidade em **3 Fases Estratégicas**, assegurando que o Core seja 100% nativo em Rust antes de expandirmos a inteligência de roteamento e busca profunda:
+AnyContext's development follows a methodical transition without compatibility breaks in **3 Strategic Phases**, making sure the Core is 100% native Rust before expanding routing and deep search intelligence:
 
 ```mermaid
 graph TD
-    subgraph "FASE 1: CORE DE ALTA PERFORMANCE EM RUST"
-        P1["Prioridade 1: Storage Layer (LanceDB + Rusqlite) [CONCLUÍDO v0.30.36]"]
-        P2A["Prioridade 2A: Façade actx-lm (Strategy Pattern) [CONCLUÍDO v0.30.37]"]
-        P2B["Prioridade 2B: Orquestrador ReAct & FSM Nativo em Rust (actx-agent) [EM ANDAMENTO]"]
-        P3["Prioridade 3: Pipeline RAG & Reranking Unificado em Rust (RRF + Cross-Encoder)"]
-        P4["Prioridade 4: Interface CLI & TUI Nativa (Ratatui + Clap -> Binário Zero-Python)"]
+    subgraph "PHASE 1: HIGH-PERFORMANCE RUST CORE"
+        P1["Priority 1: Storage Layer (LanceDB + Rusqlite) [DONE v0.30.36]"]
+        P2A["Priority 2A: actx-lm Façade (Strategy Pattern) [DONE v0.30.37]"]
+        P2B["Priority 2B: Native ReAct Orchestrator & FSM in Rust (actx-agent) [IN PROGRESS]"]
+        P3["Priority 3: Unified RAG & Reranking Pipeline in Rust (RRF + Cross-Encoder)"]
+        P4["Priority 4: Native CLI & TUI Interface (Ratatui + Clap -> Zero-Python Binary)"]
     end
 
-    subgraph "FASE 2: INTELIGÊNCIA AGÊNTICA & ROTEAMENTO (RFC-042 & ModelRouter)"
-        M2["Marco 2: ModelRouter na Ingestão (Quality Gate & SLMs de Visão)"]
-        M3["Marco 3: ModelRouter no Chat (Query Complexity & Source-Aware Routing)"]
-        RFC["RFC-042: Deep Search Agêntico Reflexivo & Ingestão Jina Reader (r.jina.ai)"]
+    subgraph "PHASE 2: AGENTIC INTELLIGENCE & ROUTING (RFC-042 & ModelRouter)"
+        M2["Milestone 2: ModelRouter in Ingestion (Quality Gate & Vision SLMs)"]
+        M3["Milestone 3: ModelRouter in Chat (Query Complexity & Source-Aware Routing)"]
+        RFC["RFC-042: Reflective Agentic Deep Search & Jina Reader Ingestion (r.jina.ai)"]
     end
 
-    subgraph "FASE 3: CATÁLOGO DE ESPECIALISTAS"
-        KIT["Matriz Completa do Kit de Models (Presets: Offline, Híbrido, Frontier, Privacy)"]
+    subgraph "PHASE 3: SPECIALIST CATALOG"
+        KIT["Complete Model Kit Matrix (Presets: Offline, Hybrid, Frontier, Privacy)"]
     end
 
     P1 --> P2A
@@ -100,115 +100,115 @@ graph TD
 
 ---
 
-## 🚀 FASE 1: Refatoração Python $\rightarrow$ Rust (Alicerces de Performance)
+## 🚀 PHASE 1: Python $\rightarrow$ Rust Refactoring (Performance Foundations)
 
-### 1.1. Prioridade 1: Storage Layer Nativo em Rust (LanceDB + Rusqlite)
-* **Status**: 🟢 **CONCLUÍDO** (Entregue na versão `v0.30.36`)
-* **Entregáveis**:
-  - `NativeLanceStore` em `crates/any-context-core-rs/src/storage/lancedb.rs`.
-  - Busca vetorial cosseno e armazenamento de metadados sem intermediários Python.
-  - Eliminação de bugs de serialização de tipos no Windows.
+### 1.1. Priority 1: Native Storage Layer in Rust (LanceDB + Rusqlite)
+* **Status**: 🟢 **DONE** (delivered in version `v0.30.36`)
+* **Deliverables**:
+  - `NativeLanceStore` in `crates/any-context-core-rs/src/storage/lancedb.rs`.
+  - Cosine vector search and metadata storage without Python intermediaries.
+  - Type serialization bugs on Windows removed.
 
-### 1.2. Prioridade 2A: Façade Nativo de Modelos de Linguagem (`actx-lm`)
-* **Status**: 🟢 **CONCLUÍDO** (Entregue na versão `v0.30.37`)
-* **Entregáveis**:
-  - Nova crate independente [`crates/actx-lm`](file:///C:/Users/guilh/source/repos/any-context/crates/actx-lm) sem frameworks pesados (sem LangChain/LlamaIndex).
-  - Padrões Strategy (`LmProvider`) e Façade (`LmClient`).
-  - Suporte completo a OpenAI, Anthropic, Gemini, Mock e SLMs locais (`OpenAiCompatibleProvider` para Ollama e LM Studio em `http://localhost:11434/v1`).
-  - Decodificador SSE zero-copy e bindings PyO3 (`PyLmClient`).
+### 1.2. Priority 2A: Native Language Model Façade (`actx-lm`)
+* **Status**: 🟢 **DONE** (delivered in version `v0.30.37`)
+* **Deliverables**:
+  - New independent crate [`crates/actx-lm`](file:///C:/Users/guilh/source/repos/any-context/crates/actx-lm) without heavy frameworks (no LangChain/LlamaIndex).
+  - Strategy (`LmProvider`) and Façade (`LmClient`) patterns.
+  - Full support for OpenAI, Anthropic, Gemini, Mock and local SLMs (`OpenAiCompatibleProvider` for Ollama and LM Studio at `http://localhost:11434/v1`).
+  - Zero-copy SSE decoder and PyO3 bindings (`PyLmClient`).
 
-### 1.3. Prioridade 2B: Orquestrador ReAct e Loop do Agente em Rust (`actx-agent`)
-* **Status**: ⚡ **EM ANDAMENTO / BLUEPRINT ATIVO**
-* **O que fazer**:
-  1. **Nova Crate Desacoplada `crates/actx-agent`**:
-     - Máquina de Estados Finitos (FSM) ReAct nativa: `CallModel` $\rightarrow$ `ExecuteTools` $\rightarrow$ `CheckBudget` $\rightarrow$ `Finished`.
-     - Purga total da dependência do LangGraph / LangChain em Python.
-     - Proteção anti-recursão determinística (`max_turns: 10`), eliminando o erro `Recursion limit of 50 reached`.
-  2. **Catálogo Universal de Ferramentas (`ToolRegistry`)**:
-     - Suporte polimórfico a `NativeTool` (busca direta na memória do Rust sem travessia de ponte) e `DynamicPyTool` (callbacks assíncronos PyO3).
-     - Fundação para ferramentas MCP (*Model Context Protocol*).
-     - Execução defensiva de tools com auto-recuperação de erros de validação JSON (`jsonschema`).
-  3. **Persistência de Sessão Limpa (`SessionStore`)**:
-     - Armazenamento nativo em SQLite com histórico JSON puro, sem compactação zlib corrompível.
-  4. **Preparação Arquitetural para a RFC-042**:
-     - Suporte a múltiplos modos de agente (`AgentExecutionMode::Direct`, `AgentExecutionMode::ReAct`, `AgentExecutionMode::DeepSearch`).
-     - Tipos de eventos ricos no `AgentEvent` para renderização da `<DeepSearchTree />` no terminal.
+### 1.3. Priority 2B: ReAct Orchestrator and Agent Loop in Rust (`actx-agent`)
+* **Status**: ⚡ **IN PROGRESS / ACTIVE BLUEPRINT**
+* **What to do**:
+  1. **New Decoupled Crate `crates/actx-agent`**:
+     - Native ReAct Finite State Machine (FSM): `CallModel` $\rightarrow$ `ExecuteTools` $\rightarrow$ `CheckBudget` $\rightarrow$ `Finished`.
+     - Complete purge of the LangGraph / LangChain dependency in Python.
+     - Deterministic anti-recursion protection (`max_turns: 10`), removing the `Recursion limit of 50 reached` error.
+  2. **Universal Tool Catalog (`ToolRegistry`)**:
+     - Polymorphic support for `NativeTool` (direct search in Rust memory without crossing the bridge) and `DynamicPyTool` (asynchronous PyO3 callbacks).
+     - Foundation for MCP (*Model Context Protocol*) tools.
+     - Defensive tool execution with self-recovery from JSON validation errors (`jsonschema`).
+  3. **Clean Session Persistence (`SessionStore`)**:
+     - Native SQLite storage with pure JSON history, without corruptible zlib compression.
+  4. **Architectural Preparation for RFC-042**:
+     - Support for several agent modes (`AgentExecutionMode::Direct`, `AgentExecutionMode::ReAct`, `AgentExecutionMode::DeepSearch`).
+     - Rich event types in `AgentEvent` to render the `<DeepSearchTree />` in the terminal.
 
-### 1.4. Prioridade 3: Pipeline RAG e Reranking Nativo em Rust
-* **Status**: 🔴 **A FAZER**
-* **O que fazer**:
-  1. **Fusão em Memória Zero-Copy**: Executar a busca densa vetorial (`NativeLanceStore`) e a busca esparsa léxica (`bm25.rs`) dentro do mesmo processo Rust.
-  2. **Batch Retrieval de Alta Concorrência (RFC-042)**: Implementar `retrieve_hybrid_batch` com Rayon/Tokio para alimentar sub-consultas simultâneas do Deep Search.
-  3. **Reranker RRF & Cross-Encoder em Rust**: Otimização SIMD para Reciprocal Rank Fusion ($k=60$) com deduplicação por hash SHA-256.
-  4. **Context Density Budgeting Integrado**: Truncamento inteligente e source-fair round-robin operando direto na memória antes de passar os tokens para o `actx-lm`.
+### 1.4. Priority 3: Native RAG and Reranking Pipeline in Rust
+* **Status**: 🔴 **TO DO**
+* **What to do**:
+  1. **Zero-Copy In-Memory Fusion**: run the dense vector search (`NativeLanceStore`) and the sparse lexical search (`bm25.rs`) inside the same Rust process.
+  2. **High-Concurrency Batch Retrieval (RFC-042)**: implement `retrieve_hybrid_batch` with Rayon/Tokio to feed Deep Search's simultaneous sub-queries.
+  3. **RRF & Cross-Encoder Reranker in Rust**: SIMD optimization for Reciprocal Rank Fusion ($k=60$) with SHA-256 hash deduplication.
+  4. **Integrated Context Density Budgeting**: smart truncation and source-fair round-robin working directly in memory before handing the tokens to `actx-lm`.
 
-### 1.5. Prioridade 4: Interface CLI & TUI 100% Nativa (Binário Único)
-* **Status**: 🔴 **A FAZER**
-* **O que fazer**:
-  1. **Terminal CLI Nativo**: Interface construída com `clap` (parsing de flags) e `ratatui` + `crossterm` (TUI interativa rápida).
-  2. **Eliminação do Runtime Python da Distribuição**: O AnyContext passa a ser distribuído como um único arquivo executável estático (`actx.exe` / `actx`), com consumo de memória RAM inferior a 40MB e inicialização em `< 10ms`.
-
----
-
-## 🎯 FASE 2: Roteamento Adaptativo & Pesquisa Agêntica Profunda (RFC-042)
-
-### 2.1. Marco 2: `ModelRouter` na Ingestão (SLMs Especialistas & Quality Gate)
-* **Status**: 🟡 **A FAZER (Alicerces prontos com actx-lm)**
-* **O que fazer**:
-  1. **Módulo `IngestionModelRouter` (`crates/any-context-core-rs/src/ingestion/router.rs`)**:
-     - Avalia a confiança da extração 2D de `pdf.rs`.
-  2. **Quality Gate de Estrutura**:
-     - *Nível 1 (Texto/2D Geométrico)*: Sucesso -> Indexação direta.
-     - *Nível 2 (OCR Tesseract)*: Se texto escasso mas puramente alfanumérico -> OCR rápido.
-     - *Nível 3 (SLM de Visão via actx-lm)*: Se o documento contiver diagramas/tabelas complexas sem dados tabulares recuperáveis, invoca SLM local multimodal (`qwen2-vl` ou `minicpm-v` no LM Studio / Ollama).
-  3. **Validador de Ingestão**: Rejeita chunks ruidosos antes de indexar no LanceDB.
-
-### 2.2. Marco 3: `ModelRouter` no Chat (Dynamic Query & Source-Aware Routing)
-* **Status**: 🔴 **A FAZER**
-* **O que fazer**:
-  1. **Classificador de Complexidade Local Embarcado (RFC-042 §4.1)**:
-     - Modelo encoder compacto (~25MB ONNX Runtime) rodando em CPU com latência sub-15ms e zero tokens gastos.
-     - Classes: `FAST_RAG` (consultas pontuais, sintaxe, arquivo) vs `DEEP_SEARCH` (arquitetura, auditoria, correlação multi-módulo).
-  2. **Roteamento Dinâmico por Tipologia de Fontes**:
-     - Código puro (Rust, TS, Python) $\rightarrow$ Roteia para modelo especializado em código.
-     - Documentação jurídica/negócios $\rightarrow$ Roteia para modelo com janela extensa e raciocínio contextual.
-  3. **Comandos Slash no Chat**:
-     - `/fast <query>`: Força execução direta em turno único.
-     - `/deep <query>`: Força ativação do loop agêntico iterativo.
-     - `/search <auto|fast|deep>`: Configura a política do workspace ativo no banco SQLite.
-
-### 2.3. RFC-042: Motor Deep Search Agêntico Reflexivo & Ingestão Jina Reader
-* **Status**: 🔴 **A FAZER (Planejado pós-Prioridade 3)**
-* **O que fazer**:
-  1. **Ciclo Reflexivo em 5 Fases**:
-     - *Fase 1 (Decomposição)*: Decompõe perguntas complexas em 2 a 4 sub-consultas ortogonais estruturadas (código, documentação, configuração).
-     - *Fase 2 (Busca Paralela em Lote)*: Executa no Rust `retrieve_hybrid_batch` concorrentemente via LanceDB + BM25 com deduplicação SHA-256.
-     - *Fase 3 (Avaliação de Lacunas)*: Nó de reflexão que avalia suficiência factual, teto de 2 iterações e rendimento decrescente ($>90\%$ sobreposição).
-     - *Fase 4 (Re-geração Cirúrgica)*: Busca focada estritamente nos pontos cegos identificados.
-     - *Fase 5 (Síntese com Proveniência)*: Geração da resposta com citações obrigatórias de arquivos e linhas (`[src/auth/jwt.rs:45-60]`).
-  2. **UX de Terminal Reativa (<DeepSearchTree />)**:
-     - Renderização em tempo real da árvore aninhada de sub-tarefas no Ink/React.
-     - Auto-colapso pós-streaming para resumo minimalista de uma linha.
-     - Atalho `Ctrl+O` para expandir/recolher o histórico completo de reflexão.
-  3. **Conector Web Jina Reader (`r.jina.ai`)**:
-     - Ingestão de SPAs modernas via endpoint `https://r.jina.ai/<url>`, convertendo páginas pesadas em Markdown puro com zero consumo de RAM local (sem headless Chromium).
-     - Fallback local assíncrono via Crawl4AI para ambientes restritos/air-gapped.
+### 1.5. Priority 4: 100% Native CLI & TUI Interface (Single Binary)
+* **Status**: 🔴 **TO DO**
+* **What to do**:
+  1. **Native Terminal CLI**: interface built with `clap` (flag parsing) and `ratatui` + `crossterm` (fast interactive TUI).
+  2. **Removal of the Python Runtime from the Distribution**: AnyContext ships as a single static executable (`actx.exe` / `actx`), using under 40MB of RAM and starting in `< 10ms`.
 
 ---
 
-## 🧩 FASE 3: Matriz Completa do "Kit de Models" (O Catálogo Definitivo)
+## 🎯 PHASE 2: Adaptive Routing & Deep Agentic Research (RFC-042)
 
-* **Status**: 🔴 **A FAZER (Etapa Final)**
-* **O que fazer**:
-  - Implementar presets de configuração e auto-detecção de ambiente no AnyContext:
-    1. **Preset 100% Offline / Edge (Zero Dependência de Nuvem)**:
+### 2.1. Milestone 2: `ModelRouter` in Ingestion (Specialist SLMs & Quality Gate)
+* **Status**: 🟡 **TO DO (foundations ready with actx-lm)**
+* **What to do**:
+  1. **`IngestionModelRouter` Module (`crates/any-context-core-rs/src/ingestion/router.rs`)**:
+     - Evaluates the confidence of the 2D extraction from `pdf.rs`.
+  2. **Structure Quality Gate**:
+     - *Level 1 (Text/2D Geometry)*: success -> direct indexing.
+     - *Level 2 (Tesseract OCR)*: sparse but purely alphanumeric text -> fast OCR.
+     - *Level 3 (Vision SLM through actx-lm)*: if the document has diagrams/complex tables without recoverable tabular data, calls a local multimodal SLM (`qwen2-vl` or `minicpm-v` on LM Studio / Ollama).
+  3. **Ingestion Validator**: rejects noisy chunks before indexing in LanceDB.
+
+### 2.2. Milestone 3: `ModelRouter` in Chat (Dynamic Query & Source-Aware Routing)
+* **Status**: 🔴 **TO DO**
+* **What to do**:
+  1. **Embedded Local Complexity Classifier (RFC-042 §4.1)**:
+     - A compact encoder model (~25MB ONNX Runtime) running on the CPU with sub-15ms latency and zero tokens spent.
+     - Classes: `FAST_RAG` (point queries, syntax, a file) vs `DEEP_SEARCH` (architecture, audit, multi-module correlation).
+  2. **Dynamic Routing by Source Typology**:
+     - Pure code (Rust, TS, Python) $\rightarrow$ routed to a code-specialized model.
+     - Legal/business documentation $\rightarrow$ routed to a model with a long window and contextual reasoning.
+  3. **Chat Slash Commands**:
+     - `/fast <query>`: forces direct single-turn execution.
+     - `/deep <query>`: forces the iterative agentic loop.
+     - `/search <auto|fast|deep>`: sets the active workspace's policy in the SQLite database.
+
+### 2.3. RFC-042: Reflective Agentic Deep Search Engine & Jina Reader Ingestion
+* **Status**: 🔴 **TO DO (planned after Priority 3)**
+* **What to do**:
+  1. **5-Phase Reflective Cycle**:
+     - *Phase 1 (Decomposition)*: decomposes complex questions into 2 to 4 structured orthogonal sub-queries (code, documentation, configuration).
+     - *Phase 2 (Parallel Batch Search)*: runs `retrieve_hybrid_batch` concurrently in Rust through LanceDB + BM25 with SHA-256 deduplication.
+     - *Phase 3 (Gap Evaluation)*: a reflection node that evaluates factual sufficiency, a ceiling of 2 iterations and diminishing returns ($>90\%$ overlap).
+     - *Phase 4 (Surgical Re-generation)*: a search focused strictly on the identified blind spots.
+     - *Phase 5 (Synthesis with Provenance)*: answer generation with mandatory file and line citations (`[src/auth/jwt.rs:45-60]`).
+  2. **Reactive Terminal UX (<DeepSearchTree />)**:
+     - Real-time rendering of the nested sub-task tree in Ink/React.
+     - Auto-collapse after streaming into a minimalist one-line summary.
+     - `Ctrl+O` shortcut to expand/collapse the full reflection history.
+  3. **Jina Reader Web Connector (`r.jina.ai`)**:
+     - Ingestion of modern SPAs through the `https://r.jina.ai/<url>` endpoint, converting heavy pages into pure Markdown with zero local RAM consumption (no headless Chromium).
+     - Asynchronous local fallback through Crawl4AI for restricted/air-gapped environments.
+
+---
+
+## 🧩 PHASE 3: The Complete "Model Kit" Matrix (The Definitive Catalog)
+
+* **Status**: 🔴 **TO DO (Final Stage)**
+* **What to do**:
+  - Implement configuration presets and environment auto-detection in AnyContext:
+    1. **100% Offline / Edge Preset (Zero Cloud Dependency)**:
        - LLM/SLM: Ollama / LM Studio (`qwen2.5-coder:7b`, `llama-3.2-3b`, `phi-3.5`).
-       - Embedding: BGE-small-en nativo em ONNX.
-       - Reranker: MiniLM Reranker ONNX local.
-    2. **Preset Híbrido (Custo-Benefício Equilibrado)**:
-       - RAG / Pré-processamento: SLMs locais no hardware do usuário.
-       - Inferência / Síntese: DeepSeek-V3 ou Claude 3.5 Haiku via API.
-    3. **Preset Frontier / Power User**:
-       - Claude 3.5 Sonnet / GPT-4o para síntese arquitetural e refatoração crítica.
-    4. **Preset Privacidade Máxima Corporativa**:
-       - Conexão exclusiva a instâncias privadas vLLM ou Azure OpenAI com isolamento de dados.
+       - Embedding: native BGE-small-en in ONNX.
+       - Reranker: local MiniLM Reranker ONNX.
+    2. **Hybrid Preset (Balanced Cost/Benefit)**:
+       - RAG / Preprocessing: local SLMs on the user's hardware.
+       - Inference / Synthesis: DeepSeek-V3 or Claude 3.5 Haiku through an API.
+    3. **Frontier / Power User Preset**:
+       - Claude 3.5 Sonnet / GPT-4o for architectural synthesis and critical refactoring.
+    4. **Maximum Corporate Privacy Preset**:
+       - Exclusive connection to private vLLM or Azure OpenAI instances with data isolation.
