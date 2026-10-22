@@ -104,18 +104,57 @@ pontos ainda em discussão ficam em **Pendentes**.
     padrão, lê o frontmatter YAML como metadados e transforma `[[wikilinks]]` em relações
     do grafo (ingestão, passo 7, P16).
 
+18. **Estados da fonte quando algo falha:**
+    - item **apagado na origem** → sai do índice;
+    - **sem acesso técnico** (token vencido ou revogado, senha trocada, rede fora) → fonte
+      **desconectada** ("reconectar conta"); nada é apagado e o indexado continua
+      pesquisável;
+    - **acesso a um item revogado** para o usuário → o item sai do índice e aparece no
+      relatório da fonte com o motivo.
+19. **Mapas de extração** (para origens sem API estável): arquivo declarativo de seletores,
+    distribuído pelo catálogo verificado como os pacotes de domínio, **assinado pela Levix e
+    revisado por uma pessoa** antes de publicar — nunca gerado e publicado automaticamente.
+20. **Google Drive completo, só pela API oficial**, com o escopo de leitura de todo o Drive
+    (sem atalhos como restringir ao seletor de arquivos). Se a avaliação de segurança do
+    Google (CASA) não couber cedo no ambiente pessoal, o conector entra quando couber; no
+    ambiente corporativo usa o app interno da empresa, que não passa pela avaliação.
+
+## Modelo de produto: tudo é conector
+
+21. **A base é a busca nos arquivos locais e da rede interna**, sem nenhuma chamada externa.
+    Todo o resto é **conector plugado explicitamente** pelo usuário — o "air-gapped por
+    padrão" passa a ser literal: cada conector é uma abertura para fora, visível e
+    governável. A ajuda do sistema não é conector.
+22. **Dois tipos internos, um só nome para o usuário:**
+    - **conector de origem:** traz conteúdo de fora pelo contrato da decisão 1 (sites web,
+      Google Drive, OneDrive e SharePoint, YouTube, e-mail, Obsidian…);
+    - **conector de capacidade:** libera um processamento sobre arquivos locais (ex.:
+      transcrição de vídeos e áudios locais).
+
+    Sem o conector, o que ele cobriria aparece no relatório da fonte ("12 vídeos não
+    indexados — ative o conector de Vídeo"); nada some em silêncio.
+23. **Conector pago entrega mais que a base.** Ex.: o cofre do Obsidian é uma pasta de
+    Markdown e a base indexa o texto dele; o conector Obsidian acrescenta os wikilinks no
+    grafo, o frontmatter como metadados, notas embutidas, aliases e canvas (a decisão 17
+    descreve o que esse conector faz).
+24. **A busca web na hora da pergunta também é conector**, por ser a principal saída de
+    dados para fora.
+25. **Licença por conector**, com **período de teste** por conector, na licença assinada e
+    verificada offline (`levix-platform`). Licença ≠ política: a licença diz o que foi
+    pago, a política diz o que a empresa permite; o mesmo motor aplica as duas e a mensagem
+    de bloqueio diz qual delas bloqueou.
+26. **Licença vencida: fontes desativadas, nunca apagadas.** Os índices das fontes daquele
+    conector ficam guardados mas fora da busca, e o sync para. Ao renovar, a fonte volta e o
+    diff incremental reprocessa só o que mudou na origem. O usuário pode apagar
+    explicitamente os índices desativados para liberar disco.
+27. **No ambiente corporativo**, a licença da organização libera os conectores, e a
+    política do Admin Hub ainda pode bloquear cada um.
+
 ## Pendentes
 
-- **Viabilidade de custos nas origens** (decisão 4):
-  - **Google Drive:** o escopo de leitura de todo o Drive é "restrito" e exige a avaliação
-    de segurança anual CASA para app público; o Google não publica preço e há relatos de
-    alguns milhares a dezenas de milhares de dólares por ano. Alternativa a avaliar: escopo
-    `drive.file` com o seletor de arquivos do Google (o usuário escolhe; não é restrito).
-    Apps internos de uma empresa no próprio Google Workspace não passam por essa avaliação.
-  - **YouTube:** dados públicos sem login, com chave de API; cota padrão de 10.000 unidades
-    por dia por projeto, ampliada por auditoria de conformidade gratuita.
-- Estados da fonte quando algo falha (apagado na origem, sem acesso, conta desconectada).
-- Arquivos "só online" de OneDrive, Google Drive e Dropbox dentro de pastas locais.
-- Mapas de extração atualizáveis pelo catálogo verificado.
-- Modelo "tudo é conector" e licença por conector (inclusive período de teste).
+- **Arquivos "só online"** de OneDrive, Google Drive e Dropbox dentro de pastas locais:
+  detectar e não baixar, com aviso (proposta; também é bug atual).
+- **YouTube:** a decisão 16 (só API oficial) deixa vídeos de terceiros sem transcrição.
+- **Embalagem comercial** (quais conectores são grátis, quais pagos, preços, prazo do
+  teste): roadmap.
 - Quais conectores existem e em que ordem: decidido no backlog e no roadmap, não aqui.
