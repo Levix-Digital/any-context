@@ -1,286 +1,293 @@
-# Identidade e governança — design alvo (v2)
+# Identity and governance — target design (v2)
 
-Documento transversal sobre usuários, chaves, papéis e políticas, com e sem Admin Hub. É
-fundação: toca a separação do `settings.db`, a chave de criptografia, o dono e os papéis de
-cada workspace, o chat individual e o cofre de senhas de arquivos.
+Cross-cutting document on users, keys, roles and policies, with and without Admin Hub. It
+is a foundation: it touches the `settings.db` split, the encryption key, the owner and
+roles of each workspace, the individual chat and the vault of file passwords.
 
-## Decisões de base
+## Base decisions
 
-1. **Contas locais com usuário e senha na versão sem Admin Hub**, com **vários usuários por
-   máquina**. Cada pessoa tem os seus workspaces e conversas; ninguém vê os do outro. Serve
-   ao computador da família e ao escritório pequeno sem Admin Hub.
-2. **A senha libera a chave dos dados.** Hoje a chave fica no cofre do sistema operacional e
-   qualquer um logado naquela conta do sistema consegue usá-la; com a senha do AnyContext,
-   notebook roubado ou outra pessoa na mesma conta do sistema não lê os dados.
-   - **Chave de recuperação** gerada na criação da conta, para o usuário guardar (imprimir
-     ou salvar) — senha esquecida sem ela significa dados perdidos.
-   - **Desbloqueio por biometria** (Windows Hello, Touch ID) como conveniência, sem
-     enfraquecer a senha.
-   - A senha é guardada só como hash forte (Argon2id); nunca é enviada a lugar nenhum.
-3. **Um motor único de identidade e governança no cliente, com duas origens** — não duas
-   implementações (que tendem a divergir):
-
-   | | sem Admin Hub | com Admin Hub |
-   |---|---|---|
-   | usuários | contas locais (usuário e senha) | identidade corporativa (SSO da empresa via Admin Hub) |
-   | políticas | padrões locais, ajustáveis pelo dono | políticas assinadas pelo Admin Hub, empurradas pela API do cliente |
-   | quem aplica | o mesmo motor no cliente | o mesmo motor no cliente |
-
-   Usuário, dono, papéis, políticas, níveis de confiança e cofre existem uma vez; o Admin
-   Hub é uma origem de identidades e políticas.
-4. ~~Migração da conta local para a corporativa na matrícula~~ — **substituída** pelos
-   ambientes pessoal e corporativo isolados (tema 6).
-
-## Temas a detalhar
-
-1. Contas locais e sessão
-2. Hierarquia de chaves
-3. Papéis e compartilhamento
-4. Motor de governança e políticas
-5. Integração com o Admin Hub
-6. Ambientes pessoal e corporativo
-
-### 1. Contas locais e sessão
-
-Hoje não existe usuário: tudo fica no `settings.db` da conta do sistema operacional; há só
-vestígios (coluna `added_by_email` com padrão `"user"`, injeção de identidade na sessão —
-ADR-0082, FEAT-013 no backlog).
-
-**Conta de administração no estilo Linux**
-
-- **`root`** é a conta fixa de administração da instalação, com rótulo claro na interface
-  ("Administrador (root)"). **Sem senha padrão:** a senha é definida obrigatoriamente na
-  instalação ou na primeira execução. Recebe chave de recuperação própria.
-- **`sudo`:** no dia a dia usa-se a conta pessoal; ações administrativas (criar ou remover
-  contas, baixar modelos, configurações da instalação) pedem a senha do `root` só para
-  aquela ação (`actx sudo <comando>` na CLI; "Ação administrativa: digite a senha do
-  administrador" na interface).
-- **O `root` não tem workspaces nem chat** e **não lê os dados das contas pessoais** — cada
-  conta tem as próprias chaves.
-
-**Contas pessoais**
-
-- **Primeira execução:** uma tela define a senha do `root` e cria a conta pessoal (nome de
-  exibição, usuário ou e-mail opcional, senha), já recomendada e preenchida; permite a mesma
-  senha nas duas, com aviso de que senhas diferentes protegem melhor. Mostra a **chave de
-  recuperação** e pede confirmação de que foi guardada; oferece biometria se houver.
-- **Dados separados por conta:** diretório próprio com a base local (preferências,
-  histórico, cofre) e os workspaces. Remover uma conta apaga os dados dela.
-- **Tela de entrada** com as contas da máquina, senha ou biometria, troca rápida de usuário.
-- **Sessão:** desbloqueada enquanto o app está em uso; trava após inatividade (ex.: 30 min,
-  preferência pessoal), ao bloquear a tela ou suspender o sistema, e manualmente. CLI e TUI
-  pedem a senha (ou biometria) uma vez por sessão do terminal, com o mesmo bloqueio.
-- **Espera crescente** entre tentativas após senhas erradas.
-- **Troca de senha** só reembrulha a chave dos dados — instantânea, sem recriptografar.
-
-**Sync com o app fechado — caixa de entrada selada** (sem chave vinculada ao dispositivo,
-recusada por ser arriscada)
-
-- O serviço em segundo plano recebe só a **chave pública** do usuário: consegue criptografar,
-  nunca descriptografar, e não lê nada do que já está indexado.
-- Com o app fechado ele faz o trabalho pesado — detectar arquivos alterados, baixar páginas,
-  extrair, OCR, transcrição, chunking e embedding **com modelos locais** — e grava o
-  resultado numa **caixa de entrada criptografada com a chave pública**.
-- Ao entrar, o app desbloqueado incorpora a caixa de entrada ao índice (rápido: só gravar).
-- **Sem risco novo:** o serviço só usa o que já está em claro no disco (os arquivos do
-  usuário). Limitação: chaves de API de nuvem ficam no cofre trancado, então com embedding na
-  nuvem o embedding fica para o login.
-- Modos de sync: **padrão** com a sessão desbloqueada (e diff de recuperação ao entrar);
-  **opcional** caixa de entrada selada com o app fechado; **modo 3** no AnyContext Server.
-
-**No ambiente corporativo (com Admin Hub — ver tema 6)**
-
-- **O poder de administração é do Admin Hub:** o ambiente corporativo não tem `root` de uso
-  comum (o `root` do ambiente pessoal não é afetado); criar contas, classificar endpoints,
-  instalar modelos fora do catálogo e mudar a instalação passam a ser governados pelo Admin
-  Hub.
-- **Origens de identidade:** **SSO** pelo provedor da empresa e/ou **diretório próprio do
-  Admin Hub** (para clientes sem provedor de identidade — escritórios, clínicas, prefeituras
-  menores). Contas só locais ficam proibidas pela política.
-- **Ativação de usuário do diretório do Admin Hub:** o admin cadastra (nome, login, papéis);
-  o Admin Hub gera um **código de ativação de uso único** com validade curta (ex.: 72 h),
-  entregue por canal à parte; no primeiro uso num dispositivo matriculado, o usuário digita
-  login e código, **cria a própria senha** e recebe a chave de recuperação. **A senha nunca
-  passa pelo Admin Hub**; as chaves são geradas no dispositivo. A política pode exigir
-  tamanho e complexidade, troca periódica e **segundo fator** (aplicativo autenticador).
-- **Senha esquecida:** o admin emite um novo código de ativação; sem chave de recuperação, os
-  dados antigos ficam ilegíveis (opção de chave de recuperação da organização: tema 2).
-- **`sudo` vira "pedir ao TI":** autenticação de um admin corporativo, ou pedido de aprovação
-  no Admin Hub (que pode virar chamado no ServiceNow/Jira).
-- **Quebra-vidro:** o `root` continua existindo para emergência no local e offline, com
-  **senha única por dispositivo, gerada e trocada pelo Admin Hub** (modelo LAPS), visível só
-  a administradores autorizados com registro de acesso; todo uso é auditado, relatado no
-  próximo heartbeat, e a senha é trocada depois.
-- **Regra de ouro:** nem o `root`, nem o admin corporativo, nem o Admin Hub leem os dados dos
-  usuários — governam a instalação, não o conteúdo.
-- **Saída:** ambiente corporativo revogado (kill-switch) é bloqueado; desmatriculado de forma
-  ordenada (ex.: dispositivo devolvido ao TI), a política decide se os dados dele são apagados
-  ou mantidos. O ambiente pessoal nunca é afetado.
-
-### 2. Hierarquia de chaves
-
-Hoje há uma única chave, derivada do id da máquina com salt fixo no código, que protege só
-os campos de texto do LanceDB; o índice lexical está em claro; e **as chaves de API ficam
-em texto puro** na tabela `api_keys` do `settings.db`.
-
-1. **Chave mestra do usuário** — aleatória, uma por conta, nunca gravada em claro. Embrulhada
-   por: **senha** (Argon2id), **chave de recuperação** e **biometria** como conveniência (o
-   cofre do sistema só a libera mediante presença do usuário a cada desbloqueio — nunca para
-   um serviço sozinho).
-2. **Par de chaves do usuário:** a pública sela a caixa de entrada do sync com o app
-   fechado; a privada fica criptografada pela chave mestra.
-3. **Chave de dados de cada workspace** — aleatória; criptografa tudo do workspace (camada
-   de armazenamento do LanceDB e do índice lexical, base do workspace, resumos). Embrulhada
-   pela chave mestra do dono e, no compartilhamento, pela **chave pública de cada membro**
-   (contas da mesma máquina; no modo 3, o servidor a guarda no próprio cofre). **Saída de um
-   membro troca a chave:** dados novos usam a nova; os antigos são recriptografados em
-   segundo plano.
-4. **Cofre pessoal**, criptografado a partir da chave mestra: chaves de API, senhas de
-   arquivos, histórico de conversas, preferências — corrige as chaves de API em texto puro.
-5. **Identidade do dispositivo** (chave Ed25519 da matrícula no Admin Hub) no cofre do
-   sistema: identifica a máquina, não dá acesso a dados.
-6. **Chaves só em memória** com a sessão desbloqueada; apagadas ao travar.
-7. **Migração:** no primeiro login após a atualização, os dados criptografados com a chave
-   antiga (derivada do id da máquina) são recriptografados com as novas, e as chaves de API
-   vão para o cofre.
-8. **Chave de recuperação da organização** (opção de política no modo empresarial): a chave
-   mestra de cada usuário também é embrulhada por uma chave pública da organização; **a parte
-   privada fica offline, sob controle da empresa, idealmente dividida entre duas ou mais
-   pessoas** — não no Admin Hub, que segue zero-knowledge no dia a dia. Cada uso é auditado
-   e o usuário é avisado de que a empresa tem esse poder de recuperação.
-
-### 3. Papéis e compartilhamento
-
-Já decidido (`deployment-architecture-v2.md`): papéis dono, editor e leitor; workspaces da
-organização com o admin como dono e só leitura para os demais; chat individual; no modo 1
-compartilha-se a definição do workspace, no modo 3 o índice.
-
-1. **Permissões:**
-
-   | ação | dono | editor | leitor |
-   |---|---|---|---|
-   | perguntar, abrir fontes citadas, 👍/👎 | ✓ | ✓ | ✓ |
-   | adicionar e remover fontes, filtros, reprocessar | ✓ | ✓ | — |
-   | editar prompt do workspace e pacote de domínio | ✓ | ✓ | — |
-   | marcar confidencial, políticas de privacidade | ✓ | — | — |
-   | compartilhar, mudar papéis | ✓ | — | — |
-   | apagar o workspace | ✓ | — | — |
-
-   Só o dono compartilha; editor não repassa acesso.
-2. **Grupos e curadores:** no modo empresarial, compartilhamento com **grupos** (do SSO ou do
-   diretório do Admin Hub); no workspace da organização, o admin nomeia **curadores**
-   (editores de um departamento) sem perder a propriedade.
-3. **Definição do workspace** (o que se compartilha no modo 1): nome, fontes, filtros,
-   pacote de domínio e prompt — as instruções de montagem, **nunca o conteúdo indexado**
-   (chunks, vetores, índice), que fica criptografado na máquina de quem indexou. Cada membro
-   indexa as mesmas fontes na própria máquina (as fontes precisam ser acessíveis a todos,
-   ex.: pasta de rede, site).
-   - **Sem Admin Hub:** a definição é exportada num arquivo (ex.:
-     `processos-2025.actx-workspace`) e importada pelo colega — sem documentos, trechos,
-     vetores, chaves de API nem senhas.
-   - **Com Admin Hub:** a definição é distribuída pelo Admin Hub (só metadados; ele segue
-     zero-knowledge).
-4. **Confidencial vale para todos os membros:** o teto "nunca enviar para endpoint externo"
-   se aplica a quem quer que pergunte no workspace.
-5. **Saída de um membro:** a chave do workspace é trocada (tema 2); as conversas dele
-   continuam com ele (dados pessoais), mas as citações deixam de abrir; no modo empresarial,
-   a política pode exigir apagá-las.
-6. **Permissões herdadas da fonte** (modo 3 e conectores): num índice compartilhado, um
-   leitor nunca recebe trechos de documentos que não pode abrir na origem (ex.: permissões do
-   SharePoint ou do servidor de arquivos). Implementação: `ingestion-pipeline-v2.md`, seção
-   transversal de controle de acesso (auditoria P23).
-
-### 4. Motor de governança e políticas
-
-Hoje o core não tem política nenhuma. A especificação do Admin Hub já define uma política
-rica (modo de modelos e modelos permitidos, cota de tokens, OCR, busca web com escopo e
-domínios, servidor MCP, conectores e domínios de conta), enviada por `UPDATE_POLICIES` e
-guardada em cache criptografado com validade de 72 h — nada disso está ligado ao cliente. A
-especificação embute a chave pública do Admin Hub no binário, o que não funciona com cada
-cliente hospedando o próprio Admin Hub.
-
-1. **Modelo único de política no cliente, versionado**, por categoria:
-   - modelos e endpoints (níveis de confiança, modelos permitidos);
-   - dados (pseudonimização, workspaces confidenciais, retenção, chave de recuperação da
-     organização);
-   - fontes (tipos, conectores e domínios web permitidos, limites);
-   - ferramentas (busca web, servidor MCP);
-   - contas (regras de senha, segundo fator, tempo de sessão, sync em segundo plano);
-   - cotas (tokens).
-2. **Três camadas de precedência:** padrão do produto < política local (definida pelo `root`
-   sem Admin Hub) < política da organização (assinada pelo Admin Hub). **A camada de cima
-   vence; dentro de um workspace, o dono só pode endurecer as regras, nunca afrouxá-las**
-   (pode marcar confidencial; não pode liberar a busca web proibida pela empresa).
-3. **Políticas assinadas, com a chave do Admin Hub fixada na matrícula:** o código de
-   matrícula traz a impressão digital da chave, o dispositivo a confirma e registra, e
-   depois só aceita políticas assinadas por ela (corrige a chave embutida no binário).
-4. **Um só motor aplica tudo:** resolução de modelos, níveis de confiança e
-   pseudonimização, busca web, conectores e OCR, servidor MCP, contas e sessão, cotas.
-5. **Offline:** vale a última política válida em cache criptografado; a **validade** (72 h na
-   especificação) é **configurável pela empresa**; vencida, o dispositivo é suspenso até
-   reconectar.
-6. **Transparência:** bloqueio diz qual regra bloqueou ("busca web desativada pela política
-   da organização"); o usuário pode ver a política vigente, só leitura.
-7. **Auditoria:** tentativas bloqueadas registradas localmente e enviadas ao Admin Hub só
-   como metadados (regra, quando, dispositivo), nunca com conteúdo.
-
-### 5. Integração com o Admin Hub
-
-As especificações iniciais do Admin Hub (matrícula, WebSocket só de saída, heartbeat,
-kill-switch, ITSM, SCIM, validade offline) se encaixam, com estes ajustes:
-
-1. **Pacote instalável e licença offline.** Sem SaaS da Levix, o Admin Hub é entregue como
-   pacote (contêineres para servidor único; Helm para Kubernetes). O controle de assentos
-   usa uma **licença assinada pela Levix** (assentos, validade), verificada **offline** pelo
+1. **Local accounts with username and password in the version without Admin Hub**, with
+   **several users per machine**. Each person has their own workspaces and conversations;
+   nobody sees anyone else's. It serves the family computer and the small office without
    Admin Hub.
-2. **Admin Hub em Rust**, compartilhando crates com o core: modelo de políticas, verificação
-   de assinaturas e formato da definição do workspace precisam ser idênticos nos dois lados
-   (a especificação previa Python/FastAPI; o AnyContext eliminou o Python — ADR-0106).
-3. **Telemetria de fontes com nível definido pela política:** só contagens; **identificadores
-   anonimizados** (hash que diz "é a mesma fonte" sem revelar o nome) — **padrão**; ou
-   caminhos completos, quando a empresa precisa auditar e informa os usuários. (A
-   especificação enviava os caminhos completos, que podem ser dado pessoal, ex.:
-   `...\Processos\Divórcio Fulano de Tal`.)
-4. **Espelho interno:** o Admin Hub distribui atualizações do AnyContext, modelos ONNX,
-   pacotes de domínio e o Chromium para dispositivos sem internet (air-gapped); o TI baixa
-   uma vez, verificado pela assinatura da Levix, e controla quando cada versão chega à
-   frota.
-5. **Dois perfis de instalação, mesmo código:** **compacto** (um contêiner com banco
-   embutido — escritórios, clínicas) e **escalável** (Postgres, Redis, réplicas — grandes
-   empresas).
-6. **O que passa pelo canal do Admin Hub:** identidades (SSO, diretório próprio, SCIM) e
-   ativação; políticas assinadas; definições de workspace e workspaces da organização; grupos
-   e curadores; senha de quebra-vidro (estilo LAPS); pedidos de `sudo` e chamados ITSM;
-   auditoria só com metadados; cotas; espelho de atualizações; matrícula do AnyContext Server
-   (modo 3).
+2. **The password releases the data key.** Today the key lives in the OS vault and anyone
+   logged into that OS account can use it; with the AnyContext password, a stolen laptop
+   or another person on the same OS account cannot read the data.
+   - **Recovery key** generated when the account is created, for the user to keep (print
+     or save) — a forgotten password without it means lost data.
+   - **Biometric unlock** (Windows Hello, Touch ID) as a convenience, without weakening the
+     password.
+   - The password is stored only as a strong hash (Argon2id); it is never sent anywhere.
+3. **A single identity and governance engine on the client, with two origins** — not two
+   implementations (which tend to diverge):
 
-Decisão comercial para o roadmap: assentos por dispositivo (como na especificação) ou por
-usuário (comum no mercado); a arquitetura suporta as duas.
+   | | without Admin Hub | with Admin Hub |
+   |---|---|---|
+   | users | local accounts (username and password) | corporate identity (company SSO through the Admin Hub) |
+   | policies | local defaults, adjustable by the owner | policies signed by the Admin Hub, pushed through the client API |
+   | who enforces | the same engine on the client | the same engine on the client |
 
-### 6. Ambientes pessoal e corporativo
+   User, owner, roles, policies, trust levels and vault exist once; the Admin Hub is an
+   origin of identities and policies.
+4. ~~Migration of the local account to the corporate one at enrollment~~ — **replaced** by
+   isolated personal and corporate environments (topic 6).
 
-Substitui a decisão de base 4 ("migração da conta local para a corporativa"): a matrícula
-de uma empresa não pode afetar as contas da família numa máquina de trabalho remoto.
+## Topics
 
-1. **Dois ambientes isolados no mesmo binário**, na linha do "perfil de trabalho" do
-   Android, com seletor ("Pessoal | Empresa X"):
-   - **pessoal:** `root` local e contas da família; a empresa nunca vê nem governa nada aqui
-     (sem telemetria, política ou kill-switch);
-   - **corporativo:** criado na matrícula, com **dados, chaves, contas, políticas e `root`
-     próprios** (o quebra-vidro do Admin Hub); só a empresa o governa.
+1. Local accounts and session
+2. Key hierarchy
+3. Roles and sharing
+4. Governance engine and policies
+5. Admin Hub integration
+6. Personal and corporate environments
 
-   A empresa pode distribuir o próprio pacote de instalação pelo TI; o resultado é o mesmo
-   ambiente corporativo isolado.
-2. **Sem caminho entre ambientes.** Não há exportação do pessoal para o corporativo: quem
-   quiser as mesmas fontes as adiciona no corporativo, onde são indexadas sob a política (e
-   conteúdo de trabalho que estava fora da governança deve mesmo ser recriado). Se surgir
-   demanda real de usuários, alternativas são avaliadas depois. A exportação e importação da
-   definição do workspace (tema 3) vale **dentro** de cada ambiente; a política corporativa
-   pode aceitar só definições vindas da própria organização (assinadas pelo Admin Hub).
-3. **Computador da empresa:** a política pode proibir o ambiente pessoal em máquinas que
-   pertencem à empresa; no notebook do próprio funcionário, não.
-4. **Saída e mudança de empresa** afetam só o ambiente corporativo (dados apagados ou
-   bloqueados conforme a política); o pessoal segue como estava. Mudar de empresa remove o
-   ambiente da anterior e cria o da nova na nova matrícula.
-5. **Nenhum dado atravessa entre ambientes** — nem busca, nem chat, nem chave (a regra
-   "nenhuma consulta atravessa workspaces", um nível acima).
+### 1. Local accounts and session
+
+Today there is no user: everything lives in the OS account's `settings.db`; there are only
+traces (an `added_by_email` column defaulting to `"user"`, identity injection into the
+session — ADR-0082, FEAT-013 in the backlog).
+
+**Linux-style administration account**
+
+- **`root`** is the fixed administration account of the installation, clearly labeled in
+  the UI ("Administrator (root)"). **No default password:** the password is mandatorily set
+  at installation or first run. It gets its own recovery key.
+- **`sudo`:** day to day the personal account is used; administrative actions (creating or
+  removing accounts, downloading models, installation settings) ask for the `root`
+  password just for that action (`actx sudo <command>` in the CLI; "Administrative action:
+  enter the administrator password" in the UI).
+- **`root` has no workspaces or chat** and **does not read personal accounts' data** — each
+  account has its own keys.
+
+**Personal accounts**
+
+- **First run:** one screen sets the `root` password and creates the personal account
+  (display name, optional username or e-mail, password), already recommended and filled
+  in; it allows the same password for both, warning that different passwords protect
+  better. It shows the **recovery key** and asks for confirmation that it was saved; it
+  offers biometrics if available.
+- **Data separated per account:** its own directory with the local database (preferences,
+  history, vault) and the workspaces. Removing an account deletes its data.
+- **Sign-in screen** with the machine's accounts, password or biometrics, fast user
+  switching.
+- **Session:** unlocked while the app is in use; locks after inactivity (e.g. 30 min, a
+  personal preference), when the screen locks or the system sleeps, and manually. CLI and
+  TUI ask for the password (or biometrics) once per terminal session, with the same
+  locking.
+- **Increasing delay** between attempts after wrong passwords.
+- **Password change** only rewraps the data key — instant, no re-encryption.
+
+**Sync with the app closed — sealed inbox** (no device-bound key, rejected as risky)
+
+- The background service receives only the user's **public key**: it can encrypt, never
+  decrypt, and does not read anything already indexed.
+- With the app closed it does the heavy work — detecting changed files, downloading pages,
+  extraction, OCR, transcription, chunking and embedding **with local models** — and writes
+  the result to an **inbox encrypted with the public key**.
+- On sign-in, the unlocked app merges the inbox into the index (fast: only writing).
+- **No new risk:** the service only uses what is already in clear on disk (the user's
+  files). Limitation: cloud API keys stay in the locked vault, so with cloud embedding the
+  embedding waits for sign-in.
+- Sync modes: **default** with the session unlocked (and a recovery diff on sign-in);
+  **optional** sealed inbox with the app closed; **mode 3** on the AnyContext Server.
+
+**In the corporate environment (with Admin Hub — see topic 6)**
+
+- **Administration power belongs to the Admin Hub:** the corporate environment has no
+  everyday `root` (the personal environment's `root` is unaffected); creating accounts,
+  classifying endpoints, installing models outside the catalog and changing the
+  installation become governed by the Admin Hub.
+- **Identity origins:** **SSO** through the company's provider and/or the **Admin Hub's own
+  directory** (for customers without an identity provider — offices, clinics, smaller
+  municipalities). Local-only accounts are forbidden by the policy.
+- **Activation of an Admin Hub directory user:** the admin registers them (name, login,
+  roles); the Admin Hub generates a **single-use activation code** with a short validity
+  (e.g. 72 h), delivered through a separate channel; on first use on an enrolled device,
+  the user enters login and code, **creates their own password** and receives the recovery
+  key. **The password never goes through the Admin Hub**; keys are generated on the device.
+  The policy can require length and complexity, periodic change and a **second factor**
+  (authenticator app).
+- **Forgotten password:** the admin issues a new activation code; without the recovery key,
+  the old data becomes unreadable (organization recovery key option: topic 2).
+- **`sudo` becomes "ask IT":** authentication of a corporate admin, or an approval request
+  in the Admin Hub (which can become a ServiceNow/Jira ticket).
+- **Break-glass:** `root` still exists for on-site and offline emergencies, with a **unique
+  password per device, generated and rotated by the Admin Hub** (LAPS model), visible only
+  to authorized administrators with access logging; every use is audited, reported in the
+  next heartbeat, and the password is rotated afterwards.
+- **Golden rule:** neither `root`, nor the corporate admin, nor the Admin Hub read users'
+  data — they govern the installation, not the content.
+- **Exit:** a revoked corporate environment (kill-switch) is blocked; when unenrolled in an
+  orderly way (e.g. device returned to IT), the policy decides whether its data is deleted
+  or kept. The personal environment is never affected.
+
+### 2. Key hierarchy
+
+Today there is a single key, derived from the machine id with a salt fixed in the code,
+that protects only LanceDB text fields; the lexical index is in clear; and **API keys are
+stored in plain text** in the `api_keys` table of `settings.db`.
+
+1. **User master key** — random, one per account, never stored in clear. Wrapped by: the
+   **password** (Argon2id), the **recovery key** and **biometrics** as a convenience (the
+   OS vault releases it only upon user presence at each unlock — never to a service on its
+   own).
+2. **User key pair:** the public key seals the inbox for sync with the app closed; the
+   private key is encrypted by the master key.
+3. **Data key of each workspace** — random; encrypts everything in the workspace (storage
+   layer of LanceDB and of the lexical index, workspace database, summaries). Wrapped by the
+   owner's master key and, when shared, by **each member's public key** (accounts on the
+   same machine; in mode 3, the server keeps it in its own vault). **A member leaving
+   rotates the key:** new data uses the new key; old data is re-encrypted in the
+   background.
+4. **Personal vault**, encrypted from the master key: API keys, file passwords,
+   conversation history, preferences — fixes the plain-text API keys.
+5. **Device identity** (Ed25519 key from the Admin Hub enrollment) in the OS vault: it
+   identifies the machine, it gives no access to data.
+6. **Keys only in memory** while the session is unlocked; erased on lock.
+7. **Migration:** on the first sign-in after the update, data encrypted with the old key
+   (derived from the machine id) is re-encrypted with the new keys, and API keys move to
+   the vault.
+8. **Organization recovery key** (enterprise policy option): each user's master key is
+   also wrapped by an organization public key; **the private part stays offline, under the
+   company's control, ideally split between two or more people** — not in the Admin Hub,
+   which stays zero-knowledge day to day. Each use is audited and the user is told that the
+   company has this recovery power.
+
+### 3. Roles and sharing
+
+Already decided (`deployment-architecture-v2.md`): owner, editor and reader roles;
+organization workspaces with the admin as owner and read-only for everyone else; individual
+chat; without a server the workspace definition is shared, with AnyContext Server the
+index is shared.
+
+1. **Permissions:**
+
+   | action | owner | editor | reader |
+   |---|---|---|---|
+   | ask, open cited sources, 👍/👎 | ✓ | ✓ | ✓ |
+   | add and remove sources, filters, reprocess | ✓ | ✓ | — |
+   | edit the workspace prompt and domain pack | ✓ | ✓ | — |
+   | mark confidential, privacy policies | ✓ | — | — |
+   | share, change roles | ✓ | — | — |
+   | delete the workspace | ✓ | — | — |
+
+   Only the owner shares; an editor does not pass access on.
+2. **Groups and curators:** in enterprise mode, sharing with **groups** (from SSO or the
+   Admin Hub directory); in the organization workspace, the admin appoints **curators**
+   (editors from a department) without giving up ownership.
+3. **Workspace definition** (what is shared without a server): name, sources, filters,
+   domain pack and prompt — the assembly instructions, **never the indexed content**
+   (chunks, vectors, index), which stays encrypted on the machine of whoever indexed it.
+   Each member indexes the same sources on their own machine (the sources must be
+   reachable by all, e.g. network folder, site).
+   - **Without Admin Hub:** the definition is exported to a file (e.g.
+     `cases-2025.actx-workspace`) and imported by the colleague — no documents, chunks,
+     vectors, API keys or passwords.
+   - **With Admin Hub:** the definition is distributed by the Admin Hub (metadata only; it
+     stays zero-knowledge).
+4. **Confidential applies to every member:** the "never send to an external endpoint"
+   ceiling applies to whoever asks in the workspace.
+5. **A member leaving:** the workspace key is rotated (topic 2); their conversations stay
+   with them (personal data), but citations stop opening; in enterprise mode, the policy
+   can require deleting them.
+6. **Permissions inherited from the source** (AnyContext Server and connectors): in a
+   shared index, a reader never receives chunks of documents they cannot open at the
+   origin (e.g. SharePoint or file server permissions). Implementation:
+   `ingestion-pipeline-v2.md`, per-source access control section (audit P23).
+
+### 4. Governance engine and policies
+
+Today the core has no policy at all. The Admin Hub specification already defines a rich
+policy (model mode and allowed models, token quota, OCR, web search with scope and
+domains, MCP server, connectors and account domains), sent through `UPDATE_POLICIES` and
+kept in an encrypted cache valid for 72 h — none of it is wired to the client. The
+specification embeds the Admin Hub public key in the binary, which does not work with each
+customer hosting their own Admin Hub.
+
+1. **A single, versioned policy model on the client**, by category:
+   - models and endpoints (trust levels, allowed models);
+   - data (pseudonymization, confidential workspaces, retention, organization recovery
+     key);
+   - sources (allowed types, connectors and web domains, limits);
+   - tools (web search, MCP server);
+   - accounts (password rules, second factor, session time, background sync);
+   - quotas (tokens).
+2. **Three precedence layers:** product default < local policy (set by `root` without
+   Admin Hub) < organization policy (signed by the Admin Hub). **The upper layer wins;
+   inside a workspace, the owner can only tighten the rules, never loosen them** (they can
+   mark it confidential; they cannot enable web search forbidden by the company).
+3. **Signed policies, with the Admin Hub key pinned at enrollment:** the enrollment code
+   carries the key fingerprint, the device confirms and records it, and from then on only
+   accepts policies signed by it (fixes the key embedded in the binary).
+4. **A single engine enforces everything:** model resolution, trust levels and
+   pseudonymization, web search, connectors and OCR, MCP server, accounts and session,
+   quotas — and connector licenses (`connectors-v2.md`, decision 25), kept distinct from
+   policy in the block message.
+5. **Offline:** the last valid policy in an encrypted cache applies; the **validity** (72 h
+   in the specification) is **configurable by the company**; once expired, the device is
+   suspended until it reconnects.
+6. **Transparency:** a block says which rule blocked it ("web search disabled by the
+   organization policy"); the user can view the policy in force, read-only.
+7. **Audit:** blocked attempts are logged locally and sent to the Admin Hub only as
+   metadata (rule, when, device), never with content.
+
+### 5. Admin Hub integration
+
+The initial Admin Hub specifications (enrollment, outbound-only WebSocket, heartbeat,
+kill-switch, ITSM, SCIM, offline validity) fit, with these adjustments:
+
+1. **Installable package and offline license.** Without a Levix SaaS, the Admin Hub ships as
+   a package (containers for a single server; Helm for Kubernetes). Seat control uses a
+   **license signed by Levix** (seats, validity), verified **offline** by the Admin Hub.
+2. **Admin Hub in Rust**, sharing crates with the core: the policy model, signature
+   verification and the workspace definition format must be identical on both sides (the
+   specification planned Python/FastAPI; AnyContext removed Python — ADR-0106).
+3. **Source telemetry at a level set by the policy:** counts only; **anonymized
+   identifiers** (a hash that says "it is the same source" without revealing the name) —
+   **default**; or full paths, when the company needs to audit and informs users. (The
+   specification sent full paths, which can be personal data, e.g.
+   `...\Cases\Divorce John Doe`.)
+4. **Internal mirror:** the Admin Hub distributes AnyContext updates, ONNX models, domain
+   packs and Chromium to devices without internet (air-gapped); IT downloads once, verified
+   by the Levix signature, and controls when each version reaches the fleet.
+5. **Two installation profiles, same code:** **compact** (one container with an embedded
+   database — offices, clinics) and **scalable** (Postgres, Redis, replicas — large
+   companies).
+6. **What goes through the Admin Hub channel:** identities (SSO, own directory, SCIM) and
+   activation; signed policies; workspace definitions and organization workspaces; groups
+   and curators; break-glass password (LAPS style); `sudo` requests and ITSM tickets;
+   metadata-only audit; quotas; update mirror; AnyContext Server enrollment.
+
+Commercial decision for the roadmap: seats per device (as in the specification) or per
+user (common in the market); the architecture supports both.
+
+### 6. Personal and corporate environments
+
+Replaces base decision 4 ("migration of the local account to the corporate one"): a
+company's enrollment must not affect the family accounts on a remote-work machine.
+
+1. **Two isolated environments in the same binary**, in the spirit of Android's "work
+   profile", with a switcher ("Personal | Company X"):
+   - **personal:** local `root` and family accounts; the company never sees or governs
+     anything here (no telemetry, policy or kill-switch);
+   - **corporate:** created at enrollment, with **its own data, keys, accounts, policies
+     and `root`** (the Admin Hub break-glass); only the company governs it.
+
+   The company may distribute its own installation package through IT; the result is the
+   same isolated corporate environment.
+2. **No path between environments.** There is no export from personal to corporate: whoever
+   wants the same sources adds them in the corporate environment, where they are indexed
+   under the policy (and work content that was outside governance should indeed be
+   recreated). If real user demand appears, alternatives are evaluated later. Export and
+   import of the workspace definition (topic 3) applies **within** each environment; the
+   corporate policy can accept only definitions coming from the organization itself
+   (signed by the Admin Hub).
+3. **Company computer:** the policy can forbid the personal environment on machines that
+   belong to the company; on the employee's own laptop, it cannot.
+4. **Leaving and changing companies** affect only the corporate environment (data deleted
+   or blocked according to the policy); the personal one stays as it was. Changing
+   companies removes the previous company's environment and creates the new one at the new
+   enrollment.
+5. **No data crosses between environments** — no search, no chat, no key (the rule "no
+   query crosses workspaces", one level up). Licenses are separate too: a personal
+   connector license does not apply to the corporate environment, and vice versa.
