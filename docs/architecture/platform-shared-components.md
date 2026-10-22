@@ -1,65 +1,67 @@
-# Componentes compartilhados da plataforma Levix
+# Levix platform shared components
 
-Documento transversal: componentes construídos uma vez e reaproveitados pelos produtos
-Levix (AnyContext, DocMapper e futuros).
+Cross-cutting document: components built once and reused by the Levix products
+(AnyContext, DocMapper and future ones).
 
-## Princípio de adoção
+## Adoption principle
 
-- **Desenhar os limites já:** o que é núcleo comum, o que é de cada produto, e os contratos
-  entre eles.
-- **Construir dentro das necessidades do AnyContext**, já como crates e serviço separados,
-  sem dependência do AnyContext.
-- **Os demais produtos adotam quando chegar a vez deles no roadmap.** Nada de plataforma
-  genérica construída antes da hora.
+- **Draw the boundaries now:** what is common core, what belongs to each product, and the
+  contracts between them.
+- **Build within AnyContext's needs**, already as separate crates and service, with no
+  dependency on AnyContext.
+- **The other products adopt them when their turn comes in the roadmap.** No generic
+  platform built ahead of time.
 
-## Componentes
+## Components
 
-### 1. Admin Hub (produto à parte)
+### 1. Admin Hub (separate product)
 
-Plano de controle de **vários produtos**: uma empresa que tem AnyContext e DocMapper instala
-um Admin Hub só (sempre hospedado no cliente, zero-knowledge — ver
+Control plane for **several products**: a company that has AnyContext and DocMapper
+installs a single Admin Hub (always hosted by the customer, zero-knowledge — see
 `identity-and-governance-v2.md`).
 
-- **Núcleo comum:** organizações; usuários (diretório próprio, SSO, SCIM) e grupos;
-  dispositivos e matrícula; **licença e assentos por produto**; distribuição e assinatura de
-  políticas; auditoria; ITSM; quebra-vidro; espelho de atualizações.
-- **Por produto:** cada produto registra o próprio **esquema de políticas** (o do AnyContext:
-  modelos, níveis de confiança, busca web, MCP…); o núcleo distribui, assina e audita sem
-  conhecer os detalhes.
-- **Contrato:** API e WebSocket documentados — qualquer produto conversa com o Admin Hub pelo
-  protocolo, independente da linguagem.
+- **Common core:** organizations; users (own directory, SSO, SCIM) and groups; devices and
+  enrollment; **license and seats per product**; policy distribution and signing; audit;
+  ITSM; break-glass; update mirror.
+- **Per product:** each product registers its own **policy schema** (AnyContext's: models,
+  trust levels, web search, MCP…); the core distributes, signs and audits without knowing
+  the details.
+- **Contract:** documented API and WebSocket — any product talks to the Admin Hub through
+  the protocol, regardless of language.
 
-### 2. Identidade no cliente
+### 2. Client-side identity
 
-Contas, `root`/`sudo`, sessão, hierarquia de chaves, cofre, biometria, matrícula e o motor
-de governança (aplicação das políticas assinadas) — praticamente tudo de
-`identity-and-governance-v2.md`, exceto workspaces, que são do AnyContext.
+Accounts, `root`/`sudo`, session, key hierarchy, vault, biometrics, enrollment and the
+governance engine (enforcement of signed policies) — practically all of
+`identity-and-governance-v2.md`, except workspaces, which belong to AnyContext.
 
-**As contas nunca são compartilhadas entre produtos.** Cada produto tem as próprias contas
-na máquina; usuários de produtos diferentes **jamais se misturam**. O que é comum é a
-**administração**: o Admin Hub gerencia as contas de todos os produtos com as mesmas
-ferramentas de gestão de usuários.
+**Accounts are never shared across products.** Each product has its own accounts on the
+machine; users of different products **never mix**. What is common is the
+**administration**: the Admin Hub manages the accounts of every product with the same user
+management tools.
 
-### 3. Outros
+### 3. Others
 
-- **Licenciamento** (o DocMapper já tem um módulo de licenças).
-- **Catálogo verificado** de modelos e atualizações.
-- **LSIE** (extração de formulários), já decidido como crate única
-  (`ingestion-pipeline-v2.md`, passo 6).
+- **Licensing** (DocMapper already has a license module).
+- **Verified catalog** of models and updates.
+- **LSIE** (form extraction), already decided as a single crate
+  (`ingestion-pipeline-v2.md`, step 6).
 
-## Linguagens
+## Languages
 
-- **Admin Hub:** serviço em Rust (decidido em `identity-and-governance-v2.md`, tema 5).
-- **Módulos de cliente** (identidade, políticas, LSIE…): **crates Rust, compiladas também
-  para WASM**. No navegador, armazenamento e criptografia mudam (WebCrypto, IndexedDB no
-  lugar do cofre do sistema) por **adaptadores**; um produto desktop em Tauri usa a crate
-  direto.
+- **Admin Hub:** Rust service (decided in `identity-and-governance-v2.md`, topic 5).
+- **Client modules** (identity, policies, LSIE…): **Rust crates, also compiled to WASM**.
+  In the browser, storage and cryptography change (WebCrypto, IndexedDB instead of the OS
+  vault) through **adapters**; a Tauri desktop product uses the crate directly.
 
-## Repositórios
+## Repositories
 
-- `levix-admin-hub` — produto à parte.
-- `levix-platform` — crates de identidade, políticas, criptografia, licença, LSIE.
-- Os produtos dependem dessas crates por versão.
+- `levix-admin-hub` — separate product (private).
+- `levix-platform` — identity, policy, cryptography, licensing and LSIE crates (private).
+- Products depend on these crates by version (git tag).
+- Each repository holds its README, its part of the design and its own backlog from the
+  start; code is born there when its backlog item is built, never moved there ahead of
+  time.
 
-Efeito no backlog: itens desses componentes pertencem a `levix-admin-hub` e
-`levix-platform`, não ao AnyContext.
+Effect on the backlog: items for these components belong to `levix-admin-hub` and
+`levix-platform`, not to AnyContext.

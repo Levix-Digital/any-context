@@ -1,47 +1,49 @@
-# Interface desktop (Tauri 2) — referência de layout
+# Desktop UI (Tauri 2) — layout reference
 
-Guia do layout da interface desktop, a partir do mockup e dos blueprints de protótipo e de
-tokens visuais (2026-10). **O que vale é o layout.** Valores, rótulos e opções do mockup
-(ex.: Chunk Size 512, Score Threshold 0.75, Qdrant, top-K) são ilustrativos e serão
-substituídos pelos reais, seguindo os designs de ingestão, recuperação e implantação.
+Guide to the desktop UI layout, from the mockup and the prototype and visual token
+blueprints (2026-10). **What counts is the layout.** Values, labels and options in the
+mockup (e.g. Chunk Size 512, Score Threshold 0.75, Qdrant, top-K) are illustrative and will
+be replaced by the real ones, following the ingestion, retrieval and deployment designs.
 
-## Estrutura em três colunas
+## Three-column structure
 
-| coluna | conteúdo | largura (mín · padrão · máx) | recolher |
+| column | content | width (min · default · max) | collapse |
 |---|---|---|---|
-| **Context Explorer** (esquerda) | árvore de workspaces e, dentro de cada um, suas fontes (pastas expansíveis, sites expansíveis em páginas, conectores), com status de cada fonte; botão "+ Novo"; rodapé com perfil do usuário e atalhos | 200 · 260 · 420 px | `Cmd/Ctrl + B` ou arrastar |
-| **Canvas Hub** (centro) | barra de abas: uma aba de **chat por workspace** e uma aba por **fonte aberta** (leitor); conteúdo da aba ativa | 480 px · flexível | — |
-| **Workspace Inspector** (direita) | configurações do contexto da aba ativa (workspace ou documento): seção básica exposta, seção avançada em accordion | 240 · 280 · 480 px | `Cmd/Ctrl + I` ou arrastar |
+| **Context Explorer** (left) | tree of workspaces and, inside each, its sources (expandable folders, sites expandable into pages, connectors), with the status of each source; "+ New" button; footer with the user profile and shortcuts | 200 · 260 · 420 px | `Cmd/Ctrl + B` or drag |
+| **Canvas Hub** (center) | tab bar: one **chat tab per workspace** and one tab per **open source** (reader); content of the active tab | 480 px · flexible | — |
+| **Workspace Inspector** (right) | settings for the context of the active tab (workspace or document): basic section exposed, advanced section in an accordion | 240 · 280 · 480 px | `Cmd/Ctrl + I` or drag |
 
-Barra superior fixa (38 px) com nome do app, busca rápida (`Cmd/Ctrl + K`) e menu global.
+Fixed top bar (38 px) with the app name, quick search (`Cmd/Ctrl + K`) and the global menu.
 
-## Comportamento
+## Behavior
 
-- **Clicar num workspace** abre ou foca a aba de chat dele; **clicar numa fonte** abre ou
-  foca uma aba de leitura. Abas não se repetem: abrir algo já aberto traz a aba para o
-  foco.
-- **Aba de chat:** histórico com streaming e citações clicáveis (abrem a fonte no ponto
-  citado); composer multilinha com barra fixa de opções rápidas (modelo, modo de
-  recuperação, busca web, sync, enviar), salvas por workspace.
-- **Aba de leitura:** documento somente leitura (realce de sintaxe, numeração de linhas,
-  metadados de indexação, reprocessar o documento). Abrir arquivos, navegar pastas e ver
-  sites sem sair do AnyContext é escopo desta interface.
-- **Inspector:** acompanha a aba ativa e mostra só o que é do usuário (princípio da
-  configuração mínima). As "Configurações Avançadas" do mockup — Chunk Size, Overlap, Top-K,
-  Score Threshold, Neural Reranker, Max Depth — **saem**: são decisões de arquitetura,
-  ajustadas automaticamente. Ficam, por exemplo: nome e descrição, fontes e seus filtros,
-  modelo de chat, pacote de domínio, políticas de privacidade, teto de crawl de um site.
+- **Clicking a workspace** opens or focuses its chat tab; **clicking a source** opens or
+  focuses a reader tab. Tabs never repeat: opening something already open brings its tab
+  into focus.
+- **Chat tab:** streaming history with clickable citations (they open the source at the
+  cited point); multiline composer with a fixed bar of quick options (model, retrieval
+  mode, web search, sync, send), saved per workspace.
+- **Reader tab:** read-only document (syntax highlighting, line numbers, indexing metadata,
+  reprocess the document). Opening files, browsing folders and viewing sites without
+  leaving AnyContext is in scope for this UI.
+- **Inspector:** follows the active tab and shows only what belongs to the user (minimal
+  configuration principle). The mockup's "Advanced Settings" — Chunk Size, Overlap, Top-K,
+  Score Threshold, Neural Reranker, Max Depth — **are removed**: they are architecture
+  decisions, tuned automatically. What stays, for example: name and description, sources
+  and their filters, chat model, domain pack, privacy policies, crawl ceiling of a site.
 
 ## Design system
 
-Tokens visuais (cores semânticas, tipografia, espaçamentos, raios, elevações) definidos na
-especificação de tokens: tema escuro (superfícies de `#0B0C0E` a `#1E2330`), acento
-primário `#2563EB`, status de fonte (sincronizada, sincronizando, erro), fonte sans nativa
-e mono para código, espaçamento base de 4 px.
+Visual tokens (semantic colors, typography, spacing, radii, elevations) defined in the
+token specification: dark theme (surfaces from `#0B0C0E` to `#1E2330`), primary accent
+`#2563EB`, source status (synced, syncing, error), native sans font and mono for code,
+4 px base spacing.
 
-## Regras herdadas das decisões de arquitetura
+## Rules inherited from the architecture decisions
 
-- Um chat por workspace, individual por usuário; nenhuma consulta atravessa workspaces.
-- A documentação do AnyContext é a ajuda do sistema, não um workspace da árvore.
-- Workspaces compartilhados e da organização aparecem na árvore com o papel do usuário
-  (dono, editor, leitor).
+- One chat per workspace, individual per user; no query crosses workspaces.
+- AnyContext's documentation is the system help, not a workspace in the tree.
+- Shared and organization workspaces appear in the tree with the user's role (owner,
+  editor, reader).
+- Connectors are plugged explicitly per source (`connectors-v2.md`); a source whose
+  connector license expired shows as deactivated, never disappears.

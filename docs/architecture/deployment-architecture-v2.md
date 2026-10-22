@@ -1,197 +1,195 @@
-# Arquitetura de implantação — design alvo (v2)
+# Deployment architecture — target design (v2)
 
-Documento transversal: os pipelines de ingestão e de recuperação descrevem **o que**
-acontece; este documento descreve **onde** cada peça roda. É decidido antes do backlog,
-porque define as costuras que os dois pipelines precisam respeitar.
+Cross-cutting document: the ingestion and retrieval pipelines describe **what** happens;
+this document describes **where** each piece runs. It is decided before the backlog,
+because it defines the seams both pipelines must respect.
 
-Motivação: no plano empresarial, o admin pode querer o armazenamento num servidor da
-própria VPC, modelos pesados num servidor com GPU, e uma base de conhecimento indexada uma
-vez e consultada por todos.
+Motivation: in the enterprise plan, the admin may want storage on a server in the
+company's own VPC, heavy models on a GPU server, and a knowledge base indexed once and
+queried by everyone.
 
-## Princípio
+## Principle
 
-O core fala com **portas** (interfaces). Cada porta tem uma implementação local (padrão) e
-uma remota. Decide-se agora as costuras; os modos remotos são construídos depois, como itens
-do plano empresarial — sistema distribuído antes de ter clientes empresariais é
-complexidade sem retorno.
+The core talks to **ports** (interfaces). Each port has a local implementation (default)
+and a remote one. The seams are decided now; the remote modes are built later, as
+enterprise plan items — a distributed system before having enterprise customers is
+complexity with no return.
 
-## Costuras
+## Seams
 
-1. Porta de armazenamento
-2. Porta de modelos, por papel
-3. Nível de confiança de cada endpoint
-4. Identidade do modelo de embedding (o que produz o vetor, não onde roda)
-5. Worker de ingestão como papel separável
+1. Storage port
+2. Model port, by role
+3. Trust level of each endpoint
+4. Embedding model identity (what produces the vector, not where it runs)
+5. Ingestion worker as a separable role
 
-### 1. Porta de armazenamento
+### 1. Storage port
 
-Hoje não há interface: o core usa direto o `NativeLanceStore` (9 arquivos) e três
-armazenamentos sem coordenação — LanceDB (vetores e texto), índice lexical e `settings.db`
-(que mistura preferências, chaves, histórico, fontes, cache do diff e resumos).
+Today there is no interface: the core uses `NativeLanceStore` directly (9 files) and three
+uncoordinated stores — LanceDB (vectors and text), the lexical index and `settings.db`
+(which mixes preferences, keys, history, sources, diff cache and summaries).
 
-- **Porta única de "base de conhecimento" por workspace**, que esconde os três
-  armazenamentos: gravar e remover um documento com toda a árvore (pais, filhos, vetores,
-  termos, metadados); busca densa, lexical e por filtros; chunks por id e pai de um chunk;
-  consulta a tabelas e formulários; estatísticas. **A porta é responsável pela
-  consistência:** cada gravação passa por um diário (journal) e é aplicada de forma
-  idempotente nos três lugares; uma falha no meio é completada no próximo sync. Resolve um
-  problema que já existe hoje, mesmo sem servidor.
-- **O `settings.db` é separado em dois:**
-  - **local do usuário** (nunca sai da máquina): preferências, histórico de conversa,
-    referências do cofre, perfil de hardware;
-  - **do workspace** (acompanha a base de conhecimento): fontes, cache do diff, entidades,
-    mapas de layout, resumos, famílias de versões.
-- **Sem "LanceDB direto no S3/MinIO"**: o Tantivy precisa de disco de baixa latência, a
-  consistência entre os três armazenamentos fica frágil pela rede e o cálculo continua no
-  cliente. Armazenamento remoto só pelo AnyContext Server (modo 3), que roda os três
-  armazenamentos com disco local e expõe a porta por API.
-- **Segurança no servidor:** chaves de dados dos workspaces no cofre ou serviço de chaves do
-  servidor; comunicação com TLS e autenticação mútua. A hierarquia de chaves (chave mestra
-  do usuário, chave por workspace, cofre pessoal) está em `identity-and-governance-v2.md`.
-- **Abrir o arquivo original** (navegar pastas, abrir arquivos, ver sites sem sair do
-  AnyContext) fica para a interface em Tauri 2 e não é decidido aqui.
+- **A single "knowledge base" port per workspace**, hiding the three stores: write and
+  remove a document with its whole tree (parents, children, vectors, terms, metadata);
+  dense, lexical and filter search; chunks by id and the parent of a chunk; queries over
+  tables and forms; statistics. **The port is responsible for consistency:** each write
+  goes through a journal and is applied idempotently in the three places; a failure in the
+  middle is completed on the next sync. It solves a problem that already exists today, even
+  without a server.
+- **`settings.db` is split in two:**
+  - **user-local** (never leaves the machine): preferences, chat history, vault
+    references, hardware profile;
+  - **workspace** (travels with the knowledge base): sources, diff cache, entities, layout
+    maps, summaries, version families.
+- **No "LanceDB directly on S3/MinIO"**: Tantivy needs low-latency disk, consistency
+  across the three stores becomes fragile over the network, and computation still happens
+  on the client. Remote storage only through AnyContext Server (mode 3), which runs the
+  three stores on local disk and exposes the port over an API.
+- **Server security:** workspace data keys in the server's vault or key service; TLS
+  communication with mutual authentication. The key hierarchy (user master key,
+  per-workspace key, personal vault) is in `identity-and-governance-v2.md`.
+- **Opening the original file** (browsing folders, opening files, viewing sites without
+  leaving AnyContext) belongs to the Tauri 2 UI and is not decided here.
 
-### 2. Porta de modelos, por papel
+### 2. Model port, by role
 
-Hoje só chat e embedding têm interface (`LmProvider` do `actx-lm`: OpenAI, Anthropic,
-Gemini, Gemma, mock); os modelos ONNX não têm interface comum, e nenhum consegue rodar num
-servidor. As políticas de modelo do Admin Hub não estão ligadas ao core.
+Today only chat and embedding have an interface (`LmProvider` in `actx-lm`: OpenAI,
+Anthropic, Gemini, Gemma, mock); the ONNX models have no common interface, and none can
+run on a server. The Admin Hub model policies are not wired to the core.
 
-- **Papéis explícitos:** embedding, reranker, OCR, parsing de páginas, campos de
-  formulário, descrição de imagens, transcrição (com VAD e identificação de falantes),
-  entidades e dados pessoais, LLM de contexto e resumos, LLM de chat.
-- **Vínculo por papel:** modelo (identificador e versão do catálogo) + **onde roda** (ONNX
-  local ou endpoint). Os kits de hardware passam a ser conjuntos de vínculos por papel; um
-  kit **"Empresarial / VPC"** aponta os papéis pesados para o servidor.
-- **Protocolos remotos (adaptadores):**
-  - **APIs nativas dos fornecedores:** OpenAI e Azure OpenAI, Anthropic (Messages) e
-    **Google — Gemini API e Vertex AI** (`generateContent`, `embedContent`). A API nativa é
-    a preferida para cada fornecedor, porque as camadas "compatíveis com OpenAI" que eles
-    oferecem cobrem só parte dos recursos (tipos de tarefa de embedding, entradas
-    multimodais, cache de contexto). O Vertex AI no projeto GCP do próprio cliente é o
-    caminho de "gateway corporativo" do Google.
-  - **Genérico compatível com OpenAI** para servidores que o usam (vLLM, Ollama, LM
-    Studio), e os formatos de fato para reranker (`/rerank`) e transcrição
+- **Explicit roles:** embedding, reranker, OCR, page parsing, form fields, image
+  description, transcription (with VAD and speaker identification), entities and personal
+  data, context and summary LLM, chat LLM.
+- **Binding per role:** model (catalog identifier and version) + **where it runs** (local
+  ONNX or endpoint). Hardware kits become sets of bindings per role; an **"Enterprise /
+  VPC"** kit points the heavy roles to the server.
+- **Remote protocols (adapters):**
+  - **Native vendor APIs:** OpenAI and Azure OpenAI, Anthropic (Messages) and **Google —
+    Gemini API and Vertex AI** (`generateContent`, `embedContent`). The native API is
+    preferred for each vendor, because the "OpenAI-compatible" layers they offer cover only
+    part of the features (embedding task types, multimodal inputs, context caching).
+    Vertex AI in the customer's own GCP project is Google's "corporate gateway" path.
+  - **Generic OpenAI-compatible** for servers that use it (vLLM, Ollama, LM Studio), and
+    the de facto formats for reranking (`/rerank`) and transcription
     (`/audio/transcriptions`).
-  - **AnyContext Model Server** para os papéis sem padrão (OCR, parsing de páginas, campos,
-    entidades): o mesmo runtime ONNX do desktop empacotado como serviço, com o mesmo modelo
-    e o mesmo resultado que local.
-- **Política do Admin Hub conferida na resolução** (só local, só gateway corporativo,
-  híbrido; modelos permitidos): vínculo proibido é recusado com motivo claro, nunca trocado
-  em silêncio.
-- **Indisponibilidade do servidor:** embedding nunca troca de modelo (o arquivo fica para o
-  próximo sync); demais papéis da ingestão entram em fila e são retentados, podendo cair
-  para o local **só com o mesmo modelo e versão**; no chat o erro é mostrado e trocar de LLM
-  é escolha do usuário, dentro do que a política permite.
-- **Adaptadores para serviços de nuvem dos papéis ONNX** (ex.: Google Document AI e
-  Speech-to-Text, e equivalentes da Microsoft e da AWS), para clientes que já pagam por
-  eles. Seguem o nível de confiança do endpoint (costura 3).
+  - **AnyContext Model Server** for roles with no standard (OCR, page parsing, fields,
+    entities): the same ONNX runtime as the desktop packaged as a service, with the same
+    model and the same result as locally.
+- **Admin Hub policy checked at resolution** (local only, corporate gateway only, hybrid;
+  allowed models): a forbidden binding is refused with a clear reason, never swapped
+  silently.
+- **Server unavailable:** embedding never switches models (the file waits for the next
+  sync); the other ingestion roles are queued and retried, and may fall back to local
+  **only with the same model and version**; in chat the error is shown and switching LLM is
+  the user's choice, within what the policy allows.
+- **Adapters for cloud services of the ONNX roles** (e.g. Google Document AI and
+  Speech-to-Text, and the Microsoft and AWS equivalents), for customers who already pay for
+  them. They follow the endpoint trust level (seam 3).
 
-### 3. Nível de confiança de cada endpoint
+### 3. Trust level of each endpoint
 
-Hoje não existe essa noção: qualquer provedor configurado recebe o contexto completo.
+Today this notion does not exist: any configured provider receives the full context.
 
-- **Três níveis:**
-  - **local:** a própria máquina;
-  - **corporativo:** o perímetro da empresa — VPC, Model Server, AnyContext Server e
-    serviços de IA contratados **na conta da própria empresa** (ex.: Vertex AI no projeto
-    GCP dela, Azure OpenAI no tenant dela);
-  - **externo:** APIs públicas de terceiros.
-- **Quem define:** sem Admin Hub, o usuário classifica os endpoints (padrões: `localhost`
-  local, API pública externo); com Admin Hub, a política da empresa define e **o usuário não
-  pode elevar o nível** de um endpoint.
-- **O que o nível decide:**
-  - a pseudonimização reversível (ingestão, passo 7) só se aplica ao **externo**;
-  - as políticas do Admin Hub viram regras sobre níveis: "só local" → local; "só gateway
-    corporativo" → local + corporativo; "híbrido" → todos, dentro dos modelos permitidos.
-- **Teto por workspace:** um workspace marcado como **confidencial** (ex.: prontuários,
-  processos sob sigilo) nunca envia nada para endpoint externo, mesmo que a política geral
-  permita.
-- **Outras saídas de dados contam igual:** a busca web (o texto da pergunta enviado a um
-  buscador público) recebe o tratamento do externo — pseudonimização e teto do workspace;
-  aplicativos que consomem o AnyContext pelo servidor MCP (Cursor, Claude Desktop) são
-  consumidores externos, governados pela política.
+- **Three levels:**
+  - **local:** the machine itself;
+  - **corporate:** the company perimeter — VPC, Model Server, AnyContext Server and AI
+    services contracted **in the company's own account** (e.g. Vertex AI in its GCP
+    project, Azure OpenAI in its tenant);
+  - **external:** third-party public APIs.
+- **Who defines it:** without Admin Hub, the user classifies endpoints (defaults:
+  `localhost` local, public API external); with Admin Hub, the company policy defines it
+  and **the user cannot raise the level** of an endpoint.
+- **What the level decides:**
+  - reversible pseudonymization (ingestion, step 7) only applies to **external**;
+  - Admin Hub policies become rules over levels: "local only" → local; "corporate gateway
+    only" → local + corporate; "hybrid" → all, within the allowed models.
+- **Ceiling per workspace:** a workspace marked **confidential** (e.g. medical records,
+  sealed cases) never sends anything to an external endpoint, even if the general policy
+  allows it.
+- **Other data exits count the same:** web search (the question text sent to a public
+  search engine) gets the external treatment — pseudonymization and the workspace ceiling;
+  applications that consume AnyContext through the MCP server (Cursor, Claude Desktop) are
+  external consumers, governed by the policy.
 
-### 4. Identidade do modelo de embedding
+### 4. Embedding model identity
 
-O `embedding_target` fica em cada chunk e há uma tabela por workspace e alvo (ingestão,
-passos 7 e 10). Esta costura define quando dois alvos são iguais.
+`embedding_target` is stored in each chunk and there is one table per workspace and target
+(ingestion, steps 7 and 10). This seam defines when two targets are the same.
 
-- **A identidade é o que produz o vetor, não onde ele roda:** modelo e versão dos pesos
-  (hash do catálogo), dimensão, **precisão** (fp32, fp16, int8) e pré-processamento (versão
-  do tokenizador, prefixos de busca e de documento). O mesmo modelo, com a mesma precisão,
-  local ou no servidor, é o mesmo alvo — sem reindexação.
-- **Teste de impressão digital:** o catálogo traz um conjunto fixo de textos e os vetores
-  de referência de cada modelo. Ao configurar um vínculo, e periodicamente, o AnyContext
-  embeda esses textos e compara: similaridade acima de um limiar alto (ex.: 0,999) → mesmo
-  alvo; abaixo → outro alvo, com a regra de reindexação de sempre.
-- O teste também pega mudanças silenciosas (provedor que altera o modelo sem mudar o nome,
-  servidor atualizado com outra versão ou precisão) e decide os casos de precisão diferente
-  (ex.: fp16 na GPU contra fp32 no desktop).
+- **Identity is what produces the vector, not where it runs:** model and weights version
+  (catalog hash), dimension, **precision** (fp32, fp16, int8) and preprocessing (tokenizer
+  version, query and document prefixes). The same model, with the same precision, local or
+  on the server, is the same target — no reindexing.
+- **Fingerprint test:** the catalog ships a fixed set of texts and the reference vectors of
+  each model. When a binding is configured, and periodically, AnyContext embeds these
+  texts and compares: similarity above a high threshold (e.g. 0.999) → same target; below →
+  another target, with the usual reindexing rule.
+- The test also catches silent changes (a provider that changes the model without
+  changing the name, a server updated with another version or precision) and decides cases
+  of different precision (e.g. fp16 on the GPU versus fp32 on the desktop).
 
-### 5. Worker de ingestão
+### 5. Ingestion worker
 
-Hoje cada sync dispara um processo `actx --sync-worker` (ou uma thread, se o processo não
-sobe); progresso, status e cancelamento passam por uma tabela do SQLite; não há fila, e
-nada impede dois workers no mesmo workspace.
+Today each sync spawns an `actx --sync-worker` process (or a thread, if the process fails
+to start); progress, status and cancellation go through an SQLite table; there is no
+queue, and nothing prevents two workers on the same workspace.
 
-1. **Fila de trabalhos persistente por workspace**, por prioridade:
-   1. **indexação base** (texto, índice lexical, embedding) — o que torna o conteúdo
-      buscável;
-   2. **enriquecimentos** (contextual retrieval, resumos, descrição de imagens,
-      transcrição e falantes);
-   3. **autoavaliação** (sondagens, reprocessamento automático);
-   4. **manutenção** (compactação, recrawl web, testes de impressão digital).
-2. **Trabalhos idempotentes**, ligados ao diário da porta de armazenamento (costura 1):
-   uma interrupção é retomada sem duplicar nem perder.
-3. **Um único escritor por workspace**, por trava com prazo (lease); se o worker morre, a
-   trava expira e outro assume. Leitura e busca nunca são bloqueadas.
-4. **O worker é um papel:** processo local nos modos 1 e 2 (com a definição do workspace compartilhada,
-   cada membro roda o seu); no modo 3 roda no AnyContext Server, e os clientes só
-   enfileiram pedidos e consultam. O serviço em segundo plano opcional (ingestão, sync
-   automático) é esse mesmo worker como serviço do sistema.
-5. **Progresso e status por eventos** (início, item processado, erro, fim): eventos nativos
-   no Tauri; pela conexão com o servidor no modo 3.
-6. **Cancelamento e pausa são comandos na fila**, respeitados entre trabalhos e dentro dos
-   longos (ex.: transcrição de 3 horas tem pontos de pausa).
+1. **Persistent job queue per workspace**, by priority:
+   1. **base indexing** (text, lexical index, embedding) — what makes content searchable;
+   2. **enrichments** (contextual retrieval, summaries, image description, transcription
+      and speakers);
+   3. **self-evaluation** (probes, automatic reprocessing);
+   4. **maintenance** (compaction, web recrawl, fingerprint tests).
+2. **Idempotent jobs**, tied to the storage port journal (seam 1): an interruption resumes
+   without duplicating or losing anything.
+3. **A single writer per workspace**, through a lease; if the worker dies, the lease
+   expires and another takes over. Reading and searching are never blocked.
+4. **The worker is a role:** a local process in modes 1 and 2 (with a shared workspace
+   definition, each member runs their own); in mode 3 it runs on the AnyContext Server, and
+   clients only enqueue requests and query. The optional background service (ingestion,
+   automatic sync) is this same worker as a system service.
+5. **Progress and status through events** (start, item processed, error, end): native
+   events in Tauri; over the server connection in mode 3.
+6. **Cancel and pause are queue commands**, honored between jobs and inside long ones
+   (e.g. a 3-hour transcription has pause points).
 
-## Modelo de workspace
+## Workspace model
 
-- **Cada usuário cria os seus workspaces e é o único dono.** Pode compartilhar com outros
-  usuários, definindo papéis.
-- **O admin pode criar workspaces da organização**, disponíveis para toda a empresa, que
-  ninguém além dele edita.
-- **Um chat por workspace, nunca misturado.**
-- **Nenhuma consulta atravessa workspaces.** Separar contextos ao gosto do usuário é a
-  função do workspace. A documentação do AnyContext deixa de ser o workspace `Global` e
-  vira a ajuda do sistema, fora dos workspaces.
-- **Compartilhamento, com os mesmos papéis em qualquer modo:** **dono**, **editor** (gerencia
-  as fontes) e **leitor** (só consulta). O workspace da organização tem o admin como dono e
-  todos os demais como leitores.
-  - **Modo 1 (sem servidor): compartilha-se a definição do workspace** — fontes, filtros,
-    pacote de domínio e prompt, nunca o conteúdo indexado. Cada
-    membro indexa localmente as mesmas fontes, que precisam ser acessíveis a todos (ex.:
-    servidor de arquivos, SharePoint).
-  - **Modo 3: compartilha-se o índice** — o workspace vive no AnyContext Server e os
-    membros consultam o mesmo índice.
-- **O chat é de cada usuário**, mesmo num workspace compartilhado: cada um tem o seu
-  histórico, e ninguém lê o chat do outro.
+- **Each user creates their own workspaces and is the sole owner.** They can share with
+  other users, assigning roles.
+- **The admin can create organization workspaces**, available to the whole company, that
+  nobody but the admin edits.
+- **One chat per workspace, never mixed.**
+- **No query crosses workspaces.** Separating contexts as the user likes is the purpose of
+  the workspace. AnyContext's documentation stops being the `Global` workspace and becomes
+  the system help, outside the workspaces.
+- **Sharing, with the same roles in every mode:** **owner**, **editor** (manages sources)
+  and **reader** (query only). The organization workspace has the admin as owner and
+  everyone else as readers.
+  - **Desktop without a server (mode 1): the workspace definition is shared** — sources,
+    filters, domain pack and prompt, never the indexed content. Each member indexes the
+    same sources locally, which must be reachable by all (e.g. file server, SharePoint).
+  - **With AnyContext Server (mode 3): the index is shared** — the workspace lives on the
+    AnyContext Server and members query the same index.
+- **Chat belongs to each user**, even in a shared workspace: each has their own history,
+  and nobody reads anyone else's chat.
 
-## Admin Hub e AnyContext Server
+## Admin Hub and AnyContext Server
 
-- **Admin Hub (plano de controle):** gestão de frotas, matrículas, políticas, ITSM/SCIM e
-  kill-switch. É **zero-knowledge** (nunca vê conteúdo) e é **sempre hospedado no cliente**
-  (VPC ou on-premise) — **nunca um SaaS da Levix**. (As especificações iniciais do Admin
-  Hub citam "SaaS Levix" como opção de hospedagem; isso fica corrigido.)
-- **AnyContext Server (plano de dados, modo 3):** também hospedado na VPC da empresa;
-  matriculado e governado pelo Admin Hub como um dispositivo.
-- **Regra de perímetro:** o conteúdo (documentos, chunks, vetores, prompts) **nunca sai do
-  perímetro da empresa** — no modo 1, nem sai da máquina. O modo 1 continua sendo o padrão.
+- **Admin Hub (control plane):** fleet management, enrollment, policies, ITSM/SCIM and
+  kill-switch. It is **zero-knowledge** (never sees content) and is **always hosted by the
+  customer** (VPC or on-premises) — **never a Levix SaaS**. (The initial Admin Hub
+  specifications list "Levix SaaS" as a hosting option; that is corrected here.)
+- **AnyContext Server (data plane, mode 3):** also hosted in the company VPC; enrolled and
+  governed by the Admin Hub like a device.
+- **Perimeter rule:** content (documents, chunks, vectors, prompts) **never leaves the
+  company perimeter** — in mode 1, it does not even leave the machine. Mode 1 remains the
+  default.
 
-## Modos de implantação
+## Deployment modes
 
-| modo | descrição | quando |
+| mode | description | when |
 |---|---|---|
-| 1. Desktop | tudo local; padrão | já |
-| 2. Desktop + servidor de modelos | índice local, modelos pesados na VPC; só a porta de modelos fica remota | primeiro passo empresarial |
-| 3. Cliente + AnyContext Server | índice, ingestão e modelos no servidor; a máquina é cliente; conhecimento compartilhado | plano empresarial completo, com o módulo de usuários e o controle de acesso por fonte (auditoria P23) |
+| 1. Desktop | everything local; default | now |
+| 2. Desktop + model server | local index, heavy models in the VPC; only the model port is remote | first enterprise step |
+| 3. Client + AnyContext Server | index, ingestion and models on the server; the machine is a client; shared knowledge | full enterprise plan, with the users module and per-source access control (audit P23) |
