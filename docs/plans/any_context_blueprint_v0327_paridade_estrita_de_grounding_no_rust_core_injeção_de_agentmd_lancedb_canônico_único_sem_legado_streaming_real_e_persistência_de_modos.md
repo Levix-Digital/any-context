@@ -1,7 +1,7 @@
 ---
 plan_id: any_context_blueprint_v0327_paridade_estrita_de_grounding_no_rust_core_injeção_de_agentmd_lancedb_canônico_único_sem_legado_streaming_real_e_persistência_de_modos
 project: any-context
-title: 'Blueprint v0.32.7: Paridade Estrita de Grounding no Rust Core (Injeção de AGENT.md, LanceDB Canônico Único sem Legado, Streaming Real e Persistência de Modos)'
+title: 'Blueprint v0.32.7: Strict Grounding Parity in the Rust Core (AGENT.md Injection, Single Canonical LanceDB without Legacy, Real Streaming and Mode Persistence)'
 version: v0.32.7
 status: superseded
 author: Levi Silveira
@@ -21,19 +21,19 @@ supersedes: any_context_blueprint_v0327_paridade_estrita_de_grounding_no_rust_co
 superseded_by: any_context_blueprint_v03212_test_isolation_sandbox_universal_workspace_deletion_native_self_knowledge_user_guide
 parent_plan_id: null
 milestones:
-- name: 'M1: LanceDB Caminho Unico Canonico'
+- name: 'M1: Single Canonical LanceDB Path'
   done: false
-- name: 'M2: Persistencia de Grounding por Workspace'
+- name: 'M2: Grounding Persistence per Workspace'
   done: false
-- name: 'M3: System Prompt e Grounding com AGENT.md'
+- name: 'M3: System Prompt and Grounding with AGENT.md'
   done: false
-- name: 'M4: Streaming Real e Flag -q'
+- name: 'M4: Real Streaming and -q Flag'
   done: false
-- name: 'M5: Ferramenta search_db com BM25 e Chunks Reais'
+- name: 'M5: search_db Tool with BM25 and Real Chunks'
   done: false
-- name: 'M6: Testes Automatizados e Dual-Doc'
+- name: 'M6: Automated Tests and Dual-Doc'
   done: false
-- name: 'M7: Release v0.32.7 e CI Watch'
+- name: 'M7: Release v0.32.7 and CI Watch'
   done: false
 status_log:
 - at: '2026-10-06T09:18:38'
@@ -43,114 +43,114 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# Blueprint v0.32.7: Paridade Estrita de Grounding no Rust Core (Injeção de AGENT.md, LanceDB Canônico Único sem Legado, Streaming Real e Persistência de Modos)
+# Blueprint v0.32.7: Strict Grounding Parity in the Rust Core (AGENT.md Injection, Single Canonical LanceDB without Legacy, Real Streaming and Mode Persistence)
 
-## 1. 🎯 Objetivo & Decisões Arquiteturais (ADR-090)
-### Contexto e Resolução de Todos os Problemas Reportados:
-1. **LanceDB com Caminho Único Canônico (Zero Legado)**:
-   - Esquece completamente qualquer caminho legado ou busca em diretórios antigos. O sistema terá um **único caminho canônico oficial**:
+## 1. 🎯 Goal & Architecture Decisions (ADR-090)
+### Context and Resolution of All Reported Problems:
+1. **LanceDB with a Single Canonical Path (Zero Legacy)**:
+   - Completely forgets any legacy path or search in old directories. The system has a **single official canonical path**:
      - Windows: `%LOCALAPPDATA%\AnyContext\data\context_db\lancedb`
      - Linux: `~/.local/share/any-context/data/context_db/lancedb`
      - macOS: `~/Library/Application Support/AnyContext/data/context_db/lancedb`
-     - (Com override opcional por variável de ambiente `ACTX_CONTEXT_DB`).
-   - Sem heurísticas legadas, sem fallback para diretórios obsoletos. Uma única fonte da verdade onde os 34.124 chunks já residem.
+     - (With an optional override through the `ACTX_CONTEXT_DB` environment variable).
+   - No legacy heuristics, no fallback to obsolete directories. A single source of truth where the 34,124 chunks already live.
 
-2. **Paridade Estrita de Grounding & Injeção de AGENT.md**:
-   - Incorporar `config/AGENT.md` nativamente compilado no binário Rust.
-   - Em modo `STRICT`:
-     - Mandato imperativo de busca obrigatória via `search_db` antes de responder qualquer questão factual.
-     - Proibição categórica de uso de pesos paramétricos pré-treinados.
-     - Proibição absoluta de perguntar passivamente *"Deseja que eu procure nos documentos?"*. O agente DEVE executar `search_db` autonomamente.
-     - Se nenhum documento for encontrado, declarar categoricamente: `⚠️ Essa informação não consta nos documentos deste workspace.`
-   - Em modo `HYBRID`: Priorizar workspace com separação visual de seções (`### 📂 Informações do Workspace` vs `### 💡 Conhecimento Geral do Modelo` devidamente rotulado).
-   - Em modo `PROACTIVE`: Integração ampla com rotulagem rigorosa de fontes.
-   - Rodapé de fontes obrigatório (`📄 Fontes Consultadas:`).
+2. **Strict Grounding Parity & AGENT.md Injection**:
+   - Embed `config/AGENT.md` natively, compiled into the Rust binary.
+   - In `STRICT` mode:
+     - An imperative mandate to search through `search_db` before answering any factual question.
+     - A categorical ban on using pre-trained parametric weights.
+     - An absolute ban on passively asking *"Would you like me to search the documents?"*. The agent MUST run `search_db` autonomously.
+     - If no document is found, state categorically: `⚠️ This information is not in this workspace's documents.`
+   - In `HYBRID` mode: prioritize the workspace with visually separated sections (`### 📂 Workspace Information` vs a properly labeled `### 💡 General Model Knowledge`).
+   - In `PROACTIVE` mode: broad integration with rigorous source labeling.
+   - Mandatory sources footer (`📄 Sources Consulted:`).
 
-3. **Persistência e Isolamento do Grounding Mode no SQLite**:
-   - Corrigir a gravação de `grounding_mode`: salvar diretamente na coluna `grounding_mode` da tabela `workspaces` no SQLite (`UPDATE workspaces SET grounding_mode = ? WHERE name = ?`), além de atualizar `settings`.
-   - Implementar `get_workspace_grounding_mode(workspace)` e `set_workspace_grounding_mode(workspace, mode)` em `NativeConfigDb`.
-   - Garantir que tanto no boot quanto na troca de workspace (`/switch`), o modo configurado é lido fielmente do banco.
+3. **Persistence and Isolation of the Grounding Mode in SQLite**:
+   - Fix how `grounding_mode` is stored: save it directly in the `grounding_mode` column of the `workspaces` table in SQLite (`UPDATE workspaces SET grounding_mode = ? WHERE name = ?`), besides updating `settings`.
+   - Implement `get_workspace_grounding_mode(workspace)` and `set_workspace_grounding_mode(workspace, mode)` in `NativeConfigDb`.
+   - Guarantee that both at boot and on a workspace switch (`/switch`), the configured mode is read faithfully from the database.
 
-4. **Streaming de Tokens em Tempo Real (Eliminação do "Texto Cuspido")**:
-   - O `actx-agent` estava usando `chat_complete()` e cuspindo todo o bloco de uma vez em um único evento `Delta`.
-   - Implementar streaming token-a-token utilizando `chat_stream()` de `actx-lm`, emitindo `AgentEvent::Delta(token)` em tempo real à medida que chegam da API/provedor.
+4. **Real-Time Token Streaming (Removing the "Dumped Text")**:
+   - `actx-agent` was using `chat_complete()` and dumping the whole block at once in a single `Delta` event.
+   - Implement token-by-token streaming using `chat_stream()` from `actx-lm`, emitting `AgentEvent::Delta(token)` in real time as tokens arrive from the API/provider.
 
-5. **Janela ReAct & Reasoning `<think>` Ativa**:
-   - Garantir que eventos de ferramentas (`ToolStart`, `ToolEnd`) e tokens de reasoning apareçam em tempo real no buffer do accordion.
-   - Ao renderizar o accordion, inspecionar a última mensagem que contém `thinking` no histórico (`chat_history.iter().rev().find_map(...)`), em vez de apenas `chat_history.last()`.
+5. **Active ReAct & `<think>` Reasoning Window**:
+   - Guarantee that tool events (`ToolStart`, `ToolEnd`) and reasoning tokens appear in real time in the accordion buffer.
+   - When rendering the accordion, inspect the last message in the history that contains `thinking` (`chat_history.iter().rev().find_map(...)`), instead of only `chat_history.last()`.
 
-6. **Padronização Global de Flag: `-q, --query` (com `-p, --prompt` como alias)**:
-   - Padronizar `-q, --query` como a flag principal de pergunta one-shot global, mantendo `-p, --prompt` como alias compatível.
-   - Destacar o suporte a queries posicionais diretas: `actx "sua pergunta aqui"`.
+6. **Global Flag Standardization: `-q, --query` (with `-p, --prompt` as an alias)**:
+   - Standardize `-q, --query` as the main global one-shot question flag, keeping `-p, --prompt` as a compatible alias.
+   - Highlight the support for direct positional queries: `actx "your question here"`.
 
 ---
 
-## 2. 🏛️ Mapeamento de Paridade de Superfícies
+## 2. 🏛️ Surface Parity Mapping
 - **`any-context-core-rs`**:
-  - `storage/lancedb.rs`: Função canônica única `get_default_lancedb_path() -> PathBuf` sem legado.
-  - `storage/sqlite.rs`: Métodos `get_workspace_grounding_mode` e `set_workspace_grounding_mode`.
-  - `commands/engine.rs`: Conectar comandos `/mode` e `/workspace` à persistência real na tabela `workspaces`.
+  - `storage/lancedb.rs`: a single canonical function `get_default_lancedb_path() -> PathBuf` without legacy.
+  - `storage/sqlite.rs`: `get_workspace_grounding_mode` and `set_workspace_grounding_mode` methods.
+  - `commands/engine.rs`: connect the `/mode` and `/workspace` commands to real persistence in the `workspaces` table.
 - **`actx-lm` / `actx-agent`**:
-  - `fsm.rs`: Streaming real token-a-token na resposta final via `chat_stream()`.
+  - `fsm.rs`: real token-by-token streaming of the final answer through `chat_stream()`.
 - **`actx-cli`**:
-  - `src/prompt.rs`: Injeção de `AGENT.md` e regras rigorosas de Grounding.
-  - `src/cli/args.rs`: Flag padrão `-q, --query` (com alias `-p, --prompt`).
-  - `src/tui/app.rs` & `src/tui/ui.rs`: Persistência do modo e inspeção retroativa de histórico para o `<think>`.
+  - `src/prompt.rs`: `AGENT.md` injection and strict Grounding rules.
+  - `src/cli/args.rs`: default `-q, --query` flag (with the `-p, --prompt` alias).
+  - `src/tui/app.rs` & `src/tui/ui.rs`: mode persistence and retroactive history inspection for `<think>`.
 
 ---
 
-## 3. 📁 Arquivos e Linhas Impactadas
-1. `crates/any-context-core-rs/src/storage/lancedb.rs`: Caminho único canônico.
-2. `crates/any-context-core-rs/src/storage/sqlite.rs`: Métodos de persistência de grounding por workspace.
-3. `crates/any-context-core-rs/src/commands/engine.rs`: Persistência real em `execute_grounding_mode`.
-4. `crates/actx-agent/src/fsm.rs`: Implementação de streaming token-a-token via `chat_stream()`.
-5. `crates/actx-cli/src/prompt.rs` (Novo): Construção do prompt do sistema com `AGENT.md`.
-6. `crates/actx-cli/src/engine.rs`: Conexão do novo prompt e `search_db` com caminho canônico e BM25/termos.
-7. `crates/actx-cli/src/cli/args.rs`: Flag `-q, --query` prioritária.
-8. `crates/actx-cli/src/tui/ui.rs`: Accordion `<think>` resiliente.
-9. `TECDOC.md`: Registro do ADR-090.
-10. `tests/MANUAL_TESTS.md`: Cenário 9 acumulativo.
-11. `Cargo.toml` / `pyproject.toml`: Versão `v0.32.7`.
+## 3. 📁 Affected Files and Lines
+1. `crates/any-context-core-rs/src/storage/lancedb.rs`: single canonical path.
+2. `crates/any-context-core-rs/src/storage/sqlite.rs`: grounding persistence methods per workspace.
+3. `crates/any-context-core-rs/src/commands/engine.rs`: real persistence in `execute_grounding_mode`.
+4. `crates/actx-agent/src/fsm.rs`: token-by-token streaming through `chat_stream()`.
+5. `crates/actx-cli/src/prompt.rs` (New): building the system prompt with `AGENT.md`.
+6. `crates/actx-cli/src/engine.rs`: connecting the new prompt and `search_db` with the canonical path and BM25/terms.
+7. `crates/actx-cli/src/cli/args.rs`: priority `-q, --query` flag.
+8. `crates/actx-cli/src/tui/ui.rs`: resilient `<think>` accordion.
+9. `TECDOC.md`: ADR-090 recorded.
+10. `tests/MANUAL_TESTS.md`: cumulative Scenario 9.
+11. `Cargo.toml` / `pyproject.toml`: version `v0.32.7`.
 
 ---
 
-## 4. 📚 Plano Dual-Doc (`UserDoc` + `TecDoc`)
+## 4. 📚 Dual-Doc Plan (`UserDoc` + `TecDoc`)
 - **`UserDoc` (`README.md`)**:
-  - Documentação da flag `-q, --query` (ou execução direta `actx "query"`).
-  - Explicação do comportamento estrito de Grounding (busca obrigatória, sem alucinações).
+  - Documentation of the `-q, --query` flag (or direct execution `actx "query"`).
+  - Explanation of the strict Grounding behavior (mandatory search, no hallucinations).
 - **`TecDoc` (`TECDOC.md`)**:
-  - ADR-090: Arquitetura de Grounding Parity no Rust, Streaming Reativo e Caminho Canônico Único do LanceDB.
+  - ADR-090: Grounding Parity Architecture in Rust, Reactive Streaming and the Single Canonical LanceDB Path.
 
 ---
 
-## 5. 🧪 Estratégia de Testes Automatizados & Proteção contra Regressão
-- Testes unitários para persistência de `grounding_mode` no SQLite por workspace.
-- Testes unitários para geração do prompt em `strict`, `hybrid` e `proactive`.
-- Teste de resolução do caminho canônico único do LanceDB.
-- Teste de parsing de flags CLI (`-q` e `-p` e posicional).
-- Garantia de 100% de testes verdes (`cargo test --workspace`).
+## 5. 🧪 Automated Test Strategy & Regression Protection
+- Unit tests for `grounding_mode` persistence in SQLite per workspace.
+- Unit tests for prompt generation in `strict`, `hybrid` and `proactive`.
+- Test of the single canonical LanceDB path resolution.
+- CLI flag parsing test (`-q`, `-p` and positional).
+- Guarantee of 100% green tests (`cargo test --workspace`).
 
 ---
 
-## 6. 📝 Plano de Cenários de Teste Manual (`tests/MANUAL_TESTS.md`)
-- **Cenário 9: Validação Estrita de Grounding, Persistência de Modo, Streaming e Resolução Canônica**
-  - Passo 1: Executar `actx -q "Quais programas de imigração para AI Engineer no Canadá?"`
-  - Passo 2: Validar disparo autônomo do `search_db` e leitura dos chunks reais do LanceDB.
-  - Passo 3: Abrir TUI, alterar `/mode proactive`, reiniciar e validar que o modo persiste.
-  - Passo 4: Observar streaming token-a-token e atividade em `<think>`.
+## 6. 📝 Manual Test Scenario Plan (`tests/MANUAL_TESTS.md`)
+- **Scenario 9: Strict Grounding Validation, Mode Persistence, Streaming and Canonical Resolution**
+  - Step 1: run `actx -q "Which immigration programs are there for an AI Engineer in Canada?"`
+  - Step 2: validate that `search_db` fires autonomously and reads the real chunks from LanceDB.
+  - Step 3: open the TUI, change `/mode proactive`, restart and validate that the mode persists.
+  - Step 4: watch token-by-token streaming and activity in `<think>`.
 
 ---
 
-## 7. 🔒 Higiene de Segredos, Migração e Rollback
-- Nenhuma credencial em código. Esquema SQLite compatível sem quebras. Rollback atômico em caso de falha no CI.
+## 7. 🔒 Secret Hygiene, Migration and Rollback
+- No credentials in code. A compatible SQLite schema with no breaking changes. Atomic rollback if CI fails.
 
 ---
 
-## 8. ⏱️ Passo a Passo da Execução
-1. `M1`: Implementar caminho canônico único no `any-context-core-rs` (zero legado).
-2. `M2`: Implementar persistência de `grounding_mode` por workspace no SQLite.
-3. `M3`: Implementar módulo de prompt com `AGENT.md` e regras estritas de Grounding.
-4. `M4`: Implementar streaming real token-a-token em `actx-agent` e padronizar `-q, --query`.
-5. `M5`: Aprimorar `search_db` com caminho canônico e busca tokenizada/BM25.
-6. `M6`: Testes automatizados (`cargo test --workspace`), Dual-Doc e Cenário 9 em `MANUAL_TESTS.md`.
-7. `M7`: Version bump `v0.32.7`, commit, PR, CI Watch no GitHub Actions, Tag e publicação no repositório de releases.
+## 8. ⏱️ Step-by-Step Execution
+1. `M1`: implement the single canonical path in `any-context-core-rs` (zero legacy).
+2. `M2`: implement `grounding_mode` persistence per workspace in SQLite.
+3. `M3`: implement the prompt module with `AGENT.md` and strict Grounding rules.
+4. `M4`: implement real token-by-token streaming in `actx-agent` and standardize `-q, --query`.
+5. `M5`: improve `search_db` with the canonical path and tokenized/BM25 search.
+6. `M6`: automated tests (`cargo test --workspace`), Dual-Doc and Scenario 9 in `MANUAL_TESTS.md`.
+7. `M7`: version bump `v0.32.7`, commit, PR, CI Watch on GitHub Actions, tag and publication to the releases repository.
