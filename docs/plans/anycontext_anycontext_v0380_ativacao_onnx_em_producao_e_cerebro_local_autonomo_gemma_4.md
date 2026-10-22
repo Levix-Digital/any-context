@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_anycontext_v0380_ativacao_onnx_em_producao_e_cerebro_local_autonomo_gemma_4
 project: any-context
-title: AnyContext v0.38.0 - Ativacao ONNX em Producao e Cerebro Local Autonomo Gemma 4
+title: AnyContext v0.38.0 - ONNX Activation in Production and the Autonomous Local Gemma 4 Brain
 version: v0.38.0
 status: active
 author: Levi Silveira
@@ -23,15 +23,15 @@ supersedes: anycontext_anycontext_v0380_ativacao_dos_modelos_onnx_nos_fluxos_de_
 superseded_by: null
 parent_plan_id: null
 milestones:
-- name: 'Marco 1: Expansao HardwareProfiler'
+- name: 'Milestone 1: HardwareProfiler Expansion'
   done: false
-- name: 'Marco 2: Adapters Percepcao Core'
+- name: 'Milestone 2: Core Perception Adapters'
   done: false
-- name: 'Marco 3: Motor Gemma 4 actx-onnx'
+- name: 'Milestone 3: actx-onnx Gemma 4 Engine'
   done: false
-- name: 'Marco 4: Multi-Surface e TUI'
+- name: 'Milestone 4: Multi-Surface and TUI'
   done: false
-- name: 'Marco 5: Dual-Doc e Testes'
+- name: 'Milestone 5: Dual-Doc and Tests'
   done: false
 status_log:
 - at: '2026-10-16T10:47:35'
@@ -39,73 +39,73 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 📐 Blueprint de Engenharia: AnyContext v0.38.0
-## Ativação dos Modelos ONNX nos Fluxos de Produção & Cérebro Local Autônomo com a Família Gemma 4
+# 📐 Engineering Blueprint: AnyContext v0.38.0
+## Activating the ONNX Models in the Production Flows & the Autonomous Local Brain with the Gemma 4 Family
 
 ---
 
-### 📌 Metadados do Plano
-- **Projeto**: AnyContext (`actx`)
-- **Versão-Alvo**: `v0.38.0` (Sucessora da `v0.37.0`)
-- **Autor**: Levi Silveira & Antigravity Assistant
-- **Data**: 2026-10-14
-- **Fase**: Fase 3 do Master Plan (Kit de Models & Especialistas Locais)
-- **Status**: Proposta Técnica para Aprovação (Gate 3 - `dev-cycle-protocol`)
-- **Componentes**:
-  - `crates/actx-onnx`: Pipeline de execução neural para Document AI e Provedor Generativo Local Gemma 4 via ONNX Runtime.
-  - `crates/actx-lm`: Novo provedor nativo `GemmaOnnxProvider` implementando a trait `LmProvider` (streaming zero-copy, tokenização BPE).
-  - `crates/any-context-core-rs`: Inversão de dependência via traits (`ComplexityClassifier`, `ScanSentinel`, `DocumentLayoutExtractor`, `DocumentVisionExtractor`).
-  - `crates/any-context-core-rs/src/hardware`: Expansão do `HardwareProfiler` para a matriz granular de 5 perfis de hardware.
-  - `crates/actx-agent`: Integração nativa do `ChatModelRouter` e injeção do provedor local Gemma 4.
-  - `crates/actx-installer`: Semáforo prévio inteligente com suporte a seleção automática e opções avançadas por perfil.
-  - `crates/actx-cli`: Comandos `/model`, `/profile`, `/status` e TUI reativa com badges de inferência local.
-- **Dual-Doc**: `README.md` (UserDoc), `TECDOC.md` (TecDoc - ADR-123), `tests/MANUAL_TESTS.md` (Cenário 38).
+### 📌 Plan Metadata
+- **Project**: AnyContext (`actx`)
+- **Target Version**: `v0.38.0` (successor of `v0.37.0`)
+- **Author**: Levi Silveira & Antigravity Assistant
+- **Date**: 2026-10-14
+- **Phase**: Master Plan Phase 3 (Model Kit & Local Specialists)
+- **Status**: Technical Proposal for Approval (Gate 3 - `dev-cycle-protocol`)
+- **Components**:
+  - `crates/actx-onnx`: neural execution pipeline for Document AI and the Local Generative Gemma 4 Provider through ONNX Runtime.
+  - `crates/actx-lm`: a new native `GemmaOnnxProvider` implementing the `LmProvider` trait (zero-copy streaming, BPE tokenization).
+  - `crates/any-context-core-rs`: dependency inversion through traits (`ComplexityClassifier`, `ScanSentinel`, `DocumentLayoutExtractor`, `DocumentVisionExtractor`).
+  - `crates/any-context-core-rs/src/hardware`: expansion of `HardwareProfiler` to the granular matrix of 5 hardware profiles.
+  - `crates/actx-agent`: native integration of `ChatModelRouter` and injection of the local Gemma 4 provider.
+  - `crates/actx-installer`: a smart prior traffic light with automatic selection and advanced options per profile.
+  - `crates/actx-cli`: the `/model`, `/profile`, `/status` commands and a reactive TUI with local inference badges.
+- **Dual-Doc**: `README.md` (UserDoc), `TECDOC.md` (TecDoc - ADR-123), `tests/MANUAL_TESTS.md` (Scenario 38).
 
 ---
 
-## 🏛️ 1. Visão Executiva e Fundamentação Estratégica
+## 🏛️ 1. Executive Vision and Strategic Grounds
 
-Na versão `v0.37.0`, o AnyContext estabeleceu com sucesso os alicerces estruturais da Fase 3:
-1. Crate modular desacoplada [`crates/actx-onnx`](file:///C:/Users/guilh/source/repos/any-context/crates/actx-onnx) sob feature flag Cargo condicional (`onnx`).
-2. Motor de inspeção de hardware nativo (`HardwareProfiler`) em $< 5\text{ms}$.
-3. Estrutura preliminar de perfis semafóricos e comandos multi-superfície.
+In version `v0.37.0`, AnyContext successfully laid the structural foundations of Phase 3:
+1. The decoupled modular crate [`crates/actx-onnx`](file:///C:/Users/guilh/source/repos/any-context/crates/actx-onnx) under a conditional Cargo feature flag (`onnx`).
+2. A native hardware inspection engine (`HardwareProfiler`) in $< 5\text{ms}$.
+3. A preliminary structure of traffic-light profiles and multi-surface commands.
 
-A versão **v0.38.0** consolida a Fase 3 do Master Plan dividindo o ecossistema de modelos em **duas camadas ortogonais e desacopladas**:
+Version **v0.38.0** consolidates Master Plan Phase 3 by splitting the model ecosystem into **two orthogonal, decoupled layers**:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        ARQUITETURA DUAL DE MODELOS EM PRODUÇÃO                         │
+│                         DUAL MODEL ARCHITECTURE IN PRODUCTION                          │
 ├──────────────────────────────────────────┬─────────────────────────────────────────────┤
-│ 👁️ CAMADA 1: Percepção & Document AI    │ 🧠 CAMADA 2: Cérebro Generativo (Gemma 4)   │
+│ 👁️ LAYER 1: Perception & Document AI    │ 🧠 LAYER 2: Generative Brain (Gemma 4)      │
 ├──────────────────────────────────────────┼─────────────────────────────────────────────┤
-│ • Modelos: MobileNetV4, BGE-Small,       │ • Modelos: Gemma 4 Compact, Gemma 4 12B,    │
+│ • Models: MobileNetV4, BGE-Small,        │ • Models: Gemma 4 Compact, Gemma 4 12B,     │
 │   LayoutLMv3, Laya mmBERT, CLIP-ViT      │   Gemma 4 27B, Gemma 4 32B                  │
-│ • Tamanho total: ~740 MB                 │ • Tamanho: 1.5 GB a 18.5 GB (quantizados)   │
-│ • Papel: Sentinela de scans, extração    │ • Papel: Raciocínio conversacional, loop de │
-│   geométrica de faturas, tabelas e       │   ferramentas ReAct e geração de respostas  │
-│   roteamento semântico de queries.       │   em linguagem natural.                     │
-│ • Latência: Sub-15ms em CPU.             │ • Latência: Streaming autoregressivo de tks │
+│ • Total size: ~740 MB                    │ • Size: 1.5 GB to 18.5 GB (quantized)       │
+│ • Role: scan sentinel, geometric         │ • Role: conversational reasoning, the ReAct │
+│   extraction of invoices, tables and     │   tool loop and natural language answer     │
+│   semantic query routing.                │   generation.                               │
+│ • Latency: sub-15ms on CPU.              │ • Latency: autoregressive token streaming   │
 └──────────────────────────────────────────┴─────────────────────────────────────────────┘
 ```
 
-Essa separação garante que:
-- O usuário possa utilizar **Document AI local** (privacidade absoluta para indexar faturas e contratos confidenciais no disco sem enviar imagens para terceiros) enquanto usa **APIs de fronteira na nuvem** (Claude 3.5 Sonnet, GPT-4o, Gemini 1.5 Pro).
-- Ou possa operar em **Soberania Air-Gapped Total** (sem internet, sem chaves de API, sem Ollama ou Docker externos), rodando tanto o Document AI quanto o **Gemma 4 nativamente em ONNX**.
+This separation guarantees that:
+- The user can use **local Document AI** (absolute privacy to index confidential invoices and contracts on disk without sending images to third parties) while using **frontier cloud APIs** (Claude 3.5 Sonnet, GPT-4o, Gemini 1.5 Pro).
+- Or can run in **Total Air-Gapped Sovereignty** (no internet, no API keys, no external Ollama or Docker), running both Document AI and **Gemma 4 natively in ONNX**.
 
 ---
 
-## 🏗️ 2. Topologia Arquitetural e Fluxos de Dados
+## 🏗️ 2. Architectural Topology and Data Flows
 
 ```mermaid
 graph TD
-    subgraph "Camada de Apresentação & Governança de Hardware"
-        SYSINFO["HardwareProfiler (<5ms)<br/>RAM Livre + Total + Disco SSD"]
-        SEMAPHORE{"Semáforo Granular:<br/>🟢 Lite | ⚡ Balanced | 🌌 Power | 🪐 Workstation | 👑 Sovereign"}
-        CLI_INPUT["Chat TUI & Comandos (/search auto, /model, /profile)"]
-        SYNC_WORKER["Sync Worker (Ingestão Local & Monitoramento)"]
+    subgraph "Presentation Layer & Hardware Governance"
+        SYSINFO["HardwareProfiler (<5ms)<br/>Free + Total RAM + SSD Disk"]
+        SEMAPHORE{"Granular Traffic Light:<br/>🟢 Lite | ⚡ Balanced | 🌌 Power | 🪐 Workstation | 👑 Sovereign"}
+        CLI_INPUT["Chat TUI & Commands (/search auto, /model, /profile)"]
+        SYNC_WORKER["Sync Worker (Local Ingestion & Monitoring)"]
     end
 
-    subgraph "Core de Negócio (crates/any-context-core-rs & actx-agent)"
+    subgraph "Business Core (crates/any-context-core-rs & actx-agent)"
         CHAT_ROUTER["actx-agent::ChatModelRouter"]
         QUALITY_GATE["Ingestion QualityGate"]
         INGESTION_ROUTER["IngestionModelRouter"]
@@ -118,7 +118,7 @@ graph TD
         TRAIT_LM["Trait LmProvider"]
     end
 
-    subgraph "Adapters de Inversão de Controle (onnx_adapter)"
+    subgraph "Inversion of Control Adapters (onnx_adapter)"
         ADAPTER_COMPLEXITY["OnnxComplexityClassifierAdapter"]
         ADAPTER_SENTINEL["OnnxScanSentinelAdapter"]
         ADAPTER_LAYOUT["OnnxLayoutExtractorAdapter"]
@@ -126,7 +126,7 @@ graph TD
         ADAPTER_GEMMA["GemmaOnnxProvider (actx-lm)"]
     end
 
-    subgraph "Motor Neural Especializado (crates/actx-onnx)"
+    subgraph "Specialized Neural Engine (crates/actx-onnx)"
         ONNX_ENGINE["actx_onnx::OnnxEngine"]
         BGE_CLASSIFIER["OnnxQueryClassifier (bge_small_query_int8.onnx)"]
         MOBILE_SENTINEL["OnnxScanSentinel (mobilenetv4_rvl_cdip.onnx)"]
@@ -162,55 +162,55 @@ graph TD
 
 ---
 
-## 📊 3. Matriz Granular de 5 Perfis de Hardware
+## 📊 3. Granular Matrix of 5 Hardware Profiles
 
-Para acomodar com precisão cirúrgica desde laptops ultrafinos até estações de trabalho de 64GB+, a governança semafórica adota 5 perfis estritamente delimitados por limites de memória física:
+To fit with surgical precision everything from ultrathin laptops to 64GB+ workstations, the traffic-light governance adopts 5 profiles strictly bounded by physical memory limits:
 
-| Perfil | Requisitos Mínimos (Semáforo 🟢) | Camada 1: Document AI (Percepção) | Camada 2: Cérebro Local (Gemma 4) | Download Total | Consumo Real de RAM (Pico) | Margem para SO / Apps |
+| Profile | Minimum Requirements (🟢 Traffic Light) | Layer 1: Document AI (Perception) | Layer 2: Local Brain (Gemma 4) | Total Download | Real RAM Usage (Peak) | Headroom for OS / Apps |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **🟢 Lite / Cloud** | Qualquer hardware ($< 8\text{ GB}$) | Heurísticas Rust puras (<1µs) | Provedor Cloud (Gemini / Claude / OpenAI) | **0 MB** | $< 35\text{ MB}$ | 100% da máquina livre |
-| **⚡ Smart Balanced** | RAM $\ge 8\text{ GB}$ (Livre $\ge 3.5\text{ GB}$)<br>SSD $\ge 5\text{ GB}$ | Smart Balanced (~252 MB):<br>`mobilenetv4`, `bge-small`, `layoutlmv3` | **Gemma 4 Compact (INT4)** (~1.5 GB) | **~1.7 GB** | **~2.5 GB** | $\ge 5.5\text{ GB}$ livres (notebooks de 8GB) |
-| **🌌 Air-Gapped Power** | RAM $\ge 16\text{ GB}$ (Livre $\ge 7\text{ GB}$)<br>SSD $\ge 15\text{ GB}$ | Full Power (~740 MB):<br>5 modelos de percepção | **Gemma 4 12B (INT4)** (~7.2 GB) | **~7.9 GB** | **~10.0 GB** | $\ge 6.0\text{ GB}$ livres (desenvolvedores em 16GB) |
-| **🪐 Workstation Pro** | RAM $\ge 32\text{ GB}$ (Livre $\ge 18\text{ GB}$)<br>SSD $\ge 30\text{ GB}$ | Full Power (~740 MB):<br>5 modelos de percepção | **Gemma 4 27B (INT4)** (~15.0 GB) | **~15.7 GB** | **~18.5 GB** | $\ge 13.5\text{ GB}$ livres (estações de 32GB) |
-| **👑 Sovereign Ultra** | RAM $\ge 64\text{ GB}$ (Livre $\ge 32\text{ GB}$)<br>SSD $\ge 50\text{ GB}$ | Full Power (~740 MB):<br>5 modelos de percepção | **Gemma 4 32B (INT4)** (~18.5 GB) | **~19.2 GB** | **~25.5 GB** | $\ge 38.0\text{ GB}$ livres (workstations / servidores 64GB+) |
+| **🟢 Lite / Cloud** | Any hardware ($< 8\text{ GB}$) | Pure Rust heuristics (<1µs) | Cloud Provider (Gemini / Claude / OpenAI) | **0 MB** | $< 35\text{ MB}$ | 100% of the machine free |
+| **⚡ Smart Balanced** | RAM $\ge 8\text{ GB}$ (Free $\ge 3.5\text{ GB}$)<br>SSD $\ge 5\text{ GB}$ | Smart Balanced (~252 MB):<br>`mobilenetv4`, `bge-small`, `layoutlmv3` | **Gemma 4 Compact (INT4)** (~1.5 GB) | **~1.7 GB** | **~2.5 GB** | $\ge 5.5\text{ GB}$ free (8GB laptops) |
+| **🌌 Air-Gapped Power** | RAM $\ge 16\text{ GB}$ (Free $\ge 7\text{ GB}$)<br>SSD $\ge 15\text{ GB}$ | Full Power (~740 MB):<br>5 perception models | **Gemma 4 12B (INT4)** (~7.2 GB) | **~7.9 GB** | **~10.0 GB** | $\ge 6.0\text{ GB}$ free (developers on 16GB) |
+| **🪐 Workstation Pro** | RAM $\ge 32\text{ GB}$ (Free $\ge 18\text{ GB}$)<br>SSD $\ge 30\text{ GB}$ | Full Power (~740 MB):<br>5 perception models | **Gemma 4 27B (INT4)** (~15.0 GB) | **~15.7 GB** | **~18.5 GB** | $\ge 13.5\text{ GB}$ free (32GB workstations) |
+| **👑 Sovereign Ultra** | RAM $\ge 64\text{ GB}$ (Free $\ge 32\text{ GB}$)<br>SSD $\ge 50\text{ GB}$ | Full Power (~740 MB):<br>5 perception models | **Gemma 4 32B (INT4)** (~18.5 GB) | **~19.2 GB** | **~25.5 GB** | $\ge 38.0\text{ GB}$ free (64GB+ workstations / servers) |
 
 > [!IMPORTANT]
-> **Proteção Contra Colapso de Swap:** O perfil *Sovereign Ultra (Gemma 4 32B)* é **estritamente bloqueado em 🔴 Vermelho para máquinas com 32 GB de RAM**. Executar um modelo 32B (~25.5 GB em RAM) em um computador com 32GB somado ao sistema operacional (~5GB) causaria 100% de esgotamento e swap em disco, reduzindo a taxa de geração para $< 0.2\text{ tps}$. Máquinas de 32GB rodam com estabilidade impecável no perfil *Workstation Pro (Gemma 4 27B)*.
+> **Protection Against Swap Collapse:** the *Sovereign Ultra (Gemma 4 32B)* profile is **strictly blocked in 🔴 Red on machines with 32 GB of RAM**. Running a 32B model (~25.5 GB in RAM) on a 32GB computer plus the operating system (~5GB) would cause 100% exhaustion and disk swap, cutting the generation rate to $< 0.2\text{ tps}$. 32GB machines run with impeccable stability on the *Workstation Pro (Gemma 4 27B)* profile.
 
 ---
 
-## 🛠️ 4. Os 4 Fluxos de Produção Ativados em Tempo Real
+## 🛠️ 4. The 4 Production Flows Activated in Real Time
 
-### 4.1 Fluxo 1: Chat ModelRouter com BGE-Small
-- O `OnnxComplexityClassifierAdapter` tokeniza o prompt e avalia similaridade semântica com centróides treinados.
-- Decide entre `Fast RAG` (busca pontual factual) e `Deep Search` (decomposição multi-turnos reflexiva).
-- Latência: $< 15\text{ms}$ em CPU.
-- Fallback ADR-110: se o modelo não estiver baixado ou se o perfil for `Lite`, despacha para o classificador heurístico determinístico em $< 1\mu\text{s}$.
+### 4.1 Flow 1: Chat ModelRouter with BGE-Small
+- `OnnxComplexityClassifierAdapter` tokenizes the prompt and evaluates semantic similarity with trained centroids.
+- Decides between `Fast RAG` (factual point search) and `Deep Search` (reflective multi-turn decomposition).
+- Latency: $< 15\text{ms}$ on CPU.
+- ADR-110 fallback: if the model is not downloaded or the profile is `Lite`, it dispatches to the deterministic heuristic classifier in $< 1\mu\text{s}$.
 
-### 4.2 Fluxo 2: Sentinela de Scans com MobileNetV4
-- Nova trait `ScanSentinel: Send + Sync` injetada no `QualityGate`.
-- Analisa páginas de PDFs com baixa densidade textual e imagens embutidas.
-- Em ~8ms, classifica se a página é um scan autêntico (RVL-CDIP) antes de delegar para OCR, evitando desperdício de processamento em logotipos ou molduras visuais.
+### 4.2 Flow 2: Scan Sentinel with MobileNetV4
+- A new `ScanSentinel: Send + Sync` trait injected into `QualityGate`.
+- Analyzes PDF pages with low text density and embedded images.
+- In ~8ms, classifies whether the page is an authentic scan (RVL-CDIP) before delegating to OCR, avoiding wasted processing on logos or visual frames.
 
-### 4.3 Fluxo 3: Layout Multimodal com LayoutLMv3 e Laya mmBERT
-- Implementação da trait `DocumentLayoutExtractor` via `OnnxLayoutExtractorAdapter`.
-- Ao encontrar `DocumentAiTarget::DenseComplexForm`, o `IngestionModelRouter` reconstrói a matriz espacial de faturas e tabelas, garantindo que relações de chave-valor e colunas permaneçam correlacionadas no BM25 e LanceDB.
+### 4.3 Flow 3: Multimodal Layout with LayoutLMv3 and Laya mmBERT
+- Implementation of the `DocumentLayoutExtractor` trait through `OnnxLayoutExtractorAdapter`.
+- On finding `DocumentAiTarget::DenseComplexForm`, the `IngestionModelRouter` rebuilds the spatial matrix of invoices and tables, guaranteeing that key-value and column relations stay correlated in BM25 and LanceDB.
 
-### 4.4 Fluxo 4: Codificação de Diagramas com CLIP-ViT
-- Implementação da trait `DocumentVisionExtractor` via `OnnxVisionEncoderAdapter`.
-- Processa assets visuais (fluxogramas, gráficos, diagramas de rede), gerando descrição contextual estruturada para busca multimodal no LanceDB.
+### 4.4 Flow 4: Diagram Encoding with CLIP-ViT
+- Implementation of the `DocumentVisionExtractor` trait through `OnnxVisionEncoderAdapter`.
+- Processes visual assets (flowcharts, charts, network diagrams), producing a structured contextual description for multimodal search in LanceDB.
 
 ---
 
-## 🧠 5. Provedor Generativo Local Gemma 4 (`GemmaOnnxProvider`)
+## 🧠 5. Local Generative Gemma 4 Provider (`GemmaOnnxProvider`)
 
-A integração da família Gemma 4 em `actx-lm` e `actx-onnx` segue o padrão **Strategy**:
-1. **Implementação de `LmProvider`**:
+Integrating the Gemma 4 family into `actx-lm` and `actx-onnx` follows the **Strategy** pattern:
+1. **`LmProvider` Implementation**:
    ```rust
    pub struct GemmaOnnxProvider {
        model_path: PathBuf,
        tier: GemmaTier, // Compact, 12B, 27B, 32B
-       // Runtime session e tokenizer BPE
+       // Runtime session and BPE tokenizer
    }
    
    #[async_trait]
@@ -219,55 +219,55 @@ A integração da família Gemma 4 em `actx-lm` e `actx-onnx` segue o padrão **
        async fn stream(&self, req: ChatRequest) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LmError>> + Send>>, LmError> { ... }
    }
    ```
-2. **Streaming Zero-Copy**: Tokens emitidos pelo loop autoregressivo do ONNX Runtime fluem diretamente para o canal `mpsc` da TUI com latência perceptual zero.
-3. **Respeito aos Atalhos de Modo**:
+2. **Zero-Copy Streaming**: tokens emitted by the ONNX Runtime autoregressive loop flow directly into the TUI `mpsc` channel with zero perceived latency.
+3. **Mode Shortcuts Honored**:
    - `/model gemma-4-compact`
    - `/model gemma-4-12b`
    - `/model gemma-4-27b`
    - `/model gemma-4-32b`
-   - `/model cloud` (retorna para o provedor externo configurado)
+   - `/model cloud` (returns to the configured external provider)
 
 ---
 
-## 🛠️ 6. Cronograma de Marcos de Implementação
+## 🛠️ 6. Implementation Milestone Schedule
 
-### 🧱 Marco 1: Expansão do HardwareProfiler & Semáforo de 5 Níveis (`any-context-core-rs::hardware`)
-- Atualizar `ProfileTier` e `HardwareProfiler`:
+### 🧱 Milestone 1: HardwareProfiler Expansion & 5-Level Traffic Light (`any-context-core-rs::hardware`)
+- Update `ProfileTier` and `HardwareProfiler`:
   - `Lite`, `SmartBalanced`, `AirGappedPower`, `WorkstationPro`, `SovereignUltra`.
-- Atualizar a lógica pura de auto-seleção com os novos tetos de RAM (8GB, 16GB, 32GB, 64GB).
+- Update the pure auto-selection logic with the new RAM ceilings (8GB, 16GB, 32GB, 64GB).
 
-### 👁️ Marco 2: Adapters de Percepção (Document AI) no Core
-- Criar traits `ScanSentinel` e `DocumentVisionExtractor`.
-- Implementar `OnnxScanSentinelAdapter`, `OnnxLayoutExtractorAdapter` e `OnnxVisionEncoderAdapter` em `ingestion/onnx_adapter.rs`.
-- Injetar no `QualityGate` e `IngestionModelRouter`.
+### 👁️ Milestone 2: Perception Adapters (Document AI) in the Core
+- Create the `ScanSentinel` and `DocumentVisionExtractor` traits.
+- Implement `OnnxScanSentinelAdapter`, `OnnxLayoutExtractorAdapter` and `OnnxVisionEncoderAdapter` in `ingestion/onnx_adapter.rs`.
+- Inject them into `QualityGate` and `IngestionModelRouter`.
 
-### 🧠 Marco 3: Crate `actx-onnx` com Motor Gemma 4 & Tokenizador
-- Implementar o runner de inferência generativa em `crates/actx-onnx/src/gemma/`.
-- Suporte a tokenização BPE e streaming assíncrono para a TUI.
-- Criação de `GemmaOnnxProvider` em `crates/actx-lm`.
+### 🧠 Milestone 3: `actx-onnx` Crate with the Gemma 4 Engine & Tokenizer
+- Implement the generative inference runner in `crates/actx-onnx/src/gemma/`.
+- Support for BPE tokenization and asynchronous streaming to the TUI.
+- Creation of `GemmaOnnxProvider` in `crates/actx-lm`.
 
-### ⚙️ Marco 4: Multi-Surface Parity, Comandos e Menus TUI
-- Atualizar `/profile` (alias `/preset`): exibe os 5 perfis semafóricos e permite download sob demanda.
-- Atualizar `/model`: lista as variantes locais do Gemma 4 disponíveis ou instaladas ao lado dos provedores cloud.
-- Atualizar o instalador `actx-installer` com o pré-flight e opções avançadas.
+### ⚙️ Milestone 4: Multi-Surface Parity, Commands and TUI Menus
+- Update `/profile` (alias `/preset`): shows the 5 traffic-light profiles and allows on-demand download.
+- Update `/model`: lists the available or installed local Gemma 4 variants next to the cloud providers.
+- Update the `actx-installer` installer with the pre-flight and advanced options.
 
-### 📚 Marco 5: Dual-Doc, Roteiro de Testes e Release v0.38.0
-- Registrar o ADR-123 no `TECDOC.md`.
-- Atualizar o `README.md` com a matriz completa dos 5 perfis.
-- Adicionar o Cenário 38 em `tests/MANUAL_TESTS.md`.
-- Suíte 100% verde e bump para `v0.38.0`.
+### 📚 Milestone 5: Dual-Doc, Test Script and Release v0.38.0
+- Record ADR-123 in `TECDOC.md`.
+- Update `README.md` with the complete matrix of the 5 profiles.
+- Add Scenario 38 to `tests/MANUAL_TESTS.md`.
+- 100% green suite and bump to `v0.38.0`.
 
 ---
 
-## 🧪 7. Roteiro de Testes Manuais (Cenário 38 em `MANUAL_TESTS.md`)
+## 🧪 7. Manual Test Script (Scenario 38 in `MANUAL_TESTS.md`)
 
-- **Cenário 38.1 (Hardware Pre-Flight dos 5 Perfis)**:
-  - Rodar `actx-installer --preflight-only` e conferir a classificação semafórica de cada perfil segundo a RAM da máquina.
-- **Cenário 38.2 (Chat ModelRouter Neural com BGE-Small)**:
-  - Digitar prompt complexo e verificar a detecção de intenção no accordion ReAct.
-- **Cenário 38.3 (Sentinela de Scans na Ingestão)**:
-  - Sincronizar pasta com PDF rasterizado e comprovar a classificação pelo MobileNetV4.
-- **Cenário 38.4 (Inferência Local do Gemma 4)**:
-  - Selecionar `/model gemma-4-12b` (ou compact), desconectar a internet e realizar consulta com streaming de tokens 100% offline.
-- **Cenário 38.5 (ADR-110 Zero-Breakage Guarantee)**:
-  - Deletar arquivos temporários de pesos e confirmar a transição suave para heurísticas determinísticas sem crash.
+- **Scenario 38.1 (Hardware Pre-Flight of the 5 Profiles)**:
+  - Run `actx-installer --preflight-only` and check the traffic-light classification of each profile according to the machine's RAM.
+- **Scenario 38.2 (Neural Chat ModelRouter with BGE-Small)**:
+  - Type a complex prompt and check the intent detection in the ReAct accordion.
+- **Scenario 38.3 (Scan Sentinel in Ingestion)**:
+  - Sync a folder with a rasterized PDF and confirm the classification by MobileNetV4.
+- **Scenario 38.4 (Local Gemma 4 Inference)**:
+  - Select `/model gemma-4-12b` (or compact), disconnect the internet and run a query with 100% offline token streaming.
+- **Scenario 38.5 (ADR-110 Zero-Breakage Guarantee)**:
+  - Delete temporary weight files and confirm the smooth transition to deterministic heuristics without a crash.
