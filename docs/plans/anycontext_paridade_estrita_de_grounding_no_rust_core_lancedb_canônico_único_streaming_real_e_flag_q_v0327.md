@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_paridade_estrita_de_grounding_no_rust_core_lancedb_canônico_único_streaming_real_e_flag_q_v0327
 project: any-context
-title: Paridade Estrita de Grounding no Rust Core, LanceDB Canônico Único, Streaming Real e Flag -q (v0.32.7)
+title: Strict Grounding Parity in the Rust Core, Single Canonical LanceDB, Real Streaming and -q Flag (v0.32.7)
 version: v0.32.7
 status: completed
 author: Levi Silveira
