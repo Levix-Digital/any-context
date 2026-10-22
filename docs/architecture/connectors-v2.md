@@ -46,7 +46,7 @@ de ordem de entrega fica para o roadmap.
    - **AnyContext Server (índice compartilhado na VPC da empresa):** conta de serviço da
      empresa, com o filtro de permissões por leitor obrigatório.
    - **Viabilidade a confirmar antes de construir** (custos e auditorias exigidos pelo
-     Google e por outros fornecedores): ver Pendentes.
+     Google e por outros fornecedores): decidido na decisão 20.
 5. **Compartilhar um workspace sem servidor leva o alvo, nunca a credencial.** A definição
    do workspace (que é o que se compartilha quando não há AnyContext Server) leva o conector
    e o ID do alvo; cada membro entra com a própria conta e indexa com o próprio acesso.
