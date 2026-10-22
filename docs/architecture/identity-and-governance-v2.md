@@ -91,8 +91,9 @@ recusada por ser arriscada)
 **No ambiente corporativo (com Admin Hub — ver tema 6)**
 
 - **O poder de administração é do Admin Hub:** o ambiente corporativo não tem `root` de uso
-  comum (o `root` do ambiente pessoal não é afetado); criar contas, classificar endpoints, instalar modelos fora do catálogo e mudar a
-  instalação passam a ser governados pelo Admin Hub.
+  comum (o `root` do ambiente pessoal não é afetado); criar contas, classificar endpoints,
+  instalar modelos fora do catálogo e mudar a instalação passam a ser governados pelo Admin
+  Hub.
 - **Origens de identidade:** **SSO** pelo provedor da empresa e/ou **diretório próprio do
   Admin Hub** (para clientes sem provedor de identidade — escritórios, clínicas, prefeituras
   menores). Contas só locais ficam proibidas pela política.

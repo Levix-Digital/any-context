@@ -548,6 +548,23 @@ extensão que cobre todos os seus filhos (ex.: intervalo de páginas da seção,
 linhas da planilha), de modo que tanto o trecho quanto o contexto maior entregue ao LLM
 são citáveis.
 
+### Recuperação visual de páginas (auditoria P10)
+
+- **Só as páginas visualmente ricas** (gráficos, diagramas, pranchas, slides com diagrama,
+  formulários à mão — identificadas pelo layout e pelo parsing de páginas, passo 6) recebem
+  embeddings da **imagem da página** (família ColPali: um vetor por região da imagem).
+- Na recuperação, entram como **mais uma lista** (passo 4); o resultado é a **página** (o pai
+  dos chunks dela); o reranker julga a página pelo texto que a ingestão produziu dela
+  (parsing e descrição).
+- Com modelo de chat **multimodal**, a imagem da página vai como evidência, respeitando o
+  nível de confiança e o teto confidencial; **workspaces com pseudonimização ativa não enviam
+  imagens a endpoint externo** (a pseudonimização não alcança o conteúdo da imagem).
+- **Por perfil, via ONNX:** desligado nos leves; modelo pequeno (família ColSmol) nos médios;
+  maior (família ColQwen) nos fortes e no Model Server — escolha por benchmark (ViDoRe) e
+  licença permissiva.
+- **Vetores guardados completos** (são poucas páginas); compactação só sem perda mensurável
+  (regra do P18).
+
 ### Resumos hierárquicos (auditoria P14)
 
 - A árvore ganha níveis acima: **pasta > documento > seção (pai) > chunk**. Documento e
