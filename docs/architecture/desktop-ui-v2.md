@@ -45,5 +45,6 @@ token specification: dark theme (surfaces from `#0B0C0E` to `#1E2330`), primary 
 - AnyContext's documentation is the system help, not a workspace in the tree.
 - Shared and organization workspaces appear in the tree with the user's role (owner,
   editor, reader).
-- Connectors are plugged explicitly per source (`connectors-v2.md`); a source whose
-  connector license expired shows as deactivated, never disappears.
+- Connectors are plugged explicitly per source (`connectors-v2.md`); a source the
+  plan no longer covers shows as deactivated, never disappears (`connectors-v2.md`,
+  decisions 26 and 29).

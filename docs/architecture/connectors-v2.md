@@ -60,7 +60,7 @@ order is left to the roadmap.
    - **Metered network** (mobile data, metered connection): the resource governor holds
      connector sync, and **the user can release it** (per source or for now).
 7. **Native cloud formats:** Google Docs, Sheets and Slides exported to DOCX, XLSX and PPTX
-   and handed to the existing parsers; wiki pages (Confluence, Notion) converted from the
+   and handed to the existing parsers; wiki pages (e.g. Confluence) converted from the
    block tree to deterministic Markdown; cloud shortcuts and links resolved and
    deduplicated as duplicates (ingestion, step 3).
 8. **No copy of the original.** Only the extracted content is kept, in the encrypted index.
@@ -139,24 +139,44 @@ order is left to the roadmap.
 
     Without the connector, what it would cover appears in the source report ("12 videos not
     indexed — enable the Video connector"); nothing disappears silently.
-23. **A paid connector delivers more than the base.** E.g. an Obsidian vault is a Markdown
-    folder and the base indexes its text; the Obsidian connector adds the wikilinks in the
-    graph, frontmatter as metadata, embedded notes, aliases and canvas (decision 17).
+23. **A connector delivers more than the base.** E.g. an Obsidian vault is a Markdown
+    folder and the base indexes its text; an Obsidian connector would add the wikilinks in
+    the graph, frontmatter as metadata, embedded notes, aliases and canvas (decision 17).
 24. **Web search at question time is also a connector**, being the main data exit to the
     outside.
-25. **License per connector**, with a **trial period** per connector, in the signed license
-    verified offline (`levix-platform`). License ≠ policy: the license says what was paid
-    for, the policy says what the company allows; the same engine enforces both and the
-    block message says which one blocked.
-26. **Expired license: sources deactivated, never deleted.** The indexes of that
-    connector's sources are kept but left out of search, and sync stops. On renewal, the
-    source comes back and the incremental diff reprocesses only what changed at the origin.
-    The user can explicitly delete deactivated indexes to free disk.
-27. **In the corporate environment**, the organization license unlocks the connectors, and
-    the Admin Hub policy can still block each one.
+25. **Connectors are not sold one by one; the plan decides what is on.** Revised on
+    2026-10-22: the license is per plan, signed and verified offline (`levix-platform`).
+    License ≠ policy: the license says what the plan includes, the policy says what the
+    company allows; the same engine enforces both and the block message says which one
+    blocked.
+26. **A lapsed plan or a downgrade deactivates, never deletes.** The indexes of sources the
+    plan no longer covers are kept but left out of search, and sync stops. When the plan
+    comes back, the source returns and the incremental diff reprocesses only what changed
+    at the origin. The user can explicitly delete deactivated indexes to free disk.
+27. **In the corporate environment**, connectors are a **selection of features**, not an
+    extra charge: the Enterprise license includes them and the Admin Hub policy turns each
+    one on or off (decision 11).
+28. **Three plans** (decided 2026-10-22):
+
+    | Plan | Includes |
+    |---|---|
+    | **Free** | Local and internal-network files only; up to 3 workspaces |
+    | **Pro** | Free + the Web and the Audio and video connectors built in; unlimited workspaces |
+    | **Enterprise** | Pro + Admin Hub + the other connectors as a selection of features |
+
+    Web and Audio and video stay connectors inside (decision 22: visible openings to the
+    outside, governed by policy); they are simply part of the plan instead of separate
+    purchases. No combinations of capabilities are sold as extra plans.
+29. **Workspaces over the Free limit after a downgrade**: the user chooses which 3 stay
+    active, and can change that choice at any time. The others are kept intact on disk,
+    left out of search and sync, and come back with only the incremental diff
+    reprocessed when they are reactivated or the plan returns (decision 26).
+30. **No Notion connector.** Decided 2026-10-22. Drive connectors (Google Drive, OneDrive,
+    Dropbox) add little over the local sync folders the base already indexes, so they are
+    not part of the personal plans; they remain Enterprise candidates.
 
 ## For the roadmap
 
-- **Commercial packaging** (which connectors are free, which are paid, prices, trial
-  length).
+- **Commercial details**: prices, trial length, and whether the Pro plan caps Web search
+  queries (decision 28).
 - Which connectors exist and in which order: decided in the backlog and the roadmap.

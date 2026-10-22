@@ -27,7 +27,7 @@ Multilingual. Minimal configuration: architecture decisions never become user op
 - `retrieval-pipeline-v2.md`
 - `deployment-architecture-v2.md`
 - `identity-and-governance-v2.md`
-- `connectors-v2.md`: 27 decisions.
+- `connectors-v2.md`: 30 decisions, including the three plans (Free / Pro / Enterprise) and no Notion connector.
 - `desktop-ui-v2.md`
 - `platform-shared-components.md`
 
@@ -81,7 +81,7 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 - Commercial seats per device or per user.
 - Benchmarks for page parsing, vision, ColPali and field models.
 - RAR license.
-- Commercial packaging of connectors (prices, trial length).
+- Commercial details of the plans (prices, trial length, Web search query cap).
 
 ### Housekeeping I still owe
 

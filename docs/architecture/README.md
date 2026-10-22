@@ -11,7 +11,7 @@ Full review of AnyContext (October 2026): code, documentation and backlog.
 | `retrieval-pipeline-v2.md` | retrieval pipeline — current state and target design |
 | `deployment-architecture-v2.md` | where each piece runs: ports, trust levels, workspace model, Admin Hub, deployment modes |
 | `identity-and-governance-v2.md` | users, keys, roles and policies, with and without Admin Hub |
-| `connectors-v2.md` | connectors: acquisition contract, authentication, sync, per-connector metadata, licensing, policy |
+| `connectors-v2.md` | connectors: acquisition contract, authentication, sync, per-connector metadata, plans and licensing, policy |
 | `platform-shared-components.md` | components shared across Levix products (Admin Hub, identity, licensing, LSIE) |
 | `desktop-ui-v2.md` | desktop UI layout reference (Tauri 2) |
 

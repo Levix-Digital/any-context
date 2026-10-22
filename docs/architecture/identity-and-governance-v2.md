@@ -221,7 +221,7 @@ customer hosting their own Admin Hub.
    accepts policies signed by it (fixes the key embedded in the binary).
 4. **A single engine enforces everything:** model resolution, trust levels and
    pseudonymization, web search, connectors and OCR, MCP server, accounts and session,
-   quotas — and connector licenses (`connectors-v2.md`, decision 25), kept distinct from
+   quotas — and plan licenses (`connectors-v2.md`, decisions 25 and 28), kept distinct from
    policy in the block message.
 5. **Offline:** the last valid policy in an encrypted cache applies; the **validity** (72 h
    in the specification) is **configurable by the company**; once expired, the device is
@@ -290,4 +290,4 @@ company's enrollment must not affect the family accounts on a remote-work machin
    enrollment.
 5. **No data crosses between environments** — no search, no chat, no key (the rule "no
    query crosses workspaces", one level up). Licenses are separate too: a personal
-   connector license does not apply to the corporate environment, and vice versa.
+   plan license does not apply to the corporate environment, and vice versa.
