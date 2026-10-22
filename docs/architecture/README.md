@@ -1,30 +1,58 @@
-# Arquitetura v2 — documentos e método
+# Architecture v2 — documents and method
 
-Revisão geral do AnyContext (outubro de 2026): código, documentação e backlog.
+Full review of AnyContext (October 2026): code, documentation and backlog.
 
-## Documentos
+## Documents
 
-| documento | conteúdo |
+| document | content |
 |---|---|
-| `ingestion-pipeline-v2.md` | pipeline de ingestão — design alvo |
-| `ingestion-audit-2026-10.md` | auditoria da ingestão ("Any Context"), propostas e decisões |
-| `retrieval-pipeline-v2.md` | pipeline de recuperação — estado atual e design alvo |
-| `deployment-architecture-v2.md` | onde cada peça roda: portas, níveis de confiança, modelo de workspace, Admin Hub, modos de implantação |
-| `identity-and-governance-v2.md` | usuários, chaves, papéis e políticas, com e sem Admin Hub |
-| `connectors-v2.md` | conectores: contrato de captação, autenticação, sync, metadados próprios, política |
-| `platform-shared-components.md` | componentes compartilhados entre produtos Levix (Admin Hub, identidade, licença, LSIE) |
-| `desktop-ui-v2.md` | referência de layout da interface desktop (Tauri 2) |
+| `ingestion-pipeline-v2.md` | ingestion pipeline — target design |
+| `ingestion-audit-2026-10.md` | ingestion audit ("Any Context"), proposals and decisions |
+| `retrieval-pipeline-v2.md` | retrieval pipeline — current state and target design |
+| `deployment-architecture-v2.md` | where each piece runs: ports, trust levels, workspace model, Admin Hub, deployment modes |
+| `identity-and-governance-v2.md` | users, keys, roles and policies, with and without Admin Hub |
+| `connectors-v2.md` | connectors: acquisition contract, authentication, sync, per-connector metadata, licensing, policy |
+| `platform-shared-components.md` | components shared across Levix products (Admin Hub, identity, licensing, LSIE) |
+| `desktop-ui-v2.md` | desktop UI layout reference (Tauri 2) |
 
-## Método de planejamento
+## Language
 
-1. **Backlog completo** do AnyContext no seu ideal máximo, sem cortar por prioridade.
-2. **Roadmap de lançamentos:** um primeiro lançamento para entrar no mercado o mais rápido
-   possível e os seguintes como evolução natural do produto.
-3. **Priorização:** os itens do backlog são encaixados nos lançamentos do roadmap.
+Everything in the repository is written in English: code, documentation, backlog and
+plans. (Several documents above are still being translated.)
 
-Cuidados:
+## Planning method
 
-- **Fundações entram cedo**, mesmo invisíveis (porta de armazenamento com consistência,
-  porta de modelos por papel, separação do `settings.db`, hierarquia pai–filhos): o primeiro
-  lançamento tem pouca funcionalidade sobre uma base já certa.
-- **Cada item do backlog aponta para a seção do design** de onde veio.
+1. **Complete backlog** of AnyContext at its ideal, without cutting by priority.
+2. **Release roadmap:** a first release to reach the market as fast as possible, and the
+   following ones as the natural evolution of the product.
+3. **Prioritization:** backlog items are placed into the roadmap releases, one by one.
+
+Cautions:
+
+- **Foundations come early**, even when invisible (storage port with consistency, model
+  port by role, `settings.db` split, parent–child hierarchy): the first release has little
+  functionality on top of an already correct base.
+- **Every backlog item points to the design section** it came from.
+
+## Backlog conventions
+
+1. **Same file and format** (`docs/BACKLOG.md`, maintained with `plan-memory/backlog.py`),
+   so `validate` and `promote` keep working.
+2. **Fresh start without losing history:** the items that predate the v2 redesign move to
+   `Closed` as superseded, each naming the new item that absorbed it; new items continue the
+   numbering (ids are never reused).
+3. **Design link:** the first line of each description is
+   `Design: docs/architecture/<doc>.md, <section or decision>.`
+4. **Area prefix in the title:** `[ingestion]`, `[retrieval]`, `[storage]`, `[models]`,
+   `[identity]`, `[governance]`, `[connectors]`, `[ui]`, `[cli]`, `[release]`, `[docs]`.
+5. **Granularity:** one item is one deliverable that can become a plan on its own (a few
+   days to two weeks); a large design becomes several items.
+6. **Bugs** only for defects in the current code worth fixing before the redesign
+   (security, data loss, violation of a principle), each confirmed in the code first; when
+   the whole component is replaced, the defect becomes an acceptance criterion of the
+   redesign item.
+7. **Provisional priority:** every item enters as `medium`; bugs carry their real
+   severity. Priorities are set in the prioritization step.
+8. **Written in batches**, one per design document, each committed and reviewed before the
+   next: current-code bugs; ingestion (with the audit); retrieval; deployment; identity and
+   governance; connectors; desktop UI; CLI and release; platform and Admin Hub.
