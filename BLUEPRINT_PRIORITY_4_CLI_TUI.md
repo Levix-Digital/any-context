@@ -1,37 +1,37 @@
-# 📐 Architectural Blueprint: Prioridade 4 — Interface CLI & TUI 100% Nativa em Rust (`actx-cli` / `actx-tui`)
+# 📐 Architectural Blueprint: Priority 4 — 100% Native CLI & TUI Interface in Rust (`actx-cli` / `actx-tui`)
 
-> **Projeto**: AnyContext (`actx`)  
-> **Versão Alvo**: `v0.31.0`  
+> **Project**: AnyContext (`actx`)  
+> **Target Version**: `v0.31.0`  
 > **Status**: `APPROVED / IN_PROGRESS`  
-> **Autor**: Antigravity Assistant & LeviGuilherme  
-> **Data**: 2026-09-25  
-> **Sessão**: `9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372`  
-> **Decisão Fundamental**: A TUI nativa em Ratatui passa a ser a interface padrão absoluta do comando `actx`. O modo linha de comando puro (headless) fica restrito a flags operacionais (`--update`, `--version`, `--help`), daemons (`serve`, `mcp`, `rpc`) e queries diretas / piped stdin.  
-> **Meta Central**: Consolidar a transição definitiva para **100% Rust** e **zero linhas de Python**, eliminando o runtime Python e Bun/TypeScript da distribuição final através de um único binário executável autônomo (`actx.exe` / `actx`).
+> **Author**: Antigravity Assistant & LeviGuilherme  
+> **Date**: 2026-09-25  
+> **Session**: `9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372`  
+> **Fundamental Decision**: the native Ratatui TUI becomes the absolute default interface of the `actx` command. The pure command-line (headless) mode is restricted to operational flags (`--update`, `--version`, `--help`), daemons (`serve`, `mcp`, `rpc`) and direct queries / piped stdin.  
+> **Central Goal**: consolidate the definitive transition to **100% Rust** and **zero lines of Python**, removing the Python and Bun/TypeScript runtimes from the final distribution through a single standalone executable binary (`actx.exe` / `actx`).
 
 ---
 
-## 1. 🏛️ Visão Geral & Motivação Arquitetural
+## 1. 🏛️ Overview & Architectural Motivation
 
-Com a conclusão bem-sucedida das Prioridades 1, 2A, 2B e 3:
-1. `any-context-core-rs`: Motor de Ingestão de Documentos (PDF, DOCX, TXT, CSV, Código), Chunkers AST Tree-Sitter (13 linguagens), Banco Vetorial LanceDB nativo, Busca Léxica BM25 Okapi, Pipeline RAG Híbrido com RRF ($k=60$) e Recuperação Concorrente em Lote (`retrieve_hybrid_batch`).
-2. `actx-lm`: Façade universal de Modelos de Linguagem em Rust com streaming SSE para OpenAI, Anthropic, Gemini, Mock e SLMs locais via LM Studio e Ollama.
-3. `actx-agent`: Orquestrador ReAct assíncrono com Máquina de Estados Finitos (FSM), registro unificado de ferramentas (`ToolRegistry`), sessões relacionais SQLite e emissão reativa de eventos (`AgentEvent`).
+With Priorities 1, 2A, 2B and 3 completed successfully:
+1. `any-context-core-rs`: Document Ingestion Engine (PDF, DOCX, TXT, CSV, Code), Tree-Sitter AST Chunkers (13 languages), native LanceDB Vector Database, Okapi BM25 Lexical Search, Hybrid RAG Pipeline with RRF ($k=60$) and Concurrent Batch Retrieval (`retrieve_hybrid_batch`).
+2. `actx-lm`: a universal Language Model Façade in Rust with SSE streaming for OpenAI, Anthropic, Gemini, Mock and local SLMs through LM Studio and Ollama.
+3. `actx-agent`: an asynchronous ReAct Orchestrator with a Finite State Machine (FSM), a unified tool registry (`ToolRegistry`), relational SQLite sessions and reactive event emission (`AgentEvent`).
 
-A camada Python e a interface TUI em TypeScript/Bun funcionam atualmente apenas como um "casulo temporário" para receber inputs de linha de comando e renderizar a tela.
+The Python layer and the TypeScript/Bun TUI currently work only as a "temporary cocoon" to receive command-line inputs and render the screen.
 
-A **Prioridade 4** implementa a crate nativa [`crates/actx-cli`](file:///C:/Users/guilh/source/repos/any-context/crates/actx-cli) que une todo o ecossistema Rust sob um único ponto de entrada executável:
-- **CLI Parsing com `clap v4`**: Flags instantâneas, subcomandos e modo one-shot (`actx "minha pergunta"` ou `cat doc.txt | actx`).
-- **Terminal TUI com `ratatui` + `crossterm`**: Interface de terminal moderna, com viewport de chat assíncrono, streaming de tokens em tempo real, renderização de blocos ReAct / Thinking colapsáveis, barra de status dinâmica e modal de slash commands com autocomplete.
-- **Distribuição em Binário Único**: Elimina dependências externas (Python, pip, PyInstaller, Bun, node_modules), reduzindo o tempo de boot para **< 10ms**, memória RAM para **< 40MB** e gerando binários estáticos independentes para Windows, Linux e macOS.
+**Priority 4** implements the native crate [`crates/actx-cli`](file:///C:/Users/guilh/source/repos/any-context/crates/actx-cli) that brings the whole Rust ecosystem under a single executable entry point:
+- **CLI Parsing with `clap v4`**: instant flags, subcommands and one-shot mode (`actx "my question"` or `cat doc.txt | actx`).
+- **Terminal TUI with `ratatui` + `crossterm`**: a modern terminal interface, with an asynchronous chat viewport, real-time token streaming, rendering of collapsible ReAct / Thinking blocks, a dynamic status bar and a slash command modal with autocomplete.
+- **Single Binary Distribution**: removes external dependencies (Python, pip, PyInstaller, Bun, node_modules), cutting boot time to **< 10ms** and RAM to **< 40MB**, producing standalone static binaries for Windows, Linux and macOS.
 
 ---
 
-## 2. 🧱 Arquitetura Hexagonal & Estrutura de Módulos
+## 2. 🧱 Hexagonal Architecture & Module Structure
 
 ```mermaid
 graph TD
-    subgraph AdaptadoresEntrada["Superfícies de Entrada (Delivery Adapters)"]
+    subgraph AdaptadoresEntrada["Input Surfaces (Delivery Adapters)"]
         CLI["Clap v4 CLI (One-shot & Headless Flags)"]
         TUI["Ratatui + Crossterm (Interactive TUI Chat)"]
         RPC["Stdio JSON-RPC 2.0 Bridge (IDE Plugins)"]
@@ -59,118 +59,118 @@ graph TD
     AGENT --> CORE
 ```
 
-### 2.1. Estrutura de Pastas de `crates/actx-cli`
+### 2.1. Folder Structure of `crates/actx-cli`
 
 ```
 crates/actx-cli/
 ├── Cargo.toml
 └── src/
-    ├── main.rs                   # Entrypoint principal, inicialização de tracing e runtime Tokio
+    ├── main.rs                   # Main entry point, tracing and Tokio runtime initialization
     ├── cli/
-    │   ├── mod.rs                # Módulo CLI
-    │   ├── args.rs               # Definição das structs de argumentos Clap v4 (Cli, Commands, Flags)
-    │   └── oneshot.rs            # Execução direta de query com streaming stdout (sem TUI)
+    │   ├── mod.rs                # CLI module
+    │   ├── args.rs               # Clap v4 argument structs (Cli, Commands, Flags)
+    │   └── oneshot.rs            # Direct query execution with stdout streaming (no TUI)
     ├── tui/
-    │   ├── mod.rs                # Módulo TUI
-    │   ├── app.rs                # Estado reativo da aplicação (mensagens, input, foco, modal)
-    │   ├── ui.rs                 # Renderização dos widgets Ratatui (Header, Chat, ReAct, Input)
-    │   ├── events.rs             # Loop de eventos Crossterm + canais assíncronos MPSC Tokio
-    │   ├── theme.rs              # Paleta visual, estilos e renderização de sintaxe
-    │   └── markdown.rs           # Renderizador minimalista de Markdown no terminal
+    │   ├── mod.rs                # TUI module
+    │   ├── app.rs                # Reactive application state (messages, input, focus, modal)
+    │   ├── ui.rs                 # Rendering of the Ratatui widgets (Header, Chat, ReAct, Input)
+    │   ├── events.rs             # Crossterm event loop + Tokio MPSC async channels
+    │   ├── theme.rs              # Visual palette, styles and syntax rendering
+    │   └── markdown.rs           # Minimalist Markdown renderer for the terminal
     ├── commands/
     │   ├── mod.rs                # Universal Command Dispatcher
-    │   ├── registry.rs           # Catálogo nativo dos 34 slash commands
-    │   └── handlers.rs           # Executores dos comandos (/workspace, /sync, /model, /clear, etc.)
+    │   ├── registry.rs           # Native catalog of the 34 slash commands
+    │   └── handlers.rs           # Command executors (/workspace, /sync, /model, /clear, etc.)
     └── config/
-        ├── mod.rs                # Resolução de diretórios (AppData / .config)
-        └── settings.rs           # Leitura e escrita de configurações no SQLite nativo
+        ├── mod.rs                # Directory resolution (AppData / .config)
+        └── settings.rs           # Reading and writing settings in the native SQLite
 ```
 
 ---
 
-## 3. ⚙️ Detalhamento Técnico dos Componentes
+## 3. ⚙️ Technical Detail of the Components
 
-### 3.1. Parsing de Argumentos via `clap v4` (`src/cli/args.rs`)
-Substitui o `argparse` do Python e as heurísticas manuais de `sys.argv`:
+### 3.1. Argument Parsing through `clap v4` (`src/cli/args.rs`)
+Replaces Python's `argparse` and the manual `sys.argv` heuristics:
 ```rust
 #[derive(Parser, Debug)]
 #[command(name = "actx", version, about = "AnyContext - Universal Agentic Context Engine")]
 pub struct Cli {
-    /// Workspace de contexto ativo
+    /// Active context workspace
     #[arg(short = 'w', long = "workspace", default_value = "Default")]
     pub workspace: String,
 
-    /// Executa uma consulta direta sem abrir a TUI (One-shot)
+    /// Runs a direct query without opening the TUI (One-shot)
     #[arg(short = 'p', long = "prompt")]
     pub prompt: Option<String>,
 
-    /// Subcomandos operacionais
+    /// Operational subcommands
     #[command(subcommand)]
     pub command: Option<Commands>,
 
-    /// Prompt livre direto posicional (ex: actx "como funciona o auth?")
+    /// Free positional prompt (e.g. actx "how does auth work?")
     #[arg(trailing_var_arg = true)]
     pub query: Vec<String>,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Inicia o servidor REST API nativo
+    /// Starts the native REST API server
     Serve {
         #[arg(long, default_value = "127.0.0.1")]
         host: String,
         #[arg(long, default_value_t = 8000)]
         port: u16,
     },
-    /// Inicia o servidor Model Context Protocol (MCP) via stdio
+    /// Starts the Model Context Protocol (MCP) server over stdio
     Mcp,
-    /// Inicia a ponte Stdio JSON-RPC 2.0 para plugins de IDE
+    /// Starts the Stdio JSON-RPC 2.0 bridge for IDE plugins
     Rpc,
-    /// Sincroniza pastas e documentos do workspace ativo
+    /// Syncs the active workspace's folders and documents
     Sync {
         #[arg(short, long)]
         force: bool,
     },
-    /// Verifica e instala atualizações do binário
+    /// Checks for and installs binary updates
     Update {
         #[arg(long)]
         check: bool,
     },
-    /// Exibe relatório de diagnóstico do sistema
+    /// Shows a system diagnostics report
     Diagnostics,
 }
 ```
 
-### 3.2. Interface TUI Interativa com `ratatui` + `crossterm` (`src/tui/`)
-- **Arquitetura Orientada a Eventos (`Event-Driven Architecture`)**:
-  - Thread dedicada a ler eventos do teclado com `crossterm::event::EventStream` e enviar mensagens `AppEvent::Key(KeyEvent)` para um canal `tokio::sync::mpsc`.
-  - Canal assíncrono conectado aos eventos emitidos pelo `actx-agent` (`AgentEvent::Thinking`, `AgentEvent::Delta`, `AgentEvent::ToolStart`, `AgentEvent::ToolEnd`, `AgentEvent::Done`).
-- **Widgets de Apresentação**:
-  1. `HeaderBar`: Exibe nome do workspace ativo, modelo selecionado, badge do tier (ex: `Local / Edge`, `Frontier`) e contador de tokens.
-  2. `ChatViewport`: Lista de mensagens com histórico rolável, formatação visual de Markdown (títulos, negrito, listas, blocos de código com destaque).
-  3. `ReActAccordion`: Bloco recolhível exibindo o raciocínio do modelo e status das ferramentas em execução (ex: `⚙️ [NativeLanceStore] Searching top 8 chunks...`).
-  4. `InputArea`: Editor de linha com navegação por cursor, histórico de comandos (Up/Down) e detecção de digitação de `/` para abertura de popup de autocomplete.
+### 3.2. Interactive TUI with `ratatui` + `crossterm` (`src/tui/`)
+- **Event-Driven Architecture**:
+  - A dedicated thread reads keyboard events with `crossterm::event::EventStream` and sends `AppEvent::Key(KeyEvent)` messages to a `tokio::sync::mpsc` channel.
+  - An async channel connected to the events emitted by `actx-agent` (`AgentEvent::Thinking`, `AgentEvent::Delta`, `AgentEvent::ToolStart`, `AgentEvent::ToolEnd`, `AgentEvent::Done`).
+- **Presentation Widgets**:
+  1. `HeaderBar`: shows the active workspace name, the selected model, the tier badge (e.g. `Local / Edge`, `Frontier`) and a token counter.
+  2. `ChatViewport`: scrollable message history with visual Markdown formatting (headings, bold, lists, highlighted code blocks).
+  3. `ReActAccordion`: a collapsible block showing the model's reasoning and the status of running tools (e.g. `⚙️ [NativeLanceStore] Searching top 8 chunks...`).
+  4. `InputArea`: a line editor with cursor navigation, command history (Up/Down) and detection of a typed `/` to open the autocomplete popup.
 
 ---
 
-## 4. 📋 Paridade Universal de Comandos (Os 34 Slash Commands)
+## 4. 📋 Universal Command Parity (The 34 Slash Commands)
 
-Todos os comandos atualmente existentes no registro do AnyContext são mapeados para o dispatcher central em Rust puro:
+Every command currently in the AnyContext registry is mapped to the central dispatcher in pure Rust:
 - `/help`, `/workspace`, `/sync`, `/model`, `/clear`, `/history`, `/info`, `/status`, `/exit`, `/quit`
 - `/keys`, `/config`, `/logs`, `/diagnostics`, `/update`, `/rollback`, `/releases`
-- `/fast`, `/deep`, `/search` (preparados para a RFC-042)
+- `/fast`, `/deep`, `/search` (prepared for RFC-042)
 - `/ingest`, `/inspect`, `/chunks`, `/privacy`, `/purge`
 
 ---
 
-## 5. 🎯 Marcos de Entrega (Milestones)
+## 5. 🎯 Delivery Milestones
 
-| Marco | Descrição | Status |
+| Milestone | Description | Status |
 |---|---|---|
-| **M1: Crate `actx-cli` & Clap v4** | Criação da crate, manifesto Cargo, modelo de argumentos e fast-path `-v`/`-h` | ⚪ Pendente |
-| **M2: Modo One-Shot & Pipeline Streaming** | Execução de consultas únicas via linha de comando e piped stdin conectadas a `actx-agent` | ⚪ Pendente |
-| **M3: Framework TUI Ratatui & Layout** | Estruturação da TUI com HeaderBar, ChatViewport e InputArea responsivos | ⚪ Pendente |
-| **M4: Event Loop & Streaming Reativo** | Integração do stream SSE do `actx-lm` e eventos do `actx-agent` na tela | ⚪ Pendente |
-| **M5: Dispatcher de Comandos & Autocomplete** | Paridade dos slash commands e popup interativo de sugestões | ⚪ Pendente |
-| **M6: Suíte de Testes Nativos & NFRs** | Testes unitários e de integração de CLI/TUI com 100% de sucesso | ⚪ Pendente |
-| **M7: Dual-Doc & Testes Manuais** | Atualização de README.md, TECDOC.md e MANUAL_TESTS.md sem truncamento | ⚪ Pendente |
+| **M1: `actx-cli` Crate & Clap v4** | Crate creation, Cargo manifest, argument model and `-v`/`-h` fast path | ⚪ Pending |
+| **M2: One-Shot Mode & Streaming Pipeline** | Single queries from the command line and piped stdin connected to `actx-agent` | ⚪ Pending |
+| **M3: Ratatui TUI Framework & Layout** | TUI structure with responsive HeaderBar, ChatViewport and InputArea | ⚪ Pending |
+| **M4: Event Loop & Reactive Streaming** | Integration of the `actx-lm` SSE stream and the `actx-agent` events on screen | ⚪ Pending |
+| **M5: Command Dispatcher & Autocomplete** | Slash command parity and an interactive suggestions popup | ⚪ Pending |
+| **M6: Native Test Suite & NFRs** | CLI/TUI unit and integration tests with 100% success | ⚪ Pending |
+| **M7: Dual-Doc & Manual Tests** | Update of README.md, TECDOC.md and MANUAL_TESTS.md without truncation | ⚪ Pending |
