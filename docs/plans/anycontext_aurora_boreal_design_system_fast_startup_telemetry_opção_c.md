@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_aurora_boreal_design_system_fast_startup_telemetry_opção_c
 project: any-context
-title: Aurora Boreal Design System & Fast Startup Telemetry (Opção C)
+title: Aurora Boreal Design System & Fast Startup Telemetry (Option C)
 version: v0.34.6
 status: completed
 author: Levi Silveira
@@ -19,15 +19,15 @@ supersedes: null
 superseded_by: null
 parent_plan_id: null
 milestones:
-- name: Marco 1 - Core Theme Module
+- name: Milestone 1 - Core Theme Module
   done: false
-- name: Marco 2 - CLI & TUI Aurora Adapter
+- name: Milestone 2 - CLI & TUI Aurora Adapter
   done: false
-- name: Marco 3 - Fast Startup & Splash Loader
+- name: Milestone 3 - Fast Startup & Splash Loader
   done: false
-- name: Marco 4 - Validacao & Testes
+- name: Milestone 4 - Validation & Tests
   done: false
-- name: Marco 5 - Dual-Doc & Release
+- name: Milestone 5 - Dual-Doc & Release
   done: false
 status_log:
 - at: '2026-10-16T10:47:35'
@@ -35,74 +35,74 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# Blueprint Técnico - AnyContext v0.34.6: Aurora Boreal Design System & Fast Startup (Opção C)
+# Technical Blueprint - AnyContext v0.34.6: Aurora Boreal Design System & Fast Startup (Option C)
 
-**Versão Alvo**: `v0.34.6`  
-**Data**: 2026-10-10  
-**Autor**: Levix Digital / Antigravity AI  
-**Status**: Proposto (Aguardando Gate 3)  
-**ID do Plano**: `anycontext_blueprint_v0346_aurora_theme_and_fast_startup`  
+**Target Version**: `v0.34.6`  
+**Date**: 2026-10-10  
+**Author**: Levix Digital / Antigravity AI  
+**Status**: Proposed (Awaiting Gate 3)  
+**Plan ID**: `anycontext_blueprint_v0346_aurora_theme_and_fast_startup`  
 
 ---
 
-## 1. Arquitetura e Componentes Impactados
+## 1. Architecture and Affected Components
 
-### 1.1 Visão Geral Arquitetural
-A versão **v0.34.6** foca em dois pilares centrais de excelência de produto:
-1. **Identidade Visual Unificada (Aurora Boreal Design System)**:
-   - Extração e centralização dos Design Tokens institucionais da Levix Digital (Esmeralda Boreal, Ciano Glacial, Violeta Cósmico, Rosa Polar, Âmbar Solar e Noite Polar) no crate `any-context-core-rs`.
-   - Arquitetura desacoplada e modular baseada no padrão *Hexagonal / Ports & Adapters*: o Core define tokens puros em RGB e Hex com suporte a serialização JSON (para Web, RPC, REST e Desktop), enquanto o `actx-cli` implementa os adaptadores nativos para o `ratatui` (TUI) e ANSI TrueColor de 24-bits (CLI Headless).
-   - Qualquer alteração futura na paleta no Core repercute automaticamente em todas as interfaces.
-2. **Otimização de Inicialização e Splash Telemetry (Opção C - Híbrido Inteligente)**:
-   - Eliminação de gargalos bloqueantes de inicialização no caminho crítico (`ensure_global_knowledge_bootstrap`).
-   - Verificação em < 1ms no SQLite: se a versão já está provisionada (`stored_version == current_version`), executa o *Fast-Path* abrindo a TUI em < 50ms sem chamadas desnecessárias a disco.
-   - Na primeira execução ou após um upgrade de versão (`stored_version != current_version`), exibe um Splash Loader elegante com as cores Aurora Boreal na linha de comando, provendo telemetria passo a passo de inicialização do LanceDB e índice BM25 antes de abrir a TUI.
+### 1.1 Architectural Overview
+Version **v0.34.6** focuses on two central pillars of product excellence:
+1. **Unified Visual Identity (Aurora Boreal Design System)**:
+   - Extraction and centralization of Levix Digital's institutional Design Tokens (Boreal Emerald, Glacial Cyan, Cosmic Violet, Polar Pink, Solar Amber and Polar Night) in the `any-context-core-rs` crate.
+   - A decoupled, modular architecture based on the *Hexagonal / Ports & Adapters* pattern: the Core defines pure tokens in RGB and Hex with JSON serialization support (for Web, RPC, REST and Desktop), while `actx-cli` implements the native adapters for `ratatui` (TUI) and 24-bit ANSI TrueColor (Headless CLI).
+   - Any future palette change in the Core propagates automatically to every interface.
+2. **Startup Optimization and Splash Telemetry (Option C - Smart Hybrid)**:
+   - Removal of blocking startup bottlenecks on the critical path (`ensure_global_knowledge_bootstrap`).
+   - A < 1ms check in SQLite: if the version is already provisioned (`stored_version == current_version`), it takes the *Fast-Path*, opening the TUI in < 50ms without unnecessary disk calls.
+   - On the first run or after a version upgrade (`stored_version != current_version`), it shows an elegant Splash Loader with the Aurora Boreal colors on the command line, providing step-by-step telemetry of the LanceDB and BM25 index initialization before opening the TUI.
 
-### 1.2 Componentes e Módulos Modificados
-- `crates/any-context-core-rs/src/theme/mod.rs` (NOVO):
-  - Definição dos tokens semânticos: `RgbColor`, `AuroraTheme`.
-  - Helpers de conversão: `to_hex()`, `ansi_fg()`, `ansi_bg()`, `to_rgb_tuple()`.
+### 1.2 Modified Components and Modules
+- `crates/any-context-core-rs/src/theme/mod.rs` (NEW):
+  - Definition of the semantic tokens: `RgbColor`, `AuroraTheme`.
+  - Conversion helpers: `to_hex()`, `ansi_fg()`, `ansi_bg()`, `to_rgb_tuple()`.
 - `crates/any-context-core-rs/src/lib.rs`:
-  - Exportação pública de `pub mod theme;` e `pub use theme::{AuroraTheme, RgbColor};`.
-- `crates/actx-cli/src/theme.rs` (NOVO):
-  - Adaptador `UiTheme` para `ratatui::style::Color`.
-  - Paleta com mapeamento para `Color::Rgb(r, g, b)`.
+  - Public export of `pub mod theme;` and `pub use theme::{AuroraTheme, RgbColor};`.
+- `crates/actx-cli/src/theme.rs` (NEW):
+  - `UiTheme` adapter for `ratatui::style::Color`.
+  - Palette mapped to `Color::Rgb(r, g, b)`.
 - `crates/actx-cli/src/tui/ui.rs`:
-  - Refatoração dos widgets (Header, Chat, Accordion de Raciocínio ReAct, Prompt Multilinhas, Paleta de Comandos, Footer e Menu Interativo) para consumir a paleta institucional Aurora Boreal.
+  - Refactoring of the widgets (Header, Chat, ReAct Reasoning Accordion, Multiline Prompt, Command Palette, Footer and Interactive Menu) to consume the institutional Aurora Boreal palette.
 - `crates/actx-cli/src/cli/oneshot.rs`:
-  - Atualização dos logs do CLI (pensamentos, tool calls, status de sincronização, badge do ModelRouter) para utilizar sequências ANSI TrueColor da paleta Aurora Boreal.
+  - CLI logs (thoughts, tool calls, sync status, ModelRouter badge) updated to use ANSI TrueColor sequences of the Aurora Boreal palette.
 - `crates/actx-cli/src/engine.rs`:
-  - Desacoplamento da chamada bloqueante de bootstrap síncrono dentro de `build_agent_sync`.
-  - Nova função `needs_global_bootstrap() -> bool` e `run_bootstrap_with_telemetry<F>(callback: F)`.
+  - Decoupling of the blocking synchronous bootstrap call inside `build_agent_sync`.
+  - New functions `needs_global_bootstrap() -> bool` and `run_bootstrap_with_telemetry<F>(callback: F)`.
 - `crates/actx-cli/src/tui/mod.rs` & `crates/actx-cli/src/main.rs`:
-  - Implementação da Opção C: verificação rápida pré-TUI, renderização do Splash Loader quando necessário e abertura imediata quando em regime estável.
-- `Cargo.toml` (workspace e crates): Bump de versão para `0.34.6`.
+  - Implementation of Option C: a quick pre-TUI check, rendering of the Splash Loader when needed and immediate opening in steady state.
+- `Cargo.toml` (workspace and crates): version bump to `0.34.6`.
 
 ---
 
-## 2. Diagramas Mermaid
+## 2. Mermaid Diagrams
 
-### 2.1 Fluxo de Inicialização - Opção C (Híbrido Inteligente)
+### 2.1 Startup Flow - Option C (Smart Hybrid)
 
 ```mermaid
 flowchart TD
-    A["Início: actx executado"] --> B["Abre SQLite (NativeConfigDb) em <1ms"]
+    A["Start: actx executed"] --> B["Opens SQLite (NativeConfigDb) in <1ms"]
     B --> C{"global_knowledge_version == CARGO_PKG_VERSION?"}
     
-    C -- "SIM (Uso Diário / Fast-Path)" --> D["Fast-Path: Pula bootstrap síncrono"]
-    D --> E["Inicializa TUI diretamente (<50ms)"]
-    E --> F["Entra no Loop Interativo da TUI"]
+    C -- "YES (Daily Use / Fast-Path)" --> D["Fast-Path: skips the synchronous bootstrap"]
+    D --> E["Starts the TUI directly (<50ms)"]
+    E --> F["Enters the Interactive TUI Loop"]
     
-    C -- "NÃO (Primeiro Uso ou Pós-Update)" --> G["Renderiza Aurora Boreal CLI Splash"]
-    G --> H["[1/3] Verificando SQLite & LanceDB"]
-    H --> I["[2/3] Indexando System Docs & Léxico BM25"]
-    I --> J["[3/3] Aquecendo ModelRouter & Workspace Engine"]
-    J --> K["Grava global_knowledge_version no SQLite"]
-    K --> L["Transição suave (Clear + EnterAlternateScreen)"]
+    C -- "NO (First Use or After an Update)" --> G["Renders the Aurora Boreal CLI Splash"]
+    G --> H["[1/3] Checking SQLite & LanceDB"]
+    H --> I["[2/3] Indexing System Docs & BM25 Lexicon"]
+    I --> J["[3/3] Warming up the ModelRouter & Workspace Engine"]
+    J --> K["Stores global_knowledge_version in SQLite"]
+    K --> L["Smooth transition (Clear + EnterAlternateScreen)"]
     L --> F
 ```
 
-### 2.2 Hierarquia de Design Tokens & Desacoplamento de UIs
+### 2.2 Design Token Hierarchy & UI Decoupling
 
 ```mermaid
 classDiagram
@@ -151,15 +151,15 @@ classDiagram
     }
 
     AuroraTheme *-- RgbColor
-    UiThemeRatatui ..> AuroraTheme : consome
-    WebOrRestAdapter ..> AuroraTheme : serializa
+    UiThemeRatatui ..> AuroraTheme : consumes
+    WebOrRestAdapter ..> AuroraTheme : serializes
 ```
 
 ---
 
-## 3. Estruturas de Dados e Assinaturas
+## 3. Data Structures and Signatures
 
-### 3.1 Módulo `any_context_core_rs::theme`
+### 3.1 `any_context_core_rs::theme` Module
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RgbColor {
@@ -178,24 +178,24 @@ impl RgbColor {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AuroraTheme {
-    pub primary: RgbColor,          // Esmeralda Boreal (#00E5A3)
-    pub accent: RgbColor,           // Ciano Glacial (#00F0FF)
-    pub reasoning: RgbColor,        // Violeta Cósmico (#A855F7)
-    pub magenta: RgbColor,          // Rosa Polar (#EC4899)
-    pub warning: RgbColor,          // Âmbar Solar (#F59E0B)
-    pub error: RgbColor,            // Carmesim Polar (#EF4444)
-    pub info: RgbColor,             // Azul Ártico (#38BDF8)
-    pub bg_dark: RgbColor,          // Noite Polar (#0B0F19)
-    pub bg_surface: RgbColor,       // Superfície Meia-Noite (#161F30)
-    pub border_focus: RgbColor,     // Borda Foco (#00F0FF)
-    pub border_unfocused: RgbColor, // Borda Neutra (#334155)
-    pub text_bright: RgbColor,      // Gelo Polar Branco (#F1F5F9)
-    pub text_body: RgbColor,        // Prata Glacial (#CBD5E1)
-    pub text_muted: RgbColor,       // Ardósia Mudo (#64748B)
+    pub primary: RgbColor,          // Boreal Emerald (#00E5A3)
+    pub accent: RgbColor,           // Glacial Cyan (#00F0FF)
+    pub reasoning: RgbColor,        // Cosmic Violet (#A855F7)
+    pub magenta: RgbColor,          // Polar Pink (#EC4899)
+    pub warning: RgbColor,          // Solar Amber (#F59E0B)
+    pub error: RgbColor,            // Polar Crimson (#EF4444)
+    pub info: RgbColor,             // Arctic Blue (#38BDF8)
+    pub bg_dark: RgbColor,          // Polar Night (#0B0F19)
+    pub bg_surface: RgbColor,       // Midnight Surface (#161F30)
+    pub border_focus: RgbColor,     // Focus Border (#00F0FF)
+    pub border_unfocused: RgbColor, // Neutral Border (#334155)
+    pub text_bright: RgbColor,      // Polar Ice White (#F1F5F9)
+    pub text_body: RgbColor,        // Glacial Silver (#CBD5E1)
+    pub text_muted: RgbColor,       // Muted Slate (#64748B)
 }
 ```
 
-### 3.2 Módulo `actx_cli::theme`
+### 3.2 `actx_cli::theme` Module
 ```rust
 pub struct UiTheme {
     pub primary: ratatui::style::Color,
@@ -219,7 +219,7 @@ impl UiTheme {
 }
 ```
 
-### 3.3 Telemetria de Inicialização no `actx-cli/src/engine.rs`
+### 3.3 Startup Telemetry in `actx-cli/src/engine.rs`
 ```rust
 pub fn check_upgrade_needed() -> bool;
 pub fn execute_bootstrap_with_progress<F>(on_step: F) -> Result<(), String>
@@ -229,77 +229,77 @@ where
 
 ---
 
-## 4. Mudanças em Documentação (Dual-Doc Standard)
+## 4. Documentation Changes (Dual-Doc Standard)
 
 1. **`TECDOC.md`**:
-   - Inclusão da **Seção 107**: *Aurora Boreal Design System & Zero-Delay Modular Theme Architecture*.
-   - Inclusão do **ADR-114**: *Modular Theme Tokens Extraction & Fast-Path Telemetry Startup (Option C)*.
+   - Addition of **Section 107**: *Aurora Boreal Design System & Zero-Delay Modular Theme Architecture*.
+   - Addition of **ADR-114**: *Modular Theme Tokens Extraction & Fast-Path Telemetry Startup (Option C)*.
 2. **`README.md`**:
-   - Atualização da seção de Interface Visual e Identidade da Levix Digital.
-   - Destaque para a inicialização ultra-rápida (< 50ms) e telemetria de primeiro uso.
+   - Update of the Visual Interface and Levix Digital Identity section.
+   - Highlight of the ultra-fast startup (< 50ms) and the first-use telemetry.
 3. **`tests/MANUAL_TESTS.md`**:
-   - Inclusão do **Cenário 29**: Validação da fidelidade cromática Aurora Boreal (TUI e CLI) e tempo de startup do Fast-Path (< 50ms em regime e exibição correta do Splash no primeiro boot).
-   - Preservação estrita e integral de todos os 28 cenários pré-existentes.
+   - Addition of **Scenario 29**: validation of the Aurora Boreal color fidelity (TUI and CLI) and of the Fast-Path startup time (< 50ms in steady state and the Splash shown correctly on the first boot).
+   - Strict, full preservation of all 28 pre-existing scenarios.
 
 ---
 
-## 5. Suíte de Testes
+## 5. Test Suite
 
-1. **Testes Unitários em `any-context-core-rs::theme`**:
-   - `test_rgb_hex_conversion`: Conversão exata de RGB para Hex uppercase (`#00E5A3`, `#00F0FF`, etc.).
-   - `test_theme_json_serialization`: Validação de que `AuroraTheme` serializa e desserializa perfeitamente via `serde_json` sem perdas para consumo por Web/WASM.
-   - `test_ansi_escape_generation`: Geração correta de códigos `\x1b[38;2;R;G;Bm`.
-2. **Testes Unitários em `actx-cli::theme`**:
-   - `test_ui_theme_ratatui_mapping`: Verificação de mapeamento de todos os tokens para `ratatui::style::Color::Rgb`.
-3. **Testes de Inicialização e Upgrade Check**:
-   - `test_upgrade_detection_logic`: Simulação de versão SQLite antiga vs versão do pacote e disparo correto de flag.
-4. **Testes Manuais de Regressão e Produção**:
-   - Inicialização em modo normal: benchmark de abertura em tempo recorde (< 50ms).
-   - Forçar upgrade simulado alterando versão no SQLite: verificação da renderização do Splash Loader com spinner e transição suave.
-   - Execução de queries headless (`actx -w TaxReturn -q "..."`): confirmação de badges Aurora Boreal e legibilidade perfeita.
+1. **Unit Tests in `any-context-core-rs::theme`**:
+   - `test_rgb_hex_conversion`: exact conversion from RGB to uppercase Hex (`#00E5A3`, `#00F0FF`, etc.).
+   - `test_theme_json_serialization`: validation that `AuroraTheme` serializes and deserializes perfectly through `serde_json` without loss, for consumption by Web/WASM.
+   - `test_ansi_escape_generation`: correct generation of `\x1b[38;2;R;G;Bm` codes.
+2. **Unit Tests in `actx-cli::theme`**:
+   - `test_ui_theme_ratatui_mapping`: check of the mapping of every token to `ratatui::style::Color::Rgb`.
+3. **Startup and Upgrade Check Tests**:
+   - `test_upgrade_detection_logic`: simulation of an old SQLite version vs the package version and correct flag triggering.
+4. **Manual Regression and Production Tests**:
+   - Startup in normal mode: benchmark of opening in record time (< 50ms).
+   - Forcing a simulated upgrade by changing the version in SQLite: check of the Splash Loader rendering with a spinner and smooth transition.
+   - Headless queries (`actx -w TaxReturn -q "..."`): confirmation of the Aurora Boreal badges and perfect readability.
 
 ---
 
-## 6. Riscos, Mitigações e Rollback
+## 6. Risks, Mitigations and Rollback
 
-| Risco | Impacto | Mitigação |
+| Risk | Impact | Mitigation |
 |---|---|---|
-| Terminais legados sem suporte a TrueColor (24-bit) apresentarem cores distorcidas | Baixo | Ratatui e Crossterm possuem fallback automático para 256 cores / ANSI 16 cores. Os tokens hexadecimais possuem luminância balanceada compatível com paletas 256. |
-| Perda de contraste entre texto e fundo em terminais com tema claro | Médio | O contraste dos textos (`text_bright` = `#F1F5F9`, `text_body` = `#CBD5E1`) foi especificamente calibrado com alto índice WCAG AAA sobre fundos escuros (`#0B0F19` / `#161F30`). |
-| Travamento no carregamento do splash em caso de falha de I/O no LanceDB | Médio | O bootstrap possui timeouts defensivos e captura erros com fallback gracioso sem abortar a aplicação. |
-| **Plano de Rollback** | N/A | Caso haja regressão, `git revert` para a tag `v0.34.5` restaura o comportamento anterior imediatamente. |
+| Legacy terminals without TrueColor (24-bit) support show distorted colors | Low | Ratatui and Crossterm fall back automatically to 256 colors / ANSI 16 colors. The hexadecimal tokens have balanced luminance compatible with 256-color palettes. |
+| Loss of contrast between text and background in light-themed terminals | Medium | Text contrast (`text_bright` = `#F1F5F9`, `text_body` = `#CBD5E1`) was specifically calibrated to a high WCAG AAA ratio over dark backgrounds (`#0B0F19` / `#161F30`). |
+| The splash hangs while loading on a LanceDB I/O failure | Medium | The bootstrap has defensive timeouts and catches errors with a graceful fallback without aborting the application. |
+| **Rollback Plan** | N/A | On a regression, `git revert` to tag `v0.34.5` restores the previous behavior immediately. |
 
 ---
 
-## 7. Plano de Execução Passo a Passo
+## 7. Step-by-Step Execution Plan
 
-1. **Marco 1: Criação do Módulo de Tema no Core (`any-context-core-rs`)**:
-   - Implementar `theme/mod.rs` com `RgbColor`, `AuroraTheme` e testes unitários.
-   - Exportar no `lib.rs`.
-2. **Marco 2: Criação do Adaptador de Tema no `actx-cli`**:
-   - Implementar `actx-cli/src/theme.rs` com `UiTheme`.
-   - Refatorar `tui/ui.rs` (Header, Chat, Accordion, Prompt, Palette, Footer, Menu).
-   - Refatorar `cli/oneshot.rs` para badges e mensagens ANSI Aurora.
-3. **Marco 3: Implementação do Fast Startup & Splash Loader (Opção C)**:
-   - Desacoplar chamada síncrona redundante em `engine.rs`.
-   - Implementar verificação rápida no SQLite em `main.rs` / `tui/mod.rs`.
-   - Implementar o componente `StartupLoader` na linha de comando com progresso e spinner.
-4. **Marco 4: Validação, Testes e Verificação Visual**:
-   - Executar `cargo check --workspace` e `cargo test --workspace`.
-   - Testar inicialização rápida e simulação de splash.
-   - Validar testes manuais e compilação do executável de release.
-5. **Marco 5: Dual-Doc, Version Bump & Release**:
-   - Atualizar `Cargo.toml` para `0.34.6`.
-   - Atualizar `TECDOC.md`, `README.md` e `tests/MANUAL_TESTS.md`.
-   - Criar commit `feat(theme): v0.34.6 - aurora boreal design system & fast-path startup loader`, tag `v0.34.6` e push para `origin/dev`.
+1. **Milestone 1: Theme Module in the Core (`any-context-core-rs`)**:
+   - Implement `theme/mod.rs` with `RgbColor`, `AuroraTheme` and unit tests.
+   - Export it in `lib.rs`.
+2. **Milestone 2: Theme Adapter in `actx-cli`**:
+   - Implement `actx-cli/src/theme.rs` with `UiTheme`.
+   - Refactor `tui/ui.rs` (Header, Chat, Accordion, Prompt, Palette, Footer, Menu).
+   - Refactor `cli/oneshot.rs` for Aurora ANSI badges and messages.
+3. **Milestone 3: Fast Startup & Splash Loader (Option C)**:
+   - Decouple the redundant synchronous call in `engine.rs`.
+   - Implement the quick SQLite check in `main.rs` / `tui/mod.rs`.
+   - Implement the `StartupLoader` component on the command line with progress and a spinner.
+4. **Milestone 4: Validation, Tests and Visual Verification**:
+   - Run `cargo check --workspace` and `cargo test --workspace`.
+   - Test the fast startup and the splash simulation.
+   - Validate the manual tests and the release executable build.
+5. **Milestone 5: Dual-Doc, Version Bump & Release**:
+   - Update `Cargo.toml` to `0.34.6`.
+   - Update `TECDOC.md`, `README.md` and `tests/MANUAL_TESTS.md`.
+   - Create the commit `feat(theme): v0.34.6 - aurora boreal design system & fast-path startup loader`, tag `v0.34.6` and push to `origin/dev`.
 
 ---
 
-## 8. Critérios de Aceite
+## 8. Acceptance Criteria
 
-1. **100% dos testes verdes**: Suíte completa do workspace sem erros (`cargo test --workspace`).
-2. **Modularidade e Reusabilidade**: A paleta de cores reside exclusivamente no Core e pode ser serializada para JSON por qualquer outra interface.
-3. **Consistência Visual Aurora Boreal**: Header, Chat, Reasoning Accordion, Menus e Headless CLI exibem consistentemente as cores da Levix Digital com legibilidade de alto contraste.
-4. **Startup < 50ms**: Inicializações normais do dia-a-dia abrem a TUI instantaneamente.
-5. **Splash Loader Telemetry**: Atualizações ou primeiro boot exibem telemetria com progresso na linha de comando antes de abrir a TUI.
-6. **Dual-Doc e Cenário 29**: Documentação atualizada e Cenário 29 adicionado sem truncar testes anteriores.
+1. **100% green tests**: full workspace suite without errors (`cargo test --workspace`).
+2. **Modularity and Reusability**: the color palette lives exclusively in the Core and can be serialized to JSON by any other interface.
+3. **Aurora Boreal Visual Consistency**: Header, Chat, Reasoning Accordion, Menus and the Headless CLI consistently show the Levix Digital colors with high-contrast readability.
+4. **Startup < 50ms**: normal day-to-day starts open the TUI instantly.
+5. **Splash Loader Telemetry**: updates or the first boot show telemetry with progress on the command line before opening the TUI.
+6. **Dual-Doc and Scenario 29**: documentation updated and Scenario 29 added without truncating previous tests.
