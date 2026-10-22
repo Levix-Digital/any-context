@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_blueprint_v0347_onnx_models_fallbacks_search_status_e_ux
 project: any-context
-title: 'Blueprint v0.34.7: ONNX Models, Fallbacks, Search Status e UX'
+title: 'Blueprint v0.34.7: ONNX Models, Fallbacks, Search Status and UX'
 version: v0.34.7
 status: completed
 author: Levi Silveira
@@ -28,75 +28,75 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 📐 Blueprint de Engenharia: AnyContext v0.34.7
-## Repositório ONNX Nativo, Resiliência de Fallbacks, Indicador de Search Mode, Spinner Horário e Tom Conversacional Humano
+# 📐 Engineering Blueprint: AnyContext v0.34.7
+## Native ONNX Repository, Fallback Resilience, Search Mode Indicator, Clockwise Spinner and Human Conversational Tone
 
 ---
 
-### 📌 Metadados da Versão
-- **Versão-Alvo**: `v0.34.7`
-- **Componentes Impactados**: `crates/any-context-core-rs`, `crates/actx-cli`, `config/AGENT.md`, `tests/`
-- **Arquitetura Base**: ADR-110 (Ingestion ModelRouter), RFC-042 (Dynamic Query & Source-Aware Routing), Aurora Boreal Design System
-- **Status**: Planejamento Técnico Consolidado (Aguardando Aprovação de Execução)
+### 📌 Version Metadata
+- **Target Version**: `v0.34.7`
+- **Affected Components**: `crates/any-context-core-rs`, `crates/actx-cli`, `config/AGENT.md`, `tests/`
+- **Base Architecture**: ADR-110 (Ingestion ModelRouter), RFC-042 (Dynamic Query & Source-Aware Routing), Aurora Boreal Design System
+- **Status**: Consolidated Technical Planning (Awaiting Execution Approval)
 
 ---
 
-## 🔍 1. Diagnóstico do CI (GitHub Actions) em Paralelo
+## 🔍 1. Parallel CI (GitHub Actions) Diagnosis
 
-### 1.1 Causa-Raiz Identificada
-No workflow **End-to-End (E2E) Modular Test Suite** (Run `38070415206`), o teste unitário `test_is_first_run_or_upgrade_does_not_panic` falhou no runner `windows-latest`:
+### 1.1 Root Cause Identified
+In the **End-to-End (E2E) Modular Test Suite** workflow (Run `38070415206`), the unit test `test_is_first_run_or_upgrade_does_not_panic` failed on the `windows-latest` runner:
 ```text
 thread 'engine::tests::test_is_first_run_or_upgrade_does_not_panic' panicked at crates\actx-cli\src\engine.rs:603:9:
 Startup check must run in under 50ms (was 108.2275ms)
 ```
 
-### 1.2 Mecanismo da Falha
-- Em máquinas virtuais compartilhadas de CI (GitHub Actions Windows Runners), a latência de I/O em disco no primeiro acesso à pasta `%LOCALAPPDATA%` oscila entre `70ms` e `120ms` devido à virtualização e varreduras do SO.
-- A asserção rígida `elapsed.as_millis() < 50` é excessivamente frágil para ambientes de CI concorrentes.
-- **Correção**: Ajustar a asserção para verificar que a operação executa sem pânico de forma instantânea sob teto realista de CI (`< 500ms`), eliminando a fragilidade no pipeline de CI.
+### 1.2 Failure Mechanism
+- On shared CI virtual machines (GitHub Actions Windows Runners), disk I/O latency on the first access to the `%LOCALAPPDATA%` folder ranges between `70ms` and `120ms` because of virtualization and OS scans.
+- The hard assertion `elapsed.as_millis() < 50` is too fragile for concurrent CI environments.
+- **Fix**: adjust the assertion to check that the operation runs without panicking, instantly, under a realistic CI ceiling (`< 500ms`), removing the fragility from the CI pipeline.
 
 ---
 
-## 🏛️ 2. Arquitetura dos Modelos ONNX & Fallbacks Resilientes
+## 🏛️ 2. ONNX Model Architecture & Resilient Fallbacks
 
-### 2.1 Princípio Arquitetural Inviolável: Zero Dependência Externa (Sem Ollama)
-O AnyContext opera com **inferência local embarcada via ONNX Runtime** e heurística nativa 100% Rust. Não há obrigatoriedade de instalar servidores de terceiros como Ollama para recursos centrais de RAG ou Document AI.
+### 2.1 Inviolable Architectural Principle: Zero External Dependency (No Ollama)
+AnyContext runs with **embedded local inference through ONNX Runtime** and a 100% Rust native heuristic. Installing third-party servers such as Ollama is not required for the core RAG or Document AI features.
 
-### 2.2 Repositório Local de Pesos ONNX
-- **Diretório Canônico**:
+### 2.2 Local ONNX Weights Repository
+- **Canonical Directory**:
   - Windows: `%LOCALAPPDATA%\AnyContext\models\`
   - Linux/macOS: `~/.local/share/any-context/models/`
-  - Acesso uniforme via `get_default_models_dir()` em `crates/any-context-core-rs/src/storage/mod.rs`.
+  - Uniform access through `get_default_models_dir()` in `crates/any-context-core-rs/src/storage/mod.rs`.
 
-### 2.3 Catálogo Canônico de Modelos com Nomenclatura Real
-| ID do Modelo | Nome Real | Categoria | Tamanho | Arquivo ONNX | Função Primária |
+### 2.3 Canonical Model Catalog with Real Names
+| Model ID | Real Name | Category | Size | ONNX File | Primary Role |
 |---|---|---|---|---|---|
-| `laya-int8` | **Laya AI (mmBERT INT8 ONNX)** | Classificador de Ingestão | ~210 MB | `laya_mmbert_int8.onnx` | Classificação dinâmica de formulários, tabelas e faturas (~95% precisão, 60ms CPU) |
-| `mobilenetv4-rvl-cdip` | **MobileNetV4 RVL-CDIP (ONNX)** | Classificador Visual de Scans | ~14 MB | `mobilenetv4_rvl_cdip.onnx` | Sentinela visual para documentos 100% rasterizados/escaneados (8ms CPU) |
-| `bge-small-onnx` | **BGE-Small Query Classifier (ONNX)** | Classificador de Consultas | ~35 MB | `bge_small_query_int8.onnx` | Classificação neural da complexidade de perguntas (RFC-042) |
-| `moondream2-int4` | **Moondream2 1.8B (INT4 ONNX)** | Visão Local SLM | ~1.1 GB | `moondream2_int4.onnx` | Extração visual e OCR denso air-gapped para formulários e diagramas |
-| `smolvlm-500m` | **SmolVLM-500M (ONNX)** | Visão Local SLM Compacto | ~480 MB | `smolvlm_500m_int8.onnx` | Visão ultraleve para hardware com restrição de RAM (~800MB RAM) |
+| `laya-int8` | **Laya AI (mmBERT INT8 ONNX)** | Ingestion Classifier | ~210 MB | `laya_mmbert_int8.onnx` | Dynamic classification of forms, tables and invoices (~95% accuracy, 60ms CPU) |
+| `mobilenetv4-rvl-cdip` | **MobileNetV4 RVL-CDIP (ONNX)** | Visual Scan Classifier | ~14 MB | `mobilenetv4_rvl_cdip.onnx` | Visual sentinel for 100% rasterized/scanned documents (8ms CPU) |
+| `bge-small-onnx` | **BGE-Small Query Classifier (ONNX)** | Query Classifier | ~35 MB | `bge_small_query_int8.onnx` | Neural classification of question complexity (RFC-042) |
+| `moondream2-int4` | **Moondream2 1.8B (INT4 ONNX)** | Local Vision SLM | ~1.1 GB | `moondream2_int4.onnx` | Air-gapped visual extraction and dense OCR for forms and diagrams |
+| `smolvlm-500m` | **SmolVLM-500M (ONNX)** | Compact Local Vision SLM | ~480 MB | `smolvlm_500m_int8.onnx` | Ultralight vision for RAM-constrained hardware (~800MB RAM) |
 
-### 2.4 Matriz de Fallbacks Resilientes (Tolerância a Modelos Ausentes)
-Nenhum cenário de download parcial pode quebrar a aplicação:
+### 2.4 Resilient Fallback Matrix (Tolerance to Missing Models)
+No partial download scenario may break the application:
 
-- Se o usuário baixar **apenas o MobileNetV4 (14MB)**: documentos normais usam o classificador determinístico e scans usam MobileNetV4. Aplicação funciona perfeitamente.
-- Se o usuário baixar **apenas o Laya AI (210MB)**: documentos digitais usam Laya AI e páginas escaneadas recaem na Heurística 2D. Zero pânico.
-- Se o usuário **não baixar nenhum modelo**: 100% da aplicação opera com os motores determinísticos e heurística 2D em Rust puro (<5MB RAM, inicialização em <5ms).
-- Se ocorrer erro de E/S ou corrupção no arquivo `.onnx`: o motor captura o erro graciosamente e recai no fallback determinístico emitindo aviso na telemetria sem interromper a indexação.
+- If the user downloads **only MobileNetV4 (14MB)**: normal documents use the deterministic classifier and scans use MobileNetV4. The application works perfectly.
+- If the user downloads **only Laya AI (210MB)**: digital documents use Laya AI and scanned pages fall back to the 2D Heuristic. Zero panic.
+- If the user **downloads no model**: 100% of the application runs on the deterministic engines and the 2D heuristic in pure Rust (<5MB RAM, startup in <5ms).
+- If an I/O error or corruption occurs in the `.onnx` file: the engine catches the error gracefully and falls back to the deterministic path, emitting a telemetry warning without interrupting indexing.
 
-### 2.5 Gerenciador de Modelos (`ModelManager`) & Download Assíncrono
-- Módulo `crates/any-context-core-rs/src/models/manager.rs`:
-  - `list_models()`: inspeciona `%LOCALAPPDATA%\AnyContext\models\` e retorna o status atual de cada modelo (`Installed`, `Missing`, `Downloading`).
-  - `start_download(model_id)`: dispara worker assíncrono com streaming HTTP e verificação de SHA-256.
-  - Telemetria de progresso visível no chat da TUI.
-- Navegação estritamente por **teclado**:
-  - `[Enter]` em modelo ausente dispara o download com mensagem imediata de progresso no chat.
-  - `[Enter]` em modelo instalado ativa-o como provedor padrão e persiste em `settings.db`.
-  - `[Enter]` em opção de desativação restaura o padrão leve instantâneo (Heurística 2D / Determinístico).
+### 2.5 Model Manager (`ModelManager`) & Asynchronous Download
+- `crates/any-context-core-rs/src/models/manager.rs` module:
+  - `list_models()`: inspects `%LOCALAPPDATA%\AnyContext\models\` and returns the current status of each model (`Installed`, `Missing`, `Downloading`).
+  - `start_download(model_id)`: starts an asynchronous worker with HTTP streaming and SHA-256 verification.
+  - Progress telemetry visible in the TUI chat.
+- Navigation strictly by **keyboard**:
+  - `[Enter]` on a missing model starts the download with an immediate progress message in the chat.
+  - `[Enter]` on an installed model enables it as the default provider and persists it in `settings.db`.
+  - `[Enter]` on a disable option restores the instant light default (2D Heuristic / Deterministic).
 
-### 2.6 Exibição Completa no Comando `/status`
-O comando `/status` passa a detalhar a saúde dos modelos e do armazenamento local:
+### 2.6 Full Display in the `/status` Command
+The `/status` command details the health of the models and local storage:
 ```text
 📊 AnyContext Native Core Operational Status:
  • Workspace:        Default (Total workspaces: 2)
@@ -116,24 +116,24 @@ O comando `/status` passa a detalhar a saúde dos modelos e do armazenamento loc
 
 ---
 
-## 🌀 3. Spinner Braille Horário e Dobro de Velocidade
+## 🌀 3. Clockwise Braille Spinner at Double Speed
 
-### 3.1 Sentido Horário e Aceleração
-- Arquivo `crates/actx-cli/src/tui/ui.rs`:
-  - Substituição da sequência anti-horária pela sequência horária canônica:
+### 3.1 Clockwise Direction and Acceleration
+- File `crates/actx-cli/src/tui/ui.rs`:
+  - Replacement of the counter-clockwise sequence by the canonical clockwise sequence:
     `const SPINNER_CHARS: &[&str] = &["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"];`
-  - Aceleração para o dobro da velocidade atual:
+  - Acceleration to double the current speed:
     `let spinner = SPINNER_CHARS[((app.tick_count * 2) as usize) % SPINNER_CHARS.len()];`
-  - Aplicado uniformemente no header (`render_header`), no rodapé (`render_footer`) e no splash.
+  - Applied uniformly in the header (`render_header`), the footer (`render_footer`) and the splash.
 
 ---
 
-## 💬 4. Tom Conversacional Humano e Fluido (Eliminação de `⚠️` e Disclaimers Robotizados)
+## 💬 4. Human, Fluid Conversational Tone (Removing `⚠️` and Robotic Disclaimers)
 
-### 4.1 Erradicação de Mensagens Enlatadas
-- No `crates/actx-cli/src/prompt.rs`:
-  - Remoção completa da instrução rígida: `State clearly: "⚠️ Essa informação não consta nos documentos deste workspace."`.
-  - Substituição por diretriz conversacional natural:
+### 4.1 Eradication of Canned Messages
+- In `crates/actx-cli/src/prompt.rs`:
+  - Complete removal of the rigid instruction: `State clearly: "⚠️ This information is not in this workspace's documents."`.
+  - Replacement by a natural conversational guideline:
     ```text
     - FACTUAL ABSENCE PROTOCOL: If the requested information or documents are not found in the workspace:
       1. Answer naturally, directly, and politely like a helpful human teammate.
@@ -142,54 +142,54 @@ O comando `/status` passa a detalhar a saúde dos modelos e do armazenamento loc
       4. DO NOT add robotic warning disclaimers, alarms, or warning emojis (such as '⚠️').
       5. NEVER invent facts from parametric memory when in strict mode.
     ```
-- No `config/AGENT.md`:
-  - Remoção de qualquer instrução mandando declarar `⚠️ Essa informação não consta...`.
-  - Substituição por protocolo de diálogo colaborativo humanizado.
+- In `config/AGENT.md`:
+  - Removal of any instruction requiring the statement `⚠️ This information is not in...`.
+  - Replacement by a humanized collaborative dialogue protocol.
 
 ---
 
-## 🏷️ 5. Indicador de Search Mode no Header da TUI & Isolamento por Workspace
+## 🏷️ 5. Search Mode Indicator in the TUI Header & Per-Workspace Isolation
 
-### 5.1 Renderização no Header (`crates/actx-cli/src/tui/ui.rs`)
-- Inclusão de `[Search: AUTO|FAST|DEEP]` na barra superior ao lado de Grounding e Web Search:
+### 5.1 Rendering in the Header (`crates/actx-cli/src/tui/ui.rs`)
+- `[Search: AUTO|FAST|DEEP]` added to the top bar next to Grounding and Web Search:
   ```rust
   Span::styled("] ─ [Search: ", Style::default().fg(theme.border_unfocused)),
   Span::styled(app.search_mode.to_uppercase(), Style::default().fg(search_color).add_modifier(Modifier::BOLD)),
   ```
-- Mapeamento de cores da Aurora Boreal:
+- Aurora Boreal color mapping:
   - `AUTO`: `theme.info` (Aurora Cyan)
   - `FAST`: `theme.primary` (Aurora Green)
   - `DEEP`: `theme.magenta` (Aurora Violet) / `theme.accent` (Aurora Amber)
 
-### 5.2 Isolamento e Recarregamento Estrito por Workspace (`switch_to_workspace`)
-- No método `switch_to_workspace` em `crates/actx-cli/src/tui/app.rs`:
-  - Recarregar imediatamente as preferências do novo workspace a partir do SQLite `NativeConfigDb`:
+### 5.2 Strict Per-Workspace Isolation and Reload (`switch_to_workspace`)
+- In the `switch_to_workspace` method in `crates/actx-cli/src/tui/app.rs`:
+  - Immediately reload the new workspace's preferences from the SQLite `NativeConfigDb`:
     - `search_mode`
     - `active_model`
     - `grounding_mode`
     - `web_search_enabled`
-  - Garantir que cada workspace retenha seu próprio modo de busca de forma estanque.
+  - Guarantee that each workspace keeps its own search mode, fully isolated.
 
 ---
 
-## 📋 6. Plano de Execução & Verificação
+## 📋 6. Execution & Verification Plan
 
-1. **Correção do CI**:
-   - Ajustar teste de temporização em `crates/actx-cli/src/engine.rs`.
-2. **Camada de Modelos ONNX & Fallbacks**:
-   - Adicionar helper de diretório de modelos em `storage/sqlite.rs`.
-   - Criar módulo `models/manager.rs` no Core com catálogo de modelos, detecção de arquivos e rotinas de download assíncrono.
-   - Atualizar `model_router.rs` com fallbacks defensivos resilientes.
-   - Atualizar `/status` para detalhar saúde dos modelos locais.
-   - Atualizar o submenu "Document AI & Modelos Locais" com ações de teclado para download e ativação real.
-3. **Spinner Braille**:
-   - Atualizar sequência horária e dobro de velocidade (`* 2`) em `ui.rs`.
-4. **Tom Humanizado**:
-   - Atualizar `prompt.rs` e `AGENT.md`.
-5. **Search Mode no Header & Workspace Switch**:
-   - Adicionar token no header da TUI em `ui.rs`.
-   - Atualizar `switch_to_workspace` em `app.rs` para recarregar do banco.
-6. **Testes & Validação**:
-   - Executar `cargo test --workspace`.
-   - Atualizar `TECDOC.md` (ADR-115) e `tests/MANUAL_TESTS.md` (Cenário 30).
-   - Gerar commit, tag `v0.34.7` e push para validação dos workflows no GitHub Actions.
+1. **CI Fix**:
+   - Adjust the timing test in `crates/actx-cli/src/engine.rs`.
+2. **ONNX Model Layer & Fallbacks**:
+   - Add a models directory helper in `storage/sqlite.rs`.
+   - Create the `models/manager.rs` module in the Core with the model catalog, file detection and asynchronous download routines.
+   - Update `model_router.rs` with resilient defensive fallbacks.
+   - Update `/status` to detail the health of the local models.
+   - Update the "Document AI & Local Models" submenu with keyboard actions for real download and activation.
+3. **Braille Spinner**:
+   - Update to the clockwise sequence at double speed (`* 2`) in `ui.rs`.
+4. **Humanized Tone**:
+   - Update `prompt.rs` and `AGENT.md`.
+5. **Search Mode in the Header & Workspace Switch**:
+   - Add the token to the TUI header in `ui.rs`.
+   - Update `switch_to_workspace` in `app.rs` to reload from the database.
+6. **Tests & Validation**:
+   - Run `cargo test --workspace`.
+   - Update `TECDOC.md` (ADR-115) and `tests/MANUAL_TESTS.md` (Scenario 30).
+   - Create the commit, tag `v0.34.7` and push to validate the GitHub Actions workflows.
