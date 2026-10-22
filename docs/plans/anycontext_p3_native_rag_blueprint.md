@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_p3_native_rag_blueprint
 project: any-context
-title: 'Blueprint de Engenharia: Prioridade 3 - Pipeline RAG e Reranking Nativo em Rust'
+title: 'Engineering Blueprint: Priority 3 - Native RAG and Reranking Pipeline in Rust'
 version: v0.30.39
 status: completed
 author: Levi Silveira
@@ -21,19 +21,19 @@ supersedes: null
 superseded_by: null
 parent_plan_id: anycontext_master_roadmap_v0_30_38_rfc042
 milestones:
-- name: 'Etapa 1: Módulo pipeline.rs em Rust'
+- name: 'Step 1: pipeline.rs Module in Rust'
   done: true
-- name: 'Etapa 2: Batch Retrieval RFC-042'
+- name: 'Step 2: RFC-042 Batch Retrieval'
   done: true
-- name: 'Etapa 3: Bindings PyO3 PyHybridPipeline'
+- name: 'Step 3: PyHybridPipeline PyO3 Bindings'
   done: true
-- name: 'Etapa 4: Integração ParallelRetriever'
+- name: 'Step 4: ParallelRetriever Integration'
   done: true
-- name: 'Etapa 5: Testes Unitários e E2E'
+- name: 'Step 5: Unit and E2E Tests'
   done: true
-- name: 'Etapa 6: Dual-Doc e Testes Manuais'
+- name: 'Step 6: Dual-Doc and Manual Tests'
   done: true
-- name: 'Etapa 7: Verificação Gate 8 e Release'
+- name: 'Step 7: Gate 8 Verification and Release'
   done: true
 status_log:
 - at: '2026-10-16T10:47:34'
@@ -41,38 +41,38 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 📐 Blueprint de Engenharia: Prioridade 3 - Pipeline RAG e Reranking Nativo em Rust (`NativeHybridPipeline` & `retrieve_hybrid_batch`)
+# 📐 Engineering Blueprint: Priority 3 - Native RAG and Reranking Pipeline in Rust (`NativeHybridPipeline` & `retrieve_hybrid_batch`)
 
-> **Protocolo**: `dev-cycle-protocol` v2.0  
-> **Status**: Proposta para Aprovação do Gate 3  
-> **Projeto**: AnyContext (`actx`)  
-> **Versão de Alvo**: `v0.30.39`  
-> **Meta Arquitetural de Longo Prazo**: Migração 100% Rust (Zero linhas de Python no binário final).
+> **Protocol**: `dev-cycle-protocol` v2.0  
+> **Status**: Proposal for Gate 3 Approval  
+> **Project**: AnyContext (`actx`)  
+> **Target Version**: `v0.30.39`  
+> **Long-Term Architecture Goal**: 100% Rust migration (zero lines of Python in the final binary).
 
 ---
 
 ## 1. Executive Summary & Problem Statement
 
-### 1.1 Contexto e Problema Atual
-No AnyContext atual (`v0.30.38`), embora a busca vetorial densa (`NativeLanceStore`) e a busca esparsa léxica (`BM25Index`) possuam implementações de baixo nível em Rust, a **orquestração do pipeline RAG ainda é gerenciada em Python** (`ParallelRetriever` em `retriever.py`):
-1. **Gargalo de GIL e Múltiplas Travessias de Fronteira PyO3**: Para cada consulta, o Python divide requisições em um `ThreadPoolExecutor`, dispara o Rust LanceDB, faz chamada separada ao Rust BM25, serializa centenas de dicionários de candidatos em memória Python e os envia de volta ao Rust para fusão RRF.
-2. **Incapacidade de Batching Nativo para o Deep Search (RFC-042)**: A Fase 2 do Deep Search requer execução simultânea de 2 a 4 sub-consultas ortogonais com deduplicação cross-query por hash SHA-256. Em Python, isso causaria saturação do loop de eventos e concorrência ineficiente.
-3. **Dependência de Bibliotecas Python Pesadas (LlamaIndex)**: A geração de embeddings ainda depende de adaptadores LlamaIndex em Python, atrasando a meta de eliminação total do runtime Python.
+### 1.1 Context and Current Problem
+In the current AnyContext (`v0.30.38`), although dense vector search (`NativeLanceStore`) and sparse lexical search (`BM25Index`) have low-level Rust implementations, **the RAG pipeline orchestration is still managed in Python** (`ParallelRetriever` in `retriever.py`):
+1. **GIL Bottleneck and Multiple PyO3 Boundary Crossings**: for each query, Python splits requests into a `ThreadPoolExecutor`, calls the Rust LanceDB, makes a separate call to the Rust BM25, serializes hundreds of candidate dictionaries into Python memory and sends them back to Rust for RRF fusion.
+2. **No Native Batching for Deep Search (RFC-042)**: Deep Search Phase 2 requires running 2 to 4 orthogonal sub-queries simultaneously with cross-query SHA-256 hash deduplication. In Python, this would saturate the event loop with inefficient concurrency.
+3. **Dependency on Heavy Python Libraries (LlamaIndex)**: embedding generation still depends on LlamaIndex adapters in Python, delaying the goal of removing the Python runtime entirely.
 
-### 1.2 A Solução da Prioridade 3
-Construir o **`NativeHybridPipeline`** em pure Rust (`crates/any-context-core-rs/src/retrieval/pipeline.rs`), unificando busca densa, busca esparsa, fusão RRF, deduplicação SHA-256, round-robin source-fair e density budgeting em uma única passada de alta velocidade com concorrência Tokio.
+### 1.2 The Priority 3 Solution
+Build the **`NativeHybridPipeline`** in pure Rust (`crates/any-context-core-rs/src/retrieval/pipeline.rs`), unifying dense search, sparse search, RRF fusion, SHA-256 deduplication, source-fair round-robin and density budgeting in a single high-speed pass with Tokio concurrency.
 
 ---
 
 ## 2. Architectural Design & Boundaries (Ports & Adapters)
 
-O design segue estritamente a arquitetura hexagonal com o princípio fundamental de **Rust-First Standalone**:
-- Toda a lógica de negócio, sincronização de índices, ranqueamento, diversificação e deduplicação reside em Rust puro.
-- O binding PyO3 (`PyHybridPipeline`) atua **estritamente como um adaptador de transição temporário** para o AnyContext atual, permitindo que na Prioridade 4 (Interface CLI & TUI 100% Nativa em Rust) o pipeline seja consumido diretamente pelo binário único sem qualquer alteração de código.
+The design strictly follows the hexagonal architecture with the fundamental **Rust-First Standalone** principle:
+- All business logic, index synchronization, ranking, diversification and deduplication live in pure Rust.
+- The PyO3 binding (`PyHybridPipeline`) acts **strictly as a temporary transition adapter** for the current AnyContext, so that in Priority 4 (100% Native CLI & TUI Interface in Rust) the pipeline is consumed directly by the single binary without any code change.
 
 ```mermaid
 flowchart TD
-    subgraph TransitionalPython["Camada Python (Transicional v0.30.39)"]
+    subgraph TransitionalPython["Python Layer (Transitional v0.30.39)"]
         PyRetriever["ParallelRetriever Adapter"]
         DeepSearchNode["RFC-042 Deep Search Engine"]
     end
@@ -81,10 +81,10 @@ flowchart TD
         subgraph Pipeline["NativeHybridPipeline"]
             QP["QueryPreprocessor (Rust)"]
             
-            subgraph ParallelExecution["Concorrência Assíncrona Tokio"]
+            subgraph ParallelExecution["Tokio Async Concurrency"]
                 DenseEngine["NativeLanceStore (Cosine Distance)"]
                 SparseEngine["BM25Index (Okapi BM25)"]
-                EmbedEngine["actx-lm::embed (Opcional Local/Cloud)"]
+                EmbedEngine["actx-lm::embed (Optional Local/Cloud)"]
             end
 
             RRF["RRF Fusion Engine (k=60)"]
@@ -102,7 +102,7 @@ flowchart TD
     RRF --> CrossDedup
     CrossDedup --> Diversifier
     Diversifier --> Budgeter
-    Budgeter --> Result["Resultados Finais Ranqueados com Proveniência"]
+    Budgeter --> Result["Final Ranked Results with Provenance"]
 ```
 
 ---
@@ -155,10 +155,10 @@ pub struct NativeHybridPipeline {
 impl NativeHybridPipeline {
     pub fn new(lance_store: Arc<NativeLanceStore>, lm_client: Option<Arc<dyn LmProvider>>) -> Self;
     
-    /// Executa busca híbrida de consulta única em memória sem travessias de GIL
+    /// Runs a single-query hybrid search in memory without GIL crossings
     pub async fn search(&self, req: HybridSearchRequest) -> Result<Vec<HybridSearchResult>, RetrievalError>;
 
-    /// RFC-042: Executa lote concorrente de sub-consultas com deduplicação cross-query por hash SHA-256
+    /// RFC-042: runs a concurrent batch of sub-queries with cross-query SHA-256 hash deduplication
     pub async fn retrieve_hybrid_batch(
         &self,
         requests: Vec<HybridSearchRequest>,
@@ -170,52 +170,52 @@ impl NativeHybridPipeline {
 
 ## 4. Zero-Regression & Backward Compatibility Strategy
 
-1. **Paridade com Python**: `ParallelRetriever` em `src/any_context/vector_engine/retriever.py` delegará suas chamadas diretamente ao `NativeHybridPipeline` quando o módulo nativo estiver presente, preservando a interface exata de retorno (`List[ScoredChunk]`).
-2. **Suporte Dual a Embeddings**: Se o Python já calcular o vetor via cache ou LlamaIndex, passa `query_vector = Some(...)`. Se não passar, o Rust utiliza o `actx-lm` para gerar o vetor internamente.
-3. **Isolamento de Workspaces Inviolável**: As consultas no LanceDB e BM25 continuam com particionamento estrito por workspace, impedindo vazamento de dados entre workspaces.
-4. **Reserva de Testes Não-Truncados**: A suíte de 370 testes existente continuará rodando com 100% de aprovação.
+1. **Parity with Python**: `ParallelRetriever` in `src/any_context/vector_engine/retriever.py` delegates its calls directly to `NativeHybridPipeline` when the native module is present, preserving the exact return interface (`List[ScoredChunk]`).
+2. **Dual Embedding Support**: if Python already computed the vector through a cache or LlamaIndex, it passes `query_vector = Some(...)`. Otherwise, Rust uses `actx-lm` to generate the vector internally.
+3. **Inviolable Workspace Isolation**: LanceDB and BM25 queries keep strict per-workspace partitioning, preventing data leaks between workspaces.
+4. **Non-Truncated Test Reserve**: the existing suite of 370 tests keeps running with 100% approval.
 
 ---
 
 ## 5. Security, Secret Hygiene & Integrity Validation
 
-- **Sem Hardcoded Secrets**: Nenhum token ou credencial é persistido em código ou artefatos. Chaves de API de embeddings utilizam injeção via `AppSettings` ou variáveis de ambiente seguras.
-- **Validação de Limites de Memória (OOM Defense)**: O `Density Budgeter` nativo impõe teto rígido de caracteres (`max_density_chars`) e de tokens (`truncate_to_token_ceiling`), prevenindo estouro de buffer de contexto de LLMs.
-- **Sanitização de Identificadores SQL/LanceDB**: Proteção total contra injeção de parâmetros em cláusulas de filtro de metadados.
+- **No Hardcoded Secrets**: no token or credential is persisted in code or artifacts. Embedding API keys are injected through `AppSettings` or secure environment variables.
+- **Memory Limit Validation (OOM Defense)**: the native `Density Budgeter` enforces a hard ceiling of characters (`max_density_chars`) and tokens (`truncate_to_token_ceiling`), preventing LLM context buffer overflow.
+- **SQL/LanceDB Identifier Sanitization**: full protection against parameter injection in metadata filter clauses.
 
 ---
 
 ## 6. Step-by-Step Implementation & Verification Plan
 
-- [ ] **Etapa 1: Módulo `pipeline.rs` em `crates/any-context-core-rs`**:
-  - Implementar struct `NativeHybridPipeline` com fusão zero-copy LanceDB + BM25.
-  - Implementar deduplicação cross-query por hash SHA-256 acumulando score RRF.
-- [ ] **Etapa 2: Algoritmo de Batch Retrieval RFC-042 (`retrieve_hybrid_batch`)**:
-  - Execução concorrente de requisições de sub-consultas via `futures::future::join_all`.
-- [ ] **Etapa 3: Bindings PyO3 (`PyHybridPipeline`)**:
-  - Expor `PyHybridPipeline`, `PyHybridSearchRequest`, `PyHybridSearchResult` com GIL liberado (`py.allow_threads`).
-- [ ] **Etapa 4: Integração no Python (`retriever.py`)**:
-  - Atualizar `ParallelRetriever` para conectar ao pipeline nativo com fallback transparente.
-- [ ] **Etapa 5: Testes Unitários e de Integração**:
-  - Testes Rust em `crates/any-context-core-rs/tests/` para busca única e lote.
-  - Testes Python em `tests/unit/core/test_native_rag_pipeline.py`.
-  - Execução do runner geral `python tests/run_all_e2e.py` (370+ testes verdes).
-- [ ] **Etapa 6: Dual-Doc & Testes Manuais**:
-  - Atualizar `README.md`, `TECDOC.md` (Seção 76) e `tests/MANUAL_TESTS.md` (Cenário 1 v0.30.39 sem compactação).
-- [ ] **Etapa 7: Verificação Gate 8 & Release**:
-  - `verify_gate.py --gate 8` aprovado.
-  - Atualização de marco no `plan-memory` via `check_milestone.py --milestone "Prioridade 3"`.
+- [ ] **Step 1: `pipeline.rs` Module in `crates/any-context-core-rs`**:
+  - Implement the `NativeHybridPipeline` struct with zero-copy LanceDB + BM25 fusion.
+  - Implement cross-query SHA-256 hash deduplication, accumulating the RRF score.
+- [ ] **Step 2: RFC-042 Batch Retrieval Algorithm (`retrieve_hybrid_batch`)**:
+  - Concurrent execution of sub-query requests through `futures::future::join_all`.
+- [ ] **Step 3: PyO3 Bindings (`PyHybridPipeline`)**:
+  - Expose `PyHybridPipeline`, `PyHybridSearchRequest`, `PyHybridSearchResult` with the GIL released (`py.allow_threads`).
+- [ ] **Step 4: Python Integration (`retriever.py`)**:
+  - Update `ParallelRetriever` to connect to the native pipeline with a transparent fallback.
+- [ ] **Step 5: Unit and Integration Tests**:
+  - Rust tests in `crates/any-context-core-rs/tests/` for single and batch search.
+  - Python tests in `tests/unit/core/test_native_rag_pipeline.py`.
+  - Run the general runner `python tests/run_all_e2e.py` (370+ green tests).
+- [ ] **Step 6: Dual-Doc & Manual Tests**:
+  - Update `README.md`, `TECDOC.md` (Section 76) and `tests/MANUAL_TESTS.md` (Scenario 1 v0.30.39 without compaction).
+- [ ] **Step 7: Gate 8 Verification & Release**:
+  - `verify_gate.py --gate 8` approved.
+  - Milestone updated in `plan-memory` through `check_milestone.py --milestone "Priority 3"`.
 
 ---
 
 ## 7. Dual-Doc Specification (UserDoc & TecDoc)
 
-- **UserDoc (`README.md`)**: Seção documentando o pipeline RAG nativo em Rust, desempenho sub-3ms para buscas híbridas e capacidade de busca paralela para o Deep Search.
-- **TecDoc (`TECDOC.md`)**: Seção 76 documentando a arquitetura matemática de fusão RRF com deduplicação cross-query por SHA-256 e o ADR-076 registrando a substituição da orquestração Python pela pipeline nativa em Rust.
+- **UserDoc (`README.md`)**: a section documenting the native RAG pipeline in Rust, sub-3ms performance for hybrid searches and the parallel search capability for Deep Search.
+- **TecDoc (`TECDOC.md`)**: Section 76 documenting the mathematical architecture of RRF fusion with cross-query SHA-256 deduplication, and ADR-076 recording the replacement of the Python orchestration by the native Rust pipeline.
 
 ---
 
 ## 8. Rollback & Disaster Recovery Protocol
 
-- Se o pipeline nativo em Rust falhar em qualquer cenário de borda (ex: índice BM25 ainda não sincronizado), o `ParallelRetriever` em Python detecta o erro e executa o fallback transparente para o método de recuperação legado.
-- Nenhuma alteração destrutiva é feita no schema do LanceDB ou no banco SQLite `actx_settings.db`.
+- If the native Rust pipeline fails in any edge case (e.g. a BM25 index not yet synced), `ParallelRetriever` in Python detects the error and runs the transparent fallback to the legacy retrieval method.
+- No destructive change is made to the LanceDB schema or the SQLite `actx_settings.db` database.
