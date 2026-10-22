@@ -167,10 +167,11 @@ order is left to the roadmap.
     Web and Audio and video stay connectors inside (decision 22: visible openings to the
     outside, governed by policy); they are simply part of the plan instead of separate
     purchases. No combinations of capabilities are sold as extra plans.
-29. **Workspaces over the Free limit after a downgrade**: the user chooses which 3 stay
-    active, and can change that choice at any time. The others are kept intact on disk,
-    left out of search and sync, and come back with only the incremental diff
-    reprocessed when they are reactivated or the plan returns (decision 26).
+29. **Workspaces over the Free limit after a downgrade**: the user chooses **once**, at the
+    downgrade, which 3 stay active; there is no swapping afterwards, otherwise rotating
+    would give the same access as Pro. The others are kept intact on disk, left out of
+    search and sync, and can be deleted explicitly; they come back only when the plan
+    returns, with only the incremental diff reprocessed (decision 26).
 30. **No Notion connector.** Decided 2026-10-22. Drive connectors (Google Drive, OneDrive,
     Dropbox) add little over the local sync folders the base already indexes, so they are
     not part of the personal plans; they remain Enterprise candidates.
