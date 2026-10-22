@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_blueprint_v0450_frente_c0_runtime_onnx_real_e_reranker_cross_encoder
 project: any-context
-title: 'Blueprint v0.45.0 (Frente C0): Runtime ONNX Real (ort load-dynamic + tokenizers), Cross-Encoder Multilingue mmarco e Retificacao de Honestidade Tecnica (ADR-130)'
+title: 'Blueprint v0.45.0 (Front C0): Real ONNX Runtime (ort load-dynamic + tokenizers), Multilingual mmarco Cross-Encoder and Technical Honesty Rectification (ADR-130)'
 version: v0.45.0
 status: in_progress
 author: Levi Silveira
@@ -27,261 +27,261 @@ supersedes: null
 superseded_by: null
 parent_plan_id: null
 milestones:
-- name: M0 Runtime base
+- name: M0 Base runtime
   done: true
-- name: M1 Catalogo verificado
+- name: M1 Verified catalog
   done: true
-- name: M2 Reranker real
+- name: M2 Real reranker
   done: true
-- name: M3 Retificacao no codigo
+- name: M3 Rectification in the code
   done: true
-- name: M4 Superficies
+- name: M4 Surfaces
   done: true
-- name: M5 Testes e NFR
+- name: M5 Tests and NFR
   done: true
 - name: M6 Dual-Doc
   done: true
-- name: M7 Testes manuais
+- name: M7 Manual tests
   done: true
 - name: M8 Release
   done: false
 status_log:
 - at: '2026-10-15T21:54:51'
-  note: 'Milestone ''M0 Runtime base'': ort 2.0.0-rc.14 load-dynamic + tokenizers 0.23 atras da feature runtime; carga explicita init_from; imports do exe identicos a v0.44 (commit ff042d4)'
+  note: 'Milestone ''M0 Base runtime'': ort 2.0.0-rc.14 load-dynamic + tokenizers 0.23 behind the runtime feature; explicit init_from loading; exe imports identical to v0.44 (commit ff042d4)'
 - at: '2026-10-15T21:54:52'
-  note: 'Milestone ''M1 Catalogo verificado'': Catalogo multi-arquivo com revisao fixada, tamanho e SHA-256; Gemma Planned; catalog_urls 13/13 OK'
+  note: 'Milestone ''M1 Verified catalog'': multi-file catalog with pinned revision, size and SHA-256; Gemma Planned; catalog_urls 13/13 OK'
 - at: '2026-10-15T21:54:54'
-  note: 'Milestone ''M2 Reranker real'': mmarco-mMiniLMv2-L12 real via ONNX Runtime CPU; spawn_blocking; top-30; p50 298ms/30 candidatos'
+  note: 'Milestone ''M2 Real reranker'': real mmarco-mMiniLMv2-L12 through ONNX Runtime CPU; spawn_blocking; top-30; p50 298ms/30 candidates'
 - at: '2026-10-15T21:54:56'
-  note: 'Milestone ''M3 Retificacao no codigo'': Gemma planned/fallback, heuristicas rotuladas, GPU planned, instalador com URLs verificadas e provisionamento do reranker'
+  note: 'Milestone ''M3 Rectification in the code'': Gemma planned/fallback, heuristics labeled, GPU planned, installer with verified URLs and reranker provisioning'
 - at: '2026-10-15T21:54:57'
-  note: 'Milestone ''M4 Superficies'': /rerank status+model, --rerank-model, badges TUI, menus, /download e /device honestos; release.yml com ORT no pacote'
+  note: 'Milestone ''M4 Surfaces'': /rerank status+model, --rerank-model, TUI badges, menus, honest /download and /device; release.yml with ORT in the package'
 - at: '2026-10-15T21:54:59'
-  note: 'Milestone ''M5 Testes e NFR'': cargo test --workspace 349 passed/0 failed; real reranker e catalog_urls OK; imports verificados'
+  note: 'Milestone ''M5 Tests and NFR'': cargo test --workspace 349 passed/0 failed; real reranker and catalog_urls OK; imports verified'
 - at: '2026-10-15T21:55:00'
-  note: 'Milestone ''M6 Dual-Doc'': ADR-130 + notas de retificacao 118/123/125/127/129 + README v0.45.0'
+  note: 'Milestone ''M6 Dual-Doc'': ADR-130 + rectification notes 118/123/125/127/129 + README v0.45.0'
 - at: '2026-10-15T21:55:03'
-  note: 'Milestone ''M7 Testes manuais'': Cenario 45 (14 passos) no topo de MANUAL_TESTS.md'
+  note: 'Milestone ''M7 Manual tests'': Scenario 45 (14 steps) at the top of MANUAL_TESTS.md'
 - at: '2026-10-16T10:47:35'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 📐 Blueprint de Engenharia: AnyContext v0.45.0
-## Frente C0 — Runtime ONNX Real (`ort` + `tokenizers`), Cross-Encoder Multilíngue de Verdade e Retificação de Honestidade Técnica
+# 📐 Engineering Blueprint: AnyContext v0.45.0
+## Front C0 — Real ONNX Runtime (`ort` + `tokenizers`), a Truly Multilingual Cross-Encoder and Technical Honesty Rectification
 
 ---
 
-### 📌 Metadados & Governança
-- **Projeto**: AnyContext (`actx`)
-- **Versão-Alvo**: `v0.45.0` (Minor — nova capacidade de runtime; sucessora da `v0.44.0`)
-- **Fase**: Frente C0 do Roadmap de RAG de Nova Geração (inserida antes da Frente C)
-  - Roadmap revisado: A (v0.43.0 ✅) → B (v0.44.0 ✅*) → **C0 (v0.45.0)** → C (v0.46.0: Embeddings locais + Kit de Models) → D (v0.47.0: Chunking Hierárquico / Parent-Document / Expansão AST)
-  - *A Frente B entregou o pipeline Two-Stage, flags e superfícies, mas o Estágio 2 é uma heurística lexical — a C0 conclui a Frente B de verdade.
-- **Alinhamento com o Master Plan** (`detect_drift`: 🟢 ALIGNED, 68%): conclui o item "Cross-Encoder em Rust" da **Prioridade 3** e é pré-requisito técnico do marco **Kit de Models** (Fase 3), pois embeddings locais (Frente C) exigem inferência ONNX real.
-- **Plano Anterior Superado**: `anycontext_blueprint_v0440_two_stage_neural_retrieval_com_re_ranking_local_cross_encoder_onnx_aceleracao_por_hardware_e_fallback_gracioso_adr_110_frente_b`
-- **Política Global**: Calgary, Alberta, Canadá — produto global e agnóstico; modelo padrão multilíngue.
-- **Padrão Arquitetural**: Hexagonal (Ports & Adapters). Inferência isolada em `crates/actx-onnx`; regra de negócio no Core; CLI/TUI como adaptadores.
+### 📌 Metadata & Governance
+- **Project**: AnyContext (`actx`)
+- **Target Version**: `v0.45.0` (Minor — new runtime capability; successor of `v0.44.0`)
+- **Phase**: Front C0 of the Next-Generation RAG Roadmap (inserted before Front C)
+  - Revised roadmap: A (v0.43.0 ✅) → B (v0.44.0 ✅*) → **C0 (v0.45.0)** → C (v0.46.0: local embeddings + Model Kit) → D (v0.47.0: Hierarchical Chunking / Parent-Document / AST Expansion)
+  - *Front B delivered the Two-Stage pipeline, flags and surfaces, but Stage 2 is a lexical heuristic — C0 truly completes Front B.
+- **Alignment with the Master Plan** (`detect_drift`: 🟢 ALIGNED, 68%): completes the "Cross-Encoder in Rust" item of **Priority 3** and is a technical prerequisite of the **Model Kit** milestone (Phase 3), since local embeddings (Front C) require real ONNX inference.
+- **Superseded Previous Plan**: `anycontext_blueprint_v0440_two_stage_neural_retrieval_com_re_ranking_local_cross_encoder_onnx_aceleracao_por_hardware_e_fallback_gracioso_adr_110_frente_b`
+- **Global Policy**: Calgary, Alberta, Canada — a global, agnostic product; multilingual default model.
+- **Architectural Pattern**: Hexagonal (Ports & Adapters). Inference isolated in `crates/actx-onnx`; business rules in the Core; CLI/TUI as adapters.
 
 ---
 
-### 🔍 Contexto: Achados do Discovery (Etapa 1)
+### 🔍 Context: Discovery Findings (Stage 1)
 
-1. **Não existe runtime ONNX no workspace.** Nenhuma crate depende de `ort`, `tract`, `candle` ou `tokenizers` (`Cargo.toml`/`Cargo.lock`). `ModelSession::open` (`crates/actx-onnx/src/session.rs`) apenas verifica existência e tamanho (> 1 KB) do arquivo.
-2. **Reranker (v0.44.0) é heurístico.** `OnnxReranker::score_pair` (`crates/actx-onnx/src/reranker.rs:79-140`) faz split por espaços, contagem de termos/bigramas e sigmoid; os pesos baixados nunca são executados.
-3. **Gemma 4 retorna texto fixo.** `OnnxGemmaEngine::generate` (`crates/actx-onnx/src/gemma.rs:137-153`) devolve `"[Local … Inference (… - 38.4 tok/s)]: Processed prompt…"`; o provider injeta `Throughput: 38.4 tok/s` (`crates/actx-lm/src/providers/gemma.rs:82`).
-4. **Classificador, Scan Sentinel, Layout e Visão** são heurísticas que se declaram neurais quando o arquivo existe (`is_neural_active()` = arquivo presente), com rótulos como `🧠 [ONNX Neural Router: BGE-Small]` (`query_classifier.rs:175,181`).
-5. **Aceleração GPU** (ADR-127) é detecção de hardware + rótulos; nenhum Execution Provider é instanciado. O release publica apenas **Linux x86_64** e **Windows x86_64** (`.github/workflows/release.yml:25-30`) — não há binário macOS/Metal.
-6. **Catálogo com links inexistentes** (API Hugging Face retorna erro): `BAAI/bge-reranker-small`, `onnx-community/gemma-4-*-ONNX` (Core) e `anycontext/models`, `google/gemma-4-*-it-onnx` (Instalador, `crates/actx-installer/src/hardware.rs:109-170`). Isso viola a regra da **ADR-118** (verificação ao vivo HTTP 200 + tamanho exato).
-7. **ADR-121 já previa** o runtime atrás de uma feature flag (`onnx`) — nunca implementada (`crates/any-context-core-rs/Cargo.toml`: `[features] default = []`, `actx-onnx` obrigatório).
-8. **Documentação diverge do código**: ADR-123 ("KV-cache local"), ADR-125 ("Ativação 100% funcional da inferência neural local"), ADR-127 (telemetria `38.4 tok/s`, Metal/macOS), ADR-129 e `README.md:48-58` (cross-encoder com atenção cruzada, "latência inferior a 18ms por lote").
-9. **Ponto forte a preservar**: a interface do reranker já está limpa — `score_batch(&str, &[String]) -> Vec<f32>` com vetor vazio = fallback RRF, consumida em `retrieval/pipeline.rs:611` e `:755`, com modos `/rerank auto|on|off`, flag `--rerank`, badge na TUI e persistência SQLite. A C0 troca o motor sem tocar no contrato.
+1. **There is no ONNX runtime in the workspace.** No crate depends on `ort`, `tract`, `candle` or `tokenizers` (`Cargo.toml`/`Cargo.lock`). `ModelSession::open` (`crates/actx-onnx/src/session.rs`) only checks the file's existence and size (> 1 KB).
+2. **The reranker (v0.44.0) is heuristic.** `OnnxReranker::score_pair` (`crates/actx-onnx/src/reranker.rs:79-140`) splits on spaces, counts terms/bigrams and applies a sigmoid; the downloaded weights are never executed.
+3. **Gemma 4 returns fixed text.** `OnnxGemmaEngine::generate` (`crates/actx-onnx/src/gemma.rs:137-153`) returns `"[Local … Inference (… - 38.4 tok/s)]: Processed prompt…"`; the provider injects `Throughput: 38.4 tok/s` (`crates/actx-lm/src/providers/gemma.rs:82`).
+4. **Classifier, Scan Sentinel, Layout and Vision** are heuristics that declare themselves neural when the file exists (`is_neural_active()` = file present), with labels such as `🧠 [ONNX Neural Router: BGE-Small]` (`query_classifier.rs:175,181`).
+5. **GPU acceleration** (ADR-127) is hardware detection + labels; no Execution Provider is instantiated. The release only publishes **Linux x86_64** and **Windows x86_64** (`.github/workflows/release.yml:25-30`) — there is no macOS/Metal binary.
+6. **Catalog with non-existent links** (the Hugging Face API returns an error): `BAAI/bge-reranker-small`, `onnx-community/gemma-4-*-ONNX` (Core) and `anycontext/models`, `google/gemma-4-*-it-onnx` (Installer, `crates/actx-installer/src/hardware.rs:109-170`). This violates the **ADR-118** rule (live verification HTTP 200 + exact size).
+7. **ADR-121 already foresaw** the runtime behind a feature flag (`onnx`) — never implemented (`crates/any-context-core-rs/Cargo.toml`: `[features] default = []`, `actx-onnx` mandatory).
+8. **Documentation diverges from the code**: ADR-123 ("local KV-cache"), ADR-125 ("100% functional activation of local neural inference"), ADR-127 (`38.4 tok/s` telemetry, Metal/macOS), ADR-129 and `README.md:48-58` (cross-encoder with cross-attention, "latency under 18ms per batch").
+9. **Strength to keep**: the reranker interface is already clean — `score_batch(&str, &[String]) -> Vec<f32>` with an empty vector = RRF fallback, consumed at `retrieval/pipeline.rs:611` and `:755`, with the `/rerank auto|on|off` modes, the `--rerank` flag, a TUI badge and SQLite persistence. C0 swaps the engine without touching the contract.
 
 ---
 
-## 1. 🎯 Objetivo & Decisões Arquiteturais (ADR-130)
+## 1. 🎯 Goal & Architecture Decisions (ADR-130)
 
-**Objetivo**: Entregar inferência ONNX real no AnyContext, começando pelo Estágio 2 do Two-Stage Retrieval (cross-encoder), e alinhar código e documentação à realidade do que é neural e do que é heurístico.
+**Goal**: deliver real ONNX inference in AnyContext, starting with Stage 2 of Two-Stage Retrieval (cross-encoder), and align code and documentation with the reality of what is neural and what is heuristic.
 
-**ADR-130 — Runtime ONNX Nativo (`ort`), Cross-Encoder Multilíngue Real e Retificação das ADRs 123/125/127/129**
+**ADR-130 — Native ONNX Runtime (`ort`), Real Multilingual Cross-Encoder and Rectification of ADRs 123/125/127/129**
 
-| # | Decisão | Rationale |
+| # | Decision | Rationale |
 |---|---|---|
-| D1 | **Runtime (revisado na implementação)**: `ort = "=2.0.0-rc.14"` com a feature **`load-dynamic`** — sem linkagem estática e sem download de binários na compilação. A biblioteca do ONNX Runtime é carregada em tempo de execução, preguiçosamente, a partir de `ORT_DYLIB_PATH` (testes/CI) ou da **pasta do executável** (`onnxruntime.dll` / `libonnxruntime.so`). **Tokenização**: `tokenizers = "0.23"` (HF, feature `onig`). | Constatado no M0: a linkagem estática (único build pré-compilado do `ort` para Windows inclui DirectML) fazia o `actx.exe` importar `DirectML.dll`, `d3d12.dll`, `dxgi.dll`, `MSVCP140.dll`, `MSVCP140_1.dll` e `VCRUNTIME140_1.dll` na carga — falta de qualquer uma impediria o programa de abrir (violação da ADR-110). Com `load-dynamic`, o binário mantém exatamente as dependências da v0.44.0 e qualquer falha de carga vira fallback RRF. |
-| D2 | **Feature flag `runtime` em `actx-onnx`**, propagada como `onnx = ["actx-onnx/runtime"]` no Core e **ligada por padrão no `actx-cli`/release**. Sem a flag, `actx-onnx` compila sem `ort` e todo componente neural reporta inativo (fallback ADR-110). | Realiza a intenção da ADR-121 sem `cfg` espalhado no Core (o Core continua referenciando os tipos de `actx-onnx`). Permite builds/testes rápidos sem ONNX Runtime. |
-| D3 | **Reranker padrão**: `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`, variante `onnx/model_quint8_avx2.onnx` (118.620.016 bytes, SHA-256 `6c2513767fb63d008a4377bef7a7a3555433d9436342bb53e35a3a72ffc52d4b`) + `tokenizer.json` (17.082.660 bytes, SHA-256 `62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626`), revisão fixada `1427fd652930e4ba29e8149678df786c240d8825`. Arquitetura XLM-RoBERTa, saída de 1 logit, máx. 512 posições. Licença Apache-2.0. | Multilíngue (inclui PT) para um produto global; 119 MB cabe em todos os perfis locais; licença comercial permitida. URLs com revisão fixa garantem reprodutibilidade. |
-| D4 | **Reranker opcional premium**: `onnx-community/bge-reranker-v2-m3-ONNX` (`onnx/model_int8.onnx`, ~571 MB, Apache-2.0), mesmo caminho de código (XLM-R, 1 logit). Selecionável via `/rerank model <id>` / `--rerank-model <id>`; tamanho e SHA-256 coletados e verificados na implementação (M1). | Maior qualidade para perfis ≥ 32 GB sem novo código de inferência. |
-| D5 | **Somente CPU na C0** (`CPUExecutionProvider`, `intra_threads = min(núcleos físicos, 4)`). O dispositivo reportado em badges/telemetria passa a ser o **realmente usado**. A detecção de GPU (ADR-127) permanece como diagnóstico; `--device`/`/device` com valor ≠ `cpu` emitem aviso "Execution Providers de GPU planejados" e seguem em CPU. | Escopo controlado; elimina telemetria fictícia. GPU EPs (DirectML/CUDA) ficam para versão futura. |
-| D6 | **Carregamento preguiçoso** da sessão ONNX (`OnceLock`) no primeiro `score_batch`, nunca na inicialização. | Preserva o cold-start sub-10ms e o teste de fast-path (ADR-122). |
-| D7 | **Execução fora do runtime async**: as chamadas em `pipeline.rs:611` e `:755` passam a usar `tokio::task::spawn_blocking`. Lotes de até 16 pares; truncamento `longest_first` em 512 tokens; teto de candidatos reranqueados configurável (padrão 30). | Inferência CPU é bloqueante; evita travar o executor Tokio e a TUI. |
-| D8 | **Semântica honesta de `is_neural_active()`**: `true` somente quando uma sessão ONNX real foi criada com sucesso (modelo + tokenizer válidos e entradas/saídas compatíveis). Arquivo presente mas inválido ⇒ `false` + motivo registrado em log. | Hoje "arquivo existe" ≠ "inferência acontece". |
-| D9 | **Catálogo multi-arquivo verificado (evolução da ADR-118)**: `OnnxModelSpec` passa a ter `files: &[ModelFile { file_name, url, size_bytes, sha256 }]` e `availability: Available | Planned`. Download agrega progresso de todos os arquivos, valida **SHA-256** antes do rename atômico e grava em subpasta por modelo (`models/<id>/`). | Modelos reais precisam de `tokenizer.json`; SHA-256 protege contra corrupção e troca silenciosa upstream. |
-| D10 | **Retificação de honestidade no código**: (a) Gemma 4 fica `availability: Planned`; `OnnxGemmaEngine::is_neural_active()` retorna `false` e `generate*` retorna erro claro → `GemmaOnnxProvider` usa o fallback já existente (ADR-110); `actx download compact|12b|27b|32b` informa "inferência generativa local planejada"; (b) remoção de todas as strings de throughput fictício (`gemma.rs:148`, `providers/gemma.rs:82`, `tui/menu.rs:1171`); (c) classificador, scan sentinel, layout e visão reportam `heuristic` em `is_neural_active()`, resumo do `OnnxEngine` e rótulos (`[Heuristic Router]`); (d) **política "zero links quebrados"**: todo link inexistente é **corrigido** quando há substituto verificado, ou **removido** (modelo `Planned`) quando não há — ver D13. | Pilar de documentação/UX fiel ao comportamento real. |
-| D13 | **Correção integral dos links do catálogo**: (a) **Instalador — 5 modelos de Document AI** (`crates/actx-installer/src/hardware.rs:109-137`, hoje em `huggingface.co/anycontext/models/...`, repositório inexistente) passam a usar exatamente as URLs verificadas do Core: `tozp/laya-onnx/resolve/main/model_int8.onnx`, `onnx-community/mobilenetv4_conv_small.e1200_r224_in1k/resolve/main/onnx/model_int8.onnx`, `BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx`, `onnx-community/layoutlmv3-base-ONNX/resolve/main/onnx/model_int8.onnx`, `Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_int8.onnx` (todas confirmadas existentes na API do Hugging Face no Discovery), com os mesmos `size_bytes`/SHA-256 do Core; (b) **Reranker** (Core e Instalador): `bge-reranker-small` → `mmarco-reranker`; (c) **Gemma 4** (4 URLs no Core `model_manager.rs:63-93` + 4 no Instalador `hardware.rs:146-170`): URLs removidas, entradas `Planned`, sem download. | Nenhum link quebrado permanece no produto e nenhum link aponta para pesos que o AnyContext ainda não executa. |
-| D15 | **Runtime e reranker transparentes para o usuário**: (a) o workflow de release baixa o ONNX Runtime **oficial da Microsoft v1.31.0 (CPU, sem DirectML)** — `onnxruntime-win-x64-1.31.0.zip` (SHA-256 `3958d8a44984160692c1b4ffd0de3cb48f8c39f9d34bb31e433db06e30b82195`) e `onnxruntime-linux-x64-1.31.0.tgz` (SHA-256 `cc5c72baf5ae5c8238a6841f0897227be2d02826b9cf98eaf02fdefaeeb03a57`) —, verifica o hash e inclui `onnxruntime.dll` / `libonnxruntime.so` **dentro** de `actx-windows-x86_64.zip` / `actx-linux-x86_64.tar.gz`; o instalador e o `actx --update` já extraem e trocam atomicamente todos os arquivos do pacote (`atomic_swap.rs:157`), então executável e runtime chegam e são atualizados juntos, sem passo extra nem configuração; (b) o **instalador provisiona o `mmarco-reranker` automaticamente** como parte do perfil escolhido (perfis locais já o listam em `target_models()`); perfil **Lite** não baixa modelos e opera em RRF; `actx download reranker` permanece apenas como ferramenta de reparo. | Experiência sem configuração: o usuário instala/atualiza e o reranker neural simplesmente funciona; versões de executável e runtime nunca divergem; funciona offline após o download do pacote. |
-| D14 | **Fatos verificados da família Gemma 4 registrados na ADR-130** (insumo para a futura frente de inferência generativa): (1) família real publicada pelo Google: **E2B, E4B, 12B, 26B-A4B (MoE) e 31B** — os tiers do catálogo atual (`compact`, `27b`, `32b`) não existem; (2) ONNX oficial (`onnx-community`, Apache-2.0, `transformers.js`) **apenas para E2B e E4B**; 12B somente em repositórios ONNX de terceiros não verificados; 26B-A4B e 31B sem ONNX (GGUF/QAT); (3) formato **multi-grafo e multi-arquivo**: `decoder_model_merged`, `embed_tokens`, encoders de áudio/visão, com pesos externos fragmentados (`.onnx_data`, `.onnx_data_1…_9`) — E2B q4 > 3,6 GB somados; (4) consequência: exige downloader multi-shard, loop generativo (tokenização, KV-cache, amostragem) e recalibração dos tiers de hardware — escopo de uma frente própria, não da C0. | Evita perder o diagnóstico e impede que a próxima frente repita catálogo fictício. |
-| D11 | **Retificação documental**: ADR-130 no `TECDOC.md` registra os fatos; ADRs 123, 125, 127 e 129 recebem **uma linha de nota de retificação** apontando para a ADR-130 (histórico preservado, sem reescrita). `README.md` corrige as afirmações de v0.38–v0.44. | Dual-Doc fiel; rastreabilidade histórica. |
-| D12 | **Verificação contínua do catálogo**: teste `#[ignore]` que faz HEAD/GET em cada arquivo do catálogo (status 200 + `content-length` = `size_bytes`), executado explicitamente no workflow de release. | Impede regressão da regra ADR-118 sem onerar cada push. |
+| D1 | **Runtime (revised during implementation)**: `ort = "=2.0.0-rc.14"` with the **`load-dynamic`** feature — no static linking and no binary downloads at build time. The ONNX Runtime library is loaded at runtime, lazily, from `ORT_DYLIB_PATH` (tests/CI) or from the **executable's folder** (`onnxruntime.dll` / `libonnxruntime.so`). **Tokenization**: `tokenizers = "0.23"` (HF, `onig` feature). | Found in M0: static linking (the only prebuilt `ort` build for Windows includes DirectML) made `actx.exe` import `DirectML.dll`, `d3d12.dll`, `dxgi.dll`, `MSVCP140.dll`, `MSVCP140_1.dll` and `VCRUNTIME140_1.dll` at load time — missing any of them would prevent the program from opening (an ADR-110 violation). With `load-dynamic`, the binary keeps exactly the v0.44.0 dependencies and any load failure becomes the RRF fallback. |
+| D2 | **`runtime` feature flag in `actx-onnx`**, propagated as `onnx = ["actx-onnx/runtime"]` in the Core and **on by default in `actx-cli`/release**. Without the flag, `actx-onnx` builds without `ort` and every neural component reports inactive (ADR-110 fallback). | Fulfills the intent of ADR-121 without `cfg` scattered in the Core (the Core keeps referencing the `actx-onnx` types). Allows fast builds/tests without ONNX Runtime. |
+| D3 | **Default reranker**: `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`, variant `onnx/model_quint8_avx2.onnx` (118,620,016 bytes, SHA-256 `6c2513767fb63d008a4377bef7a7a3555433d9436342bb53e35a3a72ffc52d4b`) + `tokenizer.json` (17,082,660 bytes, SHA-256 `62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626`), pinned revision `1427fd652930e4ba29e8149678df786c240d8825`. XLM-RoBERTa architecture, 1-logit output, max 512 positions. Apache-2.0 license. | Multilingual (includes PT) for a global product; 119 MB fits every local profile; commercial license allowed. URLs with a pinned revision guarantee reproducibility. |
+| D4 | **Optional premium reranker**: `onnx-community/bge-reranker-v2-m3-ONNX` (`onnx/model_int8.onnx`, ~571 MB, Apache-2.0), the same code path (XLM-R, 1 logit). Selectable through `/rerank model <id>` / `--rerank-model <id>`; size and SHA-256 collected and verified during implementation (M1). | Higher quality for profiles ≥ 32 GB without new inference code. |
+| D5 | **CPU only in C0** (`CPUExecutionProvider`, `intra_threads = min(physical cores, 4)`). The device reported in badges/telemetry becomes the one **actually used**. GPU detection (ADR-127) stays as a diagnostic; `--device`/`/device` with a value ≠ `cpu` emit the warning "GPU Execution Providers planned" and continue on CPU. | Controlled scope; removes fictitious telemetry. GPU EPs (DirectML/CUDA) are left for a future version. |
+| D6 | **Lazy loading** of the ONNX session (`OnceLock`) on the first `score_batch`, never at startup. | Keeps the sub-10ms cold start and the fast-path test (ADR-122). |
+| D7 | **Execution outside the async runtime**: the calls at `pipeline.rs:611` and `:755` use `tokio::task::spawn_blocking`. Batches of up to 16 pairs; `longest_first` truncation at 512 tokens; a configurable ceiling of reranked candidates (default 30). | CPU inference is blocking; avoids stalling the Tokio executor and the TUI. |
+| D8 | **Honest semantics of `is_neural_active()`**: `true` only when a real ONNX session was created successfully (valid model + tokenizer and compatible inputs/outputs). A present but invalid file ⇒ `false` + the reason logged. | Today "the file exists" ≠ "inference happens". |
+| D9 | **Verified multi-file catalog (evolution of ADR-118)**: `OnnxModelSpec` gets `files: &[ModelFile { file_name, url, size_bytes, sha256 }]` and `availability: Available | Planned`. The download aggregates the progress of all files, validates **SHA-256** before the atomic rename and writes into a per-model subfolder (`models/<id>/`). | Real models need `tokenizer.json`; SHA-256 protects against corruption and silent upstream swaps. |
+| D10 | **Honesty rectification in the code**: (a) Gemma 4 becomes `availability: Planned`; `OnnxGemmaEngine::is_neural_active()` returns `false` and `generate*` returns a clear error → `GemmaOnnxProvider` uses the existing fallback (ADR-110); `actx download compact|12b|27b|32b` reports "local generative inference planned"; (b) removal of every fictitious throughput string (`gemma.rs:148`, `providers/gemma.rs:82`, `tui/menu.rs:1171`); (c) classifier, scan sentinel, layout and vision report `heuristic` in `is_neural_active()`, in the `OnnxEngine` summary and in labels (`[Heuristic Router]`); (d) **"zero broken links" policy**: every non-existent link is **fixed** when there is a verified substitute, or **removed** (model `Planned`) when there is none — see D13. | A documentation/UX pillar faithful to the real behavior. |
+| D13 | **Full fix of the catalog links**: (a) **Installer — 5 Document AI models** (`crates/actx-installer/src/hardware.rs:109-137`, today under `huggingface.co/anycontext/models/...`, a non-existent repository) switch to exactly the Core's verified URLs: `tozp/laya-onnx/resolve/main/model_int8.onnx`, `onnx-community/mobilenetv4_conv_small.e1200_r224_in1k/resolve/main/onnx/model_int8.onnx`, `BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx`, `onnx-community/layoutlmv3-base-ONNX/resolve/main/onnx/model_int8.onnx`, `Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_int8.onnx` (all confirmed to exist in the Hugging Face API during Discovery), with the same `size_bytes`/SHA-256 as the Core; (b) **Reranker** (Core and Installer): `bge-reranker-small` → `mmarco-reranker`; (c) **Gemma 4** (4 URLs in the Core `model_manager.rs:63-93` + 4 in the Installer `hardware.rs:146-170`): URLs removed, entries `Planned`, no download. | No broken link remains in the product and no link points to weights AnyContext does not execute yet. |
+| D15 | **Runtime and reranker transparent to the user**: (a) the release workflow downloads Microsoft's **official ONNX Runtime v1.31.0 (CPU, no DirectML)** — `onnxruntime-win-x64-1.31.0.zip` (SHA-256 `3958d8a44984160692c1b4ffd0de3cb48f8c39f9d34bb31e433db06e30b82195`) and `onnxruntime-linux-x64-1.31.0.tgz` (SHA-256 `cc5c72baf5ae5c8238a6841f0897227be2d02826b9cf98eaf02fdefaeeb03a57`) —, verifies the hash and includes `onnxruntime.dll` / `libonnxruntime.so` **inside** `actx-windows-x86_64.zip` / `actx-linux-x86_64.tar.gz`; the installer and `actx --update` already extract and atomically swap every file of the package (`atomic_swap.rs:157`), so executable and runtime arrive and are updated together, with no extra step or configuration; (b) the **installer provisions `mmarco-reranker` automatically** as part of the chosen profile (local profiles already list it in `target_models()`); the **Lite** profile downloads no models and runs on RRF; `actx download reranker` remains only as a repair tool. | A configuration-free experience: the user installs/updates and the neural reranker simply works; executable and runtime versions never diverge; it works offline after the package download. |
+| D14 | **Verified facts about the Gemma 4 family recorded in ADR-130** (input for the future generative inference front): (1) the real family published by Google: **E2B, E4B, 12B, 26B-A4B (MoE) and 31B** — the current catalog tiers (`compact`, `27b`, `32b`) do not exist; (2) official ONNX (`onnx-community`, Apache-2.0, `transformers.js`) **only for E2B and E4B**; 12B only in unverified third-party ONNX repositories; 26B-A4B and 31B without ONNX (GGUF/QAT); (3) **multi-graph, multi-file** format: `decoder_model_merged`, `embed_tokens`, audio/vision encoders, with fragmented external weights (`.onnx_data`, `.onnx_data_1…_9`) — E2B q4 > 3.6 GB in total; (4) consequence: requires a multi-shard downloader, a generative loop (tokenization, KV-cache, sampling) and recalibration of the hardware tiers — the scope of its own front, not C0. | Avoids losing the diagnosis and prevents the next front from repeating a fictitious catalog. |
+| D11 | **Documentation rectification**: ADR-130 in `TECDOC.md` records the facts; ADRs 123, 125, 127 and 129 get **a one-line rectification note** pointing to ADR-130 (history kept, no rewrite). `README.md` corrects the claims of v0.38–v0.44. | Faithful Dual-Doc; historical traceability. |
+| D12 | **Continuous catalog verification**: an `#[ignore]` test that does HEAD/GET on each catalog file (status 200 + `content-length` = `size_bytes`), run explicitly in the release workflow. | Prevents regression of the ADR-118 rule without burdening every push. |
 
-**Fora de escopo (explícito)**: embeddings locais, recalibração de RAM/disco dos perfis, `actx profile install`, unificação dos catálogos Core/Instalador (Frente C); inferência real do Gemma 4, classificador, layout e visão; Execution Providers de GPU; macOS; correção de trechos legados do README sobre ChromaDB/Python; bug do embedding de consulta fixo em `text-embedding-3-small` (`pipeline.rs:452`) — candidato a patch `v0.44.1` ou Frente C.
+**Out of scope (explicit)**: local embeddings, recalibration of profile RAM/disk, `actx profile install`, unification of the Core/Installer catalogs (Front C); real inference for Gemma 4, the classifier, layout and vision; GPU Execution Providers; macOS; fixing legacy README passages about ChromaDB/Python; the bug of the query embedding fixed to `text-embedding-3-small` (`pipeline.rs:452`) — a candidate for a `v0.44.1` patch or Front C.
 
 ---
 
-## 2. 🏛️ Mapeamento de Paridade de Superfícies
+## 2. 🏛️ Surface Parity Mapping
 
-| Superfície | Mudança |
+| Surface | Change |
 |---|---|
-| **Core (`any-context-core-rs`)** | Catálogo multi-arquivo + SHA-256; `reranker_model` em settings; `spawn_blocking` no pipeline; status `/rerank` com modelo, dispositivo real e latência medida; `/rerank model <id>`; Gemma `Planned`; feature `onnx`. |
-| **`actx-onnx`** | `OnnxSession` real (ort), tokenização HF, `OnnxReranker` real, `is_neural_active` honesto, heurísticas rotuladas, Gemma indisponível com erro claro. |
-| **`actx-lm`** | `GemmaOnnxProvider`: remove telemetria fictícia; fallback sempre que o engine estiver indisponível. |
-| **CLI headless (`actx-cli`)** | `--rerank-model <id>`; `actx download reranker` / `reranker-m3`; `actx download <gemma>` com mensagem "planejado"; `--device` ≠ cpu com aviso. |
-| **TUI** | Badge `[Rerank: ⚡ ONNX: mmarco-L12 (CPU)]`, `[Rerank: ⚡ RRF (Fallback)]`, `[Rerank: 🚫 Off]`; badge de aceleração indica dispositivo **de inferência** real; menu `[F1]` mostra Gemma como "Planejado" e heurísticas como "Heurística". |
-| **Instalador (`actx-installer`)** | **Corrige** as 5 URLs de Document AI para as URLs verificadas do Core (D13a); reranker passa a ser `mmarco-reranker` com os mesmos arquivos/hashes do Core; Gemma 4 `Planned` sem URL. A unificação do catálogo em fonte única fica para a Frente C. |
-| **REST / MCP** | Sem endpoints novos; herdam o comportamento do Core automaticamente (mesmo pipeline). |
-| **Banco canônico** | Apenas nova chave aditiva `reranker_model` na tabela de settings do SQLite. Nenhuma alteração no LanceDB. |
+| **Core (`any-context-core-rs`)** | Multi-file catalog + SHA-256; `reranker_model` in settings; `spawn_blocking` in the pipeline; `/rerank` status with model, real device and measured latency; `/rerank model <id>`; Gemma `Planned`; `onnx` feature. |
+| **`actx-onnx`** | Real `OnnxSession` (ort), HF tokenization, real `OnnxReranker`, honest `is_neural_active`, labeled heuristics, Gemma unavailable with a clear error. |
+| **`actx-lm`** | `GemmaOnnxProvider`: removes fictitious telemetry; fallback whenever the engine is unavailable. |
+| **Headless CLI (`actx-cli`)** | `--rerank-model <id>`; `actx download reranker` / `reranker-m3`; `actx download <gemma>` with a "planned" message; `--device` ≠ cpu with a warning. |
+| **TUI** | Badges `[Rerank: ⚡ ONNX: mmarco-L12 (CPU)]`, `[Rerank: ⚡ RRF (Fallback)]`, `[Rerank: 🚫 Off]`; the acceleration badge shows the real **inference** device; the `[F1]` menu shows Gemma as "Planned" and heuristics as "Heuristic". |
+| **Installer (`actx-installer`)** | **Fixes** the 5 Document AI URLs to the Core's verified URLs (D13a); the reranker becomes `mmarco-reranker` with the same files/hashes as the Core; Gemma 4 `Planned` without a URL. Unifying the catalog into a single source is left for Front C. |
+| **REST / MCP** | No new endpoints; they inherit the Core's behavior automatically (same pipeline). |
+| **Canonical database** | Only a new additive `reranker_model` key in the SQLite settings table. No change in LanceDB. |
 
 ---
 
-## 3. 📁 Arquivos e Linhas Impactadas
+## 3. 📁 Affected Files and Lines
 
 **`crates/actx-onnx/`**
-- `Cargo.toml` — dependências opcionais `ort` (=2.0.0-rc.14) e `tokenizers` (0.23); `[features] runtime = ["dep:ort", "dep:tokenizers"]`.
-- `src/session.rs` — `ModelSession` passa a encapsular `ort::session::Session` (sob `runtime`), validação de entradas/saídas, carregamento preguiçoso; sem `runtime` → sempre inválida.
-- `src/tokenizer.rs` (**novo**) — wrapper sobre `tokenizers::Tokenizer` para pares (query, doc), truncamento/padding, geração de `input_ids`/`attention_mask` (e `token_type_ids` somente se o modelo exigir).
-- `src/reranker.rs` — substitui `tokenize_pair`/`compute_cross_attention_logit` (linhas ~94-140) por inferência real em lote; mantém `score_batch`, `score_pair`, `is_neural_active`, `device`; sigmoid sobre o logit real.
-- `src/gemma.rs` — `is_neural_active()` = `false`; `generate`/`generate_stream` (linhas 137-200) retornam `Err` descritivo; remove `38.4 tok/s`.
-- `src/query_classifier.rs`, `src/scan_sentinel.rs`, `src/layout_extractor.rs`, `src/vision_encoder.rs` — `is_neural_active()` = `false`; rótulos "Heuristic".
-- `src/engine.rs` — resumo (`summary`, linhas 60-80) reporta `neural` / `heuristic` / `planned` por componente; caminho do reranker por modelo ativo.
-- `src/device.rs` — expõe `ExecutionDevice::effective()` (CPU nesta versão) para telemetria honesta.
-- `tests/fixtures/` (**novo**) — `tiny_reranker.onnx` + `tiny_tokenizer.json` (KBs) e `gen_tiny_reranker.py` (script de geração reprodutível, executado offline pelo mantenedor).
+- `Cargo.toml` — optional dependencies `ort` (=2.0.0-rc.14) and `tokenizers` (0.23); `[features] runtime = ["dep:ort", "dep:tokenizers"]`.
+- `src/session.rs` — `ModelSession` wraps `ort::session::Session` (under `runtime`), validation of inputs/outputs, lazy loading; without `runtime` → always invalid.
+- `src/tokenizer.rs` (**new**) — a wrapper over `tokenizers::Tokenizer` for (query, doc) pairs, truncation/padding, generation of `input_ids`/`attention_mask` (and `token_type_ids` only if the model needs them).
+- `src/reranker.rs` — replaces `tokenize_pair`/`compute_cross_attention_logit` (lines ~94-140) with real batched inference; keeps `score_batch`, `score_pair`, `is_neural_active`, `device`; sigmoid over the real logit.
+- `src/gemma.rs` — `is_neural_active()` = `false`; `generate`/`generate_stream` (lines 137-200) return a descriptive `Err`; removes `38.4 tok/s`.
+- `src/query_classifier.rs`, `src/scan_sentinel.rs`, `src/layout_extractor.rs`, `src/vision_encoder.rs` — `is_neural_active()` = `false`; "Heuristic" labels.
+- `src/engine.rs` — the summary (`summary`, lines 60-80) reports `neural` / `heuristic` / `planned` per component; reranker path by active model.
+- `src/device.rs` — exposes `ExecutionDevice::effective()` (CPU in this version) for honest telemetry.
+- `tests/fixtures/` (**new**) — `tiny_reranker.onnx` + `tiny_tokenizer.json` (KBs) and `gen_tiny_reranker.py` (a reproducible generation script, run offline by the maintainer).
 
 **`crates/any-context-core-rs/`**
 - `Cargo.toml` — `[features] default = ["onnx"]`, `onnx = ["actx-onnx/runtime"]`.
-- `src/ingestion/model_manager.rs` — `OnnxModelSpec` com `files[]` e `availability`; remove `bge-reranker-small` (linhas 149-158); adiciona `mmarco-reranker` e `bge-reranker-v2-m3`; Gemma `Planned`; `download_model_with_progress` (linhas 471-545) multi-arquivo, subpasta por modelo, SHA-256, user-agent com `CARGO_PKG_VERSION`; `resolve_spec` (aliases `reranker`, `reranker-m3`); `active_reranker_state` (linha 457); teste `test_catalog_integrity`.
-- `src/retrieval/pipeline.rs` — `spawn_blocking` em `:611` e `:755`; teto de candidatos; teste com fixture.
-- `src/commands/engine.rs` — `/rerank` status (linhas ~1734-1831) com modelo, dispositivo e latência; subcomando `/rerank model <id>`; `/download` para modelos `Planned`; `/device` com aviso.
-- `src/storage/sqlite.rs` — getter/setter `reranker_model` (chave aditiva).
-- `src/hardware/mod.rs` — `target_models()` substitui `bge-reranker-small` por `mmarco-reranker` (linhas 68-95).
+- `src/ingestion/model_manager.rs` — `OnnxModelSpec` with `files[]` and `availability`; removes `bge-reranker-small` (lines 149-158); adds `mmarco-reranker` and `bge-reranker-v2-m3`; Gemma `Planned`; `download_model_with_progress` (lines 471-545) multi-file, per-model subfolder, SHA-256, user agent with `CARGO_PKG_VERSION`; `resolve_spec` (aliases `reranker`, `reranker-m3`); `active_reranker_state` (line 457); the `test_catalog_integrity` test.
+- `src/retrieval/pipeline.rs` — `spawn_blocking` at `:611` and `:755`; candidate ceiling; test with a fixture.
+- `src/commands/engine.rs` — `/rerank` status (lines ~1734-1831) with model, device and latency; the `/rerank model <id>` subcommand; `/download` for `Planned` models; `/device` with a warning.
+- `src/storage/sqlite.rs` — `reranker_model` getter/setter (additive key).
+- `src/hardware/mod.rs` — `target_models()` replaces `bge-reranker-small` with `mmarco-reranker` (lines 68-95).
 
 **`crates/actx-lm/`**
-- `src/providers/gemma.rs` — remove bloco de telemetria (linha ~82); fallback quando engine indisponível.
+- `src/providers/gemma.rs` — removes the telemetry block (line ~82); fallback when the engine is unavailable.
 
 **`crates/actx-cli/`**
-- `Cargo.toml` — `any-context-core-rs` com feature `onnx`.
-- `src/engine.rs` — `create_default_reranker()` (linhas 114-119) resolve o modelo ativo via settings/catálogo; Gemma (linhas 90-100) usa fallback com aviso.
-- `src/cli/args.rs` / `src/cli/oneshot.rs` — `--rerank-model`; mensagens de download para `Planned`; aviso de `--device`.
-- `src/tui/app.rs` (linha 248), `src/tui/ui.rs` (linha 156) — badge com modelo real e dispositivo.
-- `src/tui/menu.rs` — remove "25-50 tok/s" (linha 1171); status Planejado/Heurística.
-- `tests/cli_tests.rs` — novos testes de flag e mensagens.
+- `Cargo.toml` — `any-context-core-rs` with the `onnx` feature.
+- `src/engine.rs` — `create_default_reranker()` (lines 114-119) resolves the active model through settings/catalog; Gemma (lines 90-100) uses the fallback with a warning.
+- `src/cli/args.rs` / `src/cli/oneshot.rs` — `--rerank-model`; download messages for `Planned`; `--device` warning.
+- `src/tui/app.rs` (line 248), `src/tui/ui.rs` (line 156) — badge with the real model and device.
+- `src/tui/menu.rs` — removes "25-50 tok/s" (line 1171); Planned/Heuristic status.
+- `tests/cli_tests.rs` — new flag and message tests.
 
 **`crates/actx-installer/`**
-- `src/hardware.rs` (linhas 100-175) — linhas 109-137: substituir as 5 URLs `anycontext/models/...` pelas URLs verificadas do Core (D13a) com `size_bytes`/SHA-256 idênticos; reranker → `mmarco-reranker` (2 arquivos); linhas 146-170: Gemma 4 sem URL, marcado `Planned`; testes `target_models()` (linhas 548-552) atualizados.
-- `src/downloader.rs` (linha ~66) — revisar a montagem de URL (hoje via `format!`, provavelmente presa ao repositório inexistente), suportar múltiplos arquivos e validar SHA-256; pular modelos `Planned` com mensagem clara.
+- `src/hardware.rs` (lines 100-175) — lines 109-137: replace the 5 `anycontext/models/...` URLs with the Core's verified URLs (D13a) with identical `size_bytes`/SHA-256; reranker → `mmarco-reranker` (2 files); lines 146-170: Gemma 4 without a URL, marked `Planned`; `target_models()` tests (lines 548-552) updated.
+- `src/downloader.rs` (line ~66) — review the URL construction (today through `format!`, probably tied to the non-existent repository), support multiple files and validate SHA-256; skip `Planned` models with a clear message.
 
-**Raiz / Docs / CI**
-- `Cargo.toml` (workspace) / `Cargo.lock` / `version.txt` / todos os crates — bump `0.45.0`.
-- `.github/workflows/release.yml` — passo explícito `cargo test -p any-context-core-rs -- --ignored catalog_urls` antes do build; passo que baixa o ONNX Runtime oficial v1.31.0, verifica SHA-256 e inclui a biblioteca nos pacotes Windows/Linux (D15); `ORT_DYLIB_PATH` para os testes; verificação de que o binário não importa `DirectML.dll`/`d3d12.dll`/`MSVCP140.dll`.
-- `.github/workflows/e2e-tests.yml` — mesmo provisionamento do runtime + `ORT_DYLIB_PATH` para os testes com fixture.
-- `crates/actx-installer/src/lib.rs` — instalação de perfil inclui o `mmarco-reranker` (2 arquivos, SHA-256).
-- `README.md`, `TECDOC.md`, `tests/MANUAL_TESTS.md`, `docs/plans/<este blueprint>.md`.
+**Root / Docs / CI**
+- `Cargo.toml` (workspace) / `Cargo.lock` / `version.txt` / every crate — bump `0.45.0`.
+- `.github/workflows/release.yml` — an explicit `cargo test -p any-context-core-rs -- --ignored catalog_urls` step before the build; a step that downloads the official ONNX Runtime v1.31.0, verifies SHA-256 and includes the library in the Windows/Linux packages (D15); `ORT_DYLIB_PATH` for the tests; a check that the binary does not import `DirectML.dll`/`d3d12.dll`/`MSVCP140.dll`.
+- `.github/workflows/e2e-tests.yml` — the same runtime provisioning + `ORT_DYLIB_PATH` for the fixture tests.
+- `crates/actx-installer/src/lib.rs` — profile installation includes `mmarco-reranker` (2 files, SHA-256).
+- `README.md`, `TECDOC.md`, `tests/MANUAL_TESTS.md`, `docs/plans/<this blueprint>.md`.
 
 ---
 
-## 4. 📚 Plano de Atualização Dual-Doc
+## 4. 📚 Dual-Doc Update Plan
 
 **UserDoc (`README.md`)**
-- Nova entrada no topo de "Key Features" para `v0.45.0`: runtime ONNX real, reranker multilíngue mmarco (119 MB), opção `bge-reranker-v2-m3`, `--rerank-model`, `/rerank model`, execução em CPU.
-- Corrigir `README.md:48-58` (v0.44.0): remover "latência típica inferior a 18ms" e a matriz DirectML/Metal/CUDA do reranker; indicar que o Estágio 2 neural real chega na v0.45.0 com latência medida (publicar números reais do teste NFR).
-- Seção "Download e Gerenciamento Assistido de Pesos Locais (Gemma 4 ONNX)" (linhas 700-751): marcar Gemma 4 local como **planejado**; documentar `actx download reranker` / `reranker-m3` com tamanhos e verificação SHA-256.
-- Seções de perfis (v0.37/v0.38, linhas ~105-125): nota de que classificador/layout/visão operam em modo heurístico nesta versão.
-- `/help` e `--help` atualizados para `--rerank-model` e `/rerank model`.
+- A new entry at the top of "Key Features" for `v0.45.0`: real ONNX runtime, multilingual mmarco reranker (119 MB), the `bge-reranker-v2-m3` option, `--rerank-model`, `/rerank model`, CPU execution.
+- Fix `README.md:48-58` (v0.44.0): remove "typical latency under 18ms" and the DirectML/Metal/CUDA matrix of the reranker; state that the real neural Stage 2 arrives in v0.45.0 with measured latency (publish the real numbers from the NFR test).
+- The "Assisted Download and Management of Local Weights (Gemma 4 ONNX)" section (lines 700-751): mark local Gemma 4 as **planned**; document `actx download reranker` / `reranker-m3` with sizes and SHA-256 verification.
+- Profile sections (v0.37/v0.38, lines ~105-125): a note that the classifier/layout/vision run in heuristic mode in this version.
+- `/help` and `--help` updated for `--rerank-model` and `/rerank model`.
 
 **TecDoc (`TECDOC.md`)**
-- **ADR-130** completa: contexto (achados do Discovery), decisões D1–D14, subseção **"Fatos Verificados da Família Gemma 4"** (D14: tiers reais, disponibilidade de ONNX oficial, formato multi-grafo/multi-shard, pré-requisitos para a frente generativa), tabela "antes → depois" de todas as URLs do catálogo (Core e Instalador), consequências, matriz de componentes (`neural` / `heuristic` / `planned`), diagrama de sequência Mermaid do Estágio 2 real (pipeline → `spawn_blocking` → tokenizer → `ort::Session` → logits → sigmoid → reordenação → diversificação → U-shaped), diagrama do download multi-arquivo com verificação SHA-256, tabela de latência medida (p50/p95 para 30 candidatos).
-- Nota de retificação de uma linha no topo das ADRs 123, 125, 127 e 129 apontando para a ADR-130.
-- Atualizar a ADR-118 com nota de evolução (catálogo multi-arquivo + SHA-256 + teste `catalog_urls`).
+- Complete **ADR-130**: context (Discovery findings), decisions D1–D14, a **"Verified Facts about the Gemma 4 Family"** subsection (D14: real tiers, availability of official ONNX, multi-graph/multi-shard format, prerequisites for the generative front), a "before → after" table of every catalog URL (Core and Installer), consequences, a component matrix (`neural` / `heuristic` / `planned`), a Mermaid sequence diagram of the real Stage 2 (pipeline → `spawn_blocking` → tokenizer → `ort::Session` → logits → sigmoid → reordering → diversification → U-shaped), a diagram of the multi-file download with SHA-256 verification, a table of measured latency (p50/p95 for 30 candidates).
+- A one-line rectification note at the top of ADRs 123, 125, 127 and 129 pointing to ADR-130.
+- Update ADR-118 with an evolution note (multi-file catalog + SHA-256 + `catalog_urls` test).
 
 ---
 
-## 5. 🧪 Estratégia de Testes Automatizados & Proteção contra Regressão
+## 5. 🧪 Automated Test Strategy & Regression Protection
 
-**`actx-onnx` (feature `runtime`)**
-- `test_session_missing_file_inactive` — arquivo ausente ⇒ inativo, sem panic.
-- `test_session_corrupt_file_inactive` — bytes inválidos ⇒ inativo, erro registrado, sem panic.
-- `test_tokenizer_pair_encoding` — fixture tokenizer: estrutura do par, truncamento em `max_len`, `attention_mask` correta.
-- `test_reranker_fixture_scores_in_unit_interval` — fixture ONNX: scores ∈ [0,1], tamanho = nº de candidatos.
-- `test_reranker_fixture_ordering_deterministic` — mesma entrada ⇒ mesmos scores; ordenação estável.
-- `test_reranker_batching_matches_single` — lote de 16 vs. pares individuais ⇒ mesmos scores (tolerância 1e-5).
-- `test_gemma_engine_reports_unavailable` — `is_neural_active() == false` e `generate` retorna `Err` descritivo (substitui os testes atuais que assumem "arquivo dummy ⇒ ativo": `gemma.rs:241-242`, `reranker.rs:196`, `actx-lm/providers/gemma.rs:190-191`).
-- `test_heuristic_components_report_heuristic` — classificador/sentinel/layout/visão nunca reportam `neural`.
-- Build sem feature (`cargo test -p actx-onnx --no-default-features`) — tudo inativo, zero panics.
+**`actx-onnx` (`runtime` feature)**
+- `test_session_missing_file_inactive` — missing file ⇒ inactive, no panic.
+- `test_session_corrupt_file_inactive` — invalid bytes ⇒ inactive, error logged, no panic.
+- `test_tokenizer_pair_encoding` — fixture tokenizer: pair structure, truncation at `max_len`, correct `attention_mask`.
+- `test_reranker_fixture_scores_in_unit_interval` — fixture ONNX: scores ∈ [0,1], length = number of candidates.
+- `test_reranker_fixture_ordering_deterministic` — same input ⇒ same scores; stable ordering.
+- `test_reranker_batching_matches_single` — batch of 16 vs individual pairs ⇒ same scores (tolerance 1e-5).
+- `test_gemma_engine_reports_unavailable` — `is_neural_active() == false` and `generate` returns a descriptive `Err` (replaces the current tests that assume "dummy file ⇒ active": `gemma.rs:241-242`, `reranker.rs:196`, `actx-lm/providers/gemma.rs:190-191`).
+- `test_heuristic_components_report_heuristic` — classifier/sentinel/layout/vision never report `neural`.
+- Build without the feature (`cargo test -p actx-onnx --no-default-features`) — everything inactive, zero panics.
 
 **`any-context-core-rs`**
-- `test_two_stage_pipeline_reranking_fallback` (existente, `pipeline.rs:951`) — permanece verde.
-- `test_two_stage_pipeline_with_fixture_reranker` — reranker fixture reordena candidatos e não bloqueia o runtime (`spawn_blocking`).
-- `test_catalog_integrity` — todo modelo `Available` tem ≥ 1 arquivo, `size_bytes > 0`, `sha256` com 64 hex; Gemma `Planned`; sem `bge-reranker-small`.
-- `test_download_sha256_mismatch_rejected` — servidor local de teste entrega bytes errados ⇒ erro, temporários removidos, destino intacto.
-- `test_rerank_model_setting_roundtrip` — `/rerank model <id>` persiste e é lido pelo factory.
-- `catalog_urls` (`#[ignore]`) — HEAD/GET de todos os arquivos `Available` **do Core e do Instalador** ⇒ 200 + tamanho exato. Executado no `release.yml`.
+- `test_two_stage_pipeline_reranking_fallback` (existing, `pipeline.rs:951`) — stays green.
+- `test_two_stage_pipeline_with_fixture_reranker` — the fixture reranker reorders candidates and does not block the runtime (`spawn_blocking`).
+- `test_catalog_integrity` — every `Available` model has ≥ 1 file, `size_bytes > 0`, a 64-hex `sha256`; Gemma `Planned`; no `bge-reranker-small`.
+- `test_download_sha256_mismatch_rejected` — a local test server delivers wrong bytes ⇒ error, temporaries removed, destination intact.
+- `test_rerank_model_setting_roundtrip` — `/rerank model <id>` persists and is read by the factory.
+- `catalog_urls` (`#[ignore]`) — HEAD/GET of every `Available` file **of the Core and the Installer** ⇒ 200 + exact size. Run in `release.yml`.
 
 **`actx-installer`**
-- `test_installer_catalog_matches_core` — para cada modelo presente nos dois catálogos, `url`, `size_bytes` e `sha256` são idênticos (guarda contra divergência até a unificação da Frente C).
-- `test_installer_no_placeholder_urls` — nenhuma URL contém `anycontext/models` ou `google/gemma-4-*-it-onnx`; nenhum modelo `Planned` possui URL.
-- Atualização dos testes de contagem de `target_models()` (`hardware.rs:548-552`).
-- `real_reranker_multilingual` (`#[ignore]`, `ACTX_TEST_REAL_RERANKER=1`) — baixa (com cache) o mmarco; pergunta em PT com documento relevante e distratores (incluindo negação) ⇒ relevante no topo; mede p50/p95 de 30 candidatos e imprime para o TecDoc.
+- `test_installer_catalog_matches_core` — for each model present in both catalogs, `url`, `size_bytes` and `sha256` are identical (a guard against divergence until Front C's unification).
+- `test_installer_no_placeholder_urls` — no URL contains `anycontext/models` or `google/gemma-4-*-it-onnx`; no `Planned` model has a URL.
+- Update of the `target_models()` count tests (`hardware.rs:548-552`).
+- `real_reranker_multilingual` (`#[ignore]`, `ACTX_TEST_REAL_RERANKER=1`) — downloads (with a cache) the mmarco model; a question in PT with a relevant document and distractors (including negation) ⇒ relevant at the top; measures p50/p95 for 30 candidates and prints it for the TecDoc.
 
 **`actx-cli`**
-- `test_cli_flag_rerank_model_unknown` — id inválido ⇒ erro amigável, exit code ≠ 0.
-- `test_cli_download_planned_model_message` — `actx download compact` ⇒ mensagem "planejado", sem rede.
-- `test_cli_flag_rerank_off` (existente) — permanece verde.
-- Teste de fast-path de inicialização (ADR-122) — permanece dentro do teto (sessão ONNX preguiçosa).
+- `test_cli_flag_rerank_model_unknown` — invalid id ⇒ friendly error, exit code ≠ 0.
+- `test_cli_download_planned_model_message` — `actx download compact` ⇒ "planned" message, no network.
+- `test_cli_flag_rerank_off` (existing) — stays green.
+- Startup fast-path test (ADR-122) — stays within the ceiling (lazy ONNX session).
 
 **NFRs**
-- Cold start do `actx` sem regressão mensurável (biblioteca e sessão nunca carregadas no boot).
-- **Imports do binário inalterados** em relação à v0.44.0: verificação automática no release de que `actx.exe` não importa `DirectML.dll`, `d3d12.dll`, `dxgi.dll`, `MSVCP140*.dll`.
-- Runtime ausente ou incompatível ⇒ fallback RRF sem crash (teste com `ORT_DYLIB_PATH` apontando para arquivo inexistente/inválido).
-- Aumento do pacote (biblioteca do ONNX Runtime) documentado no TecDoc.
+- No measurable regression in the `actx` cold start (library and session never loaded at boot).
+- **Binary imports unchanged** relative to v0.44.0: an automatic check in the release that `actx.exe` does not import `DirectML.dll`, `d3d12.dll`, `dxgi.dll`, `MSVCP140*.dll`.
+- Missing or incompatible runtime ⇒ RRF fallback without a crash (test with `ORT_DYLIB_PATH` pointing to a missing/invalid file).
+- Package size increase (the ONNX Runtime library) documented in the TecDoc.
 
 ---
 
-## 6. 📝 Plano de Cenários de Teste Manual (`tests/MANUAL_TESTS.md`)
+## 6. 📝 Manual Test Scenario Plan (`tests/MANUAL_TESTS.md`)
 
-**Cenário 45 (v0.45.0 — Runtime ONNX Real, Cross-Encoder Multilíngue mmarco e Retificação de Honestidade)** — inserido no topo, preservando integralmente os Cenários 1–44:
+**Scenario 45 (v0.45.0 — Real ONNX Runtime, Multilingual mmarco Cross-Encoder and Honesty Rectification)** — inserted at the top, keeping Scenarios 1–44 fully intact:
 1. `actx -v` ⇒ `actx 0.45.0`.
-2. `actx download --check` ⇒ `mmarco-reranker` (~119 MB, `Available`), `bge-reranker-v2-m3` (~571 MB, `Available`), Gemma 4 como `Planned`; nenhum `bge-reranker-small`.
-3. `actx download reranker` ⇒ baixa 2 arquivos com barra agregada, valida SHA-256, grava em `%LOCALAPPDATA%/actx/models/mmarco-reranker/`.
-4. TUI: badge `[Rerank: ⚡ ONNX: mmarco-L12 (CPU)]`; `/rerank` exibe modelo, dispositivo `CPU` e latência da última consulta.
-5. Consulta em português num workspace com documentos parecidos (ex.: "timeout do serviço v2" vs. "v1 legado") com `--rerank on` e `--rerank off` ⇒ com rerank, o trecho correto sobe ao topo nas citações.
-6. Renomear/corromper o `.onnx` baixado ⇒ badge `[Rerank: ⚡ RRF (Fallback)]`, sem crash; `actx download reranker` restaura.
-7. `/rerank model bge-reranker-v2-m3` sem pesos ⇒ aviso com instrução de download; após download, badge muda para `bge-m3`.
-8. `actx download compact` ⇒ mensagem "inferência generativa local planejada", sem tráfego de rede.
-9. `/model gemma-4-compact` ⇒ aviso claro e uso do provedor de fallback; nenhuma resposta com "38.4 tok/s".
-10. `actx --device dml "pergunta"` ⇒ aviso "Execution Providers de GPU planejados; executando em CPU".
-11. `[F1]` → Document AI: classificador/layout/visão rotulados "Heurística".
-12. Instalador: `actx-installer --preflight-only` e instalação do perfil `smart_balanced` ⇒ todos os modelos de Document AI e o `mmarco-reranker` baixam com sucesso (HTTP 200, SHA-256 válido) sem nenhuma ação extra do usuário; Gemma 4 aparece como "Planejado" e não é baixado.
-13. Após instalar/atualizar, a pasta `%LOCALAPPDATA%\actx\bin\` contém `onnxruntime.dll` ao lado de `actx.exe`; na primeira consulta o badge mostra o reranker neural ativo sem nenhum comando de configuração.
-14. Renomear `onnxruntime.dll` ⇒ `actx` abre normalmente e o reranker cai em `[Rerank: ⚡ RRF (Fallback)]` com motivo exibido em `/rerank`.
+2. `actx download --check` ⇒ `mmarco-reranker` (~119 MB, `Available`), `bge-reranker-v2-m3` (~571 MB, `Available`), Gemma 4 as `Planned`; no `bge-reranker-small`.
+3. `actx download reranker` ⇒ downloads 2 files with an aggregated bar, validates SHA-256, writes into `%LOCALAPPDATA%/actx/models/mmarco-reranker/`.
+4. TUI: badge `[Rerank: ⚡ ONNX: mmarco-L12 (CPU)]`; `/rerank` shows the model, the `CPU` device and the latency of the last query.
+5. A query in Portuguese in a workspace with similar documents (e.g. "v2 service timeout" vs "legacy v1") with `--rerank on` and `--rerank off` ⇒ with rerank, the correct passage rises to the top of the citations.
+6. Rename/corrupt the downloaded `.onnx` ⇒ badge `[Rerank: ⚡ RRF (Fallback)]`, no crash; `actx download reranker` restores it.
+7. `/rerank model bge-reranker-v2-m3` without weights ⇒ a warning with download instructions; after downloading, the badge changes to `bge-m3`.
+8. `actx download compact` ⇒ the message "local generative inference planned", no network traffic.
+9. `/model gemma-4-compact` ⇒ a clear warning and use of the fallback provider; no answer with "38.4 tok/s".
+10. `actx --device dml "question"` ⇒ the warning "GPU Execution Providers planned; running on CPU".
+11. `[F1]` → Document AI: classifier/layout/vision labeled "Heuristic".
+12. Installer: `actx-installer --preflight-only` and installation of the `smart_balanced` profile ⇒ all Document AI models and `mmarco-reranker` download successfully (HTTP 200, valid SHA-256) without any extra user action; Gemma 4 appears as "Planned" and is not downloaded.
+13. After installing/updating, the `%LOCALAPPDATA%\actx\bin\` folder contains `onnxruntime.dll` next to `actx.exe`; on the first query the badge shows the neural reranker active without any configuration command.
+14. Rename `onnxruntime.dll` ⇒ `actx` opens normally and the reranker falls back to `[Rerank: ⚡ RRF (Fallback)]` with the reason shown in `/rerank`.
 
 ---
 
-## 7. 🔒 Higiene de Segredos, Migração de Banco e Plano de Rollback
+## 7. 🔒 Secret Hygiene, Database Migration and Rollback Plan
 
-- **Segredos**: nenhum. Downloads do Hugging Face são anônimos; nenhuma chave/token adicionada. `verify_gate` antes do commit.
-- **Migração**: apenas a chave aditiva `reranker_model` nas settings do SQLite (default `mmarco-reranker`). **Zero alterações de schema no LanceDB** (Frente C fará a migração de dimensão de embeddings).
-- **Compatibilidade**: arquivos antigos `bge_reranker_small_int8.onnx` (impossíveis de obter, pois a URL não existe) são ignorados. Setting `rerank_mode` (auto/on/off) preservado.
-- **Licenças**: mmarco e bge-reranker-v2-m3 Apache-2.0; ONNX Runtime MIT; `ort` MIT/Apache-2.0; `tokenizers` Apache-2.0 — registrar na ADR-130.
-- **Rollback**: falha pós-merge ⇒ revert do PR em `main` e tag `v0.45.1`. Em runtime, `--rerank off` ou ausência de pesos devolve o comportamento RRF da v0.44.0 sem rebuild.
+- **Secrets**: none. Hugging Face downloads are anonymous; no key/token added. `verify_gate` before the commit.
+- **Migration**: only the additive `reranker_model` key in the SQLite settings (default `mmarco-reranker`). **Zero schema changes in LanceDB** (Front C will do the embedding dimension migration).
+- **Compatibility**: old `bge_reranker_small_int8.onnx` files (impossible to obtain, since the URL does not exist) are ignored. The `rerank_mode` setting (auto/on/off) is kept.
+- **Licenses**: mmarco and bge-reranker-v2-m3 Apache-2.0; ONNX Runtime MIT; `ort` MIT/Apache-2.0; `tokenizers` Apache-2.0 — record them in ADR-130.
+- **Rollback**: a post-merge failure ⇒ revert the PR in `main` and tag `v0.45.1`. At runtime, `--rerank off` or missing weights bring back the v0.44.0 RRF behavior without a rebuild.
 
 ---
 
-## 8. ⏱️ Passo a Passo da Execução
+## 8. ⏱️ Step-by-Step Execution
 
-**M0 — Runtime base**: dependências opcionais `ort`/`tokenizers`, feature `runtime`/`onnx`, `ModelSession` real e preguiçosa, `tokenizer.rs`; validar compilação Windows MSVC + Linux local/CI.
-**M1 — Catálogo verificado**: `OnnxModelSpec` multi-arquivo + `availability`; entradas mmarco e bge-m3 (coletar tamanho/SHA-256 do m3); Gemma `Planned`; downloader multi-arquivo com SHA-256 e subpasta; teste `catalog_urls`.
-**M2 — Reranker real**: `OnnxReranker` com inferência em lote; `spawn_blocking` no pipeline; teto de candidatos; fixtures e testes.
-**M3 — Retificação no código**: Gemma indisponível com fallback; remoção de telemetria fictícia; heurísticas rotuladas; dispositivo efetivo; correção das 5 URLs de Document AI e do reranker no instalador; remoção das 8 URLs fictícias do Gemma 4 (Core + Instalador).
-**M4 — Superfícies**: `/rerank model`, `--rerank-model`, status `/rerank` com latência real, badges TUI, menus `[F1]`, mensagens de download `Planned`, aviso `--device`.
-**M5 — Testes & NFR**: `cargo test --workspace` 100% verde; `--no-default-features` em `actx-onnx`; rodar `real_reranker_multilingual` localmente e registrar p50/p95.
-**M6 — Dual-Doc**: README + ADR-130 + notas de retificação (ADR-118/123/125/127/129).
-**M7 — Testes manuais**: Cenário 45 no topo de `tests/MANUAL_TESTS.md`.
-**M8 — Release**: bump `0.45.0`; commit `feat(onnx): ...` em `dev`; PR `dev → main`; CI verde; merge; tag `v0.45.0`; acompanhar `release.yml` até publicação comprovada em `Levix-Digital/any-context-releases`; `check_milestone`; registro na `session-memory`; checklist final.
+**M0 — Base runtime**: optional `ort`/`tokenizers` dependencies, the `runtime`/`onnx` features, a real lazy `ModelSession`, `tokenizer.rs`; validate the Windows MSVC build + Linux locally/CI.
+**M1 — Verified catalog**: multi-file `OnnxModelSpec` + `availability`; mmarco and bge-m3 entries (collect the m3 size/SHA-256); Gemma `Planned`; multi-file downloader with SHA-256 and a subfolder; the `catalog_urls` test.
+**M2 — Real reranker**: `OnnxReranker` with batched inference; `spawn_blocking` in the pipeline; candidate ceiling; fixtures and tests.
+**M3 — Rectification in the code**: Gemma unavailable with fallback; removal of fictitious telemetry; labeled heuristics; effective device; fix of the 5 Document AI URLs and the reranker in the installer; removal of the 8 fictitious Gemma 4 URLs (Core + Installer).
+**M4 — Surfaces**: `/rerank model`, `--rerank-model`, `/rerank` status with real latency, TUI badges, `[F1]` menus, `Planned` download messages, `--device` warning.
+**M5 — Tests & NFR**: `cargo test --workspace` 100% green; `--no-default-features` in `actx-onnx`; run `real_reranker_multilingual` locally and record p50/p95.
+**M6 — Dual-Doc**: README + ADR-130 + rectification notes (ADR-118/123/125/127/129).
+**M7 — Manual tests**: Scenario 45 at the top of `tests/MANUAL_TESTS.md`.
+**M8 — Release**: bump `0.45.0`; `feat(onnx): ...` commit to `dev`; PR `dev → main`; green CI; merge; tag `v0.45.0`; follow `release.yml` until publication is confirmed in `Levix-Digital/any-context-releases`; `check_milestone`; record in `session-memory`; final checklist.
