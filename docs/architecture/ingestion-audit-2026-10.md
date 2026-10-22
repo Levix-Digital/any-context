@@ -1,198 +1,197 @@
-# Auditoria da ingestão — "Any Context" (outubro de 2026)
+# Ingestion audit — "Any Context" (October 2026)
 
-Auditoria do pipeline de ingestão (design alvo em `ingestion-pipeline-v2.md`) contra as
-técnicas mais recentes do mercado, com um objetivo: **qualquer tipo de arquivo deve poder
-servir de contexto para qualquer profissional** — TI, hospitais, repartições públicas,
-universidades, contabilidade, advocacia, engenharia.
+Audit of the ingestion pipeline (target design in `ingestion-pipeline-v2.md`) against the
+latest techniques on the market, with one goal: **any file type must be able to serve as
+context for any professional** — IT, hospitals, public agencies, universities, accounting,
+law, engineering.
 
-Tudo aqui são **propostas** (P1, P2…), ainda não decisões. As aceitas entram no documento
-do pipeline; as recusadas ficam registradas aqui com o motivo.
+Sections 1–4 are **proposals** (P1, P2…). Accepted ones go into the pipeline document; the
+decisions are in section 5.
 
-Respeitam os princípios já decididos: multilíngue, ação explícita, air-gapped por padrão
-(modelos ONNX locais, por perfil de hardware) e nada some em silêncio.
+They respect the principles already decided: multilingual, explicit action, air-gapped by
+default (local ONNX models, per hardware profile) and nothing disappears silently.
 
 ---
 
 ## 1. Harness² (Google Research)
 
-[Harness²](https://github.com/google-research/harness2) (Apache-2.0) **não é um framework
-de ingestão**: é um framework de "recursive agent harnessing" — otimiza o sistema em volta
-de um modelo (prompt, guardrails, memória, ferramentas, skills…) sem mexer nos pesos. Não
-trata de parsing, chunking nem indexação.
+[Harness²](https://github.com/google-research/harness2) (Apache-2.0) **is not an ingestion
+framework**: it is a "recursive agent harnessing" framework — it optimizes the system
+around a model (prompt, guardrails, memory, tools, skills…) without touching the weights.
+It does not deal with parsing, chunking or indexing.
 
-Três ideias dele se transferem bem para a ingestão:
+Three of its ideas transfer well to ingestion:
 
-| ideia do Harness² | aplicação na ingestão |
+| Harness² idea | application to ingestion |
 |---|---|
-| **Propose–Probe–Compose sem gabarito**: propõe variações, testa na própria tarefa, compõe a partir do contraste entre execuções | **H1 — autoavaliação da ingestão** (abaixo) |
-| **Experience reflector**: guarda lições comprovadas para tarefas futuras | **H2 — memória de estratégia por fonte** |
-| **Skills e componentes editáveis** por domínio | **H3 — pacotes de domínio** |
+| **Propose–Probe–Compose without ground truth**: proposes variations, tests them on the task itself, composes from the contrast between runs | **H1 — ingestion self-evaluation** (below) |
+| **Experience reflector**: keeps proven lessons for future tasks | **H2 — strategy memory per source** |
+| **Editable skills and components** per domain | **H3 — domain packs** |
 
 ---
 
-## 2. Cobertura de formatos por público
+## 2. Format coverage by audience
 
-O design v2 cobre web, HTML, texto, código, estruturado, tabular, PDF, Office, e-mail,
-e-book e imagem. Faltam formatos centrais para vários públicos:
+The v2 design covers web, HTML, text, code, structured, tabular, PDF, Office, e-mail,
+e-book and image. Formats central to several audiences are missing:
 
-| público | formatos que faltam |
+| audience | missing formats |
 |---|---|
-| todos | arquivos compactados (ZIP, 7z, TAR), caixas de e-mail (MBOX, PST), áudio e vídeo, calendário (`.ics`), contatos (`.vcf`), MHTML, XPS |
-| advocacia, setor público | PDF com assinatura digital, anotações e formulários; DOCX com comentários e controle de alterações; gravações de audiências |
-| hospitais | DICOM (metadados, laudos estruturados, PDF embutido), HL7 v2, FHIR, CDA |
-| universidades | LaTeX, BibTeX, Jupyter (`.ipynb`), fórmulas em PDF, gravações de aulas |
-| engenharia | DXF, IFC (BIM), cabeçalho de STEP/IGES, pranchas em PDF (carimbo), GIS (GeoJSON, KML/KMZ, Shapefile, GeoPackage) |
-| contabilidade | XBRL; arquivos de registros delimitados de layout fixo (qualquer país) |
-| escritório em geral | Visio (`.vsdx`), Apple iWork (Pages, Numbers, Keynote) |
+| everyone | archives (ZIP, 7z, TAR), mailboxes (MBOX, PST), audio and video, calendar (`.ics`), contacts (`.vcf`), MHTML, XPS |
+| law, public sector | PDF with digital signature, annotations and forms; DOCX with comments and tracked changes; hearing recordings |
+| hospitals | DICOM (metadata, structured reports, embedded PDF), HL7 v2, FHIR, CDA |
+| universities | LaTeX, BibTeX, Jupyter (`.ipynb`), formulas in PDF, lecture recordings |
+| engineering | DXF, IFC (BIM), STEP/IGES header, drawing sheets in PDF (title block), GIS (GeoJSON, KML/KMZ, Shapefile, GeoPackage) |
+| accounting | XBRL; fixed-layout delimited record files (any country) |
+| general office | Visio (`.vsdx`), Apple iWork (Pages, Numbers, Keynote) |
 
-Fora de alcance sem software proprietário: DWG nativo, OneNote, arquivos com DRM.
+Out of reach without proprietary software: native DWG, OneNote, DRM-protected files.
 
 ---
 
-## 3. Propostas
+## 3. Proposals
 
-### Cobertura
+### Coverage
 
-- **P1 — Containers e arquivos compactados.** ZIP, 7z, TAR/GZ, MBOX e PST são abertos
-  recursivamente; cada item interno vira um documento filho com proveniência
-  (`processo.zip > anexo 3.pdf`) e passa pelo pipeline normal. Limites de profundidade e
-  de tamanho descompactado (proteção contra zip bomb).
-- **P2 — Áudio e vídeo.** Transcrição local multilíngue via ONNX (família Whisper, MIT),
-  com timestamps como localizador do chunk; separação de falantes opcional por perfil.
-  Vídeo: trilha de áudio + quadros-chave descritos pelo modelo de visão. Audiências,
-  consultas, aulas, reuniões.
-- **P3 — Acadêmico.** LaTeX por seção, BibTeX como registros, Jupyter por célula (código +
-  saída), fórmulas de PDF reconhecidas como LaTeX (via P8).
-- **P4 — Engenharia e GIS.** DXF (textos, camadas, carimbo), IFC (entidades e
-  propriedades), cabeçalho de STEP/IGES, pranchas em PDF (texto vetorial + carimbo), GIS
-  (atributos das feições e metadados espaciais).
-- **P5 — Saúde.** DICOM (tags, laudos estruturados, PDF embutido; pixels pelo modelo de
-  visão opcional), HL7 v2, FHIR e CDA com chunkers que entendem a estrutura de cada um.
-- **P6 — Office completo.** DOCX: comentários, controle de alterações, notas de rodapé,
-  cabeçalhos e rodapés. PPTX: notas do apresentador. XLSX: fórmulas, células mescladas,
-  intervalos nomeados, abas ocultas. Mais Visio, iWork, MHTML, XPS, `.ics` e `.vcf`.
-- **P7 — PDF além do texto.** Sumário/bookmarks como caminho de seção, anotações, campos de
-  formulário (chave–valor), arquivos anexados ao PDF (pelo P1) e metadados de assinatura
-  digital (signatário, data, validade) — essenciais em processos e atos públicos.
+- **P1 — Containers and archives.** ZIP, 7z, TAR/GZ, MBOX and PST are opened recursively;
+  each inner item becomes a child document with provenance (`case.zip > attachment 3.pdf`)
+  and goes through the normal pipeline. Depth and uncompressed-size limits (zip bomb
+  protection).
+- **P2 — Audio and video.** Local multilingual transcription via ONNX (Whisper family, MIT),
+  with timestamps as the chunk locator; optional speaker separation per profile. Video:
+  audio track + key frames described by the vision model. Hearings, consultations,
+  lectures, meetings.
+- **P3 — Academic.** LaTeX by section, BibTeX as records, Jupyter by cell (code + output),
+  PDF formulas recognized as LaTeX (via P8).
+- **P4 — Engineering and GIS.** DXF (texts, layers, title block), IFC (entities and
+  properties), STEP/IGES header, drawing sheets in PDF (vector text + title block), GIS
+  (feature attributes and spatial metadata).
+- **P5 — Health.** DICOM (tags, structured reports, embedded PDF; pixels through the
+  optional vision model), HL7 v2, FHIR and CDA with chunkers that understand the structure
+  of each.
+- **P6 — Full Office.** DOCX: comments, tracked changes, footnotes, headers and footers.
+  PPTX: speaker notes. XLSX: formulas, merged cells, named ranges, hidden sheets. Plus
+  Visio, iWork, MHTML, XPS, `.ics` and `.vcf`.
+- **P7 — PDF beyond text.** Outline/bookmarks as the section path, annotations, form fields
+  (key–value), files attached to the PDF (through P1) and digital signature metadata
+  (signer, date, validity) — essential in legal cases and public acts.
 
-### Qualidade de parsing
+### Parsing quality
 
-- **P8 — Modelo de parsing de documentos (VLM pequeno, ONNX).** Um modelo único que lê a
-  imagem da página e devolve Markdown com ordem de leitura, tabelas, fórmulas e código:
+- **P8 — Document parsing model (small VLM, ONNX).** A single model that reads the page
+  image and returns Markdown with reading order, tables, formulas and code:
   [Granite-Docling-258M](https://infoq.com/news/2025/10/granite-docling-ibm) (Apache-2.0,
-  há conversão ONNX) ou [PaddleOCR-VL](https://arxiv.org/pdf/2510.14528) (0,9B, 109
-  idiomas; licença a confirmar). Substitui a soma OCR + modelo de layout + heurística 2D
-  nos perfis que comportam; nos perfis leves fica a cascata OCR + layout. A escolha exige
-  benchmark (ex.: OmniDocBench).
-- **P9 — Detecção de camada de texto quebrada.** PDFs digitais cujo texto extraído é lixo
-  (fontes sem mapeamento Unicode, CID) são tratados como escaneados e vão para OCR/P8.
-  Detecção independente de idioma: proporção de caracteres de substituição, de uso
-  privado e de sequências improváveis, conferida contra uma amostra de OCR.
-- **P10 — Recuperação visual de páginas.** Para documentos visualmente ricos (gráficos,
-  pranchas, formulários), embeddings multivetoriais da imagem da página, na linha do
-  [ColPali](https://arxiv.org/abs/2407.01449v6), como índice adicional nos perfis altos.
-  Licenças variam por modelo (algumas são Gemma). Depende do pipeline de recuperação.
-- **P11 — Tabelas como dados consultáveis.** Toda tabela (planilha, CSV, tabela de PDF ou
-  DOCX) é guardada também num formato consultável, além dos chunks, para perguntas
-  agregadas. Já anotado como pendência da recuperação; aqui estende-se a tabelas dentro
-  de documentos.
+  ONNX conversion exists) or [PaddleOCR-VL](https://arxiv.org/pdf/2510.14528) (0.9B, 109
+  languages; license to be confirmed). Replaces the sum of OCR + layout model + 2D
+  heuristic on the profiles that can afford it; light profiles keep the OCR + layout
+  cascade. The choice requires a benchmark (e.g. OmniDocBench).
+- **P9 — Broken text layer detection.** Digital PDFs whose extracted text is garbage (fonts
+  without a Unicode mapping, CID) are treated as scanned and go to OCR/P8.
+  Language-independent detection: proportion of replacement characters, private-use
+  characters and improbable sequences, checked against an OCR sample.
+- **P10 — Visual page retrieval.** For visually rich documents (charts, drawing sheets,
+  forms), multi-vector embeddings of the page image, in the line of
+  [ColPali](https://arxiv.org/abs/2407.01449v6), as an additional index on high profiles.
+  Licenses vary by model (some are Gemma). Depends on the retrieval pipeline.
+- **P11 — Tables as queryable data.** Every table (spreadsheet, CSV, PDF or DOCX table) is
+  also stored in a queryable format, besides the chunks, for aggregate questions. Already
+  noted as a retrieval dependency; here it extends to tables inside documents.
 
-### Enriquecimento
+### Enrichment
 
-- **P12 — Metadados de documento independentes de idioma.** Idioma do documento, data do
-  documento extraída do conteúdo (não o mtime), tipo, título e autores; mais **extração de
-  entidades zero-shot** com tipos configuráveis por workspace (ex.: "número do processo",
-  "paciente", "número da prancha", "identificador fiscal") via
-  [GLiNER](https://pypi.org/project/GLiNER/) multilíngue (Apache-2.0, exportável para
-  ONNX). Vira filtro e faceta na recuperação.
-- **P13 — Dados pessoais e sensíveis.** O mesmo modelo marca chunks com categorias de
-  dados pessoais; a política do workspace decide: só marcar, mascarar na resposta ou não
-  indexar. Hospitais e setor público (LGPD, GDPR, HIPAA — sem regra presa a um país).
-- **P14 — Resumos hierárquicos.** Resumos de documento e de pasta gerados pelo LLM local
-  do perfil, em segundo plano, guardados como **nós próprios** buscáveis (não prefixados
-  nos chunks, como o envelope removido). Respondem a "do que trata este contrato?" e
-  perguntas de visão geral.
-- **P15 — Late chunking.** Com o modelo de embedding local de contexto longo (ex.: BGE-M3,
-  8192 tokens), o documento é embedado inteiro e cada chunk recebe o vetor com contexto do
-  documento, sem custo de LLM — o "contextual retrieval barato" para perfis leves.
-  [Ganho reportado modesto](https://arxiv.org/html/2409.04701v3) (≈ 3% nDCG@10). Efeito no
-  diff por chunk: uma edição re-embeda a janela em volta dela, não só o chunk editado.
-- **P16 — Grafo de entidades e relações.** Relações entre documentos (partes ↔ processos,
-  componentes ↔ pranchas, pacientes ↔ exames). Caro; avaliar só para perfis altos e depois
-  de P12.
-- **P17 — Versões e quase-duplicatas.** MinHash/SimHash entre documentos: agrupa versões
-  (`contrato_v3_final_FINAL.docx`), marca a mais recente e guarda conteúdo idêntico uma só
-  vez. Evita respostas que misturam versões.
+- **P12 — Language-independent document metadata.** Document language, document date
+  extracted from the content (not the mtime), type, title and authors; plus **zero-shot
+  entity extraction** with types configurable per workspace (e.g. "case number",
+  "patient", "sheet number", "tax identifier") via multilingual
+  [GLiNER](https://pypi.org/project/GLiNER/) (Apache-2.0, exportable to ONNX). It becomes a
+  filter and facet in retrieval.
+- **P13 — Personal and sensitive data.** The same model tags chunks with personal data
+  categories; the workspace policy decides: tag only, mask in the answer, or do not index.
+  Hospitals and public sector (LGPD, GDPR, HIPAA — no rule tied to one country).
+- **P14 — Hierarchical summaries.** Document and folder summaries generated by the
+  profile's local LLM, in the background, stored as their **own searchable nodes** (not
+  prefixed to chunks, like the removed envelope). They answer "what is this contract
+  about?" and overview questions.
+- **P15 — Late chunking.** With the long-context local embedding model (e.g. BGE-M3, 8192
+  tokens), the document is embedded whole and each chunk receives the vector with document
+  context, at no LLM cost — the "cheap contextual retrieval" for light profiles.
+  [Reported gain is modest](https://arxiv.org/html/2409.04701v3) (≈ 3% nDCG@10). Effect on
+  per-chunk diff: an edit re-embeds the window around it, not only the edited chunk.
+- **P16 — Entity and relation graph.** Relations between documents (parties ↔ cases,
+  components ↔ drawing sheets, patients ↔ exams). Expensive; evaluate only for high
+  profiles and after P12.
+- **P17 — Versions and near-duplicates.** MinHash/SimHash across documents: groups versions
+  (`contract_v3_final_FINAL.docx`), marks the most recent one and stores identical content
+  only once. Avoids answers that mix versions.
 
-### Armazenamento e eficiência
+### Storage and efficiency
 
-- **P18 — Vetores compactos.** Truncamento Matryoshka e quantização int8/binária com
-  reordenação pelos vetores completos: índice várias vezes menor e mais rápido, por
-  perfil.
-- **P19 — Vetores esparsos aprendidos.** Os vetores esparsos do BGE-M3 como complemento ao
-  BM25, com melhor comportamento multilíngue. Opcional.
+- **P18 — Compact vectors.** Matryoshka truncation and int8/binary quantization with
+  reranking by the full vectors: an index several times smaller and faster, per profile.
+- **P19 — Learned sparse vectors.** BGE-M3 sparse vectors as a complement to BM25, with
+  better multilingual behavior. Optional.
 
-### Operação
+### Operation
 
-- **P20 — Sync automático das fontes escolhidas.** Observação do sistema de arquivos nas
-  fontes que o usuário selecionou (continua ação explícita) e recrawl agendado para
-  fontes web. Hoje o sync só roda quando pedido.
-- **P21 — Governança de recursos.** Ingestão em segundo plano com prioridade baixa, pausa
-  com bateria fraca ou uso intenso, uso de GPU e paralelismo por perfil.
-- **P22 — Localizadores precisos.** Página + região (bounding box) no PDF, timestamp no
-  áudio, célula na planilha, linha no código — para abrir o original no ponto exato
-  (FEAT-016). Confiança para advocacia e saúde.
-- **P23 — Controle de acesso por fonte.** Quem pode ver cada fonte; depende do futuro
-  módulo de usuários. Só registrar agora.
+- **P20 — Automatic sync of the chosen sources.** File system watching on the sources the
+  user selected (still explicit action) and scheduled recrawl for web sources. Today sync
+  only runs when requested.
+- **P21 — Resource governance.** Background ingestion at low priority, pausing on low
+  battery or heavy use, GPU use and parallelism per profile.
+- **P22 — Precise locators.** Page + region (bounding box) in PDF, timestamp in audio, cell
+  in a spreadsheet, line in code — to open the original at the exact point (FEAT-016).
+  Trust for law and health.
+- **P23 — Per-source access control.** Who can see each source; depends on the future
+  users module. Only record it for now.
 
-### Inspiradas no Harness²
+### Inspired by Harness²
 
-- **H1 — Autoavaliação da ingestão (propose–probe–compose).** Para cada fonte, o LLM local
-  gera perguntas sintéticas a partir de uma amostra de chunks e a recuperação é executada:
-  a taxa de acerto vira um **score de qualidade da ingestão** por arquivo e por fonte. Score
-  baixo dispara estratégias alternativas (OCR em vez da camada de texto, outro tamanho de
-  chunk, renderização web) e fica a melhor. Arquivos mal ingeridos aparecem no relatório.
-- **H2 — Memória de estratégia por fonte.** A estratégia vencedora (parser, OCR,
-  renderização, tamanho de chunk) é lembrada por fonte e tipo de arquivo e reaproveitada —
-  generaliza a calibração de renderização web já decidida.
-- **H3 — Pacotes de domínio.** Configurações por área (saúde, jurídico, engenharia,
-  contabilidade, acadêmico, TI): tipos de entidade do P12, parsers habilitados, metadados
-  de filtro, política de dados sensíveis do P13. Escolhidos por workspace, **ortogonais aos
-  perfis de hardware** e independentes de idioma.
+- **H1 — Ingestion self-evaluation (propose–probe–compose).** For each source, the local
+  LLM generates synthetic questions from a sample of chunks and retrieval is executed: the
+  hit rate becomes an **ingestion quality score** per file and per source. A low score
+  triggers alternative strategies (OCR instead of the text layer, another chunk size, web
+  rendering) and the best one stays. Poorly ingested files appear in the report.
+- **H2 — Strategy memory per source.** The winning strategy (parser, OCR, rendering, chunk
+  size) is remembered per source and file type and reused — it generalizes the web
+  rendering calibration already decided.
+- **H3 — Domain packs.** Per-area settings (health, legal, engineering, accounting,
+  academic, IT): P12 entity types, enabled parsers, filter metadata, P13 sensitive data
+  policy. Chosen per workspace, **orthogonal to the hardware profiles** and independent of
+  language.
 
 ---
 
-## 4. Prioridade sugerida
+## 4. Suggested priority
 
-| prioridade | propostas | por quê |
+| priority | proposals | why |
 |---|---|---|
-| 1 — base | P8, P9, P1, P6, P7, P12, P13, P17, P22, H1 | qualidade de extração e confiança para todos os públicos |
-| 2 — públicos específicos | P2, P3, P4, P5, P14, P15, P18, P20, H2, H3 | cobertura por área e eficiência |
-| 3 — avaliar depois | P10, P16, P19, P21, P23 | custo alto, dependem da recuperação ou do módulo de usuários |
+| 1 — base | P8, P9, P1, P6, P7, P12, P13, P17, P22, H1 | extraction quality and trust for every audience |
+| 2 — specific audiences | P2, P3, P4, P5, P14, P15, P18, P20, H2, H3 | coverage per area and efficiency |
+| 3 — evaluate later | P10, P16, P19, P21, P23 | high cost, depend on retrieval or the users module |
 
 ---
 
-## 5. Decisões
+## 5. Decisions
 
-| proposta | decisão | onde foi registrada |
+| proposal | decision | where it was recorded |
 |---|---|---|
-| P8 | aceita: texto digital é a verdade; modelo de parsing de páginas para escaneadas nos perfis que comportam; benchmark antes de fixar | `ingestion-pipeline-v2.md`, passo 6 |
-| P9 | aceita: terceiro estado de página "texto quebrado", com verificação contra OCR na dúvida | `ingestion-pipeline-v2.md`, passo 4 |
-| P1 | aceita, com PST/OST no nível 1, RAR só leitura (licença a confirmar) e cofre de senhas de arquivos | `ingestion-pipeline-v2.md`, passo 4 |
-| P6, P7 | aceitas; controle de alterações com texto atual + alterações como itens próprios; `.ics`, `.vcf`, MHTML no nível 1, Visio, XPS e iWork no nível 2 | `ingestion-pipeline-v2.md`, passo 5 |
-| Formulários | aceito: LSIE (DocMapper) como motor, fase 0 automática por perfil, mapas de layout revisáveis, crate Rust única para AnyContext e DocMapper, integração local com o DocMapper, corpus de testes iniciado pelo CMR fictício | `ingestion-pipeline-v2.md`, passo 6 |
-| P12, P13 | aceitas: metadados e entidades configuráveis por workspace; dados pessoais mascarados por padrão com LLM na nuvem e só marcados com LLM local; segredos nunca indexados | `ingestion-pipeline-v2.md`, passo 7 |
-| P17, P22 | aceitas, respeitando a hierarquia pai–filhos: duplicata exata guarda a árvore uma vez; filhos nunca fundidos entre pais diferentes; famílias de versões na raiz do documento; localizador preciso no filho e extensão no pai | `ingestion-pipeline-v2.md`, passos 3 e 7 |
-| H1, H2 | aceitas: sinais determinísticos em todos os perfis, sondagem com perguntas sintéticas nos perfis com LLM local, reprocessamento automático já na primeira versão, memória de estratégia por fonte, perguntas como conjunto de avaliação da recuperação | `ingestion-pipeline-v2.md`, seção transversal |
-| H3 | aceita: 11 pacotes (Pessoal como padrão + jurídico, saúde, engenharia, contabilidade, logística, RH, acadêmico, TI, setor público, imobiliário); mapas de layout aprendidos, catálogo só como acelerador | `ingestion-pipeline-v2.md`, seção transversal |
-| P13 (revisão) | a máscara padrão com LLM na nuvem foi substituída por busca sem máscara + pseudonimização reversível só no que vai para a nuvem; "não indexar" só para segredos ou escolha explícita | `ingestion-pipeline-v2.md`, passo 7 |
-| P3, P4, P5 | aceitas: DWG recusado com sugestão de exportar (licença comercial a avaliar), imagem médica do DICOM desligada por padrão, SPSS e Stata para depois | `ingestion-pipeline-v2.md`, passo 5 |
-| P2 | aceita: transcrição Whisper via ONNX, legendas existentes primeiro, falantes ligados no pacote jurídico, FFmpeg no instalador para os quadros do vídeo | `ingestion-pipeline-v2.md`, passo 5 |
-| P14, P15 | aceitas: resumos de documento e pasta como nós próprios pelo LLM local; late chunking nos perfis leves com embedding de contexto longo, ligado só com ganho medido | `ingestion-pipeline-v2.md`, passo 7 |
-| P20 | aceita: observação só das fontes escolhidas, varredura de reserva, diff ao abrir, recrawl web diário, sync só com o AnyContext aberto por padrão e serviço em segundo plano opcional | `ingestion-pipeline-v2.md`, seção transversal |
-| P18 | aceita com qualidade em primeiro lugar: sem compactação por padrão, só por necessidade e sem perda mensurável; desligamento automático e interno, sem aviso ao usuário; truncamento Matryoshka nunca usado | `ingestion-pipeline-v2.md`, passo 10 |
-| P10 | aceita: só páginas visualmente ricas, página como lista extra na busca, imagem como evidência para chat multimodal (nunca a endpoint externo com pseudonimização ativa), por perfil, vetores completos | `ingestion-pipeline-v2.md`, passo 7 |
-| P16 | aceita: grafo base sem LLM (entidades, documentos, relações estruturais, resolução corrigível), relações tipadas por LLM local com evidência citável e tipos do pacote, uso como lista, ferramenta e fonte enumerativa, um grafo por workspace | `ingestion-pipeline-v2.md`, passo 7 |
-| P19 | aceita: só quando o modelo de embedding já produz o esparso (ex.: BGE-M3), guardado no índice lexical, lista extra no RRF ligada só com ganho medido | `ingestion-pipeline-v2.md`, passo 9 |
-| P21 | aceita: governador único com prioridade global (pergunta primeiro), adaptação a bateria, carga, temperatura e rede, orçamento de memória, reserva de disco, só "pausar indexação" para o usuário, janelas pela política empresarial | `ingestion-pipeline-v2.md`, seção transversal |
-| P23 | aceita: ID do escopo de permissão no chunk, detalhe em SQLite separado (escopos por workspace, usuários e grupos no servidor); ligação pelo SSO e SCIM, negando o que não liga; pré-filtro em todos os buscadores; agregados por escopo e sem cache compartilhado; mudança de permissão sem reprocessar; desconhecida nega por padrão | `ingestion-pipeline-v2.md`, seção transversal |
+| P8 | accepted: digital text is the truth; page parsing model for scanned pages on the profiles that can afford it; benchmark before fixing it | `ingestion-pipeline-v2.md`, step 6 |
+| P9 | accepted: third page state "broken text", with verification against OCR when in doubt | `ingestion-pipeline-v2.md`, step 4 |
+| P1 | accepted, with PST/OST at level 1, RAR read-only (license to be confirmed) and a vault for file passwords | `ingestion-pipeline-v2.md`, step 4 |
+| P6, P7 | accepted; tracked changes with current text + changes as their own items; `.ics`, `.vcf`, MHTML at level 1, Visio, XPS and iWork at level 2 | `ingestion-pipeline-v2.md`, step 5 |
+| Forms | accepted: LSIE (DocMapper) as the engine, automatic phase 0 per profile, reviewable layout maps, a single Rust crate for AnyContext and DocMapper, local integration with DocMapper, test corpus started with the fictitious CMR | `ingestion-pipeline-v2.md`, step 6 |
+| P12, P13 | accepted: metadata and entities configurable per workspace; personal data masked by default with a cloud LLM and only tagged with a local LLM; secrets never indexed | `ingestion-pipeline-v2.md`, step 7 |
+| P17, P22 | accepted, respecting the parent–child hierarchy: an exact duplicate stores the tree once; children never merged across different parents; version families at the document root; precise locator on the child and extent on the parent | `ingestion-pipeline-v2.md`, steps 3 and 7 |
+| H1, H2 | accepted: deterministic signals on every profile, probing with synthetic questions on profiles with a local LLM, automatic reprocessing already in the first version, strategy memory per source, questions as the retrieval evaluation set | `ingestion-pipeline-v2.md`, cross-cutting section |
+| H3 | accepted: 11 packs (Personal as default + legal, health, engineering, accounting, logistics, HR, academic, IT, public sector, real estate); learned layout maps, catalog only as an accelerator | `ingestion-pipeline-v2.md`, cross-cutting section |
+| P13 (revision) | the default masking with a cloud LLM was replaced by unmasked search + reversible pseudonymization only of what goes to the cloud; "do not index" only for secrets or explicit choice | `ingestion-pipeline-v2.md`, step 7 |
+| P3, P4, P5 | accepted: DWG refused with a suggestion to export (commercial license to evaluate), DICOM medical image off by default, SPSS and Stata later | `ingestion-pipeline-v2.md`, step 5 |
+| P2 | accepted: Whisper transcription via ONNX, existing captions first, speakers on in the legal pack, FFmpeg in the installer for video frames | `ingestion-pipeline-v2.md`, step 5 |
+| P14, P15 | accepted: document and folder summaries as their own nodes by the local LLM; late chunking on light profiles with long-context embedding, enabled only with a measured gain | `ingestion-pipeline-v2.md`, step 7 |
+| P20 | accepted: watching only the chosen sources, fallback scan, diff on opening, daily web recrawl, sync only with AnyContext open by default and an optional background service | `ingestion-pipeline-v2.md`, cross-cutting section |
+| P18 | accepted with quality first: no compaction by default, only when needed and without measurable loss; automatic and internal switch-off, without notifying the user; Matryoshka truncation never used | `ingestion-pipeline-v2.md`, step 10 |
+| P10 | accepted: only visually rich pages, page as an extra list in search, image as evidence for multimodal chat (never to an external endpoint with pseudonymization active), per profile, full vectors | `ingestion-pipeline-v2.md`, step 7 |
+| P16 | accepted: base graph without LLM (entities, documents, structural relations, correctable resolution), typed relations by the local LLM with citable evidence and pack types, used as a list, tool and enumerative source, one graph per workspace | `ingestion-pipeline-v2.md`, step 7 |
+| P19 | accepted: only when the embedding model already produces sparse vectors (e.g. BGE-M3), stored in the lexical index, extra list in RRF enabled only with a measured gain | `ingestion-pipeline-v2.md`, step 9 |
+| P21 | accepted: single governor with global priority (question first), adaptation to battery, load, temperature and network, memory budget, disk reserve, only "pause indexing" for the user, windows through the enterprise policy | `ingestion-pipeline-v2.md`, cross-cutting section |
+| P23 | accepted: permission scope ID in the chunk, details in a separate SQLite database (scopes per workspace, users and groups on the server); linking through SSO and SCIM, denying what does not link; pre-filter in every retriever; aggregates per scope and no shared cache; permission change without reprocessing; unknown denies by default | `ingestion-pipeline-v2.md`, cross-cutting section |
