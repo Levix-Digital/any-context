@@ -187,7 +187,8 @@ compartilha-se a definição do workspace, no modo 3 o índice.
    a política pode exigir apagá-las.
 6. **Permissões herdadas da fonte** (modo 3 e conectores): num índice compartilhado, um
    leitor nunca recebe trechos de documentos que não pode abrir na origem (ex.: permissões do
-   SharePoint ou do servidor de arquivos). Implementação detalhada na auditoria P23.
+   SharePoint ou do servidor de arquivos). Implementação: `ingestion-pipeline-v2.md`, seção
+   transversal de controle de acesso (auditoria P23).
 
 ### 4. Motor de governança e políticas
 

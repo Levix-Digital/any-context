@@ -879,3 +879,58 @@ embedding, reranker, LLM local, autoavaliação, grafo) na ingestão e na busca.
 6. **O mesmo governador** decide o paralelismo da busca estratificada (recuperação, passo 4)
    e a capacidade do worker de ingestão.
 
+
+---
+
+## Transversal: controle de acesso por fonte (auditoria P23)
+
+Regra (identidade, tema 3, item 6): num índice compartilhado, **um leitor nunca recebe
+trechos de documentos que não pode abrir na origem**.
+
+**Onde se aplica:**
+
+- **Modo 1 com a definição do workspace compartilhada:** não se aplica — cada membro indexa
+  com o próprio acesso.
+- **Modo 3 (AnyContext Server) e conectores corporativos** (SharePoint, OneDrive, Google
+  Drive, servidor de arquivos): a ingestão roda com uma conta de serviço que enxerga tudo, e
+  o filtro por leitor é obrigatório.
+- **Workspace compartilhado entre contas da mesma máquina:** quem compartilha entrega o
+  conteúdo indexado — decisão explícita do dono, com aviso na interface ("ao compartilhar,
+  os membros veem o conteúdo indexado deste workspace").
+
+**Desenho:**
+
+1. **ID do escopo de permissão no chunk.** Na origem, quase tudo herda a permissão de um
+   ponto acima (a pasta `/Financeiro`, o site do SharePoint, a pasta compartilhada do
+   Drive). Cada chunk guarda só o **ID do escopo** de onde vem a permissão do seu documento
+   — nunca a lista de quem pode ler.
+2. **Detalhe em bases SQLite separadas:**
+   - **escopos do workspace** (quem pode ler cada escopo, capturado da origem: ACLs do
+     Windows e do Linux, SharePoint/OneDrive, Google Drive), criptografada com a chave do
+     workspace;
+   - **usuários e grupos do diretório** (SSO e SCIM), no servidor, valendo para todos os
+     workspaces.
+3. **Ligação de identidades:** usuários e grupos da origem são ligados às identidades
+   corporativas pelo mesmo provedor (SSO e SCIM); **o que não se liga fica sem acesso**.
+4. **Custo de cada mudança na origem:**
+
+   | Mudança | O que é atualizado |
+   |---|---|
+   | alguém entra ou sai de um grupo | só a base de usuários e grupos |
+   | a permissão de uma pasta ou site muda | só a linha do escopo no SQLite — nada no índice, mesmo com milhões de arquivos |
+   | um arquivo ganha permissão própria ou muda de pasta | só o ID do escopo nos chunks daquele arquivo — sem reprocessar nem re-embedar |
+
+   No sync, a permissão faz parte do diff.
+5. **Filtro antes da busca, em todos os buscadores** (densa, lexical, esparsa, visual, grafo,
+   tabelas e formulários, resumos): usuário + grupos → escopos legíveis (consulta ao SQLite,
+   em cache na sessão e invalidada quando ele muda) → pré-filtro pelos IDs de escopo, junto
+   dos demais filtros (recuperação, passo 4).
+6. **Agregados nunca vazam:**
+   - resumos de pasta só sobre documentos do mesmo escopo — pasta com escopos mistos tem um
+     resumo por escopo;
+   - relações do grafo e linhas de tabelas e formulários herdam o escopo do documento de
+     origem;
+   - contagens das perguntas enumerativas só contam o que o leitor pode ver;
+   - nunca há cache de resposta compartilhado entre usuários.
+7. **Permissão desconhecida ou ilegível: nega por padrão** — só o dono do workspace vê o
+   documento, e o relatório da fonte aponta o problema.
