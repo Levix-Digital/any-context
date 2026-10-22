@@ -27,7 +27,7 @@ Multilingual. Minimal configuration: architecture decisions never become user op
 - `retrieval-pipeline-v2.md`
 - `deployment-architecture-v2.md`
 - `identity-and-governance-v2.md`
-- `connectors-v2.md`: 30 decisions, including the three plans (Free / Pro / Enterprise) and no Notion connector.
+- `connectors-v2.md`: 31 decisions, including the three plans (Free / Pro / Enterprise) and no Notion connector.
 - `desktop-ui-v2.md`
 - `platform-shared-components.md`
 
@@ -69,6 +69,7 @@ For each suspicion, confirm it with file and line or discard it. For each confir
 - Document AI components are never wired in production.
 - The router keywords are PT/EN only (violates multilingual).
 - The encryption key is derived from the machine id with a fixed salt.
+- Web search without a key scrapes DuckDuckGo result pages (`retrieval/web_search.rs`); DuckDuckGo has no official search API, so this breaks the official-API-only rule (connectors-v2, decisions 16 and 24).
 - Online-only placeholders (OneDrive/Dropbox) are hydrated by the scan; they should be skipped and reported (connectors-v2 decision 21).
 - Portuguese user-facing strings in the code: `crates/any-context-core-rs/src/commands/engine.rs` (~177 lines), router keywords, tests.
 - `Cargo.toml` release profile: `lto = "off"` and `strip = true`. Do not adopt `panic = "abort"`, because it would break the `catch_unwind` in `retrieval/bm25.rs:336` and `actx-onnx/src/runtime.rs:80`.
@@ -81,7 +82,7 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 - Commercial seats per device or per user.
 - Benchmarks for page parsing, vision, ColPali and field models.
 - RAR license.
-- Commercial details of the plans (prices, trial length, Web search query cap).
+- Commercial details of the plans (prices, trial length, the value of the Web search fair-use ceiling).
 
 ### Housekeeping I still owe
 

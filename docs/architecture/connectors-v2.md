@@ -175,9 +175,15 @@ order is left to the roadmap.
 30. **No Notion connector.** Decided 2026-10-22. Drive connectors (Google Drive, OneDrive,
     Dropbox) add little over the local sync folders the base already indexes, so they are
     not part of the personal plans; they remain Enterprise candidates.
+31. **Web search in Pro has a fair-use ceiling, not a metered quota.** Each search and page
+    read costs Levix a little (Jina: about US$ 0.0005 per search on a paid key; the free key
+    is non-commercial only), so the Pro plan carries a high daily ceiling that normal use
+    never reaches and that only stops abuse. Reaching it pauses web search until the next
+    day, with a clear message; local search keeps working. The exact value is set from
+    real usage data. Decided 2026-10-22.
 
 ## For the roadmap
 
-- **Commercial details**: prices, trial length, and whether the Pro plan caps Web search
-  queries (decision 28).
+- **Commercial details**: prices, trial length, and the value of the Web search fair-use
+  ceiling (decision 31).
 - Which connectors exist and in which order: decided in the backlog and the roadmap.
