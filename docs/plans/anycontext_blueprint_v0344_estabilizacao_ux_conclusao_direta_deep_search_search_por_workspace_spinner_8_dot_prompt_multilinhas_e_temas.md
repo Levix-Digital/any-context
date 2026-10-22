@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_blueprint_v0344_estabilizacao_ux_conclusao_direta_deep_search_search_por_workspace_spinner_8_dot_prompt_multilinhas_e_temas
 project: any-context
-title: 'Blueprint v0.34.4: Estabilizacao UX, Conclusao Direta Deep Search, Search por Workspace, Spinner 8-Dot, Prompt Multilinhas e Temas'
+title: 'Blueprint v0.34.4: UX Stabilization, Direct Deep Search Conclusion, Search per Workspace, 8-Dot Spinner, Multiline Prompt and Themes'
 version: v0.34.4
 status: superseded
 author: Levi Silveira
@@ -20,23 +20,23 @@ supersedes: null
 superseded_by: anycontext_blueprint_v0344_estabilizacao_ux_conclusao_deep_search_search_por_workspace_spinner_8_dot_prompt_multilinhas_temas_e_auto_consciencia_global
 parent_plan_id: null
 milestones:
-- name: 'M1: Deep Search Synthesis Prompt e Idioma'
+- name: 'M1: Deep Search Synthesis Prompt and Language'
   done: false
-- name: 'M2: Search Mode por Workspace no SQLite'
+- name: 'M2: Search Mode per Workspace in SQLite'
   done: false
-- name: 'M3: Spinner Braille 8-Dot e Timer 125ms'
+- name: 'M3: 8-Dot Braille Spinner and 125ms Timer'
   done: false
-- name: 'M4: Redirecionamento Seguro /update para --update'
+- name: 'M4: Safe Redirection of /update to --update'
   done: false
-- name: 'M5: Prompt Expansivel Multilinha com Cursor 2D'
+- name: 'M5: Expandable Multiline Prompt with 2D Cursor'
   done: false
-- name: 'M6: Badge [AI - Workspace] e Tipografia Cinza'
+- name: 'M6: [AI - Workspace] Badge and Gray Typography'
   done: false
-- name: 'M7: Suite de Testes Automatizados'
+- name: 'M7: Automated Test Suite'
   done: false
-- name: 'M8: Dual-Doc e Cenario 27 em MANUAL_TESTS'
+- name: 'M8: Dual-Doc and Scenario 27 in MANUAL_TESTS'
   done: false
-- name: 'M9: Gate 8 e Release v0.34.4'
+- name: 'M9: Gate 8 and Release v0.34.4'
   done: false
 status_log:
 - at: '2026-10-10T08:34:24'
@@ -46,16 +46,16 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# Blueprint AnyContext v0.34.4: Estabilizacao UX, Deep Search Synthesis, Search Mode por Workspace, Spinner 8-Dot, Prompt Multilinha e Temas
+# Blueprint AnyContext v0.34.4: UX Stabilization, Deep Search Synthesis, Search Mode per Workspace, 8-Dot Spinner, Multiline Prompt and Themes
 
-1. Objetivo & Decisoes Arquiteturais (ADRs):
-- Deep Search: Resposta focada exclusivamente na conclusao e rigorosamente no idioma do usuario, eliminando preambulos e narracao de busca.
-- /search por Workspace: Persistencia da profundidade de busca (auto, fast, deep) isolada na tabela workspaces do SQLite.
-- Spinner Braille 8-Dot: Substituicao de 3 para 4 pontos de altura com reducao de tick para 125ms (dobro da velocidade).
-- /update Seguro: Deprecacao de execucao in-tui para evitar corrupcao de stdout, instruindo 'actx --update'.
-- Prompt Expansivel Multilinha: Suporte a Shift+Enter, Ctrl+J, auto-wrap e calculo dinamico de altura (3 a 8 linhas) com cursor 2D.
-- Identificacao de Workspace: Badge [AI - <Workspace>] estilizado e tipografia cinza (Color::Gray e Color::DarkGray).
+1. Goal & Architecture Decisions (ADRs):
+- Deep Search: an answer focused exclusively on the conclusion and strictly in the user's language, removing preambles and search narration.
+- /search per Workspace: the search depth (auto, fast, deep) persisted per workspace in the SQLite workspaces table.
+- 8-Dot Braille Spinner: from 3 to 4 dots of height, with the tick reduced to 125ms (double speed).
+- Safe /update: in-TUI execution deprecated to avoid stdout corruption, pointing to 'actx --update'.
+- Expandable Multiline Prompt: support for Shift+Enter, Ctrl+J, auto-wrap and dynamic height (3 to 8 lines) with a 2D cursor.
+- Workspace identification: a styled [AI - <Workspace>] badge and gray typography (Color::Gray and Color::DarkGray).
 
-2. Superficies Impactadas: actx-cli (TUI, events, ui, app), any-context-core-rs (sqlite, engine), actx-agent (deep_search).
+2. Affected surfaces: actx-cli (TUI, events, ui, app), any-context-core-rs (sqlite, engine), actx-agent (deep_search).
 
-3. Testes: Unitarios e integracao de isolamento SQLite, parser multilinhas e regressao de comandos.
+3. Tests: unit and integration tests for SQLite isolation, the multiline parser and command regression.

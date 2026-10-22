@@ -1,7 +1,7 @@
 ---
 plan_id: any_context_blueprint_v0330_paridade_integral_de_ingestao_e_recuperacao_de_indices_rust_core_e_purga_do_codigo_legado_python
 project: any-context
-title: 'Blueprint v0.33.0: Paridade Integral de Ingestao e Recuperacao de Indices (Rust Core) e Purga do Codigo Legado Python'
+title: 'Blueprint v0.33.0: Full Ingestion and Index Retrieval Parity (Rust Core) and Legacy Python Code Purge'
 version: v0.33.0
 status: superseded
 author: Levi Silveira
@@ -19,37 +19,37 @@ supersedes: any_context_blueprint_v03214_desserialização_segura_do_bm25_persis
 superseded_by: any_context_blueprint_v0331_purga_final_python_higiene_repo_e_dual_doc
 parent_plan_id: null
 milestones:
-- name: 'M1: Modelos de Presets RAG em Rust'
+- name: 'M1: RAG Preset Models in Rust'
   done: true
-- name: 'M2: Parser Nativo de Documentos de Escritorio (DOCX e PPTX)'
+- name: 'M2: Native Office Document Parser (DOCX and PPTX)'
   done: true
-- name: 'M3: ContextualEnricher e Envelopes Semanticos em Rust'
+- name: 'M3: ContextualEnricher and Semantic Envelopes in Rust'
   done: true
-- name: 'M4: Web Crawler Recursivo com Sitemaps e Robots.txt'
+- name: 'M4: Recursive Web Crawler with Sitemaps and Robots.txt'
   done: true
-- name: 'M5: Ferramenta Nativa de Web Search no actx-agent'
+- name: 'M5: Native Web Search Tool in actx-agent'
   done: true
-- name: 'M6: Purga Completa do Codigo Python Legado'
+- name: 'M6: Complete Purge of the Legacy Python Code'
   done: true
-- name: 'M7: Suite de Testes Rust 100% Verdes'
+- name: 'M7: Rust Test Suite 100% Green'
   done: true
-- name: 'M8: Atualizacao Dual-Doc e Release v0.33.0'
+- name: 'M8: Dual-Doc Update and Release v0.33.0'
   done: true
 status_log:
 - at: '2026-10-09T11:35:19'
-  note: 'Milestone ''M1: Modelos de Presets RAG em Rust'': Implementado RetrievalPreset com Turbo, Balanced e Deep e integrado ao HybridSearchRequest'
+  note: 'Milestone ''M1: RAG Preset Models in Rust'': Implemented RetrievalPreset with Turbo, Balanced and Deep, integrated into HybridSearchRequest'
 - at: '2026-10-09T11:39:22'
-  note: 'Milestone ''M2: Parser Nativo de Documentos de Escritorio (DOCX e PPTX)'': Implementado OfficeChunker para .docx e .pptx via OpenXML SAX parsing com zip e quick-xml, integrado ao IngestionRouter'
+  note: 'Milestone ''M2: Native Office Document Parser (DOCX and PPTX)'': Implemented OfficeChunker for .docx and .pptx through OpenXML SAX parsing with zip and quick-xml, integrated into IngestionRouter'
 - at: '2026-10-09T11:47:26'
-  note: 'Milestone ''M3: ContextualEnricher e Envelopes Semanticos em Rust'': ContextualEnricher nativo integrado no Orchestrator com persistencia de envelopes semanticos e sync ledger diff no SQLite'
+  note: 'Milestone ''M3: ContextualEnricher and Semantic Envelopes in Rust'': Native ContextualEnricher integrated into the Orchestrator, persisting semantic envelopes and the sync ledger diff in SQLite'
 - at: '2026-10-09T11:54:15'
-  note: 'Milestone ''M4: Web Crawler Recursivo com Sitemaps e Robots.txt'': NativeWebCrawler implementado com suporte a parsing de sitemaps XML e sitemap index via quick-xml, politica robots.txt RFC 9309, BFS link traversal e integracao no orquestrador sync_web_portals'
+  note: 'Milestone ''M4: Recursive Web Crawler with Sitemaps and Robots.txt'': NativeWebCrawler implemented with parsing of XML sitemaps and sitemap index through quick-xml, RFC 9309 robots.txt policy, BFS link traversal and integration into the sync_web_portals orchestrator'
 - at: '2026-10-09T12:02:17'
-  note: 'Milestone ''M5: Ferramenta Nativa de Web Search no actx-agent'': NativeWebSearchEngine implementado com cascata Tavily -> Serper -> DuckDuckGo, registrado como tool nativa web_search no actx_agent via actx-cli builder quando web_search_enabled'
+  note: 'Milestone ''M5: Native Web Search Tool in actx-agent'': NativeWebSearchEngine implemented with a Tavily -> Serper -> DuckDuckGo cascade, registered as the native web_search tool in actx_agent through the actx-cli builder when web_search_enabled'
 - at: '2026-10-09T12:05:18'
-  note: 'Milestone ''M6: Purga Completa do Codigo Python Legado'': Purga completa realizada: deletados src/any_context, main.py, launcher, specs, requirements.txt, pyproject.toml, uv.lock e testes python; fluxos do GitHub Actions migrados para 100% Rust'
+  note: 'Milestone ''M6: Complete Purge of the Legacy Python Code'': Complete purge done: deleted src/any_context, main.py, launcher, specs, requirements.txt, pyproject.toml, uv.lock and the Python tests; GitHub Actions workflows migrated to 100% Rust'
 - at: '2026-10-09T12:07:16'
-  note: 'Milestone ''M7: Suite de Testes Rust 100% Verdes'': cargo test --workspace 100% verde com todos os 170+ testes unitarios e de integracao passando com zero falhas'
+  note: 'Milestone ''M7: Rust Test Suite 100% Green'': cargo test --workspace 100% green, with all 170+ unit and integration tests passing and zero failures'
 - at: '2026-10-09T14:08:55'
   note: Superseded by any_context_blueprint_v0331_purga_final_python_higiene_repo_e_dual_doc
 - at: '2026-10-16T10:47:34'
@@ -57,20 +57,20 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# Blueprint v0.33.0: Paridade Integral de Ingestao e Recuperacao de Indices (Rust Core) e Purga do Codigo Legado Python
+# Blueprint v0.33.0: Full Ingestion and Index Retrieval Parity (Rust Core) and Legacy Python Code Purge
 
-## 1. Objetivo & Decisoes Arquiteturais (ADR)
-Migracao exaustiva de todas as capacidades de ingestao, chunking, enriquecimento contextual e recuperacao hibrida de indices do Python para o Rust Core nativo, seguida da remocao e purga completa de toda a arvore de codigo Python legado.
+## 1. Goal & Architecture Decisions (ADR)
+Exhaustive migration of every ingestion, chunking, contextual enrichment and hybrid index retrieval capability from Python to the native Rust Core, followed by the complete removal and purge of the whole legacy Python code tree.
 
-## 2. Paridade de Superficies
-CLI, TUI, Stdio RPC Bridge, e ReAct Agent unificados operando sobre o Rust Core e a base canonica SQLite.
+## 2. Surface Parity
+CLI, TUI, Stdio RPC Bridge and ReAct Agent unified, running on the Rust Core and the canonical SQLite database.
 
-## 3. Marcos de Execucao
-- M1: Modelos de Presets RAG (Turbo, Balanced, Deep Research) em Rust.
-- M2: Parser Nativo de Documentos de Escritorio (DOCX/PPTX via ZIP+XML stream).
-- M3: ContextualEnricher e Envelopes Semanticos em Rust com cache SQLite.
-- M4: Web Crawler Recursivo com Sitemaps, Robots.txt e extrator limpo de texto em Rust.
-- M5: Ferramenta Nativa de Web Search (DuckDuckGo/Tavily via reqwest) no actx-agent.
-- M6: Purga Completa do Codigo Python legado e arquivos build/spec obsoletos.
-- M7: Suite de Testes Rust 100% Verdes.
-- M8: Atualizacao Dual-Doc e Release v0.33.0.
+## 3. Execution Milestones
+- M1: RAG Preset Models (Turbo, Balanced, Deep Research) in Rust.
+- M2: Native Office Document Parser (DOCX/PPTX through a ZIP+XML stream).
+- M3: ContextualEnricher and Semantic Envelopes in Rust with an SQLite cache.
+- M4: Recursive Web Crawler with Sitemaps, Robots.txt and a clean text extractor in Rust.
+- M5: Native Web Search Tool (DuckDuckGo/Tavily through reqwest) in actx-agent.
+- M6: Complete Purge of the legacy Python code and obsolete build/spec files.
+- M7: Rust Test Suite 100% Green.
+- M8: Dual-Doc Update and Release v0.33.0.

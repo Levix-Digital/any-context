@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_v0_32_5_release
 project: any-context
-title: 'Correção Crítica: Tokio Runtime Panic, LanceDB Safe Drop e Release v0.32.5'
+title: 'Critical Fix: Tokio Runtime Panic, LanceDB Safe Drop and Release v0.32.5'
 version: v0.32.5
 status: completed
 author: Levi Silveira
@@ -31,25 +31,25 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# Plano de Engenharia & Correção: Release v0.32.5
+# Engineering & Fix Plan: Release v0.32.5
 
-## 🎯 Objetivo
-Corrigir pânico crítico de concorrência no Tokio durante execução de ferramentas (`search_db`), garantir destruição segura de instâncias do `NativeLanceStore`, alinhar o protocolo de chamadas de função da OpenAI e unificar os caminhos de atualização no Linux e Windows.
+## 🎯 Goal
+Fix a critical Tokio concurrency panic during tool execution (`search_db`), guarantee safe destruction of `NativeLanceStore` instances, align the OpenAI function call protocol and unify the update paths on Linux and Windows.
 
-## 🏛️ Arquitetura e Decisões
+## 🏛️ Architecture and Decisions
 - **ADR-086: Scoped Non-Blocking LanceDB Invocation and Safe Runtime Destruction**:
-  - `NativeLanceStore::safe_block_on`: uso de `tokio::runtime::Handle::try_current()` e `std::thread::scope` com runtime temporário dedicado de thread única para execução síncrona sem conflito com o runtime Tokio pai.
-  - Implementação de `Drop for NativeLanceStore` com descarte assíncrono seguro via `std::thread::spawn`.
+  - `NativeLanceStore::safe_block_on`: uses `tokio::runtime::Handle::try_current()` and `std::thread::scope` with a dedicated single-thread temporary runtime for synchronous execution without conflicting with the parent Tokio runtime.
+  - `Drop for NativeLanceStore` implemented with safe asynchronous disposal through `std::thread::spawn`.
 - **ADR-087: OpenAI Function Tool Call Protocol Alignment**:
-  - Serialização de `tool_calls` no payload JSON obedecendo rigorosamente à especificação OpenAI (`id`, `type: "function"`, `function: { name, arguments }`).
+  - `tool_calls` serialized in the JSON payload strictly following the OpenAI specification (`id`, `type: "function"`, `function: { name, arguments }`).
 - **Positional Command Routing**:
-  - `actx update` e `actx check-update` mapeados para o instalador nativo.
+  - `actx update` and `actx check-update` mapped to the native installer.
 
-## 🏁 Marcos Concluídos
+## 🏁 Completed Milestones
 1. Scoped Non-Blocking LanceDB Engine & Safe Drop (`crates/any-context-core-rs/src/storage/lancedb.rs`)
-2. Offload LanceDB na TUI via `tokio::task::spawn_blocking` (`crates/actx-cli/src/engine.rs`)
-3. Formatação Canônica de `tool_calls` para OpenAI (`crates/actx-lm/src/providers/openai.rs`)
-4. Roteamento de comandos posicionais de atualização (`crates/actx-cli/src/cli/oneshot.rs`)
-5. Suíte de testes unitários e integração (132 testes aprovados)
-6. Atualização Dual-Doc (`TECDOC.md`, `tests/MANUAL_TESTS.md` Cenário 7)
-7. CI/CD GitHub Actions: Build cruzado e publicação dos 12 assets no repositório de releases (`Levix-Digital/any-context-releases` tag `v0.32.5`).
+2. LanceDB offload in the TUI through `tokio::task::spawn_blocking` (`crates/actx-cli/src/engine.rs`)
+3. Canonical `tool_calls` formatting for OpenAI (`crates/actx-lm/src/providers/openai.rs`)
+4. Positional update command routing (`crates/actx-cli/src/cli/oneshot.rs`)
+5. Unit and integration test suite (132 tests passing)
+6. Dual-Doc update (`TECDOC.md`, `tests/MANUAL_TESTS.md` Scenario 7)
+7. CI/CD GitHub Actions: cross build and publication of the 12 assets to the releases repository (`Levix-Digital/any-context-releases` tag `v0.32.5`).
