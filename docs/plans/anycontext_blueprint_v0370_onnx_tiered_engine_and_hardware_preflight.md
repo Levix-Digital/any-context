@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_blueprint_v0370_onnx_tiered_engine_and_hardware_preflight
 project: any-context
-title: AnyContext v0.37.0 - Motor ONNX Modular (actx-onnx), Hardware Pre-Flight Check e Perfis de Instalacao em Semaforo
+title: AnyContext v0.37.0 - Modular ONNX Engine (actx-onnx), Hardware Pre-Flight Check and Traffic-Light Installation Profiles
 version: v0.37.0
 status: superseded
 author: Levi Silveira
@@ -20,17 +20,17 @@ supersedes: null
 superseded_by: anycontext_anycontext_v0380_ativacao_dos_modelos_onnx_nos_fluxos_de_producao_consolidacao_da_fase_3
 parent_plan_id: null
 milestones:
-- name: Marco 1 Hardware Profiler
+- name: Milestone 1 Hardware Profiler
   done: false
-- name: Marco 2 Crate actx-onnx
+- name: Milestone 2 actx-onnx Crate
   done: false
-- name: Marco 3 Feature Flag Core
+- name: Milestone 3 Core Feature Flag
   done: false
-- name: Marco 4 Instalador Auto-Selecao
+- name: Milestone 4 Installer Auto-Selection
   done: false
-- name: Marco 5 Multi-Surface TUI
+- name: Milestone 5 Multi-Surface TUI
   done: false
-- name: Marco 6 Dual-Doc e Testes
+- name: Milestone 6 Dual-Doc and Tests
   done: false
 status_log:
 - at: '2026-10-14T11:40:05'
@@ -40,44 +40,44 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 📐 Blueprint de Engenharia: AnyContext v0.37.0
-## Motor ONNX Modular (`crates/actx-onnx`), Hardware Pre-Flight Check e Perfis de Instalação em Semáforo (Kit de Models)
+# 📐 Engineering Blueprint: AnyContext v0.37.0
+## Modular ONNX Engine (`crates/actx-onnx`), Hardware Pre-Flight Check and Traffic-Light Installation Profiles (Model Kit)
 
 ---
 
-### 📌 Metadados do Plano
-- **Projeto**: AnyContext (`actx`)
-- **Versão-Alvo**: `v0.37.0`
-- **Autor**: Levi Silveira & Antigravity Assistant
-- **Data**: 2026-10-13
-- **Fase**: Fase 3 do Master Plan (Kit de Models & Especialistas)
-- **Status**: Proposta Técnica para Aprovação (Gate 3 - `dev-cycle-protocol`)
-- **Componentes**: 
-  - `crates/actx-onnx` (Nova Crate Modular no Workspace)
-  - `crates/any-context-core-rs` (Traits, Inversão de Dependência e Feature Flag `onnx`)
-  - `crates/actx-installer` (Hardware Pre-Flight, Semáforo 🟢/🟡/🔴, Seleção Automática e Opções Avançadas)
-  - `crates/actx-cli` (Menu TUI de Perfis, Comando `/profile`, Telemetria `/status`)
-  - `crates/actx-agent` (Conexão do `ComplexityClassifier` com o `OnnxQueryClassifier`)
-- **Dual-Doc**: `README.md` (UserDoc), `TECDOC.md` (TecDoc - ADR-121), `tests/MANUAL_TESTS.md` (Cenário 36)
+### 📌 Plan Metadata
+- **Project**: AnyContext (`actx`)
+- **Target Version**: `v0.37.0`
+- **Author**: Levi Silveira & Antigravity Assistant
+- **Date**: 2026-10-13
+- **Phase**: Master Plan Phase 3 (Model Kit & Specialists)
+- **Status**: Technical Proposal for Approval (Gate 3 - `dev-cycle-protocol`)
+- **Components**: 
+  - `crates/actx-onnx` (New Modular Crate in the Workspace)
+  - `crates/any-context-core-rs` (Traits, Dependency Inversion and the `onnx` Feature Flag)
+  - `crates/actx-installer` (Hardware Pre-Flight, 🟢/🟡/🔴 Traffic Light, Automatic Selection and Advanced Options)
+  - `crates/actx-cli` (TUI Profiles Menu, `/profile` Command, `/status` Telemetry)
+  - `crates/actx-agent` (Connecting `ComplexityClassifier` to `OnnxQueryClassifier`)
+- **Dual-Doc**: `README.md` (UserDoc), `TECDOC.md` (TecDoc - ADR-121), `tests/MANUAL_TESTS.md` (Scenario 36)
 
 ---
 
-## 🏛️ 1. Visão Executiva e Problema a Resolver
+## 🏛️ 1. Executive Vision and Problem to Solve
 
-Atualmente (v0.36.0), o AnyContext possui o catálogo canônico de modelos ONNX e o gerenciador de downloads, mas a inferência real de tensores ainda não está ligada em tempo de execução, operando 100% sob as heurísticas determinísticas em Rust puro. Além disso, no modelo de instalação anterior, a ausência de modelos no primeiro uso transferia ao usuário comum o ônus cognitivo de descobrir e baixar 5 modelos técnicos individuais em submenus.
+Today (v0.36.0), AnyContext has the canonical catalog of ONNX models and the download manager, but real tensor inference is not yet wired at runtime, running 100% on deterministic heuristics in pure Rust. In addition, in the previous installation model, the absence of models on first use shifted onto the regular user the cognitive burden of discovering and downloading 5 individual technical models in submenus.
 
-A versão **v0.37.0** concretiza a **Fase 3 do Master Plan ("Kit de Models")** sob três pilares definitivos:
-1. **Máxima Potência Out-of-the-Box**: O software passa a vir pronto para baixar a versão mais potente que a máquina do usuário suportar confortavelmente.
-2. **Inspeção de Hardware Prévia ("Trava por Máquina")**: O instalador avalia RAM total, RAM livre e espaço em SSD em $< 5\text{ms}$, marcando os perfis com semáforo (🟢 Verde / 🟡 Amarelo / 🔴 Vermelho) e selecionando automaticamente o perfil verde mais potente de forma transparente.
-3. **Opções Avançadas e Desacoplamento Arquitetural**: Para desenvolvedores e usuários avançados, uma opção discreta permite selecionar individualmente quais modelos baixar e ativar. No código, o runtime ONNX é isolado em uma crate especializada (`crates/actx-onnx`), garantindo compilação condicional via Feature Flag do Cargo e preservando o Core puro e ágil.
+Version **v0.37.0** delivers **Master Plan Phase 3 ("Model Kit")** on three definitive pillars:
+1. **Maximum Power Out-of-the-Box**: the software comes ready to download the most powerful version the user's machine can comfortably handle.
+2. **Prior Hardware Inspection ("Per-Machine Lock")**: the installer evaluates total RAM, free RAM and SSD space in $< 5\text{ms}$, marking the profiles with a traffic light (🟢 Green / 🟡 Yellow / 🔴 Red) and transparently selecting the most powerful green profile.
+3. **Advanced Options and Architectural Decoupling**: for developers and advanced users, a discreet option allows selecting individually which models to download and enable. In the code, the ONNX runtime is isolated in a specialized crate (`crates/actx-onnx`), guaranteeing conditional compilation through a Cargo Feature Flag and keeping the Core pure and agile.
 
 ---
 
-## 🏗️ 2. Topologia Arquitetural: A Crate `crates/actx-onnx`
+## 🏗️ 2. Architectural Topology: The `crates/actx-onnx` Crate
 
 ```mermaid
 graph TD
-    subgraph "Core de Negócio (crates/any-context-core-rs)"
+    subgraph "Business Core (crates/any-context-core-rs)"
         TRAIT_COMPLEXITY["Trait ComplexityClassifier<br/>(actx-agent::router)"]
         TRAIT_LAYOUT["Trait DocumentLayoutExtractor<br/>(any-context-core-rs::ingestion)"]
         TRAIT_VISION["Trait DocumentVisionExtractor<br/>(any-context-core-rs::ingestion)"]
@@ -85,7 +85,7 @@ graph TD
         FALLBACK_SPATIAL["SpatialFormChunker (<5MB RAM)"]
     end
 
-    subgraph "Crate de Inferência Especializada (crates/actx-onnx) [NOVA]"
+    subgraph "Specialized Inference Crate (crates/actx-onnx) [NEW]"
         ORT_SESSION["ONNX Runtime Engine (ort v2 + CPU Execution Provider)"]
         TOKENIZER["HuggingFace Tokenizers (Rust BPE/WordPiece)"]
         IMPL_COMPLEXITY["OnnxQueryClassifier<br/>(bge_small_query_int8.onnx)"]
@@ -95,8 +95,8 @@ graph TD
     end
 
     subgraph "Hardware & Profile Governance"
-        PROFILER["Hardware Profiler (sysinfo / OS APIs)<br/>RAM Livre + Total + Disco SSD"]
-        SEMAPHORE{"Semáforo de Perfis:<br/>🟢 Verde | 🟡 Amarelo | 🔴 Vermelho"}
+        PROFILER["Hardware Profiler (sysinfo / OS APIs)<br/>Free + Total RAM + SSD Disk"]
+        SEMAPHORE{"Profile Traffic Light:<br/>🟢 Green | 🟡 Yellow | 🔴 Red"}
     end
 
     TRAIT_COMPLEXITY -.-> IMPL_COMPLEXITY
@@ -117,39 +117,39 @@ graph TD
 
 ---
 
-## 📊 3. Especificação dos Perfis e Matriz de Hardware
+## 📊 3. Profile Specification and Hardware Matrix
 
-| Perfil | Requisitos Mínimos (Semáforo 🟢) | Modelos Incluídos | Download em Disco | Consumo de RAM | Experiência de IA |
+| Profile | Minimum Requirements (🟢 Traffic Light) | Included Models | Disk Download | RAM Usage | AI Experience |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **🌌 Air-Gapped Power** *(Default em Máquinas $\ge$ 16GB)* | • RAM Livre: $\ge 6\text{ GB}$ (Total $\ge 16\text{ GB}$)<br>• Disco Livre: $\ge 5\text{ GB}$<br>• CPU: 4+ cores | • `mobilenetv4` (~3.9 MB)<br>• `clip-vit` (~84 MB)<br>• `layoutlmv3` (~121 MB)<br>• `bge-small` (~127 MB)<br>• `laya-int8` (~404 MB) | **~740 MB** | • Chat: ~150 MB<br>• Pico Sync: ~750–900 MB | **Máxima Precisão e Autonomia Total:**<br>Classificação de documentos (~95%), leitura visual de gráficos/diagramas offline e roteamento neural de complexidade. |
-| **⚡ Smart Balanced** *(Default em Máquinas de 8GB)* | • RAM Livre: $\ge 3\text{ GB}$ (Total $\ge 8\text{ GB}$)<br>• Disco Livre: $\ge 2\text{ GB}$<br>• CPU: 2+ cores | • `mobilenetv4` (~3.9 MB)<br>• `layoutlmv3` (~121 MB)<br>• `bge-small` (~127 MB) | **~252 MB** | • Chat: ~130 MB<br>• Pico Sync: ~350–400 MB | **Custo-Benefício Equilibrado:**<br>Sentinela de scans, layout 2D de tabelas e roteamento neural de perguntas. Diagramas complexos usam fallback 2D ou API cloud. |
-| **🟢 Lite / Fast-Path** *(Default em Máquinas $< 8\text{GB}$)* | • Qualquer hardware<br>• Ambientes de CI, Docker ou VMs | • **Nenhum download ONNX**<br>• 100% Heurísticas determinísticas nativas | **0 MB** adicionais | • Chat: $< 35\text{ MB}$<br>• Pico Sync: $< 50\text{ MB}$ | **Velocidade Pura:**<br>Inicialização em $< 10\text{ms}$, sem espera de download. RAG textual com AST e parsers nativos. |
+| **🌌 Air-Gapped Power** *(Default on Machines $\ge$ 16GB)* | • Free RAM: $\ge 6\text{ GB}$ (Total $\ge 16\text{ GB}$)<br>• Free Disk: $\ge 5\text{ GB}$<br>• CPU: 4+ cores | • `mobilenetv4` (~3.9 MB)<br>• `clip-vit` (~84 MB)<br>• `layoutlmv3` (~121 MB)<br>• `bge-small` (~127 MB)<br>• `laya-int8` (~404 MB) | **~740 MB** | • Chat: ~150 MB<br>• Sync Peak: ~750–900 MB | **Maximum Precision and Full Autonomy:**<br>Document classification (~95%), offline visual reading of charts/diagrams and neural complexity routing. |
+| **⚡ Smart Balanced** *(Default on 8GB Machines)* | • Free RAM: $\ge 3\text{ GB}$ (Total $\ge 8\text{ GB}$)<br>• Free Disk: $\ge 2\text{ GB}$<br>• CPU: 2+ cores | • `mobilenetv4` (~3.9 MB)<br>• `layoutlmv3` (~121 MB)<br>• `bge-small` (~127 MB) | **~252 MB** | • Chat: ~130 MB<br>• Sync Peak: ~350–400 MB | **Balanced Cost/Benefit:**<br>Scan sentinel, 2D table layout and neural question routing. Complex diagrams use the 2D fallback or a cloud API. |
+| **🟢 Lite / Fast-Path** *(Default on Machines $< 8\text{GB}$)* | • Any hardware<br>• CI, Docker or VM environments | • **No ONNX download**<br>• 100% native deterministic heuristics | **0 MB** extra | • Chat: $< 35\text{ MB}$<br>• Sync Peak: $< 50\text{ MB}$ | **Pure Speed:**<br>Startup in $< 10\text{ms}$, no download wait. Text RAG with AST and native parsers. |
 
 ---
 
-## 🛠️ 4. Detalhamento dos Marcos de Implementação
+## 🛠️ 4. Implementation Milestone Detail
 
-### 🧱 Marco 1: Motor de Inspeção de Hardware & Semáforo (`crates/any-context-core-rs/src/hardware/`)
-- Módulo `HardwareProfiler`:
-  - Lê memória física total e disponível via API do sistema operacional (Windows `GlobalMemoryStatusEx`, Linux `/proc/meminfo`, macOS `sysctl`).
-  - Lê espaço livre no volume onde reside `%LOCALAPPDATA%` / `~/.local/share`.
-  - Avalia os 3 perfis e emite `ProfileReadiness`:
-    - `Green`: Recursos ideais para operação suave sem swap.
-    - `Yellow`: Operação viável, mas com uso de memória acima de 70%.
-    - `Red`: Memória ou disco insuficientes.
-  - Função pura `auto_select_recommended_profile(&SystemMetrics) -> ProfileTier`.
+### 🧱 Milestone 1: Hardware Inspection Engine & Traffic Light (`crates/any-context-core-rs/src/hardware/`)
+- `HardwareProfiler` module:
+  - Reads total and available physical memory through the operating system API (Windows `GlobalMemoryStatusEx`, Linux `/proc/meminfo`, macOS `sysctl`).
+  - Reads free space on the volume where `%LOCALAPPDATA%` / `~/.local/share` lives.
+  - Evaluates the 3 profiles and emits `ProfileReadiness`:
+    - `Green`: ideal resources for smooth operation without swap.
+    - `Yellow`: viable operation, but with memory usage above 70%.
+    - `Red`: not enough memory or disk.
+  - Pure function `auto_select_recommended_profile(&SystemMetrics) -> ProfileTier`.
 
-### 🧠 Marco 2: Nova Crate Modular `crates/actx-onnx`
-- Criação de `crates/actx-onnx/Cargo.toml` adicionada ao `[workspace]` raiz:
-  - Dependências: `ort = "2.0"` (com dynamic/bundled linking e multi-thread CPU execution provider), `tokenizers = "0.20"` (zero-copy BPE/WordPiece), `image = "0.25"`, `serde`, `tokio`.
-- Implementações concretas das Traits:
-  - `OnnxQueryClassifier`: Tokeniza o prompt do usuário, alimenta o modelo `bge_small_query_int8.onnx` e extrai tensores de similaridade para decidir `Fast` vs `Deep`.
-  - `OnnxScanSentinel`: Processa thumbnails 224x224 com `mobilenetv4_rvl_cdip.onnx` classificando em `Scan` vs `DigitalText` em ~8ms.
-  - `OnnxLayoutExtractor`: Extrai tokens com caixas delimitadoras via `layoutlmv3_base_int8.onnx`.
-  - `OnnxVisionEncoder`: Extrai embeddings visuais com `clip_vit_vision_int8.onnx`.
+### 🧠 Milestone 2: New Modular Crate `crates/actx-onnx`
+- Creation of `crates/actx-onnx/Cargo.toml`, added to the root `[workspace]`:
+  - Dependencies: `ort = "2.0"` (with dynamic/bundled linking and a multi-thread CPU execution provider), `tokenizers = "0.20"` (zero-copy BPE/WordPiece), `image = "0.25"`, `serde`, `tokio`.
+- Concrete implementations of the Traits:
+  - `OnnxQueryClassifier`: tokenizes the user's prompt, feeds the `bge_small_query_int8.onnx` model and extracts similarity tensors to decide `Fast` vs `Deep`.
+  - `OnnxScanSentinel`: processes 224x224 thumbnails with `mobilenetv4_rvl_cdip.onnx`, classifying `Scan` vs `DigitalText` in ~8ms.
+  - `OnnxLayoutExtractor`: extracts tokens with bounding boxes through `layoutlmv3_base_int8.onnx`.
+  - `OnnxVisionEncoder`: extracts visual embeddings with `clip_vit_vision_int8.onnx`.
 
-### 🛡️ Marco 3: Feature Flag e Inversão de Dependência no Core
-- Configuração do Cargo:
+### 🛡️ Milestone 3: Feature Flag and Dependency Inversion in the Core
+- Cargo configuration:
   ```toml
   # crates/any-context-core-rs/Cargo.toml
   [features]
@@ -159,11 +159,11 @@ graph TD
   [dependencies]
   actx-onnx = { path = "../actx-onnx", optional = true }
   ```
-- **Princípio Inviolável ADR-110**: Caso a compilação seja feita sem `--features onnx` ou caso um arquivo `.onnx` esteja corrompido, a trait despacha imediatamente para o fallback determinístico em Rust puro sem pânico.
+- **Inviolable ADR-110 Principle**: if the build is made without `--features onnx` or an `.onnx` file is corrupted, the trait dispatches immediately to the deterministic fallback in pure Rust, without a panic.
 
-### 📦 Marco 4: UX do Instalador & Updater (`crates/actx-installer`)
-- **Tela de Instalação Padrão**:
-  - Exibe a avaliação de hardware:
+### 📦 Milestone 4: Installer & Updater UX (`crates/actx-installer`)
+- **Default Installation Screen**:
+  - Shows the hardware evaluation:
     ```text
     🖥️ Hardware Detected: 16.0 GB RAM (9.4 GB Available) │ 142 GB Free SSD
     ⚡ Profile Auto-Selected: 🌌 Air-Gapped Power (Optimal 🟢)
@@ -172,50 +172,50 @@ graph TD
     
     [Enter] Install & Download Models  │  [A] Advanced Options  │  [Esc] Cancel
     ```
-- **Expansor de Opções Avançadas (`[A]`)**:
-  - Lista os 3 perfis e checkboxes dos 5 modelos individuais.
-  - Ao alternar modelos, recalcula em tempo real: `Selected: 3 models │ Total download: 252 MB`.
-  - Baixa estritamente o que foi marcado com a barra de progresso unificada.
+- **Advanced Options Expander (`[A]`)**:
+  - Lists the 3 profiles and checkboxes for the 5 individual models.
+  - When toggling models, it recalculates in real time: `Selected: 3 models │ Total download: 252 MB`.
+  - Downloads strictly what was checked, with a unified progress bar.
 
-### 🖥️ Marco 5: Multi-Surface Parity (Menu TUI & Comandos CLI)
-- **Novo Comando `/profile` (alias `/preset`)**:
-  - `/profile`: Abre popup interativo na TUI para alternar entre os perfis a qualquer momento.
-  - `/profile airgapped | balanced | lite`: Aplica e inicia o download assíncrono dos modelos faltantes com feedback em tempo real.
-  - `/status`: Exibe o perfil ativo e o semáforo de hardware da máquina atual.
-
----
-
-## 🧪 5. Roteiro de Testes Manuais (Cenário 36 em `MANUAL_TESTS.md`)
-
-- **Cenário 36.1 (Hardware Pre-Flight Check)**:
-  - Executar `actx --diagnostics-hardware` e verificar a leitura exata de RAM total, livre e espaço em disco em $< 10\text{ms}$.
-- **Cenário 36.2 (Auto-Seleção Inteligente no Instalador)**:
-  - Comprovar que em máquina com $\ge 16\text{ GB}$ de RAM o perfil `Air-Gapped Power` é selecionado por padrão sem exigir cliques adicionais.
-- **Cenário 36.3 (Opções Avançadas & Download Parcial)**:
-  - Abrir Opções Avançadas, desmarcar Laya e CLIP, verificar que o download total é de ~252 MB e que apenas os 3 modelos marcados são salvos em disco.
-- **Cenário 36.4 (Inferência Real ONNX no Roteador)**:
-  - Fazer uma pergunta complexa no chat (`/search auto`) com o modelo `bge-small` instalado e verificar nos logs e no accordion ReAct (`Ctrl+T`) a emissão da decisão de complexidade disparada pela sessão do ONNX Runtime em $< 15\text{ms}$.
-- **Cenário 36.5 (Mutabilidade no Menu TUI)**:
-  - Pressionar `F1 -> Document AI & Perfis`, alterar para `Smart Balanced`, e verificar a persistência imediata no SQLite (`settings.db`).
+### 🖥️ Milestone 5: Multi-Surface Parity (TUI Menu & CLI Commands)
+- **New `/profile` Command (alias `/preset`)**:
+  - `/profile`: opens an interactive TUI popup to switch between profiles at any time.
+  - `/profile airgapped | balanced | lite`: applies the profile and starts the asynchronous download of the missing models with real-time feedback.
+  - `/status`: shows the active profile and the hardware traffic light of the current machine.
 
 ---
 
-## 🚀 6. Cronograma de Execução e Fechamento
+## 🧪 5. Manual Test Script (Scenario 36 in `MANUAL_TESTS.md`)
+
+- **Scenario 36.1 (Hardware Pre-Flight Check)**:
+  - Run `actx --diagnostics-hardware` and check the exact reading of total RAM, free RAM and disk space in $< 10\text{ms}$.
+- **Scenario 36.2 (Smart Auto-Selection in the Installer)**:
+  - Confirm that on a machine with $\ge 16\text{ GB}$ of RAM the `Air-Gapped Power` profile is selected by default without extra clicks.
+- **Scenario 36.3 (Advanced Options & Partial Download)**:
+  - Open Advanced Options, uncheck Laya and CLIP, check that the total download is ~252 MB and that only the 3 checked models are saved to disk.
+- **Scenario 36.4 (Real ONNX Inference in the Router)**:
+  - Ask a complex question in the chat (`/search auto`) with the `bge-small` model installed and check in the logs and in the ReAct accordion (`Ctrl+T`) that the complexity decision is emitted by the ONNX Runtime session in $< 15\text{ms}$.
+- **Scenario 36.5 (Mutability in the TUI Menu)**:
+  - Press `F1 -> Document AI & Profiles`, switch to `Smart Balanced`, and check the immediate persistence in SQLite (`settings.db`).
+
+---
+
+## 🚀 6. Execution and Closing Schedule
 
 ```mermaid
 gantt
-    title Cronograma de Implementação v0.37.0
+    title v0.37.0 Implementation Schedule
     dateFormat  YYYY-MM-DD
-    section Marco 1
-    Hardware Profiler & Semáforo      :m1, 2026-10-14, 1d
-    section Marco 2
-    Crate actx-onnx & Wrappers ORT    :m2, 2026-10-15, 2d
-    section Marco 3
-    Inversão de Dependência & Core    :m3, 2026-10-17, 1d
-    section Marco 4
-    Instalador com Auto-Seleção & Adv :m4, 2026-10-18, 1d
-    section Marco 5
-    Menu TUI, /profile & /status      :m5, 2026-10-19, 1d
-    section Marco 6
-    Testes, Dual-Doc & Release v0.37  :m6, 2026-10-20, 1d
+    section Milestone 1
+    Hardware Profiler & Traffic Light   :m1, 2026-10-14, 1d
+    section Milestone 2
+    actx-onnx Crate & ORT Wrappers      :m2, 2026-10-15, 2d
+    section Milestone 3
+    Dependency Inversion & Core         :m3, 2026-10-17, 1d
+    section Milestone 4
+    Installer with Auto-Selection & Adv :m4, 2026-10-18, 1d
+    section Milestone 5
+    TUI Menu, /profile & /status        :m5, 2026-10-19, 1d
+    section Milestone 6
+    Tests, Dual-Doc & Release v0.37     :m6, 2026-10-20, 1d
 ```
