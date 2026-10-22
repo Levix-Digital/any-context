@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_blueprint_v0440_two_stage_neural_retrieval_com_re_ranking_local_cross_encoder_onnx_aceleracao_por_hardware_e_fallback_gracioso_adr_110_frente_b
 project: any-context
-title: 'Blueprint v0.44.0: Two-Stage Neural Retrieval com Re-ranking Local (Cross-Encoder ONNX), Aceleracao por Hardware e Fallback Gracioso ADR-110 (Frente B)'
+title: 'Blueprint v0.44.0: Two-Stage Neural Retrieval with Local Re-ranking (ONNX Cross-Encoder), Hardware Acceleration and ADR-110 Graceful Fallback (Front B)'
 version: v0.44.0
 status: superseded
 author: Levi Silveira
@@ -21,17 +21,17 @@ supersedes: anycontext_blueprint_v0430_rag_determinístico_backend_first_u_shape
 superseded_by: anycontext_blueprint_v0450_frente_c0_runtime_onnx_real_e_reranker_cross_encoder
 parent_plan_id: null
 milestones:
-- name: 'Marco 1: Motor Neural Cross-Encoder no actx-onnx'
+- name: 'Milestone 1: Cross-Encoder Neural Engine in actx-onnx'
   done: false
-- name: 'Marco 2: Hook Two-Stage Retrieval no Core'
+- name: 'Milestone 2: Two-Stage Retrieval Hook in the Core'
   done: false
-- name: 'Marco 3: Comandos de Rerank e Catalogo de Download'
+- name: 'Milestone 3: Rerank Commands and Download Catalog'
   done: false
-- name: 'Marco 4: Adaptacao das Superficies CLI e TUI'
+- name: 'Milestone 4: CLI and TUI Surface Adaptation'
   done: false
-- name: 'Marco 5: Testes Automatizados'
+- name: 'Milestone 5: Automated Tests'
   done: false
-- name: 'Marco 6: Dual-Doc MANUAL_TESTS e Release v0.44.0'
+- name: 'Milestone 6: Dual-Doc MANUAL_TESTS and Release v0.44.0'
   done: false
 status_log:
 - at: '2026-10-15T20:27:24'
@@ -41,171 +41,171 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 📐 Blueprint de Engenharia: AnyContext v0.44.0
-## Two-Stage Neural Retrieval com Re-ranking Local (Cross-Encoder ONNX), Aceleração por Hardware e Fallback Gracioso ADR-110 (Frente B)
+# 📐 Engineering Blueprint: AnyContext v0.44.0
+## Two-Stage Neural Retrieval with Local Re-ranking (ONNX Cross-Encoder), Hardware Acceleration and ADR-110 Graceful Fallback (Front B)
 
 ---
 
-### 1. Metadados & Governança Arquitetural
-- **Versão-Alvo**: `v0.44.0` (Sucessora da `v0.43.0`)
-- **Fase**: Frente B do Roadmap de RAG de Nova Geração
-- **Autor**: LeviGuilherme / Google DeepMind Pair Programming
-- **Data**: 2026-10-15
-- **Status do Plano**: `active`
-- **Plano Anterior Superado**: `anycontext_blueprint_v0430_rag_determinístico_backend_first_u_shaped_reordering_e_isolamento_estrutural_em_xml`
-- **Política Global do Produto**: Desenvolvido em Calgary, Alberta, Canadá. 100% global, neutro e desacoplado de especificidades fiscais ou regionais de qualquer país.
-- **Padrão Arquitetural**: Arquitetura Hexagonal Estrita (*Ports & Adapters*). Toda regra de pontuação neural, normalização, reordenação de candidatos e fallback reside no Core (`crates/any-context-core-rs`) e no motor neural (`crates/actx-onnx`). As superfícies (CLI, TUI, REST) são meros adaptadores de apresentação.
+### 1. Metadata & Architectural Governance
+- **Target Version**: `v0.44.0` (successor of `v0.43.0`)
+- **Phase**: Front B of the Next-Generation RAG Roadmap
+- **Author**: LeviGuilherme / Google DeepMind Pair Programming
+- **Date**: 2026-10-15
+- **Plan Status**: `active`
+- **Superseded Previous Plan**: `anycontext_blueprint_v0430_rag_determinístico_backend_first_u_shaped_reordering_e_isolamento_estrutural_em_xml`
+- **Global Product Policy**: developed in Calgary, Alberta, Canada. 100% global, neutral and decoupled from the tax or regional specifics of any country.
+- **Architectural Pattern**: strict Hexagonal Architecture (*Ports & Adapters*). Every neural scoring, normalization, candidate reordering and fallback rule lives in the Core (`crates/any-context-core-rs`) and in the neural engine (`crates/actx-onnx`). The surfaces (CLI, TUI, REST) are mere presentation adapters.
 
 ---
 
-### 2. Contexto do Problema & Objetivos Técnicos
+### 2. Problem Context & Technical Goals
 
-#### 2.1 Problemas Identificados no RAG de 1 Estágio (Bi-Encoder + RRF):
-1. **Ausência de Atenção Cruzada nos Bi-Encoders**:
-   - A busca densa (LanceDB Cosine) calcula a similaridade vetorial entre o embedding isolado da pergunta e o embedding isolado do chunk. Não há interação bidirecional entre os tokens da pergunta e os tokens do documento no momento da pontuação.
-2. **Falsos Positivos do RRF**:
-   - O RRF (*Reciprocal Rank Fusion*, $k=60$) combina ordens ordinais de busca densa e BM25 léxico. Chunks com coincidência acidental de termos recebem boost no BM25, enquanto chunks conceituais mais ricos podem ser empurrados para além do Top 5.
-3. **Desperdício de Janela de Contexto no LLM**:
-   - Para garantir que a resposta não seja perdida, o sistema é obrigado a aumentar o número de chunks injetados, o que dilui a atenção do modelo e amplia a latência.
+#### 2.1 Problems Identified in the Single-Stage RAG (Bi-Encoder + RRF):
+1. **No Cross-Attention in Bi-Encoders**:
+   - Dense search (LanceDB Cosine) computes the vector similarity between the isolated embedding of the question and the isolated embedding of the chunk. There is no bidirectional interaction between the question's tokens and the document's tokens at scoring time.
+2. **RRF False Positives**:
+   - RRF (*Reciprocal Rank Fusion*, $k=60$) combines the ordinal ranks of dense search and lexical BM25. Chunks with accidental term matches get a BM25 boost, while conceptually richer chunks can be pushed beyond the Top 5.
+3. **Wasted LLM Context Window**:
+   - To make sure the answer is not lost, the system has to increase the number of injected chunks, which dilutes the model's attention and increases latency.
 
-#### 2.2 Objetivos da Versão v0.44.0 (Frente B):
-1. **Recuperação Neural em Dois Estágios (Two-Stage Retrieval)**:
-   - **Estágio 1 (Alto Recall / Baixa Latência)**: `NativeHybridPipeline` resgata um pool amplo de candidatos (ex: Top 30 chunks) via LanceDB + BM25 + RRF.
-   - **Estágio 2 (Alta Precisão Semântica / Cross-Attention)**: Motor neural `actx-onnx::OnnxReranker` avalia os pares `[CLS] query [SEP] chunk_text [SEP]` simultaneamente, gerando scores de relevância finos via Cross-Encoder com normalização Sigmoid.
-2. **Modelo Padrão Leve e Soberano**:
-   - `bge-reranker-small` (INT8 quantizado, ~45 MB em disco), oferecendo acurácia SOTA com latência sub-20ms.
-3. **Aceleração por Hardware Nativa (ADR-127)**:
-   - O reranker conecta-se automaticamente ao `ExecutionDevice` do `actx-onnx`: DirectML (Windows), Metal (macOS), CUDA/Vulkan (Linux) ou CPU SIMD.
-4. **Garantia de Não-Quebra com Fallback Transparente (ADR-110)**:
-   - Se os pesos do reranker não estiverem baixados em `%LOCALAPPDATA%/actx/models/`, o pipeline mantém a ordenação original do RRF sem gerar erros, sem travar o terminal e com custo $0.00.
-5. **Integração Fluida com a Frente A (v0.43.0)**:
-   - O Top-K re-ranqueado flui diretamente para o `ContextFormatter`, que aplica o **U-Shaped Reordering** (`[R1, R3, R5, ..., R4, R2]`), o **Isolamento Estrutural em XML** e o **Zero Hallucination Gate**.
-6. **Paridade Multi-Superfície & Downloader Assistido**:
-   - Flag CLI: `actx --rerank <auto|on|off>`
-   - Slash Command TUI: `/rerank <auto|on|off>` com status e latência do último scoring.
-   - Badge no Header da TUI: `[Rerank: ⚡ ONNX: bge-small]` ou `[Rerank: ⚡ RRF (Fallback)]`.
-   - Download assistido: `actx download reranker`.
+#### 2.2 Goals of Version v0.44.0 (Front B):
+1. **Two-Stage Neural Retrieval**:
+   - **Stage 1 (High Recall / Low Latency)**: `NativeHybridPipeline` retrieves a broad pool of candidates (e.g. Top 30 chunks) through LanceDB + BM25 + RRF.
+   - **Stage 2 (High Semantic Precision / Cross-Attention)**: the `actx-onnx::OnnxReranker` neural engine evaluates the `[CLS] query [SEP] chunk_text [SEP]` pairs simultaneously, producing fine relevance scores through a Cross-Encoder with Sigmoid normalization.
+2. **Light, Sovereign Default Model**:
+   - `bge-reranker-small` (INT8 quantized, ~45 MB on disk), offering SOTA accuracy with sub-20ms latency.
+3. **Native Hardware Acceleration (ADR-127)**:
+   - The reranker connects automatically to the `actx-onnx` `ExecutionDevice`: DirectML (Windows), Metal (macOS), CUDA/Vulkan (Linux) or CPU SIMD.
+4. **No-Breakage Guarantee with a Transparent Fallback (ADR-110)**:
+   - If the reranker weights are not downloaded into `%LOCALAPPDATA%/actx/models/`, the pipeline keeps the original RRF order without errors, without freezing the terminal and at $0.00 cost.
+5. **Smooth Integration with Front A (v0.43.0)**:
+   - The re-ranked Top-K flows straight into `ContextFormatter`, which applies **U-Shaped Reordering** (`[R1, R3, R5, ..., R4, R2]`), **Structural XML Isolation** and the **Zero Hallucination Gate**.
+6. **Multi-Surface Parity & Assisted Downloader**:
+   - CLI flag: `actx --rerank <auto|on|off>`
+   - TUI slash command: `/rerank <auto|on|off>` with the status and latency of the last scoring.
+   - TUI header badge: `[Rerank: ⚡ ONNX: bge-small]` or `[Rerank: ⚡ RRF (Fallback)]`.
+   - Assisted download: `actx download reranker`.
 
 ---
 
-### 3. Diagrama Arquitetural de Sequência (Two-Stage Retrieval Pipeline)
+### 3. Architectural Sequence Diagram (Two-Stage Retrieval Pipeline)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Operador (CLI / TUI)
+    actor User as Operator (CLI / TUI)
     participant UI as Presentation Adapter (TUI / CLI)
     participant Pipeline as NativeHybridPipeline (Core)
     participant Dense as LanceStore (Cosine)
     participant Sparse as BM25Index (Okapi)
     participant Reranker as OnnxReranker (actx-onnx)
     participant Fmt as ContextFormatter (Core v0.43.0)
-    participant LLM as LmProvider (Nuvem ou Gemma 4 Local)
+    participant LLM as LmProvider (Cloud or Local Gemma 4)
 
-    User->>UI: Envia pergunta
+    User->>UI: Sends a question
     UI->>Pipeline: search_hybrid_batch(query, candidate_pool_k=30)
     
-    par Estágio 1: Recuperação Híbrida Paralela (Broad Pool)
+    par Stage 1: Parallel Hybrid Retrieval (Broad Pool)
         Pipeline->>Dense: search_vector(query_vec, limit=30)
         Dense-->>Pipeline: dense_candidates
         Pipeline->>Sparse: search_bm25(query_text, limit=30)
         Sparse-->>Pipeline: sparse_candidates
     end
     
-    Pipeline->>Pipeline: Reciprocal Rank Fusion (k=60) -> 30 Chunks Candidatos
+    Pipeline->>Pipeline: Reciprocal Rank Fusion (k=60) -> 30 Candidate Chunks
     
-    alt Estágio 2: Re-ranking Neural Ativo (bge-reranker-small presente)
+    alt Stage 2: Active Neural Re-ranking (bge-reranker-small present)
         Pipeline->>Reranker: score_batch(query, candidate_texts)
-        Note over Reranker: Executa Cross-Encoder ONNX via DirectML / Metal / CPU SIMD<br/>Aplica Sigmoid sobre logits brutos
+        Note over Reranker: Runs the ONNX Cross-Encoder through DirectML / Metal / CPU SIMD<br/>Applies Sigmoid to the raw logits
         Reranker-->>Pipeline: scores: Vec<f32>
-        Pipeline->>Pipeline: Reordena candidatos por score decrescente
-        Pipeline->>Pipeline: Aplica Source Diversification & Density Budgeting (Top-K)
-    else Fallback Gracioso ADR-110 (Sem pesos ou --rerank off)
-        Pipeline->>Pipeline: Mantém ordenação RRF original (Zero-Breakage)
-        Pipeline->>Pipeline: Aplica Source Diversification & Density Budgeting (Top-K)
+        Pipeline->>Pipeline: Reorders candidates by decreasing score
+        Pipeline->>Pipeline: Applies Source Diversification & Density Budgeting (Top-K)
+    else ADR-110 Graceful Fallback (No weights or --rerank off)
+        Pipeline->>Pipeline: Keeps the original RRF order (Zero-Breakage)
+        Pipeline->>Pipeline: Applies Source Diversification & Density Budgeting (Top-K)
     end
 
-    Pipeline-->>UI: Top-K Chunks Relevantes
+    Pipeline-->>UI: Top-K Relevant Chunks
     
-    Note over Fmt: Frente A (v0.43.0):<br/>U-Shaped Reordering [R1, R3, R5, ..., R4, R2]<br/>Envelopamento em tags XML estruturais
+    Note over Fmt: Front A (v0.43.0):<br/>U-Shaped Reordering [R1, R3, R5, ..., R4, R2]<br/>Wrapping in structural XML tags
     UI->>Fmt: format_deterministic_prompt(chunks, query)
-    Fmt-->>UI: prompt_payload pronto
-    UI->>LLM: 1-Hop Stream ou ReAct Deep Search
-    LLM-->>UI: Tokens em streaming
-    UI-->>User: Resposta de máxima fidelidade semântica
+    Fmt-->>UI: prompt_payload ready
+    UI->>LLM: 1-Hop Stream or ReAct Deep Search
+    LLM-->>UI: Streaming tokens
+    UI-->>User: Answer with maximum semantic fidelity
 ```
 
 ---
 
-### 4. Matriz de Superfícies & Paridade de Apresentação
+### 4. Surface Matrix & Presentation Parity
 
-| Superfície | Comportamento com `--rerank auto/on` | Comportamento com `--rerank off` ou Sem Pesos | Indicador Visual |
+| Surface | Behavior with `--rerank auto/on` | Behavior with `--rerank off` or No Weights | Visual Indicator |
 | :--- | :--- | :--- | :--- |
-| **CLI Headless (`actx "..."`)** | Executa re-ranking neural de 30 candidatos em <15ms e exibe resposta. | Executa RRF padrão sem chamar inferência de cross-encoder. | Linha de diagnóstico com tempo de scoring neural |
-| **TUI Chat Interativo** | Reordenação ativa no backend com badge dinâmico no topo. | Badge indica fallback transparente para RRF ou status desativado. | `[Rerank: ⚡ ONNX: bge-small]` ou `[Rerank: ⚡ RRF (Fallback)]` |
-| **Comando `/rerank`** | Exibe tabela com status, modelo ativo, dispositivo (GPU/CPU) e latência do último scoring. | Permite alternar entre `auto`, `on` e `off` em tempo de execução. | Tabela formatada ANSI/Ratatui |
-| **Subcomando de Download** | `actx download reranker` baixa e valida o modelo `bge-reranker-small` com pre-flights. | Suporte a `--force` e barra de progresso suave no terminal. | Telemetria de download e verificação SHA256 |
+| **Headless CLI (`actx "..."`)** | Runs neural re-ranking of 30 candidates in <15ms and shows the answer. | Runs the standard RRF without calling cross-encoder inference. | A diagnostic line with the neural scoring time |
+| **Interactive TUI Chat** | Active reordering in the backend with a dynamic badge at the top. | The badge shows the transparent fallback to RRF or the disabled status. | `[Rerank: ⚡ ONNX: bge-small]` or `[Rerank: ⚡ RRF (Fallback)]` |
+| **`/rerank` Command** | Shows a table with the status, active model, device (GPU/CPU) and latency of the last scoring. | Allows switching between `auto`, `on` and `off` at runtime. | A formatted ANSI/Ratatui table |
+| **Download Subcommand** | `actx download reranker` downloads and validates the `bge-reranker-small` model with pre-flights. | Support for `--force` and a smooth progress bar in the terminal. | Download telemetry and SHA256 verification |
 
 ---
 
-### 5. Marcos de Implementação Passo a Passo (M1 a M6)
+### 5. Step-by-Step Implementation Milestones (M1 to M6)
 
-#### Marco 1: Motor Neural Cross-Encoder no `crates/actx-onnx`
-- Criar `crates/actx-onnx/src/reranker.rs`:
-  - Struct `OnnxReranker` com sessão ONNX gerenciada via `ModelSession`.
-  - Tokenizador simples em Rust (WordPiece / BPE para pares `[CLS] q [SEP] doc [SEP]` com padding e truncation em 512 tokens).
-  - Método `pub fn score_batch(&self, query: &str, candidates: &[String]) -> Result<Vec<f32>, String>`.
-  - Suporte à seleção de acelerador `ExecutionDevice` (DirectML, Metal, CUDA, CPU SIMD).
-  - Detecção segura `pub fn is_neural_active(&self) -> bool` apontando para `%LOCALAPPDATA%/actx/models/bge_reranker_small_int8.onnx`.
-- Atualizar `crates/actx-onnx/src/engine.rs` e `src/lib.rs`:
-  - Adicionar campo `pub reranker: OnnxReranker` ao `OnnxEngine`.
-  - Incluir `"BGE-Reranker-Small (Cross-Encoder)"` no resumo `summary()`.
+#### Milestone 1: Cross-Encoder Neural Engine in `crates/actx-onnx`
+- Create `crates/actx-onnx/src/reranker.rs`:
+  - An `OnnxReranker` struct with an ONNX session managed through `ModelSession`.
+  - A simple tokenizer in Rust (WordPiece / BPE for `[CLS] q [SEP] doc [SEP]` pairs with padding and truncation at 512 tokens).
+  - Method `pub fn score_batch(&self, query: &str, candidates: &[String]) -> Result<Vec<f32>, String>`.
+  - Support for selecting the `ExecutionDevice` accelerator (DirectML, Metal, CUDA, CPU SIMD).
+  - Safe detection `pub fn is_neural_active(&self) -> bool` pointing to `%LOCALAPPDATA%/actx/models/bge_reranker_small_int8.onnx`.
+- Update `crates/actx-onnx/src/engine.rs` and `src/lib.rs`:
+  - Add a `pub reranker: OnnxReranker` field to `OnnxEngine`.
+  - Include `"BGE-Reranker-Small (Cross-Encoder)"` in the `summary()`.
 
-#### Marco 2: Hook de Two-Stage Retrieval no Core (`crates/any-context-core-rs/src/retrieval/pipeline.rs`)
-- Expandir `NativeHybridPipeline`:
-  - Método `pub fn rerank_candidates(&self, query: &str, candidates: &mut [HybridSearchResult]) -> Result<(), String>`.
-  - Calibração de `candidate_pool_k = 30` no `HybridSearchRequest`.
-  - Intercalação do reranking entre o RRF (passo 9) e a diversificação/density budget (passo 10).
-  - Normalização de scores para a escala $[0.0, 1.0]$ via Sigmoid: $S = \frac{1}{1 + e^{-logit}}$.
-  - Fallback gracioso automático para pontuação RRF original caso o reranker não esteja ativo (ADR-110).
+#### Milestone 2: Two-Stage Retrieval Hook in the Core (`crates/any-context-core-rs/src/retrieval/pipeline.rs`)
+- Extend `NativeHybridPipeline`:
+  - Method `pub fn rerank_candidates(&self, query: &str, candidates: &mut [HybridSearchResult]) -> Result<(), String>`.
+  - Calibration of `candidate_pool_k = 30` in `HybridSearchRequest`.
+  - Reranking placed between RRF (step 9) and diversification/density budget (step 10).
+  - Score normalization to the $[0.0, 1.0]$ scale through Sigmoid: $S = \frac{1}{1 + e^{-logit}}$.
+  - Automatic graceful fallback to the original RRF score if the reranker is not active (ADR-110).
 
-#### Marco 3: Comandos de Rerank e Catálogo de Download no Core
-- Atualizar `crates/any-context-core-rs/src/ingestion/model_manager.rs`:
-  - Adicionar entrada `ModelCatalogItem` para `reranker` (`bge-reranker-small-int8`, ~45 MB).
-  - Pre-flight check validando que o modelo cabe confortavelmente em qualquer máquina com $\ge 4$ GB de RAM.
-- Criar despachante do comando `/rerank` em `crates/any-context-core-rs/src/commands/engine.rs` e `models.rs`:
-  - Subcomandos `/rerank on`, `/rerank off`, `/rerank auto`, e `/rerank` (status).
+#### Milestone 3: Rerank Commands and Download Catalog in the Core
+- Update `crates/any-context-core-rs/src/ingestion/model_manager.rs`:
+  - Add a `ModelCatalogItem` entry for `reranker` (`bge-reranker-small-int8`, ~45 MB).
+  - A pre-flight check validating that the model fits comfortably on any machine with $\ge 4$ GB of RAM.
+- Create the `/rerank` command dispatcher in `crates/any-context-core-rs/src/commands/engine.rs` and `models.rs`:
+  - Subcommands `/rerank on`, `/rerank off`, `/rerank auto`, and `/rerank` (status).
 
-#### Marco 4: Adaptação das Superfícies CLI & TUI
-- Atualizar `crates/actx-cli/src/cli/args.rs`:
-  - Adicionar flag `--rerank <auto|on|off>`.
-- Atualizar `crates/actx-cli/src/engine.rs`:
-  - Repassar a configuração de rerank para o pipeline e para a execução determinística 1-hop.
-- Atualizar `crates/actx-cli/src/tui/app.rs` e `ui.rs`:
-  - Adicionar badge dinâmico no cabeçalho superior da TUI: `[Rerank: ⚡ ONNX: bge-small]` ou `[Rerank: ⚡ RRF (Fallback)]`.
-  - Registrar `/rerank` no autocomplete e no registry de comandos.
+#### Milestone 4: CLI & TUI Surface Adaptation
+- Update `crates/actx-cli/src/cli/args.rs`:
+  - Add the `--rerank <auto|on|off>` flag.
+- Update `crates/actx-cli/src/engine.rs`:
+  - Pass the rerank setting to the pipeline and to the deterministic 1-hop execution.
+- Update `crates/actx-cli/src/tui/app.rs` and `ui.rs`:
+  - Add a dynamic badge in the TUI top header: `[Rerank: ⚡ ONNX: bge-small]` or `[Rerank: ⚡ RRF (Fallback)]`.
+  - Register `/rerank` in the autocomplete and the command registry.
 
-#### Marco 5: Suíte de Testes Automatizados & NFRs
-- Testes unitários no `actx-onnx`:
-  - `test_reranker_fallback_when_file_missing`: garante que ausência do arquivo não gera panic.
-  - `test_reranker_tokenization_pair`: valida demarcação `[CLS] q [SEP] doc [SEP]`.
-  - `test_reranker_sigmoid_normalization`: valida que scores caem rigorosamente em $[0.0, 1.0]$.
-- Testes unitários no `any-context-core-rs`:
-  - `test_two_stage_pipeline_reranking_fallback`: valida que sem pesos o pipeline retorna os chunks ordenados por RRF.
-  - `test_rerank_command_dispatch`: valida alternância entre `auto`, `on` e `off`.
-- Testes de integração no `actx-cli`:
-  - `test_cli_flag_rerank_off`: valida execução headless com `--rerank off`.
+#### Milestone 5: Automated Test Suite & NFRs
+- Unit tests in `actx-onnx`:
+  - `test_reranker_fallback_when_file_missing`: guarantees that a missing file causes no panic.
+  - `test_reranker_tokenization_pair`: validates the `[CLS] q [SEP] doc [SEP]` demarcation.
+  - `test_reranker_sigmoid_normalization`: validates that scores fall strictly within $[0.0, 1.0]$.
+- Unit tests in `any-context-core-rs`:
+  - `test_two_stage_pipeline_reranking_fallback`: validates that without weights the pipeline returns the chunks in RRF order.
+  - `test_rerank_command_dispatch`: validates switching between `auto`, `on` and `off`.
+- Integration tests in `actx-cli`:
+  - `test_cli_flag_rerank_off`: validates headless execution with `--rerank off`.
 
-#### Marco 6: Dual-Doc, MANUAL_TESTS (Cenário 44) & Release v0.44.0
-- Atualizar `README.md` (UserDoc) com a documentação do Re-ranking Neural em 2 estágios, flag `--rerank`, comando `/rerank` e download do modelo.
-- Atualizar `TECDOC.md` com o **ADR-129: Arquitetura de Recuperação Neural em Dois Estágios com Cross-Encoder Local (ONNX Runtime) e Fallback Gracioso ADR-110**.
-- Prepend do **Cenário 44** em `tests/MANUAL_TESTS.md` sem truncamento dos cenários 1 a 43.
-- Bump de versão para `v0.44.0` em todos os crates, commit, push, PR/tag e acompanhamento ininterrupto do CI/CD até a publicação dos 14 binários.
+#### Milestone 6: Dual-Doc, MANUAL_TESTS (Scenario 44) & Release v0.44.0
+- Update `README.md` (UserDoc) documenting Two-Stage Neural Re-ranking, the `--rerank` flag, the `/rerank` command and the model download.
+- Update `TECDOC.md` with **ADR-129: Two-Stage Neural Retrieval Architecture with a Local Cross-Encoder (ONNX Runtime) and the ADR-110 Graceful Fallback**.
+- Prepend **Scenario 44** to `tests/MANUAL_TESTS.md` without truncating scenarios 1 to 43.
+- Version bump to `v0.44.0` in every crate, commit, push, PR/tag and uninterrupted CI/CD follow-up until the 14 binaries are published.
 
 ---
 
-### 6. Não-Regressão & Princípios Invioláveis
-1. **Zero Quebra de Schemas**: Nenhuma alteração estrutural no LanceDB ou SQLite.
-2. **Garantia ADR-110**: Funcionamento 100% garantido e ininterrupto mesmo sem o download do modelo neural (fallback transparente para RRF).
-3. **Calgary Global Policy**: 100% agnóstico a regras regionais ou fiscais.
-4. **Preservação de Cenários de Teste**: `tests/MANUAL_TESTS.md` mantém todos os 43 cenários anteriores intactos.
+### 6. Non-Regression & Inviolable Principles
+1. **Zero Schema Breakage**: no structural change to LanceDB or SQLite.
+2. **ADR-110 Guarantee**: 100% guaranteed, uninterrupted operation even without downloading the neural model (transparent fallback to RRF).
+3. **Calgary Global Policy**: 100% agnostic to regional or tax rules.
+4. **Test Scenario Preservation**: `tests/MANUAL_TESTS.md` keeps all 43 previous scenarios intact.
