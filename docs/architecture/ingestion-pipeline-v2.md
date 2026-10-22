@@ -706,6 +706,11 @@ Um LLM gera uma frase de contexto por chunk, que entra no cabeçalho embedado. �
   - mantida a divisão de identificadores de código (`camelCase`, `snake_case`) junto com o
     identificador inteiro.
 - **Sem stemming:** depende de idioma; a busca semântica cobre as variações de palavra.
+- **Vetores esparsos aprendidos (auditoria P19):** só quando o modelo de embedding do perfil
+  já os produz na mesma passada (ex.: BGE-M3) — sem modelo extra. Guardados no índice lexical
+  como campo com o peso de cada termo (por workspace, criptografado); entram como lista extra
+  no RRF; ligados por padrão só com ganho medido pelo conjunto de avaliação. Com embedding
+  na nuvem ou sem saída esparsa, ficam de fora sem prejuízo.
 
 ## 10. Persistência na base vetorial
 
