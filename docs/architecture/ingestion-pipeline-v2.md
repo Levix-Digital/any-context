@@ -854,3 +854,28 @@ público e imobiliário.
    intervalo); um **serviço em segundo plano opcional** mantém tudo atualizado o tempo todo
    para quem escolher.
 
+---
+
+## Transversal: governança de recursos da máquina (auditoria P21)
+
+Um **governador único** coordena todo o trabalho pesado (OCR, parsing, transcrição, visão,
+embedding, reranker, LLM local, autoavaliação, grafo) na ingestão e na busca.
+
+1. **Prioridade global:** pergunta do usuário (interativa) > indexação base >
+   enriquecimentos > autoavaliação e manutenção. Quando o usuário pergunta, o trabalho em
+   segundo plano cede na hora (pausa, libera CPU, GPU e memória) e retoma depois.
+2. **Adaptação automática ao estado da máquina:** na bateria, só a indexação base (os
+   enriquecimentos pesados esperam a tomada); bateria baixa pausa tudo; outro programa
+   pesado em uso ou superaquecimento reduzem o ritmo; rede limitada (dados móveis, conexão
+   tarifada) impede crawl web e downloads grandes de modelos.
+3. **Memória:** orçamento por perfil; modelos carregados sob demanda e descarregados quando
+   ociosos (os menos usados saem primeiro); um modelo pesado por vez na GPU.
+4. **Disco:** espaço livre conferido antes de trabalhos grandes, com reserva — nunca enche o
+   disco; faltando espaço, avisa e espera em vez de falhar no meio.
+5. **Usuário:** só o botão "pausar indexação" e um indicador do que está acontecendo (ex.:
+   "indexação pausada: na bateria") — princípio da configuração mínima. No modo empresarial,
+   a política pode definir janelas para o trabalho pesado (ex.: fora do horário comercial) e
+   teto de uso de CPU.
+6. **O mesmo governador** decide o paralelismo da busca estratificada (recuperação, passo 4)
+   e a capacidade do worker de ingestão.
+
