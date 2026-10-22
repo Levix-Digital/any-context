@@ -20,31 +20,31 @@ supersedes: anycontext_blueprint_v0349_harmonizacao_aurora_boreal_auto_scroll_re
 superseded_by: anycontext_blueprint_v0350_english_i18n_braille_spinner_point_by_point_release_notes_standard
 parent_plan_id: null
 milestones:
-- name: 'M1: Validacao Live URLs ONNX'
+- name: 'M1: Live Validation of the ONNX URLs'
   done: true
-- name: 'M2: Config Cliente HTTP Reqwest'
+- name: 'M2: Reqwest HTTP Client Configuration'
   done: true
-- name: 'M3: Alinhamento Submenus TUI'
+- name: 'M3: TUI Submenu Alignment'
   done: true
-- name: 'M4: Testes Automatizados'
+- name: 'M4: Automated Tests'
   done: true
-- name: 'M5: Dual-Doc ADR-118 e Cenario 33'
+- name: 'M5: Dual-Doc ADR-118 and Scenario 33'
   done: true
-- name: 'M6: Release e Deploy v0.34.10'
+- name: 'M6: Release and Deploy v0.34.10'
   done: true
 status_log:
 - at: '2026-10-10T14:43:04'
-  note: 'Milestone ''M1: Validacao Live URLs ONNX'': 5 repositórios testados ao vivo via HTTP HEAD 200'
+  note: 'Milestone ''M1: Live Validation of the ONNX URLs'': 5 repositories tested live through HTTP HEAD 200'
 - at: '2026-10-10T14:43:05'
-  note: 'Milestone ''M2: Config Cliente HTTP Reqwest'': User-Agent e policy de 10 redirects configurados'
+  note: 'Milestone ''M2: Reqwest HTTP Client Configuration'': User-Agent and a 10-redirect policy configured'
 - at: '2026-10-10T14:43:06'
-  note: 'Milestone ''M3: Alinhamento Submenus TUI'': Ingestão com layoutlmv3 e visão com clip-vit'
+  note: 'Milestone ''M3: TUI Submenu Alignment'': ingestion with layoutlmv3 and vision with clip-vit'
 - at: '2026-10-10T14:43:07'
-  note: 'Milestone ''M4: Testes Automatizados'': 206 unit/integration tests passando 100%'
+  note: 'Milestone ''M4: Automated Tests'': 206 unit/integration tests passing 100%'
 - at: '2026-10-10T14:43:09'
-  note: 'Milestone ''M5: Dual-Doc ADR-118 e Cenario 33'': ADR-118 em TECDOC.md e Cenario 33 em MANUAL_TESTS.md'
+  note: 'Milestone ''M5: Dual-Doc ADR-118 and Scenario 33'': ADR-118 in TECDOC.md and Scenario 33 in MANUAL_TESTS.md'
 - at: '2026-10-10T14:43:10'
-  note: 'Milestone ''M6: Release e Deploy v0.34.10'': Binário instalado localmente, tag v0.34.10 criada e push para origin dev'
+  note: 'Milestone ''M6: Release and Deploy v0.34.10'': binary installed locally, tag v0.34.10 created and pushed to origin dev'
 - at: '2026-10-10T14:59:47'
   note: Superseded by anycontext_blueprint_v0350_english_i18n_braille_spinner_point_by_point_release_notes_standard
 - at: '2026-10-16T10:47:35'
@@ -53,58 +53,58 @@ status_log:
 ---
 
 # 🏛️ AnyContext Architecture Blueprint: v0.34.10
-## Catálogo de Modelos ONNX Standalone, Resolução de 404 e Resiliência de Download
+## Standalone ONNX Model Catalog, 404 Resolution and Download Resilience
 
 ---
 
-### 1. Contexto e Causa Raiz
-Na versão `v0.34.9`, o usuário iniciou o download do modelo `Laya AI (mmBERT INT8 ONNX)` pelo menu da TUI e recebeu erro imediato de HTTP 404 Not Found:
+### 1. Context and Root Cause
+In version `v0.34.9`, the user started downloading the `Laya AI (mmBERT INT8 ONNX)` model from the TUI menu and got an immediate HTTP 404 Not Found error:
 ```text
-❌ [Falha no Download] Não foi possível baixar Laya AI (mmBERT INT8 ONNX): Model repository returned HTTP status 404 Not Found: https://huggingface.co/convaiinnovations/laya/resolve/main/model_int8.onnx.
+❌ [Download Failed] Could not download Laya AI (mmBERT INT8 ONNX): Model repository returned HTTP status 404 Not Found: https://huggingface.co/convaiinnovations/laya/resolve/main/model_int8.onnx.
 ```
 
-**Diagnóstico Detalhado:**
-1. O repositório canônico upstream `convaiinnovations/laya` distribui pesos apenas no formato PyTorch `model.safetensors`, sem export ONNX.
-2. Modelos multimodais modernos no Hugging Face frequentemente dividem os pesos em arquivos compostos (`model.onnx` + `model.onnx_data`), de forma que o download de um único arquivo `.onnx` resultaria em falhas silenciosas de external data missing durante o carregamento de runtime.
-3. Requisições contra a CDN da Hugging Face exigem `User-Agent` explícito e seguimento automático de redirecionamentos HTTP 302 para endpoints Cloudflare/S3.
+**Detailed Diagnosis:**
+1. The canonical upstream repository `convaiinnovations/laya` distributes weights only in the PyTorch `model.safetensors` format, with no ONNX export.
+2. Modern multimodal models on Hugging Face often split their weights into compound files (`model.onnx` + `model.onnx_data`), so downloading a single `.onnx` file would lead to silent "external data missing" failures when loading at runtime.
+3. Requests against the Hugging Face CDN require an explicit `User-Agent` and automatic following of HTTP 302 redirects to Cloudflare/S3 endpoints.
 
 ---
 
-### 2. Catálogo Canônico Verificado (HTTP 200 Standalone Single-File)
+### 2. Verified Canonical Catalog (HTTP 200 Standalone Single-File)
 
-Todos os 5 modelos foram testados e validados ao vivo via requisições HTTP HEAD e stream de primeiros bytes:
+All 5 models were tested and validated live through HTTP HEAD requests and a stream of the first bytes:
 
-| ID | Nome do Modelo | Categoria | Tamanho Exato | URL Canônica Hugging Face | Função |
+| ID | Model Name | Category | Exact Size | Canonical Hugging Face URL | Role |
 | :--- | :--- | :--- | :---: | :--- | :--- |
-| `laya-int8` | **Laya AI (mmBERT INT8 ONNX)** | Ingestão | 424.348.081 B (~404 MB) | `https://huggingface.co/tozp/laya-onnx/resolve/main/model_int8.onnx` | Classificação dinâmica de formulários e faturas (~95% precisão, 60ms CPU) |
-| `mobilenetv4-rvl-cdip` | **MobileNetV4 RVL-CDIP (ONNX)** | Scans | 3.931.745 B (~3.9 MB) | `https://huggingface.co/onnx-community/mobilenetv4_conv_small.e1200_r224_in1k/resolve/main/onnx/model_int8.onnx` | Sentinela visual para documentos escaneados e fotos (224x224, 8ms CPU) |
-| `bge-small-onnx` | **BGE-Small Query Classifier (ONNX)** | Perguntas | 133.093.490 B (~127 MB) | `https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx` | Classificação neural RFC-042 da complexidade da pergunta (Fast vs Deep) |
-| `layoutlmv3-int8` | **LayoutLMv3 Base (INT8 ONNX)** | Ingestão | 127.001.085 B (~121 MB) | `https://huggingface.co/onnx-community/layoutlmv3-base-ONNX/resolve/main/onnx/model_int8.onnx` | Extração multimodal de layouts de documentos, formulários e tabelas |
-| `clip-vit-int8` | **CLIP ViT Vision Encoder (INT8 ONNX)** | Visão | 88.648.877 B (~84 MB) | `https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_int8.onnx` | Extração visual densa e OCR air-gapped para esquemas e diagramas |
+| `laya-int8` | **Laya AI (mmBERT INT8 ONNX)** | Ingestion | 424,348,081 B (~404 MB) | `https://huggingface.co/tozp/laya-onnx/resolve/main/model_int8.onnx` | Dynamic classification of forms and invoices (~95% accuracy, 60ms CPU) |
+| `mobilenetv4-rvl-cdip` | **MobileNetV4 RVL-CDIP (ONNX)** | Scans | 3,931,745 B (~3.9 MB) | `https://huggingface.co/onnx-community/mobilenetv4_conv_small.e1200_r224_in1k/resolve/main/onnx/model_int8.onnx` | Visual sentinel for scanned documents and photos (224x224, 8ms CPU) |
+| `bge-small-onnx` | **BGE-Small Query Classifier (ONNX)** | Questions | 133,093,490 B (~127 MB) | `https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx` | RFC-042 neural classification of question complexity (Fast vs Deep) |
+| `layoutlmv3-int8` | **LayoutLMv3 Base (INT8 ONNX)** | Ingestion | 127,001,085 B (~121 MB) | `https://huggingface.co/onnx-community/layoutlmv3-base-ONNX/resolve/main/onnx/model_int8.onnx` | Multimodal extraction of document, form and table layouts |
+| `clip-vit-int8` | **CLIP ViT Vision Encoder (INT8 ONNX)** | Vision | 88,648,877 B (~84 MB) | `https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_int8.onnx` | Dense visual extraction and air-gapped OCR for schematics and diagrams |
 
 ---
 
-### 3. Melhorias Implementadas
+### 3. Improvements Implemented
 
-1. **Blindagem do Cliente HTTP (`download_model_with_progress`)**:
-   - `reqwest::Client::builder()` configurado com `user_agent("AnyContext/0.34.10 (Windows; x86_64)")`.
-   - `redirect(reqwest::redirect::Policy::limited(10))` para seguir saltos de CDN e Cloudflare transparentemente.
-   - Timeout estendido de 600 segundos para downloads de modelos grandes em conexões com variação de banda.
+1. **HTTP Client Hardening (`download_model_with_progress`)**:
+   - `reqwest::Client::builder()` configured with `user_agent("AnyContext/0.34.10 (Windows; x86_64)")`.
+   - `redirect(reqwest::redirect::Policy::limited(10))` to follow CDN and Cloudflare hops transparently.
+   - Timeout extended to 600 seconds for large model downloads over connections with varying bandwidth.
 
-2. **Alinhamento dos Submenus da TUI (`menu.rs`)**:
-   - `build_doc_ai_ingestion_menu`: Expõe `laya-int8` e `layoutlmv3-int8`.
-   - `build_doc_ai_vision_menu`: Expõe `clip-vit-int8` e a opção Nuvem Multimodal.
-   - `active_vision_state`: Atualizado para detectar `clip-vit-int8` e manter fallback determinístico de 0 MB de RAM.
+2. **TUI Submenu Alignment (`menu.rs`)**:
+   - `build_doc_ai_ingestion_menu`: exposes `laya-int8` and `layoutlmv3-int8`.
+   - `build_doc_ai_vision_menu`: exposes `clip-vit-int8` and the Multimodal Cloud option.
+   - `active_vision_state`: updated to detect `clip-vit-int8` and keep the deterministic 0 MB RAM fallback.
 
-3. **Garantia Arquitetural Invariante (Zero Crash Fallback)**:
-   - Caso nenhum modelo seja baixado, o AnyContext permanece 100% operacional utilizando a heurística espacial 2D em Rust puro (<5MB RAM / <1µs).
+3. **Invariant Architectural Guarantee (Zero Crash Fallback)**:
+   - When no model is downloaded, AnyContext stays fully operational using the 2D spatial heuristic in pure Rust (<5MB RAM / <1µs).
 
 ---
 
-### 4. Validação & Entregáveis
-- **Testes Unitários e de Integração**: 100% dos 206 testes de `any-context-core-rs`, 13 testes de `actx-cli`, 7 de `actx-agent`, 8 de `actx-lm` e 9 de `actx-installer` passaram com 0 falhas.
+### 4. Validation & Deliverables
+- **Unit and Integration Tests**: all 206 tests of `any-context-core-rs`, 13 tests of `actx-cli`, 7 of `actx-agent`, 8 of `actx-lm` and 9 of `actx-installer` passed with 0 failures.
 - **Dual-Doc**:
-  - `TECDOC.md`: ADR-118 registrado.
-  - `tests/MANUAL_TESTS.md`: Cenário 33 registrado.
-- **Deploy**: Binário de release `actx.exe` v0.34.10 gerado e instalado localmente em `%LOCALAPPDATA%\actx\bin\actx.exe`.
-- **Git**: Commit realizado, tag `v0.34.10` criada e enviada com sucesso para `origin dev`.
+  - `TECDOC.md`: ADR-118 recorded.
+  - `tests/MANUAL_TESTS.md`: Scenario 33 recorded.
+- **Deploy**: release binary `actx.exe` v0.34.10 built and installed locally at `%LOCALAPPDATA%\actx\bin\actx.exe`.
+- **Git**: commit made, tag `v0.34.10` created and pushed successfully to `origin dev`.

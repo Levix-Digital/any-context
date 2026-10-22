@@ -22,56 +22,56 @@ status_log:
 
 # Blueprint v0.32.16: Transparent Vector Decryption, Sync Cancellation, Session Directory Navigation & TUI Prompt Immunity
 
-## 1. Contexto & Causa Raiz
-Na versão `v0.32.15`, após testes em múltiplos sistemas operacionais (Windows e Linux), três gargalos de engenharia e usabilidade foram identificados:
-1. **Texto Criptografado no Linux com `/inspect --full` (`enc::...`)**:
-   - O AnyContext implementa criptografia em repouso AES-GCM-256 com PBKDF2-HMAC-SHA256 atrelada à assinatura de hardware (`SecurityEngine` em Python).
-   - Quando documentos eram sincronizados no Linux via worker Python, os campos `text`, `document_summary` e `keywords` eram persistidos no LanceDB como `enc::<base64_payload>`.
-   - No Core Rust, `execute_inspect` e o leitor de vetores liam esses dados crus, exibindo strings cifradas indecifráveis para o usuário e ameaçando poluir o contexto fornecido ao LLM em queries RAG.
-2. **Impossibilidade de Cancelar Sincronizações em Andamento (`/sync cancel`)**:
-   - Durante a sincronização de diretórios extensos (ex: 268.865 arquivos), o worker em background monopolizava I/O e CPU sem opção na TUI ou CLI de interrupção imediata.
-   - O comando `/folder .` dentro da TUI referia-se ao diretório de lançamento do processo sem possibilidade de navegação interna.
-3. **Vazamento de Warning do BM25 no Widget de Prompt e Concorrência de I/O**:
-   - Mensagens de advertência impressas com `eprintln!` em `pipeline.rs` vazavam diretamente para o `stderr`. No Ratatui (modo *Alternate Screen*), isso causava sobrescrita direta de caracteres na linha do cursor do widget `Prompt`.
-   - Durante reindexações concorrentes, `BM25Index::load_from_file` tentava ler o arquivo enquanto o worker gravava ou antes do flush atômico, resultando em `failed to fill whole buffer`.
+## 1. Context & Root Cause
+In version `v0.32.15`, after tests on several operating systems (Windows and Linux), three engineering and usability bottlenecks were identified:
+1. **Encrypted Text on Linux with `/inspect --full` (`enc::...`)**:
+   - AnyContext implements AES-GCM-256 encryption at rest with PBKDF2-HMAC-SHA256 bound to the hardware signature (`SecurityEngine` in Python).
+   - When documents were synced on Linux through the Python worker, the `text`, `document_summary` and `keywords` fields were persisted in LanceDB as `enc::<base64_payload>`.
+   - In the Rust Core, `execute_inspect` and the vector reader read this raw data, showing undecipherable encrypted strings to the user and threatening to pollute the context given to the LLM in RAG queries.
+2. **No Way to Cancel Running Syncs (`/sync cancel`)**:
+   - While syncing large directories (e.g. 268,865 files), the background worker monopolized I/O and CPU with no option in the TUI or CLI to interrupt it immediately.
+   - The `/folder .` command inside the TUI referred to the process launch directory with no way to navigate internally.
+3. **BM25 Warning Leaking into the Prompt Widget and I/O Concurrency**:
+   - Warning messages printed with `eprintln!` in `pipeline.rs` leaked straight to `stderr`. In Ratatui (*Alternate Screen* mode), this overwrote characters directly on the cursor line of the `Prompt` widget.
+   - During concurrent reindexing, `BM25Index::load_from_file` tried to read the file while the worker was writing it or before the atomic flush, resulting in `failed to fill whole buffer`.
 
 ---
 
-## 2. Decisões Arquiteturais & Solução (ADR-100)
+## 2. Architecture Decisions & Solution (ADR-100)
 
-### 2.1 NativeSecurityEngine no Core Rust (`crates/any-context-core-rs/src/security/mod.rs`)
-- **Derivação de Hardware Idêntica ao Python**:
-  - Linux: `/etc/machine-id` ou `/var/lib/dbus/machine-id` (`lin_mid_*`).
-  - Windows: Registro `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` (`win_guid_*`).
+### 2.1 NativeSecurityEngine in the Rust Core (`crates/any-context-core-rs/src/security/mod.rs`)
+- **Hardware Derivation Identical to Python**:
+  - Linux: `/etc/machine-id` or `/var/lib/dbus/machine-id` (`lin_mid_*`).
+  - Windows: registry `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` (`win_guid_*`).
   - macOS: `IOPlatformUUID` (`mac_uuid_*`).
-  - Override para testes via variável de ambiente `ACTX_MACHINE_ID`.
-- **KDF & Cifra**: PBKDF2-HMAC-SHA256 (100.000 rounds) com `DOMAIN_SALT` e `INTERNAL_PEPPER`, gerando chave de 256 bits para `Aes256Gcm`.
-- **Descriptografia Transparente em Tempo de Execução**:
-  - `NativeLanceStore::extract_scored_results` decifra automaticamente `text`, `document_summary` e `keywords` para todas as consultas vetoriais e metadados.
-  - `/inspect` (com ou sem `--full`) decifra o conteúdo na amostragem e na taxonomia.
+  - Override for tests through the `ACTX_MACHINE_ID` environment variable.
+- **KDF & Cipher**: PBKDF2-HMAC-SHA256 (100,000 rounds) with `DOMAIN_SALT` and `INTERNAL_PEPPER`, producing a 256-bit key for `Aes256Gcm`.
+- **Transparent Decryption at Runtime**:
+  - `NativeLanceStore::extract_scored_results` automatically decrypts `text`, `document_summary` and `keywords` for every vector and metadata query.
+  - `/inspect` (with or without `--full`) decrypts the content in the sampling and the taxonomy.
 
-### 2.2 Cancelamento de Sincronização & Navegação de Diretórios
-- **`/sync cancel` (e `/cancel`, `/sync --cancel`)**:
-  - Consulta o PID do worker gravado no SQLite (`workspace_sync_status.pid`).
-  - Encerra a árvore do processo (`taskkill /PID /F /T` no Windows e `kill -9` no Unix).
-  - Atualiza o SQLite para `is_syncing = 0`, `stage = "cancelled"`, `progress_bar = "[cancelled]"`.
-  - Adiciona o botão "Cancelar Sincronização em Andamento" ao menu TUI (`[F1]` ou `/sync`).
-- **`/pwd` e `/cd <path>`**:
-  - `/pwd`: Consulta e exibe o diretório de trabalho atual do processo.
-  - `/cd <caminho>`: Atualiza o diretório de trabalho em tempo de execução (`std::env::set_current_dir`).
-  - `/folder .`: Emite nota explícita `(resolved from current working directory)`.
+### 2.2 Sync Cancellation & Directory Navigation
+- **`/sync cancel` (and `/cancel`, `/sync --cancel`)**:
+  - Looks up the worker PID stored in SQLite (`workspace_sync_status.pid`).
+  - Kills the process tree (`taskkill /PID /F /T` on Windows and `kill -9` on Unix).
+  - Updates SQLite to `is_syncing = 0`, `stage = "cancelled"`, `progress_bar = "[cancelled]"`.
+  - Adds a "Cancel Running Sync" button to the TUI menu (`[F1]` or `/sync`).
+- **`/pwd` and `/cd <path>`**:
+  - `/pwd`: shows the process's current working directory.
+  - `/cd <path>`: changes the working directory at runtime (`std::env::set_current_dir`).
+  - `/folder .`: prints an explicit note `(resolved from current working directory)`.
 
-### 2.3 Imunização do Prompt TUI e Resiliência Concorrente do BM25
-- **Eliminação de `eprintln!`**: Avisos de corrupção ou quarentena são gravados em arquivo dedicado (`bm25_quarantine.log`) sem vazar bytes no buffer de tela do Ratatui.
-- **Tolerância a 0 Bytes**: `BM25Index::load_from_file` detecta arquivos vazios (`meta.len() == 0`) e inicializa um índice novo sem disparar erro.
-- **Retry com Backoff no Windows**: `save_to_file` e `load_from_file` utilizam laços de retry exponencial com sleep tolerando bloqueios momentâneos de leitura concorrente.
+### 2.3 TUI Prompt Immunity and Concurrent BM25 Resilience
+- **No more `eprintln!`**: corruption or quarantine warnings are written to a dedicated file (`bm25_quarantine.log`) without leaking bytes into the Ratatui screen buffer.
+- **0-Byte Tolerance**: `BM25Index::load_from_file` detects empty files (`meta.len() == 0`) and initializes a new index without raising an error.
+- **Retry with Backoff on Windows**: `save_to_file` and `load_from_file` use exponential retry loops with sleep, tolerating momentary locks from concurrent reads.
 
 ---
 
-## 3. Marcos de Execução (Milestones)
-- **M1: NativeSecurityEngine & LanceDB Decryption**: Implementação do módulo criptográfico em Rust com testes de interoperabilidade Python/Rust 100% verdes.
-- **M2: Sync Cancellation & Comandos `/cd`/`/pwd`**: Implementação de `/sync cancel` (com `taskkill`/`kill`), `/cd`, `/pwd`, e opção no menu TUI.
-- **M3: Blindagem do BM25 e Imunização da TUI**: Remoção de `eprintln!`, tolerância a 0 bytes e retry backoff concorrente.
-- **M4: Suíte de Testes Automatizados**: 131 testes unitários do Core, 18 testes de comandos (`command_tests.rs`), 14 testes CLI (`cli_tests.rs`) e testes Python 100% verdes.
-- **M5: Dual-Doc & Cenário 17 em MANUAL_TESTS.md**: Documentação completa em `README.md`, `TECDOC.md` (ADR-100) e Cenário 17 acumulativo não-truncado.
-- **M6: Verificação Gate 8 & Release v0.32.16**: Validação pelo `verify_gate.py`, tag `v0.32.16`, push e CI watch dos 12 binários de release.
+## 3. Execution Milestones
+- **M1: NativeSecurityEngine & LanceDB Decryption**: cryptographic module in Rust with Python/Rust interoperability tests 100% green.
+- **M2: Sync Cancellation & `/cd`/`/pwd` Commands**: `/sync cancel` (with `taskkill`/`kill`), `/cd`, `/pwd`, and a TUI menu option.
+- **M3: BM25 Hardening and TUI Immunity**: removal of `eprintln!`, 0-byte tolerance and concurrent retry backoff.
+- **M4: Automated Test Suite**: 131 Core unit tests, 18 command tests (`command_tests.rs`), 14 CLI tests (`cli_tests.rs`) and Python tests 100% green.
+- **M5: Dual-Doc & Scenario 17 in MANUAL_TESTS.md**: complete documentation in `README.md`, `TECDOC.md` (ADR-100) and cumulative, non-truncated Scenario 17.
+- **M6: Gate 8 Verification & Release v0.32.16**: validation through `verify_gate.py`, tag `v0.32.16`, push and CI watch of the 12 release binaries.
