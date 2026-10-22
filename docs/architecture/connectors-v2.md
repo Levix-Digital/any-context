@@ -1,167 +1,162 @@
-# Conectores — design alvo (v2)
+# Connectors — target design (v2)
 
-Documento da revisão dos conectores. Todas as decisões estão tomadas; o que é comercial ou
-de ordem de entrega fica para o roadmap.
+Review of the connectors. All decisions are made; what is commercial or about delivery
+order is left to the roadmap.
 
-## Estado atual
+## Current state
 
-- Não há código de conector. As fontes são pasta ou arquivo local, site ou página web e a
-  ajuda do sistema (`builtin`). Um plano antigo (`docs/plans/...chain_of_responsibility...`)
-  previa um `CloudDriveSyncHandler`, nunca implementado.
-- A tabela `sources` já reserva `kind = connector:<nome>`, com alvo e modo avulso ou
-  recursivo (`ingestion-pipeline-v2.md`, passo 1).
-- Já decidido em outros documentos: permissões herdadas da origem (ID do escopo de
-  permissão no chunk, detalhe em SQLite separado — `ingestion-pipeline-v2.md`, controle de
-  acesso por fonte); política do Admin Hub com conectores e domínios de conta permitidos
-  (`identity-and-governance-v2.md`, tema 4); sync automático e governador de recursos
-  (`ingestion-pipeline-v2.md`, seções transversais).
+- There is no connector code. Sources are a local folder or file, a web site or page, and
+  the system help (`builtin`). An old plan (`docs/plans/...chain_of_responsibility...`)
+  foresaw a `CloudDriveSyncHandler`, never implemented.
+- The `sources` table already reserves `kind = connector:<name>`, with a target and a
+  single or recursive mode (`ingestion-pipeline-v2.md`, step 1).
+- Already decided in other documents: permissions inherited from the origin (permission
+  scope ID in the chunk, details in a separate SQLite database — `ingestion-pipeline-v2.md`,
+  per-source access control); Admin Hub policy with allowed connectors and account domains
+  (`identity-and-governance-v2.md`, topic 4); automatic sync and resource governor
+  (`ingestion-pipeline-v2.md`, cross-cutting sections).
 
-## Decisões
+## Decisions
 
-1. **O conector só capta.** É um adaptador da aquisição (ingestão, passo 2): traz o
-   conteúdo externo, e do passo 3 em diante é o mesmo pipeline de qualquer arquivo. Nada de
-   parsing, chunking ou limpeza próprios, salvo limpeza específica de uma origem que o
-   pipeline não cobre. Contrato único:
-   - **listar** os itens do alvo (avulso ou recursivo);
-   - **ler** o conteúdo em stream (uma leitura só);
-   - **mudanças** desde o último cursor;
-   - **permissões** (escopos de permissão da origem);
-   - **metadados** (autor, datas, link para abrir na origem e os metadados próprios do
-     conector — decisão 13).
+1. **A connector only acquires.** It is an adapter of acquisition (ingestion, step 2): it
+   brings the external content, and from step 3 on it is the same pipeline as any file. No
+   parsing, chunking or cleanup of its own, except origin-specific cleanup the pipeline
+   does not cover. Single contract:
+   - **list** the items of the target (single or recursive);
+   - **read** the content as a stream (a single read);
+   - **changes** since the last cursor;
+   - **permissions** (permission scopes of the origin);
+   - **metadata** (author, dates, link to open at the origin, and the connector's own
+     metadata — decision 13).
 
-   Cada item tem um **ID nativo estável** da origem, que substitui o hash na detecção de
-   rename e move.
-2. **Só indexado, nunca consulta ao vivo.** O conector sincroniza para dentro do
-   workspace; a pergunta nunca é enviada à API da origem. Mantém a qualidade da recuperação
-   (busca híbrida, reranker, citação precisa), não manda a pergunta a terceiros e respeita
-   "nenhuma consulta atravessa workspaces".
-3. **Só leitura, com os menores escopos possíveis.** Nunca escreve na origem.
-4. **Autenticação OAuth 2.0 com PKCE pelo navegador do sistema**, com redirecionamento para
-   o próprio computador (`127.0.0.1`), **sem passar por servidor da Levix**.
-   - O token fica no **cofre pessoal** do usuário (`identity-and-governance-v2.md`, tema 2):
-     é da pessoa, não do workspace.
-   - **Ambiente pessoal:** app OAuth público registrado pela Levix.
-   - **Ambiente corporativo:** app registrado pela **própria empresa** (no Entra ID da
-     Microsoft, no Google Workspace dela), distribuído pela política do Admin Hub.
-   - **AnyContext Server (índice compartilhado na VPC da empresa):** conta de serviço da
-     empresa, com o filtro de permissões por leitor obrigatório.
-   - **Viabilidade a confirmar antes de construir** (custos e auditorias exigidos pelo
-     Google e por outros fornecedores): decidido na decisão 20.
-5. **Compartilhar um workspace sem servidor leva o alvo, nunca a credencial.** A definição
-   do workspace (que é o que se compartilha quando não há AnyContext Server) leva o conector
-   e o ID do alvo; cada membro entra com a própria conta e indexa com o próprio acesso.
-6. **Sync pela lista de mudanças da origem, não por varredura** (ex.: `changes` do Google
-   Drive, `delta` do Microsoft Graph, cursor do Dropbox, `CONDSTORE` do IMAP).
-   - **No computador do usuário:** consulta periódica com cursor enquanto o AnyContext está
-     aberto (não há como receber webhooks); diff de recuperação ao abrir; serviço em segundo
-     plano opcional, como nas fontes locais.
-   - **No AnyContext Server:** webhooks da origem.
-   - Respeita os limites de taxa das APIs (espera crescente).
-   - **Rede tarifada** (dados móveis, conexão medida): o governador de recursos segura o
-     sync dos conectores, e **o usuário pode liberar** (por fonte ou por enquanto).
-7. **Formatos nativos da nuvem:** Google Docs, Sheets e Slides exportados para DOCX, XLSX e
-   PPTX e passados aos parsers existentes; páginas de wiki (Confluence, Notion) convertidas
-   da árvore de blocos para Markdown determinístico; atalhos e links da nuvem resolvidos e
-   deduplicados como duplicatas (ingestão, passo 3).
-8. **Sem cópia do original.** Fica só o conteúdo extraído, no índice criptografado. A aba de
-   leitura mostra o texto indexado e oferece **"abrir na origem"** (link nativo). Download em
-   stream, com a reserva de disco do governador.
-9. **Conectores só da Levix**, em Rust, numa crate `actx-connectors` com um trait e um módulo
-   por conector; sem plugins de terceiros. Cliente HTTP comum com **proxy corporativo** e
-   **certificados da empresa** (autoridade certificadora interna, lida do repositório de
-   certificados do sistema e da política).
-10. **Seleção explícita do alvo.** O usuário navega pela árvore da origem e escolhe o que
-    quer (pasta, que vale recursivo, ou arquivo avulso, ou alvos próprios da origem: drive
-    compartilhado, biblioteca do SharePoint, rótulo do Gmail, canal ou playlist). **Tudo o
-    que ele selecionar e tiver acesso é baixado e indexado**; nada fora da seleção. Os
-    filtros de inclusão e exclusão (sintaxe `.gitignore`) valem também para os caminhos
-    remotos.
-11. **Política do Admin Hub:** conectores permitidos, **domínios de conta permitidos** (ex.:
-    só contas `@empresa.com` no ambiente corporativo) e teto de volume por fonte. O bloqueio
-    sempre diz qual regra bloqueou.
-12. **Schema:** `sources` ganha `account_ref` (referência à credencial no cofre) e
-    `target_id` (ID nativo do alvo, além do caminho exibido). O cursor de mudanças fica no
-    estado de sync do workspace.
-13. **Metadados próprios de cada conector.** Cada conector declara um **esquema de
-    metadados tipado** (ex.: YouTube: `view_count`, `like_count`, `published_at`; Jira:
-    `status`, `assignee`; e-mail: `from`, `labels`), usável como filtro pela recuperação
-    (entendimento da pergunta) do mesmo jeito que os metadados de um pacote de domínio.
-14. **Metadados vivos separados do conteúdo.** O que muda sem o conteúdo mudar (views,
-    likes, status, rótulos) fica só em colunas filtráveis, **fora do texto embedado e do
-    cabeçalho do chunk**; uma mudança atualiza só essas colunas, sem re-embedar — a mesma
-    lógica das permissões (ID no chunk, detalhe à parte).
-15. **Fontes de alto volume e ruído** (ex.: comentários): indexa-se o conjunto mais
-    relevante (ex.: os comentários mais curtidos e suas respostas), cada item como chunk
-    próprio com autor e relevância no cabeçalho; o relatório da fonte diz quanto ficou de
-    fora ("100 de 10.000 comentários") e o teto é configurável pelo usuário, como o teto de
-    crawl. Autores de comentários são dados pessoais de terceiros: vale a pseudonimização
-    reversível do que vai para endpoint externo (ingestão, passo 7).
-16. **YouTube:** só pela API oficial. Metadados e comentários de qualquer vídeo público;
-    transcrição pela legenda oficial só quando o usuário é dono do canal (a API só entrega
-    legendas a quem pode editar o vídeo). Nada de cliente não oficial (InnerTube) nem de
-    disfarce de outro cliente.
-17. **Obsidian:** o cofre é uma pasta local; o parser de Markdown ignora `.obsidian/` por
-    padrão, lê o frontmatter YAML como metadados e transforma `[[wikilinks]]` em relações
-    do grafo (ingestão, passo 7, P16).
+   Each item has a **stable native ID** from the origin, which replaces the hash in rename
+   and move detection.
+2. **Indexed only, never a live query.** The connector syncs into the workspace; the
+   question is never sent to the origin's API. This keeps retrieval quality (hybrid search,
+   reranker, precise citation), does not send the question to third parties, and respects
+   "no query crosses workspaces".
+3. **Read-only, with the smallest possible scopes.** Never writes to the origin.
+4. **OAuth 2.0 with PKCE through the system browser**, redirecting to the computer itself
+   (`127.0.0.1`), **without going through any Levix server**.
+   - The token lives in the user's **personal vault** (`identity-and-governance-v2.md`,
+     topic 2): it belongs to the person, not to the workspace.
+   - **Personal environment:** public OAuth app registered by Levix.
+   - **Corporate environment:** app registered by **the company itself** (in its Microsoft
+     Entra ID, in its Google Workspace), distributed through the Admin Hub policy.
+   - **AnyContext Server (shared index in the company VPC):** company service account, with
+     the per-reader permission filter mandatory.
+   - Costs and audits required by vendors: see decision 20.
+5. **Sharing a workspace without a server carries the target, never the credential.** The
+   workspace definition (what is shared when there is no AnyContext Server) carries the
+   connector and the target ID; each member signs in with their own account and indexes
+   with their own access.
+6. **Sync through the origin's change feed, not by scanning** (e.g. Google Drive
+   `changes`, Microsoft Graph `delta`, Dropbox cursor, IMAP `CONDSTORE`).
+   - **On the user's computer:** periodic polling with the cursor while AnyContext is open
+     (webhooks cannot be received); recovery diff on opening; optional background service,
+     as for local sources.
+   - **On the AnyContext Server:** webhooks from the origin.
+   - Honors API rate limits (exponential backoff).
+   - **Metered network** (mobile data, metered connection): the resource governor holds
+     connector sync, and **the user can release it** (per source or for now).
+7. **Native cloud formats:** Google Docs, Sheets and Slides exported to DOCX, XLSX and PPTX
+   and handed to the existing parsers; wiki pages (Confluence, Notion) converted from the
+   block tree to deterministic Markdown; cloud shortcuts and links resolved and
+   deduplicated as duplicates (ingestion, step 3).
+8. **No copy of the original.** Only the extracted content is kept, in the encrypted index.
+   The reader tab shows the indexed text and offers **"open at origin"** (native link).
+   Streaming download, with the governor's disk reserve.
+9. **Levix-only connectors**, in Rust, in an `actx-connectors` crate with one trait and one
+   module per connector; no third-party plugins. Shared HTTP client with **corporate
+   proxy** and **company certificates** (internal certificate authority, read from the OS
+   certificate store and from the policy).
+10. **Explicit target selection.** The user browses the origin's tree and picks what they
+    want (a folder, which is recursive, a single file, or origin-specific targets: shared
+    drive, SharePoint library, Gmail label, channel or playlist). **Everything the user
+    selects and has access to is downloaded and indexed**; nothing outside the selection.
+    Include and exclude filters (`.gitignore` syntax) also apply to remote paths.
+11. **Admin Hub policy:** allowed connectors, **allowed account domains** (e.g. only
+    `@company.com` accounts in the corporate environment) and a volume ceiling per source.
+    A block always says which rule blocked it.
+12. **Schema:** `sources` gains `account_ref` (reference to the credential in the vault)
+    and `target_id` (native ID of the target, besides the displayed path). The change
+    cursor lives in the workspace sync state.
+13. **Each connector's own metadata.** Each connector declares a **typed metadata schema**
+    (e.g. YouTube: `view_count`, `like_count`, `published_at`; Jira: `status`, `assignee`;
+    e-mail: `from`, `labels`), usable as a filter by retrieval (question understanding) the
+    same way as the metadata of a domain pack.
+14. **Live metadata kept apart from content.** What changes without the content changing
+    (views, likes, status, labels) lives only in filterable columns, **outside the embedded
+    text and the chunk header**; a change updates only those columns, without re-embedding
+    — the same logic as permissions (ID in the chunk, details elsewhere).
+15. **High-volume, noisy sources** (e.g. comments): the most relevant set is indexed (e.g.
+    the most liked comments and their replies), each item as its own chunk with author and
+    relevance in the header; the source report says how much was left out ("100 of 10,000
+    comments") and the ceiling is configurable by the user, like the crawl ceiling. Comment
+    authors are third-party personal data: reversible pseudonymization of what goes to an
+    external endpoint applies (ingestion, step 7).
+16. **YouTube only through the official API.** Metadata and comments of any public video;
+    transcript through the official caption only when the user owns the channel (the API
+    only hands captions to whoever can edit the video). A third-party video is transcribed
+    by the Video connector (capability, decision 22) from a file the user legitimately
+    has, locally — never through an unofficial client (InnerTube), impersonation of another
+    client, or a third-party transcription service.
+17. **Obsidian:** the vault is a local folder; the Markdown parser ignores `.obsidian/` by
+    default, reads YAML frontmatter as metadata and turns `[[wikilinks]]` into graph
+    relations (ingestion, step 7, P16).
+18. **Source states when something fails:**
+    - item **deleted at the origin** → leaves the index;
+    - **no technical access** (expired or revoked token, changed password, network down) →
+      source **disconnected** ("reconnect account"); nothing is deleted and the indexed
+      content remains searchable;
+    - **access to an item revoked** for the user → the item leaves the index and appears in
+      the source report with the reason.
+19. **Extraction maps** (for origins without a stable API): a declarative selector file,
+    distributed through the verified catalog like the domain packs, **signed by Levix and
+    reviewed by a person** before publishing — never generated and published automatically.
+20. **Full Google Drive, only through the official API**, with the read scope over the
+    whole Drive (no shortcuts such as restricting to the file picker). If Google's security
+    assessment (CASA) does not fit early for the personal environment, the connector comes
+    when it fits; the corporate environment uses the company's internal app, which is
+    exempt from the assessment.
+21. **Online-only files in local folders** (OneDrive, Google Drive, Dropbox — Cloud Files on
+    Windows, File Provider on macOS): the local scanner detects them and **does not force
+    the download**; the source report warns ("120 files are only in the cloud — use the
+    connector or mark 'always keep on this device'"). Files already on disk are indexed
+    normally. Today the scan downloads everything without the user asking: **current bug**.
 
-18. **Estados da fonte quando algo falha:**
-    - item **apagado na origem** → sai do índice;
-    - **sem acesso técnico** (token vencido ou revogado, senha trocada, rede fora) → fonte
-      **desconectada** ("reconectar conta"); nada é apagado e o indexado continua
-      pesquisável;
-    - **acesso a um item revogado** para o usuário → o item sai do índice e aparece no
-      relatório da fonte com o motivo.
-19. **Mapas de extração** (para origens sem API estável): arquivo declarativo de seletores,
-    distribuído pelo catálogo verificado como os pacotes de domínio, **assinado pela Levix e
-    revisado por uma pessoa** antes de publicar — nunca gerado e publicado automaticamente.
-20. **Google Drive completo, só pela API oficial**, com o escopo de leitura de todo o Drive
-    (sem atalhos como restringir ao seletor de arquivos). Se a avaliação de segurança do
-    Google (CASA) não couber cedo no ambiente pessoal, o conector entra quando couber; no
-    ambiente corporativo usa o app interno da empresa, que não passa pela avaliação.
+## Product model: everything is a connector
 
-## Modelo de produto: tudo é conector
+22. **The base is search over local and internal-network files**, with no external call at
+    all. Everything else is a **connector plugged explicitly** by the user — "air-gapped by
+    default" becomes literal: each connector is an opening to the outside, visible and
+    governable. The system help is not a connector. Two internal kinds, one name for the
+    user:
+    - **source connector:** brings content from outside through the contract of decision 1
+      (web sites, Google Drive, OneDrive and SharePoint, YouTube, e-mail, Obsidian…);
+    - **capability connector:** unlocks processing of local files (e.g. transcription of
+      local videos and audio).
 
-21. **A base é a busca nos arquivos locais e da rede interna**, sem nenhuma chamada externa.
-    Todo o resto é **conector plugado explicitamente** pelo usuário — o "air-gapped por
-    padrão" passa a ser literal: cada conector é uma abertura para fora, visível e
-    governável. A ajuda do sistema não é conector.
-22. **Dois tipos internos, um só nome para o usuário:**
-    - **conector de origem:** traz conteúdo de fora pelo contrato da decisão 1 (sites web,
-      Google Drive, OneDrive e SharePoint, YouTube, e-mail, Obsidian…);
-    - **conector de capacidade:** libera um processamento sobre arquivos locais (ex.:
-      transcrição de vídeos e áudios locais).
+    Without the connector, what it would cover appears in the source report ("12 videos not
+    indexed — enable the Video connector"); nothing disappears silently.
+23. **A paid connector delivers more than the base.** E.g. an Obsidian vault is a Markdown
+    folder and the base indexes its text; the Obsidian connector adds the wikilinks in the
+    graph, frontmatter as metadata, embedded notes, aliases and canvas (decision 17).
+24. **Web search at question time is also a connector**, being the main data exit to the
+    outside.
+25. **License per connector**, with a **trial period** per connector, in the signed license
+    verified offline (`levix-platform`). License ≠ policy: the license says what was paid
+    for, the policy says what the company allows; the same engine enforces both and the
+    block message says which one blocked.
+26. **Expired license: sources deactivated, never deleted.** The indexes of that
+    connector's sources are kept but left out of search, and sync stops. On renewal, the
+    source comes back and the incremental diff reprocesses only what changed at the origin.
+    The user can explicitly delete deactivated indexes to free disk.
+27. **In the corporate environment**, the organization license unlocks the connectors, and
+    the Admin Hub policy can still block each one.
 
-    Sem o conector, o que ele cobriria aparece no relatório da fonte ("12 vídeos não
-    indexados — ative o conector de Vídeo"); nada some em silêncio.
-23. **Conector pago entrega mais que a base.** Ex.: o cofre do Obsidian é uma pasta de
-    Markdown e a base indexa o texto dele; o conector Obsidian acrescenta os wikilinks no
-    grafo, o frontmatter como metadados, notas embutidas, aliases e canvas (a decisão 17
-    descreve o que esse conector faz).
-24. **A busca web na hora da pergunta também é conector**, por ser a principal saída de
-    dados para fora.
-25. **Licença por conector**, com **período de teste** por conector, na licença assinada e
-    verificada offline (`levix-platform`). Licença ≠ política: a licença diz o que foi
-    pago, a política diz o que a empresa permite; o mesmo motor aplica as duas e a mensagem
-    de bloqueio diz qual delas bloqueou.
-26. **Licença vencida: fontes desativadas, nunca apagadas.** Os índices das fontes daquele
-    conector ficam guardados mas fora da busca, e o sync para. Ao renovar, a fonte volta e o
-    diff incremental reprocessa só o que mudou na origem. O usuário pode apagar
-    explicitamente os índices desativados para liberar disco.
-27. **No ambiente corporativo**, a licença da organização libera os conectores, e a
-    política do Admin Hub ainda pode bloquear cada um.
+## For the roadmap
 
-28. **YouTube só pela API oficial, confirmado.** Transcrição de vídeo de terceiro vem do
-    conector de Vídeo (capacidade) sobre um arquivo que o usuário tenha de forma legítima,
-    transcrito localmente — nunca de cliente não oficial nem de serviço de transcrição de
-    terceiros.
-29. **Arquivos "só online" em pastas locais** (OneDrive, Google Drive, Dropbox — Cloud Files
-    no Windows, File Provider no macOS): o scanner local os detecta e **não força o
-    download**; o relatório da fonte avisa ("120 arquivos estão só na nuvem — use o conector
-    ou marque 'manter neste dispositivo'"). Os já baixados no disco são indexados
-    normalmente. Hoje a varredura baixa tudo sem o usuário pedir: **bug atual**.
-
-## Para o roadmap
-
-- **Embalagem comercial** (quais conectores são grátis, quais pagos, preços, prazo do
-  teste).
-- Quais conectores existem e em que ordem: decidido no backlog e no roadmap.
+- **Commercial packaging** (which connectors are free, which are paid, prices, trial
+  length).
+- Which connectors exist and in which order: decided in the backlog and the roadmap.
