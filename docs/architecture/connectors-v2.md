@@ -1,7 +1,7 @@
 # Conectores — design alvo (v2)
 
-Documento vivo da revisão dos conectores. Decisões registradas conforme são tomadas; os
-pontos ainda em discussão ficam em **Pendentes**.
+Documento da revisão dos conectores. Todas as decisões estão tomadas; o que é comercial ou
+de ordem de entrega fica para o roadmap.
 
 ## Estado atual
 
@@ -150,11 +150,18 @@ pontos ainda em discussão ficam em **Pendentes**.
 27. **No ambiente corporativo**, a licença da organização libera os conectores, e a
     política do Admin Hub ainda pode bloquear cada um.
 
-## Pendentes
+28. **YouTube só pela API oficial, confirmado.** Transcrição de vídeo de terceiro vem do
+    conector de Vídeo (capacidade) sobre um arquivo que o usuário tenha de forma legítima,
+    transcrito localmente — nunca de cliente não oficial nem de serviço de transcrição de
+    terceiros.
+29. **Arquivos "só online" em pastas locais** (OneDrive, Google Drive, Dropbox — Cloud Files
+    no Windows, File Provider no macOS): o scanner local os detecta e **não força o
+    download**; o relatório da fonte avisa ("120 arquivos estão só na nuvem — use o conector
+    ou marque 'manter neste dispositivo'"). Os já baixados no disco são indexados
+    normalmente. Hoje a varredura baixa tudo sem o usuário pedir: **bug atual**.
 
-- **Arquivos "só online"** de OneDrive, Google Drive e Dropbox dentro de pastas locais:
-  detectar e não baixar, com aviso (proposta; também é bug atual).
-- **YouTube:** a decisão 16 (só API oficial) deixa vídeos de terceiros sem transcrição.
+## Para o roadmap
+
 - **Embalagem comercial** (quais conectores são grátis, quais pagos, preços, prazo do
-  teste): roadmap.
-- Quais conectores existem e em que ordem: decidido no backlog e no roadmap, não aqui.
+  teste).
+- Quais conectores existem e em que ordem: decidido no backlog e no roadmap.
