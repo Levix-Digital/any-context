@@ -565,6 +565,25 @@ são citáveis.
 - **Vetores guardados completos** (são poucas páginas); compactação só sem perda mensurável
   (regra do P18).
 
+### Grafo de entidades e relações (auditoria P16)
+
+1. **Grafo base, sem LLM:** nós = documentos, entidades (P12) e fontes; arestas = "entidade
+   aparece no documento" e relações estruturais conhecidas com certeza — anexo de
+   (containers), versão de (P17), responde a (e-mail), cita ou referencia (links e citações
+   entre documentos). **Resolução de entidades** por similaridade de grafia e de embedding
+   ("Fornecedora X Ltda." = "FORNECEDORA X LTDA"), corrigível pelo usuário (juntar,
+   separar). Já responde "documentos que mencionam X e Y" e permite navegar por entidade.
+2. **Relações tipadas por LLM** (ex.: "X é parte no processo Y", "medicamento M prescrito
+   ao paciente P"): só nos perfis com LLM local, em segundo plano; **tipos vindos do pacote
+   de domínio**; **toda relação guarda o trecho de onde veio** (citável) e uma confiança —
+   relação sem evidência não entra.
+3. **Uso na recuperação:** lista extra na busca (entidades da pergunta puxam os documentos
+   ligados), ferramenta do LLM ("consultar relações", útil no Deep) e fonte estruturada para
+   perguntas enumerativas.
+4. **Um grafo por workspace**, nunca atravessando workspaces, criptografado com a chave do
+   workspace; ligado por padrão só com ganho medido pelo conjunto de avaliação. Visão de
+   entidades no inspector como item da interface Tauri.
+
 ### Resumos hierárquicos (auditoria P14)
 
 - A árvore ganha níveis acima: **pasta > documento > seção (pai) > chunk**. Documento e
