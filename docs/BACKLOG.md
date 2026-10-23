@@ -85,20 +85,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: release.yml only builds Linux x86_64 and Windows x86_64.
 
-### FEAT-005: Embedding model independent of the chat model, with stale-workspace status
-- **Priority**: high
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: The embedding model is derived from the workspace chat model (see BUG-003). Make it a setting of its own, global by default, and record on each workspace the model it was indexed with. Changing it must warn the user strongly that every workspace needs a resync, mark each affected workspace as outdated in its status and guide the resync. A per-workspace embedding override was discussed and left out for now (main case: a sensitive workspace on a local model); recording the model per workspace keeps it possible later. Related to IMP-004.
-
-### FEAT-006: Individual sources: single local files and single web pages
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Allow adding a single file (not only folders) and a single web page (not only a crawled URL prefix) to a workspace, without indexing the same content twice when the file already sits inside a registered folder.
-
 ### FEAT-007: Document mode: work on one whole file
 - **Priority**: high
 - **Status**: open
@@ -190,6 +176,433 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: With /web-search on, the model may search the web to complement the indexed workspace content, deciding when a search is needed, on the one-hop (Fast, Auto-fast) and Deep Search (Deep, Auto-deep) paths. Today the web_search tool exists only on ReAct, which runs only when LanceDB fails to open, so /web-search on changes nothing and MT-WEB-003 fails (the web half of BUG-017). Search results are supplementary lookup, not workspace documentation: they are not indexed (unlike web pages added to a workspace as sources with /web, which are always indexed). Requirements: results are untrusted content and are neutralized in prompts like chunk text (BUG-015, actx_agent::prompt_safety); they reach the model and the answer marked as web sources, kept apart from workspace citations; with /web-search off nothing leaves the machine. Amend ADR-0145, which recorded that all web content is indexed before inference, to separate workspace web sources (indexed) from authorized live web search (not indexed). Open decisions: how the model decides to search on the routed paths (tool call, router signal or Deep Search step), how many results and whether to fetch full pages, latency budget.
 
+### FEAT-020: [ingestion] Single local file and single web page as sources
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 1, Decisions. Besides a recursive folder and a crawled site, the user can add a single local file and a single web page (only that URL, no links followed). A file selected on its own ignores the exclude filters. Supersedes FEAT-006.
+
+### FEAT-021: [ingestion] Recursive website scope: host and path prefix, robots.txt, 3000-page ceiling
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 1, Recursive website. A crawled site stays on the same host and inside the path prefix of the given URL and honors robots.txt. Default ceiling of 3000 pages, configurable globally and per source; when the site has more, the user is told how many were indexed and how to raise the ceiling of that source.
+
+### FEAT-022: [ingestion] Embedded headless Chromium, sandboxed and shipped in the installer
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 2, Chromium: distribution and security. An embedded headless Chromium renders pages so SPA sites arrive with content. It ships in the installer and is updated with every AnyContext release; it runs with the sandbox on, a disposable profile per run, downloads disabled and a timeout per page.
+
+### FEAT-023: [ingestion] Render-or-fetch calibration per site and per page
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 2, When to render. Per-site calibration on a small sample (static fetch versus rendering, static when the fetch brings at least about 95% of the text), per-page check for empty or JavaScript-app pages, recalibration on each sync with a sample page, and the mode shown in the source status with an option to force rendering. When in doubt it renders.
+
+### FEAT-024: [models] ONNX content-block classifier for web pages
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 2, Web: rendering and conversion to Markdown. A small ONNX classification model (not generative) marks each DOM block as content or noise (menu, footer, advertising), distributed through the verified model catalog. Without it, the Readability-style heuristic of IMP-019 plays the same role.
+
+### FEAT-025: [ingestion] Incremental web re-sync with conditional requests and linked documents
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 2, Decisions. Web re-sync uses ETag, Last-Modified and the sitemap lastmod to skip unchanged pages; pages that disappear from the site leave the index; documents linked from the site within the source scope (PDF, DOCX...) are downloaded and go through the pipeline like any file.
+
+### FEAT-026: [ingestion] Exact duplicates stored once with occurrences
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3, Duplicates and versions (audit P17). A file with the same hash stores and embeds its whole parent-child tree once, each location being an occurrence pointing to it. An identical passage in different documents reuses the vector through the per-chunk diff but still belongs to its own document and parent.
+
+### FEAT-027: [ingestion] Version families by text fingerprint, with user split and join
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3, Duplicates and versions (audit P17). A language-independent fingerprint (MinHash/SimHash) groups near-duplicate documents into a version family at the document level. The current version is the one with the most recent document date (mtime as tiebreaker); previous ones stay indexed and marked. The user can split wrong groups and join undetected versions. Retrieval use belongs to the retrieval batch.
+
+### FEAT-028: [ingestion] Parsers for legacy Office, ODF and RTF
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 4, Decisions. Real parsers for .doc, .ppt, .xls, .odt, .odp, .ods and .rtf. Today .doc/.ppt are opened as ZIP and fail, and .odt and .rtf are indexed as raw text or fail.
+
+### FEAT-029: [ingestion] Parsers for e-mail (.eml, .msg) and e-book (.epub)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 4, Decisions. E-mail body and headers parsed, with attachments going back into the pipeline as files; EPUB parsed by chapter. Today .eml, .msg and .epub are indexed as raw text or fail.
+
+### FEAT-030: [ingestion] Per-page PDF state: digital, scanned or broken text
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 4, Decisions (audit P9). Each PDF page is classified as digital, scanned or digital with broken text (fonts without Unicode mapping, CID), the third treated as scanned. Detection is language-independent (replacement, private-use and control characters, improbable sequences), checked against a quick OCR when in doubt. Mixed PDFs send each page down the right path.
+
+### FEAT-031: [ingestion] Source report: unindexed files and discarded chunks with the reason
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 4, Decisions, and section 6, Decisions. Password-protected, corrupted or unsupported files, blocked container items and every chunk discarded by the quality gate are reported with the reason in the sync report and an inspection command, instead of a count or nothing. Principle: nothing disappears silently.
+
+### FEAT-032: [ingestion] Archives opened recursively as child documents
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 4, Containers and archives (audit P1). ZIP, 7z, TAR, GZ, BZ2 and XZ are opened recursively; each inner item is a child document with chained provenance and goes through the normal pipeline. Depth, uncompressed size and compression ratio limits, rejection of `../` paths, blocked items in the report. The container and each child have their own hash; source filters apply inside; citations show the inner path and opening the original extracts the item to a temporary folder.
+
+### FEAT-033: [ingestion] Mailboxes as containers: MBOX and PST/OST
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 4, Containers and archives (audit P1). MBOX and Outlook PST/OST are opened as containers: each message is a child document with provenance (`office.pst > Inbox > Re: contract > draft.docx`) and its attachments go back into the pipeline.
+
+### FEAT-034: [ingestion] RAR archives, read-only
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 4, Containers and archives (audit P1). RAR is read like the other archives, if the decompressor's license allows it; otherwise it is refused with a clear message. Depends on the open RAR license question.
+
+### FEAT-035: [ingestion] Unlock protected files with passwords from the personal vault
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 4, Vault of file passwords. Passwords per source or file live in the user's personal vault; settings.db keeps only a secret_id. Only the ingestion worker reads a password, in memory, wiped right after; never in logs, reports, indexes or prompts, and no agent tool reads it. Option to always ask; a wrong password fails the file and is reported, with no guessing. Depends on the personal vault (identity-and-governance-v2.md, section 2).
+
+### FEAT-036: [ingestion] Hierarchical parent and child chunks per content type
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Decisions. Small chunks are embedded and searched; each keeps a link to a stored, not embedded parent that can be handed to the LLM: section for Markdown, Office, web and e-book; page for PDF; function, class or module for code; sheet plus row range for tables; message for e-mail.
+
+### FEAT-037: [models] Multilingual ONNX OCR replacing Tesseract
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Decisions. OCR runs through an ONNX model (candidate PaddleOCR exported to ONNX, alternative docTR) that detects the page's writing system and uses the matching recognition model, distributed through the model catalog. Replaces the external Tesseract looked up on the PATH.
+
+### FEAT-038: [ingestion] Full DOCX: headings, tracked changes, comments, headers and notes
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Full Office and PDF (audit P6 and P7). Heading styles become the section path; tables and lists preserved. The main text is the current version; each tracked change is its own item with author, date and passage; comments are items linked to the commented passage. Headers and footers indexed once per document; footnotes and endnotes linked to their section.
+
+### FEAT-039: [ingestion] Full PPTX and XLSX: notes, values and formulas, merges, hidden sheets
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Full Office and PDF (audit P6 and P7). PPTX: slide titles as the section path and speaker notes with the slide; comments as items. XLSX: the computed value is indexed and the formula kept as metadata, merged cells expanded, named ranges as labels, hidden sheets indexed and marked hidden; comments as items.
+
+### FEAT-040: [ingestion] Full PDF: outline, annotations, form fields, attachments, signatures
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Full Office and PDF (audit P6 and P7). The outline becomes the section path; annotations are items with author and date; AcroForm fields are key-value pairs; attached files go through the containers (FEAT-032); digital signatures give signer, date and whether the document changed after signing, validated offline with the OS root certificates or marked not verified.
+
+### FEAT-041: [ingestion] Calendar, contacts and MHTML parsers
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Full Office and PDF, other formats level 1. Parsers for .ics (events), .vcf (contacts) and MHTML (through the HTML converter).
+
+### FEAT-042: [ingestion] Visio, XPS and Apple iWork parsers
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Full Office and PDF, other formats level 2. Parsers for Visio (.vsdx), XPS and Apple iWork (Pages, Numbers, Keynote; proprietary and harder format).
+
+### FEAT-043: [ingestion] Academic formats: LaTeX, bibliographies, notebooks, Parquet, Arrow
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Academic, engineering, GIS and health formats (audit P3). LaTeX by section with equations kept in LaTeX and \cite linked to the reference; BibTeX, RIS and CSL-JSON as records; Jupyter, R Markdown and Quarto with prose cells, code through the code parser and text outputs (images through the vision model); Parquet and Arrow as queryable tables. SPSS and Stata come later.
+
+### FEAT-044: [ingestion] Engineering formats: DXF, IFC, STEP/IGES headers; DWG refused
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Academic, engineering, GIS and health formats (audit P4). DXF texts, layers and block attributes with the title block as fields; IFC with site > building > storey > space as the section path and each element with its properties; STEP and IGES by the header only; DWG refused with a message suggesting export to DXF or PDF.
+
+### FEAT-045: [ingestion] GIS formats: GeoJSON, KML/KMZ, Shapefile, GeoPackage
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Academic, engineering, GIS and health formats (audit P4). Each feature becomes a record with its attributes; coordinate system and covered area stored as metadata.
+
+### FEAT-046: [ingestion] Health formats: DICOM, HL7 v2, FHIR, CDA
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Academic, engineering, GIS and health formats (audit P5). DICOM tags, structured reports and embedded PDFs, with the medical image off by default; HL7 v2 with each segment as a record; FHIR with each resource as an item and references preserved; CDA by its clinical sections.
+
+### FEAT-047: [ingestion] Local audio and video transcription, existing captions first
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Audio and video (audit P2). Audio MP3, WAV, M4A, OGG, FLAC, Opus and the audio track of MP4, MKV, MOV, WebM read with Symphonia; local multilingual transcription with a Whisper-family ONNX model per profile, language detection and VAD. Embedded captions or a sibling .srt/.vtt are used directly. Chunks follow sentences and turns, locators are start and end in seconds, parents are blocks of a few minutes or chapters. It is the Audio and video connector of the Pro plan (connectors-v2.md, decisions 22 and 28).
+
+### FEAT-048: [ingestion] Speaker identification in transcripts
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Audio and video (audit P2). Optional per profile and on by default in the legal pack: speakers come out as Speaker 1, 2... and the user can name them for the whole file.
+
+### FEAT-049: [ingestion] Video key frames and slides through FFmpeg, vision and OCR
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Audio and video (audit P2). Key frames at scene changes are described by the vision model and lecture or meeting slides go through OCR. FFmpeg ships in the installer as a separate library to comply with the LGPL.
+
+### FEAT-050: [ingestion] Long jobs: estimate, confirmation and progressive indexing
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Long jobs. Before a large job: expected chunks and time on this machine, from previous syncs with the same embedding target. Above a threshold (e.g. 10 minutes) the user chooses to index everything, part or skip. The job runs in the background, what is indexed is searchable at once, and an interruption loses no work. User files are never split or altered.
+
+### FEAT-051: [models] Benchmark of scanned-page extraction and vision models per profile
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 6, Page extraction and Vision model per profile. Measure Granite-Docling, PaddleOCR-VL and the OCR + layout cascade on a real set of scanned pages, tables, forms and handwriting, and the vision model candidates on real photos, diagrams and charts: quality and time on CPU per profile, plus the license of each model. The results inform the model choice, which stays the user's decision (open benchmark question).
+
+### FEAT-052: [ingestion] Scanned-page extraction per profile
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 6, Page extraction (audit P8) and Local Document AI via ONNX. The text layer of a digital page is always the truth. Scanned, broken-text, photo or handwritten pages go to the page parsing model on profiles that can afford it, or to OCR + layout model + 2D heuristic on light profiles; a vision LLM only by explicit configuration. Acceptance: the Document AI components are wired in production (today IngestionModelRouter::default() at ingestion/orchestrator.rs:203 and 215 leaves vision disabled and no layout extractor or scan sentinel, so every candidate falls to the 2D heuristic). Supersedes the Document AI part of IMP-006.
+
+### FEAT-053: [ingestion] Known-layout forms extracted by LSIE as field records and tables
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 6, Forms as data (LSIE). A known layout is recognized by geometry and fixed labels and its stored map drives LSIE for deterministic extraction. On a digital page every value must exist in the text layer. Each field becomes field number + label + value; the form is a record and forms of the same model become a queryable table. A test corpus per sector runs on every change, starting with the fictitious CMR in crates/any-context-core-rs/tests/fixtures/forms/. The shared LSIE crate belongs to the platform batch.
+
+### FEAT-054: [ingestion] Automatic layout mapping (phase 0) per profile with a local anomaly gate
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 6, Forms as data (LSIE). For a new layout, phase 0 generates the map (field, box, anchor label): box and typography heuristics on light profiles, a small label-value model on medium ones, the page parsing model on high ones (field model license part of the benchmark). An anomaly gate with a local model flags suspicious values; cloud only by explicit configuration. The map review screen belongs to the desktop UI batch.
+
+### FEAT-055: [ingestion] Layout maps shared with DocMapper
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 6, Forms as data (LSIE). The layout map format is common to AnyContext and DocMapper, so a layout mapped in one serves the other; AnyContext can hand over to DocMapper what belongs to it (advanced visual mapping, PDF stamping, field export). Local integration, no cloud; AnyContext works without DocMapper.
+
+### FEAT-056: [ingestion] Image descriptions by the profile's local vision model
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 6, Decisions, and Vision model per profile. Photos, diagrams and charts get an English description from the profile's local ONNX vision model, indexed with the OCR text and metadata. The image is searchable first through OCR and gets the description in the background. Model per profile as listed, to be confirmed by FEAT-051.
+
+### FEAT-057: [ingestion] Precise locators per content type
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Precise locators (audit P22). Each chunk stores a locator for its type: page + region for PDF and images, sheet + cell range, start and end seconds, lines, section + paragraph for Office, URL + anchor, container path + item locator, field + region. The child has the precise locator and the parent the extent covering its children. Enables FEAT-016.
+
+### FEAT-058: [ingestion] Document metadata: language, document date, type, title, authors
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Document metadata and entities (audit P12). Each document gets its language, the document date extracted from the content (not the mtime), type, title and authors, usable as filters.
+
+### FEAT-059: [ingestion] Zero-shot entity extraction with types per workspace
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Document metadata and entities (audit P12). Entities with types configurable per workspace (case number, patient, sheet number, tax identifier...) extracted by a zero-shot multilingual ONNX model (candidate GLiNER; license of each checkpoint to be confirmed). They become filters and facets in retrieval.
+
+### FEAT-060: [ingestion] Personal and sensitive data tagging
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Personal data, sensitive data and secrets (audit P13). The entity model tags generic personal data categories (name, identity document, health, financial, contact), with no rule tied to one country. Nothing is masked in the index or for the user. Reversible pseudonymization for external endpoints belongs to the retrieval batch.
+
+### FEAT-061: [ingestion] Hierarchical summaries of documents and folders
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Hierarchical summaries (audit P14). Document and folder summaries generated by the profile's local LLM, stored as their own embedded and searchable nodes (never prefixed to chunks), regenerated only when the content hash changes, in the background. Document summary in its language; mixed-language folder summary in English. No summaries without a local LLM unless a cloud LLM is explicitly authorized.
+
+### FEAT-062: [ingestion] Late chunking with a long-context local embedding model
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Late chunking (audit P15). With a local long-context embedding model, the model reads the whole parent and each child gets a vector with that context; an edit re-embeds only the children of that parent. On by default only when the workspace evaluation set shows a gain.
+
+### FEAT-063: [ingestion] Contextual retrieval sentences by the profile's local LLM
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Contextual retrieval (local LLM). On profiles with room for a local LLM (on by default there, changeable by the user), the profile's LLM writes one context sentence per chunk into the embedded header, in the background after the chunk is already searchable. The context model identity is part of the chunk key, so switching it warns and reindexes the affected chunks. Never an implicit external service.
+
+### FEAT-064: [ingestion] Base entity and document graph without an LLM
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Entity and relation graph (audit P16). Nodes are documents, entities and sources; edges are entity mentions and structural relations known for certain (attachment of, version of, replies to, cites). Entity resolution by spelling and embedding similarity, correctable by the user. One graph per workspace, encrypted with the workspace key, on by default only with a measured gain.
+
+### FEAT-065: [ingestion] Typed relations by the local LLM with cited evidence
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Entity and relation graph (audit P16). On profiles with a local LLM, in the background, relations typed by the domain pack (e.g. party in case, drug prescribed to patient), each keeping the passage it came from and a confidence; a relation without evidence does not get in. Use in retrieval belongs to the retrieval batch.
+
+### FEAT-066: [ingestion] Page-image embeddings for visually rich pages
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Visual page retrieval (audit P10). Only visually rich pages (charts, diagrams, drawing sheets, handwritten forms) get multi-vector page-image embeddings (ColPali family), per profile via ONNX, chosen by benchmark and permissive license, stored at full size. Off on light profiles. Retrieval use belongs to the retrieval batch.
+
+### FEAT-067: [models] Local multilingual ONNX embedding models per profile as the default
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The default embedding model is local, multilingual and runs via ONNX, varying by profile; permissive candidates: multilingual-e5-small/base, BGE-M3, Qwen3-Embedding-0.6B. Cloud providers only by explicit choice.
+
+### FEAT-068: [storage] Learned sparse vectors in the lexical index
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 9, Decisions (audit P19). Only when the profile's embedding model already produces sparse vectors in the same pass (e.g. BGE-M3): stored in the lexical index as a weighted field, per workspace and encrypted, as an extra RRF list, on by default only with a measured gain.
+
+### FEAT-069: [storage] Encrypted storage layer for LanceDB and Tantivy with the workspace data key
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 10, Decisions, and section 9, Decisions. LanceDB and Tantivy files are encrypted on disk through storage layers built by AnyContext (a Tantivy Directory, a LanceDB storage layer) with the workspace data key of identity-and-governance-v2.md, section 2. Acceptance: the machine-id key with a fixed salt (security/mod.rs) and the clear lexical index are gone. Depends on the key hierarchy. Supersedes IMP-012.
+
+### FEAT-070: [storage] Approximate vector index from 100 thousand chunks
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 10, Decisions. Exhaustive search below 100 thousand chunks per table (configurable); above it an ANN index is built automatically in the background and rebuilt after many changes, with new chunks not yet in it found by exhaustive search and fused.
+
+### FEAT-071: [storage] Compact vectors only when needed and without measurable loss
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 10, Compact vectors (audit P18). No compaction by default; int8 or binary quantization only when the index does not fit memory or search gets slow, fetching more candidates and re-ranking with the full vectors, kept only with at most 0.5 points of hit-rate loss and switched off automatically when a loss appears. Matryoshka truncation is never used.
+
+### FEAT-072: [ingestion] Deterministic extraction quality signals per file
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: ingestion self-evaluation (audit H1 and H2), item 1. On every profile, without an LLM: an extraction quality score per file from text per page, empty pages, broken text, OCR confidence, filled form fields, discarded chunks and parser errors, shown in the source report.
+
+### FEAT-073: [ingestion] Findability probing with synthetic questions and the evaluation set
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: ingestion self-evaluation (audit H1 and H2), items 2, 6 and 7. On profiles with a local LLM, per source, a sample of chunks gets a synthetic question in the document's language; retrieval runs and the hit rate is the source's findability score. Background, low priority, local only, questions stored encrypted. The questions form the per-workspace retrieval evaluation set (part of IMP-008).
+
+### FEAT-074: [ingestion] Automatic reprocessing with alternative strategies and strategy memory
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: ingestion self-evaluation (audit H1 and H2), items 3 to 5. A low-scoring file is reprocessed with an alternative strategy (OCR instead of the text layer, rendering, another form mapping, another chunk size) and the best one stays; the winning strategy is remembered per source and file type. The user can ask for reprocessing from the source report.
+
+### FEAT-075: [ingestion] Domain pack format, distribution and selection per workspace
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: domain packs (audit H3). A declarative pack (entity types, metadata and filters, pseudonymization types, heavy processors on by default, question templates, answer guidelines, layout maps) distributed through the verified catalog; several packs per workspace and custom packs; internal names in English, labels in the UI language. Parsers always work without a pack.
+
+### FEAT-076: [ingestion] Content of the 11 launch domain packs
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: domain packs (audit H3). Personal (default), legal, health, engineering, accounting, logistics, HR, academic, IT, public sector and real estate packs.
+
+### FEAT-077: [ingestion] Automatic sync of the chosen sources while AnyContext is open
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: automatic sync of sources (audit P20), items 1 to 6. File system watching only on chosen sources with batching, periodic fallback scan for network folders and removable drives, a recovery diff when AnyContext opens, daily web recrawl configurable per source, low priority; manual sync stays and automatic sync can be turned off per source.
+
+### FEAT-078: [ingestion] Optional background sync service
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: automatic sync of sources (audit P20), item 7. With AnyContext closed nothing runs by default; an optional background service keeps sources up to date for whoever chooses it.
+
+### FEAT-079: [ingestion] Machine resource governor
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: machine resource governance (audit P21). One governor for all heavy work in ingestion and search: question > base indexing > enrichments > self-evaluation; adaptation to battery, load, temperature and metered networks; memory budget per profile with models loaded on demand; disk reserve checked before large jobs; only a pause button and a status indicator for the user; enterprise windows and CPU ceiling by policy.
+
+### FEAT-080: [governance] Per-source access control with permission scopes
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: per-source access control (audit P23). Each chunk stores the permission scope ID of its document; scopes per workspace and directory users and groups live in separate SQLite databases; origin identities link through SSO and SCIM and what does not link gets no access; permission changes need no reprocessing; unknown permission denies by default. Acceptance: pre-filter by readable scopes in every retriever and aggregates per scope.
+
 ## Improvements
 
 ### IMP-002: Remove the core dependency on actx_installer
@@ -198,13 +611,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-16, v0.45.0, PR #333
 - **Plan**: -
 - **Description**: The core crate (any-context-core-rs) calls actx_installer directly from commands/engine.rs (install paths, latest release lookup, update logging), so actx_installer cannot be listed in architecture.forbidden_core_imports. In the hexagonal style the core should reach this through a port implemented by an adapter.
-
-### IMP-004: Per-table vector dimension in LanceDB with assisted reindex
-- **Priority**: high
-- **Status**: planned
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: any_context_per_table_vector_dimension_in_lancedb_with_assisted_reindex
-- **Description**: storage/lancedb.rs fixes DEFAULT_VECTOR_DIM = 1536 and ingestion writes every table with it, while Gemini (768), Ollama nomic-embed-text (768) and local ONNX embedders (384/768) produce other sizes. Store model and dimension per workspace/table, detect divergence and offer assisted reindex. First LanceDB schema change since C0: needs migration and rollback; combine with the Frente D parent_id change (roadmap 2.2 goal 4).
 
 ### IMP-005: Single source for the Core and Installer model catalogs
 - **Priority**: medium
@@ -255,26 +661,145 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Prompts live in five places (`config/AGENT.md`, `actx-cli/src/prompt.rs`, `retrieval/prompt.rs`, the Deep Search prompts in `deep_search.rs`, `config/SYSTEM_KNOWLEDGE.md`) with overlapping and conflicting rules, for example four citation formats (`[chk_1]`, `[path:45-60]`, citation footers, file names). Goal: a minimal base agent prompt, with each function (deterministic RAG, agentic search, Deep Search, source management) moved into a skill loaded when needed, and every prompt reviewed for ambiguity and contradictions. There is no skill mechanism today.
 
-### IMP-012: Encrypt the BM25 index file at rest
+### IMP-015: [ingestion] Single source model: a sources table replaces the three source tables
 - **Priority**: medium
 - **Status**: open
-- **Found**: 2026-10-17, BUG-001 planning, 2026-10-17
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: bm25_index.bin keeps chunk text in plaintext because lexical search needs the terms (ADR-0131 consequence), so the indexed text is not fully encrypted on disk. Options: encrypt the serialized file with the hardware-bound key and decrypt on load, or store only hashed terms.
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 1, Single source model. A `sources` table in settings.db (id, workspace, kind local/web/builtin/connector:<name>, target, recursive, display_name, created_at, filters, account_ref, target_id) replaces workspace_folders, workspace_web_urls and workspace_sources, with a migration of existing sources. The unused columns of workspace_web_urls are dropped.
 
-### IMP-013: Compact and prune LanceDB after deletes and forced reindexes
+### IMP-016: [ingestion] Include and exclude filters in settings.db with .gitignore syntax
 - **Priority**: medium
 - **Status**: open
-- **Found**: 2026-10-17, BUG-001 implementation, 2026-10-17
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Deletes and actx sync --force only write deletion markers and new versions, so replaced chunk data (including removed or changed documents) stays on disk in old Lance versions until a compaction and prune runs. Only the plaintext migration (ADR-0135) prunes today. Add periodic optimize (compact + prune) after syncs that delete rows.
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 1, Filters. Filters leave the code: global defaults in settings.db, filled with today's ignored folders and extensions, overridable per source. `.gitignore` syntax evaluated with the `ignore` crate; the `.gitignore` of indexed folders is honored by default with an option to turn it off. Only extensions some parser supports get in; the user can turn one off or map an unknown extension to the text parser.
 
-### IMP-014: Asymmetric retrieval prefixes for gemini-embedding-2
+### IMP-017: [ingestion] System help as a built-in source with a fixed index per version
 - **Priority**: medium
 - **Status**: open
-- **Found**: 2026-10-17, 2026-10-17, BUG-003/BUG-013 M1 evidence
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Google's embeddings guide says gemini-embedding-2 rejects task_type and expects text prefixes instead: 'task: search result | query: {content}' for queries and 'title: {title} | text: {content}' (title: none) for documents. The Gemini adapter sends raw text for both today, which works but leaves retrieval quality on the table. Add the prefixes per role (query vs document) through the embedding port, and measure with IMP-008. Changing them changes the vector space, so it reuses the BUG-003 embedding target record (a new target key) to trigger the reindex.
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 1, System help. AnyContext's documentation stops being the Global workspace: it becomes a `builtin` source embedded in the binary, processed by the same pipeline, in a separate fixed index that ships with each version and needs no sync. It is never mixed into user workspace results. The `anycontext_help` tool belongs to the retrieval batch.
+
+### IMP-018: [ingestion] Read each local file once per sync
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 2, Decisions. Local files are read at the origin, without copying, and only once: the same buffer feeds the hash, the parser and the enrichment (today there are up to three reads).
+
+### IMP-019: [ingestion] Deterministic HTML to Markdown with a Readability fallback; Jina Reader removed
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 2, Web: rendering and conversion to Markdown. Selected DOM blocks become Markdown in Rust, keeping headings, tables, lists and code without rewriting text; a Readability-style heuristic selects content when the classifier model is not installed. Local .html/.htm use the same converter. The Jina Reader is removed entirely (code, configuration and JINA_API_KEY).
+
+### IMP-020: [ingestion] Content-hash change detection and hash-based rename and move
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3, Decisions. mtime and size are only the fast filter; when they changed, the content hash decides, and a touch without a content change only updates the mtime cache. A vanished file and a new one with the same hash in the same source are a rename or move: only the chunks' path changes, no re-embedding. Replaces the name-and-size heuristic (ingestion/scanner.rs:316-366).
+
+### IMP-021: [ingestion] Per-chunk diff keyed by the hash of the embedded text
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3, Decisions. The chunk id becomes the hash of the embedded text plus the embedding target. On an edit the file is re-chunked, known chunks reuse their vectors, only new ones are embedded and the ones that stopped existing leave. An interrupted sync resumes where it stopped.
+
+### IMP-022: [ingestion] Content classification by binary signature and text encoding detection
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 4, Decisions. Magic bytes decide the parser and the extension only breaks ties: ZIP containers are told apart by [Content_Types].xml or the mimetype file, OLE/CFB by their internal streams. Text has its encoding detected (UTF-8, UTF-16 with BOM, legacy encodings of any language) and CSV, JSON or Markdown are recognized by content.
+
+### IMP-023: [ingestion] Chunk size in tokens, overlap only in running text
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Decisions. A single target of about 512 tokens for every parser, with a hard ceiling at the embedding model's input limit (today 1800 characters, PDF up to 8000). Overlap of about 10-15% only in running text (prose, PDF, Office, e-mail, web); code, tables and structured data are cut by structure without overlap.
+
+### IMP-024: [ingestion] Table chunks repeat the header and use records for wide tables
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Decisions. Each row chunk repeats the table header and carries its location (sheet and row range) for citation; tables wider than about 15 columns use a `column: value` record per row instead of a Markdown row.
+
+### IMP-025: [ingestion] Quality gate keeps only safe, language-independent filters
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 6, Decisions. Only empty or too short, loose syntax, minified line and binary (control characters) filters stay. The byte entropy and lexical density filters go: they discard non-Latin text and tables or logs with repeated values. Each discard carries a reason for the source report (FEAT-031).
+
+### IMP-026: [ingestion] Contextual header (title and section path) replaces the envelope
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Decisions. Metadata (source, location, parent, hashes, dates) lives in columns and is never embedded. The embedded header is only document title + section path, weighted lower than the body in the lexical index. The envelope (first-sentence summary + 7 keywords by frequency) and the `// Context:` breadcrumb are removed. Acceptance: the English and Portuguese stop-word list goes away (ingestion/enricher.rs:140).
+
+### IMP-027: [ingestion] Embedding model independent of the chat model, target on each chunk
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions, and section 7, Decisions. The embedding model is defined by the model kit and changeable by the user, no longer derived from the chat model; each chunk records its embedding_target (provider, model, dimension). Continues the M1 work on branch feat/imp-004-embedding-model. Supersedes FEAT-005.
+
+### IMP-028: [ingestion] Embedding never switches model silently; OpenAI and mock fallbacks removed
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. If the chosen model fails, the files fail, the user is told and the next sync tries again. The fallback to OpenAI and the offline mock (deterministic pseudo-vectors, ingestion/orchestrator.rs:770 and 1007) end.
+
+### IMP-029: [ingestion] Query and document prefixes per model from the catalog
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The catalog declares each model's query and document prefixes and the pipeline applies them at ingestion and at query time (e.g. gemini-embedding-2, e5). Supersedes IMP-014.
+
+### IMP-030: [ingestion] Embedding batches sized by tokens and API limits, controlled parallelism
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. Batches limited by tokens and by the provider's maximum, with controlled parallelism for remote providers and use of the available CPU/GPU locally. Today it is one call per file, unbounded, one at a time.
+
+### IMP-031: [storage] Tantivy lexical index per workspace without chunk text
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 9, Decisions. Tantivy replaces the in-house BM25: on-disk, incremental, segment-based, with fields of different weights (header lower than body). One index per workspace; deleting a workspace deletes its directory. The index stores terms and ids only; the text comes from LanceDB.
+
+### IMP-032: [ingestion] Multilingual lexical tokenization without per-language tables
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 9, Decisions. Word segmentation by Unicode UAX #29 with dictionaries for languages without spaces (ICU4X), generic accent removal by NFKD without combining marks instead of the manual Latin-only table, identifier splitting (camelCase, snake_case) kept with the whole identifier, and no stemming.
+
+### IMP-033: [storage] One LanceDB table per workspace and embedding target at the model's dimension
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 10, Decisions. Each workspace has its own LanceDB tables, one per embedding_target at the model's real dimension, instead of the single workspace_chunks table filtered by a column and padded to 1536. On a model switch the new table fills while the old one keeps answering and is dropped at the end. Supersedes IMP-004.
+
+### IMP-034: [storage] Automatic compaction and schema migrations on open
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 10, Decisions. Compaction and pruning after syncs with many deletes or reindexes, so replaced data does not stay on disk in old Lance versions. Migrations leave the sync path: the schema is versioned and migrated once, when the store is opened. Supersedes IMP-013.
 
 ## Adjustments
 
@@ -506,3 +1031,51 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-19, PR #372
 - **Description**: Retrieval treats the Default workspace as no workspace filter: dense search (retrieval/pipeline.rs:617, 660, 715), metadata search (pipeline.rs:770, 946) and BM25 (retrieval/bm25.rs:213) return chunks of all workspaces for a query in Default, and a request without a workspace falls back to Default (pipeline.rs:592). Expected: Default sees only its own files, plus the Global AnyContext documentation, like every other workspace. Decided by the user on 2026-10-19.
+
+### FEAT-005: Embedding model independent of the chat model, with stale-workspace status
+- **Priority**: high
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-027
+- **Description**: The embedding model is derived from the workspace chat model (see BUG-003). Make it a setting of its own, global by default, and record on each workspace the model it was indexed with. Changing it must warn the user strongly that every workspace needs a resync, mark each affected workspace as outdated in its status and guide the resync. A per-workspace embedding override was discussed and left out for now (main case: a sensitive workspace on a local model); recording the model per workspace keeps it possible later. Related to IMP-004.
+
+### FEAT-006: Individual sources: single local files and single web pages
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-020
+- **Description**: Allow adding a single file (not only folders) and a single web page (not only a crawled URL prefix) to a workspace, without indexing the same content twice when the file already sits inside a registered folder.
+
+### IMP-004: Per-table vector dimension in LanceDB with assisted reindex
+- **Priority**: high
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: any_context_per_table_vector_dimension_in_lancedb_with_assisted_reindex
+- **Closed**: 2026-10-23, Superseded by IMP-033
+- **Description**: storage/lancedb.rs fixes DEFAULT_VECTOR_DIM = 1536 and ingestion writes every table with it, while Gemini (768), Ollama nomic-embed-text (768) and local ONNX embedders (384/768) produce other sizes. Store model and dimension per workspace/table, detect divergence and offer assisted reindex. First LanceDB schema change since C0: needs migration and rollback; combine with the Frente D parent_id change (roadmap 2.2 goal 4).
+
+### IMP-012: Encrypt the BM25 index file at rest
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, BUG-001 planning, 2026-10-17
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-069
+- **Description**: bm25_index.bin keeps chunk text in plaintext because lexical search needs the terms (ADR-0131 consequence), so the indexed text is not fully encrypted on disk. Options: encrypt the serialized file with the hardware-bound key and decrypt on load, or store only hashed terms.
+
+### IMP-013: Compact and prune LanceDB after deletes and forced reindexes
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, BUG-001 implementation, 2026-10-17
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-034
+- **Description**: Deletes and actx sync --force only write deletion markers and new versions, so replaced chunk data (including removed or changed documents) stays on disk in old Lance versions until a compaction and prune runs. Only the plaintext migration (ADR-0135) prunes today. Add periodic optimize (compact + prune) after syncs that delete rows.
+
+### IMP-014: Asymmetric retrieval prefixes for gemini-embedding-2
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17, BUG-003/BUG-013 M1 evidence
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-029
+- **Description**: Google's embeddings guide says gemini-embedding-2 rejects task_type and expects text prefixes instead: 'task: search result | query: {content}' for queries and 'title: {title} | text: {content}' (title: none) for documents. The Gemini adapter sends raw text for both today, which works but leaves retrieval quality on the table. Add the prefixes per role (query vs document) through the embedding port, and measure with IMP-008. Changing them changes the vector space, so it reuses the BUG-003 embedding target record (a new target key) to trigger the reindex.
