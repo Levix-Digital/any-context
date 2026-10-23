@@ -99,33 +99,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Crash and error reports collected only in beta/RC builds, off by default, with a global kill switch (such as `DO_NOT_TRACK` or an enterprise policy) and always off under the offline and privacy presets. Discussion item: must not conflict with the air-gapped positioning.
 
-### FEAT-013: Minimal user profile
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: A short profile (name, language, role, answer style) collected during onboarding, with the rest in settings, always available to the agent so answers fit the user. Automatic learning of user traits from conversations was discussed and left out for now (wrong inferences, preferences mixed with grounded facts, privacy).
-
-### FEAT-014: Explicit user memories
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Preferences the user asks the agent to keep ("remember that...", `/remember`), or that the agent proposes to keep and the user confirms, stored locally in a visible and editable list, scoped globally or per workspace. Nothing is saved silently.
-
 ### FEAT-016: Open a cited chunk at its file and line
 - **Priority**: medium
 - **Status**: open
 - **Found**: 2026-10-17, v0.45.0, product ideas review
 - **Plan**: -
 - **Description**: Jump from a citation in an answer to the cited file and line. Depends on BUG-010.
-
-### FEAT-018: AnyContext MCP server
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Expose AnyContext workspaces through an MCP server so other agents and IDEs can query them. There is no API or MCP surface today. Discussion item.
 
 ### FEAT-020: [ingestion] Single local file and single web page as sources
 - **Priority**: medium
@@ -827,6 +806,209 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 4, Embedding model identity. The embedding target is what produces the vector: model and weights version (catalog hash), dimension, precision and preprocessing (tokenizer version, prefixes); the same model and precision local or on a server is the same target. The catalog ships fixed texts and reference vectors; when a binding is configured and periodically, AnyContext embeds them and compares (e.g. similarity above 0.999 means the same target), catching silent provider changes and precision differences.
 
+### FEAT-120: [identity] Local accounts with password, several per machine, data separated per account
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Personal accounts, and base decisions 1 and 2. Without Admin Hub, each person has a local account (display name, optional username or e-mail, password stored only as an Argon2id hash) with its own directory holding its local database and workspaces; nobody sees anyone else's workspaces or conversations. Removing an account deletes its data. A password change only rewraps the data key. Today there is no user at all (only an added_by_email column defaulting to 'user').
+
+### FEAT-121: [identity] root administration account and sudo for administrative actions
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Linux-style administration account. `root` is the fixed administration account, labeled 'Administrator (root)', with no default password and its own recovery key. Administrative actions (creating or removing accounts, downloading models, installation settings) ask for the root password for that action only (`actx sudo <command>` in the CLI, a prompt in the UI). root has no workspaces or chat and cannot read personal accounts' data.
+
+### FEAT-122: [identity] First run: root password, personal account and recovery key
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Personal accounts. One first-run screen sets the root password and creates the personal account (same password allowed, with a warning), shows the recovery key and asks for confirmation that it was saved, and offers biometrics when available. The display name and language of the account feed the user profile (FEAT-146).
+
+### FEAT-123: [identity] Sign-in, fast user switching and session lock
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Personal accounts. Sign-in screen with the machine's accounts (password or biometrics) and fast user switching. The session locks after inactivity (e.g. 30 minutes, a personal preference), on screen lock, on sleep and manually; CLI and TUI ask once per terminal session with the same locking. Increasing delay after wrong passwords.
+
+### FEAT-124: [identity] Biometric unlock (Windows Hello, Touch ID)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1 and topic 2, item 1. Biometrics unlock the session as a convenience: the OS vault releases the wrapped master key only upon user presence at each unlock, never to a service on its own, without weakening the password.
+
+### FEAT-125: [identity] Sealed inbox: sync with the app closed using the public key
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Sync with the app closed — sealed inbox. The optional background service (FEAT-078) holds only the user's public key: with the app closed it detects changes and runs extraction, OCR, transcription, chunking and local embedding, writing the result to an inbox encrypted with the public key; it can never decrypt what is indexed. On sign-in the app merges the inbox. With cloud embedding, embedding waits for sign-in.
+
+### FEAT-126: [identity] Corporate identity: company SSO and the Admin Hub directory
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, In the corporate environment. In the corporate environment, users come from the company's SSO and/or the Admin Hub's own directory (for customers without an identity provider); local-only accounts are forbidden by the policy. Administration power belongs to the Admin Hub; root, corporate admins and the Admin Hub never read users' data.
+
+### FEAT-127: [identity] Account activation by single-use code, password rules and second factor
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, In the corporate environment. An Admin Hub directory user is activated on an enrolled device with login and a single-use activation code (short validity, e.g. 72 h, delivered through a separate channel), then creates their own password and gets the recovery key; the password never goes through the Admin Hub and keys are generated on the device. The policy can require length, complexity, periodic change and an authenticator-app second factor. A forgotten password needs a new activation code.
+
+### FEAT-128: [identity] Corporate administration: sudo as 'ask IT' and a rotating break-glass root
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, In the corporate environment. In the corporate environment sudo becomes the authentication of a corporate admin or an approval request in the Admin Hub (optionally an ITSM ticket). root remains for on-site and offline emergencies with a unique per-device password generated and rotated by the Admin Hub (LAPS model), visible only to authorized administrators; every use is audited, reported in the next heartbeat and followed by rotation.
+
+### FEAT-129: [identity] Key hierarchy: master key, user key pair and workspace data keys
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, items 1 to 3 and 6. A random master key per account wrapped by the password (Argon2id), the recovery key and biometrics; a user key pair whose private key is encrypted by the master key; a random data key per workspace wrapped by the owner's master key and each member's public key. Keys live only in memory while the session is unlocked. Acceptance (decided 2026-10-23): the machine-id key with a fixed salt (security/mod.rs:10-11, 44-50) and the clear lexical index are gone, together with FEAT-069; the plain-text API keys are gone with FEAT-130. If the roadmap leaves this item out of the first release, the plain-text API keys become a high bug.
+
+### FEAT-130: [identity] Personal vault for API keys, file passwords, history and preferences
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, item 4. A vault encrypted from the master key holds API keys, file passwords (FEAT-035), conversation history, preferences, the user profile and memories. Acceptance: API keys are no longer stored in plain text in the api_keys table of settings.db (storage/sqlite.rs:1470-1478).
+
+### FEAT-131: [identity] Workspace key rotation when a member leaves
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, item 3, and topic 3, item 5. A member leaving rotates the workspace key: new data uses the new key and old data is re-encrypted in the background. The member's conversations stay with them but citations stop opening; in enterprise mode the policy can require deleting them.
+
+### FEAT-132: [identity] Organization recovery key (enterprise policy)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, item 8. Optional by policy: each user's master key is also wrapped by an organization public key whose private part stays offline under the company's control, ideally split between people, never in the Admin Hub. Each use is audited and users are told the company has this recovery power.
+
+### FEAT-133: [identity] Workspace roles (owner, editor, reader) and a private chat per user
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 3, Roles and sharing, item 1, and deployment-architecture-v2.md, Workspace model. Each user creates their own workspaces and is the sole owner. Permissions: everyone asks, opens cited sources and gives feedback; owner and editor manage sources, filters, reprocessing, the workspace prompt and the domain pack; only the owner marks confidential, sets privacy policies, shares, changes roles and deletes. An editor does not pass access on. Each user has their own chat in a workspace and nobody reads anyone else's. Acceptance: the confidential ceiling applies to every member.
+
+### FEAT-134: [identity] Workspace definition export and import (.actx-workspace)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 3, Roles and sharing, item 3. Without Admin Hub, the definition (name, sources, filters, domain pack, prompt) is exported to a file and imported by a colleague, who indexes the same sources on their own machine; never documents, chunks, vectors, API keys or passwords. Within one environment only; the corporate policy can accept only definitions signed by the organization.
+
+### FEAT-135: [identity] Sharing a workspace between accounts on the same machine
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 3, Roles and sharing, and topic 2, item 3. The owner shares a workspace with another account on the same machine by wrapping its data key with that member's public key, with a UI warning that members see the indexed content (ingestion-pipeline-v2.md, per-source access control).
+
+### FEAT-136: [identity] Enterprise sharing: groups, organization workspaces, curators
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 3, Roles and sharing, items 2 and 3, and deployment-architecture-v2.md, Workspace model. In enterprise mode, sharing with groups from SSO or the Admin Hub directory; the admin creates organization workspaces (admin owner, everyone reader) and appoints curators from a department as editors without giving up ownership; workspace definitions are distributed by the Admin Hub as metadata only.
+
+### FEAT-137: [governance] Single versioned policy model with three precedence layers
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 1 and 2. One versioned policy model by category (models and endpoints, data, sources, tools, accounts, quotas). Layers: product default < local policy set by root without Admin Hub < organization policy signed by the Admin Hub; the upper layer wins, and inside a workspace the owner can only tighten the rules. Today the core has no policy at all.
+
+### FEAT-138: [governance] One governance engine for policies, plan licenses and quotas
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 4 and 6. A single engine enforces model resolution, trust levels and pseudonymization, web search, connectors and OCR, the MCP server, accounts and session, token quotas and the plan licenses (connectors-v2.md, decisions 25 and 28), keeping license and policy distinct in the block message. Every block says which rule blocked; the user can view the policy in force, read-only.
+
+### FEAT-139: [governance] Signed policies with the Admin Hub key pinned at enrollment
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 3 and 5. The enrollment code carries the Admin Hub key fingerprint; the device confirms and records it and from then on accepts only policies signed by it (instead of a key embedded in the binary, which does not work with customer-hosted Admin Hubs). Offline, the last valid policy in an encrypted cache applies for a validity the company sets; once expired the corporate environment is suspended until it reconnects.
+
+### FEAT-140: [governance] Local audit of blocked attempts, metadata-only to the Admin Hub
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, item 7. Blocked attempts are logged locally and sent to the Admin Hub only as metadata (rule, when, device), never with content.
+
+### FEAT-141: [governance] Admin Hub enrollment and channel on the client
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 5, Admin Hub integration, and topic 2, item 5. Client side of the Admin Hub: enrollment with a device identity (Ed25519 key in the OS vault, no access to data), an outbound-only WebSocket, heartbeat and kill-switch, carrying identities and activation, signed policies, workspace definitions, groups and curators, break-glass passwords, sudo requests, metadata-only audit and quotas. The Admin Hub itself belongs to the levix-admin-hub backlog.
+
+### FEAT-142: [governance] Source telemetry level set by the policy
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 5, Admin Hub integration, item 3. Source telemetry at the level the policy sets: counts only; anonymized identifiers (a hash that says 'same source' without the name), the default; or full paths when the company needs to audit and informs users.
+
+### FEAT-143: [release] Updates, models, packs and Chromium from the Admin Hub internal mirror
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 5, Admin Hub integration, item 4. Enrolled devices without internet receive AnyContext updates, ONNX models, domain packs and Chromium from the Admin Hub mirror, verified by the Levix signature, at the version IT releases to the fleet.
+
+### FEAT-144: [identity] Personal and corporate environments isolated in one binary
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 6, Personal and corporate environments, items 1, 2 and 5. A switcher between the personal environment (local root and family accounts, never governed or seen by the company) and a corporate environment created at enrollment (or by the company's own package) with its own data, keys, accounts, policies, root and license. No path between environments: no export, search, chat, key or license crosses.
+
+### FEAT-145: [identity] Corporate environment lifecycle
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 6, items 3 and 4, and topic 1, In the corporate environment (exit). The policy can forbid the personal environment on company-owned computers, never on the employee's own. A revoked environment (kill-switch) is blocked; an orderly unenrollment deletes or keeps data per policy; changing companies removes the previous environment and creates the new one. The personal environment is never affected.
+
+### FEAT-146: [identity] Minimal user profile: role and answer style as a user preference
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 7, item 1. The display name and language come from the personal account; the user's role and preferred answer style are a preference in the personal vault that enters the prompt as the user layer, below the workspace prompt, never overriding the base rules (retrieval-pipeline-v2.md, step 8). Supersedes FEAT-013.
+
+### FEAT-147: [retrieval] Explicit user memories
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 7, item 2. Only what the user asks to keep or confirms when the agent proposes it becomes a memory; nothing is saved silently. A visible, editable list in the personal vault, scoped globally or per workspace, entering the prompt's user layer within the token budget. Supersedes FEAT-014.
+
+### FEAT-148: [retrieval] AnyContext MCP server
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 7, item 3. Off by default, turned on explicitly per workspace. Read-only: asking and searching over one workspace per call, never across workspaces, only while the user's session is unlocked. Its consumers are external exits: a confidential workspace is not reachable and the policy governs it. Supersedes FEAT-018.
+
 ## Improvements
 
 ### IMP-002: Remove the core dependency on actx_installer
@@ -1072,7 +1254,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 8, Context assembly. One prompt in layers instead of one per path: AnyContext base rules (only from the context, cite ids, user's language, safety, tools), domain pack guidelines, the workspace system prompt (persona, tone, format, focus; changed only by owner and editors in a shared workspace, never overriding the base rules, used only in calls that produce the user's answer) and the mode complement. Stable layers go first, as a system message, for provider prompt caching. Supersedes IMP-010, IMP-011 and FEAT-009.
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 8, Context assembly. One prompt in layers instead of one per path: AnyContext base rules (only from the context, cite ids, user's language, safety, tools), domain pack guidelines, the workspace system prompt (persona, tone, format, focus; changed only by owner and editors in a shared workspace, never overriding the base rules, used only in calls that produce the user's answer) and the mode complement. Stable layers go first, as a system message, for provider prompt caching. Supersedes IMP-010, IMP-011 and FEAT-009. The user layer (role, answer style and explicit memories, identity-and-governance-v2.md topic 7) sits below the workspace prompt.
 
 ### IMP-049: [retrieval] Context token budget computed from the model window
 - **Priority**: medium
@@ -1164,6 +1346,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 5, Ingestion worker. Progress and status as events (start, item processed, error, end): native Tauri events locally, over the server connection in mode 3, replacing the SQLite status table. Cancel and pause are queue commands honored between jobs and inside long ones (pause points in a long transcription).
+
+### IMP-062: [identity] Migration from the machine-id key on the first sign-in
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, item 7. On the first sign-in after the update, data encrypted with the old key derived from the machine id is re-encrypted with the new keys and the API keys move to the personal vault, without data loss.
 
 ## Adjustments
 
@@ -1557,3 +1746,27 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-23, Superseded by IMP-055
 - **Description**: Profile RAM and tier semantics are calibrated for local Gemma 4, which does not run locally. Recalibrate for embedding + reranker + heuristic Document AI; disk was already fixed in PR #327 (roadmap 2.2 goal 7).
+
+### FEAT-013: Minimal user profile
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-146
+- **Description**: A short profile (name, language, role, answer style) collected during onboarding, with the rest in settings, always available to the agent so answers fit the user. Automatic learning of user traits from conversations was discussed and left out for now (wrong inferences, preferences mixed with grounded facts, privacy).
+
+### FEAT-014: Explicit user memories
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-147
+- **Description**: Preferences the user asks the agent to keep ("remember that...", `/remember`), or that the agent proposes to keep and the user confirms, stored locally in a visible and editable list, scoped globally or per workspace. Nothing is saved silently.
+
+### FEAT-018: AnyContext MCP server
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-148
+- **Description**: Expose AnyContext workspaces through an MCP server so other agents and IDEs can query them. There is no API or MCP surface today. Discussion item.

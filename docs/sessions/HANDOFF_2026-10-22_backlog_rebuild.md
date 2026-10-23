@@ -114,7 +114,8 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 - Done (2026-10-23): batch 3, retrieval: FEAT-081 to FEAT-109 and IMP-035 to IMP-050. Closed as superseded: IMP-006 to IMP-011, FEAT-007, FEAT-009, FEAT-015, FEAT-017, FEAT-019 and ADJ-005. FEAT-007, FEAT-015 and FEAT-017 had no v2 design; the user's decisions are in `retrieval-pipeline-v2.md` (source tools, whole-document questions, exact text).
 - Still open for later batches: FEAT-010 and FEAT-016 (desktop UI, batch 7), FEAT-013 and FEAT-014 (identity, batch 5).
 - Done (2026-10-23): batch 4, deployment: IMP-051 to IMP-061 and FEAT-110 to FEAT-119. Closed as superseded: FEAT-002, FEAT-003, IMP-005 and ADJ-003.
-- Next: batch 5, identity and governance. It also takes the workspace model of `deployment-architecture-v2.md` (roles, shared definition, organization workspaces, chat per user), FEAT-018 (MCP server), FEAT-013 and FEAT-014.
+- Done (2026-10-23): batch 5, identity and governance (with the workspace model): FEAT-120 to FEAT-148 and IMP-062. FEAT-013, FEAT-014 and FEAT-018 had no v2 design; the user's decisions are in `identity-and-governance-v2.md`, topic 7, and the user layer in `retrieval-pipeline-v2.md`, step 8. They close as superseded by FEAT-146 to FEAT-148.
+- Next: batch 6, connectors. It also takes the plan licenses (decisions 25 to 31: Free/Pro/Enterprise license verified offline, downgrade deactivation, the one-time Free workspace choice, the Web search fair-use ceiling) and FEAT-008 (cloud drive connectors).
 - Last commits on `docs/architecture-v2-redesign`: `59997a0` (fair-use ceiling), `44f0c6d`, `c664919` (plans), `6918b97` (the first version of this handoff).
 
 ### Housekeeping I still owe
