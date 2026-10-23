@@ -1594,26 +1594,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Adjustments
 
-### ADJ-001: Update the outdated .clinerules
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-16, v0.45.0, PR #333
-- **Plan**: -
-- **Description**: .clinerules no longer matches the current project (Rust workspace, architecture-docs layout, role-based development cycle) and can mislead agents that read it.
-
 ### ADJ-002: Add a license file
 - **Priority**: medium
 - **Status**: open
 - **Found**: 2026-10-16, v0.45.0, PR #333
 - **Plan**: -
 - **Description**: The repository has no LICENSE file; the README tells readers to contact Levix Digital for usage and distribution terms. The license (or the proprietary terms) still has to be chosen and published.
-
-### ADJ-004: Close out stale planning documents
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
-- **Description**: Decide the fate of implementation_plan_subscription_tiers.md (BillingManager tiers) and BLUEPRINT_PRIORITY_4_CLI_TUI.md at the repository root, verify the state of RFC-042 (retrieve_hybrid_batch, /fast and /deep already exist), and close milestone M8 Release of the released v0.45.0 C0 plan.
 
 ## Closed
 
@@ -2032,3 +2018,19 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-23, Superseded by FEAT-057, FEAT-101 and FEAT-177
 - **Description**: Jump from a citation in an answer to the cited file and line. Depends on BUG-010.
+
+### ADJ-001: Update the outdated .clinerules
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Plan**: -
+- **Closed**: 2026-10-23, Obsolete: .clinerules described the Python-era project and was removed (decided 2026-10-23)
+- **Description**: .clinerules no longer matches the current project (Rust workspace, architecture-docs layout, role-based development cycle) and can mislead agents that read it.
+
+### ADJ-004: Close out stale planning documents
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: -
+- **Closed**: 2026-10-23, Obsolete: the subscription tiers plan and the CLI/TUI blueprint were removed; RFC-042 Deep Search is superseded by IMP-039 (decided 2026-10-23)
+- **Description**: Decide the fate of implementation_plan_subscription_tiers.md (BillingManager tiers) and BLUEPRINT_PRIORITY_4_CLI_TUI.md at the repository root, verify the state of RFC-042 (retrieve_hybrid_batch, /fast and /deep already exist), and close milestone M8 Release of the released v0.45.0 C0 plan.
