@@ -57,34 +57,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Features
 
-### FEAT-001: actx profile install command
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
-- **Description**: Install or switch the hardware profile after installation, reusing crates/actx-installer/src/provision.rs (roadmap 2.2 goal 7).
-
-### FEAT-004: macOS release binary
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
-- **Description**: release.yml only builds Linux x86_64 and Windows x86_64.
-
-### FEAT-011: Local diagnostic bundle and /feedback with confirmation
-- **Priority**: high
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: A way to get concrete feedback on how the app behaves without breaking the no-telemetry promise of the README: a local diagnostic bundle (logs, versions, configuration, with sensitive data masked) that the user reviews and sends, and a `/feedback <text>` command that shows exactly what leaves the machine and only sends after confirmation. Nothing is sent by default; offline and privacy presets keep everything local.
-
-### FEAT-012: Opt-in crash reporting for beta and release-candidate builds
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Crash and error reports collected only in beta/RC builds, off by default, with a global kill switch (such as `DO_NOT_TRACK` or an enterprise policy) and always off under the offline and privacy presets. Discussion item: must not conflict with the air-gapped positioning.
-
 ### FEAT-020: [ingestion] Single local file and single web page as sources
 - **Priority**: medium
 - **Status**: open
@@ -916,7 +888,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 4 and 6. A single engine enforces model resolution, trust levels and pseudonymization, web search, connectors and OCR, the MCP server, accounts and session, token quotas and the plan licenses (connectors-v2.md, decisions 25 and 28), keeping license and policy distinct in the block message. Every block says which rule blocked; the user can view the policy in force, read-only.
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 4 and 6. A single engine enforces model resolution, trust levels and pseudonymization, web search, connectors and OCR, the MCP server, accounts and session, token quotas and the plan licenses (connectors-v2.md, decisions 25 and 28), keeping license and policy distinct in the block message. Every block says which rule blocked; the user can view the policy in force, read-only. Acceptance: license and policy checks run in the core below every surface (desktop app, CLI, TUI, MCP server), so no interface or wrapper can bypass them (cli-and-release-v2.md, section 1).
 
 ### FEAT-139: [governance] Signed policies with the Admin Hub key pinned at enrollment
 - **Priority**: medium
@@ -1247,14 +1219,56 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/desktop-ui-v2.md, Rules inherited from the architecture decisions, and retrieval-pipeline-v2.md, step 1. A help panel over AnyContext's built-in documentation (IMP-017); the help is not a workspace in the tree and never mixes into workspace results.
 
-## Improvements
-
-### IMP-002: Remove the core dependency on actx_installer
-- **Priority**: low
+### FEAT-186: [cli] Headless CLI over the core ports, with sign-in per terminal session
+- **Priority**: medium
 - **Status**: open
-- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: The core crate (any-context-core-rs) calls actx_installer directly from commands/engine.rs (install paths, latest release lookup, update logging), so actx_installer cannot be listed in architecture.forbidden_core_imports. In the hexagonal style the core should reach this through a port implemented by an adapter.
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 1, items 1 and 2. The actx CLI keeps the headless commands for automation (ask, sync, status, diagnostics, sudo) over the same core ports as the desktop app, asking for the password or biometrics once per terminal session. Acceptance: plan limits and policies are enforced by the governance engine in the core, so wrapping the CLI in a script, an API or an MCP server cannot unlock what the plan does not include.
+
+### FEAT-187: [cli] actx sudo profile to install or switch the hardware profile
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 1, item 3. Installing or switching the hardware profile after installation is an administrative action (it downloads models): `actx sudo profile`, reusing crates/actx-installer/src/provision.rs, applying the profile's per-role bindings (IMP-055). Supersedes FEAT-001.
+
+### FEAT-188: [release] Desktop installers for Windows, Linux and macOS with ONNX Runtime, Chromium and FFmpeg
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Platform installers for the Tauri app carry ONNX Runtime, the embedded Chromium (ingestion-pipeline-v2.md, step 2) and FFmpeg as a separate library to comply with the LGPL (step 5), all updated with every release. Acceptance: Chromium never lags the release it ships with.
+
+### FEAT-189: [release] macOS build and notarization
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. The release builds, packages and notarizes macOS like Linux and Windows (today release.yml builds only Linux x86_64 and Windows x86_64). Supersedes FEAT-004.
+
+### FEAT-190: [release] Code signing of Windows and macOS binaries
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Windows binaries and installers are code-signed and macOS ones signed with a Developer ID. Depends on the owner buying the certificates.
+
+### FEAT-191: [release] Updates, models and packs verified by the Levix signature
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Every download (application updates, ONNX models, domain packs, extraction maps, Chromium) is verified against the Levix signature before use, also through the Admin Hub mirror (FEAT-143). Today the installer only checks that a downloaded binary is a valid PE/ELF file and models carry a SHA-256 in the catalog.
+
+### FEAT-192: [release] Local diagnostic bundle, /feedback and local crash reports, sent only with confirmation
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 4. A local diagnostic bundle (logs, versions, configuration, sensitive data masked) the user reviews; /feedback shows exactly what leaves the machine and sends only after confirmation; a crash writes a local report and offers to send it with confirmation. Nothing is sent automatically, not even in beta or release-candidate builds; the corporate policy can turn sending off. Supersedes FEAT-011 and FEAT-012.
+
+## Improvements
 
 ### IMP-015: [ingestion] Single source model: a sources table replaces the three source tables
 - **Priority**: medium
@@ -1592,14 +1606,42 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, item 7. On the first sign-in after the update, data encrypted with the old key derived from the machine id is re-encrypted with the new keys and the API keys move to the personal vault, without data loss.
 
-## Adjustments
-
-### ADJ-002: Add a license file
+### IMP-063: [release] Release build profile: LTO, private debug symbols, stripped binaries, unwind
 - **Priority**: medium
 - **Status**: open
-- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: The repository has no LICENSE file; the README tells readers to contact Levix Digital for usage and distribution terms. The license (or the proprietary terms) still has to be chosen and published.
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 2. [profile.release] moves to lto = "fat" and codegen-units = 1 (today lto = "off", codegen-units = 16); published binaries stay stripped while CI keeps split debug symbols privately to read crash reports; panic = "unwind" stays because retrieval/bm25.rs:336 and actx-onnx/src/runtime.rs:80 use catch_unwind. Acceptance: release build time and binary size measured before and after.
+
+### IMP-064: [release] Updater behind a port; the core stops depending on actx_installer
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. The core reaches install paths, release lookup and update logging through a port implemented by an adapter, so actx_installer can be listed in architecture.forbidden_core_imports (today commands/engine.rs calls it directly). Supersedes IMP-002.
+
+## Adjustments
+
+### ADJ-006: [cli] Retire the TUI when the desktop app reaches parity
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 1, item 4. The ratatui TUI keeps working over the current core but receives no v2 features, and is removed once the desktop app reaches parity, with its documentation (tui.md) and manual tests; `actx` without arguments then shows the CLI help or opens the desktop app.
+
+### ADJ-007: [docs] Mark the ADRs the v2 design replaces as superseded
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 5. Review the 73 ADRs in docs/adr (all already in English, all `accepted` today) against the v2 design and mark those it replaces as superseded with a pointer to the v2 document (e.g. 0116 path healing, 0129 and 0130 reranking, 0077 TUI); the valid ones stay.
+
+### ADJ-008: [docs] Publish the license file
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 5. The repository has no LICENSE file and the README tells readers to contact Levix Digital. Publish the license or the proprietary terms once the owner chooses them. Supersedes ADJ-002.
 
 ## Closed
 
@@ -2034,3 +2076,51 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-23, Obsolete: the subscription tiers plan and the CLI/TUI blueprint were removed; RFC-042 Deep Search is superseded by IMP-039 (decided 2026-10-23)
 - **Description**: Decide the fate of implementation_plan_subscription_tiers.md (BillingManager tiers) and BLUEPRINT_PRIORITY_4_CLI_TUI.md at the repository root, verify the state of RFC-042 (retrieve_hybrid_batch, /fast and /deep already exist), and close milestone M8 Release of the released v0.45.0 C0 plan.
+
+### FEAT-001: actx profile install command
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-187
+- **Description**: Install or switch the hardware profile after installation, reusing crates/actx-installer/src/provision.rs (roadmap 2.2 goal 7).
+
+### FEAT-004: macOS release binary
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-189
+- **Description**: release.yml only builds Linux x86_64 and Windows x86_64.
+
+### IMP-002: Remove the core dependency on actx_installer
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-064
+- **Description**: The core crate (any-context-core-rs) calls actx_installer directly from commands/engine.rs (install paths, latest release lookup, update logging), so actx_installer cannot be listed in architecture.forbidden_core_imports. In the hexagonal style the core should reach this through a port implemented by an adapter.
+
+### FEAT-011: Local diagnostic bundle and /feedback with confirmation
+- **Priority**: high
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-192
+- **Description**: A way to get concrete feedback on how the app behaves without breaking the no-telemetry promise of the README: a local diagnostic bundle (logs, versions, configuration, with sensitive data masked) that the user reviews and sends, and a `/feedback <text>` command that shows exactly what leaves the machine and only sends after confirmation. Nothing is sent by default; offline and privacy presets keep everything local.
+
+### FEAT-012: Opt-in crash reporting for beta and release-candidate builds
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-192
+- **Description**: Crash and error reports collected only in beta/RC builds, off by default, with a global kill switch (such as `DO_NOT_TRACK` or an enterprise policy) and always off under the offline and privacy presets. Discussion item: must not conflict with the air-gapped positioning.
+
+### ADJ-002: Add a license file
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by ADJ-008
+- **Description**: The repository has no LICENSE file; the README tells readers to contact Levix Digital for usage and distribution terms. The license (or the proprietary terms) still has to be chosen and published.

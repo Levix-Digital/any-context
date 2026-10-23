@@ -16,7 +16,12 @@ Decisions for the command line, the build, the installers and the release, made 
    not include.
 3. **Changing the hardware profile** is an administrative action: `actx sudo profile`
    installs or switches the profile (it downloads models).
-4. **TUI:** open — see the batch 8 discussion; recorded here once decided.
+4. **The TUI is retired once the desktop app reaches parity** (decided 2026-10-23). Until
+   then it keeps working over the current core but receives no v2 features; the CLI
+   stays as the command-line surface. Keeping it was weighed against maintaining a second
+   full interface for every v2 feature (accounts, Fast and Deep, queue, branches, source
+   report, citations at the locator); the plan-bypass concern does not apply because of
+   rule 2.
 
 ## 2. Build profile
 
