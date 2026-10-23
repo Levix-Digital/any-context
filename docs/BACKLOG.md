@@ -85,26 +85,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: release.yml only builds Linux x86_64 and Windows x86_64.
 
-### FEAT-007: Document mode: work on one whole file
-- **Priority**: high
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Let the user pick a file in the workspace and summarize or analyze it as a whole. Top-k retrieval cannot cover a whole document, so questions such as "summarize this file" are answered from a few chunks today.
-
 ### FEAT-008: Cloud drive connectors
 - **Priority**: low
 - **Status**: open
 - **Found**: 2026-10-17, v0.45.0, product ideas review
 - **Plan**: -
 - **Description**: Sources from cloud drives (folders and individual files). No drive connector exists today. Discussion item.
-
-### FEAT-009: Per-workspace instructions (system prompt)
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Let the user write instructions for the model per workspace. They must sit below the grounding and safety rules, never override them, and have a size limit.
 
 ### FEAT-010: Token usage and context window fill in the status bar
 - **Priority**: medium
@@ -141,13 +127,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Preferences the user asks the agent to keep ("remember that...", `/remember`), or that the agent proposes to keep and the user confirms, stored locally in a visible and editable list, scoped globally or per workspace. Nothing is saved silently.
 
-### FEAT-015: Tools to list and read sources, folders and files
-- **Priority**: high
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Agent tools and UI commands to list a workspace's sources, browse folders and files and read a file or a range of it, so the user does not need to leave AnyContext. Limited to registered sources and read-only. Full web browsing was discussed and left out; reading pages through the existing web reader covers it.
-
 ### FEAT-016: Open a cited chunk at its file and line
 - **Priority**: medium
 - **Status**: open
@@ -155,26 +134,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Jump from a citation in an answer to the cited file and line. Depends on BUG-010.
 
-### FEAT-017: Exact text search over sources
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: A grep-style search for exact identifiers and strings across a workspace's sources, as a complement to semantic search.
-
 ### FEAT-018: AnyContext MCP server
 - **Priority**: medium
 - **Status**: open
 - **Found**: 2026-10-17, v0.45.0, product ideas review
 - **Plan**: -
 - **Description**: Expose AnyContext workspaces through an MCP server so other agents and IDEs can query them. There is no API or MCP surface today. Discussion item.
-
-### FEAT-019: Live web search on the routed paths
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-017 discovery
-- **Plan**: -
-- **Description**: With /web-search on, the model may search the web to complement the indexed workspace content, deciding when a search is needed, on the one-hop (Fast, Auto-fast) and Deep Search (Deep, Auto-deep) paths. Today the web_search tool exists only on ReAct, which runs only when LanceDB fails to open, so /web-search on changes nothing and MT-WEB-003 fails (the web half of BUG-017). Search results are supplementary lookup, not workspace documentation: they are not indexed (unlike web pages added to a workspace as sources with /web, which are always indexed). Requirements: results are untrusted content and are neutralized in prompts like chunk text (BUG-015, actx_agent::prompt_safety); they reach the model and the answer marked as web sources, kept apart from workspace citations; with /web-search off nothing leaves the machine. Amend ADR-0145, which recorded that all web content is indexed before inference, to separate workspace web sources (indexed) from authorized live web search (not indexed). Open decisions: how the model decides to search on the routed paths (tool call, router signal or Deep Search step), how many results and whether to fetch full pages, latency budget.
 
 ### FEAT-020: [ingestion] Single local file and single web page as sources
 - **Priority**: medium
@@ -603,6 +568,209 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, Cross-cutting: per-source access control (audit P23). Each chunk stores the permission scope ID of its document; scopes per workspace and directory users and groups live in separate SQLite databases; origin identities link through SSO and SCIM and what does not link gets no access; permission changes need no reprocessing; unknown permission denies by default. Acceptance: pre-filter by readable scopes in every retriever and aggregates per scope.
 
+### FEAT-081: [retrieval] Follow-up rewriting for search only
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input. A question that depends on the conversation is rewritten as a standalone question before searching; the original stays in the history and is what the answering LLM sees. The profile's local LLM rewrites; without it, the chat LLM, respecting trust level and pseudonymization; without a local LLM and with an external chat, the previous user question is added to the search. Any language. Supersedes IMP-009.
+
+### FEAT-082: [retrieval] Help and status as agent tools
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input. `anycontext_help` (AnyContext documentation, the built-in source of IMP-017) and `workspace_status` (sync and source state) are tools the LLM calls in any language. Acceptance: the fixed PT/EN status keywords (actx-agent/src/router.rs:88-91) and the mixing of AnyContext's documentation into every workspace search are gone.
+
+### FEAT-083: [ui] Drag a file into the chat to add it to the workspace as a single source
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input. There is no temporary chat attachment: dropping a file into the chat adds it to the workspace as a single file source, with a short confirmation, visible indexing progress and the time estimate for large files. The file stays for the next conversations.
+
+### FEAT-084: [retrieval] Question queue per workspace chat
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input. New questions sent while the agent answers are queued and processed in order, one at a time (follow-up rewriting uses the previous answer). The queue is visible; questions not yet started can be edited, removed or reordered; 'stop the current one and send now'; it survives closing the app; each question counts toward policy token quotas; stopping the current question keeps the queue.
+
+### FEAT-085: [retrieval] Stop and edit a running question
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input. Stopping (button or Esc) cancels search, Deep turns and streaming; the question returns to the composer to edit and resend, and the interrupted question and partial answer leave the history.
+
+### FEAT-086: [ui] Conversation branches
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input. Editing an answered question creates a new branch from it and keeps the previous one; the edited message shows a switcher between versions (e.g. 2/3). Builds on IMP-036.
+
+### FEAT-087: [retrieval] Question planner: search text, filters and question type
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 3, Question understanding. In the same LLM call as follow-up rewriting, the planner returns the search text (and Deep sub-questions), filters (source, document date in any language, type, entities, version, connector metadata) and the question type (point, overview, aggregate, comparison, enumerative, whole document, help or status). Explicit filters restrict and inferred ones only boost; a filter that empties the result is relaxed with a warning; with an external chat the question is pseudonymized first. Acceptance: no invented scores (today cited files enter at 1.0 and dates at 0.95); a quoted passage is searched as an exact phrase or identifier (Tantivy phrase query) as a restricting filter, which supersedes FEAT-017.
+
+### FEAT-088: [retrieval] LLM-free filters: @source, multilingual dates and the entity index
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 3, Question understanding, and step 1, Question input. Without an LLM planner: `@source` restricts the search to a source inside the workspace, dates come from a multilingual parser (today English month names only) and entities from the entity index.
+
+### FEAT-089: [retrieval] Enumerative questions answered exhaustively, with the count checked
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 3, Question understanding. 'Which', 'all the', 'list' questions skip top-k: entity and metadata filters or SQL over tables and forms; without structure, a Deep sweep verifying candidate documents in batches. The answer says how many documents were checked; large sweeps use the long-job estimate and confirmation.
+
+### FEAT-090: [retrieval] Version-aware search: current version by default, family for change questions
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 3, Question understanding, and Items inherited from ingestion. Search prefers the current version of a version family (FEAT-027) and uses the whole family for questions about changes between versions, usually in Deep.
+
+### FEAT-091: [retrieval] Entity and metadata filters and facets
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 3, Question understanding, and Items inherited from ingestion. Document metadata (FEAT-058) and entities (FEAT-059) become search filters and facets, with tolerance to different spellings of an entity.
+
+### FEAT-092: [retrieval] Table and form questions by read-only SQL
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. For aggregate questions the LLM writes read-only SQL over the schema of the workspace's tables and forms, executed by DataFusion: only that workspace's tables, time and row limits, the query and rows used shown in the citation, fallback to normal search with a warning on failure or ambiguity.
+
+### FEAT-093: [retrieval] Overview questions answered from document and folder summaries
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search, and step 7, Selection. Overview questions search the document and folder summaries (FEAT-061), which go through the reranker and enter the context as summaries.
+
+### FEAT-094: [retrieval] Search stratified by source with dynamic parallelism
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. In a workspace with several sources, search runs per source in parallel with a smaller list each, so every source secures slots; parallelism depends on the workspace size and the machine's free capacity (resource governor, FEAT-079). Single search with one source or few documents.
+
+### FEAT-095: [retrieval] Two-stage search in large workspaces
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. Above a number of documents, the most relevant documents are found first (summaries and chunk aggregation per document), then the chunks inside them.
+
+### FEAT-096: [retrieval] Page-image and sparse-vector lists in search
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search, and step 5, Fusion. Page-image embeddings (FEAT-066) and learned sparse vectors (FEAT-068) enter as extra lists in the same RRF; the result of a page-image hit is the page. With a multimodal chat model the page image goes as evidence, never to an external endpoint when pseudonymization is active.
+
+### FEAT-097: [retrieval] Entity graph as a search list and a relations tool
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search, and Items inherited from ingestion. Entities in the question pull the linked documents as an extra list; a 'query relations' tool (useful in Deep) and the graph as a structured source for enumerative questions (FEAT-064, FEAT-065).
+
+### FEAT-098: [retrieval] Small-to-big: selected chunks expanded to their parent
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. Each selected child is replaced by its parent (section or page, FEAT-036) when it fits the budget; children of the same parent bring it once; a parent too large gives the child with its immediate neighbors. The citation points to the child.
+
+### FEAT-099: [retrieval] Deep coverage: later turns exclude documents already found
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. Each Deep turn's evaluation sees which documents already appeared and can ask for others; the next search excludes them. The evaluation set measures how many of the right documents reach the context and calibrates stratification, the per-document cap and two-stage search.
+
+### FEAT-100: [retrieval] Reversible pseudonymization for external LLM endpoints
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 8, Context assembly, and step 9, Generation and citations. When the LLM endpoint is external, personal identifiers tagged at ingestion (FEAT-060) become consistent markers ([PERSON_1]) per the domain pack; the mapping stays local for the whole conversation and the markers are replaced by the real values during streaming, including markers split across chunks of the stream. The user never sees a marker; with a local or corporate endpoint nothing is pseudonymized by default.
+
+### FEAT-101: [retrieval] Checked citations linked to their locators
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 9, Generation and citations. The LLM cites by evidence ids; AnyContext removes ids that do not exist in the context and turns each citation into a link to its locator (page and region, cell, minute) that opens the original at the exact point in the desktop UI. Part of FEAT-016.
+
+### FEAT-102: [retrieval] Citation support checked by the local reranker
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 9, Generation and citations. Each cited sentence is compared with the cited chunk by the local reranker; a weak citation is marked discreetly with a hint that the chunk does not directly confirm the sentence.
+
+### FEAT-103: [retrieval] Answer receipt: citations with file version, mode, tools and tokens
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation. Each answer stores its citations with locator and file hash, the mode used (Fast, Deep, escalated), the tools called and the tokens consumed (for the status bar and the Admin Hub quotas, which receive only numbers). Reopened conversations keep working citations and show when a document changed since the answer. Part of FEAT-010.
+
+### FEAT-104: [retrieval] Answer feedback that stays on the machine
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation. Thumbs up or down per answer with an optional reason (wrong information, wrong citation, missing information), stored locally; in enterprise mode the Admin Hub receives at most counts, never content.
+
+### FEAT-105: [retrieval] Self-tuning loop per workspace
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation. Each question records quality signals locally (reranker bands, escalation, document coverage, weak citations, feedback); with them and the evaluation set AnyContext tunes per workspace, invisibly: RRF weights, reranker depth, band thresholds, Deep turns, stratification and compaction.
+
+### FEAT-106: [retrieval] Regression evaluation with automatic revert
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation. The synthetic question set (FEAT-073), enriched with the questions that got feedback, runs after every change that may worsen quality (model switch, source ingestion change, AnyContext update); a regression reverts the automatic adjustment that caused it. In development the test corpus (starting with the fictitious CMR) runs on every code change. With FEAT-073, supersedes IMP-008.
+
+### FEAT-107: [retrieval] Conversation retention
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation. The user can delete conversations; deleting a workspace asks what to do with its conversations; in enterprise mode the policy can set a retention period.
+
+### FEAT-108: [retrieval] Whole-document questions with @file
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 3, Question understanding (whole document). An overview or analysis question with @file reads the whole document, its parent sections in document order, instead of top-k chunks; a document larger than the token budget is summarized in parts and the parts combined. Supersedes FEAT-007.
+
+### FEAT-109: [retrieval] Source tools: list sources, browse folders and read files
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input (source tools). Agent tools, in both modes, to list the workspace's sources, browse their folders and files, and read a file or a range of it. Read-only and limited to the workspace's registered sources; no general file system or web browsing. Supersedes FEAT-015.
+
 ## Improvements
 
 ### IMP-002: Remove the core dependency on actx_installer
@@ -618,48 +786,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
 - **Plan**: -
 - **Description**: Model catalogs are duplicated in any-context-core-rs ingestion/model_manager.rs and actx-installer hardware.rs, guarded only by catalog_parity_tests. Move them to one shared module consumed by both (roadmap 2.2 goal 7).
-
-### IMP-006: Replace labeled heuristics with real neural inference
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
-- **Description**: query_classifier.rs, scan sentinel, layout extractor and vision encoder run deterministic heuristics labeled as such. Document AI weights are already downloaded by the profiles; real inference is missing.
-
-### IMP-007: No relevance cutoff on cross-encoder scores
-- **Priority**: high
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
-- **Description**: The deterministic path always sends up to `top_k` (6) chunks, and `min_score` is applied before re-ranking on the RRF scale. The cross-encoder's calibrated scores are never used to drop weak chunks, and the Zero Hallucination Gate threshold (0.005) is tuned for RRF scores.
-
-### IMP-008: No retrieval and answer quality evaluation
-- **Priority**: high
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
-- **Description**: There is no reference question set or metric (recall@k, NDCG@5, citation faithfulness) to calibrate thresholds or show the effect of retrieval changes, including the planned hierarchical chunking (Frente D).
-
-### IMP-009: Follow-up questions are retrieved without conversation context
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
-- **Description**: The deterministic retriever searches with the current message only. A follow-up such as "and in v1?" is searched as written, without the subject of the previous turns.
-
-### IMP-010: Deterministic RAG prompt is sent without a system message
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
-- **Description**: The deterministic path places the system instructions inside the user message (`<system_instructions>`) after the session history, so the instructions are repeated per turn and cannot benefit from provider prompt caching.
-
-### IMP-011: Review all prompts and organize them into skills
-- **Priority**: high
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Prompts live in five places (`config/AGENT.md`, `actx-cli/src/prompt.rs`, `retrieval/prompt.rs`, the Deep Search prompts in `deep_search.rs`, `config/SYSTEM_KNOWLEDGE.md`) with overlapping and conflicting rules, for example four citation formats (`[chk_1]`, `[path:45-60]`, citation footers, file names). Goal: a minimal base agent prompt, with each function (deterministic RAG, agentic search, Deep Search, source management) moved into a skill loaded when needed, and every prompt reviewed for ambiguity and contradictions. There is no skill mechanism today.
 
 ### IMP-015: [ingestion] Single source model: a sources table replaces the three source tables
 - **Priority**: medium
@@ -778,7 +904,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 9, Decisions. Tantivy replaces the in-house BM25: on-disk, incremental, segment-based, with fields of different weights (header lower than body). One index per workspace; deleting a workspace deletes its directory. The index stores terms and ids only; the text comes from LanceDB.
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 9, Decisions. Tantivy replaces the in-house BM25: on-disk, incremental, segment-based, with fields of different weights (header lower than body). One index per workspace; deleting a workspace deletes its directory. The index stores terms and ids only; the text comes from LanceDB. Acceptance: exact phrase and identifier queries (quoted passages, FEAT-087), which supersedes FEAT-017 with FEAT-087.
 
 ### IMP-032: [ingestion] Multilingual lexical tokenization without per-language tables
 - **Priority**: medium
@@ -800,6 +926,118 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 10, Decisions. Compaction and pruning after syncs with many deletes or reindexes, so replaced data does not stay on disk in old Lance versions. Migrations leave the sync path: the schema is versioned and migrated once, when the store is opened. Supersedes IMP-013.
+
+### IMP-035: [retrieval] History by token budget with a background summary of older turns
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input. Recent messages go whole and older ones become a conversation summary generated in the background, instead of the fixed 30-turn window.
+
+### IMP-036: [storage] Chat history stored as an encrypted tree of messages
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input, and step 10, History and evaluation. Each message has a parent_id and the chat records its active branch, so branches need no migration later. Summary, follow-up rewriting and the queue follow the active branch. History lives in the user's local database, encrypted.
+
+### IMP-037: [retrieval] Two modes, Fast and Deep, with tools in both; ReAct mode removed
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. ReAct stops being a mode. The tools (help, status, source tools, table query, web search when allowed) are available in Fast (search first, at most about 2 tool calls) and in Deep. Supersedes FEAT-019.
+
+### IMP-038: [retrieval] Automatic mode escalates from Fast to Deep on weak evidence
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Automatic mode starts Fast and escalates to Deep when the best chunks have low reranker relevance or the LLM says the context is not enough, with a discreet indicator; the user can pin Fast or Deep. Acceptance: no keyword routing in any language; the PT/EN keyword classifier (actx-agent/src/router.rs:176-234) and the heuristic query classifier (actx-onnx/src/query_classifier.rs) are removed. Supersedes the query classifier part of IMP-006.
+
+### IMP-039: [retrieval] Deep turns refine, search and evaluate, with turn and token ceilings
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Each Deep turn refines or decomposes the question from what was found, searches, and evaluates what is missing. Default maximum of 3 turns (up to 5 only through a domain pack), stopping early when evidence is enough, plus a token ceiling; the default is tuned by the evaluation set.
+
+### IMP-040: [retrieval] Pre-filtered dense and lexical retrievers over child chunks
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. Dense and lexical retrievers run in parallel for each question or sub-question with filters inside the search, over child chunks, with the model's query prefix and the table of the embedding target (the old table answers during a model switch) and weighted lexical fields; 30 candidates per list, tuned by the evaluation set. Only the workspace is searched. A question embedding failure gives lexical-only search with a discreet warning in the answer (today only a log line).
+
+### IMP-041: [retrieval] Single RRF over clean lists with a per-document cap, no score cut
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 5, Fusion. All lists (every Deep sub-question, every source, future retrievers) enter one RRF with k = 60 and equal weights, tuned per workspace by the evaluation set; each document takes at most a few reranker slots, the rest in reserve. Acceptance: the RRF minimum-score cut per preset and Deep's deduplication with score summing are removed.
+
+### IMP-042: [retrieval] Reranker depth by time budget and profile
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 5, Fusion. Candidates sent to the reranker: Fast 30, Deep 50, adjusted by hardware profile (e.g. 20 on light profiles, up to 100 on strong ones or the Model Server) within a reranking time budget (about 1 second in Fast), tuned per workspace by where the right chunk usually sits.
+
+### IMP-043: [retrieval] Cross-encoder as the only relevance judge, always on
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. The cross-encoder from the hardware kit judges relevance in both modes, over the child chunk with its contextual header; summaries are reranked, SQL results are not. Acceptance: the /rerank command and the option to disable reranking are removed; Deep's chunk-by-chunk LLM yes/no is removed; candidates beyond the budget are discarded, not pushed to the end.
+
+### IMP-044: [retrieval] Calibrated reranker relevance bands per model
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. Reranker scores map to relevant, maybe and irrelevant bands with per-model thresholds in the catalog, refined per workspace by the evaluation. Irrelevant chunks never go to the LLM. The bands feed the nothing-found gate, the Fast-to-Deep escalation and selection. Supersedes IMP-007.
+
+### IMP-045: [retrieval] Selection by relevance bands and the token budget
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. Chunks of the relevant band enter, then the best of the maybe band, up to a context token budget set by AnyContext from the chat model and the mode (typically 3 to 5 chunks with parents in Fast). Near-identical chunks deduplicated, current version only (previous ones in comparisons), no hard per-file limit. Acceptance: the fixed top-k (10/20/40), per-file caps (2/3/5) and character ceilings (20/40/60 thousand) are removed.
+
+### IMP-046: [retrieval] Nothing-found and weak-evidence gate by reranker bands
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. No relevant chunk in automatic Fast escalates to Deep; nothing after Deep, or with Fast pinned, answers that nothing was found without calling the LLM, suggesting rephrasing, adding sources or @source; only maybe-band chunks give an answer with an explicit weak-evidence warning. Replaces today's gate on the RRF score.
+
+### IMP-047: [retrieval] Context grouped by file, with ingestion locators, dates and versions
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 8, Context assembly. One final context per question: chunks of the same file stay together in file order, and the file groups are arranged in a U by their best relevance. Each evidence has a short citation id, title, source and path, locator, document date and version from ingestion and its type (chunk, summary, table result with SQL); text stays escaped. Acceptance: no version deduced from the path (ADR-0140); no rank attribute that shows the prompt position or mixed score scales. Supersedes ADJ-005.
+
+### IMP-048: [retrieval] Prompt in layers with the workspace prompt, ordered for caching
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 8, Context assembly. One prompt in layers instead of one per path: AnyContext base rules (only from the context, cite ids, user's language, safety, tools), domain pack guidelines, the workspace system prompt (persona, tone, format, focus; changed only by owner and editors in a shared workspace, never overriding the base rules, used only in calls that produce the user's answer) and the mode complement. Stable layers go first, as a system message, for provider prompt caching. Supersedes IMP-010, IMP-011 and FEAT-009.
+
+### IMP-049: [retrieval] Context token budget computed from the model window
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 8, Context assembly. Model window = system prompt + history (with the summary of older parts) + evidence + reserve for the answer; evidence gets what is left, within the cost ceiling of selection. Today the ceiling is in characters, unrelated to the model window.
+
+### IMP-050: [retrieval] Always stream answers with visible progress
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 9, Generation and citations. Streaming in both modes, with visible progress (querying a table, Deep turn 2...). Web results, when allowed, are marked as web with their URL, separate from workspace sources; weak-evidence warnings and the enumerative count come at the start of the answer.
 
 ## Adjustments
 
@@ -830,13 +1068,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
 - **Plan**: -
 - **Description**: Decide the fate of implementation_plan_subscription_tiers.md (BillingManager tiers) and BLUEPRINT_PRIORITY_4_CLI_TUI.md at the repository root, verify the state of RFC-042 (retrieve_hybrid_batch, /fast and /deep already exist), and close milestone M8 Release of the released v0.45.0 C0 plan.
-
-### ADJ-005: Chunk rank attribute shows the prompt position
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
-- **Plan**: -
-- **Description**: The `rank` attribute in `<chunk>` is the position after U-shaped reordering, not the relevance rank, and `score` mixes RRF and cross-encoder scales depending on whether re-ranking ran.
 
 ## Closed
 
@@ -1079,3 +1310,99 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-23, Superseded by IMP-029
 - **Description**: Google's embeddings guide says gemini-embedding-2 rejects task_type and expects text prefixes instead: 'task: search result | query: {content}' for queries and 'title: {title} | text: {content}' (title: none) for documents. The Gemini adapter sends raw text for both today, which works but leaves retrieval quality on the table. Add the prefixes per role (query vs document) through the embedding port, and measure with IMP-008. Changing them changes the vector space, so it reuses the BUG-003 embedding target record (a new target key) to trigger the reindex.
+
+### IMP-006: Replace labeled heuristics with real neural inference
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-052 and IMP-038
+- **Description**: query_classifier.rs, scan sentinel, layout extractor and vision encoder run deterministic heuristics labeled as such. Document AI weights are already downloaded by the profiles; real inference is missing.
+
+### IMP-007: No relevance cutoff on cross-encoder scores
+- **Priority**: high
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-044
+- **Description**: The deterministic path always sends up to `top_k` (6) chunks, and `min_score` is applied before re-ranking on the RRF scale. The cross-encoder's calibrated scores are never used to drop weak chunks, and the Zero Hallucination Gate threshold (0.005) is tuned for RRF scores.
+
+### IMP-008: No retrieval and answer quality evaluation
+- **Priority**: high
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-073 and FEAT-106
+- **Description**: There is no reference question set or metric (recall@k, NDCG@5, citation faithfulness) to calibrate thresholds or show the effect of retrieval changes, including the planned hierarchical chunking (Frente D).
+
+### IMP-009: Follow-up questions are retrieved without conversation context
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-081
+- **Description**: The deterministic retriever searches with the current message only. A follow-up such as "and in v1?" is searched as written, without the subject of the previous turns.
+
+### IMP-010: Deterministic RAG prompt is sent without a system message
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-048
+- **Description**: The deterministic path places the system instructions inside the user message (`<system_instructions>`) after the session history, so the instructions are repeated per turn and cannot benefit from provider prompt caching.
+
+### IMP-011: Review all prompts and organize them into skills
+- **Priority**: high
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-048
+- **Description**: Prompts live in five places (`config/AGENT.md`, `actx-cli/src/prompt.rs`, `retrieval/prompt.rs`, the Deep Search prompts in `deep_search.rs`, `config/SYSTEM_KNOWLEDGE.md`) with overlapping and conflicting rules, for example four citation formats (`[chk_1]`, `[path:45-60]`, citation footers, file names). Goal: a minimal base agent prompt, with each function (deterministic RAG, agentic search, Deep Search, source management) moved into a skill loaded when needed, and every prompt reviewed for ambiguity and contradictions. There is no skill mechanism today.
+
+### FEAT-009: Per-workspace instructions (system prompt)
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-048
+- **Description**: Let the user write instructions for the model per workspace. They must sit below the grounding and safety rules, never override them, and have a size limit.
+
+### FEAT-019: Live web search on the routed paths
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-18, 2026-10-18, v0.45.0, BUG-017 discovery
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-037
+- **Description**: With /web-search on, the model may search the web to complement the indexed workspace content, deciding when a search is needed, on the one-hop (Fast, Auto-fast) and Deep Search (Deep, Auto-deep) paths. Today the web_search tool exists only on ReAct, which runs only when LanceDB fails to open, so /web-search on changes nothing and MT-WEB-003 fails (the web half of BUG-017). Search results are supplementary lookup, not workspace documentation: they are not indexed (unlike web pages added to a workspace as sources with /web, which are always indexed). Requirements: results are untrusted content and are neutralized in prompts like chunk text (BUG-015, actx_agent::prompt_safety); they reach the model and the answer marked as web sources, kept apart from workspace citations; with /web-search off nothing leaves the machine. Amend ADR-0145, which recorded that all web content is indexed before inference, to separate workspace web sources (indexed) from authorized live web search (not indexed). Open decisions: how the model decides to search on the routed paths (tool call, router signal or Deep Search step), how many results and whether to fetch full pages, latency budget.
+
+### ADJ-005: Chunk rank attribute shows the prompt position
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, RAG best-practices review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-047
+- **Description**: The `rank` attribute in `<chunk>` is the position after U-shaped reordering, not the relevance rank, and `score` mixes RRF and cross-encoder scales depending on whether re-ranking ran.
+
+### FEAT-007: Document mode: work on one whole file
+- **Priority**: high
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-108
+- **Description**: Let the user pick a file in the workspace and summarize or analyze it as a whole. Top-k retrieval cannot cover a whole document, so questions such as "summarize this file" are answered from a few chunks today.
+
+### FEAT-015: Tools to list and read sources, folders and files
+- **Priority**: high
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-109
+- **Description**: Agent tools and UI commands to list a workspace's sources, browse folders and files and read a file or a range of it, so the user does not need to leave AnyContext. Limited to registered sources and read-only. Full web browsing was discussed and left out; reading pages through the existing web reader covers it.
+
+### FEAT-017: Exact text search over sources
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-087 and IMP-031
+- **Description**: A grep-style search for exact identifiers and strings across a workspace's sources, as a complement to semantic search.
