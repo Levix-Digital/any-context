@@ -87,6 +87,25 @@ An MVP in features on a complete foundation.
    Artifact Signing and Linux with GPG; macOS unsigned and not notarized until there is
    revenue (decided 2026-10-23).
 
+**Items (placed 2026-10-23, 95):**
+
+| area | items |
+|---|---|
+| bugs | BUG-022, BUG-024, BUG-025, BUG-026, BUG-027, BUG-028, BUG-029 |
+| storage | IMP-031, IMP-033, IMP-034, IMP-036, IMP-051, IMP-052, IMP-053, FEAT-069 |
+| models | IMP-027, IMP-028, IMP-029, IMP-030, IMP-054, IMP-055, IMP-057, IMP-058, FEAT-067 |
+| ingestion base | IMP-015, IMP-016, IMP-017, IMP-020, IMP-021, IMP-023, IMP-025, IMP-026, IMP-032, FEAT-020, FEAT-031, FEAT-036, FEAT-057 |
+| ingestion worker | IMP-059, IMP-060, IMP-061, FEAT-050 |
+| Pro: Web | IMP-019, FEAT-021, FEAT-022, FEAT-023, FEAT-149, FEAT-160, FEAT-161, FEAT-170 |
+| Pro: Audio and video | FEAT-047 |
+| retrieval | IMP-035, IMP-037, IMP-038, IMP-039, IMP-040, IMP-041, IMP-042, IMP-043, IMP-044, IMP-045, IMP-046, IMP-047, IMP-048, IMP-049, IMP-050, FEAT-081, FEAT-082, FEAT-085, FEAT-088, FEAT-098, FEAT-101 |
+| identity and plan | FEAT-193, IMP-062, FEAT-168, FEAT-169 |
+| desktop UI | FEAT-172, FEAT-173, FEAT-174, FEAT-175, FEAT-176, FEAT-177, FEAT-178, FEAT-179, FEAT-184, FEAT-185 |
+| CLI and release | FEAT-186, FEAT-188, FEAT-189, FEAT-190, FEAT-192, IMP-063, IMP-064, ADJ-006, ADJ-007, ADJ-008 |
+
+Needed from `levix-platform`: FEAT-001 (personal account only), FEAT-003, FEAT-004, FEAT-009,
+FEAT-010, FEAT-013, FEAT-019, FEAT-020, FEAT-021.
+
 ### R2 — v1.x Personal evolution
 
 Full Office, PDF and e-mail; archives; ONNX OCR and Document AI; forms with LSIE;
