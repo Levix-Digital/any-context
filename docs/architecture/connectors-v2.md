@@ -1,6 +1,6 @@
 # Connectors — target design (v2)
 
-Review of the connectors (32 decisions). All decisions are made; what is commercial or about delivery
+Review of the connectors (33 decisions). All decisions are made; what is commercial or about delivery
 order is left to the roadmap.
 
 ## Current state
@@ -188,6 +188,17 @@ order is left to the roadmap.
     through unofficial libraries. A third-party API (e.g. a search or transcription
     provider) is used only when the origin's terms allow it and its cost-benefit pays off.
     This generalizes decisions 16, 20 and 24. Decided 2026-10-23.
+33. **E-mail through a generic IMAP connector.** One connector for any provider (Gmail
+    included) over IMAP, read-only, with change detection through `CONDSTORE`; folders and
+    labels are its targets; attachments go back into the pipeline as files. Sign-in prefers
+    the provider's OAuth (XOAUTH2); otherwise an app password kept in the personal vault.
+    Like the other source connectors it is an Enterprise feature (decision 28). Gmail over
+    OAuth uses Google's restricted full-mail scope, which needs the security assessment for
+    a public app (as in decision 20); in the corporate environment the company's own app
+    covers it. App passwords exist only where the provider allows them (Google: with 2-Step
+    Verification). Decided 2026-10-23; the Google scope and app-password rules were checked
+    only against secondary sources and must be confirmed in Google's documentation when the
+    item is planned.
 
 ## For the roadmap
 
