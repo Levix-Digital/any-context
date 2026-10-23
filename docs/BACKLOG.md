@@ -71,13 +71,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: release.yml only builds Linux x86_64 and Windows x86_64.
 
-### FEAT-010: Token usage and context window fill in the status bar
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Show the tokens used per model and how full the context window is, including custom models outside the catalog. Discussion notes: providers report token usage in their responses; the context window size is not available from every provider, so custom models may need it entered by the user. Tokens sent over the network and tokens processed locally can be shown apart.
-
 ### FEAT-011: Local diagnostic bundle and /feedback with confirmation
 - **Priority**: high
 - **Status**: open
@@ -91,13 +84,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, v0.45.0, product ideas review
 - **Plan**: -
 - **Description**: Crash and error reports collected only in beta/RC builds, off by default, with a global kill switch (such as `DO_NOT_TRACK` or an enterprise policy) and always off under the offline and privacy presets. Discussion item: must not conflict with the air-gapped positioning.
-
-### FEAT-016: Open a cited chunk at its file and line
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Jump from a citation in an answer to the cited file and line. Depends on BUG-010.
 
 ### FEAT-020: [ingestion] Single local file and single web page as sources
 - **Priority**: medium
@@ -1163,6 +1149,104 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/connectors-v2.md, decision 33. One read-only connector for any provider over IMAP, Gmail included: folders and labels as targets, change detection through CONDSTORE, attachments back into the pipeline as files. Sign-in prefers the provider's OAuth (XOAUTH2); otherwise an app password in the personal vault. Gmail OAuth uses Google's restricted full-mail scope (security assessment for a public app; the corporate environment uses the company's app); confirm Google's scope and app-password rules in its documentation when planning. Enterprise feature (decision 28).
 
+### FEAT-172: [ui] Tauri 2 desktop app shell: three columns and the top bar
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Three-column structure. A Tauri 2 app with the Context Explorer (200/260/420 px), the Canvas Hub (min 480 px, flexible) and the Workspace Inspector (240/280/480 px), resizable by dragging and collapsible with Cmd/Ctrl+B and Cmd/Ctrl+I, under a fixed 38 px top bar with the app name, quick search and the global menu. Tauri commands call the core; worker progress arrives as native events (IMP-061). No Tauri app exists in the repository today.
+
+### FEAT-173: [ui] Design system tokens
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Design system. Semantic colors, typography, spacing, radii and elevations from the token specification: dark theme with surfaces from #0B0C0E to #1E2330, primary accent #2563EB, source status colors (synced, syncing, error), native sans font and mono for code, 4 px base spacing.
+
+### FEAT-174: [ui] Context Explorer: workspace tree with sources and their status
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Three-column structure, and Rules inherited from the architecture decisions. Tree of workspaces with their sources (expandable folders, sites expandable into pages, connectors) and the status of each source; shared and organization workspaces show the user's role; a source the plan no longer covers shows as deactivated, never disappears; the system help is not in the tree. '+ New' button; footer with the user profile and shortcuts.
+
+### FEAT-175: [ui] Canvas Hub tabs: one chat per workspace, one reader per open source
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Behavior. Clicking a workspace opens or focuses its chat tab; clicking a source opens or focuses its reader tab; tabs never repeat.
+
+### FEAT-176: [ui] Chat tab: streaming, clickable citations, composer with quick options
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Behavior. Streaming history with clickable citations that open the source at the cited point; multiline composer with a fixed bar of quick options (model, Fast or Deep, web search, sync, send) saved per workspace. Shows the question queue (FEAT-084), stop and edit (FEAT-085), feedback (FEAT-104) and weak-citation marks (FEAT-102).
+
+### FEAT-177: [ui] Reader tab opening the original at the cited locator
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Behavior. Read-only document with syntax highlighting, line numbers, indexing metadata and 'reprocess this document'. A citation opens it at its locator (FEAT-057) with the passage highlighted: page and region, cell range, minute, lines, section. With FEAT-057 and FEAT-101, supersedes FEAT-016.
+
+### FEAT-178: [ui] Browse folders, files and sites without leaving AnyContext
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Behavior. Opening files, browsing a source's folders and viewing sites inside the desktop UI, read-only and limited to the workspace's sources (the same scope as the source tools, FEAT-109).
+
+### FEAT-179: [ui] Workspace Inspector with only what belongs to the user
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Behavior. The inspector follows the active tab (workspace or document): basic section exposed, advanced in an accordion, only what is the user's (name and description, sources and filters, chat model, domain pack, privacy policies, crawl ceiling). Acceptance: no Chunk Size, Overlap, Top-K, Score Threshold, Neural Reranker or Max Depth settings.
+
+### FEAT-180: [ui] Quick search (Cmd/Ctrl+K)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Three-column structure. Quick search from the top bar over workspaces, sources, open tabs and commands.
+
+### FEAT-181: [ui] Token usage and context window fill in the chat tab
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Behavior (decided 2026-10-23), and retrieval-pipeline-v2.md, step 10. Tokens used per model and how full the chat model's context window is, shown discreetly next to the composer, with no separate status bar; fed by the answer receipt (FEAT-103), including custom models outside the catalog (window unknown shows only tokens). With FEAT-103, supersedes FEAT-010.
+
+### FEAT-182: [ui] Layout map review and correction screen
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Behavior, and ingestion-pipeline-v2.md, section 6, Forms as data (LSIE), item 3. A screen in the style of DocMapper's Mapping Studio to review and correct a form layout map (fields, boxes, anchor labels) generated by phase 0 (FEAT-054); the corrected map is used by LSIE for the next documents of the layout.
+
+### FEAT-183: [ui] Entity view in the inspector, with merge and split
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Behavior, and ingestion-pipeline-v2.md, section 7, Entity and relation graph (audit P16) and Duplicates and versions (audit P17). Browse a workspace by entity and see the documents and relations linked to it; correct entity resolution (merge, split) and version families (split wrongly grouped documents, join undetected versions).
+
+### FEAT-184: [ui] Source report view
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Behavior, and ingestion-pipeline-v2.md, Principles (nothing disappears silently). Per source: files not indexed and discarded chunks with the reason (FEAT-031), offline, disconnected and deactivated states (BUG-025, FEAT-156, FEAT-169), extraction quality and findability scores (FEAT-072, FEAT-073), what a disabled connector would cover (FEAT-160), and a 'reprocess' action.
+
+### FEAT-185: [ui] System help panel
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/desktop-ui-v2.md, Rules inherited from the architecture decisions, and retrieval-pipeline-v2.md, step 1. A help panel over AnyContext's built-in documentation (IMP-017); the help is not a workspace in the tree and never mixes into workspace results.
+
 ## Improvements
 
 ### IMP-002: Remove the core dependency on actx_installer
@@ -1932,3 +2016,19 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-23, Superseded by FEAT-164, FEAT-165 and FEAT-166
 - **Description**: Sources from cloud drives (folders and individual files). No drive connector exists today. Discussion item.
+
+### FEAT-010: Token usage and context window fill in the status bar
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-103 and FEAT-181
+- **Description**: Show the tokens used per model and how full the context window is, including custom models outside the catalog. Discussion notes: providers report token usage in their responses; the context window size is not available from every provider, so custom models may need it entered by the user. Tokens sent over the network and tokens processed locally can be shown apart.
+
+### FEAT-016: Open a cited chunk at its file and line
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-057, FEAT-101 and FEAT-177
+- **Description**: Jump from a citation in an answer to the cited file and line. Depends on BUG-010.

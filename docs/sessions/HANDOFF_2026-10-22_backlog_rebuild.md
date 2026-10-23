@@ -116,7 +116,8 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 - Done (2026-10-23): batch 4, deployment: IMP-051 to IMP-061 and FEAT-110 to FEAT-119. Closed as superseded: FEAT-002, FEAT-003, IMP-005 and ADJ-003.
 - Done (2026-10-23): batch 5, identity and governance (with the workspace model): FEAT-120 to FEAT-148 and IMP-062. FEAT-013, FEAT-014 and FEAT-018 had no v2 design; the user's decisions are in `identity-and-governance-v2.md`, topic 7, and the user layer in `retrieval-pipeline-v2.md`, step 8. They close as superseded by FEAT-146 to FEAT-148.
 - Done (2026-10-23): batch 6, connectors and plans: FEAT-149 to FEAT-171. FEAT-008 closes as superseded by FEAT-164 to FEAT-166. New `connectors-v2.md` decision 33: a generic IMAP e-mail connector (Enterprise); Google's scope and app-password rules were checked only against secondary sources.
-- Next: batch 7, desktop UI. It also closes FEAT-010 and FEAT-016 and takes the UI parts left by earlier batches (layout map review screen, entity view in the inspector, citation opening at the locator, branches UI).
+- Done (2026-10-23): batch 7, desktop UI: FEAT-172 to FEAT-185. FEAT-010 and FEAT-016 close as superseded. Token usage is shown next to the composer, with no status bar (`desktop-ui-v2.md`). There is no Tauri app in the repository yet.
+- Next: batch 8, CLI and release: the fate of the current TUI, the release profile (lto off, strip on; keep panic = unwind), and the old FEAT-001, FEAT-004, FEAT-011, FEAT-012, IMP-002, ADJ-001, ADJ-002 and ADJ-004.
 - Last commits on `docs/architecture-v2-redesign`: `59997a0` (fair-use ceiling), `44f0c6d`, `c664919` (plans), `6918b97` (the first version of this handoff).
 
 ### Housekeeping I still owe
