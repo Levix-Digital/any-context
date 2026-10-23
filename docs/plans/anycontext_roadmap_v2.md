@@ -112,6 +112,25 @@ Full Office, PDF and e-mail; archives; ONNX OCR and Document AI; forms with LSIE
 ingestion self-evaluation; domain packs; automatic sync; summaries and the profile's local
 LLM; several accounts per machine with `root` and `sudo`; biometrics.
 
+
+**Items (placed 2026-10-23, 78):** the internal order (v1.1, v1.2…) is decided when R1 is close. Sharing a workspace between accounts on the same machine (FEAT-135) moved here with roles (FEAT-133) and key rotation (FEAT-131).
+
+| area | items |
+|---|---|
+| formats and containers | IMP-018, IMP-022, IMP-024, FEAT-028, FEAT-029, FEAT-032, FEAT-033, FEAT-035, FEAT-038, FEAT-039, FEAT-040, FEAT-041 |
+| professional formats | FEAT-043, FEAT-044, FEAT-045, FEAT-046 |
+| extraction | FEAT-030, FEAT-037, FEAT-051, FEAT-052, FEAT-056 |
+| forms | FEAT-053, FEAT-054, FEAT-055, FEAT-182 |
+| web and audio | FEAT-024, FEAT-025, FEAT-048, FEAT-049 |
+| enrichment | FEAT-026, FEAT-027, FEAT-058, FEAT-059, FEAT-060, FEAT-061, FEAT-063, FEAT-183 |
+| self-evaluation and packs | FEAT-072, FEAT-073, FEAT-074, FEAT-075, FEAT-076 |
+| operation | FEAT-077, FEAT-078, FEAT-079, FEAT-125 |
+| models | FEAT-112, FEAT-115, FEAT-116, FEAT-187 |
+| retrieval | FEAT-084, FEAT-087, FEAT-089, FEAT-090, FEAT-091, FEAT-092, FEAT-093, FEAT-094, FEAT-099, FEAT-100, FEAT-102, FEAT-103, FEAT-104, FEAT-105, FEAT-106, FEAT-107, FEAT-108, FEAT-109 |
+| accounts, sharing and conversation | FEAT-131, FEAT-133, FEAT-135, FEAT-146, FEAT-147, FEAT-148, FEAT-083, FEAT-086, FEAT-180, FEAT-181 |
+
+Needed from `levix-platform`: FEAT-001 (several accounts), FEAT-002, FEAT-005.
+
 ### R3 — v2.0.0 Enterprise foundations
 
 Personal and corporate environments; Admin Hub (`levix-admin-hub`) and the platform's
@@ -119,14 +138,39 @@ corporate identity, policies and governance engine; endpoint trust levels and th
 confidential ceiling; Enterprise connectors (Google Drive, OneDrive and SharePoint,
 Dropbox, IMAP, YouTube, Obsidian); the Model Server (mode 2).
 
+
+**Items (placed 2026-10-23, 27):**
+
+| area | items |
+|---|---|
+| governance and models | FEAT-111, FEAT-113, FEAT-114, FEAT-117, FEAT-118, FEAT-119, IMP-056, FEAT-142, FEAT-143, FEAT-159 |
+| sharing | FEAT-134, FEAT-136 |
+| connectors | FEAT-150, FEAT-151, FEAT-152, FEAT-153, FEAT-154, FEAT-155, FEAT-156, FEAT-157, FEAT-158, FEAT-162, FEAT-163, FEAT-164, FEAT-165, FEAT-166, FEAT-171 |
+
 ### R4 — v2.x Enterprise shared index
 
 AnyContext Server (mode 3), groups and organization workspaces, per-source access control.
+
+
+**Items (placed 2026-10-23, 2):**
+
+| area | items |
+|---|---|
+| shared index and access control | FEAT-110, FEAT-080 |
 
 ### Later
 
 Entity graph, visual page retrieval, late chunking, learned sparse vectors, compact
 vectors, approximate vector index, niche formats.
+
+
+**Items (placed 2026-10-23, 13):**
+
+| area | items |
+|---|---|
+| retrieval and storage | FEAT-062, FEAT-064, FEAT-065, FEAT-066, FEAT-068, FEAT-070, FEAT-071, FEAT-095, FEAT-096, FEAT-097 |
+| formats | FEAT-034, FEAT-042 |
+| release | FEAT-194 |
 
 ## Versioning
 
@@ -134,7 +178,7 @@ vectors, approximate vector index, niche formats.
   on `dev` as `v1.0.0-rc.N` (`devops-release`), installed and accepted by the owner; the
   final `v1.0.0` tag is created when the owner merges `dev` into `main`.
 
-## Next step
+## Placement
 
-Place the backlog items into the releases one by one, release by release, for the owner's
-review; each item's placement is recorded in this plan.
+Every open backlog item is placed (2026-10-23). New items are placed when they are
+captured; the order inside a release is decided when the release is planned.
