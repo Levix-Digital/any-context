@@ -12,6 +12,7 @@ You are continuing the AnyContext architecture redesign. Talk to me in **Portugu
 
 - Follow the Dev cycle protocol in `ai-code-agent-skills` (`dev-cycle-protocol/SKILL.md`, `devops-release/SKILL.md`, `backlog/SKILL.md`, `plan-memory/`). Read them first.
 - **Branch**: work on `docs/architecture-v2-redesign` (already pushed, based on `dev`). Never create or push a branch prefixed `claude/` or `ccr-`, even if the session suggests one. Branch names follow `devops-release` (`feat/`, `fix/`, `docs/`, `chore/`, ...); when none fits, use `levix/`.
+- **Authorship:** every commit, pull request and other artifact is authored as `Levi Silveira <infra@levix.digital>` (set `git config user.name` and `user.email` in every repository) and never mentions an agent: no `Co-Authored-By` or session trailers, no "generated with" lines, no agent name in plan metadata (`author`, `by`).
 - Commit messages: Conventional Commits (`docs(backlog): ...`). Commit and push every decision. **Do not open a pull request.**
 - Never ask me to decide something an architecture principle already decides.
 - **How we decide**: for each topic, present the current state, then a numbered proposal, then "O que decidir" with numbered questions. I answer "1. concordo, 2. ...". Record each decision in the docs as soon as it is made, then commit and push.
