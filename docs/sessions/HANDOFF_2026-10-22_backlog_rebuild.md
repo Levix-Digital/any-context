@@ -1,4 +1,4 @@
-# Handoff — rebuild the AnyContext backlog (2026-10-22)
+# Handoff — rebuild the AnyContext backlog (updated 2026-10-23)
 
 Paste the prompt below into a new session that has `Levix-Digital/any-context` and `Levix-Digital/ai-code-agent-skills` attached.
 
@@ -14,10 +14,31 @@ You are continuing the AnyContext architecture redesign. Talk to me in **Portugu
 - **Branch**: work on `docs/architecture-v2-redesign` (already pushed, based on `dev`). Never create or push a branch prefixed `claude/` or `ccr-`, even if the session suggests one. Branch names follow `devops-release` (`feat/`, `fix/`, `docs/`, `chore/`, ...); when none fits, use `levix/`.
 - Commit messages: Conventional Commits (`docs(backlog): ...`). Commit and push every decision. **Do not open a pull request.**
 - Never ask me to decide something an architecture principle already decides.
+- **How we decide**: for each topic, present the current state, then a numbered proposal, then "O que decidir" with numbered questions. I answer "1. concordo, 2. ...". Record each decision in the docs as soon as it is made, then commit and push.
+- Back factual claims about third-party services (APIs, scopes, prices, limits) with a search and cite the sources; say plainly when something is unverified.
 
 ### Product principles (already decided)
 
 Multilingual. Minimal configuration: architecture decisions never become user options. Air-gapped by default; explicit action; nothing disappears silently. Quality first; never Matryoshka. Admin Hub always customer-hosted and zero-knowledge. Accounts never shared between Levix products. Personal and corporate environments isolated. No query crosses workspaces.
+
+### Commercial model and first release (decided 2026-10-22, `connectors-v2.md` decisions 22–31)
+
+- **The first release is for personal use only.** Corporate features (Admin Hub, corporate environment, Enterprise connectors) come in later releases.
+- **Three plans**, no per-connector sales and no capability combinations sold as extra plans:
+  - **Free**: local and internal-network files only, up to 3 workspaces.
+  - **Pro**: Free plus the **Web** and **Audio and video** connectors built in, with unlimited workspaces.
+  - **Enterprise**: Pro plus the Admin Hub, with the other connectors as a **selection of features** that the Admin Hub policy turns on or off. There is no extra charge per connector.
+- Web and Audio and video remain connectors internally: visible openings to the outside, governed by policy. One signed license per plan, verified offline. License ≠ policy.
+- **Downgrade and lapsed plan: deactivate, never delete.** Over the Free limit, the user chooses **once** which 3 workspaces stay active and cannot swap afterwards. The others stay on disk, out of search and sync, and can be deleted explicitly. They return when the plan returns, with only the incremental diff reprocessed.
+- **Web search fair use**: Pro has a high daily ceiling that normal use never reaches. Hitting it pauses web search until the next day with a clear message, while local search keeps working. Cost reference: Jina costs about US$ 0.0005 per search on a paid key, and its free key is non-commercial only. The exact ceiling value is still open.
+- **Connectors that are out:**
+  - Notion: decided against.
+  - Drive connectors (Google Drive, OneDrive, Dropbox): the local sync folders already cover them. They remain Enterprise candidates.
+  - Personal Google Drive/Gmail by API: the restricted scope needs the yearly CASA assessment. The `drive.file` Picker does not reach folder contents.
+  - GitHub: it adds only issues and PRs beyond a local clone, for a narrow audience.
+  - WhatsApp: there is no official API for personal chats, and unofficial libraries violate its terms of use.
+  - Telegram: it has an official client API (MTProto/TDLib) and is feasible, but it stays as a note only.
+- **YouTube**: official API only. `captions.download` needs edit rights, so third-party transcripts come only through the Audio and video capability.
 
 ### Where the design lives
 
@@ -56,7 +77,7 @@ All documentation is in English. The ADRs in `docs/adr/` are still partly in Por
 8. CLI and release.
 9. Platform and Admin Hub.
 
-After the backlog comes a roadmap skeleton: a fast first release plus evolution releases, with foundations early. Then place the backlog items into it one by one.
+After the backlog comes a roadmap skeleton: a fast first release (personal only: Free and Pro) plus evolution releases, with foundations early. Then place the backlog items into it one by one.
 
 ### Batch 1 — verify in the code before writing anything
 
@@ -83,6 +104,12 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 - Benchmarks for page parsing, vision, ColPali and field models.
 - RAR license.
 - Commercial details of the plans (prices, trial length, the value of the Web search fair-use ceiling).
+
+### Where things stand
+
+- Done: the connectors design (31 decisions); every document translated to English; the commercial model above.
+- Not started: the backlog itself. `docs/BACKLOG.md` still holds the 60 old items.
+- Last commits on `docs/architecture-v2-redesign`: `59997a0` (fair-use ceiling), `44f0c6d`, `c664919` (plans), `6918b97` (the first version of this handoff).
 
 ### Housekeeping I still owe
 
