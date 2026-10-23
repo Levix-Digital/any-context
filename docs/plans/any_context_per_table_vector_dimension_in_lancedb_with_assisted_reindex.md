@@ -46,7 +46,7 @@ status_log:
   status: draft
   note: Plan updated
 - at: '2026-10-23T14:16:42'
-  by: Claude
+  by: Levi Silveira
   status: superseded
   note: Superseded by IMP-033 and IMP-027 in the v2 backlog (2026-10-23); the M1 code stays on branch feat/imp-004-embedding-model.
 ---
