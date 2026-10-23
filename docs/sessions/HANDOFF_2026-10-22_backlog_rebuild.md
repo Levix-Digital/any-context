@@ -48,7 +48,7 @@ Multilingual. Minimal configuration: architecture decisions never become user op
 - `retrieval-pipeline-v2.md`
 - `deployment-architecture-v2.md`
 - `identity-and-governance-v2.md`
-- `connectors-v2.md`: 31 decisions, including the three plans (Free / Pro / Enterprise) and no Notion connector.
+- `connectors-v2.md`: 32 decisions, including the three plans (Free / Pro / Enterprise), no Notion connector and official APIs only (decision 32).
 - `desktop-ui-v2.md`
 - `platform-shared-components.md`
 
@@ -107,8 +107,10 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 
 ### Where things stand
 
-- Done: the connectors design (31 decisions); every document translated to English; the commercial model above.
-- Not started: the backlog itself. `docs/BACKLOG.md` still holds the 60 old items.
+- Done: the connectors design (32 decisions); every document translated to English; the commercial model above.
+- Done (2026-10-23): batch 1, current-code bugs: BUG-022 and BUG-024 to BUG-029 in `docs/BACKLOG.md`. The plain-text API keys, the machine-id key and the clear lexical index are acceptance criteria of the key hierarchy item (`identity-and-governance-v2.md`, section 2), unless that item leaves the first release. Router keywords and the unwired Document AI are acceptance criteria of the retrieval routing and ingestion section 6 items. The release profile goes to batch 8.
+- `feat/imp-004-embedding-model` holds unmerged code, including the BUG-022 fix; map it in the ingestion and deployment batches. The user asked to delete it and the `docs/bug-008-plan`, `docs/bug-010-plan` and `docs/bug-012-plan` branches (obsolete); the session proxy refuses deletion, so the user deletes them on GitHub.
+- Next: batch 2, ingestion (with the audit). `docs/BACKLOG.md` still holds the 60 old items, closed as superseded as the batches map them.
 - Last commits on `docs/architecture-v2-redesign`: `59997a0` (fair-use ceiling), `44f0c6d`, `c664919` (plans), `6918b97` (the first version of this handoff).
 
 ### Housekeeping I still owe
