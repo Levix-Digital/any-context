@@ -3,10 +3,10 @@ plan_id: anycontext_roadmap_pos_v0450_proximas_frentes
 project: any-context
 title: 'Post-v0.45.0 Roadmap: Next Development Fronts'
 version: v0.46.0
-status: active
+status: superseded
 author: 'Claude (cloud session, PR #328)'
 created_at: '2026-10-16T10:45:40'
-updated_at: '2026-10-16T10:52:10'
+updated_at: '2026-10-23T20:45:30'
 session_id: null
 tags:
 - roadmap
@@ -15,7 +15,7 @@ tags:
 - backlog
 - handoff
 supersedes: null
-superseded_by: null
+superseded_by: anycontext_roadmap_v2
 parent_plan_id: null
 milestones:
 - name: Front C (v0.46.0)
@@ -30,6 +30,10 @@ status_log:
 - at: '2026-10-16T10:52:10'
   by: Levi Silveira
   note: Frontmatter added (plan-memory shared plan format)
+- at: '2026-10-23T20:45:30'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by anycontext_roadmap_v2
 ---
 
 # 🗺️ Post-v0.45.0 Roadmap: Next Development Fronts
