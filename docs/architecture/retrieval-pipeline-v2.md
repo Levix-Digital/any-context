@@ -372,9 +372,12 @@ selected chunks may come from different source files of the workspace.
       not enough; cite by the ids; answer in the user's language; safety; tool use;
    2. **domain pack guidelines**;
    3. **workspace system prompt** (FEAT-009): persona, tone, format, focus;
-   4. **mode complement** (answer in Fast, synthesize in Deep).
+   4. **user layer** (decided 2026-10-23): the user's role and answer style and their
+      explicit memories (`identity-and-governance-v2.md`, topic 7), below the workspace
+      prompt and within the token budget;
+   5. **mode complement** (answer in Fast, synthesize in Deep).
 
-   The workspace prompt enters **only in the calls that produce the user's answer** (Fast
+   The workspace prompt and the user layer enter **only in the calls that produce the user's answer** (Fast
    answer, Deep synthesis), never in internal tasks (planner, evaluation, summaries, chunk
    context, synthetic questions). **Base rules take precedence**: the workspace prompt
    shapes tone, format and focus, but does not turn off "only from the context" or "cite
