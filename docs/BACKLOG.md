@@ -64,20 +64,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Install or switch the hardware profile after installation, reusing crates/actx-installer/src/provision.rs (roadmap 2.2 goal 7).
 
-### FEAT-002: Local generative Gemma 4 (E2B/E4B ONNX)
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
-- **Description**: The published family is E2B, E4B, 12B, 26B-A4B and 31B; the tiers in actx-onnx gemma.rs (Compact, 27b, 32b) do not exist. Official ONNX only for E2B/E4B, multi-graph and multi-shard (E2B q4 > 3.6 GB). Needs a multi-shard downloader, a generative loop (tokenization, KV-cache, sampling) and tier recalibration; today Planned with the fallback provider (ADR-130, C0 D14).
-
-### FEAT-003: GPU execution providers (DirectML on Windows, CUDA on Linux)
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
-- **Description**: ONNX inference runs on CPU only. Needs the matching ONNX Runtime package and care with DLL dependencies (C0 D1: static DirectML linking prevented actx.exe from starting).
-
 ### FEAT-004: macOS release binary
 - **Priority**: low
 - **Status**: open
@@ -771,6 +757,76 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input (source tools). Agent tools, in both modes, to list the workspace's sources, browse their folders and files, and read a file or a range of it. Read-only and limited to the workspace's registered sources; no general file system or web browsing. Supersedes FEAT-015.
 
+### FEAT-110: [storage] AnyContext Server exposing the knowledge base port (mode 3)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 1, Storage port, and Deployment modes. A server in the company VPC runs the three stores on local disk and exposes the knowledge base port over an API; no LanceDB directly on S3 or MinIO. Workspace data keys in the server's vault or key service, TLS with mutual authentication, enrolled and governed by the Admin Hub like a device. The ingestion worker runs on the server and clients only enqueue and query. Enterprise plan; depends on the users module and per-source access control (FEAT-080).
+
+### FEAT-111: [models] Native vendor adapters: OpenAI, Azure OpenAI, Anthropic, Gemini API, Vertex AI
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role. Each vendor through its native API, which covers features the OpenAI-compatible layers miss (embedding task types, multimodal inputs, context caching): OpenAI and Azure OpenAI, Anthropic Messages, Google Gemini API and Vertex AI (generateContent, embedContent) in the customer's own GCP project.
+
+### FEAT-112: [models] Generic OpenAI-compatible adapter, including /rerank and /audio/transcriptions
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role. For servers that use the OpenAI-compatible format (vLLM, Ollama, LM Studio), plus the de facto formats for reranking (/rerank) and transcription (/audio/transcriptions).
+
+### FEAT-113: [models] AnyContext Model Server for roles without a standard (mode 2)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role, and Deployment modes. The desktop's ONNX runtime packaged as a service for OCR, page parsing, form fields and entities, with the same model and the same result as locally. Enables mode 2: local index, heavy models in the VPC.
+
+### FEAT-114: [models] Adapters for cloud services of the ONNX roles
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role. Adapters for services customers already pay for (e.g. Google Document AI and Speech-to-Text, and the Microsoft and AWS equivalents), following the endpoint trust level (FEAT-117) and the official-APIs-only rule (connectors-v2.md, decision 32).
+
+### FEAT-115: [models] Local LLM per profile via ONNX
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role, and ingestion-pipeline-v2.md, Vision model per profile. The context and summary LLM role runs locally on profiles that can afford it, used by contextual retrieval, summaries, follow-up rewriting, the planner and self-evaluation. Starting point: Gemma 4 E2B/E4B, the only sizes with official ONNX, which are multi-graph and multi-shard (E2B q4 above 3.6 GB); needs a multi-shard downloader, a generative loop (tokenization, KV cache, sampling) and tier recalibration; the actx-onnx tiers (Compact, 27b, 32b) do not exist. Supersedes FEAT-002.
+
+### FEAT-116: [models] GPU execution providers for local ONNX roles
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role, and ingestion-pipeline-v2.md, machine resource governance. Local ONNX roles can run on the GPU (DirectML on Windows, CUDA on Linux) with the matching ONNX Runtime package, one heavy model at a time on the GPU under the resource governor (FEAT-079). Care with DLL dependencies: static DirectML linking once prevented actx.exe from starting. Supersedes FEAT-003.
+
+### FEAT-117: [governance] Endpoint trust levels: local, corporate, external
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 3, Trust level of each endpoint. Each endpoint is local (the machine), corporate (VPC, Model Server, AnyContext Server, services in the company's own account) or external (third-party public APIs). Without Admin Hub the user classifies endpoints (localhost local, public API external by default); with Admin Hub the policy defines the levels and the user cannot raise one. Pseudonymization applies only to external; Admin Hub modes become rules over levels.
+
+### FEAT-118: [governance] Confidential workspace ceiling
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 3, Trust level of each endpoint. A workspace marked confidential never sends anything to an external endpoint, even when the general policy allows it. Acceptance: web search (the question sent to a search engine) and applications that consume AnyContext through the MCP server count as external exits, with pseudonymization and the workspace ceiling.
+
+### FEAT-119: [models] Embedding target identity with a fingerprint test
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 4, Embedding model identity. The embedding target is what produces the vector: model and weights version (catalog hash), dimension, precision and preprocessing (tokenizer version, prefixes); the same model and precision local or on a server is the same target. The catalog ships fixed texts and reference vectors; when a binding is configured and periodically, AnyContext embeds them and compares (e.g. similarity above 0.999 means the same target), catching silent provider changes and precision differences.
+
 ## Improvements
 
 ### IMP-002: Remove the core dependency on actx_installer
@@ -779,13 +835,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-16, v0.45.0, PR #333
 - **Plan**: -
 - **Description**: The core crate (any-context-core-rs) calls actx_installer directly from commands/engine.rs (install paths, latest release lookup, update logging), so actx_installer cannot be listed in architecture.forbidden_core_imports. In the hexagonal style the core should reach this through a port implemented by an adapter.
-
-### IMP-005: Single source for the Core and Installer model catalogs
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
-- **Description**: Model catalogs are duplicated in any-context-core-rs ingestion/model_manager.rs and actx-installer hardware.rs, guarded only by catalog_parity_tests. Move them to one shared module consumed by both (roadmap 2.2 goal 7).
 
 ### IMP-015: [ingestion] Single source model: a sources table replaces the three source tables
 - **Priority**: medium
@@ -1039,6 +1088,83 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 9, Generation and citations. Streaming in both modes, with visible progress (querying a table, Deep turn 2...). Web results, when allowed, are marked as web with their URL, separate from workspace sources; weak-evidence warnings and the enumerative count come at the start of the answer.
 
+### IMP-051: [storage] Knowledge base port per workspace hiding the three stores
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 1, Storage port. A single port per workspace over LanceDB, the lexical index and the workspace database: write and remove a document with its whole tree (parents, children, vectors, terms, metadata); dense, lexical and filter search; chunks by id and a chunk's parent; table and form queries; statistics. It has a local implementation and, later, a remote one (FEAT-110). Acceptance: the core no longer uses NativeLanceStore directly (11 files today).
+
+### IMP-052: [storage] Write journal applied idempotently across the three stores
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 1, Storage port. Each write of the knowledge base port goes through a journal and is applied idempotently in LanceDB, the lexical index and the workspace database; a failure in the middle is completed on the next sync. Solves today's uncoordinated writes even without a server.
+
+### IMP-053: [storage] Split settings.db into user-local and workspace databases
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 1, Storage port. settings.db, which today mixes preferences, keys, history, sources, diff cache and summaries, is split into a user-local database (preferences, chat history, vault references, hardware profile; never leaves the machine) and a workspace database (sources, diff cache, entities, layout maps, summaries, version families; travels with the knowledge base), with a migration.
+
+### IMP-054: [models] Model port with explicit roles and per-role bindings
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role. Roles: embedding, reranker, OCR, page parsing, form fields, image description, transcription (with VAD and speakers), entities and personal data, context and summary LLM, chat LLM. Each role has a binding: model (catalog id and version) + where it runs (local ONNX or endpoint). Acceptance: the ONNX roles get a common interface like LmProvider.
+
+### IMP-055: [models] Hardware kits as sets of per-role bindings
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role. Each hardware profile becomes a set of bindings per role; an Enterprise / VPC kit points the heavy roles to the server. Acceptance: profile RAM and tiers recalibrated to the models that actually run. Supersedes ADJ-003.
+
+### IMP-056: [governance] Admin Hub model policy checked at binding resolution
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role. Local only, corporate gateway only, hybrid and the allowed models are checked when a binding is resolved; a forbidden binding is refused with a clear reason, never swapped silently. Today the Admin Hub model policies are not wired to the core.
+
+### IMP-057: [models] Rules for an unavailable remote model
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role. Embedding never switches models (the file waits for the next sync); the other ingestion roles are queued and retried and may fall back to local only with the same model and version; in chat the error is shown and switching LLM is the user's choice within the policy.
+
+### IMP-058: [models] Single verified model catalog for core and installer
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 2, Model port, by role, and platform-shared-components.md, Verified catalog. One catalog module consumed by the core and the installer, replacing the duplicated catalogs in any-context-core-rs ingestion/model_manager.rs and actx-installer hardware.rs, guarded today only by catalog parity tests. It carries per-model prefixes, reranker band thresholds and fingerprint reference vectors. Supersedes IMP-005.
+
+### IMP-059: [ingestion] Persistent prioritized job queue per workspace
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 5, Ingestion worker. A persistent queue per workspace with priorities: base indexing > enrichments > self-evaluation > maintenance. Jobs are idempotent and tied to the storage port journal (IMP-052), so an interruption resumes without duplicating or losing anything. Today each sync spawns an actx --sync-worker process (commands/engine.rs:574) with no queue.
+
+### IMP-060: [ingestion] Single writer per workspace through a lease
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 5, Ingestion worker. One writer per workspace holds a lease; if the worker dies the lease expires and another takes over. Reading and searching are never blocked. Today nothing prevents two workers on the same workspace.
+
+### IMP-061: [ingestion] Worker progress through events; cancel and pause as queue commands
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 5, Ingestion worker. Progress and status as events (start, item processed, error, end): native Tauri events locally, over the server connection in mode 3, replacing the SQLite status table. Cancel and pause are queue commands honored between jobs and inside long ones (pause points in a long transcription).
+
 ## Adjustments
 
 ### ADJ-001: Update the outdated .clinerules
@@ -1054,13 +1180,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-16, v0.45.0, PR #333
 - **Plan**: -
 - **Description**: The repository has no LICENSE file; the README tells readers to contact Levix Digital for usage and distribution terms. The license (or the proprietary terms) still has to be chosen and published.
-
-### ADJ-003: Recalibrate hardware profile RAM to what actually runs
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
-- **Plan**: -
-- **Description**: Profile RAM and tier semantics are calibrated for local Gemma 4, which does not run locally. Recalibrate for embedding + reranker + heuristic Document AI; disk was already fixed in PR #327 (roadmap 2.2 goal 7).
 
 ### ADJ-004: Close out stale planning documents
 - **Priority**: low
@@ -1406,3 +1525,35 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-23, Superseded by FEAT-087 and IMP-031
 - **Description**: A grep-style search for exact identifiers and strings across a workspace's sources, as a complement to semantic search.
+
+### FEAT-002: Local generative Gemma 4 (E2B/E4B ONNX)
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-115
+- **Description**: The published family is E2B, E4B, 12B, 26B-A4B and 31B; the tiers in actx-onnx gemma.rs (Compact, 27b, 32b) do not exist. Official ONNX only for E2B/E4B, multi-graph and multi-shard (E2B q4 > 3.6 GB). Needs a multi-shard downloader, a generative loop (tokenization, KV-cache, sampling) and tier recalibration; today Planned with the fallback provider (ADR-130, C0 D14).
+
+### FEAT-003: GPU execution providers (DirectML on Windows, CUDA on Linux)
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-116
+- **Description**: ONNX inference runs on CPU only. Needs the matching ONNX Runtime package and care with DLL dependencies (C0 D1: static DirectML linking prevented actx.exe from starting).
+
+### IMP-005: Single source for the Core and Installer model catalogs
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-058
+- **Description**: Model catalogs are duplicated in any-context-core-rs ingestion/model_manager.rs and actx-installer hardware.rs, guarded only by catalog_parity_tests. Move them to one shared module consumed by both (roadmap 2.2 goal 7).
+
+### ADJ-003: Recalibrate hardware profile RAM to what actually runs
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-17, 2026-10-17 triage of the post-v0.45.0 roadmap
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by IMP-055
+- **Description**: Profile RAM and tier semantics are calibrated for local Gemma 4, which does not run locally. Recalibrate for embedding + reranker + heuristic Document AI; disk was already fixed in PR #327 (roadmap 2.2 goal 7).
