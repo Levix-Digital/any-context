@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_blueprint_v0342_modelrouter_ingestion_quality_gate
 project: any-context
-title: 'Blueprint Marco 2 (Fase 2): ModelRouter, Quality Gate, Laya AI & Document AI Híbrido (v0.34.2)'
+title: 'Milestone 2 Blueprint (Phase 2): ModelRouter, Quality Gate, Laya AI & Hybrid Document AI (v0.34.2)'
 version: v0.34.2
 status: active
 author: Levi Silveira
@@ -22,21 +22,21 @@ supersedes: null
 superseded_by: null
 parent_plan_id: null
 milestones:
-- name: 'M1: Modulo quality_gate.rs'
+- name: 'M1: quality_gate.rs Module'
   done: false
-- name: 'M2: Modulo spatial_form_chunker.rs agnostico'
+- name: 'M2: Agnostic spatial_form_chunker.rs Module'
   done: false
-- name: 'M3: Modulo model_router.rs com Laya AI e MobileNet'
+- name: 'M3: model_router.rs Module with Laya AI and MobileNet'
   done: false
-- name: 'M4: Hooks de Visao Hibrida Local vs VPC'
+- name: 'M4: Local vs VPC Hybrid Vision Hooks'
   done: false
-- name: 'M5: Integracao NativeSyncOrchestrator'
+- name: 'M5: NativeSyncOrchestrator Integration'
   done: false
-- name: 'M6: Suite de Testes e Benchmark IKEAShipments'
+- name: 'M6: Test Suite and IKEAShipments Benchmark'
   done: false
-- name: 'M7: Dual-Doc TECDOC e MANUAL_TESTS'
+- name: 'M7: Dual-Doc TECDOC and MANUAL_TESTS'
   done: false
-- name: 'M8: Gate 8 e Release v0.34.2'
+- name: 'M8: Gate 8 and Release v0.34.2'
   done: false
 status_log:
 - at: '2026-10-16T10:47:34'
@@ -44,70 +44,70 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 📐 Blueprint de Engenharia: Marco 2 (Fase 2) — ModelRouter na Ingestão, Quality Gate, Laya AI & Document AI Híbrido (v0.34.2)
+# 📐 Engineering Blueprint: Milestone 2 (Phase 2) — ModelRouter in Ingestion, Quality Gate, Laya AI & Hybrid Document AI (v0.34.2)
 
-## 📌 Metadados do Plano
-- **Projeto**: AnyContext (`actx`)
-- **Versão-Alvo**: `v0.34.2`
-- **Componentes**: `crates/any-context-core-rs`, `crates/actx-lm`, `crates/actx-agent`, `crates/actx-cli`
-- **Fase**: Fase 2 do Master Plan (RFC-042, ModelRouter, Laya AI & Document AI)
-- **Status**: Planejamento Consolidado / Pronto para Aprovação de Execução
-- **Referência**: Master Roadmap v0.30.38, ADR-110, Benchmark IKEAShipments, Laya AI (convaiinnovations/laya)
-
----
-
-## 🏛️ 1. Contexto, Motivação e Lições Aprendidas
-
-### 1.1 O Desafio Real
-Na versão `v0.34.1`, o AnyContext conquistou velocidade recorde de compilação e Deep Search nativo 100% Rust. Contudo, em cenários corporativos reais (hospitais, logística, unidades militares, escritórios jurídicos e contabilidades):
-1. **Poluição de Espaço Vetorial e BM25**: Chunks degenerados, código minificado esquecido (`.min.js`), dumps repetitivos de logs e licenças duplicadas consomem tokens e poluem buscas.
-2. **Falha em Formulários e Tabelas Complexas (Caso IKEAShipments)**:
-   - Em relatórios como o **`CMR for Single Pickup Report.pdf`**, a reconstrução espacial 2D ingênua fatiava o documento em dezenas de tabelas Markdown desconexas (`| --- | --- |`), separando rótulos dos valores preenchidos.
-   - Cabeçalhos regulatórios repetitivos diluíam a representação vetorial cosseno e o BM25.
-   - Páginas escaneadas geravam chunks vazios de *scanned notice*.
-3. **Restrições de Hardware Corporativo (Gargalo de Vendas B2B)**:
-   - A maioria dos clientes corporativos opera com notebooks padrão (**Intel Core i5/i7, 8GB a 16GB de RAM, vídeo integrado, sem GPU dedicada**).
-   - O AnyContext **não pode** exigir GPUs dedicadas nem modelos pesados de 7B a 14B que congelem a máquina do cliente por 1 minuto por página.
-
-### 1.2 Princípios Arquiteturais Invioláveis
-1. **Zero Vocabulário Hardcoded (100% Agnóstico de Domínio)**:
-   - Proibido fixar termos de nicho (`Consignee`, `Carrier`, `Paciente`, `Autor`, `Alíquota`).
-   - A estruturação de caixas 2D é governada exclusivamente por **sintaxe de pontuação** (`:`, `-`, `___`), **contraste tipográfico** (negrito, caixa alta, hierarquia de tamanho de fonte) e **topologia espacial** (vizinhança Voronoi/Delaunay e retângulos vetoriais).
-2. **Classificador de Alta Precisão sem Teto de 89%**:
-   - Substituição do classificador ingênuo de embeddings pelo **Laya AI (`convaiinnovations/laya`)** quantizado em INT8 (~210MB, ~400MB RAM, ~60ms em CPU), atingindo **~95% de precisão de decisão** com classes 100% dinâmicas em tempo de execução.
-   - Sentinela visual **MobileNetV4 RVL-CDIP** (~14MB, ~45MB RAM, ~8ms) para documentos 100% escaneados/rasterizados sem camada de texto.
-3. **Visão Computacional Flexível (Local Leve vs. VPC Corporativa)**:
-   - **Opção Local Ultraleve**: SLMs compactos de visão (ex: **Moondream2 1.8B INT4** ou **SmolVLM-500M**), consumindo ~1.5GB de RAM e ~2s na CPU.
-   - **Opção Cloud / VPC do Cliente**: Suporte nativo via `actx-lm` para instâncias privadas de LLM de visão na nuvem corporativa do cliente (Azure OpenAI, AWS Bedrock, vLLM on-premise), consumindo 0 MB de RAM local.
-   - **Fallback Gracioso Padrão**: Se sem visão, opera com Heurística Espacial 2D em Rust puro (< 5MB RAM, zero download), sem quebrar a indexação.
+## 📌 Plan Metadata
+- **Project**: AnyContext (`actx`)
+- **Target Version**: `v0.34.2`
+- **Components**: `crates/any-context-core-rs`, `crates/actx-lm`, `crates/actx-agent`, `crates/actx-cli`
+- **Phase**: Master Plan Phase 2 (RFC-042, ModelRouter, Laya AI & Document AI)
+- **Status**: Consolidated Planning / Ready for Execution Approval
+- **Reference**: Master Roadmap v0.30.38, ADR-110, IKEAShipments Benchmark, Laya AI (convaiinnovations/laya)
 
 ---
 
-## 🏗️ 2. Topologia do Pipeline de Ingestão em 3 Níveis
+## 🏛️ 1. Context, Motivation and Lessons Learned
+
+### 1.1 The Real Challenge
+In version `v0.34.1`, AnyContext achieved record build speed and 100% Rust native Deep Search. However, in real corporate scenarios (hospitals, logistics, military units, law and accounting firms):
+1. **Vector Space and BM25 Pollution**: degenerate chunks, forgotten minified code (`.min.js`), repetitive log dumps and duplicated licenses consume tokens and pollute searches.
+2. **Failure on Complex Forms and Tables (IKEAShipments Case)**:
+   - In reports such as the **`CMR for Single Pickup Report.pdf`**, the naive 2D spatial reconstruction sliced the document into dozens of disconnected Markdown tables (`| --- | --- |`), separating labels from the filled-in values.
+   - Repetitive regulatory headers diluted the cosine vector representation and BM25.
+   - Scanned pages produced empty *scanned notice* chunks.
+3. **Corporate Hardware Constraints (a B2B Sales Bottleneck)**:
+   - Most corporate customers run standard laptops (**Intel Core i5/i7, 8GB to 16GB of RAM, integrated graphics, no dedicated GPU**).
+   - AnyContext **cannot** require dedicated GPUs or heavy 7B to 14B models that freeze the customer's machine for 1 minute per page.
+
+### 1.2 Inviolable Architectural Principles
+1. **Zero Hardcoded Vocabulary (100% Domain-Agnostic)**:
+   - Hardcoding niche terms (`Consignee`, `Carrier`, `Patient`, `Plaintiff`, `Tax Rate`) is forbidden.
+   - 2D box structuring is governed exclusively by **punctuation syntax** (`:`, `-`, `___`), **typographic contrast** (bold, capitals, font size hierarchy) and **spatial topology** (Voronoi/Delaunay neighborhood and vector rectangles).
+2. **High-Precision Classifier without an 89% Ceiling**:
+   - Replacement of the naive embedding classifier by **Laya AI (`convaiinnovations/laya`)** quantized to INT8 (~210MB, ~400MB RAM, ~60ms on CPU), reaching **~95% decision accuracy** with 100% dynamic classes at runtime.
+   - **MobileNetV4 RVL-CDIP** visual sentinel (~14MB, ~45MB RAM, ~8ms) for 100% scanned/rasterized documents without a text layer.
+3. **Flexible Computer Vision (Light Local vs. Corporate VPC)**:
+   - **Ultralight Local Option**: compact vision SLMs (e.g. **Moondream2 1.8B INT4** or **SmolVLM-500M**), using ~1.5GB of RAM and ~2s on the CPU.
+   - **Cloud / Customer VPC Option**: native support through `actx-lm` for private vision LLM instances in the customer's corporate cloud (Azure OpenAI, AWS Bedrock, on-premise vLLM), using 0 MB of local RAM.
+   - **Default Graceful Fallback**: without vision, it runs with the 2D Spatial Heuristic in pure Rust (< 5MB RAM, zero download), without breaking indexing.
+
+---
+
+## 🏗️ 2. Topology of the 3-Level Ingestion Pipeline
 
 ```mermaid
 flowchart TD
-    DOC["Documento Ingerido (PDF / Imagem / Office / Código)"] --> QG_FAST{"Quality Gate Inicial:<br/>Entropia, Linhas Minificadas,<br/>Fragmentos Sintáticos Degenerados"}
+    DOC["Ingested Document (PDF / Image / Office / Code)"] --> QG_FAST{"Initial Quality Gate:<br/>Entropy, Minified Lines,<br/>Degenerate Syntactic Fragments"}
     
-    QG_FAST -->|Lixo / Minified / Boilerplate| DROP["Descarte Preventivo<br/>(chunks_dropped_quality += 1)"]
-    QG_FAST -->|Código / Markdown Puro| N1["Nível 1: Chunker AST / Markdown Direto"]
-    QG_FAST -->|PDF / Imagem / Documento Amíguo| CLASSIFIER{"IngestionModelRouter:<br/>Classificador de Tipologia"}
+    QG_FAST -->|Garbage / Minified / Boilerplate| DROP["Preventive Discard<br/>(chunks_dropped_quality += 1)"]
+    QG_FAST -->|Pure Code / Markdown| N1["Level 1: Direct AST / Markdown Chunker"]
+    QG_FAST -->|PDF / Image / Ambiguous Document| CLASSIFIER{"IngestionModelRouter:<br/>Typology Classifier"}
 
-    subgraph "Classificação de Alta Precisão (~95%)"
-        CLASSIFIER -->|Possui Texto Digital (90% dos casos)| LAYA["Laya AI (mmBERT INT8 ONNX)<br/>• 210 MB / 400 MB RAM / 60 ms CPU<br/>• Decisão Dinâmica em Runtime"]
-        CLASSIFIER -->|Página Escaneada / Sem Texto| MOBILENET["MobileNetV4 RVL-CDIP ONNX<br/>• 14 MB / 45 MB RAM / 8 ms CPU<br/>• Thumbnail Visual 224x224"]
+    subgraph "High-Precision Classification (~95%)"
+        CLASSIFIER -->|Has Digital Text (90% of cases)| LAYA["Laya AI (mmBERT INT8 ONNX)<br/>• 210 MB / 400 MB RAM / 60 ms CPU<br/>• Dynamic Decision at Runtime"]
+        CLASSIFIER -->|Scanned Page / No Text| MOBILENET["MobileNetV4 RVL-CDIP ONNX<br/>• 14 MB / 45 MB RAM / 8 ms CPU<br/>• 224x224 Visual Thumbnail"]
     end
 
-    LAYA & MOBILENET --> ROTA{"Decisão do Tipo de Documento"}
+    LAYA & MOBILENET --> ROTA{"Document Type Decision"}
 
-    ROTA -->|Artigo / Livro / Prosa Corrida| N1
-    ROTA -->|Formulário / Fatura / Relatório Denso| HEUR_2D["Heurística Espacial 2D Agnóstica (Rust Puro)<br/>• Pontuação Sintática (':', '-')<br/>• Contraste Tipográfico (Bold, Font Size)<br/>• Caixas e Retângulos Vetoriais<br/>• 0 MB download / < 5 MB RAM / 3 ms"]
-    ROTA -->|Diagrama Técnico / Esquema Gráfico| VISION_HOOK{"Modo de Visão Configurado?"}
+    ROTA -->|Article / Book / Running Prose| N1
+    ROTA -->|Form / Invoice / Dense Report| HEUR_2D["Agnostic 2D Spatial Heuristic (Pure Rust)<br/>• Syntactic Punctuation (':', '-')<br/>• Typographic Contrast (Bold, Font Size)<br/>• Vector Boxes and Rectangles<br/>• 0 MB download / < 5 MB RAM / 3 ms"]
+    ROTA -->|Technical Diagram / Graphic Schematic| VISION_HOOK{"Vision Mode Configured?"}
 
-    subgraph "Nível 3: Visão Computacional (Diagramas e Scans Complexos)"
-        VISION_HOOK -->|1. Local Ultraleve| MOONDREAM["SLM Local: Moondream2 (1.8B INT4)<br/>• 1 GB download / 1.5 GB RAM / ~2 s CPU"]
-        VISION_HOOK -->|2. VPC Corporativa / Cloud| VPC_VISION["actx-lm Vision Endpoint (VPC do Cliente)<br/>• Azure OpenAI / AWS Bedrock / vLLM Privado<br/>• 0 MB RAM local / Alta Fidelidade"]
-        VISION_HOOK -->|3. Desativado / Offline Base| HEUR_FALLBACK["Fallback Estruturado Nativo (Metadados 2D)"]
+    subgraph "Level 3: Computer Vision (Diagrams and Complex Scans)"
+        VISION_HOOK -->|1. Ultralight Local| MOONDREAM["Local SLM: Moondream2 (1.8B INT4)<br/>• 1 GB download / 1.5 GB RAM / ~2 s CPU"]
+        VISION_HOOK -->|2. Corporate VPC / Cloud| VPC_VISION["actx-lm Vision Endpoint (Customer VPC)<br/>• Azure OpenAI / AWS Bedrock / Private vLLM<br/>• 0 MB local RAM / High Fidelity"]
+        VISION_HOOK -->|3. Disabled / Offline Base| HEUR_FALLBACK["Native Structured Fallback (2D Metadata)"]
     end
 
     HEUR_2D --> ENVELOPE["NativeContextualEnricher"]
@@ -121,78 +121,78 @@ flowchart TD
 
 ---
 
-## 🧩 3. Módulos e Componentes em Rust
+## 🧩 3. Rust Modules and Components
 
 ### 3.1 `quality_gate.rs` (`crates/any-context-core-rs/src/ingestion/quality_gate.rs`)
-- Validações sub-0.1ms:
-  - Entropia de Shannon: $1.5 \le H \le 5.95$.
-  - Densidade lexical: proporção de vocabulário único vs. repetitivo.
-  - Detecção de linhas minificadas ($> 2000$ caracteres contínuos).
-  - Bloqueio de fragmentos sintáticos degenerados (`}`, `};`, imports isolados).
+- Sub-0.1ms validations:
+  - Shannon entropy: $1.5 \le H \le 5.95$.
+  - Lexical density: proportion of unique vs. repetitive vocabulary.
+  - Detection of minified lines ($> 2000$ continuous characters).
+  - Blocking of degenerate syntactic fragments (`}`, `};`, isolated imports).
 
 ### 3.2 `spatial_form_chunker.rs` (`crates/any-context-core-rs/src/ingestion/chunkers/spatial_form.rs`)
-- Algoritmo de extração 2D **100% agnóstico de domínio**:
-  - Identificação de rótulos por pontuação terminal (`:`, `-`, `___`) ou quebra de célula.
-  - Agrupamento de pares chave-valor por proximidade horizontal ($\Delta y \approx 0, \Delta x > 0$) e vertical ($\Delta x \approx 0, \Delta y > 0$).
-  - Respeito às caixas retangulares vetoriais desenhadas no PDF.
-  - Emite chunks com estrutura densa chave-valor:
+- **100% domain-agnostic** 2D extraction algorithm:
+  - Identification of labels by terminal punctuation (`:`, `-`, `___`) or a cell break.
+  - Grouping of key-value pairs by horizontal ($\Delta y \approx 0, \Delta x > 0$) and vertical ($\Delta x \approx 0, \Delta y > 0$) proximity.
+  - Respect for the vector rectangle boxes drawn in the PDF.
+  - Emits chunks with a dense key-value structure:
     ```markdown
-    // Context: documento.pdf > Página 2 [Bloco Estruturado]
-    - Rótulo A: Valor A
-    - Rótulo B: Valor B
-    - Tabela de Itens: [Linha 1: Coluna 1 | Coluna 2 ...]
+    // Context: document.pdf > Page 2 [Structured Block]
+    - Label A: Value A
+    - Label B: Value B
+    - Item Table: [Row 1: Column 1 | Column 2 ...]
     ```
 
 ### 3.3 `model_router.rs` (`crates/any-context-core-rs/src/ingestion/model_router.rs`)
-- Integração do **Laya AI** (via crate `ort` ONNX Runtime):
-  - Consulta dinâmica estruturada em tempo de execução:
+- **Laya AI** integration (through the `ort` ONNX Runtime crate):
+  - Structured dynamic query at runtime:
     `options: ["formulario_ou_tabela", "artigo_prosa", "codigo_fonte", "diagrama_visual"]`
-  - Calibração probabilística rigorosa (ECE 0.081).
-- Integração do **MobileNetV4 RVL-CDIP** como fallback para páginas escaneadas.
-- Dispatcher do Nível 3 para Visão Computacional:
-  - `VisionExecutionMode::LocalSlm` (Moondream2 / SmolVLM via ONNX / llama.cpp).
-  - `VisionExecutionMode::CorporateVpc` (endpoint OpenAI-compatível apontado para a VPC do cliente via `actx-lm`).
-  - `VisionExecutionMode::Disabled` (recaída na heurística nativa 2D).
+  - Rigorous probabilistic calibration (ECE 0.081).
+- **MobileNetV4 RVL-CDIP** integration as the fallback for scanned pages.
+- Level 3 dispatcher for Computer Vision:
+  - `VisionExecutionMode::LocalSlm` (Moondream2 / SmolVLM through ONNX / llama.cpp).
+  - `VisionExecutionMode::CorporateVpc` (an OpenAI-compatible endpoint pointed at the customer's VPC through `actx-lm`).
+  - `VisionExecutionMode::Disabled` (falling back to the native 2D heuristic).
 
 ### 3.4 `orchestrator.rs` (`crates/any-context-core-rs/src/ingestion/orchestrator.rs`)
-- `SyncResult` expandido com telemetria:
-  - `chunks_created`: Total de chunks úteis.
-  - `chunks_dropped_quality`: Chunks de ruído descartados.
-  - `documents_classified_laya`: Documentos processados pelo Laya AI.
-  - `documents_enriched_vision`: Documentos enriquecidos por visão (local ou VPC).
+- `SyncResult` extended with telemetry:
+  - `chunks_created`: total useful chunks.
+  - `chunks_dropped_quality`: discarded noise chunks.
+  - `documents_classified_laya`: documents processed by Laya AI.
+  - `documents_enriched_vision`: documents enriched by vision (local or VPC).
 
 ---
 
-## 🧪 4. Critérios de Aceitação e Testes
+## 🧪 4. Acceptance Criteria and Tests
 
-1. **Testes Unitários de Quality Gate (`quality_gate_tests.rs`)**:
-   - Rejeição de baixa entropia (`--------`), código minificado e fragmentos sintáticos soltos.
-2. **Teste Agnóstico de Heurística Espacial (`spatial_form_tests.rs`)**:
-   - Validação com 3 layouts de nichos diferentes (um laudo médico, um documento fiscal CMR e uma petição judicial) comprovando extração correta de pares chave-valor sem nenhuma palavra específica hardcoded.
-3. **Teste do Benchmark Real `IKEAShipments` (`ikea_shipments_benchmark_tests.rs`)**:
-   - Execução sobre a página 2 do `CMR for Single Pickup Report.pdf`.
-   - Recuperação das informações de *Sender*, *Consignee*, *Carrier*, *Packages* e *Gross Weight* com similaridade vetorial superior a $0.80$ no RAG.
-4. **Teste de Tolerância a Falhas / Modo Offline**:
-   - Desconexão de rede simulada: a indexação deve concluir 100% verde sem travamentos, recaindo no modo estruturado nativo.
-
----
-
-## 📝 5. Atualizações Dual-Doc
-
-1. **Documentação Técnica ([`TECDOC.md`](file:///C:/Users/guilh/source/repos/any-context/TECDOC.md))**:
-   - **ADR-110**: Ingestion ModelRouter, Laya AI Decision Engine, Heurística Espacial 2D Agnóstica e Arquitetura Híbrida de Visão (Local SLM vs. VPC Corporativa).
-2. **Suíte Manual ([`tests/MANUAL_TESTS.md`](file:///C:/Users/guilh/source/repos/any-context/tests/MANUAL_TESTS.md))**:
-   - **Cenário 25**: Validação do Quality Gate, Triagem pelo Laya AI e Ingestão de Formulários Complexos no AnyContext `v0.34.2`.
+1. **Quality Gate Unit Tests (`quality_gate_tests.rs`)**:
+   - Rejection of low entropy (`--------`), minified code and loose syntactic fragments.
+2. **Agnostic Spatial Heuristic Test (`spatial_form_tests.rs`)**:
+   - Validation with 3 layouts from different niches (a medical report, a CMR shipping document and a court petition), proving correct extraction of key-value pairs with no specific word hardcoded.
+3. **Real `IKEAShipments` Benchmark Test (`ikea_shipments_benchmark_tests.rs`)**:
+   - Run on page 2 of `CMR for Single Pickup Report.pdf`.
+   - Retrieval of the *Sender*, *Consignee*, *Carrier*, *Packages* and *Gross Weight* information with vector similarity above $0.80$ in RAG.
+4. **Fault Tolerance / Offline Mode Test**:
+   - Simulated network disconnection: indexing must finish 100% green without hanging, falling back to the native structured mode.
 
 ---
 
-## 📋 6. Marcos de Ação (Checklist)
+## 📝 5. Dual-Doc Updates
 
-- [ ] **M1**: Implementar `quality_gate.rs` (filtros determinísticos de sub-0.1ms).
-- [ ] **M2**: Implementar `spatial_form_chunker.rs` (heurística espacial 2D agnóstica de domínio).
-- [ ] **M3**: Implementar `model_router.rs` com suporte ao Laya AI (ONNX) e MobileNetV4.
-- [ ] **M4**: Integrar hooks de Visão (Moondream2 local vs. VPC corporativa via `actx-lm`).
-- [ ] **M5**: Integrar no `NativeSyncOrchestrator` e expandir `SyncResult`.
-- [ ] **M6**: Validar suíte completa de testes (100% PASS), incluindo benchmark `IKEAShipments`.
-- [ ] **M7**: Atualizar Dual-Doc (ADR-110 no `TECDOC.md` e Cenário 25 no `MANUAL_TESTS.md`).
-- [ ] **M8**: Bump para `v0.34.2`, verificação Gate 8 e commit/release.
+1. **Technical Documentation ([`TECDOC.md`](file:///C:/Users/guilh/source/repos/any-context/TECDOC.md))**:
+   - **ADR-110**: Ingestion ModelRouter, Laya AI Decision Engine, Agnostic 2D Spatial Heuristic and Hybrid Vision Architecture (Local SLM vs. Corporate VPC).
+2. **Manual Suite ([`tests/MANUAL_TESTS.md`](file:///C:/Users/guilh/source/repos/any-context/tests/MANUAL_TESTS.md))**:
+   - **Scenario 25**: Validation of the Quality Gate, Laya AI Triage and Ingestion of Complex Forms in AnyContext `v0.34.2`.
+
+---
+
+## 📋 6. Action Milestones (Checklist)
+
+- [ ] **M1**: Implement `quality_gate.rs` (sub-0.1ms deterministic filters).
+- [ ] **M2**: Implement `spatial_form_chunker.rs` (domain-agnostic 2D spatial heuristic).
+- [ ] **M3**: Implement `model_router.rs` with support for Laya AI (ONNX) and MobileNetV4.
+- [ ] **M4**: Integrate Vision hooks (local Moondream2 vs. corporate VPC through `actx-lm`).
+- [ ] **M5**: Integrate into `NativeSyncOrchestrator` and extend `SyncResult`.
+- [ ] **M6**: Validate the full test suite (100% PASS), including the `IKEAShipments` benchmark.
+- [ ] **M7**: Update Dual-Doc (ADR-110 in `TECDOC.md` and Scenario 25 in `MANUAL_TESTS.md`).
+- [ ] **M8**: Bump to `v0.34.2`, Gate 8 verification and commit/release.

@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_transição_100_rust_orquestrador_nativo_de_ingestão_e_sincronização_release_v03219
 project: any-context
-title: 'Transição 100% Rust: Orquestrador Nativo de Ingestão e Sincronização & Release v0.32.19'
+title: '100% Rust Transition: Native Ingestion and Sync Orchestrator & Release v0.32.19'
 version: v0.32.19
 status: completed
 author: Levi Silveira
@@ -21,23 +21,23 @@ supersedes: null
 superseded_by: null
 parent_plan_id: null
 milestones:
-- name: 'M1: Stat Cache e Scanner Diff Nativo'
+- name: 'M1: Stat Cache and Native Diff Scanner'
   done: false
-- name: 'M2: NativeSyncOrchestrator e IngestionRouter'
+- name: 'M2: NativeSyncOrchestrator and IngestionRouter'
   done: false
-- name: 'M3: CLI e Worker em Background'
+- name: 'M3: CLI and Background Worker'
   done: false
-- name: 'M4: Suíte de Testes Rust (100% Pass)'
+- name: 'M4: Rust Test Suite (100% Pass)'
   done: false
-- name: 'M5: Diagnóstico e Correção de Separadores de Caminho no CI Windows'
+- name: 'M5: Diagnosis and Fix of Path Separators in Windows CI'
   done: false
 - name: 'M6: Dual-Doc (TecDoc 98'
   done: false
 - name: ADR-105
   done: false
-- name: Cenário 21)
+- name: Scenario 21)
   done: false
-- name: 'M7: Versionamento e Publicação Tag v0.32.19'
+- name: 'M7: Versioning and Publication of Tag v0.32.19'
   done: false
 status_log:
 - at: '2026-10-16T10:47:34'
@@ -45,31 +45,31 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 🦀 Blueprint de Engenharia: Transição 100% Rust (Zero Dependências Python) & Release v0.32.19
+# 🦀 Engineering Blueprint: 100% Rust Transition (Zero Python Dependencies) & Release v0.32.19
 
-## 📌 Metadados do Plano
-- **Projeto**: AnyContext
-- **Título**: Transição 100% Rust: Orquestrador Nativo de Ingestão e Sincronização (Zero Dependências Python) & Release v0.32.19
-- **Versão**: `v0.32.19`
+## 📌 Plan Metadata
+- **Project**: AnyContext
+- **Title**: 100% Rust Transition: Native Ingestion and Sync Orchestrator (Zero Python Dependencies) & Release v0.32.19
+- **Version**: `v0.32.19`
 - **Session ID**: `780181b0-ddec-4d23-8650-af209e2a2fe3`
-- **Data de Execução**: 2026-10-08 / 2026-10-09
+- **Execution Date**: 2026-10-08 / 2026-10-09
 - **Status**: `COMPLETED`
-- **Milestones**: M1: Stat Cache e Scanner Diff Nativo,M2: NativeSyncOrchestrator e IngestionRouter,M3: CLI e Worker em Background,M4: Suíte de Testes Rust (100% Pass),M5: Diagnóstico e Correção de Separadores de Caminho no CI Windows,M6: Dual-Doc (TecDoc 98, ADR-105, Cenário 21),M7: Versionamento e Publicação Tag v0.32.19
+- **Milestones**: M1: Stat Cache and Native Diff Scanner, M2: NativeSyncOrchestrator and IngestionRouter, M3: CLI and Background Worker, M4: Rust Test Suite (100% Pass), M5: Diagnosis and Fix of Path Separators in Windows CI, M6: Dual-Doc (TecDoc 98, ADR-105, Scenario 21), M7: Versioning and Publication of Tag v0.32.19
 
 ---
 
-## 🎯 1. Contexto e Motivação
-A arquitetura anterior dependia de subprocessos Python (`actx-core.exe`, PyInstaller bundles, `unified_sync.py`, `local_folder_ingestor.py`) para ingestão de arquivos e geração de vetores. Isso introduzia:
-1. Overhead de payload de distribuição de ~380MB comprimido e ~1.2GB em disco.
-2. Latência de cold-start de 1.5–3.0s por disparo no Windows devido à extração de runtime.
-3. Divergência de manipulação de caminhos e risco de bloqueios de processos zumbis.
-4. Duplicação de lógica entre Python e Rust.
+## 🎯 1. Context and Motivation
+The previous architecture depended on Python subprocesses (`actx-core.exe`, PyInstaller bundles, `unified_sync.py`, `local_folder_ingestor.py`) for file ingestion and vector generation. This introduced:
+1. A distribution payload overhead of ~380MB compressed and ~1.2GB on disk.
+2. Cold-start latency of 1.5–3.0s per launch on Windows because of runtime extraction.
+3. Divergent path handling and a risk of zombie process locks.
+4. Duplicated logic between Python and Rust.
 
-A versão `v0.32.19` consolida a transição para Rust 100% Nativo no fluxo de ingestão e sincronização.
+Version `v0.32.19` consolidates the transition to 100% native Rust in the ingestion and sync flow.
 
 ---
 
-## 🏗️ 2. Arquitetura Implementada
+## 🏗️ 2. Implemented Architecture
 
 ```mermaid
 flowchart TD
@@ -107,32 +107,32 @@ flowchart TD
     EMBED --> SQL
 ```
 
-### Componentes Chave:
+### Key Components:
 1. **`WorkspaceScanner::scan_and_diff_native`**:
-   - Escaneamento em sub-30ms com cache SHA-256 e mtime em `workspace_files_stat_cache`.
-   - Detecção instantânea de arquivos renomeados/movidos a custo $0.00 sem re-vetorização.
-   - Separadores canônicos por SO (`\` no Windows, `/` no Unix).
+   - Sub-30ms scanning with an SHA-256 and mtime cache in `workspace_files_stat_cache`.
+   - Instant detection of renamed/moved files at $0.00 cost, without re-vectorization.
+   - Canonical separators per OS (`\` on Windows, `/` on Unix).
 2. **`IngestionRouter::chunk_file_native`**:
-   - Chunking AST estruturado em 13 linguagens de programação.
-   - Markdown hierárquico com breadcrumbs de títulos contextuais.
-   - Planilhas e dados financeiros (.xlsx, .xls, .ods, .csv, .tsv, .ofx).
-   - Documentos PDF e dados estruturados (.json, .yaml, .toml, .xml).
+   - Structured AST chunking in 13 programming languages.
+   - Hierarchical Markdown with contextual heading breadcrumbs.
+   - Spreadsheets and financial data (.xlsx, .xls, .ods, .csv, .tsv, .ofx).
+   - PDF documents and structured data (.json, .yaml, .toml, .xml).
 3. **`NativeSyncOrchestrator`**:
-   - Inserção colunar Arrow direta na tabela `workspace_chunks` do LanceDB.
-   - Atualização incremental do índice Okapi BM25 e gravação atômica em `bm25_index.bin`.
-   - Vetores determinísticos de fallback para resiliência offline.
-   - Cancelamento cooperativo instantâneo via SQLite `workspace_sync_status`.
-   - Crawling web assíncrono nativo via `reqwest`.
-4. **Integração de CLI e Worker**:
-   - Flag `--sync-worker` para execução desacoplada em background (`CREATE_NO_WINDOW` no Windows).
-   - Fallback gracioso para thread em processo (`sync-worker-<ws>`).
-   - Comandos CLI e TUI apontando exclusivamente para o orquestrador nativo.
+   - Direct Arrow columnar insertion into the LanceDB `workspace_chunks` table.
+   - Incremental update of the Okapi BM25 index and atomic write to `bm25_index.bin`.
+   - Deterministic fallback vectors for offline resilience.
+   - Instant cooperative cancellation through SQLite `workspace_sync_status`.
+   - Native asynchronous web crawling through `reqwest`.
+4. **CLI and Worker Integration**:
+   - `--sync-worker` flag for decoupled background execution (`CREATE_NO_WINDOW` on Windows).
+   - Graceful fallback to an in-process thread (`sync-worker-<ws>`).
+   - CLI and TUI commands pointing exclusively to the native orchestrator.
 
 ---
 
-## 🧪 3. Validação e Qualidade
-- **Rust Test Suite**: 156 testes passando com 100% de sucesso (`cargo test --workspace`).
-- **Resolução de CI**: Ajustados separadores de caminho em `scanner.rs` e `sqlite.rs` eliminando as 6 falhas nos runners Windows do GitHub Actions.
-- **Roteiro Manual**: Cenário 21 adicionado em `tests/MANUAL_TESTS.md`.
-- **Dual-Doc**: Seção 98 e ADR-105 adicionados em `TECDOC.md`.
-- **Release**: Tag `v0.32.19` enviada e disparando workflows no GitHub Actions.
+## 🧪 3. Validation and Quality
+- **Rust Test Suite**: 156 tests passing with 100% success (`cargo test --workspace`).
+- **CI Resolution**: path separators adjusted in `scanner.rs` and `sqlite.rs`, removing the 6 failures on the GitHub Actions Windows runners.
+- **Manual Script**: Scenario 21 added to `tests/MANUAL_TESTS.md`.
+- **Dual-Doc**: Section 98 and ADR-105 added to `TECDOC.md`.
+- **Release**: tag `v0.32.19` pushed and triggering workflows on GitHub Actions.

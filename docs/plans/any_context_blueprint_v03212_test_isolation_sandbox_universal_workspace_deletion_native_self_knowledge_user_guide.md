@@ -47,4 +47,4 @@ status_log:
 # 🛡️ Blueprint v0.32.12: Test Isolation Sandbox, Universal Workspace Deletion & Native Self-Knowledge User Guide
 
 ## ADR-094
-Isolamento hermetico de testes, motor universal de exclusao de workspaces na TUI e Core, e self-knowledge nativo do AnyContext integrado ao system prompt e LanceDB Global.
+Hermetic test isolation, a universal workspace deletion engine in the TUI and Core, and AnyContext's native self-knowledge integrated into the system prompt and the Global LanceDB.

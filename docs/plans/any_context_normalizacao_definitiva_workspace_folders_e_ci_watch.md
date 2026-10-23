@@ -1,7 +1,7 @@
 ---
 plan_id: any_context_normalizacao_definitiva_workspace_folders_e_ci_watch
 project: any-context
-title: Normalizacao Definitiva workspace_folders e CI Watch
+title: Definitive workspace_folders Normalization and CI Watch
 version: v0.32.0
 status: superseded
 author: Levi Silveira
@@ -36,21 +36,21 @@ milestones:
   done: true
 status_log:
 - at: '2026-09-26T13:52:06'
-  note: 'Milestone ''M1: Dev-Cycle Protocol CI Rule'': Adicionado Pilar 7 e regras estritas de acompanhamento de CI e SemVer no dev-cycle-protocol'
+  note: 'Milestone ''M1: Dev-Cycle Protocol CI Rule'': added Pillar 7 and strict CI and SemVer follow-up rules to the dev-cycle-protocol'
 - at: '2026-09-26T13:53:09'
-  note: 'Milestone ''M2: Version Bump v0.32.0'': Todos os manifestos atualizados para v0.32.0 (Cargo.toml, pyproject.toml, version.txt)'
+  note: 'Milestone ''M2: Version Bump v0.32.0'': every manifest updated to v0.32.0 (Cargo.toml, pyproject.toml, version.txt)'
 - at: '2026-09-26T13:56:26'
-  note: 'Milestone ''M3: SQLite Migration to workspace_folders'': Implementada migração de dados de workspaces.paths_json para workspace_folders'
+  note: 'Milestone ''M3: SQLite Migration to workspace_folders'': data migration from workspaces.paths_json to workspace_folders implemented'
 - at: '2026-09-26T13:56:31'
-  note: 'Milestone ''M4: Drop Legacy paths_json Column'': Coluna legada paths_json removida via ALTER TABLE DROP COLUMN'
+  note: 'Milestone ''M4: Drop Legacy paths_json Column'': legacy paths_json column removed through ALTER TABLE DROP COLUMN'
 - at: '2026-09-26T13:56:34'
-  note: 'Milestone ''M5: Pure Single Table Folder Methods'': get, add e remove_workspace_folder simplificados para operar exclusivamente na tabela workspace_folders'
+  note: 'Milestone ''M5: Pure Single Table Folder Methods'': get, add and remove_workspace_folder simplified to work only on the workspace_folders table'
 - at: '2026-09-26T13:56:38'
-  note: 'Milestone ''M6: Automated Tests'': 125 testes unitários e de integração verdes (0 falhas) em cargo test --workspace'
+  note: 'Milestone ''M6: Automated Tests'': 125 unit and integration tests green (0 failures) in cargo test --workspace'
 - at: '2026-09-26T13:59:24'
-  note: 'Milestone ''M7: Dual-Doc & Manual Tests'': Atualizados TECDOC.md (Seção 78 & ADR-078) e MANUAL_TESTS.md (Cenário 3 v0.32.0)'
+  note: 'Milestone ''M7: Dual-Doc & Manual Tests'': TECDOC.md (Section 78 & ADR-078) and MANUAL_TESTS.md (Scenario 3 v0.32.0) updated'
 - at: '2026-10-02T23:03:46'
-  note: 'Milestone ''M8: Production Release & CI Watch'': Release v0.32.9 publicada com sucesso em Levix-Digital/any-context-releases'
+  note: 'Milestone ''M8: Production Release & CI Watch'': release v0.32.9 published successfully in Levix-Digital/any-context-releases'
 - at: '2026-10-04T13:28:33'
   note: Superseded by any_context_blueprint_v03210_isolamento_hermetico_de_buffers_de_chat_e_historico_por_workspace_na_tui_nativa
 - at: '2026-10-16T10:47:34'
@@ -58,59 +58,59 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# Blueprint Arquitetural: Migração e Normalização Definitiva de workspace_folders (v0.32.0)
+# Architecture Blueprint: Definitive Migration and Normalization of workspace_folders (v0.32.0)
 
-## 1. 🎯 Objetivo & Decisões Arquiteturais (ADR)
-- **ADR-032-01: Tabela Relacional `workspace_folders` como Única Fonte da Verdade**:
-  - Eliminar a sobrecarga de sincronização dupla e redundância de dados entre a coluna legada `workspaces.paths_json` e a tabela relacional `workspace_folders`.
-  - Migrar atomicamente 100% dos registros existentes em `workspaces.paths_json` para a tabela normalizada `workspace_folders`.
-  - Executar a remoção física da coluna legada (`ALTER TABLE workspaces DROP COLUMN paths_json`), garantindo integridade relacional estrita e eliminando dívida técnica da transição Python -> Rust.
-- **ADR-032-02: Regra Inviolável de CI/CD no `dev-cycle-protocol`**:
-  - Incorporar nos Pilares e na Etapa 8 do `dev-cycle-protocol` a exigência de que os workflows de CI e Release no GitHub Actions devem ser acompanhados ininterruptamente até a publicação dos binários e conclusão total.
+## 1. 🎯 Goal & Architecture Decisions (ADR)
+- **ADR-032-01: Relational `workspace_folders` Table as the Single Source of Truth**:
+  - Remove the double-sync overhead and data redundancy between the legacy `workspaces.paths_json` column and the relational `workspace_folders` table.
+  - Atomically migrate 100% of the existing records in `workspaces.paths_json` to the normalized `workspace_folders` table.
+  - Physically remove the legacy column (`ALTER TABLE workspaces DROP COLUMN paths_json`), guaranteeing strict relational integrity and removing technical debt from the Python -> Rust transition.
+- **ADR-032-02: Inviolable CI/CD Rule in the `dev-cycle-protocol`**:
+  - Add to the Pillars and Stage 8 of the `dev-cycle-protocol` the requirement that GitHub Actions CI and Release workflows be followed without interruption until the binaries are published and everything is complete.
 
-## 2. 🏛️ Mapeamento de Paridade de Superfícies
+## 2. 🏛️ Surface Parity Mapping
 - **Core Domain & Storage (`crates/any-context-core-rs`)**:
-  - Migração automática executada no método `ensure_tables()` e `migrate_legacy_paths_json_if_needed()`.
-  - Métodos `get_workspace_folders`, `add_workspace_folder` e `remove_workspace_folder` passam a operar exclusivamente sobre `workspace_folders`.
-- **Adaptadores de Apresentação (CLI, TUI, Stdio RPC, MCP, REST API)**:
-  - Consomem o Core de forma transparente, recebendo as listas de pastas normalizadas sem alteração em seus contratos.
-- **Protocolo de Governança (`dev-cycle-protocol`)**:
-  - Atualização do arquivo `C:\Users\guilh\.gemini\config\skills\dev-cycle-protocol\SKILL.md` com a regra mandatória de acompanhamento ininterrupto de CI/CD.
+  - Automatic migration run in the `ensure_tables()` and `migrate_legacy_paths_json_if_needed()` methods.
+  - The `get_workspace_folders`, `add_workspace_folder` and `remove_workspace_folder` methods work only on `workspace_folders`.
+- **Presentation Adapters (CLI, TUI, Stdio RPC, MCP, REST API)**:
+  - They consume the Core transparently, receiving the normalized folder lists without any change to their contracts.
+- **Governance Protocol (`dev-cycle-protocol`)**:
+  - Update of the `C:\Users\guilh\.gemini\config\skills\dev-cycle-protocol\SKILL.md` file with the mandatory rule of uninterrupted CI/CD follow-up.
 
-## 3. 📁 Arquivos e Linhas Impactadas
-- `crates/any-context-core-rs/src/storage/sqlite.rs`: Migração atômica, exclusão da coluna legada `paths_json`, simplificação de `get/add/remove_workspace_folder`.
-- `crates/actx-cli/Cargo.toml`, `crates/actx-agent/Cargo.toml`, `crates/actx-installer/Cargo.toml`, `crates/actx-lm/Cargo.toml`, `crates/any-context-core-rs/Cargo.toml`, `crates/any-context-core-rs/pyproject.toml`, `pyproject.toml`, `crates/actx-cli/src/cli/args.rs`, `version.txt`: Bump para `v0.32.0`.
-- `C:\Users\guilh\.gemini\config\skills\dev-cycle-protocol\SKILL.md`: Atualização dos Pilares e da Etapa 8.
-- `TECDOC.md` e `README.md`: Documentação técnica do novo schema relacional e diagrama ER.
-- `tests/MANUAL_TESTS.md`: Novo Cenário detalhado com verificação da tabela única normalizada.
+## 3. 📁 Affected Files and Lines
+- `crates/any-context-core-rs/src/storage/sqlite.rs`: atomic migration, removal of the legacy `paths_json` column, simplification of `get/add/remove_workspace_folder`.
+- `crates/actx-cli/Cargo.toml`, `crates/actx-agent/Cargo.toml`, `crates/actx-installer/Cargo.toml`, `crates/actx-lm/Cargo.toml`, `crates/any-context-core-rs/Cargo.toml`, `crates/any-context-core-rs/pyproject.toml`, `pyproject.toml`, `crates/actx-cli/src/cli/args.rs`, `version.txt`: bump to `v0.32.0`.
+- `C:\Users\guilh\.gemini\config\skills\dev-cycle-protocol\SKILL.md`: update of the Pillars and Stage 8.
+- `TECDOC.md` and `README.md`: technical documentation of the new relational schema and ER diagram.
+- `tests/MANUAL_TESTS.md`: a new detailed Scenario verifying the single normalized table.
 
-## 4. 📚 Plano de Atualização Dual-Doc (UserDoc + TecDoc)
+## 4. 📚 Dual-Doc Update Plan (UserDoc + TecDoc)
 - **UserDoc (`README.md`)**:
-  - Documentação da versão v0.32.0 destacando performance e integridade de fontes.
+  - Documentation of version v0.32.0, highlighting source performance and integrity.
 - **TecDoc (`TECDOC.md`)**:
-  - Esquema atualizado do banco de dados SQLite sem colunas legadas e diagrama relacional Mermaid de `workspace_folders`.
+  - Updated SQLite database schema without legacy columns and a Mermaid relational diagram of `workspace_folders`.
 
-## 5. 🧪 Estratégia de Testes Automatizados & Proteção contra Regressão
-- Teste unitário em `sqlite.rs` validando que bancos com a coluna legada `paths_json` são migrados automaticamente para `workspace_folders` e a coluna antiga é removida sem perda de dados.
-- Execução da suíte completa com `cargo test --workspace` (garantindo 100% verde nos 125+ testes).
+## 5. 🧪 Automated Test Strategy & Regression Protection
+- Unit test in `sqlite.rs` validating that databases with the legacy `paths_json` column are automatically migrated to `workspace_folders` and the old column is removed with no data loss.
+- Full suite run with `cargo test --workspace` (100% green across the 125+ tests).
 
-## 6. 📝 Plano de Cenários de Teste Manual (`tests/MANUAL_TESTS.md`)
-- Adição do **Cenário 3 (v0.32.0): Validação de Tabela Única Normalizada workspace_folders e Monitoramento Ininterrupto de CI/CD**:
-  - Inspeção via SQL verificando a ausência da coluna `paths_json` na tabela `workspaces`.
-  - Consulta à tabela `workspace_folders` confirmando todas as pastas mapeadas em seus respectivos workspaces.
-  - Teste de adição e remoção de fontes via `/folder --add` e `/folder --remove`.
+## 6. 📝 Manual Test Scenario Plan (`tests/MANUAL_TESTS.md`)
+- Addition of **Scenario 3 (v0.32.0): Validation of the Single Normalized workspace_folders Table and Uninterrupted CI/CD Monitoring**:
+  - SQL inspection checking that the `paths_json` column is absent from the `workspaces` table.
+  - Query of the `workspace_folders` table confirming every folder mapped to its workspace.
+  - Test of adding and removing sources through `/folder --add` and `/folder --remove`.
 
-## 7. 🔒 Higiene de Segredos, Migração de Banco e Plano de Rollback
-- Backup automático do banco `settings.db` antes da execução do `ALTER TABLE DROP COLUMN`.
-- Transação atômica (`BEGIN TRANSACTION ... COMMIT`) durante a migração.
-- Verificação via `verify_gate.py` (Gates 3 e 8).
+## 7. 🔒 Secret Hygiene, Database Migration and Rollback Plan
+- Automatic backup of the `settings.db` database before running `ALTER TABLE DROP COLUMN`.
+- Atomic transaction (`BEGIN TRANSACTION ... COMMIT`) during the migration.
+- Verification through `verify_gate.py` (Gates 3 and 8).
 
-## 8. ⏱️ Passo a Passo da Execução
-1. Atualizar o `dev-cycle-protocol` com a regra ininterrupta de acompanhamento de CI/CD.
-2. Executar bump de versão semântico para `v0.32.0` em todos os manifestos.
-3. Implementar a rotina de migração e remoção de `paths_json` em `sqlite.rs`.
-4. Simplificar os métodos de manipulação de pastas para usar exclusivamente `workspace_folders`.
-5. Executar `cargo test --workspace` e validar 100% de sucesso.
-6. Compilar o binário release e implantar no ambiente local.
-7. Atualizar `TECDOC.md`, `README.md` e `tests/MANUAL_TESTS.md`.
-8. Executar commit, push, PR no GitHub, acompanhar as GitHub Actions até a publicação final da release.
+## 8. ⏱️ Step-by-Step Execution
+1. Update the `dev-cycle-protocol` with the uninterrupted CI/CD follow-up rule.
+2. Run the semantic version bump to `v0.32.0` in every manifest.
+3. Implement the `paths_json` migration and removal routine in `sqlite.rs`.
+4. Simplify the folder manipulation methods to use only `workspace_folders`.
+5. Run `cargo test --workspace` and validate 100% success.
+6. Build the release binary and deploy it to the local environment.
+7. Update `TECDOC.md`, `README.md` and `tests/MANUAL_TESTS.md`.
+8. Commit, push, open a PR on GitHub and follow the GitHub Actions until the final release is published.

@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_blueprint_v0400_ativacao_operacional_do_gemma_4_local_onnx_guardrails_de_hardware_estilo_lm_studio_e_presets_seguros_de_workspace
 project: any-context
-title: 'Blueprint v0.40.0: Ativacao Operacional do Gemma 4 Local ONNX, Guardrails de Hardware Estilo LM Studio e Presets Seguros de Workspace'
+title: 'Blueprint v0.40.0: Operational Activation of Local Gemma 4 ONNX, LM Studio-Style Hardware Guardrails and Safe Workspace Presets'
 version: v0.40.0
 status: superseded
 author: Levi Silveira
@@ -21,15 +21,15 @@ supersedes: anycontext_blueprint_v0400_ativacao_operacional_do_gemma_4_local_onn
 superseded_by: anycontext_blueprint_v0410_downloader_assistido_de_pesos_gemma_4_onnx_na_tui_e_cli_actx_download_tier
 parent_plan_id: null
 milestones:
-- name: 'Marco 1: Guardrail de Hardware no Core'
+- name: 'Milestone 1: Hardware Guardrail in the Core'
   done: false
-- name: 'Marco 2: Despacho do Gemma 4 no engine.rs'
+- name: 'Milestone 2: Gemma 4 Dispatch in engine.rs'
   done: false
-- name: 'Marco 3: Comando /preset Inteligente'
+- name: 'Milestone 3: Smart /preset Command'
   done: false
-- name: 'Marco 4: Paridade na TUI e Testes Automatizados'
+- name: 'Milestone 4: TUI Parity and Automated Tests'
   done: false
-- name: 'Marco 5: Dual-Doc MANUAL_TESTS e Release v0.40.0'
+- name: 'Milestone 5: Dual-Doc MANUAL_TESTS and Release v0.40.0'
   done: false
 status_log:
 - at: '2026-10-15T08:22:07'
@@ -39,94 +39,94 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 📐 Blueprint de Engenharia: AnyContext v0.40.0
-## Ativação Operacional do Gemma 4 Local ONNX, Guardrails de Hardware Estilo LM Studio & Presets Seguros de Workspace
+# 📐 Engineering Blueprint: AnyContext v0.40.0
+## Operational Activation of Local Gemma 4 ONNX, LM Studio-Style Hardware Guardrails & Safe Workspace Presets
 
 ---
 
-### 📌 Metadados do Plano
-- **Projeto**: AnyContext (`actx`)
-- **Versão-Alvo**: `v0.40.0` (Sucessora da `v0.39.0`)
-- **Autor**: Levi Silveira & Antigravity Assistant
-- **Data**: 2026-10-14
-- **Fase**: Fase 3 do Master Plan (Kit de Models, Soberania Local & Proteção de Hardware)
-- **Status**: Proposta Técnica Consolidada (Gate 3 - `dev-cycle-protocol`)
-- **Componentes**:
-  - `crates/actx-cli`: Fiação de backend no `resolve_lm_provider` para despacho do Gemma 4 local ONNX, guardrails de hardware no `/model` e badges no menu da TUI.
-  - `crates/any-context-core-rs`: Comando canônico `/preset` (alias `/kit`) inteligente via `HardwareProfiler` e `CommandEngine` com persistência no SQLite.
-  - `crates/actx-lm`: Validação e integração do `GemmaOnnxProvider` aos fluxos de conversação reais com fallback gracioso.
-  - `crates/actx-onnx`: Resolução do diretório canônico de modelos `%LOCALAPPDATA%/actx/models/`.
-- **Dual-Doc**: `README.md` (UserDoc), `TECDOC.md` (TecDoc - ADR-125), `tests/MANUAL_TESTS.md` (Cenário 40).
+### 📌 Plan Metadata
+- **Project**: AnyContext (`actx`)
+- **Target Version**: `v0.40.0` (successor of `v0.39.0`)
+- **Author**: Levi Silveira & Antigravity Assistant
+- **Date**: 2026-10-14
+- **Phase**: Master Plan Phase 3 (Model Kit, Local Sovereignty & Hardware Protection)
+- **Status**: Consolidated Technical Proposal (Gate 3 - `dev-cycle-protocol`)
+- **Components**:
+  - `crates/actx-cli`: backend wiring in `resolve_lm_provider` to dispatch local Gemma 4 ONNX, hardware guardrails in `/model` and badges in the TUI menu.
+  - `crates/any-context-core-rs`: a smart canonical `/preset` command (alias `/kit`) through `HardwareProfiler` and `CommandEngine` with persistence in SQLite.
+  - `crates/actx-lm`: validation and integration of `GemmaOnnxProvider` into the real conversation flows with a graceful fallback.
+  - `crates/actx-onnx`: resolution of the canonical models directory `%LOCALAPPDATA%/actx/models/`.
+- **Dual-Doc**: `README.md` (UserDoc), `TECDOC.md` (TecDoc - ADR-125), `tests/MANUAL_TESTS.md` (Scenario 40).
 
 ---
 
-## 🏛️ 1. Objetivo & Decisões Arquiteturais (ADR-125)
+## 🏛️ 1. Goal & Architecture Decisions (ADR-125)
 
-### Contexto e Alinhamento Estratégico
-Na versão `v0.38.0`, construímos a infraestrutura neural do Gemma 4 (`OnnxGemmaEngine` em `actx-onnx` e `GemmaOnnxProvider` em `actx-lm`) e os menus da TUI.
-Contudo, duas decisões de arquitetura e usabilidade foram consolidadas:
+### Context and Strategic Alignment
+In version `v0.38.0`, we built the Gemma 4 neural infrastructure (`OnnxGemmaEngine` in `actx-onnx` and `GemmaOnnxProvider` in `actx-lm`) and the TUI menus.
+However, two architecture and usability decisions were consolidated:
 
-1. **Soberania do Usuário vs. Roteamento Dinâmico de Inferência**:
-   - Ficar alternando dinamicamente o modelo de inferência (ex: SLM local no turno 1 e Claude/GPT-4o no turno 2) quebra a previsibilidade do usuário, gera riscos de falhas de autenticação em ambientes restritos e viola a escolha deliberada de modelo feita pelo operador.
-   - **Decisão**: A escolha de modelo feita pelo usuário é **soberana e imutável** durante o chat. O roteamento dinâmico (`SearchMode::Auto`) opera **exclusivamente na profundidade do RAG** (`Fast RAG` vs `Deep Search`), preservando 100% de previsibilidade.
+1. **User Sovereignty vs. Dynamic Inference Routing**:
+   - Dynamically switching the inference model (e.g. a local SLM on turn 1 and Claude/GPT-4o on turn 2) breaks the user's predictability, creates risks of authentication failures in restricted environments and violates the operator's deliberate choice of model.
+   - **Decision**: the user's model choice is **sovereign and immutable** during the chat. Dynamic routing (`SearchMode::Auto`) works **exclusively on RAG depth** (`Fast RAG` vs `Deep Search`), keeping 100% predictability.
 
-2. **Guardrails de Hardware Ativos nos Modelos Locais (Estilo LM Studio)**:
-   - Em modelos de nuvem (Claude, GPT, Gemini, Groq, DeepSeek), o hardware da máquina é irrelevante (consome apenas ~15MB de RAM para streaming HTTP). O usuário tem liberdade total para alternar entre eles a qualquer momento, bastando ter a chave de API configurada.
-   - Em modelos locais (Gemma 4 ONNX), tentar carregar um modelo maior que a RAM física da máquina (ex: Gemma 4 32B em máquina de 16GB) causa **swap thrashing catastrófico**, congelando o sistema operacional e derrubando o processo por OOM.
-   - **Decisão**: O `HardwareProfiler` atua como **guardrail ativo**:
-     - 🟢 **Verde (Compatível)**: Seleção instantânea sem alertas.
-     - 🟡 **Amarelo (Risco de Swap)**: Alerta explicativo de memória alta, permitindo prosseguir.
-     - 🔴 **Vermelho (Incompatível / Excede a RAM Total)**: **Bloqueio com aviso enfático de risco de travamento**. A execução só é liberada se o usuário passar a flag explícita `--force` (`/model gemma-4-32b --force`), ciente de que é por sua conta e risco.
-     - **Auto-Detecção em Upgrade**: Se o usuário adicionar memória física à máquina, o `HardwareProfiler` detecta a nova capacidade instantaneamente ($<5\text{ms}$ via OS APIs), desbloqueando modelos superiores automaticamente.
+2. **Active Hardware Guardrails on Local Models (LM Studio Style)**:
+   - For cloud models (Claude, GPT, Gemini, Groq, DeepSeek), the machine's hardware is irrelevant (it uses only ~15MB of RAM for HTTP streaming). The user has full freedom to switch between them at any time, as long as the API key is configured.
+   - For local models (Gemma 4 ONNX), trying to load a model larger than the machine's physical RAM (e.g. Gemma 4 32B on a 16GB machine) causes **catastrophic swap thrashing**, freezing the operating system and killing the process by OOM.
+   - **Decision**: the `HardwareProfiler` acts as an **active guardrail**:
+     - 🟢 **Green (Compatible)**: instant selection without warnings.
+     - 🟡 **Yellow (Swap Risk)**: an explanatory high-memory warning, allowing the user to proceed.
+     - 🔴 **Red (Incompatible / Exceeds Total RAM)**: **blocked with an emphatic warning of the freeze risk**. Execution is only released if the user passes the explicit `--force` flag (`/model gemma-4-32b --force`), aware that it is at their own risk.
+     - **Auto-Detection on Upgrade**: if the user adds physical memory to the machine, `HardwareProfiler` detects the new capacity instantly ($<5\text{ms}$ through OS APIs), unlocking larger models automatically.
 
-3. **Presets Estáticos e Seguros de Workspace (`/preset` ou `/kit`)**:
-   - Em vez de um modelo arbitrário fixo, o comando `/preset` consulta o `HardwareProfiler` e ajusta as configurações de forma atômica e segura:
-     - `offline`: Seleciona **o maior modelo local seguro (🟢)** suportado pela máquina (Compact para 8GB, 12B para 16GB, 27B para 32GB, 32B para 64GB+), com `/mode strict` e `/web-search off`.
-     - `balanced`: Seleciona modelo cloud custo-benefício (`gpt-4o-mini` ou `groq`), `/mode hybrid`, `/search auto` e `/web-search on`.
-     - `frontier`: Seleciona modelo frontier (`claude-3-7-sonnet` ou `gpt-4o`), `/mode proactive` e `/search deep`.
-     - `privacy`: Seleciona modelo local seguro (🟢), com `/mode strict` e `/web-search off`.
+3. **Static, Safe Workspace Presets (`/preset` or `/kit`)**:
+   - Instead of a fixed arbitrary model, the `/preset` command queries `HardwareProfiler` and adjusts the settings atomically and safely:
+     - `offline`: selects **the largest safe (🟢) local model** the machine supports (Compact for 8GB, 12B for 16GB, 27B for 32GB, 32B for 64GB+), with `/mode strict` and `/web-search off`.
+     - `balanced`: selects a cost-effective cloud model (`gpt-4o-mini` or `groq`), `/mode hybrid`, `/search auto` and `/web-search on`.
+     - `frontier`: selects a frontier model (`claude-3-7-sonnet` or `gpt-4o`), `/mode proactive` and `/search deep`.
+     - `privacy`: selects a safe (🟢) local model, with `/mode strict` and `/web-search off`.
 
-4. **A Fiação Operacional do Gemma 4 no CLI (`resolve_lm_provider`)**:
-   - Adicionar o ramo para `gemma-4` e `gemma` em `crates/actx-cli/src/engine.rs`, localizando os arquivos `.onnx` no diretório canônico `%LOCALAPPDATA%/actx/models/`.
-   - Garantia **ADR-110 (Zero-Breakage Guarantee)**: se o arquivo ONNX ainda não tiver sido baixado, emitir orientação clara (informando o comando `/profile <tier>` ou `actx-installer`) e executar fallback gracioso sem travar o terminal.
+4. **Operational Wiring of Gemma 4 in the CLI (`resolve_lm_provider`)**:
+   - Add the branch for `gemma-4` and `gemma` in `crates/actx-cli/src/engine.rs`, locating the `.onnx` files in the canonical directory `%LOCALAPPDATA%/actx/models/`.
+   - **ADR-110 (Zero-Breakage Guarantee)**: if the ONNX file has not been downloaded yet, show clear guidance (giving the `/profile <tier>` command or `actx-installer`) and run a graceful fallback without freezing the terminal.
 
 ```mermaid
 graph TD
-    subgraph "1. Seleção do Usuário & Guardrail de Hardware"
-        INPUT["Comando /model <nome> ou /preset offline"]
+    subgraph "1. User Selection & Hardware Guardrail"
+        INPUT["/model <name> or /preset offline command"]
         PROFILER["HardwareProfiler (<5ms OS APIs)"]
-        CHECK_TIER{"Modelo Local?<br/>Gemma 4"}
-        CLOUD_OK["Nuvem: Checa API Key e Aplica Imediatamente"]
-        SEMAPHORE{"Semáforo de RAM:<br/>🟢 Verde | 🟡 Amarelo | 🔴 Vermelho"}
-        LOCAL_OK["🟢 Aplica Modelo Local no SQLite"]
-        LOCAL_BLOCK["🔴 BLOQUEIA com Aviso Enfático de OOM<br/>(Exige --force para prosseguir)"]
+        CHECK_TIER{"Local Model?<br/>Gemma 4"}
+        CLOUD_OK["Cloud: checks the API Key and applies immediately"]
+        SEMAPHORE{"RAM Traffic Light:<br/>🟢 Green | 🟡 Yellow | 🔴 Red"}
+        LOCAL_OK["🟢 Applies the Local Model in SQLite"]
+        LOCAL_BLOCK["🔴 BLOCKS with an Emphatic OOM Warning<br/>(Requires --force to proceed)"]
     end
 
-    subgraph "2. Despachante do CLI (crates/actx-cli/src/engine.rs)"
+    subgraph "2. CLI Dispatcher (crates/actx-cli/src/engine.rs)"
         RESOLVER{"resolve_lm_provider(model)"}
-        CHECK_FILE{"Arquivo ONNX existe em disco?"}
+        CHECK_FILE{"Does the ONNX file exist on disk?"}
         ONNX_ENGINE["GemmaOnnxProvider (actx-lm)"]
-        FALLBACK_SAFE["Fallback Gracioso (Cloud / Mock) + Orientação Amigável"]
+        FALLBACK_SAFE["Graceful Fallback (Cloud / Mock) + Friendly Guidance"]
     end
 
-    subgraph "3. Execução do Chat"
+    subgraph "3. Chat Execution"
         CHAT_LOOP["ReActOrchestrator / DeepSearchOrchestrator"]
         DEPTH_ROUTING{"SearchMode::Auto?<br/>Fast RAG vs Deep Search"}
-        INFERENCE["Inferência Soberana e Previsível"]
+        INFERENCE["Sovereign, Predictable Inference"]
     end
 
     INPUT --> CHECK_TIER
-    CHECK_TIER -->|Não (Cloud)| CLOUD_OK
-    CHECK_TIER -->|Sim (Local)| PROFILER
+    CHECK_TIER -->|No (Cloud)| CLOUD_OK
+    CHECK_TIER -->|Yes (Local)| PROFILER
     PROFILER --> SEMAPHORE
-    SEMAPHORE -->|🟢 Verde| LOCAL_OK
-    SEMAPHORE -->|🔴 Vermelho| LOCAL_BLOCK
-    LOCAL_BLOCK -->|Com --force| LOCAL_OK
+    SEMAPHORE -->|🟢 Green| LOCAL_OK
+    SEMAPHORE -->|🔴 Red| LOCAL_BLOCK
+    LOCAL_BLOCK -->|With --force| LOCAL_OK
     LOCAL_OK --> RESOLVER
     CLOUD_OK --> RESOLVER
     RESOLVER --> CHECK_FILE
-    CHECK_FILE -->|Sim| ONNX_ENGINE
-    CHECK_FILE -->|Não (ADR-110)| FALLBACK_SAFE
+    CHECK_FILE -->|Yes| ONNX_ENGINE
+    CHECK_FILE -->|No (ADR-110)| FALLBACK_SAFE
     ONNX_ENGINE --> CHAT_LOOP
     FALLBACK_SAFE --> CHAT_LOOP
     CHAT_LOOP --> DEPTH_ROUTING
@@ -135,100 +135,100 @@ graph TD
 
 ---
 
-## 🏛️ 2. Mapeamento de Paridade de Superfícies
+## 🏛️ 2. Surface Parity Mapping
 
-| Superfície | Capacidade / Comportamento v0.40.0 |
+| Surface | v0.40.0 Capability / Behavior |
 | :--- | :--- |
-| **CLI TUI Terminal** | Menu de Modelos `[F1]` com badges estilo LM Studio: `🟢 [Compatível]`, `🟡 [Risco de Swap]`, `🔴 [Hardware Insuficiente - Exige X GB]`. Modelos vermelhos demarcados com alerta. |
-| **Comando `/model`** | Validação ativa de hardware. Bloqueia modelos locais 🔴 com aviso explicativo detalhando RAM total vs necessária, instruindo o uso de `--force` caso o usuário queira arriscar. |
-| **Comando `/preset` (alias `/kit`)** | Aplica atalhos de workspace atômicos no SQLite (`offline`, `balanced`, `frontier`, `privacy`) resolvendo automaticamente o modelo local seguro ótimo. |
-| **CLI One-Shot (Headless)** | Permite `actx "pergunta" --model gemma-4-12b` executando a inferência localmente via ONNX sem abrir a TUI. |
-| **Slash Commands Help** | Adiciona formalmente `/profile` e `/preset` à tabela `DEFAULT_SLASH_COMMANDS` com autocomplete e ajuda contextual. |
+| **Terminal CLI TUI** | `[F1]` Models Menu with LM Studio-style badges: `🟢 [Compatible]`, `🟡 [Swap Risk]`, `🔴 [Insufficient Hardware - Requires X GB]`. Red models are marked with a warning. |
+| **`/model` Command** | Active hardware validation. Blocks 🔴 local models with an explanatory warning detailing total vs required RAM, instructing the use of `--force` if the user wants to take the risk. |
+| **`/preset` Command (alias `/kit`)** | Applies atomic workspace shortcuts in SQLite (`offline`, `balanced`, `frontier`, `privacy`), automatically resolving the optimal safe local model. |
+| **One-Shot CLI (Headless)** | Allows `actx "question" --model gemma-4-12b`, running inference locally through ONNX without opening the TUI. |
+| **Slash Commands Help** | Formally adds `/profile` and `/preset` to the `DEFAULT_SLASH_COMMANDS` table with autocomplete and contextual help. |
 
 ---
 
-## 📁 3. Arquivos e Linhas Impactadas
+## 📁 3. Affected Files and Lines
 
 1. **`crates/any-context-core-rs/src/hardware/mod.rs`**:
-   - Adicionar helper `validate_model_safety(model_name: &str, metrics: &HardwareMetrics) -> HardwareSafetyVerdict`:
-     - Retorna `Safe` (🟢), `Tight` (🟡) ou `Unsafe { required_ram_gb: f32, total_ram_gb: f32 }` (🔴).
+   - Add a helper `validate_model_safety(model_name: &str, metrics: &HardwareMetrics) -> HardwareSafetyVerdict`:
+     - Returns `Safe` (🟢), `Tight` (🟡) or `Unsafe { required_ram_gb: f32, total_ram_gb: f32 }` (🔴).
 2. **`crates/actx-cli/src/engine.rs`**:
-   - Implementar ramo `else if raw_model.starts_with("gemma-4") || raw_model.starts_with("gemma")` em `resolve_lm_provider`.
-   - Adicionar helper `resolve_gemma_model_path(tier)` apontando para `%LOCALAPPDATA%/actx/models/<filename>`.
-   - Implementar construção de `GemmaOnnxProvider` com fallback de segurança.
+   - Implement the `else if raw_model.starts_with("gemma-4") || raw_model.starts_with("gemma")` branch in `resolve_lm_provider`.
+   - Add a `resolve_gemma_model_path(tier)` helper pointing to `%LOCALAPPDATA%/actx/models/<filename>`.
+   - Implement the construction of `GemmaOnnxProvider` with a safety fallback.
 3. **`crates/any-context-core-rs/src/commands/engine.rs`**:
-   - No comando `model`: validar guardrail de hardware. Se `Unsafe` e não houver flag `--force`, retornar erro amigável com métricas detalhadas.
-   - Implementar comando `preset` (alias `kit`):
-     - `offline`: seleciona o maior modelo local seguro (🟢), modo `strict`, web-search `off`.
-     - `balanced`: modelo padrão cloud (`gpt-4o-mini` ou similar), modo `hybrid`, web-search `on`.
-     - `frontier`: modelo frontier (`claude-3-7-sonnet` ou `gpt-4o`), modo `proactive`, search `deep`.
-     - `privacy`: modelo local seguro (🟢), modo `strict`, web-search `off`.
+   - In the `model` command: validate the hardware guardrail. If `Unsafe` and there is no `--force` flag, return a friendly error with detailed metrics.
+   - Implement the `preset` command (alias `kit`):
+     - `offline`: selects the largest safe (🟢) local model, mode `strict`, web search `off`.
+     - `balanced`: default cloud model (`gpt-4o-mini` or similar), mode `hybrid`, web search `on`.
+     - `frontier`: frontier model (`claude-3-7-sonnet` or `gpt-4o`), mode `proactive`, search `deep`.
+     - `privacy`: safe (🟢) local model, mode `strict`, web search `off`.
 4. **`crates/actx-cli/src/commands/registry.rs`**:
-   - Incluir `/profile` e `/preset` (alias `/kit`) no slice `DEFAULT_SLASH_COMMANDS`.
+   - Include `/profile` and `/preset` (alias `/kit`) in the `DEFAULT_SLASH_COMMANDS` slice.
 5. **`crates/actx-cli/src/tui/app.rs` & `menu.rs`**:
-   - Integrar badges coloridos de semáforo de hardware nos itens de modelo local na TUI.
-6. **Crates Manifests (`Cargo.toml`)**:
-   - Bump de versão para `0.40.0` nos 6 member crates e em `version.txt`.
-7. **Dual-Doc & Testes Manuais**:
-   - `TECDOC.md` (ADR-125), `README.md` (Guia Offline e Guardrails), `tests/MANUAL_TESTS.md` (Cenário 40).
+   - Integrate colored hardware traffic-light badges into the local model items in the TUI.
+6. **Crate Manifests (`Cargo.toml`)**:
+   - Version bump to `0.40.0` in the 6 member crates and in `version.txt`.
+7. **Dual-Doc & Manual Tests**:
+   - `TECDOC.md` (ADR-125), `README.md` (Offline Guide and Guardrails), `tests/MANUAL_TESTS.md` (Scenario 40).
 
 ---
 
-## 📚 4. Plano de Atualização Dual-Doc (`UserDoc` + `TecDoc`)
+## 📚 4. Dual-Doc Update Plan (`UserDoc` + `TecDoc`)
 
 - **`UserDoc` (`README.md`)**:
-  - Nova seção no README: **"🧠 Soberania Local & Guardrails de Hardware (Estilo LM Studio)"**.
-  - Documentação das flags de segurança e comandos `/model <nome> [--force]` e `/preset [offline|balanced|frontier|privacy]`.
+  - New README section: **"🧠 Local Sovereignty & Hardware Guardrails (LM Studio Style)"**.
+  - Documentation of the safety flags and the `/model <name> [--force]` and `/preset [offline|balanced|frontier|privacy]` commands.
 - **`TecDoc` (`TECDOC.md`)**:
-  - Registro do **ADR-125: Ativação Operacional do Gemma 4 Local ONNX no Motor CLI, Guardrails de Hardware e Presets Estáticos de Workspace**.
-  - Diagrama Mermaid de ciclo de vida e resolução do `GemmaOnnxProvider`.
-  - Tabela de mapeamento de requisitos de RAM e KV-cache dos modelos locais vs comportamento em falha (ADR-110).
+  - Record of **ADR-125: Operational Activation of Local Gemma 4 ONNX in the CLI Engine, Hardware Guardrails and Static Workspace Presets**.
+  - Mermaid diagram of the `GemmaOnnxProvider` life cycle and resolution.
+  - A table mapping the RAM and KV-cache requirements of the local models vs the failure behavior (ADR-110).
 
 ---
 
-## 🧪 5. Estratégia de Testes Automatizados & Proteção contra Regressão
+## 🧪 5. Automated Test Strategy & Regression Protection
 
-1. **Testes Unitários em `crates/any-context-core-rs/src/hardware/mod.rs`**:
-   - `test_validate_model_safety_verdicts`: testa veredictos 🟢, 🟡 e 🔴 para os 4 tiers do Gemma 4 em diferentes simulações de RAM (8GB, 16GB, 32GB, 64GB).
-2. **Testes Unitários em `crates/actx-cli/src/engine.rs`**:
-   - `test_resolve_lm_provider_gemma_family`: testa resolução de `gemma-4-compact`, `gemma-4-12b`, `gemma-4-27b`, `gemma-4-32b`.
-   - `test_resolve_lm_provider_gemma_fallback_safe`: garante que sem os pesos baixados, o retorno é gracioso e não causa panic.
-3. **Testes de Integração em `crates/any-context-core-rs/tests/command_tests.rs`**:
-   - `test_model_command_hardware_guardrail_block_and_force`: valida que tentar setar um modelo 🔴 sem `--force` retorna erro informativo, e com `--force` aplica a configuração.
-   - `test_preset_command_execution`: valida `/preset offline`, `/preset balanced`, `/preset frontier`, `/preset privacy` e confere a persistência atômica no SQLite (`NativeConfigDb`).
-4. **Suíte Completa**:
-   - Execução de `cargo test --workspace` garantindo zero regressões.
-
----
-
-## 📝 6. Plano de Cenários de Teste Manual (`tests/MANUAL_TESTS.md`)
-
-- **Cenário 40: Execução Operacional do Gemma 4 Local ONNX, Guardrails de Hardware e Presets de Workspace (v0.40.0)**
-  - Adicionado de forma estritamente acumulativa (preservando intactos os cenários 1 a 39).
-  - Passos detalhados:
-    1. Testar guardrail de hardware: tentar `/model gemma-4-32b` em máquina com $<64\text{ GB}$ de RAM e verificar o bloqueio com aviso amigável.
-    2. Testar override explícito: `/model gemma-4-32b --force` e verificar aplicação.
-    3. Alternar para preset offline seguro: `/preset offline` e validar que o modelo escolhido é o 🟢 compatível com a máquina.
-    4. Verificar configurações aplicadas via `/info` e `/status`.
-    5. Enviar mensagem de chat e validar badge `[Local ONNX]` e resposta.
-    6. Testar execução headless: `actx "Explique o que é RAG" --model gemma-4-compact`.
+1. **Unit Tests in `crates/any-context-core-rs/src/hardware/mod.rs`**:
+   - `test_validate_model_safety_verdicts`: tests the 🟢, 🟡 and 🔴 verdicts for the 4 Gemma 4 tiers in different RAM simulations (8GB, 16GB, 32GB, 64GB).
+2. **Unit Tests in `crates/actx-cli/src/engine.rs`**:
+   - `test_resolve_lm_provider_gemma_family`: tests the resolution of `gemma-4-compact`, `gemma-4-12b`, `gemma-4-27b`, `gemma-4-32b`.
+   - `test_resolve_lm_provider_gemma_fallback_safe`: guarantees that without the downloaded weights, the return is graceful and causes no panic.
+3. **Integration Tests in `crates/any-context-core-rs/tests/command_tests.rs`**:
+   - `test_model_command_hardware_guardrail_block_and_force`: validates that trying to set a 🔴 model without `--force` returns an informative error, and with `--force` applies the setting.
+   - `test_preset_command_execution`: validates `/preset offline`, `/preset balanced`, `/preset frontier`, `/preset privacy` and checks the atomic persistence in SQLite (`NativeConfigDb`).
+4. **Full Suite**:
+   - Run `cargo test --workspace`, guaranteeing zero regressions.
 
 ---
 
-## 🔒 7. Higiene de Segredos, Migração de Banco e Plano de Rollback
+## 📝 6. Manual Test Scenario Plan (`tests/MANUAL_TESTS.md`)
 
-- **Segredos**: Zero segredos ou tokens envolvidos.
-- **Banco de Dados**: Reutiliza colunas já existentes na tabela `workspaces` (`model`, `grounding_mode`, `web_search_enabled`). Nenhuma migração destrutiva de schema.
-- **Rollback**: Em caso de regressão no CI, `git checkout dev && git revert` restaura para a tag `v0.39.0` imediatamente.
+- **Scenario 40: Operational Execution of Local Gemma 4 ONNX, Hardware Guardrails and Workspace Presets (v0.40.0)**
+  - Added strictly cumulatively (keeping scenarios 1 to 39 intact).
+  - Detailed steps:
+    1. Test the hardware guardrail: try `/model gemma-4-32b` on a machine with $<64\text{ GB}$ of RAM and check the block with a friendly warning.
+    2. Test the explicit override: `/model gemma-4-32b --force` and check it is applied.
+    3. Switch to the safe offline preset: `/preset offline` and validate that the chosen model is the 🟢 one compatible with the machine.
+    4. Check the applied settings through `/info` and `/status`.
+    5. Send a chat message and validate the `[Local ONNX]` badge and the answer.
+    6. Test headless execution: `actx "Explain what RAG is" --model gemma-4-compact`.
 
 ---
 
-## ⏱️ 8. Passo a Passo da Execução (Marcos 1 a 5)
+## 🔒 7. Secret Hygiene, Database Migration and Rollback Plan
 
-| Marco | Descrição | Entregáveis |
+- **Secrets**: zero secrets or tokens involved.
+- **Database**: reuses columns that already exist in the `workspaces` table (`model`, `grounding_mode`, `web_search_enabled`). No destructive schema migration.
+- **Rollback**: in case of a CI regression, `git checkout dev && git revert` restores tag `v0.39.0` immediately.
+
+---
+
+## ⏱️ 8. Step-by-Step Execution (Milestones 1 to 5)
+
+| Milestone | Description | Deliverables |
 | :--- | :--- | :--- |
-| **Marco 1** | Guardrail de Hardware no Core | Função `validate_model_safety` no `HardwareProfiler` e checagem no comando `/model` |
-| **Marco 2** | Despacho do Gemma 4 no `engine.rs` | Resolução canônica de caminhos ONNX e instanciação do `GemmaOnnxProvider` |
-| **Marco 3** | Comando `/preset` Inteligente | Lógica do `/preset` com seleção do melhor modelo local 🟢 e registro nos slash commands |
-| **Marco 4** | Paridade na TUI e Testes Automatizados | Badges na TUI, testes unitários de resolução e testes do `/preset` e `/model` |
-| **Marco 5** | Dual-Doc, MANUAL_TESTS & Release | ADR-125 no `TECDOC.md`, `README.md`, Cenário 40, `cargo test --workspace` e release `v0.40.0` |
+| **Milestone 1** | Hardware Guardrail in the Core | The `validate_model_safety` function in `HardwareProfiler` and the check in the `/model` command |
+| **Milestone 2** | Gemma 4 dispatch in `engine.rs` | Canonical resolution of ONNX paths and instantiation of `GemmaOnnxProvider` |
+| **Milestone 3** | Smart `/preset` Command | `/preset` logic selecting the best 🟢 local model and registration in the slash commands |
+| **Milestone 4** | TUI Parity and Automated Tests | TUI badges, resolution unit tests and `/preset` and `/model` tests |
+| **Milestone 5** | Dual-Doc, MANUAL_TESTS & Release | ADR-125 in `TECDOC.md`, `README.md`, Scenario 40, `cargo test --workspace` and release `v0.40.0` |

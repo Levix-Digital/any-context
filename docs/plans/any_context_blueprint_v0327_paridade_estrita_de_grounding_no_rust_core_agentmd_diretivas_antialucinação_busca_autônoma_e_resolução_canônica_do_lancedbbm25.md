@@ -1,7 +1,7 @@
 ---
 plan_id: any_context_blueprint_v0327_paridade_estrita_de_grounding_no_rust_core_agentmd_diretivas_antialucinação_busca_autônoma_e_resolução_canônica_do_lancedbbm25
 project: any-context
-title: 'Blueprint v0.32.7: Paridade Estrita de Grounding no Rust Core (AGENT.md, Diretivas Antialucinação, Busca Autônoma e Resolução Canônica do LanceDB/BM25)'
+title: 'Blueprint v0.32.7: Strict Grounding Parity in the Rust Core (AGENT.md, Anti-Hallucination Directives, Autonomous Search and Canonical LanceDB/BM25 Resolution)'
 version: v0.32.7
 status: superseded
 author: Levi Silveira
@@ -21,19 +21,19 @@ supersedes: any_context_blueprint_v0324_desacoplamento_universal_do_motor_de_com
 superseded_by: any_context_blueprint_v0327_paridade_estrita_de_grounding_no_rust_core_injeção_de_agentmd_lancedb_canônico_único_sem_legado_streaming_real_e_persistência_de_modos
 parent_plan_id: null
 milestones:
-- name: 'M1: Resolução Canônica do LanceDB e BM25 Index'
+- name: 'M1: Canonical Resolution of LanceDB and the BM25 Index'
   done: false
-- name: 'M2: Motor de System Prompt e Grounding Directives com AGENT.md'
+- name: 'M2: System Prompt Engine and Grounding Directives with AGENT.md'
   done: false
-- name: 'M3: Ferramenta search_db Resiliente com Tokenização e BM25'
+- name: 'M3: Resilient search_db Tool with Tokenization and BM25'
   done: false
-- name: 'M4: Testes Automatizados de Paridade e Isolamento'
+- name: 'M4: Automated Parity and Isolation Tests'
   done: false
-- name: 'M5: Dual-Doc (README.md TECDOC.md com ADR-090)'
+- name: 'M5: Dual-Doc (README.md TECDOC.md with ADR-090)'
   done: false
-- name: 'M6: Testes Manuais Acumulativos (MANUAL_TESTS.md Cenário 9)'
+- name: 'M6: Cumulative Manual Tests (MANUAL_TESTS.md Scenario 9)'
   done: false
-- name: 'M7: Fechamento Release v0.32.7 e CI Watch'
+- name: 'M7: Release v0.32.7 Closure and CI Watch'
   done: false
 status_log:
 - at: '2026-10-02T15:53:47'
@@ -43,106 +43,106 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# Blueprint v0.32.7: Paridade Estrita de Grounding no Rust Core (AGENT.md, Diretivas Antialucinação, Busca Autônoma e Resolução Canônica do LanceDB/BM25)
+# Blueprint v0.32.7: Strict Grounding Parity in the Rust Core (AGENT.md, Anti-Hallucination Directives, Autonomous Search and Canonical LanceDB/BM25 Resolution)
 
-## 1. 🎯 Objetivo & Decisões Arquiteturais (ADR-090)
-### Contexto e Diagnóstico da Regressão Crítica:
-Após a refatoração e migração da interface CLI/TUI para Rust (`actx`), o usuário constatou uma regressão funcional crítica no comportamento do agente em modo `STRICT`:
-1. Ao perguntar sobre programas de imigração para AI Engineer no Canadá (`Quais programas de imigração onde posso imigrar de Trabalhador Temporário para Residente Permanente como AI Engineer?`), o modelo respondeu longos parágrafos de conhecimento pré-treinado geral (Express Entry, PNP, Alberta, etc.) **sem invocar a ferramenta `search_db`**.
-2. Ao ser questionado (*"De onde veio essa informação?"*), o modelo admitiu que utilizou memória paramétrica genérica e perguntou passivamente: *"As informações que forneci são baseadas em conhecimentos gerais... Se você precisar... posso procurar em documentos... Deseja que eu faça isso?"*.
-3. **Causas Raízes Identificadas**:
-   - **System Prompt Esvaziado**: Em `crates/actx-cli/src/engine.rs`, o prompt do sistema foi reduzido a um bloco simplificado de 10 linhas que apenas mencionava `- Grounding Strategy: {grounding_mode}`, sem injetar o conteúdo de `config/AGENT.md`, sem proibir memória paramétrica, sem impor busca obrigatória prévia via `search_db` e sem diretivas de fidelidade.
-   - **Desconexão de Caminho do LanceDB**: O Rust buscava LanceDB em `%LOCALAPPDATA%\AnyContext\lancedb` (pasta vazia com 0 registros), enquanto toda a base vetorial do usuário (34.124 chunks) reside canonicamente em `%LOCALAPPDATA%\AnyContext\data\context_db\lancedb`.
-   - **Degradação de Busca em `search_db`**: A ferramenta em Rust realizava apenas uma busca literal SQL `text LIKE '%query%'` com a frase inteira do usuário. Frases naturais ou perguntas em português sobre documentos em inglês retornavam 0 resultados, ignorando o índice `BM25Index` já existente (`bm25_index.bin`) de 12 MB na pasta do usuário.
+## 1. 🎯 Goal & Architecture Decisions (ADR-090)
+### Context and Diagnosis of the Critical Regression:
+After refactoring and migrating the CLI/TUI interface to Rust (`actx`), the user found a critical functional regression in the agent's behavior in `STRICT` mode:
+1. When asked about immigration programs for an AI Engineer in Canada (`Which immigration programs can I use to go from Temporary Worker to Permanent Resident as an AI Engineer?`), the model answered with long paragraphs of general pre-trained knowledge (Express Entry, PNP, Alberta, etc.) **without calling the `search_db` tool**.
+2. When questioned (*"Where did this information come from?"*), the model admitted it had used generic parametric memory and asked passively: *"The information I provided is based on general knowledge... If you need... I can search the documents... Would you like me to do that?"*.
+3. **Root Causes Identified**:
+   - **Hollowed-Out System Prompt**: in `crates/actx-cli/src/engine.rs`, the system prompt was reduced to a simplified 10-line block that only mentioned `- Grounding Strategy: {grounding_mode}`, without injecting the content of `config/AGENT.md`, without forbidding parametric memory, without requiring a prior search through `search_db` and without fidelity directives.
+   - **LanceDB Path Disconnect**: Rust looked for LanceDB in `%LOCALAPPDATA%\AnyContext\lancedb` (an empty folder with 0 records), while the user's whole vector base (34,124 chunks) canonically lives in `%LOCALAPPDATA%\AnyContext\data\context_db\lancedb`.
+   - **Search Degradation in `search_db`**: the Rust tool only ran a literal SQL search `text LIKE '%query%'` with the user's whole sentence. Natural sentences or questions in Portuguese about documents in English returned 0 results, ignoring the already existing `BM25Index` (`bm25_index.bin`, 12 MB) in the user's folder.
 
-### Decisões Arquiteturais (ADR-090):
-1. **Injeção Obrigatória de AGENT.md e Diretivas por Modo**:
-   - `crates/actx-cli` incorporará o `AGENT.md` canônico (compilado via `include_str!` com fallback para leitura em runtime) e montará um prompt do sistema estrito com paridade 100% com o Python.
-   - No modo `STRICT`: proibição categórica de respostas paramétricas, mandato de busca autônoma obrigatória via `search_db` antes de responder, proibição absoluta de perguntar *"Deseja que eu procure nos documentos?"*, e declaração formal de ausência (`⚠️ Essa informação não consta nos documentos deste workspace.`) caso nada seja encontrado.
-   - No modo `HYBRID`: prioridade aos documentos locais com separação explícita de seções (`### 📂 Informações do Workspace` vs `### 💡 Conhecimento Geral do Modelo` com rótulo declaratório).
-   - No modo `PROACTIVE`: integração fluida com citação explícita de fontes.
-2. **Resolução Canônica de Armazenamento LanceDB e BM25**:
-   - Criar `any_context_core_rs::storage::get_default_lancedb_path() -> PathBuf` que inspeciona sequencialmente os caminhos padrão do OS (`data/context_db/lancedb` antes de `lancedb`), detectando onde os arquivos `.lance` realmente existem.
-3. **Ferramenta `search_db` Inteligente (BM25 + LanceDB Metadata)**:
-   - A ferramenta `search_db` em Rust utilizará `bm25_index.bin` quando disponível para pontuação lexical rápida (Okapi BM25) e complementará com busca em metadados no LanceDB com tokenização de termos e keywords, formatando os chunks com título de arquivo, score e trecho relevante.
+### Architecture Decisions (ADR-090):
+1. **Mandatory AGENT.md Injection and Per-Mode Directives**:
+   - `crates/actx-cli` embeds the canonical `AGENT.md` (compiled through `include_str!` with a fallback to reading at runtime) and builds a strict system prompt with 100% parity with Python.
+   - In `STRICT` mode: a categorical ban on parametric answers, a mandate of autonomous search through `search_db` before answering, an absolute ban on asking *"Would you like me to search the documents?"*, and a formal statement of absence (`⚠️ This information is not in this workspace's documents.`) when nothing is found.
+   - In `HYBRID` mode: priority to local documents with explicitly separated sections (`### 📂 Workspace Information` vs `### 💡 General Model Knowledge` with a declarative label).
+   - In `PROACTIVE` mode: fluid integration with explicit source citation.
+2. **Canonical Resolution of LanceDB and BM25 Storage**:
+   - Create `any_context_core_rs::storage::get_default_lancedb_path() -> PathBuf`, which inspects the OS default paths in sequence (`data/context_db/lancedb` before `lancedb`), detecting where the `.lance` files really exist.
+3. **Smart `search_db` Tool (BM25 + LanceDB Metadata)**:
+   - The Rust `search_db` tool uses `bm25_index.bin` when available for fast lexical scoring (Okapi BM25) and complements it with a metadata search in LanceDB with term and keyword tokenization, formatting chunks with the file title, score and the relevant passage.
 
 ---
 
-## 2. 🏛️ Mapeamento de Paridade de Superfícies
+## 2. 🏛️ Surface Parity Mapping
 - **Core Domain & Storage (`crates/any-context-core-rs`)**:
-  - `storage/lancedb.rs`: Exposição de `get_default_lancedb_path()`.
-  - `commands/engine.rs`: Atualização de todas as chamadas de path para a função canônica.
+  - `storage/lancedb.rs`: exposes `get_default_lancedb_path()`.
+  - `commands/engine.rs`: every path call updated to the canonical function.
 - **Engine & System Prompt (`crates/actx-cli`)**:
-  - `src/prompt.rs`: Novo módulo dedicado à construção estruturada do system prompt (AGENT.md + Active Workspace + Grounding Directives + Temporal Recency + Citations).
-  - `src/engine.rs`: Substituição do prompt estático pelo `build_system_prompt()`; aprimoramento da ferramenta `search_db` para usar o caminho canônico e busca por termos/BM25.
-- **CLI One-Shot & TUI Interactive**:
-  - Ambos consom `build_agent_sync()` e recebem imediatamente as mesmas diretivas rígidas de Grounding e o mesmo motor de busca canônico.
+  - `src/prompt.rs`: a new module dedicated to building the structured system prompt (AGENT.md + Active Workspace + Grounding Directives + Temporal Recency + Citations).
+  - `src/engine.rs`: replacement of the static prompt by `build_system_prompt()`; improvement of the `search_db` tool to use the canonical path and term/BM25 search.
+- **One-Shot CLI & Interactive TUI**:
+  - Both consume `build_agent_sync()` and immediately get the same strict Grounding directives and the same canonical search engine.
 
 ---
 
-## 3. 📁 Arquivos e Linhas Impactadas
+## 3. 📁 Affected Files and Lines
 1. `crates/any-context-core-rs/src/storage/lancedb.rs`:
-   - Implementação de `pub fn get_default_lancedb_path() -> PathBuf`.
+   - Implementation of `pub fn get_default_lancedb_path() -> PathBuf`.
 2. `crates/any-context-core-rs/src/storage/mod.rs` & `crates/any-context-core-rs/src/lib.rs`:
-   - Re-export de `get_default_lancedb_path`.
+   - Re-export of `get_default_lancedb_path`.
 3. `crates/any-context-core-rs/src/commands/engine.rs`:
-   - Uso de `crate::storage::get_default_lancedb_path()` no lugar da função local obsoleta.
-4. `crates/actx-cli/src/prompt.rs` (Novo):
-   - Módulo puro para geração de system prompt canônico com `AGENT.md` embutido e matriz de Grounding.
+   - Use of `crate::storage::get_default_lancedb_path()` instead of the obsolete local function.
+4. `crates/actx-cli/src/prompt.rs` (New):
+   - A pure module to generate the canonical system prompt with the embedded `AGENT.md` and the Grounding matrix.
 5. `crates/actx-cli/src/engine.rs`:
-   - Integração de `prompt::build_system_prompt()`.
-   - Atualização de `search_db` com resolução canônica de caminho e busca tokenizada.
+   - Integration of `prompt::build_system_prompt()`.
+   - Update of `search_db` with canonical path resolution and tokenized search.
 6. `crates/actx-cli/src/lib.rs` / `main.rs`:
-   - Declaração de `pub mod prompt;`.
+   - Declaration of `pub mod prompt;`.
 7. `crates/actx-cli/tests/`:
-   - Testes unitários para geração do prompt e diretivas nos três modos (`strict`, `hybrid`, `proactive`).
+   - Unit tests for prompt generation and the directives in the three modes (`strict`, `hybrid`, `proactive`).
 8. `TECDOC.md`:
-   - Registro do ADR-090 e diagramas Mermaid de fluxo de Grounding.
+   - Record of ADR-090 and Mermaid diagrams of the Grounding flow.
 9. `tests/MANUAL_TESTS.md`:
-   - Adição do Cenário 9 (Validação Estrita de Grounding sem Alucinação Paramétrica).
+   - Addition of Scenario 9 (Strict Grounding Validation without Parametric Hallucination).
 10. `Cargo.toml` / `pyproject.toml`:
-    - Bump para `v0.32.7`.
+    - Bump to `v0.32.7`.
 
 ---
 
-## 4. 📚 Plano de Atualização Dual-Doc (`UserDoc` + `TecDoc`)
+## 4. 📚 Dual-Doc Update Plan (`UserDoc` + `TecDoc`)
 - **`UserDoc` (`README.md`)**:
-  - Detalhar a garantia de fidelidade do modo `STRICT`: nunca responde com dados externos quando o documento não existe, exigindo busca autônoma local.
+  - Detail the fidelity guarantee of `STRICT` mode: it never answers with external data when the document does not exist, requiring an autonomous local search.
 - **`TecDoc` (`TECDOC.md`)**:
-  - ADR-090: Arquitetura de Grounding Parity no Rust Core e Resolução Canônica Multi-OS de LanceDB/BM25.
-  - Diagrama Mermaid do pipeline de injeção de prompt e ciclo ReAct do agente.
+  - ADR-090: Grounding Parity Architecture in the Rust Core and Multi-OS Canonical Resolution of LanceDB/BM25.
+  - Mermaid diagram of the prompt injection pipeline and the agent's ReAct cycle.
 
 ---
 
-## 5. 🧪 Estratégia de Testes Automatizados & Proteção contra Regressão
-- **Testes Unitários em Rust**:
-  - `test_system_prompt_strict_mode`: Valida que o prompt gerado em modo `strict` contém mandatos explícitos: ausência de alucinação paramétrica, mandato autônomo de busca via `search_db`, proibição de perguntar permissão para buscar documentos locais, e declaração de ausência formal.
-  - `test_system_prompt_hybrid_mode`: Valida separação em seções de workspace e conhecimento geral rotulado.
-  - `test_canonical_lancedb_path_resolution`: Valida que `get_default_lancedb_path()` prioriza pastas existentes contendo `workspace_chunks.lance`.
-  - Execução completa: `cargo test --workspace` (149+ testes verdes garantidos).
+## 5. 🧪 Automated Test Strategy & Regression Protection
+- **Rust Unit Tests**:
+  - `test_system_prompt_strict_mode`: validates that the prompt generated in `strict` mode contains explicit mandates: no parametric hallucination, an autonomous search mandate through `search_db`, a ban on asking permission to search local documents, and a formal statement of absence.
+  - `test_system_prompt_hybrid_mode`: validates the separation into workspace and labeled general knowledge sections.
+  - `test_canonical_lancedb_path_resolution`: validates that `get_default_lancedb_path()` prefers existing folders containing `workspace_chunks.lance`.
+  - Full run: `cargo test --workspace` (149+ green tests guaranteed).
 
 ---
 
-## 6. 📝 Plano de Cenários de Teste Manual (`tests/MANUAL_TESTS.md`)
-- **Cenário 9: Validação Estrita de Grounding sem Alucinação Paramétrica e Busca Canônica**
-  - Configuração: Grounding STRICT, Web Search OFF.
-  - Pergunta sobre tema ausente ou específico.
-  - Verificação: Agente dispara `search_db` autonomamente na primeira rodada. Não alucina dados pré-treinados gerais. Se ausente, emite declaração de ausência factual e não pergunta *"Deseja que eu procure em documentos?"*.
+## 6. 📝 Manual Test Scenario Plan (`tests/MANUAL_TESTS.md`)
+- **Scenario 9: Strict Grounding Validation without Parametric Hallucination and Canonical Search**
+  - Configuration: Grounding STRICT, Web Search OFF.
+  - A question about an absent or specific topic.
+  - Check: the agent fires `search_db` autonomously in the first round. It does not hallucinate general pre-trained data. If absent, it states the factual absence and does not ask *"Would you like me to search the documents?"*.
 
 ---
 
-## 7. 🔒 Higiene de Segredos, Migração de Banco e Plano de Rollback
-- **Higiene de Segredos**: Nenhuma chave ou token em código.
-- **Migração de Banco**: Compatível e aditiva; utiliza o esquema existente sem alterações destrutivas.
-- **Plano de Rollback**: Reverter commits no git caso haja qualquer quebra de build no CI.
+## 7. 🔒 Secret Hygiene, Database Migration and Rollback Plan
+- **Secret Hygiene**: no key or token in code.
+- **Database Migration**: compatible and additive; uses the existing schema without destructive changes.
+- **Rollback Plan**: revert the commits in git if the build breaks in CI.
 
 ---
 
-## 8. ⏱️ Passo a Passo da Execução
-1. M1: Implementar `get_default_lancedb_path()` canônico em `any-context-core-rs`.
-2. M2: Criar módulo `actx-cli/src/prompt.rs` com injeção de `AGENT.md` e regras de Grounding Strict/Hybrid/Proactive.
-3. M3: Atualizar `actx-cli/src/engine.rs` para utilizar `build_system_prompt()` e aprimorar `search_db` com busca inteligente/BM25.
-4. M4: Adicionar testes automatizados e rodar `cargo test --workspace`.
-5. M5: Atualizar `TECDOC.md` (ADR-090) e `README.md`.
-6. M6: Registrar Cenário 9 em `tests/MANUAL_TESTS.md` sem compactação.
-7. M7: Bump para `0.32.7`, commit, PR `dev` -> `main`, monitoramento do CI, criação da tag `v0.32.7` e validação do release.
+## 8. ⏱️ Step-by-Step Execution
+1. M1: implement the canonical `get_default_lancedb_path()` in `any-context-core-rs`.
+2. M2: create the `actx-cli/src/prompt.rs` module with `AGENT.md` injection and Strict/Hybrid/Proactive Grounding rules.
+3. M3: update `actx-cli/src/engine.rs` to use `build_system_prompt()` and improve `search_db` with smart/BM25 search.
+4. M4: add automated tests and run `cargo test --workspace`.
+5. M5: update `TECDOC.md` (ADR-090) and `README.md`.
+6. M6: record Scenario 9 in `tests/MANUAL_TESTS.md` without compaction.
+7. M7: bump to `0.32.7`, commit, PR `dev` -> `main`, CI monitoring, creation of tag `v0.32.7` and release validation.

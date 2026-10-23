@@ -1,7 +1,7 @@
 ---
 plan_id: any_context_blueprint_fase2_rfc042_deep_search_engine_rust_native
 project: any-context
-title: 'Blueprint Fase 2: Motor Deep Search Agentico Reflexivo Nativo em Rust (RFC-042 & DeepSearcher Reference)'
+title: 'Phase 2 Blueprint: Native Rust Reflective Agentic Deep Search Engine (RFC-042 & DeepSearcher Reference)'
 version: v0.34.0
 status: completed
 author: Levi Silveira
@@ -20,141 +20,141 @@ supersedes: any_context_blueprint_v0331_purga_final_python_higiene_repo_e_dual_d
 superseded_by: null
 parent_plan_id: anycontext_master_roadmap_v0_30_38_rfc042
 milestones:
-- name: 'M1: Modulo DeepSearchOrchestrator e Prompts Reflexivos em actx-agent'
+- name: 'M1: DeepSearchOrchestrator Module and Reflective Prompts in actx-agent'
   done: true
-- name: 'M2: Integracao de Batch Retrieval com NativeHybridPipeline e Reranker'
+- name: 'M2: Batch Retrieval Integration with NativeHybridPipeline and Reranker'
   done: true
-- name: 'M3: Loop Iterativo de Reflexao Analise de Lacunas e Eventos Reativos'
+- name: 'M3: Iterative Reflection Loop, Gap Analysis and Reactive Events'
   done: true
-- name: 'M4: Sintese com Proveniencia Estruturada de Arquivos e Linhas'
+- name: 'M4: Synthesis with Structured File and Line Provenance'
   done: true
-- name: 'M5: Superficie CLI/TUI Comandos /deep /fast /search e Arvore de Reflexao'
+- name: 'M5: CLI/TUI Surface, /deep /fast /search Commands and Reflection Tree'
   done: true
-- name: 'M6: Suite Completa de Testes Unitarios e E2E'
+- name: 'M6: Complete Unit and E2E Test Suite'
   done: true
-- name: 'M7: Dual-Doc README TECDOC ADR-108 e Registro Cenario 23 em MANUAL_TESTS'
+- name: 'M7: Dual-Doc README TECDOC ADR-108 and Scenario 23 in MANUAL_TESTS'
   done: true
-- name: 'M8: Versionamento v0.34.0 Gate 8 Release CI Watch e Publicacao'
+- name: 'M8: v0.34.0 Versioning, Gate 8, Release CI Watch and Publication'
   done: true
 status_log:
 - at: '2026-10-09T19:56:16'
-  note: Fase 2 entregue com 100% dos 8 marcos concluidos, Gate 8 aprovado, CI green e v0.34.0 publicado
+  note: Phase 2 delivered with all 8 milestones done, Gate 8 approved, CI green and v0.34.0 published
 - at: '2026-10-16T10:47:34'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# Blueprint Fase 2: Motor Deep Search Agêntico Reflexivo Nativo em Rust (RFC-042 & DeepSearcher Reference)
+# Phase 2 Blueprint: Native Rust Reflective Agentic Deep Search Engine (RFC-042 & DeepSearcher Reference)
 
-## 📌 Metadados
-- **Projeto**: `any-context` (`actx`)
-- **Versão Alvo**: `v0.34.0`
-- **Fase do Master Plan**: Fase 2 (RFC-042 Deep Search & ModelRouter)
-- **Referência Técnica**: `https://github.com/zilliztech/deep-searcher`
-- **Status**: Em Planejamento / Aguardando Aprovação (Gate 3)
-
----
-
-## 1. 🔍 Contexto & Aprendizados do Repositório de Referência (`zilliztech/deep-searcher`)
-
-O repositório de referência estabelece os princípios fundamentais de um motor de busca profunda baseada em agentes:
-1. **Decomposição Ortogonal (`SUB_QUERY_PROMPT`)**: Quebra de perguntas complexas em até 4 sub-perguntas independentes (ou 1 se simples).
-2. **Filtragem / Reranking de Chunks (`RERANK_PROMPT`)**: Validação semântica booleana ("YES" / "NO") de chunks candidatos antes de aceitá-los no corpus de evidências, reduzindo ruído e alucinação.
-3. **Avaliação Iterativa de Lacunas (`REFLECT_PROMPT`)**: Inspeção cruzada entre pergunta original, sub-perguntas já exploradas e evidências acumuladas, gerando até 3 novas "gap queries" se restarem pontos cegos, ou encerrando imediatamente se as informações forem suficientes.
-4. **Síntese de Conteúdo (`SUMMARY_PROMPT`)**: Geração da resposta final consolidando todos os chunks aceitos.
-
-### 🚀 Vantagens Nativas & Diferenciais do AnyContext:
-- **100% Pure Native Rust**: Zero latência de Python, execução do loop em milissegundos com paralelismo real via `tokio::join_all` e `retrieve_hybrid_batch_async`.
-- **Hybrid RAG Robusto**: Combinação nativa de vetores no LanceDB + léxico BM25 Okapi em memória + fusão RRF ($k=60$).
-- **Proveniência de Código em Nível de Linha**: Cada chunk do AnyContext possui `file_path`, `file_name`, `start_line`, `end_line` e `header_path` (Tree-sitter), permitindo síntese com citações exatas de código (`[crates/core/src/router.rs:45-60]`).
-- **Telemetria Reativa para TUI**: Emissão de eventos tipados em tempo real (`AgentEvent::Decomposition`, `AgentEvent::IterationStart`, `AgentEvent::GapAnalysis`) para renderização visual da árvore de reflexão.
+## 📌 Metadata
+- **Project**: `any-context` (`actx`)
+- **Target Version**: `v0.34.0`
+- **Master Plan Phase**: Phase 2 (RFC-042 Deep Search & ModelRouter)
+- **Technical Reference**: `https://github.com/zilliztech/deep-searcher`
+- **Status**: In Planning / Awaiting Approval (Gate 3)
 
 ---
 
-## 2. 🏛️ Arquitetura do `DeepSearchOrchestrator` (`crates/actx-agent/src/deep_search.rs`)
+## 1. 🔍 Context & Lessons from the Reference Repository (`zilliztech/deep-searcher`)
+
+The reference repository sets out the fundamental principles of an agent-based deep search engine:
+1. **Orthogonal Decomposition (`SUB_QUERY_PROMPT`)**: breaking complex questions into up to 4 independent sub-questions (or 1 if simple).
+2. **Chunk Filtering / Reranking (`RERANK_PROMPT`)**: a boolean semantic validation ("YES" / "NO") of candidate chunks before accepting them into the evidence corpus, reducing noise and hallucination.
+3. **Iterative Gap Evaluation (`REFLECT_PROMPT`)**: cross-inspection between the original question, the sub-questions already explored and the accumulated evidence, producing up to 3 new "gap queries" if blind spots remain, or stopping at once if the information is enough.
+4. **Content Synthesis (`SUMMARY_PROMPT`)**: generation of the final answer consolidating all accepted chunks.
+
+### 🚀 AnyContext's Native Advantages & Differentiators:
+- **100% Pure Native Rust**: zero Python latency, the loop runs in milliseconds with real parallelism through `tokio::join_all` and `retrieve_hybrid_batch_async`.
+- **Robust Hybrid RAG**: native combination of LanceDB vectors + in-memory Okapi BM25 lexical search + RRF fusion ($k=60$).
+- **Line-Level Code Provenance**: each AnyContext chunk has `file_path`, `file_name`, `start_line`, `end_line` and `header_path` (Tree-sitter), allowing synthesis with exact code citations (`[crates/core/src/router.rs:45-60]`).
+- **Reactive Telemetry for the TUI**: real-time emission of typed events (`AgentEvent::Decomposition`, `AgentEvent::IterationStart`, `AgentEvent::GapAnalysis`) to render the reflection tree visually.
+
+---
+
+## 2. 🏛️ `DeepSearchOrchestrator` Architecture (`crates/actx-agent/src/deep_search.rs`)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Usuário / TUI (/deep)
+    actor User as User / TUI (/deep)
     participant DSO as DeepSearchOrchestrator
     participant LM as actx-lm (LmProvider)
     participant NHP as NativeHybridPipeline (LanceDB + BM25)
     participant UI as EventSender (TUI Event Loop)
 
-    User->>DSO: run("Como funciona a ingestão e busca no AnyContext?", max_iter=3)
-    DSO->>LM: 1. Decomposição (SUB_QUERY_PROMPT)
-    LM-->>DSO: Retorna [sub_q1, sub_q2, sub_q3]
+    User->>DSO: run("How do ingestion and search work in AnyContext?", max_iter=3)
+    DSO->>LM: 1. Decomposition (SUB_QUERY_PROMPT)
+    LM-->>DSO: Returns [sub_q1, sub_q2, sub_q3]
     DSO->>UI: emit(AgentEvent::Decomposition { sub_queries })
 
-    loop Iterações de Reflexão (iter 1 até max_iter)
+    loop Reflection Iterations (iter 1 to max_iter)
         DSO->>UI: emit(AgentEvent::IterationStart { iter, max_iter })
         DSO->>NHP: 2. retrieve_hybrid_batch_async([sub_queries])
-        NHP-->>DSO: Retorna chunks com deduplicação SHA-256 e score RRF
+        NHP-->>DSO: Returns chunks with SHA-256 deduplication and RRF score
         
-        opt Reranking & Filtragem Rápida
-            DSO->>LM: Valida relevância de chunks limítrofes (RERANK_PROMPT)
-            LM-->>DSO: Chunks aceitos / rejeitados
+        opt Fast Reranking & Filtering
+            DSO->>LM: Validates the relevance of borderline chunks (RERANK_PROMPT)
+            LM-->>DSO: Accepted / rejected chunks
         end
         
-        DSO->>LM: 3. Análise de Lacunas (REFLECT_PROMPT com evidências acumuladas)
-        LM-->>DSO: Gap queries ou lista vazia (suficiente)
+        DSO->>LM: 3. Gap Analysis (REFLECT_PROMPT with accumulated evidence)
+        LM-->>DSO: Gap queries or an empty list (enough)
         
-        alt Informações Suficientes ou Lista Vazia
+        alt Information Enough or Empty List
             DSO->>UI: emit(AgentEvent::GapAnalysis { is_sufficient: true, missing: [] })
-            note over DSO: Interrompe o loop (early stopping)
-        else Restam Lacunas e iter < max_iter
+            note over DSO: Stops the loop (early stopping)
+        else Gaps Remain and iter < max_iter
             DSO->>UI: emit(AgentEvent::GapAnalysis { is_sufficient: false, missing: gap_queries })
-            note over DSO: sub_queries = gap_queries para próxima iteração
+            note over DSO: sub_queries = gap_queries for the next iteration
         end
     end
 
-    DSO->>LM: 4. Síntese Final (SUMMARY_PROMPT + Evidências com Proveniência)
-    LM-->>DSO: Resposta final estruturada com citações [arquivo:linhas]
+    DSO->>LM: 4. Final Synthesis (SUMMARY_PROMPT + Evidence with Provenance)
+    LM-->>DSO: Structured final answer with [file:lines] citations
     DSO->>UI: emit(AgentEvent::Delta / Done)
     DSO-->>User: AgentResponse
 ```
 
 ---
 
-## 3. 📋 Marcos de Execução (Milestones)
+## 3. 📋 Execution Milestones
 
-- **M1: Módulo `DeepSearchOrchestrator` e Prompts Reflexivos em `actx-agent`**:
-  - Criação de `crates/actx-agent/src/deep_search.rs`.
-  - Implementação dos prompts em inglês padronizados: `SUB_QUERY_PROMPT`, `RERANK_PROMPT`, `REFLECT_PROMPT` e `SUMMARY_PROMPT`.
-  - Parser resiliente de respostas (extração de listas JSON/Python mesmo com textos explicativos ou blocos `<think>`).
+- **M1: `DeepSearchOrchestrator` Module and Reflective Prompts in `actx-agent`**:
+  - Creation of `crates/actx-agent/src/deep_search.rs`.
+  - Standardized English prompts: `SUB_QUERY_PROMPT`, `RERANK_PROMPT`, `REFLECT_PROMPT` and `SUMMARY_PROMPT`.
+  - Resilient answer parser (extracting JSON/Python lists even with explanatory text or `<think>` blocks).
 
-- **M2: Integração de Batch Retrieval com `NativeHybridPipeline` e Reranker**:
-  - Conexão do `DeepSearchOrchestrator` com `retrieve_hybrid_batch_async`.
-  - Deduplicação de chunks entre iterações e acumulação de score.
-  - Reranker opcional/configurável (comportamento híbrido: aceitação direta para scores altos e filtro semântico para limítrofes).
+- **M2: Batch Retrieval Integration with `NativeHybridPipeline` and Reranker**:
+  - Connection of `DeepSearchOrchestrator` to `retrieve_hybrid_batch_async`.
+  - Chunk deduplication across iterations and score accumulation.
+  - Optional/configurable reranker (hybrid behavior: direct acceptance for high scores and a semantic filter for borderline ones).
 
-- **M3: Loop Iterativo de Reflexão, Análise de Lacunas e Eventos Reativos**:
-  - Loop determinístico com teto `max_iter` (padrão: 3).
-  - Emissão síncrona dos eventos `AgentEvent::Decomposition`, `AgentEvent::IterationStart`, `AgentEvent::GapAnalysis`.
-  - Early stopping se `gap_queries` for vazio ou sobreposição for superior a 90%.
+- **M3: Iterative Reflection Loop, Gap Analysis and Reactive Events**:
+  - Deterministic loop with a `max_iter` ceiling (default: 3).
+  - Synchronous emission of the `AgentEvent::Decomposition`, `AgentEvent::IterationStart`, `AgentEvent::GapAnalysis` events.
+  - Early stopping if `gap_queries` is empty or the overlap is above 90%.
 
-- **M4: Síntese com Proveniência Estruturada de Arquivos e Linhas**:
-  - Formatação dos chunks com cabeçalhos semânticos e identificação clara de arquivos e intervalos de linhas.
-  - Inclusão de referências verificáveis na resposta final gerada pelo modelo.
+- **M4: Synthesis with Structured File and Line Provenance**:
+  - Chunk formatting with semantic headers and clear identification of files and line ranges.
+  - Verifiable references included in the final answer generated by the model.
 
-- **M5: Superfície CLI/TUI: Comandos `/deep`, `/fast`, `/search` e Árvore de Reflexão**:
-  - Suporte ao comando `/deep <pergunta>` no dispatcher da CLI/TUI para forçar o Deep Search.
-  - Suporte ao comando `/fast <pergunta>` para resposta direta em turno único.
-  - Suporte ao comando `/search <auto|fast|deep>` para gravar a política do workspace ativo no banco SQLite.
-  - Renderização na TUI do status reativo das sub-perguntas e iterações.
+- **M5: CLI/TUI Surface: `/deep`, `/fast`, `/search` Commands and the Reflection Tree**:
+  - Support for the `/deep <question>` command in the CLI/TUI dispatcher to force Deep Search.
+  - Support for the `/fast <question>` command for a direct single-turn answer.
+  - Support for the `/search <auto|fast|deep>` command to store the active workspace's policy in the SQLite database.
+  - Rendering in the TUI of the reactive status of sub-questions and iterations.
 
-- **M6: Suíte Completa de Testes Unitários e E2E**:
-  - Testes unitários em `actx-agent` cobrindo decomposição, parsing de gap queries, filtragem e síntese com `MockLmProvider`.
-  - Testes de integração em `tests/` validando o fluxo completo com `NativeHybridPipeline` real em SQLite/LanceDB temporário.
-  - 100% de testes verdes em `cargo test --workspace`.
+- **M6: Complete Unit and E2E Test Suite**:
+  - Unit tests in `actx-agent` covering decomposition, gap query parsing, filtering and synthesis with `MockLmProvider`.
+  - Integration tests in `tests/` validating the full flow with a real `NativeHybridPipeline` on a temporary SQLite/LanceDB.
+  - 100% green tests in `cargo test --workspace`.
 
-- **M7: Dual-Doc (README + TECDOC com ADR-108) e Cenário 23 em `MANUAL_TESTS.md`**:
-  - Atualização do `README.md` documentando o comando `/deep` e o modo Deep Search.
-  - Atualização do `TECDOC.md` com a Seção 101 e o **ADR-108 (Motor Deep Search Reflexivo e Roteamento Adaptativo)**.
-  - Inclusão do **Cenário 23** em `tests/MANUAL_TESTS.md` de forma não-truncada.
+- **M7: Dual-Doc (README + TECDOC with ADR-108) and Scenario 23 in `MANUAL_TESTS.md`**:
+  - `README.md` update documenting the `/deep` command and the Deep Search mode.
+  - `TECDOC.md` update with Section 101 and **ADR-108 (Reflective Deep Search Engine and Adaptive Routing)**.
+  - **Scenario 23** added to `tests/MANUAL_TESTS.md`, non-truncated.
 
-- **M8: Versionamento v0.34.0, Gate 8, Release CI Watch e Publicação**:
-  - Bump de versão para `0.34.0`.
-  - Verificação de Gate 8 (`verify_gate.py --gate 8`).
-  - Commit, tag `v0.34.0`, push e acompanhamento contínuo dos builds no GitHub Actions até a confirmação de publicação em `Levix-Digital/any-context-releases`.
+- **M8: v0.34.0 Versioning, Gate 8, Release CI Watch and Publication**:
+  - Version bump to `0.34.0`.
+  - Gate 8 verification (`verify_gate.py --gate 8`).
+  - Commit, tag `v0.34.0`, push and continuous follow-up of the GitHub Actions builds until publication is confirmed in `Levix-Digital/any-context-releases`.

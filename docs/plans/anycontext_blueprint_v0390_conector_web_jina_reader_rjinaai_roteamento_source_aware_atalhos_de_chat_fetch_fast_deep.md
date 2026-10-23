@@ -1,7 +1,7 @@
 ---
 plan_id: anycontext_blueprint_v0390_conector_web_jina_reader_rjinaai_roteamento_source_aware_atalhos_de_chat_fetch_fast_deep
 project: any-context
-title: 'Blueprint v0.39.0: Conector Web Jina Reader (r.jina.ai), Roteamento Source-Aware & Atalhos de Chat (/fetch, /fast, /deep)'
+title: 'Blueprint v0.39.0: Jina Reader Web Connector (r.jina.ai), Source-Aware Routing & Chat Shortcuts (/fetch, /fast, /deep)'
 version: v0.39.0
 status: active
 author: Levi Silveira
@@ -19,15 +19,15 @@ supersedes: null
 superseded_by: null
 parent_plan_id: null
 milestones:
-- name: 'Marco 1: NativeJinaReader'
+- name: 'Milestone 1: NativeJinaReader'
   done: false
-- name: 'Marco 2: web_fetch Tool'
+- name: 'Milestone 2: web_fetch Tool'
   done: false
-- name: 'Marco 3: Comando /fetch'
+- name: 'Milestone 3: /fetch Command'
   done: false
-- name: 'Marco 4: Roteamento Source-Aware'
+- name: 'Milestone 4: Source-Aware Routing'
   done: false
-- name: 'Marco 5: Dual-Doc e Release v0.39.0'
+- name: 'Milestone 5: Dual-Doc and Release v0.39.0'
   done: false
 status_log:
 - at: '2026-10-16T10:47:35'
@@ -35,56 +35,56 @@ status_log:
   note: Migrated from the local plan-memory database to docs/plans
 ---
 
-# 📐 Blueprint de Engenharia: Conector Web Jina Reader (r.jina.ai), Roteamento Source-Aware & Atalhos de Chat (/fetch, /fast, /deep) (v0.39.0)
+# 📐 Engineering Blueprint: Jina Reader Web Connector (r.jina.ai), Source-Aware Routing & Chat Shortcuts (/fetch, /fast, /deep) (v0.39.0)
 
-## 📌 Metadados do Plano
-- **Projeto**: AnyContext (`actx`)
-- **Versão-Alvo**: `v0.39.0` (Sucessora da `v0.38.0`)
-- **Componentes**: `crates/any-context-core-rs`, `crates/actx-agent`, `crates/actx-cli`
-- **Data de Criação**: 2026-10-14
-- **Status**: Proposto (`proposed` / Aguardando Gate 3)
+## 📌 Plan Metadata
+- **Project**: AnyContext (`actx`)
+- **Target Version**: `v0.39.0` (successor of `v0.38.0`)
+- **Components**: `crates/any-context-core-rs`, `crates/actx-agent`, `crates/actx-cli`
+- **Creation Date**: 2026-10-14
+- **Status**: Proposed (`proposed` / awaiting Gate 3)
 - **Conversation ID**: `01fd77a2-4853-4967-b572-f0ce69495ea0`
-- **Especificações de Referência**: Master Roadmap (`anycontext_master_roadmap_v0_30_38_rfc042.md`), RFC-042 (§2.3 & §4.1).
+- **Reference Specifications**: Master Roadmap (`anycontext_master_roadmap_v0_30_38_rfc042.md`), RFC-042 (§2.3 & §4.1).
 
 ---
 
-## 🏛️ 1. Visão Geral e Motivação Arquitetural
+## 🏛️ 1. Overview and Architectural Motivation
 
-Com a consolidação da infraestrutura local de inteligência na versão `v0.38.0` (matriz de 5 tiers de hardware, modelos ONNX de percepção visual/documental e cérebro generativo local com a família Gemma 4), o AnyContext atinge autonomia de inferência completa.
+With the local intelligence infrastructure consolidated in version `v0.38.0` (a 5-tier hardware matrix, ONNX visual/document perception models and a local generative brain with the Gemma 4 family), AnyContext reaches full inference autonomy.
 
-No entanto, duas capacidades essenciais do **Marco 3 & RFC-042** permanecem pendentes para fechar o ciclo de pesquisa agêntica:
-1. **Consumo Direto de Conteúdo Web em Markdown Puro (Jina Reader - `r.jina.ai`)**:
-   - Atualmente, a busca na web (`NativeWebSearchEngine`) retorna títulos e snippets curtos de páginas. Quando o agente ReAct ou o Deep Search Reflexivo precisa consultar documentações técnicas completas, RFCs online, manuais de frameworks ou artigos longos, snippets de 200 caracteres são insuficientes.
-   - Navegadores headless locais (ex: Chromium / Puppeteer) demandam entre 300MB e 1GB de RAM, violando o princípio de leveza e inicialização instantânea do AnyContext.
-   - O conector **Jina Reader (`https://r.jina.ai/{url}`)** resolve esse gargalo ao atuar como um proxy que converte páginas web dinâmicas e SPAs em Markdown limpo, sem anúncios, menus ou scripts, com zero consumo de RAM local.
-   - Para ambientes restritos, desconectados ou offline (ADR-110), deve existir um fallback nativo em Rust que realiza parsing direto sem panics.
+However, two essential capabilities of **Milestone 3 & RFC-042** remain pending to close the agentic research cycle:
+1. **Direct Consumption of Web Content as Pure Markdown (Jina Reader - `r.jina.ai`)**:
+   - Today web search (`NativeWebSearchEngine`) returns titles and short page snippets. When the ReAct agent or the Reflective Deep Search needs to consult full technical documentation, online RFCs, framework manuals or long articles, 200-character snippets are not enough.
+   - Local headless browsers (e.g. Chromium / Puppeteer) need between 300MB and 1GB of RAM, violating AnyContext's principle of lightness and instant startup.
+   - The **Jina Reader connector (`https://r.jina.ai/{url}`)** solves this bottleneck by acting as a proxy that converts dynamic web pages and SPAs into clean Markdown, without ads, menus or scripts, with zero local RAM consumption.
+   - For restricted, disconnected or offline environments (ADR-110), there must be a native Rust fallback that parses directly without panics.
 
-2. **Roteamento Source-Aware & Ativação de Atalhos de Chat**:
-   - O `ChatModelRouter` em `actx-agent` classifica a intenção em 4 domínios (`Code`, `Architecture`, `Document`, `General`), mas o fluxo de resposta ainda não recomenda ou seleciona o perfil ótimo de contexto com base nessa tipologia.
-   - Os comandos `/fast`, `/deep`, `/search` e o novo `/fetch <url>` devem fornecer controle manual imediato para o usuário no terminal e na TUI.
+2. **Source-Aware Routing & Chat Shortcut Activation**:
+   - The `ChatModelRouter` in `actx-agent` classifies intent into 4 domains (`Code`, `Architecture`, `Document`, `General`), but the answer flow does not yet recommend or select the optimal context profile based on this typology.
+   - The `/fast`, `/deep`, `/search` commands and the new `/fetch <url>` must give the user immediate manual control in the terminal and the TUI.
 
 ```mermaid
 graph TD
-    subgraph "Camada de Apresentação (Multi-Surface Presentation)"
+    subgraph "Presentation Layer (Multi-Surface Presentation)"
         TUI["Ratatui TUI (/fetch, /fast, /deep, /search)"]
-        CLI["actx CLI Headless (--fast, --deep, fetch <url>)"]
+        CLI["actx Headless CLI (--fast, --deep, fetch <url>)"]
     end
 
-    subgraph "Core Domain & Comandos (any-context-core-rs)"
+    subgraph "Core Domain & Commands (any-context-core-rs)"
         CE["CommandEngine (/fetch & /search & /router)"]
-        NJR["NativeJinaReader (HTTP Client com Fallback)"]
+        NJR["NativeJinaReader (HTTP Client with Fallback)"]
     end
 
-    subgraph "Orquestração Agêntica (actx-agent)"
+    subgraph "Agentic Orchestration (actx-agent)"
         CMR["ChatModelRouter (Source-Aware Routing)"]
         TF["Tool: web_fetch (r.jina.ai / native)"]
         TS["Tool: web_search (Tavily / Serper / DDG)"]
-        DSO["Deep Search Reflexivo (RFC-042)"]
+        DSO["Reflective Deep Search (RFC-042)"]
     end
 
-    subgraph "Provedores Web & Redes Externas"
-        JINA["r.jina.ai (API de Markdown)"]
-        DIRECT["HTTP Fallback Direto (HTML -> MD Sanitizado)"]
+    subgraph "Web Providers & External Networks"
+        JINA["r.jina.ai (Markdown API)"]
+        DIRECT["Direct HTTP Fallback (Sanitized HTML -> MD)"]
     end
 
     TUI --> CE
@@ -94,38 +94,38 @@ graph TD
     DSO --> TS
     TF --> NJR
     NJR -->|Online| JINA
-    NJR -->|Falha / Offline| DIRECT
+    NJR -->|Failure / Offline| DIRECT
     CMR -->|Telemetry & Routing| TUI
 ```
 
 ---
 
-## 🔒 2. Princípios Invioláveis de Engenharia (Dev-Cycle Compliance)
+## 🔒 2. Inviolable Engineering Principles (Dev-Cycle Compliance)
 
-1. **Inviolabilidade da Garantia ADR-110**:
-   - Falhas de rede, indisponibilidade de `r.jina.ai`, timeouts ou bloqueios de CORS/WAF nunca provocam panics ou quebram o loop do agente.
-   - Em caso de erro HTTP (ex: 403, 429, 502) ou ausência de conexão, o leitor aciona imediatamente o fallback nativo com mensagem clara no canal de eventos.
-2. **Paridade Multi-Superfície Absoluta**:
-   - A capacidade de buscar páginas via Jina Reader e configurar profundidade de busca deve estar disponível no CLI headless (`actx fetch <url>`, `actx --fast "..."`, `actx --deep "..."`), nos comandos slash do chat (`/fetch`, `/fast`, `/deep`, `/search`) e no menu TUI.
-3. **Controle Estrito de Budget de Tokens & Caracteres**:
-   - O conteúdo retornado pelo Jina Reader é truncado de forma determinística pelo teto configurado (`max_chars`, padrão: 30.000 caracteres, ~7.500 tokens), evitando estouro da janela de contexto de SLMs compactos locais (ex: Gemma 4 Compact).
-4. **Padrão Dual-Doc & Roteiro de Testes Sem Truncamento**:
-   - Documentação síncrona no `README.md` (UserDoc) e `TECDOC.md` (TecDoc).
-   - Inclusão do Cenário 39 em `tests/MANUAL_TESTS.md` com testes passo a passo.
+1. **Inviolability of the ADR-110 Guarantee**:
+   - Network failures, `r.jina.ai` unavailability, timeouts or CORS/WAF blocks never cause panics or break the agent loop.
+   - On an HTTP error (e.g. 403, 429, 502) or no connection, the reader immediately triggers the native fallback with a clear message on the event channel.
+2. **Absolute Multi-Surface Parity**:
+   - Fetching pages through Jina Reader and configuring search depth must be available in the headless CLI (`actx fetch <url>`, `actx --fast "..."`, `actx --deep "..."`), in the chat slash commands (`/fetch`, `/fast`, `/deep`, `/search`) and in the TUI menu.
+3. **Strict Token & Character Budget Control**:
+   - Content returned by Jina Reader is truncated deterministically at the configured ceiling (`max_chars`, default: 30,000 characters, ~7,500 tokens), avoiding context window overflow of compact local SLMs (e.g. Gemma 4 Compact).
+4. **Dual-Doc Pattern & Non-Truncated Test Script**:
+   - Synchronized documentation in `README.md` (UserDoc) and `TECDOC.md` (TecDoc).
+   - Scenario 39 added to `tests/MANUAL_TESTS.md` with step-by-step tests.
 
 ---
 
-## 🛠️ 3. Especificação Técnica Detalhada dos Componentes
+## 🛠️ 3. Detailed Technical Specification of the Components
 
-### 3.1 Módulo `NativeJinaReader` (`crates/any-context-core-rs/src/retrieval/jina_reader.rs`)
-- **Estruturas de Dados**:
+### 3.1 `NativeJinaReader` Module (`crates/any-context-core-rs/src/retrieval/jina_reader.rs`)
+- **Data Structures**:
   ```rust
   #[derive(Debug, Clone, Serialize, Deserialize)]
   pub struct JinaFetchResult {
       pub url: String,
       pub title: String,
       pub content: String,
-      pub provider: String, // "jina" ou "native_fallback"
+      pub provider: String, // "jina" or "native_fallback"
       pub char_count: usize,
       pub is_truncated: bool,
   }
@@ -138,20 +138,20 @@ graph TD
       pub with_generated_alt: bool,
   }
   ```
-- **Lógica de Execução**:
-  1. Sanitiza a URL alvo (assegura schema `http://` ou `https://`).
-  2. Monta a URL de destino: `https://r.jina.ai/{sanitized_url}`.
-  3. Injeta headers:
+- **Execution Logic**:
+  1. Sanitizes the target URL (ensures an `http://` or `https://` scheme).
+  2. Builds the destination URL: `https://r.jina.ai/{sanitized_url}`.
+  3. Injects headers:
      - `Accept: text/markdown`
-     - `X-With-Generated-Alt: true` (se configurado)
-     - `Authorization: Bearer <token>` (se `JINA_API_KEY` estiver presente na env ou no banco SQLite `NativeConfigDb`).
-  4. Se a resposta HTTP for 200 OK, sanitiza o Markdown retornado, extrai o título e aplica o truncamento seguro por limite de caracteres (`max_chars`).
-  5. Se houver falha de rede ou status de erro, aciona o método `fetch_direct_fallback`:
-     - Realiza requisição direta via `reqwest::Client`.
-     - Executa sanitização rápida de HTML (remoção de `<script>`, `<style>`, tags de navegação e extração do texto legível com formatação básica).
+     - `X-With-Generated-Alt: true` (if configured)
+     - `Authorization: Bearer <token>` (if `JINA_API_KEY` is present in the env or in the SQLite `NativeConfigDb` database).
+  4. On an HTTP 200 OK response, sanitizes the returned Markdown, extracts the title and applies safe truncation by the character limit (`max_chars`).
+  5. On a network failure or an error status, it calls the `fetch_direct_fallback` method:
+     - Makes a direct request through `reqwest::Client`.
+     - Runs a quick HTML sanitization (removing `<script>`, `<style>`, navigation tags and extracting the readable text with basic formatting).
 
-### 3.2 Ferramenta Nativa `web_fetch` no Agente ReAct & Deep Search (`crates/actx-cli/src/engine.rs`)
-- Injetada no `Agent::builder()`:
+### 3.2 Native `web_fetch` Tool in the ReAct Agent & Deep Search (`crates/actx-cli/src/engine.rs`)
+- Injected into `Agent::builder()`:
   - **Tool Name**: `web_fetch`
   - **Description**: `"Fetches the full text of any public web page, technical documentation, or online article as clean structured Markdown using Jina Reader (r.jina.ai) with native fallback."`
   - **Schema**:
@@ -171,42 +171,42 @@ graph TD
       "required": ["url"]
     }
     ```
-- O agente ReAct e o motor Deep Search agora podem automaticamente seguir links relevantes descobertos pelo `web_search` para extrair detalhes aprofundados.
+- The ReAct agent and the Deep Search engine can now automatically follow relevant links found by `web_search` to extract in-depth details.
 
-### 3.3 Extensão do `CommandEngine` com `/fetch` (`crates/any-context-core-rs/src/commands/engine.rs`)
-- Novo comando `/fetch <url>`:
-  - Valida os argumentos.
-  - Instancia o `NativeJinaReader`.
-  - Executa a busca da página de forma assíncrona.
-  - Emite o resultado com metadados: título, contagem de caracteres, status do provedor e prévia do conteúdo em Markdown formatado.
+### 3.3 `CommandEngine` Extension with `/fetch` (`crates/any-context-core-rs/src/commands/engine.rs`)
+- New `/fetch <url>` command:
+  - Validates the arguments.
+  - Instantiates `NativeJinaReader`.
+  - Fetches the page asynchronously.
+  - Outputs the result with metadata: title, character count, provider status and a formatted Markdown preview of the content.
 
-### 3.4 Enriquecimento do Roteamento Source-Aware (`crates/actx-agent/src/router.rs`)
-- O `RoutingDecision` agora transporta metadados contextuais:
-  - `suggested_profile`: Indica se a tipologia (`Code` vs `Architecture` vs `Document`) se beneficia de modelos com alta especialização matemática/sintática ou de janela ampla de raciocínio.
-  - Telemetria de fácil leitura exibida no accordion de raciocínio da TUI.
+### 3.4 Source-Aware Routing Enrichment (`crates/actx-agent/src/router.rs`)
+- `RoutingDecision` now carries contextual metadata:
+  - `suggested_profile`: indicates whether the typology (`Code` vs `Architecture` vs `Document`) benefits from models with high mathematical/syntactic specialization or a wide reasoning window.
+  - Easy-to-read telemetry shown in the TUI reasoning accordion.
 
 ---
 
-## 📅 4. Cronograma de Marcos de Implementação
+## 📅 4. Implementation Milestone Schedule
 
-| Marco | Componente | Responsabilidade |
+| Milestone | Component | Responsibility |
 |---|---|---|
-| **Marco 1** | `crates/any-context-core-rs/src/retrieval/jina_reader.rs` | Implementação do `NativeJinaReader` com suporte a `r.jina.ai`, autenticação opcional, headers e fallback HTML->Markdown nativo |
-| **Marco 2** | `crates/actx-cli/src/engine.rs` | Registro da ferramenta nativa `web_fetch` no `Agent::builder()` do orquestrador ReAct e Deep Search |
-| **Marco 3** | `crates/any-context-core-rs/src/commands/engine.rs` | Implementação do comando slash `/fetch <url>` e integração com `/web` e `/search` |
-| **Marco 4** | `crates/actx-agent/src/router.rs` & `tui/app.rs` | Roteamento Source-Aware com telemetria enriquecida no accordion |
-| **Marco 5** | Testes, Dual-Doc & Release v0.39.0 | ADR-124 no `TECDOC.md`, `README.md`, Cenário 39 em `MANUAL_TESTS.md`, 100% testes verdes e bump para `v0.39.0` |
+| **Milestone 1** | `crates/any-context-core-rs/src/retrieval/jina_reader.rs` | `NativeJinaReader` with support for `r.jina.ai`, optional authentication, headers and a native HTML->Markdown fallback |
+| **Milestone 2** | `crates/actx-cli/src/engine.rs` | Registration of the native `web_fetch` tool in the `Agent::builder()` of the ReAct orchestrator and Deep Search |
+| **Milestone 3** | `crates/any-context-core-rs/src/commands/engine.rs` | `/fetch <url>` slash command and integration with `/web` and `/search` |
+| **Milestone 4** | `crates/actx-agent/src/router.rs` & `tui/app.rs` | Source-Aware Routing with enriched telemetry in the accordion |
+| **Milestone 5** | Tests, Dual-Doc & Release v0.39.0 | ADR-124 in `TECDOC.md`, `README.md`, Scenario 39 in `MANUAL_TESTS.md`, 100% green tests and bump to `v0.39.0` |
 
 ---
 
-## 🧪 5. Roteiro de Testes Manuais (Cenário 39)
+## 🧪 5. Manual Test Script (Scenario 39)
 
-- **Cenário 39.1 (Fetch Web com Jina Reader)**:
-  - Executar `/fetch https://docs.rs/tokio/latest/tokio/` e validar o retorno de Markdown estruturado com título e contagem de caracteres.
-- **Cenário 39.2 (Tool de Fetch no Loop ReAct)**:
-  - Perguntar ao agente: `"Leia a página https://example.com e me diga o cabeçalho principal"` com busca web ativa. Confirmar nos logs o disparo da tool `web_fetch`.
-- **Cenário 39.3 (Resiliência e Fallback ADR-110)**:
-  - Executar `/fetch http://127.0.0.1:9999/invalido` ou desconectar a internet. Validar que o erro é tratado suavemente sem panics.
-- **Cenário 39.4 (Atalhos /fast e /deep)**:
-  - Testar `/fast Qual a função de inicialização?` e comprovar o roteamento forçado para turno único.
-  - Testar `/deep Faça uma auditoria arquitetural completa` e comprovar o disparo do Deep Search com reflexão.
+- **Scenario 39.1 (Web Fetch with Jina Reader)**:
+  - Run `/fetch https://docs.rs/tokio/latest/tokio/` and validate that structured Markdown comes back with a title and character count.
+- **Scenario 39.2 (Fetch Tool in the ReAct Loop)**:
+  - Ask the agent: `"Read the page https://example.com and tell me the main heading"` with web search on. Confirm in the logs that the `web_fetch` tool fired.
+- **Scenario 39.3 (Resilience and ADR-110 Fallback)**:
+  - Run `/fetch http://127.0.0.1:9999/invalid` or disconnect the internet. Validate that the error is handled smoothly, without panics.
+- **Scenario 39.4 (/fast and /deep Shortcuts)**:
+  - Test `/fast What is the initialization function?` and confirm the forced single-turn routing.
+  - Test `/deep Do a complete architectural audit` and confirm that Deep Search with reflection fires.
