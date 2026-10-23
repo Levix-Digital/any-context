@@ -1107,19 +1107,19 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Platform installers for the Tauri app carry ONNX Runtime, the embedded Chromium (ingestion-pipeline-v2.md, step 2) and FFmpeg as a separate library to comply with the LGPL (step 5), all updated with every release. Acceptance: Chromium never lags the release it ships with.
 
-### FEAT-189: [release] macOS build and notarization
+### FEAT-189: [release] macOS build (unsigned until there is revenue)
 - **Priority**: medium
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. The release builds, packages and notarizes macOS like Linux and Windows (today release.yml builds only Linux x86_64 and Windows x86_64). Supersedes FEAT-004.
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. The release builds and packages macOS like Linux and Windows (today release.yml builds only Linux x86_64 and Windows x86_64). Until the product has revenue the macOS build ships unsigned and not notarized and users allow it in System Settings (decided 2026-10-23); Developer ID signing and notarization come later as their own item. Supersedes FEAT-004.
 
-### FEAT-190: [release] Code signing of Windows and macOS binaries
+### FEAT-190: [release] Code signing: Windows with Azure Artifact Signing, Linux with GPG
 - **Priority**: medium
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Windows binaries and installers are code-signed and macOS ones signed with a Developer ID. Depends on the owner buying the certificates.
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Windows binaries and installers are signed in CI with Azure Artifact Signing (Basic SKU: US$ 9.99 a month, 5,000 signatures; confirm eligibility on Microsoft's pages, including any business-history requirement) and Linux packages with a Levix GPG key (decided 2026-10-23).
 
 ### FEAT-192: [release] Local diagnostic bundle, /feedback and local crash reports, sent only with confirmation
 - **Priority**: medium
@@ -1134,6 +1134,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 9 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/identity-and-governance-v2.md, topics 1, 2, 4 and 6, and docs/architecture/platform-shared-components.md. AnyContext adopts the levix-platform crates for accounts, root and sudo, session, biometrics, the key hierarchy and personal vault, policies and the governance engine, the Admin Hub client, the personal and corporate environments, plan license verification and Levix signature verification: per-account data directories, the first-run, sign-in and lock screens in the desktop app, sign-in once per terminal session in the CLI, workspace data keys as the platform's data keys, and AnyContext's policy schema (models and endpoints, sources, tools, quotas) registered with the engine, which enforces plan limits and policies below every surface (cli-and-release-v2.md, section 1). Acceptance (decided 2026-10-23): the machine-id key with a fixed salt (security/mod.rs:10-11, 44-50) and the clear lexical index are gone, together with FEAT-069; API keys are no longer stored in plain text in the api_keys table (storage/sqlite.rs:1470-1478). If the roadmap leaves this item out of the first release, the plain-text API keys become a high bug.
+
+### FEAT-194: [release] macOS Developer ID signing and notarization
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, roadmap skeleton, 2026-10-23
+- **Plan**: -
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Join the Apple Developer Program (about US$ 99 a year, D-U-N-S number for an organization), sign the macOS build with a Developer ID and notarize it, so users no longer have to allow the app in System Settings. Deferred until the product has revenue (decided 2026-10-23).
 
 ## Improvements
 

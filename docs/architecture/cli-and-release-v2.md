@@ -36,9 +36,12 @@ Decisions for the command line, the build, the installers and the release, made 
 - **Installers per platform** (Windows, Linux, macOS) carry ONNX Runtime, the embedded
   Chromium (`ingestion-pipeline-v2.md`, step 2) and FFmpeg as a separate library (LGPL;
   step 5), updated with every release.
-- **macOS** is built and notarized like the other platforms.
-- **Code signing** of the Windows and macOS binaries; buying the certificates is the
-  owner's decision, and the item depends on it.
+- **macOS** is built like the other platforms.
+- **Code signing** (decided 2026-10-23): Windows binaries and installers are signed with
+  Azure Artifact Signing (Basic, 5,000 signatures a month) and Linux packages with GPG.
+  macOS ships unsigned and not notarized until the product has revenue — users allow it
+  in System Settings, a risk the owner accepts; the Apple Developer ID and notarization
+  come later.
 - **Everything downloaded is verified by the Levix signature:** application updates,
   models and domain packs (today the installer only checks that the binary is a valid
   PE/ELF file; models carry a SHA-256 in the catalog).

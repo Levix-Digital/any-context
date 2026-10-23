@@ -83,8 +83,9 @@ An MVP in features on a complete foundation.
    the nothing-found gate; checked citations; the source report.
 5. **Pro:** the Web connector (sites, pages and web search with the fair-use ceiling and
    the embedded Chromium) and the Audio and video connector (local transcription).
-6. **Delivery:** installers for Windows, macOS and Linux; code signing and macOS
-   notarization, depending on the owner's purchase of the certificates.
+6. **Delivery:** installers for Windows, macOS and Linux; Windows signed with Azure
+   Artifact Signing and Linux with GPG; macOS unsigned and not notarized until there is
+   revenue (decided 2026-10-23).
 
 ### R2 — v1.x Personal evolution
 
