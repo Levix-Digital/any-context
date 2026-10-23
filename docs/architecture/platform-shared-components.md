@@ -65,3 +65,21 @@ management tools.
 
 Effect on the backlog: items for these components belong to `levix-admin-hub` and
 `levix-platform`, not to AnyContext.
+
+Applied on 2026-10-23 (backlog rebuild, batch 9):
+
+- **Moved to `levix-platform`:** the client-side identity crates (accounts, `root`/`sudo`,
+  session, biometrics, corporate identity and activation, corporate administration, key
+  hierarchy, personal vault, organization recovery key), the policy model, engine,
+  signature and audit, the Admin Hub client channel, the personal and corporate
+  environments, plan license verification and Levix signature verification of downloads.
+  They close in the AnyContext backlog as "Moved to levix-platform", with no cross-repository
+  references; the product is not released yet.
+- **Stays in AnyContext:** what belongs to the product (workspaces, roles and sharing,
+  workspace key rotation, sealed inbox, migration from the machine-id key, source telemetry,
+  user profile and memories, MCP server, plan limits and the enforcement points) plus one
+  item to adopt the platform crates.
+- **LSIE:** the `lsie-algorithm` repository is the research paper and its reference
+  implementation, published when the products are ready; the production implementation is
+  a crate in `levix-platform`, under the platform's license (not the paper repository's
+  MIT license).

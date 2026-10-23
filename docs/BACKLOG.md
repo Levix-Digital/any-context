@@ -757,41 +757,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/deployment-architecture-v2.md, seam 4, Embedding model identity. The embedding target is what produces the vector: model and weights version (catalog hash), dimension, precision and preprocessing (tokenizer version, prefixes); the same model and precision local or on a server is the same target. The catalog ships fixed texts and reference vectors; when a binding is configured and periodically, AnyContext embeds them and compares (e.g. similarity above 0.999 means the same target), catching silent provider changes and precision differences.
 
-### FEAT-120: [identity] Local accounts with password, several per machine, data separated per account
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Personal accounts, and base decisions 1 and 2. Without Admin Hub, each person has a local account (display name, optional username or e-mail, password stored only as an Argon2id hash) with its own directory holding its local database and workspaces; nobody sees anyone else's workspaces or conversations. Removing an account deletes its data. A password change only rewraps the data key. Today there is no user at all (only an added_by_email column defaulting to 'user').
-
-### FEAT-121: [identity] root administration account and sudo for administrative actions
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Linux-style administration account. `root` is the fixed administration account, labeled 'Administrator (root)', with no default password and its own recovery key. Administrative actions (creating or removing accounts, downloading models, installation settings) ask for the root password for that action only (`actx sudo <command>` in the CLI, a prompt in the UI). root has no workspaces or chat and cannot read personal accounts' data.
-
-### FEAT-122: [identity] First run: root password, personal account and recovery key
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Personal accounts. One first-run screen sets the root password and creates the personal account (same password allowed, with a warning), shows the recovery key and asks for confirmation that it was saved, and offers biometrics when available. The display name and language of the account feed the user profile (FEAT-146).
-
-### FEAT-123: [identity] Sign-in, fast user switching and session lock
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Personal accounts. Sign-in screen with the machine's accounts (password or biometrics) and fast user switching. The session locks after inactivity (e.g. 30 minutes, a personal preference), on screen lock, on sleep and manually; CLI and TUI ask once per terminal session with the same locking. Increasing delay after wrong passwords.
-
-### FEAT-124: [identity] Biometric unlock (Windows Hello, Touch ID)
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1 and topic 2, item 1. Biometrics unlock the session as a convenience: the OS vault releases the wrapped master key only upon user presence at each unlock, never to a service on its own, without weakening the password.
-
 ### FEAT-125: [identity] Sealed inbox: sync with the app closed using the public key
 - **Priority**: medium
 - **Status**: open
@@ -799,54 +764,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Sync with the app closed — sealed inbox. The optional background service (FEAT-078) holds only the user's public key: with the app closed it detects changes and runs extraction, OCR, transcription, chunking and local embedding, writing the result to an inbox encrypted with the public key; it can never decrypt what is indexed. On sign-in the app merges the inbox. With cloud embedding, embedding waits for sign-in.
 
-### FEAT-126: [identity] Corporate identity: company SSO and the Admin Hub directory
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, In the corporate environment. In the corporate environment, users come from the company's SSO and/or the Admin Hub's own directory (for customers without an identity provider); local-only accounts are forbidden by the policy. Administration power belongs to the Admin Hub; root, corporate admins and the Admin Hub never read users' data.
-
-### FEAT-127: [identity] Account activation by single-use code, password rules and second factor
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, In the corporate environment. An Admin Hub directory user is activated on an enrolled device with login and a single-use activation code (short validity, e.g. 72 h, delivered through a separate channel), then creates their own password and gets the recovery key; the password never goes through the Admin Hub and keys are generated on the device. The policy can require length, complexity, periodic change and an authenticator-app second factor. A forgotten password needs a new activation code.
-
-### FEAT-128: [identity] Corporate administration: sudo as 'ask IT' and a rotating break-glass root
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, In the corporate environment. In the corporate environment sudo becomes the authentication of a corporate admin or an approval request in the Admin Hub (optionally an ITSM ticket). root remains for on-site and offline emergencies with a unique per-device password generated and rotated by the Admin Hub (LAPS model), visible only to authorized administrators; every use is audited, reported in the next heartbeat and followed by rotation.
-
-### FEAT-129: [identity] Key hierarchy: master key, user key pair and workspace data keys
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, items 1 to 3 and 6. A random master key per account wrapped by the password (Argon2id), the recovery key and biometrics; a user key pair whose private key is encrypted by the master key; a random data key per workspace wrapped by the owner's master key and each member's public key. Keys live only in memory while the session is unlocked. Acceptance (decided 2026-10-23): the machine-id key with a fixed salt (security/mod.rs:10-11, 44-50) and the clear lexical index are gone, together with FEAT-069; the plain-text API keys are gone with FEAT-130. If the roadmap leaves this item out of the first release, the plain-text API keys become a high bug.
-
-### FEAT-130: [identity] Personal vault for API keys, file passwords, history and preferences
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, item 4. A vault encrypted from the master key holds API keys, file passwords (FEAT-035), conversation history, preferences, the user profile and memories. Acceptance: API keys are no longer stored in plain text in the api_keys table of settings.db (storage/sqlite.rs:1470-1478).
-
 ### FEAT-131: [identity] Workspace key rotation when a member leaves
 - **Priority**: medium
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, item 3, and topic 3, item 5. A member leaving rotates the workspace key: new data uses the new key and old data is re-encrypted in the background. The member's conversations stay with them but citations stop opening; in enterprise mode the policy can require deleting them.
-
-### FEAT-132: [identity] Organization recovery key (enterprise policy)
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, item 8. Optional by policy: each user's master key is also wrapped by an organization public key whose private part stays offline under the company's control, ideally split between people, never in the Admin Hub. Each use is audited and users are told the company has this recovery power.
 
 ### FEAT-133: [identity] Workspace roles (owner, editor, reader) and a private chat per user
 - **Priority**: medium
@@ -876,41 +799,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 3, Roles and sharing, items 2 and 3, and deployment-architecture-v2.md, Workspace model. In enterprise mode, sharing with groups from SSO or the Admin Hub directory; the admin creates organization workspaces (admin owner, everyone reader) and appoints curators from a department as editors without giving up ownership; workspace definitions are distributed by the Admin Hub as metadata only.
 
-### FEAT-137: [governance] Single versioned policy model with three precedence layers
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 1 and 2. One versioned policy model by category (models and endpoints, data, sources, tools, accounts, quotas). Layers: product default < local policy set by root without Admin Hub < organization policy signed by the Admin Hub; the upper layer wins, and inside a workspace the owner can only tighten the rules. Today the core has no policy at all.
-
-### FEAT-138: [governance] One governance engine for policies, plan licenses and quotas
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 4 and 6. A single engine enforces model resolution, trust levels and pseudonymization, web search, connectors and OCR, the MCP server, accounts and session, token quotas and the plan licenses (connectors-v2.md, decisions 25 and 28), keeping license and policy distinct in the block message. Every block says which rule blocked; the user can view the policy in force, read-only. Acceptance: license and policy checks run in the core below every surface (desktop app, CLI, TUI, MCP server), so no interface or wrapper can bypass them (cli-and-release-v2.md, section 1).
-
-### FEAT-139: [governance] Signed policies with the Admin Hub key pinned at enrollment
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 3 and 5. The enrollment code carries the Admin Hub key fingerprint; the device confirms and records it and from then on accepts only policies signed by it (instead of a key embedded in the binary, which does not work with customer-hosted Admin Hubs). Offline, the last valid policy in an encrypted cache applies for a validity the company sets; once expired the corporate environment is suspended until it reconnects.
-
-### FEAT-140: [governance] Local audit of blocked attempts, metadata-only to the Admin Hub
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, item 7. Blocked attempts are logged locally and sent to the Admin Hub only as metadata (rule, when, device), never with content.
-
-### FEAT-141: [governance] Admin Hub enrollment and channel on the client
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 5, Admin Hub integration, and topic 2, item 5. Client side of the Admin Hub: enrollment with a device identity (Ed25519 key in the OS vault, no access to data), an outbound-only WebSocket, heartbeat and kill-switch, carrying identities and activation, signed policies, workspace definitions, groups and curators, break-glass passwords, sudo requests, metadata-only audit and quotas. The Admin Hub itself belongs to the levix-admin-hub backlog.
-
 ### FEAT-142: [governance] Source telemetry level set by the policy
 - **Priority**: medium
 - **Status**: open
@@ -924,20 +812,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 5, Admin Hub integration, item 4. Enrolled devices without internet receive AnyContext updates, ONNX models, domain packs and Chromium from the Admin Hub mirror, verified by the Levix signature, at the version IT releases to the fleet.
-
-### FEAT-144: [identity] Personal and corporate environments isolated in one binary
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 6, Personal and corporate environments, items 1, 2 and 5. A switcher between the personal environment (local root and family accounts, never governed or seen by the company) and a corporate environment created at enrollment (or by the company's own package) with its own data, keys, accounts, policies, root and license. No path between environments: no export, search, chat, key or license crosses.
-
-### FEAT-145: [identity] Corporate environment lifecycle
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 6, items 3 and 4, and topic 1, In the corporate environment (exit). The policy can forbid the personal environment on company-owned computers, never on the employee's own. A revoked environment (kill-switch) is blocked; an orderly unenrollment deletes or keeps data per policy; changing companies removes the previous environment and creates the new one. The personal environment is never affected.
 
 ### FEAT-146: [identity] Minimal user profile: role and answer style as a user preference
 - **Priority**: medium
@@ -1085,13 +959,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/connectors-v2.md, decisions 6 and 30. Dropbox through its official API with cursor-based sync. Enterprise candidate: the local sync folder already covers personal use.
-
-### FEAT-167: [governance] Plan license signed by Levix and verified offline on the client
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/connectors-v2.md, decisions 25 and 28. One signed license per plan (Free, Pro, Enterprise), verified offline with the shared verification code from levix-platform; one license per environment (identity-and-governance-v2.md, topic 6). License is not policy: the license says what the plan includes, the policy what the company allows, and the governance engine (FEAT-138) enforces both and says which one blocked.
 
 ### FEAT-168: [governance] Free and Pro plan limits
 - **Priority**: medium
@@ -1254,19 +1121,19 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Windows binaries and installers are code-signed and macOS ones signed with a Developer ID. Depends on the owner buying the certificates.
 
-### FEAT-191: [release] Updates, models and packs verified by the Levix signature
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Every download (application updates, ONNX models, domain packs, extraction maps, Chromium) is verified against the Levix signature before use, also through the Admin Hub mirror (FEAT-143). Today the installer only checks that a downloaded binary is a valid PE/ELF file and models carry a SHA-256 in the catalog.
-
 ### FEAT-192: [release] Local diagnostic bundle, /feedback and local crash reports, sent only with confirmation
 - **Priority**: medium
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 4. A local diagnostic bundle (logs, versions, configuration, sensitive data masked) the user reviews; /feedback shows exactly what leaves the machine and sends only after confirmation; a crash writes a local report and offers to send it with confirmation. Nothing is sent automatically, not even in beta or release-candidate builds; the corporate policy can turn sending off. Supersedes FEAT-011 and FEAT-012.
+
+### FEAT-193: [identity] Adopt the platform identity, policy and license crates
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 9 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topics 1, 2, 4 and 6, and docs/architecture/platform-shared-components.md. AnyContext adopts the levix-platform crates for accounts, root and sudo, session, biometrics, the key hierarchy and personal vault, policies and the governance engine, the Admin Hub client, the personal and corporate environments, plan license verification and Levix signature verification: per-account data directories, the first-run, sign-in and lock screens in the desktop app, sign-in once per terminal session in the CLI, workspace data keys as the platform's data keys, and AnyContext's policy schema (models and endpoints, sources, tools, quotas) registered with the engine, which enforces plan limits and policies below every surface (cli-and-release-v2.md, section 1). Acceptance (decided 2026-10-23): the machine-id key with a fixed salt (security/mod.rs:10-11, 44-50) and the clear lexical index are gone, together with FEAT-069; API keys are no longer stored in plain text in the api_keys table (storage/sqlite.rs:1470-1478). If the roadmap leaves this item out of the first release, the plain-text API keys become a high bug.
 
 ## Improvements
 
@@ -2124,3 +1991,163 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-23, Superseded by ADJ-008
 - **Description**: The repository has no LICENSE file; the README tells readers to contact Levix Digital for usage and distribution terms. The license (or the proprietary terms) still has to be chosen and published.
+
+### FEAT-120: [identity] Local accounts with password, several per machine, data separated per account
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Personal accounts, and base decisions 1 and 2. Without Admin Hub, each person has a local account (display name, optional username or e-mail, password stored only as an Argon2id hash) with its own directory holding its local database and workspaces; nobody sees anyone else's workspaces or conversations. Removing an account deletes its data. A password change only rewraps the data key. Today there is no user at all (only an added_by_email column defaulting to 'user').
+
+### FEAT-121: [identity] root administration account and sudo for administrative actions
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Linux-style administration account. `root` is the fixed administration account, labeled 'Administrator (root)', with no default password and its own recovery key. Administrative actions (creating or removing accounts, downloading models, installation settings) ask for the root password for that action only (`actx sudo <command>` in the CLI, a prompt in the UI). root has no workspaces or chat and cannot read personal accounts' data.
+
+### FEAT-122: [identity] First run: root password, personal account and recovery key
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Personal accounts. One first-run screen sets the root password and creates the personal account (same password allowed, with a warning), shows the recovery key and asks for confirmation that it was saved, and offers biometrics when available. The display name and language of the account feed the user profile (FEAT-146).
+
+### FEAT-123: [identity] Sign-in, fast user switching and session lock
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, Personal accounts. Sign-in screen with the machine's accounts (password or biometrics) and fast user switching. The session locks after inactivity (e.g. 30 minutes, a personal preference), on screen lock, on sleep and manually; CLI and TUI ask once per terminal session with the same locking. Increasing delay after wrong passwords.
+
+### FEAT-124: [identity] Biometric unlock (Windows Hello, Touch ID)
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1 and topic 2, item 1. Biometrics unlock the session as a convenience: the OS vault releases the wrapped master key only upon user presence at each unlock, never to a service on its own, without weakening the password.
+
+### FEAT-126: [identity] Corporate identity: company SSO and the Admin Hub directory
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, In the corporate environment. In the corporate environment, users come from the company's SSO and/or the Admin Hub's own directory (for customers without an identity provider); local-only accounts are forbidden by the policy. Administration power belongs to the Admin Hub; root, corporate admins and the Admin Hub never read users' data.
+
+### FEAT-127: [identity] Account activation by single-use code, password rules and second factor
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, In the corporate environment. An Admin Hub directory user is activated on an enrolled device with login and a single-use activation code (short validity, e.g. 72 h, delivered through a separate channel), then creates their own password and gets the recovery key; the password never goes through the Admin Hub and keys are generated on the device. The policy can require length, complexity, periodic change and an authenticator-app second factor. A forgotten password needs a new activation code.
+
+### FEAT-128: [identity] Corporate administration: sudo as 'ask IT' and a rotating break-glass root
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 1, In the corporate environment. In the corporate environment sudo becomes the authentication of a corporate admin or an approval request in the Admin Hub (optionally an ITSM ticket). root remains for on-site and offline emergencies with a unique per-device password generated and rotated by the Admin Hub (LAPS model), visible only to authorized administrators; every use is audited, reported in the next heartbeat and followed by rotation.
+
+### FEAT-129: [identity] Key hierarchy: master key, user key pair and workspace data keys
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, items 1 to 3 and 6. A random master key per account wrapped by the password (Argon2id), the recovery key and biometrics; a user key pair whose private key is encrypted by the master key; a random data key per workspace wrapped by the owner's master key and each member's public key. Keys live only in memory while the session is unlocked. Acceptance (decided 2026-10-23): the machine-id key with a fixed salt (security/mod.rs:10-11, 44-50) and the clear lexical index are gone, together with FEAT-069; the plain-text API keys are gone with FEAT-130. If the roadmap leaves this item out of the first release, the plain-text API keys become a high bug.
+
+### FEAT-130: [identity] Personal vault for API keys, file passwords, history and preferences
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, item 4. A vault encrypted from the master key holds API keys, file passwords (FEAT-035), conversation history, preferences, the user profile and memories. Acceptance: API keys are no longer stored in plain text in the api_keys table of settings.db (storage/sqlite.rs:1470-1478).
+
+### FEAT-132: [identity] Organization recovery key (enterprise policy)
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 2, Key hierarchy, item 8. Optional by policy: each user's master key is also wrapped by an organization public key whose private part stays offline under the company's control, ideally split between people, never in the Admin Hub. Each use is audited and users are told the company has this recovery power.
+
+### FEAT-137: [governance] Single versioned policy model with three precedence layers
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 1 and 2. One versioned policy model by category (models and endpoints, data, sources, tools, accounts, quotas). Layers: product default < local policy set by root without Admin Hub < organization policy signed by the Admin Hub; the upper layer wins, and inside a workspace the owner can only tighten the rules. Today the core has no policy at all.
+
+### FEAT-138: [governance] One governance engine for policies, plan licenses and quotas
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 4 and 6. A single engine enforces model resolution, trust levels and pseudonymization, web search, connectors and OCR, the MCP server, accounts and session, token quotas and the plan licenses (connectors-v2.md, decisions 25 and 28), keeping license and policy distinct in the block message. Every block says which rule blocked; the user can view the policy in force, read-only. Acceptance: license and policy checks run in the core below every surface (desktop app, CLI, TUI, MCP server), so no interface or wrapper can bypass them (cli-and-release-v2.md, section 1).
+
+### FEAT-139: [governance] Signed policies with the Admin Hub key pinned at enrollment
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, items 3 and 5. The enrollment code carries the Admin Hub key fingerprint; the device confirms and records it and from then on accepts only policies signed by it (instead of a key embedded in the binary, which does not work with customer-hosted Admin Hubs). Offline, the last valid policy in an encrypted cache applies for a validity the company sets; once expired the corporate environment is suspended until it reconnects.
+
+### FEAT-140: [governance] Local audit of blocked attempts, metadata-only to the Admin Hub
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 4, Governance engine and policies, item 7. Blocked attempts are logged locally and sent to the Admin Hub only as metadata (rule, when, device), never with content.
+
+### FEAT-141: [governance] Admin Hub enrollment and channel on the client
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 5, Admin Hub integration, and topic 2, item 5. Client side of the Admin Hub: enrollment with a device identity (Ed25519 key in the OS vault, no access to data), an outbound-only WebSocket, heartbeat and kill-switch, carrying identities and activation, signed policies, workspace definitions, groups and curators, break-glass passwords, sudo requests, metadata-only audit and quotas. The Admin Hub itself belongs to the levix-admin-hub backlog.
+
+### FEAT-144: [identity] Personal and corporate environments isolated in one binary
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 6, Personal and corporate environments, items 1, 2 and 5. A switcher between the personal environment (local root and family accounts, never governed or seen by the company) and a corporate environment created at enrollment (or by the company's own package) with its own data, keys, accounts, policies, root and license. No path between environments: no export, search, chat, key or license crosses.
+
+### FEAT-145: [identity] Corporate environment lifecycle
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 6, items 3 and 4, and topic 1, In the corporate environment (exit). The policy can forbid the personal environment on company-owned computers, never on the employee's own. A revoked environment (kill-switch) is blocked; an orderly unenrollment deletes or keeps data per policy; changing companies removes the previous environment and creates the new one. The personal environment is never affected.
+
+### FEAT-167: [governance] Plan license signed by Levix and verified offline on the client
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 25 and 28. One signed license per plan (Free, Pro, Enterprise), verified offline with the shared verification code from levix-platform; one license per environment (identity-and-governance-v2.md, topic 6). License is not policy: the license says what the plan includes, the policy what the company allows, and the governance engine (FEAT-138) enforces both and says which one blocked.
+
+### FEAT-191: [release] Updates, models and packs verified by the Levix signature
+- **Priority**: medium
+- **Status**: dropped
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-10-23, Moved to levix-platform
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Every download (application updates, ONNX models, domain packs, extraction maps, Chromium) is verified against the Levix signature before use, also through the Admin Hub mirror (FEAT-143). Today the installer only checks that a downloaded binary is a valid PE/ELF file and models carry a SHA-256 in the catalog.

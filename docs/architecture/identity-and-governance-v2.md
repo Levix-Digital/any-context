@@ -130,9 +130,10 @@ stored in plain text** in the `api_keys` table of `settings.db`.
 
 Backlog treatment (decided 2026-10-23): these three defects (plain-text API keys, the
 machine-id key with a fixed salt, the lexical index in clear) are acceptance criteria of
-the key hierarchy item, not separate bugs, provided that item ships in the first release.
-If the roadmap leaves it out of the first release, the plain-text API keys become a
-`high` bug fixed before that release.
+the key hierarchy, not separate bugs, provided it ships in the first release. If the
+roadmap leaves it out of the first release, the plain-text API keys become a `high` bug
+fixed before that release. Since batch 9 the key hierarchy is built in `levix-platform`;
+in AnyContext these criteria belong to the item that adopts the platform crates.
 
 1. **User master key** — random, one per account, never stored in clear. Wrapped by: the
    **password** (Argon2id), the **recovery key** and **biometrics** as a convenience (the
