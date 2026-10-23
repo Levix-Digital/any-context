@@ -71,13 +71,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: release.yml only builds Linux x86_64 and Windows x86_64.
 
-### FEAT-008: Cloud drive connectors
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-17, v0.45.0, product ideas review
-- **Plan**: -
-- **Description**: Sources from cloud drives (folders and individual files). No drive connector exists today. Discussion item.
-
 ### FEAT-010: Token usage and context window fill in the status bar
 - **Priority**: medium
 - **Status**: open
@@ -909,7 +902,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 3, Roles and sharing, item 3. Without Admin Hub, the definition (name, sources, filters, domain pack, prompt) is exported to a file and imported by a colleague, who indexes the same sources on their own machine; never documents, chunks, vectors, API keys or passwords. Within one environment only; the corporate policy can accept only definitions signed by the organization.
+- **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 3, Roles and sharing, item 3. Without Admin Hub, the definition (name, sources, filters, domain pack, prompt) is exported to a file and imported by a colleague, who indexes the same sources on their own machine; never documents, chunks, vectors, API keys or passwords. Within one environment only; the corporate policy can accept only definitions signed by the organization. Acceptance: a connector source carries the connector and the target ID, never the credential; each member signs in with their own account (connectors-v2.md, decision 5).
 
 ### FEAT-135: [identity] Sharing a workspace between accounts on the same machine
 - **Priority**: medium
@@ -1008,6 +1001,167 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/identity-and-governance-v2.md, topic 7, item 3. Off by default, turned on explicitly per workspace. Read-only: asking and searching over one workspace per call, never across workspaces, only while the user's session is unlocked. Its consumers are external exits: a confidential workspace is not reachable and the policy governs it. Supersedes FEAT-018.
+
+### FEAT-149: [connectors] actx-connectors crate with the single connector contract
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 1, 2, 8 and 9. A Levix-only `actx-connectors` crate in Rust, one trait and one module per connector, no third-party plugins. Contract: list the target's items (single or recursive), read the content as a stream, changes since the last cursor, permission scopes, metadata (author, dates, link to open at the origin). A connector only acquires; from the diff on it is the normal pipeline. Each item has a stable native ID that replaces the hash for rename and move detection. Indexed only, the question is never sent to the origin. No copy of the original is kept: the reader shows the indexed text and offers 'open at origin'; downloads stream within the governor's disk reserve.
+
+### FEAT-150: [connectors] Shared HTTP client with corporate proxy and company certificates
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 9. All connectors use one HTTP client that honors the corporate proxy and trusts company certificate authorities read from the OS certificate store and from the policy.
+
+### FEAT-151: [connectors] OAuth 2.0 with PKCE through the system browser, tokens in the personal vault
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 3 and 4. Sign-in through the system browser redirecting to 127.0.0.1, never through a Levix server, with the smallest read-only scopes. Tokens live in the user's personal vault (FEAT-130), belonging to the person, not the workspace. Personal environment: public OAuth app registered by Levix; corporate environment: the company's own app (Entra ID, Google Workspace) distributed through the policy; AnyContext Server: a company service account with the per-reader permission filter.
+
+### FEAT-152: [connectors] Sync through the origin's change feed
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 6. Sync uses the origin's change feed (Drive changes, Graph delta, Dropbox cursor, IMAP CONDSTORE) instead of scanning: polling with the cursor while AnyContext is open, a recovery diff on opening, the optional background service, webhooks on the AnyContext Server; exponential backoff on rate limits; on a metered network the resource governor holds connector sync and the user can release it per source or for now.
+
+### FEAT-153: [connectors] Explicit target selection by browsing the origin's tree
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 10 and 12. The user browses the origin and picks a folder (recursive), a single file or an origin-specific target (shared drive, SharePoint library, mail folder or label, channel, playlist); everything selected and accessible is indexed and nothing outside it. Include and exclude filters apply to remote paths. The source stores account_ref and target_id (IMP-015); the change cursor lives in the workspace sync state.
+
+### FEAT-154: [connectors] Native cloud formats and wiki pages converted for the existing parsers
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 7. Google Docs, Sheets and Slides are exported to DOCX, XLSX and PPTX and handed to the existing parsers; wiki pages are converted from their block tree to deterministic Markdown; cloud shortcuts and links are resolved and deduplicated as duplicates.
+
+### FEAT-155: [connectors] Typed connector metadata, with live metadata outside the embedded text
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 13 and 14. Each connector declares a typed metadata schema (e.g. YouTube view_count, published_at; e-mail from, labels) usable as retrieval filters. Values that change without the content changing live only in filterable columns, outside the embedded text and the chunk header; a change updates the columns without re-embedding.
+
+### FEAT-156: [connectors] Source states: deleted at origin, disconnected, item access revoked
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 18. An item deleted at the origin leaves the index; without technical access (expired or revoked token, network down) the source is shown disconnected with 'reconnect account' and its content stays searchable; an item whose access was revoked for the user leaves the index and appears in the source report with the reason.
+
+### FEAT-157: [connectors] High-volume noisy sources indexed by relevance with a ceiling
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 15. For sources such as comments, the most relevant set is indexed (e.g. most liked comments and their replies), each item as its own chunk with author and relevance in the header; the source report says how much was left out and the user can change the ceiling. Comment authors are third-party personal data under pseudonymization for external endpoints.
+
+### FEAT-158: [connectors] Extraction maps signed by Levix and reviewed by a person
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 19. Origins without a stable API use a declarative selector file distributed through the verified catalog, signed by Levix and reviewed by a person before publishing; never generated and published automatically. Only within the official-APIs-only rule (decision 32).
+
+### FEAT-159: [governance] Connector policy: allowed connectors, account domains, volume ceiling
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 11 and 27. In the corporate environment connectors are a selection of features the Admin Hub policy turns on or off, with allowed account domains (e.g. only @company.com) and a volume ceiling per source, enforced by the governance engine (FEAT-138); a block says which rule blocked.
+
+### FEAT-160: [connectors] Product model: base, source connectors and capability connectors
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 22 and 23. The base searches local and internal-network files with no external call; everything else is a connector the user plugs explicitly: source connectors (web, drives, YouTube, e-mail, Obsidian) and capability connectors (local audio and video transcription). Without a connector, what it would cover appears in the source report ('12 videos not indexed — enable the Video connector'). The system help is not a connector.
+
+### FEAT-161: [connectors] Web search connector through an allowed API
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 24 and 32. Web search at question time through an official or allowed third-party search API whose terms and cost-benefit fit (Jina is the cost reference, about US$ 0.0005 per search on a paid key; its free key is non-commercial only); the provider is chosen when the item is planned. The question is pseudonymized and a confidential workspace never searches the web (FEAT-118). Replaces the DuckDuckGo scraping of BUG-029.
+
+### FEAT-162: [connectors] YouTube connector through the official Data API
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 16. Metadata and comments of any public video through the official YouTube Data API; the transcript through the official caption only when the user owns the channel (the API hands captions only to whoever can edit the video). A third-party video is transcribed locally by the Audio and video capability from a file the user legitimately has; never InnerTube, client impersonation or a third-party transcription service. Enterprise feature (decision 28).
+
+### FEAT-163: [connectors] Obsidian connector: wikilinks, frontmatter, embedded notes, aliases, canvas
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 17 and 23. On top of the base indexing of the vault as a Markdown folder, the connector adds wikilinks as graph relations, frontmatter as metadata, embedded notes, aliases and canvas. Acceptance for the base Markdown parser: `.obsidian/` ignored by default and YAML frontmatter read as metadata. Enterprise feature (decision 28).
+
+### FEAT-164: [connectors] Google Drive connector through the official API (Enterprise)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 20 and 30. Full Google Drive through the official API with the read scope over the whole Drive (no file-picker restriction). The corporate environment uses the company's internal app, exempt from Google's security assessment (CASA); for the personal environment it comes only if the assessment fits. Enterprise candidate: the local sync folders already cover personal use.
+
+### FEAT-165: [connectors] OneDrive and SharePoint connector through Microsoft Graph (Enterprise)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 6, 10 and 30. OneDrive and SharePoint libraries through Microsoft Graph with delta sync, the company's Entra ID app and the origin's permissions captured for per-source access control (FEAT-080). Enterprise candidate.
+
+### FEAT-166: [connectors] Dropbox connector (Enterprise)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 6 and 30. Dropbox through its official API with cursor-based sync. Enterprise candidate: the local sync folder already covers personal use.
+
+### FEAT-167: [governance] Plan license signed by Levix and verified offline on the client
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 25 and 28. One signed license per plan (Free, Pro, Enterprise), verified offline with the shared verification code from levix-platform; one license per environment (identity-and-governance-v2.md, topic 6). License is not policy: the license says what the plan includes, the policy what the company allows, and the governance engine (FEAT-138) enforces both and says which one blocked.
+
+### FEAT-168: [governance] Free and Pro plan limits
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 28. Free: local and internal-network files only, up to 3 workspaces. Pro: Free plus the Web and the Audio and video connectors built in, unlimited workspaces. No per-connector sales and no capability combinations sold as extra plans.
+
+### FEAT-169: [governance] Downgrade and lapsed plan deactivate, never delete
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 26 and 29. Indexes the plan no longer covers stay on disk, out of search and sync, and can be deleted explicitly to free disk. Over the Free limit the user chooses once which 3 workspaces stay active, with no swapping afterwards. When the plan returns, the sources come back and only the incremental diff is reprocessed.
+
+### FEAT-170: [connectors] Web search fair-use daily ceiling in Pro
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 31. Pro carries a high daily ceiling of web searches and page reads that normal use never reaches; reaching it pauses web search until the next day with a clear message while local search keeps working. The exact value is open and set from real usage data.
+
+### FEAT-171: [connectors] Generic IMAP e-mail connector (Enterprise)
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
+- **Plan**: -
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 33. One read-only connector for any provider over IMAP, Gmail included: folders and labels as targets, change detection through CONDSTORE, attachments back into the pipeline as files. Sign-in prefers the provider's OAuth (XOAUTH2); otherwise an app password in the personal vault. Gmail OAuth uses Google's restricted full-mail scope (security assessment for a public app; the corporate environment uses the company's app); confirm Google's scope and app-password rules in its documentation when planning. Enterprise feature (decision 28).
 
 ## Improvements
 
@@ -1770,3 +1924,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-23, Superseded by FEAT-148
 - **Description**: Expose AnyContext workspaces through an MCP server so other agents and IDEs can query them. There is no API or MCP surface today. Discussion item.
+
+### FEAT-008: Cloud drive connectors
+- **Priority**: low
+- **Status**: dropped
+- **Found**: 2026-10-17, v0.45.0, product ideas review
+- **Plan**: -
+- **Closed**: 2026-10-23, Superseded by FEAT-164, FEAT-165 and FEAT-166
+- **Description**: Sources from cloud drives (folders and individual files). No drive connector exists today. Discussion item.

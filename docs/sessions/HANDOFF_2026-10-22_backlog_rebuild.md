@@ -48,7 +48,7 @@ Multilingual. Minimal configuration: architecture decisions never become user op
 - `retrieval-pipeline-v2.md`
 - `deployment-architecture-v2.md`
 - `identity-and-governance-v2.md`
-- `connectors-v2.md`: 32 decisions, including the three plans (Free / Pro / Enterprise), no Notion connector and official APIs only (decision 32).
+- `connectors-v2.md`: 33 decisions, including the three plans (Free / Pro / Enterprise), no Notion connector and official APIs only (decision 32).
 - `desktop-ui-v2.md`
 - `platform-shared-components.md`
 
@@ -107,7 +107,7 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 
 ### Where things stand
 
-- Done: the connectors design (32 decisions); every document translated to English; the commercial model above.
+- Done: the connectors design (33 decisions); every document translated to English; the commercial model above.
 - Done (2026-10-23): batch 1, current-code bugs: BUG-022 and BUG-024 to BUG-029 in `docs/BACKLOG.md`. The plain-text API keys, the machine-id key and the clear lexical index are acceptance criteria of the key hierarchy item (`identity-and-governance-v2.md`, section 2), unless that item leaves the first release. Router keywords and the unwired Document AI are acceptance criteria of the retrieval routing and ingestion section 6 items. The release profile goes to batch 8.
 - `feat/imp-004-embedding-model` holds unmerged code, including the BUG-022 fix; map it in the ingestion and deployment batches. The user asked to delete it and the `docs/bug-008-plan`, `docs/bug-010-plan` and `docs/bug-012-plan` branches (obsolete); the session proxy refuses deletion, so the user deletes them on GitHub.
 - Done (2026-10-23): batch 2, ingestion with the audit: IMP-015 to IMP-034 and FEAT-020 to FEAT-080. FEAT-005, FEAT-006, IMP-004, IMP-012, IMP-013 and IMP-014 closed as `dropped` with "Superseded by <ID>" (the user's choice: no new status in the tool); the IMP-004 plan is marked superseded. Items split across batches stay open until the last batch that maps them: IMP-006 (retrieval routing), IMP-008 (retrieval evaluation), FEAT-016 (desktop UI).
@@ -115,7 +115,8 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 - Still open for later batches: FEAT-010 and FEAT-016 (desktop UI, batch 7), FEAT-013 and FEAT-014 (identity, batch 5).
 - Done (2026-10-23): batch 4, deployment: IMP-051 to IMP-061 and FEAT-110 to FEAT-119. Closed as superseded: FEAT-002, FEAT-003, IMP-005 and ADJ-003.
 - Done (2026-10-23): batch 5, identity and governance (with the workspace model): FEAT-120 to FEAT-148 and IMP-062. FEAT-013, FEAT-014 and FEAT-018 had no v2 design; the user's decisions are in `identity-and-governance-v2.md`, topic 7, and the user layer in `retrieval-pipeline-v2.md`, step 8. They close as superseded by FEAT-146 to FEAT-148.
-- Next: batch 6, connectors. It also takes the plan licenses (decisions 25 to 31: Free/Pro/Enterprise license verified offline, downgrade deactivation, the one-time Free workspace choice, the Web search fair-use ceiling) and FEAT-008 (cloud drive connectors).
+- Done (2026-10-23): batch 6, connectors and plans: FEAT-149 to FEAT-171. FEAT-008 closes as superseded by FEAT-164 to FEAT-166. New `connectors-v2.md` decision 33: a generic IMAP e-mail connector (Enterprise); Google's scope and app-password rules were checked only against secondary sources.
+- Next: batch 7, desktop UI. It also closes FEAT-010 and FEAT-016 and takes the UI parts left by earlier batches (layout map review screen, entity view in the inspector, citation opening at the locator, branches UI).
 - Last commits on `docs/architecture-v2-redesign`: `59997a0` (fair-use ceiling), `44f0c6d`, `c664919` (plans), `6918b97` (the first version of this handoff).
 
 ### Housekeeping I still owe
