@@ -658,6 +658,15 @@ fn sync_error_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<Str
 /// Lines printed after every sync: secret values redacted in the indexed files (ADR-0149).
 fn sync_notice_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<String> {
     let mut lines = Vec::new();
+    if res.no_sources {
+        lines.push(format!(
+            "ℹ Workspace '{}' has no sources: add a folder with /folder <path> or a site with /web <url>.",
+            res.workspace
+        ));
+    }
+    if !res.offline_folders.is_empty() {
+        lines.push(format!("⚠ {}", any_context_core_rs::ingestion::offline_summary(&res.offline_folders)));
+    }
     if res.secrets_repaired_files > 0 {
         lines.push(format!(
             "🔐 {} file(s) indexed with secrets by an earlier version were reindexed with the secrets redacted. \
@@ -736,5 +745,21 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert!(lines[0].starts_with("🔐 2 file(s) indexed with secrets by an earlier version"), "{lines:?}");
         assert!(lines[0].contains("rotate those credentials"), "{lines:?}");
+    }
+
+    #[test]
+    fn sync_notice_lines_report_offline_and_missing_sources() {
+        let mut res = any_context_core_rs::ingestion::SyncResult::default();
+        res.workspace = "Notes".to_string();
+        res.no_sources = true;
+        assert_eq!(
+            sync_notice_lines(&res),
+            vec!["ℹ Workspace 'Notes' has no sources: add a folder with /folder <path> or a site with /web <url>.".to_string()]
+        );
+        res.no_sources = false;
+        res.offline_folders = vec!["/mnt/usb/docs".to_string()];
+        let lines = sync_notice_lines(&res);
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].starts_with("⚠ 1 source offline, their index is kept: /mnt/usb/docs."), "{lines:?}");
     }
 }

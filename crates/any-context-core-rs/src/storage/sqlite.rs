@@ -581,24 +581,8 @@ impl NativeConfigDb {
                 }
             }
 
-            for r in raw_paths {
-                let p = std::path::Path::new(&r);
-                let effective_path = if !p.exists() {
-                    if let Some(healed) = crate::storage::path_healer::try_heal_path(p) {
-                        let healed_str = healed.to_string_lossy().replace('\\', "/");
-                        if healed_str != r {
-                            let _ = conn.execute(
-                                "UPDATE workspace_folders SET folder_path = ?1 WHERE workspace_name = ?2 AND folder_path = ?3",
-                                params![&healed_str, workspace_name, &r],
-                            );
-                        }
-                        healed_str
-                    } else {
-                        r
-                    }
-                } else {
-                    r
-                };
+            // Saved paths are returned as the user registered them, never redirected (ADR-0150).
+            for effective_path in raw_paths {
 
                 let norm = normalize_path_slashes(&effective_path);
                 if !list.contains(&norm) && !list.contains(&effective_path) {

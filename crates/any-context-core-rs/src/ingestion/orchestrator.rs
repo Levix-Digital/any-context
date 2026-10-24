@@ -18,7 +18,7 @@ use crate::ingestion::embedding::{decide_reindex, resolve_embedding_provider, Em
 use crate::ingestion::enricher::NativeContextualEnricher;
 use crate::ingestion::model_router::IngestionModelRouter;
 use crate::ingestion::router::IngestionRouter;
-use crate::ingestion::scanner::WorkspaceScanner;
+use crate::ingestion::scanner::{is_within_folder, normalize_path, WorkspaceScanner};
 use crate::ingestion::secrets::redact_secrets;
 use crate::models::{ChunkPayload, SemanticEnvelope};
 use crate::retrieval::bm25::BM25Index;
@@ -169,10 +169,26 @@ pub struct SyncResult {
     pub secrets_redacted: usize,
     /// Files an earlier version indexed with secrets; this pass purged and reindexed them.
     pub secrets_repaired_files: usize,
+    /// Registered folders, and subfolders or files under them, that could not be read: they
+    /// are offline and keep their index until they come back (ADR-0150).
+    pub offline_folders: Vec<String>,
+    /// The workspace has no folder and no web source, so nothing was indexed (ADR-0150).
+    pub no_sources: bool,
     /// Files and pages whose embedding or upsert failed; the next sync retries them (ADR-0146).
     pub embedding_failures: usize,
     /// The provider breaker of this pass opened, so later embedding calls were skipped.
     pub embedding_provider_unavailable: bool,
+}
+
+/// Status line for sources that could not be read: their index is kept until they come back,
+/// and a folder that moved is relocated by removing it and adding the new path (ADR-0150).
+pub fn offline_summary(offline: &[String]) -> String {
+    let noun = if offline.len() == 1 { "source" } else { "sources" };
+    format!(
+        "{} {noun} offline, their index is kept: {}. If a folder moved, remove it with /folder --remove <path> and add the new path.",
+        offline.len(),
+        offline.join(", ")
+    )
 }
 
 /// Version of the secret detection rules; a workspace indexed under another version is scanned
@@ -356,21 +372,13 @@ impl NativeSyncOrchestrator {
             }
         }
 
-        // 2. Resolve Monitored Folders
+        // 2. Resolve Monitored Folders: only what the user registered or targeted, never an
+        // implicit directory (ADR-0150)
+        let registered_folders = self.db.get_workspace_folders(ws).unwrap_or_default();
         let folders = if let Some(ref tf) = target_folder {
             vec![tf.clone()]
         } else {
-            let list = self.db.get_workspace_folders(ws).unwrap_or_default();
-            if list.is_empty() {
-                // Default to current working directory if no explicit folders configured
-                if let Ok(cwd) = std::env::current_dir() {
-                    vec![cwd.to_string_lossy().to_string()]
-                } else {
-                    vec![]
-                }
-            } else {
-                list
-            }
+            registered_folders.clone()
         };
 
         // 3. Load Inverted BM25 Index
@@ -397,15 +405,41 @@ impl NativeSyncOrchestrator {
             }
         }
 
-        // 6. Query cached metadata from SQLite
+        // 6. Query cached metadata from SQLite; a scoped pass only compares its own folder's
+        // files, so the other folders are never taken for deleted (BUG-022)
         let cached_stats = if force {
             HashMap::new()
         } else {
-            self.db.get_workspace_files_stat_cache(ws).unwrap_or_default()
+            let mut cached = self.db.get_workspace_files_stat_cache(ws).unwrap_or_default();
+            if let Some(ref tf) = target_folder {
+                cached.retain(|path, _| is_within_folder(path, tf));
+            }
+            cached
         };
 
-        // 7. High-speed multi-folder filesystem scan and differential calculation
-        let diff = self.scanner.scan_and_diff_native(&folders, &cached_stats);
+        // 7. High-speed multi-folder filesystem scan and differential calculation. Files under
+        // an unreachable folder or subfolder stay indexed (offline, ADR-0150).
+        let mut diff = self.scanner.scan_and_diff_native(&folders, &cached_stats);
+        // A full pass purges the files of folders the user removed from the workspace.
+        if target_folder.is_none() {
+            let mut removed: Vec<String> = cached_stats
+                .keys()
+                .filter(|p| !registered_folders.iter().any(|f| is_within_folder(p, f)))
+                .map(|p| normalize_path(Path::new(p)))
+                .filter(|p| !diff.deleted_files.contains(p))
+                .collect();
+            removed.sort();
+            if !removed.is_empty() {
+                diff.is_up_to_date = false;
+                diff.deleted_files.extend(removed);
+            }
+        }
+        let offline_folders = diff.offline_paths.clone();
+        let no_sources = registered_folders.is_empty() && target_folder.is_none();
+        let offline_message = (!offline_folders.is_empty()).then(|| offline_summary(&offline_folders));
+        if let Some(ref msg) = offline_message {
+            let _ = self.db.update_sync_status(ws, true, Some(pid), 0, 0, "scanning", Some(msg), None);
+        }
 
         if options.verbose {
             println!(
@@ -475,13 +509,11 @@ impl NativeSyncOrchestrator {
                 diff.disk_files.len(),
                 diff.disk_files.len(),
                 "idle",
-                None,
+                offline_message.as_deref(),
                 None,
             );
             if options.verbose {
-                if !diff.missing_folders.is_empty() {
-                    println!("⚠️ Workspace '{}' has unreachable folder(s): {}", ws, diff.missing_folders.join(", "));
-                } else if diff.is_up_to_date {
+                if diff.is_up_to_date {
                     println!("✔ Workspace '{}' is 100% up-to-date (0 changes).", ws);
                 } else {
                     println!("✔ Workspace '{}' synchronized: {} files purged.", ws, diff.deleted_files.len());
@@ -506,6 +538,8 @@ impl NativeSyncOrchestrator {
                 embedding_reindex: embedding_reindex.clone(),
                 secrets_redacted: 0,
                 secrets_repaired_files: secrets_repaired_files.len(),
+                offline_folders: offline_folders.clone(),
+                no_sources: no_sources && web_urls.is_empty(),
                 embedding_failures: 0,
                 embedding_provider_unavailable: false,
             });
@@ -562,6 +596,8 @@ impl NativeSyncOrchestrator {
                         embedding_reindex: embedding_reindex.clone(),
                         secrets_redacted: total_secrets_redacted,
                         secrets_repaired_files: secrets_repaired_files.len(),
+                        offline_folders: offline_folders.clone(),
+                        no_sources: false,
                         embedding_failures: failures.count,
                         embedding_provider_unavailable: breaker.is_open(),
                     });
@@ -707,7 +743,7 @@ impl NativeSyncOrchestrator {
             total_files,
             total_files,
             "idle",
-            None,
+            offline_message.as_deref(),
             failure_summary.as_deref(),
         );
 
@@ -745,6 +781,8 @@ impl NativeSyncOrchestrator {
             embedding_reindex,
             secrets_redacted: total_secrets_redacted,
             secrets_repaired_files: secrets_repaired_files.len(),
+            offline_folders,
+            no_sources: false,
             embedding_failures: failures.count,
             embedding_provider_unavailable: breaker.is_open(),
         })

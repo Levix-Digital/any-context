@@ -343,13 +343,13 @@ impl App {
             let mut missing_count = 0;
             for f in &folders {
                 let p = std::path::Path::new(f);
-                if !p.exists() && any_context_core_rs::storage::path_healer::try_heal_path(p).is_none() {
+                if !p.exists() {
                     missing_count += 1;
                 }
             }
 
             if missing_count > 0 {
-                self.source_health_warning = Some(format!("⚠️ {} folder(s) unreachable", missing_count));
+                self.source_health_warning = Some(format!("⚠️ {} source(s) offline, their index is kept", missing_count));
                 self.changes_detected = false;
             } else {
                 self.source_health_warning = None;
