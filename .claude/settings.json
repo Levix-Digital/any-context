@@ -9,5 +9,10 @@
   },
   "enabledPlugins": {
     "dev-skills@levix-agent-skills": true
+  },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
   }
 }

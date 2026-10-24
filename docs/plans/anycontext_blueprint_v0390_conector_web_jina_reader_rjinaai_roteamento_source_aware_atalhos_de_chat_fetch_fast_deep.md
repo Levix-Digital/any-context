@@ -3,10 +3,10 @@ plan_id: anycontext_blueprint_v0390_conector_web_jina_reader_rjinaai_roteamento_
 project: any-context
 title: 'Blueprint v0.39.0: Jina Reader Web Connector (r.jina.ai), Source-Aware Routing & Chat Shortcuts (/fetch, /fast, /deep)'
 version: v0.39.0
-status: active
+status: superseded
 author: Levi Silveira
 created_at: '2026-10-14T12:57:11'
-updated_at: '2026-10-14T12:57:11'
+updated_at: '2026-10-24T14:16:59'
 session_id: 01fd77a2-4853-4967-b572-f0ce69495ea0
 tags:
 - jina_reader
@@ -33,6 +33,10 @@ status_log:
 - at: '2026-10-16T10:47:35'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:16:59'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # 📐 Engineering Blueprint: Jina Reader Web Connector (r.jina.ai), Source-Aware Routing & Chat Shortcuts (/fetch, /fast, /deep) (v0.39.0)

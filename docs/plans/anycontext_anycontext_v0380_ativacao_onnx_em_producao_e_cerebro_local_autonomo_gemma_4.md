@@ -3,10 +3,10 @@ plan_id: anycontext_anycontext_v0380_ativacao_onnx_em_producao_e_cerebro_local_a
 project: any-context
 title: AnyContext v0.38.0 - ONNX Activation in Production and the Autonomous Local Gemma 4 Brain
 version: v0.38.0
-status: active
+status: superseded
 author: Levi Silveira
 created_at: '2026-10-14T12:07:57'
-updated_at: '2026-10-14T12:07:57'
+updated_at: '2026-10-24T14:16:58'
 session_id: 01fd77a2-4853-4967-b572-f0ce69495ea0
 tags:
 - onnx
@@ -37,6 +37,10 @@ status_log:
 - at: '2026-10-16T10:47:35'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:16:58'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # 📐 Engineering Blueprint: AnyContext v0.38.0

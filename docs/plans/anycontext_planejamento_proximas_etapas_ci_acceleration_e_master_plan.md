@@ -3,10 +3,10 @@ plan_id: anycontext_planejamento_proximas_etapas_ci_acceleration_e_master_plan
 project: any-context
 title: 'Planning the Next Steps: Radical Release CI/CD Acceleration and Master Plan Continuity'
 version: v0.34.1
-status: active
+status: superseded
 author: Levi Silveira
 created_at: '2026-10-09T19:57:27'
-updated_at: '2026-10-09T19:57:27'
+updated_at: '2026-10-24T14:17:01'
 session_id: 4f45b7d4-9ceb-4257-9375-7a0a27e74b3e
 tags:
 - ci-cd
@@ -34,6 +34,10 @@ status_log:
 - at: '2026-10-16T10:47:34'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:17:01'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # 🗺️ Planning the Next Steps: CI/CD Acceleration & Master Plan Continuity

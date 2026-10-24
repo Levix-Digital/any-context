@@ -3,10 +3,10 @@ plan_id: anycontext_blueprint_v0345_rag_semantic_fidelity_fix
 project: any-context
 title: 'Restoring RAG Semantic Integrity: 2D Layout Preservation and BM25 Decryption'
 version: v0.34.5
-status: in_progress
+status: superseded
 author: Levi Silveira
 created_at: '2026-10-10T09:32:07'
-updated_at: '2026-10-10T10:07:49'
+updated_at: '2026-10-24T14:16:58'
 session_id: a94494e0-08bb-4378-888d-a3bde8673537
 tags:
 - rag
@@ -48,6 +48,10 @@ status_log:
 - at: '2026-10-16T10:47:34'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:16:58'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # AnyContext Technical Blueprint v0.34.5

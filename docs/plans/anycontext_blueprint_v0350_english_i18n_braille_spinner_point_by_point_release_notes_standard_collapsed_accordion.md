@@ -3,10 +3,10 @@ plan_id: anycontext_blueprint_v0350_english_i18n_braille_spinner_point_by_point_
 project: any-context
 title: 'Blueprint v0.35.0: English i18n, Braille Spinner Point-by-Point, Release Notes Standard & Collapsed Accordion'
 version: v0.35.0
-status: active
+status: superseded
 author: Levi Silveira
 created_at: '2026-10-10T15:01:05'
-updated_at: '2026-10-10T15:01:05'
+updated_at: '2026-10-24T14:16:59'
 session_id: a94494e0-08bb-4378-888d-a3bde8673537
 tags:
 - english
@@ -41,6 +41,10 @@ status_log:
 - at: '2026-10-16T10:47:35'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:16:59'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # 🏛️ AnyContext Architecture Blueprint: v0.35.0
