@@ -36,7 +36,7 @@ Choosing which chunks to keep (quality gate) and writing them is the job of [Ing
 
 ### Routing
 
-`IngestionRouter::chunk_file_native` handles binary formats first (spreadsheets, PDF, Office, images) and reads everything else as text. `chunk_text_native` then dispatches by extension: Markdown, AST code, structured data, tabular, PDF, and finally the text chunker as the default. Web URLs go to the Markdown chunker when the text contains headings and to the text chunker otherwise. `chunk_bytes_native` offers the same dispatch for in-memory bytes.
+`IngestionRouter::chunk_file_native` handles binary formats first (spreadsheets, PDF, Office, images) and reads everything else as text. `chunk_text_native` then dispatches by extension: Markdown, AST code, structured data, tabular, PDF, and finally the text chunker as the default. Web URLs go to the Markdown chunker when the text contains headings and to the text chunker otherwise. `chunk_bytes_native` offers the same dispatch for in-memory bytes. Every entry point redacts secret values first ([Ingestion and Sync](ingestion.md), "Secret redaction"): chunkers of text formats receive redacted text, and the chunks of extracted formats are redacted after extraction; the `*_redacted` variants also return the count.
 
 ### Formats
 
@@ -58,6 +58,7 @@ Choosing which chunks to keep (quality gate) and writing them is the job of [Ing
 ## Decisions
 
 - [ADR-0102](../adr/0102-scoped-folder-ingestion-utf8-boundaries.md): UTF-8 safe slicing in the code splitter.
+- [ADR-0149](../adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md): the router redacts secret values before and after chunking.
 - [ADR-0105](../adr/0105-native-rust-ingestion-sync-pipeline.md): tree-sitter AST, Markdown, PDF and tabular chunking in native Rust.
 - [ADR-0106](../adr/0106-full-rust-parity-python-purge.md): Office (`docx`/`pptx`) chunker ported to Rust.
 - [ADR-0110](../adr/0110-ingestion-model-router-quality-gate.md): `SpatialFormChunker` for domain-agnostic form reconstruction.

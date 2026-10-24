@@ -1,5 +1,5 @@
 use any_context_core_rs::ingestion::{NativeSyncOrchestrator, SyncOptions};
-use any_context_core_rs::storage::{NativeConfigDb, NativeLanceStore};
+use any_context_core_rs::storage::{NativeConfigDb, NativeLanceStore, VectorRecord};
 use std::sync::Arc;
 
 #[tokio::test]
@@ -256,6 +256,131 @@ async fn test_scoped_sync_with_target_change_reindexes_all_folders() {
     assert_eq!(res.indexed_files, 4, "both folders are re-embedded");
     assert!(res.embedding_reindex.is_some());
     assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Builds a token-shaped sample at run time (prefix + pseudo-random body), so no complete
+/// credential literal is ever committed.
+fn fake_secret(prefix: &str, len: usize, seed: u64) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut state = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    let body: String = (0..len)
+        .map(|_| {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ALPHABET[((state >> 33) as usize) % ALPHABET.len()] as char
+        })
+        .collect();
+    format!("{prefix}{body}")
+}
+
+/// Regression BUG-024: secret values in `.env` files and PEM private keys are never stored
+/// in the index (chunk text, document summary or keywords), while the key names stay searchable.
+#[tokio::test]
+async fn test_secrets_are_never_indexed() {
+    let (temp_dir, _db, lance, orchestrator, dirs) = embedding_sandbox("secrets_never_indexed", &["app"]);
+    let ws = "EmbeddingTargetWs";
+
+    let db_password = fake_secret("", 16, 1);
+    let openai_key = fake_secret(&["sk", "-proj-"].concat(), 48, 2);
+    let stripe_key = fake_secret(&["sk", "_live_"].concat(), 32, 3);
+    let pem_body = fake_secret("MIIEvQIBADANBgkqhkiG9w0BAQEFAASC", 32, 4);
+    std::fs::write(
+        dirs[0].join(".env"),
+        format!(
+            "# Application settings\nAPP_NAME=billing\nDATABASE_URL=postgres://app:{db_password}@db.internal:5432/app\nOPENAI_API_KEY={openai_key}\nSTRIPE_KEY={stripe_key}\n"
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dirs[0].join("server.key"),
+        format!(
+            "{}\n{pem_body}\n{pem_body}\n{}\n",
+            ["-----BEGIN", " PRIVATE KEY-----"].concat(),
+            ["-----END", " PRIVATE KEY-----"].concat()
+        ),
+    )
+    .unwrap();
+
+    let res = orchestrator.run(&mock_sync(None)).await.expect("sync");
+    assert!(res.errors.is_empty(), "{:?}", res.errors);
+    assert_eq!(res.secrets_redacted, 4, "password, two tokens and the private key block");
+
+    let rows = lance
+        .search_metadata(&format!("workspace = '{ws}'"), 10_000, Some(ws), None)
+        .expect("read rows");
+    assert!(rows.iter().any(|r| r.file_name == ".env"), "the .env file stays indexed");
+    for row in &rows {
+        let stored = format!(
+            "{}\n{}\n{}\n{}",
+            row.text,
+            row.document_summary.clone().unwrap_or_default(),
+            row.keywords.clone().unwrap_or_default(),
+            row.header_path.clone().unwrap_or_default()
+        );
+        for secret in [&db_password, &openai_key, &stripe_key, &pem_body] {
+            assert!(!stored.contains(secret.as_str()), "secret stored in a chunk of {}", row.file_name);
+        }
+    }
+    let env_text: String = rows.iter().filter(|r| r.file_name == ".env").map(|r| r.text.as_str()).collect();
+    assert!(env_text.contains("OPENAI_API_KEY"), "key names stay searchable");
+    assert!(env_text.contains("APP_NAME=billing"), "values that are not secrets are kept");
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// BUG-024 repair: chunks an earlier version stored with secrets are purged and their file is
+/// reindexed redacted on the next sync, once per workspace.
+#[tokio::test]
+async fn test_secrets_indexed_before_the_fix_are_reindexed() {
+    let (temp_dir, db, lance, orchestrator, dirs) = embedding_sandbox("secrets_repair", &["app"]);
+    let ws = "EmbeddingTargetWs";
+    let secret = fake_secret("", 24, 5);
+    std::fs::write(dirs[0].join("settings.ini"), format!("[db]\nhost=db.internal\npassword={secret}\n")).unwrap();
+
+    let first = orchestrator.run(&mock_sync(None)).await.expect("sync 1");
+    assert_eq!(first.secrets_repaired_files, 0, "a new workspace has nothing to repair");
+    assert_eq!(db.get_setting(&format!("secret_redaction_version:{ws}")).unwrap().as_deref(), Some("1"));
+
+    // What an earlier version stored: the same file's chunk with the secret in clear, and a
+    // workspace that was never scanned.
+    let rows = lance.search_metadata(&format!("workspace = '{ws}'"), 1000, Some(ws), None).unwrap();
+    let ini = rows.iter().find(|r| r.file_name == "settings.ini").expect("ini indexed").clone();
+    lance
+        .upsert_records(
+            vec![VectorRecord {
+                id: format!("{}_legacy", ini.id),
+                vector: vec![0.1; 8],
+                text: format!("[db]\nhost=db.internal\npassword={secret}\n"),
+                file_name: ini.file_name.clone(),
+                file_path: ini.file_path.clone(),
+                workspace: ws.to_string(),
+                last_modified: None,
+                content_type: ini.content_type.clone(),
+                document_summary: None,
+                keywords: None,
+                content_hash: ini.content_hash.clone(),
+                header_path: None,
+                start_line: None,
+                end_line: None,
+            }],
+            None,
+            None,
+        )
+        .unwrap();
+    db.set_setting(&format!("secret_redaction_version:{ws}"), "0").unwrap();
+
+    let second = orchestrator.run(&mock_sync(None)).await.expect("sync 2");
+    assert_eq!(second.secrets_repaired_files, 1);
+    assert_eq!(second.indexed_files, 1, "only the affected file is reindexed");
+    let rows = lance.search_metadata(&format!("workspace = '{ws}'"), 1000, Some(ws), None).unwrap();
+    assert!(rows.iter().all(|r| !r.text.contains(&secret)), "the legacy chunk is gone");
+    assert!(rows.iter().any(|r| r.file_name == "settings.ini" && r.text.contains("password=[SECRET REDACTED]")));
+    assert!(rows.iter().any(|r| r.file_name == "notes.md"), "other files keep their chunks");
+
+    let third = orchestrator.run(&mock_sync(None)).await.expect("sync 3");
+    assert_eq!(third.secrets_repaired_files, 0, "the repair runs once");
+    assert!(third.is_up_to_date);
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }

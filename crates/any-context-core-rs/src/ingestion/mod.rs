@@ -13,7 +13,7 @@ pub mod onnx_adapter;
 pub mod jina;
 pub mod secrets;
 
-pub use router::IngestionRouter;
+pub use router::{IngestionRouter, RedactedChunks};
 pub use traits::{Chunker, ScanSentinel, ScanAssessment, DocumentVisionExtractor};
 pub use scanner::{WorkspaceScanner, DiffResult};
 pub use orchestrator::{embed_with_retry, embedding_failure_summary, sync_error_headline, NativeSyncOrchestrator, SyncOptions, SyncResult};

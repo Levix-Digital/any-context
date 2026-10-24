@@ -4,10 +4,10 @@ project: any-context
 title: '[ingestion] Secret files (.env, .tfvars, .key) are indexed in clear'
 kind: bug
 version: v1.0.0
-status: active
+status: in_progress
 author: Levi Silveira
 created_at: '2026-10-24T14:19:38'
-updated_at: '2026-10-24T14:23:19'
+updated_at: '2026-10-24T14:52:47'
 session_id: null
 tags:
 - ingestion
@@ -21,7 +21,9 @@ backlog_items:
 - BUG-024
 milestones:
 - name: M1 Secret detector
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Claude
 - name: M2 Redaction in the pipeline
   done: false
 - name: M3 Repair of existing indexes
@@ -39,6 +41,9 @@ status_log:
   by: Levi Silveira
   status: active
   note: Plan updated
+- at: '2026-10-24T14:52:47'
+  by: Claude
+  note: 'Milestone ''M1 Secret detector'' completed: 16 unit tests'
 ---
 
 # [ingestion] Secret files (.env, .tfvars, .key) are indexed in clear

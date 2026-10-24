@@ -57,7 +57,7 @@ flowchart LR
 `NativeSyncOrchestrator::run` performs one pass for one workspace (`SyncOptions { workspace, force, target_folder, verbose, model }`). `run_sync` is the synchronous entry point; when it is called inside a Tokio runtime it runs the pass on a separate thread with its own runtime.
 
 1. Mark the workspace as syncing in the `workspace_sync_status` table (stage `scanning`, worker PID).
-2. Add the chunk provenance columns to a LanceDB table created by an older version (`NativeLanceStore::ensure_provenance_columns`, see [storage](storage.md)); a failure goes to `SyncResult::errors`. Then encrypt the chunks an older version stored in plaintext (`NativeLanceStore::encrypt_plaintext_rows`, see [storage](storage.md)); the count goes to `SyncResult::chunks_encrypted_legacy` and is printed by verbose syncs, and a failure goes to `SyncResult::errors` and is retried on the next pass.
+2. Add the chunk provenance columns to a LanceDB table created by an older version (`NativeLanceStore::ensure_provenance_columns`, see [storage](storage.md)); a failure goes to `SyncResult::errors`. Then encrypt the chunks an older version stored in plaintext (`NativeLanceStore::encrypt_plaintext_rows`, see [storage](storage.md)); the count goes to `SyncResult::chunks_encrypted_legacy` and is printed by verbose syncs, and a failure goes to `SyncResult::errors` and is retried on the next pass. Finally, a workspace indexed before secret redaction is repaired once (see "Secret redaction" below).
 3. Resolve the embedding target and decide whether the stored vectors can be kept (see "Embedding target and reindex" below). A reindex turns the pass into a forced pass over the whole workspace, even when it was scoped to one folder, and writes its message to the sync status.
 4. Resolve the folders: only `target_folder` when it is set (a `/folder <path>` sync) and no reindex is due; otherwise the folders registered for the workspace, or the current directory when none is registered.
 5. Load `bm25_index.bin` from the LanceDB directory, or start an empty index.
@@ -65,11 +65,11 @@ flowchart LR
 7. Scan and diff against the SQLite stat cache (`WorkspaceScanner::scan_and_diff_native`).
 8. Apply renames, deletions and modifications: the chunks of deleted, renamed and modified files are removed from LanceDB and BM25 before re-indexing.
 9. If nothing changed and the workspace has no web sources, record the ledger and return early as up to date.
-10. For each file to index: check for cooperative cancellation, update progress (stage `files`), chunk it, triage the chunks, build the document envelope, embed and upsert. Files that yield no chunks are still recorded in the stat cache so they are not re-read on every pass.
+10. For each file to index: check for cooperative cancellation, update progress (stage `files`), chunk it with its secret values redacted, triage the chunks, build the document envelope, embed and upsert. Files that yield no chunks are still recorded in the stat cache so they are not re-read on every pass.
 11. Crawl the workspace's web sources (only for full workspace syncs, not folder-scoped ones).
 12. Save the BM25 index, record the sync ledger (`record_sync_ledger`), set the status back to `idle` and record the embedding target. A cancelled pass returns before this step, so it keeps the previous target and an interrupted reindex runs again on the next pass.
 
-`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, `chunks_encrypted_legacy`, `embedding_reindex` (the reindex message, when one ran), errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
+`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, `chunks_encrypted_legacy`, `embedding_reindex` (the reindex message, when one ran), `secrets_redacted` and `secrets_repaired_files`, errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
 
 ### Scanning and change detection
 
@@ -79,6 +79,15 @@ flowchart LR
 - A deleted and a new file of the same non-zero size are treated as a rename when they have the same base name (moved across folders) or the same extension in the same folder (renamed in place).
 - Paths are normalized (Windows `\\?\` prefix removed) before comparison.
 - A folder that does not exist is passed to path healing (`storage::path_healer::try_heal_path`); when it cannot be healed it is reported in `DiffResult::missing_folders` and skipped.
+
+### Secret redaction
+
+Secret values never reach the index ([ADR-0149](../adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md)). `ingestion::secrets::redact_secrets` replaces them with `[SECRET REDACTED]`, keeping key names, quotes and line breaks, so the rest of the file stays searchable and line numbers do not move. There is no setting or allow list.
+
+- **Rules**: private key blocks (public keys and certificates are kept); provider tokens with a fixed prefix (AWS, GitHub, GitLab, Slack, Stripe, Google, Anthropic, OpenAI, Hugging Face, npm, SendGrid, Twilio, JWT); passwords in URLs and connection strings; values of assignments whose key name says secret (`password`, `secret`, `token`, `api_key`, `client_secret`, `private_key`, `credential`, `auth`, `dsn`, …) unless they are references, flags or code; and random-looking values (20+ base64 or hex characters, high Shannon entropy) of any assignment. Entropy is never scored on free text or checksums.
+- **Where**: `IngestionRouter::chunk_file_redacted` (and the text and bytes variants, which the `*_native` methods call) redacts text formats as a whole before chunking and extracted formats (PDF, Office, workbooks, images) chunk by chunk after extraction; web pages go through the same path. The raw file read for the document envelope is redacted too.
+- **Reporting**: `SyncResult::secrets_redacted` counts the values replaced in the pass's files, the CLI prints it after the sync, and verbose syncs name each file, never the value.
+- **Repair**: a workspace without `secret_redaction_version:<workspace> = 1` in `app_settings` is scanned once at the start of a sync (`NativeLanceStore::for_each_row`). Every file with a stored secret loses its rows, removed from the disk (`NativeLanceStore::purge_paths_from_disk`), and its stat cache entry, so the same pass reindexes it redacted; `SyncResult::secrets_repaired_files` counts them and the CLI asks the user to rotate those credentials when a cloud model was used.
 
 ### Chunk triage
 
@@ -92,7 +101,7 @@ Document AI candidates are resolved by `process_document_ai_candidates`, in orde
 
 ### Document envelope
 
-`NativeContextualEnricher::extract_envelope` builds a `SemanticEnvelope` per document: a title (first heading or short leading line), up to three lead sentences (summary capped at 450 characters) and seven keywords. Envelopes are cached in SQLite by content hash. The envelope text is prepended to each chunk for embedding and BM25 (`apply_envelope_to_chunk`), while LanceDB stores the original chunk text with the summary and keywords as separate columns. Retrieval takes the text of every hit from LanceDB; `strip_envelope` removes the envelope when only the BM25 text is available, so its format has one owner here.
+`NativeContextualEnricher::extract_envelope` builds a `SemanticEnvelope` per document from the file's text with its secrets redacted: a title (first heading or short leading line), up to three lead sentences (summary capped at 450 characters) and seven keywords. Envelopes are cached in SQLite by content hash. The envelope text is prepended to each chunk for embedding and BM25 (`apply_envelope_to_chunk`), while LanceDB stores the original chunk text with the summary and keywords as separate columns. Retrieval takes the text of every hit from LanceDB; `strip_envelope` removes the envelope when only the BM25 text is available, so its format has one owner here.
 
 ### Chunk provenance
 
@@ -181,3 +190,4 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0143](../adr/0143-bm25-only-hits-take-their-text-from-lancedb-batch-deduplicat.md): the enveloped text stays in BM25 only; retrieval reads chunk text from LanceDB and `strip_envelope` is the fallback.
 - [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): a failed embedding fails the file (retried on the next sync, kept in BM25), one rate-limit retry, a provider breaker per pass and the failure summary in the sync status.
 - [ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md): mock vectors are never searched; the sync embeds `Global` with the default target.
+- [ADR-0149](../adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md): secret values are redacted before chunking with no exception, and indexes built before are repaired once.

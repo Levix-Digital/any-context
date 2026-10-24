@@ -19,6 +19,7 @@ use crate::ingestion::enricher::NativeContextualEnricher;
 use crate::ingestion::model_router::IngestionModelRouter;
 use crate::ingestion::router::IngestionRouter;
 use crate::ingestion::scanner::WorkspaceScanner;
+use crate::ingestion::secrets::redact_secrets;
 use crate::models::{ChunkPayload, SemanticEnvelope};
 use crate::retrieval::bm25::BM25Index;
 use crate::storage::lancedb::{NativeLanceStore, VectorRecord, DEFAULT_TABLE_NAME, DEFAULT_VECTOR_DIM};
@@ -164,11 +165,19 @@ pub struct SyncResult {
     pub chunks_encrypted_legacy: usize,
     /// Set when the embedding target changed and the whole workspace was reindexed (ADR-0138).
     pub embedding_reindex: Option<String>,
+    /// Secret values replaced by `[SECRET REDACTED]` in the files indexed by this pass (ADR-0149).
+    pub secrets_redacted: usize,
+    /// Files an earlier version indexed with secrets; this pass purged and reindexed them.
+    pub secrets_repaired_files: usize,
     /// Files and pages whose embedding or upsert failed; the next sync retries them (ADR-0146).
     pub embedding_failures: usize,
     /// The provider breaker of this pass opened, so later embedding calls were skipped.
     pub embedding_provider_unavailable: bool,
 }
+
+/// Version of the secret detection rules; a workspace indexed under another version is scanned
+/// once for stored secrets (ADR-0149). Bump it when a rule change must repair existing indexes.
+const SECRET_REDACTION_VERSION: &str = "1";
 
 /// Status summary written to `workspace_sync_status.error` after a pass with embedding
 /// failures. The text before the first `"; "` is the headline (see `sync_error_headline`).
@@ -300,6 +309,15 @@ impl NativeSyncOrchestrator {
                 0
             }
         };
+        // Files indexed with secrets by an earlier version lose their chunks and cache entry,
+        // so the diff below reindexes them redacted in this same pass (ADR-0149).
+        let secrets_repaired_files = match self.repair_indexed_secrets(ws) {
+            Ok(paths) => paths,
+            Err(e) => {
+                legacy_encryption_errors.push(format!("Repairing chunks indexed with secrets failed: {e}"));
+                Vec::new()
+            }
+        };
 
         // 1b. Embedding target: vectors from another target than the current one are purged and
         // the whole workspace is re-embedded, even for a folder-scoped pass (ADR-0138).
@@ -323,6 +341,9 @@ impl NativeSyncOrchestrator {
             }
             if chunks_encrypted_legacy > 0 {
                 println!("🔒 Encrypted {} chunks stored before encryption at rest.", chunks_encrypted_legacy);
+            }
+            for path in &secrets_repaired_files {
+                println!("🔐 Indexed with secrets by an earlier version, reindexed redacted: {path}");
             }
             println!("🦀 [AnyContext Native Rust Ingestion Pipeline]");
             println!("  • Workspace: {}", ws);
@@ -483,6 +504,8 @@ impl NativeSyncOrchestrator {
                 cancelled: false,
                 chunks_encrypted_legacy,
                 embedding_reindex: embedding_reindex.clone(),
+                secrets_redacted: 0,
+                secrets_repaired_files: secrets_repaired_files.len(),
                 embedding_failures: 0,
                 embedding_provider_unavailable: false,
             });
@@ -491,6 +514,7 @@ impl NativeSyncOrchestrator {
         let total_files = files_to_index.len();
         let mut indexed_count = 0;
         let mut total_chunks_created = 0;
+        let mut total_secrets_redacted = 0;
         let mut total_chunks_dropped_quality = 0;
         let mut total_documents_enriched_ai = 0;
         let mut errors = legacy_encryption_errors;
@@ -536,6 +560,8 @@ impl NativeSyncOrchestrator {
                         cancelled: true,
                         chunks_encrypted_legacy,
                         embedding_reindex: embedding_reindex.clone(),
+                        secrets_redacted: total_secrets_redacted,
+                        secrets_repaired_files: secrets_repaired_files.len(),
                         embedding_failures: failures.count,
                         embedding_provider_unavailable: breaker.is_open(),
                     });
@@ -565,9 +591,15 @@ impl NativeSyncOrchestrator {
             // content hash: drop them so a retry never leaves orphans behind.
             bm25.remove_by_exact_file(file_path);
 
-            // Chunk the file using high-speed native Rust router
-            let raw_chunks = match self.router.chunk_file_native(file_path) {
-                Ok(c) => c,
+            // Chunk the file with its secret values redacted (ADR-0149)
+            let raw_chunks = match self.router.chunk_file_redacted(file_path) {
+                Ok(redacted) => {
+                    if redacted.secrets_redacted > 0 && options.verbose {
+                        println!("  🔐 {} secret value(s) redacted in {}", redacted.secrets_redacted, file_name);
+                    }
+                    total_secrets_redacted += redacted.secrets_redacted;
+                    redacted.chunks
+                }
                 Err(e) => {
                     let err_msg = format!("Failed to chunk '{}': {}", file_path, e);
                     errors.push(err_msg);
@@ -600,9 +632,10 @@ impl NativeSyncOrchestrator {
                 continue;
             }
 
-            // Extract contextual envelope
+            // Extract contextual envelope; its summary and keywords are prefixed to every chunk,
+            // so the raw file is redacted too (ADR-0149)
             let doc_sample = if let Ok(full_text) = std::fs::read_to_string(path_obj) {
-                full_text
+                redact_secrets(&full_text).text
             } else {
                 chunks.iter().take(10).map(|c| c.text.as_str()).collect::<Vec<_>>().join("\n")
             };
@@ -710,6 +743,8 @@ impl NativeSyncOrchestrator {
             cancelled: false,
             chunks_encrypted_legacy,
             embedding_reindex,
+            secrets_redacted: total_secrets_redacted,
+            secrets_repaired_files: secrets_repaired_files.len(),
             embedding_failures: failures.count,
             embedding_provider_unavailable: breaker.is_open(),
         })
@@ -967,6 +1002,41 @@ impl NativeSyncOrchestrator {
 
     /// Decides whether the workspace's stored vectors match the current embedding target.
     /// A workspace without a row in SQLite cannot record a target and is left as it is.
+    /// One-time repair of a workspace indexed before secret redaction (ADR-0149): every file
+    /// with a stored chunk, summary, keyword list or section path that holds a secret loses its
+    /// rows (removed from the disk too) and its stat cache entry, so the next diff reindexes it
+    /// redacted. Recorded per workspace with `SECRET_REDACTION_VERSION`, so later passes skip
+    /// the scan and a future rule change can run it again. Returns the purged paths.
+    fn repair_indexed_secrets(&self, workspace: &str) -> Result<Vec<String>, String> {
+        let marker = format!("secret_redaction_version:{workspace}");
+        if self.db.get_setting(&marker).ok().flatten().as_deref() == Some(SECRET_REDACTION_VERSION) {
+            return Ok(Vec::new());
+        }
+        let mut affected = std::collections::BTreeSet::new();
+        let clean_ws = workspace.replace('\'', "''");
+        self.lance_store.for_each_row(&format!("workspace = '{clean_ws}'"), None, |row| {
+            let holds_secret = [
+                Some(row.text.as_str()),
+                row.document_summary.as_deref(),
+                row.keywords.as_deref(),
+                row.header_path.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            .any(|field| redact_secrets(field).secrets_found > 0);
+            if holds_secret {
+                affected.insert(row.file_path.clone());
+            }
+        })?;
+        let paths: Vec<String> = affected.into_iter().collect();
+        self.lance_store.purge_paths_from_disk(workspace, &paths, None)?;
+        for path in &paths {
+            self.db.delete_file_stat_cache(workspace, path).map_err(|e| e.to_string())?;
+        }
+        self.db.set_setting(&marker, SECRET_REDACTION_VERSION).map_err(|e| e.to_string())?;
+        Ok(paths)
+    }
+
     fn decide_embedding_reindex(&self, workspace: &str, current: &EmbeddingTarget) -> ReindexDecision {
         let recorded = match self.db.get_workspace_embedding_target(workspace) {
             Ok(Some(recorded)) => recorded,

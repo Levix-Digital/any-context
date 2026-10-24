@@ -62,6 +62,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     println!("✔ Native background sync finished: {} files indexed, {} chunks created in {}ms.",
                         res.indexed_files, res.chunks_created, res.duration_ms);
                 }
+                print_sync_notices(&res);
                 print_sync_errors(&res);
                 refresh_global_knowledge(&res).await;
             }
@@ -100,6 +101,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     println!("✔ Native sync completed: {} files indexed, {} chunks created in {}ms.",
                         res.indexed_files, res.chunks_created, res.duration_ms);
                 }
+                print_sync_notices(&res);
                 print_sync_errors(&res);
                 refresh_global_knowledge(&res).await;
             }
@@ -171,6 +173,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                             println!("✔ Native sync completed: {} files indexed, {} chunks created in {}ms.",
                                 res.indexed_files, res.chunks_created, res.duration_ms);
                         }
+                        print_sync_notices(&res);
                     }
                     Err(e) => {
                         eprintln!("[!] Native sync failed: {e}");
@@ -652,6 +655,32 @@ fn sync_error_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<Str
     lines
 }
 
+/// Lines printed after every sync: secret values redacted in the indexed files (ADR-0149).
+fn sync_notice_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<String> {
+    let mut lines = Vec::new();
+    if res.secrets_repaired_files > 0 {
+        lines.push(format!(
+            "🔐 {} file(s) indexed with secrets by an earlier version were reindexed with the secrets redacted. \
+             If your embedding or chat model is a cloud service, rotate those credentials.",
+            res.secrets_repaired_files
+        ));
+    }
+    if res.secrets_redacted > 0 {
+        lines.push(format!(
+            "🔐 {} secret value(s) redacted: they are indexed as {}.",
+            res.secrets_redacted,
+            any_context_core_rs::ingestion::SECRET_PLACEHOLDER
+        ));
+    }
+    lines
+}
+
+fn print_sync_notices(res: &any_context_core_rs::ingestion::SyncResult) {
+    for line in sync_notice_lines(res) {
+        println!("{line}");
+    }
+}
+
 /// Embeds AnyContext's own documentation (`Global`) with the default embedding target after a
 /// sync pass, so it is matched by meaning (BUG-019). Skipped when the pass was cancelled or its
 /// provider failed; a failure leaves it keyword-only until the next sync.
@@ -694,5 +723,18 @@ mod tests {
         assert_eq!(lines.iter().filter(|l| l.starts_with("  • ")).count(), MAX_SYNC_ERRORS_SHOWN);
         assert!(lines.contains(&"  … and 2 more".to_string()), "{lines:?}");
         assert!(lines.last().unwrap().contains("12 file(s) not embedded are retried on the next sync"), "{lines:?}");
+    }
+
+    #[test]
+    fn sync_notice_lines_report_redacted_secrets() {
+        let mut res = any_context_core_rs::ingestion::SyncResult::default();
+        assert!(sync_notice_lines(&res).is_empty());
+        res.secrets_redacted = 3;
+        assert_eq!(sync_notice_lines(&res), vec!["🔐 3 secret value(s) redacted: they are indexed as [SECRET REDACTED].".to_string()]);
+        res.secrets_repaired_files = 2;
+        let lines = sync_notice_lines(&res);
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with("🔐 2 file(s) indexed with secrets by an earlier version"), "{lines:?}");
+        assert!(lines[0].contains("rotate those credentials"), "{lines:?}");
     }
 }

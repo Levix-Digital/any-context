@@ -274,6 +274,23 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-SYNC-009: Secrets are redacted and the rest of the file stays searchable
+
+- **Covers**: secret redaction at ingestion (`.env`, PEM private keys, configuration files), the redaction count after a sync, the one-time repair of an index built by an older version
+- **Prerequisites**: a new workspace with a folder holding a `.env` file with `APP_NAME=billing`, `DB_PASSWORD=<any value>` and `OPENAI_API_KEY=` followed by a made-up key in the `sk-proj-` format, and a `server.key` file with a private key block (`openssl genpkey -algorithm RSA -out server.key`); for the repair step, a workspace indexed by v0.45.x that contains a `.env` file with a secret
+- **Steps**:
+  1. Run `actx --sync -w <workspace>` (or `/sync --incremental` and open `sync_<workspace>.log` in the logs folder).
+  2. Ask "Which variables does the .env file define?", then "What is the value of DB_PASSWORD?", then "What does server.key contain?".
+  3. Ask "What is the application name in the .env file?".
+  4. Upgrade the v0.45.x workspace to this version and run `actx --sync -w <that workspace>`.
+- **Expected**:
+  - Step 1 prints `🔐 3 secret value(s) redacted: they are indexed as [SECRET REDACTED].` (the password, the key and the private key block).
+  - Step 2: the first answer lists `APP_NAME`, `DB_PASSWORD` and `OPENAI_API_KEY` from `.env`; the second says the value is redacted (`[SECRET REDACTED]`) and shows no value; the third says the key is redacted and shows no key material. No answer or cited excerpt contains a secret value.
+  - Step 3 answers `billing`, and the answer contains no secret value.
+  - Step 4 prints `🔐 N file(s) indexed with secrets by an earlier version were reindexed with the secrets redacted.` with the advice to rotate the credentials; a second sync does not print it again, and asking for the old secret values returns no value.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ## Document Formats
 
 ### MT-DOC-001: PDFs with tables and forms are answered exactly
