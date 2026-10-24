@@ -8,9 +8,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### BUG-024: [ingestion] Secret files (.env, .tfvars, .key) are indexed in clear
 - **Severity**: critical
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: any_context_ingestion_secret_files_env_tfvars_key_are_indexed_in_clear
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7 "Personal data, sensitive data and secrets (audit P13)". The scanner accepts `.env` and `.env.*` (ingestion/scanner.rs:102-106) and the `env` and `tfvars` extensions (scanner.rs:186, 192); `key` is accepted as Keynote (scanner.rs:146), but a PEM `server.key` falls to the plain-text chunker (ingestion/router.rs:157-160). Their secrets are indexed in clear and can reach a cloud embedding model or LLM. Expected: secret values are detected and never indexed (`[SECRET REDACTED]`), with no configurable exception, while the rest of the file stays searchable.
 
 ### BUG-022: [ingestion] Folder-scoped sync purges the other folders' index
