@@ -1937,10 +1937,10 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### ADJ-001: Update the outdated .clinerules
 - **Priority**: low
-- **Status**: dropped
+- **Status**: done
 - **Found**: 2026-10-16, v0.45.0, PR #333
 - **Plan**: -
-- **Closed**: 2026-10-23, Obsolete: .clinerules described the Python-era project and was removed (decided 2026-10-23)
+- **Closed**: 2026-10-24, PR #374: .clinerules described the Python-era project and was removed (decided 2026-10-23)
 - **Description**: .clinerules no longer matches the current project (Rust workspace, architecture-docs layout, role-based development cycle) and can mislead agents that read it.
 
 ### ADJ-004: Close out stale planning documents
