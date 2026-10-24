@@ -7,7 +7,7 @@ version: v1.0.0
 status: in_progress
 author: Levi Silveira
 created_at: '2026-10-24T14:19:38'
-updated_at: '2026-10-24T14:52:47'
+updated_at: '2026-10-24T17:26:24'
 session_id: null
 tags:
 - ingestion
@@ -23,13 +23,19 @@ milestones:
 - name: M1 Secret detector
   done: true
   done_at: '2026-10-24'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Redaction in the pipeline
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Levi Silveira
 - name: M3 Repair of existing indexes
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Levi Silveira
 - name: M4 Documentation and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Levi Silveira
 - name: M5 Review and PR
   done: false
 status_log:
@@ -42,8 +48,17 @@ status_log:
   status: active
   note: Plan updated
 - at: '2026-10-24T14:52:47'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M1 Secret detector'' completed: 16 unit tests'
+- at: '2026-10-24T17:25:53'
+  by: Levi Silveira
+  note: 'Milestone ''M2 Redaction in the pipeline'' completed: cargo test --workspace green'
+- at: '2026-10-24T17:26:23'
+  by: Levi Silveira
+  note: 'Milestone ''M3 Repair of existing indexes'' completed: cargo test --workspace green'
+- at: '2026-10-24T17:26:24'
+  by: Levi Silveira
+  note: 'Milestone ''M4 Documentation and manual tests'' completed: cargo test --workspace green'
 ---
 
 # [ingestion] Secret files (.env, .tfvars, .key) are indexed in clear
