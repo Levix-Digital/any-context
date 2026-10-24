@@ -14,6 +14,7 @@ Full review of AnyContext (October 2026): code, documentation and backlog.
 | `connectors-v2.md` | connectors: acquisition contract, authentication, sync, per-connector metadata, plans and licensing, policy |
 | `platform-shared-components.md` | components shared across Levix products (Admin Hub, identity, licensing, LSIE) |
 | `desktop-ui-v2.md` | desktop UI layout reference (Tauri 2) |
+| `cli-and-release-v2.md` | command line, build profile, installers, updates, diagnostics and feedback |
 
 ## Language
 

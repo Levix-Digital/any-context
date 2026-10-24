@@ -4,10 +4,10 @@ project: any-context
 title: One application-wide embedding model, per-chunk model metadata and per-dimension tables
 kind: feature
 version: v0.46.0
-status: draft
+status: superseded
 author: Claude
 created_at: '2026-10-19T15:43:49'
-updated_at: '2026-10-19T16:58:44'
+updated_at: '2026-10-23T14:16:42'
 session_id: null
 tags: []
 supersedes: null
@@ -45,6 +45,10 @@ status_log:
   by: Claude
   status: draft
   note: Plan updated
+- at: '2026-10-23T14:16:42'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by IMP-033 and IMP-027 in the v2 backlog (2026-10-23); the M1 code stays on branch feat/imp-004-embedding-model.
 ---
 
 # One application-wide embedding model, per-chunk model metadata and per-dimension tables

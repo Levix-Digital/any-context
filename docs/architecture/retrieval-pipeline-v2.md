@@ -119,6 +119,10 @@ search; status questions are detected by fixed PT/EN keywords ("what is the stat
 - **Help and status are tools, not keyword routes:** `anycontext_help` (AnyContext
   documentation) and `workspace_status` (state of sync and sources), called by the LLM in
   any language; the UI also offers a help panel and source status in the tree.
+- **Source tools** (decided 2026-10-23): the LLM can list the workspace's sources, browse
+  their folders and files, and read a file or a range of it, in both modes. Read-only and
+  limited to the registered sources of the workspace; no general file system or web
+  browsing.
 - **No temporary chat attachment.** The context is what is in the workspace — a single
   concept. **Dragging a file into the chat is a shortcut to add it to the workspace as a
   single file**, with a short confirmation (explicit action), visible indexing progress
@@ -195,7 +199,16 @@ returns a structured search:
      structure, a sweep in Deep, verifying document by document in batches over a broad set
      of candidate documents. **The answer says how many documents were checked** ("I checked
      212 contracts; 14 match"). Large sweeps use the estimate and confirmation of long jobs;
-   - help or status → step 1 tools.
+   - help or status → step 1 tools;
+   - **whole document** (decided 2026-10-23): an overview or analysis question with
+     `@file` ("summarize this contract") reads the whole document — its parent sections
+     in document order — instead of top-k chunks; a document larger than the token budget
+     is summarized in parts and the parts are combined. Top-k cannot cover a whole
+     document.
+4. **Exact text** (decided 2026-10-23): a passage in quotes in the question is searched as
+   an exact phrase or identifier in the lexical index (Tantivy phrase query), as a
+   restricting filter; it complements semantic search for identifiers, codes and literal
+   strings.
 
 **Filter rules:**
 
@@ -359,9 +372,12 @@ selected chunks may come from different source files of the workspace.
       not enough; cite by the ids; answer in the user's language; safety; tool use;
    2. **domain pack guidelines**;
    3. **workspace system prompt** (FEAT-009): persona, tone, format, focus;
-   4. **mode complement** (answer in Fast, synthesize in Deep).
+   4. **user layer** (decided 2026-10-23): the user's role and answer style and their
+      explicit memories (`identity-and-governance-v2.md`, topic 7), below the workspace
+      prompt and within the token budget;
+   5. **mode complement** (answer in Fast, synthesize in Deep).
 
-   The workspace prompt enters **only in the calls that produce the user's answer** (Fast
+   The workspace prompt and the user layer enter **only in the calls that produce the user's answer** (Fast
    answer, Deep synthesis), never in internal tasks (planner, evaluation, summaries, chunk
    context, synthetic questions). **Base rules take precedence**: the workspace prompt
    shapes tone, format and focus, but does not turn off "only from the context" or "cite

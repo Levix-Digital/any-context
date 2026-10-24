@@ -1,6 +1,6 @@
 # Connectors — target design (v2)
 
-Review of the connectors. All decisions are made; what is commercial or about delivery
+Review of the connectors (33 decisions). All decisions are made; what is commercial or about delivery
 order is left to the roadmap.
 
 ## Current state
@@ -143,7 +143,9 @@ order is left to the roadmap.
     folder and the base indexes its text; an Obsidian connector would add the wikilinks in
     the graph, frontmatter as metadata, embedded notes, aliases and canvas (decision 17).
 24. **Web search at question time is also a connector**, being the main data exit to the
-    outside.
+    outside. Like every connector, it uses only official APIs (decision 32): no scraping of
+    search result pages. Today, without a key, it scrapes DuckDuckGo's HTML results:
+    **current bug**.
 25. **Connectors are not sold one by one; the plan decides what is on.** Revised on
     2026-10-22: the license is per plan, signed and verified offline (`levix-platform`).
     License ≠ policy: the license says what the plan includes, the policy says what the
@@ -181,6 +183,22 @@ order is left to the roadmap.
     never reaches and that only stops abuse. Reaching it pauses web search until the next
     day, with a clear message; local search keeps working. The exact value is set from
     real usage data. Decided 2026-10-22.
+32. **Official APIs only, always.** Every connector and every external service reaches the
+    origin through its official API, within its terms of use; never by scraping pages or
+    through unofficial libraries. A third-party API (e.g. a search or transcription
+    provider) is used only when the origin's terms allow it and its cost-benefit pays off.
+    This generalizes decisions 16, 20 and 24. Decided 2026-10-23.
+33. **E-mail through a generic IMAP connector.** One connector for any provider (Gmail
+    included) over IMAP, read-only, with change detection through `CONDSTORE`; folders and
+    labels are its targets; attachments go back into the pipeline as files. Sign-in prefers
+    the provider's OAuth (XOAUTH2); otherwise an app password kept in the personal vault.
+    Like the other source connectors it is an Enterprise feature (decision 28). Gmail over
+    OAuth uses Google's restricted full-mail scope, which needs the security assessment for
+    a public app (as in decision 20); in the corporate environment the company's own app
+    covers it. App passwords exist only where the provider allows them (Google: with 2-Step
+    Verification). Decided 2026-10-23; the Google scope and app-password rules were checked
+    only against secondary sources and must be confirmed in Google's documentation when the
+    item is planned.
 
 ## For the roadmap
 

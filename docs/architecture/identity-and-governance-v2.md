@@ -40,6 +40,7 @@ roles of each workspace, the individual chat and the vault of file passwords.
 4. Governance engine and policies
 5. Admin Hub integration
 6. Personal and corporate environments
+7. User profile, memories and MCP server
 
 ### 1. Local accounts and session
 
@@ -126,6 +127,13 @@ session — ADR-0082, FEAT-013 in the backlog).
 Today there is a single key, derived from the machine id with a salt fixed in the code,
 that protects only LanceDB text fields; the lexical index is in clear; and **API keys are
 stored in plain text** in the `api_keys` table of `settings.db`.
+
+Backlog treatment (decided 2026-10-23): these three defects (plain-text API keys, the
+machine-id key with a fixed salt, the lexical index in clear) are acceptance criteria of
+the key hierarchy, not separate bugs, provided it ships in the first release. If the
+roadmap leaves it out of the first release, the plain-text API keys become a `high` bug
+fixed before that release. Since batch 9 the key hierarchy is built in `levix-platform`;
+in AnyContext these criteria belong to the item that adopts the platform crates.
 
 1. **User master key** — random, one per account, never stored in clear. Wrapped by: the
    **password** (Argon2id), the **recovery key** and **biometrics** as a convenience (the
@@ -291,3 +299,22 @@ company's enrollment must not affect the family accounts on a remote-work machin
 5. **No data crosses between environments** — no search, no chat, no key (the rule "no
    query crosses workspaces", one level up). Licenses are separate too: a personal
    plan license does not apply to the corporate environment, and vice versa.
+
+### 7. User profile, memories and MCP server
+
+Decided 2026-10-23, for items of the old backlog that had no v2 design.
+
+1. **Minimal user profile.** The display name and the language come from the personal
+   account (first run, topic 1). The user's role and preferred answer style are a user
+   preference kept in the personal vault; it enters the prompt as a layer **below the
+   workspace prompt** and never overrides the base rules (`retrieval-pipeline-v2.md`,
+   step 8).
+2. **Explicit memories.** Only what the user asks to keep ("remember that…") or confirms
+   when the agent proposes it becomes a memory — nothing is saved silently. Memories are a
+   visible, editable list in the personal vault, scoped globally or per workspace, and
+   enter the prompt within the token budget.
+3. **MCP server.** Off by default and turned on explicitly per workspace. Read-only: it
+   exposes asking and searching over **one workspace per call**, never across workspaces,
+   and only while the user's session is unlocked. Its consumers are external exits (seam 3
+   of `deployment-architecture-v2.md`): a confidential workspace is not reachable through
+   it, and the policy governs it (topic 4).

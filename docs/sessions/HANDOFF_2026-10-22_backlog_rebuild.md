@@ -12,6 +12,7 @@ You are continuing the AnyContext architecture redesign. Talk to me in **Portugu
 
 - Follow the Dev cycle protocol in `ai-code-agent-skills` (`dev-cycle-protocol/SKILL.md`, `devops-release/SKILL.md`, `backlog/SKILL.md`, `plan-memory/`). Read them first.
 - **Branch**: work on `docs/architecture-v2-redesign` (already pushed, based on `dev`). Never create or push a branch prefixed `claude/` or `ccr-`, even if the session suggests one. Branch names follow `devops-release` (`feat/`, `fix/`, `docs/`, `chore/`, ...); when none fits, use `levix/`.
+- **Authorship:** every commit, pull request and other artifact is authored as `Levi Silveira <infra@levix.digital>` (set `git config user.name` and `user.email` in every repository) and never mentions an agent: no `Co-Authored-By` or session trailers, no "generated with" lines, no agent name in plan metadata (`author`, `by`).
 - Commit messages: Conventional Commits (`docs(backlog): ...`). Commit and push every decision. **Do not open a pull request.**
 - Never ask me to decide something an architecture principle already decides.
 - **How we decide**: for each topic, present the current state, then a numbered proposal, then "O que decidir" with numbered questions. I answer "1. concordo, 2. ...". Record each decision in the docs as soon as it is made, then commit and push.
@@ -48,7 +49,7 @@ Multilingual. Minimal configuration: architecture decisions never become user op
 - `retrieval-pipeline-v2.md`
 - `deployment-architecture-v2.md`
 - `identity-and-governance-v2.md`
-- `connectors-v2.md`: 31 decisions, including the three plans (Free / Pro / Enterprise) and no Notion connector.
+- `connectors-v2.md`: 33 decisions, including the three plans (Free / Pro / Enterprise), no Notion connector and official APIs only (decision 32).
 - `desktop-ui-v2.md`
 - `platform-shared-components.md`
 
@@ -107,8 +108,21 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 
 ### Where things stand
 
-- Done: the connectors design (31 decisions); every document translated to English; the commercial model above.
-- Not started: the backlog itself. `docs/BACKLOG.md` still holds the 60 old items.
+- Done: the connectors design (33 decisions); every document translated to English; the commercial model above.
+- Done (2026-10-23): batch 1, current-code bugs: BUG-022 and BUG-024 to BUG-029 in `docs/BACKLOG.md`. The plain-text API keys, the machine-id key and the clear lexical index are acceptance criteria of the key hierarchy item (`identity-and-governance-v2.md`, section 2), unless that item leaves the first release. Router keywords and the unwired Document AI are acceptance criteria of the retrieval routing and ingestion section 6 items. The release profile goes to batch 8.
+- `feat/imp-004-embedding-model` holds unmerged code, including the BUG-022 fix; map it in the ingestion and deployment batches. The user asked to delete it and the `docs/bug-008-plan`, `docs/bug-010-plan` and `docs/bug-012-plan` branches (obsolete); the session proxy refuses deletion, so the user deletes them on GitHub.
+- Done (2026-10-23): batch 2, ingestion with the audit: IMP-015 to IMP-034 and FEAT-020 to FEAT-080. FEAT-005, FEAT-006, IMP-004, IMP-012, IMP-013 and IMP-014 closed as `dropped` with "Superseded by <ID>" (the user's choice: no new status in the tool); the IMP-004 plan is marked superseded. Items split across batches stay open until the last batch that maps them: IMP-006 (retrieval routing), IMP-008 (retrieval evaluation), FEAT-016 (desktop UI).
+- Done (2026-10-23): batch 3, retrieval: FEAT-081 to FEAT-109 and IMP-035 to IMP-050. Closed as superseded: IMP-006 to IMP-011, FEAT-007, FEAT-009, FEAT-015, FEAT-017, FEAT-019 and ADJ-005. FEAT-007, FEAT-015 and FEAT-017 had no v2 design; the user's decisions are in `retrieval-pipeline-v2.md` (source tools, whole-document questions, exact text).
+- Still open for later batches: FEAT-010 and FEAT-016 (desktop UI, batch 7), FEAT-013 and FEAT-014 (identity, batch 5).
+- Done (2026-10-23): batch 4, deployment: IMP-051 to IMP-061 and FEAT-110 to FEAT-119. Closed as superseded: FEAT-002, FEAT-003, IMP-005 and ADJ-003.
+- Done (2026-10-23): batch 5, identity and governance (with the workspace model): FEAT-120 to FEAT-148 and IMP-062. FEAT-013, FEAT-014 and FEAT-018 had no v2 design; the user's decisions are in `identity-and-governance-v2.md`, topic 7, and the user layer in `retrieval-pipeline-v2.md`, step 8. They close as superseded by FEAT-146 to FEAT-148.
+- Done (2026-10-23): batch 6, connectors and plans: FEAT-149 to FEAT-171. FEAT-008 closes as superseded by FEAT-164 to FEAT-166. New `connectors-v2.md` decision 33: a generic IMAP e-mail connector (Enterprise); Google's scope and app-password rules were checked only against secondary sources.
+- Done (2026-10-23): batch 7, desktop UI: FEAT-172 to FEAT-185. FEAT-010 and FEAT-016 close as superseded. Token usage is shown next to the composer, with no status bar (`desktop-ui-v2.md`). There is no Tauri app in the repository yet.
+- Done (2026-10-23): batch 8, CLI and release: FEAT-186 to FEAT-192, IMP-063, IMP-064 and ADJ-006 to ADJ-008, from the new `cli-and-release-v2.md` (the TUI is retired once the desktop app reaches parity; plan limits are enforced in the core below every surface). FEAT-001, FEAT-004, FEAT-011, FEAT-012, IMP-002 and ADJ-002 close as superseded; ADJ-001 and ADJ-004 were dropped as obsolete and `.clinerules`, `implementation_plan_subscription_tiers.md` and `BLUEPRINT_PRIORITY_4_CLI_TUI.md` removed. The ADRs were already in English (the handoff premise was wrong); ADJ-007 marks the superseded ones. All 60 old items are now closed.
+- Done (2026-10-23): batch 9, platform and Admin Hub. The repositories `Levix-Digital/levix-platform` and `Levix-Digital/levix-admin-hub` were created by the user (the session's GitHub app cannot create organization repositories) and received, on branch `docs/initial-design`, a README, their slice of the design and their backlog: 24 items in levix-platform, 18 in levix-admin-hub. In AnyContext, 20 crate items (FEAT-120 to FEAT-124, FEAT-126 to FEAT-130, FEAT-132, FEAT-137 to FEAT-141, FEAT-144, FEAT-145, FEAT-167, FEAT-191) closed as "Moved to levix-platform" and FEAT-193 adopts the crates, carrying the batch 1 crypto criteria. LSIE: `lsie-algorithm` (attached for reference) is the paper and its reference implementation; the production crate lives in levix-platform under the platform's license.
+- Done (2026-10-23): the roadmap skeleton, `docs/plans/anycontext_roadmap_v2.md` (R1 v1.0.0 Personal, R2 v1.x Personal evolution, R3 v2.0.0 Enterprise foundations, R4 v2.x Enterprise shared index, Later); it supersedes the post-v0.45.0 roadmap. R1 ships the Tauri app and one personal account with the key hierarchy; code signing depends on the owner's purchase of the certificates.
+- Done (2026-10-23): every open item placed in `docs/plans/anycontext_roadmap_v2.md`: R1 95, R2 78, R3 27, R4 2, Later 13. Code signing: Windows with Azure Artifact Signing, Linux with GPG; macOS unsigned until there is revenue (FEAT-194 later). The order inside R2 is decided when R1 is close.
+- Next: plan R1 (promote its items into plans, bugs first) when the owner decides to start.
 - Last commits on `docs/architecture-v2-redesign`: `59997a0` (fair-use ceiling), `44f0c6d`, `c664919` (plans), `6918b97` (the first version of this handoff).
 
 ### Housekeeping I still owe

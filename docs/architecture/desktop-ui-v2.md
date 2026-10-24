@@ -22,7 +22,9 @@ Fixed top bar (38 px) with the app name, quick search (`Cmd/Ctrl + K`) and the g
   into focus.
 - **Chat tab:** streaming history with clickable citations (they open the source at the
   cited point); multiline composer with a fixed bar of quick options (model, retrieval
-  mode, web search, sync, send), saved per workspace.
+  mode, web search, sync, send), saved per workspace. Token usage and how full the chat
+  model's context window is are shown discreetly next to the composer, with no separate
+  status bar (decided 2026-10-23).
 - **Reader tab:** read-only document (syntax highlighting, line numbers, indexing metadata,
   reprocess the document). Opening files, browsing folders and viewing sites without
   leaving AnyContext is in scope for this UI.
