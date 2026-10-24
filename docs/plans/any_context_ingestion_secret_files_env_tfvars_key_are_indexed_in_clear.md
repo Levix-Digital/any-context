@@ -4,10 +4,10 @@ project: any-context
 title: '[ingestion] Secret files (.env, .tfvars, .key) are indexed in clear'
 kind: bug
 version: v1.0.0
-status: in_progress
+status: completed
 author: Levi Silveira
 created_at: '2026-10-24T14:19:38'
-updated_at: '2026-10-24T17:26:24'
+updated_at: '2026-10-24T20:06:51'
 session_id: null
 tags:
 - ingestion
@@ -37,7 +37,9 @@ milestones:
   done_at: '2026-10-24'
   by: Levi Silveira
 - name: M5 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Levi Silveira
 status_log:
 - at: '2026-10-24T14:19:38'
   by: Levi Silveira
@@ -59,6 +61,13 @@ status_log:
 - at: '2026-10-24T17:26:24'
   by: Levi Silveira
   note: 'Milestone ''M4 Documentation and manual tests'' completed: cargo test --workspace green'
+- at: '2026-10-24T20:06:51'
+  by: Levi Silveira
+  note: 'Milestone ''M5 Review and PR'' completed: PR #377 merged into dev'
+- at: '2026-10-24T20:06:51'
+  by: Levi Silveira
+  status: completed
+  note: All milestones completed
 ---
 
 # [ingestion] Secret files (.env, .tfvars, .key) are indexed in clear
