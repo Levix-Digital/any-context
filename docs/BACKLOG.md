@@ -229,13 +229,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Adjustments
 
-### ADJ-001: Update the outdated .clinerules
-- **Priority**: low
-- **Status**: open
-- **Found**: 2026-10-16, v0.45.0, PR #333
-- **Plan**: -
-- **Description**: .clinerules no longer matches the current project (Rust workspace, architecture-docs layout, role-based development cycle) and can mislead agents that read it.
-
 ### ADJ-002: Add a license file
 - **Priority**: medium
 - **Status**: open
@@ -457,3 +450,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-10-19, PR #372
 - **Description**: Retrieval treats the Default workspace as no workspace filter: dense search (retrieval/pipeline.rs:617, 660, 715), metadata search (pipeline.rs:770, 946) and BM25 (retrieval/bm25.rs:213) return chunks of all workspaces for a query in Default, and a request without a workspace falls back to Default (pipeline.rs:592). Expected: Default sees only its own files, plus the Global AnyContext documentation, like every other workspace. Decided by the user on 2026-10-19.
+
+### ADJ-001: Update the outdated .clinerules
+- **Priority**: low
+- **Status**: done
+- **Found**: 2026-10-16, v0.45.0, PR #333
+- **Plan**: -
+- **Closed**: 2026-10-24, PR #374
+- **Description**: .clinerules no longer matches the current project (Rust workspace, architecture-docs layout, role-based development cycle) and can mislead agents that read it.
