@@ -582,29 +582,95 @@ impl NativeLanceStore {
             }
 
             // Updated rows only get deletion markers in their old fragments, and older versions
-            // keep referencing those files: compact every fragment with deletions, then drop
-            // every version but the current one so the plaintext leaves the disk.
-            table
-                .optimize(OptimizeAction::Compact {
-                    options: CompactionOptions {
-                        materialize_deletions_threshold: 0.0,
-                        ..CompactionOptions::default()
-                    },
-                    remap_options: None,
-                })
-                .await
-                .map_err(|e| format!("Compacting the encrypted table failed: {e}"))?;
-            table
-                .optimize(OptimizeAction::Prune {
-                    older_than: Some(Duration::zero()),
-                    delete_unverified: Some(false),
-                    error_if_tagged_old_versions: Some(false),
-                })
-                .await
-                .map_err(|e| format!("Pruning plaintext table versions failed: {e}"))?;
+            // keep referencing those files, so the plaintext leaves the disk only after this.
+            Self::compact_and_prune(&table).await?;
             report.versions_pruned = true;
 
             Ok(report)
+        })
+    }
+
+    /// Compacts every fragment with deletions, then drops every version but the current one,
+    /// so deleted or rewritten rows leave the disk.
+    async fn compact_and_prune(table: &Table) -> Result<(), String> {
+        table
+            .optimize(OptimizeAction::Compact {
+                options: CompactionOptions {
+                    materialize_deletions_threshold: 0.0,
+                    ..CompactionOptions::default()
+                },
+                remap_options: None,
+            })
+            .await
+            .map_err(|e| format!("Compacting the table failed: {e}"))?;
+        table
+            .optimize(OptimizeAction::Prune {
+                older_than: Some(Duration::zero()),
+                delete_unverified: Some(false),
+                error_if_tagged_old_versions: Some(false),
+            })
+            .await
+            .map_err(|e| format!("Pruning old table versions failed: {e}"))?;
+        Ok(())
+    }
+
+    /// Calls `visit` with every row matching `where_clause`, decrypted, one Arrow batch at a
+    /// time, so a large workspace is never held in memory at once.
+    pub fn for_each_row(
+        &self,
+        where_clause: &str,
+        table_name: Option<&str>,
+        mut visit: impl FnMut(&ScoredVectorResult) + Send,
+    ) -> Result<(), String> {
+        let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
+        if !self.table_exists(tname)? {
+            return Ok(());
+        }
+        self.safe_block_on(async {
+            let table = self
+                .conn
+                .open_table(tname)
+                .execute()
+                .await
+                .map_err(|e| e.to_string())?;
+            let mut stream = table
+                .query()
+                .only_if(where_clause.to_string())
+                .execute()
+                .await
+                .map_err(|e| format!("Reading rows failed: {e}"))?;
+            while let Some(batch) = stream.try_next().await.map_err(|e| e.to_string())? {
+                for row in Self::extract_scored_results(&batch)? {
+                    visit(&row);
+                }
+            }
+            Ok(())
+        })
+    }
+
+    /// Deletes every row of `file_paths` in `workspace` and removes the deleted rows from the
+    /// disk (compaction and pruning), as the secret repair needs (ADR-0149).
+    pub fn purge_paths_from_disk(
+        &self,
+        workspace: &str,
+        file_paths: &[String],
+        table_name: Option<&str>,
+    ) -> Result<(), String> {
+        let tname = table_name.unwrap_or(DEFAULT_TABLE_NAME);
+        if file_paths.is_empty() || !self.table_exists(tname)? {
+            return Ok(());
+        }
+        for path in file_paths {
+            self.delete_by_exact_path(path, Some(workspace), Some(tname))?;
+        }
+        self.safe_block_on(async {
+            let table = self
+                .conn
+                .open_table(tname)
+                .execute()
+                .await
+                .map_err(|e| e.to_string())?;
+            Self::compact_and_prune(&table).await
         })
     }
 

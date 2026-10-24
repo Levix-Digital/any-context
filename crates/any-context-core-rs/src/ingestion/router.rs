@@ -8,8 +8,17 @@ use crate::ingestion::chunkers::image::ImageChunker;
 use crate::ingestion::chunkers::text::TextChunker;
 use crate::ingestion::chunkers::office::OfficeChunker;
 use crate::ingestion::chunkers::spatial_form::SpatialFormChunker;
+use crate::ingestion::secrets::redact_secrets;
 use crate::ingestion::traits::Chunker;
 use crate::models::ChunkPayload;
+
+/// Chunks of one document with its secret values already redacted (BUG-024, ADR-0149).
+#[derive(Debug, Clone, Default)]
+pub struct RedactedChunks {
+    pub chunks: Vec<ChunkPayload>,
+    /// Secret values replaced by `[SECRET REDACTED]` in this document.
+    pub secrets_redacted: usize,
+}
 
 #[derive(Debug, Clone)]
 pub struct IngestionRouter {
@@ -110,8 +119,59 @@ impl IngestionRouter {
             || self.image_chunker.supports_extension(&ext))
     }
 
-    /// Pure Rust native implementation for document chunking.
+    /// Pure Rust native implementation for document chunking. Secret values are redacted.
     pub fn chunk_text_native(&self, file_path: &str, content: &str) -> Result<Vec<ChunkPayload>, String> {
+        self.chunk_text_redacted(file_path, content).map(|r| r.chunks)
+    }
+
+    /// Pure Rust native implementation for direct filesystem file chunking. Secret values are redacted.
+    pub fn chunk_file_native(&self, file_path: &str) -> Result<Vec<ChunkPayload>, String> {
+        self.chunk_file_redacted(file_path).map(|r| r.chunks)
+    }
+
+    /// Pure Rust native implementation for raw byte chunking. Secret values are redacted.
+    pub fn chunk_bytes_native(&self, file_path: &str, bytes: &[u8]) -> Result<Vec<ChunkPayload>, String> {
+        self.chunk_bytes_redacted(file_path, bytes).map(|r| r.chunks)
+    }
+
+    /// Chunks text content after redacting its secrets. The whole text is redacted before
+    /// chunking, so a private key block is never split across chunks and line numbers stay.
+    pub fn chunk_text_redacted(&self, file_path: &str, content: &str) -> Result<RedactedChunks, String> {
+        let redaction = redact_secrets(content);
+        let chunks = self.dispatch_text(file_path, &redaction.text)?;
+        Ok(RedactedChunks { chunks, secrets_redacted: redaction.secrets_found })
+    }
+
+    /// Reads and chunks a file with its secrets redacted: text formats before chunking,
+    /// extracted formats (PDF, Office, workbooks, images) on each chunk after extraction.
+    pub fn chunk_file_redacted(&self, file_path: &str) -> Result<RedactedChunks, String> {
+        if self.is_extracted_format(file_path) {
+            return self.dispatch_extracted_file(file_path).map(redact_chunks);
+        }
+        let content = std::fs::read_to_string(file_path)
+            .map_err(|e| format!("Failed to read file '{}': {}", file_path, e))?;
+        self.chunk_text_redacted(file_path, &content)
+    }
+
+    /// Chunks raw bytes with their secrets redacted (see `chunk_file_redacted`).
+    pub fn chunk_bytes_redacted(&self, file_path: &str, bytes: &[u8]) -> Result<RedactedChunks, String> {
+        if self.is_extracted_format(file_path) {
+            return self.dispatch_extracted_bytes(file_path, bytes).map(redact_chunks);
+        }
+        let content = String::from_utf8_lossy(bytes);
+        self.chunk_text_redacted(file_path, &content)
+    }
+
+    /// Formats whose text only exists after extraction inside their chunker.
+    fn is_extracted_format(&self, file_path: &str) -> bool {
+        let ext = Path::new(file_path).extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        matches!(ext.as_str(), "xlsx" | "xls" | "ods")
+            || self.pdf_chunker.supports_extension(&ext)
+            || self.office_chunker.supports_extension(&ext)
+            || self.image_chunker.supports_extension(&ext)
+    }
+
+    fn dispatch_text(&self, file_path: &str, content: &str) -> Result<Vec<ChunkPayload>, String> {
         if self.text_chunker.is_web_url(file_path) {
             if content.lines().any(|l| l.trim_start().starts_with('#')) {
                 return self.markdown_chunker.chunk(file_path, content);
@@ -141,49 +201,136 @@ impl IngestionRouter {
         }
     }
 
-    /// Pure Rust native implementation for direct filesystem file chunking.
-    pub fn chunk_file_native(&self, file_path: &str) -> Result<Vec<ChunkPayload>, String> {
-        let p = Path::new(file_path);
-        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-
-        if self.tabular_chunker.supports_extension(&ext) && matches!(ext.as_str(), "xlsx" | "xls" | "ods") {
+    fn dispatch_extracted_file(&self, file_path: &str) -> Result<Vec<ChunkPayload>, String> {
+        let ext = Path::new(file_path).extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        if matches!(ext.as_str(), "xlsx" | "xls" | "ods") {
             self.tabular_chunker.chunk_file(file_path)
         } else if self.pdf_chunker.supports_extension(&ext) {
             self.pdf_chunker.chunk_file(file_path)
         } else if self.office_chunker.supports_extension(&ext) {
             self.office_chunker.chunk_file(file_path)
-        } else if self.image_chunker.supports_extension(&ext) {
-            self.image_chunker.chunk_file(file_path)
         } else {
-            let content = std::fs::read_to_string(file_path)
-                .map_err(|e| format!("Failed to read file '{}': {}", file_path, e))?;
-            self.chunk_text_native(file_path, &content)
+            self.image_chunker.chunk_file(file_path)
         }
     }
 
-    /// Pure Rust native implementation for raw byte chunking.
-    pub fn chunk_bytes_native(&self, file_path: &str, bytes: &[u8]) -> Result<Vec<ChunkPayload>, String> {
-        let p = Path::new(file_path);
-        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-
+    fn dispatch_extracted_bytes(&self, file_path: &str, bytes: &[u8]) -> Result<Vec<ChunkPayload>, String> {
+        let ext = Path::new(file_path).extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
         if matches!(ext.as_str(), "xlsx" | "xls" | "ods") {
             self.tabular_chunker.excel_chunker.chunk_bytes(file_path, bytes)
         } else if self.pdf_chunker.supports_extension(&ext) {
             self.pdf_chunker.chunk_bytes(file_path, bytes)
         } else if self.office_chunker.supports_extension(&ext) {
             self.office_chunker.chunk_bytes(file_path, bytes)
-        } else if self.image_chunker.supports_extension(&ext) {
-            self.image_chunker.chunk_bytes(file_path, bytes)
         } else {
-            let content = String::from_utf8_lossy(bytes);
-            self.chunk_text_native(file_path, &content)
+            self.image_chunker.chunk_bytes(file_path, bytes)
         }
     }
+}
+
+/// Redacts the text and section path of chunks produced by an extracting chunker.
+fn redact_chunks(mut chunks: Vec<ChunkPayload>) -> RedactedChunks {
+    let mut secrets_redacted = 0;
+    for chunk in &mut chunks {
+        let text = redact_secrets(&chunk.text);
+        secrets_redacted += text.secrets_found;
+        chunk.text = text.text;
+        if let Some(header) = chunk.header_path.as_deref() {
+            let header = redact_secrets(header);
+            secrets_redacted += header.secrets_found;
+            chunk.header_path = Some(header.text);
+        }
+    }
+    RedactedChunks { chunks, secrets_redacted }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Token-shaped sample built at run time, so no complete credential literal is committed.
+    fn fake_secret(prefix: &str, len: usize, seed: u64) -> String {
+        const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let mut state = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let body: String = (0..len)
+            .map(|_| {
+                state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                ALPHABET[((state >> 33) as usize) % ALPHABET.len()] as char
+            })
+            .collect();
+        format!("{prefix}{body}")
+    }
+
+    fn joined(chunks: &[ChunkPayload]) -> String {
+        chunks.iter().map(|c| format!("{}\n{}", c.text, c.header_path.clone().unwrap_or_default())).collect()
+    }
+
+    #[test]
+    fn test_secret_files_are_chunked_with_their_values_redacted() {
+        let router = IngestionRouter::default();
+        let secret = fake_secret("", 24, 41);
+        let token = fake_secret(&["gh", "p_"].concat(), 36, 42);
+        let pem = format!(
+            "{}\n{secret}\n{}\n",
+            ["-----BEGIN", " EC PRIVATE KEY-----"].concat(),
+            ["-----END", " EC PRIVATE KEY-----"].concat()
+        );
+        let cases = [
+            ("/repo/.env", format!("APP_NAME=billing\nDB_PASSWORD={secret}\nGITHUB_TOKEN={token}\n"), "DB_PASSWORD"),
+            ("/repo/.env.production", format!("API_KEY={secret}\n"), "API_KEY"),
+            ("/repo/infra/terraform.tfvars", format!("region = \"eu-west-1\"\ndb_password = \"{secret}\"\n"), "db_password"),
+            ("/repo/certs/server.key", pem.clone(), "[SECRET REDACTED]"),
+            ("/repo/config.yaml", format!("service:\n  name: billing\n  client_secret: {secret}\n"), "client_secret"),
+            ("/repo/settings.json", format!("{{\"apiKey\": \"{secret}\", \"region\": \"eu\"}}"), "apiKey"),
+            ("/repo/src/config.py", format!("GITHUB = \"{token}\"\n"), "GITHUB"),
+        ];
+        for (path, content, kept) in &cases {
+            let r = router.chunk_text_redacted(path, content).expect("chunk");
+            let text = joined(&r.chunks);
+            assert!(!text.contains(&secret) && !text.contains(&token), "{path}: {text}");
+            assert!(text.contains(kept), "{path} loses '{kept}': {text}");
+            assert!(r.secrets_redacted >= 1, "{path}");
+        }
+    }
+
+    #[test]
+    fn test_private_key_file_on_disk_is_redacted() {
+        let dir = std::env::temp_dir().join(format!("actx_router_pem_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("server.key");
+        let body = fake_secret("MIIEvQIBADANBgkqhkiG9w0BAQEFAASC", 30, 43);
+        std::fs::write(&path, format!("{}\n{body}\n{}\n", ["-----BEGIN", " PRIVATE KEY-----"].concat(), ["-----END", " PRIVATE KEY-----"].concat())).unwrap();
+        let r = IngestionRouter::default().chunk_file_redacted(&path.to_string_lossy()).expect("chunk");
+        assert_eq!(r.secrets_redacted, 1);
+        assert!(!joined(&r.chunks).contains(&body));
+        assert!(!IngestionRouter::default().chunk_file_native(&path.to_string_lossy()).map(|c| joined(&c)).unwrap().contains(&body));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_extracted_chunks_are_redacted_after_extraction() {
+        let secret = fake_secret("", 20, 44);
+        let chunk = ChunkPayload::new(
+            "id".to_string(),
+            format!("Page 2\npassword: {secret}\nThe rest of the page."),
+            "manual.pdf".to_string(),
+            "/docs/manual.pdf".to_string(),
+            Some(format!("Setup > token={secret}")),
+            0,
+            0,
+            "pdf".to_string(),
+            0,
+        );
+        let r = redact_chunks(vec![chunk]);
+        assert_eq!(r.secrets_redacted, 2);
+        assert!(!joined(&r.chunks).contains(&secret));
+        assert!(r.chunks[0].text.contains("The rest of the page."));
+        let router = IngestionRouter::default();
+        assert!(router.is_extracted_format("/docs/manual.pdf"));
+        assert!(router.is_extracted_format("/docs/book.xlsx"));
+        assert!(!router.is_extracted_format("/repo/.env"));
+        assert!(!router.is_extracted_format("/repo/server.key"));
+    }
 
     #[test]
     fn test_has_file_lines() {

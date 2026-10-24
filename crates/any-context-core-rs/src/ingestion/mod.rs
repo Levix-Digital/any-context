@@ -11,8 +11,9 @@ pub mod model_router;
 pub mod model_manager;
 pub mod onnx_adapter;
 pub mod jina;
+pub mod secrets;
 
-pub use router::IngestionRouter;
+pub use router::{IngestionRouter, RedactedChunks};
 pub use traits::{Chunker, ScanSentinel, ScanAssessment, DocumentVisionExtractor};
 pub use scanner::{WorkspaceScanner, DiffResult};
 pub use orchestrator::{embed_with_retry, embedding_failure_summary, sync_error_headline, NativeSyncOrchestrator, SyncOptions, SyncResult};
@@ -23,6 +24,7 @@ pub use embedding::{
 pub use enricher::NativeContextualEnricher;
 pub use crawler::{NativeWebCrawler, CrawlerConfig, CrawledPage, SitemapEntry, RobotsPolicy};
 pub use jina::{NativeJinaExtractor, JinaExtractorConfig};
+pub use secrets::{redact_secrets, Redaction, SECRET_PLACEHOLDER};
 pub use quality_gate::{QualityGate, QualityGateConfig, QualityDecision, QualityRejectionReason, DocumentAiTarget};
 pub use model_router::{IngestionModelRouter, DocumentLayoutExtractor, VisionExecutionMode};
 pub use model_manager::{OnnxModelManager, OnnxModelSpec, OnnxModelCategory, ModelAvailability, ModelFile, ModelStoreSummary, ModelStatusItem, ONNX_CATALOG, DEFAULT_RERANKER_ID, reranker_short_label};

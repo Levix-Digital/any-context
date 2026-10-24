@@ -57,16 +57,26 @@ LanceDB (chunks and embeddings, with the BM25 file next to it) and SQLite `setti
 | Subsystem | Summary |
 |---|---|
 | [Agent Runtime](docs/architecture/agent.md) | Query routing, one-hop RAG, the ReAct loop, Deep Search, tools, system prompt and conversation memory. |
+| [Architecture v2 — documents and method](docs/architecture/README.md) | Full review of AnyContext (October 2026): code, documentation and backlog. |
 | [CI and Release](docs/architecture/ci-release.md) | GitHub Actions workflows that test the workspace and build and publish release packages. |
+| [CLI and release — target design (v2)](docs/architecture/cli-and-release-v2.md) | Decisions for the command line, the build, the installers and the release, made on 2026-10-23 during the backlog rebuild (batch 8). The current behavior is d... |
 | [Command Engine](docs/architecture/commands.md) | UI-agnostic slash command engine shared by the CLI and the TUI. |
 | [Command-Line Interface](docs/architecture/cli.md) | The actx binary with argument parsing, one-shot questions, the background sync worker and agent assembly. |
+| [Connectors — target design (v2)](docs/architecture/connectors-v2.md) | Review of the connectors (33 decisions). All decisions are made; what is commercial or about delivery order is left to the roadmap. |
+| [Deployment architecture — target design (v2)](docs/architecture/deployment-architecture-v2.md) | Cross-cutting document: the ingestion and retrieval pipelines describe **what** happens; this document describes **where** each piece runs. It is decided bef... |
+| [Desktop UI (Tauri 2) — layout reference](docs/architecture/desktop-ui-v2.md) | Guide to the desktop UI layout, from the mockup and the prototype and visual token blueprints (2026-10). **What counts is the layout.** Values, labels and op... |
 | [Document Chunkers](docs/architecture/chunkers.md) | Turns each supported file type into chunks with line provenance and a content type. |
+| [Identity and governance — target design (v2)](docs/architecture/identity-and-governance-v2.md) | Cross-cutting document on users, keys, roles and policies, with and without Admin Hub. It is a foundation: it touches the `settings.db` split, the encryption... |
 | [Ingestion and Sync](docs/architecture/ingestion.md) | Scans workspace folders and web sources, chunks changed content, filters noise and writes chunks to LanceDB and BM25. |
+| [Ingestion audit — "Any Context" (October 2026)](docs/architecture/ingestion-audit-2026-10.md) | Audit of the ingestion pipeline (target design in `ingestion-pipeline-v2.md`) against the latest techniques on the market, with one goal: **any file type mus... |
+| [Ingestion pipeline — target design (v2)](docs/architecture/ingestion-pipeline-v2.md) | Living document of the ingestion pipeline review. Each step was filled in after being discussed and decided. This document is the basis for rebuilding the ba... |
 | [Installer and Updater](docs/architecture/installer.md) | Installs, updates and uninstalls actx from the releases repository, with atomic binary swap and model provisioning. |
 | [Language Model Providers](docs/architecture/lm-providers.md) | Provider-neutral chat, streaming and embedding API over OpenAI-compatible, Anthropic, Gemini, Gemma and mock backends. |
+| [Levix platform shared components](docs/architecture/platform-shared-components.md) | Cross-cutting document: components built once and reused by the Levix products (AnyContext, DocMapper and future ones). |
 | [Model Catalog and Hardware Profiling](docs/architecture/model-catalog.md) | Catalog and downloader of local ONNX models, hardware probing and installation profiles. |
 | [ONNX Inference](docs/architecture/onnx.md) | Optional local neural inference with the cross-encoder re-ranker on ONNX Runtime, plus heuristic perception components. |
 | [Retrieval Pipeline](docs/architecture/retrieval.md) | Finds the chunks that answer a question with dense and BM25 search, RRF fusion, cross-encoder re-ranking and context formatting. |
+| [Retrieval pipeline — target design (v2)](docs/architecture/retrieval-pipeline-v2.md) | Living document of the retrieval pipeline review, following the same method as `ingestion-pipeline-v2.md`. The "Current state" section records how the code w... |
 | [Storage and Encryption](docs/architecture/storage.md) | LanceDB vector store, SQLite settings and session database, path healing and encryption at rest. |
 | [Terminal UI](docs/architecture/tui.md) | Full-screen Ratatui interface with chat, header and footer telemetry, menus, onboarding and the Aurora theme. |
 <!-- architecture-docs:subsystems:end -->
@@ -79,6 +89,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0149](docs/adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md) | Secret values are redacted before chunking, with no exception | accepted | v1.0.0 | 2026-10-24 |
 | [ADR-0148](docs/adr/0148-shared-prompt-safety-primitives-and-the-deep-search-intermed.md) | Shared prompt safety primitives and the Deep Search intermediate envelope | accepted | v0.45.1 | 2026-10-19 |
 | [ADR-0147](docs/adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md) | Constant vectors never reach dense search: the mock target is BM25 only and Global is embedded with the default target | accepted | v0.45.1 | 2026-10-19 |
 | [ADR-0146](docs/adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md) | A failed embedding fails the file, and embedding outcomes are reported | accepted | v0.45.1 | 2026-10-18 |
