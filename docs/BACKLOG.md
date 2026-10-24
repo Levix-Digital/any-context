@@ -6,46 +6,18 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-022: [ingestion] Folder-scoped sync purges the other folders' index
-- **Severity**: high
-- **Status**: in_progress
-- **Found**: 2026-10-19, IMP-004 M1 (recorded in the backlog on 2026-10-23)
-- **Plan**: any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3 "Incremental diff". A sync with a target folder scans only that folder (ingestion/orchestrator.rs:339-341) but diffs it against the stat cache of the whole workspace (orchestrator.rs:379-383), so every file of the other folders counts as deleted and its chunks are purged (orchestrator.rs:409-413). Adding a folder starts such a sync (commands/engine.rs:1039), so adding a second folder silently empties the index of the first. A fix (`is_within_folder` in scanner.rs, with a regression test) exists only on the unmerged branch feat/imp-004-embedding-model (commit 4042b89). Expected: a scoped sync only touches files inside its folder.
-
-### BUG-025: [ingestion] An unreachable folder's files are purged from the index
-- **Severity**: high
-- **Status**: in_progress
-- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
-- **Plan**: any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3 "Incremental diff" (an unreachable source goes offline, it is not deleted). A missing folder is skipped (ingestion/scanner.rs:265-273), so its cached files count as deleted (scanner.rs:308-312) and their chunks are purged (ingestion/orchestrator.rs:409-413); the warning comes after the purge and only in verbose mode (orchestrator.rs:461-462). Walk errors are dropped too (`filter_map(|e| e.ok())`, scanner.rs:276), so a subfolder without read permission is purged the same way. Violates "nothing disappears silently". Expected: an unreachable folder or subfolder is reported as offline, its index is kept, and it is reconciled when it comes back.
-
-### BUG-026: [ingestion] Path healer silently redirects folders and rewrites the saved path
-- **Severity**: high
-- **Status**: in_progress
-- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
-- **Plan**: any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3 "Incremental diff" (no silent path healing). When a folder is missing, storage/path_healer.rs:17-69 guesses another one; its last step (path_healer.rs:57-66) takes any folder with the same name in the grandparent, so a missing `/a/projX/docs` becomes an unrelated `/a/docs`. The scan uses the guess (ingestion/scanner.rs:268) and `get_workspace_folders` writes it over the saved folder (storage/sqlite.rs:585-596), with no message. Content the user never chose can be indexed and sent to a cloud model. Violates "explicit action" and "nothing disappears silently". Expected: no automatic redirection; a missing folder is reported and the user relocates it explicitly.
-
-### BUG-027: [ingestion] Sync indexes the working directory when a workspace has no folders
-- **Severity**: high
-- **Status**: in_progress
-- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
-- **Plan**: any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 1 "Source selection". When a workspace has no folders, sync indexes the process's current directory (ingestion/orchestrator.rs:342-348), which can be the home folder, and its content can reach a cloud embedding model. Violates "every source comes from an explicit user action". Expected: a workspace without sources indexes nothing and says so.
-
 ### BUG-028: [connectors] The scan downloads online-only cloud placeholders
 - **Severity**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: any_context_sync_and_web_search_reach_outside_without_being_asked_online_only_cloud_files_are_downloaded_and_web_search_scrapes_duckduckgo
 - **Description**: Design: docs/architecture/connectors-v2.md, decision 21. The scanner does not check the online-only attributes of OneDrive, Google Drive or Dropbox placeholders (Cloud Files on Windows, File Provider on macOS) (ingestion/scanner.rs:275-286), and reading the file (ingestion/router.rs:158) forces its download. Violates "explicit action": downloads and disk use the user never asked for. Expected: online-only files are skipped and counted in the source report; files already on disk are indexed normally.
 
 ### BUG-029: [retrieval] Web search without a key scrapes DuckDuckGo result pages
 - **Severity**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: any_context_sync_and_web_search_reach_outside_without_being_asked_online_only_cloud_files_are_downloaded_and_web_search_scrapes_duckduckgo
 - **Description**: Design: docs/architecture/connectors-v2.md, decisions 24 and 32. Without a Tavily or Serper key, web search falls back to DuckDuckGo (retrieval/web_search.rs:114-115): the Instant Answer API, which is not a search API, and then scraping html.duckduckgo.com (web_search.rs:281-293, parser at 318). DuckDuckGo has no official search API, so this breaks the official-APIs-only rule. Expected: web search uses only official APIs, or third-party APIs that are allowed and worth their cost; with none available it says so instead of scraping.
 
 ## Features
@@ -2159,3 +2131,35 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_ingestion_secret_files_env_tfvars_key_are_indexed_in_clear
 - **Closed**: 2026-10-24, plan any_context_ingestion_secret_files_env_tfvars_key_are_indexed_in_clear
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7 "Personal data, sensitive data and secrets (audit P13)". The scanner accepts `.env` and `.env.*` (ingestion/scanner.rs:102-106) and the `env` and `tfvars` extensions (scanner.rs:186, 192); `key` is accepted as Keynote (scanner.rs:146), but a PEM `server.key` falls to the plain-text chunker (ingestion/router.rs:157-160). Their secrets are indexed in clear and can reach a cloud embedding model or LLM. Expected: secret values are detected and never indexed (`[SECRET REDACTED]`), with no configurable exception, while the rest of the file stays searchable.
+
+### BUG-022: [ingestion] Folder-scoped sync purges the other folders' index
+- **Severity**: high
+- **Status**: done
+- **Found**: 2026-10-19, IMP-004 M1 (recorded in the backlog on 2026-10-23)
+- **Plan**: any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
+- **Closed**: 2026-10-24, plan any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3 "Incremental diff". A sync with a target folder scans only that folder (ingestion/orchestrator.rs:339-341) but diffs it against the stat cache of the whole workspace (orchestrator.rs:379-383), so every file of the other folders counts as deleted and its chunks are purged (orchestrator.rs:409-413). Adding a folder starts such a sync (commands/engine.rs:1039), so adding a second folder silently empties the index of the first. A fix (`is_within_folder` in scanner.rs, with a regression test) exists only on the unmerged branch feat/imp-004-embedding-model (commit 4042b89). Expected: a scoped sync only touches files inside its folder.
+
+### BUG-025: [ingestion] An unreachable folder's files are purged from the index
+- **Severity**: high
+- **Status**: done
+- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
+- **Plan**: any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
+- **Closed**: 2026-10-24, plan any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3 "Incremental diff" (an unreachable source goes offline, it is not deleted). A missing folder is skipped (ingestion/scanner.rs:265-273), so its cached files count as deleted (scanner.rs:308-312) and their chunks are purged (ingestion/orchestrator.rs:409-413); the warning comes after the purge and only in verbose mode (orchestrator.rs:461-462). Walk errors are dropped too (`filter_map(|e| e.ok())`, scanner.rs:276), so a subfolder without read permission is purged the same way. Violates "nothing disappears silently". Expected: an unreachable folder or subfolder is reported as offline, its index is kept, and it is reconciled when it comes back.
+
+### BUG-026: [ingestion] Path healer silently redirects folders and rewrites the saved path
+- **Severity**: high
+- **Status**: done
+- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
+- **Plan**: any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
+- **Closed**: 2026-10-24, plan any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3 "Incremental diff" (no silent path healing). When a folder is missing, storage/path_healer.rs:17-69 guesses another one; its last step (path_healer.rs:57-66) takes any folder with the same name in the grandparent, so a missing `/a/projX/docs` becomes an unrelated `/a/docs`. The scan uses the guess (ingestion/scanner.rs:268) and `get_workspace_folders` writes it over the saved folder (storage/sqlite.rs:585-596), with no message. Content the user never chose can be indexed and sent to a cloud model. Violates "explicit action" and "nothing disappears silently". Expected: no automatic redirection; a missing folder is reported and the user relocates it explicitly.
+
+### BUG-027: [ingestion] Sync indexes the working directory when a workspace has no folders
+- **Severity**: high
+- **Status**: done
+- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
+- **Plan**: any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
+- **Closed**: 2026-10-24, plan any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 1 "Source selection". When a workspace has no folders, sync indexes the process's current directory (ingestion/orchestrator.rs:342-348), which can be the home folder, and its content can reach a cloud embedding model. Violates "every source comes from an explicit user action". Expected: a workspace without sources indexes nothing and says so.

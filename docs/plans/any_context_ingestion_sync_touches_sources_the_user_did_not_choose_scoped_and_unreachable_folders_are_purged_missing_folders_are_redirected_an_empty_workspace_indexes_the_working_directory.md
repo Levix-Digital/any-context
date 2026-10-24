@@ -4,10 +4,10 @@ project: any-context
 title: '[ingestion] Sync touches sources the user did not choose'
 kind: bug
 version: v1.0.0
-status: in_progress
+status: completed
 author: Levi Silveira
 created_at: '2026-10-24T20:07:24'
-updated_at: '2026-10-24T20:29:27'
+updated_at: '2026-10-24T23:04:23'
 session_id: null
 tags:
 - ingestion
@@ -39,7 +39,9 @@ milestones:
   done_at: '2026-10-24'
   by: Levi Silveira
 - name: M5 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Levi Silveira
 status_log:
 - at: '2026-10-24T20:07:24'
   by: Levi Silveira
@@ -61,6 +63,17 @@ status_log:
 - at: '2026-10-24T20:29:27'
   by: Levi Silveira
   note: Milestone 'M4 Documentation and manual tests' completed
+- at: '2026-10-24T23:04:16'
+  by: Levi Silveira
+  note: 'Milestone ''M5 Review and PR'' completed: PR #378 merged into dev'
+- at: '2026-10-24T23:04:16'
+  by: Levi Silveira
+  status: completed
+  note: All milestones completed
+- at: '2026-10-24T23:04:23'
+  by: Levi Silveira
+  status: completed
+  note: 'PR #378 merged into dev'
 ---
 
 # [ingestion] Sync touches sources the user did not choose
