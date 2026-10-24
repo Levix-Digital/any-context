@@ -384,3 +384,156 @@ async fn test_secrets_indexed_before_the_fix_are_reindexed() {
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+/// Regression BUG-022: a sync scoped to one folder (what adding a folder starts) never takes
+/// the other folders' files for deleted ones.
+#[tokio::test]
+async fn test_scoped_sync_keeps_the_other_folders() {
+    let (temp_dir, db, lance, orchestrator, dirs) = embedding_sandbox("scoped_keeps_others", &["alpha", "beta"]);
+    let ws = "EmbeddingTargetWs";
+
+    orchestrator.run(&mock_sync(None)).await.expect("full sync");
+    let chunks = lance.count_records(Some(ws), None).unwrap();
+    assert_eq!(db.get_workspace_files_stat_cache(ws).unwrap().len(), 4);
+
+    let scoped = orchestrator.run(&mock_sync(Some(dirs[0].to_string_lossy().to_string()))).await.expect("scoped sync");
+    assert_eq!(scoped.deleted_files, 0, "beta's files are not deleted");
+    assert!(scoped.is_up_to_date);
+    assert_eq!(db.get_workspace_files_stat_cache(ws).unwrap().len(), 4);
+    assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Regression BUG-025: an unreachable folder goes offline and keeps its index, and it is
+/// reconciled by the normal diff when it comes back.
+#[tokio::test]
+async fn test_unreachable_folder_keeps_its_index() {
+    let (temp_dir, db, lance, orchestrator, dirs) = embedding_sandbox("unreachable_keeps_index", &["alpha", "beta"]);
+    let ws = "EmbeddingTargetWs";
+
+    orchestrator.run(&mock_sync(None)).await.expect("full sync");
+    let chunks = lance.count_records(Some(ws), None).unwrap();
+
+    let parked = temp_dir.join("beta-unplugged");
+    std::fs::rename(&dirs[1], &parked).unwrap();
+    let offline = orchestrator.run(&mock_sync(None)).await.expect("sync with beta unreachable");
+    assert_eq!(offline.deleted_files, 0, "beta's files are not deleted");
+    assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks, "beta keeps its chunks");
+    assert_eq!(db.get_workspace_files_stat_cache(ws).unwrap().len(), 4);
+    assert_eq!(offline.offline_folders.len(), 1, "{:?}", offline.offline_folders);
+    assert!(offline.offline_folders[0].contains("beta"), "{:?}", offline.offline_folders);
+
+    std::fs::rename(&parked, &dirs[1]).unwrap();
+    std::fs::write(dirs[1].join("added.md"), "# Added\nWritten while the drive was unplugged.").unwrap();
+    let back = orchestrator.run(&mock_sync(None)).await.expect("sync with beta back");
+    assert_eq!(back.indexed_files, 1, "only the new file is indexed");
+    assert_eq!(back.deleted_files, 0);
+    assert!(back.offline_folders.is_empty());
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Regression BUG-025: a subfolder the walk cannot read keeps its index (Unix permissions;
+/// skipped as root, where they are not enforced).
+#[cfg(unix)]
+#[tokio::test]
+async fn test_unreadable_subfolder_keeps_its_index() {
+    use std::os::unix::fs::PermissionsExt;
+    let (temp_dir, db, _lance, orchestrator, dirs) = embedding_sandbox("unreadable_subfolder", &["alpha"]);
+    let ws = "EmbeddingTargetWs";
+    let private = dirs[0].join("private");
+    std::fs::create_dir_all(&private).unwrap();
+    std::fs::write(private.join("plan.md"), "# Plan\nThe private plan of the alpha team.").unwrap();
+    orchestrator.run(&mock_sync(None)).await.expect("full sync");
+    assert_eq!(db.get_workspace_files_stat_cache(ws).unwrap().len(), 3);
+
+    std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::read_dir(&private).is_ok() {
+        // Running as root: permissions are not enforced, nothing to check.
+        std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        return;
+    }
+    let res = orchestrator.run(&mock_sync(None)).await.expect("sync with an unreadable subfolder");
+    std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(res.deleted_files, 0, "the unreadable subfolder's file is not deleted");
+    assert_eq!(db.get_workspace_files_stat_cache(ws).unwrap().len(), 3);
+    assert!(res.offline_folders.iter().any(|p| p.contains("private")), "{:?}", res.offline_folders);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Removing a folder from the workspace still purges its files on the next full sync.
+#[tokio::test]
+async fn test_removed_folder_is_purged_on_full_sync() {
+    let (temp_dir, db, _lance, orchestrator, dirs) = embedding_sandbox("removed_folder_purged", &["alpha", "beta"]);
+    let ws = "EmbeddingTargetWs";
+    orchestrator.run(&mock_sync(None)).await.expect("full sync");
+
+    assert!(db.remove_workspace_folder(ws, &dirs[1].to_string_lossy()).unwrap());
+    let res = orchestrator.run(&mock_sync(None)).await.expect("sync after removal");
+    assert_eq!(res.deleted_files, 2, "beta's two files are purged");
+    assert_eq!(db.get_workspace_files_stat_cache(ws).unwrap().len(), 2);
+    assert!(res.offline_folders.is_empty());
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Regression BUG-026: a missing folder is never redirected to another folder with the same
+/// name, and its saved path is never rewritten.
+#[tokio::test]
+async fn test_missing_folder_is_never_redirected() {
+    let temp_dir = std::env::temp_dir().join(format!("actx_never_redirected_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    let db_dir = temp_dir.join("db");
+    std::fs::create_dir_all(&db_dir).unwrap();
+    let db = Arc::new(NativeConfigDb::open(db_dir.join("settings.db")).expect("open db"));
+    let lance = Arc::new(NativeLanceStore::open(db_dir.join("lancedb")).expect("open lance"));
+    let ws = "EmbeddingTargetWs";
+    db.create_workspace(ws, None).unwrap();
+    let chosen = temp_dir.join("projX").join("docs");
+    std::fs::create_dir_all(&chosen).unwrap();
+    std::fs::write(chosen.join("spec.md"), "# Spec\nThe chosen folder.").unwrap();
+    let chosen_str = chosen.to_string_lossy().to_string();
+    db.add_workspace_folder(ws, &chosen_str).unwrap();
+    let orchestrator = NativeSyncOrchestrator::new(lance.clone(), db.clone());
+    orchestrator.run(&mock_sync(None)).await.expect("full sync");
+
+    std::fs::remove_dir_all(temp_dir.join("projX")).unwrap();
+    let unrelated = temp_dir.join("docs");
+    std::fs::create_dir_all(&unrelated).unwrap();
+    std::fs::write(unrelated.join("other.md"), "# Other\nA folder the user never chose.").unwrap();
+
+    let res = orchestrator.run(&mock_sync(None)).await.expect("sync with the folder missing");
+    let saved = db.get_workspace_folders(ws).unwrap();
+    assert_eq!(saved.len(), 1);
+    assert!(saved[0].contains("projX"), "the saved path is unchanged: {saved:?}");
+    assert_eq!(res.indexed_files, 0, "the unrelated folder is not indexed");
+    let rows = lance.search_metadata(&format!("workspace = '{ws}'"), 100, Some(ws), None).unwrap();
+    assert!(rows.iter().all(|r| r.file_name != "other.md"));
+    assert!(res.offline_folders.iter().any(|p| p.contains("projX")), "{:?}", res.offline_folders);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Regression BUG-027: a workspace without sources indexes nothing (the test process runs in
+/// the crate directory, which is full of files) and says so.
+#[tokio::test]
+async fn test_workspace_without_sources_indexes_nothing() {
+    let temp_dir = std::env::temp_dir().join(format!("actx_no_sources_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    let db_dir = temp_dir.join("db");
+    std::fs::create_dir_all(&db_dir).unwrap();
+    let db = Arc::new(NativeConfigDb::open(db_dir.join("settings.db")).expect("open db"));
+    let lance = Arc::new(NativeLanceStore::open(db_dir.join("lancedb")).expect("open lance"));
+    db.create_workspace("EmbeddingTargetWs", None).unwrap();
+    let orchestrator = NativeSyncOrchestrator::new(lance.clone(), db.clone());
+
+    let res = orchestrator.run(&mock_sync(None)).await.expect("sync");
+    assert_eq!(res.indexed_files, 0);
+    assert_eq!(lance.count_records(Some("EmbeddingTargetWs"), None).unwrap(), 0);
+    assert!(res.no_sources);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}

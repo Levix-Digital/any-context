@@ -1,19 +1,18 @@
 ---
 title: Storage and Encryption
-summary: LanceDB vector store, SQLite settings and session database, path healing and encryption at rest.
+summary: LanceDB vector store, SQLite settings and session database and encryption at rest.
 code: [crates/any-context-core-rs/src/storage, crates/any-context-core-rs/src/security]
 ---
 
 # Storage and Encryption
 
-LanceDB vector store, SQLite settings and session database, path healing and encryption at rest.
+LanceDB vector store, SQLite settings and session database and encryption at rest.
 
 ## Responsibilities
 
 - Own the two local datastores: the LanceDB vector database (chunks and embeddings) and the SQLite settings database (`settings.db`), which is the single source of truth for workspaces, settings, credentials, sync state and conversation memory.
 - Resolve the canonical data, log and model directories per operating system, with overrides for tests and custom installs.
 - Make the synchronous storage API safe to call from inside and outside Tokio runtimes.
-- Heal folder paths that moved slightly (path healing).
 - Encrypt chunk text at rest with the hardware-bound key, migrate rows stored in plaintext by older versions, and decrypt on read.
 
 The BM25 index file lives in the LanceDB directory but its format belongs to [retrieval](retrieval.md).
@@ -24,7 +23,6 @@ The BM25 index file lives in the LanceDB directory but its format belongs to [re
 |---|---|
 | `storage/lancedb.rs` | `NativeLanceStore`, `VectorRecord`, `ScoredVectorResult`, `get_default_lancedb_path`. |
 | `storage/sqlite.rs` | `NativeConfigDb` and record types, `get_default_settings_db_path`, `get_default_logs_dir`, `get_default_models_dir`. |
-| `storage/path_healer.rs` | `try_heal_path`. |
 | `security/mod.rs` | `NativeSecurityEngine`: AES-GCM-256 with a PBKDF2-derived machine key. |
 
 Conversation memory is stored in the same `settings.db` by `SqliteSessionStore` in `crates/actx-agent` (see [Agent Runtime](agent.md)).
@@ -74,9 +72,9 @@ On macOS the LanceDB default is `~/Library/Application Support/AnyContext/data/c
 
 Settings are strictly per workspace: there is no global fallback for workspace settings.
 
-### Path healing
+### Workspace folders
 
-`try_heal_path` tries, in order: normalizing separators; removing a redundant `Documentos/` or `Documents/`; adding `Documentos/` under `My Drive`; removing `OneDrive/`; and searching for the leaf folder in the parent or the drive root. `NativeConfigDb::get_workspace_folders` stores a healed path back in `workspace_folders`, and the scanner uses healing before reporting a folder as missing.
+`NativeConfigDb::get_workspace_folders` returns the saved folder paths as the user registered them; a path that no longer exists is never rewritten or redirected ([ADR-0150](../adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md)). The scanner reports it offline and its index is kept.
 
 ### Encryption at rest
 
@@ -95,7 +93,7 @@ Pruning drops Lance time travel to earlier versions. Regular deletes and forced 
 ## Interfaces
 
 - **Used by**: [ingestion](ingestion.md) (writes chunks, stat cache, telemetry), [retrieval](retrieval.md) (vector and metadata search, decryption), the [command engine](commands.md) (workspace, source and settings management), the [CLI](cli.md) and [TUI](tui.md) (settings, telemetry polling), and the [agent](agent.md) (session memory in the same database).
-- **Exports**: `NativeLanceStore`, `NativeConfigDb`, `VectorRecord`, `try_heal_path`, `NativeSecurityEngine` and the path helpers from `any_context_core_rs::storage`.
+- **Exports**: `NativeLanceStore`, `NativeConfigDb`, `VectorRecord`, `NativeSecurityEngine` and the path helpers from `any_context_core_rs::storage`.
 - **Environment**: `ACTX_CONTEXT_DB`, `ACTX_SETTINGS_DB`, `ACTX_MODELS_DIR`, `ACTX_TEST_MODE`, `ACTX_MACHINE_ID`.
 
 ## Decisions
@@ -111,9 +109,10 @@ Pruning drops Lance time travel to earlier versions. Regular deletes and forced 
 - [ADR-0098](../adr/0098-lancestore-count-records-parameter-fix.md): `count_records` parameter order.
 - [ADR-0100](../adr/0100-native-encryption-sync-cancel-tui-isolation.md): native Rust security engine compatible with the Python parameters.
 - [ADR-0112](../adr/0112-ux-stabilization-deep-search-multiline-prompt.md): `search_mode` column and `global_knowledge_version` setting.
-- [ADR-0116](../adr/0116-path-healing-temporal-metadata-change-detection.md): path healing.
+- [ADR-0116](../adr/0116-path-healing-temporal-metadata-change-detection.md): path healing, removed by ADR-0150.
 - [ADR-0120](../adr/0120-source-display-names-shared-sources-removal.md): `workspace_sources` display names.
 - [ADR-0131](../adr/0131-field-level-encryption-on-every-lancedb-write.md): field-level encryption on every LanceDB write.
 - [ADR-0135](../adr/0135-automatic-encryption-of-lancedb-rows-stored-in-plaintext.md): automatic encryption of rows stored in plaintext, with compaction and pruning.
 - [ADR-0138](../adr/0138-record-the-embedding-target-per-workspace-and-reindex-on-change.md): `workspaces.embedding_target` column.
+- [ADR-0150](../adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md): saved folder paths are never redirected; path healing removed.
 - [ADR-0142](../adr/0142-chunk-provenance-columns-in-lancedb-added-in-place.md): nullable `header_path` (encrypted), `start_line` and `end_line` columns, added in place without reindex.

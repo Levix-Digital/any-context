@@ -1,7 +1,7 @@
 <!-- dev-cycle-constitution
 generated-by: dev-cycle-protocol/constitution.py (do not edit; change a source and regenerate)
-sources-sha256: 855781ff863ae4c6e1410f6e0c9ec5fb6aebd1bdc876d4ed48f5bc95fa7ed0b1
-content-sha256: 4f7f8a58bd1cf6cb5f0a79c7b65673d9367f77806a4e58a658d45edf7e699ff6
+sources-sha256: 00470c50a03878a25452e4b90ff3db379ce153bc82a35c2a7bcac7928fd0c866
+content-sha256: f586387655ab361834fe7230969dfaf95f58260d910b86dc5fc309799777af9d
 -->
 # any-context Constitution
 
@@ -197,6 +197,8 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - ADR-0146: A failed embedding fails the file, and embedding outcomes are reported (`docs/adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md`)
 - ADR-0147: Constant vectors never reach dense search: the mock target is BM25 only and Global is embedded with the default target (`docs/adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md`)
 - ADR-0148: Shared prompt safety primitives and the Deep Search intermediate envelope (`docs/adr/0148-shared-prompt-safety-primitives-and-the-deep-search-intermed.md`)
+- ADR-0149: Secret values are redacted before chunking, with no exception (`docs/adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md`)
+- ADR-0150: Offline sources keep their index and folders are never redirected (`docs/adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md`)
 
 ## Governance
 
@@ -204,4 +206,4 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - Amendments change the source, not this file: an ADR for decisions, the technical specification for requirements and constraints, `.dev-cycle.json` for the architecture style, the skills for principles. Then run `constitution.py generate` and commit the result with the change.
 - Gate 3 of the development cycle blocks a plan while this file is stale or edited by hand.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-24
+**Version**: 1.2.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-24

@@ -34,7 +34,7 @@ Full-screen Ratatui interface with chat, header and footer telemetry, menus, onb
 
 `run_tui` shows the startup splash when `is_first_run_or_upgrade()` is true, resolves the provider and builds the agent for the workspace, starts `ensure_global_knowledge_bootstrap` in a blocking background task, enables raw mode, the alternate screen and mouse capture, then loops:
 
-1. `poll_sync_status` (at most every 400 ms) reads `workspace_sync_status` from SQLite; every 4 s `check_source_health` counts unreachable folders (after path healing) and runs a scan diff to detect changes.
+1. `poll_sync_status` (at most every 400 ms) reads `workspace_sync_status` from SQLite; every 4 s `check_source_health` counts registered folders that do not exist (shown as `⚠️ N source(s) offline, their index is kept`) and runs a scan diff to detect changes.
 2. Draw the frame.
 3. Wait for a 125 ms tick (animations and polling), a terminal event or an agent event.
 

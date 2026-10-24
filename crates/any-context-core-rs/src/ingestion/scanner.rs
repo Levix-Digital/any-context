@@ -35,6 +35,21 @@ pub fn to_absolute_path(path: &Path) -> String {
     normalize_path(&abs)
 }
 
+/// Whether `path` is `folder` or lies inside it, comparing absolute normalized paths on whole
+/// path components (`/docs` does not contain `/docs-old/a.md`).
+pub fn is_within_folder(path: &str, folder: &str) -> bool {
+    let path = to_absolute_path(Path::new(path));
+    let folder = to_absolute_path(Path::new(folder));
+    // Windows paths are case-insensitive: `C:\Docs` and `c:\docs` are the same folder.
+    #[cfg(windows)]
+    let (path, folder) = (path.to_lowercase(), folder.to_lowercase());
+    let folder = folder.trim_end_matches(['/', '\\']);
+    match path.strip_prefix(folder) {
+        Some(rest) => rest.is_empty() || rest.starts_with(['/', '\\']),
+        None => false,
+    }
+}
+
 /// Checks if a directory should be skipped from crawling.
 pub fn is_ignored_dir(entry: &DirEntry) -> bool {
     if !entry.file_type().is_dir() {
@@ -225,7 +240,11 @@ pub struct DiffResult {
     pub deleted_files: Vec<String>,
     pub renamed_files: Vec<(String, String)>,
     pub disk_files: HashMap<String, (f64, u64)>,
+    /// Scanned folders that do not exist or cannot be read at their root.
     pub missing_folders: Vec<String>,
+    /// The missing folders plus every directory or file under a scanned folder that could not
+    /// be read. Cached files inside them are offline: never listed as deleted (ADR-0150).
+    pub offline_paths: Vec<String>,
 }
 
 impl WorkspaceScanner {
@@ -260,27 +279,38 @@ impl WorkspaceScanner {
     ) -> DiffResult {
         let mut disk_files: HashMap<String, (f64, u64)> = HashMap::new();
         let mut missing_folders: Vec<String> = Vec::new();
+        let mut offline_paths: Vec<String> = Vec::new();
+        let mut scanned_folders: Vec<String> = Vec::new();
 
         for folder in folders {
             let root_p = Path::new(folder);
-            let effective_p = if root_p.exists() {
-                root_p.to_path_buf()
-            } else if let Some(healed) = crate::storage::path_healer::try_heal_path(root_p) {
-                healed
-            } else {
+            // A folder that is gone or unreadable is offline, never guessed elsewhere (ADR-0150).
+            if fs::read_dir(root_p).is_err() {
                 missing_folders.push(folder.to_string());
+                offline_paths.push(to_absolute_path(root_p));
                 continue;
-            };
+            }
+            scanned_folders.push(to_absolute_path(root_p));
 
-            let walker = WalkDir::new(&effective_p).into_iter().filter_entry(|e| !is_ignored_dir(e));
-            for entry in walker.filter_map(|e| e.ok()) {
+            let walker = WalkDir::new(root_p).into_iter().filter_entry(|e| !is_ignored_dir(e));
+            for entry in walker {
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(e) => {
+                        // A subfolder without permission or an I/O error: its files stay indexed.
+                        if let Some(p) = e.path() {
+                            offline_paths.push(to_absolute_path(p));
+                        }
+                        continue;
+                    }
+                };
                 if entry.file_type().is_file() && is_supported_file(entry.path()) {
                     let norm_path = to_absolute_path(entry.path());
-
-                    if let Ok(meta) = entry.metadata() {
-                        let mtime = get_file_mtime(&meta);
-                        let size = meta.len();
-                        disk_files.insert(norm_path, (mtime, size));
+                    match entry.metadata() {
+                        Ok(meta) => {
+                            disk_files.insert(norm_path, (get_file_mtime(&meta), meta.len()));
+                        }
+                        Err(_) => offline_paths.push(norm_path),
                     }
                 }
             }
@@ -306,8 +336,13 @@ impl WorkspaceScanner {
             }
         }
 
+        // Only a file of a folder that was scanned, and not under an offline path, is deleted;
+        // files of other folders are left to the caller.
         for fp in norm_cached.keys() {
-            if !disk_files.contains_key(fp) {
+            if !disk_files.contains_key(fp)
+                && scanned_folders.iter().any(|f| is_within_folder(fp, f))
+                && !offline_paths.iter().any(|o| is_within_folder(fp, o))
+            {
                 deleted_files.push(fp.clone());
             }
         }
@@ -370,8 +405,7 @@ impl WorkspaceScanner {
         let is_up_to_date = new_files.is_empty()
             && modified_files.is_empty()
             && deleted_files.is_empty()
-            && renamed_files.is_empty()
-            && missing_folders.is_empty();
+            && renamed_files.is_empty();
 
         DiffResult {
             is_up_to_date,
@@ -381,6 +415,7 @@ impl WorkspaceScanner {
             renamed_files,
             disk_files,
             missing_folders,
+            offline_paths,
         }
     }
 }
@@ -388,6 +423,15 @@ impl WorkspaceScanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn is_within_folder_matches_whole_components() {
+        assert!(is_within_folder("/work/docs/a.md", "/work/docs"));
+        assert!(is_within_folder("/work/docs/sub/b.md", "/work/docs/"));
+        assert!(is_within_folder("/work/docs", "/work/docs"));
+        assert!(!is_within_folder("/work/docs-old/a.md", "/work/docs"));
+        assert!(!is_within_folder("/work/beta/a.md", "/work/docs"));
+    }
     use std::fs::File;
     use std::io::Write;
 
