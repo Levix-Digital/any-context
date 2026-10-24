@@ -3,10 +3,10 @@ plan_id: anycontext_p2b_actx_agent_blueprint
 project: any-context
 title: 'Priority 2B Blueprint: Native ReAct Orchestrator in Rust (actx-agent) with RFC-042 Preparation'
 version: v0.30.38
-status: active
+status: superseded
 author: Levi Silveira
 created_at: '2026-09-25T13:39:43'
-updated_at: '2026-09-25T13:39:43'
+updated_at: '2026-10-24T14:17:00'
 session_id: 9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372
 tags:
 - blueprint
@@ -35,6 +35,10 @@ status_log:
 - at: '2026-10-16T10:47:34'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:17:00'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # 📋 Technical Blueprint - Priority 2B: Native ReAct Orchestrator in Rust (`actx-agent`)

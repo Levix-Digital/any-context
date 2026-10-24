@@ -3,10 +3,10 @@ plan_id: anycontext_master_roadmap_v0_30_38_rfc042
 project: any-context
 title: 'Integrated Roadmap: Python -> Rust, RFC-042 Deep Search, ModelRouter & Model Kit'
 version: v0.30.38
-status: in_progress
+status: superseded
 author: Levi Silveira
 created_at: '2026-09-25T13:38:49'
-updated_at: '2026-10-13T16:02:58'
+updated_at: '2026-10-24T14:17:00'
 session_id: 9f488dbf-db54-4ecb-8ed2-b7a6ac1b2372
 tags:
 - roadmap
@@ -50,6 +50,10 @@ status_log:
 - at: '2026-10-16T10:47:34'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:17:00'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # 🗺️ Integrated Engineering Roadmap (Python -> Rust -> RFC-042 Deep Search -> ModelRouter -> Model Kit)
