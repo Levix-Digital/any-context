@@ -3,10 +3,10 @@ plan_id: anycontext_blueprint_v0450_frente_c0_runtime_onnx_real_e_reranker_cross
 project: any-context
 title: 'Blueprint v0.45.0 (Front C0): Real ONNX Runtime (ort load-dynamic + tokenizers), Multilingual mmarco Cross-Encoder and Technical Honesty Rectification (ADR-130)'
 version: v0.45.0
-status: in_progress
+status: superseded
 author: Levi Silveira
 created_at: '2026-10-15T21:03:23'
-updated_at: '2026-10-15T21:55:03'
+updated_at: '2026-10-24T14:17:00'
 session_id: 8abbc3bf-d4c0-43cc-a5ef-84b7f6e30e4a
 tags:
 - frente_c0
@@ -65,6 +65,10 @@ status_log:
 - at: '2026-10-16T10:47:35'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:17:00'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # 📐 Engineering Blueprint: AnyContext v0.45.0

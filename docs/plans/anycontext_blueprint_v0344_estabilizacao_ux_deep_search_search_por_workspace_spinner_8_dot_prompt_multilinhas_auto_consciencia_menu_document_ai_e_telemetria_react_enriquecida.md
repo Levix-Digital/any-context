@@ -3,10 +3,10 @@ plan_id: anycontext_blueprint_v0344_estabilizacao_ux_deep_search_search_por_work
 project: any-context
 title: 'Blueprint v0.34.4: UX Stabilization, Deep Search, Search per Workspace, 8-Dot Spinner, Multiline Prompt, Self-Awareness, Document AI Menu and Enriched ReAct Telemetry'
 version: v0.34.4
-status: active
+status: superseded
 author: Levi Silveira
 created_at: '2026-10-10T08:43:12'
-updated_at: '2026-10-10T08:43:12'
+updated_at: '2026-10-24T14:16:58'
 session_id: a94494e0-08bb-4378-888d-a3bde8673537
 tags:
 - ux
@@ -51,6 +51,10 @@ status_log:
 - at: '2026-10-16T10:47:34'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:16:58'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # Blueprint AnyContext v0.34.4: UX Stabilization, Deep Search, Search Mode per Workspace, 8-Dot Spinner, Multiline Prompt, Self-Awareness, Document AI Menu and ReAct Telemetry

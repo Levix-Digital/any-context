@@ -46,7 +46,8 @@
       "crates/actx-onnx/Cargo.toml",
       "crates/actx-installer/Cargo.toml"
     ],
-    "observability": "cli"
+    "observability": "cli",
+    "branching": "integration"
   },
   "drift_rules": [
     {
@@ -68,5 +69,12 @@
       "proposal_allow": [],
       "conflict_msg": "Proposal hints at parallel databases ('banco paralelo'), violating Single Source of Truth (`settings.db`)."
     }
-  ]
+  ],
+  "speckit": {
+    "enabled": true,
+    "version": "v1.2.3",
+    "integration": "claude",
+    "script": "py",
+    "branch_prefix": "feat"
+  }
 }

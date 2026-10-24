@@ -3,10 +3,10 @@ plan_id: anycontext_blueprint_v0360_intelligent_source_naming_shared_sources_dep
 project: any-context
 title: 'Blueprint v0.36.0: Intelligent Source Naming, Shared Sources Deprecation, and Canonical System Knowledge Manual'
 version: 0.36.0
-status: planned
+status: superseded
 author: Levi Silveira
 created_at: '2026-10-10T16:28:03'
-updated_at: '2026-10-10T16:28:03'
+updated_at: '2026-10-24T14:16:59'
 session_id: a94494e0-08bb-4378-888d-a3bde8673537
 tags: []
 supersedes: null
@@ -17,6 +17,10 @@ status_log:
 - at: '2026-10-16T10:47:35'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:16:59'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # 🏛️ AnyContext Architecture Blueprint: v0.36.0

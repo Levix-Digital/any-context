@@ -3,10 +3,10 @@ plan_id: anycontext_blueprint_v0342_modelrouter_ingestion_quality_gate
 project: any-context
 title: 'Milestone 2 Blueprint (Phase 2): ModelRouter, Quality Gate, Laya AI & Hybrid Document AI (v0.34.2)'
 version: v0.34.2
-status: active
+status: superseded
 author: Levi Silveira
 created_at: '2026-10-10T06:51:50'
-updated_at: '2026-10-10T06:51:50'
+updated_at: '2026-10-24T14:16:58'
 session_id: a94494e0-08bb-4378-888d-a3bde8673537
 tags:
 - ingestion
@@ -42,6 +42,10 @@ status_log:
 - at: '2026-10-16T10:47:34'
   by: Levi Silveira
   note: Migrated from the local plan-memory database to docs/plans
+- at: '2026-10-24T14:16:58'
+  by: Levi Silveira
+  status: superseded
+  note: Superseded by the architecture v2 redesign and roadmap v2 (docs/ROADMAP.md, docs/plans/anycontext_roadmap_v2.md, decided 2026-10-23); the remaining work was rebuilt as backlog items.
 ---
 
 # 📐 Engineering Blueprint: Milestone 2 (Phase 2) — ModelRouter in Ingestion, Quality Gate, Laya AI & Hybrid Document AI (v0.34.2)

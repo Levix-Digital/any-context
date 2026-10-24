@@ -3,10 +3,10 @@ plan_id: anycontext_roadmap_v2
 project: any-context
 title: AnyContext roadmap (v2)
 version: v1.0.0
-status: active
+status: completed
 author: Levi Silveira
 created_at: '2026-10-23T20:45:30'
-updated_at: '2026-10-23T20:45:30'
+updated_at: '2026-10-24T14:17:01'
 session_id: null
 tags:
 - roadmap
@@ -30,6 +30,10 @@ status_log:
   by: Levi Silveira
   status: active
   note: Plan created
+- at: '2026-10-24T14:17:01'
+  by: Levi Silveira
+  status: completed
+  note: Every backlog item placed; the releases are now tracked in docs/ROADMAP.md, which links back here for the rationale.
 ---
 
 # AnyContext roadmap (v2)
