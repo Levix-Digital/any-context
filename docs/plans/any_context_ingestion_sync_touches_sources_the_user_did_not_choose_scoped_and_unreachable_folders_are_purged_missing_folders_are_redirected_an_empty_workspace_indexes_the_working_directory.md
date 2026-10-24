@@ -4,10 +4,10 @@ project: any-context
 title: '[ingestion] Sync touches sources the user did not choose'
 kind: bug
 version: v1.0.0
-status: active
+status: in_progress
 author: Levi Silveira
 created_at: '2026-10-24T20:07:24'
-updated_at: '2026-10-24T20:09:18'
+updated_at: '2026-10-24T20:29:27'
 session_id: null
 tags:
 - ingestion
@@ -23,13 +23,21 @@ backlog_items:
 - BUG-027
 milestones:
 - name: M1 Scoped and reachable diff
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Levi Silveira
 - name: M2 No guessing and no implicit source
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Levi Silveira
 - name: M3 Reporting
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Levi Silveira
 - name: M4 Documentation and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-24'
+  by: Levi Silveira
 - name: M5 Review and PR
   done: false
 status_log:
@@ -41,6 +49,18 @@ status_log:
   by: Levi Silveira
   status: active
   note: Plan updated
+- at: '2026-10-24T20:29:22'
+  by: Levi Silveira
+  note: Milestone 'M1 Scoped and reachable diff' completed
+- at: '2026-10-24T20:29:24'
+  by: Levi Silveira
+  note: Milestone 'M2 No guessing and no implicit source' completed
+- at: '2026-10-24T20:29:25'
+  by: Levi Silveira
+  note: Milestone 'M3 Reporting' completed
+- at: '2026-10-24T20:29:27'
+  by: Levi Silveira
+  note: Milestone 'M4 Documentation and manual tests' completed
 ---
 
 # [ingestion] Sync touches sources the user did not choose
