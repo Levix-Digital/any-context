@@ -77,7 +77,7 @@ LanceDB (chunks and embeddings, with the BM25 file next to it) and SQLite `setti
 | [ONNX Inference](docs/architecture/onnx.md) | Optional local neural inference with the cross-encoder re-ranker on ONNX Runtime, plus heuristic perception components. |
 | [Retrieval Pipeline](docs/architecture/retrieval.md) | Finds the chunks that answer a question with dense and BM25 search, RRF fusion, cross-encoder re-ranking and context formatting. |
 | [Retrieval pipeline — target design (v2)](docs/architecture/retrieval-pipeline-v2.md) | Living document of the retrieval pipeline review, following the same method as `ingestion-pipeline-v2.md`. The "Current state" section records how the code w... |
-| [Storage and Encryption](docs/architecture/storage.md) | LanceDB vector store, SQLite settings and session database, path healing and encryption at rest. |
+| [Storage and Encryption](docs/architecture/storage.md) | LanceDB vector store, SQLite settings and session database and encryption at rest. |
 | [Terminal UI](docs/architecture/tui.md) | Full-screen Ratatui interface with chat, header and footer telemetry, menus, onboarding and the Aurora theme. |
 <!-- architecture-docs:subsystems:end -->
 
@@ -89,6 +89,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0150](docs/adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md) | Offline sources keep their index and folders are never redirected | accepted | v1.0.0 | 2026-10-24 |
 | [ADR-0149](docs/adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md) | Secret values are redacted before chunking, with no exception | accepted | v1.0.0 | 2026-10-24 |
 | [ADR-0148](docs/adr/0148-shared-prompt-safety-primitives-and-the-deep-search-intermed.md) | Shared prompt safety primitives and the Deep Search intermediate envelope | accepted | v0.45.1 | 2026-10-19 |
 | [ADR-0147](docs/adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md) | Constant vectors never reach dense search: the mock target is BM25 only and Global is embedded with the default target | accepted | v0.45.1 | 2026-10-19 |

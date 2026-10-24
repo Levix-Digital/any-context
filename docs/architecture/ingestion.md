@@ -59,26 +59,30 @@ flowchart LR
 1. Mark the workspace as syncing in the `workspace_sync_status` table (stage `scanning`, worker PID).
 2. Add the chunk provenance columns to a LanceDB table created by an older version (`NativeLanceStore::ensure_provenance_columns`, see [storage](storage.md)); a failure goes to `SyncResult::errors`. Then encrypt the chunks an older version stored in plaintext (`NativeLanceStore::encrypt_plaintext_rows`, see [storage](storage.md)); the count goes to `SyncResult::chunks_encrypted_legacy` and is printed by verbose syncs, and a failure goes to `SyncResult::errors` and is retried on the next pass. Finally, a workspace indexed before secret redaction is repaired once (see "Secret redaction" below).
 3. Resolve the embedding target and decide whether the stored vectors can be kept (see "Embedding target and reindex" below). A reindex turns the pass into a forced pass over the whole workspace, even when it was scoped to one folder, and writes its message to the sync status.
-4. Resolve the folders: only `target_folder` when it is set (a `/folder <path>` sync) and no reindex is due; otherwise the folders registered for the workspace, or the current directory when none is registered.
+4. Resolve the folders: only `target_folder` when it is set (a `/folder <path>` sync) and no reindex is due; otherwise the folders registered for the workspace. A workspace with no registered folder indexes no folder, never the current directory, and reports `SyncResult::no_sources` when it has no web source either.
 5. Load `bm25_index.bin` from the LanceDB directory, or start an empty index.
 6. With `force` (or a reindex), delete the workspace's vectors and BM25 entries (or only the target folder's) and clear the stat cache.
-7. Scan and diff against the SQLite stat cache (`WorkspaceScanner::scan_and_diff_native`).
+7. Scan and diff against the SQLite stat cache (`WorkspaceScanner::scan_and_diff_native`). A scoped pass compares only the cache entries inside its folder; a full pass also deletes the cached files that are no longer inside any registered folder (the folder was removed with `/folder --remove`). See "Offline sources" below.
 8. Apply renames, deletions and modifications: the chunks of deleted, renamed and modified files are removed from LanceDB and BM25 before re-indexing.
 9. If nothing changed and the workspace has no web sources, record the ledger and return early as up to date.
 10. For each file to index: check for cooperative cancellation, update progress (stage `files`), chunk it with its secret values redacted, triage the chunks, build the document envelope, embed and upsert. Files that yield no chunks are still recorded in the stat cache so they are not re-read on every pass.
 11. Crawl the workspace's web sources (only for full workspace syncs, not folder-scoped ones).
 12. Save the BM25 index, record the sync ledger (`record_sync_ledger`), set the status back to `idle` and record the embedding target. A cancelled pass returns before this step, so it keeps the previous target and an interrupted reindex runs again on the next pass.
 
-`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, `chunks_encrypted_legacy`, `embedding_reindex` (the reindex message, when one ran), `secrets_redacted` and `secrets_repaired_files`, errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
+`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, `chunks_encrypted_legacy`, `embedding_reindex` (the reindex message, when one ran), `secrets_redacted` and `secrets_repaired_files`, `offline_folders` and `no_sources`, errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
 
 ### Scanning and change detection
 
 - The walk skips version control, dependency, build and IDE directories (`.git`, `node_modules`, `target`, `.venv`, `dist`, `build`, `.next`, `vendor`, and others) and minified bundles.
 - Supported files are documents (`pdf`, `docx`, `pptx`, `txt`, `md`, `rst`, `epub`, `eml`, and others), spreadsheets and data (`csv`, `tsv`, `json`, `jsonl`, `xlsx`, `xls`, `ods`, `ofx`), source and configuration files in many languages, well-known file names (`Dockerfile`, `Makefile`, `.env`, and others) and images (`png`, `jpg`, `jpeg`, `webp`).
-- A file is new when it is not in the stat cache, modified when its modification time differs by more than 1 ms or its size differs, and deleted when it is cached but no longer on disk.
+- A file is new when it is not in the stat cache, modified when its modification time differs by more than 1 ms or its size differs, and deleted when it is cached, no longer on disk, inside a folder the scanner read and not inside an offline path.
 - A deleted and a new file of the same non-zero size are treated as a rename when they have the same base name (moved across folders) or the same extension in the same folder (renamed in place).
 - Paths are normalized (Windows `\\?\` prefix removed) before comparison.
-- A folder that does not exist is passed to path healing (`storage::path_healer::try_heal_path`); when it cannot be healed it is reported in `DiffResult::missing_folders` and skipped.
+- A folder that cannot be listed is reported in `DiffResult::missing_folders` and `DiffResult::offline_paths` and skipped; a subfolder or file the walk cannot read is added to `offline_paths`. Its path is never guessed or redirected.
+
+### Offline sources
+
+Files under an offline path keep their index until the source is back ([ADR-0150](../adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md)). The orchestrator copies `DiffResult::offline_paths` to `SyncResult::offline_folders` and writes `N source(s) offline, their index is kept: <paths>. If a folder moved, remove it with /folder --remove <path> and add the new path.` (`ingestion::offline_summary`) to the sync status; the CLI prints it with `⚠` after every sync, and prints `ℹ Workspace '<ws>' has no sources: …` when `no_sources` is set. `scanner::is_within_folder` compares whole path components, so `/a/docs` does not contain `/a/docs-old`.
 
 ### Secret redaction
 
@@ -166,7 +170,7 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 ## Interfaces
 
 - **Called by**: the `--sync-worker` process and `actx --sync` in the [CLI](cli.md) (`NativeSyncOrchestrator::new_default`), and the [command engine](commands.md) (`/sync`, `/folder`, `/web`), which spawns the worker with `CommandEngine::spawn_sync_worker` and logs its output to `sync_<workspace>.log`.
-- **Calls**: [storage](storage.md) (`NativeLanceStore`, `NativeConfigDb`, path healing), [retrieval](retrieval.md) (`BM25Index`), [language model providers](lm-providers.md) (`LmProvider::embed`) and the [chunkers](chunkers.md).
+- **Calls**: [storage](storage.md) (`NativeLanceStore`, `NativeConfigDb`), [retrieval](retrieval.md) (`BM25Index`), [language model providers](lm-providers.md) (`LmProvider::embed`) and the [chunkers](chunkers.md).
 - **Configuration**: `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, `JINA_API_KEY`; API keys stored with `/keys`.
 
 ## Decisions
@@ -179,7 +183,7 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0106](../adr/0106-full-rust-parity-python-purge.md): remaining ingestion features ported to Rust, Python removed.
 - [ADR-0110](../adr/0110-ingestion-model-router-quality-gate.md): quality gate, ingestion model router and spatial form reconstruction.
 - [ADR-0113](../adr/0113-tabular-chunker-markdown-table-preservation.md): Markdown tables exempt from dense form classification.
-- [ADR-0116](../adr/0116-path-healing-temporal-metadata-change-detection.md): path healing, web temporal metadata cascade and change detection.
+- [ADR-0116](../adr/0116-path-healing-temporal-metadata-change-detection.md): web temporal metadata cascade and change detection (its path healing is replaced by ADR-0150).
 - [ADR-0124](../adr/0124-jina-reader-web-ingestion-seven-domains.md): Jina Reader for web pages, used only at ingestion time.
 - [ADR-0123](../adr/0123-onnx-production-activation-gemma-4-tiers.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): ONNX perception adapters, which today run as heuristics.
 - [ADR-0131](../adr/0131-field-level-encryption-on-every-lancedb-write.md): chunk fields encrypted on every write.
@@ -191,3 +195,4 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): a failed embedding fails the file (retried on the next sync, kept in BM25), one rate-limit retry, a provider breaker per pass and the failure summary in the sync status.
 - [ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md): mock vectors are never searched; the sync embeds `Global` with the default target.
 - [ADR-0149](../adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md): secret values are redacted before chunking with no exception, and indexes built before are repaired once.
+- [ADR-0150](../adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md): offline sources keep their index, scoped syncs touch only their folder, folders are never redirected, no implicit source.

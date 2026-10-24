@@ -101,7 +101,7 @@ You can also download [`actx-installer`](https://github.com/Levix-Digital/any-co
 | `/cancel` | Stop the running sync |
 | `/status`, `/info`, `/inspect` | Show index health, statistics and sample chunks (`/inspect <text>` filters them) |
 
-Only new and changed files are processed on each sync. Folders that moved slightly (for example between `Documents` folders or cloud drive mounts) are found again automatically.
+Only new and changed files are processed on each sync. A folder that cannot be read (an unplugged drive, a network share or cloud drive that is not mounted) is reported offline and keeps its index until it is back; AnyContext never guesses another path for it. A workspace with no folder indexes nothing: add one with `/folder <path>`.
 
 If the embedding provider fails during a sync (an invalid key, a rate limit, a network error), the affected files are not embedded: the footer shows `⚠ N files not embedded (/sync)`, `/status` shows the first error, and keyword search still finds those files. The next sync tries them again. After an authentication error the sync stops calling the provider for the remaining files.
 
@@ -212,7 +212,8 @@ To uninstall, download and run the uninstaller from the [releases page](https://
 |---|---|
 | Answers start with `Mock response to:` | No working model is configured: save a key with `/keys <provider> <key>` or select a local model with `/model ollama/<model>`. |
 | "No information or documents matching the query" | The workspace has no relevant indexed content yet: check `/sources` and `/status`, wait for the sync to finish, or rephrase. |
-| A folder shows as unreachable | The path no longer exists; add it again with `/folder <path>`. |
+| A sync reports `⚠ N source(s) offline, their index is kept` | The folder or a subfolder cannot be read: reconnect the drive, share or cloud mount and run `/sync`. If the folder moved, remove it with `/folder --remove <old path>` and add the new path with `/folder <new path>`. |
+| A sync reports `has no sources` | The workspace has no folder or site: add one with `/folder <path>` or `/web <url>`. |
 | The sync seems stuck | Check the footer or `/status`; read `sync_<workspace>.log` in the logs folder; `/cancel` and `/sync --incremental` again. |
 | The footer shows `⚠ N files not embedded (/sync)` | The embedding provider failed during the last sync: check the `Last Sync` line in `/status` (or `sync_<workspace>.log`), fix the key or wait for the rate limit, then run `/sync --incremental`. |
 | `/status` shows `Dense Search: BM25 only` | The last question could not be embedded, so it was answered from keyword matches only; the reason follows. Check the key with `/keys` and the embedding model. |

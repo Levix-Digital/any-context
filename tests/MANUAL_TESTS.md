@@ -171,7 +171,8 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Expected**:
   - The footer shows a spinner and progress, and the interface stays responsive; no worker output appears on the screen.
   - Only the new folder is scanned (the log `sync_<workspace>.log` lists only its files).
-  - At the end the header and footer show `Up to date` and `/status` counts the new chunks.
+  - The other folder keeps all its chunks: `/status` shows its earlier count plus the new chunks, and a question about the other folder still finds its documents.
+  - At the end the header and footer show `Up to date`.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
@@ -201,16 +202,20 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
-### MT-SYNC-004: Unreachable and slightly moved folders
+### MT-SYNC-004: An unreachable folder keeps its index and is never redirected
 
-- **Covers**: source health, path healing
-- **Prerequisites**: an indexed folder you can rename, and one under `Documents` (or a cloud drive mount)
+- **Covers**: offline sources, source health, /folder validation
+- **Prerequisites**: a workspace with an indexed folder on a USB drive or network share (or a local folder you can rename), and a second indexed folder
 - **Steps**:
-  1. Rename the first folder; wait a few seconds.
-  2. Register the second folder with an extra or missing `Documents` segment in the path.
+  1. Unplug the drive (or rename the folder) and wait a few seconds.
+  2. In another terminal run `actx --sync -w <workspace>`, then ask a question in the TUI about a document in that folder.
+  3. Run `/folder <path that does not exist>`, for example the folder path with an extra `Documents` segment.
+  4. Plug the drive back (or rename the folder back) and run `actx --sync -w <workspace>` again.
 - **Expected**:
-  - The header and footer show `folder(s) unreachable` for the renamed folder.
-  - The second folder is found under its real path and indexed; `/sources` shows the corrected path.
+  - The header and footer show `⚠️ 1 source(s) offline, their index is kept`.
+  - The sync prints `⚠ 1 source offline, their index is kept: <path>. If a folder moved, remove it with /folder --remove <path> and add the new path.` and deletes nothing; `/status` shows the same chunk count as before, and the question is still answered from that folder.
+  - `/folder` answers `❌ Directory does not exist: <path>`, and `/sources` still shows the original path.
+  - After the drive is back, the sync reports `Up to date` (or only the files changed meanwhile) without reindexing the folder.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
@@ -292,6 +297,20 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Notes**:
 
 ## Document Formats
+
+### MT-SYNC-010: A workspace with no sources indexes nothing
+
+- **Covers**: no implicit source, sync notices
+- **Prerequisites**: none
+- **Steps**:
+  1. In `actx`, run `/switch Empty` to create an empty workspace, then `/exit`.
+  2. Open a terminal in a folder with documents and run `actx --sync -w Empty`.
+  3. Run `actx`, then `/status` and `/sources` in the `Empty` workspace.
+- **Expected**:
+  - The sync prints `ℹ Workspace 'Empty' has no sources: add a folder with /folder <path> or a site with /web <url>.`
+  - `/status` shows 0 chunks and `/sources` lists nothing: the terminal's folder was not indexed.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
 
 ### MT-DOC-001: PDFs with tables and forms are answered exactly
 

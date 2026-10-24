@@ -1,7 +1,7 @@
 <!-- dev-cycle-constitution
 generated-by: dev-cycle-protocol/constitution.py (do not edit; change a source and regenerate)
-sources-sha256: 16e0540c3cc6c88b101b2cc158aed2f6e1db88468903f0cda6386f96818728cf
-content-sha256: 975a9a448f1f3dfaecc50b8e510e84b0c0a3cccc5e809956e8e7d0d984896b60
+sources-sha256: 00470c50a03878a25452e4b90ff3db379ce153bc82a35c2a7bcac7928fd0c866
+content-sha256: f586387655ab361834fe7230969dfaf95f58260d910b86dc5fc309799777af9d
 -->
 # any-context Constitution
 
@@ -198,6 +198,7 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - ADR-0147: Constant vectors never reach dense search: the mock target is BM25 only and Global is embedded with the default target (`docs/adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md`)
 - ADR-0148: Shared prompt safety primitives and the Deep Search intermediate envelope (`docs/adr/0148-shared-prompt-safety-primitives-and-the-deep-search-intermed.md`)
 - ADR-0149: Secret values are redacted before chunking, with no exception (`docs/adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md`)
+- ADR-0150: Offline sources keep their index and folders are never redirected (`docs/adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md`)
 
 ## Governance
 
@@ -205,4 +206,4 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - Amendments change the source, not this file: an ADR for decisions, the technical specification for requirements and constraints, `.dev-cycle.json` for the architecture style, the skills for principles. Then run `constitution.py generate` and commit the result with the change.
 - Gate 3 of the development cycle blocks a plan while this file is stale or edited by hand.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-24
+**Version**: 1.2.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-24
