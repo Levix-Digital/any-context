@@ -40,6 +40,9 @@ pub fn to_absolute_path(path: &Path) -> String {
 pub fn is_within_folder(path: &str, folder: &str) -> bool {
     let path = to_absolute_path(Path::new(path));
     let folder = to_absolute_path(Path::new(folder));
+    // Windows paths are case-insensitive: `C:\Docs` and `c:\docs` are the same folder.
+    #[cfg(windows)]
+    let (path, folder) = (path.to_lowercase(), folder.to_lowercase());
     let folder = folder.trim_end_matches(['/', '\\']);
     match path.strip_prefix(folder) {
         Some(rest) => rest.is_empty() || rest.starts_with(['/', '\\']),
