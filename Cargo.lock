@@ -20,6 +20,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "actx-bench"
+version = "0.45.0"
+dependencies = [
+ "actx-onnx",
+ "any-context-core-rs",
+ "clap",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+]
+
+[[package]]
 name = "actx-cli"
 version = "0.45.0"
 dependencies = [

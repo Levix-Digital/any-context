@@ -1,0 +1,24 @@
+[package]
+name = "actx-bench"
+version = "0.45.0"
+edition = "2021"
+authors = ["LeviGuilherme <contato@levix.digital>"]
+description = "Development benchmarks for AnyContext (retrieval quality on a fixed corpus); not shipped"
+publish = false
+
+[lib]
+name = "actx_bench"
+path = "src/lib.rs"
+
+[[bin]]
+name = "actx-bench"
+path = "src/main.rs"
+
+[dependencies]
+actx-onnx = { path = "../actx-onnx" }
+any-context-core-rs = { path = "../any-context-core-rs" }
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+tokio = { version = "1.40", features = ["full"] }
