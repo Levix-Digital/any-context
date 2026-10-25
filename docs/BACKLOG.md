@@ -6,20 +6,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ## Bugs
 
-### BUG-028: [connectors] The scan downloads online-only cloud placeholders
-- **Severity**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
-- **Plan**: any_context_sync_and_web_search_reach_outside_without_being_asked_online_only_cloud_files_are_downloaded_and_web_search_scrapes_duckduckgo
-- **Description**: Design: docs/architecture/connectors-v2.md, decision 21. The scanner does not check the online-only attributes of OneDrive, Google Drive or Dropbox placeholders (Cloud Files on Windows, File Provider on macOS) (ingestion/scanner.rs:275-286), and reading the file (ingestion/router.rs:158) forces its download. Violates "explicit action": downloads and disk use the user never asked for. Expected: online-only files are skipped and counted in the source report; files already on disk are indexed normally.
-
-### BUG-029: [retrieval] Web search without a key scrapes DuckDuckGo result pages
-- **Severity**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
-- **Plan**: any_context_sync_and_web_search_reach_outside_without_being_asked_online_only_cloud_files_are_downloaded_and_web_search_scrapes_duckduckgo
-- **Description**: Design: docs/architecture/connectors-v2.md, decisions 24 and 32. Without a Tavily or Serper key, web search falls back to DuckDuckGo (retrieval/web_search.rs:114-115): the Instant Answer API, which is not a search API, and then scraping html.duckduckgo.com (web_search.rs:281-293, parser at 318). DuckDuckGo has no official search API, so this breaks the official-APIs-only rule. Expected: web search uses only official APIs, or third-party APIs that are allowed and worth their cost; with none available it says so instead of scraping.
-
 ## Features
 
 ### FEAT-020: [ingestion] Single local file and single web page as sources
@@ -2163,3 +2149,19 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
 - **Closed**: 2026-10-24, plan any_context_ingestion_sync_touches_sources_the_user_did_not_choose_scoped_and_unreachable_folders_are_purged_missing_folders_are_redirected_an_empty_workspace_indexes_the_working_directory
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 1 "Source selection". When a workspace has no folders, sync indexes the process's current directory (ingestion/orchestrator.rs:342-348), which can be the home folder, and its content can reach a cloud embedding model. Violates "every source comes from an explicit user action". Expected: a workspace without sources indexes nothing and says so.
+
+### BUG-028: [connectors] The scan downloads online-only cloud placeholders
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
+- **Plan**: any_context_sync_and_web_search_reach_outside_without_being_asked_online_only_cloud_files_are_downloaded_and_web_search_scrapes_duckduckgo
+- **Closed**: 2026-10-25, plan any_context_sync_and_web_search_reach_outside_without_being_asked_online_only_cloud_files_are_downloaded_and_web_search_scrapes_duckduckgo
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 21. The scanner does not check the online-only attributes of OneDrive, Google Drive or Dropbox placeholders (Cloud Files on Windows, File Provider on macOS) (ingestion/scanner.rs:275-286), and reading the file (ingestion/router.rs:158) forces its download. Violates "explicit action": downloads and disk use the user never asked for. Expected: online-only files are skipped and counted in the source report; files already on disk are indexed normally.
+
+### BUG-029: [retrieval] Web search without a key scrapes DuckDuckGo result pages
+- **Severity**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 1 of the v2 backlog rebuild
+- **Plan**: any_context_sync_and_web_search_reach_outside_without_being_asked_online_only_cloud_files_are_downloaded_and_web_search_scrapes_duckduckgo
+- **Closed**: 2026-10-25, plan any_context_sync_and_web_search_reach_outside_without_being_asked_online_only_cloud_files_are_downloaded_and_web_search_scrapes_duckduckgo
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 24 and 32. Without a Tavily or Serper key, web search falls back to DuckDuckGo (retrieval/web_search.rs:114-115): the Instant Answer API, which is not a search API, and then scraping html.duckduckgo.com (web_search.rs:281-293, parser at 318). DuckDuckGo has no official search API, so this breaks the official-APIs-only rule. Expected: web search uses only official APIs, or third-party APIs that are allowed and worth their cost; with none available it says so instead of scraping.
