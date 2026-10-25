@@ -23,6 +23,7 @@ The vector table itself belongs to [Storage and Encryption](storage.md); the cro
 | Module | Role |
 |---|---|
 | `pipeline.rs` | `NativeHybridPipeline`, `HybridSearchRequest`, `HybridSearchResult`, `RetrievalPreset`, Stage 2 re-ranking. |
+| `requests.rs` | `fast_request` and `deep_request`: the requests the product sends, shared with the benchmark. |
 | `bm25.rs` | `BM25Index`, `DocRecord`: inverted index with atomic, bounded persistence. |
 | `rrf.rs` | `reciprocal_rank_fusion` (k = 60 by default). |
 | `diversifier.rs` | `apply_source_cap`, `apply_density_budget`, `apply_threshold`. |
@@ -42,7 +43,7 @@ flowchart TD
     P -->|expanded query| B[BM25 search]
     F & T & D --> DL[Dense candidate list]
     DL & B --> RRF[RRF k=60]
-    RRF --> SORT[Sort by relevance<br/>recency breaks ties]
+    RRF --> SORT[Sort by relevance<br/>recency, then chunk id break ties]
     SORT --> MS[min_score filter]
     MS --> RR{Re-ranker active?}
     RR -->|yes| CE[Cross-encoder on top 30]
@@ -77,15 +78,17 @@ flowchart TD
 
 ### Request parameters in use
 
-All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `min_score`.
+All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `min_score`. The Fast and Deep requests are built by `retrieval::fast_request` and `retrieval::deep_request`.
 
 | Caller | `top_k` | `candidate_pool_k` | `max_density_chars` | `min_score` | Extra target |
 |---|---|---|---|---|---|
 | `search_db` agent tool | 5 | 30 | 12,000 | 0.005 | `Global` |
-| Deterministic one-hop retriever | 6 | 30 | 14,000 | 0.005 | `Global` |
-| Deep Search batch retriever (`deep_search_request`) | 8 per sub-query | 40 | 16,000 | 0.005 | `Global` |
+| Deterministic one-hop retriever (`fast_request`) | 6 | 30 | 14,000 | 0.005 | `Global` |
+| Deep Search batch retriever (`deep_request`) | 8 per sub-query | 40 | 16,000 | 0.005 | `Global` |
 
 `RetrievalPreset` (`Turbo`, `Balanced`, `Deep`) defines alternative parameter sets (pool 50/100/150, top 10/20/40, minimum score 0.012/0.008/0.005, 2/3/5 chunks per source, 20,000/40,000/60,000 characters, RRF k 60). The re-rank mode comes from the `rerank_mode` setting (`auto`, `on`, `off`; default `auto`).
+
+Equal scores are ordered by recency, then by chunk id and file path (`compare_by_relevance`); BM25 orders equal scores by chunk id before its cut at the pool size. The same question therefore always ranks the same.
 
 ### BM25 index
 
@@ -113,6 +116,25 @@ All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `m
 
 `NativeWebSearchEngine::search` (used by the `web_search` agent tool when web search is enabled) uses only the Tavily API (`TAVILY_API_KEY` or the key saved with `/keys tavily`), first scoped to the workspace's web source domains and then on the open web. Without a key it returns `NO_SEARCH_PROVIDER` before any request, and `/web-search on` shows the same notice. There is no scraping fallback ([ADR-0152](../adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md)). The client identifies itself as `AnyContext/<version>`.
 
+### Benchmark
+
+The development benchmark ([ADR-0153](../adr/0153-a-development-retrieval-benchmark-gates-retrieval-changes.md)) measures retrieval quality on a fixed corpus. It is development tooling: the `actx-bench` crate is not part of the product build.
+
+- **Data** (`benchmarks/retrieval/`): `corpus/` holds fictitious documents in Portuguese and English (Markdown, text, PDF) and the fictitious CMR form, with distractors that differ in version, negation, module or date; `questions.json` holds the labeled questions (id, language, category, text, relevant documents with a grade from 1 to 3 and an optional passage; negative questions have none); `baseline.<config_id>.json` is the committed reference; `results/` is git-ignored; `tools/make_pdfs.py` regenerates the PDFs.
+- **Run**: the corpus is indexed from scratch in a sandbox whose default paths (`ACTX_SETTINGS_DB`, `ACTX_CONTEXT_DB`, `ACTX_MODELS_DIR`, `ACTX_TEST_MODE`) point to a temp folder. Each question runs a ranking pass (`fast_request` with `top_k` 10, no density cut, no `Global`) and a delivered pass (`fast_request` as sent, no `Global`); the re-rank mode is `on` and the run stops if the cross-encoder is not active.
+- **Metrics**: on positive questions, HitRate@1/3/5/10, MRR@10 and NDCG@10 (a document counts once, at its best rank), passage HitRate@5, the delivered hit rate and the false nothing-found rate; on negative questions, the nothing-found rate (the delivered pass returned nothing); latency of the delivered pass (mean and p95), overall, by language and by category.
+- **Gate**: a run is compared with the baseline of the same configuration (`config_id`, corpus and question file hashes, retrievers, embedding target, reranker); it fails when MRR@10 or HitRate@5 is more than 0.02 below. Latency never fails a run. Runs with another configuration are reported as not comparable.
+- **Configurations**: `lexical-rerank` (the mock embedding target, so dense search is skipped, plus the verified cross-encoder) is the CI configuration. `--embedding <provider>/<model>` adds dense search with a provider key from the environment; it stops if the index was embedded with another target.
+- **CI**: `.github/workflows/retrieval-benchmark.yml` runs on pull requests and pushes that change retrieval, ingestion, storage, `actx-onnx`, `actx-bench` or the benchmark data, with `--check-determinism`, and writes the comparison to the job summary.
+
+```bash
+cargo run -p actx-bench --release -- retrieval validate
+cargo run -p actx-bench --release -- retrieval run                  # compare with the baseline
+cargo run -p actx-bench --release -- retrieval run --save-baseline  # accept a change
+```
+
+Exit codes: 0 no regression, 1 regression, 2 invalid labels, 3 environment error (ONNX Runtime, reranker, provider), 4 baseline missing or not comparable when `--compare` is given, 5 non-deterministic ranking.
+
 ## Interfaces
 
 - **Called by**: the agent tools and retrievers assembled in `crates/actx-cli/src/engine.rs` (`search_db`, `PipelineDeterministicRetriever`, `PipelineBatchRetriever`, `web_search`), the [command engine](commands.md) (inspection), and [ingestion](ingestion.md) (`BM25Index`).
@@ -138,6 +160,7 @@ All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `m
 - [ADR-0139](../adr/0139-retrieval-order-follows-relevance.md): relevance-only ranking, per-source cap in score order, recency as a tie-breaker and the `RRF_MIN_SCORE` floor.
 - [ADR-0140](../adr/0140-chunk-version-attribute-from-explicit-path-tokens-no-inferre.md): `version` only from explicit path tokens, no inferred `scope`, conflicting values reported per source.
 - [ADR-0141](../adr/0141-deep-search-synthesis-uses-the-canonical-context-formatter-t.md): the Deep Search synthesis uses `ContextFormatter` through the `SynthesisPromptFormatter` port, with the shared isolation rules.
+- [ADR-0153](../adr/0153-a-development-retrieval-benchmark-gates-retrieval-changes.md): the development retrieval benchmark, its gate, the shared request builders and the fixed tie-break.
 - [ADR-0142](../adr/0142-chunk-provenance-columns-in-lancedb-added-in-place.md): chunk provenance in results and prompts, `lines` attribute, `Section` header and `file:start-end` citations; BM25-only hits read their provenance from LanceDB.
 - [ADR-0143](../adr/0143-bm25-only-hits-take-their-text-from-lancedb-batch-deduplicat.md): BM25-only hits take their text, content hash and provenance from LanceDB (envelope stripped as fallback); batch deduplication by chunk id.
 - [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): the `<live_status>` block for status questions.

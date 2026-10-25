@@ -729,22 +729,6 @@ pub fn run_startup_splash_bootstrap() {
     std::thread::sleep(std::time::Duration::from_millis(250));
 }
 
-/// Request sent for each Deep Search sub-query.
-fn deep_search_request(query: &str, workspace: &str, rerank_mode: &str) -> any_context_core_rs::retrieval::HybridSearchRequest {
-    any_context_core_rs::retrieval::HybridSearchRequest {
-        query_text: query.to_string(),
-        workspace: Some(workspace.to_string()),
-        target_workspaces: vec!["Global".to_string()],
-        top_k: 8,
-        candidate_pool_k: 40,
-        max_density_chars: 16_000,
-        min_score: any_context_core_rs::retrieval::RRF_MIN_SCORE,
-        table_name: "workspace_chunks".to_string(),
-        rerank_mode: Some(rerank_mode.to_string()),
-        ..Default::default()
-    }
-}
-
 /// Native Hybrid RAG batch retriever adapter for DeepSearch
 struct PipelineBatchRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
@@ -768,7 +752,7 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
 
         let requests: Vec<_> = queries
             .iter()
-            .map(|q| deep_search_request(q, &self.workspace, &rerank_mode))
+            .map(|q| any_context_core_rs::retrieval::deep_request(q, &self.workspace, &rerank_mode))
             .collect();
 
         match pipeline.retrieve_hybrid_batch_async(&requests).await {
@@ -873,18 +857,7 @@ impl PipelineDeterministicRetriever {
         pipeline.set_reranker(Some(self.reranker.clone()));
         pipeline.set_rerank_mode(&rerank_mode);
 
-        let req = any_context_core_rs::retrieval::HybridSearchRequest {
-            query_text: query.to_string(),
-            workspace: Some(self.workspace.clone()),
-            target_workspaces: vec!["Global".to_string()],
-            top_k: 6,
-            candidate_pool_k: 30,
-            max_density_chars: 14_000,
-            min_score: any_context_core_rs::retrieval::RRF_MIN_SCORE,
-            table_name: "workspace_chunks".to_string(),
-            rerank_mode: Some(rerank_mode),
-            ..Default::default()
-        };
+        let req = any_context_core_rs::retrieval::fast_request(query, &self.workspace, &rerank_mode);
 
         pipeline.search_single_async(&req).await.map_err(actx_agent::AgentError::Internal)
     }
@@ -1012,7 +985,7 @@ mod tests {
 
     #[test]
     fn deep_search_request_keeps_single_list_hits() {
-        let req = deep_search_request("query", "Docs", "auto");
+        let req = any_context_core_rs::retrieval::deep_request("query", "Docs", "auto");
         let weakest_pool_hit = 1.0 / (req.rrf_k + req.candidate_pool_k) as f64;
         assert!(
             req.min_score <= weakest_pool_hit,

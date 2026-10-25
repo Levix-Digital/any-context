@@ -1,0 +1,110 @@
+# Development retrieval benchmark (IMP-065, ADR-0153).
+# Indexes the fixed corpus in benchmarks/retrieval and fails when MRR@10 or HitRate@5 drops more
+# than 0.02 below the committed baseline. Lexical + reranker only until the local embedding model
+# (FEAT-067) turns dense retrieval on in CI.
+name: Retrieval Benchmark
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - "crates/any-context-core-rs/src/retrieval/**"
+      - "crates/any-context-core-rs/src/ingestion/**"
+      - "crates/any-context-core-rs/src/storage/**"
+      - "crates/actx-onnx/**"
+      - "crates/actx-bench/**"
+      - "benchmarks/retrieval/**"
+      - ".github/workflows/retrieval-benchmark.yml"
+  push:
+    branches:
+      - dev
+    paths:
+      - "crates/any-context-core-rs/src/retrieval/**"
+      - "crates/any-context-core-rs/src/ingestion/**"
+      - "crates/any-context-core-rs/src/storage/**"
+      - "crates/actx-onnx/**"
+      - "crates/actx-bench/**"
+      - "benchmarks/retrieval/**"
+      - ".github/workflows/retrieval-benchmark.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Retrieval benchmark (lexical + reranker)
+    runs-on: ubuntu-latest
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+      ACTX_MODELS_DIR: ${{ github.workspace }}/.models
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rust Dependency Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: ubuntu-latest-bench
+          cache-all-crates: "true"
+          cache-targets: "false"
+
+      - name: Provision ONNX Runtime (official Microsoft CPU build)
+        shell: bash
+        run: |
+          bash scripts/fetch_onnxruntime.sh .ort
+          echo "ORT_DYLIB_PATH=$PWD/.ort/libonnxruntime.so" >> "$GITHUB_ENV"
+
+      # The verified reranker download (about 136 MB) is cached by the catalog file that pins it.
+      - name: Reranker Model Cache
+        uses: actions/cache@v4
+        with:
+          path: .models
+          key: reranker-${{ hashFiles('crates/any-context-core-rs/src/ingestion/model_manager.rs') }}
+
+      - name: Validate Labels
+        run: cargo run -p actx-bench --release -- retrieval validate
+
+      - name: Run Benchmark
+        run: >
+          cargo run -p actx-bench --release -- retrieval run
+          --compare benchmarks/retrieval/baseline.lexical-rerank.json
+          --check-determinism
+          --summary "$GITHUB_STEP_SUMMARY"
+
+      # The full result on one log line, so a new baseline can be taken from a CI run.
+      - name: Show Result
+        if: always()
+        shell: bash
+        run: |
+          for f in benchmarks/retrieval/results/*.json; do
+            [ -f "$f" ] && echo "RESULT-JSON $(basename "$f") $(jq -c . "$f")"
+          done
+          true
+
+      - name: Upload Result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrieval-benchmark-result
+          path: benchmarks/retrieval/results/*.json
+          if-no-files-found: ignore
