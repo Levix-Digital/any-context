@@ -5,7 +5,7 @@ title: One application-wide embedding model, per-chunk model metadata and per-di
 kind: feature
 version: v0.46.0
 status: superseded
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-19T15:43:49'
 updated_at: '2026-10-23T14:16:42'
 session_id: null
@@ -30,19 +30,19 @@ milestones:
   done: false
 status_log:
 - at: '2026-10-19T15:43:49'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-19T15:47:19'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan updated
 - at: '2026-10-19T16:45:49'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan updated
 - at: '2026-10-19T16:58:44'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan updated
 - at: '2026-10-23T14:16:42'

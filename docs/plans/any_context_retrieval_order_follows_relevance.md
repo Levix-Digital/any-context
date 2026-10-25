@@ -5,7 +5,7 @@ title: 'Retrieval order follows relevance: per-source cap in score order and rec
 kind: bug
 version: v0.45.1
 status: completed
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-17T18:50:49'
 updated_at: '2026-10-17T20:21:25'
 session_id: null
@@ -24,46 +24,46 @@ milestones:
 - name: M1 Ranking fix
   done: true
   done_at: '2026-10-17'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Docs and ADR
   done: true
   done_at: '2026-10-17'
-  by: Claude
+  by: Levi Silveira
 - name: M3 Review and PR
   done: true
   done_at: '2026-10-17'
-  by: Claude
+  by: Levi Silveira
 status_log:
 - at: '2026-10-17T18:50:49'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-17T18:52:12'
-  by: Claude
+  by: Levi Silveira
   status: active
   note: Plan updated
 - at: '2026-10-17T18:56:11'
-  by: Claude
+  by: Levi Silveira
   note: 'Backlog items added: BUG-006'
 - at: '2026-10-17T18:56:48'
-  by: Claude
+  by: Levi Silveira
   status: in_progress
   note: Approved by the user on 2026-10-17 with BUG-006 included (option a)
 - at: '2026-10-17T19:24:15'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M1 Ranking fix'' completed: Regression tests failed before the fix; cargo test --workspace green'
 - at: '2026-10-17T19:24:17'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M2 Docs and ADR'' completed: ADR-0139 (renumbered after ADR-0138 landed on dev), retrieval.md; check_docs 0 errors'
 - at: '2026-10-17T20:21:04'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M3 Review and PR'' completed: PR #349 merged into dev (9b06e5c)'
 - at: '2026-10-17T20:21:04'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: All milestones completed
 - at: '2026-10-17T20:21:25'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: 'PR #349 merged into dev (9b06e5c)'
 ---

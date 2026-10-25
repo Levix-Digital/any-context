@@ -5,7 +5,7 @@ title: Scope and version attributes are guessed from path substrings
 kind: bug
 version: v0.45.1
 status: completed
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-17T19:19:54'
 updated_at: '2026-10-17T21:09:15'
 session_id: null
@@ -21,39 +21,39 @@ milestones:
 - name: M1 Formatter fix
   done: true
   done_at: '2026-10-17'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Docs and manual tests
   done: true
   done_at: '2026-10-17'
-  by: Claude
+  by: Levi Silveira
 - name: M3 Review and PR
   done: true
   done_at: '2026-10-17'
-  by: Claude
+  by: Levi Silveira
 status_log:
 - at: '2026-10-17T19:19:54'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-17T19:21:25'
-  by: Claude
+  by: Levi Silveira
   status: active
   note: Plan updated
 - at: '2026-10-17T19:30:54'
-  by: Claude
+  by: Levi Silveira
   status: in_progress
   note: Approved by the user on 2026-10-17
 - at: '2026-10-17T19:50:55'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M1 Formatter fix'' completed: infer_version replaces infer_scope_and_version; cargo test --workspace green'
 - at: '2026-10-17T19:50:57'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0140, retrieval page, MT-ANS-006; docs, readme and manual test checks clean'
 - at: '2026-10-17T21:09:15'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M3 Review and PR'' completed: PR #351 merged into dev'
 - at: '2026-10-17T21:09:15'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: All milestones completed
 ---

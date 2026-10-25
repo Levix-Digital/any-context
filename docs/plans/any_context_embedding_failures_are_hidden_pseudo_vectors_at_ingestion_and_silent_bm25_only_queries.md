@@ -5,7 +5,7 @@ title: 'Embedding failures are hidden: pseudo-vectors at ingestion and silent BM
 kind: feature
 version: v0.45.1
 status: completed
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-18T19:32:46'
 updated_at: '2026-10-18T23:18:07'
 session_id: null
@@ -20,57 +20,57 @@ milestones:
 - name: M1 Ingestion fails the file
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Breaker and rate limit
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M3 Reporting
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M4 Query outcome (IMP-003)
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M5 Docs and manual tests
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 status_log:
 - at: '2026-10-18T19:32:46'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-18T19:43:53'
-  by: Claude
+  by: Levi Silveira
   status: active
   note: Plan updated
 - at: '2026-10-18T20:10:18'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M1 Ingestion fails the file'' completed: Branch ccr-fad47706-3528p3; 6 regression tests in ingestion/orchestrator.rs'
 - at: '2026-10-18T21:44:04'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M2 Breaker and rate limit'' completed: Branch ccr-fad47706-3528p3; 5 tests in ingestion/orchestrator.rs'
 - at: '2026-10-18T22:00:24'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M3 Reporting'' completed: Branch ccr-fad47706-3528p3; tests in orchestrator.rs, oneshot.rs, engine.rs, tui/ui.rs'
 - at: '2026-10-18T22:41:01'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M4 Query outcome (IMP-003)'' completed: Branch ccr-fad47706-3528p3; tests in retrieval/pipeline.rs and actx-cli engine.rs'
 - at: '2026-10-18T22:52:28'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M5 Docs and manual tests'' completed: Branch ccr-fad47706-3528p3; ADR-0146, architecture pages, README, MT-SYNC-008, MT-ANS-009; actx-lm embedding error mapping and Gemini key header'
 - at: '2026-10-18T22:52:28'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: All milestones completed
 - at: '2026-10-18T22:52:46'
-  by: Claude
+  by: Levi Silveira
   status: in_progress
   note: All milestones done on the branch; completed when the pull request is merged
 - at: '2026-10-18T23:18:07'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: 'Merged in PR #363'
 ---

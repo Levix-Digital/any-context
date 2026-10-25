@@ -47,5 +47,5 @@ __pycache__/
 # ONNX Runtime library fetched for local/CI neural tests (ADR-130)
 .ort/
 
-# Git worktrees created by Claude Code sessions
+# Local Git worktrees
 .claude/worktrees/

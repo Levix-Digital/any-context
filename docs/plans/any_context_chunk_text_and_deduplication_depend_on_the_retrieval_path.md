@@ -5,7 +5,7 @@ title: Chunk text and deduplication depend on the retrieval path
 kind: bug
 version: v0.45.1
 status: completed
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-18T10:49:11'
 updated_at: '2026-10-18T12:23:01'
 session_id: null
@@ -23,39 +23,39 @@ milestones:
 - name: M1 Fix and tests
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Docs
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M3 Review and PR
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 status_log:
 - at: '2026-10-18T10:49:11'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-18T10:51:55'
-  by: Claude
+  by: Levi Silveira
   status: active
   note: Plan updated
 - at: '2026-10-18T11:29:15'
-  by: Claude
+  by: Levi Silveira
   status: in_progress
   note: Approved by the user on 2026-10-18
 - at: '2026-10-18T12:01:22'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M1 Fix and tests'' completed: strip_envelope, lookup_stored_rows, BM25-only branch, chunk-id dedup key, 6 tests; cargo test --workspace green (423 passed)'
 - at: '2026-10-18T12:01:26'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M2 Docs'' completed: ADR-0143, amended_by on ADR-0108 and ADR-0142, retrieval and ingestion pages; docs, readme, manual test and design checks clean'
 - at: '2026-10-18T12:23:01'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M3 Review and PR'' completed: PR #357 merged into dev'
 - at: '2026-10-18T12:23:01'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: All milestones completed
 ---
