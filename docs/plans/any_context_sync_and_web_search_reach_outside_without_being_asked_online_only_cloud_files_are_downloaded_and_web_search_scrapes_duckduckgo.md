@@ -82,7 +82,7 @@ Bug plan for the two R1 bugs where AnyContext reaches outside the device without
 - **BUG-028, confirmed**: `scan_and_diff_native` never looks at the file attributes. On Windows, the Cloud Files API marks placeholders whose data is not local with `FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS` (0x00400000). Some providers use `FILE_ATTRIBUTE_RECALL_ON_OPEN` (0x00040000) or `FILE_ATTRIBUTE_OFFLINE` (0x00001000). `std::os::windows::fs::MetadataExt::file_attributes()` reads them from the directory entry without opening the file. On macOS, File Provider marks dataless files with `SF_DATALESS` (0x40000000) in `st_flags`, which `lstat` returns without hydrating. Linux has no placeholder standard, so nothing changes there.
 - **BUG-028, hypothesis to check in the manual test**: Google Drive for desktop on Windows mounts a virtual drive (`G:`) that may not set these attributes, so its streamed files could still be read. If so, it stays a documented limitation; the Drive connector is out of the personal plans (decision 30).
 - **BUG-029, confirmed**: `search()` step 3 calls `search_duckduckgo` unconditionally when no key resolves. `search_duckduckgo` calls the Instant Answer API, then scrapes the HTML page and parses it with `parse_duckduckgo_html`, which decodes the `/l/?uddg=` redirects with `percent_decode`.
-- **BUG-029, a second finding**: Serper (`google.serper.dev`) returns Google result pages that it collects for resale. Google has no public web search API for this use, and its terms forbid automated queries, so Serper fails the "origin's terms allow it" test of decision 32. Tavily runs its own search index and API under its own terms, so it passes. **This is the decision for Levi below.**
+- **BUG-029, a second finding**: Serper (`google.serper.dev`) returns Google result pages that it collects for resale. Google has no public web search API for this use, and its terms forbid automated queries, so Serper fails the "origin's terms allow it" test of decision 32. Tavily runs its own search index and API under its own terms, so it passes. Levi decided on 2026-10-25 to remove Serper.
 
 ## 4. Fix design (`software-design`)
 
@@ -96,7 +96,7 @@ Bug plan for the two R1 bugs where AnyContext reaches outside the device without
 - **Remove the scraping**: delete `search_duckduckgo`, `parse_duckduckgo_html`, `percent_decode` and `urlencoding_encode` (if nothing else uses it) and their tests, the DuckDuckGo export in `retrieval/mod.rs`, and the spoofed browser user agent. The client sends `AnyContext/<version>` instead.
 - **No provider means no search**: `search()` returns `Err(WebSearchError::NoProvider)` without any request when no allowed key resolves. The `web_search` tool answers `Web search is off: no search API key. Save a Tavily key with /keys tavily <key>.` and the model answers from local documents.
 - **`/web-search on` without a key** still turns the setting on, so it works as soon as a key is saved, and adds the same notice.
-- **Serper**: decided by Levi (see the card). The recommendation is to remove it with DuckDuckGo, leaving Tavily as the only provider until FEAT-161 picks the Levix-provided search API (Jina is the cost reference).
+- **Serper**: removed with DuckDuckGo (decided by Levi on 2026-10-25), leaving Tavily as the only provider until FEAT-161 picks the Levix-provided search API (Jina is the cost reference).
 - **Key resolution for tests**: `NativeWebSearchEngine::with_key_resolver` so tests can run with no keys without touching process environment variables.
 - **ADRs**: ADR-0151 "Online-only cloud files are never downloaded by the scan" and ADR-0152 "Web search uses only allowed search APIs and never scrapes" (amends ADR-0106's multi-provider web search).
 
@@ -114,7 +114,7 @@ Bug plan for the two R1 bugs where AnyContext reaches outside the device without
   - `test_file_freed_to_the_cloud_keeps_its_index`: index a file, then mark it online-only. The test checks that its chunks are kept.
 - **Unit tests, BUG-028**: the Windows attribute and macOS flag helpers for each bit, and plain files.
 - **Regression, BUG-029** (`retrieval/web_search.rs`): `search_without_a_key_makes_no_request_and_says_so` uses a resolver that returns no key and a client pointed at an unroutable proxy. It checks that the result is `NoProvider` and that no connection was tried.
-- **Unit test, BUG-029**: if Serper stays, the cascade order is Tavily, then Serper.
+- **Unit test, BUG-029**: a stored or environment Serper key is ignored (no request to `google.serper.dev`).
 - **Manual tests**:
   - add MT-SYNC-011, "Online-only cloud files are not downloaded", for OneDrive on Windows and, if available, a File Provider client on macOS;
   - change the web search manual test to "without a key, web search says it is off";
@@ -141,7 +141,7 @@ Bug plan for the two R1 bugs where AnyContext reaches outside the device without
 ## 9. Execution steps and milestones
 
 1. **M1 Online-only files are never read**: write the regression tests first and confirm they fail. Then add the probe, the platform detection and `DiffResult::online_only_files`, and keep the index of cached files.
-2. **M2 Web search only through allowed APIs**: write the regression test first and confirm it fails. Then remove DuckDuckGo (and Serper, per Levi's decision), add `NoProvider` and the honest user agent, and update the tool and `/web-search on` messages.
+2. **M2 Web search only through allowed APIs**: write the regression test first and confirm it fails. Then remove DuckDuckGo and Serper, add `NoProvider` and the honest user agent, and update the tool and `/web-search on` messages.
 3. **M3 Reporting**: add `SyncResult::online_only_files` and the CLI line `☁ N online-only file(s) not indexed: they stay in the cloud. Mark them "Always keep on this device" to index them.` Verbose syncs list the paths.
 4. **M4 Documentation and manual tests**: section 7 and the manual tests in section 6. Then run `manual_tests.py validate`, `check_docs.py`, `check_readme.py` and `constitution.py generate`.
 5. **M5 Review and PR**: `cargo test --workspace`, a self-review, and a PR from `fix/cloud-placeholders-and-web-search` into dev with the review comment. Follow CI.
