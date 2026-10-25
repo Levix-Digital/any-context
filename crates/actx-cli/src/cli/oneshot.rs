@@ -667,6 +667,12 @@ fn sync_notice_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<St
     if !res.offline_folders.is_empty() {
         lines.push(format!("⚠ {}", any_context_core_rs::ingestion::offline_summary(&res.offline_folders)));
     }
+    if !res.online_only_files.is_empty() {
+        lines.push(format!(
+            "☁ {} online-only file(s) not indexed: they stay in the cloud. Mark them \"Always keep on this device\" to index them.",
+            res.online_only_files.len()
+        ));
+    }
     if res.secrets_repaired_files > 0 {
         lines.push(format!(
             "🔐 {} file(s) indexed with secrets by an earlier version were reindexed with the secrets redacted. \
@@ -745,6 +751,16 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert!(lines[0].starts_with("🔐 2 file(s) indexed with secrets by an earlier version"), "{lines:?}");
         assert!(lines[0].contains("rotate those credentials"), "{lines:?}");
+    }
+
+    #[test]
+    fn sync_notice_lines_report_online_only_files() {
+        let mut res = any_context_core_rs::ingestion::SyncResult::default();
+        res.online_only_files = vec!["C:/Users/me/OneDrive/a.pdf".to_string(), "C:/Users/me/OneDrive/b.docx".to_string()];
+        assert_eq!(
+            sync_notice_lines(&res),
+            vec!["☁ 2 online-only file(s) not indexed: they stay in the cloud. Mark them \"Always keep on this device\" to index them.".to_string()]
+        );
     }
 
     #[test]

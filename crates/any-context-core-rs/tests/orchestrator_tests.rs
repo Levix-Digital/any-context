@@ -1,4 +1,4 @@
-use any_context_core_rs::ingestion::{NativeSyncOrchestrator, SyncOptions};
+use any_context_core_rs::ingestion::{NativeSyncOrchestrator, SyncOptions, WorkspaceScanner};
 use any_context_core_rs::storage::{NativeConfigDb, NativeLanceStore, VectorRecord};
 use std::sync::Arc;
 
@@ -534,6 +534,63 @@ async fn test_workspace_without_sources_indexes_nothing() {
     assert_eq!(res.indexed_files, 0);
     assert_eq!(lance.count_records(Some("EmbeddingTargetWs"), None).unwrap(), 0);
     assert!(res.no_sources);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Files whose name is in the shared set look like online-only cloud placeholders.
+fn cloud_probe(names: &Arc<std::sync::Mutex<Vec<String>>>) -> WorkspaceScanner {
+    let names = names.clone();
+    WorkspaceScanner::new().with_online_only_probe(move |path, _meta| {
+        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        names.lock().unwrap().contains(&name)
+    })
+}
+
+/// Regression BUG-028: an online-only cloud file is never read (reading it would download
+/// it); it is counted, and the files on disk are indexed normally.
+#[tokio::test]
+async fn test_online_only_files_are_never_read() {
+    let (temp_dir, db, lance, orchestrator, dirs) = embedding_sandbox("online_only_never_read", &["onedrive"]);
+    let ws = "EmbeddingTargetWs";
+    std::fs::write(dirs[0].join("report.md"), "# Report\nThis text only exists in the cloud.").unwrap();
+    let cloud = Arc::new(std::sync::Mutex::new(vec!["report.md".to_string()]));
+    let orchestrator = orchestrator.with_scanner(cloud_probe(&cloud));
+
+    let res = orchestrator.run(&mock_sync(None)).await.expect("sync");
+    assert_eq!(res.indexed_files, 2, "only the files on disk are indexed");
+    assert_eq!(res.online_only_files.len(), 1, "{:?}", res.online_only_files);
+    assert!(res.online_only_files[0].ends_with("report.md"), "{:?}", res.online_only_files);
+    let rows = lance.search_metadata(&format!("workspace = '{ws}'"), 1000, Some(ws), None).unwrap();
+    assert!(rows.iter().all(|r| r.file_name != "report.md"), "the placeholder was not read");
+    assert!(!db.get_workspace_files_stat_cache(ws).unwrap().keys().any(|k| k.ends_with("report.md")));
+
+    // Marked "Always keep on this device": indexed on the next sync.
+    cloud.lock().unwrap().clear();
+    let local = orchestrator.run(&mock_sync(None)).await.expect("sync after download");
+    assert_eq!(local.indexed_files, 1);
+    assert!(local.online_only_files.is_empty());
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// Regression BUG-028: a file the cloud client frees back to online-only keeps its index.
+#[tokio::test]
+async fn test_file_freed_to_the_cloud_keeps_its_index() {
+    let (temp_dir, db, lance, orchestrator, _dirs) = embedding_sandbox("freed_keeps_index", &["onedrive"]);
+    let ws = "EmbeddingTargetWs";
+    let cloud = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let orchestrator = orchestrator.with_scanner(cloud_probe(&cloud));
+
+    orchestrator.run(&mock_sync(None)).await.expect("sync");
+    let chunks = lance.count_records(Some(ws), None).unwrap();
+
+    cloud.lock().unwrap().push("guide.md".to_string());
+    let freed = orchestrator.run(&mock_sync(None)).await.expect("sync after free up space");
+    assert_eq!(freed.deleted_files, 0, "the freed file is not deleted");
+    assert_eq!(freed.online_only_files.len(), 1);
+    assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks);
+    assert_eq!(db.get_workspace_files_stat_cache(ws).unwrap().len(), 2);
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }

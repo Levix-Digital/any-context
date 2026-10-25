@@ -413,6 +413,7 @@ pub fn build_agent_sync(
                             Ok(formatted.join("\n\n"))
                         }
                         Ok(_) => Ok(format!("No live web results found for '{}'.", query)),
+                        Err(e) if e == any_context_core_rs::retrieval::NO_SEARCH_PROVIDER => Ok(e),
                         Err(e) => Ok(format!("Web search failed: {e}")),
                     }
                 }

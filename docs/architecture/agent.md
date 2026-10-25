@@ -94,7 +94,7 @@ The application registers the tools below. Only the ReAct loop offers them to th
 
 - `search_db(query)`: hybrid search in the active workspace plus `Global` (top 5), returned as the XML tool payload with a query anchor, or the Zero Hallucination message.
 - `system_status(workspace?)`: sync status from SQLite, chunk count from LanceDB, monitored folders and web sources.
-- `web_search(query)`: only when web search is enabled for the workspace; Tavily, Serper or DuckDuckGo, preferring the domains of the workspace's web sources.
+- `web_search(query)`: only when web search is enabled for the workspace; the Tavily API with the user's key, preferring the domains of the workspace's web sources. Without a key it returns the "Web search is off" notice instead of results ([ADR-0152](../adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md)).
 
 ### System prompt
 
@@ -152,3 +152,4 @@ Answers follow the language of the user's question.
 - [ADR-0148](../adr/0148-shared-prompt-safety-primitives-and-the-deep-search-intermed.md): shared prompt safety primitives in `prompt_safety.rs`; the Deep Search decomposition, rerank and reflection prompts use the reserved-tag envelope and single-pass template filling.
 - [ADR-0144](../adr/0144-system-prompt-per-answer-path-with-the-tool-section-generate.md): system prompt per answer path; only the ReAct prompt names tools, taken from the registered tools.
 - [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): status questions are routed to a one-hop path with the live status report; web results are not given to the model without indexing.
+- [ADR-0152](../adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md): web search only through the Tavily API with the user's key; no scraping fallback and no Serper.

@@ -101,7 +101,7 @@ You can also download [`actx-installer`](https://github.com/Levix-Digital/any-co
 | `/cancel` | Stop the running sync |
 | `/status`, `/info`, `/inspect` | Show index health, statistics and sample chunks (`/inspect <text>` filters them) |
 
-Only new and changed files are processed on each sync. A folder that cannot be read (an unplugged drive, a network share or cloud drive that is not mounted) is reported offline and keeps its index until it is back; AnyContext never guesses another path for it. A workspace with no folder indexes nothing: add one with `/folder <path>`.
+Only new and changed files are processed on each sync. A folder that cannot be read (an unplugged drive, a network share or cloud drive that is not mounted) is reported offline and keeps its index until it is back; AnyContext never guesses another path for it. A workspace with no folder indexes nothing: add one with `/folder <path>`. Online-only cloud files (OneDrive, Dropbox, iCloud) are never downloaded by a sync: they are counted and left in the cloud, and indexed once you mark them "Always keep on this device".
 
 If the embedding provider fails during a sync (an invalid key, a rate limit, a network error), the affected files are not embedded: the footer shows `⚠ N files not embedded (/sync)`, `/status` shows the first error, and keyword search still finds those files. The next sync tries them again. After an authentication error the sync stops calling the provider for the remaining files.
 
@@ -173,7 +173,7 @@ Most settings are per workspace and change through commands (`/model`, `/mode`, 
 | Variable | Use |
 |---|---|
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY` | Model provider keys |
-| `TAVILY_API_KEY`, `SERPER_API_KEY` | Better web search results (DuckDuckGo is used without a key) |
+| `TAVILY_API_KEY` | Web search key (or `/keys tavily <key>`); without it, web search stays off |
 | `JINA_API_KEY` | Higher limits for website extraction |
 | `ACTX_MODEL` | Model for this shell, overriding the workspace setting |
 | `ACTX_EMBEDDING_MODEL` | Model used to index and search (re-index after changing it) |
@@ -213,6 +213,8 @@ To uninstall, download and run the uninstaller from the [releases page](https://
 | Answers start with `Mock response to:` | No working model is configured: save a key with `/keys <provider> <key>` or select a local model with `/model ollama/<model>`. |
 | "No information or documents matching the query" | The workspace has no relevant indexed content yet: check `/sources` and `/status`, wait for the sync to finish, or rephrase. |
 | A sync reports `⚠ N source(s) offline, their index is kept` | The folder or a subfolder cannot be read: reconnect the drive, share or cloud mount and run `/sync`. If the folder moved, remove it with `/folder --remove <old path>` and add the new path with `/folder <new path>`. |
+| A sync reports `online-only file(s) not indexed` | Those files are only in the cloud. Mark the folder or files "Always keep on this device" in OneDrive, Dropbox or iCloud and run `/sync`. |
+| Web search answers `Web search is off: no search API key` | Save a Tavily key with `/keys tavily <key>`; `/web-search on` alone is not enough. |
 | A sync reports `has no sources` | The workspace has no folder or site: add one with `/folder <path>` or `/web <url>`. |
 | The sync seems stuck | Check the footer or `/status`; read `sync_<workspace>.log` in the logs folder; `/cancel` and `/sync --incremental` again. |
 | The footer shows `⚠ N files not embedded (/sync)` | The embedding provider failed during the last sync: check the `Last Sync` line in `/status` (or `sync_<workspace>.log`), fix the key or wait for the rate limit, then run `/sync --incremental`. |
@@ -231,7 +233,7 @@ For anything else, run `actx --diagnostics` and look at the logs folder.
 - Your files, index, settings and memory stay on your machine. The text, summaries and keywords stored in the vector index are encrypted with a key bound to this machine, including data indexed by older versions, which is encrypted automatically after upgrading. The keyword search index keeps the words in plaintext.
 - Secret values (API keys, tokens, passwords, private keys) are never indexed: they are stored and sent as `[SECRET REDACTED]`, while the rest of the file, including the key names, stays searchable. After upgrading, files that an older version indexed with secrets are reindexed once and the sync tells you how many; if you used a cloud model, rotate those credentials.
 - When you use a cloud model, your question and the relevant excerpts of your documents are sent to that provider. With a local Ollama model, nothing leaves your machine.
-- Website sources are fetched through the Jina Reader service (`r.jina.ai`) to turn pages into clean text; web search, when turned on, sends your query to the search provider.
+- Website sources are fetched through the Jina Reader service (`r.jina.ai`) to turn pages into clean text; web search works only with your own Tavily key and, when turned on, sends your query to Tavily. Without a key nothing is searched.
 - AnyContext sends no usage telemetry.
 
 ## Documentation

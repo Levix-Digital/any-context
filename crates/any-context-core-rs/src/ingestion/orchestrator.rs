@@ -172,6 +172,8 @@ pub struct SyncResult {
     /// Registered folders, and subfolders or files under them, that could not be read: they
     /// are offline and keep their index until they come back (ADR-0150).
     pub offline_folders: Vec<String>,
+    /// Online-only cloud files the scan left unread (ADR-0151).
+    pub online_only_files: Vec<String>,
     /// The workspace has no folder and no web source, so nothing was indexed (ADR-0150).
     pub no_sources: bool,
     /// Files and pages whose embedding or upsert failed; the next sync retries them (ADR-0146).
@@ -243,6 +245,12 @@ impl NativeSyncOrchestrator {
             db,
             embedding_override: None,
         }
+    }
+
+    /// Replaces the workspace scanner (tests simulate cloud placeholders through its probe).
+    pub fn with_scanner(mut self, scanner: WorkspaceScanner) -> Self {
+        self.scanner = scanner;
+        self
     }
 
     pub fn with_model_router(mut self, model_router: Arc<IngestionModelRouter>) -> Self {
@@ -435,6 +443,7 @@ impl NativeSyncOrchestrator {
             }
         }
         let offline_folders = diff.offline_paths.clone();
+        let online_only_files = diff.online_only_files.clone();
         let no_sources = registered_folders.is_empty() && target_folder.is_none();
         let offline_message = (!offline_folders.is_empty()).then(|| offline_summary(&offline_folders));
         if let Some(ref msg) = offline_message {
@@ -450,6 +459,9 @@ impl NativeSyncOrchestrator {
                 diff.deleted_files.len(),
                 diff.renamed_files.len()
             );
+            for path in &diff.online_only_files {
+                println!("  • Online-only, not downloaded: {path}");
+            }
         }
 
         // 8. Process zero-cost renamed/moved files
@@ -539,6 +551,7 @@ impl NativeSyncOrchestrator {
                 secrets_redacted: 0,
                 secrets_repaired_files: secrets_repaired_files.len(),
                 offline_folders: offline_folders.clone(),
+                online_only_files: online_only_files.clone(),
                 no_sources: no_sources && web_urls.is_empty(),
                 embedding_failures: 0,
                 embedding_provider_unavailable: false,
@@ -597,6 +610,7 @@ impl NativeSyncOrchestrator {
                         secrets_redacted: total_secrets_redacted,
                         secrets_repaired_files: secrets_repaired_files.len(),
                         offline_folders: offline_folders.clone(),
+                        online_only_files: online_only_files.clone(),
                         no_sources: false,
                         embedding_failures: failures.count,
                         embedding_provider_unavailable: breaker.is_open(),
@@ -782,6 +796,7 @@ impl NativeSyncOrchestrator {
             secrets_redacted: total_secrets_redacted,
             secrets_repaired_files: secrets_repaired_files.len(),
             offline_folders,
+            online_only_files,
             no_sources: false,
             embedding_failures: failures.count,
             embedding_provider_unavailable: breaker.is_open(),

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 use walkdir::{DirEntry, WalkDir};
 
@@ -229,8 +230,60 @@ pub fn get_file_mtime(metadata: &fs::Metadata) -> f64 {
         .unwrap_or(0.0)
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct WorkspaceScanner;
+/// Decides from a file's metadata, without opening it, whether it is an online-only cloud
+/// placeholder.
+pub type OnlineOnlyProbe = Arc<dyn Fn(&Path, &fs::Metadata) -> bool + Send + Sync>;
+
+/// Windows attribute bits of cloud placeholders whose data is not on disk: reading the file
+/// makes the cloud client download it (Cloud Files API: OneDrive, Dropbox, iCloud).
+const FILE_ATTRIBUTE_OFFLINE: u32 = 0x0000_1000;
+const FILE_ATTRIBUTE_RECALL_ON_OPEN: u32 = 0x0004_0000;
+const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: u32 = 0x0040_0000;
+/// macOS `st_flags` bit of a dataless File Provider file.
+const SF_DATALESS: u32 = 0x4000_0000;
+
+pub fn online_only_windows_attributes(attributes: u32) -> bool {
+    attributes & (FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_RECALL_ON_OPEN | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS) != 0
+}
+
+pub fn online_only_macos_flags(flags: u32) -> bool {
+    flags & SF_DATALESS != 0
+}
+
+/// Whether a file is an online-only cloud placeholder (ADR-0151). Linux has no placeholder
+/// standard, so nothing is online-only there.
+#[allow(unused_variables)]
+pub fn is_online_only(path: &Path, meta: &fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        return online_only_windows_attributes(meta.file_attributes());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::macos::fs::MetadataExt;
+        return online_only_macos_flags(meta.st_flags());
+    }
+    #[allow(unreachable_code)]
+    false
+}
+
+#[derive(Clone)]
+pub struct WorkspaceScanner {
+    online_only: OnlineOnlyProbe,
+}
+
+impl Default for WorkspaceScanner {
+    fn default() -> Self {
+        Self { online_only: Arc::new(is_online_only) }
+    }
+}
+
+impl std::fmt::Debug for WorkspaceScanner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WorkspaceScanner").finish_non_exhaustive()
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct DiffResult {
@@ -245,11 +298,20 @@ pub struct DiffResult {
     /// The missing folders plus every directory or file under a scanned folder that could not
     /// be read. Cached files inside them are offline: never listed as deleted (ADR-0150).
     pub offline_paths: Vec<String>,
+    /// Online-only cloud placeholders: never read, so never downloaded; a cached one keeps
+    /// its index (ADR-0151).
+    pub online_only_files: Vec<String>,
 }
 
 impl WorkspaceScanner {
     pub fn new() -> Self {
-        Self
+        Self::default()
+    }
+
+    /// Replaces the online-only placeholder check (tests simulate cloud placeholders with it).
+    pub fn with_online_only_probe(mut self, probe: impl Fn(&Path, &fs::Metadata) -> bool + Send + Sync + 'static) -> Self {
+        self.online_only = Arc::new(probe);
+        self
     }
 
     /// Recursively discovers all supported workspace documents within a root folder.
@@ -280,6 +342,7 @@ impl WorkspaceScanner {
         let mut disk_files: HashMap<String, (f64, u64)> = HashMap::new();
         let mut missing_folders: Vec<String> = Vec::new();
         let mut offline_paths: Vec<String> = Vec::new();
+        let mut online_only_files: Vec<String> = Vec::new();
         let mut scanned_folders: Vec<String> = Vec::new();
 
         for folder in folders {
@@ -307,6 +370,8 @@ impl WorkspaceScanner {
                 if entry.file_type().is_file() && is_supported_file(entry.path()) {
                     let norm_path = to_absolute_path(entry.path());
                     match entry.metadata() {
+                        // Reading a placeholder downloads it: it is listed, never read (ADR-0151).
+                        Ok(meta) if (self.online_only)(entry.path(), &meta) => online_only_files.push(norm_path),
                         Ok(meta) => {
                             disk_files.insert(norm_path, (get_file_mtime(&meta), meta.len()));
                         }
@@ -336,10 +401,12 @@ impl WorkspaceScanner {
             }
         }
 
-        // Only a file of a folder that was scanned, and not under an offline path, is deleted;
-        // files of other folders are left to the caller.
+        // Only a file of a folder that was scanned, not under an offline path and not freed to
+        // the cloud, is deleted; files of other folders are left to the caller.
+        let online_only: std::collections::HashSet<&String> = online_only_files.iter().collect();
         for fp in norm_cached.keys() {
             if !disk_files.contains_key(fp)
+                && !online_only.contains(fp)
                 && scanned_folders.iter().any(|f| is_within_folder(fp, f))
                 && !offline_paths.iter().any(|o| is_within_folder(fp, o))
             {
@@ -416,6 +483,7 @@ impl WorkspaceScanner {
             disk_files,
             missing_folders,
             offline_paths,
+            online_only_files,
         }
     }
 }
@@ -423,6 +491,17 @@ impl WorkspaceScanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn online_only_attribute_bits() {
+        assert!(online_only_windows_attributes(0x0040_0000), "recall on data access");
+        assert!(online_only_windows_attributes(0x0004_0000 | 0x20), "recall on open");
+        assert!(online_only_windows_attributes(0x0000_1000), "offline");
+        assert!(!online_only_windows_attributes(0x20), "archive: on disk");
+        assert!(!online_only_windows_attributes(0x0008_0020), "pinned: kept on this device");
+        assert!(online_only_macos_flags(0x4000_0000), "dataless");
+        assert!(!online_only_macos_flags(0), "a file on disk");
+    }
 
     #[test]
     fn is_within_folder_matches_whole_components() {
