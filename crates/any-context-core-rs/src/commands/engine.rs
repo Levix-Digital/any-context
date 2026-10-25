@@ -454,8 +454,13 @@ impl CommandEngine {
             let mut updates = CommandStateUpdates::default();
             updates.web_search_enabled = Some(is_on);
             let status = if is_on { "🟢 ON" } else { "🔴 OFF" };
+            let mut msg = format!("🌐 Real-time Web Search for '{}': {}", ctx.active_workspace, status);
+            // The setting stays on, so search works as soon as a key is saved (ADR-0152).
+            if is_on && crate::retrieval::NativeWebSearchEngine::new(db.map(std::sync::Arc::new)).resolve_api_key("tavily").is_none() {
+                msg.push_str(&format!("\n⚠️ {}", crate::retrieval::NO_SEARCH_PROVIDER));
+            }
 
-            CommandResult::success(format!("🌐 Real-time Web Search for '{}': {}", ctx.active_workspace, status))
+            CommandResult::success(msg)
                 .with_action(CommandAction::RebuildAgent)
                 .with_state_updates(updates)
         } else {

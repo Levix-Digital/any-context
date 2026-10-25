@@ -4,10 +4,10 @@ project: any-context
 title: 'Sync and web search reach outside without being asked: online-only cloud files are downloaded and web search scrapes DuckDuckGo'
 kind: bug
 version: v1.0.0
-status: active
+status: in_progress
 author: Levi Silveira
 created_at: '2026-10-24T23:05:00'
-updated_at: '2026-10-24T23:06:23'
+updated_at: '2026-10-25T07:43:19'
 session_id: null
 tags:
 - ingestion
@@ -40,6 +40,10 @@ status_log:
   by: Levi Silveira
   status: active
   note: Plan written, waiting for gate 3
+- at: '2026-10-25T07:43:19'
+  by: Levi Silveira
+  status: in_progress
+  note: Approved by Levi at gate 3
 ---
 
 # Sync and web search reach outside without being asked: online-only cloud files are downloaded and web search scrapes DuckDuckGo
