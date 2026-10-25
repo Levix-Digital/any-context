@@ -5,7 +5,7 @@ title: Deep Search reflection and rerank prompts inject raw chunk text
 kind: bug
 version: v0.45.1
 status: completed
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-19T11:48:33'
 updated_at: '2026-10-19T12:51:27'
 session_id: null
@@ -19,50 +19,50 @@ milestones:
 - name: M1 Shared prompt safety module
   done: true
   done_at: '2026-10-19'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Deep Search prompts
   done: true
   done_at: '2026-10-19'
-  by: Claude
+  by: Levi Silveira
 - name: M3 Docs and manual tests
   done: true
   done_at: '2026-10-19'
-  by: Claude
+  by: Levi Silveira
 - name: M4 Review and PR
   done: true
   done_at: '2026-10-19'
-  by: Claude
+  by: Levi Silveira
 status_log:
 - at: '2026-10-19T11:48:33'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-19T11:50:25'
-  by: Claude
+  by: Levi Silveira
   status: active
   note: Plan updated
 - at: '2026-10-19T12:02:44'
-  by: Claude
+  by: Levi Silveira
   status: in_progress
   note: Approved by the user; implementation started
 - at: '2026-10-19T12:17:21'
-  by: Claude
+  by: Levi Silveira
   note: Milestone 'M1 Shared prompt safety module' completed
 - at: '2026-10-19T12:17:24'
-  by: Claude
+  by: Levi Silveira
   note: Milestone 'M2 Deep Search prompts' completed
 - at: '2026-10-19T12:17:26'
-  by: Claude
+  by: Levi Silveira
   note: Milestone 'M3 Docs and manual tests' completed
 - at: '2026-10-19T12:51:20'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M4 Review and PR'' completed: PR #367 merged into dev'
 - at: '2026-10-19T12:51:20'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: All milestones completed
 - at: '2026-10-19T12:51:27'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: 'PR #367 merged into dev'
 ---
@@ -74,7 +74,7 @@ title: Deep Search reflection and rerank prompts inject raw chunk text
 kind: bug
 version: v0.45.1
 status: draft
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-19T11:48:33'
 updated_at: '2026-10-19T11:48:33'
 session_id: null
@@ -87,7 +87,7 @@ backlog_items:
 milestones: []
 status_log:
 - at: '2026-10-19T11:48:33'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 ---

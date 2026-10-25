@@ -16,7 +16,7 @@ amended_by: []
 ## Context
 
 1. The TUI used yellow and red for routine, informative elements (accordion border, active workspace, menu shortcuts), cluttering the Aurora Borealis aesthetic and creating a false sense of urgency.
-2. The conversation box had borders and a title that limited the modern full-screen experience (in the style of tools such as Claude Code or Warp).
+2. The conversation box had borders and a title that limited the modern full-screen experience (in the style of terminals such as Warp).
 3. The ReAct reasoning box (the `<think>` accordion) stayed static once it reached its height limit, without auto-scrolling the reasoning steps.
 4. Running `actx --update` right after a new tag showed a raw `404 status code` error, because GitHub Actions was still building the Windows/Linux/macOS binaries.
 5. ONNX model downloads started without continuous numeric progress (% and MB) and could not be cancelled gracefully.

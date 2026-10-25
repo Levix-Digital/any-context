@@ -5,7 +5,7 @@ title: Section and line metadata are lost at ingestion
 kind: bug
 version: v0.45.1
 status: completed
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-18T08:31:37'
 updated_at: '2026-10-18T09:37:13'
 session_id: null
@@ -23,50 +23,50 @@ milestones:
 - name: M1 Storage and ingestion
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Retrieval and prompt
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M3 Docs and manual tests
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M4 Review and PR
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 status_log:
 - at: '2026-10-18T08:31:37'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-18T08:33:33'
-  by: Claude
+  by: Levi Silveira
   status: active
   note: Plan updated
 - at: '2026-10-18T08:43:31'
-  by: Claude
+  by: Levi Silveira
   status: in_progress
   note: Approved by the user on 2026-10-18
 - at: '2026-10-18T09:07:57'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M1 Storage and ingestion'' completed: Provenance columns with in-place migration, encrypted header_path, write path and has_file_lines; cargo test --workspace green'
 - at: '2026-10-18T09:08:02'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M2 Retrieval and prompt'' completed: HybridSearchResult provenance, BM25-only lookup, lines attribute, Section header, citation rule, Deep Search mapping; cargo test --workspace green'
 - at: '2026-10-18T09:09:54'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M3 Docs and manual tests'' completed: ADR-0142, storage/ingestion/retrieval/chunkers/agent pages, README, MT-ANS-007 and MT-SYNC-002; docs, readme, manual test and design checks clean'
 - at: '2026-10-18T09:36:51'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M4 Review and PR'' completed: PR #355 merged into dev'
 - at: '2026-10-18T09:36:51'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: All milestones completed
 - at: '2026-10-18T09:37:13'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: All milestones completed
 ---

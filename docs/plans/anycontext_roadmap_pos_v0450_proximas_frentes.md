@@ -4,7 +4,7 @@ project: any-context
 title: 'Post-v0.45.0 Roadmap: Next Development Fronts'
 version: v0.46.0
 status: superseded
-author: 'Claude (cloud session, PR #328)'
+author: Levi Silveira
 created_at: '2026-10-16T10:45:40'
 updated_at: '2026-10-23T20:45:30'
 session_id: null
@@ -24,7 +24,7 @@ milestones:
   done: false
 status_log:
 - at: '2026-10-16T10:45:40'
-  by: Claude (cloud session)
+  by: Levi Silveira
   status: active
   note: 'Roadmap handoff added in PR #328'
 - at: '2026-10-16T10:52:10'
@@ -158,8 +158,8 @@ Defined in C0's revised roadmap by its title only. The content below is the init
   - They need `protoc` and ONNX Runtime: `bash scripts/fetch_onnxruntime.sh .ort`, then `ORT_DYLIB_PATH=.ort/libonnxruntime.so` (or `onnxruntime.dll`) and `ACTX_REQUIRE_ORT=1 cargo test --workspace`.
   - The `test_router_sub_microsecond_performance` test measures time and can fail if run in parallel with a heavy build.
 
-### Limitations observed in cloud sessions (Claude Code)
-- The session can only push to its own `claude/*` branch. Pushing directly to `dev` and creating tags are blocked (Auto mode) or refused by the git proxy (tags, HTTP 403). The flow that works: push to the session branch → PR to `dev` → merge by the maintainer → tag created by the maintainer.
+### Limitations observed in remote sessions
+- The session can only push to its own session branch. Pushing directly to `dev` and creating tags are blocked (Auto mode) or refused by the git proxy (tags, HTTP 403). The flow that works: push to the session branch → PR to `dev` → merge by the maintainer → tag created by the maintainer.
 - The test workflow does not run on PRs to `dev`; to validate a branch before merging, use `workflow_dispatch` of `e2e-tests.yml` on it.
 
 ---

@@ -5,7 +5,7 @@ title: system_status and web_search never reach the model on the routed paths
 kind: bug
 version: 0.45.1
 status: completed
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-18T17:14:09'
 updated_at: '2026-10-18T18:24:10'
 session_id: null
@@ -19,39 +19,39 @@ milestones:
 - name: M1 Status route
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Docs and manual tests
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M3 Review and PR
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 status_log:
 - at: '2026-10-18T17:14:09'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-18T17:15:18'
-  by: Claude
+  by: Levi Silveira
   status: planned
   note: Plan updated
 - at: '2026-10-18T17:28:57'
-  by: Claude
+  by: Levi Silveira
   status: planned
   note: Plan updated
 - at: '2026-10-18T17:44:17'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M1 Status route'' completed: router intent, status retriever, live_status prompt; cargo test --workspace green'
 - at: '2026-10-18T17:44:20'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0145, agent/cli/retrieval pages, SYSTEM_KNOWLEDGE.md, MT-MEM-002; checkers clean'
 - at: '2026-10-18T18:01:49'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M3 Review and PR'' completed: PR #361, CI green'
 - at: '2026-10-18T18:24:10'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: 'Delivered in PR #361'
 ---

@@ -94,7 +94,7 @@ status_log:
   - `render_chat` draws a `Block` with `Borders::ALL`, rounded corners and the `" Conversation "` title.
 - **How it will look in the test**:
   - `render_chat` uses `Block::default().borders(Borders::NONE)`.
-  - With no outline and no top title, the screen gets the feel of a modern terminal (ChatGPT Canvas / Claude Code CLI style), where the message flow breathes freely.
+  - With no outline and no top title, the screen gets the feel of a modern terminal, where the message flow breathes freely.
   - To indicate when the user has paused scrolling, a subtle line appears at the top or bottom only when `!app.auto_scroll`:
     `─── [Scroll Paused: PgDn / End to go down] ───`
 

@@ -127,4 +127,4 @@ Present batch 1 to me in Portuguese, one table row per item with ID, title, seve
 
 ### Housekeeping I still owe
 
-The session git proxy refuses branch deletion (HTTP 403), so I delete the old `claude/*` and `ccr-*` branches on GitHub myself. Do not try to delete them.
+The session git proxy refuses branch deletion (HTTP 403), so I delete the old session branches on GitHub myself. Do not try to delete them.

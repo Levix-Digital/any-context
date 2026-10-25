@@ -5,7 +5,7 @@ title: Deep Search synthesis bypasses the canonical context formatter
 kind: bug
 version: v0.45.1
 status: completed
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-17T22:07:45'
 updated_at: '2026-10-18T07:23:18'
 session_id: null
@@ -22,42 +22,42 @@ milestones:
 - name: M1 Port and adapter
   done: true
   done_at: '2026-10-17'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Docs and manual tests
   done: true
   done_at: '2026-10-17'
-  by: Claude
+  by: Levi Silveira
 - name: M3 Review and PR
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 status_log:
 - at: '2026-10-17T22:07:45'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-17T22:09:04'
-  by: Claude
+  by: Levi Silveira
   note: 'Backlog items added: BUG-009'
 - at: '2026-10-17T22:18:00'
-  by: Claude
+  by: Levi Silveira
   status: active
   note: Plan updated
 - at: '2026-10-17T22:23:08'
-  by: Claude
+  by: Levi Silveira
   status: in_progress
   note: Approved by the user on 2026-10-17
 - at: '2026-10-17T22:52:26'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M1 Port and adapter'' completed: SynthesisPromptFormatter port, CanonicalSynthesisFormatter adapter, CLI injection; cargo test --workspace green (410 passed)'
 - at: '2026-10-17T22:52:28'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M2 Docs and manual tests'' completed: ADR-0141, agent and retrieval pages, MT-ANS-002 and MT-ANS-006; docs, readme, manual test and design checks clean'
 - at: '2026-10-18T07:23:18'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M3 Review and PR'' completed: PR #353 merged into dev'
 - at: '2026-10-18T07:23:18'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: All milestones completed
 ---

@@ -5,7 +5,7 @@ title: Agent prompt names tools that do not exist
 kind: bug
 version: 0.45.1
 status: completed
-author: Claude
+author: Levi Silveira
 created_at: '2026-10-18T15:17:32'
 updated_at: '2026-10-18T16:32:24'
 session_id: null
@@ -19,35 +19,35 @@ milestones:
 - name: M1 Prompt per path
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M2 Docs and manual tests
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 - name: M3 Review and PR
   done: true
   done_at: '2026-10-18'
-  by: Claude
+  by: Levi Silveira
 status_log:
 - at: '2026-10-18T15:17:32'
-  by: Claude
+  by: Levi Silveira
   status: draft
   note: Plan created
 - at: '2026-10-18T15:25:01'
-  by: Claude
+  by: Levi Silveira
   status: planned
   note: Plan updated
 - at: '2026-10-18T15:57:19'
-  by: Claude
+  by: Levi Silveira
   note: Milestone 'M1 Prompt per path' completed
 - at: '2026-10-18T15:57:21'
-  by: Claude
+  by: Levi Silveira
   note: Milestone 'M2 Docs and manual tests' completed
 - at: '2026-10-18T16:14:47'
-  by: Claude
+  by: Levi Silveira
   note: 'Milestone ''M3 Review and PR'' completed: PR #359, CI green'
 - at: '2026-10-18T16:32:24'
-  by: Claude
+  by: Levi Silveira
   status: completed
   note: 'Delivered in PR #359'
 ---
