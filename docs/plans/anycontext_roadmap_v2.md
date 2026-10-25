@@ -91,7 +91,7 @@ An MVP in features on a complete foundation.
    Artifact Signing and Linux with GPG; macOS unsigned and not notarized until there is
    revenue (decided 2026-10-23).
 
-**Items (placed 2026-10-23, 95):**
+**Items (placed 2026-10-23, 95; FEAT-195 and IMP-065 added 2026-10-25, 97):**
 
 | area | items |
 |---|---|
@@ -102,7 +102,7 @@ An MVP in features on a complete foundation.
 | ingestion worker | IMP-059, IMP-060, IMP-061, FEAT-050 |
 | Pro: Web | IMP-019, FEAT-021, FEAT-022, FEAT-023, FEAT-149, FEAT-160, FEAT-161, FEAT-170 |
 | Pro: Audio and video | FEAT-047 |
-| retrieval | IMP-035, IMP-037, IMP-038, IMP-039, IMP-040, IMP-041, IMP-042, IMP-043, IMP-044, IMP-045, IMP-046, IMP-047, IMP-048, IMP-049, IMP-050, FEAT-081, FEAT-082, FEAT-085, FEAT-088, FEAT-098, FEAT-101 |
+| retrieval | IMP-035, IMP-037, IMP-038, IMP-039, IMP-040, IMP-041, IMP-042, IMP-043, IMP-044, IMP-045, IMP-046, IMP-047, IMP-048, IMP-049, IMP-050, FEAT-081, FEAT-082, FEAT-085, FEAT-088, FEAT-098, FEAT-101, FEAT-195, IMP-065 |
 | identity and plan | FEAT-193, IMP-062, FEAT-168, FEAT-169 |
 | desktop UI | FEAT-172, FEAT-173, FEAT-174, FEAT-175, FEAT-176, FEAT-177, FEAT-178, FEAT-179, FEAT-184, FEAT-185 |
 | CLI and release | FEAT-186, FEAT-188, FEAT-189, FEAT-190, FEAT-192, IMP-063, IMP-064, ADJ-006, ADJ-007, ADJ-008 |
