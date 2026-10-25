@@ -89,6 +89,8 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0152](docs/adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md) | Web search uses only allowed search APIs and never scrapes | accepted | v1.0.0 | 2026-10-25 |
+| [ADR-0151](docs/adr/0151-online-only-cloud-files-are-never-downloaded-by-the-scan.md) | Online-only cloud files are never downloaded by the scan | accepted | v1.0.0 | 2026-10-25 |
 | [ADR-0150](docs/adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md) | Offline sources keep their index and folders are never redirected | accepted | v1.0.0 | 2026-10-24 |
 | [ADR-0149](docs/adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md) | Secret values are redacted before chunking, with no exception | accepted | v1.0.0 | 2026-10-24 |
 | [ADR-0148](docs/adr/0148-shared-prompt-safety-primitives-and-the-deep-search-intermed.md) | Shared prompt safety primitives and the Deep Search intermediate envelope | accepted | v0.45.1 | 2026-10-19 |

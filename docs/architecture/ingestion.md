@@ -69,7 +69,7 @@ flowchart LR
 11. Crawl the workspace's web sources (only for full workspace syncs, not folder-scoped ones).
 12. Save the BM25 index, record the sync ledger (`record_sync_ledger`), set the status back to `idle` and record the embedding target. A cancelled pass returns before this step, so it keeps the previous target and an interrupted reindex runs again on the next pass.
 
-`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, `chunks_encrypted_legacy`, `embedding_reindex` (the reindex message, when one ran), `secrets_redacted` and `secrets_repaired_files`, `offline_folders` and `no_sources`, errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
+`SyncResult` reports totals, `chunks_dropped_quality`, `documents_enriched_ai`, `quality_pass_rate`, `chunks_encrypted_legacy`, `embedding_reindex` (the reindex message, when one ran), `secrets_redacted` and `secrets_repaired_files`, `offline_folders`, `no_sources` and `online_only_files`, errors, duration and whether the pass was cancelled. Errors on one file are collected and do not stop the pass.
 
 ### Scanning and change detection
 
@@ -78,6 +78,7 @@ flowchart LR
 - A file is new when it is not in the stat cache, modified when its modification time differs by more than 1 ms or its size differs, and deleted when it is cached, no longer on disk, inside a folder the scanner read and not inside an offline path.
 - A deleted and a new file of the same non-zero size are treated as a rename when they have the same base name (moved across folders) or the same extension in the same folder (renamed in place).
 - Paths are normalized (Windows `\\?\` prefix removed) before comparison.
+- An online-only cloud placeholder (Windows Cloud Files attributes `RECALL_ON_DATA_ACCESS`, `RECALL_ON_OPEN` or `OFFLINE`; macOS `SF_DATALESS`) is never read, because reading it downloads it. It is listed in `DiffResult::online_only_files` and `SyncResult::online_only_files`, a cached one keeps its index, and the CLI prints `☁ N online-only file(s) not indexed` ([ADR-0151](../adr/0151-online-only-cloud-files-are-never-downloaded-by-the-scan.md)).
 - A folder that cannot be listed is reported in `DiffResult::missing_folders` and `DiffResult::offline_paths` and skipped; a subfolder or file the walk cannot read is added to `offline_paths`. Its path is never guessed or redirected.
 
 ### Offline sources
@@ -196,3 +197,4 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md): mock vectors are never searched; the sync embeds `Global` with the default target.
 - [ADR-0149](../adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md): secret values are redacted before chunking with no exception, and indexes built before are repaired once.
 - [ADR-0150](../adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md): offline sources keep their index, scoped syncs touch only their folder, folders are never redirected, no implicit source.
+- [ADR-0151](../adr/0151-online-only-cloud-files-are-never-downloaded-by-the-scan.md): online-only cloud files are never read or downloaded by the scan; a freed file keeps its index.

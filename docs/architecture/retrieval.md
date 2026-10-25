@@ -30,7 +30,7 @@ The vector table itself belongs to [Storage and Encryption](storage.md); the cro
 | `tokenizer.rs` | Unicode tokenizer with diacritic folding and code identifier splitting. |
 | `token_budget.rs` | `estimate_token_count`, `truncate_to_token_ceiling`, embedding token limits per model. |
 | `prompt.rs` | `ContextFormatter`: U-shaped reordering, XML chunk envelopes, deterministic prompt, live status prompt, tool result payload, Deep Search synthesis prompt, Zero Hallucination Gate; `CanonicalSynthesisFormatter`, the Deep Search synthesis adapter. |
-| `web_search.rs` | `NativeWebSearchEngine`: Tavily, Serper and DuckDuckGo cascade. |
+| `web_search.rs` | `NativeWebSearchEngine`: Tavily API search, `NO_SEARCH_PROVIDER`. |
 | `hybrid.rs` | `HybridRetrieverEngine`: thin wrapper over `BM25Index`. |
 
 ```mermaid
@@ -111,7 +111,7 @@ All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `m
 
 ### Web search
 
-`NativeWebSearchEngine::search` (used by the `web_search` agent tool when web search is enabled) tries Tavily (`TAVILY_API_KEY` or stored key), then Serper (`SERPER_API_KEY` or stored key), then DuckDuckGo HTML results, which need no key. The workspace's web source domains are passed as preferred domains.
+`NativeWebSearchEngine::search` (used by the `web_search` agent tool when web search is enabled) uses only the Tavily API (`TAVILY_API_KEY` or the key saved with `/keys tavily`), first scoped to the workspace's web source domains and then on the open web. Without a key it returns `NO_SEARCH_PROVIDER` before any request, and `/web-search on` shows the same notice. There is no scraping fallback ([ADR-0152](../adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md)). The client identifies itself as `AnyContext/<version>`.
 
 ## Interfaces
 
@@ -143,3 +143,4 @@ All three use the default `max_chunks_per_source` (3) and `RRF_MIN_SCORE` for `m
 - [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): the `<live_status>` block for status questions.
 - [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): the query embedding outcome is recorded and shown in `/status` and the `system_status` report.
 - [ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md): no dense search on the mock target; `Global` joins dense search only when embedded with the query's target.
+- [ADR-0152](../adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md): web search only through allowed APIs (Tavily); DuckDuckGo scraping and Serper removed.

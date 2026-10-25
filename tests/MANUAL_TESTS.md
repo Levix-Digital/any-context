@@ -312,6 +312,22 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-SYNC-011: Online-only cloud files are not downloaded
+
+- **Covers**: online-only placeholders (OneDrive Files On-Demand on Windows; a File Provider client on macOS if available)
+- **Prerequisites**: a OneDrive folder with some files online-only (cloud icon) and some "Always keep on this device"; note the free disk space
+- **Steps**:
+  1. Add the folder with `/folder <path>` and run `actx --sync -w <workspace>` in a terminal.
+  2. Check the files' icons in Explorer and the free disk space.
+  3. Mark one online-only file "Always keep on this device", wait for the download, and sync again.
+  4. Repeat step 1 with a Google Drive for desktop folder (`G:`) if available, and note the result.
+- **Expected**:
+  - The sync prints `☁ N online-only file(s) not indexed: they stay in the cloud. …` with N equal to the online-only files; their icons stay as cloud icons and disk space does not drop.
+  - The local files are indexed; after step 3 only the newly kept file is indexed.
+  - Step 4 is informational: if Google Drive files are downloaded, write it in Notes (known limitation of ADR-0151).
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ### MT-DOC-001: PDFs with tables and forms are answered exactly
 
 - **Covers**: PDF chunker, quality gate, spatial forms
@@ -387,13 +403,16 @@ How to record a run: in each test of the current run, mark exactly one box of th
 
 ### MT-WEB-003: Live web search
 
-- **Covers**: /web-search
-- **Prerequisites**: a cloud model
+- **Covers**: /web-search, Tavily key, no scraping
+- **Prerequisites**: a cloud model and a Tavily API key; no `TAVILY_API_KEY` in the environment at the start
 - **Steps**:
   1. Run `/web-search on` and ask about a recent public event.
-  2. Run `/web-search off` and ask again.
+  2. Save the key with `/keys tavily <key>`, ask again.
+  3. Run `/web-search off` and ask again.
 - **Expected**:
-  - With web search on, the answer cites web results; off, it answers only from the workspace or says the information is not there.
+  - Step 1: `/web-search on` warns `Web search is off: no search API key. Save a Tavily key with /keys tavily <key>.`, and the answer comes only from the workspace (no DuckDuckGo results).
+  - Step 2: the answer cites web results.
+  - Step 3: it answers only from the workspace or says the information is not there.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

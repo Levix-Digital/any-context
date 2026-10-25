@@ -1,7 +1,7 @@
 <!-- dev-cycle-constitution
 generated-by: dev-cycle-protocol/constitution.py (do not edit; change a source and regenerate)
-sources-sha256: 00470c50a03878a25452e4b90ff3db379ce153bc82a35c2a7bcac7928fd0c866
-content-sha256: f586387655ab361834fe7230969dfaf95f58260d910b86dc5fc309799777af9d
+sources-sha256: d5990a11324ce8e80882e50b25e3a0315e2542a58fcc80b560b4b426e51ca359
+content-sha256: 9d750d5b1c338daece02187da9586302fba4ea19ba2652427e3126ee3a18e2f0
 -->
 # any-context Constitution
 
@@ -199,6 +199,8 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - ADR-0148: Shared prompt safety primitives and the Deep Search intermediate envelope (`docs/adr/0148-shared-prompt-safety-primitives-and-the-deep-search-intermed.md`)
 - ADR-0149: Secret values are redacted before chunking, with no exception (`docs/adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md`)
 - ADR-0150: Offline sources keep their index and folders are never redirected (`docs/adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md`)
+- ADR-0151: Online-only cloud files are never downloaded by the scan (`docs/adr/0151-online-only-cloud-files-are-never-downloaded-by-the-scan.md`)
+- ADR-0152: Web search uses only allowed search APIs and never scrapes (`docs/adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md`)
 
 ## Governance
 
@@ -206,4 +208,4 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - Amendments change the source, not this file: an ADR for decisions, the technical specification for requirements and constraints, `.dev-cycle.json` for the architecture style, the skills for principles. Then run `constitution.py generate` and commit the result with the change.
 - Gate 3 of the development cycle blocks a plan while this file is stale or edited by hand.
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-24
+**Version**: 1.3.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-25

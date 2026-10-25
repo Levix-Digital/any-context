@@ -8,7 +8,7 @@ subsystems: [ingestion, retrieval, ci-release]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: []
+amended_by: [152]
 ---
 
 # ADR-0106: Full Ingestion and Retrieval Parity in Rust and Purge of Legacy Python Code
