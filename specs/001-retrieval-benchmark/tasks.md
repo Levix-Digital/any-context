@@ -87,7 +87,7 @@ description: "Tasks for the development retrieval benchmark (IMP-065)"
 - [x] T022 [P] Write the English documents under `benchmarks/retrieval/corpus/en/` (about 14 to 18, same mix), including pairs that answer a question asked in the other language
 - [x] T023 Copy `crates/any-context-core-rs/tests/fixtures/forms/cmr_single_pickup.pdf` to `benchmarks/retrieval/corpus/forms/` and add form-field questions for it
 - [x] T024 Write `benchmarks/retrieval/questions.json`: 60 to 80 questions, at least 20 per language, about 15 negative, every category present; `validate` passes (SC-005)
-- [ ] T025 Levi reviews the corpus and the questions (gate inside the milestone; changes go back to T021 to T024)
+- [x] T025 Levi reviews the corpus and the questions (gate inside the milestone; changes go back to T021 to T024)
 
 ---
 
@@ -99,7 +99,7 @@ description: "Tasks for the development retrieval benchmark (IMP-065)"
 
 - [x] T026 [US3] Run the benchmark, check determinism, commit `benchmarks/retrieval/baseline.lexical-rerank.json`
 - [x] T027 [US3] Add `.github/workflows/retrieval-benchmark.yml` (path filter, ubuntu-latest, ONNX Runtime as in `e2e-tests.yml`, reranker cache keyed by its SHA-256, `run --compare --check-determinism --summary "$GITHUB_STEP_SUMMARY"`, upload the result JSON)
-- [ ] T028 [US3] Check SC-003 on the branch (reranker off, then pool 5): exit 1 with the regressed questions; record the numbers in the PR description; revert the experiment
+- [x] T028 [US3] Check SC-003 on the branch (reranker off, then pool 5): exit 1 with the regressed questions; record the numbers in the PR description; revert the experiment. Result (2026-10-25, candidate pool 5, run 40204307725): exit 1, MRR@10 0.9429 → 0.9143 (−0.0286), HitRate@5 0.9571 → 0.9143 (−0.0428), regressed pt-seg-001, pt-cross-002, pt-cmr-001
 - [x] T029 [US3] Check SC-001 (run time on the CI runner under 5 minutes, excluding the first download) from the workflow logs
 
 ---
@@ -109,7 +109,7 @@ description: "Tasks for the development retrieval benchmark (IMP-065)"
 - [x] T030 [P] ADR-0153 "A development retrieval benchmark gates retrieval changes" in `docs/adr/` (with `architecture-docs` scripts)
 - [x] T031 [P] "Benchmark" section in `docs/architecture/retrieval.md`; regenerate `TECDOC.md`
 - [x] T032 Regenerate `.specify/memory/constitution.md` (`constitution.py generate`) in the same PR as the ADR
-- [ ] T033 Run the quickstart commands from a clean checkout; `cargo test --workspace` and `cargo clippy` green
+- [x] T033 Run the quickstart commands from a clean checkout; `cargo test --workspace` and `cargo clippy` green. Done 2026-10-25 on dev after PR #382: `retrieval validate` passes (85 questions, 37 documents), actx-bench tests and clippy clean; `retrieval run` with the reranker runs in CI (the cloud sandbox cannot download it)
 
 ---
 

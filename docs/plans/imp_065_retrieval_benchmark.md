@@ -4,10 +4,10 @@ project: any-context
 title: Development retrieval benchmark (IMP-065)
 kind: feature
 version: v1.0.0
-status: in_progress
+status: completed
 author: Levi Silveira
 created_at: '2026-10-25T13:41:55'
-updated_at: '2026-10-25T13:44:27'
+updated_at: '2026-10-25T17:46:09'
 session_id: null
 tags:
 - retrieval
@@ -21,15 +21,25 @@ backlog_items:
 spec_dir: specs/001-retrieval-benchmark
 milestones:
 - name: M1 Setup and shared request builders
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 - name: M2 Measure
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 - name: M3 Compare and validate
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 - name: M4 Corpus and questions
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 - name: M5 Baseline CI and docs
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 status_log:
 - at: '2026-10-25T13:41:55'
   by: Levi Silveira
@@ -39,6 +49,25 @@ status_log:
   by: Levi Silveira
   status: in_progress
   note: Approved by Levi (gate 3), 2026-10-25
+- at: '2026-10-25T17:45:47'
+  by: Levi Silveira
+  note: 'Milestone ''M1 Setup and shared request builders'' completed: Delivered in PR #382'
+- at: '2026-10-25T17:46:03'
+  by: Levi Silveira
+  note: 'Milestone ''M2 Measure'' completed: Delivered in PR #382'
+- at: '2026-10-25T17:46:05'
+  by: Levi Silveira
+  note: 'Milestone ''M3 Compare and validate'' completed: Delivered in PR #382'
+- at: '2026-10-25T17:46:07'
+  by: Levi Silveira
+  note: 'Milestone ''M4 Corpus and questions'' completed: Delivered in PR #382'
+- at: '2026-10-25T17:46:09'
+  by: Levi Silveira
+  note: 'Milestone ''M5 Baseline CI and docs'' completed: Delivered in PR #382'
+- at: '2026-10-25T17:46:09'
+  by: Levi Silveira
+  status: completed
+  note: All milestones completed
 ---
 
 # Development retrieval benchmark (IMP-065)
