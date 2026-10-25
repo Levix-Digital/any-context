@@ -1,0 +1,1028 @@
+{
+  "questions": [
+    {
+      "id": "pt-pag-001",
+      "lang": "pt",
+      "category": "version",
+      "text": "Qual é o timeout padrão das requisições síncronas no serviço de pagamento v2?",
+      "relevant": [
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "grade": 3,
+          "passage": "o timeout padrão de requisições síncronas é de 30 segundos"
+        }
+      ]
+    },
+    {
+      "id": "pt-pag-002",
+      "lang": "pt",
+      "category": "version",
+      "text": "Qual era o timeout de requisição síncrona no serviço de pagamento legado?",
+      "relevant": [
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "grade": 3,
+          "passage": "o timeout padrão de requisição síncrona era de 120 segundos"
+        }
+      ]
+    },
+    {
+      "id": "pt-pag-003",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Quantas vezes um webhook de pagamento que falhou é reenviado?",
+      "relevant": [
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "grade": 3,
+          "passage": "repetida até 6 vezes"
+        }
+      ]
+    },
+    {
+      "id": "pt-pag-004",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual cabeçalho traz a assinatura HMAC dos webhooks?",
+      "relevant": [
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "grade": 3,
+          "passage": "`X-Serra-Signature`"
+        }
+      ]
+    },
+    {
+      "id": "pt-pag-005",
+      "lang": "pt",
+      "category": "version",
+      "text": "Qual é o valor máximo de uma cobrança na versão atual do serviço de pagamento?",
+      "relevant": [
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "grade": 3,
+          "passage": "R$ 500.000,00"
+        }
+      ]
+    },
+    {
+      "id": "pt-pag-006",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Para que serve o cabeçalho Idempotency-Key nas cobranças?",
+      "relevant": [
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "grade": 3,
+          "passage": "Chaves repetidas dentro de 24 horas devolvem a cobrança já criada"
+        }
+      ]
+    },
+    {
+      "id": "pt-pag-007",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Quando o serviço de pagamento antigo será desligado?",
+      "relevant": [
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "grade": 3,
+          "passage": "desligado em definitivo em 30/06/2026"
+        }
+      ]
+    },
+    {
+      "id": "pt-rh-001",
+      "lang": "pt",
+      "category": "version",
+      "text": "Com quantos dias de antecedência devo pedir férias hoje?",
+      "relevant": [
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "grade": 3,
+          "passage": "antecedência mínima de 45 dias"
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "grade": 1
+        }
+      ]
+    },
+    {
+      "id": "pt-rh-002",
+      "lang": "pt",
+      "category": "version",
+      "text": "Posso vender dias de férias? Quantos?",
+      "relevant": [
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "grade": 3,
+          "passage": "pode vender até 10 dias de férias"
+        }
+      ]
+    },
+    {
+      "id": "pt-rh-003",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Em quantos períodos posso dividir as férias?",
+      "relevant": [
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "grade": 3,
+          "passage": "dividir as férias em até três períodos"
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "grade": 2,
+          "passage": "divididas em até três períodos"
+        }
+      ]
+    },
+    {
+      "id": "pt-rh-004",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Motorista de rota longa pode tirar férias em abril?",
+      "relevant": [
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "grade": 3,
+          "passage": "de março a junho não há aprovação de férias para essa função"
+        }
+      ]
+    },
+    {
+      "id": "pt-rh-005",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Estagiário recebe auxílio de internet no home office?",
+      "relevant": [
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "grade": 3,
+          "passage": "Estagiários não recebem auxílio de internet"
+        }
+      ]
+    },
+    {
+      "id": "pt-rh-006",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Quantos dias por semana posso trabalhar de casa?",
+      "relevant": [
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "grade": 3,
+          "passage": "até 3 dias por semana"
+        }
+      ]
+    },
+    {
+      "id": "pt-fro-001",
+      "lang": "pt",
+      "category": "factual",
+      "text": "De quantos em quantos quilômetros se troca o óleo dos caminhões?",
+      "relevant": [
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "grade": 3,
+          "passage": "a cada 20.000 km ou a cada 6 meses"
+        }
+      ]
+    },
+    {
+      "id": "pt-fro-002",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual é o intervalo de troca de óleo das vans de entrega?",
+      "relevant": [
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "grade": 3,
+          "passage": "a cada 10.000 km ou a cada 6 meses"
+        }
+      ]
+    },
+    {
+      "id": "pt-fro-003",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Com que profundidade de sulco o pneu do caminhão deve ser trocado?",
+      "relevant": [
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "grade": 3,
+          "passage": "sulco abaixo de 3 mm são substituídos"
+        }
+      ]
+    },
+    {
+      "id": "pt-fro-004",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Van elétrica troca óleo?",
+      "relevant": [
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "grade": 3,
+          "passage": "Vans elétricas não trocam óleo"
+        }
+      ]
+    },
+    {
+      "id": "pt-ope-001",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual curso o motorista precisa para levar produtos perigosos?",
+      "relevant": [
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "grade": 3,
+          "passage": "curso MOPP"
+        }
+      ]
+    },
+    {
+      "id": "pt-ope-002",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Posso transportar produto perigoso junto com alimentos?",
+      "relevant": [
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "grade": 3,
+          "passage": "não podem ser transportados junto com alimentos ou medicamentos"
+        }
+      ]
+    },
+    {
+      "id": "pt-ope-003",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Em que horário caminhões podem entregar na zona central em dia útil?",
+      "relevant": [
+        {
+          "doc": "pt/operacoes/janelas-entrega-capital.md",
+          "grade": 3,
+          "passage": "entre 21h e 5h nos dias úteis"
+        }
+      ]
+    },
+    {
+      "id": "pt-ope-004",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Com quanto tempo de antecedência preciso agendar uma entrega na zona central?",
+      "relevant": [
+        {
+          "doc": "pt/operacoes/janelas-entrega-capital.md",
+          "grade": 3,
+          "passage": "pelo menos 24 horas de antecedência"
+        }
+      ]
+    },
+    {
+      "id": "pt-ope-005",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual é a carga máxima da empilhadeira elétrica com garfo padrão?",
+      "relevant": [
+        {
+          "doc": "pt/operacoes/manual-empilhadeira.pdf",
+          "grade": 3,
+          "passage": "2.500 kg"
+        }
+      ]
+    },
+    {
+      "id": "pt-ope-006",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual a velocidade máxima da empilhadeira dentro do armazém?",
+      "relevant": [
+        {
+          "doc": "pt/operacoes/manual-empilhadeira.pdf",
+          "grade": 3
+        }
+      ]
+    },
+    {
+      "id": "pt-ti-001",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Por quanto tempo os backups diários ficam guardados?",
+      "relevant": [
+        {
+          "doc": "pt/ti/backup.txt",
+          "grade": 3,
+          "passage": "Os backups diários ficam guardados por 35 dias"
+        }
+      ]
+    },
+    {
+      "id": "pt-ti-002",
+      "lang": "pt",
+      "category": "factual",
+      "text": "A que horas roda o backup completo do WMS?",
+      "relevant": [
+        {
+          "doc": "pt/ti/backup.txt",
+          "grade": 3,
+          "passage": "todos os dias às 02:00"
+        }
+      ]
+    },
+    {
+      "id": "pt-ti-003",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual o tamanho mínimo de senha exigido?",
+      "relevant": [
+        {
+          "doc": "pt/ti/politica-senhas.txt",
+          "grade": 3,
+          "passage": "no mínimo 14 caracteres"
+        }
+      ]
+    },
+    {
+      "id": "pt-ti-004",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Preciso trocar minha senha a cada 90 dias?",
+      "relevant": [
+        {
+          "doc": "pt/ti/politica-senhas.txt",
+          "grade": 3,
+          "passage": "Não exigimos troca periódica de senha"
+        }
+      ]
+    },
+    {
+      "id": "pt-ti-005",
+      "lang": "pt",
+      "category": "version",
+      "text": "O que causou a queda do WMS em março de 2025?",
+      "relevant": [
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "grade": 3,
+          "passage": "O certificado TLS do balanceador de carga expirou"
+        }
+      ]
+    },
+    {
+      "id": "pt-ti-006",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Quanto tempo o WMS ficou fora do ar no incidente de 12/03/2025?",
+      "relevant": [
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "grade": 3,
+          "passage": "indisponível por 4 horas e 10 minutos"
+        }
+      ]
+    },
+    {
+      "id": "pt-fin-001",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual o limite diário de alimentação em viagem?",
+      "relevant": [
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "grade": 3,
+          "passage": "Alimentação: até R$ 80,00 por dia"
+        }
+      ]
+    },
+    {
+      "id": "pt-fin-002",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual o prazo para lançar despesas de viagem?",
+      "relevant": [
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "grade": 3,
+          "passage": "em até 30 dias depois da viagem"
+        }
+      ]
+    },
+    {
+      "id": "pt-fin-003",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Quem aprova uma compra de R$ 30.000?",
+      "relevant": [
+        {
+          "doc": "pt/financeiro/aprovacao-compras.md",
+          "grade": 3,
+          "passage": "diretor da área"
+        }
+      ]
+    },
+    {
+      "id": "pt-fin-004",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Quantas cotações são exigidas para compras grandes?",
+      "relevant": [
+        {
+          "doc": "pt/financeiro/aprovacao-compras.md",
+          "grade": 3,
+          "passage": "exigem três cotações"
+        }
+      ]
+    },
+    {
+      "id": "pt-cli-001",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual é a meta de entregas no prazo do contrato premium?",
+      "relevant": [
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "grade": 3,
+          "passage": "a meta é de 99,5% das entregas no prazo"
+        }
+      ]
+    },
+    {
+      "id": "pt-cli-002",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual a multa por ponto abaixo da meta no contrato padrão?",
+      "relevant": [
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "grade": 3,
+          "passage": "desconto de 2% na fatura"
+        }
+      ]
+    },
+    {
+      "id": "pt-cli-003",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual o frete por kg para a região Nordeste em 2026?",
+      "relevant": [
+        {
+          "doc": "pt/clientes/tabela-frete-2026.pdf",
+          "grade": 3,
+          "passage": "R$ 1,40 por kg"
+        }
+      ]
+    },
+    {
+      "id": "pt-cli-004",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Qual é o frete mínimo por coleta?",
+      "relevant": [
+        {
+          "doc": "pt/clientes/tabela-frete-2026.pdf",
+          "grade": 3
+        }
+      ]
+    },
+    {
+      "id": "pt-seg-001",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Quais EPIs são obrigatórios na doca de carga?",
+      "relevant": [
+        {
+          "doc": "pt/seguranca/epi-armazem.md",
+          "grade": 3,
+          "passage": "óculos de proteção e luvas"
+        }
+      ]
+    },
+    {
+      "id": "pt-seg-002",
+      "lang": "pt",
+      "category": "factual",
+      "text": "Quanto tempo posso ficar seguido na câmara fria?",
+      "relevant": [
+        {
+          "doc": "pt/seguranca/epi-armazem.md",
+          "grade": 3,
+          "passage": "permanência máxima de 1 hora seguida"
+        }
+      ]
+    },
+    {
+      "id": "pt-cross-001",
+      "lang": "pt",
+      "category": "cross-language",
+      "text": "Qual é a faixa de temperatura da cadeia fria para produtos refrigerados?",
+      "relevant": [
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "grade": 3,
+          "passage": "between 2 °C and 8 °C"
+        }
+      ]
+    },
+    {
+      "id": "pt-cross-002",
+      "lang": "pt",
+      "category": "cross-language",
+      "text": "Qual é o limite de requisições por minuto da API v2 da Kestrel?",
+      "relevant": [
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "grade": 3,
+          "passage": "up to 1,200 requests per minute"
+        }
+      ]
+    },
+    {
+      "id": "pt-cross-003",
+      "lang": "pt",
+      "category": "cross-language",
+      "text": "Em que prazo a fatura da Kestrel deve ser paga?",
+      "relevant": [
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "grade": 3,
+          "passage": "payable within 30 days"
+        }
+      ]
+    },
+    {
+      "id": "pt-cmr-001",
+      "lang": "pt",
+      "category": "form-field",
+      "text": "Qual é o peso bruto da carga no CMR da Nordhaven?",
+      "relevant": [
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "grade": 3
+        }
+      ]
+    },
+    {
+      "id": "en-cmr-001",
+      "lang": "en",
+      "category": "form-field",
+      "text": "How many packages are declared on the Nordhaven Logistics consignment note?",
+      "relevant": [
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "grade": 3
+        }
+      ]
+    },
+    {
+      "id": "en-cmr-002",
+      "lang": "en",
+      "category": "form-field",
+      "text": "Which carrier transports the household goods consignment to Northfield?",
+      "relevant": [
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "grade": 3
+        }
+      ]
+    },
+    {
+      "id": "en-api-001",
+      "lang": "en",
+      "category": "version",
+      "text": "What is the rate limit per minute in API v2?",
+      "relevant": [
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "grade": 3,
+          "passage": "up to 1,200 requests per minute"
+        }
+      ]
+    },
+    {
+      "id": "en-api-002",
+      "lang": "en",
+      "category": "version",
+      "text": "What status code did the deprecated API v1 return when over the limit?",
+      "relevant": [
+        {
+          "doc": "en/platform/api-rate-limits-v1.md",
+          "grade": 3,
+          "passage": "rejected with HTTP 503"
+        }
+      ]
+    },
+    {
+      "id": "en-api-003",
+      "lang": "en",
+      "category": "factual",
+      "text": "What header tells the client how long to wait after a 429?",
+      "relevant": [
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "grade": 3,
+          "passage": "`Retry-After` header"
+        }
+      ]
+    },
+    {
+      "id": "en-dep-001",
+      "lang": "en",
+      "category": "factual",
+      "text": "How fast must a production rollback be completed?",
+      "relevant": [
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "grade": 3,
+          "passage": "within 15 minutes of the alert"
+        }
+      ]
+    },
+    {
+      "id": "en-dep-002",
+      "lang": "en",
+      "category": "factual",
+      "text": "Can we deploy to production on a Friday afternoon?",
+      "relevant": [
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "grade": 3,
+          "passage": "no production deploys on Fridays after 14:00 UTC"
+        }
+      ]
+    },
+    {
+      "id": "en-sec-001",
+      "lang": "en",
+      "category": "factual",
+      "text": "How quickly must on-call acknowledge a SEV1 page?",
+      "relevant": [
+        {
+          "doc": "en/security/incident-response.md",
+          "grade": 3,
+          "passage": "must acknowledge within 5 minutes"
+        }
+      ]
+    },
+    {
+      "id": "en-sec-002",
+      "lang": "en",
+      "category": "factual",
+      "text": "When is the postmortem due after a SEV2 incident?",
+      "relevant": [
+        {
+          "doc": "en/security/incident-response.md",
+          "grade": 3,
+          "passage": "within 5 business days"
+        }
+      ]
+    },
+    {
+      "id": "en-sec-003",
+      "lang": "en",
+      "category": "factual",
+      "text": "How long are application logs retained?",
+      "relevant": [
+        {
+          "doc": "en/security/data-retention.md",
+          "grade": 3,
+          "passage": "Application logs are kept for 90 days"
+        }
+      ]
+    },
+    {
+      "id": "en-sec-004",
+      "lang": "en",
+      "category": "factual",
+      "text": "When is customer data deleted after the contract ends?",
+      "relevant": [
+        {
+          "doc": "en/security/data-retention.md",
+          "grade": 3,
+          "passage": "deleted 30 days after the end of the contract"
+        }
+      ]
+    },
+    {
+      "id": "en-hr-001",
+      "lang": "en",
+      "category": "factual",
+      "text": "Can I fly business class on a 4 hour flight?",
+      "relevant": [
+        {
+          "doc": "en/hr/travel-policy.md",
+          "grade": 3,
+          "passage": "Economy class is required for flights shorter than 6 hours"
+        }
+      ]
+    },
+    {
+      "id": "en-hr-002",
+      "lang": "en",
+      "category": "factual",
+      "text": "What is the hotel cap per night for business travel?",
+      "relevant": [
+        {
+          "doc": "en/hr/travel-policy.md",
+          "grade": 3,
+          "passage": "USD 220 per night"
+        }
+      ]
+    },
+    {
+      "id": "en-hr-003",
+      "lang": "en",
+      "category": "factual",
+      "text": "By when must new hires finish the security awareness training?",
+      "relevant": [
+        {
+          "doc": "en/hr/onboarding-checklist.md",
+          "grade": 3,
+          "passage": "Within 7 days: complete the security awareness training"
+        }
+      ]
+    },
+    {
+      "id": "en-hr-004",
+      "lang": "en",
+      "category": "factual",
+      "text": "What is the monthly limit of a corporate card?",
+      "relevant": [
+        {
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "grade": 3,
+          "passage": "USD 5,000"
+        }
+      ]
+    },
+    {
+      "id": "en-pro-001",
+      "lang": "en",
+      "category": "version",
+      "text": "Which release removed the XML import?",
+      "relevant": [
+        {
+          "doc": "en/product/release-notes-3-2.md",
+          "grade": 3,
+          "passage": "The legacy XML import was removed in 3.2"
+        }
+      ]
+    },
+    {
+      "id": "en-pro-002",
+      "lang": "en",
+      "category": "version",
+      "text": "In which version was the broken accented characters in CSV export fixed?",
+      "relevant": [
+        {
+          "doc": "en/product/release-notes-3-3.md",
+          "grade": 3,
+          "passage": "CSV export now always uses UTF-8"
+        },
+        {
+          "doc": "en/product/release-notes-3-2.md",
+          "grade": 1
+        }
+      ]
+    },
+    {
+      "id": "en-pro-003",
+      "lang": "en",
+      "category": "factual",
+      "text": "Which plan includes single sign-on?",
+      "relevant": [
+        {
+          "doc": "en/product/pricing-plans.md",
+          "grade": 3
+        }
+      ]
+    },
+    {
+      "id": "en-pro-004",
+      "lang": "en",
+      "category": "factual",
+      "text": "How many users does the Team plan allow?",
+      "relevant": [
+        {
+          "doc": "en/product/pricing-plans.md",
+          "grade": 3
+        }
+      ]
+    },
+    {
+      "id": "en-sup-001",
+      "lang": "en",
+      "category": "factual",
+      "text": "What is the first response time for an L1 support ticket?",
+      "relevant": [
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "grade": 3
+        }
+      ]
+    },
+    {
+      "id": "en-fin-001",
+      "lang": "en",
+      "category": "factual",
+      "text": "What late fee applies to overdue invoices?",
+      "relevant": [
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "grade": 3,
+          "passage": "a fee of 1.5% per month"
+        }
+      ]
+    },
+    {
+      "id": "en-wh-001",
+      "lang": "en",
+      "category": "factual",
+      "text": "What happens when a temperature excursion lasts more than 30 minutes?",
+      "relevant": [
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "grade": 3,
+          "passage": "puts the whole pallet in quarantine"
+        }
+      ]
+    },
+    {
+      "id": "en-wh-002",
+      "lang": "en",
+      "category": "factual",
+      "text": "What is the speed limit for forklifts in partner warehouses?",
+      "relevant": [
+        {
+          "doc": "en/warehouse/forklift-safety.pdf",
+          "grade": 3,
+          "passage": "8 km/h"
+        }
+      ]
+    },
+    {
+      "id": "en-leg-001",
+      "lang": "en",
+      "category": "factual",
+      "text": "How long does the NDA confidentiality obligation last?",
+      "relevant": [
+        {
+          "doc": "en/legal/nda-template.txt",
+          "grade": 3,
+          "passage": "for 3 years after the last disclosure"
+        }
+      ]
+    },
+    {
+      "id": "en-cross-001",
+      "lang": "en",
+      "category": "cross-language",
+      "text": "What is the maximum load of the electric forklift at Serra Azul with the standard fork?",
+      "relevant": [
+        {
+          "doc": "pt/operacoes/manual-empilhadeira.pdf",
+          "grade": 3,
+          "passage": "2.500 kg"
+        },
+        {
+          "doc": "en/warehouse/forklift-safety.pdf",
+          "grade": 1
+        }
+      ]
+    },
+    {
+      "id": "en-cross-002",
+      "lang": "en",
+      "category": "cross-language",
+      "text": "How long are Serra Azul's daily backups kept?",
+      "relevant": [
+        {
+          "doc": "pt/ti/backup.txt",
+          "grade": 3,
+          "passage": "Os backups diários ficam guardados por 35 dias"
+        }
+      ]
+    },
+    {
+      "id": "en-cross-003",
+      "lang": "en",
+      "category": "cross-language",
+      "text": "What is the minimum password length at Serra Azul?",
+      "relevant": [
+        {
+          "doc": "pt/ti/politica-senhas.txt",
+          "grade": 3,
+          "passage": "no mínimo 14 caracteres"
+        }
+      ]
+    },
+    {
+      "id": "pt-neg-001",
+      "lang": "pt",
+      "category": "negative",
+      "text": "Qual é a política de licença-maternidade da empresa?",
+      "relevant": []
+    },
+    {
+      "id": "pt-neg-002",
+      "lang": "pt",
+      "category": "negative",
+      "text": "Quanto custa o plano de saúde para dependentes?",
+      "relevant": []
+    },
+    {
+      "id": "pt-neg-003",
+      "lang": "pt",
+      "category": "negative",
+      "text": "Qual é o horário do refeitório no centro de distribuição?",
+      "relevant": []
+    },
+    {
+      "id": "pt-neg-004",
+      "lang": "pt",
+      "category": "negative",
+      "text": "Como solicito um adiantamento salarial?",
+      "relevant": []
+    },
+    {
+      "id": "pt-neg-005",
+      "lang": "pt",
+      "category": "negative",
+      "text": "Qual é o limite de peso para drones de entrega?",
+      "relevant": []
+    },
+    {
+      "id": "pt-neg-006",
+      "lang": "pt",
+      "category": "negative",
+      "text": "Qual a política de doações a instituições de caridade?",
+      "relevant": []
+    },
+    {
+      "id": "pt-neg-007",
+      "lang": "pt",
+      "category": "negative",
+      "text": "Qual o prazo de garantia dos pneus recapados?",
+      "relevant": []
+    },
+    {
+      "id": "en-neg-008",
+      "lang": "en",
+      "category": "negative",
+      "text": "What is the parental leave policy?",
+      "relevant": []
+    },
+    {
+      "id": "en-neg-009",
+      "lang": "en",
+      "category": "negative",
+      "text": "How do I request a sabbatical?",
+      "relevant": []
+    },
+    {
+      "id": "en-neg-010",
+      "lang": "en",
+      "category": "negative",
+      "text": "What is the dress code for customer meetings?",
+      "relevant": []
+    },
+    {
+      "id": "en-neg-011",
+      "lang": "en",
+      "category": "negative",
+      "text": "Which programming languages does the mobile SDK support?",
+      "relevant": []
+    },
+    {
+      "id": "en-neg-012",
+      "lang": "en",
+      "category": "negative",
+      "text": "What is the stock option vesting schedule?",
+      "relevant": []
+    },
+    {
+      "id": "en-neg-013",
+      "lang": "en",
+      "category": "negative",
+      "text": "How do I book a meeting room in the office?",
+      "relevant": []
+    },
+    {
+      "id": "en-neg-014",
+      "lang": "en",
+      "category": "negative",
+      "text": "What is the GPU quota for machine learning jobs?",
+      "relevant": []
+    },
+    {
+      "id": "en-neg-015",
+      "lang": "en",
+      "category": "negative",
+      "text": "Who is the data protection officer?",
+      "relevant": []
+    }
+  ]
+}

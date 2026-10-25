@@ -1,0 +1,14 @@
+Política de Backup dos Sistemas Internos
+Documento fictício da Transportes Serra Azul.
+
+1. Frequência
+O backup completo do WMS, do sistema de frota e do ERP é feito todos os dias às 02:00. Durante o dia há backups incrementais a cada 4 horas.
+
+2. Retenção
+Os backups diários ficam guardados por 35 dias. O backup do último dia de cada mês fica guardado por 13 meses.
+
+3. Testes
+A equipe de infraestrutura faz um teste de restauração completo a cada trimestre e registra o tempo gasto. O objetivo é restaurar o WMS em menos de 4 horas.
+
+4. Local
+As cópias ficam em dois data centers diferentes, a pelo menos 300 km um do outro.

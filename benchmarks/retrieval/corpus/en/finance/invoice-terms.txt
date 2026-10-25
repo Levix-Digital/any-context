@@ -1,0 +1,8 @@
+Invoice and Payment Terms
+Fictitious document of Kestrel Analytics.
+
+Invoices are payable within 30 days of the invoice date (net 30). Late payments accrue a fee of 1.5% per month on the open amount.
+
+Accounts more than 60 days overdue are suspended after a written notice. Disputes must be raised within 15 days of the invoice date.
+
+We accept bank transfer and corporate cards. Card payments over USD 10,000 need a prior agreement.

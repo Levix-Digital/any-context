@@ -1,0 +1,8 @@
+Política de Senhas e Autenticação
+Documento fictício da Transportes Serra Azul.
+
+Senhas devem ter no mínimo 14 caracteres. Não exigimos troca periódica de senha; a troca é obrigatória só quando houver suspeita de vazamento.
+
+A autenticação em dois fatores (MFA) é obrigatória para todos os sistemas acessados fora da rede da empresa e para todos os administradores, dentro ou fora da rede.
+
+Contas sem login por 90 dias são bloqueadas automaticamente. Senhas não podem ser compartilhadas, nem mesmo com a equipe de TI.
