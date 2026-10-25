@@ -233,8 +233,8 @@ impl BM25Index {
             })
             .collect();
 
-        // Sort descending by score
-        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        // Sort descending by score; equal scores by id, so the cut at `limit` is reproducible
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.0.cmp(&b.0)));
         if results.len() > limit {
             results.truncate(limit);
         }
@@ -391,6 +391,24 @@ mod tests {
         assert!(!results.is_empty());
         assert_eq!(results[0].0, "chunk_1");
         assert!(results[0].1 > 0.5);
+    }
+
+    #[test]
+    fn equal_scores_rank_by_id_so_the_cut_is_reproducible() {
+        let mut index = BM25Index::new(None, None);
+        for id in ["c", "a", "d", "b"] {
+            index.add_chunk(
+                id.to_string(),
+                "identical retention policy text".to_string(),
+                format!("{id}.md"),
+                format!("{id}.md"),
+                "Default".to_string(),
+                "Markdown Document".to_string(),
+                None,
+            );
+        }
+        let ids: Vec<String> = index.search("retention policy", 3, None).into_iter().map(|(id, _)| id).collect();
+        assert_eq!(ids, vec!["a", "b", "c"]);
     }
 
     #[test]

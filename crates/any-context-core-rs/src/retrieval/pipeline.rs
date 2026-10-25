@@ -206,6 +206,9 @@ pub(crate) fn compare_by_relevance(a: &HybridSearchResult, b: &HybridSearchResul
         .partial_cmp(&a.score)
         .unwrap_or(std::cmp::Ordering::Equal)
         .then_with(|| parse_last_modified(&b.last_modified).cmp(&parse_last_modified(&a.last_modified)))
+        // Last, a fixed order so equal results always rank the same (IMP-065).
+        .then_with(|| a.chunk_id.cmp(&b.chunk_id))
+        .then_with(|| a.file_path.cmp(&b.file_path))
 }
 
 /// How the dense half of a hybrid search went for a query (IMP-003). A query without dense
@@ -299,7 +302,7 @@ async fn apply_neural_rerank(
     if items.is_empty() {
         return;
     }
-    items.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    items.sort_by(compare_by_relevance);
     let head: Vec<usize> = (0..items.len())
         .filter(|&i| !protected.contains(&items[i].chunk_id))
         .take(MAX_RERANK_CANDIDATES)
@@ -1596,6 +1599,14 @@ mod tests {
         items.sort_by(compare_by_relevance);
         let order: Vec<&str> = items.iter().map(|c| c.chunk_id.as_str()).collect();
         assert_eq!(order, vec!["old-strong", "tie-new", "tie-old", "no-date", "tie-invalid", "new-weak"]);
+    }
+
+    #[test]
+    fn compare_by_relevance_orders_full_ties_by_chunk_then_file() {
+        let mut items = vec![result("b", "t", 0.5), result("a", "t", 0.5), HybridSearchResult { file_path: "docs/z.md".into(), ..result("a", "t", 0.5) }];
+        items.sort_by(compare_by_relevance);
+        let order: Vec<(&str, &str)> = items.iter().map(|c| (c.chunk_id.as_str(), c.file_path.as_str())).collect();
+        assert_eq!(order, vec![("a", "docs/a.md"), ("a", "docs/z.md"), ("b", "docs/b.md")]);
     }
 
     #[test]
