@@ -97,10 +97,10 @@ description: "Tasks for the development retrieval benchmark (IMP-065)"
 
 **Independent Test**: a PR with the reranker off fails the job; a docs-only PR skips it.
 
-- [ ] T026 [US3] Run the benchmark, check determinism, commit `benchmarks/retrieval/baseline.lexical-rerank.json`
+- [x] T026 [US3] Run the benchmark, check determinism, commit `benchmarks/retrieval/baseline.lexical-rerank.json`
 - [x] T027 [US3] Add `.github/workflows/retrieval-benchmark.yml` (path filter, ubuntu-latest, ONNX Runtime as in `e2e-tests.yml`, reranker cache keyed by its SHA-256, `run --compare --check-determinism --summary "$GITHUB_STEP_SUMMARY"`, upload the result JSON)
 - [ ] T028 [US3] Check SC-003 on the branch (reranker off, then pool 5): exit 1 with the regressed questions; record the numbers in the PR description; revert the experiment
-- [ ] T029 [US3] Check SC-001 (run time on the CI runner under 5 minutes, excluding the first download) from the workflow logs
+- [x] T029 [US3] Check SC-001 (run time on the CI runner under 5 minutes, excluding the first download) from the workflow logs
 
 ---
 
