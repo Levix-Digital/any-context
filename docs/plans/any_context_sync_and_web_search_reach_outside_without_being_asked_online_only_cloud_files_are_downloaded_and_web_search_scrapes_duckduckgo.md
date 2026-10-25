@@ -4,10 +4,10 @@ project: any-context
 title: 'Sync and web search reach outside without being asked: online-only cloud files are downloaded and web search scrapes DuckDuckGo'
 kind: bug
 version: v1.0.0
-status: in_progress
+status: completed
 author: Levi Silveira
 created_at: '2026-10-24T23:05:00'
-updated_at: '2026-10-25T07:54:32'
+updated_at: '2026-10-25T08:11:13'
 session_id: null
 tags:
 - ingestion
@@ -38,7 +38,9 @@ milestones:
   done_at: '2026-10-25'
   by: Levi Silveira
 - name: M5 Review and PR
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 status_log:
 - at: '2026-10-24T23:05:00'
   by: Levi Silveira
@@ -64,6 +66,17 @@ status_log:
 - at: '2026-10-25T07:54:32'
   by: Levi Silveira
   note: Milestone 'M4 Documentation and manual tests' completed
+- at: '2026-10-25T08:11:08'
+  by: Levi Silveira
+  note: 'Milestone ''M5 Review and PR'' completed: PR #379 merged into dev'
+- at: '2026-10-25T08:11:08'
+  by: Levi Silveira
+  status: completed
+  note: All milestones completed
+- at: '2026-10-25T08:11:13'
+  by: Levi Silveira
+  status: completed
+  note: 'PR #379 merged into dev'
 ---
 
 # Sync and web search reach outside without being asked: online-only cloud files are downloaded and web search scrapes DuckDuckGo
