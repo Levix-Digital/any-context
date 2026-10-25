@@ -1093,6 +1093,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. Join the Apple Developer Program (about US$ 99 a year, D-U-N-S number for an organization), sign the macOS build with a Developer ID and notarize it, so users no longer have to allow the app in System Settings. Deferred until the product has revenue (decided 2026-10-23).
 
+### FEAT-195: [retrieval] Turn a source off and on without losing its index
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-10-25, review of improvement suggestions (NotebookLM-style source checkboxes)
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search, and docs/architecture/desktop-ui-v2.md, workspace tree. The user can turn a source of the workspace off and back on, in the desktop UI and the CLI. An off source keeps its chunks, vectors and lexical index on disk but is left out of search and sync; turning it back on runs only the incremental diff. Same mechanism as the deactivated state of FEAT-169 and the source filter of FEAT-088, applied inside the retrievers (IMP-040), with no reindex. The off state is shown in the source tree and in the source report, and a question in a workspace with every source off answers that there is nothing to search without calling the LLM. Plan it together with FEAT-088. No pinning or reserved budget per source: selection follows relevance (ADR-0139, IMP-045).
+
 ## Improvements
 
 ### IMP-015: [ingestion] Single source model: a sources table replaces the three source tables
@@ -1444,6 +1451,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. The core reaches install paths, release lookup and update logging through a port implemented by an adapter, so actx_installer can be listed in architecture.forbidden_core_imports (today commands/engine.rs calls it directly). Supersedes IMP-002.
+
+### IMP-065: [retrieval] Development retrieval benchmark on a fixed corpus, before the R1 retrieval rework
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-10-25, review of improvement suggestions
+- **Plan**: -
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation ("in development, the test corpus runs on every code change"). The R1 retrieval items (IMP-040 to IMP-046) set defaults that the design says are tuned by the evaluation set, but the per-workspace set (FEAT-073, FEAT-106) only arrives in v1.1.0. Before IMP-040, a development-only benchmark: a fixed versioned corpus (starting with the fictitious CMR) and a hand-labeled question file (expected documents and passages, plus negative questions that must get the nothing-found answer); a runner over the real retrieval pipeline that reports HitRate@1/3/5/10, MRR@10, NDCG@10, the nothing-found rate and retrieval latency (mean and p95); results saved as JSON in the repository and compared with a previous run, so each retrieval PR shows its effect. Runs locally and in CI when the retrieval code changes, with a regression threshold. Out of scope: user-facing commands, synthetic question generation (FEAT-073) and answer evaluation (FEAT-102).
 
 ## Adjustments
 
