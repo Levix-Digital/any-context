@@ -1454,9 +1454,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-065: [retrieval] Development retrieval benchmark on a fixed corpus, before the R1 retrieval rework
 - **Priority**: high
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-25, review of improvement suggestions
-- **Plan**: -
+- **Plan**: imp_065_retrieval_benchmark
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation ("in development, the test corpus runs on every code change"). The R1 retrieval items (IMP-040 to IMP-046) set defaults that the design says are tuned by the evaluation set, but the per-workspace set (FEAT-073, FEAT-106) only arrives in v1.1.0. Before IMP-040, a development-only benchmark: a fixed versioned corpus (starting with the fictitious CMR) and a hand-labeled question file (expected documents and passages, plus negative questions that must get the nothing-found answer); a runner over the real retrieval pipeline that reports HitRate@1/3/5/10, MRR@10, NDCG@10, the nothing-found rate and retrieval latency (mean and p95); results saved as JSON in the repository and compared with a previous run, so each retrieval PR shows its effect. Runs locally and in CI when the retrieval code changes, with a regression threshold. Out of scope: user-facing commands, synthetic question generation (FEAT-073) and answer evaluation (FEAT-102).
 
 ## Adjustments
