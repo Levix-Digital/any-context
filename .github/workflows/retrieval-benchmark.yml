@@ -91,11 +91,15 @@ jobs:
           --check-determinism
           --summary "$GITHUB_STEP_SUMMARY"
 
-      # The full result in the log, so a new baseline can be taken from a CI run.
+      # The full result on one log line, so a new baseline can be taken from a CI run.
       - name: Show Result
         if: always()
         shell: bash
-        run: cat benchmarks/retrieval/results/*.json 2>/dev/null || true
+        run: |
+          for f in benchmarks/retrieval/results/*.json; do
+            [ -f "$f" ] && echo "RESULT-JSON $(basename "$f") $(jq -c . "$f")"
+          done
+          true
 
       - name: Upload Result
         if: always()
