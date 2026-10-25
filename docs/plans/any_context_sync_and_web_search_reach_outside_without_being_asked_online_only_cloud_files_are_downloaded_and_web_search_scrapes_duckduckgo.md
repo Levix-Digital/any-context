@@ -7,7 +7,7 @@ version: v1.0.0
 status: in_progress
 author: Levi Silveira
 created_at: '2026-10-24T23:05:00'
-updated_at: '2026-10-25T07:43:19'
+updated_at: '2026-10-25T07:54:32'
 session_id: null
 tags:
 - ingestion
@@ -22,13 +22,21 @@ backlog_items:
 - BUG-029
 milestones:
 - name: M1 Online-only files are never read
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 - name: M2 Web search only through allowed APIs
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 - name: M3 Reporting
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 - name: M4 Documentation and manual tests
-  done: false
+  done: true
+  done_at: '2026-10-25'
+  by: Levi Silveira
 - name: M5 Review and PR
   done: false
 status_log:
@@ -44,6 +52,18 @@ status_log:
   by: Levi Silveira
   status: in_progress
   note: Approved by Levi at gate 3
+- at: '2026-10-25T07:54:27'
+  by: Levi Silveira
+  note: Milestone 'M1 Online-only files are never read' completed
+- at: '2026-10-25T07:54:29'
+  by: Levi Silveira
+  note: Milestone 'M2 Web search only through allowed APIs' completed
+- at: '2026-10-25T07:54:30'
+  by: Levi Silveira
+  note: Milestone 'M3 Reporting' completed
+- at: '2026-10-25T07:54:32'
+  by: Levi Silveira
+  note: Milestone 'M4 Documentation and manual tests' completed
 ---
 
 # Sync and web search reach outside without being asked: online-only cloud files are downloaded and web search scrapes DuckDuckGo
