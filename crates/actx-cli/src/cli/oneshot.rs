@@ -622,8 +622,12 @@ pub async fn handle_download(tier_opt: Option<&str>, force: bool, check: bool) {
     match download_task.await {
         Ok(Ok(dest)) => {
             println!("\n\n✔ Download complete! Successfully verified and installed at: {}", dest.display());
-            println!("🤖 Activate in interactive session: /model {}", target_spec.id);
-            println!("⚡ Run one-shot query: actx \"your query\" --model {}", target_spec.id);
+            if target_spec.category == any_context_core_rs::ingestion::OnnxModelCategory::Embedding {
+                println!("🧭 Use it for indexing: actx embedding {} --yes (or /embedding {} --yes)", target_spec.id, target_spec.id);
+            } else {
+                println!("🤖 Activate in interactive session: /model {}", target_spec.id);
+                println!("⚡ Run one-shot query: actx \"your query\" --model {}", target_spec.id);
+            }
         }
         Ok(Err(e)) => {
             eprintln!("\n\n❌ Download failed: {}", e);

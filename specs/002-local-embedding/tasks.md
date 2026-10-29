@@ -28,7 +28,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 
 - [ ] T009 [US1] `crates/actx-onnx/src/embedder.rs`: `OnnxEmbedder` config (paths, max tokens, pooling, normalize), lazy load with recorded load errors, batches, truncation counter
 - [ ] T010 [P] [US1] Pooling and normalization unit tests on hand-built tensors (mean with mask, CLS)
-- [x] T011 [US1] Reference vectors: script under `crates/actx-onnx/tests/fixtures/embedder/` (Python `onnxruntime` + `tokenizers`) producing expected vectors for six pt/en sentences for e5-small; Rust test compares (cosine ≥ 0.9999); skipped with a message when the files are absent, required in CI (`ACTX_REQUIRE_EMBEDDER_TESTS=1`)
+- [x] T011 [US1] Reference vectors: script under `crates/actx-onnx/tests/fixtures/embedder/` (Python `onnxruntime` + `tokenizers`) producing expected vectors for six pt/en sentences for e5-small; Rust test compares (cosine ≥ 0.995 per text; see research R3); skipped with a message when the files are absent, required in CI (`ACTX_REQUIRE_EMBEDDER_TESTS=1`)
 - [ ] T012 [US1] `ingestion/local_embedding.rs`: `LocalEmbeddingProvider` implementing `LmProvider::embed` over `OnnxEmbedder` (blocking work on the blocking pool); tests: order kept, errors mapped to `LmError`
 - [ ] T013 [US1] Missing model at sync: verified download with progress through `OnnxModelManager::download_model` (per Levi's answer to clarification 1); offline or checksum failure gives `EmbeddingUnavailable` with the install fix
 - [x] T014 [US1] No lexical-only mode: when no model can be made available the sync stops before indexing with model, source and manual-install instructions (FR-013); `Lite` gets e5-small; tests
@@ -69,12 +69,12 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 ## Phase 7: User Story 5, benchmark, defaults and CI (P2)
 
 - [ ] T031 [US5] `actx-bench`: `--embedding local/<id>` through the product resolution; run configuration records the full key; tests
-- [ ] T032 [US5] CI `workflow_dispatch` input to run a chosen candidate; model files cached by the catalog file
+- [x] T032 [US5] CI `workflow_dispatch` input to run a chosen candidate; model files cached by the catalog file
 - [ ] T033 [US5] Run the three candidates; fill research.md "Results" (MRR@10, HitRate@5, cross-language MRR, indexing time, size, peak RSS)
 - [ ] T034 [US5] Set the profile defaults from the results (rule in spec assumptions); update `default_embedding_model()` and tests
 - [ ] T035 [US5] Dense CI job with the reference default and committed baseline `baseline.dense-local-<id>-rerank.json` (from the CI `RESULT-JSON` line); lexical job unchanged
 - [ ] T036 [US5] SC-005 check once: swapped prefixes fail the dense job; record in the PR description
-- [ ] T037 [US5] Unit/e2e workflows provide the cached reference model so T011 runs in CI
+- [x] T037 [US5] Unit/e2e workflows provide the cached reference model so T011 runs in CI
 
 **Checkpoint (M5a)**.
 

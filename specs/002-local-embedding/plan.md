@@ -107,7 +107,7 @@ FEAT-067, IMP-027, IMP-028, IMP-029 (all medium), release R1 v1.0.0 Personal. Or
 
 ### Tests (quality-assurance)
 
-- `actx-onnx`: pooling (mean with mask, CLS) and normalization on hand-built tensors; `OnnxEmbedder` against committed reference vectors for six pt/en sentences (cosine ≥ 0.9999), skipped with a message when the model files are absent locally, required in CI; batch order preserved; truncation counted; missing or corrupt files give an error, never a vector.
+- `actx-onnx`: pooling (mean with mask, CLS) and normalization on hand-built tensors; `OnnxEmbedder` against committed reference vectors for six pt/en sentences (cosine ≥ 0.995 per text; see research R3), skipped with a message when the model files are absent locally, required in CI; batch order preserved; truncation counted; missing or corrupt files give an error, never a vector.
 - Core: target key round trip and legacy parsing; prefix application per role; `resolve_embedding` cases (setting present and buildable, missing key, missing file, setting absent with each profile, refused by the allowed-models seam) never returning another model or the mock; migration (adopt most used real target, ignore mock, idempotent, backfill); orchestrator regression tests: chat-model change re-embeds zero chunks (SC-003), unavailable model writes zero chunks (SC-004), failed files retried; LanceDB filter keeps spaces apart; pipeline query prefix and no fallback.
 - CLI: `/embedding` and `actx embedding` output, unknown id, confirmation, `--yes`; `-m` does not change the embedding.
 - Benchmark: dense configuration with each candidate; a swapped-prefix run fails the gate (SC-005, checked once and recorded in the PR).

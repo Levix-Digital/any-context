@@ -1,11 +1,12 @@
 //! The ONNX embedder reproduces the reference vectors of `multilingual-e5-small` computed with the
-//! Python `onnxruntime` and `tokenizers` packages (`fixtures/embedder/make_reference.py`).
+//! Python `onnxruntime` and `tokenizers` packages (`fixtures/embedder/make_reference.py`, same INT8
+//! file, same ONNX Runtime version).
 //!
 //! Needs the model files and the ONNX Runtime library, so it is skipped with a message when they
 //! are absent; CI sets `ACTX_REQUIRE_EMBEDDER_TESTS=1` to make it mandatory:
 //!
 //! ```text
-//! ORT_DYLIB_PATH=<onnxruntime library> ACTX_MODELS_DIR=<models dir with multilingual-e5-small/> \
+//! ORT_DYLIB_PATH=<onnxruntime library> ACTX_EMBEDDER_MODELS_DIR=<models dir with multilingual-e5-small/> \
 //!   cargo test -p actx-onnx --features runtime --test embedder_reference
 //! ```
 
@@ -21,7 +22,7 @@ struct Reference {
 }
 
 fn model_dir() -> Option<PathBuf> {
-    let dir = std::env::var("ACTX_MODELS_DIR").ok()?;
+    let dir = std::env::var("ACTX_EMBEDDER_MODELS_DIR").or_else(|_| std::env::var("ACTX_MODELS_DIR")).ok()?;
     let dir = PathBuf::from(dir).join("multilingual-e5-small");
     let (model, tokenizer) = model_files(&dir);
     (model.is_file() && tokenizer.is_file()).then_some(dir)
@@ -40,7 +41,7 @@ fn e5_small_matches_the_reference_vectors() {
     let runtime = actx_onnx::runtime::runtime_library_present();
     let Some(dir) = model_dir().filter(|_| runtime) else {
         assert!(!required, "ACTX_REQUIRE_EMBEDDER_TESTS=1 but the model files or the ONNX Runtime library are missing");
-        eprintln!("skipped: set ACTX_MODELS_DIR (with multilingual-e5-small/) and ORT_DYLIB_PATH, build with --features runtime");
+        eprintln!("skipped: set ACTX_EMBEDDER_MODELS_DIR (with multilingual-e5-small/) and ORT_DYLIB_PATH, build with --features runtime");
         return;
     };
 
@@ -59,11 +60,18 @@ fn e5_small_matches_the_reference_vectors() {
     });
     let vectors = embedder.embed(&reference.texts).expect("real inference");
     assert_eq!(vectors.len(), reference.vectors.len());
+    // With the same ONNX Runtime build and CPU the vectors agree to 1e-4 in cosine. Other CPUs
+    // (or runtime versions) run other INT8 kernels and drift by about 0.002, so the bound is
+    // 0.995: a port error (pooling over padding, CLS instead of mean, missing prefix) puts at
+    // least one text below 0.99.
+    let mut lowest = 1.0f32;
     for (i, (got, want)) in vectors.iter().zip(&reference.vectors).enumerate() {
         assert_eq!(got.len(), 384);
         let c = cosine(got, want);
-        assert!(c >= 0.9999, "text {i}: cosine {c} with the reference");
+        lowest = lowest.min(c);
+        assert!(c >= 0.995, "text {i}: cosine {c} with the reference");
     }
+    eprintln!("lowest cosine with the reference: {lowest:.6}");
     assert_eq!(embedder.truncated_inputs(), 0);
 
     // The INT8 export quantizes activations over the whole batch, so a text embedded alone lands

@@ -497,7 +497,7 @@ impl OnnxModelManager {
         if clean == "reranker" || clean == "rerank" || clean == "mmarco" || clean.contains("mmarco") {
             return Self::find_spec(DEFAULT_RERANKER_ID);
         }
-        if clean == "reranker-m3" || clean == "m3" || clean == "bge-m3" || clean == "bge-reranker" || clean.contains("reranker-v2") {
+        if clean == "reranker-m3" || clean == "m3" || clean == "bge-reranker" || clean.contains("reranker-v2") {
             return Self::find_spec("bge-reranker-v2-m3");
         }
 
