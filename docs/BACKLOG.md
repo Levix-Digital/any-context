@@ -339,7 +339,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-067: [models] Local multilingual ONNX embedding models per profile as the default
 - **Priority**: medium
-- **Status**: planned
+- **Status**: in_progress
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: feat_002_local_embedding
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The default embedding model is local, multilingual and runs via ONNX, varying by profile; permissive candidates: multilingual-e5-small/base, BGE-M3, Qwen3-Embedding-0.6B. Cloud providers only by explicit choice.
@@ -1188,21 +1188,21 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-027: [ingestion] Embedding model independent of the chat model, target on each chunk
 - **Priority**: medium
-- **Status**: planned
+- **Status**: in_progress
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: feat_002_local_embedding
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions, and section 7, Decisions. The embedding model is defined by the model kit and changeable by the user, no longer derived from the chat model; each chunk records its embedding_target (provider, model, dimension). Continues the M1 work on branch feat/imp-004-embedding-model. Supersedes FEAT-005.
 
 ### IMP-028: [ingestion] Embedding never switches model silently; OpenAI and mock fallbacks removed
 - **Priority**: medium
-- **Status**: planned
+- **Status**: in_progress
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: feat_002_local_embedding
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. If the chosen model fails, the files fail, the user is told and the next sync tries again. The fallback to OpenAI and the offline mock (deterministic pseudo-vectors, ingestion/orchestrator.rs:770 and 1007) end.
 
 ### IMP-029: [ingestion] Query and document prefixes per model from the catalog
 - **Priority**: medium
-- **Status**: planned
+- **Status**: in_progress
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: feat_002_local_embedding
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The catalog declares each model's query and document prefixes and the pipeline applies them at ingestion and at query time (e.g. gemini-embedding-2, e5). Supersedes IMP-014.
