@@ -38,7 +38,7 @@ async fn test_orchestrator_full_lifecycle() {
         force: false,
         target_folder: None,
         verbose: true,
-        model: Some("mock".to_string()),
+        embedding_model: Some("mock".to_string()),
     };
 
     let res1 = orchestrator.run(&opts).await.expect("sync run 1");
@@ -86,7 +86,7 @@ async fn test_orchestrator_full_lifecycle() {
         force: true,
         target_folder: None,
         verbose: true,
-        model: Some("mock".to_string()),
+        embedding_model: Some("mock".to_string()),
     };
     let res5 = orchestrator.run(&force_opts).await.expect("sync run 5 force");
     assert!(!res5.is_up_to_date);
@@ -152,7 +152,7 @@ async fn test_orchestrator_quality_gate_and_metrics() {
         force: false,
         target_folder: None,
         verbose: true,
-        model: Some("mock".to_string()),
+        embedding_model: Some("mock".to_string()),
     };
 
     let res = orchestrator.run(&opts).await.expect("sync run");
@@ -203,7 +203,7 @@ fn mock_sync(target_folder: Option<String>) -> SyncOptions {
         force: false,
         target_folder,
         verbose: false,
-        model: Some("mock".to_string()),
+        embedding_model: Some("mock".to_string()),
     }
 }
 
@@ -217,7 +217,7 @@ async fn test_embedding_target_change_reindexes_whole_workspace() {
     let first = orchestrator.run(&mock_sync(None)).await.expect("sync 1");
     assert_eq!(first.indexed_files, 2);
     assert_eq!(first.embedding_reindex, None, "a new workspace adopts the current target");
-    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
+    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed@1536".to_string())));
     let chunks_before = lance.count_records(Some(ws), None).unwrap();
 
     let second = orchestrator.run(&mock_sync(None)).await.expect("sync 2");
@@ -230,8 +230,8 @@ async fn test_embedding_target_change_reindexes_whole_workspace() {
     let third = orchestrator.run(&mock_sync(None)).await.expect("sync 3");
     assert_eq!(third.indexed_files, 2, "every unchanged file must be re-embedded");
     let msg = third.embedding_reindex.expect("reindex reported");
-    assert!(msg.contains("openai/text-embedding-3-small → mock/mock-embed"), "{msg}");
-    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
+    assert!(msg.contains("openai/text-embedding-3-small → mock/mock-embed@1536"), "{msg}");
+    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed@1536".to_string())));
     assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks_before, "old vectors are purged, not duplicated");
 
     let fourth = orchestrator.run(&mock_sync(None)).await.expect("sync 4");
@@ -255,7 +255,7 @@ async fn test_scoped_sync_with_target_change_reindexes_all_folders() {
     let res = orchestrator.run(&scoped).await.expect("scoped sync");
     assert_eq!(res.indexed_files, 4, "both folders are re-embedded");
     assert!(res.embedding_reindex.is_some());
-    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed".to_string())));
+    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed@1536".to_string())));
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
@@ -363,6 +363,7 @@ async fn test_secrets_indexed_before_the_fix_are_reindexed() {
                 header_path: None,
                 start_line: None,
                 end_line: None,
+                embedding_target: None,
             }],
             None,
             None,

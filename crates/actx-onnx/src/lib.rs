@@ -1,6 +1,8 @@
 //! # 🧠 `actx-onnx`: Local ONNX Inference Crate
 //!
 //! Component status in this build (ADR-130):
+//! - Text embedding models (multilingual-e5, BGE-M3): **neural**, ONNX Runtime on CPU
+//!   (requires the `runtime` feature).
 //! - Cross-Encoder Re-Ranker (mmarco-mMiniLMv2 / bge-reranker-v2-m3): **neural**, ONNX Runtime on CPU
 //!   (requires the `runtime` feature).
 //! - Query Classifier, Scan Sentinel, Layout Extractor, Vision Encoder: **heuristic**
@@ -18,6 +20,7 @@ pub mod gemma;
 pub mod engine;
 pub mod device;
 pub mod reranker;
+pub mod embedder;
 
 pub use session::ModelSession;
 pub use query_classifier::{OnnxComplexity, OnnxIntent, OnnxQueryClassifier};
@@ -28,4 +31,5 @@ pub use gemma::{GemmaModelTier, GemmaTokenizer, OnnxGemmaEngine};
 pub use engine::{ComponentStatus, OnnxEngine, DEFAULT_RERANKER_DIR};
 pub use device::{AcceleratorBackend, AcceleratorVendor, ExecutionDevice, GpuDevice};
 pub use reranker::OnnxReranker;
+pub use embedder::{EmbedderConfig, EmbeddingPooling, OnnxEmbedder};
 pub use runtime::{runtime_available, OnnxSession, TensorOutput};

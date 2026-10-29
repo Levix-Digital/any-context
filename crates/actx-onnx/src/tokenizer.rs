@@ -104,6 +104,34 @@ mod imp {
             }
             Ok(batch)
         }
+
+        /// Encodes single texts (embedding models): one row per text, padded to the longest,
+        /// truncated at `max_length`. Also returns how many texts were truncated.
+        pub fn encode_texts(&self, texts: &[String]) -> Result<(EncodedPairBatch, usize), String> {
+            let encodings = self
+                .inner
+                .encode_batch(texts.to_vec(), true)
+                .map_err(|e| format!("Tokenization failed: {e}"))?;
+            let truncated = encodings.iter().filter(|e| !e.get_overflowing().is_empty()).count();
+            let batch_size = encodings.len();
+            let seq_len = encodings.iter().map(|e| e.get_ids().len()).max().unwrap_or(0);
+            let mut batch = EncodedPairBatch {
+                batch_size,
+                seq_len,
+                input_ids: Vec::with_capacity(batch_size * seq_len),
+                attention_mask: Vec::with_capacity(batch_size * seq_len),
+                token_type_ids: Vec::with_capacity(batch_size * seq_len),
+            };
+            for enc in &encodings {
+                if enc.get_ids().len() != seq_len {
+                    return Err("Tokenizer returned ragged batch despite padding".to_string());
+                }
+                batch.input_ids.extend(enc.get_ids().iter().map(|&v| v as i64));
+                batch.attention_mask.extend(enc.get_attention_mask().iter().map(|&v| v as i64));
+                batch.token_type_ids.extend(enc.get_type_ids().iter().map(|&v| v as i64));
+            }
+            Ok((batch, truncated))
+        }
     }
 }
 
@@ -131,6 +159,10 @@ mod imp {
         }
 
         pub fn encode_pairs(&self, _query: &str, _documents: &[String]) -> Result<EncodedPairBatch, String> {
+            Err("Tokenizers are not linked in this build".to_string())
+        }
+
+        pub fn encode_texts(&self, _texts: &[String]) -> Result<(EncodedPairBatch, usize), String> {
             Err("Tokenizers are not linked in this build".to_string())
         }
     }
@@ -171,6 +203,17 @@ mod tests {
         let long_doc = "timeout ".repeat(50);
         let batch = tok.encode_pairs("what timeout", &[long_doc]).unwrap();
         assert!(batch.seq_len <= 8, "seq_len {} exceeds max_length", batch.seq_len);
+    }
+
+    #[test]
+    fn test_text_encoding_counts_truncation() {
+        let tok = load_pair_tokenizer(&fixture(), 8).unwrap();
+        let texts = vec!["timeout".to_string(), "timeout ".repeat(50)];
+        let (batch, truncated) = tok.encode_texts(&texts).unwrap();
+        assert_eq!(batch.batch_size, 2);
+        assert!(batch.seq_len <= 8);
+        assert_eq!(truncated, 1);
+        assert_eq!(batch.attention_mask[0], 1);
     }
 
     #[test]

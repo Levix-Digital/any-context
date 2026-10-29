@@ -52,7 +52,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             force: args.force,
             target_folder: fld.map(|s| s.to_string()),
             verbose: true,
-            model: args.model.clone(),
+            embedding_model: None,
         };
         match orchestrator.run(&options).await {
             Ok(res) => {
@@ -91,7 +91,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             force: args.force,
             target_folder: fld.map(|s| s.to_string()),
             verbose: true,
-            model: args.model.clone(),
+            embedding_model: None,
         };
         match orchestrator.run(&options).await {
             Ok(res) => {
@@ -163,7 +163,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     force: *force,
                     target_folder: fld.map(|s| s.to_string()),
                     verbose: true,
-                    model: args.model.clone(),
+                    embedding_model: None,
                 };
                 match orchestrator.run(&options).await {
                     Ok(res) => {
@@ -696,7 +696,7 @@ fn print_sync_notices(res: &any_context_core_rs::ingestion::SyncResult) {
     }
 }
 
-/// Embeds AnyContext's own documentation (`Global`) with the default embedding target after a
+/// Embeds AnyContext's own documentation (`Global`) with the active embedding model after a
 /// sync pass, so it is matched by meaning (BUG-019). Skipped when the pass was cancelled or its
 /// provider failed; a failure leaves it keyword-only until the next sync.
 async fn refresh_global_knowledge(res: &any_context_core_rs::ingestion::SyncResult) {
@@ -706,9 +706,9 @@ async fn refresh_global_knowledge(res: &any_context_core_rs::ingestion::SyncResu
     let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() else { return };
     let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
     let Ok(lance_store) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) else { return };
-    let (Some(provider), target) = any_context_core_rs::ingestion::resolve_embedding_provider(&db, None, "Global") else {
-        return;
-    };
+    let Ok((spec, _)) = any_context_core_rs::ingestion::active_embedding_model(&db, None) else { return };
+    let Ok(provider) = any_context_core_rs::ingestion::build_embedding_provider(&db, spec) else { return };
+    let target = spec.target();
     match crate::engine::refresh_global_knowledge_vectors(&db, &lance_store, provider, &target).await {
         Ok(true) => println!("✔ AnyContext documentation embedded with {}.", target.key()),
         Ok(false) => {}

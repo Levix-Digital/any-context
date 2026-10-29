@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::storage::lancedb::{NativeLanceStore, ScoredVectorResult};
 use crate::ingestion::enricher::NativeContextualEnricher;
-use crate::ingestion::embedding::EmbeddingTarget;
+use crate::ingestion::embedding::QueryEmbedding;
 use crate::retrieval::bm25::BM25Index;
 use crate::retrieval::rrf::reciprocal_rank_fusion;
 use crate::retrieval::diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
@@ -219,9 +219,13 @@ pub enum QueryEmbeddingOutcome {
     Dense,
     /// No embedding provider was configured for the pipeline.
     NoProvider,
-    /// The query target is the mock one (no embedding API key): its vectors are all the same, so
-    /// dense search is skipped (BUG-019).
+    /// The workspace was indexed with the mock target (before ADR-0154, without an embedding
+    /// API key): its vectors are all the same, so dense search is skipped until the next sync
+    /// re-embeds it (BUG-019).
     NoEmbeddingKey,
+    /// The workspace's embedding model cannot run (missing key, files or runtime): dense search
+    /// is skipped, never done with another model (IMP-028).
+    Unavailable(String),
     /// The embedding call failed or returned no vector.
     Failed(String),
     /// The query was embedded but the vector search itself failed (BUG-021).
@@ -234,7 +238,8 @@ impl QueryEmbeddingOutcome {
         match self {
             QueryEmbeddingOutcome::Dense => "dense + BM25 (last query)".to_string(),
             QueryEmbeddingOutcome::NoProvider => "BM25 only (last query): no embedding provider".to_string(),
-            QueryEmbeddingOutcome::NoEmbeddingKey => "BM25 only (last query): no embedding API key (/keys)".to_string(),
+            QueryEmbeddingOutcome::NoEmbeddingKey => "BM25 only (last query): indexed without an embedding model; sync to embed it".to_string(),
+            QueryEmbeddingOutcome::Unavailable(reason) => format!("BM25 only (last query): {reason}"),
             QueryEmbeddingOutcome::Failed(reason) => format!("BM25 only (last query): query embedding failed: {reason}"),
             QueryEmbeddingOutcome::SearchFailed(reason) => format!("BM25 only (last query): dense search failed: {reason}"),
         }
@@ -361,6 +366,10 @@ pub struct NativeHybridPipeline {
     bm25_indices: Arc<RwLock<HashMap<String, BM25Index>>>,
     lm_client: Option<Arc<dyn LmProvider>>,
     embedding_model: String,
+    /// Prefix the embedding model expects in front of questions (IMP-029).
+    query_prefix: String,
+    /// Vector space of the question vectors: dense search only reads chunks of it (ADR-0154).
+    query_target_key: Option<String>,
     reranker: Option<Arc<actx_onnx::OnnxReranker>>,
     rerank_mode: String,
     last_query_embedding: std::sync::Mutex<Option<QueryEmbeddingOutcome>>,
@@ -381,6 +390,8 @@ impl NativeHybridPipeline {
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
             lm_client: None,
             embedding_model: DEFAULT_QUERY_EMBEDDING_MODEL.to_string(),
+            query_prefix: String::new(),
+            query_target_key: None,
             reranker: None,
             rerank_mode: "auto".to_string(),
             last_query_embedding: std::sync::Mutex::new(None),
@@ -398,6 +409,8 @@ impl NativeHybridPipeline {
             bm25_indices: Arc::new(RwLock::new(HashMap::new())),
             lm_client,
             embedding_model: DEFAULT_QUERY_EMBEDDING_MODEL.to_string(),
+            query_prefix: String::new(),
+            query_target_key: None,
             reranker: None,
             rerank_mode: "auto".to_string(),
             last_query_embedding: std::sync::Mutex::new(None),
@@ -433,12 +446,17 @@ impl NativeHybridPipeline {
         self.embedding_model = model.into();
     }
 
-    /// Sets the query embedding from `ingestion::resolve_query_embedding_provider`. On the mock
-    /// target the resolver gives no provider and the query is recorded as `NoEmbeddingKey`.
-    pub fn set_query_embedding(&mut self, lm_client: Option<Arc<dyn LmProvider>>, target: &EmbeddingTarget) {
-        self.set_embedding(lm_client, target.model.clone());
-        self.missing_provider_outcome = if target.is_mock() {
+    /// Sets the query embedding from `ingestion::resolve_query_embedding`: provider, model,
+    /// query prefix and the vector space dense search is restricted to. Without a provider the
+    /// outcome says why (mock index, or the model cannot run).
+    pub fn set_query_embedding(&mut self, query: &QueryEmbedding) {
+        self.set_embedding(query.provider.clone(), query.target.model.clone());
+        self.query_prefix = query.query_prefix();
+        self.query_target_key = (!query.target.is_mock() && query.target.dimension > 0).then(|| query.target.key());
+        self.missing_provider_outcome = if query.target.is_mock() {
             QueryEmbeddingOutcome::NoEmbeddingKey
+        } else if let Some(ref cause) = query.unavailable {
+            QueryEmbeddingOutcome::Unavailable(cause.clone())
         } else {
             QueryEmbeddingOutcome::NoProvider
         };
@@ -674,7 +692,8 @@ impl NativeHybridPipeline {
         let (query_vec, outcome) = if let Some(ref v) = req.query_vector {
             (Some(v.clone()), QueryEmbeddingOutcome::Dense)
         } else if let Some(ref lm) = self.lm_client {
-            match lm.embed(&self.embedding_model, &[req.query_text.clone()]).await {
+            let question = format!("{}{}", self.query_prefix, req.query_text);
+            match lm.embed(&self.embedding_model, &[question]).await {
                 Ok(mut vecs) if !vecs.is_empty() => (Some(vecs.swap_remove(0)), QueryEmbeddingOutcome::Dense),
                 Ok(_) => (None, QueryEmbeddingOutcome::Failed("empty embedding answer".to_string())),
                 Err(e) => (None, QueryEmbeddingOutcome::Failed(e.to_string())),
@@ -686,7 +705,17 @@ impl NativeHybridPipeline {
 
         // 6. Dense Vector Similarity Search. `Global` rows take part only when their vectors
         // share the query's space; otherwise BM25 and metadata matches still find them (BUG-019).
-        let dense_filter = (!self.global_dense).then_some("workspace <> 'Global'");
+        let dense_filter = {
+            let mut clauses = Vec::new();
+            if !self.global_dense {
+                clauses.push("workspace <> 'Global'".to_string());
+            }
+            if let Some(ref key) = self.query_target_key {
+                clauses.push(NativeLanceStore::embedding_target_filter(key));
+            }
+            (!clauses.is_empty()).then(|| clauses.join(" AND "))
+        };
+        let dense_filter = dense_filter.as_deref();
         if let Some(q_vec) = query_vec {
             let mut search_error = None;
             for (ws_name, limit) in &targets {
@@ -1348,6 +1377,7 @@ mod tests {
             header_path: Some("guide.md > Timeouts".into()),
             start_line: Some(40),
             end_line: Some(58),
+            embedding_target: None,
         };
         pipeline.lance_store.upsert_records(vec![record], None, Some(4)).unwrap();
 
@@ -1380,6 +1410,7 @@ mod tests {
             header_path: None,
             start_line: None,
             end_line: None,
+            embedding_target: None,
         }
     }
 
@@ -1751,7 +1782,11 @@ mod tests {
         assert_eq!(QueryEmbeddingOutcome::NoProvider.describe(), "BM25 only (last query): no embedding provider");
         assert_eq!(
             QueryEmbeddingOutcome::NoEmbeddingKey.describe(),
-            "BM25 only (last query): no embedding API key (/keys)"
+            "BM25 only (last query): indexed without an embedding model; sync to embed it"
+        );
+        assert_eq!(
+            QueryEmbeddingOutcome::Unavailable("Embedding model bge-m3 is unavailable: offline. Fix.".into()).describe(),
+            "BM25 only (last query): Embedding model bge-m3 is unavailable: offline. Fix."
         );
         assert_eq!(
             QueryEmbeddingOutcome::Failed("quota".into()).describe(),
@@ -1767,14 +1802,11 @@ mod tests {
     /// embedding the CLI resolves, only the keyword match is returned and the outcome says why.
     #[test]
     fn test_constant_mock_vectors_do_not_rank_unrelated_chunks() {
-        let keys = ["OPENAI_API_KEY", "GEMINI_API_KEY", "ACTX_EMBEDDING_MODEL", "ACTX_MODEL"];
-        if keys.iter().any(|v| std::env::var(v).map(|s| !s.trim().is_empty()).unwrap_or(false)) {
-            eprintln!("skipped: one of {keys:?} is set");
-            return;
-        }
+        // A workspace indexed with the mock target before ADR-0154.
         let db = crate::storage::NativeConfigDb::open_in_memory().expect("db");
-        let (provider, target) = crate::ingestion::resolve_query_embedding_provider(&db, "Default");
-        assert!(target.is_mock(), "{}", target.key());
+        db.set_workspace_embedding_target("Default", Some("mock/mock-embed")).expect("record");
+        let query = crate::ingestion::resolve_query_embedding(&db, "Default");
+        assert!(query.target.is_mock() && query.provider.is_none(), "{query:?}");
 
         let mut chunks = vec![("k_0", "kestrel timeouts are retried three times", "guide.md", SAME_DAY)];
         // One file per chunk, so file-level deduplication cannot hide them.
@@ -1792,7 +1824,7 @@ mod tests {
             .map(|(id, text, file, _)| stored_row(id, text, file, vec![0.1; dim]))
             .collect();
         pipeline.lance_store.upsert_records(rows, None, Some(dim)).unwrap();
-        pipeline.set_query_embedding(provider, &target);
+        pipeline.set_query_embedding(&query);
 
         let results = pipeline
             .search(HybridSearchRequest {

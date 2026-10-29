@@ -7,6 +7,9 @@ fn installer_files() -> Vec<actx_installer::hardware::ModelDownloadSpec> {
     actx_installer::hardware::ALL_MODELS
         .iter()
         .chain(actx_installer::hardware::RERANKER_FILES.iter())
+        .chain(actx_installer::hardware::E5_SMALL_FILES.iter())
+        .chain(actx_installer::hardware::E5_BASE_FILES.iter())
+        .chain(actx_installer::hardware::BGE_M3_FILES.iter())
         .copied()
         .collect()
 }
@@ -43,8 +46,35 @@ fn test_installer_has_no_placeholder_or_planned_downloads() {
     ] {
         assert!(tier.target_models().iter().all(|m| !m.id.starts_with("gemma")));
         let auto: Vec<&str> = tier.auto_provisioned_models().iter().map(|m| m.id).collect();
-        assert!(auto.iter().all(|id| *id == DEFAULT_RERANKER_ID), "{:?}", auto);
-        assert_eq!(auto.len(), 2, "model + tokenizer");
+        assert_eq!(auto.iter().filter(|id| **id == DEFAULT_RERANKER_ID).count(), 2, "{:?}", auto);
+        assert_eq!(auto.len(), 4, "reranker and embedding model, each model + tokenizer");
     }
-    assert!(actx_installer::hardware::InstallerProfileTier::Lite.auto_provisioned_models().is_empty());
+    let lite: Vec<&str> = actx_installer::hardware::InstallerProfileTier::Lite
+        .auto_provisioned_models()
+        .iter()
+        .map(|m| m.id)
+        .collect();
+    assert_eq!(lite, vec!["multilingual-e5-small", "multilingual-e5-small"]);
+}
+
+/// The installer provisions the same default embedding model the Core resolves for a profile.
+#[test]
+fn test_installer_embedding_default_matches_core() {
+    use actx_installer::hardware::InstallerProfileTier as I;
+    use any_context_core_rs::hardware::ProfileTier as C;
+    for (inst, core) in [
+        (I::SovereignUltra, C::SovereignUltra),
+        (I::WorkstationPro, C::WorkstationPro),
+        (I::AirGappedPower, C::AirGappedPower),
+        (I::SmartBalanced, C::SmartBalanced),
+        (I::Lite, C::Lite),
+    ] {
+        let default = core.default_embedding_model();
+        assert!(
+            inst.auto_provisioned_models().iter().any(|m| m.id == default),
+            "{:?} does not provision {default}",
+            inst
+        );
+        assert!(core.target_models().contains(&default), "{:?}", core);
+    }
 }

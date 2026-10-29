@@ -668,7 +668,7 @@ impl CommandEngine {
                                 force,
                                 target_folder: tf_owned,
                                 verbose: false,
-                                model: None,
+                                embedding_model: None,
                             };
                             let _ = orchestrator.run_sync(&opts);
                         }

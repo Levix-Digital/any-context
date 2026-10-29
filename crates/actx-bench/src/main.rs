@@ -40,7 +40,8 @@ enum Action {
     Validate,
     /// Index the corpus in a sandbox and run every question.
     Run {
-        /// Embedding target `<provider>/<model>` for a dense run (local only; key from the environment).
+        /// Embedding model for a dense run: a catalog id, optionally `<provider>/<id>` (e.g.
+        /// `local/multilingual-e5-small`; a cloud model takes its key from the environment).
         #[arg(long)]
         embedding: Option<String>,
         /// Where the reranker is cached (default: ACTX_MODELS_DIR, else a temp folder).

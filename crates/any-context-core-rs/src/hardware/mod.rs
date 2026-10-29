@@ -22,7 +22,8 @@ pub enum ProfileTier {
     AirGappedPower,
     /// Everyday mobility and compact reasoning for 8GB laptops (Gemma 4 Compact + essential Document AI).
     SmartBalanced,
-    /// Ultra-fast pure Rust deterministic heuristics with zero downloads (<45MB RAM, Cloud APIs).
+    /// Pure Rust deterministic heuristics plus the smallest local embedding model (Cloud APIs for
+    /// the rest).
     Lite,
 }
 
@@ -69,6 +70,7 @@ impl ProfileTier {
                 "mmarco-reranker",
                 "laya-int8",
                 "gemma-4-32b",
+                "bge-m3",
             ],
             Self::WorkstationPro => &[
                 "mobilenetv4-rvl-cdip",
@@ -78,6 +80,7 @@ impl ProfileTier {
                 "mmarco-reranker",
                 "laya-int8",
                 "gemma-4-27b",
+                "bge-m3",
             ],
             Self::AirGappedPower => &[
                 "mobilenetv4-rvl-cdip",
@@ -87,6 +90,7 @@ impl ProfileTier {
                 "mmarco-reranker",
                 "laya-int8",
                 "gemma-4-12b",
+                "multilingual-e5-base",
             ],
             Self::SmartBalanced => &[
                 "mobilenetv4-rvl-cdip",
@@ -94,8 +98,19 @@ impl ProfileTier {
                 "bge-small-onnx",
                 "mmarco-reranker",
                 "gemma-4-compact",
+                "multilingual-e5-small",
             ],
-            Self::Lite => &[],
+            Self::Lite => &["multilingual-e5-small"],
+        }
+    }
+
+    /// Default local embedding model of the profile (FEAT-067). Proposal before the benchmark
+    /// comparison of the candidates; a bigger model is the default only where it measurably wins.
+    pub fn default_embedding_model(&self) -> &'static str {
+        match self {
+            Self::SovereignUltra | Self::WorkstationPro => "bge-m3",
+            Self::AirGappedPower => "multilingual-e5-base",
+            Self::SmartBalanced | Self::Lite => "multilingual-e5-small",
         }
     }
 
@@ -116,7 +131,7 @@ impl ProfileTier {
             Self::WorkstationPro => 18_500_000_000,
             Self::AirGappedPower => 10_000_000_000,
             Self::SmartBalanced => 2_500_000_000,
-            Self::Lite => 45_000_000,
+            Self::Lite => 450_000_000,
         }
     }
 }
@@ -372,11 +387,11 @@ impl HardwareProfiler {
             reason: smart_reason,
         });
 
-        // 5. Lite (0 MB extra models, <45 MB RAM)
+        // 5. Lite (only the smallest local embedding model, about 135 MB)
         evals.push(ProfileEvaluation {
             tier: ProfileTier::Lite,
             status: SemaphoreStatus::Green,
-            headline: "Instant Cold Boot: Zero Downloads, Pure Rust Heuristics & Cloud Model APIs".to_string(),
+            headline: "Light Start: Smallest Local Embedding Model, Pure Rust Heuristics & Cloud Model APIs".to_string(),
             disk_required_bytes: ProfileTier::Lite.disk_required_bytes(),
             estimated_ram_bytes: ProfileTier::Lite.estimated_peak_ram_bytes(),
             reason: "Universal: 100% compatible with every hardware configuration, CI/CD and VMs.".to_string(),

@@ -50,7 +50,7 @@ impl InstallerProfileTier {
             Self::WorkstationPro => &WORKSTATION_MODELS,
             Self::AirGappedPower => &POWER_MODELS,
             Self::SmartBalanced => &BALANCED_MODELS,
-            Self::Lite => &[],
+            Self::Lite => &E5_SMALL_FILES,
         }
     }
 
@@ -65,7 +65,7 @@ impl InstallerProfileTier {
             Self::WorkstationPro => 18_500_000_000,
             Self::AirGappedPower => 10_000_000_000,
             Self::SmartBalanced => 2_500_000_000,
-            Self::Lite => 45_000_000,
+            Self::Lite => 450_000_000,
         }
     }
 }
@@ -166,35 +166,102 @@ pub static RERANKER_FILES: [ModelDownloadSpec; 2] = [
     },
 ];
 
+// Local embedding models (FEAT-067): each profile provisions its default (`ProfileTier::
+// default_embedding_model` in the Core), so semantic search works without any API key.
+
+pub static E5_SMALL_FILES: [ModelDownloadSpec; 2] = [
+    ModelDownloadSpec {
+        id: "multilingual-e5-small",
+        file_name: "multilingual-e5-small/model.onnx",
+        size_bytes: 118_054_593,
+        download_url: "https://huggingface.co/Xenova/multilingual-e5-small/resolve/761b726dd34fb83930e26aab4e9ac3899aa1fa78/onnx/model_int8.onnx",
+        sha256: "4d24e2bc01a447951524466ef533e52944bf48509e6552810bcee1a2711cb02c",
+        description: "Local multilingual embedding model E5 Small (model)",
+    },
+    ModelDownloadSpec {
+        id: "multilingual-e5-small",
+        file_name: "multilingual-e5-small/tokenizer.json",
+        size_bytes: 17_082_730,
+        download_url: "https://huggingface.co/Xenova/multilingual-e5-small/resolve/761b726dd34fb83930e26aab4e9ac3899aa1fa78/tokenizer.json",
+        sha256: "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39",
+        description: "Local multilingual embedding model E5 Small (tokenizer)",
+    },
+];
+
+pub static E5_BASE_FILES: [ModelDownloadSpec; 2] = [
+    ModelDownloadSpec {
+        id: "multilingual-e5-base",
+        file_name: "multilingual-e5-base/model.onnx",
+        size_bytes: 278_184_162,
+        download_url: "https://huggingface.co/Xenova/multilingual-e5-base/resolve/1ec9243030a27d1a115d5c340572074c125b58b2/onnx/model_int8.onnx",
+        sha256: "9ddfd8b45086dabc59a7e1bb00463225dace8954962418b240840f2153bc87da",
+        description: "Local multilingual embedding model E5 Base (model)",
+    },
+    ModelDownloadSpec {
+        id: "multilingual-e5-base",
+        file_name: "multilingual-e5-base/tokenizer.json",
+        size_bytes: 17_082_660,
+        download_url: "https://huggingface.co/Xenova/multilingual-e5-base/resolve/1ec9243030a27d1a115d5c340572074c125b58b2/tokenizer.json",
+        sha256: "62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626",
+        description: "Local multilingual embedding model E5 Base (tokenizer)",
+    },
+];
+
+pub static BGE_M3_FILES: [ModelDownloadSpec; 2] = [
+    ModelDownloadSpec {
+        id: "bge-m3",
+        file_name: "bge-m3/model.onnx",
+        size_bytes: 568_456_694,
+        download_url: "https://huggingface.co/Xenova/bge-m3/resolve/4de13258303883538bd53b696b452bf8099f0858/onnx/model_int8.onnx",
+        sha256: "a206e10e995aa2a833924bcd725ba5dd6c3425cd34bac3cf2b5677cd2a1c51d6",
+        description: "Local multilingual embedding model BGE-M3 (model)",
+    },
+    ModelDownloadSpec {
+        id: "bge-m3",
+        file_name: "bge-m3/tokenizer.json",
+        size_bytes: 17_082_821,
+        download_url: "https://huggingface.co/Xenova/bge-m3/resolve/4de13258303883538bd53b696b452bf8099f0858/tokenizer.json",
+        sha256: "6710678b12670bc442b99edc952c4d996ae309a7020c1fa0096dd245c2faf790",
+        description: "Local multilingual embedding model BGE-M3 (tokenizer)",
+    },
+];
+
 // Gemma 4 local generation is planned (ADR-130): no profile downloads Gemma weights.
 
-pub static SOVEREIGN_MODELS: [ModelDownloadSpec; 7] = [
+pub static SOVEREIGN_MODELS: [ModelDownloadSpec; 9] = [
     ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
-    RERANKER_FILES[0], RERANKER_FILES[1],
+    RERANKER_FILES[0], RERANKER_FILES[1], BGE_M3_FILES[0], BGE_M3_FILES[1],
 ];
 
-pub static WORKSTATION_MODELS: [ModelDownloadSpec; 7] = [
+pub static WORKSTATION_MODELS: [ModelDownloadSpec; 9] = [
     ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
-    RERANKER_FILES[0], RERANKER_FILES[1],
+    RERANKER_FILES[0], RERANKER_FILES[1], BGE_M3_FILES[0], BGE_M3_FILES[1],
 ];
 
-pub static POWER_MODELS: [ModelDownloadSpec; 7] = [
+pub static POWER_MODELS: [ModelDownloadSpec; 9] = [
     ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
-    RERANKER_FILES[0], RERANKER_FILES[1],
+    RERANKER_FILES[0], RERANKER_FILES[1], E5_BASE_FILES[0], E5_BASE_FILES[1],
 ];
 
-pub static BALANCED_MODELS: [ModelDownloadSpec; 5] = [
+pub static BALANCED_MODELS: [ModelDownloadSpec; 7] = [
     ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2],
-    RERANKER_FILES[0], RERANKER_FILES[1],
+    RERANKER_FILES[0], RERANKER_FILES[1], E5_SMALL_FILES[0], E5_SMALL_FILES[1],
 ];
+
+static LARGE_AUTO: [ModelDownloadSpec; 4] = [RERANKER_FILES[0], RERANKER_FILES[1], BGE_M3_FILES[0], BGE_M3_FILES[1]];
+static POWER_AUTO: [ModelDownloadSpec; 4] = [RERANKER_FILES[0], RERANKER_FILES[1], E5_BASE_FILES[0], E5_BASE_FILES[1]];
+static BALANCED_AUTO: [ModelDownloadSpec; 4] = [RERANKER_FILES[0], RERANKER_FILES[1], E5_SMALL_FILES[0], E5_SMALL_FILES[1]];
 
 impl InstallerProfileTier {
     /// Files installed automatically for this profile. Only components that execute real
-    /// inference are provisioned (today: the cross-encoder re-ranker); Lite installs nothing.
+    /// inference are provisioned: the cross-encoder re-ranker and the profile's embedding model;
+    /// Lite installs only the smallest embedding model.
     pub fn auto_provisioned_models(&self) -> &'static [ModelDownloadSpec] {
         match self {
-            Self::Lite => &[],
-            _ => &RERANKER_FILES,
+            Self::Lite => &E5_SMALL_FILES,
+            Self::SmartBalanced => &BALANCED_AUTO,
+            Self::AirGappedPower => &POWER_AUTO,
+            Self::WorkstationPro | Self::SovereignUltra => &LARGE_AUTO,
         }
     }
 }
@@ -444,7 +511,7 @@ pub fn evaluate_profiles(metrics: &SystemMetrics) -> Vec<ProfileEvaluation> {
     evals.push(ProfileEvaluation {
         tier: InstallerProfileTier::Lite,
         status: SemaphoreStatus::Green,
-        headline: "Instant Cold Boot: Zero Downloads, Pure Rust Heuristics & Cloud Model APIs",
+        headline: "Light Start: Smallest Local Embedding Model, Pure Rust Heuristics & Cloud Model APIs",
         reason: "Zero model downloads required. Compatible with any hardware, VM, or CI environment.".to_string(),
     });
 
@@ -547,11 +614,11 @@ mod tests {
         assert_eq!(InstallerProfileTier::parse_str("none"), Some(InstallerProfileTier::Lite));
         assert_eq!(InstallerProfileTier::parse_str("unknown_xyz"), None);
 
-        assert_eq!(InstallerProfileTier::SovereignUltra.target_models().len(), 7);
-        assert_eq!(InstallerProfileTier::WorkstationPro.target_models().len(), 7);
-        assert_eq!(InstallerProfileTier::AirGappedPower.target_models().len(), 7);
-        assert_eq!(InstallerProfileTier::SmartBalanced.target_models().len(), 5);
-        assert_eq!(InstallerProfileTier::Lite.target_models().len(), 0);
+        assert_eq!(InstallerProfileTier::SovereignUltra.target_models().len(), 9);
+        assert_eq!(InstallerProfileTier::WorkstationPro.target_models().len(), 9);
+        assert_eq!(InstallerProfileTier::AirGappedPower.target_models().len(), 9);
+        assert_eq!(InstallerProfileTier::SmartBalanced.target_models().len(), 7);
+        assert_eq!(InstallerProfileTier::Lite.target_models().len(), 2);
     }
 
     #[test]
@@ -636,9 +703,10 @@ mod tests {
         ] {
             let expected: u64 = tier.target_models().iter().map(|m| m.size_bytes).sum();
             assert_eq!(tier.disk_required_bytes(), expected);
-            assert!(tier.disk_required_bytes() < 1_000_000_000);
+            assert!(tier.disk_required_bytes() < 2_000_000_000);
         }
-        assert_eq!(InstallerProfileTier::Lite.disk_required_bytes(), 0);
+        // Lite installs only the smallest embedding model (model + tokenizer).
+        assert_eq!(InstallerProfileTier::Lite.disk_required_bytes(), 135_137_323);
 
         // 16 GB RAM with only 2 GB free disk still fits a model-backed profile.
         let tight_disk = SystemMetrics {

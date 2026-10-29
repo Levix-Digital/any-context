@@ -407,6 +407,7 @@ fn test_inspect_transparent_decryption() {
         header_path: None,
         start_line: None,
         end_line: None,
+        embedding_target: None,
     };
 
     lance.upsert_records(vec![rec], Some("workspace_chunks"), Some(1536)).expect("upsert failed in test_inspect_transparent_decryption");
