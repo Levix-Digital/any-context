@@ -11,7 +11,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 ## Phase 1: Setup
 
 - [ ] T001 Read `4042b89` (`feat/imp-004-embedding-model`) and list what is ported (setting, migration, no-fallback errors) and what is not (file-by-file re-embedding); note it in research.md R5/R6 if anything differs
-- [ ] T002 [P] Fetch the three candidates' files once, record their SHA-256 and confirm the graph inputs/outputs (`input_ids`, `attention_mask`, optional `token_type_ids`; `last_hidden_state`) in research.md R1/R3
+- [x] T002 [P] Fetch the three candidates' files once, record their SHA-256 and confirm the graph inputs/outputs (`input_ids`, `attention_mask`, optional `token_type_ids`; `last_hidden_state`) in research.md R1/R3
 
 ## Phase 2: Foundational (blocks every story)
 
@@ -28,7 +28,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 
 - [ ] T009 [US1] `crates/actx-onnx/src/embedder.rs`: `OnnxEmbedder` config (paths, max tokens, pooling, normalize), lazy load with recorded load errors, batches, truncation counter
 - [ ] T010 [P] [US1] Pooling and normalization unit tests on hand-built tensors (mean with mask, CLS)
-- [ ] T011 [US1] Reference vectors: script under `crates/actx-onnx/tests/fixtures/embedder/` (Python `onnxruntime` + `tokenizers`) producing expected vectors for six pt/en sentences for e5-small; Rust test compares (cosine ≥ 0.9999); skipped with a message when the files are absent, required in CI (`ACTX_REQUIRE_EMBEDDER_TESTS=1`)
+- [x] T011 [US1] Reference vectors: script under `crates/actx-onnx/tests/fixtures/embedder/` (Python `onnxruntime` + `tokenizers`) producing expected vectors for six pt/en sentences for e5-small; Rust test compares (cosine ≥ 0.9999); skipped with a message when the files are absent, required in CI (`ACTX_REQUIRE_EMBEDDER_TESTS=1`)
 - [ ] T012 [US1] `ingestion/local_embedding.rs`: `LocalEmbeddingProvider` implementing `LmProvider::embed` over `OnnxEmbedder` (blocking work on the blocking pool); tests: order kept, errors mapped to `LmError`
 - [ ] T013 [US1] Missing model at sync: verified download with progress through `OnnxModelManager::download_model` (per Levi's answer to clarification 1); offline or checksum failure gives `EmbeddingUnavailable` with the install fix
 - [x] T014 [US1] No lexical-only mode: when no model can be made available the sync stops before indexing with model, source and manual-install instructions (FR-013); `Lite` gets e5-small; tests
