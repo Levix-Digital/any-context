@@ -21,6 +21,14 @@ Decided with Levi on 2026-10-29:
 - One vector table per embedding target without zero-padding (design section 10, IMP-033) is out of scope: the current table and its padding to 1536 stay; the change of tables comes with the retrieval rework (IMP-040).
 - The M1 work of the old IMP-004 branch (commit `4042b89`: application-wide embedding setting, per-chunk model record, no fallback) is reused as a reference and ported onto the current code, not merged.
 
+## Clarifications
+
+### Session 2026-10-29
+
+- Q: A local model is missing when a sync needs it: download it or fail? → A: Download it on first need through the verified download, from the configured model source (catalog upstream or an internal mirror); files already in the models directory are used offline after the SHA-256 check. Organization-approved models and the Admin Hub mirror stay in v2.0.0 (IMP-056, FEAT-143) and plug into the model source and the allowed-models check added here (FR-018, FR-019).
+- Q: `Lite` profile without a cloud embedding choice: lexical only or a local model? → A: Download `multilingual-e5-small` as for any profile; there is no lexical-only mode, because retrieval without semantic search is not RAG.
+- Q: Workspaces already indexed with OpenAI or Gemini: keep that model or move to the local default? → A: The upgrade adopts the existing cloud model as the setting (no surprise reindex); mock-indexed workspaces are reindexed with the local model.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Semantic search works out of the box, without any API key (Priority: P1)
@@ -35,8 +43,10 @@ A user installs AnyContext with a local profile, adds a folder and asks a questi
 
 1. **Given** a fresh installation with a local profile and no API keys, **When** the user syncs a folder, **Then** every chunk is embedded by the profile's local model and the sync reports which model it used.
 2. **Given** an indexed workspace, **When** the user asks a question, **Then** the question is embedded by the same local model, the dense retriever takes part in the search and the result is fused with the lexical one as today.
-3. **Given** a profile whose local embedding model is not installed yet, **When** a sync needs it, **Then** it is downloaded with the existing verified download (pinned revision and SHA-256) with progress shown, or, if that is not possible (offline, checksum mismatch), the sync stops before embedding and says which model is missing and how to install it.
-4. **Given** the `Lite` profile (no local models), **When** the user syncs without having chosen a cloud embedding model, **Then** the workspace is indexed for lexical search only, and the user is told once that semantic search needs a local profile or a cloud embedding model.
+3. **Given** a profile whose local embedding model is not installed yet, **When** a sync needs it, **Then** it is downloaded with the existing verified download (pinned revision and SHA-256) from the configured model source (the catalog's upstream by default, or the internal mirror the installation is configured with), with progress shown; if that is not possible (offline, mirror unreachable, checksum mismatch), the sync stops before indexing and says which model is missing, where it would be downloaded from and how to install it by hand.
+4. **Given** the `Lite` profile, **When** the user syncs without having chosen a cloud embedding model, **Then** the smallest local model (`multilingual-e5-small`) is downloaded and used as for any other profile: there is no lexical-only mode, because retrieval without semantic search is not RAG.
+5. **Given** the model files were placed in the models directory beforehand (by IT or by the installer), **When** a sync needs the model, **Then** the files are used after their SHA-256 is checked, with no network access.
+6. **Given** an installation configured with an internal mirror, **When** a model is downloaded, **Then** only the mirror is contacted (same file paths, same SHA-256 check), never the public upstream.
 
 ---
 
@@ -117,6 +127,7 @@ A developer runs the retrieval benchmark (IMP-065) with each candidate local mod
 - Text longer than the model's input limit (512 tokens for e5): the input is truncated to the model limit and the number of truncated chunks is reported in the sync summary; chunk sizing by tokens is IMP-023.
 - The ONNX Runtime library cannot be loaded on the machine: the local model is reported as unavailable with the cause, as for a missing model file (story 3).
 - A machine with a GPU: the local model may run on the accelerator the existing device selection picks; results must stay comparable with the CPU (same model, same space).
+- A file with the right name but the wrong SHA-256 in the models directory or on the mirror: never loaded; the sync stops and names the file and the expected checksum.
 - The `Global` (system help) workspace: embedded with the same embedding model as user workspaces and kept out of dense search while its vectors belong to another model, as today.
 - Two embedding models with the same dimension: the identity of the vector space is the whole target (provider, model, dimension and prefixes), never the dimension alone.
 
@@ -126,7 +137,7 @@ A developer runs the retrieval benchmark (IMP-065) with each candidate local mod
 
 - **FR-001**: The model catalog MUST contain, for each embedding model: id, display name, runtime (local ONNX or a cloud provider), license, output dimension, maximum input length, pooling (mean or CLS) and normalization, query prefix, document prefix and, for local models, the files with pinned URL, size and SHA-256.
 - **FR-002**: The catalog MUST contain at least `multilingual-e5-small`, `multilingual-e5-base` and `BGE-M3` as local models, plus the cloud models already supported (`text-embedding-3-small`, `gemini-embedding-2`, `nomic-embed-text` via Ollama).
-- **FR-003**: Each local profile (`SmartBalanced`, `AirGappedPower`, `WorkstationPro`, `SovereignUltra`) MUST name a default local embedding model, and that model MUST be part of the profile's kit (counted in its disk size and installed with it). `Lite` has no default local embedding model.
+- **FR-003**: Every profile MUST name a default local embedding model, and that model MUST be part of the profile's kit (counted in its disk size and installed with it); `Lite` uses `multilingual-e5-small`.
 - **FR-004**: A local embedding provider MUST run the catalog's local models on ONNX Runtime through the existing ONNX layer: tokenize, run the model, pool as the catalog says, L2-normalize, and return one vector per input in input order, in batches.
 - **FR-005**: The embedding model MUST be an application-wide setting stored in `settings.db`, independent of the chat model: the chat model, the `/model` command and the CLI model flag MUST NOT change it.
 - **FR-006**: When the setting is absent, the embedding model MUST be the default of the active profile; on upgrade, an installation whose workspaces were indexed with a real (non-mock) model MUST adopt that model as the setting, so the upgrade does not reindex by itself.
@@ -136,8 +147,10 @@ A developer runs the retrieval benchmark (IMP-065) with each candidate local mod
 - **FR-010**: Ingestion MUST NOT fall back to another model or to the mock provider: when the chosen model cannot be built, the sync MUST stop before embedding with a message that names the model, the cause and the fix; when it fails for some files, those files MUST be reported as failed and retried on the next sync.
 - **FR-011**: The mock provider MUST NOT be selectable by the product's resolution; it MUST remain available only to tests that request it explicitly.
 - **FR-012**: The pipeline MUST apply the catalog's document prefix to the text it embeds at ingestion and the query prefix to the question it embeds at query time; the stored chunk text and the lexical index MUST NOT contain the prefixes.
-- **FR-013**: Without any embedding model available (`Lite` without a cloud choice), the workspace MUST be indexed for lexical search only, dense search MUST be off for it, and the user MUST be told once how to enable semantic search.
-- **FR-014**: Local model files MUST be obtained only through the existing verified download (pinned revision, SHA-256 check); a model that fails verification MUST NOT be loaded.
+- **FR-013**: There MUST be no lexical-only indexing mode: when no embedding model can be made available, the sync MUST stop before indexing with a message naming the model, the source it would be downloaded from and how to install it by hand.
+- **FR-014**: Local model files MUST be obtained only through the existing verified download (pinned revision, SHA-256 check) or from files already present in the models directory that pass the same check; a model that fails verification MUST NOT be loaded.
+- **FR-018**: The model source MUST be configurable per installation (a mirror base URL in `settings.db`, overridable by an environment variable): when set, every model download goes to the mirror with the catalog's file paths and checksums, and never to the public upstream.
+- **FR-019**: The resolution MUST ask a single "is this model allowed?" check before building any embedding model; in this release it allows every catalog model, and the organization policy (IMP-056, v2.0.0) plugs into it later. A refused model MUST stop the sync with the reason, never be swapped.
 - **FR-015**: The development benchmark MUST accept a local embedding model as its dense configuration and run it through the product's real embedding path, with no API key.
 - **FR-016**: CI MUST run the benchmark with the dense retriever on, using the default local model of the reference profile, against a committed baseline of that configuration, with the existing regression rule; the lexical-only configuration MAY keep running as a second configuration.
 - **FR-017**: The comparison of the candidate models (quality overall, per language and cross-language, indexing time, model size, peak memory) MUST be recorded with the plan, and the profile defaults MUST follow it.
@@ -149,6 +162,7 @@ A developer runs the retrieval benchmark (IMP-065) with each candidate local mod
 - **Embedding setting**: the application-wide choice of embedding model in `settings.db`, separate from the chat model.
 - **Workspace embedding record**: the target that built a workspace's vectors (exists today, ADR-0138), used for the reindex decision.
 - **Chunk embedding record**: the target stored on each chunk, used to keep dense search inside one vector space.
+- **Model source**: where model files come from: the catalog's upstream (default), an internal mirror base URL, or files already in the models directory; the checksums are the catalog's in every case.
 - **Benchmark dense configuration**: a run configuration with the lexical retriever, the dense retriever with a named local model, and the reranker, with its own baseline.
 
 ## Success Criteria *(mandatory)*
@@ -165,9 +179,10 @@ A developer runs the retrieval benchmark (IMP-065) with each candidate local mod
 ## Assumptions
 
 - Candidate files are the INT8 ONNX exports with a pinned revision on Hugging Face (about 118 MB for e5-small, 278 MB for e5-base, 568 MB for BGE-M3); the FP32 exports are measured only if INT8 loses quality in the benchmark.
-- Proposed defaults before measurement: e5-small for `SmartBalanced`, e5-base for `AirGappedPower`, BGE-M3 for `WorkstationPro` and `SovereignUltra`. A bigger model becomes a default only when it beats the smaller one by more than 0.01 in MRR@10 or HitRate@5 (overall or cross-language); otherwise the smaller one is kept.
+- Proposed defaults before measurement: e5-small for `Lite` and `SmartBalanced`, e5-base for `AirGappedPower`, BGE-M3 for `WorkstationPro` and `SovereignUltra`. A bigger model becomes a default only when it beats the smaller one by more than 0.01 in MRR@10 or HitRate@5 (overall or cross-language); otherwise the smaller one is kept.
 - BGE-M3 is used for dense vectors only; its sparse output is FEAT-068, out of scope. Its input is capped at the same length as the other candidates for now; longer chunks come with IMP-023.
 - The current single LanceDB table and its zero-padding to 1536 dimensions stay (per-target tables are IMP-033, with IMP-040); the chunk-level target record is what keeps vector spaces apart until then.
 - Embedding batches stay as today (one call per file); token-sized batches and parallelism are IMP-030.
 - The mock provider stays in the code for tests only; the benchmark's lexical-only configuration keeps using its "no dense" mode, not mock vectors.
+- Organization governance is out of scope here and stays in v2.0.0: the allowed-models policy (IMP-056) and the Admin Hub mirror (FEAT-143) reuse the check of FR-019 and the model source of FR-018. Models chosen by an organization outside the catalog come with IMP-056.
 - The installed ONNX Runtime and the existing device selection (CPU or accelerator) are reused; no new native dependency is added.

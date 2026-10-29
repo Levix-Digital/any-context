@@ -18,7 +18,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [ ] T003 `crates/any-context-core-rs/src/ingestion/embedding_catalog.rs`: `EmbeddingModelSpec` (runtime, license, dimension, max tokens, pooling, normalize, prefixes, prefix_rev), the three local and three cloud entries, lookup by id; unit tests for catalog validity
 - [ ] T004 `ingestion/model_manager.rs`: `OnnxModelCategory::Embedding` and the three local entries with pinned files (model + tokenizer), sizes and SHA-256
 - [ ] T005 `ingestion/embedding.rs`: `EmbeddingTarget` with `dimension` and `prefix_rev`, key `provider/model@dim[+pN]`, legacy `provider/model` parsing; unit tests (round trip, legacy keys, inequality across dimension and prefix)
-- [ ] T006 [P] `hardware/mod.rs`: `ProfileTier::default_embedding_model()` (proposal from research R9; `None` for `Lite`), profiles' `target_models` include it; tests for disk sizes
+- [ ] T006 [P] `hardware/mod.rs`: `ProfileTier::default_embedding_model()` (proposal from research R9; e5-small for `Lite`), profiles' `target_models` include it; tests for disk sizes
 - [ ] T007 [P] `storage/lancedb.rs`: nullable `embedding_target` column added on open (provenance-columns pattern), written by `upsert_records`, filter in `search_vector_async`/`search_vector`; tests: column added once, rows of two targets never mixed in a search
 - [ ] T008 [P] `storage/sqlite.rs`: `get/set_embedding_model`, migration marker helpers; tests
 
@@ -31,7 +31,9 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [ ] T011 [US1] Reference vectors: script under `crates/actx-onnx/tests/fixtures/embedder/` (Python `onnxruntime` + `tokenizers`) producing expected vectors for six pt/en sentences for e5-small; Rust test compares (cosine ≥ 0.9999); skipped with a message when the files are absent, required in CI (`ACTX_REQUIRE_EMBEDDER_TESTS=1`)
 - [ ] T012 [US1] `ingestion/local_embedding.rs`: `LocalEmbeddingProvider` implementing `LmProvider::embed` over `OnnxEmbedder` (blocking work on the blocking pool); tests: order kept, errors mapped to `LmError`
 - [ ] T013 [US1] Missing model at sync: verified download with progress through `OnnxModelManager::download_model` (per Levi's answer to clarification 1); offline or checksum failure gives `EmbeddingUnavailable` with the install fix
-- [ ] T014 [US1] `Lite` without a cloud choice: sync indexes lexical only, dense off, one-time notice (FR-013); test
+- [ ] T014 [US1] No lexical-only mode: when no model can be made available the sync stops before indexing with model, source and manual-install instructions (FR-013); `Lite` gets e5-small; tests
+- [ ] T014a [US1] Model source (FR-018): `models_mirror` setting and `ACTX_MODELS_MIRROR`, URL rewrite to `<mirror>/<file_name>`, pre-placed files used after SHA-256 check with no network; tests (mirror only contacted, wrong checksum refused)
+- [ ] T014b [US3] `is_model_allowed(id)` seam called by the resolution before building any model (FR-019), allowing the catalog in this release; refusal stops the sync with the reason; tests
 
 **Checkpoint (M2)**: a local model embeds text through the product port.
 

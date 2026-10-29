@@ -77,8 +77,9 @@ Taken in planning (research.md), to confirm at the gate:
 6. **Local embedder in `actx-onnx`** (`OnnxEmbedder`, like the reranker) behind the existing `LmProvider::embed` port; no new port.
 7. **Vector-space identity** `provider/model@dim[+pN]`: dimension and prefix revision in the key, so any change triggers the existing reindex rule (ADR-0138); legacy keys still parse.
 8. **Upgrade adopts existing cloud indexes** (no surprise reindex); mock indexes move to the local model on their next sync.
-9. **Missing local model is downloaded on first need** through the verified download; offline gives a clear install message.
-10. **`Lite` without a cloud choice is lexical only**, with a one-time notice.
+9. **Missing local model is downloaded on first need** through the verified download, from a configurable source (catalog upstream or an internal mirror; pre-placed files are used offline after the SHA-256 check). Decided with Levi on 2026-10-29.
+10. **No lexical-only mode** (Levi, 2026-10-29: without semantic search it is not RAG): `Lite` downloads e5-small; without any model the sync stops with model, source and manual-install instructions.
+10b. **Governance seam**: one allowed-models check in the resolution (allows the catalog now; organization policy IMP-056 and Admin Hub mirror FEAT-143 plug in at v2.0.0).
 11. **Commands**: `/embedding [id]` and `actx embedding [id] [--yes]`; `/model` and `-m` stop affecting embeddings.
 12. **CI**: a dense benchmark job with the reference default and its own baseline; the lexical job stays.
 13. **ADR-0154** records the decision (supersedes the chat-model derivation of ADR-0132, amends ADR-0138).

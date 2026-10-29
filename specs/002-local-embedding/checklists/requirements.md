@@ -12,7 +12,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain (three open choices were asked to Levi; the spec carries the recommended answers)
+- [x] No [NEEDS CLARIFICATION] markers remain (three clarifications answered by Levi on 2026-10-29, recorded in the spec)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] All acceptance scenarios are defined

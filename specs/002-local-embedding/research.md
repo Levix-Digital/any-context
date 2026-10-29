@@ -44,7 +44,8 @@ The SHA-256 of each file comes from the Hugging Face LFS metadata and is checked
 
 **Decision**: `resolve_embedding(db) -> Result<Option<ResolvedEmbedding>, EmbeddingUnavailable>`:
 - setting present: build that model or return `EmbeddingUnavailable { model, cause, fix }` (missing key, missing or unverified file, ONNX Runtime not loadable);
-- setting absent: the active profile's default local model; `Lite` returns `Ok(None)` (lexical only, FR-013);
+- setting absent: the active profile's default local model (every profile has one; `Lite` uses e5-small);
+- before building: the single `is_model_allowed(id)` check (FR-019), which allows the whole catalog in this release;
 - never another model, never the mock (FR-010, FR-011). The mock is built only by test code through an explicit constructor (`embedding::testing::mock()`), and by the benchmark's lexical-only mode, which asks for no embedding at all.
 
 The query side keeps ADR-0138's rule (the workspace's recorded target answers until the reindex), but with no fallback to "current" when the recorded one cannot be built: then dense search is skipped for that question and the failure is logged (spec story 3, scenario 3).
@@ -71,7 +72,15 @@ The query side keeps ADR-0138's rule (the workspace's recorded target answers un
 
 ## R9. Profiles and the kit
 
-**Decision**: a new catalog category `Embedding`; each local profile's `target_models` lists its default embedding model (proposal: e5-small for `SmartBalanced`, e5-base for `AirGappedPower`, BGE-M3 for `WorkstationPro` and `SovereignUltra`, final after R11); `ProfileTier::default_embedding_model()` returns it (`None` for `Lite`). A missing model at sync time is downloaded through the verified download with progress (pending Levi's answer to clarification 1).
+**Decision**: a new catalog category `Embedding`; each local profile's `target_models` lists its default embedding model (proposal: e5-small for `Lite` and `SmartBalanced`, e5-base for `AirGappedPower`, BGE-M3 for `WorkstationPro` and `SovereignUltra`, final after R11); `ProfileTier::default_embedding_model()` returns it for every profile. A missing model at sync time is downloaded through the verified download with progress (decided with Levi on 2026-10-29).
+
+## R9b. Model source and governance seam (decided with Levi on 2026-10-29)
+
+**Decision**: `OnnxModelManager` resolves each file's URL through a model source: the catalog's pinned upstream URL by default; when a mirror base URL is set (`models_mirror` in `settings.db`, overridden by `ACTX_MODELS_MIRROR`), the URL becomes `<mirror>/<catalog file_name>` and the upstream is never contacted. Files already present in the models directory are used when their SHA-256 matches, with no network. The checksum check is the same in all three cases. Before building any model, the resolution calls `is_model_allowed(id)`, which allows every catalog model now; IMP-056 (organization policy) replaces its body, and FEAT-143 (Admin Hub mirror) sets the mirror.
+
+**Rationale**: a company network may block Hugging Face or require its own approved artifacts; R1 must not hard-code the public host, but the full governance (signed policy, allowed models, Admin Hub) is v2.0.0. Models outside the catalog are not loadable in R1 (the catalog pins every checksum).
+
+**Alternatives**: no mirror in R1 (blocks corporate pilots behind a proxy); free-form model files without checksums (breaks FR-014 and supply-chain safety).
 
 ## R10. CLI and TUI surface
 

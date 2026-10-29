@@ -108,10 +108,10 @@ FEAT-067, IMP-027, IMP-028, IMP-029 (all medium), release R1 v1.0.0 Personal. Or
 ### Tests (quality-assurance)
 
 - `actx-onnx`: pooling (mean with mask, CLS) and normalization on hand-built tensors; `OnnxEmbedder` against committed reference vectors for six pt/en sentences (cosine ≥ 0.9999), skipped with a message when the model files are absent locally, required in CI; batch order preserved; truncation counted; missing or corrupt files give an error, never a vector.
-- Core: target key round trip and legacy parsing; prefix application per role; `resolve_embedding` cases (setting present and buildable, missing key, missing file, setting absent with each profile, `Lite`) never returning another model or the mock; migration (adopt most used real target, ignore mock, idempotent, backfill); orchestrator regression tests: chat-model change re-embeds zero chunks (SC-003), unavailable model writes zero chunks (SC-004), failed files retried; LanceDB filter keeps spaces apart; pipeline query prefix and no fallback.
+- Core: target key round trip and legacy parsing; prefix application per role; `resolve_embedding` cases (setting present and buildable, missing key, missing file, setting absent with each profile, refused by the allowed-models seam) never returning another model or the mock; migration (adopt most used real target, ignore mock, idempotent, backfill); orchestrator regression tests: chat-model change re-embeds zero chunks (SC-003), unavailable model writes zero chunks (SC-004), failed files retried; LanceDB filter keeps spaces apart; pipeline query prefix and no fallback.
 - CLI: `/embedding` and `actx embedding` output, unknown id, confirmation, `--yes`; `-m` does not change the embedding.
 - Benchmark: dense configuration with each candidate; a swapped-prefix run fails the gate (SC-005, checked once and recorded in the PR).
-- Manual tests (`tests/MANUAL_TESTS.md`, section "Embedding model"): fresh install without keys finds a cross-language answer; `/embedding` switch with the reindex notice; cloud choice notice; offline first sync with a missing model shows the install message; `Lite` lexical-only notice.
+- Manual tests (`tests/MANUAL_TESTS.md`, section "Embedding model"): fresh install without keys finds a cross-language answer; `/embedding` switch with the reindex notice; cloud choice notice; offline first sync with a missing model shows the install message; `Lite` downloads e5-small; a mirror-configured install contacts only the mirror; pre-placed files work offline.
 - Acceptance: SC-001 to SC-006.
 
 ### Documentation (architecture-docs, user-docs)
@@ -131,7 +131,7 @@ FEAT-067, IMP-027, IMP-028, IMP-029 (all medium), release R1 v1.0.0 Personal. Or
 
 ### Security, migration and rollback
 
-- Models only through the verified download; a SHA-256 mismatch never loads.
+- Models only through the verified download (upstream or configured mirror) or pre-placed files, always checked by SHA-256; a mismatch never loads. The allowed-models seam is ready for the organization policy (IMP-056) and the mirror for the Admin Hub (FEAT-143), both v2.0.0.
 - Cloud embedding only by explicit choice, with the data notice.
 - Migration is additive (new setting keys, nullable column) and idempotent; a rollback to the previous version ignores the new column and keys and keeps working on the old resolver, which would reindex workspaces whose recorded key it does not know (the new-format keys); the release notes state this.
 - Existing Gemini indexes are reindexed once because of the new prefixes; stated in the release notes.
