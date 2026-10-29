@@ -42,7 +42,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [ ] T015 [US3] `ingestion/embedding.rs`: `resolve_embedding(db) -> Result<Option<ResolvedEmbedding>, EmbeddingUnavailable>` (setting, else profile default, else `None`); mock only through `embedding::testing::mock()`; OpenAI and mock fallbacks removed
 - [x] T016 [US3] Query side: recorded target answers until reindex; if it cannot be built, dense is skipped for that question and logged, never another model
 - [ ] T017 [US3] `orchestrator.rs`: uses `resolve_embedding`; stops before embedding on `EmbeddingUnavailable` (index unchanged); per-file failures reported and retried next sync; records the target on every chunk
-- [ ] T018 [P] [US3] Regression tests: unavailable model writes zero chunks (SC-004); failing provider for one file leaves the others and retries it; product resolution never returns mock
+- [x] T018 [P] [US3] Regression tests: unavailable model writes zero chunks (SC-004); failing provider for one file leaves the others and retries it; product resolution never returns mock
 - [x] T019 [US3] Update callers: `actx-cli/src/engine.rs`, `cli/oneshot.rs` (Global bootstrap), `retrieval/pipeline.rs`, `actx-bench/src/runner.rs`; remove `resolve_embedding_provider`'s model-override path
 
 ## Phase 5: User Story 2, a setting of its own (P1)
@@ -61,7 +61,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 
 - [x] T027 [US4] `apply_prefix(role, text)` from the catalog; orchestrator applies the document prefix right before embedding (stored text and BM25 untouched)
 - [x] T028 [US4] Pipeline applies the query prefix to the question embedding
-- [ ] T029 [P] [US4] Tests: prefixes per model and role; stored text has no prefix; a `prefix_rev` change marks workspaces for reindex
+- [x] T029 [P] [US4] Tests: prefixes per model and role; stored text has no prefix; a `prefix_rev` change marks workspaces for reindex
 - [x] T030 [US4] Gemini prefixes (`prefix_rev` 1) and nomic prefixes in the catalog; adapter tests unchanged in behavior otherwise
 
 **Checkpoint (M4)**.

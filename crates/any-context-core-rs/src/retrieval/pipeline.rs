@@ -1843,6 +1843,69 @@ mod tests {
         assert_eq!(results[0].dense_score, None);
         assert_eq!(outcome, Some(QueryEmbeddingOutcome::NoEmbeddingKey));
     }
+    /// Records the question it embeds and answers with a unit vector of the given dimension.
+    struct RecordingQueryEmbedder {
+        dimension: usize,
+        texts: std::sync::Mutex<Vec<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl LmProvider for RecordingQueryEmbedder {
+        fn provider_id(&self) -> &'static str {
+            "recording"
+        }
+
+        async fn chat_complete(&self, _r: actx_lm::types::ChatRequest) -> Result<actx_lm::types::ChatResponse, actx_lm::error::LmError> {
+            Err(actx_lm::error::LmError::Unsupported("chat".into()))
+        }
+
+        async fn chat_stream(&self, _r: actx_lm::types::ChatRequest) -> Result<actx_lm::traits::BoxedChunkStream, actx_lm::error::LmError> {
+            Err(actx_lm::error::LmError::Unsupported("chat".into()))
+        }
+
+        async fn embed(&self, _model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, actx_lm::error::LmError> {
+            self.texts.lock().unwrap().extend(texts.iter().cloned());
+            let mut v = vec![0.0; self.dimension];
+            v[0] = 1.0;
+            Ok(vec![v; texts.len()])
+        }
+    }
+
+    /// IMP-029 and ADR-0154: the question reaches the model with the query prefix of the
+    /// workspace's space, and dense search only returns chunks of that space.
+    #[test]
+    fn test_query_prefix_and_space_filter() {
+        let spec = crate::ingestion::find_embedding_model("multilingual-e5-small").unwrap();
+        let recorder = Arc::new(RecordingQueryEmbedder { dimension: spec.dimension, texts: Default::default() });
+        let query = QueryEmbedding { provider: Some(recorder.clone()), target: spec.target(), spec: Some(spec), unavailable: None };
+
+        let (mut pipeline, dir) = bm25_pipeline("query_prefix", &[]);
+        let dim = crate::storage::lancedb::DEFAULT_VECTOR_DIM;
+        let mut unit = vec![0.0; dim];
+        unit[0] = 1.0;
+        let mut same_space = stored_row("e5_0", "zebra migration notes", "zebra.md", unit.clone());
+        same_space.embedding_target = Some(spec.target().key());
+        let mut other_space = stored_row("oa_0", "walrus feeding schedule", "walrus.md", unit);
+        other_space.embedding_target = Some("openai/text-embedding-3-small@1536".into());
+        pipeline.lance_store.upsert_records(vec![same_space, other_space], None, Some(dim)).unwrap();
+        pipeline.set_query_embedding(&query);
+
+        let results = pipeline
+            .search(HybridSearchRequest {
+                query_text: "onde ficam as notas".to_string(),
+                top_k: 8,
+                candidate_pool_k: 30,
+                min_score: 0.0,
+                ..Default::default()
+            })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(recorder.texts.lock().unwrap().as_slice(), ["query: onde ficam as notas"]);
+        let dense: Vec<&str> = results.iter().filter(|r| r.dense_score.is_some()).map(|r| r.chunk_id.as_str()).collect();
+        assert_eq!(dense, vec!["e5_0"], "a chunk of another vector space came from dense search");
+    }
+
     /// `Global` rows as the startup bootstrap stores them (placeholder vectors) or as a sync
     /// stores them once embedded, next to `Proj` rows with real-looking vectors.
     fn global_and_project_pipeline(name: &str, global_vector: Vec<f32>) -> (NativeHybridPipeline, PathBuf) {

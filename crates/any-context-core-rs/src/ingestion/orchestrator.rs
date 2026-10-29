@@ -1522,6 +1522,65 @@ mod tests {
         }
     }
 
+    /// Records the texts it embeds and answers with vectors of the given dimension.
+    struct RecordingEmbedder {
+        dimension: usize,
+        texts: std::sync::Mutex<Vec<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl LmProvider for RecordingEmbedder {
+        fn provider_id(&self) -> &'static str {
+            "recording"
+        }
+
+        async fn chat_complete(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::types::ChatResponse, LmError> {
+            Err(LmError::Unsupported("chat".into()))
+        }
+
+        async fn chat_stream(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::traits::BoxedChunkStream, LmError> {
+            Err(LmError::Unsupported("chat".into()))
+        }
+
+        async fn embed(&self, _model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, LmError> {
+            self.texts.lock().unwrap().extend(texts.iter().cloned());
+            Ok(vec![vec![0.05; self.dimension]; texts.len()])
+        }
+    }
+
+    /// IMP-029: the model receives the document prefix of its space; the stored text, which BM25
+    /// and the answer read, never carries it. The record names the prefixed space.
+    #[tokio::test]
+    async fn test_document_prefix_reaches_the_model_only() {
+        let temp_dir = std::env::temp_dir().join(format!("test_orch_prefix_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let db = Arc::new(NativeConfigDb::open_in_memory().unwrap());
+        let lance_store = Arc::new(NativeLanceStore::open(&temp_dir.join("lancedb")).unwrap());
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db.clone());
+        let enricher = NativeContextualEnricher::new(db);
+        let spec = crate::ingestion::find_embedding_model("multilingual-e5-small").unwrap();
+        let recorder = Arc::new(RecordingEmbedder { dimension: spec.dimension, texts: Default::default() });
+        let embedding = ResolvedEmbedding::with_provider(spec, recorder.clone());
+        let c = chunk("md_0", "docs/guide.md", "guide.md > Timeouts", 1, 5, "markdown");
+        let mut bm25 = BM25Index::new(None, None);
+        orchestrator
+            .embed_and_upsert_chunks(&[c.clone()], None, &enricher, "Default", &c.file_path, &c.file_name, "prefixhash12345", 1000.0, &embedding, &mut bm25, &mut EmbedBreaker::default())
+            .await
+            .unwrap();
+
+        let sent = recorder.texts.lock().unwrap().clone();
+        assert_eq!(sent.len(), 1);
+        assert!(sent[0].starts_with("passage: "), "{}", sent[0]);
+        let rows = lance_store.search_metadata("id <> ''", 10, Some("Default"), None).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert!(!rows[0].text.contains("passage: "), "stored text must not carry the prefix: {}", rows[0].text);
+        let filtered = lance_store
+            .search_metadata("embedding_target = 'local/multilingual-e5-small@384+p1'", 10, Some("Default"), None)
+            .unwrap();
+        assert_eq!(filtered.len(), 1, "the record names the prefixed vector space");
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
     async fn upsert_with(tag: &str, provider: Arc<ScriptedEmbedder>, chunks: Vec<ChunkPayload>) -> (Result<usize, EmbedFailure>, usize, BM25Index) {
         let temp_dir = std::env::temp_dir().join(format!("test_orch_fail_{tag}_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
