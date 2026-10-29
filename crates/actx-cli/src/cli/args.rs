@@ -116,6 +116,16 @@ pub enum CliCommand {
     /// Emits system diagnostic report and telemetry
     #[command(alias = "diag", alias = "perf", alias = "health", alias = "diagnistics")]
     Diagnostics,
+    /// Shows the embedding model in use, or switches it (`--yes` confirms the switch)
+    #[command(alias = "embeddings")]
+    Embedding {
+        /// Catalog id of the embedding model to use (e.g. multilingual-e5-base)
+        #[arg(index = 1)]
+        model: Option<String>,
+        /// Confirm the switch (affected workspaces are reindexed on their next sync)
+        #[arg(short, long)]
+        yes: bool,
+    },
     /// Downloads or inspects local ONNX model weights (Gemma 4 family and Document AI)
     #[command(alias = "get-model", alias = "dl")]
     Download {

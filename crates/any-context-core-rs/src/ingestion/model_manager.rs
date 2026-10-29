@@ -770,7 +770,6 @@ impl OnnxModelManager {
     /// hand (or by IT) are only loaded when they are the verified ones (FR-014). The result is
     /// cached per file, size and modification time for the life of the process.
     pub fn verify_installed(spec: &OnnxModelSpec) -> Result<(), String> {
-        use sha2::{Digest, Sha256};
         if !Self::is_installed(spec) {
             return Err(format!("'{}' is not installed in {}", spec.id, get_default_models_dir().display()));
         }
@@ -784,21 +783,28 @@ impl OnnxModelManager {
             if verified.lock().map(|v| v.contains(&stamp)).unwrap_or(false) {
                 continue;
             }
-            let mut hasher = Sha256::new();
-            let mut reader = std::fs::File::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-            std::io::copy(&mut reader, &mut hasher).map_err(|e| format!("{}: {e}", path.display()))?;
-            let digest = format!("{:x}", hasher.finalize());
-            if !file.sha256.is_empty() && !digest.eq_ignore_ascii_case(file.sha256) {
-                return Err(format!(
-                    "{} does not match the verified file: SHA-256 {} instead of {}",
-                    path.display(),
-                    digest,
-                    file.sha256
-                ));
-            }
+            Self::check_sha256(&path, file.sha256)?;
             if let Ok(mut v) = verified.lock() {
                 v.insert(stamp);
             }
+        }
+        Ok(())
+    }
+
+    /// Refuses a file whose SHA-256 is not `expected` (an empty `expected` accepts any file).
+    pub fn check_sha256(path: &Path, expected: &str) -> Result<(), String> {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        let mut reader = std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        std::io::copy(&mut reader, &mut hasher).map_err(|e| format!("{}: {e}", path.display()))?;
+        let digest = format!("{:x}", hasher.finalize());
+        if !expected.is_empty() && !digest.eq_ignore_ascii_case(expected) {
+            return Err(format!(
+                "{} does not match the verified file: SHA-256 {} instead of {}",
+                path.display(),
+                digest,
+                expected
+            ));
         }
         Ok(())
     }
@@ -1054,6 +1060,27 @@ mod tests {
         assert!(info.eta_seconds.is_some());
         assert_eq!(info.formatted_speed(), "47.7 MB/s");
         assert_eq!(info.formatted_eta(), "10s");
+    }
+
+    #[test]
+    fn test_mirror_replaces_the_upstream_host() {
+        let spec = OnnxModelManager::find_spec("multilingual-e5-small").unwrap();
+        let file = &spec.files[0];
+        assert_eq!(OnnxModelManager::source_url(file, None), file.url);
+        let mirrored = OnnxModelManager::source_url(file, Some("https://models.example.internal/actx/"));
+        assert_eq!(mirrored, format!("https://models.example.internal/actx/{}", file.file_name));
+        assert!(!mirrored.contains("huggingface"));
+    }
+
+    #[test]
+    fn test_file_with_another_checksum_is_refused() {
+        let path = std::env::temp_dir().join(format!("actx_sha_check_{}.bin", std::process::id()));
+        std::fs::write(&path, b"abc").unwrap();
+        let abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        assert!(OnnxModelManager::check_sha256(&path, abc).is_ok());
+        let err = OnnxModelManager::check_sha256(&path, &"0".repeat(64)).unwrap_err();
+        assert!(err.contains("does not match the verified file"), "{err}");
+        let _ = std::fs::remove_file(&path);
     }
 
     /// Live verification of every downloadable catalog file (ADR-118 / ADR-130).

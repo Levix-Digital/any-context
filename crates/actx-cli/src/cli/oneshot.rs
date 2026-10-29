@@ -197,6 +197,9 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 // Future RPC bridge runner
                 return Ok(());
             }
+            CliCommand::Embedding { model, yes } => {
+                std::process::exit(handle_embedding(model.as_deref(), *yes));
+            }
             CliCommand::Download { tier, force, check } => {
                 handle_download(tier.as_deref(), *force, *check).await;
                 return Ok(());
@@ -688,6 +691,22 @@ fn sync_notice_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<St
         ));
     }
     lines
+}
+
+/// `actx embedding [id] [--yes]`: exit code 0 when shown or switched, 1 for an unknown model or
+/// a failed save, 2 when a switch was requested without `--yes`.
+fn handle_embedding(model: Option<&str>, yes: bool) -> i32 {
+    let mut args: Vec<&str> = model.into_iter().collect();
+    if yes {
+        args.push("--yes");
+    }
+    let result = any_context_core_rs::commands::CommandEngine::embedding_command(&args);
+    println!("{}", result.message);
+    match (result.success, model) {
+        (true, _) => 0,
+        (false, Some(id)) if !yes && any_context_core_rs::ingestion::find_embedding_model(id).is_some_and(|s| !s.is_mock()) => 2,
+        _ => 1,
+    }
 }
 
 fn print_sync_notices(res: &any_context_core_rs::ingestion::SyncResult) {

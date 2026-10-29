@@ -31,38 +31,38 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [ ] T011 [US1] Reference vectors: script under `crates/actx-onnx/tests/fixtures/embedder/` (Python `onnxruntime` + `tokenizers`) producing expected vectors for six pt/en sentences for e5-small; Rust test compares (cosine ≥ 0.9999); skipped with a message when the files are absent, required in CI (`ACTX_REQUIRE_EMBEDDER_TESTS=1`)
 - [ ] T012 [US1] `ingestion/local_embedding.rs`: `LocalEmbeddingProvider` implementing `LmProvider::embed` over `OnnxEmbedder` (blocking work on the blocking pool); tests: order kept, errors mapped to `LmError`
 - [ ] T013 [US1] Missing model at sync: verified download with progress through `OnnxModelManager::download_model` (per Levi's answer to clarification 1); offline or checksum failure gives `EmbeddingUnavailable` with the install fix
-- [ ] T014 [US1] No lexical-only mode: when no model can be made available the sync stops before indexing with model, source and manual-install instructions (FR-013); `Lite` gets e5-small; tests
-- [ ] T014a [US1] Model source (FR-018): `models_mirror` setting and `ACTX_MODELS_MIRROR`, URL rewrite to `<mirror>/<file_name>`, pre-placed files used after SHA-256 check with no network; tests (mirror only contacted, wrong checksum refused)
-- [ ] T014b [US3] `is_model_allowed(id)` seam called by the resolution before building any model (FR-019), allowing the catalog in this release; refusal stops the sync with the reason; tests
+- [x] T014 [US1] No lexical-only mode: when no model can be made available the sync stops before indexing with model, source and manual-install instructions (FR-013); `Lite` gets e5-small; tests
+- [x] T014a [US1] Model source (FR-018): `models_mirror` setting and `ACTX_MODELS_MIRROR`, URL rewrite to `<mirror>/<file_name>`, pre-placed files used after SHA-256 check with no network; tests (mirror only contacted, wrong checksum refused)
+- [x] T014b [US3] `is_model_allowed(id)` seam called by the resolution before building any model (FR-019), allowing the catalog in this release; refusal stops the sync with the reason; tests
 
 **Checkpoint (M2)**: a local model embeds text through the product port.
 
 ## Phase 4: User Story 3, no silent switch (P1)
 
 - [ ] T015 [US3] `ingestion/embedding.rs`: `resolve_embedding(db) -> Result<Option<ResolvedEmbedding>, EmbeddingUnavailable>` (setting, else profile default, else `None`); mock only through `embedding::testing::mock()`; OpenAI and mock fallbacks removed
-- [ ] T016 [US3] Query side: recorded target answers until reindex; if it cannot be built, dense is skipped for that question and logged, never another model
+- [x] T016 [US3] Query side: recorded target answers until reindex; if it cannot be built, dense is skipped for that question and logged, never another model
 - [ ] T017 [US3] `orchestrator.rs`: uses `resolve_embedding`; stops before embedding on `EmbeddingUnavailable` (index unchanged); per-file failures reported and retried next sync; records the target on every chunk
 - [ ] T018 [P] [US3] Regression tests: unavailable model writes zero chunks (SC-004); failing provider for one file leaves the others and retries it; product resolution never returns mock
-- [ ] T019 [US3] Update callers: `actx-cli/src/engine.rs`, `cli/oneshot.rs` (Global bootstrap), `retrieval/pipeline.rs`, `actx-bench/src/runner.rs`; remove `resolve_embedding_provider`'s model-override path
+- [x] T019 [US3] Update callers: `actx-cli/src/engine.rs`, `cli/oneshot.rs` (Global bootstrap), `retrieval/pipeline.rs`, `actx-bench/src/runner.rs`; remove `resolve_embedding_provider`'s model-override path
 
 ## Phase 5: User Story 2, a setting of its own (P1)
 
 - [ ] T020 [US2] `ingestion/embedding_migration.rs`: one-time adoption of the most used real recorded target, legacy keys rewritten, chunk backfill, marker (data-model "Migration"); tests (adopt, ignore mock, ties, idempotent)
-- [ ] T021 [US2] Core command `embedding show/set` (catalog list, installed state, reindex-affected workspaces, cloud data notice) in `commands/`
-- [ ] T022 [US2] TUI `/embedding [id]` in `commands/registry.rs` and the TUI handler, with confirmation
-- [ ] T023 [US2] Headless `actx embedding [id] [--yes]` in `cli/args.rs`/`cli/oneshot.rs` (exit codes per contract)
-- [ ] T024 [US2] `-m/--model` and `/model` no longer affect embeddings (`SyncOptions::model` not used for embedding; `pending_reindex_notice` driven by the embedding setting); regression test: chat-model change re-embeds zero chunks (SC-003)
+- [x] T021 [US2] Core command `embedding show/set` (catalog list, installed state, reindex-affected workspaces, cloud data notice) in `commands/`
+- [x] T022 [US2] TUI `/embedding [id]` in `commands/registry.rs` and the TUI handler, with confirmation
+- [x] T023 [US2] Headless `actx embedding [id] [--yes]` in `cli/args.rs`/`cli/oneshot.rs` (exit codes per contract)
+- [x] T024 [US2] `-m/--model` and `/model` no longer affect embeddings (`SyncOptions::model` not used for embedding; `pending_reindex_notice` driven by the embedding setting); regression test: chat-model change re-embeds zero chunks (SC-003)
 - [ ] T025 [P] [US2] `/models` lists embedding models in their category; diagnostics shows model, source and installed state
-- [ ] T026 [P] [US2] CLI tests for the contract (show, set with and without `--yes`, unknown id, cloud notice)
+- [x] T026 [P] [US2] CLI tests for the contract (show, set with and without `--yes`, unknown id, cloud notice)
 
 **Checkpoint (M3)**: the setting drives everything; no fallback anywhere.
 
 ## Phase 6: User Story 4, prefixes (P2)
 
-- [ ] T027 [US4] `apply_prefix(role, text)` from the catalog; orchestrator applies the document prefix right before embedding (stored text and BM25 untouched)
-- [ ] T028 [US4] Pipeline applies the query prefix to the question embedding
+- [x] T027 [US4] `apply_prefix(role, text)` from the catalog; orchestrator applies the document prefix right before embedding (stored text and BM25 untouched)
+- [x] T028 [US4] Pipeline applies the query prefix to the question embedding
 - [ ] T029 [P] [US4] Tests: prefixes per model and role; stored text has no prefix; a `prefix_rev` change marks workspaces for reindex
-- [ ] T030 [US4] Gemini prefixes (`prefix_rev` 1) and nomic prefixes in the catalog; adapter tests unchanged in behavior otherwise
+- [x] T030 [US4] Gemini prefixes (`prefix_rev` 1) and nomic prefixes in the catalog; adapter tests unchanged in behavior otherwise
 
 **Checkpoint (M4)**.
 

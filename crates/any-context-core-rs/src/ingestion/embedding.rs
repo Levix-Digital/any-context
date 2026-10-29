@@ -566,6 +566,18 @@ mod tests {
     }
 
     #[test]
+    fn every_selectable_model_passes_the_policy_seam() {
+        // Until the organization policy (IMP-056) exists, the seam allows the whole catalog;
+        // the profile defaults must always pass it.
+        for spec in crate::ingestion::embedding_catalog::selectable_models() {
+            assert!(is_model_allowed(spec).is_ok(), "{}", spec.id);
+        }
+        for tier in [ProfileTier::Lite, ProfileTier::SmartBalanced, ProfileTier::AirGappedPower] {
+            assert!(is_model_allowed(profile_default_model(tier)).is_ok());
+        }
+    }
+
+    #[test]
     fn key_round_trips_and_legacy_keys_parse() {
         let e5 = EmbeddingTarget::new("local", "multilingual-e5-small", 384, 1);
         assert_eq!(e5.key(), "local/multilingual-e5-small@384+p1");

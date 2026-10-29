@@ -595,3 +595,59 @@ async fn test_file_freed_to_the_cloud_keeps_its_index() {
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+/// SC-003: changing the chat model never changes the embedding model, so the next sync
+/// re-embeds nothing.
+#[tokio::test]
+async fn test_chat_model_change_reembeds_nothing() {
+    use any_context_core_rs::ingestion::{active_embedding_model, EMBEDDING_MODEL_SETTING};
+    let (temp_dir, db, lance, orchestrator, _) = embedding_sandbox("emb_chat_change", &["docs"]);
+    let ws = "EmbeddingTargetWs";
+
+    db.set_setting(EMBEDDING_MODEL_SETTING, "bge-m3").unwrap();
+    let first = orchestrator.run(&mock_sync(None)).await.expect("sync 1");
+    assert_eq!(first.indexed_files, 2);
+    let chunks = lance.count_records(Some(ws), None).unwrap();
+
+    for chat in ["gpt-4o-mini", "gemini-2.5-flash", "llama3.2"] {
+        db.set_setting("active_model", chat).unwrap();
+        let (spec, _) = active_embedding_model(&db, None).expect("model");
+        assert_eq!(spec.id, "bge-m3", "the chat model `{chat}` changed the embedding model");
+        let res = orchestrator.run(&mock_sync(None)).await.expect("sync");
+        assert!(res.is_up_to_date, "chat model `{chat}` triggered a reindex");
+        assert_eq!(res.indexed_files, 0);
+        assert_eq!(res.embedding_reindex, None);
+    }
+    assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks);
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// SC-004: when the embedding model cannot run, the sync fails before indexing, writes no
+/// vector from any other model and keeps the existing index.
+#[tokio::test]
+async fn test_unavailable_embedding_model_writes_nothing() {
+    use any_context_core_rs::ingestion::EMBEDDING_MODEL_SETTING;
+    if std::env::var("OPENAI_API_KEY").map(|k| !k.trim().is_empty()).unwrap_or(false) {
+        eprintln!("skipped: OPENAI_API_KEY is set, the model would be available");
+        return;
+    }
+    let (temp_dir, db, lance, orchestrator, dirs) = embedding_sandbox("emb_unavailable", &["docs"]);
+    let ws = "EmbeddingTargetWs";
+
+    orchestrator.run(&mock_sync(None)).await.expect("sync 1");
+    let chunks = lance.count_records(Some(ws), None).unwrap();
+    assert!(chunks > 0);
+
+    // A cloud model without its key: unavailable.
+    db.set_setting(EMBEDDING_MODEL_SETTING, "text-embedding-3-small").unwrap();
+    std::fs::write(dirs[0].join("new.md"), "# New\nA file added after the switch.").unwrap();
+    let options = SyncOptions { embedding_model: None, ..mock_sync(None) };
+    let err = orchestrator.run(&options).await.expect_err("the sync must fail");
+    assert!(err.contains("text-embedding-3-small") && err.contains("API key"), "{err}");
+
+    assert_eq!(lance.count_records(Some(ws), None).unwrap(), chunks, "no vector was written or purged");
+    assert_eq!(db.get_workspace_embedding_target(ws).unwrap(), Some(Some("mock/mock-embed@1536".to_string())));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}

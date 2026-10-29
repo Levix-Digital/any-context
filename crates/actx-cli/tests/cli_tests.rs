@@ -943,3 +943,25 @@ fn test_rerank_cli_args_parsing_and_dispatch() {
 
 
 
+
+#[test]
+fn test_embedding_subcommand_and_slash_command() {
+    use clap::Parser;
+
+    let overview = CliArgs::parse_from(["actx", "embedding"]);
+    assert!(matches!(overview.command, Some(CliCommand::Embedding { model: None, yes: false })));
+    assert!(overview.is_headless());
+
+    let switch = CliArgs::parse_from(["actx", "embeddings", "multilingual-e5-base", "--yes"]);
+    match switch.command {
+        Some(CliCommand::Embedding { model, yes }) => {
+            assert_eq!(model.as_deref(), Some("multilingual-e5-base"));
+            assert!(yes);
+        }
+        other => panic!("Expected CliCommand::Embedding, got {other:?}"),
+    }
+
+    for alias in ["embedding", "embeddings", "embed"] {
+        assert_eq!(find_command(alias).map(|c| c.name), Some("embedding"), "{alias}");
+    }
+}

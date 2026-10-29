@@ -86,6 +86,13 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
         category: "Engine",
     },
     SlashCommand {
+        name: "embedding",
+        aliases: &["embeddings", "embed"],
+        description: "Shows or switches the embedding model (local by default, independent of the chat model)",
+        usage: "/embedding [model] [--yes]",
+        category: "Engine",
+    },
+    SlashCommand {
         name: "rerank",
         aliases: &["reranker"],
         description: "Inspects or configures local Cross-Encoder ONNX re-ranking (auto, on, off)",
