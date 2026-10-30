@@ -4,10 +4,10 @@ project: any-context
 title: Local multilingual embedding model, independent of the chat model
 kind: feature
 version: v1.0.0
-status: in_progress
+status: completed
 author: Levi Silveira
 created_at: '2026-10-29T22:43:37'
-updated_at: '2026-10-30T00:33:04'
+updated_at: '2026-10-30T00:58:59'
 session_id: null
 tags:
 - embedding
@@ -41,7 +41,9 @@ milestones:
   done_at: '2026-10-30'
   by: LeviGuilherme
 - name: M5 Benchmark defaults CI and docs
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 status_log:
 - at: '2026-10-29T22:43:37'
   by: Levi Silveira
@@ -67,6 +69,13 @@ status_log:
 - at: '2026-10-30T00:33:04'
   by: LeviGuilherme
   note: Milestone 'M4 Prefixes' completed
+- at: '2026-10-30T00:58:59'
+  by: LeviGuilherme
+  note: Milestone 'M5 Benchmark defaults CI and docs' completed
+- at: '2026-10-30T00:58:59'
+  by: LeviGuilherme
+  status: completed
+  note: All milestones completed
 ---
 
 # Local multilingual embedding model, independent of the chat model
