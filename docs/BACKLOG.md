@@ -1251,9 +1251,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-043: [retrieval] Cross-encoder as the only relevance judge, always on
 - **Priority**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: imp_043_reranker_always_on
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. The cross-encoder from the hardware kit judges relevance in both modes, over the child chunk with its contextual header; summaries are reranked, SQL results are not. Acceptance: the /rerank command and the option to disable reranking are removed; Deep's chunk-by-chunk LLM yes/no is removed; candidates beyond the budget are discarded, not pushed to the end.
 
 ### IMP-044: [retrieval] Calibrated reranker relevance bands per model
