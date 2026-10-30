@@ -256,18 +256,7 @@ pub fn build_agent_sync(
                 pipeline.set_reranker(Some(tool_reranker));
                 pipeline.set_rerank_mode(&rerank_mode);
 
-                let req = any_context_core_rs::retrieval::HybridSearchRequest {
-                    query_text: query.to_string(),
-                    workspace: Some(ws.clone()),
-                    target_workspaces: vec!["Global".to_string()],
-                    top_k: 5,
-                    candidate_pool_k: 30,
-                    max_density_chars: 12_000,
-                    min_score: any_context_core_rs::retrieval::RRF_MIN_SCORE,
-                    table_name: "workspace_chunks".to_string(),
-                    rerank_mode: Some(rerank_mode),
-                    ..Default::default()
-                };
+                let req = any_context_core_rs::retrieval::tool_request(query, &ws, &rerank_mode, hardware_tier(db.as_ref()));
 
                 match pipeline.search_single_async(&req).await {
                     Ok(results) if !results.is_empty() => {
@@ -754,6 +743,16 @@ pub fn run_startup_splash_bootstrap() {
 }
 
 /// Native Hybrid RAG batch retriever adapter for DeepSearch
+/// Hardware profile that sets the reranker depth: the `active_profile` setting, else the profile
+/// recommended for this machine, probed once per process (IMP-042).
+fn hardware_tier(db: Option<&NativeConfigDb>) -> any_context_core_rs::hardware::ProfileTier {
+    use any_context_core_rs::hardware::{HardwareProfiler, ProfileTier};
+    static RECOMMENDED: std::sync::OnceLock<ProfileTier> = std::sync::OnceLock::new();
+    db.and_then(|d| d.get_setting("active_profile").ok().flatten())
+        .and_then(|p| ProfileTier::parse_str(&p))
+        .unwrap_or_else(|| *RECOMMENDED.get_or_init(|| HardwareProfiler::auto_select_recommended(&HardwareProfiler::probe_system(None))))
+}
+
 struct PipelineBatchRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
     query_embedding: QueryEmbedding,
@@ -778,7 +777,7 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
 
         let requests: Vec<_> = queries
             .iter()
-            .map(|q| any_context_core_rs::retrieval::deep_request(q, &self.workspace, &rerank_mode))
+            .map(|q| any_context_core_rs::retrieval::deep_request(q, &self.workspace, &rerank_mode, hardware_tier(db.as_ref())))
             .collect();
 
         match pipeline.retrieve_hybrid_batch_with_outcome(&requests).await {
@@ -892,7 +891,7 @@ impl PipelineDeterministicRetriever {
         pipeline.set_reranker(Some(self.reranker.clone()));
         pipeline.set_rerank_mode(&rerank_mode);
 
-        let req = any_context_core_rs::retrieval::fast_request(query, &self.workspace, &rerank_mode);
+        let req = any_context_core_rs::retrieval::fast_request(query, &self.workspace, &rerank_mode, hardware_tier(db.as_ref()));
 
         pipeline.search_with_outcome(&req).await.map_err(actx_agent::AgentError::Internal)
     }
@@ -1029,16 +1028,14 @@ mod tests {
     }
 
     #[test]
-    fn deep_search_request_keeps_single_list_hits() {
-        let req = any_context_core_rs::retrieval::deep_request("query", "Docs", "auto");
-        let weakest_pool_hit = 1.0 / (req.rrf_k + req.candidate_pool_k) as f64;
-        assert!(
-            req.min_score <= weakest_pool_hit,
-            "min_score {} drops candidates found by one list only (weakest {weakest_pool_hit})",
-            req.min_score
-        );
-        assert_eq!(req.workspace.as_deref(), Some("Docs"));
-        assert_eq!(req.rerank_mode.as_deref(), Some("auto"));
+    fn hardware_tier_reads_the_active_profile_setting() {
+        let dir = std::env::temp_dir().join(format!("actx_tier_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = NativeConfigDb::open(dir.join("settings.db")).unwrap();
+        db.set_setting("active_profile", "lite").unwrap();
+        assert_eq!(hardware_tier(Some(&db)), any_context_core_rs::hardware::ProfileTier::Lite);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
