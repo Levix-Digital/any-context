@@ -98,4 +98,21 @@ The query side keeps ADR-0138's rule (the workspace's recorded target answers un
 
 ## Results
 
-To be filled during M5 with the candidate comparison.
+Measured on 2026-10-30 with `actx-bench retrieval run --embedding local/<id>` (release build, ONNX Runtime 1.31.0, CPU Intel Xeon 2.1 GHz with AVX-512 VNNI, the corpus and 85 questions of `benchmarks/retrieval`, cross-encoder `mmarco-reranker` on). The lexical row is the committed `baseline.lexical-rerank.json`.
+
+| Configuration | MRR@10 | HitRate@1 | HitRate@5 | NDCG@10 | Cross-language MRR@10 (6 q.) | Cross-language HitRate@5 | pt MRR@10 | en MRR@10 | Indexing 37 files, 107 chunks | Model files | Peak RSS of the run | Delivered latency mean / p95 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| lexical + reranker | 0.9429 | 0.9286 | 0.9571 | 0.9342 | 0.4167 | 0.5000 | 0.9302 | 0.9630 | n/a | 0 | n/a | 775 / 1298 ms |
+| multilingual-e5-small | 0.9643 | 0.9429 | 0.9857 | 0.9671 | 0.7500 | 0.8333 | 0.9419 | 1.0000 | 4.1 s | 135 MB | 1,653 MB | 1369 / 2652 ms |
+| multilingual-e5-base | 0.9714 | 0.9571 | 0.9857 | 0.9747 | 0.8333 | 0.8333 | 0.9535 | 1.0000 | 6.5 s | 295 MB | 1,816 MB | 1421 / 2707 ms |
+| bge-m3 | 0.9714 | 0.9429 | 1.0000 | 0.9761 | 0.9167 | 1.0000 | 0.9535 | 1.0000 | 14.0 s | 586 MB | 2,102 MB | 1199 / 2841 ms |
+
+Reading:
+
+- Every local model beats lexical retrieval, most on cross-language questions (0.42 to 0.75–0.92 MRR@10), which is what dense search is for.
+- e5-base over e5-small: +0.007 MRR@10 overall (below the 0.01 rule), +0.083 cross-language MRR@10 (above it).
+- BGE-M3 over e5-base: equal MRR@10 overall, +0.014 HitRate@5 overall, +0.083 cross-language MRR@10 and +0.167 cross-language HitRate@5 (above the rule).
+- The cross-language category has 6 questions: each step of +0.083 is one question moving up one rank, so the rule is met on thin evidence.
+- Costs grow with the model: indexing 1.6× (e5-base) and 3.4× (BGE-M3) the time of e5-small, 2.2× and 4.3× the disk.
+- Latency is dominated by the cross-encoder, which receives more distinct candidates once dense search is on; it is reported, never gated.
+

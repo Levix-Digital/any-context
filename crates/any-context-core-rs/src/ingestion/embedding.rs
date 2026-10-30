@@ -432,8 +432,7 @@ impl QueryEmbedding {
 
     /// The prefix put in front of questions, or `""`.
     pub fn query_prefix(&self) -> String {
-        let probe = self.query_text("");
-        probe
+        self.query_text("")
     }
 }
 

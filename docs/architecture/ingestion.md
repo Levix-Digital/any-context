@@ -54,11 +54,11 @@ flowchart LR
 
 ### Sync pass
 
-`NativeSyncOrchestrator::run` performs one pass for one workspace (`SyncOptions { workspace, force, target_folder, verbose, model }`). `run_sync` is the synchronous entry point; when it is called inside a Tokio runtime it runs the pass on a separate thread with its own runtime.
+`NativeSyncOrchestrator::run` performs one pass for one workspace (`SyncOptions { workspace, force, target_folder, verbose, embedding_model }`; `embedding_model` is a per-run override used by tests and the benchmark, never by the product). `run_sync` is the synchronous entry point; when it is called inside a Tokio runtime it runs the pass on a separate thread with its own runtime.
 
 1. Mark the workspace as syncing in the `workspace_sync_status` table (stage `scanning`, worker PID).
 2. Add the chunk provenance columns to a LanceDB table created by an older version (`NativeLanceStore::ensure_provenance_columns`, see [storage](storage.md)); a failure goes to `SyncResult::errors`. Then encrypt the chunks an older version stored in plaintext (`NativeLanceStore::encrypt_plaintext_rows`, see [storage](storage.md)); the count goes to `SyncResult::chunks_encrypted_legacy` and is printed by verbose syncs, and a failure goes to `SyncResult::errors` and is retried on the next pass. Finally, a workspace indexed before secret redaction is repaired once (see "Secret redaction" below).
-3. Resolve the embedding target and decide whether the stored vectors can be kept (see "Embedding target and reindex" below). A reindex turns the pass into a forced pass over the whole workspace, even when it was scoped to one folder, and writes its message to the sync status.
+3. Resolve the embedding model (`prepare_embedding`, see "Embedding model" below), downloading a missing local model. When the model cannot run, the pass stops here with an `EmbeddingUnavailable` error (model, cause, fix) written to the sync status, and the index stays as it is. Then decide whether the stored vectors can be kept (see "Embedding target and reindex" below). A reindex turns the pass into a forced pass over the whole workspace, even when it was scoped to one folder, and writes its message to the sync status.
 4. Resolve the folders: only `target_folder` when it is set (a `/folder <path>` sync) and no reindex is due; otherwise the folders registered for the workspace. A workspace with no registered folder indexes no folder, never the current directory, and reports `SyncResult::no_sources` when it has no web source either.
 5. Load `bm25_index.bin` from the LanceDB directory, or start an empty index.
 6. With `force` (or a reindex), delete the workspace's vectors and BM25 entries (or only the target folder's) and clear the stat cache.
@@ -115,10 +115,8 @@ Document AI candidates are resolved by `process_document_ai_candidates`, in orde
 ### Embedding and writing
 
 - Chunk ids are `<first 12 hex chars of the file SHA-256>_<index>`.
-- `resolve_embedding_provider(db, model_override, workspace)` (`ingestion/embedding.rs`) picks the model name from, in order: the explicit override, `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, the workspace (chat) model, the default model, then `text-embedding-3-small`. It returns the provider and an `EmbeddingTarget` (`provider/model`).
-- The target is chosen from the model name: `mock*` gives `mock/mock-embed`; `gemini*` gives `gemini/gemini-embedding-2` when a Gemini key is stored; `ollama*`/`local*` give `ollama/nomic-embed-text` on `http://localhost:11434/v1`; otherwise `openai/text-embedding-3-small`. When the chosen provider has no key, it falls back to OpenAI when an OpenAI key is stored, else to `mock/mock-embed`.
-- Without a provider the chunks get deterministic pseudo-vectors derived from the SHA-256 of the text. The sync never reaches this today, since the resolver falls back to the mock provider; a failed embedding call fails the file instead (see "Embedding failures").
-- Records are upserted into the LanceDB table `workspace_chunks` with `last_modified` (RFC 3339 from the file modification time), content type, summary, keywords and content hash; text, summary and keywords are encrypted by the store (see [storage](storage.md)).
+- Texts sent to the model carry the document prefix of the target's vector space (`apply_prefix`, IMP-029); the stored text, BM25 and the answer never carry it.
+- Records are upserted into the LanceDB table `workspace_chunks` with `embedding_target` (the key of the vector space that produced the vector), `last_modified` (RFC 3339 from the file modification time), content type, summary, keywords and content hash; text, summary and keywords are encrypted by the store (see [storage](storage.md)).
 
 ### Embedding failures
 
@@ -130,27 +128,44 @@ A failed embedding call fails the file ([ADR-0146](../adr/0146-a-failed-embeddin
 - `EmbedBreaker` (one per pass, shared with web pages) opens on an `Auth` error or after 3 consecutive failed files; a short answer counts as a failure and a success resets the count. While it is open, files and pages are still chunked into BM25 and fail as `Skipped` without calling the provider.
 - `SyncResult.embedding_failures` counts the files and pages that failed, and `SyncResult.embedding_provider_unavailable` says whether the breaker opened. The final status writes `embedding_failure_summary` ("N files not embedded; they are retried on the next sync; first error: ...") into `workspace_sync_status.error`; a pass without failures clears it. `sync_error_headline` gives the part before the first `; ` for one-line surfaces.
 
+### Embedding model
+
+The embedding model is an application setting of its own, never derived from the chat model ([ADR-0154](../adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md)). `ingestion/embedding_catalog.rs` lists every model AnyContext can use, with its runtime (local ONNX, cloud provider, or the test-only mock), dimension, input limit, pooling and prefixes:
+
+| Model | Runtime | Dimension | Prefixes (query / document) |
+|---|---|---|---|
+| `multilingual-e5-small` | local (INT8 ONNX, 135 MB) | 384 | `query: ` / `passage: ` |
+| `multilingual-e5-base` | local (INT8 ONNX, 295 MB) | 768 | `query: ` / `passage: ` |
+| `bge-m3` | local (INT8 ONNX, 586 MB) | 1024 | none |
+| `text-embedding-3-small` | OpenAI | 1536 | none |
+| `gemini-embedding-2` | Gemini | 1536 | `task: search result \| query: ` / `title: none \| text: ` |
+| `nomic-embed-text` | Ollama | 768 | `search_query: ` / `search_document: ` |
+
+`active_embedding_model(db, override)` resolves the model in this order: the per-run override; the `embedding_model` setting (set by `/embedding <id> --yes` or `actx embedding <id> --yes`); once per installation, the most used real target already recorded by the workspaces, so an upgrade keeps the cloud model that built the index (`adopt_existing_index_model`, marker `embedding_model_adopted`); then the default of the hardware profile (`ProfileTier::default_embedding_model`). `is_model_allowed` is checked first; it allows the whole catalog in this release and is where an organization policy plugs in (IMP-056).
+
+`prepare_embedding` builds the provider. A local model is checked against the catalog SHA-256 of its files (`OnnxModelManager::verify_installed`, so files placed by hand or by IT are used only when they are the verified ones) and needs the bundled ONNX Runtime; a missing local model is downloaded from the pinned upstream URL or, when the `models_mirror` setting or `ACTX_MODELS_MIRROR` is set, only from `<mirror>/<file path>`. `LocalEmbeddingProvider` runs `actx_onnx::OnnxEmbedder` (see [ONNX Inference](onnx.md)) behind `LmProvider::embed`. A cloud model needs its key. There is no fallback: when the chosen model cannot run, nothing is embedded with another model, mock vectors or pseudo-vectors.
+
 ### Embedding target and reindex
 
-The column `workspaces.embedding_target` records the target that built the workspace's vectors. `decide_reindex` compares it with the current target at the start of every pass:
+An `EmbeddingTarget` names a vector space: provider, model, dimension and prefix revision, written `provider/model@dim[+pN]` (for example `local/multilingual-e5-small@384+p1`). Keys recorded before ADR-0154 (`provider/model`) still parse, with the dimension the model had then, so an index built in the same space is kept. The column `workspaces.embedding_target` records the target that built the workspace's vectors, and every chunk records its own. `decide_reindex` compares the workspace's target with the current one at the start of every pass:
 
 | Recorded target | Decision |
 |---|---|
-| equal to the current one | keep |
-| different | reindex the whole workspace |
+| the same vector space | keep |
+| another space (model, dimension or prefixes) | reindex the whole workspace |
 | none, no chunk stored | adopt the current target |
-| none, chunks stored (indexed before the record existed) | compare with `legacy_target`, the answer of the earlier resolver: the same target except Gemini, which was `text-embedding-004`. Equal: adopt; different: reindex |
+| none, chunks stored (indexed before the record existed) | adopt only `openai/text-embedding-3-small@1536`, the only space the earlier resolver could have built without a record; reindex otherwise |
 
-The reindex needs no confirmation; its message ("Embedding model changed (A → B): the whole workspace is reindexed.") goes to the sync status, the verbose output and `SyncResult::embedding_reindex`. `pending_reindex_notice` lets `/model` and `/sync` warn in advance. A workspace without a row in `workspaces` can't record a target and is left as it is. Queries prefer the recorded target until the reindex runs (see [retrieval](retrieval.md)).
+The reindex needs no confirmation; its message ("Embedding model changed (A → B): the whole workspace is reindexed.") goes to the sync status, the verbose output and `SyncResult::embedding_reindex`. `pending_reindex_notice` lets `/embedding` and `/sync` warn in advance, and `workspaces_reindexed_by` lists the workspaces a switch would reindex. A workspace without a row in `workspaces` can't record a target and is left as it is. Queries keep using the recorded target until the reindex runs (see [retrieval](retrieval.md)). Gemini indexes from before the prefixes are reindexed once.
 
-On the mock target (`EmbeddingTarget::is_mock`) the chunks are still written with the mock vectors, which are all the same: the rows are needed by BM25-only hits and file name matches, and queries on that target skip dense search ([ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md)). Adding a key changes the target, which reindexes the workspace.
+On the mock target (`EmbeddingTarget::is_mock`) the chunks are still written with the mock vectors, which are all the same: the rows are needed by BM25-only hits and file name matches, and queries on that target skip dense search ([ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md)). The product never chooses the mock; only tests and the benchmark's lexical run request it.
 
 ### System documentation (`Global`)
 
 The `Global` workspace holds the sections of the embedded `SYSTEM_KNOWLEDGE.md` and `README.md` (`global_knowledge_records` in `crates/actx-cli/src/engine.rs`, ids `global_sys_doc_<n>`), shared by every workspace ([ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md)):
 
 - At startup, and from the `search_db` tool, `ensure_global_knowledge_bootstrap` writes the rows with placeholder (zero) vectors and their BM25 entries when they are missing or come from another version (`global_knowledge_version`), then clears the setting `global_knowledge_embedding_target`. It makes no network call.
-- After each pass of `actx --sync` and of the sync worker, `refresh_global_knowledge_vectors` embeds the rows with the default target (`resolve_embedding_provider(db, None, "Global")`) when the setting differs from it, replaces the `Global` rows (all vectors first, then delete and insert, since `upsert_records` appends) and records the target in the setting. It does nothing on the mock target, before this version's bootstrap, or when the pass was cancelled or its breaker opened.
+- After each pass of `actx --sync` and of the sync worker, `refresh_global_knowledge_vectors` embeds the rows with the active embedding model (`active_embedding_model` and `build_embedding_provider`), with its document prefix, when the setting differs from its target, replaces the `Global` rows (all vectors first, then delete and insert, since `upsert_records` appends) and records the target in the setting. It does nothing on the mock target, before this version's bootstrap, or when the pass was cancelled or its breaker opened.
 - A provider error, a short answer or a vector size other than the table's records nothing: the placeholders stay and the next sync retries. The sync output says `AnyContext documentation embedded with <target>` or why it was not.
 - Queries use `Global` in dense search only when the setting equals their target (`global_dense_enabled`, see [retrieval](retrieval.md)).
 
@@ -172,7 +187,7 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 
 - **Called by**: the `--sync-worker` process and `actx --sync` in the [CLI](cli.md) (`NativeSyncOrchestrator::new_default`), and the [command engine](commands.md) (`/sync`, `/folder`, `/web`), which spawns the worker with `CommandEngine::spawn_sync_worker` and logs its output to `sync_<workspace>.log`.
 - **Calls**: [storage](storage.md) (`NativeLanceStore`, `NativeConfigDb`), [retrieval](retrieval.md) (`BM25Index`), [language model providers](lm-providers.md) (`LmProvider::embed`) and the [chunkers](chunkers.md).
-- **Configuration**: `ACTX_EMBEDDING_MODEL`, `ACTX_MODEL`, `JINA_API_KEY`; API keys stored with `/keys`.
+- **Configuration**: the `embedding_model` setting (`/embedding`), `models_mirror` or `ACTX_MODELS_MIRROR`, `JINA_API_KEY`; API keys stored with `/keys`.
 
 ## Decisions
 
@@ -195,6 +210,7 @@ Every file iteration reads the sync status; when it is no longer syncing or its 
 - [ADR-0143](../adr/0143-bm25-only-hits-take-their-text-from-lancedb-batch-deduplicat.md): the enveloped text stays in BM25 only; retrieval reads chunk text from LanceDB and `strip_envelope` is the fallback.
 - [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): a failed embedding fails the file (retried on the next sync, kept in BM25), one rate-limit retry, a provider breaker per pass and the failure summary in the sync status.
 - [ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md): mock vectors are never searched; the sync embeds `Global` with the default target.
+- [ADR-0154](../adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md): local embedding model, its own setting, no fallback, vector space per chunk, prefixes.
 - [ADR-0149](../adr/0149-secret-values-are-redacted-before-chunking-with-no-exception.md): secret values are redacted before chunking with no exception, and indexes built before are repaired once.
 - [ADR-0150](../adr/0150-offline-sources-keep-their-index-and-folders-are-never-redir.md): offline sources keep their index, scoped syncs touch only their folder, folders are never redirected, no implicit source.
 - [ADR-0151](../adr/0151-online-only-cloud-files-are-never-downloaded-by-the-scan.md): online-only cloud files are never read or downloaded by the scan; a freed file keeps its index.

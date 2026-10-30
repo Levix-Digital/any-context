@@ -116,6 +116,7 @@ AnyContext provides a comprehensive command engine (`CommandEngine`) accessible 
 - `/web-search [on|off]`: Toggles real-time internet search capability for the active workspace.
 - `/model [name]`: Selects or inspects the active language model provider (e.g., `gemini-2.5-flash`, `gemini-1.5-pro`, `gpt-4o`, `claude-3-5-sonnet`, `mock`).
 - `/models`: Displays the full catalog of supported AI providers, capabilities, and context windows.
+- `/embedding [model] [--yes]`: Shows or switches the embedding model used to index and search. By default it is a local multilingual model chosen by the hardware profile (no key, no document text leaves the machine); cloud models (`text-embedding-3-small`, `gemini-embedding-2`, `nomic-embed-text` on Ollama) can be chosen instead. `/model` never changes it. Switching needs `--yes` and reindexes the affected workspaces on their next sync; when the chosen model cannot run, the sync stops and explains the fix instead of using another model. `ACTX_MODELS_MIRROR` points model downloads to a company server.
 
 ### 3.4 Synchronization & Data Health
 - `/sync`: Runs incremental background synchronization. Inspects filesystem mtime timestamps and SHA-256 hashes, indexing only modified or newly added files.

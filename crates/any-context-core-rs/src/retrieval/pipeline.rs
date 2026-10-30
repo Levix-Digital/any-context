@@ -439,7 +439,7 @@ impl NativeHybridPipeline {
     }
 
     /// Sets the embedding provider and model used for query vectors. They must match the ones
-    /// used at ingestion time (see `ingestion::resolve_embedding_provider`), otherwise query and
+    /// used at ingestion time (see `ingestion::resolve_query_embedding`), otherwise query and
     /// chunk vectors live in different spaces.
     pub fn set_embedding(&mut self, lm_client: Option<Arc<dyn LmProvider>>, model: impl Into<String>) {
         self.lm_client = lm_client;

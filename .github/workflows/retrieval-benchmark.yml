@@ -55,7 +55,7 @@ jobs:
             embedding: ""
           # Reference model: the default of the AirGappedPower profile.
           - name: dense + reranker
-            embedding: ${{ inputs.embedding || 'multilingual-e5-base' }}
+            embedding: ${{ inputs.embedding || 'bge-m3' }}
     env:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"

@@ -1,7 +1,7 @@
 <!-- dev-cycle-constitution
 generated-by: dev-cycle-protocol/constitution.py (do not edit; change a source and regenerate)
-sources-sha256: 9e0bb72d11b939b0b197f53dc51b318ee03d8e870ca3f7e7b644dbf28b4d9053
-content-sha256: 292b696f1d3b263506b4db2c430e35d336390095f405978df88ad387ae88db98
+sources-sha256: 42c211bfe0504e50259372562d5e97588570acf0cf4fc5ec2cca8bdb7da74787
+content-sha256: a879259c0e741a3376f3e13ae3a623cd6bfdf006c9ffe60206894f9d2749e618
 -->
 # any-context Constitution
 
@@ -202,6 +202,7 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - ADR-0151: Online-only cloud files are never downloaded by the scan (`docs/adr/0151-online-only-cloud-files-are-never-downloaded-by-the-scan.md`)
 - ADR-0152: Web search uses only allowed search APIs and never scrapes (`docs/adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md`)
 - ADR-0153: A development retrieval benchmark gates retrieval changes (`docs/adr/0153-a-development-retrieval-benchmark-gates-retrieval-changes.md`)
+- ADR-0154: Local embedding model with its own setting and no fallback (`docs/adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md`)
 
 ## Governance
 
@@ -209,4 +210,4 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - Amendments change the source, not this file: an ADR for decisions, the technical specification for requirements and constraints, `.dev-cycle.json` for the architecture style, the skills for principles. Then run `constitution.py generate` and commit the result with the change.
 - Gate 3 of the development cycle blocks a plan while this file is stale or edited by hand.
 
-**Version**: 1.5.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-29
+**Version**: 1.6.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-30

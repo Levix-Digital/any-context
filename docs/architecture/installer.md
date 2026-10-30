@@ -13,7 +13,7 @@ Installs, updates and uninstalls actx from the releases repository, with atomic 
 - Install `actx` into the canonical bin directory from a GitHub release of `Levix-Digital/any-context-releases`, add it to the user `PATH` and record the chosen hardware profile.
 - Update an existing installation (latest or a specific version) without breaking the running executable: download, extract to staging, validate, swap atomically, and roll back on failure.
 - Repair shadowed copies of `actx` elsewhere in `PATH` and clean leftovers from older layouts.
-- Provision the local models the profile needs (today the cross-encoder re-ranker), never failing the installation because of them.
+- Provision the local models the profile needs (the cross-encoder re-ranker and the profile's embedding model), never failing the installation because of them.
 - Log every update step to `update.log`.
 
 ## Structure
@@ -48,7 +48,7 @@ Installs, updates and uninstalls actx from the releases repository, with atomic 
 2. Resolve the version (`--version` or the latest release tag).
 3. Download the package to a temporary file, extract it into `<bin>/actx_staging` and call `finalize_staging_update`.
 4. Add the bin directory to the user `PATH` with the highest precedence (Windows user environment) and write `install_profile.txt`.
-5. For any profile other than Lite, provision the re-ranker files into the models directory, unless `ACTX_SKIP_MODEL_DOWNLOAD=1`. Failures are reported and the installation still succeeds; retrieval then uses the RRF fallback.
+5. Provision the profile's files into the models directory (`auto_provisioned_models`), unless `ACTX_SKIP_MODEL_DOWNLOAD=1`: the embedding model of the profile (`multilingual-e5-small` on Lite, `multilingual-e5-base` on SmartBalanced, `bge-m3` above) and, for any profile other than Lite, the re-ranker. Failures are reported and the installation still succeeds; retrieval then uses the RRF fallback, and the first sync downloads a missing embedding model (see [Ingestion and Sync](ingestion.md)).
 
 `--update` and `--rollback` (restores `actx_old` if present) are also accepted.
 
@@ -61,7 +61,7 @@ The bootstrap scripts download `actx-installer` from the latest release and run 
 1. Resolve the target tag; download the package. An HTTP 404 means the release packages are still being built, and the user gets a friendly message with the release link instead of a raw error.
 2. Extract into `actx_staging` and call `finalize_staging_update`, which validates the staged binary format and then moves the old files aside and the new ones into place with retried renames (20 attempts, 50 ms apart), rolling everything back if any step fails. The running Windows executable is renamed rather than overwritten, which Windows allows.
 3. Ensure `PATH`, then `heal_executing_and_shadowed_binaries`: every other `actx` found in `PATH` (for example `~/.cargo/bin/actx.exe`) is replaced too, with a 15-attempt copy loop to survive antivirus or indexer locks.
-4. Provision models for the profile chosen by the user: the `active_profile` setting (`/profile`), then `install_profile.txt`, and only then the hardware recommendation. Lite never downloads models. Provisioning is quiet and logged.
+4. Provision models for the profile chosen by the user: the `active_profile` setting (`/profile`), then `install_profile.txt`, and only then the hardware recommendation. Lite downloads only its embedding model. Provisioning is quiet and logged.
 
 `actx --check-update` compares the latest tag with the running version as semantic version tuples. Inside the TUI, `/update` only explains how to run the update from the terminal. The bootstrap scripts, the installer and `--check-update` use `/releases/latest`, which never returns a release candidate (pre-release); a candidate is installed only by naming its tag (`actx-installer --version=<tag>`, `actx --update@<tag>`).
 
@@ -89,3 +89,4 @@ In launcher mode (`actx-installer --launcher`, or the `actx-shim` binary, which 
 - [ADR-0117](../adr/0117-aurora-palette-borderless-canvas-onboarding.md): friendly handling of HTTP 404 during updates.
 - [ADR-0121](../adr/0121-modular-onnx-crate-hardware-profiles.md): `--profile` and `--preflight-only`.
 - [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): ONNX Runtime shipped in the package, automatic re-ranker provisioning, updates honoring the chosen profile.
+- [ADR-0154](../adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md): each profile provisions its default embedding model.

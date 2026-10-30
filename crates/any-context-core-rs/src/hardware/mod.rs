@@ -4,7 +4,7 @@
 //! in sub-millisecond time and maps them to the canonical model tiers:
 //! - AirGappedPower (Max offline power, ~740 MB disk, ~850 MB peak RAM)
 //! - SmartBalanced (High cost-benefit, ~252 MB disk, ~400 MB peak RAM)
-//! - Lite (Zero extra downloads, <50 MB RAM, pure Rust deterministic heuristics)
+//! - Lite (only the small embedding model, ~135 MB disk, heuristics for everything else)
 
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
@@ -90,7 +90,7 @@ impl ProfileTier {
                 "mmarco-reranker",
                 "laya-int8",
                 "gemma-4-12b",
-                "multilingual-e5-base",
+                "bge-m3",
             ],
             Self::SmartBalanced => &[
                 "mobilenetv4-rvl-cdip",
@@ -98,19 +98,20 @@ impl ProfileTier {
                 "bge-small-onnx",
                 "mmarco-reranker",
                 "gemma-4-compact",
-                "multilingual-e5-small",
+                "multilingual-e5-base",
             ],
             Self::Lite => &["multilingual-e5-small"],
         }
     }
 
-    /// Default local embedding model of the profile (FEAT-067). Proposal before the benchmark
-    /// comparison of the candidates; a bigger model is the default only where it measurably wins.
+    /// Default local embedding model of the profile (FEAT-067), chosen with the retrieval
+    /// benchmark (specs/002-local-embedding/research.md, Results): BGE-M3 where the machine has
+    /// room for it, e5-base on 8 GB machines, e5-small on Lite.
     pub fn default_embedding_model(&self) -> &'static str {
         match self {
-            Self::SovereignUltra | Self::WorkstationPro => "bge-m3",
-            Self::AirGappedPower => "multilingual-e5-base",
-            Self::SmartBalanced | Self::Lite => "multilingual-e5-small",
+            Self::SovereignUltra | Self::WorkstationPro | Self::AirGappedPower => "bge-m3",
+            Self::SmartBalanced => "multilingual-e5-base",
+            Self::Lite => "multilingual-e5-small",
         }
     }
 

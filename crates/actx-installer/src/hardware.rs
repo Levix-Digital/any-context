@@ -240,17 +240,16 @@ pub static WORKSTATION_MODELS: [ModelDownloadSpec; 9] = [
 
 pub static POWER_MODELS: [ModelDownloadSpec; 9] = [
     ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
-    RERANKER_FILES[0], RERANKER_FILES[1], E5_BASE_FILES[0], E5_BASE_FILES[1],
+    RERANKER_FILES[0], RERANKER_FILES[1], BGE_M3_FILES[0], BGE_M3_FILES[1],
 ];
 
 pub static BALANCED_MODELS: [ModelDownloadSpec; 7] = [
     ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2],
-    RERANKER_FILES[0], RERANKER_FILES[1], E5_SMALL_FILES[0], E5_SMALL_FILES[1],
+    RERANKER_FILES[0], RERANKER_FILES[1], E5_BASE_FILES[0], E5_BASE_FILES[1],
 ];
 
 static LARGE_AUTO: [ModelDownloadSpec; 4] = [RERANKER_FILES[0], RERANKER_FILES[1], BGE_M3_FILES[0], BGE_M3_FILES[1]];
-static POWER_AUTO: [ModelDownloadSpec; 4] = [RERANKER_FILES[0], RERANKER_FILES[1], E5_BASE_FILES[0], E5_BASE_FILES[1]];
-static BALANCED_AUTO: [ModelDownloadSpec; 4] = [RERANKER_FILES[0], RERANKER_FILES[1], E5_SMALL_FILES[0], E5_SMALL_FILES[1]];
+static BALANCED_AUTO: [ModelDownloadSpec; 4] = [RERANKER_FILES[0], RERANKER_FILES[1], E5_BASE_FILES[0], E5_BASE_FILES[1]];
 
 impl InstallerProfileTier {
     /// Files installed automatically for this profile. Only components that execute real
@@ -260,8 +259,7 @@ impl InstallerProfileTier {
         match self {
             Self::Lite => &E5_SMALL_FILES,
             Self::SmartBalanced => &BALANCED_AUTO,
-            Self::AirGappedPower => &POWER_AUTO,
-            Self::WorkstationPro | Self::SovereignUltra => &LARGE_AUTO,
+            Self::AirGappedPower | Self::WorkstationPro | Self::SovereignUltra => &LARGE_AUTO,
         }
     }
 }
