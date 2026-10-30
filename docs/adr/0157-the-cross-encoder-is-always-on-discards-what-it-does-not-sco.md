@@ -8,7 +8,7 @@ subsystems: [retrieval, commands, cli, tui, agent]
 supersedes: []
 superseded_by: []
 amends: [129, 156]
-amended_by: []
+amended_by: [158]
 ---
 
 # ADR-0157: The cross-encoder is always on, discards what it does not score and reports when it cannot run

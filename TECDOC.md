@@ -89,6 +89,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0158](docs/adr/0158-reranker-scores-are-read-as-relevance-bands-and-irrelevant-chunks-are-discarded.md) | Reranker scores are read as relevance bands and irrelevant chunks are discarded | accepted | v1.0.0 | 2026-10-30 |
 | [ADR-0157](docs/adr/0157-the-cross-encoder-is-always-on-discards-what-it-does-not-sco.md) | The cross-encoder is always on, discards what it does not score and reports when it cannot run | accepted | v1.0.0 | 2026-10-30 |
 | [ADR-0156](docs/adr/0156-one-fusion-of-all-lists-per-search-and-reranker-depth-by-mode-profile-and-time-budget.md) | One fusion of all lists per search, and reranker depth by mode, profile and time budget | accepted | v1.0.0 | 2026-10-30 |
 | [ADR-0155](docs/adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md) | Retrieval filters apply inside each retriever, and the answer says when dense search did not run | accepted | v1.0.0 | 2026-10-30 |

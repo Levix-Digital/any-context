@@ -638,6 +638,19 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-MOD-006: Chunks the re-ranker judges irrelevant never reach the answer
+
+- **Covers**: relevance bands, irrelevant chunks discarded, band counts in `/status`
+- **Prerequisites**: the re-ranker installed; a workspace with a few indexed files on one topic (for example, internal policies)
+- **Steps**:
+  1. Ask a question about the indexed topic, then run `/status`.
+  2. Ask a question about something absent from every file (for example, "What is the recipe for feijoada?"), then run `/status`.
+- **Expected**:
+  - Step 1: the answer cites the right file; the `Reranker` line ends with `bands N relevant / M maybe / K irrelevant` with N of at least 1.
+  - Step 2: the answer says the information was not found and quotes no unrelated excerpt as evidence; the `Reranker` line shows an irrelevant count of at least 1.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ### MT-MOD-002: Model downloads with progress, cancellation and repair
 
 - **Covers**: /download, actx download

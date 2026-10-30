@@ -285,7 +285,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         description: "Higher-quality multilingual cross-encoder for 32GB+ workstations (Apache-2.0, CPU)",
         fallback_description: "Reciprocal Rank Fusion (RRF) ordering ($0.00 / Zero Network Leaks)",
         // Calibrated on the retrieval benchmark (specs/006-reranker-relevance-bands/research.md).
-        relevance: Some(RelevanceThresholds { irrelevant_below: 0.005, relevant_from: 0.6 }),
+        relevance: Some(RelevanceThresholds { irrelevant_below: 0.03, relevant_from: 0.1 }),
     },
     // --- Local multilingual embedding models (FEAT-067, ADR-0154). INT8 ONNX exports of the
     // MIT-licensed originals; the default of each profile is set by the retrieval benchmark.
