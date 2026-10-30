@@ -73,7 +73,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [x] T033 [US5] Run the three candidates; fill research.md "Results" (MRR@10, HitRate@5, cross-language MRR, indexing time, size, peak RSS)
 - [x] T034 [US5] Set the profile defaults from the results (rule in spec assumptions); update `default_embedding_model()` and tests
 - [ ] T035 [US5] Dense CI job with the reference default and committed baseline `baseline.dense-local-<id>-rerank.json` (from the CI `RESULT-JSON` line); lexical job unchanged
-- [ ] T036 [US5] SC-005 check once: swapped prefixes fail the dense job; record in the PR description
+- [x] T036 [US5] SC-005 check once: swapped prefixes fail the dense job; record in the PR description
 - [x] T037 [US5] Unit/e2e workflows provide the cached reference model so T011 runs in CI
 
 **Checkpoint (M5a)**.

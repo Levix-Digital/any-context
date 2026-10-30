@@ -116,3 +116,7 @@ Reading:
 - Costs grow with the model: indexing 1.6× (e5-base) and 3.4× (BGE-M3) the time of e5-small, 2.2× and 4.3× the disk.
 - Latency is dominated by the cross-encoder, which receives more distinct candidates once dense search is on; it is reported, never gated.
 
+### SC-005 check (2026-10-30)
+
+e5-small with the query and document prefixes swapped, compared with the e5-small run above: MRR@10 0.9643 → 0.9643, HitRate@5 0.9857 → 0.9714 (−0.014, one question: `pt-cross-001`). The 0.02 gate does **not** fail. Swapped prefixes are a mild fault for e5 (both prefixes put the text in nearly the same space), and the corpus has 70 positive questions, so one question is 0.014. The reference job runs BGE-M3, which has no prefixes at all. SC-005 is therefore not met by the prefix example; a retriever broken harder (wrong pooling, vectors of another model) moves several questions. Raising the sensitivity needs more cross-language questions (the 6 now are the ones that move), which belongs to the benchmark corpus, not to this plan.
+
