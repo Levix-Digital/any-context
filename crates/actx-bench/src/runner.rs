@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use any_context_core_rs::ingestion::{
-    find_embedding_model, resolve_query_embedding, EmbeddingModelSpec, EmbeddingTarget, NativeSyncOrchestrator, OnnxModelManager,
-    SyncOptions, DEFAULT_RERANKER_ID,
+    find_embedding_model, resolve_query_embedding, EmbeddingModelSpec, EmbeddingTarget, NativeSyncOrchestrator, OnnxModelCategory,
+    OnnxModelManager, OnnxModelSpec, SyncOptions, DEFAULT_RERANKER_ID,
 };
 use any_context_core_rs::hardware::ProfileTier;
 use any_context_core_rs::retrieval::{fast_request, HybridSearchRequest, HybridSearchResult, NativeHybridPipeline, RerankOutcome};
@@ -47,6 +47,8 @@ pub struct RunOptions {
     pub embedding: Option<String>,
     /// Where the reranker is cached; the sandbox gets its own folder when `None`.
     pub models_dir: Option<PathBuf>,
+    /// Catalog id of the reranker; `None` runs the default one.
+    pub reranker: Option<String>,
     pub check_determinism: bool,
 }
 
@@ -112,19 +114,27 @@ pub async fn run(options: &RunOptions) -> Result<RunResult, RunError> {
     index(&db, &lance, &corpus, spec).await?;
     check_indexed_passages(&lance, &corpus, &file).await?;
 
-    let reranker = load_reranker().await?;
-    let mut pipeline = NativeHybridPipeline::new(lance.clone(), None);
+    let reranker_spec = expected_reranker(options.reranker.as_deref())?;
+    let reranker = load_reranker(reranker_spec).await?;
     // The question side resolves exactly as the product does, from the recorded target.
     let query = resolve_query_embedding(&db, WORKSPACE);
     if let Some(ref cause) = query.unavailable {
         return Err(RunError::Environment(format!("query embedding unavailable: {cause}")));
     }
-    pipeline.set_query_embedding(&query);
-    pipeline.set_reranker(Some(reranker));
+    let make_pipeline = |cut: bool| {
+        let mut pipeline = NativeHybridPipeline::new(lance.clone(), None);
+        pipeline.set_query_embedding(&query);
+        pipeline.set_reranker(Some(reranker.clone()));
+        pipeline.set_relevance_cut(cut);
+        pipeline
+    };
+    // The delivered pass is the product's; the ranking pass keeps the irrelevant chunks, so the
+    // ranking metrics measure order and the calibration sees every score (IMP-044).
+    let pipeline = Passes { delivered: make_pipeline(true), ranking: make_pipeline(false) };
 
     // Warm-up: the first query pays for lazy loading (BM25 file, ONNX session); it is not timed.
     if let Some(first) = file.questions.first() {
-        let _ = pipeline.search_single_async(&delivered_request(&first.text)).await;
+        let _ = pipeline.delivered.search_single_async(&delivered_request(&first.text)).await;
     }
 
     let mut outcomes = Vec::with_capacity(file.questions.len());
@@ -133,7 +143,7 @@ pub async fn run(options: &RunOptions) -> Result<RunResult, RunError> {
     }
     if options.check_determinism {
         for (q, first) in file.questions.iter().zip(&outcomes) {
-            let again = pipeline.search_single_async(&ranking_request(&q.text)).await?;
+            let again = pipeline.ranking.search_single_async(&ranking_request(&q.text)).await?;
             if ranked_docs(&corpus, &again) != first.ranked {
                 return Err(RunError::Environment(format!("non-deterministic ranking for question {}", q.id)));
             }
@@ -146,12 +156,12 @@ pub async fn run(options: &RunOptions) -> Result<RunResult, RunError> {
     Ok(RunResult {
         schema: SCHEMA,
         config: RunConfig {
-            config_id: config_id(&target),
+            config_id: config_id(&target, reranker_spec.id),
             corpus_version: corpus.version()?,
             questions_version,
             retrievers: Retrievers { lexical: true, dense, reranker: true },
             embedding_target: target.key(),
-            reranker_model: DEFAULT_RERANKER_ID.to_string(),
+            reranker_model: reranker_spec.id.to_string(),
             code_revision: code_revision(),
         },
         metrics: metrics::aggregate(&results),
@@ -160,13 +170,36 @@ pub async fn run(options: &RunOptions) -> Result<RunResult, RunError> {
     })
 }
 
-/// The configuration id of a run: `lexical-rerank` without dense, `dense-<provider>-<model>-rerank` with it.
-pub fn config_id(target: &EmbeddingTarget) -> String {
-    if target.is_mock() {
+/// The configuration id of a run: `lexical-rerank` without dense, `dense-<provider>-<model>-rerank`
+/// with it, followed by `-<reranker>` when the reranker is not the default one.
+pub fn config_id(target: &EmbeddingTarget, reranker: &str) -> String {
+    let base = if target.is_mock() {
         "lexical-rerank".to_string()
     } else {
         format!("dense-{}-{}-rerank", target.provider, target.model)
+    };
+    if reranker == DEFAULT_RERANKER_ID {
+        base
+    } else {
+        format!("{base}-{reranker}")
     }
+}
+
+/// The reranker of a run: the default one, or a catalog reranker given by id.
+fn expected_reranker(id: Option<&str>) -> Result<&'static OnnxModelSpec, String> {
+    let id = id.map(str::trim).unwrap_or(DEFAULT_RERANKER_ID);
+    let ids = || OnnxModelManager::rerankers().map(|m| m.id).collect::<Vec<_>>().join(", ");
+    OnnxModelManager::find_spec(id)
+        .filter(|m| m.category == OnnxModelCategory::ReRanker)
+        .ok_or_else(|| format!("--reranker '{id}' is not a reranker in the catalog ({})", ids()))
+}
+
+/// The two pipelines of a run over the same index and models.
+struct Passes {
+    /// The product's request and relevance cut.
+    delivered: NativeHybridPipeline,
+    /// Opened to the top 10, without the relevance cut.
+    ranking: NativeHybridPipeline,
 }
 
 /// The embedding model of a run: the mock (no dense) by default, or a catalog model given by id,
@@ -259,8 +292,7 @@ async fn check_indexed_passages(lance: &NativeLanceStore, corpus: &Corpus, file:
     }
 }
 
-async fn load_reranker() -> Result<Arc<actx_onnx::OnnxReranker>, String> {
-    let spec = OnnxModelManager::find_spec(DEFAULT_RERANKER_ID).ok_or("the default reranker is not in the catalog")?;
+async fn load_reranker(spec: &'static OnnxModelSpec) -> Result<Arc<actx_onnx::OnnxReranker>, String> {
     if !OnnxModelManager::is_installed(spec) {
         eprintln!("downloading the verified reranker {} ...", spec.id);
         OnnxModelManager::download_model(spec).await.map_err(|e| format!("reranker download: {e}"))?;
@@ -295,15 +327,15 @@ pub fn ranking_request(query: &str) -> HybridSearchRequest {
     req
 }
 
-async fn ask(pipeline: &NativeHybridPipeline, corpus: &Corpus, q: &Question) -> Result<Outcome, String> {
-    let output = pipeline.search_with_outcome(&ranking_request(&q.text)).await?;
+async fn ask(pipeline: &Passes, corpus: &Corpus, q: &Question) -> Result<Outcome, String> {
+    let output = pipeline.ranking.search_with_outcome(&ranking_request(&q.text)).await?;
     // A ranking the cross-encoder did not judge is not comparable with the baseline.
     if let RerankOutcome::Unavailable(cause) = output.rerank {
         return Err(format!("reranker unavailable for question {}: {cause}", q.id));
     }
     let ranking = output.results;
     let started = Instant::now();
-    let delivered = pipeline.search_single_async(&delivered_request(&q.text)).await?;
+    let delivered = pipeline.delivered.search_single_async(&delivered_request(&q.text)).await?;
     let latency_ms = started.elapsed().as_secs_f64() * 1000.0;
     Ok(Outcome {
         id: q.id.clone(),
@@ -360,15 +392,26 @@ mod tests {
 
     #[test]
     fn config_ids_name_the_retrievers() {
-        assert_eq!(config_id(&expected_model(None).unwrap().target()), "lexical-rerank");
+        let default = DEFAULT_RERANKER_ID;
+        assert_eq!(config_id(&expected_model(None).unwrap().target(), default), "lexical-rerank");
         let gemini = expected_model(Some("gemini/gemini-embedding-2")).unwrap();
-        assert_eq!(config_id(&gemini.target()), "dense-gemini-gemini-embedding-2-rerank");
+        assert_eq!(config_id(&gemini.target(), default), "dense-gemini-gemini-embedding-2-rerank");
         let e5 = expected_model(Some("local/multilingual-e5-small")).unwrap();
-        assert_eq!(config_id(&e5.target()), "dense-local-multilingual-e5-small-rerank");
+        assert_eq!(config_id(&e5.target(), default), "dense-local-multilingual-e5-small-rerank");
+        assert_eq!(config_id(&e5.target(), "bge-reranker-v2-m3"), "dense-local-multilingual-e5-small-rerank-bge-reranker-v2-m3");
         assert_eq!(expected_model(Some("multilingual-e5-small")).unwrap(), e5);
         assert!(expected_model(Some("gemini")).is_err());
         assert!(expected_model(Some("mock/mock-embed")).is_err());
         assert!(expected_model(None).unwrap().is_mock());
+    }
+
+    #[test]
+    fn the_reranker_option_takes_catalog_rerankers_only() {
+        assert_eq!(expected_reranker(None).unwrap().id, DEFAULT_RERANKER_ID);
+        assert_eq!(expected_reranker(Some("bge-reranker-v2-m3")).unwrap().id, "bge-reranker-v2-m3");
+        let err = expected_reranker(Some("multilingual-e5-small")).unwrap_err();
+        assert!(err.contains("mmarco-reranker") && err.contains("bge-reranker-v2-m3"), "{err}");
+        assert!(expected_reranker(Some("nope")).is_err());
     }
 
     #[test]

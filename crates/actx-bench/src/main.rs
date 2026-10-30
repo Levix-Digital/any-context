@@ -47,6 +47,9 @@ enum Action {
         /// Where the reranker is cached (default: ACTX_MODELS_DIR, else a temp folder).
         #[arg(long)]
         models_dir: Option<PathBuf>,
+        /// Reranker of the run: a catalog id (default: mmarco-reranker).
+        #[arg(long)]
+        reranker: Option<String>,
         /// Result file (default: <dir>/results/<config_id>.json).
         #[arg(long)]
         out: Option<PathBuf>,
@@ -77,9 +80,9 @@ fn main() -> ExitCode {
             }
             Err(e) => report_error(e),
         },
-        Action::Run { embedding, models_dir, out, compare: compare_with, save_baseline, check_determinism, summary: summary_file } => {
+        Action::Run { embedding, models_dir, reranker, out, compare: compare_with, save_baseline, check_determinism, summary: summary_file } => {
             let models_dir = models_dir.or_else(|| std::env::var_os("ACTX_MODELS_DIR").map(PathBuf::from));
-            let options = RunOptions { corpus_dir, questions_file, embedding, models_dir, check_determinism };
+            let options = RunOptions { corpus_dir, questions_file, embedding, models_dir, reranker, check_determinism };
             let rt = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
                 Ok(rt) => rt,
                 Err(e) => return environment(&format!("tokio runtime: {e}")),
