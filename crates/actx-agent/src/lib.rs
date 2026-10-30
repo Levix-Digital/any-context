@@ -17,7 +17,7 @@ pub mod tool;
 pub use config::{AgentConfig, AgentExecutionMode, SearchMode};
 pub use deep_search::{
     DeepSearchConfig, DeepSearchOrchestrator, DeepSearchRetriever, DefaultSynthesisFormatter,
-    RetrievedChunk, SynthesisPromptFormatter, clean_llm_response, parse_rerank_decision, parse_string_list,
+    RetrievedChunk, SynthesisPromptFormatter, clean_llm_response, parse_string_list,
 };
 pub use error::{AgentError, ToolError};
 pub use events::{event_channel, AgentEvent, EventReceiver, EventSender};

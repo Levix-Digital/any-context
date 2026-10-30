@@ -46,8 +46,7 @@ The actx binary with argument parsing, one-shot questions, the background sync w
 | `--check-update`, `-u/--update`, `actx update [--check] [version]` | Checks for or installs a release (see [Installer and Updater](installer.md)). |
 | `actx embedding [id] [--yes]` (`embeddings`) | Without an id: the embedding model in use, why it was chosen, its vector space and the catalog. With an id: a preview of the switch (workspaces reindexed on their next sync, a notice when document text goes to a cloud provider) that exits with code 2, or the switch itself with `--yes` (exit 0). An unknown or refused id exits with code 1. The chat model (`-m`, `/model`) never changes it (see [Ingestion and Sync](ingestion.md)). |
 | `actx download [tier] [--force] [--check]` | Downloads a model with a progress bar, MB/s, ETA and Ctrl+C cancellation, or lists the model store with hardware verdicts. |
-| `--rerank <mode>` (`auto`, `on`, `off`) | Persists the re-rank mode. |
-| `--rerank-model <id>` | Uses another re-ranker for this run only (sets `ACTX_RERANKER_MODEL`); unknown ids exit with code 2. |
+| `--rerank-model <id>` | Uses another re-ranker for this run only (sets `ACTX_RERANKER_MODEL`); unknown ids exit with code 2. There is no flag to turn re-ranking off. |
 | `--device <name>` (`auto`, `dml`, `metal`, `cuda`, `vulkan`, `cpu`) | Passed to the TUI state; inference runs on the CPU in this build. |
 | `-v/-V/--version` | Prints the version. |
 | `actx serve`, `actx mcp`, `actx rpc` | Reserved: they print a start message and exit. There is no REST, MCP or JSON-RPC server in this build. |
@@ -91,8 +90,9 @@ The headless path resolves grounding mode, search mode and web search from the w
 - [ADR-0125](../adr/0125-local-gemma-activation-hardware-guardrails.md): Gemma model routing in `resolve_lm_provider`.
 - [ADR-0126](../adr/0126-assisted-gemma-weights-downloader.md): `actx download`.
 - [ADR-0127](../adr/0127-cross-platform-hardware-acceleration-matrix.md): `--device` and accelerator diagnostics.
-- [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): `--rerank`, `--rerank-model` and lazy re-ranker loading.
+- [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): `--rerank-model` and lazy re-ranker loading.
 - [ADR-0144](../adr/0144-system-prompt-per-answer-path-with-the-tool-section-generate.md): one system prompt per answer path, the ReAct prompt derived from the registered tools.
 - [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): `PipelineStatusRetriever` and the shared `workspace_status_report`.
 - [ADR-0146](../adr/0146-a-failed-embedding-fails-the-file-and-embedding-outcomes-are.md): sync errors printed after `--sync` and `--sync-worker`; `workspace_status_report` shows the last sync failures and the dense search outcome.
 - [ADR-0147](../adr/0147-constant-vectors-never-reach-dense-search-the-mock-target-is.md): `QueryEmbedding` (no dense search on the mock target, `Global` gate) and the `Global` embedding after `--sync` and `--sync-worker`.
+- [ADR-0157](../adr/0157-the-cross-encoder-is-always-on-discards-what-it-does-not-sco.md): `--rerank` removed; the retrievers pass both the dense search and the re-ranker warnings to the agent.

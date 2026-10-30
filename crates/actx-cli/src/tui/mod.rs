@@ -52,15 +52,8 @@ pub async fn run_tui(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    if let Some(ref rk) = args.rerank {
-        if let Some(ref d) = db {
-            let _ = d.set_setting("rerank_mode", rk);
-        }
-    }
-
     let mut app = App::new(effective_ws, configured_model, agent)
-        .with_device(args.device.as_deref())
-        .with_rerank_mode(args.rerank.as_deref());
+        .with_device(args.device.as_deref());
     if let Some(notice) = model_notice {
         app.push_system_notice(notice);
     }

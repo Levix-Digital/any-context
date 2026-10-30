@@ -247,16 +247,12 @@ pub fn build_agent_sync(
                 ensure_global_knowledge_bootstrap(&lance_store);
 
                 let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
-                let rerank_mode = db.as_ref()
-                    .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
-                    .unwrap_or_else(|| "auto".to_string());
 
                 let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(lance_store, None);
                 tool_query_embedding.apply(&mut pipeline);
                 pipeline.set_reranker(Some(tool_reranker));
-                pipeline.set_rerank_mode(&rerank_mode);
 
-                let req = any_context_core_rs::retrieval::tool_request(query, &ws, &rerank_mode, hardware_tier(db.as_ref()));
+                let req = any_context_core_rs::retrieval::tool_request(query, &ws, hardware_tier(db.as_ref()));
 
                 match pipeline.search_single_async(&req).await {
                     Ok(results) if !results.is_empty() => {
@@ -755,7 +751,8 @@ struct PipelineBatchRetriever {
     query_embedding: QueryEmbedding,
     workspace: String,
     reranker: Arc<actx_onnx::OnnxReranker>,
-    /// Warning of the most recent batch: semantic search did not run (IMP-040).
+    /// Warnings of the most recent batch: semantic search or the reranker did not run (IMP-040,
+    /// IMP-043).
     last_notice: std::sync::Mutex<Option<String>>,
 }
 
@@ -763,25 +760,21 @@ struct PipelineBatchRetriever {
 impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
     async fn retrieve_batch(&self, queries: &[String]) -> Result<Vec<actx_agent::RetrievedChunk>, actx_agent::AgentError> {
         let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
-        let rerank_mode = db.as_ref()
-            .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
-            .unwrap_or_else(|| "auto".to_string());
 
         let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(self.lance_store.clone(), None);
         self.query_embedding.apply(&mut pipeline);
         pipeline.set_reranker(Some(self.reranker.clone()));
-        pipeline.set_rerank_mode(&rerank_mode);
 
         let tier = hardware_tier(db.as_ref());
         let requests: Vec<_> = queries
             .iter()
-            .map(|q| any_context_core_rs::retrieval::deep_request(q, &self.workspace, &rerank_mode, tier))
+            .map(|q| any_context_core_rs::retrieval::deep_request(q, &self.workspace, tier))
             .collect();
 
         match pipeline.retrieve_hybrid_batch_with_outcome(&requests).await {
             Ok(output) => {
                 if let Ok(mut last) = self.last_notice.lock() {
-                    *last = output.dense.answer_notice();
+                    *last = output.notices();
                 }
                 let chunks = output
                     .results
@@ -877,19 +870,15 @@ struct PipelineDeterministicRetriever {
 
 impl PipelineDeterministicRetriever {
     /// One hybrid search of the workspace plus `Global` for the 1-hop paths, with how its dense
-    /// half went (IMP-040).
+    /// half and its reranking went (IMP-040, IMP-043).
     async fn search(&self, query: &str) -> Result<any_context_core_rs::retrieval::RetrievalOutput, actx_agent::AgentError> {
         let db = NativeConfigDb::open_default().ok();
-        let rerank_mode = db.as_ref()
-            .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
-            .unwrap_or_else(|| "auto".to_string());
 
         let mut pipeline = any_context_core_rs::retrieval::NativeHybridPipeline::new(self.lance_store.clone(), None);
         self.query_embedding.apply(&mut pipeline);
         pipeline.set_reranker(Some(self.reranker.clone()));
-        pipeline.set_rerank_mode(&rerank_mode);
 
-        let req = any_context_core_rs::retrieval::fast_request(query, &self.workspace, &rerank_mode, hardware_tier(db.as_ref()));
+        let req = any_context_core_rs::retrieval::fast_request(query, &self.workspace, hardware_tier(db.as_ref()));
 
         pipeline.search_with_outcome(&req).await.map_err(actx_agent::AgentError::Internal)
     }
@@ -899,7 +888,7 @@ impl PipelineDeterministicRetriever {
 impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
     async fn retrieve_and_format(&self, query: &str) -> Result<actx_agent::DeterministicRetrievalOutput, actx_agent::AgentError> {
         let output = self.search(query).await?;
-        let notice = output.dense.answer_notice();
+        let notice = output.notices();
         let results = output.results;
 
         let db = NativeConfigDb::open_default().ok();
@@ -948,7 +937,7 @@ impl actx_agent::DeterministicRetriever for PipelineStatusRetriever {
         // A failed search still leaves the status to answer from.
         let (results, notice) = match self.inner.search(query).await {
             Ok(output) => {
-                let notice = output.dense.answer_notice();
+                let notice = output.notices();
                 (output.results, notice)
             }
             Err(e) => {

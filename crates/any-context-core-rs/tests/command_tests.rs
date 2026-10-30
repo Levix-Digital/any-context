@@ -679,57 +679,26 @@ fn test_download_command_execution() {
     }
 }
 
+/// IMP-043: the reranker is always on; there is no command to switch it or its model.
 #[test]
-fn test_rerank_model_selection() {
-    std::env::set_var("ACTX_TEST_MODE", "1");
+fn test_rerank_command_is_removed() {
     let ctx = ExecutionContext::default();
-
-    let list = CommandEngine::execute("rerank", &["model"], &ctx);
-    assert!(list.success);
-    assert!(list.message.contains("mmarco-reranker"));
-    assert!(list.message.contains("bge-reranker-v2-m3"));
-
-    let bad = CommandEngine::execute("rerank", &["model", "not-a-model"], &ctx);
-    assert!(!bad.success);
-    assert!(bad.message.contains("Unknown re-ranker model"));
-
-    let gemma = CommandEngine::execute("rerank", &["model", "gemma-4-compact"], &ctx);
-    assert!(!gemma.success, "Only re-ranker models may be selected");
+    for (name, args) in [("rerank", vec![]), ("rerank", vec!["off"]), ("reranker", vec!["model", "bge-reranker-v2-m3"])] {
+        let res = CommandEngine::execute(name, &args, &ctx);
+        assert!(!res.success, "/{name} {args:?}");
+        assert!(res.message.contains("Unknown command"), "{}", res.message);
+    }
 }
 
+/// IMP-043: `/status` shows the reranker's model, state, depths and last pass.
 #[test]
-fn test_rerank_command_execution() {
-    let ctx = ExecutionContext::default();
-
-    // 1. /rerank status view
-    let res_status = CommandEngine::execute("rerank", &[], &ctx);
-    assert!(res_status.success);
-    assert!(res_status.message.contains("Two-Stage Neural Retrieval & Re-ranking Status"));
-    assert!(res_status.message.contains("Stage 1 (High Recall)"));
-    assert!(res_status.message.contains("Stage 2 (High Precision)"));
-
-    // 2. /rerank on
-    let res_on = CommandEngine::execute("rerank", &["on"], &ctx);
-    assert!(res_on.success);
-    assert_eq!(res_on.state_updates.rerank_mode, Some("on".to_string()));
-    assert!(res_on.message.contains("mode set to: **ON**"));
-
-    // 3. /rerank off
-    let res_off = CommandEngine::execute("rerank", &["off"], &ctx);
-    assert!(res_off.success);
-    assert_eq!(res_off.state_updates.rerank_mode, Some("off".to_string()));
-    assert!(res_off.message.contains("mode set to: **OFF**"));
-
-    // 4. /rerank auto
-    let res_auto = CommandEngine::execute("rerank", &["auto"], &ctx);
-    assert!(res_auto.success);
-    assert_eq!(res_auto.state_updates.rerank_mode, Some("auto".to_string()));
-    assert!(res_auto.message.contains("mode set to: **AUTO**"));
-
-    // 5. /rerank with invalid option
-    let res_invalid = CommandEngine::execute("rerank", &["invalid_opt"], &ctx);
-    assert!(!res_invalid.success);
-    assert!(res_invalid.message.contains("Unrecognized rerank option"));
+fn test_status_shows_the_reranker() {
+    std::env::set_var("ACTX_TEST_MODE", "1");
+    let res = CommandEngine::execute("status", &[], &ExecutionContext::default());
+    assert!(res.success);
+    let line = res.message.lines().find(|l| l.contains("Reranker:")).expect("a Reranker line");
+    assert!(line.contains("(Fast/Deep)"), "{line}");
+    assert!(line.contains("last pass"), "{line}");
 }
 
 

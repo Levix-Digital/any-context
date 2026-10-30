@@ -94,7 +94,6 @@ impl RetrievalPreset {
             max_density_chars: self.max_density_chars(),
             table_name: "workspace_chunks".to_string(),
             rrf_k: self.rrf_k(),
-            rerank_mode: None,
             rerank_depth: rerank_depth::DEFAULT_RERANK_DEPTH,
             rerank_budget_ms: None,
             filter: RetrievalFilter::default(),
@@ -117,8 +116,6 @@ pub struct HybridSearchRequest {
     pub max_density_chars: usize,
     pub table_name: String,
     pub rrf_k: usize,
-    #[serde(default)]
-    pub rerank_mode: Option<String>,
     /// Fused candidates the cross-encoder scores in this search, before the time budget (IMP-042).
     /// In a Deep batch, the first request's value applies.
     #[serde(default = "default_rerank_depth")]
@@ -152,7 +149,6 @@ impl Default for HybridSearchRequest {
             max_density_chars: 40_000,
             table_name: "workspace_chunks".to_string(),
             rrf_k: 60,
-            rerank_mode: None,
             rerank_depth: rerank_depth::DEFAULT_RERANK_DEPTH,
             rerank_budget_ms: None,
             filter: RetrievalFilter::default(),
@@ -276,12 +272,59 @@ fn short_reason(reason: &str) -> String {
     short.trim_end_matches('.').to_string()
 }
 
-/// Results of a search and how its dense half went (IMP-040).
+/// How the reranking pass of a search went (IMP-043).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RerankOutcome {
+    /// The cross-encoder scored the candidates; the unscored ones were discarded.
+    Scored,
+    /// Nothing to score: no candidate, or only pinned file-name matches.
+    NotNeeded,
+    /// The cross-encoder could not run: the fusion order was kept, nothing was discarded.
+    Unavailable(String),
+}
+
+impl RerankOutcome {
+    /// One-line description for status surfaces.
+    pub fn describe(&self) -> String {
+        match self {
+            RerankOutcome::Scored => "ready (last query reranked)".to_string(),
+            RerankOutcome::NotNeeded => "ready (last query had nothing to rerank)".to_string(),
+            RerankOutcome::Unavailable(reason) => format!("unavailable (last query kept the fusion order): {reason}"),
+        }
+    }
+
+    /// The warning line shown at the end of an answer whose candidates were not reranked, with
+    /// the cause and the fix; `None` when the reranker ran or had nothing to do.
+    pub fn answer_notice(&self) -> Option<String> {
+        const LEAD: &str = "Answered without relevance ranking";
+        let RerankOutcome::Unavailable(reason) = self else { return None };
+        let lower = reason.to_lowercase();
+        let fix = if lower.contains("weights") {
+            "Run `actx download reranker` to install it."
+        } else if lower.contains("runtime") {
+            "Reinstall or update AnyContext to restore the ONNX Runtime library."
+        } else {
+            "Run `/status` to check the reranker."
+        };
+        Some(format!("{LEAD}: {}. {fix}", short_reason(reason)))
+    }
+}
+
+/// Results of a search and how its dense half and its reranking went (IMP-040, IMP-043).
 #[derive(Debug, Clone)]
 pub struct RetrievalOutput {
     pub results: Vec<HybridSearchResult>,
     /// For a batch: the first sub-query whose dense half did not run, else `Dense`.
     pub dense: QueryEmbeddingOutcome,
+    pub rerank: RerankOutcome,
+}
+
+impl RetrievalOutput {
+    /// The warning lines for the end of the answer: dense search first, then the reranker.
+    pub fn notices(&self) -> Option<String> {
+        let lines: Vec<String> = [self.dense.answer_notice(), self.rerank.answer_notice()].into_iter().flatten().collect();
+        (!lines.is_empty()).then(|| lines.join("\n"))
+    }
 }
 
 static LAST_QUERY_EMBEDDING: std::sync::Mutex<Option<QueryEmbeddingOutcome>> = std::sync::Mutex::new(None);
@@ -296,6 +339,13 @@ pub fn dense_search_status() -> String {
     last_query_embedding_outcome()
         .map(|o| o.describe())
         .unwrap_or_else(|| "n/a (no query yet in this session)".to_string())
+}
+
+static LAST_RERANK_OUTCOME: std::sync::Mutex<Option<RerankOutcome>> = std::sync::Mutex::new(None);
+
+/// Reranking outcome of the most recent hybrid search in this process, if any.
+pub fn last_rerank_outcome() -> Option<RerankOutcome> {
+    LAST_RERANK_OUTCOME.lock().ok().and_then(|o| o.clone())
 }
 
 /// Latency (ms) and candidate count of the most recent neural re-ranking pass, kept together so
@@ -317,53 +367,76 @@ pub fn last_rerank_pass() -> Option<(u64, usize)> {
     LAST_RERANK_PASS.lock().ok().and_then(|p| *p)
 }
 
+/// Why the cross-encoder cannot run, before any load is attempted: the runtime library is missing,
+/// the weights are not installed, or an earlier load failed.
+fn reranker_unavailable_reason(reranker: &actx_onnx::OnnxReranker) -> Option<String> {
+    if !actx_onnx::runtime::runtime_library_present() {
+        return Some("the ONNX Runtime library is missing".to_string());
+    }
+    if !reranker.weights_present() {
+        return Some(format!("the reranker weights for `{}` are not installed", reranker.model_id()));
+    }
+    reranker.load_error().map(|e| format!("the reranker `{}` failed to load ({})", reranker.model_id(), short_reason(&e)))
+}
+
 /// Scores each group's texts against its question with the cross-encoder, in one pass on a
-/// blocking thread so the async executor (and the TUI) never stall on CPU inference. `None`
-/// means "keep RRF ordering". The model is loaded before the clock starts, so the pass's cost
-/// per candidate, which feeds the time budget (IMP-042), never includes the first load.
+/// blocking thread so the async executor (and the TUI) never stall on CPU inference. An error
+/// carries the cause and means "keep the fusion order". The model is loaded before the clock
+/// starts, so the pass's cost per candidate, which feeds the time budget (IMP-042), never
+/// includes the first load.
 async fn neural_rerank_scores(
     reranker: &Arc<actx_onnx::OnnxReranker>,
     groups: Vec<(String, Vec<String>)>,
-) -> Option<Vec<Vec<f32>>> {
+) -> Result<Vec<Vec<f32>>, String> {
     let total: usize = groups.iter().map(|(_, texts)| texts.len()).sum();
-    if total == 0 || !reranker.is_neural_active() {
-        return None;
+    if let Some(reason) = reranker_unavailable_reason(reranker) {
+        return Err(reason);
     }
     let reranker = Arc::clone(reranker);
     let (scores, elapsed) = tokio::task::spawn_blocking(move || {
-        reranker.ensure_loaded().ok()?;
+        reranker
+            .ensure_loaded()
+            .map_err(|e| format!("the reranker `{}` failed to load ({})", reranker.model_id(), short_reason(&e)))?;
         let started = std::time::Instant::now();
         let scores = groups
             .iter()
             .map(|(query, texts)| {
-                let scores = reranker.score_batch(query, texts);
-                (scores.len() == texts.len()).then_some(scores)
+                let scores = reranker
+                    .try_score_batch(query, texts)
+                    .map_err(|e| format!("the reranker failed to score ({})", short_reason(&e)))?;
+                if scores.len() != texts.len() {
+                    return Err(format!("the reranker returned {} scores for {} candidates", scores.len(), texts.len()));
+                }
+                Ok(scores)
             })
-            .collect::<Option<Vec<_>>>()?;
-        Some((scores, started.elapsed()))
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok::<_, String>((scores, started.elapsed()))
     })
     .await
-    .ok()??;
+    .map_err(|e| format!("the reranking task stopped ({e})"))??;
     if let Ok(mut last) = LAST_RERANK_PASS.lock() {
         *last = Some((elapsed.as_millis() as u64, total));
     }
     rerank_depth::record_rerank_cost(total, elapsed);
-    Some(scores)
+    Ok(scores)
 }
 
-/// Applies Stage-2 re-ranking to `picks` (chunk id → the question it is scored against). Picked
-/// items receive calibrated `[0,1]` scores; the remaining tail is rescaled to stay strictly below
-/// every re-scored item while keeping its relative RRF order. `protected` ids (pinned file-name
-/// matches) keep their score and are never picked.
+/// Applies Stage-2 re-ranking to `picks` (chunk id → the question it is scored against): picked
+/// items receive calibrated `[0,1]` scores and every other unpinned item is discarded (IMP-043).
+/// `protected` ids (pinned file-name matches) keep their score and are never picked. When the
+/// cross-encoder cannot run, the items keep the fusion order and nothing is discarded.
 async fn apply_neural_rerank(
-    reranker: &Arc<actx_onnx::OnnxReranker>,
-    items: &mut [HybridSearchResult],
+    reranker: Option<&Arc<actx_onnx::OnnxReranker>>,
+    items: &mut Vec<HybridSearchResult>,
     picks: &HashMap<String, String>,
     protected: &std::collections::HashSet<String>,
-) {
-    if items.is_empty() || picks.is_empty() {
-        return;
+) -> RerankOutcome {
+    if picks.is_empty() {
+        return RerankOutcome::NotNeeded;
     }
+    let Some(reranker) = reranker else {
+        return RerankOutcome::Unavailable("no reranker is configured".to_string());
+    };
     // Picked items grouped by question, in item order, so each group is one cross-encoder batch.
     let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
     for (i, item) in items.iter().enumerate() {
@@ -380,34 +453,23 @@ async fn apply_neural_rerank(
         .iter()
         .map(|(q, idx)| (q.clone(), idx.iter().map(|&i| items[i].text.clone()).collect()))
         .collect();
-    let Some(scores) = neural_rerank_scores(reranker, batches).await else {
-        return;
+    let scores = match neural_rerank_scores(reranker, batches).await {
+        Ok(scores) => scores,
+        Err(reason) => return RerankOutcome::Unavailable(reason),
     };
-
-    let mut rescored = vec![false; items.len()];
-    let mut min_head = f64::MAX;
     for ((_, idx), group_scores) in groups.iter().zip(&scores) {
         for (&i, &s) in idx.iter().zip(group_scores) {
             items[i].score = s as f64;
-            rescored[i] = true;
-            min_head = min_head.min(s as f64);
         }
     }
-    let is_tail = |i: usize, c: &HybridSearchResult| !rescored[i] && !protected.contains(&c.chunk_id);
-    let tail_max = items
-        .iter()
-        .enumerate()
-        .filter(|(i, c)| is_tail(*i, c))
-        .map(|(_, c)| c.score)
-        .fold(0.0_f64, f64::max);
-    if tail_max > 0.0 {
-        let ceiling = min_head * 0.5;
-        for i in 0..items.len() {
-            if is_tail(i, &items[i]) {
-                items[i].score = ceiling * (items[i].score / tail_max).max(0.0);
-            }
-        }
-    }
+    keep_scored(items, picks, protected);
+    RerankOutcome::Scored
+}
+
+/// Keeps the pinned items and the scored picks; the candidates beyond the reranker depth are
+/// discarded, never pushed to the end without a judgment (IMP-043).
+fn keep_scored(items: &mut Vec<HybridSearchResult>, picks: &HashMap<String, String>, protected: &std::collections::HashSet<String>) {
+    items.retain(|c| protected.contains(&c.chunk_id) || picks.contains_key(&c.chunk_id));
 }
 
 /// Reranker input: the unpinned `results` (in fusion order) through the per-document slots, up to
@@ -511,7 +573,6 @@ pub struct NativeHybridPipeline {
     /// Vector space of the question vectors: dense search only reads chunks of it (ADR-0154).
     query_target_key: Option<String>,
     reranker: Option<Arc<actx_onnx::OnnxReranker>>,
-    rerank_mode: String,
     last_query_embedding: std::sync::Mutex<Option<QueryEmbeddingOutcome>>,
     /// Outcome recorded when there is no embedding provider.
     missing_provider_outcome: QueryEmbeddingOutcome,
@@ -533,7 +594,6 @@ impl NativeHybridPipeline {
             query_prefix: String::new(),
             query_target_key: None,
             reranker: None,
-            rerank_mode: "auto".to_string(),
             last_query_embedding: std::sync::Mutex::new(None),
             missing_provider_outcome: QueryEmbeddingOutcome::NoProvider,
             global_dense: false,
@@ -552,7 +612,6 @@ impl NativeHybridPipeline {
             query_prefix: String::new(),
             query_target_key: None,
             reranker: None,
-            rerank_mode: "auto".to_string(),
             last_query_embedding: std::sync::Mutex::new(None),
             missing_provider_outcome: QueryEmbeddingOutcome::NoProvider,
             global_dense: false,
@@ -623,15 +682,6 @@ impl NativeHybridPipeline {
         self.reranker.as_ref()
     }
 
-    /// Sets the global reranking mode ("auto", "on", "off").
-    pub fn set_rerank_mode(&mut self, mode: &str) {
-        self.rerank_mode = mode.to_string();
-    }
-
-    /// Returns the global reranking mode.
-    pub fn rerank_mode(&self) -> &str {
-        &self.rerank_mode
-    }
 
     /// Returns the database root directory path.
     pub fn db_path(&self) -> &Path {
@@ -1038,14 +1088,13 @@ impl NativeHybridPipeline {
         results.sort_by(compare_by_relevance);
 
         // Reranking: the unpinned candidates in fusion order, at most a few per document, up to
-        // the depth of the mode and profile within its time budget (IMP-042).
-        let should_rerank = self.rerank_mode != "off" && first.rerank_mode.as_deref() != Some("off");
-        if should_rerank {
-            if let Some(ref reranker) = self.reranker {
-                let depth = rerank_depth::effective_depth(first.rerank_depth, first.rerank_budget_ms);
-                let picks = rerank_picks(&results, &pinned, &best_query, requests, depth);
-                apply_neural_rerank(reranker, &mut results, &picks, &pinned).await;
-            }
+        // the depth of the mode and profile within its time budget (IMP-042). The cross-encoder
+        // always runs; what it does not score is discarded (IMP-043).
+        let depth = rerank_depth::effective_depth(first.rerank_depth, first.rerank_budget_ms);
+        let picks = rerank_picks(&results, &pinned, &best_query, requests, depth);
+        let rerank = apply_neural_rerank(self.reranker.as_ref(), &mut results, &picks, &pinned).await;
+        if let Ok(mut last) = LAST_RERANK_OUTCOME.lock() {
+            *last = Some(rerank.clone());
         }
         results.sort_by(compare_by_relevance);
 
@@ -1065,7 +1114,7 @@ impl NativeHybridPipeline {
             }
         }
 
-        RetrievalOutput { results: final_results, dense }
+        RetrievalOutput { results: final_results, dense, rerank }
     }
 
     /// Reads the stored rows of `ids` from LanceDB, keyed by chunk id and normalized file path
@@ -1131,7 +1180,7 @@ impl NativeHybridPipeline {
         requests: &[HybridSearchRequest],
     ) -> Result<RetrievalOutput, String> {
         if requests.is_empty() {
-            return Ok(RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense });
+            return Ok(RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::NotNeeded });
         }
         let futures: Vec<_> = requests.iter().enumerate().map(|(q, req)| self.collect_lists(req, q)).collect();
         let per_query = futures::future::join_all(futures).await.into_iter().collect::<Result<Vec<_>, _>>()?;
@@ -1262,25 +1311,16 @@ mod tests {
     }
 
     #[test]
-    fn test_pipeline_reranking_fallback_and_scoring() {
+    fn a_pipeline_without_a_neural_reranker_reports_why() {
         let temp_dir = std::env::temp_dir().join(format!("actx_test_rerank_{}", std::process::id()));
         let mut pipeline = NativeHybridPipeline::open(&temp_dir).unwrap();
-
-        assert_eq!(pipeline.rerank_mode(), "auto");
-        pipeline.set_rerank_mode("off");
-        assert_eq!(pipeline.rerank_mode(), "off");
-        pipeline.set_rerank_mode("on");
-        assert_eq!(pipeline.rerank_mode(), "on");
-
-        // Reranker is initially None, so it must fall back to RRF with zero errors
         assert!(pipeline.reranker().is_none());
 
-        // Attach an OnnxReranker pointing to a non-existent path -> is_neural_active is false -> fallback to RRF
+        // Weights that do not exist: the reranker is not neural-active and says why.
         let dummy_reranker = actx_onnx::OnnxReranker::new(std::path::Path::new("missing_weights.onnx"));
-        assert!(!dummy_reranker.is_neural_active());
+        let reason = reranker_unavailable_reason(&dummy_reranker).expect("a cause");
+        assert!(reason.contains("weights") || reason.contains("Runtime"), "{reason}");
         pipeline.set_reranker(Some(std::sync::Arc::new(dummy_reranker)));
-
-        assert!(pipeline.reranker().is_some());
         assert!(!pipeline.reranker().unwrap().is_neural_active());
 
         let _ = std::fs::remove_dir_all(temp_dir);
@@ -1311,7 +1351,10 @@ mod tests {
     async fn test_apply_neural_rerank_without_weights_keeps_rrf_order() {
         let reranker = std::sync::Arc::new(actx_onnx::OnnxReranker::new(std::path::Path::new("missing/model.onnx")));
         let mut items = vec![result("a", "theme colors", 0.03), result("b", "timeout seconds", 0.02)];
-        apply_neural_rerank(&reranker, &mut items, &picks(&["a", "b"], "what timeout"), &std::collections::HashSet::new()).await;
+        let outcome =
+            apply_neural_rerank(Some(&reranker), &mut items, &picks(&["a", "b"], "what timeout"), &std::collections::HashSet::new()).await;
+        assert!(matches!(outcome, RerankOutcome::Unavailable(_)), "{outcome:?}");
+        assert_eq!(items.len(), 2, "nothing discarded");
         assert_eq!(items[0].chunk_id, "a");
         assert_eq!(items[0].score, 0.03);
     }
@@ -1325,7 +1368,8 @@ mod tests {
             result("pinned", "legacy theme", 0.95),
         ];
         let protected: std::collections::HashSet<String> = ["pinned".to_string()].into_iter().collect();
-        apply_neural_rerank(&reranker, &mut items, &picks(&["theme", "timeout"], "what timeout"), &protected).await;
+        let outcome = apply_neural_rerank(Some(&reranker), &mut items, &picks(&["theme", "timeout"], "what timeout"), &protected).await;
+        assert_eq!(outcome, RerankOutcome::Scored);
 
         let score = |id: &str| items.iter().find(|c| c.chunk_id == id).unwrap().score;
         assert!(score("timeout") > score("theme"), "neural score must lift the timeout chunk");
@@ -1336,7 +1380,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_apply_neural_rerank_scores_only_the_picks_against_their_question() {
         let Some(reranker) = fixture_reranker() else { return };
-        // Two pinned matches on top, picked candidates of two questions and one tail item.
+        // Two pinned matches on top, picked candidates of two questions and one unpicked item.
         let mut items = vec![result("pin-a", "legacy theme", 1.0), result("pin-b", "legacy colors", 1.0)];
         let mut chosen = HashMap::new();
         for i in 0..6 {
@@ -1347,7 +1391,7 @@ mod tests {
         items.push(result("tail", "the theme colors", 0.4));
         let protected: std::collections::HashSet<String> =
             ["pin-a".to_string(), "pin-b".to_string()].into_iter().collect();
-        apply_neural_rerank(&reranker, &mut items, &chosen, &protected).await;
+        assert_eq!(apply_neural_rerank(Some(&reranker), &mut items, &chosen, &protected).await, RerankOutcome::Scored);
 
         let score = |id: &str| items.iter().find(|c| c.chunk_id == id).unwrap().score;
         assert_eq!(score("pin-a"), 1.0);
@@ -1355,8 +1399,7 @@ mod tests {
         // Same text, two questions: each pick was scored against its own question.
         assert!(score("c0") > score("c1"), "c0 asked about timeouts, c1 about theme colors");
         assert_eq!(score("c0"), score("c2"));
-        let min_head = (0..6).map(|i| score(&format!("c{i}"))).fold(f64::MAX, f64::min);
-        assert!(score("tail") < min_head, "unscored tail must stay below every re-scored item");
+        assert!(items.iter().all(|c| c.chunk_id != "tail"), "the unscored tail is discarded (IMP-043)");
     }
 
     /// The tiny cross-encoder of the ONNX fixtures, or `None` (test skipped) without ONNX Runtime.
@@ -1844,6 +1887,124 @@ mod tests {
         assert!((score("both") - expected("kestrel", "falcon kestrel")).abs() < 1e-4);
         assert!((score("one") - expected("falcon", "falcon falcon falcon dive")).abs() < 1e-4);
         assert_eq!(results.iter().find(|r| r.chunk_id == "both").unwrap().matched_subqueries, vec!["q1", "q2"]);
+    }
+
+    /// IMP-043: with more candidates than the depth, only the scored ones (and pinned matches) go
+    /// on; the rest is discarded instead of being kept below them.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn candidates_beyond_the_depth_are_discarded() {
+        let Some(reranker) = fixture_reranker() else { return };
+        let chunks: Vec<(String, String, String)> =
+            (0..5).map(|i| (format!("c_{i}"), format!("falcon note {i}"), format!("f{i}.md"))).collect();
+        let refs: Vec<(&str, &str, &str, &str)> = chunks.iter().map(|(id, t, f)| (id.as_str(), t.as_str(), f.as_str(), SAME_DAY)).collect();
+        let (mut pipeline, dir) = bm25_pipeline("tail_discarded", &refs);
+        pipeline.set_reranker(Some(reranker));
+        let req = HybridSearchRequest { query_text: "falcon".into(), rerank_depth: 2, ..Default::default() };
+        let output = pipeline.search_with_outcome(&req).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(output.rerank, RerankOutcome::Scored);
+        assert_eq!(output.results.len(), 2, "{:?}", output.results);
+        assert!(output.results.windows(2).all(|w| w[0].score >= w[1].score));
+        assert!(output.rerank.answer_notice().is_none());
+    }
+
+    /// IMP-043: fewer candidates than the depth are all scored and kept.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn candidates_within_the_depth_are_all_kept() {
+        let Some(reranker) = fixture_reranker() else { return };
+        let (mut pipeline, dir) = bm25_pipeline(
+            "within_depth",
+            &[("a", "falcon dive", "a.md", SAME_DAY), ("b", "falcon nest", "b.md", SAME_DAY)],
+        );
+        pipeline.set_reranker(Some(reranker));
+        let output = pipeline.search_with_outcome(&HybridSearchRequest { query_text: "falcon".into(), ..Default::default() }).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(output.rerank, RerankOutcome::Scored);
+        assert_eq!(output.results.len(), 2);
+    }
+
+    /// IMP-043: a reranker that cannot run keeps the fusion order, discards nothing and says why.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_unavailable_reranker_keeps_the_fusion_order_and_reports_it() {
+        let chunks: Vec<(String, String, String)> =
+            (0..5).map(|i| (format!("c_{i}"), format!("falcon note {i}"), format!("f{i}.md"))).collect();
+        let refs: Vec<(&str, &str, &str, &str)> = chunks.iter().map(|(id, t, f)| (id.as_str(), t.as_str(), f.as_str(), SAME_DAY)).collect();
+        let req = HybridSearchRequest { query_text: "falcon".into(), rerank_depth: 2, ..Default::default() };
+
+        // No reranker at all.
+        let (pipeline, dir) = bm25_pipeline("no_reranker", &refs);
+        let output = pipeline.search_with_outcome(&req).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+        assert_eq!(output.rerank, RerankOutcome::Unavailable("no reranker is configured".into()));
+        assert_eq!(output.results.len(), 5, "nothing discarded");
+        let notices = output.notices().unwrap();
+        assert!(notices.lines().last().unwrap().starts_with("Answered without relevance ranking: no reranker is configured."), "{notices}");
+
+        // A reranker whose weights are missing.
+        let (mut pipeline, dir) = bm25_pipeline("missing_weights", &refs);
+        pipeline.set_reranker(Some(Arc::new(actx_onnx::OnnxReranker::new(std::path::Path::new("missing_weights.onnx")))));
+        let output = pipeline.search_with_outcome(&req).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+        assert!(matches!(output.rerank, RerankOutcome::Unavailable(_)), "{:?}", output.rerank);
+        assert_eq!(output.results.len(), 5);
+    }
+
+    /// IMP-043: only pinned file-name matches means nothing to rerank, and no warning.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn only_pinned_matches_need_no_reranking() {
+        let (pipeline, dir) = bm25_pipeline("only_pinned", &[]);
+        pipeline
+            .lance_store
+            .upsert_records(vec![stored_row("g_0", "the guide intro", "guide.md", vec![0.0, 1.0, 0.0, 0.0])], None, Some(4))
+            .unwrap();
+        let output = pipeline.search_with_outcome(&HybridSearchRequest { query_text: "guide.md".into(), ..Default::default() }).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(output.results.iter().map(|r| r.chunk_id.as_str()).collect::<Vec<_>>(), vec!["g_0"]);
+        assert_eq!(output.rerank, RerankOutcome::NotNeeded);
+        assert!(output.rerank.answer_notice().is_none());
+    }
+
+    #[test]
+    fn keep_scored_keeps_pinned_and_picked_only() {
+        let mut items = vec![result("p", "pinned", 1.0), result("a", "a", 0.9), result("b", "b", 0.5), result("c", "c", 0.1)];
+        let picks: HashMap<String, String> = [("a", "q"), ("c", "q")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let pinned: std::collections::HashSet<String> = ["p".to_string()].into_iter().collect();
+        keep_scored(&mut items, &picks, &pinned);
+        assert_eq!(items.iter().map(|c| c.chunk_id.as_str()).collect::<Vec<_>>(), vec!["p", "a", "c"]);
+    }
+
+    #[test]
+    fn rerank_notices_name_the_cause_and_the_fix() {
+        assert_eq!(RerankOutcome::Scored.answer_notice(), None);
+        assert_eq!(RerankOutcome::NotNeeded.answer_notice(), None);
+        let weights = RerankOutcome::Unavailable("the reranker weights for `mmarco-reranker` are not installed".into());
+        assert_eq!(
+            weights.answer_notice().unwrap(),
+            "Answered without relevance ranking: the reranker weights for `mmarco-reranker` are not installed. Run `actx download reranker` to install it."
+        );
+        let runtime = RerankOutcome::Unavailable("the ONNX Runtime library is missing".into());
+        assert!(runtime.answer_notice().unwrap().ends_with("Reinstall or update AnyContext to restore the ONNX Runtime library."));
+        let failed = RerankOutcome::Unavailable("the reranker failed to score (bad input)".into());
+        assert!(failed.answer_notice().unwrap().ends_with("Run `/status` to check the reranker."));
+    }
+
+    #[test]
+    fn notices_list_dense_then_reranker() {
+        let output = RetrievalOutput {
+            results: Vec::new(),
+            dense: QueryEmbeddingOutcome::NoProvider,
+            rerank: RerankOutcome::Unavailable("the ONNX Runtime library is missing".into()),
+        };
+        let notices = output.notices().unwrap();
+        let lines: Vec<&str> = notices.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with("Answered by keyword search only"));
+        assert!(lines[1].starts_with("Answered without relevance ranking"));
+        let clean = RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::Scored };
+        assert_eq!(clean.notices(), None);
     }
 
     /// File-name matches form their own list and stay pinned on top; their dense score is the

@@ -15,7 +15,7 @@ Local neural inference on ONNX Runtime (the text embedding model and the cross-e
 - Score `(query, document)` pairs with the cross-encoder re-ranker used by Stage 2 of [retrieval](retrieval.md).
 - Provide the query classifier, scan sentinel, layout extractor and vision encoder components, which today are deterministic heuristics.
 - Model execution devices and Gemma 4 tiers for the surfaces that display them.
-- Never break the caller: for the re-ranker and the heuristic components, a missing library, missing weights or a failed load always degrade to the non-neural path. The embedder is the exception: it returns the error, because embeddings never fall back (ADR-0154).
+- Never break the caller: for the re-ranker and the heuristic components, a missing library, missing weights or a failed load always degrade to the non-neural path; for the re-ranker, [retrieval](retrieval.md) then keeps the fusion order and the answer says why (ADR-0157). The embedder is the exception: it returns the error, because embeddings never fall back (ADR-0154).
 
 The catalog and downloads of the model files belong to [Model Catalog and Hardware Profiling](model-catalog.md).
 
@@ -81,7 +81,7 @@ These components report their status as `heuristic` and never claim to be neural
 
 ## Interfaces
 
-- **Called by**: [ingestion](ingestion.md) and [retrieval](retrieval.md) (`OnnxEmbedder` behind the core's `LocalEmbeddingProvider`), [retrieval](retrieval.md) (`OnnxReranker` in `NativeHybridPipeline`), the [CLI](cli.md) (`create_default_reranker`, `--device`, `--rerank`), the [TUI](tui.md) (re-ranker and device badges), the [agent](agent.md) (query classifier through the core adapter), [language model providers](lm-providers.md) (`GemmaOnnxProvider` uses `OnnxGemmaEngine` and always falls back).
+- **Called by**: [ingestion](ingestion.md) and [retrieval](retrieval.md) (`OnnxEmbedder` behind the core's `LocalEmbeddingProvider`), [retrieval](retrieval.md) (`OnnxReranker` in `NativeHybridPipeline`), the [CLI](cli.md) (`create_default_reranker`, `--device`, `--rerank-model`), the [TUI](tui.md) (re-ranker and device badges), the [agent](agent.md) (query classifier through the core adapter), [language model providers](lm-providers.md) (`GemmaOnnxProvider` uses `OnnxGemmaEngine` and always falls back).
 - **Depends on**: the ONNX Runtime shared library shipped by the release (see [CI and Release](ci-release.md)) and the model files downloaded by the [model catalog](model-catalog.md) or provisioned by the [installer](installer.md).
 
 ## Decisions

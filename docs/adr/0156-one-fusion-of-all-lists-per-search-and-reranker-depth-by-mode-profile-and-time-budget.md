@@ -8,7 +8,7 @@ subsystems: [retrieval, cli]
 supersedes: []
 superseded_by: []
 amends: [129, 139]
-amended_by: []
+amended_by: [157]
 ---
 
 # ADR-0156: One fusion of all lists per search, and reranker depth by mode, profile and time budget

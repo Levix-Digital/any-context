@@ -721,8 +721,8 @@ impl OnnxModelManager {
         if Self::is_installed(spec) {
             if actx_onnx::reranker::recorded_load_error(&Self::model_path(spec)).is_some() {
                 return (
-                    "Reciprocal Rank Fusion (RRF)",
-                    "Fallback: the re-ranker failed to load (corrupt weights or incompatible ONNX Runtime; run `actx download reranker` to repair)",
+                    "Unavailable",
+                    "unavailable: the re-ranker failed to load (corrupt weights or incompatible ONNX Runtime; run `actx download reranker` to repair)",
                     false,
                 );
             }
@@ -730,14 +730,14 @@ impl OnnxModelManager {
                 return (spec.name, "Neural cross-encoder active (ONNX Runtime, CPU)", true);
             }
             return (
-                "Reciprocal Rank Fusion (RRF)",
-                "Fallback: ONNX Runtime library not found next to the executable (reinstall or update AnyContext)",
+                "Unavailable",
+                "unavailable: ONNX Runtime library not found next to the executable (reinstall or update AnyContext)",
                 false,
             );
         }
         (
-            "Reciprocal Rank Fusion (RRF)",
-            "Fallback: re-ranker weights not installed (run `actx download reranker` or reinstall your profile)",
+            "Unavailable",
+            "unavailable: re-ranker weights not installed (run `actx download reranker` or reinstall your profile)",
             false,
         )
     }

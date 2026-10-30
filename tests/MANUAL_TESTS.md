@@ -31,7 +31,7 @@ How to record a run: in each test of the current run, mark exactly one box of th
   3. Run `actx embedding`.
 - **Expected**:
   - `--preflight-only` prints the profiles with green, yellow or red status and exits without installing.
-  - The Lite install downloads only `multilingual-e5-small` (about 135 MB) into the models folder; `/rerank` in `actx` reports the RRF fallback.
+  - The Lite install downloads only `multilingual-e5-small` (about 135 MB) into the models folder; `/status` in `actx` shows the reranker as unavailable (weights not installed) and the header shows `⚠ Reranker unavailable`.
   - Step 3 shows `multilingual-e5-small` in use, chosen as the default of the Lite profile, local.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
@@ -595,29 +595,46 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Prerequisites**: a workspace with one long document about kestrels (more than 20 sections that all mention kestrel nesting) and three short files that each describe one nesting site
 - **Steps**:
   1. Ask in deep mode (`/deep`): "Where do kestrels nest, and at which sites?"
-  2. Run `/rerank` and note the depth line and the last pass's candidate count.
-  3. Switch to the Lite profile (`/profile lite`), ask a quick question about kestrels and run `/rerank` again.
+  2. Run `/status` and note the `Reranker` line.
+  3. Switch to the Lite profile (`/profile lite`), ask a quick question about kestrels and run `/status` again.
   4. Switch back to the previous profile.
 - **Expected**:
   - Step 1 cites the long document and at least two of the short files.
-  - Step 2 shows "up to 30 candidates in Fast and 50 in Deep" on Smart Balanced or Air-Gapped Power (40 / 75 on Workstation Pro, 50 / 100 on Sovereign Ultra), at most 3 per document, and a latency "for N candidates" with N not above the Deep depth.
-  - Step 3 shows "up to 20 candidates in Fast and 30 in Deep", and the last pass has at most 20 candidates.
+  - Step 2 shows "depth 30/50 (Fast/Deep)" on Smart Balanced or Air-Gapped Power (40/75 on Workstation Pro, 50/100 on Sovereign Ultra) and a last pass "for N candidates" with N not above the Deep depth.
+  - Step 3 shows "depth 20/30 (Fast/Deep)", and the last pass has at most 20 candidates.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
 ## Local Re-Ranking and Models
 
-### MT-MOD-001: The local re-ranker improves ordering and reports its state
+### MT-MOD-001: The local re-ranker is always on and reports its state
 
-- **Covers**: ONNX re-ranker, /rerank
+- **Covers**: ONNX re-ranker always on, `/status` Reranker line, removed `/rerank` and `--rerank`
 - **Prerequisites**: the re-ranker installed (non-Lite profile or `actx download reranker`)
 - **Steps**:
-  1. Run `/rerank` and check the header badge.
-  2. Ask a question whose answer is in one of several similar files.
-  3. Run `/rerank off`, ask again, then `/rerank auto`.
+  1. Check the header badge, then ask a question whose answer is in one of several similar files.
+  2. Run `/status`.
+  3. Type `/rerank off`.
+  4. In a terminal, run `actx --rerank off "test"`.
 - **Expected**:
-  - `/rerank` shows the model, the CPU device and a measured latency; the badge shows the ONNX model.
-  - With re-ranking off the badge shows Off and answers still work.
+  - Step 1: the badge shows the ONNX model; the answer cites the right file and ends with no `Answered without relevance ranking` line.
+  - Step 2: the `Reranker` line shows the model, `ready (last query reranked)`, the depths of the profile and a last pass "N ms for M candidates".
+  - Step 3: `Unknown command '/rerank'`; `/help` does not list it.
+  - Step 4: `actx` rejects the unknown `--rerank` argument.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
+### MT-MOD-005: An answer says when the re-ranker could not run
+
+- **Covers**: reranker unavailable warning, fusion order kept
+- **Prerequisites**: the re-ranker installed; access to the models folder (`actx --diagnostics` shows it)
+- **Steps**:
+  1. Close `actx` and rename the `mmarco-reranker` folder in the models folder to `mmarco-reranker.off`.
+  2. Start `actx`, ask a question about an indexed file, then run `/status`.
+  3. Close `actx`, rename the folder back, start `actx` and ask again.
+- **Expected**:
+  - Step 2: the header shows `⚠ Reranker unavailable`; the answer still cites the file and ends with "Answered without relevance ranking: the reranker weights for `mmarco-reranker` are not installed. Run `actx download reranker` to install it."; `/status` shows the reranker as unavailable with the same cause.
+  - Step 3: the badge shows the ONNX model again and the answer has no such line.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

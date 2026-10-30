@@ -13,7 +13,7 @@ You point it at the material you work with; it indexes everything on your machin
 - **Workspaces**: separate projects with their own sources, model, answer settings and memory.
 - **Fast answers or deep research**: simple questions get one quick search; complex ones are broken into sub-questions, searched in several rounds and answered with a combined summary.
 - **Honest grounding**: in strict mode answers come only from your documents, and AnyContext says plainly when the answer is not there.
-- **Local re-ranking**: an optional multilingual model on your machine reorders search results for more precise answers.
+- **Local re-ranking**: a multilingual model on your machine judges every search's results, so only the relevant passages reach the answer.
 - **Long-term memory**: each workspace remembers earlier conversations.
 - **Full-screen terminal interface** with live sync progress, plus one-shot commands for scripts.
 
@@ -23,7 +23,7 @@ You point it at the material you work with; it indexes everything on your machin
 - One of:
   - an API key for OpenAI, Anthropic, Google Gemini, DeepSeek or Groq; or
   - [Ollama](https://ollama.com) running locally with a model pulled, for fully local answers.
-- On Windows, the Microsoft Visual C++ Redistributable for the local re-ranker (AnyContext works without it, with slightly less precise ranking).
+- On Windows, the Microsoft Visual C++ Redistributable for the local re-ranker (without it, answers still work, in a less precise order, and say so).
 - Internet access for installation, updates, cloud models and web sources.
 
 ## Installation
@@ -129,7 +129,6 @@ If the embedding provider fails during a sync (an invalid key, a rate limit, a n
 | `/preset offline` / `privacy` | With a local Ollama model selected: strict answers, quick search, no web search |
 | `/embedding` | Show the embedding model used to index and search, and the models you can choose |
 | `/embedding <model> --yes` | Switch the embedding model; the affected workspaces are reindexed on their next sync |
-| `/rerank auto` / `on` / `off` | Control local re-ranking; `/rerank` shows its status |
 | `/download reranker` | Install or repair the local re-ranker model |
 | `/profile` | Show or change the hardware profile |
 
@@ -166,7 +165,6 @@ Questions about AnyContext itself are answered from its built-in documentation. 
 | `actx "<question>"` | Answer one question and print it (`-w <workspace>` and `-m <model>` to choose) |
 | `actx --sync [--folder <path>] [--force]` | Index the current workspace |
 | `actx download [reranker] [--check]` | Install local models or list them with a hardware check |
-| `actx --rerank <auto\|on\|off>` | Set the re-rank mode |
 | `actx --diagnostics` | Print versions, paths and hardware |
 | `actx --check-update`, `actx --update` | Check for or install the latest release (`actx --update@v1.2.3` for a specific one) |
 
@@ -226,7 +224,7 @@ To uninstall, download and run the uninstaller from the [releases page](https://
 | A sync stops with `Embedding model <model> is unavailable` | The chosen embedding model cannot run; the message gives the cause and the fix (download it with `actx download <model>`, copy its files into the models folder, save the provider key, or choose another model with `/embedding`). The index is unchanged. |
 | `/status` shows `BM25 only (last query): indexed without an embedding model; sync to embed it` | The workspace was indexed by an older version without an embedding key. Run `/sync`: it is reindexed once with the local embedding model. |
 | Answers cite files without line ranges | Files indexed by an earlier version have no section or line data until they change; run `/sync --force` once to re-index them. PDF, Office, spreadsheet and web sources are cited by page, sheet or section, never by line. |
-| `/rerank` shows `RRF (Fallback)` | The local re-ranker is not installed or could not load: run `actx download reranker`, and on Windows install the Visual C++ Redistributable. |
+| An answer ends with `Answered without relevance ranking`, or the header shows `⚠ Reranker unavailable` | The local re-ranker, which always ranks the search results, is not installed or could not load; `/status` shows the cause. Run `actx download reranker`, and on Windows install the Visual C++ Redistributable. |
 | `actx --update` says the packages are still being built | A release was just published; try again in a few minutes. |
 | An old version still runs after updating | Open a new terminal; the updater also replaces copies of `actx` found elsewhere in your `PATH`. |
 
