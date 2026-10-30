@@ -1251,9 +1251,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-040: [retrieval] Pre-filtered dense and lexical retrievers over child chunks
 - **Priority**: medium
-- **Status**: open
+- **Status**: in_progress
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: imp_040_prefiltered_retrievers
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. Dense and lexical retrievers run in parallel for each question or sub-question with filters inside the search, over child chunks, with the model's query prefix and the table of the embedding target (the old table answers during a model switch) and weighted lexical fields; 30 candidates per list, tuned by the evaluation set. Only the workspace is searched. A question embedding failure gives lexical-only search with a discreet warning in the answer (today only a log line).
 
 ### IMP-041: [retrieval] Single RRF over clean lists with a per-document cap, no score cut
