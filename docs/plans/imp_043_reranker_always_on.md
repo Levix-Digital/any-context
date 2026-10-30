@@ -7,7 +7,7 @@ version: v1.0.0
 status: in_progress
 author: LeviGuilherme
 created_at: '2026-10-30T17:44:49'
-updated_at: '2026-10-30T17:44:49'
+updated_at: '2026-10-30T18:16:22'
 session_id: null
 tags:
 - retrieval
@@ -20,9 +20,13 @@ backlog_items:
 spec_dir: specs/005-reranker-always-on
 milestones:
 - name: M1 Core
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M2 Surfaces
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M3 Docs and checks
   done: false
 status_log:
@@ -34,6 +38,12 @@ status_log:
   by: LeviGuilherme
   status: in_progress
   note: Approved by Levi (gate 3), 2026-10-30
+- at: '2026-10-30T18:16:19'
+  by: LeviGuilherme
+  note: Milestone 'M1 Core' completed
+- at: '2026-10-30T18:16:22'
+  by: LeviGuilherme
+  note: Milestone 'M2 Surfaces' completed
 ---
 
 # Reranker always on

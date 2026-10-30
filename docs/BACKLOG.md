@@ -1249,13 +1249,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Each Deep turn refines or decomposes the question from what was found, searches, and evaluates what is missing. Default maximum of 3 turns (up to 5 only through a domain pack), stopping early when evidence is enough, plus a token ceiling; the default is tuned by the evaluation set.
 
-### IMP-043: [retrieval] Cross-encoder as the only relevance judge, always on
-- **Priority**: medium
-- **Status**: planned
-- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: imp_043_reranker_always_on
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. The cross-encoder from the hardware kit judges relevance in both modes, over the child chunk with its contextual header; summaries are reranked, SQL results are not. Acceptance: the /rerank command and the option to disable reranking are removed; Deep's chunk-by-chunk LLM yes/no is removed; candidates beyond the budget are discarded, not pushed to the end.
-
 ### IMP-044: [retrieval] Calibrated reranker relevance bands per model
 - **Priority**: medium
 - **Status**: open
@@ -2187,3 +2180,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: imp_041_042_unified_fusion
 - **Closed**: 2026-10-30, plan imp_041_042_unified_fusion
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 5, Fusion. Candidates sent to the reranker: Fast 30, Deep 50, adjusted by hardware profile (e.g. 20 on light profiles, up to 100 on strong ones or the Model Server) within a reranking time budget (about 1 second in Fast), tuned per workspace by where the right chunk usually sits. Delivered (ADR-0156): Fast/Deep depth per profile (Lite 20/30, Smart Balanced and Air-Gapped Power 30/50, Workstation Pro 40/75, Sovereign Ultra 50/100), lowered to a 1 s / 3 s budget from the measured cost per candidate, floor 10. Model Server depth waits for IMP-054/IMP-055; per-workspace tuning moved to FEAT-105.
+
+### IMP-043: [retrieval] Cross-encoder as the only relevance judge, always on
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: imp_043_reranker_always_on
+- **Closed**: 2026-10-30, PR #389
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. The cross-encoder from the hardware kit judges relevance in both modes, over the child chunk with its contextual header; summaries are reranked, SQL results are not. Acceptance: the /rerank command and the option to disable reranking are removed; Deep's chunk-by-chunk LLM yes/no is removed; candidates beyond the budget are discarded, not pushed to the end.
