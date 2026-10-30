@@ -26,4 +26,15 @@
 
 ## Benchmark results
 
-To be filled after the CI run.
+CI run 41105540656 on `724f595` (PR #389), compared with the committed baselines:
+
+| Configuration | MRR@10 | HitRate@1 | HitRate@5 | HitRate@10 | Passage hit@5 | Nothing found | Latency mean / p95 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `lexical-rerank` | 0.9429 (=) | 0.9286 (=) | 0.9571 (=) | 0.9571 (=) | 0.9355 (=) | 0 (=) | 768 / 1289 ms |
+| `dense-local-bge-m3-rerank` | 0.9690 (-0.0096) | 0.9429 (-0.0142) | 1.0000 (=) | 1.0000 (=) | 0.9839 (-0.0161) | 0 (=) | 1843 / 3159 ms |
+
+Both runs pass the 0.02 gate. The dense difference is one question (`pt-cross-002`) and does not come from this change:
+
+- Discarding the tail cannot change which candidates are scored (the picks are taken from the fusion order before the pass) nor their scores, and the old tail always ranked below every scored candidate.
+- In this run the best chunk of `api-rate-limits-v2.md` was not among the picks, so the fusion order itself differed. The scores of all 85 questions also differ between the dense runs of the same code on `7aa9758` (PR #388) and `20f4c15` (dev), and that question ranked its first relevant document 1st on dev and 2nd on `7aa9758`: the dense retriever and the cross-encoder give slightly different numbers on different CI runners.
+- The baselines are therefore not refreshed: a single noisy run would move them without a code reason.

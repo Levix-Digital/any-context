@@ -34,7 +34,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [x] T012 [P] ADR-0157 (amends ADR-0129 and ADR-0156); `retrieval.md`, `commands.md`, `cli.md`, `tui.md`, `agent.md` edited in place; TECDOC index; `check_docs`
 - [x] T013 [P] README: `/rerank` and `--rerank` rows removed, troubleshooting via `/status`; `check_readme`
 - [x] T014 [P] `tests/MANUAL_TESTS.md`: `/status` reranker test, missing-weights warning test; `manual_tests validate`
-- [ ] T015 Benchmark: CI lexical and dense results in research.md (baselines refreshed only if they change)
+- [x] T015 Benchmark: CI lexical and dense results in research.md (baselines refreshed only if they change)
 - [x] T016 Backlog: IMP-043 closed; `cargo test --workspace`, `check_design`, gate checks; plan milestones marked
 
 **Checkpoint (M3)**: documented, measured, ready for the pull request.
