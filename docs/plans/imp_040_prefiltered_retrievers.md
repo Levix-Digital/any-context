@@ -4,10 +4,10 @@ project: any-context
 title: Pre-filtered dense and lexical retrievers
 kind: feature
 version: v1.0.0
-status: in_progress
+status: completed
 author: LeviGuilherme
 created_at: '2026-10-30T12:57:32'
-updated_at: '2026-10-30T13:12:38'
+updated_at: '2026-10-30T15:05:07'
 session_id: null
 tags:
 - retrieval
@@ -22,13 +22,21 @@ backlog_items:
 spec_dir: specs/003-prefiltered-retrievers
 milestones:
 - name: M1 Filter
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M2 Parallel retrievers and candidates
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M3 Dense outcome in the answer
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M4 Docs and baselines
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 status_log:
 - at: '2026-10-30T12:57:32'
   by: LeviGuilherme
@@ -42,6 +50,22 @@ status_log:
   by: LeviGuilherme
   status: in_progress
   note: Approved by Levi (gate 3), 2026-10-30
+- at: '2026-10-30T15:04:42'
+  by: LeviGuilherme
+  note: Milestone 'M1 Filter' completed
+- at: '2026-10-30T15:05:02'
+  by: LeviGuilherme
+  note: Milestone 'M2 Parallel retrievers and candidates' completed
+- at: '2026-10-30T15:05:05'
+  by: LeviGuilherme
+  note: Milestone 'M3 Dense outcome in the answer' completed
+- at: '2026-10-30T15:05:07'
+  by: LeviGuilherme
+  note: Milestone 'M4 Docs and baselines' completed
+- at: '2026-10-30T15:05:07'
+  by: LeviGuilherme
+  status: completed
+  note: All milestones completed
 ---
 
 # Pre-filtered dense and lexical retrievers

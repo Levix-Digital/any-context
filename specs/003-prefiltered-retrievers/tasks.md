@@ -23,7 +23,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [x] T006 [US2] `pipeline.rs`: `bm25_indices` as `Arc<BM25Index>`; callers of `get_or_load_bm25` updated
 - [x] T007 [US2] `pipeline.rs`: lexical search in `spawn_blocking` joined with question embedding and dense search; test that the lexical list is produced when the embedding provider fails
 - [x] T008 [US2] `retrieval/requests.rs`: `CANDIDATES_PER_LIST = 30` for Fast and Deep; tests updated
-- [ ] T009 [US2] Benchmark: lexical and dense runs with 30 and with 50 per list; results and latency in research.md
+- [x] T009 [US2] Benchmark: lexical and dense runs with 30 and with 50 per list; results and latency in research.md
 
 **Checkpoint (M2)**: one search costs about the slower retriever; defaults measured.
 
@@ -40,8 +40,8 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 
 ## Phase 4: Docs and baselines (M4)
 
-- [ ] T016 ADR-0155 and constitution regenerated if the generator picks it up
-- [ ] T017 [P] `docs/architecture/retrieval.md` and `agent.md` edited in place; TECDOC index regenerated
+- [x] T016 ADR-0155 and constitution regenerated if the generator picks it up
+- [x] T017 [P] `docs/architecture/retrieval.md` and `agent.md` edited in place; TECDOC index regenerated
 - [x] T018 [P] `tests/MANUAL_TESTS.md`, "Retrieval": warning shown and not shown
-- [ ] T019 Benchmark baselines refreshed with the final defaults
-- [ ] T020 Backlog: IMP-040 closed; the deferred parts written into IMP-033, FEAT-036, IMP-026 and FEAT-082
+- [x] T019 Benchmark baselines checked with the final defaults (unchanged metrics, kept)
+- [x] T020 Backlog: IMP-040 closed; the deferred parts written into IMP-033, FEAT-036, IMP-026 and FEAT-082

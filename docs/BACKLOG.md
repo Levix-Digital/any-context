@@ -1249,13 +1249,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Each Deep turn refines or decomposes the question from what was found, searches, and evaluates what is missing. Default maximum of 3 turns (up to 5 only through a domain pack), stopping early when evidence is enough, plus a token ceiling; the default is tuned by the evaluation set.
 
-### IMP-040: [retrieval] Pre-filtered dense and lexical retrievers over child chunks
-- **Priority**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: imp_040_prefiltered_retrievers
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. Dense and lexical retrievers run in parallel for each question or sub-question with filters inside the search, over child chunks, with the model's query prefix and the table of the embedding target (the old table answers during a model switch) and weighted lexical fields; 30 candidates per list, tuned by the evaluation set. Only the workspace is searched. A question embedding failure gives lexical-only search with a discreet warning in the answer (today only a log line).
-
 ### IMP-041: [retrieval] Single RRF over clean lists with a per-document cap, no score cut
 - **Priority**: medium
 - **Status**: open
@@ -2184,3 +2177,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: feat_002_local_embedding
 - **Closed**: 2026-10-30, plan feat_002_local_embedding
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The catalog declares each model's query and document prefixes and the pipeline applies them at ingestion and at query time (e.g. gemini-embedding-2, e5). Supersedes IMP-014.
+
+### IMP-040: [retrieval] Pre-filtered dense and lexical retrievers over child chunks
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: imp_040_prefiltered_retrievers
+- **Closed**: 2026-10-30, plan imp_040_prefiltered_retrievers
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. Dense and lexical retrievers run in parallel for each question or sub-question with filters inside the search, over child chunks, with the model's query prefix and the table of the embedding target (the old table answers during a model switch) and weighted lexical fields; 30 candidates per list, tuned by the evaluation set. Only the workspace is searched. A question embedding failure gives lexical-only search with a discreet warning in the answer (today only a log line). Delivered (ADR-0155): the request filter inside both retrievers, BM25 in parallel, 30 candidates per list and the warning line; per-target tables, child chunks, weighted fields and the end of `Global` moved to IMP-033, FEAT-036, IMP-026 and FEAT-082.

@@ -18,4 +18,18 @@ Fast already takes 30 per list; Deep takes 40. Both move to 30. Benchmark result
 
 ## Results
 
-To be filled by T009 and T019.
+Measured on 2026-10-30 in one development container (4 cores), `actx-bench retrieval run`, release build, reranker on. `dev` is the code before this feature, run on the same machine; latency is the delivered pass and is dominated by the reranker, so it moves by a few hundred milliseconds between runs.
+
+| configuration | code | per list | MRR@10 | Hit@1 | Hit@5 | latency mean / p95 (ms) |
+|---|---|---:|---:|---:|---:|---:|
+| lexical + reranker | dev | 30 | 0.9429 | 0.9286 | 0.9571 | 2050 / 3456 |
+| lexical + reranker | this branch | 30 | 0.9429 | 0.9286 | 0.9571 | 2028 / 3552 |
+| lexical + reranker | this branch | 50 | 0.9429 | 0.9286 | 0.9571 | 2139 / 3795 |
+| dense bge-m3 + reranker | dev | 30 | 0.9643 | 0.9429 | 1.0000 | 1601 / 3482 |
+| dense bge-m3 + reranker | this branch | 30 | 0.9714 | 0.9429 | 1.0000 | 1718 / 3592 |
+| dense bge-m3 + reranker | this branch | 50 | 0.9714 | 0.9429 | 1.0000 | 1611 / 3700 |
+
+- No regression against the committed baselines (0.9429 and 0.9714 MRR@10); the baselines are kept as they are.
+- 50 candidates per list gain nothing on this corpus, so 30 stays for Fast and Deep.
+- The dense `dev` run's 0.9643 against 0.9714 is the INT8 run-to-run variation recorded in `specs/002-local-embedding/research.md`, not this change: the ranking code path without a filter is the same.
+- Latency: no measurable change. The lexical search takes milliseconds on this corpus, below the run-to-run noise of the reranker, so SC-003's expected drop cannot be seen here; it matters on large workspaces, where the per-question copy of the BM25 index (removed) and the sequential lexical search grew with the index.
