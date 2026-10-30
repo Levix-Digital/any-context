@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-30
 
-**Status**: Draft
+**Status**: Approved (gate 3, Levi, 2026-10-30: conservative threshold)
 
 **Input**: User description: "IMP-044: reranker scores map to relevant, maybe and irrelevant bands with per-model thresholds in the catalog, refined per workspace by the evaluation. Irrelevant chunks never go to the LLM. The bands feed the nothing-found gate, the Fast-to-Deep escalation and selection."
 
@@ -124,7 +124,7 @@ The development benchmark measures the effect of the cut: its ranking pass keeps
 ### Measurable Outcomes
 
 - **SC-001**: No chunk scored in the irrelevant band reaches the selection (fixture test).
-- **SC-002**: On the benchmark with the default reranker, the share of negative questions with nothing delivered rises from 0 to at least a third, in the lexical and the dense configuration.
+- **SC-002**: On the benchmark with the default reranker, the share of negative questions with nothing delivered rises above 0 in the lexical and the dense configuration (calibration expects 5 and 2 of 15 with the conservative threshold approved by Levi on 2026-10-30).
 - **SC-003**: On the benchmark, the delivered hit rate does not drop more than the regression threshold (0.02) in the lexical and the dense configuration, and MRR@10 and HitRate@5 do not change (the ranking pass has no cut).
 - **SC-004**: Both catalog rerankers have calibrated thresholds with their benchmark evidence in `research.md`.
 

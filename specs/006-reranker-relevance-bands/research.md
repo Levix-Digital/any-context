@@ -36,4 +36,16 @@ Best score of the negative questions: 0.473 (lexical), 0.469 (dense); all others
 
 ## Calibration runs on the current code
 
-To be filled by T008 (mmarco and bge-reranker-v2-m3, lexical and dense).
+Revision 0a0ff21 (dev after IMP-043), mmarco reranker, ranking pass (top 10 documents, best chunk score each).
+
+| irrelevant threshold | lexical: negatives empty | lexical: positives that lose the relevant doc | dense bge-m3: negatives empty | dense: positives that lose it |
+|---:|---:|---:|---:|---:|
+| 0.005 | 5 / 15 | 3 (the 3 the ranking already misses) | 2 / 15 | 0 |
+| 0.01 | 9 / 15 | 4 | 3 / 15 | 0 |
+| 0.02 | 10 / 15 | 5 | 9 / 15 | 1 |
+| 0.03 | 13 / 15 | 6 | 10 / 15 | 1 |
+| 0.05 | 13 / 15 | 6 | 11 / 15 | 2 |
+
+- Lowest relevant scores: `en-pro-004` 0.0095 (lexical) and 0.0122 (dense), `en-cross-001` 0.019 (lexical), `pt-fin-003` 0.029 / 0.047.
+- Best negative scores: 0.489 (lexical) and 0.506 (dense); the next ones are 0.099 and 0.12. No positive has its best relevant score between 0.47 and 0.68, so a relevant threshold of 0.6 separates them; 54 (lexical) and 58 (dense) of the 70 positives have a relevant-band document.
+- The conservative mmarco thresholds are therefore irrelevant below 0.005 and relevant from 0.6. bge-reranker-v2-m3 is calibrated with `--reranker` once T007 lands.

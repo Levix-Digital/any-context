@@ -1251,9 +1251,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-044: [retrieval] Calibrated reranker relevance bands per model
 - **Priority**: medium
-- **Status**: open
+- **Status**: in_progress
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: imp_044_reranker_relevance_bands
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. Reranker scores map to relevant, maybe and irrelevant bands with per-model thresholds in the catalog, refined per workspace by the evaluation. Irrelevant chunks never go to the LLM. The bands feed the nothing-found gate, the Fast-to-Deep escalation and selection. Supersedes IMP-007.
 
 ### IMP-045: [retrieval] Selection by relevance bands and the token budget
