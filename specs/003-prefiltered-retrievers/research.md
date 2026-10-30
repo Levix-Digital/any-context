@@ -6,7 +6,7 @@ LanceDB 0.39 pre-filters by default: `vector_search(..).only_if(expr).limit(n)` 
 
 ## R2 Escaping filter values
 
-Filter values reach a DataFusion SQL expression. String literals double `'`; LIKE patterns escape `\`, `%` and `_` with `\` and declare `ESCAPE '\'`. Folder scopes match `file_path = 'x' OR file_path LIKE 'x/%'`, so `docs` never matches `docs-old`.
+Filter values reach a DataFusion SQL expression. String literals double `'`. A LIKE prefix would need its `%` and `_` escaped, but LanceDB 0.39 refuses any LIKE escape character other than the backslash ("LIKE does not support escape_char other than the backslash"), and the backslash is a Windows path separator. Folder scopes therefore use `file_path = 'x' OR starts_with(file_path, 'x/')`, checked against a real table (T004): the prefix is literal, and `docs` never matches `docs-old`.
 
 ## R3 Dates
 

@@ -8,7 +8,7 @@ subsystems: [ingestion, retrieval, tui, cli]
 supersedes: []
 superseded_by: []
 amends: [138]
-amended_by: []
+amended_by: [155]
 ---
 
 # ADR-0146: A failed embedding fails the file, and embedding outcomes are reported

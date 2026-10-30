@@ -72,7 +72,7 @@ When the question cannot be embedded (model missing, files not installed, provid
 
 **Acceptance Scenarios**:
 
-1. **Given** a workspace whose embedding model cannot run, **When** the user asks a question, **Then** the answer is produced from the lexical results and ends with a single warning line naming the cause and the fix (for example "Answered by keyword search only: the embedding model multilingual-e5-base is not installed. Run `actx embedding status`.").
+1. **Given** a workspace whose embedding model cannot run, **When** the user asks a question, **Then** the answer is produced from the lexical results and ends with a single warning line naming the cause and the fix (for example "Answered by keyword search only: the model multilingual-e5-base is not installed. Run `actx embedding` to check the model.").
 2. **Given** a query embedding that fails at query time (provider error or timeout), **When** the user asks, **Then** the same warning appears with the error in short form.
 3. **Given** the nothing-found answer and a failed embedding, **When** the user asks, **Then** the nothing-found answer also carries the warning, because the missing dense list may be why nothing was found.
 4. **Given** a working embedding model, **When** the user asks, **Then** no warning is shown.

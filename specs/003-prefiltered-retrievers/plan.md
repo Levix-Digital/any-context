@@ -37,13 +37,13 @@ Each retrieval request gets a filter (workspace plus optional source scopes, mod
 | III. Hexagonal | Filter and retrievers in the core; the agent ports gain an optional notice; CLI and TUI only render it | Pass |
 | IV.2 Evidence | Unit tests per filter dimension and escaping, integration test with a real LanceDB table and BM25 index, benchmark runs saved | Pass |
 | IV.3 Documentation describes today | `docs/architecture/retrieval.md` edited in place; ADR-0155 for filters inside the retrievers and the answer warning | Pass |
-| IV.6 Security | Filter values are escaped literals (SQL `'` and LIKE wildcards); no new data leaves the machine | Pass |
+| IV.6 Security | Filter values are SQL literals (`'` doubled; prefixes through `starts_with`, so no wildcard); no new data leaves the machine | Pass |
 | IV.7 Bugs first | Backlog has no open bugs | Pass |
 | IV.9 No AI attribution | Plan, commits and PR authored by the repository identity | Pass |
 
 ## Design
 
-1. **`retrieval/filter.rs` (new)**: `RetrievalFilter { sources: Vec<String>, modified_from: Option<DateTime<Utc>>, modified_to: Option<DateTime<Utc>>, content_types: Vec<String> }`, `Default` = no narrowing. `lance_predicate() -> Option<String>` builds `(file_path = 'x' OR file_path LIKE 'x/%' ESCAPE '\')` per source, `last_modified >= '…' AND last_modified < '…'` (stored values are UTC RFC 3339, so string order is time order), `content_type IN (…)`; every value goes through one escaping function. `matches(file_path, content_type, last_modified) -> bool` is the same rule for the lexical side. Paths are compared with `/` separators on both sides.
+1. **`retrieval/filter.rs` (new)**: `RetrievalFilter { sources: Vec<String>, modified_from: Option<DateTime<Utc>>, modified_to: Option<DateTime<Utc>>, content_types: Vec<String> }`, `Default` = no narrowing. `lance_predicate() -> Option<String>` builds `(file_path = 'x' OR starts_with(file_path, 'x/'))` per source, `last_modified >= '…' AND last_modified < '…'` (stored values are UTC RFC 3339, so string order is time order), `content_type IN (…)`; every value goes through one escaping function. `matches(file_path, content_type, last_modified) -> bool` is the same rule for the lexical side. Paths are compared with `/` separators on both sides.
 2. **Request**: `HybridSearchRequest.filter: RetrievalFilter` (`#[serde(default)]`). The workspace stays in `workspace`; the `Global` rule is unchanged.
 3. **Dense retriever**: the pipeline's dense step becomes `dense_list(&req, query_vec)`: the existing workspace, target and `Global` clauses plus `filter.lance_predicate()`, all in `only_if` (LanceDB pre-filters by default). The file-name and date metadata lookups also AND the filter.
 4. **Lexical retriever**: `BM25Index::search` takes the filter and skips non-matching documents before scoring, as it does for the workspace today. `bm25_indices` holds `Arc<BM25Index>`, so a question no longer clones the whole index, and the search runs in `spawn_blocking`.

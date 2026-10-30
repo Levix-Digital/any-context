@@ -74,7 +74,7 @@ LanceDB (chunks and embeddings, with the BM25 file next to it) and SQLite `setti
 | [Language Model Providers](docs/architecture/lm-providers.md) | Provider-neutral chat, streaming and embedding API over OpenAI-compatible, Anthropic, Gemini, Gemma and mock backends. |
 | [Levix platform shared components](docs/architecture/platform-shared-components.md) | Cross-cutting document: components built once and reused by the Levix products (AnyContext, DocMapper and future ones). |
 | [Model Catalog and Hardware Profiling](docs/architecture/model-catalog.md) | Catalog and downloader of local ONNX models, hardware probing and installation profiles. |
-| [ONNX Inference](docs/architecture/onnx.md) | Optional local neural inference with the cross-encoder re-ranker on ONNX Runtime, plus heuristic perception components. |
+| [ONNX Inference](docs/architecture/onnx.md) | Local neural inference on ONNX Runtime (the text embedding model and the cross-encoder re-ranker), plus heuristic perception components. |
 | [Retrieval Pipeline](docs/architecture/retrieval.md) | Finds the chunks that answer a question with dense and BM25 search, RRF fusion, cross-encoder re-ranking and context formatting. |
 | [Retrieval pipeline — target design (v2)](docs/architecture/retrieval-pipeline-v2.md) | Living document of the retrieval pipeline review, following the same method as `ingestion-pipeline-v2.md`. The "Current state" section records how the code w... |
 | [Storage and Encryption](docs/architecture/storage.md) | LanceDB vector store, SQLite settings and session database and encryption at rest. |
@@ -89,6 +89,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0155](docs/adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md) | Retrieval filters apply inside each retriever, and the answer says when dense search did not run | accepted | v1.0.0 | 2026-10-30 |
 | [ADR-0154](docs/adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md) | Local embedding model with its own setting and no fallback | accepted | v1.0.0 | 2026-10-30 |
 | [ADR-0153](docs/adr/0153-a-development-retrieval-benchmark-gates-retrieval-changes.md) | A development retrieval benchmark gates retrieval changes | accepted | v1.0.0 | 2026-10-25 |
 | [ADR-0152](docs/adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md) | Web search uses only allowed search APIs and never scrapes | accepted | v1.0.0 | 2026-10-25 |

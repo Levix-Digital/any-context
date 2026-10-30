@@ -1,7 +1,7 @@
 <!-- dev-cycle-constitution
 generated-by: dev-cycle-protocol/constitution.py (do not edit; change a source and regenerate)
-sources-sha256: 42c211bfe0504e50259372562d5e97588570acf0cf4fc5ec2cca8bdb7da74787
-content-sha256: a879259c0e741a3376f3e13ae3a623cd6bfdf006c9ffe60206894f9d2749e618
+sources-sha256: f579899779238cd571be6bea1a948e15a872453bf5570e448c15bf71e8d1b940
+content-sha256: 7535f17f478fbf3fa675927c83079cba1c0f3e9d8dfd3dad1adba0f668fdc504
 -->
 # any-context Constitution
 
@@ -203,6 +203,7 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - ADR-0152: Web search uses only allowed search APIs and never scrapes (`docs/adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md`)
 - ADR-0153: A development retrieval benchmark gates retrieval changes (`docs/adr/0153-a-development-retrieval-benchmark-gates-retrieval-changes.md`)
 - ADR-0154: Local embedding model with its own setting and no fallback (`docs/adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md`)
+- ADR-0155: Retrieval filters apply inside each retriever, and the answer says when dense search did not run (`docs/adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md`)
 
 ## Governance
 
@@ -210,4 +211,4 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - Amendments change the source, not this file: an ADR for decisions, the technical specification for requirements and constraints, `.dev-cycle.json` for the architecture style, the skills for principles. Then run `constitution.py generate` and commit the result with the change.
 - Gate 3 of the development cycle blocks a plan while this file is stale or edited by hand.
 
-**Version**: 1.6.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-30
+**Version**: 1.7.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-30
