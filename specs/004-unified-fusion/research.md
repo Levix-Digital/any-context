@@ -36,4 +36,14 @@ The time budget then caps any of them on a slow machine.
 
 ## Results
 
-To be filled in T012 (benchmark runs).
+Development benchmark (IMP-065), 2026-10-30, Fast request at the fixed depth of 30 (standard profile, no time budget), `--check-determinism`, against the baselines of IMP-040:
+
+| configuration | MRR@10 | HitRate@1 | HitRate@5 | NDCG@10 | latency mean / p95 (ms) |
+|---|---:|---:|---:|---:|---:|
+| `lexical-rerank`, baseline | 0.9429 | 0.9286 | 0.9571 | 0.9342 | 1431 / 2334 |
+| `lexical-rerank`, this change | 0.9429 | 0.9286 | 0.9571 | 0.9342 | 1557 / 2787 |
+| `dense-local-bge-m3-rerank`, baseline | 0.9714 | 0.9429 | 1.0000 | 0.9761 | 1183 / 2444 |
+| `dense-local-bge-m3-rerank`, this change | 0.9786 | 0.9571 | 1.0000 | 0.9814 | 1385 / 2815 |
+
+- No regression (SC-003). Lexical only: identical, as expected: with one list per source and no dense list, the fusion gives the same ranks. Dense: one more question answered first (HitRate@1 +0.014, MRR@10 +0.007), from the clean dense list and the per-document reranker slots.
+- Latency is reported only and depends on the machine and its load. Both runs got slower by 9 to 17% in the mean, the lexical one too, although its ranking and its reranker input did not change, so the difference cannot be told apart from run-to-run noise here; the CI run of this pull request measures it on the reference runner. The new baselines are saved from these runs.

@@ -31,10 +31,10 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 
 ## Phase 3: Docs and baselines (M3)
 
-- [ ] T012 Benchmark: lexical and dense runs, results and latency in research.md, baselines refreshed
+- [x] T012 Benchmark: lexical and dense runs, results and latency in research.md, baselines refreshed
 - [x] T013 [P] ADR-0156 (amends ADR-0129 and ADR-0139); `docs/architecture/retrieval.md` edited in place; `/rerank` status text; TECDOC index; `check_docs`
 - [x] T014 [P] `tests/MANUAL_TESTS.md`: Deep breadth test; `manual_tests validate`
 - [x] T015 Backlog: IMP-041 and IMP-042 closed; per-workspace tuning noted in FEAT-105
-- [ ] T016 `cargo test --workspace`, `check_design`, gate checks; plan milestones marked
+- [x] T016 `cargo test --workspace`, `check_design`, gate checks; plan milestones marked
 
 **Checkpoint (M3)**: documented, measured, ready for the pull request.

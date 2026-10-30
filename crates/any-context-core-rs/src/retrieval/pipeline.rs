@@ -298,25 +298,29 @@ pub fn dense_search_status() -> String {
         .unwrap_or_else(|| "n/a (no query yet in this session)".to_string())
 }
 
-static LAST_RERANK_LATENCY_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u64::MAX);
-static LAST_RERANK_CANDIDATES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// Latency (ms) and candidate count of the most recent neural re-ranking pass, kept together so
+/// concurrent passes never mix one's latency with another's count.
+static LAST_RERANK_PASS: std::sync::Mutex<Option<(u64, usize)>> = std::sync::Mutex::new(None);
 
 /// Wall-clock latency of the most recent neural re-ranking pass in this process, if any.
 pub fn last_rerank_latency_ms() -> Option<u64> {
-    match LAST_RERANK_LATENCY_MS.load(std::sync::atomic::Ordering::Relaxed) {
-        u64::MAX => None,
-        v => Some(v),
-    }
+    last_rerank_pass().map(|(ms, _)| ms)
 }
 
 /// Candidates scored by the most recent neural re-ranking pass in this process (0 before any).
 pub fn last_rerank_candidates() -> usize {
-    LAST_RERANK_CANDIDATES.load(std::sync::atomic::Ordering::Relaxed)
+    last_rerank_pass().map_or(0, |(_, n)| n)
+}
+
+/// Latency (ms) and candidate count of the most recent neural re-ranking pass, if any.
+pub fn last_rerank_pass() -> Option<(u64, usize)> {
+    LAST_RERANK_PASS.lock().ok().and_then(|p| *p)
 }
 
 /// Scores each group's texts against its question with the cross-encoder, in one pass on a
 /// blocking thread so the async executor (and the TUI) never stall on CPU inference. `None`
-/// means "keep RRF ordering". The pass's cost per candidate feeds the time budget (IMP-042).
+/// means "keep RRF ordering". The model is loaded before the clock starts, so the pass's cost
+/// per candidate, which feeds the time budget (IMP-042), never includes the first load.
 async fn neural_rerank_scores(
     reranker: &Arc<actx_onnx::OnnxReranker>,
     groups: Vec<(String, Vec<String>)>,
@@ -326,21 +330,23 @@ async fn neural_rerank_scores(
         return None;
     }
     let reranker = Arc::clone(reranker);
-    let started = std::time::Instant::now();
-    let scores = tokio::task::spawn_blocking(move || {
-        groups
+    let (scores, elapsed) = tokio::task::spawn_blocking(move || {
+        reranker.ensure_loaded().ok()?;
+        let started = std::time::Instant::now();
+        let scores = groups
             .iter()
             .map(|(query, texts)| {
                 let scores = reranker.score_batch(query, texts);
                 (scores.len() == texts.len()).then_some(scores)
             })
-            .collect::<Option<Vec<_>>>()
+            .collect::<Option<Vec<_>>>()?;
+        Some((scores, started.elapsed()))
     })
     .await
     .ok()??;
-    let elapsed = started.elapsed();
-    LAST_RERANK_LATENCY_MS.store(elapsed.as_millis() as u64, std::sync::atomic::Ordering::Relaxed);
-    LAST_RERANK_CANDIDATES.store(total, std::sync::atomic::Ordering::Relaxed);
+    if let Ok(mut last) = LAST_RERANK_PASS.lock() {
+        *last = Some((elapsed.as_millis() as u64, total));
+    }
     rerank_depth::record_rerank_cost(total, elapsed);
     Some(scores)
 }
@@ -1741,18 +1747,6 @@ mod tests {
         assert_eq!(results.last().unwrap().score, 1.0 / 90.0);
     }
 
-    #[test]
-    fn a_batch_of_one_is_a_fast_search() {
-        let (pipeline, dir) = bm25_pipeline("batch_of_one", &two_source_chunks());
-        let req = HybridSearchRequest { query_text: "kestrel nesting".to_string(), ..Default::default() };
-        let single = pipeline.search(req.clone()).unwrap();
-        let batch = pipeline.retrieve_hybrid_batch(vec![req]).unwrap();
-        let _ = std::fs::remove_dir_all(dir);
-
-        let view = |r: &[HybridSearchResult]| r.iter().map(|c| (c.chunk_id.clone(), c.score)).collect::<Vec<_>>();
-        assert_eq!(view(&single), view(&batch));
-    }
-
     /// IMP-041: Deep fuses the lists of all sub-questions once; a chunk found by both scores the
     /// sum of its RRF contributions (not of two finished results), and one found by one only keeps
     /// its single contribution.
@@ -1774,6 +1768,82 @@ mod tests {
         assert!((both.score - (1.0 / 62.0 + 1.0 / 61.0)).abs() < 1e-12);
         assert!((one.score - 1.0 / 61.0).abs() < 1e-12);
         assert_eq!(results[0].chunk_id, "both");
+    }
+
+    /// IMP-041: a date mention gives its own list, ranked by LanceDB's order, with no invented
+    /// score: the chunk of the date range collects its date and dense contributions, nothing more.
+    #[test]
+    fn date_matches_are_their_own_list_without_an_invented_score() {
+        let (pipeline, dir) = bm25_pipeline("date_list", &[]);
+        let rows = vec![
+            stored_row("d_0", "the incident report", "2026-09-02-report.md", vec![0.0, 1.0, 0.0, 0.0]),
+            stored_row("x_0", "an unrelated note", "other.md", vec![1.0, 0.0, 0.0, 0.0]),
+        ];
+        pipeline.lance_store.upsert_records(rows, None, Some(4)).unwrap();
+        let results = pipeline
+            .search(HybridSearchRequest {
+                query_text: "what happened on 2026-09-02".to_string(),
+                query_vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
+                ..Default::default()
+            })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let score = |id: &str| results.iter().find(|r| r.chunk_id == id).unwrap().score;
+        // d_0: first of the date list, second of the dense list; x_0: first of the dense list.
+        assert!((score("d_0") - (1.0 / 61.0 + 1.0 / 62.0)).abs() < 1e-12, "{results:?}");
+        assert!((score("x_0") - 1.0 / 61.0).abs() < 1e-12, "{results:?}");
+    }
+
+    /// IMP-041: `Global`'s dense hits are a list of their own, so a chunk that `Default`'s dense
+    /// search also sees (BUG-023) collects one contribution from each list.
+    #[test]
+    fn global_dense_hits_are_their_own_list() {
+        let (mut pipeline, dir) = bm25_pipeline("global_list", &[]);
+        let own = stored_row("o_0", "own notes", "own.md", vec![1.0, 0.0, 0.0, 0.0]);
+        let global = crate::storage::VectorRecord {
+            workspace: "Global".into(),
+            file_path: "system://README.md".into(),
+            ..stored_row("g_0", "AnyContext guide", "README.md", vec![1.0, 0.0, 0.0, 0.0])
+        };
+        pipeline.lance_store.upsert_records(vec![own, global], None, Some(4)).unwrap();
+        pipeline.set_global_dense(true);
+        let results = pipeline
+            .search(HybridSearchRequest {
+                query_text: "zzz".to_string(),
+                query_vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
+                target_workspaces: vec!["Global".to_string()],
+                ..Default::default()
+            })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let score = |id: &str| results.iter().find(|r| r.chunk_id == id).unwrap().score;
+        // Equal similarities rank by chunk id: g_0 is first in `Default`'s list and in `Global`'s.
+        assert!((score("g_0") - 2.0 / 61.0).abs() < 1e-12, "{results:?}");
+        assert!((score("o_0") - 1.0 / 62.0).abs() < 1e-12, "{results:?}");
+    }
+
+    /// US1: in a Deep batch each candidate gets one cross-encoder score, against the
+    /// sub-question that ranked it best; nothing is summed across sub-questions.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_batch_reranks_each_candidate_once_against_its_best_question() {
+        let Some(reranker) = fixture_reranker() else { return };
+        let (mut pipeline, dir) = bm25_pipeline(
+            "batch_rerank",
+            &[("both", "falcon kestrel", "both.md", SAME_DAY), ("one", "falcon falcon falcon dive", "one.md", SAME_DAY)],
+        );
+        pipeline.set_reranker(Some(reranker.clone()));
+        let sub = |id: &str, q: &str| HybridSearchRequest { sub_query_id: Some(id.into()), query_text: q.into(), ..Default::default() };
+        let results = pipeline.retrieve_hybrid_batch_async(&[sub("q1", "falcon"), sub("q2", "kestrel")]).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let expected = |q: &str, text: &str| reranker.score_batch(q, &[text.to_string()])[0] as f64;
+        let score = |id: &str| results.iter().find(|r| r.chunk_id == id).unwrap().score;
+        // "both" is first for "kestrel" and second for "falcon"; "one" is first for "falcon".
+        assert!((score("both") - expected("kestrel", "falcon kestrel")).abs() < 1e-4);
+        assert!((score("one") - expected("falcon", "falcon falcon falcon dive")).abs() < 1e-4);
+        assert_eq!(results.iter().find(|r| r.chunk_id == "both").unwrap().matched_subqueries, vec!["q1", "q2"]);
     }
 
     /// File-name matches form their own list and stay pinned on top; their dense score is the

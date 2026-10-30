@@ -742,17 +742,14 @@ pub fn run_startup_splash_bootstrap() {
     std::thread::sleep(std::time::Duration::from_millis(250));
 }
 
-/// Native Hybrid RAG batch retriever adapter for DeepSearch
-/// Hardware profile that sets the reranker depth: the `active_profile` setting, else the profile
-/// recommended for this machine, probed once per process (IMP-042).
+/// Hardware profile that sets the reranker depth (IMP-042): the `active_profile` setting, else
+/// the profile recommended for this machine.
 fn hardware_tier(db: Option<&NativeConfigDb>) -> any_context_core_rs::hardware::ProfileTier {
-    use any_context_core_rs::hardware::{HardwareProfiler, ProfileTier};
-    static RECOMMENDED: std::sync::OnceLock<ProfileTier> = std::sync::OnceLock::new();
-    db.and_then(|d| d.get_setting("active_profile").ok().flatten())
-        .and_then(|p| ProfileTier::parse_str(&p))
-        .unwrap_or_else(|| *RECOMMENDED.get_or_init(|| HardwareProfiler::auto_select_recommended(&HardwareProfiler::probe_system(None))))
+    use any_context_core_rs::ingestion::embedding::{active_profile, recommended_profile};
+    db.map(active_profile).unwrap_or_else(recommended_profile)
 }
 
+/// Native Hybrid RAG batch retriever adapter for DeepSearch
 struct PipelineBatchRetriever {
     lance_store: Arc<any_context_core_rs::storage::NativeLanceStore>,
     query_embedding: QueryEmbedding,
@@ -775,9 +772,10 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
         pipeline.set_reranker(Some(self.reranker.clone()));
         pipeline.set_rerank_mode(&rerank_mode);
 
+        let tier = hardware_tier(db.as_ref());
         let requests: Vec<_> = queries
             .iter()
-            .map(|q| any_context_core_rs::retrieval::deep_request(q, &self.workspace, &rerank_mode, hardware_tier(db.as_ref())))
+            .map(|q| any_context_core_rs::retrieval::deep_request(q, &self.workspace, &rerank_mode, tier))
             .collect();
 
         match pipeline.retrieve_hybrid_batch_with_outcome(&requests).await {

@@ -4,10 +4,10 @@ project: any-context
 title: Unified fusion and reranker depth
 kind: feature
 version: v1.0.0
-status: in_progress
+status: completed
 author: LeviGuilherme
 created_at: '2026-10-30T15:51:21'
-updated_at: '2026-10-30T15:54:46'
+updated_at: '2026-10-30T16:57:31'
 session_id: null
 tags:
 - retrieval
@@ -23,11 +23,17 @@ backlog_items:
 spec_dir: specs/004-unified-fusion
 milestones:
 - name: M1 Fusion
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M2 Reranker input and depth
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M3 Docs and baselines
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 status_log:
 - at: '2026-10-30T15:51:21'
   by: LeviGuilherme
@@ -41,6 +47,19 @@ status_log:
   by: LeviGuilherme
   status: in_progress
   note: Approved by Levi (gate 3), 2026-10-30
+- at: '2026-10-30T16:57:26'
+  by: LeviGuilherme
+  note: Milestone 'M1 Fusion' completed
+- at: '2026-10-30T16:57:28'
+  by: LeviGuilherme
+  note: Milestone 'M2 Reranker input and depth' completed
+- at: '2026-10-30T16:57:31'
+  by: LeviGuilherme
+  note: Milestone 'M3 Docs and baselines' completed
+- at: '2026-10-30T16:57:31'
+  by: LeviGuilherme
+  status: completed
+  note: All milestones completed
 ---
 
 # Unified fusion and reranker depth
