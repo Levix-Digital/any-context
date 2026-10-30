@@ -89,6 +89,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0156](docs/adr/0156-one-fusion-of-all-lists-per-search-and-reranker-depth-by-mode-profile-and-time-budget.md) | One fusion of all lists per search, and reranker depth by mode, profile and time budget | accepted | v1.0.0 | 2026-10-30 |
 | [ADR-0155](docs/adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md) | Retrieval filters apply inside each retriever, and the answer says when dense search did not run | accepted | v1.0.0 | 2026-10-30 |
 | [ADR-0154](docs/adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md) | Local embedding model with its own setting and no fallback | accepted | v1.0.0 | 2026-10-30 |
 | [ADR-0153](docs/adr/0153-a-development-retrieval-benchmark-gates-retrieval-changes.md) | A development retrieval benchmark gates retrieval changes | accepted | v1.0.0 | 2026-10-25 |

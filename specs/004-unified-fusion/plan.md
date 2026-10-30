@@ -69,7 +69,8 @@ crates/any-context-core-rs/src/ingestion/embedding.rs   # active_profile public
 crates/actx-cli/src/engine.rs                           # builders with the active profile; tool_request
 crates/actx-bench/src/runner.rs                         # fixed depth, no budget
 benchmarks/retrieval/baseline.*.json                    # refreshed
-docs/adr/0156-*.md, docs/architecture/retrieval.md, docs/architecture/retrieval-pipeline-v2.md (status note), tests/MANUAL_TESTS.md
+docs/adr/0156-*.md, docs/adr/0129-*.md, docs/adr/0139-*.md (amended_by), docs/architecture/retrieval.md, tests/MANUAL_TESTS.md
+crates/any-context-core-rs/src/commands/engine.rs       # /rerank: depths of the profile, candidates of the last pass
 ```
 
 ## Complexity Tracking
@@ -95,13 +96,13 @@ IMP-041 and IMP-042 (medium), release R1 v1.0.0 Personal. Chosen by Levi on 2026
 ### Documentation (architecture-docs, user-docs)
 
 - ADR-0156 "One fusion of all lists per search, reranker depth by mode, profile and time budget".
-- `docs/architecture/retrieval.md` (fusion, reranking, presets, Deep batch) edited in place; the "Today" paragraph of step 5 in `retrieval-pipeline-v2.md` marked as delivered; TECDOC index regenerated; README unchanged (no new user setting).
+- `docs/architecture/retrieval.md` (fusion, reranking, presets, Deep batch) edited in place; ADR-0129 and ADR-0139 marked as amended; TECDOC index regenerated; README unchanged (no new user setting). The target design (`retrieval-pipeline-v2.md`) is left as it is, as for IMP-040.
 
 ### CI, release and observability (devops-release)
 
 - No workflow change: the retrieval benchmark already runs on these paths.
 - Version impact: behavior inside R1 v1.0.0; no bump in this PR.
-- Observability: `last_rerank_latency_ms` keeps working; a debug log line per search gives lists, fused candidates, depth and reranked count.
+- Observability: the core has no logger, so the last pass's latency and candidate count (`last_rerank_latency_ms`, `last_rerank_candidates`) and the profile's depths are shown by `/rerank`.
 
 ### Security, migration and rollback
 

@@ -8,7 +8,7 @@ subsystems: [retrieval, onnx, cli, tui]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: [130]
+amended_by: [130, 156]
 ---
 
 # ADR-0129: Two-Stage Neural Retrieval with Local ONNX Cross-Encoder Re-Ranking, Hardware Acceleration and Graceful ADR-110 Fallback

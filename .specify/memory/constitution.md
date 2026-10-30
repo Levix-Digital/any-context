@@ -1,7 +1,7 @@
 <!-- dev-cycle-constitution
 generated-by: dev-cycle-protocol/constitution.py (do not edit; change a source and regenerate)
-sources-sha256: 6223162c838d0b87fcc32ac3a9e5af934e292cded858e2eef319dc3605d73299
-content-sha256: 016980c1a895c3129260331deaaa8e74680db7b1226395201cb7c4d2eee0ee3d
+sources-sha256: a7a568feec18ebe60a169520071990fe539d854a35fc52261936e1c9cb12977b
+content-sha256: 60b8008479cd6a86337be443aa441d78f023fe571557191d0ced12c4474df589
 -->
 # any-context Constitution
 
@@ -204,6 +204,7 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - ADR-0153: A development retrieval benchmark gates retrieval changes (`docs/adr/0153-a-development-retrieval-benchmark-gates-retrieval-changes.md`)
 - ADR-0154: Local embedding model with its own setting and no fallback (`docs/adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md`)
 - ADR-0155: Retrieval filters apply inside each retriever, and the answer says when dense search did not run (`docs/adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md`)
+- ADR-0156: One fusion of all lists per search, and reranker depth by mode, profile and time budget (`docs/adr/0156-one-fusion-of-all-lists-per-search-and-reranker-depth-by-mode-profile-and-time-budget.md`)
 
 ## Governance
 
@@ -211,4 +212,4 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - Amendments change the source, not this file: an ADR for decisions, the technical specification for requirements and constraints, `.dev-cycle.json` for the architecture style, the skills for principles. Then run `constitution.py generate` and commit the result with the change.
 - Gate 3 of the development cycle blocks a plan while this file is stale or edited by hand.
 
-**Version**: 1.8.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-30
+**Version**: 1.9.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-30

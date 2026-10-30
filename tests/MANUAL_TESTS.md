@@ -589,6 +589,22 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-ANS-012: Deep answers draw on several documents, and the reranker depth follows the profile
+
+- **Covers**: one fusion per search, reranker slots per document, reranker depth by profile and time budget
+- **Prerequisites**: a workspace with one long document about kestrels (more than 20 sections that all mention kestrel nesting) and three short files that each describe one nesting site
+- **Steps**:
+  1. Ask in deep mode (`/deep`): "Where do kestrels nest, and at which sites?"
+  2. Run `/rerank` and note the depth line and the last pass's candidate count.
+  3. Switch to the Lite profile (`/profile lite`), ask a quick question about kestrels and run `/rerank` again.
+  4. Switch back to the previous profile.
+- **Expected**:
+  - Step 1 cites the long document and at least two of the short files.
+  - Step 2 shows "up to 30 candidates in Fast and 50 in Deep" on Smart Balanced or Air-Gapped Power (40 / 75 on Workstation Pro, 50 / 100 on Sovereign Ultra), at most 3 per document, and a latency "for N candidates" with N not above the Deep depth.
+  - Step 3 shows "up to 20 candidates in Fast and 30 in Deep", and the last pass has at most 20 candidates.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ## Local Re-Ranking and Models
 
 ### MT-MOD-001: The local re-ranker improves ordering and reports its state
