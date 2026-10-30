@@ -1251,16 +1251,16 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-041: [retrieval] Single RRF over clean lists with a per-document cap, no score cut
 - **Priority**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: imp_041_042_unified_fusion
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 5, Fusion. All lists (every Deep sub-question, every source, future retrievers) enter one RRF with k = 60 and equal weights, tuned per workspace by the evaluation set; each document takes at most a few reranker slots, the rest in reserve. Acceptance: the RRF minimum-score cut per preset and Deep's deduplication with score summing are removed.
 
 ### IMP-042: [retrieval] Reranker depth by time budget and profile
 - **Priority**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: imp_041_042_unified_fusion
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 5, Fusion. Candidates sent to the reranker: Fast 30, Deep 50, adjusted by hardware profile (e.g. 20 on light profiles, up to 100 on strong ones or the Model Server) within a reranking time budget (about 1 second in Fast), tuned per workspace by where the right chunk usually sits.
 
 ### IMP-043: [retrieval] Cross-encoder as the only relevance judge, always on
