@@ -69,3 +69,17 @@ Calibration table of each run (negatives with nothing / positives that lose the 
 - **mmarco** (lexical and dense against the committed baselines): no regression. Lexical: MRR@10 0.9357 (baseline 0.9429), HitRate@5 0.9571 (=), delivered hit rate 0.9571 (=), nothing-found on negatives 0 → 0.333, false nothing-found 0 → 0.014 (a question whose relevant document the lexical ranking already misses). Dense: delivered hit rate 1.0 (=), nothing-found on negatives 0 → 0.133, false nothing-found 0. The MRR change of the lexical run is present on dev before this branch (ranking pass has no cut) and is within the gate.
 - **bge-reranker-v2-m3**: the lowest relevant scores are 0.0346 (lexical) and 0.0452 (dense); the best negatives 0.0434 and 0.0244. Thresholds: irrelevant below **0.03** (the highest grid value that loses no relevant document), relevant from **0.1** (above every negative; 69 of 70 dense positives reach it). With them, 13 (lexical) and 15 (dense) of the 15 negatives return nothing. Dense run: MRR@10 1.0, HitRate@5 1.0, delivered hit rate 1.0, false nothing-found 0; mean latency of the delivered pass 3.2 s against 1.3 s with mmarco.
 - SC-002 holds (nothing-found on negatives above 0 in both configurations), SC-003 holds (delivered hit rate unchanged, gated metrics within 0.02), SC-004 holds (both rerankers calibrated).
+
+## CI results (T012)
+
+Pull request #390, revision 872575d (ubuntu-latest), mmarco reranker, compared with the baselines of dev:
+
+| metric | lexical baseline | lexical | dense bge-m3 baseline | dense bge-m3 |
+|---|---:|---:|---:|---:|
+| MRR@10 (gate) | 0.9429 | 0.9500 | 0.9786 | 0.9714 |
+| HitRate@5 (gate) | 0.9571 | 0.9571 | 1.0 | 1.0 |
+| delivered hit rate (gate) | 0.9571 | 0.9571 | 1.0 | 1.0 |
+| nothing-found on negatives | 0 | 0.400 | 0 | 0.133 |
+| false nothing-found | 0 | 0.029 | 0 | 0 |
+
+The two lexical false nothing-found questions are positives whose relevant document the lexical ranking already misses (delivered hit rate unchanged). The ranking metrics move by one question at rank 1 between the CI and the local runs (CPU-dependent INT8 scores); both runs are within the gate. The CI calibration tables match the local ones within one question per row, and at 0.005 the dense run loses no relevant document. The baselines `baseline.lexical-rerank.json` and `baseline.dense-local-bge-m3-rerank.json` are refreshed from these CI results, since the delivered nothing-found rate changes by design.
