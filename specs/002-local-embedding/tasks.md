@@ -52,7 +52,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [x] T022 [US2] TUI `/embedding [id]` in `commands/registry.rs` and the TUI handler, with confirmation
 - [x] T023 [US2] Headless `actx embedding [id] [--yes]` in `cli/args.rs`/`cli/oneshot.rs` (exit codes per contract)
 - [x] T024 [US2] `-m/--model` and `/model` no longer affect embeddings (`SyncOptions::model` not used for embedding; `pending_reindex_notice` driven by the embedding setting); regression test: chat-model change re-embeds zero chunks (SC-003)
-- [ ] T025 [P] [US2] `/models` lists embedding models in their category; diagnostics shows model, source and installed state
+- [x] T025 [P] [US2] `/models` lists embedding models in their category; diagnostics shows model, source and installed state. Changed: `/embedding` lists the embedding models with size and installed state, and `/models` stays the chat model catalog, so the two lists are never mixed
 - [x] T026 [P] [US2] CLI tests for the contract (show, set with and without `--yes`, unknown id, cloud notice)
 
 **Checkpoint (M3)**: the setting drives everything; no fallback anywhere.
