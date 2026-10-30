@@ -14,6 +14,7 @@
 
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use crate::retrieval::relevance::RelevanceThresholds;
 use crate::storage::get_default_models_dir;
 
 /// Functional category of a local model.
@@ -77,6 +78,8 @@ pub struct OnnxModelSpec {
     pub availability: ModelAvailability,
     pub description: &'static str,
     pub fallback_description: &'static str,
+    /// Relevance band thresholds of a reranker, calibrated on the retrieval benchmark (IMP-044).
+    pub relevance: Option<RelevanceThresholds>,
 }
 
 impl OnnxModelSpec {
@@ -107,6 +110,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Planned,
         description: "Local generation planned for a future release (no download available yet)",
         fallback_description: "Configured fallback provider (cloud, Ollama, LM Studio or Mock)",
+        relevance: None,
     },
     OnnxModelSpec {
         id: "gemma-4-12b",
@@ -118,6 +122,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Planned,
         description: "Local generation planned for a future release (no download available yet)",
         fallback_description: "Configured fallback provider (cloud, Ollama, LM Studio or Mock)",
+        relevance: None,
     },
     OnnxModelSpec {
         id: "gemma-4-27b",
@@ -129,6 +134,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Planned,
         description: "Local generation planned for a future release (no download available yet)",
         fallback_description: "Configured fallback provider (cloud, Ollama, LM Studio or Mock)",
+        relevance: None,
     },
     OnnxModelSpec {
         id: "gemma-4-32b",
@@ -140,6 +146,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Planned,
         description: "Local generation planned for a future release (no download available yet)",
         fallback_description: "Configured fallback provider (cloud, Ollama, LM Studio or Mock)",
+        relevance: None,
     },
     // --- Document AI & Query Routing weights (components run deterministic heuristics) ---
     OnnxModelSpec {
@@ -157,6 +164,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Document & form typology weights (neural classification planned; heuristic active)",
         fallback_description: "Heuristic / Deterministic Classifier (<1µs / 0MB RAM)",
+        relevance: None,
     },
     OnnxModelSpec {
         id: "mobilenetv4-rvl-cdip",
@@ -173,6 +181,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Scanned-page sentinel weights (neural inference planned; 2D heuristic active)",
         fallback_description: "Rust 2D Spatial Heuristic (<5MB RAM)",
+        relevance: None,
     },
     OnnxModelSpec {
         id: "bge-small-onnx",
@@ -189,6 +198,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Query routing weights (neural routing planned; keyword heuristic active)",
         fallback_description: "Sub-microsecond Deterministic Classifier (<1µs / 0MB RAM)",
+        relevance: None,
     },
     OnnxModelSpec {
         id: "layoutlmv3-int8",
@@ -205,6 +215,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Layout extraction weights (neural inference planned; 2D spatial chunkers active)",
         fallback_description: "Agnostic 2D Spatial Heuristic (<5MB RAM)",
+        relevance: None,
     },
     OnnxModelSpec {
         id: "clip-vit-int8",
@@ -221,6 +232,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Visual encoder weights (neural inference planned; native visual chunks preserved)",
         fallback_description: "Rust 2D Spatial & Typographic Heuristic (<5MB RAM)",
+        relevance: None,
     },
     // --- Cross-encoder re-rankers (neural, ONNX Runtime CPU) ---
     OnnxModelSpec {
@@ -246,6 +258,8 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Default multilingual cross-encoder for two-stage retrieval (Apache-2.0, CPU)",
         fallback_description: "Reciprocal Rank Fusion (RRF) ordering ($0.00 / Zero Network Leaks)",
+        // Calibrated on the retrieval benchmark (specs/006-reranker-relevance-bands/research.md).
+        relevance: Some(RelevanceThresholds { irrelevant_below: 0.005, relevant_from: 0.6 }),
     },
     OnnxModelSpec {
         id: "bge-reranker-v2-m3",
@@ -270,6 +284,8 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Higher-quality multilingual cross-encoder for 32GB+ workstations (Apache-2.0, CPU)",
         fallback_description: "Reciprocal Rank Fusion (RRF) ordering ($0.00 / Zero Network Leaks)",
+        // Calibrated on the retrieval benchmark (specs/006-reranker-relevance-bands/research.md).
+        relevance: Some(RelevanceThresholds { irrelevant_below: 0.005, relevant_from: 0.6 }),
     },
     // --- Local multilingual embedding models (FEAT-067, ADR-0154). INT8 ONNX exports of the
     // MIT-licensed originals; the default of each profile is set by the retrieval benchmark.
@@ -296,6 +312,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Local multilingual embeddings, 100+ languages (MIT, CPU)",
         fallback_description: "None: semantic search needs an embedding model",
+        relevance: None,
     },
     OnnxModelSpec {
         id: "multilingual-e5-base",
@@ -320,6 +337,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Local multilingual embeddings, 100+ languages (MIT, CPU)",
         fallback_description: "None: semantic search needs an embedding model",
+        relevance: None,
     },
     OnnxModelSpec {
         id: "bge-m3",
@@ -344,6 +362,7 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Local multilingual embeddings, 100+ languages, long inputs (MIT, CPU)",
         fallback_description: "None: semantic search needs an embedding model",
+        relevance: None,
     },
 ];
 
@@ -467,6 +486,11 @@ impl OnnxModelManager {
     /// Finds a model specification by identifier.
     pub fn find_spec(id: &str) -> Option<&'static OnnxModelSpec> {
         ONNX_CATALOG.iter().find(|m| m.id.eq_ignore_ascii_case(id))
+    }
+
+    /// Relevance band thresholds of the reranker `id`; `None` for an unknown model (IMP-044).
+    pub fn relevance_thresholds(id: &str) -> Option<RelevanceThresholds> {
+        Self::find_spec(id).and_then(|m| m.relevance)
     }
 
     /// Resolves a user-provided tier name or alias into a canonical ONNX model specification.
@@ -964,6 +988,22 @@ impl Drop for PartialDownloadGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_reranker_has_valid_relevance_thresholds() {
+        for spec in OnnxModelManager::catalog() {
+            match spec.category {
+                OnnxModelCategory::ReRanker => {
+                    let t = spec.relevance.unwrap_or_else(|| panic!("{} has no relevance thresholds", spec.id));
+                    assert!(t.is_valid(), "{}: {t:?}", spec.id);
+                }
+                _ => assert!(spec.relevance.is_none(), "{} is not a reranker", spec.id),
+            }
+        }
+        assert!(OnnxModelManager::relevance_thresholds(DEFAULT_RERANKER_ID).is_some());
+        assert!(OnnxModelManager::relevance_thresholds("multilingual-e5-small").is_none());
+        assert!(OnnxModelManager::relevance_thresholds("unknown-reranker").is_none());
+    }
 
     #[test]
     fn test_catalog_integrity() {

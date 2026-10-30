@@ -14,6 +14,7 @@ use crate::ingestion::enricher::NativeContextualEnricher;
 use crate::ingestion::embedding::QueryEmbedding;
 use crate::retrieval::bm25::BM25Index;
 use crate::retrieval::filter::RetrievalFilter;
+use crate::retrieval::relevance::{BandCounts, RelevanceBand, RelevanceThresholds};
 use crate::retrieval::rerank_depth;
 use crate::retrieval::rrf::{self, RankedList};
 use crate::retrieval::diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
@@ -184,6 +185,9 @@ pub struct HybridSearchResult {
     pub start_line: Option<u32>,
     #[serde(default)]
     pub end_line: Option<u32>,
+    /// Band of the cross-encoder score; `None` when not scored or not banded (IMP-044).
+    #[serde(default)]
+    pub relevance_band: Option<RelevanceBand>,
 }
 
 /// Query embedding model used until `set_embedding` is called.
@@ -317,6 +321,8 @@ pub struct RetrievalOutput {
     /// For a batch: the first sub-query whose dense half did not run, else `Dense`.
     pub dense: QueryEmbeddingOutcome,
     pub rerank: RerankOutcome,
+    /// Band counts of the reranking pass; `None` when nothing was banded (IMP-044).
+    pub bands: Option<BandCounts>,
 }
 
 impl RetrievalOutput {
@@ -346,6 +352,13 @@ static LAST_RERANK_OUTCOME: std::sync::Mutex<Option<RerankOutcome>> = std::sync:
 /// Reranking outcome of the most recent hybrid search in this process, if any.
 pub fn last_rerank_outcome() -> Option<RerankOutcome> {
     LAST_RERANK_OUTCOME.lock().ok().and_then(|o| o.clone())
+}
+
+static LAST_BAND_COUNTS: std::sync::Mutex<Option<BandCounts>> = std::sync::Mutex::new(None);
+
+/// Band counts of the most recent hybrid search in this process, when its pass was banded (IMP-044).
+pub fn last_band_counts() -> Option<BandCounts> {
+    LAST_BAND_COUNTS.lock().ok().and_then(|b| *b)
 }
 
 /// Latency (ms) and candidate count of the most recent neural re-ranking pass, kept together so
@@ -472,6 +485,26 @@ fn keep_scored(items: &mut Vec<HybridSearchResult>, picks: &HashMap<String, Stri
     items.retain(|c| protected.contains(&c.chunk_id) || picks.contains_key(&c.chunk_id));
 }
 
+/// Bands every scored item (all but the `protected` ones) and, with `cut`, discards the
+/// irrelevant ones so they never reach the selection (IMP-044).
+fn apply_relevance_bands(
+    items: &mut Vec<HybridSearchResult>,
+    protected: &std::collections::HashSet<String>,
+    thresholds: RelevanceThresholds,
+    cut: bool,
+) -> BandCounts {
+    let mut counts = BandCounts::default();
+    for item in items.iter_mut().filter(|c| !protected.contains(&c.chunk_id)) {
+        let band = thresholds.band(item.score as f32);
+        item.relevance_band = Some(band);
+        counts.add(band);
+    }
+    if cut {
+        items.retain(|c| c.relevance_band != Some(RelevanceBand::Irrelevant));
+    }
+    counts
+}
+
 /// Reranker input: the unpinned `results` (in fusion order) through the per-document slots, up to
 /// `depth`, each with the text of the question that ranked it best (IMP-041, IMP-042).
 fn rerank_picks(
@@ -578,6 +611,8 @@ pub struct NativeHybridPipeline {
     missing_provider_outcome: QueryEmbeddingOutcome,
     /// Whether `Global` rows take part in dense search (their vectors share the query's space).
     global_dense: bool,
+    /// Whether irrelevant chunks are discarded after reranking; off only for evaluation (IMP-044).
+    relevance_cut: bool,
 }
 
 impl NativeHybridPipeline {
@@ -597,6 +632,7 @@ impl NativeHybridPipeline {
             last_query_embedding: std::sync::Mutex::new(None),
             missing_provider_outcome: QueryEmbeddingOutcome::NoProvider,
             global_dense: false,
+            relevance_cut: true,
         })
     }
 
@@ -615,6 +651,7 @@ impl NativeHybridPipeline {
             last_query_embedding: std::sync::Mutex::new(None),
             missing_provider_outcome: QueryEmbeddingOutcome::NoProvider,
             global_dense: false,
+            relevance_cut: true,
         }
     }
 
@@ -675,6 +712,12 @@ impl NativeHybridPipeline {
     /// Sets the optional cross-encoder neural reranker.
     pub fn set_reranker(&mut self, reranker: Option<Arc<actx_onnx::OnnxReranker>>) {
         self.reranker = reranker;
+    }
+
+    /// Turns the discard of irrelevant chunks off (chunks are still banded). For evaluation only:
+    /// the benchmark's ranking pass measures order without the cut; no product surface calls it.
+    pub fn set_relevance_cut(&mut self, cut: bool) {
+        self.relevance_cut = cut;
     }
 
     /// Returns a reference to the active reranker, if present.
@@ -1083,6 +1126,7 @@ impl NativeHybridPipeline {
                 header_path: origin.header_path,
                 start_line: origin.start_line,
                 end_line: origin.end_line,
+                relevance_band: None,
             });
         }
         results.sort_by(compare_by_relevance);
@@ -1093,8 +1137,17 @@ impl NativeHybridPipeline {
         let depth = rerank_depth::effective_depth(first.rerank_depth, first.rerank_budget_ms);
         let picks = rerank_picks(&results, &pinned, &best_query, requests, depth);
         let rerank = apply_neural_rerank(self.reranker.as_ref(), &mut results, &picks, &pinned).await;
+        // Bands of the active reranker's thresholds; irrelevant chunks are dropped (IMP-044).
+        let bands = match (&rerank, self.reranker.as_ref()) {
+            (RerankOutcome::Scored, Some(reranker)) => crate::ingestion::OnnxModelManager::relevance_thresholds(reranker.model_id())
+                .map(|t| apply_relevance_bands(&mut results, &pinned, t, self.relevance_cut)),
+            _ => None,
+        };
         if let Ok(mut last) = LAST_RERANK_OUTCOME.lock() {
             *last = Some(rerank.clone());
+        }
+        if let Ok(mut last) = LAST_BAND_COUNTS.lock() {
+            *last = bands;
         }
         results.sort_by(compare_by_relevance);
 
@@ -1114,7 +1167,7 @@ impl NativeHybridPipeline {
             }
         }
 
-        RetrievalOutput { results: final_results, dense, rerank }
+        RetrievalOutput { results: final_results, dense, rerank, bands }
     }
 
     /// Reads the stored rows of `ids` from LanceDB, keyed by chunk id and normalized file path
@@ -1180,7 +1233,7 @@ impl NativeHybridPipeline {
         requests: &[HybridSearchRequest],
     ) -> Result<RetrievalOutput, String> {
         if requests.is_empty() {
-            return Ok(RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::NotNeeded });
+            return Ok(RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::NotNeeded, bands: None });
         }
         let futures: Vec<_> = requests.iter().enumerate().map(|(q, req)| self.collect_lists(req, q)).collect();
         let per_query = futures::future::join_all(futures).await.into_iter().collect::<Result<Vec<_>, _>>()?;
@@ -1344,6 +1397,7 @@ mod tests {
             header_path: None,
             start_line: None,
             end_line: None,
+            relevance_band: None,
         }
     }
 
@@ -1404,6 +1458,11 @@ mod tests {
 
     /// The tiny cross-encoder of the ONNX fixtures, or `None` (test skipped) without ONNX Runtime.
     fn fixture_reranker() -> Option<std::sync::Arc<actx_onnx::OnnxReranker>> {
+        fixture_reranker_as("tiny-fixture")
+    }
+
+    /// The fixture cross-encoder under the model id `id` (a catalog id gets that model's bands).
+    fn fixture_reranker_as(id: &str) -> Option<std::sync::Arc<actx_onnx::OnnxReranker>> {
         if actx_onnx::runtime::probe_runtime().is_err() {
             if std::env::var("ACTX_REQUIRE_ORT").as_deref() == Ok("1") {
                 panic!("ACTX_REQUIRE_ORT=1 but ONNX Runtime could not be loaded");
@@ -1416,7 +1475,7 @@ mod tests {
             actx_onnx::OnnxReranker::with_paths(
                 &fixtures.join("tiny_reranker.onnx"),
                 &fixtures.join("tiny_tokenizer.json"),
-                "tiny-fixture",
+                id,
                 actx_onnx::ExecutionDevice::Cpu,
             )
             .with_max_length(32),
@@ -1909,6 +1968,87 @@ mod tests {
         assert!(output.rerank.answer_notice().is_none());
     }
 
+    const BANDS: RelevanceThresholds = RelevanceThresholds { irrelevant_below: 0.005, relevant_from: 0.6 };
+
+    fn banded_items() -> Vec<HybridSearchResult> {
+        vec![result("pin", "pinned", 1.0), result("a", "a", 0.95), result("b", "b", 0.3), result("c", "c", 0.002), result("d", "d", 0.6)]
+    }
+
+    fn pinned_ids(ids: &[&str]) -> std::collections::HashSet<String> {
+        ids.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// IMP-044: irrelevant chunks are discarded, the rest keep their order and carry their band.
+    #[test]
+    fn irrelevant_chunks_are_discarded_and_the_rest_banded() {
+        let mut items = banded_items();
+        let counts = apply_relevance_bands(&mut items, &pinned_ids(&["pin"]), BANDS, true);
+        assert_eq!(items.iter().map(|c| c.chunk_id.as_str()).collect::<Vec<_>>(), vec!["pin", "a", "b", "d"]);
+        let band = |id: &str| items.iter().find(|c| c.chunk_id == id).unwrap().relevance_band;
+        assert_eq!(band("pin"), None, "pinned matches are not banded");
+        assert_eq!(band("a"), Some(RelevanceBand::Relevant));
+        assert_eq!(band("b"), Some(RelevanceBand::Maybe));
+        assert_eq!(band("d"), Some(RelevanceBand::Relevant));
+        assert_eq!(counts, BandCounts { relevant: 2, maybe: 1, irrelevant: 1 });
+    }
+
+    /// IMP-044: when every scored chunk is irrelevant, only the pinned ones (if any) remain.
+    #[test]
+    fn all_irrelevant_leaves_nothing_but_pinned_matches() {
+        let mut items = vec![result("x", "x", 0.001), result("y", "y", 0.0)];
+        let counts = apply_relevance_bands(&mut items, &pinned_ids(&[]), BANDS, true);
+        assert!(items.is_empty());
+        assert_eq!(counts.irrelevant, 2);
+
+        let mut items = vec![result("pin", "pinned", 1.0), result("x", "x", 0.001)];
+        apply_relevance_bands(&mut items, &pinned_ids(&["pin"]), BANDS, true);
+        assert_eq!(items.len(), 1);
+    }
+
+    /// IMP-044: with the cut off (evaluation only) chunks are banded and none is discarded.
+    #[test]
+    fn without_the_cut_chunks_are_banded_but_kept() {
+        let mut items = banded_items();
+        let counts = apply_relevance_bands(&mut items, &pinned_ids(&["pin"]), BANDS, false);
+        assert_eq!(items.len(), 5);
+        assert_eq!(items.iter().find(|c| c.chunk_id == "c").unwrap().relevance_band, Some(RelevanceBand::Irrelevant));
+        assert_eq!(counts.irrelevant, 1);
+    }
+
+    /// IMP-044: a catalog reranker bands its scored candidates and reports the counts.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_catalog_reranker_bands_the_scored_candidates() {
+        let Some(reranker) = fixture_reranker_as(crate::ingestion::DEFAULT_RERANKER_ID) else { return };
+        let (mut pipeline, dir) = bm25_pipeline(
+            "banded",
+            &[("a", "falcon dive", "a.md", SAME_DAY), ("b", "falcon nest", "b.md", SAME_DAY), ("c", "falcon wing", "c.md", SAME_DAY)],
+        );
+        pipeline.set_reranker(Some(reranker));
+        let output = pipeline.search_with_outcome(&HybridSearchRequest { query_text: "falcon".into(), ..Default::default() }).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(output.rerank, RerankOutcome::Scored);
+        let counts = output.bands.expect("a catalog reranker bands its pass");
+        assert_eq!(counts.relevant + counts.maybe + counts.irrelevant, 3);
+        assert_eq!(output.results.len(), counts.relevant + counts.maybe);
+        assert!(output.results.iter().all(|c| matches!(c.relevance_band, Some(RelevanceBand::Relevant | RelevanceBand::Maybe))));
+    }
+
+    /// IMP-044: a reranker that is not in the catalog has no thresholds: no band, nothing discarded.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_unknown_reranker_model_is_not_banded() {
+        let Some(reranker) = fixture_reranker() else { return };
+        let (mut pipeline, dir) = bm25_pipeline("unbanded", &[("a", "falcon dive", "a.md", SAME_DAY), ("b", "falcon nest", "b.md", SAME_DAY)]);
+        pipeline.set_reranker(Some(reranker));
+        let output = pipeline.search_with_outcome(&HybridSearchRequest { query_text: "falcon".into(), ..Default::default() }).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(output.rerank, RerankOutcome::Scored);
+        assert_eq!(output.bands, None);
+        assert_eq!(output.results.len(), 2);
+        assert!(output.results.iter().all(|c| c.relevance_band.is_none()));
+    }
+
     /// IMP-043: fewer candidates than the depth are all scored and kept.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn candidates_within_the_depth_are_all_kept() {
@@ -1939,6 +2079,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
         assert_eq!(output.rerank, RerankOutcome::Unavailable("no reranker is configured".into()));
         assert_eq!(output.results.len(), 5, "nothing discarded");
+        assert_eq!(output.bands, None, "no band without a scored pass");
         let notices = output.notices().unwrap();
         assert!(notices.lines().last().unwrap().starts_with("Answered without relevance ranking: no reranker is configured."), "{notices}");
 
@@ -1997,13 +2138,14 @@ mod tests {
             results: Vec::new(),
             dense: QueryEmbeddingOutcome::NoProvider,
             rerank: RerankOutcome::Unavailable("the ONNX Runtime library is missing".into()),
+            bands: None,
         };
         let notices = output.notices().unwrap();
         let lines: Vec<&str> = notices.lines().collect();
         assert_eq!(lines.len(), 2);
         assert!(lines[0].starts_with("Answered by keyword search only"));
         assert!(lines[1].starts_with("Answered without relevance ranking"));
-        let clean = RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::Scored };
+        let clean = RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::Scored, bands: None };
         assert_eq!(clean.notices(), None);
     }
 

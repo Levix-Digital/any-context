@@ -412,6 +412,7 @@ impl actx_agent::SynthesisPromptFormatter for CanonicalSynthesisFormatter {
                 header_path: c.header_path.clone(),
                 start_line: c.start_line.and_then(|l| u32::try_from(l).ok()),
                 end_line: c.end_line.and_then(|l| u32::try_from(l).ok()),
+                relevance_band: None,
             })
             .collect();
         ContextFormatter::format_deep_search_prompt(&results, query, &self.system_prompt, &self.workspace)
@@ -441,6 +442,7 @@ mod tests {
             header_path: None,
             start_line: None,
             end_line: None,
+            relevance_band: None,
         }
     }
 
