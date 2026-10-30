@@ -13,6 +13,7 @@ use crate::storage::lancedb::{NativeLanceStore, ScoredVectorResult};
 use crate::ingestion::enricher::NativeContextualEnricher;
 use crate::ingestion::embedding::QueryEmbedding;
 use crate::retrieval::bm25::BM25Index;
+use crate::retrieval::filter::RetrievalFilter;
 use crate::retrieval::rrf::reciprocal_rank_fusion;
 use crate::retrieval::diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
 use crate::retrieval::query::QueryPreprocessor;
@@ -102,6 +103,7 @@ impl RetrievalPreset {
             table_name: "workspace_chunks".to_string(),
             rrf_k: self.rrf_k(),
             rerank_mode: None,
+            filter: RetrievalFilter::default(),
         }
     }
 }
@@ -124,6 +126,9 @@ pub struct HybridSearchRequest {
     pub rrf_k: usize,
     #[serde(default)]
     pub rerank_mode: Option<String>,
+    /// Narrowing applied inside both retrievers, before their candidate limit (IMP-040).
+    #[serde(default)]
+    pub filter: RetrievalFilter,
 }
 
 impl HybridSearchRequest {
@@ -149,6 +154,7 @@ impl Default for HybridSearchRequest {
             table_name: "workspace_chunks".to_string(),
             rrf_k: 60,
             rerank_mode: None,
+            filter: RetrievalFilter::default(),
         }
     }
 }
@@ -244,6 +250,40 @@ impl QueryEmbeddingOutcome {
             QueryEmbeddingOutcome::SearchFailed(reason) => format!("BM25 only (last query): dense search failed: {reason}"),
         }
     }
+}
+
+impl QueryEmbeddingOutcome {
+    /// The warning line shown at the end of an answer whose search ran without the dense
+    /// retriever, with the cause and the fix; `None` when dense search ran (IMP-040).
+    pub fn answer_notice(&self) -> Option<String> {
+        const LEAD: &str = "Answered by keyword search only";
+        match self {
+            QueryEmbeddingOutcome::Dense => None,
+            QueryEmbeddingOutcome::NoProvider => Some(format!("{LEAD}: no embedding model is configured. Run `actx embedding` to choose one.")),
+            QueryEmbeddingOutcome::NoEmbeddingKey => Some(format!("{LEAD}: this workspace was indexed without an embedding model. Sync it to embed it.")),
+            QueryEmbeddingOutcome::Unavailable(reason) => Some(format!("{LEAD}: {}. Run `actx embedding` to check the model.", short_reason(reason))),
+            QueryEmbeddingOutcome::Failed(reason) => Some(format!("{LEAD}: the question could not be embedded ({}).", short_reason(reason))),
+            QueryEmbeddingOutcome::SearchFailed(reason) => Some(format!("{LEAD}: the semantic search failed ({}).", short_reason(reason))),
+        }
+    }
+}
+
+/// First line of an error, at most 160 characters, without a trailing period.
+fn short_reason(reason: &str) -> String {
+    let line = reason.lines().next().unwrap_or("").trim();
+    let mut short: String = line.chars().take(160).collect();
+    if line.chars().count() > 160 {
+        short.push('…');
+    }
+    short.trim_end_matches('.').to_string()
+}
+
+/// Results of a search and how its dense half went (IMP-040).
+#[derive(Debug, Clone)]
+pub struct RetrievalOutput {
+    pub results: Vec<HybridSearchResult>,
+    /// For a batch: the first sub-query whose dense half did not run, else `Dense`.
+    pub dense: QueryEmbeddingOutcome,
 }
 
 static LAST_QUERY_EMBEDDING: std::sync::Mutex<Option<QueryEmbeddingOutcome>> = std::sync::Mutex::new(None);
@@ -363,7 +403,7 @@ impl Provenance {
 pub struct NativeHybridPipeline {
     db_path: PathBuf,
     lance_store: Arc<NativeLanceStore>,
-    bm25_indices: Arc<RwLock<HashMap<String, BM25Index>>>,
+    bm25_indices: Arc<RwLock<HashMap<String, Arc<BM25Index>>>>,
     lm_client: Option<Arc<dyn LmProvider>>,
     embedding_model: String,
     /// Prefix the embedding model expects in front of questions (IMP-029).
@@ -498,8 +538,9 @@ impl NativeHybridPipeline {
         &self.db_path
     }
 
-    /// Retrieves or loads the BM25 index for the given table.
-    pub fn get_or_load_bm25(&self, table_name: &str) -> BM25Index {
+    /// Retrieves or loads the BM25 index for the given table. The index is shared, not copied,
+    /// so a search costs no copy of it (IMP-040).
+    pub fn get_or_load_bm25(&self, table_name: &str) -> Arc<BM25Index> {
         {
             let reader = self.bm25_indices.read().unwrap();
             if let Some(idx) = reader.get(table_name) {
@@ -534,8 +575,8 @@ impl NativeHybridPipeline {
         };
 
         let mut writer = self.bm25_indices.write().unwrap();
-        writer.insert(table_name.to_string(), index.clone());
-        index
+        let index = writer.entry(table_name.to_string()).or_insert_with(|| Arc::new(index));
+        Arc::clone(index)
     }
 
     /// Adds a chunk into the in-memory BM25 index for the specified table.
@@ -554,7 +595,8 @@ impl NativeHybridPipeline {
         let _ = self.get_or_load_bm25(table_name);
         let mut writer = self.bm25_indices.write().unwrap();
         if let Some(idx) = writer.get_mut(table_name) {
-            idx.add_chunk(id, text, file_name, file_path, workspace, content_type, last_modified);
+            // Copies the index only while a search still holds the previous one.
+            Arc::make_mut(idx).add_chunk(id, text, file_name, file_path, workspace, content_type, last_modified);
         }
     }
 
@@ -582,7 +624,7 @@ impl NativeHybridPipeline {
         let loaded = BM25Index::load_from_file(file_path)
             .map_err(|e| format!("Failed to load BM25 index from {file_path}: {e}"))?;
         let mut writer = self.bm25_indices.write().unwrap();
-        writer.insert(table_name.to_string(), loaded);
+        writer.insert(table_name.to_string(), Arc::new(loaded));
         Ok(())
     }
 
@@ -591,6 +633,12 @@ impl NativeHybridPipeline {
         &self,
         req: &HybridSearchRequest,
     ) -> Result<Vec<HybridSearchResult>, String> {
+        self.search_with_outcome(req).await.map(|out| out.results)
+    }
+
+    /// Single-query hybrid search that also says how its dense half went, so the answer can
+    /// tell the user when it came from the lexical retriever only (IMP-040).
+    pub async fn search_with_outcome(&self, req: &HybridSearchRequest) -> Result<RetrievalOutput, String> {
         // 1. Build distinct workspace query targets
         let mut targets = vec![(primary_workspace(&req).to_string(), req.candidate_pool_k)];
         for tw in &req.target_workspaces {
@@ -608,6 +656,26 @@ impl NativeHybridPipeline {
         let temporal_clauses = processed.temporal_clauses;
         let expanded_query = processed.expanded_query;
 
+        // The request filter narrows every list inside its search, never after it (IMP-040).
+        let filter_pred = req.filter.lance_predicate();
+        let narrow = |clause: &str| match filter_pred {
+            Some(ref f) => format!("({clause}) AND ({f})"),
+            None => clause.to_string(),
+        };
+
+        // The lexical retriever starts now, on a blocking thread, and runs while the question is
+        // embedded and the dense search runs (IMP-040).
+        let bm25_index = self.get_or_load_bm25(&req.table_name);
+        let lexical = {
+            let index = Arc::clone(&bm25_index);
+            let query = expanded_query.clone();
+            // `Default` is a workspace like any other: it sees its own files and `Global` (BUG-023).
+            let workspace = primary_workspace(req).to_string();
+            let filter = req.filter.clone();
+            let limit = req.candidate_pool_k;
+            tokio::task::spawn_blocking(move || index.search_filtered(&query, limit, Some(&workspace), &filter))
+        };
+
         // 3. Metadata Filtering for Exact Filename Mentions
         if !filenames.is_empty() {
             for fn_name in &filenames {
@@ -615,10 +683,11 @@ impl NativeHybridPipeline {
                 let fn_clause =
                     format!("(file_name LIKE '%{fn_clean}%' OR file_path LIKE '%{fn_clean}%')");
                 let combined_where = if !temporal_clauses.is_empty() {
-                    format!("({fn_clause}) AND ({})", temporal_clauses.join(" OR "))
+                    narrow(&format!("({fn_clause}) AND ({})", temporal_clauses.join(" OR ")))
                 } else {
-                    fn_clause.clone()
+                    narrow(&fn_clause)
                 };
+                let fn_where = narrow(&fn_clause);
 
                 for (ws_name, limit) in &targets {
                     let ws_filter = Some(ws_name.as_str());
@@ -631,7 +700,7 @@ impl NativeHybridPipeline {
                     if matches.is_empty() && !temporal_clauses.is_empty() {
                         matches = self
                             .lance_store
-                            .search_metadata_async(&fn_clause, *limit, ws_filter, Some(&req.table_name))
+                            .search_metadata_async(&fn_where, *limit, ws_filter, Some(&req.table_name))
                             .await
                             .unwrap_or_default();
                     }
@@ -658,7 +727,7 @@ impl NativeHybridPipeline {
 
         // 4. Temporal Metadata Filtering
         if !temporal_clauses.is_empty() {
-            let where_or = temporal_clauses.join(" OR ");
+            let where_or = narrow(&temporal_clauses.join(" OR "));
             for (ws_name, limit) in &targets {
                 let ws_filter = Some(ws_name.as_str());
                 if let Ok(matches) = self
@@ -701,7 +770,8 @@ impl NativeHybridPipeline {
         } else {
             (None, self.missing_provider_outcome.clone())
         };
-        self.record_query_embedding(outcome);
+        self.record_query_embedding(outcome.clone());
+        let mut dense_outcome = outcome;
 
         // 6. Dense Vector Similarity Search. `Global` rows take part only when their vectors
         // share the query's space; otherwise BM25 and metadata matches still find them (BUG-019).
@@ -712,6 +782,9 @@ impl NativeHybridPipeline {
             }
             if let Some(ref key) = self.query_target_key {
                 clauses.push(NativeLanceStore::embedding_target_filter(key));
+            }
+            if let Some(ref f) = filter_pred {
+                clauses.push(format!("({f})"));
             }
             (!clauses.is_empty()).then(|| clauses.join(" AND "))
         };
@@ -753,7 +826,8 @@ impl NativeHybridPipeline {
                 }
             }
             if let Some(e) = search_error {
-                self.record_query_embedding(QueryEmbeddingOutcome::SearchFailed(e));
+                dense_outcome = QueryEmbeddingOutcome::SearchFailed(e);
+                self.record_query_embedding(dense_outcome.clone());
             }
         }
 
@@ -770,11 +844,8 @@ impl NativeHybridPipeline {
         let mut dense_map: HashMap<String, ScoredVectorResult> =
             dense_candidates.into_iter().map(|c| (c.id.clone(), c)).collect();
 
-        // 8. Sparse Lexical BM25 Search
-        let bm25_index = self.get_or_load_bm25(&req.table_name);
-        // `Default` is a workspace like any other: it sees its own files and `Global` (BUG-023).
-        let target_ws = Some(primary_workspace(&req));
-        let sparse_matches = bm25_index.search(&expanded_query, req.candidate_pool_k, target_ws);
+        // 8. Sparse Lexical BM25 Search, started above
+        let sparse_matches = lexical.await.map_err(|e| format!("lexical search failed: {e}"))?;
         let sparse_ids: Vec<String> = sparse_matches.iter().map(|(id, _)| id.clone()).collect();
         let sparse_score_map: HashMap<String, f32> = sparse_matches.into_iter().collect();
 
@@ -927,7 +998,7 @@ impl NativeHybridPipeline {
             }
         }
 
-        Ok(final_results)
+        Ok(RetrievalOutput { results: final_results, dense: dense_outcome })
     }
 
     /// Reads the stored rows of `ids` from LanceDB, keyed by chunk id and normalized file path
@@ -982,17 +1053,36 @@ impl NativeHybridPipeline {
         &self,
         requests: &[HybridSearchRequest],
     ) -> Result<Vec<HybridSearchResult>, String> {
+        self.retrieve_hybrid_batch_with_outcome(requests).await.map(|out| out.results)
+    }
+
+    /// [`Self::retrieve_hybrid_batch_async`] that also says how the dense half went: the first
+    /// sub-query whose dense half did not run, or `Dense` when every one ran (IMP-040).
+    pub async fn retrieve_hybrid_batch_with_outcome(
+        &self,
+        requests: &[HybridSearchRequest],
+    ) -> Result<RetrievalOutput, String> {
         if requests.is_empty() {
-            return Ok(Vec::new());
+            return Ok(RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense });
         }
 
         // 1. Concurrently execute all sub-queries in Tokio
         let futures: Vec<_> = requests
             .iter()
-            .map(|req| self.search_single_async(req))
+            .map(|req| self.search_with_outcome(req))
             .collect();
 
-        let all_results = futures::future::join_all(futures).await;
+        let outputs = futures::future::join_all(futures).await;
+        let mut dense = QueryEmbeddingOutcome::Dense;
+        let mut all_results = Vec::with_capacity(outputs.len());
+        for out in outputs {
+            all_results.push(out.map(|o| {
+                if dense == QueryEmbeddingOutcome::Dense {
+                    dense = o.dense;
+                }
+                o.results
+            }));
+        }
 
         // 2. Cross-query deduplication and score accumulation
         let mut dedup_map: HashMap<String, HybridSearchResult> = HashMap::new();
@@ -1080,7 +1170,7 @@ impl NativeHybridPipeline {
             }
         }
 
-        Ok(final_results)
+        Ok(RetrievalOutput { results: final_results, dense })
     }
 
     /// Synchronous wrapper for batch retrieval.
@@ -1975,4 +2065,134 @@ mod tests {
             );
         }
     }
+
+    /// Workspace of a large source with strong matches and a small one with weak matches, in
+    /// both LanceDB and BM25 (IMP-040).
+    fn two_source_pipeline(name: &str) -> (NativeHybridPipeline, PathBuf) {
+        let (pipeline, dir) = bm25_pipeline(name, &[]);
+        let mut rows = Vec::new();
+        let mut add = |id: String, text: &str, path: &str, modified: &str, content_type: &str, vector: Vec<f32>| {
+            let mut row = stored_row(&id, text, path.rsplit('/').next().unwrap(), vector);
+            row.file_path = path.to_string();
+            row.last_modified = Some(modified.to_string());
+            row.content_type = Some(content_type.to_string());
+            pipeline.add_chunk_to_bm25(
+                "workspace_chunks", id, text.to_string(), row.file_name.clone(), path.to_string(),
+                "Default".to_string(), content_type.to_string(), Some(modified.to_string()),
+            );
+            rows.push(row);
+        };
+        for i in 0..40 {
+            add(format!("big_{i:02}"), "invoice invoice invoice payment terms", &format!("/data/big/b{i:02}.md"),
+                "2025-01-01T00:00:00+00:00", "markdown", vec![1.0, 0.01 * i as f32, 0.0, 0.0]);
+        }
+        for i in 0..3 {
+            add(format!("small_{i}"), "a note that mentions an invoice once among warehouse staff matters",
+                &format!("/data/small/s{i}.md"), "2025-06-01T00:00:00+00:00", "code", vec![0.0, 0.0, 1.0, 0.1 * i as f32]);
+        }
+        pipeline.lance_store.upsert_records(rows, None, Some(4)).unwrap();
+        (pipeline, dir)
+    }
+
+    fn narrowed(filter: RetrievalFilter) -> HybridSearchRequest {
+        HybridSearchRequest {
+            query_text: "invoice".to_string(),
+            query_vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
+            candidate_pool_k: 30,
+            top_k: 100,
+            max_chunks_per_source: 100,
+            max_density_chars: 1_000_000,
+            filter,
+            ..Default::default()
+        }
+    }
+
+    /// SC-001: without the filter the small source is outranked in both lists; with it, both
+    /// lists hold exactly the small source's chunks.
+    #[test]
+    fn test_source_filter_applies_inside_both_retrievers() {
+        let (pipeline, dir) = two_source_pipeline("filter_sources");
+        let unfiltered = pipeline.search(narrowed(RetrievalFilter::default())).unwrap();
+        let small = RetrievalFilter { sources: vec!["/data/small".to_string()], ..Default::default() };
+        let filtered = pipeline.search(narrowed(small)).unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert!(unfiltered.iter().all(|r| !r.chunk_id.starts_with("small_")), "the large source outranks the small one");
+        let mut ids: Vec<&str> = filtered.iter().map(|r| r.chunk_id.as_str()).collect();
+        ids.sort();
+        assert_eq!(ids, vec!["small_0", "small_1", "small_2"]);
+        assert!(filtered.iter().all(|r| r.dense_score.is_some() && r.sparse_score.is_some()), "both lists found them");
+    }
+
+    #[test]
+    fn test_date_and_type_filters_apply_inside_both_retrievers() {
+        let (pipeline, dir) = two_source_pipeline("filter_dates");
+        let june = RetrievalFilter::default().with_modified_range(
+            Some(chrono::DateTime::parse_from_rfc3339("2025-05-01T00:00:00+00:00").unwrap().with_timezone(&chrono::Utc)),
+            None,
+        );
+        let by_date = pipeline.search(narrowed(june)).unwrap();
+        let by_type = pipeline.search(narrowed(RetrievalFilter { content_types: vec!["code".to_string()], ..Default::default() })).unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        for results in [&by_date, &by_type] {
+            assert_eq!(results.len(), 3, "{results:?}");
+            assert!(results.iter().all(|r| r.chunk_id.starts_with("small_") && r.dense_score.is_some()));
+        }
+    }
+
+    #[test]
+    fn test_filter_matching_nothing_returns_nothing() {
+        let (pipeline, dir) = two_source_pipeline("filter_nothing");
+        let none = RetrievalFilter { sources: vec!["/data/elsewhere".to_string()], ..Default::default() };
+        let quoted = RetrievalFilter { sources: vec!["/data/small' OR '1'='1".to_string()], ..Default::default() };
+        let wildcard = RetrievalFilter { sources: vec!["/data/%".to_string()], ..Default::default() };
+        let results: Vec<_> = [none, quoted, wildcard].into_iter().map(|f| pipeline.search(narrowed(f)).unwrap()).collect();
+        let _ = std::fs::remove_dir_all(dir);
+        for r in results {
+            assert!(r.is_empty(), "{r:?}");
+        }
+    }
+
+    /// The lexical list answers when the question cannot be embedded, and the search says why.
+    #[test]
+    fn test_search_with_outcome_reports_keyword_only_search() {
+        let (mut pipeline, dir) = two_source_pipeline("outcome_failed");
+        pipeline.set_embedding(Some(Arc::new(FixedEmbedder(Err(()))) as Arc<dyn LmProvider>), "fixed-embed");
+        let req = HybridSearchRequest { query_vector: None, ..narrowed(RetrievalFilter::default()) };
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
+        let single = rt.block_on(pipeline.search_with_outcome(&req)).unwrap();
+        let batch = rt.block_on(pipeline.retrieve_hybrid_batch_with_outcome(&[req.clone(), req.clone()])).unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert!(!single.results.is_empty(), "BM25 still answers");
+        assert!(single.results.iter().all(|r| r.dense_score.is_none()));
+        assert!(matches!(single.dense, QueryEmbeddingOutcome::Failed(_)), "{:?}", single.dense);
+        let notice = single.dense.answer_notice().unwrap();
+        assert!(notice.starts_with("Answered by keyword search only"), "{notice}");
+        assert!(notice.contains("invalid key"), "{notice}");
+        assert!(matches!(batch.dense, QueryEmbeddingOutcome::Failed(_)));
+    }
+
+    #[test]
+    fn test_search_with_outcome_is_dense_when_the_vector_search_ran() {
+        let (pipeline, dir) = two_source_pipeline("outcome_dense");
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
+        let out = rt.block_on(pipeline.search_with_outcome(&narrowed(RetrievalFilter::default()))).unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+        assert_eq!(out.dense, QueryEmbeddingOutcome::Dense);
+        assert_eq!(out.dense.answer_notice(), None);
+    }
+
+    #[test]
+    fn test_answer_notice_names_cause_and_fix() {
+        assert_eq!(QueryEmbeddingOutcome::Dense.answer_notice(), None);
+        let unavailable = QueryEmbeddingOutcome::Unavailable("the model multilingual-e5-base is not installed".into()).answer_notice().unwrap();
+        assert_eq!(unavailable, "Answered by keyword search only: the model multilingual-e5-base is not installed. Run `actx embedding` to check the model.");
+        let long = QueryEmbeddingOutcome::Failed(format!("{}\nsecond line", "x".repeat(300))).answer_notice().unwrap();
+        assert!(!long.contains("second line") && long.contains('…'), "{long}");
+        assert!(QueryEmbeddingOutcome::NoEmbeddingKey.answer_notice().unwrap().contains("Sync it"));
+        assert!(QueryEmbeddingOutcome::SearchFailed("io".into()).answer_notice().unwrap().contains("semantic search failed (io)"));
+    }
+
 }
