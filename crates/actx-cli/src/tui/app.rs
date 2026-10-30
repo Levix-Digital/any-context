@@ -124,8 +124,7 @@ pub struct App {
     pub changes_detected: bool,
     pub last_health_check: std::time::Instant,
     pub execution_device: actx_onnx::ExecutionDevice,
-    pub rerank_mode: String,
-    /// Neural re-ranker label (`None` = RRF) cached for the header, refreshed every few seconds
+    /// Neural re-ranker label (`None` = unavailable) cached for the header, refreshed every few seconds
     /// so render frames do not hit the filesystem.
     neural_rerank_label: std::sync::Mutex<Option<(std::time::Instant, Option<String>)>>,
 }
@@ -175,10 +174,6 @@ impl App {
         let web_search_enabled = db.as_ref()
             .and_then(|d| d.get_workspace_web_search(&workspace).ok())
             .unwrap_or(false);
-        let rerank_mode = db.as_ref()
-            .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
-            .unwrap_or_else(|| "auto".to_string());
-
         let initial_history = vec![Self::create_welcome_message(
             &workspace,
             &model,
@@ -242,32 +237,22 @@ impl App {
             changes_detected: false,
             last_health_check: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(10)).unwrap_or_else(std::time::Instant::now),
             execution_device: actx_onnx::ExecutionDevice::Auto,
-            rerank_mode,
             neural_rerank_label: std::sync::Mutex::new(None),
         };
 
         app
     }
 
-    pub fn with_rerank_mode(mut self, rerank: Option<&str>) -> Self {
-        if let Some(r) = rerank {
-            self.rerank_mode = r.to_lowercase();
-        }
-        self
-    }
-
+    /// Header badge of the reranker, which is always on (IMP-043): its model when it can run,
+    /// else a warning that answers keep the fusion order (`/status` says why).
     pub fn rerank_badge(&self) -> String {
-        if self.rerank_mode == "off" {
-            return "🚫 Off".to_string();
-        }
         match self.neural_rerank_label() {
             Some(label) => format!("⚡ ONNX: {} (CPU)", label),
-            None if self.rerank_mode == "on" => "⚡ RRF (Model Missing)".to_string(),
-            None => "⚡ RRF (Fallback)".to_string(),
+            None => "⚠ Reranker unavailable".to_string(),
         }
     }
 
-    /// Short label of the active neural re-ranker, or `None` when RRF serves as fallback.
+    /// Short label of the active neural re-ranker, or `None` when it cannot run.
     /// Probing touches the filesystem, so the result is cached for `RERANK_STATE_TTL`.
     fn neural_rerank_label(&self) -> Option<String> {
         const RERANK_STATE_TTL: std::time::Duration = std::time::Duration::from_secs(3);
@@ -1099,7 +1084,6 @@ impl App {
             search_mode: self.search_mode.clone(),
             web_search_enabled: self.web_search_enabled,
             execution_device: self.execution_device.as_str().to_string(),
-            rerank_mode: self.rerank_mode.clone(),
         }
     }
 
@@ -1118,9 +1102,6 @@ impl App {
         }
         if let Some(ref dev) = res.state_updates.execution_device {
             self.set_execution_device(dev);
-        }
-        if let Some(ref rk) = res.state_updates.rerank_mode {
-            self.rerank_mode = rk.clone();
         }
 
         match res.action {

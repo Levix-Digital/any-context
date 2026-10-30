@@ -20,7 +20,7 @@ pub use diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
 pub use hybrid::HybridRetrieverEngine;
 pub use query::{QueryPreprocessor, ProcessedQuery, extract_temporal_clauses_native, expand_query_temporal_native, extract_filename_mentions_native};
 pub use token_budget::{estimate_token_count, truncate_to_token_ceiling, get_embedding_token_limit_rs};
-pub use pipeline::{dense_search_status, last_query_embedding_outcome, NativeHybridPipeline, HybridSearchRequest, HybridSearchResult, QueryEmbeddingOutcome, RetrievalOutput, RetrievalPreset};
+pub use pipeline::{dense_search_status, last_query_embedding_outcome, last_rerank_outcome, NativeHybridPipeline, HybridSearchRequest, HybridSearchResult, QueryEmbeddingOutcome, RerankOutcome, RetrievalOutput, RetrievalPreset};
 pub use requests::{deep_request, fast_request, tool_request, CANDIDATES_PER_LIST};
 pub use filter::RetrievalFilter;
 pub use web_search::{NativeWebSearchEngine, WebSearchResult, NO_SEARCH_PROVIDER};

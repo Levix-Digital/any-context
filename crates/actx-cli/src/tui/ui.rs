@@ -154,14 +154,10 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App, theme: &UiTheme) {
     };
 
     let rerank_text = app.rerank_badge();
-    let rerank_style = if app.rerank_mode == "off" {
-        Style::default().fg(theme.text_muted)
-    } else if rerank_text.contains("ONNX") {
+    let rerank_style = if rerank_text.contains("ONNX") {
         Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
-    } else if app.rerank_mode == "on" {
-        Style::default().fg(theme.warning)
     } else {
-        Style::default().fg(theme.info)
+        Style::default().fg(theme.warning)
     };
 
     let title = Line::from(vec![

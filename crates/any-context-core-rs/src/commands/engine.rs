@@ -96,9 +96,6 @@ impl CommandEngine {
             "device" | "gpu" | "accelerator" => {
                 Self::execute_device(args, ctx)
             }
-            "rerank" | "reranker" => {
-                Self::execute_rerank(args, ctx)
-            }
             "embedding" | "embeddings" | "embed" => {
                 Self::embedding_command(args)
             }
@@ -1846,186 +1843,30 @@ impl CommandEngine {
         CommandResult::success(format!("✔ Embedding model set to `{}`.\n{notice}", spec.id))
     }
 
-    fn execute_rerank(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
+    /// The `Reranker` line of `/status`: model, state, depths of the profile and the last pass.
+    fn reranker_status_line(tier: crate::hardware::ProfileTier) -> String {
         use crate::ingestion::OnnxModelManager;
+        use crate::retrieval::rerank_depth::profile_depth;
+        use crate::retrieval::SearchMode;
 
-        let target = args.first().copied().map(str::trim).map(str::to_lowercase);
         let spec = OnnxModelManager::active_reranker_spec();
-        let is_installed = OnnxModelManager::is_installed(spec);
-        let runtime_present = actx_onnx::runtime::runtime_library_present();
-
-        let persist_mode = |mode: &str| {
-            if let Ok(db) = NativeConfigDb::open_default() {
-                let _ = db.set_setting("rerank_mode", mode);
-            }
-            let mut updates = CommandStateUpdates::default();
-            updates.rerank_mode = Some(mode.to_string());
-            updates
+        let (_, detail, is_active) = OnnxModelManager::active_reranker_state();
+        let state = match crate::retrieval::last_rerank_outcome() {
+            Some(outcome @ crate::retrieval::RerankOutcome::Unavailable(_)) => outcome.describe(),
+            _ if is_active => "ready".to_string(),
+            _ => detail.to_string(),
         };
-        let availability_note = || -> String {
-            if !is_installed {
-                format!(
-                    "\n⚠️ Weights for `{}` are not installed yet; RRF serves as fallback. They are installed with your profile, or run `actx download reranker`.",
-                    spec.id
-                )
-            } else if !runtime_present {
-                "\n⚠️ The ONNX Runtime library is missing next to the executable; RRF serves as fallback. Reinstall or update AnyContext to restore it.".to_string()
-            } else {
-                format!("\n⚡ Neural cross-encoder `{}` ready (ONNX Runtime, CPU).", spec.id)
-            }
-        };
-
-        if let Some(ref mode_str) = target {
-            match mode_str.as_str() {
-                "on" | "enable" | "enabled" | "1" | "true" => {
-                    let updates = persist_mode("on");
-                    return CommandResult::success(format!(
-                        "⚡ Neural Cross-Encoder Re-Ranking mode set to: **ON**{}\n\n\
-                         • Model: {}\n\
-                         • Execution: ONNX Runtime on CPU (the best fused candidates re-scored per search, as many as the mode and hardware profile allow)",
-                        availability_note(),
-                        spec.name
-                    ))
-                    .with_state_updates(updates);
-                }
-                "off" | "disable" | "disabled" | "0" | "false" => {
-                    let updates = persist_mode("off");
-                    return CommandResult::success(
-                        "⚡ Neural Cross-Encoder Re-Ranking mode set to: **OFF**\n\n\
-                         • Retrieval relies exclusively on Reciprocal Rank Fusion (RRF, k=60).\n\
-                         • Minimum latency mode with zero neural overhead."
-                    )
-                    .with_state_updates(updates);
-                }
-                "auto" | "default" => {
-                    let updates = persist_mode("auto");
-                    return CommandResult::success(format!(
-                        "⚡ Neural Cross-Encoder Re-Ranking mode set to: **AUTO**{}\n\n\
-                         • Two-stage neural retrieval is used whenever the model and runtime are available, falling back to RRF without interruption.",
-                        availability_note()
-                    ))
-                    .with_state_updates(updates);
-                }
-                "model" => {
-                    let Some(model_arg) = args.get(1).map(|s| s.trim()) else {
-                        let mut out = String::from("Available re-ranker models:\n");
-                        for r in OnnxModelManager::rerankers() {
-                            let marker = if r.id == spec.id { " (active)" } else { "" };
-                            let state = if OnnxModelManager::is_installed(r) { "installed" } else { "not installed" };
-                            out.push_str(&format!(
-                                "  • `{}`{} — {} (~{:.0} MB, {})\n",
-                                r.id, marker, r.name, r.size_bytes as f64 / (1024.0 * 1024.0), state
-                            ));
-                        }
-                        out.push_str("\nUsage: `/rerank model <id>`");
-                        return CommandResult::success(out);
-                    };
-                    let chosen = OnnxModelManager::resolve_spec(model_arg)
-                        .filter(|s| s.category == crate::ingestion::OnnxModelCategory::ReRanker && s.is_available());
-                    let Some(chosen) = chosen else {
-                        let ids: Vec<&str> = OnnxModelManager::rerankers().map(|r| r.id).collect();
-                        return CommandResult::error(format!(
-                            "Unknown re-ranker model '{}'. Available: {}",
-                            model_arg,
-                            ids.join(", ")
-                        ));
-                    };
-                    OnnxModelManager::set_active_reranker(chosen.id);
-                    let note = if OnnxModelManager::is_installed(chosen) {
-                        "Weights installed; the new model is used from the next query.".to_string()
-                    } else {
-                        format!(
-                            "⚠️ Weights not installed yet (~{:.0} MB). Run `actx download {}`; until then RRF serves as fallback.",
-                            chosen.size_bytes as f64 / (1024.0 * 1024.0),
-                            chosen.id
-                        )
-                    };
-                    return CommandResult::success(format!(
-                        "⚡ Re-ranker model set to **{}** (`{}`).\n{}",
-                        chosen.name, chosen.id, note
-                    ))
-                    .with_action(CommandAction::RebuildAgent);
-                }
-                _ => {
-                    return CommandResult::error(format!(
-                        "Unrecognized rerank option '{}'. Valid options:\n\
-                         • `/rerank on`: Force enable neural re-ranking\n\
-                         • `/rerank off`: Disable neural re-ranking (pure RRF)\n\
-                         • `/rerank auto`: Use neural re-ranking when available\n\
-                         • `/rerank model [id]`: List or select the cross-encoder model\n\
-                         • `/rerank`: View status and telemetry",
-                        mode_str
-                    ));
-                }
-            }
-        }
-
-        // Status view
-        let (active_name, active_detail, is_active) = OnnxModelManager::active_reranker_state();
-        let tier = crate::storage::NativeConfigDb::open_default()
-            .ok()
-            .map(|d| crate::ingestion::embedding::active_profile(&d))
-            .unwrap_or(crate::hardware::ProfileTier::SmartBalanced);
-        let depth_fast = crate::retrieval::rerank_depth::profile_depth(tier, crate::retrieval::SearchMode::Fast);
-        let depth_deep = crate::retrieval::rerank_depth::profile_depth(tier, crate::retrieval::SearchMode::Deep);
-        let badge = if is_active { "🟢 Neural" } else { "⚪ RRF Fallback" };
-        let disk_info = if is_installed {
-            let size = OnnxModelManager::installed_size(spec).unwrap_or(0);
-            format!("{:.2} MB on disk", size as f64 / (1024.0 * 1024.0))
-        } else {
-            format!("Not installed (~{:.1} MB: `actx download reranker`)", spec.size_bytes as f64 / (1024.0 * 1024.0))
-        };
-        let runtime_info = match actx_onnx::runtime::runtime_library_path() {
-            Some(p) if p.is_file() => format!("ONNX Runtime library found ({})", p.display()),
-            Some(p) => format!("ONNX Runtime library missing (expected at {})", p.display()),
-            None => "ONNX Runtime library location unknown".to_string(),
-        };
-        let latency = crate::retrieval::pipeline::last_rerank_latency_ms()
-            .map(|ms| format!("{} ms for {} candidates (last neural pass in this session)", ms, crate::retrieval::pipeline::last_rerank_candidates()))
-            .unwrap_or_else(|| "n/a (no neural pass yet in this session)".to_string());
-        let requested_device = &ctx.execution_device;
-        let device_note = match actx_onnx::ExecutionDevice::parse_str(requested_device) {
-            Some(d) if !d.is_supported_for_inference() => format!("CPU (requested `{}`; GPU execution providers are planned)", requested_device),
-            _ => "CPU (ONNX Runtime CPU Execution Provider)".to_string(),
-        };
-
-        CommandResult::success(format!(
-            "⚡ **Two-Stage Neural Retrieval & Re-ranking Status**\n\n\
-             • Mode Policy: **{}**\n\
-             • Model: {} (`{}`)\n\
-             • Engine: {}\n\
-             • State: {} ({})\n\
-             • Storage: {}\n\
-             • Runtime: {}\n\
-             • Inference Device: {}\n\
-             • Latency: {}\n\n\
-             **Two-Stage Pipeline Flow**:\n\
-             1. Stage 1 (High Recall): LanceDB Cosine + BM25 Okapi -> Reciprocal Rank Fusion (k=60)\n\
-             2. Stage 2 (High Precision): cross-encoder re-scores up to {} candidates in Fast and {} in Deep on this profile, at most {} per document, within {} s / {} s (sigmoid scores in [0,1])\n\
-             3. Delivery: Source Diversification -> Density Budgeting -> U-Shaped Reordering -> XML Isolation\n\n\
-             *Tip*: `/rerank on|off|auto` switches the policy; `/rerank model` lists models.",
-            ctx.rerank_mode.to_uppercase(),
-            spec.name,
+        let last = crate::retrieval::pipeline::last_rerank_pass()
+            .map(|(ms, n)| format!("{ms} ms for {n} candidates"))
+            .unwrap_or_else(|| "n/a (no pass yet in this session)".to_string());
+        format!(
+            "`{}` — {state} │ depth {}/{} (Fast/Deep) │ last pass {last}",
             spec.id,
-            active_name,
-            badge,
-            active_detail,
-            disk_info,
-            runtime_info,
-            device_note,
-            latency,
-            depth_fast,
-            depth_deep,
-            crate::retrieval::rerank_depth::PER_DOCUMENT_RERANK_SLOTS,
-            crate::retrieval::rerank_depth::time_budget_ms(crate::retrieval::SearchMode::Fast) / 1000,
-            crate::retrieval::rerank_depth::time_budget_ms(crate::retrieval::SearchMode::Deep) / 1000
-        ))
+            profile_depth(tier, SearchMode::Fast),
+            profile_depth(tier, SearchMode::Deep)
+        )
     }
 
-
-    // -------------------------------------------------------------------------
-    // Inspection & Status
-    // -------------------------------------------------------------------------
     fn execute_inspect(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         let lance_path = get_default_lancedb_path();
         let lance = match NativeLanceStore::open(&lance_path) {
@@ -2194,6 +2035,7 @@ impl CommandEngine {
              • Local Folders:    {} attached\n\
              • Vector Chunks:    {} indexed (LanceDB)\n\
              • Dense Search:     {}\n\
+             • Reranker:         {}\n\
              • Local AI Models:\n\
                - Ingestion Classifier: {} [{}]\n\
                - Scanned Classifier:   {} [{}]\n\
@@ -2215,6 +2057,7 @@ impl CommandEngine {
             folders_count,
             chunks_count,
             crate::retrieval::dense_search_status(),
+            Self::reranker_status_line(active_tier),
             classifier_name,
             classifier_desc,
             scanned_name,

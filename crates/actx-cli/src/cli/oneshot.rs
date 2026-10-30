@@ -297,17 +297,12 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
 
     // 3. Resolve Provider & Build Agent
     let db = any_context_core_rs::storage::NativeConfigDb::open_default().ok();
-    if let Some(ref rk) = args.rerank {
-        if let Some(ref d) = db {
-            let _ = d.set_setting("rerank_mode", rk);
-        }
-    }
     if let Some(ref model) = args.rerank_model {
         use any_context_core_rs::ingestion::{OnnxModelCategory, OnnxModelManager};
         match OnnxModelManager::resolve_spec(model)
             .filter(|s| s.category == OnnxModelCategory::ReRanker && s.is_available())
         {
-            // Per-run override: never persisted (use `/rerank model <id>` to persist).
+            // Per-run override, never persisted; the stored `reranker_model` setting applies otherwise.
             Some(spec) => std::env::set_var("ACTX_RERANKER_MODEL", spec.id),
             None => {
                 let ids: Vec<&str> = OnnxModelManager::rerankers().map(|r| r.id).collect();

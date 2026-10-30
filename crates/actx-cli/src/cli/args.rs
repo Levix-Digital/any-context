@@ -62,10 +62,6 @@ pub struct CliArgs {
     #[arg(long = "device", alias = "gpu", alias = "accelerator")]
     pub device: Option<String>,
 
-    /// Neural cross-encoder re-ranking mode (auto, on, off)
-    #[arg(long = "rerank", alias = "reranker")]
-    pub rerank: Option<String>,
-
     /// Cross-encoder model for this run only (e.g. mmarco-reranker, bge-reranker-v2-m3)
     #[arg(long = "rerank-model")]
     pub rerank_model: Option<String>,
