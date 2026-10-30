@@ -6,6 +6,11 @@
 
 use super::pipeline::{HybridSearchRequest, RRF_MIN_SCORE};
 
+/// Candidates each retriever (dense and lexical) returns for one question or sub-question, in
+/// Fast and Deep alike (IMP-040). Tuned by the benchmark: it goes up only if more candidates
+/// improve the hit rate measurably.
+pub const CANDIDATES_PER_LIST: usize = 30;
+
 /// Workspace searched alongside the user's workspace for AnyContext's own documentation.
 pub const GLOBAL_WORKSPACE: &str = "Global";
 
@@ -16,7 +21,7 @@ pub fn fast_request(query: &str, workspace: &str, rerank_mode: &str) -> HybridSe
         workspace: Some(workspace.to_string()),
         target_workspaces: vec![GLOBAL_WORKSPACE.to_string()],
         top_k: 6,
-        candidate_pool_k: 30,
+        candidate_pool_k: CANDIDATES_PER_LIST,
         max_density_chars: 14_000,
         min_score: RRF_MIN_SCORE,
         table_name: "workspace_chunks".to_string(),
@@ -32,7 +37,7 @@ pub fn deep_request(query: &str, workspace: &str, rerank_mode: &str) -> HybridSe
         workspace: Some(workspace.to_string()),
         target_workspaces: vec![GLOBAL_WORKSPACE.to_string()],
         top_k: 8,
-        candidate_pool_k: 40,
+        candidate_pool_k: CANDIDATES_PER_LIST,
         max_density_chars: 16_000,
         min_score: RRF_MIN_SCORE,
         table_name: "workspace_chunks".to_string(),
@@ -61,7 +66,7 @@ mod tests {
     fn deep_request_keeps_the_product_defaults() {
         let req = deep_request("q", "Docs", "on");
         assert_eq!(req.target_workspaces, vec!["Global".to_string()]);
-        assert_eq!((req.top_k, req.candidate_pool_k, req.max_density_chars), (8, 40, 16_000));
+        assert_eq!((req.top_k, req.candidate_pool_k, req.max_density_chars), (8, 30, 16_000));
         assert_eq!(req.min_score, RRF_MIN_SCORE);
         assert_eq!(req.rerank_mode.as_deref(), Some("on"));
     }

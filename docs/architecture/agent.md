@@ -68,6 +68,7 @@ When a `DeterministicRetriever` is configured and the route is fast (or the mode
 2. On `ZeroContext { message }`, returns the message without calling the model.
 3. On `ContextReady { formatted_prompt }`, sends the prior session messages plus the formatted prompt (system rules, XML context and the query) in a single streamed model call.
 4. Persists only the user's original question and the final answer.
+5. When the output carries a `notice` (the search ran without the dense retriever), sends `AgentEvent::Notice` once, before `Done`; `run` appends it to the returned answer after a blank line. The persisted answer never contains it ([ADR-0155](../adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md)).
 
 Because the CLI always configures this retriever when LanceDB opens, fast questions take this path; the ReAct loop runs when no deterministic retriever is available.
 
@@ -82,9 +83,9 @@ Status questions take the same one-hop execution with the status retriever. The 
 `DeepSearchOrchestrator::run` (defaults: `max_iterations` 3, `max_sub_queries` 4, `max_gap_queries` 3):
 
 1. **Decomposition** (`SUB_QUERY_PROMPT`): splits the question, given in `<user_query>`, into up to four sub-queries and emits `AgentEvent::Decomposition`.
-2. **Batch retrieval**: each iteration (`AgentEvent::IterationStart`) calls `DeepSearchRetriever::retrieve_batch` with the current queries; the CLI's `PipelineBatchRetriever` runs them concurrently through `retrieve_hybrid_batch_async` and passes each chunk's section path and file line range (ADR-0142) on to the synthesis. New chunks are deduplicated by id; when `enable_reranker` is on (off by default), a new chunk scoring below `rerank_score_threshold` is checked for relevance with `RERANK_PROMPT` (a yes/no model call): the queries in `<user_query>`, the chunk in `<chunk source lines>`.
+2. **Batch retrieval**: each iteration (`AgentEvent::IterationStart`) calls `DeepSearchRetriever::retrieve_batch` with the current queries; the CLI's `PipelineBatchRetriever` runs them concurrently through `retrieve_hybrid_batch_with_outcome`, keeps the warning of the batch for `DeepSearchRetriever::last_notice`, and passes each chunk's section path and file line range (ADR-0142) on to the synthesis. New chunks are deduplicated by id; when `enable_reranker` is on (off by default), a new chunk scoring below `rerank_score_threshold` is checked for relevance with `RERANK_PROMPT` (a yes/no model call): the queries in `<user_query>`, the chunk in `<chunk source lines>`.
 3. **Gap analysis** (`REFLECT_PROMPT`): asks whether more searches are needed and produces gap queries (`AgentEvent::GapAnalysis`); the loop stops early when there are none or at the last iteration. The prompt carries the question in `<user_query>`, the explored queries in `<sub_queries>` and a `<chunk source lines>` with the first 200 characters of each accepted chunk inside `<retrieved_context>`.
-4. **Synthesis**: the prior session messages plus one prompt built by the `SynthesisPromptFormatter` from all collected chunks and the original question. The CLI injects `CanonicalSynthesisFormatter` from the [retrieval](retrieval.md) context formatter: the system prompt, the shared isolation rules and the Deep Search synthesis rules, the chunks of every iteration sorted by relevance in U-shaped XML, and the question last. Without injection, `DefaultSynthesisFormatter` (`SUMMARY_PROMPT`, plain chunk blocks, question last) is used. `sanitize_direct_conclusion` strips leftover meta-narrative and section headers.
+4. **Synthesis**: the prior session messages plus one prompt built by the `SynthesisPromptFormatter` from all collected chunks and the original question. The CLI injects `CanonicalSynthesisFormatter` from the [retrieval](retrieval.md) context formatter: the system prompt, the shared isolation rules and the Deep Search synthesis rules, the chunks of every iteration sorted by relevance in U-shaped XML, and the question last. Without injection, `DefaultSynthesisFormatter` (`SUMMARY_PROMPT`, plain chunk blocks, question last) is used. `sanitize_direct_conclusion` strips leftover meta-narrative and section headers. The first warning a batch reported (`last_notice`) is sent as `AgentEvent::Notice` before `Done` and appended to the returned answer, not to the session.
 
 The decomposition, rerank and reflection prompts follow the envelope rules of the context formatter (ADR-0136, ADR-0148): chunk text, previews and queries, including gap queries written by the model, have their reserved tags neutralized; attribute values are escaped; rerank and reflection state that chunk content is quoted document text, never instructions. Templates are filled with `fill_template` in a single pass, so a value containing `{placeholder}` stays literal.
 
@@ -122,7 +123,7 @@ Answers follow the language of the user's question.
 
 ### Events
 
-`AgentEvent`: `RoutingDecision`, `Decomposition`, `IterationStart`, `GapAnalysis`, `Thinking` (reasoning tokens), `ToolStart`, `ToolEnd`, `Delta` (answer tokens), `Done` and `Error`.
+`AgentEvent`: `RoutingDecision`, `Decomposition`, `IterationStart`, `GapAnalysis`, `Thinking` (reasoning tokens), `ToolStart`, `ToolEnd`, `Delta` (answer tokens), `Notice` (one warning line for the end of the answer, at most once, before `Done`), `Done` and `Error`. The TUI shows `Notice` as a system line under the answer; the one-shot CLI prints it after the answer.
 
 ## Interfaces
 
@@ -138,6 +139,7 @@ Answers follow the language of the user's question.
 - [ADR-0088](../adr/0088-conversational-session-boundary.md): only user prompts and final answers are persisted.
 - [ADR-0090](../adr/0090-grounding-parity-streaming-single-lancedb-path.md): embedded `AGENT.md`, mandatory retrieval in strict mode, token streaming.
 - [ADR-0094](../adr/0094-test-sandbox-option-hinting-global-self-knowledge.md): self-knowledge through the `Global` workspace and a lean skill directive.
+- [ADR-0155](../adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md): the retrieval notice on both retriever ports and `AgentEvent::Notice`.
 - [ADR-0095](../adr/0095-clean-screen-buffer-long-term-memory-decoupling.md): long-term memory decoupled from the visible chat.
 - [ADR-0097](../adr/0097-sqlite-sync-telemetry-agent-background-awareness.md): `system_status` tool.
 - [ADR-0108](../adr/0108-reflective-deep-search-engine.md): Deep Search orchestrator and its events.

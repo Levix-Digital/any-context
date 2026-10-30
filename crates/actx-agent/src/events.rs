@@ -55,6 +55,10 @@ pub enum AgentEvent {
         missing_aspects: Vec<String>,
     },
 
+    /// One discreet warning line shown at the end of the answer, e.g. when the search ran
+    /// without the dense retriever (IMP-040). Sent at most once, before `Done`.
+    Notice(String),
+
     /// Execution completed successfully
     Done {
         total_turns: usize,

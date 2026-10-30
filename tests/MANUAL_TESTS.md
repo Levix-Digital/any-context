@@ -536,19 +536,22 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
-### MT-ANS-009: `/status` shows when answers use keyword search only
+### MT-ANS-009: The answer and `/status` say when keyword search was used alone
 
-- **Covers**: query embedding outcome (dense search status)
+- **Covers**: query embedding outcome (dense search status and the answer's warning line)
 - **Prerequisites**: a workspace indexed with a working OpenAI or Gemini key
 - **Steps**:
   1. Start `actx`, run `/status` before asking anything.
   2. Ask a question and run `/status` again.
   3. Replace the key with an invalid one (`/keys <provider> invalid-key`), ask another question and run `/status`.
-  4. Save the working key again.
+  4. Ask the same question in deep mode (`/deep`), then once with `actx "<question>"` from the shell.
+  5. Save the working key again and ask once more.
 - **Expected**:
   - Step 1 shows `Dense Search: n/a (no query yet in this session)`.
-  - Step 2 shows `Dense Search: dense + BM25 (last query)`.
-  - Step 3 still answers from keyword matches, and `/status` shows `Dense Search: BM25 only (last query): query embedding failed: ...` with the authentication error.
+  - Step 2 shows `Dense Search: dense + BM25 (last query)`, and the answer has no warning line.
+  - Step 3 still answers from keyword matches; a single line `⚠ Answered by keyword search only: the question could not be embedded (...)` follows the answer, and `/status` shows `Dense Search: BM25 only (last query): query embedding failed: ...` with the authentication error.
+  - Step 4 shows the same single warning line after the deep answer and after the one-shot answer.
+  - Step 5 shows no warning line.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

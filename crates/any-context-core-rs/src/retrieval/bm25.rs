@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use serde::{Deserialize, Serialize};
 
+use super::filter::RetrievalFilter;
 use super::tokenizer::tokenize;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -191,6 +192,18 @@ impl BM25Index {
     /// Executes Okapi BM25 ranking against the inverted index.
     /// Returns a list of (doc_id, score) pairs sorted descending by BM25 score.
     pub fn search(&self, query: &str, limit: usize, workspace: Option<&str>) -> Vec<(String, f32)> {
+        self.search_filtered(query, limit, workspace, &RetrievalFilter::default())
+    }
+
+    /// [`Self::search`] over the documents that pass `filter`: the others are skipped before
+    /// scoring, so `limit` counts only matching documents (IMP-040).
+    pub fn search_filtered(
+        &self,
+        query: &str,
+        limit: usize,
+        workspace: Option<&str>,
+        filter: &RetrievalFilter,
+    ) -> Vec<(String, f32)> {
         let query_tokens = tokenize(query);
         if query_tokens.is_empty() || self.docs.is_empty() {
             return Vec::new();
@@ -213,6 +226,11 @@ impl BM25Index {
                             if !ws.is_empty() && doc.workspace != ws && doc.workspace != "Global" {
                                 continue;
                             }
+                        }
+                        if !filter.is_empty()
+                            && !filter.matches(&doc.file_path, &doc.content_type, doc.last_modified.as_deref())
+                        {
+                            continue;
                         }
 
                         let tf = p.term_frequency as f32;
@@ -442,6 +460,48 @@ mod tests {
         let res_b = index.search("server", 5, Some("WorkspaceB"));
         assert_eq!(res_b.len(), 1);
         assert_eq!(res_b[0].0, "ws2_c1");
+    }
+
+    #[test]
+    fn filtered_search_fills_the_limit_from_matching_documents_only() {
+        let mut index = BM25Index::new(None, None);
+        // Many strong matches in a large source, a few weak ones in a small source.
+        for i in 0..20 {
+            index.add_chunk(
+                format!("big_{i:02}"),
+                "invoice invoice invoice payment terms".to_string(),
+                format!("big_{i}.md"),
+                format!("/data/big/big_{i}.md"),
+                "W".to_string(),
+                "Markdown".to_string(),
+                Some("2025-01-01T00:00:00+00:00".to_string()),
+            );
+        }
+        for i in 0..3 {
+            index.add_chunk(
+                format!("small_{i}"),
+                "an invoice is mentioned once in this long note about the warehouse and its staff".to_string(),
+                format!("small_{i}.md"),
+                format!("/data/small/small_{i}.md"),
+                "W".to_string(),
+                "Markdown".to_string(),
+                Some("2025-06-01T00:00:00+00:00".to_string()),
+            );
+        }
+        assert!(index.search("invoice", 5, Some("W")).iter().all(|(id, _)| id.starts_with("big_")));
+
+        let only_small = RetrievalFilter { sources: vec!["/data/small".to_string()], ..Default::default() };
+        let ids: Vec<String> = index.search_filtered("invoice", 5, Some("W"), &only_small).into_iter().map(|(id, _)| id).collect();
+        assert_eq!(ids, vec!["small_0", "small_1", "small_2"]);
+
+        let june = RetrievalFilter {
+            modified_from: Some("2025-05-01T00:00:00+00:00".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(index.search_filtered("invoice", 30, Some("W"), &june).len(), 3);
+
+        let nothing = RetrievalFilter { content_types: vec!["PDF".to_string()], ..Default::default() };
+        assert!(index.search_filtered("invoice", 30, Some("W"), &nothing).is_empty());
     }
 
     #[test]

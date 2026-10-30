@@ -125,7 +125,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Decisions. Small chunks are embedded and searched; each keeps a link to a stored, not embedded parent that can be handed to the LLM: section for Markdown, Office, web and e-book; page for PDF; function, class or module for code; sheet plus row range for tables; message for e-mail.
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Decisions. Small chunks are embedded and searched; each keeps a link to a stored, not embedded parent that can be handed to the LLM: section for Markdown, Office, web and e-book; page for PDF; function, class or module for code; sheet plus row range for tables; message for e-mail. From IMP-040 (ADR-0155): both retrievers then search child chunks only; parents are never candidates.
 
 ### FEAT-037: [models] Multilingual ONNX OCR replacing Tesseract
 - **Priority**: medium
@@ -440,7 +440,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input. `anycontext_help` (AnyContext documentation, the built-in source of IMP-017) and `workspace_status` (sync and source state) are tools the LLM calls in any language. Acceptance: the fixed PT/EN status keywords (actx-agent/src/router.rs:88-91) and the mixing of AnyContext's documentation into every workspace search are gone.
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 1, Question input. `anycontext_help` (AnyContext documentation, the built-in source of IMP-017) and `workspace_status` (sync and source state) are tools the LLM calls in any language. Acceptance: the fixed PT/EN status keywords (actx-agent/src/router.rs:88-91) and the mixing of AnyContext's documentation into every workspace search are gone. From IMP-040 (ADR-0155): with help as its own tool, only the workspace is searched (the `Global` target and its BM25 pass-through go away).
 
 ### FEAT-083: [ui] Drag a file into the chat to add it to the workspace as a single source
 - **Priority**: medium
@@ -1177,7 +1177,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Decisions. Metadata (source, location, parent, hashes, dates) lives in columns and is never embedded. The embedded header is only document title + section path, weighted lower than the body in the lexical index. The envelope (first-sentence summary + 7 keywords by frequency) and the `// Context:` breadcrumb are removed. Acceptance: the English and Portuguese stop-word list goes away (ingestion/enricher.rs:140).
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Decisions. Metadata (source, location, parent, hashes, dates) lives in columns and is never embedded. The embedded header is only document title + section path, weighted lower than the body in the lexical index. The envelope (first-sentence summary + 7 keywords by frequency) and the `// Context:` breadcrumb are removed. Acceptance: the English and Portuguese stop-word list goes away (ingestion/enricher.rs:140). From IMP-040 (ADR-0155): the lexical index then weights the header field lower than the body (with FEAT-069's engine if it lands first).
 
 ### IMP-030: [ingestion] Embedding batches sized by tokens and API limits, controlled parallelism
 - **Priority**: medium
@@ -1205,7 +1205,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 10, Decisions. Each workspace has its own LanceDB tables, one per embedding_target at the model's real dimension, instead of the single workspace_chunks table filtered by a column and padded to 1536. On a model switch the new table fills while the old one keeps answering and is dropped at the end. Supersedes IMP-004.
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 10, Decisions. Each workspace has its own LanceDB tables, one per embedding_target at the model's real dimension, instead of the single workspace_chunks table filtered by a column and padded to 1536. On a model switch the new table fills while the old one keeps answering and is dropped at the end. Supersedes IMP-004. From IMP-040 (ADR-0155): dense search then reads the table of the question's embedding target, and the old table answers until the new one is complete.
 
 ### IMP-034: [storage] Automatic compaction and schema migrations on open
 - **Priority**: medium
@@ -1248,13 +1248,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Each Deep turn refines or decomposes the question from what was found, searches, and evaluates what is missing. Default maximum of 3 turns (up to 5 only through a domain pack), stopping early when evidence is enough, plus a token ceiling; the default is tuned by the evaluation set.
-
-### IMP-040: [retrieval] Pre-filtered dense and lexical retrievers over child chunks
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. Dense and lexical retrievers run in parallel for each question or sub-question with filters inside the search, over child chunks, with the model's query prefix and the table of the embedding target (the old table answers during a model switch) and weighted lexical fields; 30 candidates per list, tuned by the evaluation set. Only the workspace is searched. A question embedding failure gives lexical-only search with a discreet warning in the answer (today only a log line).
 
 ### IMP-041: [retrieval] Single RRF over clean lists with a per-document cap, no score cut
 - **Priority**: medium
@@ -2184,3 +2177,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: feat_002_local_embedding
 - **Closed**: 2026-10-30, plan feat_002_local_embedding
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The catalog declares each model's query and document prefixes and the pipeline applies them at ingestion and at query time (e.g. gemini-embedding-2, e5). Supersedes IMP-014.
+
+### IMP-040: [retrieval] Pre-filtered dense and lexical retrievers over child chunks
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: imp_040_prefiltered_retrievers
+- **Closed**: 2026-10-30, plan imp_040_prefiltered_retrievers
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. Dense and lexical retrievers run in parallel for each question or sub-question with filters inside the search, over child chunks, with the model's query prefix and the table of the embedding target (the old table answers during a model switch) and weighted lexical fields; 30 candidates per list, tuned by the evaluation set. Only the workspace is searched. A question embedding failure gives lexical-only search with a discreet warning in the answer (today only a log line). Delivered (ADR-0155): the request filter inside both retrievers, BM25 in parallel, 30 candidates per list and the warning line; per-target tables, child chunks, weighted fields and the end of `Global` moved to IMP-033, FEAT-036, IMP-026 and FEAT-082.

@@ -414,6 +414,7 @@ impl DeterministicRetriever for RecordingRetriever {
         Ok(DeterministicRetrievalOutput::ContextReady {
             formatted_prompt: format!("{} prompt for {}", self.label, query),
             chunk_count: 1,
+            notice: None,
         })
     }
 }
@@ -503,4 +504,76 @@ async fn test_status_question_without_status_retriever_keeps_previous_routing() 
     let (agent, fast_calls, _status_calls) = routed_agent(SearchMode::Fast, AgentExecutionMode::ReAct, false);
     agent.run("is everything indexed yet?", None).await.unwrap();
     assert_eq!(fast_calls.lock().unwrap().len(), 1);
+}
+
+/// Fast retriever whose search ran without the dense retriever (IMP-040).
+struct NoticeRetriever {
+    zero: bool,
+    notice: Option<String>,
+}
+
+#[async_trait]
+impl DeterministicRetriever for NoticeRetriever {
+    async fn retrieve_and_format(&self, query: &str) -> Result<DeterministicRetrievalOutput, AgentError> {
+        Ok(if self.zero {
+            DeterministicRetrievalOutput::ZeroContext { message: "Nothing found.".to_string(), notice: self.notice.clone() }
+        } else {
+            DeterministicRetrievalOutput::ContextReady {
+                formatted_prompt: format!("prompt for {query}"),
+                chunk_count: 1,
+                notice: self.notice.clone(),
+            }
+        })
+    }
+}
+
+fn notice_agent(zero: bool, notice: Option<&str>) -> Agent {
+    Agent::builder()
+        .client(Arc::new(TestMockProvider::new(vec![answer("the answer")])))
+        .model("mock-model")
+        .search_mode(SearchMode::Fast)
+        .execution_mode(AgentExecutionMode::ReAct)
+        .deterministic_retriever(Arc::new(NoticeRetriever { zero, notice: notice.map(str::to_string) }))
+        .build_sync()
+        .unwrap()
+}
+
+/// Events of a streamed answer, as names, with the notice text.
+async fn streamed(agent: &Agent) -> Vec<String> {
+    let (mut rx, handle) = agent.stream("where is the timeout set?", None);
+    handle.await.unwrap().unwrap();
+    let mut out = Vec::new();
+    while let Ok(evt) = rx.try_recv() {
+        match evt {
+            AgentEvent::Notice(n) => out.push(format!("notice:{n}")),
+            AgentEvent::Done { .. } => out.push("done".to_string()),
+            _ => {}
+        }
+    }
+    out
+}
+
+#[tokio::test]
+async fn test_keyword_only_search_sends_one_notice_before_done() {
+    for zero in [false, true] {
+        let events = streamed(&notice_agent(zero, Some("Answered by keyword search only: x."))).await;
+        assert_eq!(events, vec!["notice:Answered by keyword search only: x.".to_string(), "done".to_string()], "zero={zero}");
+    }
+}
+
+#[tokio::test]
+async fn test_no_notice_when_dense_search_ran() {
+    for zero in [false, true] {
+        assert_eq!(streamed(&notice_agent(zero, None)).await, vec!["done".to_string()], "zero={zero}");
+    }
+}
+
+#[tokio::test]
+async fn test_run_appends_the_notice_to_the_answer() {
+    let resp = notice_agent(false, Some("Answered by keyword search only: x.")).run("q", None).await.unwrap();
+    assert_eq!(resp.content, "the answer\n\nAnswered by keyword search only: x.");
+    let resp = notice_agent(true, Some("Answered by keyword search only: x.")).run("q", None).await.unwrap();
+    assert_eq!(resp.content, "Nothing found.\n\nAnswered by keyword search only: x.");
+    let resp = notice_agent(false, None).run("q", None).await.unwrap();
+    assert_eq!(resp.content, "the answer");
 }

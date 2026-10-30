@@ -342,6 +342,8 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
     let mut stdout = io::stdout();
     let mut in_thinking = false;
     let theme = crate::theme::UiTheme::default();
+    // Warning about the search (e.g. keyword only, IMP-040), printed after the answer.
+    let mut notice: Option<String> = None;
 
     while let Some(event) = rx.recv().await {
         match event {
@@ -424,11 +426,17 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 print!("{}", token);
                 let _ = stdout.flush();
             }
+            AgentEvent::Notice(text) => {
+                notice = Some(text);
+            }
             AgentEvent::Done { .. } => {
                 if in_thinking {
                     print!("{}\x1b[2m</think>\x1b[0m\n", theme.core.text_muted.ansi_fg());
                 }
                 println!();
+                if let Some(text) = notice.take() {
+                    println!("\n{}", theme.ansi_warning(&format!("⚠ {text}")));
+                }
             }
             AgentEvent::Error(err) => {
                 eprintln!("\n{}", theme.ansi_error(&format!("Error: {}", err)));
