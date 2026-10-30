@@ -7,7 +7,7 @@ version: v1.0.0
 status: in_progress
 author: Levi Silveira
 created_at: '2026-10-29T22:43:37'
-updated_at: '2026-10-29T23:11:28'
+updated_at: '2026-10-30T00:33:04'
 session_id: null
 tags:
 - embedding
@@ -25,13 +25,21 @@ backlog_items:
 spec_dir: specs/002-local-embedding
 milestones:
 - name: M1 Catalog and identity
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M2 Local embedder
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M3 Setting resolution and migration
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M4 Prefixes
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M5 Benchmark defaults CI and docs
   done: false
 status_log:
@@ -47,6 +55,18 @@ status_log:
   by: Levi Silveira
   status: in_progress
   note: Approved by Levi (gate 3), 2026-10-29
+- at: '2026-10-30T00:32:58'
+  by: LeviGuilherme
+  note: Milestone 'M1 Catalog and identity' completed
+- at: '2026-10-30T00:33:01'
+  by: LeviGuilherme
+  note: Milestone 'M2 Local embedder' completed
+- at: '2026-10-30T00:33:02'
+  by: LeviGuilherme
+  note: Milestone 'M3 Setting resolution and migration' completed
+- at: '2026-10-30T00:33:04'
+  by: LeviGuilherme
+  note: Milestone 'M4 Prefixes' completed
 ---
 
 # Local multilingual embedding model, independent of the chat model
