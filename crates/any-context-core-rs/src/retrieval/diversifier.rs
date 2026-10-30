@@ -12,16 +12,6 @@ pub struct RankedChunk {
     pub content_type: String,
 }
 
-/// Discards candidates falling below min_score threshold.
-/// Retains at least the single best candidate if non-empty to prevent complete blackout.
-pub fn apply_threshold(chunks: Vec<RankedChunk>, min_score: f64) -> Vec<RankedChunk> {
-    if chunks.is_empty() {
-        return Vec::new();
-    }
-    let filtered: Vec<RankedChunk> = chunks.into_iter().filter(|c| c.score >= min_score).collect();
-    filtered
-}
-
 /// Source identifier used by the per-source cap: file path, else file name.
 fn source_id(c: &RankedChunk) -> &str {
     if !c.file_path.is_empty() {

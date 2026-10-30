@@ -601,7 +601,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation. Each question records quality signals locally (reranker bands, escalation, document coverage, weak citations, feedback); with them and the evaluation set AnyContext tunes per workspace, invisibly: RRF weights, reranker depth, band thresholds, Deep turns, stratification and compaction.
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation. Each question records quality signals locally (reranker bands, escalation, document coverage, weak citations, feedback); with them and the evaluation set AnyContext tunes per workspace, invisibly: RRF weights, reranker depth, band thresholds, Deep turns, stratification and compaction. From IMP-041 and IMP-042 (ADR-0156): the RRF weights (equal today, `rrf::fuse`), the reranker depth per mode and profile (`rerank_depth::profile_depth`) and the 3 reranker slots per document are the R1 defaults this loop tunes.
 
 ### FEAT-106: [retrieval] Regression evaluation with automatic revert
 - **Priority**: medium
@@ -1248,20 +1248,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Each Deep turn refines or decomposes the question from what was found, searches, and evaluates what is missing. Default maximum of 3 turns (up to 5 only through a domain pack), stopping early when evidence is enough, plus a token ceiling; the default is tuned by the evaluation set.
-
-### IMP-041: [retrieval] Single RRF over clean lists with a per-document cap, no score cut
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 5, Fusion. All lists (every Deep sub-question, every source, future retrievers) enter one RRF with k = 60 and equal weights, tuned per workspace by the evaluation set; each document takes at most a few reranker slots, the rest in reserve. Acceptance: the RRF minimum-score cut per preset and Deep's deduplication with score summing are removed.
-
-### IMP-042: [retrieval] Reranker depth by time budget and profile
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 5, Fusion. Candidates sent to the reranker: Fast 30, Deep 50, adjusted by hardware profile (e.g. 20 on light profiles, up to 100 on strong ones or the Model Server) within a reranking time budget (about 1 second in Fast), tuned per workspace by where the right chunk usually sits.
 
 ### IMP-043: [retrieval] Cross-encoder as the only relevance judge, always on
 - **Priority**: medium
@@ -2185,3 +2171,19 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: imp_040_prefiltered_retrievers
 - **Closed**: 2026-10-30, plan imp_040_prefiltered_retrievers
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search. Dense and lexical retrievers run in parallel for each question or sub-question with filters inside the search, over child chunks, with the model's query prefix and the table of the embedding target (the old table answers during a model switch) and weighted lexical fields; 30 candidates per list, tuned by the evaluation set. Only the workspace is searched. A question embedding failure gives lexical-only search with a discreet warning in the answer (today only a log line). Delivered (ADR-0155): the request filter inside both retrievers, BM25 in parallel, 30 candidates per list and the warning line; per-target tables, child chunks, weighted fields and the end of `Global` moved to IMP-033, FEAT-036, IMP-026 and FEAT-082.
+
+### IMP-041: [retrieval] Single RRF over clean lists with a per-document cap, no score cut
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: imp_041_042_unified_fusion
+- **Closed**: 2026-10-30, plan imp_041_042_unified_fusion
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 5, Fusion. All lists (every Deep sub-question, every source, future retrievers) enter one RRF with k = 60 and equal weights, tuned per workspace by the evaluation set; each document takes at most a few reranker slots, the rest in reserve. Acceptance: the RRF minimum-score cut per preset and Deep's deduplication with score summing are removed. Delivered (ADR-0156): clean lists (dense per workspace, lexical, file-name, date) in one RRF per search, Deep included; the RRF score cut and Deep's score summing removed; 3 reranker slots per document with the reserve filling the rest. Per-workspace weights moved to FEAT-105.
+
+### IMP-042: [retrieval] Reranker depth by time budget and profile
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: imp_041_042_unified_fusion
+- **Closed**: 2026-10-30, plan imp_041_042_unified_fusion
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 5, Fusion. Candidates sent to the reranker: Fast 30, Deep 50, adjusted by hardware profile (e.g. 20 on light profiles, up to 100 on strong ones or the Model Server) within a reranking time budget (about 1 second in Fast), tuned per workspace by where the right chunk usually sits. Delivered (ADR-0156): Fast/Deep depth per profile (Lite 20/30, Smart Balanced and Air-Gapped Power 30/50, Workstation Pro 40/75, Sovereign Ultra 50/100), lowered to a 1 s / 3 s budget from the measured cost per candidate, floor 10. Model Server depth waits for IMP-054/IMP-055; per-workspace tuning moved to FEAT-105.

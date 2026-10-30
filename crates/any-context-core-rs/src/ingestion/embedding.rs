@@ -209,7 +209,14 @@ pub fn active_profile(db: &NativeConfigDb) -> ProfileTier {
         .ok()
         .flatten()
         .and_then(|p| ProfileTier::parse_str(&p))
-        .unwrap_or_else(|| HardwareProfiler::auto_select_recommended(&HardwareProfiler::probe_system(None)))
+        .unwrap_or_else(recommended_profile)
+}
+
+/// The profile recommended for this machine, probed once per process (the probe reads the
+/// system's memory and CPU, which do not change while the process runs).
+pub fn recommended_profile() -> ProfileTier {
+    static RECOMMENDED: std::sync::OnceLock<ProfileTier> = std::sync::OnceLock::new();
+    *RECOMMENDED.get_or_init(|| HardwareProfiler::auto_select_recommended(&HardwareProfiler::probe_system(None)))
 }
 
 /// The active embedding model and where it comes from, without building it.

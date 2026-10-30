@@ -1,8 +1,8 @@
-//! Native Hybrid RAG Pipeline and RFC-042 Batch Retrieval Engine in Rust.
-//!
-//! Unifies dense vector similarity (LanceDB), Okapi BM25 lexical ranking,
-//! Reciprocal Rank Fusion (RRF), cross-query SHA-256 deduplication with score accumulation,
-//! a per-source cap in score order, and density budgeting entirely in native Rust.
+//! Native hybrid retrieval pipeline: one search is one question (Fast) or several sub-questions
+//! (Deep). Each question gives clean ranked lists (dense per workspace, Okapi BM25, file-name and
+//! date matches); all lists of the search enter one Reciprocal Rank Fusion; one cross-encoder pass
+//! rescores the best candidates, a few per document, up to a depth set by the mode, the hardware
+//! profile and a time budget; a per-source cap and a character budget select the result.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -14,7 +14,8 @@ use crate::ingestion::enricher::NativeContextualEnricher;
 use crate::ingestion::embedding::QueryEmbedding;
 use crate::retrieval::bm25::BM25Index;
 use crate::retrieval::filter::RetrievalFilter;
-use crate::retrieval::rrf::reciprocal_rank_fusion;
+use crate::retrieval::rerank_depth;
+use crate::retrieval::rrf::{self, RankedList};
 use crate::retrieval::diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
 use crate::retrieval::query::QueryPreprocessor;
 use crate::retrieval::token_budget::estimate_token_count;
@@ -59,14 +60,6 @@ impl RetrievalPreset {
         }
     }
 
-    pub fn min_score(&self) -> f64 {
-        match self {
-            Self::Turbo => 0.012,
-            Self::Balanced => 0.008,
-            Self::Deep => 0.005,
-        }
-    }
-
     pub fn max_chunks_per_source(&self) -> usize {
         match self {
             Self::Turbo => 2,
@@ -97,12 +90,13 @@ impl RetrievalPreset {
             linked_sources: Vec::new(),
             top_k: self.top_k(),
             candidate_pool_k: self.candidate_pool_k(),
-            min_score: self.min_score(),
             max_chunks_per_source: self.max_chunks_per_source(),
             max_density_chars: self.max_density_chars(),
             table_name: "workspace_chunks".to_string(),
             rrf_k: self.rrf_k(),
             rerank_mode: None,
+            rerank_depth: rerank_depth::DEFAULT_RERANK_DEPTH,
+            rerank_budget_ms: None,
             filter: RetrievalFilter::default(),
         }
     }
@@ -119,13 +113,19 @@ pub struct HybridSearchRequest {
     pub linked_sources: Vec<String>,
     pub top_k: usize,
     pub candidate_pool_k: usize,
-    pub min_score: f64,
     pub max_chunks_per_source: usize,
     pub max_density_chars: usize,
     pub table_name: String,
     pub rrf_k: usize,
     #[serde(default)]
     pub rerank_mode: Option<String>,
+    /// Fused candidates the cross-encoder scores in this search, before the time budget (IMP-042).
+    /// In a Deep batch, the first request's value applies.
+    #[serde(default = "default_rerank_depth")]
+    pub rerank_depth: usize,
+    /// Time the cross-encoder may spend on this search; `None` keeps `rerank_depth` as it is.
+    #[serde(default)]
+    pub rerank_budget_ms: Option<u64>,
     /// Narrowing applied inside both retrievers, before their candidate limit (IMP-040).
     #[serde(default)]
     pub filter: RetrievalFilter,
@@ -148,15 +148,20 @@ impl Default for HybridSearchRequest {
             linked_sources: Vec::new(),
             top_k: 20,
             candidate_pool_k: 100,
-            min_score: 0.0,
             max_chunks_per_source: 3,
             max_density_chars: 40_000,
             table_name: "workspace_chunks".to_string(),
             rrf_k: 60,
             rerank_mode: None,
+            rerank_depth: rerank_depth::DEFAULT_RERANK_DEPTH,
+            rerank_budget_ms: None,
             filter: RetrievalFilter::default(),
         }
     }
+}
+
+fn default_rerank_depth() -> usize {
+    rerank_depth::DEFAULT_RERANK_DEPTH
 }
 
 /// Scored, diversified, and deduplicated chunk result with complete provenance.
@@ -187,13 +192,6 @@ pub struct HybridSearchResult {
 
 /// Query embedding model used until `set_embedding` is called.
 pub const DEFAULT_QUERY_EMBEDDING_MODEL: &str = "text-embedding-3-small";
-
-/// Maximum candidates re-scored by the cross-encoder per query (ADR-130).
-pub const MAX_RERANK_CANDIDATES: usize = 30;
-
-/// RRF floor for `min_score`: 1/(60 + 140), so every candidate of a pool of up to 140 per list
-/// passes. It guards against empty matches and is not a relevance cutoff (ADR-0139).
-pub const RRF_MIN_SCORE: f64 = 0.005;
 
 /// Workspace a request searches: its own, or `Default` when it names none. `Default` is filtered
 /// like any other workspace, so it never returns other workspaces' chunks (BUG-023).
@@ -300,69 +298,100 @@ pub fn dense_search_status() -> String {
         .unwrap_or_else(|| "n/a (no query yet in this session)".to_string())
 }
 
-static LAST_RERANK_LATENCY_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u64::MAX);
+/// Latency (ms) and candidate count of the most recent neural re-ranking pass, kept together so
+/// concurrent passes never mix one's latency with another's count.
+static LAST_RERANK_PASS: std::sync::Mutex<Option<(u64, usize)>> = std::sync::Mutex::new(None);
 
 /// Wall-clock latency of the most recent neural re-ranking pass in this process, if any.
 pub fn last_rerank_latency_ms() -> Option<u64> {
-    match LAST_RERANK_LATENCY_MS.load(std::sync::atomic::Ordering::Relaxed) {
-        u64::MAX => None,
-        v => Some(v),
-    }
+    last_rerank_pass().map(|(ms, _)| ms)
 }
 
-/// Scores `texts` with the cross-encoder on a blocking thread so the async executor
-/// (and the TUI) never stall on CPU inference. `None` means "keep RRF ordering".
+/// Candidates scored by the most recent neural re-ranking pass in this process (0 before any).
+pub fn last_rerank_candidates() -> usize {
+    last_rerank_pass().map_or(0, |(_, n)| n)
+}
+
+/// Latency (ms) and candidate count of the most recent neural re-ranking pass, if any.
+pub fn last_rerank_pass() -> Option<(u64, usize)> {
+    LAST_RERANK_PASS.lock().ok().and_then(|p| *p)
+}
+
+/// Scores each group's texts against its question with the cross-encoder, in one pass on a
+/// blocking thread so the async executor (and the TUI) never stall on CPU inference. `None`
+/// means "keep RRF ordering". The model is loaded before the clock starts, so the pass's cost
+/// per candidate, which feeds the time budget (IMP-042), never includes the first load.
 async fn neural_rerank_scores(
     reranker: &Arc<actx_onnx::OnnxReranker>,
-    query: &str,
-    texts: Vec<String>,
-) -> Option<Vec<f32>> {
-    if texts.is_empty() || !reranker.is_neural_active() {
+    groups: Vec<(String, Vec<String>)>,
+) -> Option<Vec<Vec<f32>>> {
+    let total: usize = groups.iter().map(|(_, texts)| texts.len()).sum();
+    if total == 0 || !reranker.is_neural_active() {
         return None;
     }
-    let expected = texts.len();
     let reranker = Arc::clone(reranker);
-    let query = query.to_string();
-    let started = std::time::Instant::now();
-    let scores = tokio::task::spawn_blocking(move || reranker.score_batch(&query, &texts))
-        .await
-        .ok()?;
-    if scores.len() != expected {
-        return None;
+    let (scores, elapsed) = tokio::task::spawn_blocking(move || {
+        reranker.ensure_loaded().ok()?;
+        let started = std::time::Instant::now();
+        let scores = groups
+            .iter()
+            .map(|(query, texts)| {
+                let scores = reranker.score_batch(query, texts);
+                (scores.len() == texts.len()).then_some(scores)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some((scores, started.elapsed()))
+    })
+    .await
+    .ok()??;
+    if let Ok(mut last) = LAST_RERANK_PASS.lock() {
+        *last = Some((elapsed.as_millis() as u64, total));
     }
-    LAST_RERANK_LATENCY_MS.store(started.elapsed().as_millis() as u64, std::sync::atomic::Ordering::Relaxed);
+    rerank_depth::record_rerank_cost(total, elapsed);
     Some(scores)
 }
 
-/// Applies Stage-2 re-ranking to the best `MAX_RERANK_CANDIDATES` unprotected items (by current
-/// score). Re-scored items receive calibrated `[0,1]` scores; the remaining tail is rescaled to
-/// stay strictly below every re-scored item while keeping its relative RRF order. `protected` ids
-/// keep their original score untouched and do not consume cross-encoder slots.
+/// Applies Stage-2 re-ranking to `picks` (chunk id → the question it is scored against). Picked
+/// items receive calibrated `[0,1]` scores; the remaining tail is rescaled to stay strictly below
+/// every re-scored item while keeping its relative RRF order. `protected` ids (pinned file-name
+/// matches) keep their score and are never picked.
 async fn apply_neural_rerank(
     reranker: &Arc<actx_onnx::OnnxReranker>,
-    query: &str,
     items: &mut [HybridSearchResult],
+    picks: &HashMap<String, String>,
     protected: &std::collections::HashSet<String>,
 ) {
-    if items.is_empty() {
+    if items.is_empty() || picks.is_empty() {
         return;
     }
-    items.sort_by(compare_by_relevance);
-    let head: Vec<usize> = (0..items.len())
-        .filter(|&i| !protected.contains(&items[i].chunk_id))
-        .take(MAX_RERANK_CANDIDATES)
+    // Picked items grouped by question, in item order, so each group is one cross-encoder batch.
+    let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        let Some(query) = picks.get(&item.chunk_id) else { continue };
+        if protected.contains(&item.chunk_id) {
+            continue;
+        }
+        match groups.iter_mut().find(|(q, _)| q == query) {
+            Some((_, idx)) => idx.push(i),
+            None => groups.push((query.clone(), vec![i])),
+        }
+    }
+    let batches = groups
+        .iter()
+        .map(|(q, idx)| (q.clone(), idx.iter().map(|&i| items[i].text.clone()).collect()))
         .collect();
-    let texts: Vec<String> = head.iter().map(|&i| items[i].text.clone()).collect();
-    let Some(scores) = neural_rerank_scores(reranker, query, texts).await else {
+    let Some(scores) = neural_rerank_scores(reranker, batches).await else {
         return;
     };
 
     let mut rescored = vec![false; items.len()];
     let mut min_head = f64::MAX;
-    for (&i, &s) in head.iter().zip(&scores) {
-        items[i].score = s as f64;
-        rescored[i] = true;
-        min_head = min_head.min(s as f64);
+    for ((_, idx), group_scores) in groups.iter().zip(&scores) {
+        for (&i, &s) in idx.iter().zip(group_scores) {
+            items[i].score = s as f64;
+            rescored[i] = true;
+            min_head = min_head.min(s as f64);
+        }
     }
     let is_tail = |i: usize, c: &HybridSearchResult| !rescored[i] && !protected.contains(&c.chunk_id);
     let tail_max = items
@@ -377,6 +406,77 @@ async fn apply_neural_rerank(
             if is_tail(i, &items[i]) {
                 items[i].score = ceiling * (items[i].score / tail_max).max(0.0);
             }
+        }
+    }
+}
+
+/// Reranker input: the unpinned `results` (in fusion order) through the per-document slots, up to
+/// `depth`, each with the text of the question that ranked it best (IMP-041, IMP-042).
+fn rerank_picks(
+    results: &[HybridSearchResult],
+    pinned: &std::collections::HashSet<String>,
+    best_query: &HashMap<String, usize>,
+    requests: &[HybridSearchRequest],
+    depth: usize,
+) -> HashMap<String, String> {
+    let open: Vec<RankedChunk> = results.iter().filter(|c| !pinned.contains(&c.chunk_id)).map(ranked).collect();
+    apply_source_cap(open, rerank_depth::PER_DOCUMENT_RERANK_SLOTS, depth)
+        .into_iter()
+        .map(|c| {
+            let q = best_query.get(&c.id).copied().unwrap_or(0);
+            (c.id, requests[q].query_text.clone())
+        })
+        .collect()
+}
+
+/// The fields the per-source cap and the character budget read.
+fn ranked(c: &HybridSearchResult) -> RankedChunk {
+    RankedChunk {
+        id: c.chunk_id.clone(),
+        score: c.score,
+        file_path: c.file_path.clone(),
+        file_name: c.file_name.clone(),
+        text: c.text.clone(),
+        workspace: c.workspace.clone(),
+        content_type: c.content_type.clone(),
+    }
+}
+
+/// What one question contributes to a search: its ranked lists and the data to build results.
+#[derive(Default)]
+struct QueryLists {
+    lists: Vec<RankedList>,
+    /// Stored rows of dense and metadata hits, by chunk id.
+    rows: HashMap<String, ScoredVectorResult>,
+    /// Best cosine similarity of each dense hit.
+    dense_scores: HashMap<String, f32>,
+    sparse_scores: HashMap<String, f32>,
+    /// File-name matches: on top of the answer, never rescored.
+    pinned: Vec<String>,
+    dense: QueryEmbeddingOutcome,
+}
+
+impl Default for QueryEmbeddingOutcome {
+    fn default() -> Self {
+        QueryEmbeddingOutcome::Dense
+    }
+}
+
+impl QueryLists {
+    /// Keeps the stored row of a hit and returns its chunk id.
+    fn keep_row(&mut self, row: ScoredVectorResult) -> String {
+        let cid = if !row.id.is_empty() {
+            row.id.clone()
+        } else {
+            format!("{}::{}", row.file_path, &row.text.chars().take(80).collect::<String>())
+        };
+        self.rows.entry(cid.clone()).or_insert(row);
+        cid
+    }
+
+    fn push_list(&mut self, query: usize, ids: Vec<String>) {
+        if !ids.is_empty() {
+            self.lists.push(RankedList { query, ids });
         }
     }
 }
@@ -637,20 +737,26 @@ impl NativeHybridPipeline {
     }
 
     /// Single-query hybrid search that also says how its dense half went, so the answer can
-    /// tell the user when it came from the lexical retriever only (IMP-040).
+    /// tell the user when it came from the lexical retriever only (IMP-040). It is a batch of
+    /// one question: the same fusion, reranking and selection as Deep (IMP-041).
     pub async fn search_with_outcome(&self, req: &HybridSearchRequest) -> Result<RetrievalOutput, String> {
-        // 1. Build distinct workspace query targets
-        let mut targets = vec![(primary_workspace(&req).to_string(), req.candidate_pool_k)];
+        let lists = self.collect_lists(req, 0).await?;
+        Ok(self.fuse_and_rerank(std::slice::from_ref(req), vec![lists]).await)
+    }
+
+    /// Step 4 for one question: each retriever and each source gives its own list, ranked by its
+    /// own score (IMP-041). Nothing here is scored for another list.
+    async fn collect_lists(&self, req: &HybridSearchRequest, query: usize) -> Result<QueryLists, String> {
+        // Workspaces searched: the request's own with the full list size, the others (`Global`)
+        // with half of it.
+        let mut targets = vec![(primary_workspace(req).to_string(), req.candidate_pool_k)];
         for tw in &req.target_workspaces {
             if !tw.is_empty() && !targets.iter().any(|(w, _)| w == tw) {
                 targets.push((tw.clone(), std::cmp::max(10, req.candidate_pool_k / 2)));
             }
         }
 
-        let mut raw_candidates_map: HashMap<String, ScoredVectorResult> = HashMap::new();
-        let mut guaranteed_file_cids: Vec<String> = Vec::new();
-
-        // 2. Query Preprocessing in Rust (AST/lexical pattern extraction)
+        let mut out = QueryLists::default();
         let processed = QueryPreprocessor::process(&req.query_text);
         let filenames = processed.filename_mentions;
         let temporal_clauses = processed.temporal_clauses;
@@ -665,9 +771,8 @@ impl NativeHybridPipeline {
 
         // The lexical retriever starts now, on a blocking thread, and runs while the question is
         // embedded and the dense search runs (IMP-040).
-        let bm25_index = self.get_or_load_bm25(&req.table_name);
         let lexical = {
-            let index = Arc::clone(&bm25_index);
+            let index = self.get_or_load_bm25(&req.table_name);
             let query = expanded_query.clone();
             // `Default` is a workspace like any other: it sees its own files and `Global` (BUG-023).
             let workspace = primary_workspace(req).to_string();
@@ -676,88 +781,66 @@ impl NativeHybridPipeline {
             tokio::task::spawn_blocking(move || index.search_filtered(&query, limit, Some(&workspace), &filter))
         };
 
-        // 3. Metadata Filtering for Exact Filename Mentions
-        if !filenames.is_empty() {
-            for fn_name in &filenames {
-                let fn_clean = fn_name.replace('\'', "''");
-                let fn_clause =
-                    format!("(file_name LIKE '%{fn_clean}%' OR file_path LIKE '%{fn_clean}%')");
-                let combined_where = if !temporal_clauses.is_empty() {
-                    narrow(&format!("({fn_clause}) AND ({})", temporal_clauses.join(" OR ")))
-                } else {
-                    narrow(&fn_clause)
-                };
-                let fn_where = narrow(&fn_clause);
+        // File-name mentions: their chunks form one list and stay pinned on top of the answer.
+        let mut filename_ids: Vec<String> = Vec::new();
+        for fn_name in &filenames {
+            let fn_clean = fn_name.replace('\'', "''");
+            let fn_clause = format!("(file_name LIKE '%{fn_clean}%' OR file_path LIKE '%{fn_clean}%')");
+            let combined_where = if temporal_clauses.is_empty() {
+                narrow(&fn_clause)
+            } else {
+                narrow(&format!("({fn_clause}) AND ({})", temporal_clauses.join(" OR ")))
+            };
+            let fn_where = narrow(&fn_clause);
 
-                for (ws_name, limit) in &targets {
-                    let ws_filter = Some(ws_name.as_str());
-                    let mut matches = self
-                        .lance_store
-                        .search_metadata_async(&combined_where, *limit, ws_filter, Some(&req.table_name))
-                        .await
-                        .unwrap_or_default();
-
-                    if matches.is_empty() && !temporal_clauses.is_empty() {
-                        matches = self
-                            .lance_store
-                            .search_metadata_async(&fn_where, *limit, ws_filter, Some(&req.table_name))
-                            .await
-                            .unwrap_or_default();
-                    }
-
-                    for mut sc in matches {
-                        sc.score = 1.0; // Max score boost for explicitly requested file chunks
-                        let cid = if !sc.id.is_empty() {
-                            sc.id.clone()
-                        } else {
-                            format!(
-                                "{}::{}",
-                                sc.file_path,
-                                &sc.text.chars().take(80).collect::<String>()
-                            )
-                        };
-                        if !guaranteed_file_cids.contains(&cid) {
-                            guaranteed_file_cids.push(cid.clone());
-                        }
-                        raw_candidates_map.insert(cid, sc);
-                    }
-                }
-            }
-        }
-
-        // 4. Temporal Metadata Filtering
-        if !temporal_clauses.is_empty() {
-            let where_or = narrow(&temporal_clauses.join(" OR "));
             for (ws_name, limit) in &targets {
                 let ws_filter = Some(ws_name.as_str());
-                if let Ok(matches) = self
+                let mut matches = self
                     .lance_store
-                    .search_metadata_async(&where_or, *limit, ws_filter, Some(&req.table_name))
+                    .search_metadata_async(&combined_where, *limit, ws_filter, Some(&req.table_name))
                     .await
-                {
-                    for mut sc in matches {
-                        let cid = if !sc.id.is_empty() {
-                            sc.id.clone()
-                        } else {
-                            format!(
-                                "{}::{}",
-                                sc.file_path,
-                                &sc.text.chars().take(80).collect::<String>()
-                            )
-                        };
-                        if let Some(existing) = raw_candidates_map.get_mut(&cid) {
-                            existing.score = existing.score.max(0.95);
-                        } else {
-                            sc.score = 0.95;
-                            raw_candidates_map.insert(cid, sc);
-                        }
+                    .unwrap_or_default();
+                if matches.is_empty() && !temporal_clauses.is_empty() {
+                    matches = self
+                        .lance_store
+                        .search_metadata_async(&fn_where, *limit, ws_filter, Some(&req.table_name))
+                        .await
+                        .unwrap_or_default();
+                }
+                for row in matches {
+                    let cid = out.keep_row(row);
+                    if !filename_ids.contains(&cid) {
+                        filename_ids.push(cid);
                     }
                 }
             }
         }
+        out.pinned = filename_ids.clone();
+        out.push_list(query, filename_ids);
 
-        // 5. Query Vector Resolution (Passed in or computed via actx-lm)
-        // A failed or missing embedding leaves BM25 only (ADR-110); the outcome is recorded (IMP-003).
+        // Date mentions: the chunks of the range form one list, in the order LanceDB returns them.
+        if !temporal_clauses.is_empty() {
+            let where_or = narrow(&temporal_clauses.join(" OR "));
+            let mut date_ids: Vec<String> = Vec::new();
+            for (ws_name, limit) in &targets {
+                if let Ok(matches) = self
+                    .lance_store
+                    .search_metadata_async(&where_or, *limit, Some(ws_name.as_str()), Some(&req.table_name))
+                    .await
+                {
+                    for row in matches {
+                        let cid = out.keep_row(row);
+                        if !date_ids.contains(&cid) {
+                            date_ids.push(cid);
+                        }
+                    }
+                }
+            }
+            out.push_list(query, date_ids);
+        }
+
+        // Query vector, passed in or computed. A failed or missing embedding leaves the lexical
+        // list only (ADR-110); the outcome is recorded (IMP-003).
         let (query_vec, outcome) = if let Some(ref v) = req.query_vector {
             (Some(v.clone()), QueryEmbeddingOutcome::Dense)
         } else if let Some(ref lm) = self.lm_client {
@@ -771,10 +854,10 @@ impl NativeHybridPipeline {
             (None, self.missing_provider_outcome.clone())
         };
         self.record_query_embedding(outcome.clone());
-        let mut dense_outcome = outcome;
+        out.dense = outcome;
 
-        // 6. Dense Vector Similarity Search. `Global` rows take part only when their vectors
-        // share the query's space; otherwise BM25 and metadata matches still find them (BUG-019).
+        // Dense search, one list per workspace. `Global` rows take part only when their vectors
+        // share the query's space; otherwise the lexical and metadata lists still find them (BUG-019).
         let dense_filter = {
             let mut clauses = Vec::new();
             if !self.global_dense {
@@ -788,18 +871,16 @@ impl NativeHybridPipeline {
             }
             (!clauses.is_empty()).then(|| clauses.join(" AND "))
         };
-        let dense_filter = dense_filter.as_deref();
         if let Some(q_vec) = query_vec {
             let mut search_error = None;
             for (ws_name, limit) in &targets {
                 if !self.global_dense && ws_name == "Global" {
                     continue;
                 }
-                let ws_filter = Some(ws_name.as_str());
                 // A failed search is recorded, never dropped silently (BUG-021).
-                let matches = match self
+                let mut matches = match self
                     .lance_store
-                    .search_vector_async(q_vec.clone(), *limit, ws_filter, dense_filter, Some(&req.table_name))
+                    .search_vector_async(q_vec.clone(), *limit, Some(ws_name.as_str()), dense_filter.as_deref(), Some(&req.table_name))
                     .await
                 {
                     Ok(matches) => matches,
@@ -808,86 +889,97 @@ impl NativeHybridPipeline {
                         continue;
                     }
                 };
-                for sc in matches {
-                    let cid = if !sc.id.is_empty() {
-                        sc.id.clone()
-                    } else {
-                        format!(
-                            "{}::{}",
-                            sc.file_path,
-                            &sc.text.chars().take(80).collect::<String>()
-                        )
-                    };
-                    if let Some(existing) = raw_candidates_map.get_mut(&cid) {
-                        existing.score = existing.score.max(sc.score);
-                    } else {
-                        raw_candidates_map.insert(cid, sc);
+                matches.sort_by(|a, b| {
+                    b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.id.cmp(&b.id))
+                });
+                let mut ids = Vec::with_capacity(matches.len());
+                for row in matches {
+                    let score = row.score;
+                    let cid = out.keep_row(row);
+                    let best = out.dense_scores.entry(cid.clone()).or_insert(score);
+                    *best = best.max(score);
+                    if !ids.contains(&cid) {
+                        ids.push(cid);
                     }
                 }
+                out.push_list(query, ids);
             }
             if let Some(e) = search_error {
-                dense_outcome = QueryEmbeddingOutcome::SearchFailed(e);
-                self.record_query_embedding(dense_outcome.clone());
+                out.dense = QueryEmbeddingOutcome::SearchFailed(e);
+                self.record_query_embedding(out.dense.clone());
             }
         }
 
-        // 7. Order dense candidates
-        let mut dense_candidates: Vec<ScoredVectorResult> =
-            raw_candidates_map.into_values().collect();
-        dense_candidates.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        // Lexical list, started above.
+        let sparse = lexical.await.map_err(|e| format!("lexical search failed: {e}"))?;
+        let ids = sparse.iter().map(|(id, _)| id.clone()).collect();
+        out.sparse_scores = sparse.into_iter().collect();
+        out.push_list(query, ids);
+        Ok(out)
+    }
 
-        let dense_ids: Vec<String> = dense_candidates.iter().map(|c| c.id.clone()).collect();
-        let mut dense_map: HashMap<String, ScoredVectorResult> =
-            dense_candidates.into_iter().map(|c| (c.id.clone(), c)).collect();
+    /// Steps 5 and 6 and today's selection for the lists of every question of one search: one
+    /// RRF over all lists, one reranking pass over the chosen candidates, then the per-file cap,
+    /// top-k and character budget of the first request (IMP-041, IMP-042).
+    async fn fuse_and_rerank(&self, requests: &[HybridSearchRequest], per_query: Vec<QueryLists>) -> RetrievalOutput {
+        let first = &requests[0];
+        let label = |q: usize| {
+            let r = &requests[q];
+            r.sub_query_id.clone().unwrap_or_else(|| r.query_text.clone())
+        };
 
-        // 8. Sparse Lexical BM25 Search, started above
-        let sparse_matches = lexical.await.map_err(|e| format!("lexical search failed: {e}"))?;
-        let sparse_ids: Vec<String> = sparse_matches.iter().map(|(id, _)| id.clone()).collect();
-        let sparse_score_map: HashMap<String, f32> = sparse_matches.into_iter().collect();
+        // Everything the questions found, merged; the dense outcome of the search is the first
+        // question whose dense half did not run (IMP-040).
+        let mut dense = QueryEmbeddingOutcome::Dense;
+        let mut lists = Vec::new();
+        let mut rows: HashMap<String, ScoredVectorResult> = HashMap::new();
+        let mut dense_scores: HashMap<String, f32> = HashMap::new();
+        let mut sparse_scores: HashMap<String, f32> = HashMap::new();
+        let mut pinned: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for q in per_query {
+            if dense == QueryEmbeddingOutcome::Dense {
+                dense = q.dense;
+            }
+            lists.extend(q.lists);
+            for (id, row) in q.rows {
+                rows.entry(id).or_insert(row);
+            }
+            for (id, s) in q.dense_scores {
+                let e = dense_scores.entry(id).or_insert(s);
+                *e = e.max(s);
+            }
+            for (id, s) in q.sparse_scores {
+                let e = sparse_scores.entry(id).or_insert(s);
+                *e = e.max(s);
+            }
+            pinned.extend(q.pinned);
+        }
 
-        // 9. Reciprocal Rank Fusion (RRF)
-        let fused_results = reciprocal_rank_fusion(&dense_ids, &sparse_ids, Some(req.rrf_k));
+        let fused = rrf::fuse(&lists, first.rrf_k);
 
-        let sub_query_tag = req
-            .sub_query_id
-            .clone()
-            .unwrap_or_else(|| req.query_text.clone());
-
-        // 10. Stored rows of BM25-only hits: the BM25 file holds the enveloped text it indexes and
+        // Stored rows of lexical-only hits: the BM25 file holds the enveloped text it indexes and
         // no provenance, so text, content hash and provenance are read from LanceDB in one lookup
         // (ADR-0142, ADR-0143).
-        let bm25_only_ids: Vec<String> = fused_results
-            .iter()
-            .filter(|r| !dense_map.contains_key(&r.id))
-            .map(|r| r.id.clone())
-            .collect();
-        let mut stored_rows = self
-            .lookup_stored_rows(&bm25_only_ids, Some(primary_workspace(&req)), &req.table_name)
-            .await;
+        let bm25_index = self.get_or_load_bm25(&first.table_name);
+        let lexical_only: Vec<String> = fused.iter().filter(|f| !rows.contains_key(&f.id)).map(|f| f.id.clone()).collect();
+        let mut stored_rows = self.lookup_stored_rows(&lexical_only, Some(primary_workspace(first)), &first.table_name).await;
 
-        // 11. Assemble HybridSearchResult candidates
-        let mut results = Vec::with_capacity(fused_results.len());
-        for res in fused_results {
-            let chunk_id = res.id;
-            let dense_entry = dense_map.remove(&chunk_id);
-            let sparse_score = sparse_score_map.get(&chunk_id).copied();
-
-            let (file_name, file_path, workspace, text, content_type, content_hash, dense_score, last_modified, origin) =
-                if let Some(ref d) = dense_entry {
+        let mut results = Vec::with_capacity(fused.len());
+        let mut best_query: HashMap<String, usize> = HashMap::new();
+        for f in fused {
+            let chunk_id = f.id;
+            let (file_name, file_path, workspace, text, content_type, content_hash, last_modified, origin) =
+                if let Some(d) = rows.remove(&chunk_id) {
+                    let origin = Provenance::of(&d);
                     (
-                        d.file_name.clone(),
-                        d.file_path.clone(),
-                        d.workspace.clone(),
-                        d.text.clone(),
-                        d.content_type.clone().unwrap_or_else(|| "Local Document".to_string()),
-                        d.content_hash.clone().unwrap_or_default(),
-                        Some(d.score),
-                        d.last_modified.clone(),
-                        Provenance::of(d),
+                        d.file_name,
+                        d.file_path,
+                        d.workspace,
+                        d.text,
+                        d.content_type.unwrap_or_else(|| "Local Document".to_string()),
+                        d.content_hash.unwrap_or_default(),
+                        d.last_modified,
+                        origin,
                     )
                 } else if let Some(doc) = bm25_index.get_doc_by_id(&chunk_id) {
                     let row = stored_rows.remove(&(chunk_id.clone(), doc.file_path.replace('\\', "/")));
@@ -910,7 +1002,6 @@ impl NativeHybridPipeline {
                         text,
                         doc.content_type.clone(),
                         content_hash,
-                        None,
                         doc.last_modified.clone(),
                         origin,
                     )
@@ -919,18 +1010,16 @@ impl NativeHybridPipeline {
                 };
 
             let clear_text = if text.starts_with("enc::") {
-                let sec = crate::security::NativeSecurityEngine::get_instance();
-                sec.decrypt_text(&text)
+                crate::security::NativeSecurityEngine::get_instance().decrypt_text(&text)
             } else {
                 text
             };
-
-            let token_count = estimate_token_count(&clear_text);
-            let is_guaranteed = guaranteed_file_cids.contains(&chunk_id);
-
-            let final_score = if is_guaranteed { 1.0 } else { res.score };
-
+            let score = if pinned.contains(&chunk_id) { 1.0 } else { f.score };
+            best_query.insert(chunk_id.clone(), f.best_query);
             results.push(HybridSearchResult {
+                token_count: estimate_token_count(&clear_text),
+                dense_score: dense_scores.get(&chunk_id).copied(),
+                sparse_score: sparse_scores.get(&chunk_id).copied(),
                 chunk_id,
                 file_name,
                 file_path,
@@ -938,67 +1027,45 @@ impl NativeHybridPipeline {
                 text: clear_text,
                 content_type,
                 content_hash,
-                score: final_score,
-                dense_score,
-                sparse_score,
-                token_count,
-                matched_subqueries: vec![sub_query_tag.clone()],
+                score,
+                matched_subqueries: f.queries.iter().map(|&q| label(q)).collect(),
                 last_modified,
                 header_path: origin.header_path,
                 start_line: origin.start_line,
                 end_line: origin.end_line,
             });
         }
-
         results.sort_by(compare_by_relevance);
 
-        // Filter by min_score if set
-        if req.min_score > 0.0 {
-            results.retain(|c| c.score >= req.min_score);
-        }
-
-        // Stage 2: Neural Cross-Encoder Re-Ranking (Frente B)
-        let should_rerank = self.rerank_mode != "off" && req.rerank_mode.as_deref() != Some("off");
+        // Reranking: the unpinned candidates in fusion order, at most a few per document, up to
+        // the depth of the mode and profile within its time budget (IMP-042).
+        let should_rerank = self.rerank_mode != "off" && first.rerank_mode.as_deref() != Some("off");
         if should_rerank {
             if let Some(ref reranker) = self.reranker {
-                let protected: std::collections::HashSet<String> = guaranteed_file_cids.iter().cloned().collect();
-                apply_neural_rerank(reranker, &req.query_text, &mut results, &protected).await;
+                let depth = rerank_depth::effective_depth(first.rerank_depth, first.rerank_budget_ms);
+                let picks = rerank_picks(&results, &pinned, &best_query, requests, depth);
+                apply_neural_rerank(reranker, &mut results, &picks, &pinned).await;
             }
         }
-
-        // Sort descending by score (neural cross-encoder or RRF fallback)
         results.sort_by(compare_by_relevance);
 
-        // Per-source cap in score order
-        let ranked_chunks: Vec<RankedChunk> = results
-            .iter()
-            .map(|c| RankedChunk {
-                id: c.chunk_id.clone(),
-                score: c.score,
-                file_path: c.file_path.clone(),
-                file_name: c.file_name.clone(),
-                text: c.text.clone(),
-                workspace: c.workspace.clone(),
-                content_type: c.content_type.clone(),
-            })
-            .collect();
-
-        let capped_ranked = apply_source_cap(ranked_chunks, req.max_chunks_per_source, req.top_k);
-
-        // Density budgeting
-        let budgeted_ranked = apply_density_budget(capped_ranked, req.max_density_chars);
-
-        let mut candidate_map: HashMap<String, HybridSearchResult> =
-            results.into_iter().map(|c| (c.chunk_id.clone(), c)).collect();
-
-        let mut final_results = Vec::with_capacity(budgeted_ranked.len());
-        for b in budgeted_ranked {
-            if let Some(res) = candidate_map.remove(&b.id) {
-                final_results.push(res);
+        // Selection, once, with the first request's values (IMP-045 replaces it).
+        let capped = apply_source_cap(results.iter().map(ranked).collect(), first.max_chunks_per_source, first.top_k);
+        let budgeted = apply_density_budget(capped, first.max_density_chars);
+        let mut by_id: HashMap<String, HybridSearchResult> = results.into_iter().map(|c| (c.chunk_id.clone(), c)).collect();
+        let mut final_results = Vec::with_capacity(budgeted.len());
+        for rc in budgeted {
+            if let Some(mut full) = by_id.remove(&rc.id) {
+                // The last chunk may have been condensed to fit the character budget.
+                if full.text != rc.text {
+                    full.token_count = estimate_token_count(&rc.text);
+                    full.text = rc.text;
+                }
+                final_results.push(full);
             }
         }
 
-        Ok(RetrievalOutput { results: final_results, dense: dense_outcome })
+        RetrievalOutput { results: final_results, dense }
     }
 
     /// Reads the stored rows of `ids` from LanceDB, keyed by chunk id and normalized file path
@@ -1047,8 +1114,9 @@ impl NativeHybridPipeline {
         }
     }
 
-    /// RFC-042: Concurrent multi-query batch retrieval with cross-query chunk deduplication,
-    /// RRF score accumulation, a per-source cap in score order, and density budgeting.
+    /// Deep Search batch: every sub-question collects its lists concurrently, then all lists enter
+    /// one fusion and one reranking pass, and the selection runs once (IMP-041). A chunk found by
+    /// several sub-questions is one candidate that lists all of them.
     pub async fn retrieve_hybrid_batch_async(
         &self,
         requests: &[HybridSearchRequest],
@@ -1065,112 +1133,9 @@ impl NativeHybridPipeline {
         if requests.is_empty() {
             return Ok(RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense });
         }
-
-        // 1. Concurrently execute all sub-queries in Tokio
-        let futures: Vec<_> = requests
-            .iter()
-            .map(|req| self.search_with_outcome(req))
-            .collect();
-
-        let outputs = futures::future::join_all(futures).await;
-        let mut dense = QueryEmbeddingOutcome::Dense;
-        let mut all_results = Vec::with_capacity(outputs.len());
-        for out in outputs {
-            all_results.push(out.map(|o| {
-                if dense == QueryEmbeddingOutcome::Dense {
-                    dense = o.dense;
-                }
-                o.results
-            }));
-        }
-
-        // 2. Cross-query deduplication and score accumulation
-        let mut dedup_map: HashMap<String, HybridSearchResult> = HashMap::new();
-
-        for (req_idx, sub_res) in all_results.into_iter().enumerate() {
-            let chunks = sub_res?;
-            let sub_req = &requests[req_idx];
-            let sub_label = sub_req
-                .sub_query_id
-                .clone()
-                .unwrap_or_else(|| sub_req.query_text.clone());
-
-            for chunk in chunks {
-                // Keyed by chunk id: `content_hash` is the hash of the whole source file, shared
-                // by all its chunks (ADR-0143). Files with identical content share chunk ids.
-                let key = if !chunk.chunk_id.is_empty() {
-                    chunk.chunk_id.clone()
-                } else {
-                    format!("{}::{}", chunk.file_path, &chunk.text)
-                };
-
-                if let Some(existing) = dedup_map.get_mut(&key) {
-                    // Accumulate per-sub-query scores (RRF or cross-encoder; RFC-042 multi-query boost)
-                    existing.score += chunk.score;
-                    if !existing.matched_subqueries.contains(&sub_label) {
-                        existing.matched_subqueries.push(sub_label.clone());
-                    }
-                    if let Some(d) = chunk.dense_score {
-                        existing.dense_score =
-                            Some(existing.dense_score.map_or(d, |curr| curr.max(d)));
-                    }
-                    if let Some(s) = chunk.sparse_score {
-                        existing.sparse_score =
-                            Some(existing.sparse_score.map_or(s, |curr| curr.max(s)));
-                    }
-                } else {
-                    dedup_map.insert(key, chunk);
-                }
-            }
-        }
-
-        let first_req = &requests[0];
-        let mut candidates: Vec<HybridSearchResult> = dedup_map.into_values().collect();
-
-        // Each sub-query already applied `min_score` (on RRF scores) and Stage-2 re-ranking
-        // against its own text, protecting guaranteed filename matches. Accumulated scores are
-        // therefore not re-filtered or re-scored here: doing so would compare RRF thresholds
-        // against cross-encoder scores, overwrite pinned matches and repeat CPU inference.
-
-        // Sort descending by accumulated score (neural or RRF fallback)
-        candidates.sort_by(compare_by_relevance);
-
-        // 4. Per-source cap in score order
-        let ranked_chunks: Vec<RankedChunk> = candidates
-            .iter()
-            .map(|c| RankedChunk {
-                id: c.chunk_id.clone(),
-                score: c.score,
-                file_path: c.file_path.clone(),
-                file_name: c.file_name.clone(),
-                text: c.text.clone(),
-                workspace: c.workspace.clone(),
-                content_type: c.content_type.clone(),
-            })
-            .collect();
-
-        let capped_ranked =
-            apply_source_cap(ranked_chunks, first_req.max_chunks_per_source, first_req.top_k);
-
-        // 5. Density Budgeting
-        let budgeted_ranked = apply_density_budget(capped_ranked, first_req.max_density_chars);
-
-        // 6. Map back to full HybridSearchResult preserving metadata and matched subqueries
-        let mut candidate_map: HashMap<String, HybridSearchResult> =
-            candidates.into_iter().map(|c| (c.chunk_id.clone(), c)).collect();
-
-        let mut final_results = Vec::with_capacity(budgeted_ranked.len());
-        for rc in budgeted_ranked {
-            if let Some(mut full_chunk) = candidate_map.remove(&rc.id) {
-                // Ensure truncated text / scores reflect final budgeted slice
-                full_chunk.text = rc.text;
-                full_chunk.score = rc.score;
-                full_chunk.token_count = estimate_token_count(&full_chunk.text);
-                final_results.push(full_chunk);
-            }
-        }
-
-        Ok(RetrievalOutput { results: final_results, dense })
+        let futures: Vec<_> = requests.iter().enumerate().map(|(q, req)| self.collect_lists(req, q)).collect();
+        let per_query = futures::future::join_all(futures).await.into_iter().collect::<Result<Vec<_>, _>>()?;
+        Ok(self.fuse_and_rerank(requests, per_query).await)
     }
 
     /// Synchronous wrapper for batch retrieval.
@@ -1346,37 +1311,21 @@ mod tests {
     async fn test_apply_neural_rerank_without_weights_keeps_rrf_order() {
         let reranker = std::sync::Arc::new(actx_onnx::OnnxReranker::new(std::path::Path::new("missing/model.onnx")));
         let mut items = vec![result("a", "theme colors", 0.03), result("b", "timeout seconds", 0.02)];
-        apply_neural_rerank(&reranker, "what timeout", &mut items, &std::collections::HashSet::new()).await;
+        apply_neural_rerank(&reranker, &mut items, &picks(&["a", "b"], "what timeout"), &std::collections::HashSet::new()).await;
         assert_eq!(items[0].chunk_id, "a");
         assert_eq!(items[0].score, 0.03);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_apply_neural_rerank_with_fixture_reorders_and_protects() {
-        if actx_onnx::runtime::probe_runtime().is_err() {
-            if std::env::var("ACTX_REQUIRE_ORT").as_deref() == Ok("1") {
-                panic!("ACTX_REQUIRE_ORT=1 but ONNX Runtime could not be loaded");
-            }
-            eprintln!("skipping: ONNX Runtime library unavailable (set ORT_DYLIB_PATH)");
-            return;
-        }
-        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../actx-onnx/tests/fixtures");
-        let reranker = std::sync::Arc::new(
-            actx_onnx::OnnxReranker::with_paths(
-                &fixtures.join("tiny_reranker.onnx"),
-                &fixtures.join("tiny_tokenizer.json"),
-                "tiny-fixture",
-                actx_onnx::ExecutionDevice::Cpu,
-            )
-            .with_max_length(32),
-        );
+        let Some(reranker) = fixture_reranker() else { return };
         let mut items = vec![
             result("theme", "the theme colors", 0.03),
             result("timeout", "timeout is thirty seconds", 0.02),
             result("pinned", "legacy theme", 0.95),
         ];
         let protected: std::collections::HashSet<String> = ["pinned".to_string()].into_iter().collect();
-        apply_neural_rerank(&reranker, "what timeout", &mut items, &protected).await;
+        apply_neural_rerank(&reranker, &mut items, &picks(&["theme", "timeout"], "what timeout"), &protected).await;
 
         let score = |id: &str| items.iter().find(|c| c.chunk_id == id).unwrap().score;
         assert!(score("timeout") > score("theme"), "neural score must lift the timeout chunk");
@@ -1385,16 +1334,42 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_apply_neural_rerank_protected_skip_slots_and_tail_stays_below() {
+    async fn test_apply_neural_rerank_scores_only_the_picks_against_their_question() {
+        let Some(reranker) = fixture_reranker() else { return };
+        // Two pinned matches on top, picked candidates of two questions and one tail item.
+        let mut items = vec![result("pin-a", "legacy theme", 1.0), result("pin-b", "legacy colors", 1.0)];
+        let mut chosen = HashMap::new();
+        for i in 0..6 {
+            items.push(result(&format!("c{i}"), "timeout is thirty seconds", 0.5 - i as f64 * 0.001));
+            let question = if i % 2 == 0 { "what timeout" } else { "theme colors" };
+            chosen.insert(format!("c{i}"), question.to_string());
+        }
+        items.push(result("tail", "the theme colors", 0.4));
+        let protected: std::collections::HashSet<String> =
+            ["pin-a".to_string(), "pin-b".to_string()].into_iter().collect();
+        apply_neural_rerank(&reranker, &mut items, &chosen, &protected).await;
+
+        let score = |id: &str| items.iter().find(|c| c.chunk_id == id).unwrap().score;
+        assert_eq!(score("pin-a"), 1.0);
+        assert_eq!(score("pin-b"), 1.0);
+        // Same text, two questions: each pick was scored against its own question.
+        assert!(score("c0") > score("c1"), "c0 asked about timeouts, c1 about theme colors");
+        assert_eq!(score("c0"), score("c2"));
+        let min_head = (0..6).map(|i| score(&format!("c{i}"))).fold(f64::MAX, f64::min);
+        assert!(score("tail") < min_head, "unscored tail must stay below every re-scored item");
+    }
+
+    /// The tiny cross-encoder of the ONNX fixtures, or `None` (test skipped) without ONNX Runtime.
+    fn fixture_reranker() -> Option<std::sync::Arc<actx_onnx::OnnxReranker>> {
         if actx_onnx::runtime::probe_runtime().is_err() {
             if std::env::var("ACTX_REQUIRE_ORT").as_deref() == Ok("1") {
                 panic!("ACTX_REQUIRE_ORT=1 but ONNX Runtime could not be loaded");
             }
             eprintln!("skipping: ONNX Runtime library unavailable (set ORT_DYLIB_PATH)");
-            return;
+            return None;
         }
         let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../actx-onnx/tests/fixtures");
-        let reranker = std::sync::Arc::new(
+        Some(std::sync::Arc::new(
             actx_onnx::OnnxReranker::with_paths(
                 &fixtures.join("tiny_reranker.onnx"),
                 &fixtures.join("tiny_tokenizer.json"),
@@ -1402,27 +1377,47 @@ mod tests {
                 actx_onnx::ExecutionDevice::Cpu,
             )
             .with_max_length(32),
-        );
-        // Two pinned matches on top, MAX_RERANK_CANDIDATES regular candidates and one tail item.
-        let mut items = vec![result("pin-a", "legacy theme", 1.0), result("pin-b", "legacy colors", 1.0)];
-        for i in 0..MAX_RERANK_CANDIDATES {
-            items.push(result(&format!("c{i}"), "timeout is thirty seconds", 0.5 - i as f64 * 0.001));
-        }
-        items.push(result("tail", "the theme colors", 0.4));
-        let protected: std::collections::HashSet<String> =
-            ["pin-a".to_string(), "pin-b".to_string()].into_iter().collect();
-        apply_neural_rerank(&reranker, "what timeout", &mut items, &protected).await;
+        ))
+    }
 
-        let score = |id: &str| items.iter().find(|c| c.chunk_id == id).unwrap().score;
-        assert_eq!(score("pin-a"), 1.0);
-        assert_eq!(score("pin-b"), 1.0);
-        // Pinned matches do not consume cross-encoder slots: the last regular candidate is re-scored.
-        let last = format!("c{}", MAX_RERANK_CANDIDATES - 1);
-        assert_ne!(score(&last), 0.5 - (MAX_RERANK_CANDIDATES - 1) as f64 * 0.001);
-        let min_head = (0..MAX_RERANK_CANDIDATES)
-            .map(|i| score(&format!("c{i}")))
-            .fold(f64::MAX, f64::min);
-        assert!(score("tail") < min_head, "unscored tail must stay below every re-scored item");
+    fn picks(ids: &[&str], question: &str) -> HashMap<String, String> {
+        ids.iter().map(|id| (id.to_string(), question.to_string())).collect()
+    }
+
+    /// SC-002: one document holding the 10 best fused chunks takes 3 of 8 slots while others have
+    /// candidates; the reserve fills what is left, and pinned matches take no slot.
+    #[test]
+    fn rerank_picks_cap_each_document_and_fill_from_the_reserve() {
+        let mut results: Vec<HybridSearchResult> = (0..10)
+            .map(|i| HybridSearchResult { file_path: "docs/long.md".into(), ..result(&format!("long{i}"), "t", 1.0 - i as f64 * 0.01) })
+            .collect();
+        for i in 0..4 {
+            results.push(result(&format!("short{i}"), "t", 0.5 - i as f64 * 0.01));
+        }
+        results.insert(0, result("pinned", "t", 1.0));
+        let pinned: std::collections::HashSet<String> = ["pinned".to_string()].into_iter().collect();
+        let requests = vec![HybridSearchRequest { query_text: "first".into(), ..Default::default() }];
+        let chosen = rerank_picks(&results, &pinned, &HashMap::new(), &requests, 8);
+
+        assert_eq!(chosen.len(), 8);
+        assert!(!chosen.contains_key("pinned"));
+        assert!((0..4).all(|i| chosen.contains_key(&format!("short{i}"))), "{chosen:?}");
+        // 3 slots for the long document, plus 1 from its reserve in fusion order.
+        let long: Vec<usize> = (0..10).filter(|i| chosen.contains_key(&format!("long{i}"))).collect();
+        assert_eq!(long, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn rerank_picks_pair_each_candidate_with_its_best_question() {
+        let results = vec![result("a", "t", 0.03), result("b", "t", 0.02)];
+        let requests = vec![
+            HybridSearchRequest { query_text: "first".into(), ..Default::default() },
+            HybridSearchRequest { query_text: "second".into(), ..Default::default() },
+        ];
+        let best: HashMap<String, usize> = [("a".to_string(), 1), ("b".to_string(), 0)].into_iter().collect();
+        let chosen = rerank_picks(&results, &Default::default(), &best, &requests, 30);
+        assert_eq!(chosen["a"], "second");
+        assert_eq!(chosen["b"], "first");
     }
 
     /// BM25-only pipeline (no embedding provider): every hit is a single-list hit scored 1/(60 + rank).
@@ -1541,7 +1536,6 @@ mod tests {
                     workspace: workspace.clone(),
                     top_k: 8,
                     candidate_pool_k: 30,
-                    min_score: RRF_MIN_SCORE,
                     ..Default::default()
                 })
                 .unwrap();
@@ -1731,27 +1725,152 @@ mod tests {
     }
 
     #[test]
-    fn rrf_min_score_keeps_whole_pool() {
-        assert!(1.0 / (60.0 + 140.0) >= RRF_MIN_SCORE);
-    }
-
-    #[test]
-    fn batch_keeps_single_list_hits_at_rrf_min_score() {
-        let (pipeline, dir) = bm25_pipeline(
-            "min_score",
-            &[("only-bm25", "heron heron wading in the shallows", "heron.md", SAME_DAY)],
-        );
+    fn no_candidate_is_dropped_by_its_rrf_score() {
+        let chunks: Vec<(String, String, String)> = (0..30)
+            .map(|i| (format!("h{i:02}"), format!("heron {}", "wading ".repeat(i + 1)), format!("h{i:02}.md")))
+            .collect();
+        let refs: Vec<(&str, &str, &str, &str)> =
+            chunks.iter().map(|(id, text, file)| (id.as_str(), text.as_str(), file.as_str(), SAME_DAY)).collect();
+        let (pipeline, dir) = bm25_pipeline("no_cut", &refs);
         let results = pipeline
             .retrieve_hybrid_batch(vec![HybridSearchRequest {
                 query_text: "heron".to_string(),
-                min_score: RRF_MIN_SCORE,
+                top_k: 100,
+                candidate_pool_k: 30,
+                max_density_chars: usize::MAX,
                 ..Default::default()
             }])
             .unwrap();
         let _ = std::fs::remove_dir_all(dir);
 
-        assert_eq!(results.len(), 1, "a hit found by one list only must survive the floor");
-        assert_eq!(results[0].score, 1.0 / 61.0);
+        assert_eq!(results.len(), 30, "every candidate of a single list survives");
+        assert_eq!(results.last().unwrap().score, 1.0 / 90.0);
+    }
+
+    /// IMP-041: Deep fuses the lists of all sub-questions once; a chunk found by both scores the
+    /// sum of its RRF contributions (not of two finished results), and one found by one only keeps
+    /// its single contribution.
+    #[test]
+    fn a_batch_fuses_the_lists_of_every_sub_question_once() {
+        let (pipeline, dir) = bm25_pipeline(
+            "one_fusion",
+            &[("both", "falcon kestrel", "both.md", SAME_DAY), ("one", "falcon falcon falcon dive", "one.md", SAME_DAY)],
+        );
+        let sub = |id: &str, q: &str| HybridSearchRequest { sub_query_id: Some(id.into()), query_text: q.into(), ..Default::default() };
+        let results = pipeline.retrieve_hybrid_batch(vec![sub("q1", "falcon"), sub("q2", "kestrel")]).unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let both = results.iter().find(|r| r.chunk_id == "both").unwrap();
+        let one = results.iter().find(|r| r.chunk_id == "one").unwrap();
+        assert_eq!(both.matched_subqueries, vec!["q1".to_string(), "q2".to_string()]);
+        assert_eq!(one.matched_subqueries, vec!["q1".to_string()]);
+        // "both" is second for "falcon" and first for "kestrel".
+        assert!((both.score - (1.0 / 62.0 + 1.0 / 61.0)).abs() < 1e-12);
+        assert!((one.score - 1.0 / 61.0).abs() < 1e-12);
+        assert_eq!(results[0].chunk_id, "both");
+    }
+
+    /// IMP-041: a date mention gives its own list, ranked by LanceDB's order, with no invented
+    /// score: the chunk of the date range collects its date and dense contributions, nothing more.
+    #[test]
+    fn date_matches_are_their_own_list_without_an_invented_score() {
+        let (pipeline, dir) = bm25_pipeline("date_list", &[]);
+        let rows = vec![
+            stored_row("d_0", "the incident report", "2026-09-02-report.md", vec![0.0, 1.0, 0.0, 0.0]),
+            stored_row("x_0", "an unrelated note", "other.md", vec![1.0, 0.0, 0.0, 0.0]),
+        ];
+        pipeline.lance_store.upsert_records(rows, None, Some(4)).unwrap();
+        let results = pipeline
+            .search(HybridSearchRequest {
+                query_text: "what happened on 2026-09-02".to_string(),
+                query_vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
+                ..Default::default()
+            })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let score = |id: &str| results.iter().find(|r| r.chunk_id == id).unwrap().score;
+        // d_0: first of the date list, second of the dense list; x_0: first of the dense list.
+        assert!((score("d_0") - (1.0 / 61.0 + 1.0 / 62.0)).abs() < 1e-12, "{results:?}");
+        assert!((score("x_0") - 1.0 / 61.0).abs() < 1e-12, "{results:?}");
+    }
+
+    /// IMP-041: `Global`'s dense hits are a list of their own, so a chunk that `Default`'s dense
+    /// search also sees (BUG-023) collects one contribution from each list.
+    #[test]
+    fn global_dense_hits_are_their_own_list() {
+        let (mut pipeline, dir) = bm25_pipeline("global_list", &[]);
+        let own = stored_row("o_0", "own notes", "own.md", vec![1.0, 0.0, 0.0, 0.0]);
+        let global = crate::storage::VectorRecord {
+            workspace: "Global".into(),
+            file_path: "system://README.md".into(),
+            ..stored_row("g_0", "AnyContext guide", "README.md", vec![1.0, 0.0, 0.0, 0.0])
+        };
+        pipeline.lance_store.upsert_records(vec![own, global], None, Some(4)).unwrap();
+        pipeline.set_global_dense(true);
+        let results = pipeline
+            .search(HybridSearchRequest {
+                query_text: "zzz".to_string(),
+                query_vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
+                target_workspaces: vec!["Global".to_string()],
+                ..Default::default()
+            })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let score = |id: &str| results.iter().find(|r| r.chunk_id == id).unwrap().score;
+        // Equal similarities rank by chunk id: g_0 is first in `Default`'s list and in `Global`'s.
+        assert!((score("g_0") - 2.0 / 61.0).abs() < 1e-12, "{results:?}");
+        assert!((score("o_0") - 1.0 / 62.0).abs() < 1e-12, "{results:?}");
+    }
+
+    /// US1: in a Deep batch each candidate gets one cross-encoder score, against the
+    /// sub-question that ranked it best; nothing is summed across sub-questions.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_batch_reranks_each_candidate_once_against_its_best_question() {
+        let Some(reranker) = fixture_reranker() else { return };
+        let (mut pipeline, dir) = bm25_pipeline(
+            "batch_rerank",
+            &[("both", "falcon kestrel", "both.md", SAME_DAY), ("one", "falcon falcon falcon dive", "one.md", SAME_DAY)],
+        );
+        pipeline.set_reranker(Some(reranker.clone()));
+        let sub = |id: &str, q: &str| HybridSearchRequest { sub_query_id: Some(id.into()), query_text: q.into(), ..Default::default() };
+        let results = pipeline.retrieve_hybrid_batch_async(&[sub("q1", "falcon"), sub("q2", "kestrel")]).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        let expected = |q: &str, text: &str| reranker.score_batch(q, &[text.to_string()])[0] as f64;
+        let score = |id: &str| results.iter().find(|r| r.chunk_id == id).unwrap().score;
+        // "both" is first for "kestrel" and second for "falcon"; "one" is first for "falcon".
+        assert!((score("both") - expected("kestrel", "falcon kestrel")).abs() < 1e-4);
+        assert!((score("one") - expected("falcon", "falcon falcon falcon dive")).abs() < 1e-4);
+        assert_eq!(results.iter().find(|r| r.chunk_id == "both").unwrap().matched_subqueries, vec!["q1", "q2"]);
+    }
+
+    /// File-name matches form their own list and stay pinned on top; their dense score is the
+    /// real similarity, not an invented 1.0 (IMP-041).
+    #[test]
+    fn file_name_matches_are_their_own_list_and_stay_pinned() {
+        let (pipeline, dir) = bm25_pipeline("filename_list", &[("b_0", "kestrel kestrel kestrel guide", "beta.md", SAME_DAY)]);
+        let rows = vec![
+            stored_row("g_0", "the guide intro", "guide.md", vec![0.0, 1.0, 0.0, 0.0]),
+            stored_row("b_0", "kestrel kestrel kestrel guide", "beta.md", vec![1.0, 0.0, 0.0, 0.0]),
+        ];
+        pipeline.lance_store.upsert_records(rows, None, Some(4)).unwrap();
+        let results = pipeline
+            .search(HybridSearchRequest {
+                query_text: "kestrel guide.md".to_string(),
+                query_vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
+                ..Default::default()
+            })
+            .unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert_eq!(results[0].chunk_id, "g_0", "{results:?}");
+        assert_eq!(results[0].score, 1.0);
+        let g = &results[0];
+        assert!(g.dense_score.map_or(true, |d| d < 0.5), "no invented dense score: {:?}", g.dense_score);
+        let b = results.iter().find(|r| r.chunk_id == "b_0").unwrap();
+        assert!(b.score < 1.0);
     }
     /// Embedding provider with a fixed answer, for the query embedding outcome.
     struct FixedEmbedder(Result<Vec<Vec<f32>>, ()>);
@@ -1829,7 +1948,6 @@ mod tests {
             .search(HybridSearchRequest {
                 query_text: "kestrel".to_string(),
                 query_vector: Some(near),
-                min_score: RRF_MIN_SCORE,
                 ..Default::default()
             })
             .unwrap();
@@ -1921,7 +2039,6 @@ mod tests {
                 query_text: "kestrel timeouts".to_string(),
                 top_k: 8,
                 candidate_pool_k: 30,
-                min_score: RRF_MIN_SCORE,
                 ..Default::default()
             })
             .unwrap();
@@ -1985,7 +2102,6 @@ mod tests {
                 query_text: "onde ficam as notas".to_string(),
                 top_k: 8,
                 candidate_pool_k: 30,
-                min_score: 0.0,
                 ..Default::default()
             })
             .unwrap();
@@ -2026,7 +2142,6 @@ mod tests {
             target_workspaces: vec!["Global".to_string()],
             top_k: 8,
             candidate_pool_k: 30,
-            min_score: RRF_MIN_SCORE,
             ..Default::default()
         }
     }

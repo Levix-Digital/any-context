@@ -1,109 +1,120 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
+//! Reciprocal Rank Fusion (RRF) of any number of ranked lists (IMP-041).
+//!
+//! `RRF(d) = Σ 1 / (k + rank_m(d))` over every list `m` that contains `d` (1-based rank), with
+//! equal weights and k = 60 by default. Each list belongs to one question of the search (the Fast
+//! question, or one Deep sub-question), so a fused candidate also says which questions found it
+//! and which one ranked it best.
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RRFScoreResult {
-    pub id: String,
-    pub score: f64,
-    pub dense_rank: Option<usize>,
-    pub sparse_rank: Option<usize>,
+use std::collections::HashMap;
+
+/// Candidates of one retriever and one source for one question, best first.
+#[derive(Debug, Clone, Default)]
+pub struct RankedList {
+    /// Index of the question (request) the list belongs to.
+    pub query: usize,
+    pub ids: Vec<String>,
 }
 
-/// Computes Reciprocal Rank Fusion (RRF) across ranked candidate lists.
-///
-/// Formula:
-/// RRF_Score(d) = ∑ [ 1.0 / (k + rank_m(d)) ]
-///
-/// where rank_m(d) is the 1-based rank (1, 2, 3, ...) of document d in ranking list m.
-/// If document d is absent from a ranking list, its term for that list is 0.
-///
-/// Default k is 60.0, per standard literature and industrial vector search engines.
-pub fn reciprocal_rank_fusion(
-    dense_ids: &[String],
-    sparse_ids: &[String],
-    k: Option<usize>,
-) -> Vec<RRFScoreResult> {
-    let k_val = k.unwrap_or(60) as f64;
-    let mut scores: HashMap<String, (f64, Option<usize>, Option<usize>)> = HashMap::new();
+/// One chunk after fusion.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FusedCandidate {
+    pub id: String,
+    pub score: f64,
+    /// Questions whose lists contain the chunk, in ascending order.
+    pub queries: Vec<usize>,
+    /// Question of the chunk's highest single contribution (lowest index on a tie).
+    pub best_query: usize,
+}
 
-    // 1. Process dense rankings
-    for (idx, doc_id) in dense_ids.iter().enumerate() {
-        let rank_1_based = idx + 1;
-        let rrf_contrib = 1.0 / (k_val + rank_1_based as f64);
-        let entry = scores.entry(doc_id.clone()).or_insert((0.0, None, None));
-        entry.0 += rrf_contrib;
-        entry.1 = Some(rank_1_based);
+/// Fuses `lists` with RRF constant `k`. Order: score descending, then the best single
+/// contribution, then the id, so equal inputs always fuse the same way.
+pub fn fuse(lists: &[RankedList], k: usize) -> Vec<FusedCandidate> {
+    let k = k as f64;
+    // id -> (score, best contribution, best query, queries)
+    let mut acc: HashMap<&str, (f64, f64, usize, Vec<usize>)> = HashMap::new();
+    for list in lists {
+        for (idx, id) in list.ids.iter().enumerate() {
+            let contribution = 1.0 / (k + (idx + 1) as f64);
+            let entry = acc.entry(id.as_str()).or_insert((0.0, 0.0, list.query, Vec::new()));
+            entry.0 += contribution;
+            if contribution > entry.1 || (contribution == entry.1 && list.query < entry.2) {
+                entry.1 = contribution;
+                entry.2 = list.query;
+            }
+            if !entry.3.contains(&list.query) {
+                entry.3.push(list.query);
+            }
+        }
     }
 
-    // 2. Process sparse (BM25) rankings
-    for (idx, doc_id) in sparse_ids.iter().enumerate() {
-        let rank_1_based = idx + 1;
-        let rrf_contrib = 1.0 / (k_val + rank_1_based as f64);
-        let entry = scores.entry(doc_id.clone()).or_insert((0.0, None, None));
-        entry.0 += rrf_contrib;
-        entry.2 = Some(rank_1_based);
-    }
-
-    // 3. Convert to result list and sort descending by score
-    let mut results: Vec<RRFScoreResult> = scores
+    let mut fused: Vec<(FusedCandidate, f64)> = acc
         .into_iter()
-        .map(|(id, (score, dense_rank, sparse_rank))| RRFScoreResult {
-            id,
-            score,
-            dense_rank,
-            sparse_rank,
+        .map(|(id, (score, best, best_query, mut queries))| {
+            queries.sort_unstable();
+            (FusedCandidate { id: id.to_string(), score, queries, best_query }, best)
         })
         .collect();
-
-    // Sort descending by RRF score; break ties with lower dense rank, then lower sparse rank
-    results.sort_by(|a, b| {
+    fused.sort_by(|(a, a_best), (b, b_best)| {
         b.score
             .partial_cmp(&a.score)
             .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| {
-                let a_d = a.dense_rank.unwrap_or(usize::MAX);
-                let b_d = b.dense_rank.unwrap_or(usize::MAX);
-                a_d.cmp(&b_d)
-            })
-            .then_with(|| {
-                let a_s = a.sparse_rank.unwrap_or(usize::MAX);
-                let b_s = b.sparse_rank.unwrap_or(usize::MAX);
-                a_s.cmp(&b_s)
-            })
+            .then_with(|| b_best.partial_cmp(a_best).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| a.id.cmp(&b.id))
     });
-
-    results
+    fused.into_iter().map(|(c, _)| c).collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_rrf_both_top1() {
-        let dense = vec!["doc_a".to_string(), "doc_b".to_string()];
-        let sparse = vec!["doc_a".to_string(), "doc_c".to_string()];
-
-        let fused = reciprocal_rank_fusion(&dense, &sparse, Some(60));
-        assert_eq!(fused[0].id, "doc_a");
-        // Score = 1/(60+1) + 1/(60+1) = 2/61 ≈ 0.03278
-        let expected = (1.0 / 61.0) + (1.0 / 61.0);
-        assert!((fused[0].score - expected).abs() < 1e-6);
-        assert_eq!(fused[0].dense_rank, Some(1));
-        assert_eq!(fused[0].sparse_rank, Some(1));
+    fn list(query: usize, ids: &[&str]) -> RankedList {
+        RankedList { query, ids: ids.iter().map(|s| s.to_string()).collect() }
     }
 
     #[test]
-    fn test_rrf_exact_code_bm25_boost() {
-        // doc_exact was rank 1 in BM25, not in dense top-2
-        // doc_sem was rank 1 in dense, not in BM25 top-2
-        let dense = vec!["doc_sem".to_string(), "doc_other".to_string()];
-        let sparse = vec!["doc_exact".to_string(), "doc_sem".to_string()];
+    fn a_chunk_first_in_two_lists_scores_both_contributions() {
+        let fused = fuse(&[list(0, &["a", "b"]), list(0, &["a", "c"])], 60);
+        assert_eq!(fused[0].id, "a");
+        assert!((fused[0].score - 2.0 / 61.0).abs() < 1e-12);
+        assert_eq!(fused.len(), 3);
+    }
 
-        let fused = reciprocal_rank_fusion(&dense, &sparse, Some(60));
-        // doc_sem is in both (dense rank 1, sparse rank 2) -> 1/61 + 1/62 ≈ 0.0325
-        // doc_exact is rank 1 in sparse only -> 1/61 ≈ 0.01639
-        assert_eq!(fused[0].id, "doc_sem");
-        assert_eq!(fused[1].id, "doc_exact");
+    #[test]
+    fn a_chunk_in_both_lists_beats_a_first_place_in_one() {
+        let fused = fuse(&[list(0, &["sem", "other"]), list(0, &["exact", "sem"])], 60);
+        assert_eq!(fused[0].id, "sem");
+        assert_eq!(fused[1].id, "exact");
+    }
+
+    #[test]
+    fn every_list_counts_in_one_fusion() {
+        let lists: Vec<RankedList> = (0..5).map(|q| list(q, &["x", "y"])).collect();
+        let fused = fuse(&lists, 60);
+        assert!((fused[0].score - 5.0 / 61.0).abs() < 1e-12);
+        assert_eq!(fused[0].queries, vec![0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn the_best_query_is_the_highest_single_contribution() {
+        // "c" is third for question 0 and first for question 1.
+        let fused = fuse(&[list(0, &["a", "b", "c"]), list(1, &["c"])], 60);
+        let c = fused.iter().find(|f| f.id == "c").unwrap();
+        assert_eq!(c.queries, vec![0, 1]);
+        assert_eq!(c.best_query, 1);
+        // On a tie, the lower question index wins.
+        let fused = fuse(&[list(1, &["d"]), list(0, &["d"])], 60);
+        assert_eq!(fused[0].best_query, 0);
+    }
+
+    #[test]
+    fn ties_are_ordered_by_id() {
+        let fused = fuse(&[list(0, &["b"]), list(0, &["a"])], 60);
+        assert_eq!(fused.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+    }
+
+    #[test]
+    fn no_lists_give_nothing() {
+        assert!(fuse(&[], 60).is_empty());
     }
 }

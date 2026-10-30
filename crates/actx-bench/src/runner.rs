@@ -13,6 +13,7 @@ use any_context_core_rs::ingestion::{
     find_embedding_model, resolve_query_embedding, EmbeddingModelSpec, EmbeddingTarget, NativeSyncOrchestrator, OnnxModelManager,
     SyncOptions, DEFAULT_RERANKER_ID,
 };
+use any_context_core_rs::hardware::ProfileTier;
 use any_context_core_rs::retrieval::{fast_request, HybridSearchRequest, HybridSearchResult, NativeHybridPipeline};
 use any_context_core_rs::storage::{NativeConfigDb, NativeLanceStore};
 
@@ -275,10 +276,15 @@ async fn load_reranker() -> Result<Arc<actx_onnx::OnnxReranker>, String> {
     Ok(Arc::new(reranker))
 }
 
-/// The product's Fast request, without `Global` (AnyContext's own documentation is not benchmarked).
+/// Hardware profile of the benchmark: the standard one, so the reranker depth is the Fast default.
+const PROFILE: ProfileTier = ProfileTier::SmartBalanced;
+
+/// The product's Fast request, without `Global` (AnyContext's own documentation is not benchmarked)
+/// and without the reranking time budget, so the depth never depends on the machine's speed.
 pub fn delivered_request(query: &str) -> HybridSearchRequest {
-    let mut req = fast_request(query, WORKSPACE, "on");
+    let mut req = fast_request(query, WORKSPACE, "on", PROFILE);
     req.target_workspaces.clear();
+    req.rerank_budget_ms = None;
     req
 }
 
@@ -338,7 +344,7 @@ mod tests {
 
     #[test]
     fn requests_follow_the_product_fast_request() {
-        let product = fast_request("q", WORKSPACE, "on");
+        let product = fast_request("q", WORKSPACE, "on", PROFILE);
         let delivered = delivered_request("q");
         assert!(delivered.target_workspaces.is_empty());
         assert_eq!((delivered.top_k, delivered.candidate_pool_k, delivered.max_density_chars), (product.top_k, product.candidate_pool_k, product.max_density_chars));
@@ -346,6 +352,7 @@ mod tests {
         assert_eq!((ranking.top_k, ranking.max_density_chars), (DEPTH, usize::MAX));
         assert_eq!(ranking.candidate_pool_k, product.candidate_pool_k);
         assert_eq!(ranking.rerank_mode.as_deref(), Some("on"));
+        assert_eq!((ranking.rerank_depth, ranking.rerank_budget_ms), (product.rerank_depth, None));
     }
 
     #[test]

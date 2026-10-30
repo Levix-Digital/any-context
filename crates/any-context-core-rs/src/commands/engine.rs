@@ -1882,10 +1882,9 @@ impl CommandEngine {
                     return CommandResult::success(format!(
                         "⚡ Neural Cross-Encoder Re-Ranking mode set to: **ON**{}\n\n\
                          • Model: {}\n\
-                         • Execution: ONNX Runtime on CPU (top {} candidates re-scored per query)",
+                         • Execution: ONNX Runtime on CPU (the best fused candidates re-scored per search, as many as the mode and hardware profile allow)",
                         availability_note(),
-                        spec.name,
-                        crate::retrieval::pipeline::MAX_RERANK_CANDIDATES
+                        spec.name
                     ))
                     .with_state_updates(updates);
                 }
@@ -1963,6 +1962,12 @@ impl CommandEngine {
 
         // Status view
         let (active_name, active_detail, is_active) = OnnxModelManager::active_reranker_state();
+        let tier = crate::storage::NativeConfigDb::open_default()
+            .ok()
+            .map(|d| crate::ingestion::embedding::active_profile(&d))
+            .unwrap_or(crate::hardware::ProfileTier::SmartBalanced);
+        let depth_fast = crate::retrieval::rerank_depth::profile_depth(tier, crate::retrieval::SearchMode::Fast);
+        let depth_deep = crate::retrieval::rerank_depth::profile_depth(tier, crate::retrieval::SearchMode::Deep);
         let badge = if is_active { "🟢 Neural" } else { "⚪ RRF Fallback" };
         let disk_info = if is_installed {
             let size = OnnxModelManager::installed_size(spec).unwrap_or(0);
@@ -1976,7 +1981,7 @@ impl CommandEngine {
             None => "ONNX Runtime library location unknown".to_string(),
         };
         let latency = crate::retrieval::pipeline::last_rerank_latency_ms()
-            .map(|ms| format!("{} ms (last neural pass in this session)", ms))
+            .map(|ms| format!("{} ms for {} candidates (last neural pass in this session)", ms, crate::retrieval::pipeline::last_rerank_candidates()))
             .unwrap_or_else(|| "n/a (no neural pass yet in this session)".to_string());
         let requested_device = &ctx.execution_device;
         let device_note = match actx_onnx::ExecutionDevice::parse_str(requested_device) {
@@ -1996,7 +2001,7 @@ impl CommandEngine {
              • Latency: {}\n\n\
              **Two-Stage Pipeline Flow**:\n\
              1. Stage 1 (High Recall): LanceDB Cosine + BM25 Okapi -> Reciprocal Rank Fusion (k=60)\n\
-             2. Stage 2 (High Precision): cross-encoder re-scores the top {} candidates (sigmoid scores in [0,1])\n\
+             2. Stage 2 (High Precision): cross-encoder re-scores up to {} candidates in Fast and {} in Deep on this profile, at most {} per document, within {} s / {} s (sigmoid scores in [0,1])\n\
              3. Delivery: Source Diversification -> Density Budgeting -> U-Shaped Reordering -> XML Isolation\n\n\
              *Tip*: `/rerank on|off|auto` switches the policy; `/rerank model` lists models.",
             ctx.rerank_mode.to_uppercase(),
@@ -2009,7 +2014,11 @@ impl CommandEngine {
             runtime_info,
             device_note,
             latency,
-            crate::retrieval::pipeline::MAX_RERANK_CANDIDATES
+            depth_fast,
+            depth_deep,
+            crate::retrieval::rerank_depth::PER_DOCUMENT_RERANK_SLOTS,
+            crate::retrieval::rerank_depth::time_budget_ms(crate::retrieval::SearchMode::Fast) / 1000,
+            crate::retrieval::rerank_depth::time_budget_ms(crate::retrieval::SearchMode::Deep) / 1000
         ))
     }
 

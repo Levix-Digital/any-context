@@ -8,7 +8,7 @@ subsystems: [retrieval]
 supersedes: []
 superseded_by: []
 amends: [76, 116]
-amended_by: []
+amended_by: [156]
 ---
 
 # ADR-0139: Retrieval order follows relevance
